@@ -1,28 +1,20 @@
 import sqlite3
 
+from pathlib import Path
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import START, StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from backend.settings import ALLOWED_MODELS, DEFAULT_OPENAI_MODEL, settings
+from backend.settings import settings
 from backend.tools import tools
 
 
-SYSTEM_PROMPT = """
-You are the DeliR Consultant Operating Brain.
+PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
 
-Your job is to learn how the consultant thinks, sells, delivers, communicates,
-and uses DeliR. You understand the consultant broadly, while applying a
-specialized BPMN 2.0 / process-consulting layer when the task involves process
-mapping, discovery, governance, as-is/to-be analysis, automation, or validation.
-
-Do not reduce every conversation to BPMN. Use the process layer only when the
-user intent requires it. Save durable consultant facts and preferences through
-memory tools when available.
-"""
-
+def load_procedural_memory() -> str:
+    return PROCEDURAL_MEMORY_PATH.read_text(encoding="utf-8").strip()
 
 def normalize_model_name(model_name: str | None = None) -> str:
     if not model_name:
@@ -51,7 +43,7 @@ def build_agent(model_name: str | None = None):
     llm_with_tools = llm.bind_tools(tools)
 
     def chatbot_node(state: MessagesState):
-        messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+        messages = [SystemMessage(content=load_procedural_memory())] + state["messages"]
         response = llm_with_tools.invoke(messages)
         return {"messages": [response]}
 

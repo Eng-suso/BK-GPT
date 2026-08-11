@@ -1,18 +1,12 @@
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
 
-from backend import settings
+from backend.settings import settings
 from backend.memory.semantic.semantic_store import (
     save_consultant_memory,
     search_consultant_memory,
     save_bpmn_preference,
     search_bpmn_preferences,
-)
-
-_tavily = (
-    TavilySearch(max_results=settings.tavily_max_results)
-    if settings.tavily_api_key
-    else None
 )
 
 def format_web_results(response, reason: str) -> str:
@@ -25,10 +19,14 @@ def web_research(query: str, reason: str) -> str:
     Use only for market, competitor, regulatory, technology, news, or source-validation questions.
     Do not use for consultant memory or internal project context.
     """
-    if _tavily is None:
+    if settings.tavily_api_key is None:
         return "Web research is disabled: TAVILY_API_KEY is missing."
 
-    response = _tavily.invoke({"query": query})
+    tavily = TavilySearch(
+        max_results=settings.tavily_max_results,
+        tavily_api_key=settings.tavily_api_key,
+    )
+    response = tavily.invoke({"query": query})
 
     return format_web_results(response, reason)
 
@@ -61,4 +59,5 @@ tools = [
     recall_consultant_memory,
     remember_bpmn_preference,
     recall_bpmn_preferences,
+    web_research,
 ]
