@@ -19,6 +19,7 @@ dependencies = [
     "langchain-text-splitters==1.1.2",
     "langgraph==1.2.2",
     "langgraph-checkpoint-sqlite==3.1.0",
+    "mem0ai>=2.0.17",
     "openai>=2.53.0",
     "pypdf==6.12.2",
     "python-dotenv==1.2.2",

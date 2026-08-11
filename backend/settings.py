@@ -43,3 +43,28 @@ ALLOWED_MODELS = {
     "gpt-5.6-luna"
 }
 Path('data').mkdir(exist_ok=True)
+
+
+# Step 1 — Install the SDK (run in your terminal, not in Python):
+#pip install mem0ai
+
+# Step 2 — Save this as mem0_quickstart.py and run with: python mem0_quickstart.py
+import os
+from mem0 import MemoryClient
+
+# Set your API key (get one at https://app.mem0.ai)
+client = MemoryClient(api_key=os.getenv("MEM0_API_KEY", "your-api-key-here"))
+
+# Add a memory
+messages = [
+    {"role": "user", "content": "I'm a vegetarian and allergic to nuts."},
+    {"role": "assistant", "content": "Got it! I'll remember your dietary preferences."},
+]
+client.add(messages, user_id="user123")
+
+# Search memories
+results = client.search(
+    "What are my dietary restrictions?",
+    user_id="user123",
+)
+print(results)
