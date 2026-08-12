@@ -1,13 +1,14 @@
 import sqlite3
 
 from pathlib import Path
+from langchain_core.messages import AIMessage
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import START, StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from backend.settings import settings
+from backend.settings import ALLOWED_MODELS, DEFAULT_OPENAI_MODEL, settings
 from backend.tools import tools
 
 
@@ -33,19 +34,25 @@ def build_agent(model_name: str | None = None):
 
     llm = ChatOpenAI(
         model=selected_model,
+        api_key=settings.openai_api_key,
         temperature=settings.model_temperature,
         max_tokens=settings.model_max_tokens,
         timeout=settings.model_timeout_seconds,
         max_retries=settings.model_max_retries,
         streaming=True,
+        reasoning_effort="none",
     )
 
     llm_with_tools = llm.bind_tools(tools)
 
     def chatbot_node(state: MessagesState):
         messages = [SystemMessage(content=load_procedural_memory())] + state["messages"]
-        response = llm_with_tools.invoke(messages)
-        return {"messages": [response]}
+        response = None
+
+        for chunk in llm_with_tools.stream(messages):
+            response = chunk if response is None else response + chunk
+
+        return {"messages": [response or AIMessage(content="")]}
 
     workflow = StateGraph(MessagesState)
     workflow.add_node("chatbot", chatbot_node)

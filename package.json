@@ -1,0 +1,8 @@
+{
+  "name": "suso-gpt",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev.ps1"
+  }
+}

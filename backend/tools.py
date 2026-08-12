@@ -3,6 +3,7 @@ from langchain_tavily import TavilySearch
 
 from backend.settings import settings
 from backend.memory.semantic.semantic_store import (
+    delete_consultant_memory,
     save_consultant_memory,
     search_consultant_memory,
     save_bpmn_preference,
@@ -43,6 +44,16 @@ def recall_consultant_memory(query: str, category: str | None = None) -> str:
 
 
 @tool
+def forget_consultant_memory(memory_id: str, delete_linked: bool = False) -> str:
+    """
+    Delete one specific semantic memory by its Mem0 memory_id.
+    Use only when the user explicitly asks to remove a specific memory.
+    If the user did not provide a memory_id, search memory first and ask which memory to delete.
+    """
+    return delete_consultant_memory(memory_id=memory_id, delete_linked=delete_linked)
+
+
+@tool
 def remember_bpmn_preference(rule: str, area: str) -> str:
     """Save a BPMN/process modeling preference for this consultant."""
     return save_bpmn_preference(rule=rule, area=area)
@@ -57,6 +68,7 @@ def recall_bpmn_preferences(query: str, area: str | None = None) -> str:
 tools = [
     remember_consultant_fact,
     recall_consultant_memory,
+    forget_consultant_memory,
     remember_bpmn_preference,
     recall_bpmn_preferences,
     web_research,

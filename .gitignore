@@ -1,12 +1,55 @@
-# Python-generated files
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Python generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
-# Virtual environments
-.venv
-.env
+# Virtual environments and package caches
+.venv/
+venv/
+env/
+.uv-cache/
 
+# Node/npm local files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data: local chat history, LangGraph checkpoints, sqlite WAL files
+data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+
+# Local logs and process output
+*.log
+backend_server*.log
+
+# Local-only helper scripts
+scripts/dev.ps1
+
+# Deployment and editor local state
+.vercel/
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

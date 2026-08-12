@@ -30,6 +30,25 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
+
+def configure_langsmith_environment() -> None:
+    if not settings.langsmith_tracing:
+        return
+
+    os.environ.setdefault("LANGSMITH_TRACING", "true")
+
+    if settings.langsmith_api_key:
+        os.environ.setdefault("LANGSMITH_API_KEY", settings.langsmith_api_key)
+
+    if settings.langsmith_endpoint:
+        os.environ.setdefault("LANGSMITH_ENDPOINT", settings.langsmith_endpoint)
+
+    if settings.langsmith_project:
+        os.environ.setdefault("LANGSMITH_PROJECT", settings.langsmith_project)
+
+
+configure_langsmith_environment()
+
 DEFAULT_OPENAI_MODEL = os.getenv("OPENAI_MODEL", settings.openai_model)
 
 ALLOWED_MODELS = {
