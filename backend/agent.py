@@ -2,6 +2,7 @@ import sqlite3
 
 from pathlib import Path
 from langchain_core.messages import AIMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -13,9 +14,85 @@ from backend.tools import tools
 
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
+RECENT_MESSAGE_LIMIT = 10
+SUMMARY_TRIGGER_MESSAGE_COUNT = 16
+SUMMARY_KEEP_RECENT_MESSAGES = 10
+
+
+class ConsultantState(MessagesState):
+    running_summary: str
+    summarized_message_count: int
 
 def load_procedural_memory() -> str:
     return PROCEDURAL_MEMORY_PATH.read_text(encoding="utf-8").strip()
+
+
+def build_context_messages(state: ConsultantState):
+    messages = [SystemMessage(content=load_procedural_memory())]
+    running_summary = state.get("running_summary")
+
+    if running_summary:
+        messages.append(
+            SystemMessage(
+                content=(
+                    "Running conversation summary. Use this as compressed "
+                    "context from earlier in the thread, not as a substitute "
+                    "for the user's latest instructions.\n\n"
+                    f"{running_summary}"
+                )
+            )
+        )
+
+    return messages + state["messages"][-RECENT_MESSAGE_LIMIT:]
+
+
+def message_to_summary_line(message) -> str:
+    role = getattr(message, "type", None) or getattr(message, "role", "message")
+    content = getattr(message, "content", "")
+
+    if isinstance(content, list):
+        content = " ".join(
+            str(item.get("text") or item.get("content") or item)
+            if isinstance(item, dict)
+            else str(item)
+            for item in content
+        )
+
+    return f"{role}: {str(content).strip()}"
+
+
+def build_summary_prompt(existing_summary: str, messages_to_summarize: list) -> list:
+    transcript = "\n".join(
+        line
+        for line in (message_to_summary_line(message) for message in messages_to_summarize)
+        if line.strip()
+    )
+
+    return [
+        SystemMessage(
+            content=(
+                "You maintain the working-memory running summary for a consultant assistant. "
+                "Update the summary using only the new conversation messages. Keep it concise, "
+                "operational, and useful for future turns. Preserve confirmed decisions, current "
+                "goal, constraints, open questions, pending actions, and important context. "
+                "Do not invent facts."
+            )
+        ),
+        HumanMessage(
+            content=(
+                "Existing running summary:\n"
+                f"{existing_summary or 'None yet.'}\n\n"
+                "New messages to fold into the summary:\n"
+                f"{transcript}\n\n"
+                "Return the updated running summary with these sections when relevant:\n"
+                "Current objective:\n"
+                "Confirmed decisions:\n"
+                "Important context:\n"
+                "Open questions:\n"
+                "Pending actions:"
+            )
+        ),
+    ]
 
 def normalize_model_name(model_name: str | None = None) -> str:
     if not model_name:
@@ -45,8 +122,37 @@ def build_agent(model_name: str | None = None):
 
     llm_with_tools = llm.bind_tools(tools)
 
-    def chatbot_node(state: MessagesState):
-        messages = [SystemMessage(content=load_procedural_memory())] + state["messages"]
+    def summarize_node(state: ConsultantState):
+        messages = state["messages"]
+
+        if len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT:
+            return {}
+
+        cutoff = max(len(messages) - SUMMARY_KEEP_RECENT_MESSAGES, 0)
+        summarized_message_count = state.get("summarized_message_count", 0)
+
+        if cutoff <= summarized_message_count:
+            return {}
+
+        messages_to_summarize = messages[summarized_message_count:cutoff]
+
+        if not messages_to_summarize:
+            return {}
+
+        summary_response = llm.invoke(
+            build_summary_prompt(
+                existing_summary=state.get("running_summary", ""),
+                messages_to_summarize=messages_to_summarize,
+            )
+        )
+
+        return {
+            "running_summary": str(summary_response.content).strip(),
+            "summarized_message_count": cutoff,
+        }
+
+    def chatbot_node(state: ConsultantState):
+        messages = build_context_messages(state)
         response = None
 
         for chunk in llm_with_tools.stream(messages):
@@ -54,11 +160,13 @@ def build_agent(model_name: str | None = None):
 
         return {"messages": [response or AIMessage(content="")]}
 
-    workflow = StateGraph(MessagesState)
+    workflow = StateGraph(ConsultantState)
+    workflow.add_node("summarize", summarize_node)
     workflow.add_node("chatbot", chatbot_node)
     workflow.add_node("tools", ToolNode(tools))
 
-    workflow.add_edge(START, "chatbot")
+    workflow.add_edge(START, "summarize")
+    workflow.add_edge("summarize", "chatbot")
     workflow.add_conditional_edges("chatbot", tools_condition)
     workflow.add_edge("tools", "chatbot")
 
