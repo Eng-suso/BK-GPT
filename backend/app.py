@@ -23,6 +23,8 @@ from backend.memory.semantic.semantic_store import (
     search_consultant_memory,
 )
 
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI()
 
 app.add_middleware(
@@ -33,7 +35,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-FRONTEND_INDEX = Path(__file__).resolve().parent.parent / "frontend" / "index.html"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
+DIST_DIR = FRONTEND_DIR / "dist"
+
+if DIST_DIR.exists() and (DIST_DIR / "index.html").exists():
+    FRONTEND_INDEX = DIST_DIR / "index.html"
+    if (DIST_DIR / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=DIST_DIR / "assets"), name="assets")
+else:
+    FRONTEND_INDEX = FRONTEND_DIR / "index.html"
+
+if (FRONTEND_DIR / "styles").exists():
+    app.mount("/styles", StaticFiles(directory=FRONTEND_DIR / "styles"), name="styles")
+if (FRONTEND_DIR / "src").exists():
+    app.mount("/src", StaticFiles(directory=FRONTEND_DIR / "src"), name="src")
+
 _THREAD_LOCKS: dict[str, Lock] = {}
 _THREAD_LOCKS_GUARD = Lock()
 

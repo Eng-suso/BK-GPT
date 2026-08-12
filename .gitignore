@@ -9,6 +9,8 @@ __pycache__/
 *$py.class
 build/
 dist/
+frontend/dist/
+frontend_dist/
 wheels/
 *.egg-info/
 .pytest_cache/
