@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.6-luna"
+    openai_transcription_model: str = "gpt-4o-transcribe-diarize"
+    openai_live_transcription_model: str = "gpt-live-transcribe"
 
     tavily_api_key: str | None = None
 

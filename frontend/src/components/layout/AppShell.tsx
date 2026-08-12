@@ -27,6 +27,7 @@ interface AppShellProps {
   onShare?: () => void;
   onSelectPrompt?: (prompt: string) => void;
   onSendMessage?: (content: string) => void;
+  onTranscribeAudio?: (file: File) => Promise<string>;
   onRetry?: () => void;
   onAttach?: () => void;
   onVoice?: () => void;
@@ -52,6 +53,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   onShare,
   onSelectPrompt,
   onSendMessage,
+  onTranscribeAudio,
   onRetry,
   onAttach,
   onVoice,
@@ -143,6 +145,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             selectedModel={selectedModel}
             isBusy={isBusy}
             onSubmit={onSendMessage}
+            onTranscribeAudio={onTranscribeAudio}
             onAttach={onAttach}
             onVoice={onVoice}
             onModelChange={onModelChange}

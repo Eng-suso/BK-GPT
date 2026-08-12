@@ -102,6 +102,25 @@ export const App: React.FC = () => {
     return res.json();
   };
 
+  const transcribeAudio = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("language", "it");
+
+    const res = await fetch(`${API_BASE}/v1/audio/transcriptions`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => null);
+      throw new Error(errorBody?.detail || "Trascrizione audio fallita");
+    }
+
+    const data = await res.json();
+    return String(data.text || "").trim();
+  };
+
   const ensureSession = async (firstMessage = ""): Promise<ChatSession> => {
     if (activeSession) return activeSession;
     const data = await createBackendSession();
@@ -249,9 +268,10 @@ export const App: React.FC = () => {
         }}
         onSelectPrompt={sendMessage}
         onSendMessage={sendMessage}
+        onTranscribeAudio={transcribeAudio}
         onRetry={() => lastUserPrompt && sendMessage(lastUserPrompt)}
-        onAttach={() => showToast("Allegati non ancora esposti.")}
-        onVoice={() => showToast("Input vocale non ancora esposto.")}
+        onAttach={() => showToast("Carica un file audio da trascrivere.")}
+        onVoice={() => showToast("Registrazione vocale pronta.")}
         onModelChange={setSelectedModel}
       />
 

@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 PROCEDURAL_DIR = Path(__file__).resolve().parent
 SKILLS_DIR = PROCEDURAL_DIR / "skills"
 
-MAX_SKILLS_PER_TURN = 2
+MAX_SKILLS_PER_TURN = 4
 
 
 class SkillSelector(Protocol):
@@ -139,6 +139,23 @@ def build_selection_prompt(user_text: str, registry: list[ProceduralSkill]) -> l
     ]
 
 
+def normalize_selected_skill_names(raw_skills, valid_names: set[str]) -> list[str]:
+    if not isinstance(raw_skills, list):
+        return []
+
+    selected = []
+
+    for raw_name in raw_skills:
+        skill_name = normalize_skill_name(str(raw_name))
+        if skill_name in valid_names and skill_name not in selected:
+            selected.append(skill_name)
+
+        if len(selected) >= MAX_SKILLS_PER_TURN:
+            break
+
+    return selected
+
+
 def parse_selector_response(content: str, valid_names: set[str]) -> list[str]:
     text = str(content or "").strip()
 
@@ -154,22 +171,7 @@ def parse_selector_response(content: str, valid_names: set[str]) -> list[str]:
     except json.JSONDecodeError:
         return []
 
-    raw_skills = payload.get("skills", [])
-
-    if not isinstance(raw_skills, list):
-        return []
-
-    selected = []
-
-    for raw_name in raw_skills:
-        skill_name = normalize_skill_name(str(raw_name))
-        if skill_name in valid_names and skill_name not in selected:
-            selected.append(skill_name)
-
-        if len(selected) >= MAX_SKILLS_PER_TURN:
-            break
-
-    return selected
+    return normalize_selected_skill_names(payload.get("skills", []), valid_names)
 
 
 def select_procedural_skills(messages: list, selector_llm: SkillSelector | None) -> list[str]:
@@ -206,8 +208,10 @@ def load_skill_markdown(skill_name: str) -> str:
     return ""
 
 
-def build_skill_context(messages: list, selector_llm: SkillSelector | None = None) -> str:
-    selected_skills = select_procedural_skills(messages, selector_llm)
+def build_skill_context_from_names(skill_names: list[str]) -> str:
+    registry = load_skill_registry()
+    valid_names = {skill.name for skill in registry}
+    selected_skills = normalize_selected_skill_names(skill_names, valid_names)
 
     if not selected_skills:
         return ""
@@ -230,3 +234,9 @@ def build_skill_context(messages: list, selector_llm: SkillSelector | None = Non
         "Do not mention skill loading unless the user asks.\n\n"
         + "\n\n---\n\n".join(loaded_skills)
     )
+
+
+def build_skill_context(messages: list, selector_llm: SkillSelector | None = None) -> str:
+    selected_skills = select_procedural_skills(messages, selector_llm)
+
+    return build_skill_context_from_names(selected_skills)

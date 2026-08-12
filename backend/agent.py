@@ -11,7 +11,10 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from backend.settings import ALLOWED_MODELS, DEFAULT_OPENAI_MODEL, settings
 from backend.tools import tools
-from backend.memory.procedural.skill_loader import build_skill_context
+from backend.memory.consultant_context_classifier import (
+    classify_and_select_context,
+    format_classification_context,
+)
 
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
@@ -23,6 +26,14 @@ SUMMARY_KEEP_RECENT_MESSAGES = 10
 class ConsultantState(MessagesState):
     running_summary: str
     summarized_message_count: int
+    consultant_context_category: str
+    consultant_context_confidence: float
+    memory_type: str
+    should_save_memory: bool
+    suggested_memory_category: str | None
+    consultant_context_reason: str
+    active_skill_names: list[str]
+    skill_selection_reason: str
     active_skill_context: str
 
 def load_procedural_memory() -> str:
@@ -31,7 +42,11 @@ def load_procedural_memory() -> str:
 
 def build_context_messages(state: ConsultantState):
     messages = [SystemMessage(content=load_procedural_memory())]
+    classification_context = format_classification_context(state)
     skill_context = state.get("active_skill_context")
+
+    if classification_context:
+        messages.append(SystemMessage(content=classification_context))
 
     if skill_context:
         messages.append(SystemMessage(content=skill_context))
@@ -128,11 +143,11 @@ def build_agent(model_name: str | None = None):
     )
 
     llm_with_tools = llm.bind_tools(tools)
-    skill_selector_llm = ChatOpenAI(
+    context_router_llm = ChatOpenAI(
         model=selected_model,
         api_key=settings.openai_api_key,
         temperature=settings.model_temperature,
-        max_tokens=256,
+        max_tokens=512,
         timeout=settings.model_timeout_seconds,
         max_retries=settings.model_max_retries,
         streaming=False,
@@ -168,13 +183,11 @@ def build_agent(model_name: str | None = None):
             "summarized_message_count": cutoff,
         }
 
-    def select_skills_node(state: ConsultantState):
-        return {
-            "active_skill_context": build_skill_context(
-                state["messages"],
-                selector_llm=skill_selector_llm,
-            )
-        }
+    def classify_and_select_context_node(state: ConsultantState):
+        return classify_and_select_context(
+            state["messages"],
+            classifier_llm=context_router_llm,
+        )
 
     def chatbot_node(state: ConsultantState):
         messages = build_context_messages(state)
@@ -187,13 +200,13 @@ def build_agent(model_name: str | None = None):
 
     workflow = StateGraph(ConsultantState)
     workflow.add_node("summarize", summarize_node)
-    workflow.add_node("select_skills", select_skills_node)
+    workflow.add_node("classify_and_select_context", classify_and_select_context_node)
     workflow.add_node("chatbot", chatbot_node)
     workflow.add_node("tools", ToolNode(tools))
 
     workflow.add_edge(START, "summarize")
-    workflow.add_edge("summarize", "select_skills")
-    workflow.add_edge("select_skills", "chatbot")
+    workflow.add_edge("summarize", "classify_and_select_context")
+    workflow.add_edge("classify_and_select_context", "chatbot")
     workflow.add_conditional_edges("chatbot", tools_condition)
     workflow.add_edge("tools", "chatbot")
 
