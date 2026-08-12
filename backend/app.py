@@ -326,7 +326,7 @@ async def live_audio_transcription(websocket: WebSocket):
         await websocket.close(code=1011)
         return
 
-    openai_url = f"wss://api.openai.com/v1/realtime?model={settings.openai_live_transcription_model}"
+    openai_url = "wss://api.openai.com/v1/realtime?intent=transcription"
     headers = {
         "Authorization": f"Bearer {settings.openai_api_key}",
     }
@@ -337,6 +337,23 @@ async def live_audio_transcription(websocket: WebSocket):
             additional_headers=headers,
             max_size=8 * 1024 * 1024,
         ) as openai_ws:
+            commit_lock = asyncio.Lock()
+            has_uncommitted_audio = False
+
+            async def commit_audio_buffer() -> None:
+                nonlocal has_uncommitted_audio
+
+                async with commit_lock:
+                    if not has_uncommitted_audio:
+                        return
+
+                    try:
+                        await openai_ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+                    except websockets.exceptions.ConnectionClosed:
+                        return
+
+                    has_uncommitted_audio = False
+
             await openai_ws.send(
                 json.dumps(
                     {
@@ -367,6 +384,8 @@ async def live_audio_transcription(websocket: WebSocket):
             )
 
             async def forward_client_audio():
+                nonlocal has_uncommitted_audio
+
                 while True:
                     message = await websocket.receive_text()
                     event = json.loads(message)
@@ -383,11 +402,18 @@ async def live_audio_transcription(websocket: WebSocket):
                                     }
                                 )
                             )
+                            has_uncommitted_audio = True
                     elif event_type == "commit":
-                        await openai_ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+                        await commit_audio_buffer()
                     elif event_type == "close":
+                        await commit_audio_buffer()
                         await openai_ws.close()
                         break
+
+            async def commit_live_audio_periodically():
+                while True:
+                    await asyncio.sleep(1.5)
+                    await commit_audio_buffer()
 
             async def forward_openai_events():
                 async for raw_message in openai_ws:
@@ -408,6 +434,13 @@ async def live_audio_transcription(websocket: WebSocket):
                             transcript=event.get("transcript", ""),
                             item_id=event.get("item_id"),
                         )
+                    elif event_type == "conversation.item.input_audio_transcription.failed":
+                        error = event.get("error") or {}
+                        await send_ws_event(
+                            websocket,
+                            "error",
+                            detail=error.get("message") or "Trascrizione live non riuscita.",
+                        )
                     elif event_type == "error":
                         error = event.get("error") or {}
                         await send_ws_event(
@@ -418,18 +451,30 @@ async def live_audio_transcription(websocket: WebSocket):
 
             client_task = asyncio.create_task(forward_client_audio())
             openai_task = asyncio.create_task(forward_openai_events())
+            commit_task = asyncio.create_task(commit_live_audio_periodically())
             done, pending = await asyncio.wait(
-                {client_task, openai_task},
+                {client_task, openai_task, commit_task},
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
             for task in pending:
                 task.cancel()
 
+            await asyncio.gather(*pending, return_exceptions=True)
+
             for task in done:
                 exception = task.exception()
-                if exception:
+                if exception and not isinstance(exception, WebSocketDisconnect):
                     raise exception
+    except websockets.exceptions.ConnectionClosed as exc:
+        try:
+            await send_ws_event(
+                websocket,
+                "error",
+                detail=f"OpenAI Realtime ha chiuso la connessione: {exc}",
+            )
+        except Exception:
+            pass
     except WebSocketDisconnect:
         return
     except Exception as exc:

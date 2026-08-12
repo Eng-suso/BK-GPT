@@ -104,6 +104,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const websocketRef = useRef<WebSocket | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const liveTranscriptRef = useRef("");
+  const liveCommittedTranscriptRef = useRef("");
+  const liveDeltaByItemRef = useRef<Map<string, string>>(new Map());
   const timerRef = useRef<number | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const isLocked = isBusy || isTranscribing;
@@ -284,6 +286,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       setLiveTranscript("");
       setFinalTranscript("");
       liveTranscriptRef.current = "";
+      liveCommittedTranscriptRef.current = "";
+      liveDeltaByItemRef.current = new Map();
 
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -313,13 +317,34 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         }
 
         if (message.type === "delta") {
-          liveTranscriptRef.current += message.delta || "";
-          setLiveTranscript(liveTranscriptRef.current);
+          const itemId = message.item_id || "current";
+          const currentDelta = liveDeltaByItemRef.current.get(itemId) || "";
+          liveDeltaByItemRef.current.set(itemId, `${currentDelta}${message.delta || ""}`);
+          const liveDraft = [
+            liveCommittedTranscriptRef.current,
+            ...Array.from(liveDeltaByItemRef.current.values()),
+          ]
+            .filter(Boolean)
+            .join("\n")
+            .trim();
+          liveTranscriptRef.current = liveDraft;
+          setLiveTranscript(liveDraft);
         }
 
         if (message.type === "completed" && message.transcript) {
-          liveTranscriptRef.current = `${liveTranscriptRef.current.trim()}\n${message.transcript}`.trim();
-          setLiveTranscript(liveTranscriptRef.current);
+          const itemId = message.item_id || "current";
+          const transcript = String(message.transcript || "").trim();
+          liveDeltaByItemRef.current.delete(itemId);
+          liveCommittedTranscriptRef.current = `${liveCommittedTranscriptRef.current.trim()}\n${transcript}`.trim();
+          const liveDraft = [
+            liveCommittedTranscriptRef.current,
+            ...Array.from(liveDeltaByItemRef.current.values()),
+          ]
+            .filter(Boolean)
+            .join("\n")
+            .trim();
+          liveTranscriptRef.current = liveDraft;
+          setLiveTranscript(liveDraft);
         }
 
         if (message.type === "error") {
