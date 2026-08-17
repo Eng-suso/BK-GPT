@@ -6,6 +6,21 @@
     "dev:backend": "uv run uvicorn backend.app:app --host 127.0.0.1 --port 8000 --reload",
     "dev:frontend": "npm --prefix frontend run dev -- --host 127.0.0.1 --port 3030",
     "build": "npm --prefix frontend run build",
-    "typecheck": "npm --prefix frontend run typecheck"
+    "typecheck": "npm --prefix frontend run typecheck",
+    "test:e2e": "playwright test",
+    "test:visual": "playwright test e2e/visual.spec.ts",
+    "test:visual:update": "playwright test e2e/visual.spec.ts --update-snapshots",
+    "test:a11y": "playwright test e2e/accessibility.spec.ts",
+    "test:lighthouse": "playwright test e2e/performance-lighthouse.spec.ts",
+    "test:report": "playwright show-report",
+    "test:backend": "uv run pytest tests/ -v",
+    "test:unit": "npm --prefix frontend run test:ci",
+    "lint": "npm --prefix frontend run lint",
+    "ci": "npm run lint && npm run typecheck && npm run test:unit && npm run test:e2e"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
+    "playwright-lighthouse": "^4.0.0"
   }
 }

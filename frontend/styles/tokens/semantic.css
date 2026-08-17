@@ -1,6 +1,6 @@
 :root {
   /* 4. Semantic tokens */
-  --color-surface-app: var(--slate-50);
+  --color-surface-app: var(--slate-app);
   --color-surface-primary: var(--white);
   --color-surface-secondary: var(--slate-50);
   --color-surface-muted: var(--slate-100);

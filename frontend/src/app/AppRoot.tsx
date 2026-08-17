@@ -7,7 +7,6 @@ import { ConsultantPage } from "../features/consultant/ConsultantPage";
 import { HomePage } from "../features/home/HomePage";
 import { ModelsPage } from "../features/models/ModelsPage";
 import { ProjectsPage } from "../features/projects/ProjectsPage";
-import "../styles/app-shell.css";
 
 export const AppRoot: React.FC = () => {
   const [activeSection, setActiveSection] = useState<ShellSection>("consultant");
