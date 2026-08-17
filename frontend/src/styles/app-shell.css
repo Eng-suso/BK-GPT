@@ -124,7 +124,7 @@
   place-items: center;
   border-radius: 6px;
   background: var(--color-surface-disabled);
-  color: var(--color-text-tertiary);
+  color: var(--color-icon-primary);
   font-size: 10px;
   font-weight: 800;
 }
@@ -196,7 +196,7 @@
 
 .product-eyebrow {
   margin: 0;
-  color: var(--color-text-disabled);
+  color: var(--color-text-tertiary);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0;

@@ -226,26 +226,44 @@
       border-radius: var(--radius-300);
       border: 1px solid transparent;
       background: transparent;
-      color: var(--text-secondary);
-      font-size: var(--font-size-200);
-      text-align: left;
       transition: all var(--motion-duration-fast) var(--motion-easing-standard);
       width: 100%;
-      cursor: pointer;
+      list-style: none;
     }
 
     .history-item:hover {
       background: rgba(241, 245, 249, 0.8);
       border-color: rgba(226, 232, 240, 0.8);
-      color: var(--text-primary);
     }
 
     .history-item.active {
       background: rgba(255, 255, 255, 0.9);
       border-color: var(--border-strong);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    .history-select-btn {
+      display: flex;
+      align-items: center;
+      gap: var(--space-200);
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: var(--font-size-200);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .history-item.active .history-select-btn {
       font-weight: var(--font-weight-semibold);
       color: var(--text-primary);
-      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+    }
+
+    .history-item:hover .history-select-btn {
+      color: var(--text-primary);
     }
 
     .history-avatar {
@@ -348,7 +366,7 @@
       border-radius: var(--radius-full);
       background: rgba(241, 245, 249, 0.8);
       border: 1px solid rgba(226, 232, 240, 0.8);
-      color: var(--text-tertiary);
+      color: var(--text-secondary);
       font-size: 11px;
       font-weight: var(--font-weight-medium);
       flex-shrink: 0;
@@ -838,7 +856,7 @@
 
     .footnote {
       margin-top: var(--space-200);
-      color: var(--text-tertiary);
+      color: var(--text-secondary);
       text-align: center;
       font-size: 11px;
     }

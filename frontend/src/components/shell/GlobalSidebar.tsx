@@ -39,14 +39,14 @@ export const GlobalSidebar: React.FC<GlobalSidebarProps> = ({
               key={item.id}
               type="button"
               className={`product-nav-item${isActive ? " product-nav-item-active" : ""}`}
+              aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
-              title={isCollapsed ? item.label : undefined}
               onClick={() => onSectionChange(item.id)}
             >
               <span className="product-nav-icon" aria-hidden="true">
                 {item.shortLabel}
               </span>
-              <span className="product-nav-label">{item.label}</span>
+              <span className="product-nav-label" aria-hidden="true">{item.label}</span>
             </button>
           );
         })}

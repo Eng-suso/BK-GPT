@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
-import "@bpmn-io/properties-panel/dist/assets/properties-panel.css";
+// Note: bpmn-js-properties-panel bundles its styles internally; no separate CSS import needed.
 import "bpmn-js-token-simulation/assets/css/bpmn-js-token-simulation.css";
 import { API_BASE } from "../../lib/api";
 import { onWorkspaceChanged } from "../../lib/workspaceEvents";

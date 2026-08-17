@@ -17,8 +17,8 @@ test.describe('Visual Regression Tests', () => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
 
-    // Snapshot specific header / navigation container if available
-    const header = page.locator('header, nav, #root > div').first();
+    // Snapshot the top bar — a stable, bounded element present on all sections
+    const header = page.locator('.product-topbar');
     if (await header.isVisible()) {
       await expect(header).toHaveScreenshot('header-component.png');
     }
