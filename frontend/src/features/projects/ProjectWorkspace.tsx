@@ -37,13 +37,25 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({ project, onB
     let isMounted = true;
 
     async function loadProjectContext() {
+      await Promise.resolve();
+      if (!isMounted) return;
+
+      setSources([]);
+      setDecisions([]);
+
       try {
         const [sourcesRes, decisionsRes] = await Promise.all([
           fetch(`${API_BASE}/v1/workspace/projects/${project.id}/sources`, { cache: "no-store" }),
           fetch(`${API_BASE}/v1/workspace/projects/${project.id}/decisions`, { cache: "no-store" }),
         ]);
 
-        if (!sourcesRes.ok || !decisionsRes.ok) return;
+        if (!sourcesRes.ok || !decisionsRes.ok) {
+          if (isMounted) {
+            setSources([]);
+            setDecisions([]);
+          }
+          return;
+        }
 
         const [sourcesData, decisionsData] = await Promise.all([
           sourcesRes.json(),
@@ -63,8 +75,6 @@ export const ProjectWorkspace: React.FC<ProjectWorkspaceProps> = ({ project, onB
       }
     }
 
-    setSources([]);
-    setDecisions([]);
     void loadProjectContext();
 
     return () => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { chatScopeKey, toApiChatScope } from "../../contracts/chat";
 import { API_BASE } from "../../lib/api";
 import { notifyWorkspaceChanged } from "../../lib/workspaceEvents";
@@ -13,18 +13,40 @@ function sessionTitle(message: string): string {
   return clean.length > 28 ? `${clean.slice(0, 28)}...` : clean || "Nuova chat";
 }
 
-function normalizeSession(session: any): ChatSession {
+type RawMessage = {
+  id?: string | number;
+  role?: string;
+  content?: string;
+  created_at?: string;
+  createdAt?: string;
+};
+
+type RawSession = {
+  thread_id?: string;
+  threadId?: string;
+  title?: string;
+  model_name?: string;
+  modelName?: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
+  message_count?: number;
+  messages?: RawMessage[];
+};
+
+function normalizeSession(session: RawSession): ChatSession {
   return {
-    threadId: session.thread_id || session.threadId,
+    threadId: session.thread_id || session.threadId || "",
     title: session.title || "Nuova chat",
     modelName: session.model_name || session.modelName || null,
-    createdAt: session.created_at || session.createdAt,
-    updatedAt: session.updated_at || session.updatedAt,
+    createdAt: session.created_at || session.createdAt || "",
+    updatedAt: session.updated_at || session.updatedAt || "",
     messageCount: session.message_count || (session.messages ? session.messages.length : 0),
-    messages: (session.messages || []).map((m: any) => ({
-      id: m.id,
-      role: m.role as any,
-      content: m.content,
+    messages: (session.messages || []).map((m) => ({
+      id: String(m.id || ""),
+      role: (m.role as ChatMessage["role"]) || "user",
+      content: m.content || "",
       createdAt: m.created_at || m.createdAt,
     })),
   };
@@ -93,7 +115,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     setTimeout(() => setToastMessage(null), 2800);
   };
 
-  const upsertSession = (rawSession: any): ChatSession => {
+  const upsertSession = (rawSession: RawSession): ChatSession => {
     const normalized = normalizeSession(rawSession);
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.threadId === normalized.threadId);
@@ -109,7 +131,18 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     return normalized;
   };
 
-  const loadSessions = async () => {
+  const loadSessionDetail = useCallback(async (threadId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions/${threadId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      upsertSession(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
+  const loadSessions = useCallback(async () => {
     try {
       const params = new URLSearchParams({ scope_key: scopeKey });
       const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions?${params}`);
@@ -124,9 +157,9 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [scopeKey, currentThreadId, loadSessionDetail]);
 
-  const loadBpmnReview = async () => {
+  const loadBpmnReview = useCallback(async () => {
     if (scope.type !== "canvas") {
       setBpmnReview(null);
       return;
@@ -148,26 +181,29 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       console.error(err);
       setBpmnReview(null);
     }
-  };
-
-  const loadSessionDetail = async (threadId: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions/${threadId}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      upsertSession(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  }, [scope]);
 
   useEffect(() => {
-    setSessions([]);
-    setCurrentThreadId(null);
-    setBpmnReview(null);
-    loadSessions();
-    loadBpmnReview();
-  }, [scopeKey]);
+    let isMounted = true;
+
+    async function init() {
+      await Promise.resolve();
+      if (!isMounted) return;
+
+      setSessions([]);
+      setCurrentThreadId(null);
+      setBpmnReview(null);
+
+      void loadSessions();
+      void loadBpmnReview();
+    }
+
+    void init();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [scopeKey, loadSessions, loadBpmnReview]);
 
   const createBackendSession = async () => {
     const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions`, {

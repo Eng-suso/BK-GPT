@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { WorkspacePage } from "../../components/workspace";
 import { apiClientsSchema, apiProjectsSchema, toClient, toProject } from "../../contracts/workspace";
 import type { Client } from "../../contracts/workspace";
@@ -29,7 +29,7 @@ export const HomePage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
 
-  async function loadWorkspace() {
+  const loadWorkspace = useCallback(async () => {
     try {
       const [clientsRes, projectsRes] = await Promise.all([
         fetch(`${API_BASE}/v1/workspace/clients`, { cache: "no-store" }),
@@ -53,12 +53,28 @@ export const HomePage: React.FC = () => {
       console.error(error);
       setLoadState("error");
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void loadWorkspace();
-    return onWorkspaceChanged(loadWorkspace);
-  }, []);
+    let isMounted = true;
+
+    async function init() {
+      await Promise.resolve();
+      if (isMounted) {
+        void loadWorkspace();
+      }
+    }
+
+    void init();
+    const unsubscribe = onWorkspaceChanged(() => {
+      void loadWorkspace();
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [loadWorkspace]);
 
   const processCount = useMemo(
     () => projects.reduce((total, project) => total + project.processes, 0),

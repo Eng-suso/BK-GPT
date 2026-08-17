@@ -1,6 +1,7 @@
+const win = window as unknown as Record<string, string | undefined>;
 const configuredApiBase =
-  (window as any).DELIR_API_BASE ||
-  (window as any).SUSO_API_BASE ||
+  win.DELIR_API_BASE ||
+  win.SUSO_API_BASE ||
   import.meta.env.VITE_API_BASE_URL;
 
 const isBackendHost =

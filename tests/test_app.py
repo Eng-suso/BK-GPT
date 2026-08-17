@@ -42,10 +42,10 @@ def test_openapi_schema(client: TestClient):
 
 
 def test_list_chat_sessions_endpoint(client: TestClient):
-    """GET /chats should return a list (possibly empty)."""
-    response = client.get("/chats")
-    # Accept 200 or 422 if auth/required params are missing
-    assert response.status_code in (200, 422, 401)
+    """GET /v1/consultant-chat/sessions should return a list (possibly empty)."""
+    response = client.get("/v1/consultant-chat/sessions")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
 
 
 def test_cors_headers_present(client: TestClient):

@@ -226,7 +226,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   };
 
   const startLivePcmStreaming = (stream: MediaStream, ws: WebSocket) => {
-    const AudioContextCtor = window.AudioContext || (window as any).webkitAudioContext;
+    const win = window as unknown as { webkitAudioContext?: typeof AudioContext };
+    const AudioContextCtor = window.AudioContext || win.webkitAudioContext;
     const audioContext = new AudioContextCtor();
     const source = audioContext.createMediaStreamSource(stream);
     const processor = audioContext.createScriptProcessor(4096, 1, 1);

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
@@ -276,6 +276,11 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const [restoringVersionId, setRestoringVersionId] = useState<number | null>(null);
   const [versions, setVersions] = useState<BpmnVersionResponse[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const onCurrentXmlChangeRef = useRef(onCurrentXmlChange);
+
+  useEffect(() => {
+    onCurrentXmlChangeRef.current = onCurrentXmlChange;
+  }, [onCurrentXmlChange]);
 
   function markUnsaved(value: boolean) {
     hasUnsavedChangesRef.current = value;
@@ -296,14 +301,31 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     }
   }
 
-  function scheduleUnsavedCheck() {
+  const scheduleLocalDraftSave = useCallback(() => {
+    clearDraftTimer();
+    draftSaveTimerRef.current = window.setTimeout(async () => {
+      if (!modelerRef.current || !hasUnsavedChangesRef.current) return;
+
+      try {
+        const { xml } = await modelerRef.current.saveXML({ format: true });
+        if (xml) {
+          writeLocalBpmnDraft(bpmnModelId, xml);
+          onCurrentXmlChangeRef.current?.(xml);
+        }
+      } catch {
+        // Local draft persistence is best effort; explicit save still uses the backend.
+      }
+    }, 350);
+  }, [bpmnModelId]);
+
+  const scheduleUnsavedCheck = useCallback(() => {
     clearChangeCheckTimer();
     changeCheckTimerRef.current = window.setTimeout(async () => {
       if (!modelerRef.current || isImportingRef.current || isSavingRef.current) return;
 
       try {
         const { xml } = await modelerRef.current.saveXML({ format: true });
-        if (xml) onCurrentXmlChange?.(xml);
+        if (xml) onCurrentXmlChangeRef.current?.(xml);
         if (xml && lastSavedXmlRef.current === xml) {
           markUnsaved(false);
           setStatus("Salvato");
@@ -317,24 +339,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       setStatus("Modifiche non salvate");
       scheduleLocalDraftSave();
     }, 120);
-  }
-
-  function scheduleLocalDraftSave() {
-    clearDraftTimer();
-    draftSaveTimerRef.current = window.setTimeout(async () => {
-      if (!modelerRef.current || !hasUnsavedChangesRef.current) return;
-
-      try {
-        const { xml } = await modelerRef.current.saveXML({ format: true });
-        if (xml) {
-          writeLocalBpmnDraft(bpmnModelId, xml);
-          onCurrentXmlChange?.(xml);
-        }
-      } catch {
-        // Local draft persistence is best effort; explicit save still uses the backend.
-      }
-    }, 350);
-  }
+  }, [scheduleLocalDraftSave]);
 
   function scheduleCanvasFit() {
     window.requestAnimationFrame(() => {
@@ -347,7 +352,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     });
   }
 
-  async function loadVersions() {
+  const loadVersions = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/v1/workspace/bpmn-models/${bpmnModelId}/versions`, {
         cache: "no-store",
@@ -359,7 +364,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     } catch {
       // Version history is useful but not required for canvas editing.
     }
-  }
+  }, [bpmnModelId]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -399,7 +404,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         lastSavedXmlRef.current = localDraft ? null : xml;
         isImportingRef.current = true;
         await modeler.importXML(xml);
-        onCurrentXmlChange?.(xml);
+        onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
 
         const eventBus = modeler.get("eventBus") as BpmnEventBus;
@@ -431,13 +436,12 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
 
     return () => {
       isMounted = false;
-      clearDraftTimer();
       clearChangeCheckTimer();
       modelerRef.current?.destroy();
       modelerRef.current = null;
       setIsReady(false);
     };
-  }, [bpmnModelId, processName, propertiesPanelRef]);
+  }, [bpmnModelId, processName, propertiesPanelRef, loadVersions, scheduleUnsavedCheck]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -458,7 +462,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         const xml = await loadInitialXml(bpmnModelId, processName);
         isImportingRef.current = true;
         await modelerRef.current.importXML(xml);
-        onCurrentXmlChange?.(xml);
+        onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
         scheduleCanvasFit();
         lastSavedXmlRef.current = xml;
@@ -471,7 +475,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         setError(err instanceof Error ? err.message : "Aggiornamento canvas non riuscito");
       }
     });
-  }, [bpmnModelId, processName]);
+  }, [bpmnModelId, processName, loadVersions]);
 
   async function saveCurrentXml() {
     if (!modelerRef.current) return;
