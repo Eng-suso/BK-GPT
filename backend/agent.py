@@ -1,16 +1,19 @@
 import sqlite3
 
 from pathlib import Path
-from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.graph import START, StateGraph, MessagesState
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.graph import START, END, StateGraph, MessagesState
 
+from backend.agents.primary_scope import build_scope_system_prompt, tool_scope_type
+from backend.graphs.canvas_edit import build_canvas_subgraph
+from backend.graphs.consulting import build_consulting_subgraph
+from backend.graphs.process import build_process_subgraph
+from backend.graphs.project import build_project_subgraph
 from backend.settings import ALLOWED_MODELS, DEFAULT_OPENAI_MODEL, settings
-from backend.tools import tools
+from backend.tools import tools_by_scope
 from backend.memory.consultant_context_classifier import (
     classify_and_select_context,
     format_classification_context,
@@ -24,6 +27,20 @@ SUMMARY_KEEP_RECENT_MESSAGES = 10
 
 
 class ConsultantState(MessagesState):
+    scope_type: str
+    scope_key: str
+    project_id: str | None
+    process_id: str | None
+    bpmn_model_id: str | None
+    process_name: str | None
+    current_bpmn_xml: str | None
+    process_understanding_json: dict | str | None
+    bpmn_semantic_model_json: dict | str | None
+    readiness_score: int | None
+    missing_information: list[str]
+    saved_bpmn_xml: str | None
+    effective_bpmn_xml: str | None
+    effective_bpmn_xml_source: str | None
     running_summary: str
     summarized_message_count: int
     consultant_context_category: str
@@ -41,7 +58,10 @@ def load_procedural_memory() -> str:
 
 
 def build_context_messages(state: ConsultantState):
-    messages = [SystemMessage(content=load_procedural_memory())]
+    messages = [
+        SystemMessage(content=load_procedural_memory()),
+        SystemMessage(content=build_scope_system_prompt(state)),
+    ]
     classification_context = format_classification_context(state)
     skill_context = state.get("active_skill_context")
 
@@ -142,7 +162,6 @@ def build_agent(model_name: str | None = None):
         reasoning_effort="none",
     )
 
-    llm_with_tools = llm.bind_tools(tools)
     context_router_llm = ChatOpenAI(
         model=selected_model,
         api_key=settings.openai_api_key,
@@ -189,26 +208,61 @@ def build_agent(model_name: str | None = None):
             classifier_llm=context_router_llm,
         )
 
-    def chatbot_node(state: ConsultantState):
-        messages = build_context_messages(state)
-        response = None
-
-        for chunk in llm_with_tools.stream(messages):
-            response = chunk if response is None else response + chunk
-
-        return {"messages": [response or AIMessage(content="")]}
+    def route_scope(state: ConsultantState):
+        return tool_scope_type(state.get("scope_type"))
 
     workflow = StateGraph(ConsultantState)
     workflow.add_node("summarize", summarize_node)
     workflow.add_node("classify_and_select_context", classify_and_select_context_node)
-    workflow.add_node("chatbot", chatbot_node)
-    workflow.add_node("tools", ToolNode(tools))
+    workflow.add_node(
+        "consulting_subgraph",
+        build_consulting_subgraph(
+            tools=tools_by_scope["consultant"],
+            llm_with_tools=llm.bind_tools(tools_by_scope["consultant"]),
+            build_context_messages=build_context_messages,
+        ),
+    )
+    workflow.add_node(
+        "project_subgraph",
+        build_project_subgraph(
+            tools=tools_by_scope["project"],
+            llm_with_tools=llm.bind_tools(tools_by_scope["project"]),
+            build_context_messages=build_context_messages,
+        ),
+    )
+    workflow.add_node(
+        "process_subgraph",
+        build_process_subgraph(
+            tools=tools_by_scope["process"],
+            llm_with_tools=llm.bind_tools(tools_by_scope["process"]),
+            build_context_messages=build_context_messages,
+        ),
+    )
+    workflow.add_node(
+        "canvas_subgraph",
+        build_canvas_subgraph(
+            tools=tools_by_scope["canvas"],
+            llm_with_tools=llm.bind_tools(tools_by_scope["canvas"]),
+            build_context_messages=build_context_messages,
+        ),
+    )
 
     workflow.add_edge(START, "summarize")
     workflow.add_edge("summarize", "classify_and_select_context")
-    workflow.add_edge("classify_and_select_context", "chatbot")
-    workflow.add_conditional_edges("chatbot", tools_condition)
-    workflow.add_edge("tools", "chatbot")
+    workflow.add_conditional_edges(
+        "classify_and_select_context",
+        route_scope,
+        {
+            "consultant": "consulting_subgraph",
+            "project": "project_subgraph",
+            "process": "process_subgraph",
+            "canvas": "canvas_subgraph",
+        },
+    )
+    workflow.add_edge("consulting_subgraph", END)
+    workflow.add_edge("project_subgraph", END)
+    workflow.add_edge("process_subgraph", END)
+    workflow.add_edge("canvas_subgraph", END)
 
     conn = sqlite3.connect("data/agent_checkpoint.db", check_same_thread=False)
     checkpointer = SqliteSaver(conn)
@@ -219,10 +273,11 @@ def build_agent(model_name: str | None = None):
 _AGENT_CACHE = {}
 
 
-def get_agent(model_name: str | None = None):
+def get_agent(model_name: str | None = None, scope_type: str | None = None):
     selected_model = normalize_model_name(model_name)
+    cache_key = selected_model
 
-    if selected_model not in _AGENT_CACHE:
-        _AGENT_CACHE[selected_model] = build_agent(selected_model)
+    if cache_key not in _AGENT_CACHE:
+        _AGENT_CACHE[cache_key] = build_agent(selected_model)
 
-    return _AGENT_CACHE[selected_model]
+    return _AGENT_CACHE[cache_key]

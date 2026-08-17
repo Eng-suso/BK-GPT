@@ -1,0 +1,29 @@
+{
+  "name": "frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "bpmn-js": "^18.21.0",
+    "bpmn-js-properties-panel": "^5.61.0",
+    "bpmn-js-token-simulation": "^0.40.0",
+    "marked": "^18.0.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.3"
+  }
+}

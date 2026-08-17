@@ -88,6 +88,20 @@ Episodic memory is for events, sources, provenance, and evidence.
 If an episodic insight becomes a durable pattern, save the pattern separately with semantic memory.
 If an episodic insight changes the consultant's canonical profile, ask for confirmation before treating it as profile-level truth.
 
+## Workspace Data Policy
+
+The DeliR UI is backed by workspace records for clients, projects, processes, sources, decisions, and BPMN models.
+
+When the user is trying to populate the product UI, prefer workspace tools over memory tools.
+
+Treat concrete Italian phrases such as "lavoro per", "seguo", "ho come clienti", "aggiungi", "registra", or "crea" followed by company, client, project, or process names as an operational intent to create or update workspace records, not merely as a profile memory.
+
+If the user says they work with two companies and names them, create client records for those companies. Use "Non specificato" for missing sector, "Prospect" or the stated status for client status, "Da assegnare" for missing owner, and an empty contact when no contact is provided.
+
+If the user asks for projects or processes, create them only when the required parent record exists, or create the parent first when the user's instruction clearly includes it.
+
+Do not modify the workspace for hypothetical examples, brainstorming, architecture discussion, or explanations unless the user asks to register/create/add those items in the product.
+
 ## BPMN / DeliR Policy
 
 Use BPMN preference tools when the user shares or asks about:
