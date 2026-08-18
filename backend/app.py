@@ -102,6 +102,7 @@ if (FRONTEND_DIR / "src").exists():
 _THREAD_LOCKS: dict[str, Lock] = {}
 _THREAD_LOCKS_GUARD = Lock()
 MAX_AUDIO_UPLOAD_BYTES = 25 * 1024 * 1024
+THREAD_LOCK_TIMEOUT_SECONDS = 30
 STREAMABLE_AGENT_NODES = {
     "chatbot",
     "consulting_subgraph",
@@ -155,7 +156,14 @@ def stream_agent_deltas(
     checkpoint_thread_id = agent_checkpoint_thread_id(thread_id, fields["scope_key"])
     thread_lock = get_thread_lock(checkpoint_thread_id)
 
-    with thread_lock:
+    acquired = thread_lock.acquire(timeout=THREAD_LOCK_TIMEOUT_SECONDS)
+    if not acquired:
+        raise TimeoutError(
+            "Sessione occupata — una richiesta precedente è ancora in corso. "
+            "Riprova tra qualche secondo."
+        )
+
+    try:
         events = agent.stream(
             {
                 "messages": messages,
@@ -186,6 +194,8 @@ def stream_agent_deltas(
 
             if content:
                 yield content
+    finally:
+        thread_lock.release()
 
 
 def stream_agent_text(
@@ -898,6 +908,8 @@ def send_consultant_chat_message(
             messages=[{"role": "user", "content": request.message}],
             scope=request.scope,
         )
+    except TimeoutError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

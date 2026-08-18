@@ -15,7 +15,7 @@ concurrency:
 # ─────────────────────────────────────────────────────────────
 jobs:
   backend-tests:
-    name: "🐍 Backend Tests (pytest)"
+    name: "Backend Tests (pytest)"
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -52,7 +52,7 @@ jobs:
   # FRONTEND QUALITY GATE
   # ─────────────────────────────────────────────────────────────
   frontend-quality:
-    name: "⚡ Frontend Quality Gate"
+    name: " Frontend Quality Gate"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -126,6 +126,7 @@ jobs:
           - webkit         # Desktop Safari
           - mobile-chrome  # Pixel 7
           - mobile-safari  # iPhone 14
+          - lighthouse     # Chromium Lighthouse Audit
 
     steps:
       - name: Checkout repository
@@ -156,7 +157,7 @@ jobs:
         run: uv sync --all-extras
 
       - name: Install Playwright browsers
-        run: npx playwright install ${{ matrix.project == 'mobile-chrome' && 'chromium' || matrix.project == 'mobile-safari' && 'webkit' || matrix.project }} --with-deps
+        run: npx playwright install ${{ matrix.project == 'mobile-chrome' && 'chromium' || matrix.project == 'mobile-safari' && 'webkit' || matrix.project == 'lighthouse' && 'chromium' || matrix.project }} --with-deps
 
       # Download visual regression baselines (uploaded by main branch)
       - name: Download visual regression baselines
@@ -174,9 +175,6 @@ jobs:
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY || 'tvly-test-fake-key-for-ci' }}
         run: |
           npx playwright test \
-            e2e/app.spec.ts \
-            e2e/accessibility.spec.ts \
-            e2e/visual.spec.ts \
             --project=${{ matrix.project }} \
             --reporter=html,list
 

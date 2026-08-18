@@ -34,7 +34,18 @@ export const ProjectsPage: React.FC = () => {
         }
 
         const data = await res.json();
-        const parsed = apiProjectsSchema.parse(data).map(toProject);
+
+        let parsed: Project[];
+        try {
+          parsed = apiProjectsSchema.parse(data).map(toProject);
+        } catch (parseError) {
+          console.error("[ProjectsPage] Zod parsing failed:", parseError);
+          console.error("[ProjectsPage] Raw API response:", JSON.stringify(data, null, 2));
+          if (isMounted) {
+            setLoadState("error");
+          }
+          return;
+        }
 
         if (isMounted) {
           setProjects(parsed);

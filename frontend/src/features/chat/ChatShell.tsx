@@ -157,10 +157,9 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           ) : (
             <MessageList messages={messages} onRetry={onRetry} />
           )}
+          {reviewSlot}
           <div ref={messagesEndRef} />
         </div>
-
-        {reviewSlot}
 
         <ChatComposer
           selectedModel={selectedModel}
@@ -229,11 +228,10 @@ export const ChatShell: React.FC<ChatShellProps> = ({
               ) : (
                 <MessageList messages={messages} onRetry={onRetry} />
               )}
+              {reviewSlot}
               <div ref={messagesEndRef} />
             </div>
           </div>
-
-          {reviewSlot}
 
           <ChatComposer
             selectedModel={selectedModel}

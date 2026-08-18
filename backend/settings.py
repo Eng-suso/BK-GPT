@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     langsmith_project: str = "BK-GPT"
 
     model_temperature: float = 1.0
-    model_max_tokens: int = 2048
-    model_timeout_seconds: int = 60
-    model_max_retries: int = 2
+    model_max_tokens: int = 4096
+    model_timeout_seconds: int = 45
+    model_max_retries: int = 1
 
     tavily_max_results: int = 5
 

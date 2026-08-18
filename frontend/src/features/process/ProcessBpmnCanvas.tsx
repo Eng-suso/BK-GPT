@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
+import Modeler from "bpmn-js/lib/Modeler";
+import TokenSimulationModule from "bpmn-js-token-simulation";
+import { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule } from "bpmn-js-properties-panel";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
@@ -35,7 +38,7 @@ type BpmnCanvasService = {
 };
 
 type BpmnEventBus = {
-  on: (events: string | string[], callback: () => void) => void;
+  on: (events: string | string[], callback: (event?: any) => void) => void;
 };
 
 type BpmnElementRegistry = {
@@ -275,7 +278,14 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [restoringVersionId, setRestoringVersionId] = useState<number | null>(null);
   const [versions, setVersions] = useState<BpmnVersionResponse[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [selectedElement, setSelectedElement] = useState<{
+    id: string;
+    type: string;
+    name: string;
+    documentation: string;
+  } | null>(null);
   const onCurrentXmlChangeRef = useRef(onCurrentXmlChange);
 
   useEffect(() => {
@@ -372,16 +382,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     let isMounted = true;
     async function mountCanvas() {
       try {
-        const [
-          { default: Modeler },
-          { default: TokenSimulationModule },
-          { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule },
-        ] = await Promise.all([
-          import("bpmn-js/lib/Modeler"),
-          import("bpmn-js-token-simulation"),
-          import("bpmn-js-properties-panel"),
-        ]);
-
         if (!isMounted || !containerRef.current) return;
 
         const modeler = new Modeler({
@@ -412,6 +412,33 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           if (!isImportingRef.current && !isSavingRef.current) {
             scheduleUnsavedCheck();
           }
+        });
+
+        type BpmnElementSelection = {
+          id: string;
+          type: string;
+          businessObject?: {
+            name?: string;
+            documentation?: Array<{ text?: string }>;
+          };
+        };
+
+        eventBus.on("selection.changed", (e: { newSelection?: BpmnElementSelection[] }) => {
+          const selected = e.newSelection?.[0];
+          if (!selected || selected.id === "__implicitroot") {
+            setSelectedElement(null);
+            return;
+          }
+
+          const bo = selected.businessObject;
+          const docs = bo?.documentation?.[0]?.text || "";
+
+          setSelectedElement({
+            id: selected.id,
+            type: (selected.type || "Elemento").replace(/^bpmn:/, ""),
+            name: bo?.name || "",
+            documentation: docs,
+          });
         });
 
         scheduleCanvasFit();
@@ -602,6 +629,72 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     }
   }
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void saveCurrentXml();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [saveCurrentXml]);
+
+  function updateSelectedNodeName(newName: string) {
+    if (!modelerRef.current || !selectedElement) return;
+    setSelectedElement((prev) => (prev ? { ...prev, name: newName } : null));
+
+    try {
+      const elementRegistry = modelerRef.current.get("elementRegistry") as { get: (id: string) => unknown };
+      const modeling = modelerRef.current.get("modeling") as { updateProperties: (element: unknown, properties: Record<string, unknown>) => void };
+      const elem = elementRegistry.get(selectedElement.id);
+      if (elem) {
+        modeling.updateProperties(elem, { name: newName });
+        scheduleUnsavedCheck();
+      }
+    } catch {
+      // transient edit while modeler updates
+    }
+  }
+
+  function updateSelectedNodeDoc(newDoc: string) {
+    if (!modelerRef.current || !selectedElement) return;
+    setSelectedElement((prev) => (prev ? { ...prev, documentation: newDoc } : null));
+
+    try {
+      const elementRegistry = modelerRef.current.get("elementRegistry") as { get: (id: string) => unknown };
+      const bpmnFactory = modelerRef.current.get("bpmnFactory") as { create: (type: string, props: Record<string, unknown>) => unknown };
+      const modeling = modelerRef.current.get("modeling") as { updateProperties: (element: unknown, properties: Record<string, unknown>) => void };
+      const elem = elementRegistry.get(selectedElement.id);
+      if (elem) {
+        const docObj = bpmnFactory.create("bpmn:Documentation", { text: newDoc });
+        modeling.updateProperties(elem, { documentation: [docObj] });
+        scheduleUnsavedCheck();
+      }
+    } catch {
+      // transient edit
+    }
+  }
+
+  function handleZoomIn() {
+    if (!modelerRef.current) return;
+    const canvasService = canvas(modelerRef.current);
+    const currentZoom = (canvasService.zoom() as number) || 1;
+    canvasService.zoom(Math.min(currentZoom + 0.2, 3));
+  }
+
+  function handleZoomOut() {
+    if (!modelerRef.current) return;
+    const canvasService = canvas(modelerRef.current);
+    const currentZoom = (canvasService.zoom() as number) || 1;
+    canvasService.zoom(Math.max(currentZoom - 0.2, 0.2));
+  }
+
+  function handleZoomFit() {
+    if (!modelerRef.current) return;
+    fitCanvas(modelerRef.current);
+  }
+
   return (
     <section className="process-bpmn-shell" aria-label="Canvas BPMN">
       <header className="process-bpmn-toolbar">
@@ -610,7 +703,21 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           <h3>Canvas processo</h3>
         </div>
         <div className="process-bpmn-toolbar-actions">
-          <span>{hasUnsavedChanges ? "Non salvato" : status}</span>
+          <div className="bpmn-zoom-group" aria-label="Controlli Zoom">
+            <button type="button" onClick={handleZoomFit} title="Centra e adatta diagramma">
+              🔍 Centra
+            </button>
+            <button type="button" onClick={handleZoomIn} title="Ingrandisci">
+              +
+            </button>
+            <button type="button" onClick={handleZoomOut} title="Riduci">
+              -
+            </button>
+          </div>
+
+          <span className={`status-pill ${hasUnsavedChanges ? "unsaved" : "saved"}`}>
+            {hasUnsavedChanges ? "Modifiche non salvate" : status}
+          </span>
           <input
             ref={fileInputRef}
             className="process-bpmn-file-input"
@@ -618,6 +725,14 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             accept=".bpmn,.xml,.bpm"
             onChange={(event) => void importFile(event.target.files?.[0])}
           />
+          <button
+            type="button"
+            className={isHistoryOpen ? "is-active" : ""}
+            onClick={() => setIsHistoryOpen((prev) => !prev)}
+            title={isHistoryOpen ? "Nascondi Cronologia" : "Mostra Cronologia Versioni"}
+          >
+            Cronologia {versions.length > 0 ? `(${versions.length})` : ""}
+          </button>
           <button
             type="button"
             disabled={!isReady}
@@ -630,43 +745,88 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           </button>
           <button
             type="button"
+            className={hasUnsavedChanges ? "btn-save-unsaved" : ""}
             disabled={!isReady || isSaving || !hasUnsavedChanges}
             onClick={() => void saveCurrentXml()}
+            title="Salva processo (Ctrl+S)"
           >
-            {isSaving ? "Salvo..." : "Salva"}
+            {isSaving ? "Salvo..." : "Salva (Ctrl+S)"}
           </button>
         </div>
       </header>
-      <div className="process-bpmn-body">
-        <div className="process-bpmn-canvas" ref={containerRef} />
-        <aside className="process-bpmn-history" aria-label="Cronologia BPMN">
-          <div className="process-bpmn-history-header">
-            <p className="product-eyebrow">Versioni</p>
-            <strong>Cronologia</strong>
-          </div>
-          {versions.length === 0 ? (
-            <p className="process-bpmn-history-empty">Nessuna versione salvata.</p>
-          ) : (
-            <ul>
-              {versions.map((version) => (
-                <li key={version.id}>
-                  <div>
-                    <strong>v{version.id}</strong>
-                    <span>{formatVersionDate(version.created_at)}</span>
-                    <small>{version.change_summary}</small>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!isReady || restoringVersionId === version.id || hasUnsavedChanges}
-                    onClick={() => void restoreVersion(version.id)}
-                  >
-                    {restoringVersionId === version.id ? "..." : "Ripristina"}
-                  </button>
-                </li>
-              ))}
-            </ul>
+
+      <div className={`process-bpmn-body ${isHistoryOpen ? "with-history" : ""}`}>
+        <div className="process-bpmn-canvas" ref={containerRef}>
+          {selectedElement && (
+            <aside className="bpmn-node-inspector" aria-label="Ispettore nodo selezionato">
+              <div className="bpmn-node-inspector-header">
+                <div>
+                  <span className="bpmn-node-badge">{selectedElement.type}</span>
+                  <strong>{selectedElement.name || selectedElement.id}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="bpmn-node-inspector-close"
+                  onClick={() => setSelectedElement(null)}
+                  title="Chiudi ispettore"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="bpmn-node-inspector-body">
+                <label>
+                  <span>Etichetta / Nome</span>
+                  <input
+                    type="text"
+                    value={selectedElement.name}
+                    onChange={(e) => updateSelectedNodeName(e.target.value)}
+                    placeholder="es. Raccolta dati..."
+                  />
+                </label>
+                <label>
+                  <span>Note / Documentazione</span>
+                  <textarea
+                    rows={2}
+                    value={selectedElement.documentation}
+                    onChange={(e) => updateSelectedNodeDoc(e.target.value)}
+                    placeholder="Aggiungi dettagli o regole per questo nodo..."
+                  />
+                </label>
+              </div>
+            </aside>
           )}
-        </aside>
+        </div>
+
+        {isHistoryOpen && (
+          <aside className="process-bpmn-history" aria-label="Cronologia BPMN">
+            <div className="process-bpmn-history-header">
+              <p className="product-eyebrow">Versioni</p>
+              <strong>Cronologia</strong>
+            </div>
+            {versions.length === 0 ? (
+              <p className="process-bpmn-history-empty">Nessuna versione salvata.</p>
+            ) : (
+              <ul>
+                {versions.map((version) => (
+                  <li key={version.id}>
+                    <div>
+                      <strong>v{version.id}</strong>
+                      <span>{formatVersionDate(version.created_at)}</span>
+                      <small>{version.change_summary}</small>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!isReady || restoringVersionId === version.id || hasUnsavedChanges}
+                      onClick={() => void restoreVersion(version.id)}
+                    >
+                      {restoringVersionId === version.id ? "..." : "Ripristina"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </aside>
+        )}
       </div>
       {error && <p className="process-bpmn-error">{error}</p>}
     </section>

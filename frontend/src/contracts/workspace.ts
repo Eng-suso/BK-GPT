@@ -50,8 +50,8 @@ const apiProcessSchema = z.object({
   project_id: z.string(),
   bpmn_model_id: z.string(),
   name: z.string(),
-  stage: z.enum(["Discovery", "AS-IS", "TO-BE", "Validazione"]),
-  status: z.enum(["In corso", "Da validare", "Bozza"]),
+  stage: z.string(),
+  status: z.string(),
   owner: z.string(),
   readiness: z.number(),
 });
@@ -62,7 +62,7 @@ const apiProjectSchema = z.object({
   client: z.string(),
   name: z.string(),
   phase: z.string(),
-  status: z.enum(["In corso", "A rischio", "Bozza"]),
+  status: z.string(),
   progress: z.number(),
   processes: z.number(),
   next_step: z.string(),
@@ -110,13 +110,21 @@ export function toClient(client: z.infer<typeof apiClientSchema>): Client {
   };
 }
 
+const VALID_PROCESS_STAGES = new Set(["Discovery", "AS-IS", "TO-BE", "Validazione"]);
+const VALID_PROCESS_STATUSES = new Set(["In corso", "Da validare", "Bozza"]);
+const VALID_PROJECT_STATUSES = new Set(["In corso", "A rischio", "Bozza"]);
+
 function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectProcess {
   return {
     id: process.id,
     bpmnModelId: process.bpmn_model_id,
     name: process.name,
-    stage: process.stage,
-    status: process.status,
+    stage: (VALID_PROCESS_STAGES.has(process.stage)
+      ? process.stage
+      : "Discovery") as ProjectProcess["stage"],
+    status: (VALID_PROCESS_STATUSES.has(process.status)
+      ? process.status
+      : "Bozza") as ProjectProcess["status"],
     owner: process.owner,
     readiness: process.readiness,
   };
@@ -128,7 +136,9 @@ export function toProject(project: z.infer<typeof apiProjectSchema>): Project {
     name: project.name,
     client: project.client,
     phase: project.phase,
-    status: project.status,
+    status: (VALID_PROJECT_STATUSES.has(project.status)
+      ? project.status
+      : "Bozza") as Project["status"],
     progress: project.progress,
     processes: project.processes,
     nextStep: project.next_step,

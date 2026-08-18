@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { chatScopeKey, toApiChatScope } from "../../contracts/chat";
 import { API_BASE } from "../../lib/api";
 import { notifyWorkspaceChanged } from "../../lib/workspaceEvents";
@@ -99,12 +99,16 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const [activeTab, setActiveTab] = useState<NavigationTab>("chat");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  const currentThreadIdRef = useRef<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [selectedModel, setSelectedModel] = useState("gpt-5.6-luna");
   const [lastUserPrompt, setLastUserPrompt] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [bpmnReview, setBpmnReview] = useState<BpmnReview | null>(null);
   const [isApprovingReview, setIsApprovingReview] = useState(false);
+
+  // Keep the ref in sync with state so callbacks can read the latest value without being dependencies.
+  currentThreadIdRef.current = currentThreadId;
 
   const activeSession = sessions.find((s) => s.threadId === currentThreadId) || null;
   const messages = activeSession ? activeSession.messages : [];
@@ -150,24 +154,33 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       const data = await res.json();
       const list: ChatSession[] = data.map(normalizeSession);
       setSessions(list);
-      if (list.length > 0 && !currentThreadId) {
+      // Use ref instead of state to avoid making currentThreadId a dependency,
+      // which would cause an infinite loop: loadSessions mutates currentThreadId
+      // → new useCallback ref → useEffect re-fires → loadSessions again.
+      if (list.length > 0 && !currentThreadIdRef.current) {
         setCurrentThreadId(list[0].threadId);
         loadSessionDetail(list[0].threadId);
       }
     } catch (err) {
       console.error(err);
     }
-  }, [scopeKey, currentThreadId, loadSessionDetail]);
+  }, [scopeKey, loadSessionDetail]);
+
+  // Extract stable primitives from scope to avoid unstable object references in useCallback deps.
+  // scope defaults to `{ type: "consultant" }` — a new object on every render, which would cause
+  // loadBpmnReview to be recreated each render and re-trigger the useEffect indefinitely.
+  const scopeType = scope.type;
+  const bpmnModelIdForReview = scope.type === "canvas" ? scope.bpmnModelId : null;
 
   const loadBpmnReview = useCallback(async () => {
-    if (scope.type !== "canvas") {
+    if (scopeType !== "canvas" || !bpmnModelIdForReview) {
       setBpmnReview(null);
       return;
     }
 
     try {
       const res = await fetch(
-        `${API_BASE}/v1/workspace/bpmn-models/${scope.bpmnModelId}/review`,
+        `${API_BASE}/v1/workspace/bpmn-models/${bpmnModelIdForReview}/review`,
         { cache: "no-store" }
       );
 
@@ -181,7 +194,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       console.error(err);
       setBpmnReview(null);
     }
-  }, [scope]);
+  }, [scopeType, bpmnModelIdForReview]);
 
   useEffect(() => {
     let isMounted = true;
@@ -192,6 +205,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 
       setSessions([]);
       setCurrentThreadId(null);
+      currentThreadIdRef.current = null;
       setBpmnReview(null);
 
       void loadSessions();

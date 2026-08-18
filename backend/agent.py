@@ -1,7 +1,7 @@
 import sqlite3
 
 from pathlib import Path
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -21,9 +21,9 @@ from backend.memory.consultant_context_classifier import (
 
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
-RECENT_MESSAGE_LIMIT = 10
-SUMMARY_TRIGGER_MESSAGE_COUNT = 16
-SUMMARY_KEEP_RECENT_MESSAGES = 10
+RECENT_MESSAGE_LIMIT = 8
+SUMMARY_TRIGGER_MESSAGE_COUNT = 10
+SUMMARY_KEEP_RECENT_MESSAGES = 6
 
 
 class ConsultantState(MessagesState):
@@ -197,9 +197,21 @@ def build_agent(model_name: str | None = None):
             )
         )
 
+        # Trim old messages from the checkpoint to prevent unbounded growth.
+        # After summarization, the content of old messages is captured in
+        # running_summary, so we can safely remove them from state.
+        remove_ops = [
+            RemoveMessage(id=m.id)
+            for m in messages[:cutoff]
+            if hasattr(m, "id") and m.id
+        ]
+
         return {
             "running_summary": str(summary_response.content).strip(),
-            "summarized_message_count": cutoff,
+            "summarized_message_count": 0,
+            **({
+                "messages": remove_ops,
+            } if remove_ops else {}),
         }
 
     def classify_and_select_context_node(state: ConsultantState):

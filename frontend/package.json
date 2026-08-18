@@ -17,6 +17,7 @@
     "storybook:ci": "storybook build && npx http-server storybook-static -p 6006 --silent &"
   },
   "dependencies": {
+    "@bpmn-io/properties-panel": "^3.44.0",
     "bpmn-js": "^18.21.0",
     "bpmn-js-properties-panel": "^5.61.0",
     "bpmn-js-token-simulation": "^0.40.0",

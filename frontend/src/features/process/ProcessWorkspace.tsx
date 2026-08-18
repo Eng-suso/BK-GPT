@@ -18,57 +18,126 @@ const processViews: Array<{ id: ProcessView; label: string }> = [
 ];
 
 export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({ project, process, onBack }) => {
-  const [activeView, setActiveView] = React.useState<ProcessView>("chat");
+  const [activeView, setActiveView] = React.useState<ProcessView>("canvas");
+  const [isCanvasChatOpen, setIsCanvasChatOpen] = React.useState(true);
+  const [chatWidth, setChatWidth] = React.useState(380);
+  const [isDragging, setIsDragging] = React.useState(false);
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(null);
   const propertiesPanelRef = React.useRef<HTMLDivElement | null>(null);
-  const isBpmnView = activeView === "canvas" || activeView === "properties";
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const containerRect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const newWidth = Math.max(260, Math.min(e.clientX - containerRect.left, 600));
+    setChatWidth(newWidth);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isDragging) {
+      setIsDragging(false);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   return (
     <section className="process-workspace">
       <header className="project-workspace-header">
         <div className="project-title-group">
-          <button type="button" className="project-back-button" onClick={onBack}>
-            Indietro
+          <button type="button" className="project-back-button" onClick={onBack} title="Torna ai processi del progetto">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            <span>Indietro</span>
           </button>
           <div>
-            <p className="product-eyebrow">{project.name}</p>
+            <p className="product-eyebrow">Progetti &rsaquo; {project.name}</p>
             <h2>{process.name}</h2>
           </div>
         </div>
 
-        <nav className="process-view-switch" aria-label="Viste processo">
-          {processViews.map((view) => (
+        <div className="process-workspace-header-actions">
+          {(activeView === "canvas" || activeView === "properties") && (
             <button
-              key={view.id}
               type="button"
-              className={activeView === view.id ? "is-active" : ""}
-              onClick={() => setActiveView(view.id)}
+              className={`process-chat-toggle ${isCanvasChatOpen ? "is-active" : ""}`}
+              onClick={() => setIsCanvasChatOpen((prev) => !prev)}
+              title={isCanvasChatOpen ? "Nascondi Chat Canvas" : "Mostra Chat Canvas"}
             >
-              {view.label}
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span>Chat Canvas</span>
             </button>
-          ))}
-        </nav>
+          )}
+
+          <nav className="process-view-switch" aria-label="Viste processo">
+            {processViews.map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                className={activeView === view.id ? "is-active" : ""}
+                onClick={() => setActiveView(view.id)}
+              >
+                {view.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </header>
 
       <div className={`process-workspace-grid process-view-${activeView}`}>
-        {isBpmnView ? (
-          <div className="process-studio" aria-label="Studio processo">
-            <section className="process-studio-chat" aria-label="Chat canvas">
-              <ChatExperience
-                chrome="panel"
-                layout="embedded"
-                scope={{
-                  type: "canvas",
-                  projectId: project.id,
-                  processId: process.id,
-                  bpmnModelId: process.bpmnModelId,
-                  processName: process.name,
-                  currentBpmnXml: currentCanvasXml,
-                }}
-              />
-            </section>
+        {(activeView === "canvas" || activeView === "properties") && (
+          <div
+            className={`process-studio-flex ${isDragging ? "is-dragging" : ""}`}
+            aria-label="Studio BPMN"
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+          >
+            {/* 1. LEFT PANEL: Chat Canvas (if open) */}
+            {isCanvasChatOpen && (
+              <section
+                className="process-studio-chat"
+                style={{ width: `${chatWidth}px`, flex: `0 0 ${chatWidth}px` }}
+                aria-label="Chat canvas"
+              >
+                <ChatExperience
+                  chrome="panel"
+                  layout="embedded"
+                  scope={{
+                    type: "canvas",
+                    projectId: project.id,
+                    processId: process.id,
+                    bpmnModelId: process.bpmnModelId,
+                    processName: process.name,
+                    currentBpmnXml: currentCanvasXml,
+                  }}
+                />
+              </section>
+            )}
 
-            <section className="process-studio-canvas" aria-label="Canvas BPMN">
+            {/* 2. RESIZABLE HANDLE */}
+            {isCanvasChatOpen && (
+              <div
+                className={`workspace-splitter ${isDragging ? "is-active" : ""}`}
+                onPointerDown={handlePointerDown}
+                title="Trascina per ridimensionare la chat"
+              >
+                <div className="splitter-line" />
+              </div>
+            )}
+
+            {/* 3. CENTER / MAIN PANEL: Canvas BPMN */}
+            <section className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} aria-label="Canvas BPMN">
               <ProcessBpmnCanvas
                 bpmnModelId={process.bpmnModelId}
                 processName={process.name}
@@ -77,18 +146,23 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({ project, pro
               />
             </section>
 
-            <aside className="process-studio-properties" aria-label="Proprieta BPMN">
-              <header className="process-studio-properties-header">
-                <div>
-                  <p className="product-eyebrow">BPMN 2.0</p>
-                  <h3>Proprieta</h3>
-                </div>
-                <span>{activeView === "properties" ? "Attivo" : "Pannello"}</span>
-              </header>
-              <div className="process-bpmn-properties-host" ref={propertiesPanelRef} />
-            </aside>
+            {/* 4. RIGHT PANEL: BPMN Properties (if in properties view) */}
+            {activeView === "properties" && (
+              <aside className="process-studio-properties" style={{ width: "340px", flex: "0 0 340px", marginLeft: "8px" }} aria-label="Proprietà BPMN">
+                <header className="process-studio-properties-header">
+                  <div>
+                    <p className="product-eyebrow">BPMN 2.0</p>
+                    <h3>Pannello Proprietà</h3>
+                  </div>
+                  <span>Elemento selezionato</span>
+                </header>
+                <div className="process-bpmn-properties-host" ref={propertiesPanelRef} />
+              </aside>
+            )}
           </div>
-        ) : (
+        )}
+
+        {activeView === "chat" && (
           <>
             <section className="process-primary-panel" aria-label="Chat processo">
               <ChatExperience
