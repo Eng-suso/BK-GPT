@@ -185,7 +185,21 @@ def stream_agent_events(
             config={
                 "configurable": {
                     "thread_id": checkpoint_thread_id,
-                }
+                },
+                "run_name": "DeliR scoped agent",
+                "tags": [
+                    f"scope:{fields['scope_type']}",
+                    f"scope_key:{fields['scope_key']}",
+                ],
+                "metadata": {
+                    "thread_id": thread_id,
+                    "checkpoint_thread_id": checkpoint_thread_id,
+                    "scope_type": fields["scope_type"],
+                    "scope_key": fields["scope_key"],
+                    "model_name": model_name,
+                    "trace_id": context.trace_id,
+                    "request_id": context.request_id,
+                },
             },
             stream_mode="messages",
         )

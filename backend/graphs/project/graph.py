@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
 from backend.graphs.common import build_tool_chat_subgraph
@@ -186,7 +187,7 @@ def parse_project_router_json(content: str, user_request: str = "") -> dict:
 
 
 def build_project_router(llm):
-    def route_project_intent(state: ProjectState) -> dict:
+    def route_project_intent(state: ProjectState, config: RunnableConfig) -> dict:
         user_text = latest_user_text(state)
         if not user_text:
             return {
@@ -218,7 +219,8 @@ def build_project_router(llm):
                             f"{user_text}"
                         )
                     ),
-                ]
+                ],
+                config=config,
             )
         except Exception:
             return {

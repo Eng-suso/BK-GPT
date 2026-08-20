@@ -1,5 +1,6 @@
 from langchain_core.messages import AIMessage
 from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 
@@ -27,7 +28,7 @@ def build_tool_chat_subgraph(
     agent_node_name: str = "chatbot",
     tool_node_name: str = "tools",
 ):
-    def agent_node(state):
+    def agent_node(state, config: RunnableConfig):
         messages = build_context_messages(state)
 
         if subgraph_contract:
@@ -35,7 +36,7 @@ def build_tool_chat_subgraph(
 
         response = None
 
-        for chunk in llm_with_tools.stream(messages):
+        for chunk in llm_with_tools.stream(messages, config=config):
             response = chunk if response is None else response + chunk
 
         return {"messages": [response or AIMessage(content="")]}

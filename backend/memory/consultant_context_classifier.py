@@ -3,6 +3,7 @@ import re
 from typing import Protocol
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 
 from backend.memory.procedural.skill_loader import (
     MAX_SKILLS_PER_TURN,
@@ -200,6 +201,7 @@ def parse_classifier_response(content: str) -> dict:
 def classify_and_select_context(
     messages: list,
     classifier_llm: ContextClassifier | None,
+    config: RunnableConfig | None = None,
 ) -> dict:
     if classifier_llm is None:
         return empty_classification()
@@ -210,7 +212,7 @@ def classify_and_select_context(
         return empty_classification()
 
     try:
-        response = classifier_llm.invoke(build_classification_prompt(user_text))
+        response = classifier_llm.invoke(build_classification_prompt(user_text), config=config)
     except Exception:
         return empty_classification()
 

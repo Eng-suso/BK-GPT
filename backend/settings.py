@@ -38,15 +38,19 @@ def configure_langsmith_environment() -> None:
         return
 
     os.environ.setdefault("LANGSMITH_TRACING", "true")
+    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
 
     if settings.langsmith_api_key:
         os.environ.setdefault("LANGSMITH_API_KEY", settings.langsmith_api_key)
+        os.environ.setdefault("LANGCHAIN_API_KEY", settings.langsmith_api_key)
 
     if settings.langsmith_endpoint:
         os.environ.setdefault("LANGSMITH_ENDPOINT", settings.langsmith_endpoint)
+        os.environ.setdefault("LANGCHAIN_ENDPOINT", settings.langsmith_endpoint)
 
     if settings.langsmith_project:
         os.environ.setdefault("LANGSMITH_PROJECT", settings.langsmith_project)
+        os.environ.setdefault("LANGCHAIN_PROJECT", settings.langsmith_project)
 
 
 configure_langsmith_environment()

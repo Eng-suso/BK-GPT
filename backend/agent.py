@@ -3,6 +3,7 @@ import sqlite3
 from pathlib import Path
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import START, END, StateGraph, MessagesState
@@ -22,6 +23,7 @@ from backend.memory.consultant_context_classifier import (
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
 RECENT_MESSAGE_LIMIT = 8
+RECENT_MESSAGE_SCAN_LIMIT = 24
 SUMMARY_TRIGGER_MESSAGE_COUNT = 10
 SUMMARY_KEEP_RECENT_MESSAGES = 6
 
@@ -57,6 +59,100 @@ def load_procedural_memory() -> str:
     return PROCEDURAL_MEMORY_PATH.read_text(encoding="utf-8").strip()
 
 
+def message_role(message) -> str:
+    return str(getattr(message, "type", None) or getattr(message, "role", "") or "")
+
+
+def ai_tool_call_ids(message) -> set[str]:
+    tool_calls = getattr(message, "tool_calls", None) or []
+    additional_kwargs = getattr(message, "additional_kwargs", {}) or {}
+    raw_tool_calls = additional_kwargs.get("tool_calls") or []
+    ids = set()
+
+    for tool_call in [*tool_calls, *raw_tool_calls]:
+        if isinstance(tool_call, dict):
+            tool_id = tool_call.get("id")
+        else:
+            tool_id = getattr(tool_call, "id", None)
+
+        if tool_id:
+            ids.add(str(tool_id))
+
+    return ids
+
+
+def tool_message_id(message) -> str | None:
+    tool_call_id = getattr(message, "tool_call_id", None)
+    if tool_call_id:
+        return str(tool_call_id)
+
+    additional_kwargs = getattr(message, "additional_kwargs", {}) or {}
+    tool_call_id = additional_kwargs.get("tool_call_id")
+    return str(tool_call_id) if tool_call_id else None
+
+
+def recent_context_messages(messages: list, limit: int = RECENT_MESSAGE_LIMIT) -> list:
+    """
+    Keep recent chat context valid for OpenAI tool-calling.
+    A ToolMessage is legal only when its matching AI tool_call message is included
+    immediately before the group; naive tail slicing can create orphan tool messages.
+    """
+    candidates = messages[-RECENT_MESSAGE_SCAN_LIMIT:]
+    groups = []
+    index = 0
+
+    while index < len(candidates):
+        message = candidates[index]
+        role = message_role(message)
+
+        if role == "tool":
+            index += 1
+            continue
+
+        tool_call_ids = ai_tool_call_ids(message) if role in {"ai", "assistant"} else set()
+
+        if not tool_call_ids:
+            groups.append([message])
+            index += 1
+            continue
+
+        group = [message]
+        matched_tool_ids = set()
+        scan = index + 1
+
+        while scan < len(candidates) and message_role(candidates[scan]) == "tool":
+            tool_id = tool_message_id(candidates[scan])
+            if tool_id in tool_call_ids:
+                matched_tool_ids.add(tool_id)
+                group.append(candidates[scan])
+            scan += 1
+
+        if tool_call_ids.issubset(matched_tool_ids):
+            groups.append(group)
+
+        index = scan
+
+    selected_groups = []
+    selected_count = 0
+
+    for group in reversed(groups):
+        group_size = len(group)
+        if selected_groups and selected_count + group_size > limit:
+            break
+
+        selected_groups.append(group)
+        selected_count += group_size
+
+        if selected_count >= limit:
+            break
+
+    selected = []
+    for group in reversed(selected_groups):
+        selected.extend(group)
+
+    return selected
+
+
 def build_context_messages(state: ConsultantState):
     messages = [
         SystemMessage(content=load_procedural_memory()),
@@ -85,7 +181,7 @@ def build_context_messages(state: ConsultantState):
             )
         )
 
-    return messages + state["messages"][-RECENT_MESSAGE_LIMIT:]
+    return messages + recent_context_messages(state["messages"])
 
 
 def message_to_summary_line(message) -> str:
@@ -159,6 +255,7 @@ def build_agent(model_name: str | None = None):
         timeout=settings.model_timeout_seconds,
         max_retries=settings.model_max_retries,
         streaming=True,
+        stream_usage=True,
         reasoning_effort="none",
     )
 
@@ -173,7 +270,7 @@ def build_agent(model_name: str | None = None):
         reasoning_effort="none",
     )
 
-    def summarize_node(state: ConsultantState):
+    def summarize_node(state: ConsultantState, config: RunnableConfig):
         messages = state["messages"]
 
         if len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT:
@@ -194,7 +291,8 @@ def build_agent(model_name: str | None = None):
             build_summary_prompt(
                 existing_summary=state.get("running_summary", ""),
                 messages_to_summarize=messages_to_summarize,
-            )
+            ),
+            config=config,
         )
 
         # Trim old messages from the checkpoint to prevent unbounded growth.
@@ -214,10 +312,11 @@ def build_agent(model_name: str | None = None):
             } if remove_ops else {}),
         }
 
-    def classify_and_select_context_node(state: ConsultantState):
+    def classify_and_select_context_node(state: ConsultantState, config: RunnableConfig):
         return classify_and_select_context(
             state["messages"],
             classifier_llm=context_router_llm,
+            config=config,
         )
 
     def route_scope(state: ConsultantState):
