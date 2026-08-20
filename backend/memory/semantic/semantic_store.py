@@ -1,5 +1,6 @@
 from mem0 import MemoryClient
 
+from backend.memory.models import ConsultantSemanticMemory, semantic_memory_to_mem0_content
 from backend.settings import settings
 
 
@@ -76,7 +77,7 @@ def format_memory_results(response, limit: int = 5) -> str:
     )
 
 
-def save_consultant_memory(content: str, category: str) -> str:
+def add_mem0_memory(content: str) -> str:
     client = get_memory_client()
 
     if client is None:
@@ -88,7 +89,7 @@ def save_consultant_memory(content: str, category: str) -> str:
             messages=[
                 {
                     "role": "user",
-                    "content": f"[{category}] {content}",
+                    "content": content,
                 }
             ],
             user_id=settings.mem0_user_id,
@@ -96,7 +97,25 @@ def save_consultant_memory(content: str, category: str) -> str:
     except Exception as exc:
         return f"Non sono riuscito a salvare in Mem0: {exc}"
 
-    return f"Ho salvato in memoria: {content}"
+    return "Memoria salvata in Mem0."
+
+
+def save_structured_consultant_memory(memory: ConsultantSemanticMemory) -> str:
+    result = add_mem0_memory(semantic_memory_to_mem0_content(memory))
+
+    if not result.startswith("Memoria salvata"):
+        return result
+
+    return f"Ho salvato in memoria: {memory.statement}"
+
+
+def save_consultant_memory(content: str, category: str) -> str:
+    memory = ConsultantSemanticMemory(
+        category=category,
+        statement=content,
+        source="chat",
+    )
+    return save_structured_consultant_memory(memory)
 
 
 def search_consultant_memory(query: str, category: str | None = None) -> str:

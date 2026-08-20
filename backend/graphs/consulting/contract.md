@@ -39,9 +39,9 @@ If it needs more, add a subgraph, a tool facade, or a narrower macro agent.
 - `get_workspace_overview`: read-only global workspace snapshot for strategic synthesis and routing.
 - `prepare_delegation_payload`: structured handoff payload for another owner.
 - `remember_consultant_fact`: save durable consultant-level facts.
-- `search_consultant_memory`: retrieve durable consultant-level facts and preferences.
+- `retrieve_consulting_context`: retrieve semantic, episodic, interview, or combined consultant context.
+- `retrieve_consulting_graph_context`: retrieve relation-heavy consulting context through Mem0 Graph Memory-style retrieval plus workspace grounding.
 - `save_episode`: save dated source-backed context.
-- `search_episodes`: search dated source-backed context.
 - `web_research`: search current external information.
 
 ## Internal Subgraphs
@@ -113,6 +113,25 @@ Always load local Consulting skills from `backend/graphs/consulting/skills`.
 Subgraphs load only their own local skills from their `skills/` folder.
 
 Do not load process or canvas procedural memory into the Consult Macro Agent unless the current task is only explaining routing.
+
+The procedural manifest lives in `backend/graphs/consulting/skills_manifest.py` and defines required, optional, and forbidden skills per owner.
+
+## Semantic And Episodic Memory
+
+Consulting semantic memory uses Mem0 through `backend/memory/semantic/semantic_store.py`.
+
+Semantic memories should be written with structured fields: category, entity names, statement, confidence, source, and durability.
+This improves Mem0 Graph Memory/entity linking without adding a separate custom graph database.
+
+Episodic memory uses local SQLite plus raw source custody through `backend/memory/episodic/episodic_store.py`, then indexes structured episode metadata into Mem0.
+
+Mem0 is retrieval and graph-memory support, not the source of truth for workspace records or raw source custody.
+
+Use `retrieve_consulting_context` as the Consulting retrieval facade for semantic, episodic, interview, or combined retrieval.
+
+Use `retrieve_consulting_graph_context` only when the question is explicitly relational or graph-like: clients linked to projects, projects linked to sources/decisions/risks, insights linked to evidence, offers linked to ICP, or consultant preferences linked to delivery choices.
+
+Do not use graph retrieval for simple facts, CRUD operations, BPMN editing, or current external information.
 
 ## Guardrails
 

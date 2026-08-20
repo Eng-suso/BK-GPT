@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field
 
 from backend.toolsets.memory import (
     remember_consultant_fact,
+    retrieve_consulting_context,
+    retrieve_consulting_graph_context,
     save_episode,
-    search_consultant_memory,
-    search_episodes,
 )
 from backend.toolsets.web import web_research
 from backend.toolsets.workspace import get_workspace_overview
@@ -63,9 +63,9 @@ to the correct subgraph or macro agent instead of using broad generic tools.
 
 consultant_memory_tools = [
     remember_consultant_fact,
-    search_consultant_memory,
+    retrieve_consulting_context,
+    retrieve_consulting_graph_context,
     save_episode,
-    search_episodes,
 ]
 
 consultant_tools = [

@@ -23,6 +23,8 @@ from backend.toolsets.memory import (
     memory_tools,
     remember_bpmn_preference,
     remember_consultant_fact,
+    retrieve_consulting_context,
+    retrieve_consulting_graph_context,
     save_episode,
     save_interview,
     search_bpmn_preferences,

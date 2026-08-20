@@ -9,8 +9,9 @@ from uuid import uuid4
 from sqlalchemy import ForeignKey, Index, String, Text, create_engine, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+from backend.memory.models import EpisodeMemory, episode_memory_to_mem0_content
 from backend.memory.semantic.semantic_store import (
-    save_consultant_memory,
+    add_mem0_memory,
     search_consultant_memory,
 )
 
@@ -154,20 +155,36 @@ def save_raw_source(
 
 
 def build_mem0_episode_content(episode: dict, source: dict) -> str:
-    return "\n".join(
-        [
-            f"episode_id: {episode['episode_id']}",
-            f"source_id: {source['source_id']}",
-            f"type: {episode['episode_type']}",
-            f"title: {episode['title']}",
-            f"occurred_at: {episode.get('occurred_at') or 'unknown'}",
-            f"participants: {', '.join(json.loads(episode['participants'])) or 'unknown'}",
-            f"project: {episode.get('project') or 'none'}",
-            f"tags: {', '.join(json.loads(episode['tags'])) or 'none'}",
-            f"summary: {episode.get('summary') or 'none'}",
-            f"insights: {' | '.join(json.loads(episode['insights'])) or 'none'}",
-            f"source_path: {source['path']}",
-        ]
+    memory = EpisodeMemory(
+        episode_type=episode["episode_type"],
+        title=episode["title"],
+        raw_content="indexed separately in local source custody",
+        summary=episode.get("summary") or "",
+        insights=json.loads(episode["insights"] or "[]"),
+        participants=json.loads(episode["participants"] or "[]"),
+        project=episode.get("project"),
+        tags=json.loads(episode["tags"] or "[]"),
+        occurred_at=episode.get("occurred_at"),
+    )
+    return episode_memory_to_mem0_content(
+        memory=memory,
+        episode_id=episode["episode_id"],
+        source_id=source["source_id"],
+        source_path=source["path"],
+    )
+
+
+def save_structured_episode_memory(memory: EpisodeMemory) -> str:
+    return save_episode_memory(
+        episode_type=memory.episode_type,
+        title=memory.title,
+        raw_content=memory.raw_content,
+        summary=memory.summary,
+        insights=memory.insights,
+        participants=memory.participants,
+        project=memory.project,
+        tags=memory.tags,
+        occurred_at=memory.occurred_at,
     )
 
 
@@ -241,10 +258,7 @@ def save_episode_memory(
             )
         )
 
-    mem0_result = save_consultant_memory(
-        content=build_mem0_episode_content(episode, source),
-        category=f"episodic:{episode['episode_type']}",
-    )
+    mem0_result = add_mem0_memory(build_mem0_episode_content(episode, source))
 
     return (
         f"Episodio salvato: {episode['title']} "
