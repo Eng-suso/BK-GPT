@@ -45,8 +45,36 @@ def build_scope_system_prompt(state: dict) -> str:
         lines.append(f"process_id: {state['process_id']}")
     if state.get("bpmn_model_id"):
         lines.append(f"bpmn_model_id: {state['bpmn_model_id']}")
+    if state.get("project_name"):
+        lines.append(f"project_name: {state['project_name']}")
+    if state.get("client_name"):
+        lines.append(f"client_name: {state['client_name']}")
+    if state.get("project_phase"):
+        lines.append(f"project_phase: {state['project_phase']}")
+    if state.get("project_status"):
+        lines.append(f"project_status: {state['project_status']}")
+    if state.get("progress") is not None:
+        lines.append(f"project_progress: {state['progress']}")
+    if state.get("next_step"):
+        lines.append(f"project_next_step: {state['next_step']}")
     if state.get("process_name"):
         lines.append(f"process_name: {state['process_name']}")
+
+    if scope_type == "project":
+        project_snapshot = {
+            "processes": state.get("project_processes") or [],
+            "sources": state.get("project_sources") or [],
+            "decisions": state.get("project_decisions") or [],
+            "deliverables": state.get("project_deliverables") or [],
+            "open_issues": state.get("project_open_issues") or [],
+        }
+        lines.extend(
+            [
+                "",
+                "Snapshot progetto corrente precaricato dal workspace DB:",
+                _state_value_to_text(project_snapshot, MAX_STATE_ARTIFACT_CHARS),
+            ]
+        )
 
     if state.get("readiness_score") is not None:
         lines.append(f"readiness_score: {state['readiness_score']}")

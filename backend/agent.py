@@ -239,6 +239,7 @@ def build_agent(model_name: str | None = None):
         "project_subgraph",
         build_project_subgraph(
             tools=tools_by_scope["project"],
+            llm=llm,
             llm_with_tools=llm.bind_tools(tools_by_scope["project"]),
             build_context_messages=build_context_messages,
         ),
