@@ -57,3 +57,20 @@ def test_cors_headers_present(client: TestClient):
     assert response.status_code == 200
     # CORS allow-origin header should be set
     assert "access-control-allow-origin" in response.headers
+
+
+def test_api_error_envelope_and_request_id_header(client: TestClient):
+    """API errors should expose a stable envelope and request id."""
+    response = client.get(
+        "/v1/consultant-chat/sessions/missing-thread",
+        headers={"X-Request-ID": "test-request-id"},
+    )
+
+    assert response.status_code == 404
+    assert response.headers["x-request-id"] == "test-request-id"
+
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "not_found"
+    assert payload["error"]["request_id"] == "test-request-id"
+    assert payload["meta"]["request_id"] == "test-request-id"
