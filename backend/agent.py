@@ -230,6 +230,7 @@ def build_agent(model_name: str | None = None):
         "consulting_subgraph",
         build_consulting_subgraph(
             tools=tools_by_scope["consultant"],
+            llm=llm,
             llm_with_tools=llm.bind_tools(tools_by_scope["consultant"]),
             build_context_messages=build_context_messages,
         ),

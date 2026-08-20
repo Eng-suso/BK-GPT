@@ -109,8 +109,15 @@ STREAMABLE_AGENT_NODES = {
     "project_subgraph",
     "process_subgraph",
     "canvas_subgraph",
+    "consult_macro_agent",
+    "home_agent",
+    "clients_agent",
+    "setup_agent",
     "process_agent",
     "canvas_agent",
+    "delegate_to_project_macro",
+    "delegate_to_process_macro",
+    "delegate_to_canvas_macro",
     "chatbot",
 }
 
