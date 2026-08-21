@@ -2,42 +2,56 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main]
+    branches: [main, master, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# ─────────────────────────────────────────────────────────────
-# BACKEND TESTS (Python / FastAPI / pytest)
-# ─────────────────────────────────────────────────────────────
 jobs:
-  backend-tests:
-    name: "Backend Tests (pytest)"
+  backend-quality:
+    name: Backend quality
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      UV_CACHE_DIR: .uv-cache
+      DELIR_FORCE_MOCK_EMBEDDINGS: "true"
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v5
         with:
-          version: "latest"
+          enable-cache: true
 
       - name: Set up Python
-        run: uv python install
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
 
       - name: Install Python dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked
+
+      - name: Ruff check
+        run: uv run ruff check backend/graphs backend/schemas backend/services tests
+
+      - name: Mypy check
+        run: uv run mypy
+
+      - name: Compile Python sources
+        run: uv run python -m compileall -q backend tests
 
       - name: Run pytest
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-test-fake-key-for-ci' }}
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY || 'tvly-test-fake-key-for-ci' }}
+          OPENAI_API_KEY: ""
+          MEM0_API_KEY: ""
+          TAVILY_API_KEY: ""
         run: uv run pytest tests/ -v --tb=short --junit-xml=pytest-results.xml
 
       - name: Upload pytest report
@@ -48,11 +62,8 @@ jobs:
           path: pytest-results.xml
           retention-days: 7
 
-  # ─────────────────────────────────────────────────────────────
-  # FRONTEND QUALITY GATE
-  # ─────────────────────────────────────────────────────────────
   frontend-quality:
-    name: " Frontend Quality Gate"
+    name: Frontend quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -70,21 +81,16 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         run: npm ci --legacy-peer-deps
 
-      # ── 1. LINT ──────────────────────────────────────────────
-      - name: "1️⃣  ESLint"
+      - name: ESLint
         run: npm run lint
-        continue-on-error: false
 
-      # ── 2. TYPECHECK ─────────────────────────────────────────
-      - name: "2️⃣  TypeScript typecheck"
+      - name: TypeScript typecheck
         run: npm run typecheck
-        continue-on-error: false
 
-      # ── 3. UNIT TESTS (Vitest) ───────────────────────────────
-      - name: "3️⃣  Vitest unit tests"
+      - name: Vitest coverage
         run: npm run test:coverage
 
       - name: Upload Vitest coverage report
@@ -95,44 +101,40 @@ jobs:
           path: frontend/coverage/
           retention-days: 7
 
-      # ── 4. STORYBOOK BUILD ───────────────────────────────────
-      - name: "4️⃣  Storybook build"
+      - name: Storybook build
         run: npm run storybook:build
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Upload Storybook build
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: storybook-static
           path: frontend/storybook-static/
           retention-days: 3
 
-  # ─────────────────────────────────────────────────────────────
-  # E2E + ACCESSIBILITY + VISUAL REGRESSION (Playwright)
-  # ─────────────────────────────────────────────────────────────
   playwright:
-    name: "🎭 Playwright (${{ matrix.project }})"
+    name: Playwright (${{ matrix.project }})
     runs-on: ubuntu-latest
-    needs: [frontend-quality]
+    needs: [backend-quality, frontend-quality]
     timeout-minutes: 30
 
     strategy:
       fail-fast: false
       matrix:
         project:
-          - chromium       # Desktop Chrome
-          - firefox        # Desktop Firefox
-          - webkit         # Desktop Safari
-          - mobile-chrome  # Pixel 7
-          - mobile-safari  # iPhone 14
-          - lighthouse     # Chromium Lighthouse Audit
+          - chromium
+          - firefox
+          - webkit
+          - mobile-chrome
+          - mobile-safari
+          - lighthouse
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Fetch full history for visual regression baseline comparison
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -143,42 +145,43 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install root dependencies
-        run: npm ci --prefix . || true
+        run: npm ci
 
       - name: Install frontend dependencies
         run: npm ci --prefix frontend --legacy-peer-deps
 
-      - name: Install uv (for backend dev server)
-        uses: astral-sh/setup-uv@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
 
       - name: Install Python dependencies
-        run: uv sync --all-extras
+        env:
+          UV_CACHE_DIR: .uv-cache
+        run: uv sync --locked
 
       - name: Install Playwright browsers
         run: npx playwright install ${{ matrix.project == 'mobile-chrome' && 'chromium' || matrix.project == 'mobile-safari' && 'webkit' || matrix.project == 'lighthouse' && 'chromium' || matrix.project }} --with-deps
 
-      # Download visual regression baselines (uploaded by main branch)
       - name: Download visual regression baselines
         uses: actions/download-artifact@v4
         with:
           name: visual-baselines-${{ matrix.project }}
           path: e2e/__snapshots__
-        continue-on-error: true  # First run: no baseline exists yet
+        continue-on-error: true
 
-      # ── E2E + A11Y + VISUAL REGRESSION ──────────────────────
-      - name: "Run Playwright tests (E2E + Axe + Visual)"
+      - name: Run Playwright tests
         env:
           CI: true
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-test-fake-key-for-ci' }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY || 'tvly-test-fake-key-for-ci' }}
-        run: |
-          npx playwright test \
-            --project=${{ matrix.project }} \
-            --reporter=html,list
+        run: npx playwright test --project=${{ matrix.project }} --reporter=html,list
 
-      # Upload new snapshots as new baselines (only on main branch)
       - name: Upload visual regression baselines
         uses: actions/upload-artifact@v4
         if: github.ref == 'refs/heads/main' && always()
@@ -187,7 +190,6 @@ jobs:
           path: e2e/__snapshots__/
           retention-days: 90
 
-      # Always upload test report and results for debugging
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
@@ -196,7 +198,7 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
-      - name: Upload test results (videos/screenshots on failure)
+      - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -204,27 +206,24 @@ jobs:
           path: test-results/
           retention-days: 7
 
-  # ─────────────────────────────────────────────────────────────
-  # FINAL STATUS CHECK (required for branch protection rules)
-  # ─────────────────────────────────────────────────────────────
   ci-success:
-    name: "✅ All CI checks passed"
+    name: All CI checks passed
     runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-quality, playwright]
+    needs: [backend-quality, frontend-quality, playwright]
     if: always()
     steps:
       - name: Check all jobs status
         run: |
-          if [[ "${{ needs.backend-tests.result }}" != "success" ]]; then
-            echo "❌ backend-tests failed"
+          if [[ "${{ needs.backend-quality.result }}" != "success" ]]; then
+            echo "backend-quality failed"
             exit 1
           fi
           if [[ "${{ needs.frontend-quality.result }}" != "success" ]]; then
-            echo "❌ frontend-quality failed"
+            echo "frontend-quality failed"
             exit 1
           fi
           if [[ "${{ needs.playwright.result }}" != "success" ]]; then
-            echo "❌ playwright tests failed"
+            echo "playwright failed"
             exit 1
           fi
-          echo "✅ All CI jobs passed — safe to merge"
+          echo "All CI jobs passed"

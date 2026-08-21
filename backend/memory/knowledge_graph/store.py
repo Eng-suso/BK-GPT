@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 from pathlib import Path
 
@@ -44,6 +45,10 @@ def safe_node_id(prefix: str, value: str) -> str:
 
 def short_hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
+
+
+def force_mock_embeddings() -> bool:
+    return os.getenv("DELIR_FORCE_MOCK_EMBEDDINGS", "").casefold() in {"1", "true", "yes"}
 
 
 def relation_labels(payload: KnowledgeGraphEvidence) -> list[str]:
@@ -116,6 +121,30 @@ def query_terms(query: KnowledgeGraphQuery) -> list[str]:
     return [term for term in re.findall(r"[a-zA-Z0-9_:-]+", raw.casefold()) if len(term) > 2]
 
 
+def relation_matches_focus(label: str, relation_focus: str) -> bool:
+    normalized_label = clean_text(label).casefold()
+    normalized_focus = clean_text(relation_focus).casefold().replace("_", "-")
+    if normalized_label in normalized_focus:
+        return True
+    if normalized_focus in normalized_label.replace("_", "-"):
+        return True
+    if "claim" in normalized_focus and "activity" in normalized_focus:
+        return normalized_label in {
+            "claim_supports_activity",
+            "claim_supports_process_element",
+        }
+    if "canvas" in normalized_focus and "traceability" in normalized_focus:
+        return "canvas" in normalized_label or "process_element" in normalized_label
+    if "contradiction" in normalized_focus:
+        return "contradiction" in normalized_label
+    return False
+
+
+def process_ids_from_text(value: str, process_ids: list[str]) -> set[str]:
+    haystack = clean_text(value)
+    return {process_id for process_id in process_ids if process_id in haystack}
+
+
 class KnowledgeGraphStore:
     backend_name = "llamaindex_property_graph_and_vector_index"
 
@@ -169,6 +198,8 @@ class KnowledgeGraphStore:
         )
 
     def _embed_model(self):
+        if force_mock_embeddings():
+            return MockEmbedding(embed_dim=384)
         if settings.openai_api_key:
             return OpenAIEmbedding(api_key=settings.openai_api_key)
         return MockEmbedding(embed_dim=384)
@@ -204,6 +235,9 @@ class KnowledgeGraphStore:
         return index
 
     def _insert_vector_document(self, payload: KnowledgeGraphEvidence, record_id: str, text: str) -> None:
+        if force_mock_embeddings():
+            return
+
         document = Document(
             text=text,
             id_=record_id,
@@ -309,6 +343,7 @@ class KnowledgeGraphStore:
                 confidence=relationship.confidence,
                 confirmed=relationship.confirmed,
                 source_ref=relationship.source_ref,
+                process_ids=",".join(payload.process_ids),
             )
 
         for gap in payload.gaps:
@@ -363,6 +398,33 @@ class KnowledgeGraphStore:
         relations = graph.get("relations") or {}
         terms = query_terms(query)
         matches = []
+        record_process_ids: dict[str, set[str]] = {}
+
+        for relation in relations.values():
+            relation_props = relation.get("properties") or {}
+            record_id = clean_text(relation_props.get("record_id"))
+            if not record_id or relation_props.get("project_id") != query.project_id:
+                continue
+
+            source = nodes.get(relation.get("source_id"), {})
+            target = nodes.get(relation.get("target_id"), {})
+            source_props = source.get("properties") or {}
+            target_props = target.get("properties") or {}
+            process_haystack = " ".join(
+                [
+                    clean_text(relation_props.get("process_id")),
+                    clean_text(relation_props.get("process_ids")),
+                    clean_text(source_props.get("process_id")),
+                    clean_text(target_props.get("process_id")),
+                    clean_text(source_props.get("affected_process_ids")),
+                    clean_text(target_props.get("affected_process_ids")),
+                    relation.get("source_id") or "",
+                    relation.get("target_id") or "",
+                ]
+            )
+            linked_process_ids = process_ids_from_text(process_haystack, query.process_ids)
+            if linked_process_ids:
+                record_process_ids.setdefault(record_id, set()).update(linked_process_ids)
 
         for relation_key, relation in relations.items():
             source = nodes.get(relation.get("source_id"), {})
@@ -377,10 +439,12 @@ class KnowledgeGraphStore:
             process_haystack = " ".join(
                 [
                     clean_text(relation_props.get("process_id")),
+                    clean_text(relation_props.get("process_ids")),
                     clean_text(source_props.get("process_id")),
                     clean_text(target_props.get("process_id")),
                     clean_text(source_props.get("affected_process_ids")),
                     clean_text(target_props.get("affected_process_ids")),
+                    " ".join(record_process_ids.get(clean_text(relation_props.get("record_id")), set())),
                     relation.get("source_id") or "",
                     relation.get("target_id") or "",
                 ]
@@ -400,8 +464,8 @@ class KnowledgeGraphStore:
                 ]
             ).casefold()
             score = sum(1 for term in terms if term in haystack)
-            if relation.get("label", "").casefold() in query.relation_focus.casefold():
-                score += 4
+            if relation_matches_focus(relation.get("label", ""), query.relation_focus):
+                score += 20
             for entity in query.entities:
                 if entity.casefold() in haystack:
                     score += 3
@@ -427,6 +491,9 @@ class KnowledgeGraphStore:
         return sorted(matches, key=lambda item: item["score"], reverse=True)[: query.limit]
 
     def _retrieve_vector_context(self, query: KnowledgeGraphQuery) -> list[dict]:
+        if force_mock_embeddings():
+            return []
+
         index = self._load_vector_index()
         if index is None:
             return []

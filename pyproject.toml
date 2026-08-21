@@ -37,7 +37,32 @@ dependencies = [
     "llama-index>=0.14.24",
 ]
 
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "ruff>=0.15.6",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
 
+[tool.ruff]
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+explicit_package_bases = true
+follow_imports = "skip"
+files = [
+    "backend/graphs/routing_contracts.py",
+    "backend/graphs/consulting/graph.py",
+    "backend/graphs/project/graph.py",
+    "backend/graphs/process/graph.py",
+    "backend/graphs/canvas_edit/graph.py",
+    "backend/schemas",
+]
