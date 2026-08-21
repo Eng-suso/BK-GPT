@@ -21,8 +21,8 @@ from backend.graphs.process.tools import (
 import backend.graphs.process.tools as process_tools_module
 from backend.toolsets.process_memory import (
     index_process_evidence_graph,
+    manage_process_evidence,
     retrieve_process_graph_context,
-    save_process_interview,
 )
 import backend.toolsets.process_memory as process_memory_module
 
@@ -81,15 +81,13 @@ def test_process_toolsets_are_small_and_owned():
         "get_process_workspace_brief",
         "get_process_semantic_context",
         "prepare_process_delegation_payload",
-        "save_process_interview",
-        "save_process_episode",
+        "manage_process_evidence",
         "retrieve_process_graph_context",
         "retrieve_process_gap_context",
         "prepare_canvas_handoff",
     }
     assert "assess_discovery_readiness" in {tool.name for tool in discovery_tools}
-    assert "save_process_interview" in {tool.name for tool in evidence_tools}
-    assert "save_process_episode" in {tool.name for tool in evidence_tools}
+    assert "manage_process_evidence" in {tool.name for tool in evidence_tools}
     assert "extract_process_claims" in {tool.name for tool in evidence_tools}
     assert "prepare_process_understanding_review" in {tool.name for tool in modeling_tools}
 
@@ -199,8 +197,9 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
     assert '"readiness_score": 8' in semantic
 
     monkeypatch.setattr(process_memory_module.workspace_database, "get_process", lambda process_id: process)
-    interview = save_process_interview.invoke(
+    interview = manage_process_evidence.invoke(
         {
+            "operation": "save_interview",
             "project_id": "project-1",
             "process_id": "proc-1",
             "title": "Interview Finance",
@@ -230,7 +229,7 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
             ],
         }
     )
-    assert '"action": "save_process_interview"' in interview
+    assert '"action": "manage_process_evidence"' in interview
     assert '"entity_type": "process_interview"' in interview
     assert '"knowledge_graph_index": {' in interview
 

@@ -8,10 +8,9 @@ from backend import workspace_database
 from backend.bpmn_semantic import BPMNSemanticModel
 from backend.process_understanding import ProcessUnderstanding, render_process_review
 from backend.toolsets.process_memory import (
+    manage_process_evidence,
     retrieve_process_gap_context,
     retrieve_process_graph_context,
-    save_process_episode,
-    save_process_interview,
 )
 from backend.toolsets.workspace import enterprise_tool_result
 
@@ -398,8 +397,7 @@ process_tools = [
     get_process_workspace_brief,
     get_process_semantic_context,
     prepare_process_delegation_payload,
-    save_process_interview,
-    save_process_episode,
+    manage_process_evidence,
     retrieve_process_graph_context,
     retrieve_process_gap_context,
     prepare_canvas_handoff,

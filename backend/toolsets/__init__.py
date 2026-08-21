@@ -7,6 +7,7 @@ from backend.toolsets.bpmn import (
     layout_canvas_bpmn,
     list_canvas_bpmn_elements,
     list_canvas_bpmn_versions,
+    manage_canvas_bpmn_model,
     prepare_canvas_bpmn_review,
     prepare_process_bpmn_review,
     preview_canvas_bpmn_change,
@@ -20,6 +21,7 @@ from backend.toolsets.bpmn import (
 )
 from backend.toolsets.memory import (
     forget_consultant_memory,
+    manage_consulting_evidence,
     memory_tools,
     remember_bpmn_preference,
     remember_consultant_fact,

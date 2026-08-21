@@ -6,11 +6,10 @@ from pydantic import BaseModel, Field
 from backend import workspace_database
 from backend.toolsets.project_memory import (
     extract_project_graph_from_evidence,
+    manage_project_evidence,
     retrieve_cross_process_impact_context,
     retrieve_project_gap_context,
     retrieve_project_graph_context,
-    save_project_episode,
-    save_project_interview,
 )
 from backend.toolsets.workspace import enterprise_tool_result
 
@@ -504,8 +503,7 @@ or Canvas macro agents.
 project_tools = [
     get_project_workspace_brief,
     prepare_project_delegation_payload,
-    save_project_interview,
-    save_project_episode,
+    manage_project_evidence,
     extract_project_graph_from_evidence,
     retrieve_project_graph_context,
     retrieve_project_gap_context,

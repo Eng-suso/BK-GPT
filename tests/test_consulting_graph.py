@@ -14,7 +14,12 @@ from backend.memory.models import (
     episode_memory_to_mem0_content,
     semantic_memory_to_mem0_content,
 )
-from backend.toolsets.memory import retrieve_consulting_context, retrieve_consulting_graph_context
+from backend.toolsets.memory import (
+    manage_consulting_evidence,
+    retrieve_consulting_context,
+    retrieve_consulting_graph_context,
+)
+import backend.toolsets.memory as memory_module
 from backend.toolsets.workspace import (
     get_workspace_overview,
     manage_client_record,
@@ -183,6 +188,35 @@ def test_graph_retrieval_tool_is_explicit_and_consulting_owned():
         include_workspace_overview=False,
     )
     assert request.relation_focus == "project-to-decision"
+
+
+def test_consulting_uses_manage_evidence_facade(monkeypatch):
+    tool_names = {tool.name for tool in consultant_tools}
+    saved_payloads = []
+
+    assert "manage_consulting_evidence" in tool_names
+    assert "save_episode" not in tool_names
+
+    def fake_save_episode_memory(**kwargs):
+        saved_payloads.append(kwargs)
+        return "Episodio salvato: test [episode_id: ep-1] [source_id: src-1]."
+
+    monkeypatch.setattr(memory_module.episodic_store, "save_episode_memory", fake_save_episode_memory)
+
+    result = manage_consulting_evidence.invoke(
+        {
+            "operation": "save_interview",
+            "title": "Intervista discovery",
+            "raw_content": "Il cliente descrive il problema.",
+            "summary": "Problema descritto dal cliente.",
+            "participants": ["Cliente"],
+            "project": "project-1",
+        }
+    )
+
+    assert '"action": "manage_consulting_evidence"' in result
+    assert '"entity_type": "consulting_interview"' in result
+    assert saved_payloads[-1]["episode_type"] == "interview"
 
 
 def test_retrieve_consulting_graph_context_returns_grounded_sections():

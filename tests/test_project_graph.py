@@ -17,11 +17,10 @@ from backend.graphs.project.tools import (
 import backend.graphs.project.tools as project_tools_module
 from backend.toolsets.project_memory import (
     extract_project_graph_from_evidence,
+    manage_project_evidence,
     retrieve_cross_process_impact_context,
     retrieve_project_graph_context,
     retrieve_project_gap_context,
-    save_project_episode,
-    save_project_interview,
 )
 import backend.toolsets.project_memory as project_memory_module
 
@@ -78,8 +77,7 @@ def test_project_toolsets_are_small_and_owned():
     assert {tool.name for tool in project_tools} == {
         "get_project_workspace_brief",
         "prepare_project_delegation_payload",
-        "save_project_interview",
-        "save_project_episode",
+        "manage_project_evidence",
         "extract_project_graph_from_evidence",
         "retrieve_project_graph_context",
         "retrieve_project_gap_context",
@@ -225,8 +223,9 @@ def test_project_scoped_memory_tools_save_and_retrieve_evidence(monkeypatch):
         lambda **kwargs: "MEMORIA EPISODICA RECUPERATA.",
     )
 
-    interview = save_project_interview.invoke(
+    interview = manage_project_evidence.invoke(
         {
+            "operation": "save_interview",
             "project_id": "project-1",
             "title": "Intervista Acquisti",
             "raw_content": "Il responsabile acquisti descrive il flusso.",
@@ -268,7 +267,7 @@ def test_project_scoped_memory_tools_save_and_retrieve_evidence(monkeypatch):
         }
     )
 
-    assert '"action": "save_project_interview"' in interview
+    assert '"action": "manage_project_evidence"' in interview
     assert '"entity_type": "project_interview"' in interview
     assert saved_payloads[-1]["project"] == "project-1"
     assert "project:project-1" in saved_payloads[-1]["tags"]
@@ -280,8 +279,9 @@ def test_project_scoped_memory_tools_save_and_retrieve_evidence(monkeypatch):
     assert "PROJECT_GRAPH_INDEX" in saved_payloads[-1]["insights"][-1]
     assert "process:Acquisti DEPENDS_ON process:Budget" in saved_payloads[-1]["insights"][-1]
 
-    episode = save_project_episode.invoke(
+    episode = manage_project_evidence.invoke(
         {
+            "operation": "save_episode",
             "project_id": "project-1",
             "episode_type": "workshop",
             "title": "Workshop kickoff",
@@ -289,7 +289,7 @@ def test_project_scoped_memory_tools_save_and_retrieve_evidence(monkeypatch):
             "process_ids": ["proc-2"],
         }
     )
-    assert '"action": "save_project_episode"' in episode
+    assert '"action": "manage_project_evidence"' in episode
     assert "process:proc-2" in saved_payloads[-1]["tags"]
 
     extraction = extract_project_graph_from_evidence.invoke(

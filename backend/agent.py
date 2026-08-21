@@ -356,6 +356,7 @@ def build_agent(model_name: str | None = None):
         "canvas_subgraph",
         build_canvas_subgraph(
             tools=tools_by_scope["canvas"],
+            llm=llm,
             llm_with_tools=llm.bind_tools(tools_by_scope["canvas"]),
             build_context_messages=build_context_messages,
         ),

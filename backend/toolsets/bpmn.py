@@ -1,4 +1,5 @@
 from typing_extensions import Annotated
+from typing import Literal
 
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
@@ -17,6 +18,23 @@ from backend.workspace_services.bpmn_canvas_edit import (
     update_bpmn_element,
     validate_bpmn_xml,
 )
+
+
+CanvasBpmnOperation = Literal[
+    "inspect",
+    "list_elements",
+    "update_element",
+    "add_element",
+    "delete_element",
+    "connect_elements",
+    "reconnect_flow",
+    "layout",
+    "validate",
+    "preview_change",
+    "replace_xml",
+    "list_versions",
+    "restore_version",
+]
 
 
 def _state_or_saved_canvas_xml(bpmn_model_id: str, state: dict) -> tuple[str, str]:
@@ -46,6 +64,304 @@ def _saved_canvas_model_payload(bpmn_model_id: str) -> dict:
         "xml": model["xml"] or "",
         "source": "saved_backend",
     }
+
+
+@tool
+def manage_canvas_bpmn_model(
+    bpmn_model_id: str,
+    operation: CanvasBpmnOperation,
+    state: Annotated[dict, InjectedState()],
+    element_id: str | None = None,
+    element_type: str | None = None,
+    name: str | None = None,
+    documentation: str | None = None,
+    source_id: str | None = None,
+    target_id: str | None = None,
+    flow_id: str | None = None,
+    proposed_xml: str | None = None,
+    version_id: int | None = None,
+    change_summary: str | None = None,
+    confirm_structural_change: bool = False,
+) -> str:
+    """
+    Unified BPMN canvas CRUD facade.
+
+    Use this as the primary canvas operation tool instead of selecting many
+    low-level BPMN edit tools directly. Patch/Edit agents should use local
+    operations only: inspect, list_elements, update_element, add_element,
+    delete_element, connect_elements, reconnect_flow, layout and validate.
+    Structural replacement requires preview/approval and confirm_structural_change.
+    """
+    if operation == "inspect":
+        model = workspace_database.get_bpmn_model(bpmn_model_id)
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "id": model["id"],
+                "process_id": model["process_id"],
+                "name": model["name"],
+                "has_xml": bool(xml),
+                "xml": xml,
+                "source": source,
+            },
+        )
+
+    if operation == "list_elements":
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "elements": list_bpmn_elements(xml),
+            },
+        )
+
+    if operation == "update_element":
+        if not element_id:
+            raise ValueError("element_id obbligatorio per update_element.")
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        updated_xml, change = update_bpmn_element(
+            xml=xml,
+            element_id=element_id,
+            name=name,
+            documentation=documentation,
+        )
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            updated_xml,
+            change_summary=f"Aggiornato elemento BPMN {element_id}",
+            source="canvas_facade_update",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "change": change,
+                "xml_saved": True,
+            },
+        )
+
+    if operation == "add_element":
+        if not element_type or not name:
+            raise ValueError("element_type e name sono obbligatori per add_element.")
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        updated_xml, change = add_bpmn_element(
+            xml=xml,
+            element_type=element_type,
+            name=name,
+            element_id=element_id,
+            documentation=documentation,
+        )
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            updated_xml,
+            change_summary=f"Aggiunto elemento BPMN {change['id']}",
+            source="canvas_facade_add",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "change": change,
+                "xml_saved": True,
+            },
+        )
+
+    if operation == "delete_element":
+        if not element_id:
+            raise ValueError("element_id obbligatorio per delete_element.")
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        updated_xml, change = delete_bpmn_element(xml=xml, element_id=element_id)
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            updated_xml,
+            change_summary=f"Eliminato elemento BPMN {element_id}",
+            source="canvas_facade_delete",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "change": change,
+                "xml_saved": True,
+            },
+        )
+
+    if operation == "connect_elements":
+        if not source_id or not target_id:
+            raise ValueError("source_id e target_id sono obbligatori per connect_elements.")
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        updated_xml, change = connect_bpmn_elements(
+            xml=xml,
+            source_id=source_id,
+            target_id=target_id,
+            flow_id=flow_id,
+            name=name,
+        )
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            updated_xml,
+            change_summary=f"Collegati elementi BPMN {source_id} -> {target_id}",
+            source="canvas_facade_connect",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "change": change,
+                "xml_saved": True,
+            },
+        )
+
+    if operation == "reconnect_flow":
+        if not flow_id:
+            raise ValueError("flow_id obbligatorio per reconnect_flow.")
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        updated_xml, change = reconnect_bpmn_flow(
+            xml=xml,
+            flow_id=flow_id,
+            source_id=source_id,
+            target_id=target_id,
+        )
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            updated_xml,
+            change_summary=f"Ricollegato flow BPMN {flow_id}",
+            source="canvas_facade_reconnect",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "change": change,
+                "xml_saved": True,
+            },
+        )
+
+    if operation == "layout":
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        updated_xml = layout_bpmn_di(xml)
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            updated_xml,
+            change_summary="Layout BPMN aggiornato",
+            source="canvas_facade_layout",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "validation": validate_bpmn_xml(updated_xml),
+                "xml_saved": True,
+            },
+        )
+
+    if operation == "validate":
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                **validate_bpmn_xml(xml),
+            },
+        )
+
+    if operation == "preview_change":
+        if not proposed_xml:
+            raise ValueError("proposed_xml obbligatorio per preview_change.")
+        current_xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        clean_proposed_xml = replace_bpmn_xml(proposed_xml)
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
+            },
+        )
+
+    if operation == "replace_xml":
+        if not proposed_xml:
+            raise ValueError("proposed_xml obbligatorio per replace_xml.")
+        if not confirm_structural_change:
+            raise ValueError("replace_xml richiede confirm_structural_change=True dopo preview/approvazione.")
+        clean_xml = replace_bpmn_xml(proposed_xml)
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            clean_xml,
+            change_summary=change_summary or "Sostituzione strutturale canvas",
+            source="canvas_facade_replace",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "change_summary": change_summary or "Sostituzione strutturale canvas",
+                "xml_saved": True,
+            },
+        )
+
+    if operation == "list_versions":
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "versions": workspace_database.list_bpmn_versions(bpmn_model_id),
+            },
+        )
+
+    if operation == "restore_version":
+        if version_id is None:
+            raise ValueError("version_id obbligatorio per restore_version.")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                **workspace_database.restore_bpmn_version(
+                    bpmn_model_id=bpmn_model_id,
+                    version_id=version_id,
+                ),
+            },
+        )
+
+    raise ValueError(f"Operazione canvas non supportata: {operation}")
 
 
 @tool
@@ -476,6 +792,7 @@ def approve_canvas_bpmn_review(bpmn_model_id: str) -> str:
 
 
 bpmn_review_tools = [
+    manage_canvas_bpmn_model,
     read_process_bpmn_xml,
     read_canvas_bpmn_xml,
     list_canvas_bpmn_elements,

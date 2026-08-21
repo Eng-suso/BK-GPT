@@ -100,6 +100,43 @@ class ProcessGraphRetrievalInput(BaseModel):
     limit: int = Field(default=8, ge=1, le=20)
 
 
+class ManageProcessEvidenceInput(BaseModel):
+    operation: str = Field(
+        description=(
+            "Process evidence lifecycle operation. Use list/search/inspect to retrieve process evidence; "
+            "use save_interview or save_episode to store source-backed evidence with optional enterprise KG extraction; "
+            "use update_metadata for labels; use archive for normal removal from active retrieval; "
+            "use restore to reactivate; use delete only after explicit destructive confirmation."
+        )
+    )
+    project_id: str = Field(description="Current project id.")
+    process_id: str = Field(description="Current process id.")
+    episode_id: str | None = Field(default=None, description="Target episode_id for inspect, update_metadata, archive, restore, or delete.")
+    source_id: str | None = Field(default=None, description="Optional source_id for inspect when episode_id is unknown.")
+    query: str = Field(default="", description="Search/list query. Leave empty to list recent process evidence.")
+    episode_type: str | None = Field(default=None, description="Filter or save type: interview, call, note, decision, workshop, feedback, observation.")
+    title: str = Field(default="", description="Evidence title for save/update.")
+    raw_content: str = Field(default="", description="Original notes/transcript/source text for save operations.")
+    summary: str = Field(default="", description="Concise extracted summary for save/update.")
+    insights: list[str] = Field(default_factory=list, description="Source-backed insights for save/update.")
+    participants: list[str] = Field(default_factory=list, description="People, roles or teams involved.")
+    entities: list[str] = Field(default_factory=list, description="Named process entities mentioned in the evidence.")
+    source_refs: list[str] = Field(default_factory=list, description="Workspace source ids, document ids or external source references.")
+    claims: list[KnowledgeGraphClaim] = Field(default_factory=list, description="Process claims extracted from evidence.")
+    relationships: list[KnowledgeGraphRelationship] = Field(default_factory=list, description="Enterprise graph relationships.")
+    gaps: list[KnowledgeGraphGap] = Field(default_factory=list, description="Missing data, missing evidence or modeling gaps.")
+    contradictions: list[KnowledgeGraphContradiction] = Field(default_factory=list, description="Contradictions across evidence.")
+    impacts: list[KnowledgeGraphImpact] = Field(default_factory=list, description="Business, risk or ROI impacts.")
+    tags: list[str] = Field(default_factory=list, description="Retrieval tags for save/update.")
+    occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
+    status: str = Field(default="active", description="For list: active, archived, or any.")
+    reason: str = Field(default="", description="Why this lifecycle action is being taken, especially archive/delete.")
+    limit: int = Field(default=10, ge=1, le=50, description="Maximum evidence records to return.")
+    include_source_text: bool = Field(default=False, description="For inspect: include raw source text when needed.")
+    confirm_destructive_action: bool = Field(default=False, description="Required for hard delete. Prefer archive for ordinary removal.")
+    delete_raw_source: bool = Field(default=False, description="Also delete local raw source file during confirmed hard delete.")
+
+
 def _require_process(project_id: str, process_id: str) -> dict:
     process = workspace_database.get_process(process_id)
     if process is None:
@@ -347,6 +384,233 @@ def save_process_interview(
     )
 
 
+def _process_evidence_or_scope_error(
+    *,
+    project_id: str,
+    process_id: str,
+    episode_id: str | None = None,
+    source_id: str | None = None,
+    include_source_text: bool = False,
+) -> tuple[dict | None, str | None]:
+    evidence = episodic_store.get_episode_memory(
+        episode_id=episode_id,
+        source_id=source_id,
+        include_source_text=include_source_text,
+    )
+    if evidence is None:
+        return None, "Process evidence not found."
+    if evidence.get("project") != project_id:
+        return evidence, f"Evidence {evidence.get('episode_id')} does not belong to project {project_id}."
+    tags = episodic_store.normalize_list(evidence.get("tags"))
+    if f"process:{process_id}" not in tags:
+        return evidence, f"Evidence {evidence.get('episode_id')} does not belong to process {process_id}."
+    return evidence, None
+
+
+@tool(args_schema=ManageProcessEvidenceInput)
+def manage_process_evidence(
+    operation: str,
+    project_id: str,
+    process_id: str,
+    episode_id: str | None = None,
+    source_id: str | None = None,
+    query: str = "",
+    episode_type: str | None = None,
+    title: str = "",
+    raw_content: str = "",
+    summary: str = "",
+    insights: list[str] | None = None,
+    participants: list[str] | None = None,
+    entities: list[str] | None = None,
+    source_refs: list[str] | None = None,
+    claims: list[KnowledgeGraphClaim] | None = None,
+    relationships: list[KnowledgeGraphRelationship] | None = None,
+    gaps: list[KnowledgeGraphGap] | None = None,
+    contradictions: list[KnowledgeGraphContradiction] | None = None,
+    impacts: list[KnowledgeGraphImpact] | None = None,
+    tags: list[str] | None = None,
+    occurred_at: str | None = None,
+    status: str = "active",
+    reason: str = "",
+    limit: int = 10,
+    include_source_text: bool = False,
+    confirm_destructive_action: bool = False,
+    delete_raw_source: bool = False,
+) -> str:
+    """
+    Manage process-scoped evidence through one lifecycle facade. Use this instead
+    of separate CRUD-style tools when the Process Agent or Evidence subagent needs
+    to list, inspect, save, update, archive, restore or explicitly delete process
+    interviews/episodes. Saves preserve the existing enterprise KG indexing path.
+    """
+    process = _require_process(project_id, process_id)
+    normalized_operation = operation.strip().lower()
+    normalized_status = status if status in {"active", "archived", "any"} else "active"
+    scoped_query = " ".join([query, f"process:{process_id}"]).strip()
+
+    if normalized_operation in {"list", "search"}:
+        evidence = episodic_store.list_episode_memory(
+            project=project_id,
+            episode_type=episode_type,
+            query=scoped_query,
+            status=normalized_status,
+            limit=limit,
+        )
+        return enterprise_tool_result(
+            status="ok",
+            action="manage_process_evidence",
+            entity_type="process_evidence_collection",
+            entity_id=process_id,
+            summary=f"Process evidence {normalized_operation} for {process['name']}: {len(evidence)} record.",
+            payload={
+                "operation": normalized_operation,
+                "project_id": project_id,
+                "process_id": process_id,
+                "query": query,
+                "episode_type": episode_type,
+                "status": normalized_status,
+                "evidence": evidence,
+            },
+        )
+
+    if normalized_operation == "inspect":
+        evidence, error = _process_evidence_or_scope_error(
+            project_id=project_id,
+            process_id=process_id,
+            episode_id=episode_id,
+            source_id=source_id,
+            include_source_text=include_source_text,
+        )
+        return enterprise_tool_result(
+            status="blocked" if error else "ok",
+            action="manage_process_evidence",
+            entity_type="process_evidence",
+            entity_id=episode_id,
+            summary=error or "Process evidence inspected.",
+            payload={"operation": normalized_operation, "evidence": evidence},
+        )
+
+    if normalized_operation in {"save_interview", "save_episode"}:
+        if not raw_content.strip():
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_process_evidence",
+                entity_type="process_evidence",
+                entity_id=process_id,
+                summary="Cannot save process evidence without raw_content.",
+                payload={"operation": normalized_operation, "project_id": project_id, "process_id": process_id},
+            )
+        return _save_process_episode_payload(
+            action="manage_process_evidence",
+            entity_type="process_interview" if normalized_operation == "save_interview" else "process_episode",
+            project_id=project_id,
+            process_id=process_id,
+            episode_type="interview" if normalized_operation == "save_interview" else (episode_type or "note"),
+            title=title,
+            raw_content=raw_content,
+            summary=summary,
+            insights=insights or [],
+            participants=participants or [],
+            entities=entities or [],
+            source_refs=source_refs or [],
+            claims=claims or [],
+            relationships=relationships or [],
+            gaps=gaps or [],
+            contradictions=contradictions or [],
+            impacts=impacts or [],
+            tags=["interview", *(tags or [])] if normalized_operation == "save_interview" else (tags or []),
+            occurred_at=occurred_at,
+        )
+
+    if normalized_operation == "update_metadata":
+        evidence, error = _process_evidence_or_scope_error(
+            project_id=project_id,
+            process_id=process_id,
+            episode_id=episode_id,
+        )
+        if error:
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_process_evidence",
+                entity_type="process_evidence",
+                entity_id=episode_id,
+                summary=error,
+                payload={"operation": normalized_operation, "evidence": evidence},
+            )
+        result = episodic_store.update_episode_metadata(
+            episode_id=episode_id or "",
+            title=title if title else None,
+            summary=summary if summary else None,
+            insights=insights if insights else None,
+            participants=participants if participants else None,
+            project=project_id,
+            tags=_process_episode_tags(
+                project_id=project_id,
+                process_id=process_id,
+                tags=tags or [],
+            ) if tags else None,
+            occurred_at=occurred_at,
+        )
+        return enterprise_tool_result(
+            status=result["status"],
+            action="manage_process_evidence",
+            entity_type="process_evidence",
+            entity_id=episode_id,
+            summary=result["message"],
+            payload={"operation": normalized_operation, "result": result},
+        )
+
+    if normalized_operation in {"archive", "restore", "delete"}:
+        evidence, error = _process_evidence_or_scope_error(
+            project_id=project_id,
+            process_id=process_id,
+            episode_id=episode_id,
+        )
+        if error:
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_process_evidence",
+                entity_type="process_evidence",
+                entity_id=episode_id,
+                summary=error,
+                payload={"operation": normalized_operation, "evidence": evidence},
+            )
+        if normalized_operation == "archive":
+            result = episodic_store.archive_episode_memory(episode_id=episode_id or "", reason=reason)
+        elif normalized_operation == "restore":
+            result = episodic_store.restore_episode_memory(episode_id=episode_id or "")
+        else:
+            result = episodic_store.delete_episode_memory(
+                episode_id=episode_id or "",
+                confirm_destructive_action=confirm_destructive_action,
+                delete_raw_source=delete_raw_source,
+            )
+        return enterprise_tool_result(
+            status=result["status"],
+            action="manage_process_evidence",
+            entity_type="process_evidence",
+            entity_id=episode_id,
+            summary=result["message"],
+            payload={
+                "operation": normalized_operation,
+                "result": result,
+                "knowledge_graph_note": (
+                    "Archived evidence is excluded from active episodic retrieval. "
+                    "Existing LlamaIndex KG records remain available until a KG lifecycle operation is added."
+                ),
+            },
+        )
+
+    return enterprise_tool_result(
+        status="blocked",
+        action="manage_process_evidence",
+        entity_type="process_evidence",
+        entity_id=process_id,
+        summary=f"Unsupported operation: {operation}.",
+        payload={"operation": normalized_operation},
+    )
+
+
 @tool(args_schema=ProcessGraphExtractionInput)
 def extract_process_graph_from_evidence(
     project_id: str,
@@ -567,8 +831,7 @@ def retrieve_process_canvas_traceability_context(
 
 
 process_memory_tools = [
-    save_process_interview,
-    save_process_episode,
+    manage_process_evidence,
     extract_process_graph_from_evidence,
     index_process_evidence_graph,
     retrieve_process_graph_context,

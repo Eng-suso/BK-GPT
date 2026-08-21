@@ -77,8 +77,7 @@ Use episodic memory tools for dated events and source-backed context:
 - feedback
 - source-backed observations
 
-Use `save_interview` for interviews and discovery transcripts.
-Use `save_episode` for non-interview events such as calls, decisions, notes, experiments, or feedback.
+Use `manage_consulting_evidence` for consulting-level interviews, discovery transcripts and non-interview evidence such as calls, decisions, notes, experiments, or feedback.
 Use `search_interviews` or `search_episodes` when the user asks what happened, what was said, where an insight came from, or which source supports an observation.
 
 Do not save raw transcripts, call notes, interview notes, or source evidence as generic semantic memory.

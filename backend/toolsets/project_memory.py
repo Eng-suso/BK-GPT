@@ -636,6 +636,215 @@ def save_project_interview(
     )
 
 
+def _project_evidence_or_scope_error(
+    *,
+    project_id: str,
+    episode_id: str | None = None,
+    source_id: str | None = None,
+    include_source_text: bool = False,
+) -> tuple[dict | None, str | None]:
+    evidence = episodic_store.get_episode_memory(
+        episode_id=episode_id,
+        source_id=source_id,
+        include_source_text=include_source_text,
+    )
+    if evidence is None:
+        return None, "Project evidence not found."
+    if evidence.get("project") != project_id:
+        return evidence, f"Evidence {evidence.get('episode_id')} does not belong to project {project_id}."
+    return evidence, None
+
+
+@tool(args_schema=ManageProjectEvidenceInput)
+def manage_project_evidence(
+    operation: str,
+    project_id: str,
+    episode_id: str | None = None,
+    source_id: str | None = None,
+    query: str = "",
+    episode_type: str | None = None,
+    title: str = "",
+    raw_content: str = "",
+    summary: str = "",
+    insights: list[str] | None = None,
+    participants: list[str] | None = None,
+    process_ids: list[str] | None = None,
+    entities: list[str] | None = None,
+    relationships: list[ProjectGraphRelationship] | None = None,
+    gaps: list[ProjectGraphGap] | None = None,
+    inconsistencies: list[ProjectGraphInconsistency] | None = None,
+    roi_impacts: list[ProjectROIImpact] | None = None,
+    tags: list[str] | None = None,
+    occurred_at: str | None = None,
+    status: str = "active",
+    reason: str = "",
+    limit: int = 10,
+    include_source_text: bool = False,
+    confirm_destructive_action: bool = False,
+    delete_raw_source: bool = False,
+) -> str:
+    """
+    Manage project-scoped evidence through one lifecycle facade. Use this instead
+    of separate CRUD-style tools when the Project Agent needs to list, inspect,
+    save, update, archive, restore or explicitly delete interviews/episodes.
+    Saves can include graph relationships, gaps, inconsistencies and ROI impacts;
+    the existing project KG indexing path is preserved.
+    """
+    project = _require_project(project_id)
+    normalized_operation = operation.strip().lower()
+    normalized_status = status if status in {"active", "archived", "any"} else "active"
+
+    if normalized_operation in {"list", "search"}:
+        evidence = episodic_store.list_episode_memory(
+            project=project_id,
+            episode_type=episode_type,
+            query=query,
+            status=normalized_status,
+            limit=limit,
+        )
+        return enterprise_tool_result(
+            status="ok",
+            action="manage_project_evidence",
+            entity_type="project_evidence_collection",
+            entity_id=project_id,
+            summary=f"Project evidence {normalized_operation} for {project['name']}: {len(evidence)} record.",
+            payload={
+                "operation": normalized_operation,
+                "project_id": project_id,
+                "query": query,
+                "episode_type": episode_type,
+                "status": normalized_status,
+                "evidence": evidence,
+            },
+        )
+
+    if normalized_operation == "inspect":
+        evidence, error = _project_evidence_or_scope_error(
+            project_id=project_id,
+            episode_id=episode_id,
+            source_id=source_id,
+            include_source_text=include_source_text,
+        )
+        return enterprise_tool_result(
+            status="blocked" if error else "ok",
+            action="manage_project_evidence",
+            entity_type="project_evidence",
+            entity_id=episode_id,
+            summary=error or "Project evidence inspected.",
+            payload={"operation": normalized_operation, "evidence": evidence},
+        )
+
+    if normalized_operation in {"save_interview", "save_episode"}:
+        if not raw_content.strip():
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_project_evidence",
+                entity_type="project_evidence",
+                entity_id=project_id,
+                summary="Cannot save project evidence without raw_content.",
+                payload={"operation": normalized_operation, "project_id": project_id},
+            )
+        return _save_project_episode_payload(
+            action="manage_project_evidence",
+            entity_type="project_interview" if normalized_operation == "save_interview" else "project_episode",
+            project_id=project_id,
+            episode_type="interview" if normalized_operation == "save_interview" else (episode_type or "note"),
+            title=title,
+            raw_content=raw_content,
+            summary=summary,
+            insights=insights or [],
+            participants=participants or [],
+            process_ids=process_ids or [],
+            entities=entities or [],
+            relationships=relationships or [],
+            gaps=gaps or [],
+            inconsistencies=inconsistencies or [],
+            roi_impacts=roi_impacts or [],
+            tags=["interview", *(tags or [])] if normalized_operation == "save_interview" else (tags or []),
+            occurred_at=occurred_at,
+        )
+
+    if normalized_operation == "update_metadata":
+        evidence, error = _project_evidence_or_scope_error(project_id=project_id, episode_id=episode_id)
+        if error:
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_project_evidence",
+                entity_type="project_evidence",
+                entity_id=episode_id,
+                summary=error,
+                payload={"operation": normalized_operation, "evidence": evidence},
+            )
+        result = episodic_store.update_episode_metadata(
+            episode_id=episode_id or "",
+            title=title if title else None,
+            summary=summary if summary else None,
+            insights=insights if insights else None,
+            participants=participants if participants else None,
+            project=project_id,
+            tags=_project_episode_tags(
+                project_id=project_id,
+                process_ids=_validated_process_ids(project_id, process_ids),
+                tags=tags or [],
+            ) if tags or process_ids else None,
+            occurred_at=occurred_at,
+        )
+        return enterprise_tool_result(
+            status=result["status"],
+            action="manage_project_evidence",
+            entity_type="project_evidence",
+            entity_id=episode_id,
+            summary=result["message"],
+            payload={"operation": normalized_operation, "result": result},
+        )
+
+    if normalized_operation in {"archive", "restore", "delete"}:
+        evidence, error = _project_evidence_or_scope_error(project_id=project_id, episode_id=episode_id)
+        if error:
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_project_evidence",
+                entity_type="project_evidence",
+                entity_id=episode_id,
+                summary=error,
+                payload={"operation": normalized_operation, "evidence": evidence},
+            )
+        if normalized_operation == "archive":
+            result = episodic_store.archive_episode_memory(episode_id=episode_id or "", reason=reason)
+        elif normalized_operation == "restore":
+            result = episodic_store.restore_episode_memory(episode_id=episode_id or "")
+        else:
+            result = episodic_store.delete_episode_memory(
+                episode_id=episode_id or "",
+                confirm_destructive_action=confirm_destructive_action,
+                delete_raw_source=delete_raw_source,
+            )
+        return enterprise_tool_result(
+            status=result["status"],
+            action="manage_project_evidence",
+            entity_type="project_evidence",
+            entity_id=episode_id,
+            summary=result["message"],
+            payload={
+                "operation": normalized_operation,
+                "result": result,
+                "knowledge_graph_note": (
+                    "Archived evidence is excluded from active episodic retrieval. "
+                    "Existing LlamaIndex KG records remain available until a KG lifecycle operation is added."
+                ),
+            },
+        )
+
+    return enterprise_tool_result(
+        status="blocked",
+        action="manage_project_evidence",
+        entity_type="project_evidence",
+        entity_id=project_id,
+        summary=f"Unsupported operation: {operation}.",
+        payload={"operation": normalized_operation},
+    )
+
+
 @tool(args_schema=RetrieveProjectEvidenceInput)
 def retrieve_project_evidence_context(
     project_id: str,
@@ -848,7 +1057,7 @@ def extract_project_graph_from_evidence(
             "inconsistencies": [item.model_dump() for item in scoped_inconsistencies],
             "roi_impacts": [item.model_dump() for item in scoped_roi_impacts],
             "questions_to_validate": _clean_text_list(questions_to_validate),
-            "next_action": "Review this extraction, then call save_project_interview or save_project_episode if it should become project evidence.",
+            "next_action": "Review this extraction, then call manage_project_evidence with operation save_interview or save_episode if it should become project evidence.",
         },
     )
 

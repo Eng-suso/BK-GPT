@@ -7,8 +7,7 @@ from backend.graphs.process.tools import process_workspace_payload
 from backend.toolsets.process_memory import (
     extract_process_graph_from_evidence,
     index_process_evidence_graph,
-    save_process_episode,
-    save_process_interview,
+    manage_process_evidence,
 )
 from backend.toolsets.workspace import enterprise_tool_result
 
@@ -248,8 +247,7 @@ enterprise Knowledge Graph artifacts for process-scoped GraphRAG retrieval.
 
 evidence_tools = [
     get_process_evidence_brief,
-    save_process_interview,
-    save_process_episode,
+    manage_process_evidence,
     extract_process_claims,
     synthesize_process_evidence,
     prepare_evidence_coverage_matrix,
