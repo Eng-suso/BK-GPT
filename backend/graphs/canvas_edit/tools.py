@@ -2,7 +2,9 @@ from typing import Literal
 
 from backend.toolsets.bpmn import (
     approve_canvas_bpmn_review,
+    manage_canvas_construction,
     manage_canvas_bpmn_model,
+    manage_canvas_validation,
     prepare_canvas_bpmn_review,
 )
 from backend.toolsets.memory import remember_bpmn_preference, search_bpmn_preferences
@@ -125,6 +127,7 @@ construction_tools = [
     retrieve_process_canvas_traceability_context,
     prepare_canvas_bpmn_review,
     approve_canvas_bpmn_review,
+    manage_canvas_construction,
     manage_canvas_bpmn_model,
 ]
 
@@ -135,6 +138,7 @@ validation_tools = [
     get_workspace_bpmn_review,
     get_process_semantic_context,
     retrieve_process_canvas_traceability_context,
+    manage_canvas_validation,
     manage_canvas_bpmn_model,
 ]
 

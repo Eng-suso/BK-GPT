@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from backend import workspace_database
+from backend.bpmn_semantic import BPMNSemanticModel, semantic_model_to_bpmn_xml
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
@@ -18,6 +19,7 @@ from backend.workspace_services.bpmn_canvas_edit import (
     update_bpmn_element,
     validate_bpmn_xml,
 )
+from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 
 
 CanvasBpmnOperation = Literal[
@@ -34,6 +36,22 @@ CanvasBpmnOperation = Literal[
     "replace_xml",
     "list_versions",
     "restore_version",
+]
+
+CanvasConstructionOperation = Literal[
+    "prepare_plan",
+    "generate_preview",
+    "validate_preview",
+    "compare_with_current",
+    "apply_approved_preview",
+]
+
+CanvasValidationOperation = Literal[
+    "xml_validation",
+    "semantic_validation",
+    "readiness_validation",
+    "traceability_validation",
+    "full_report",
 ]
 
 
@@ -63,6 +81,35 @@ def _saved_canvas_model_payload(bpmn_model_id: str) -> dict:
         "has_xml": bool(model["xml"]),
         "xml": model["xml"] or "",
         "source": "saved_backend",
+    }
+
+
+def _review_or_state_semantic_context(bpmn_model_id: str, state: dict) -> tuple[dict | None, dict | None, dict | None]:
+    process_understanding = state.get("process_understanding") or state.get("process_understanding_json")
+    bpmn_semantic_model = state.get("bpmn_semantic_model") or state.get("bpmn_semantic_model_json")
+    review = workspace_database.get_bpmn_review(bpmn_model_id)
+
+    if review:
+        process_understanding = process_understanding or review.get("process_understanding")
+        bpmn_semantic_model = bpmn_semantic_model or review.get("bpmn_semantic_model")
+
+    return review, process_understanding, bpmn_semantic_model
+
+
+def _semantic_model_to_xml_from_context(bpmn_model_id: str, state: dict) -> tuple[str, dict]:
+    review, _, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
+    if not bpmn_semantic_model:
+        raise ValueError("BPMNSemanticModel non disponibile per generare la preview canvas.")
+
+    model = BPMNSemanticModel.model_validate(bpmn_semantic_model)
+    xml = semantic_model_to_bpmn_xml(model)
+    return xml, {
+        "review_pending": review is not None,
+        "semantic_model_id": model.id,
+        "semantic_node_count": len(model.flowNodes),
+        "semantic_flow_count": len(model.sequenceFlows),
+        "semantic_lane_count": len(model.lanes),
+        "model_warnings": model.model_warnings,
     }
 
 
@@ -362,6 +409,202 @@ def manage_canvas_bpmn_model(
         )
 
     raise ValueError(f"Operazione canvas non supportata: {operation}")
+
+
+@tool
+def manage_canvas_construction(
+    bpmn_model_id: str,
+    operation: CanvasConstructionOperation,
+    state: Annotated[dict, InjectedState()],
+    objective: str,
+    process_id: str | None = None,
+    constraints: list[str] | None = None,
+    proposed_xml: str | None = None,
+    change_summary: str | None = None,
+    confirm_apply: bool = False,
+) -> str:
+    """
+    Structural canvas construction facade.
+
+    Use for significant BPMN build/rebuild work. It starts from the loaded
+    ProcessUnderstanding/BPMNSemanticModel or pending review, produces previews,
+    compares with the current canvas and applies only after explicit approval.
+    """
+    review, process_understanding, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
+    constraints = constraints or []
+
+    if operation == "prepare_plan":
+        semantic_model = BPMNSemanticModel.model_validate(bpmn_semantic_model) if bpmn_semantic_model else None
+        missing_information = state.get("missing_information") or (review.get("missing_information") if review else [])
+        return format_workspace_result(
+            "Costruzione canvas BPMN",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "process_id": process_id or state.get("process_id"),
+                "objective": objective,
+                "source": "bpmn_semantic_model" if semantic_model else "missing_semantic_model",
+                "reconstruction_scope": "full_model",
+                "semantic_requirements": [
+                    f"{len(semantic_model.flowNodes)} flow nodes",
+                    f"{len(semantic_model.sequenceFlows)} sequence flows",
+                    f"{len(semantic_model.lanes)} lanes",
+                ]
+                if semantic_model
+                else [],
+                "unresolved_gaps": missing_information or [],
+                "constraints": constraints,
+                "requires_preview": True,
+                "requires_user_approval": True,
+                "warnings": [] if semantic_model else ["BPMNSemanticModel non disponibile."],
+            },
+        )
+
+    if operation == "generate_preview":
+        xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        return format_workspace_result(
+            "Costruzione canvas BPMN",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "objective": objective,
+                "proposed_xml": xml,
+                "validation": validate_bpmn_xml(xml),
+                "context": context,
+                "constraints": constraints,
+            },
+        )
+
+    if operation == "validate_preview":
+        xml = proposed_xml
+        context = {}
+        if not xml:
+            xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        return format_workspace_result(
+            "Costruzione canvas BPMN",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "objective": objective,
+                "validation": validate_canvas_against_process(
+                    xml=xml,
+                    process_understanding=process_understanding,
+                    bpmn_semantic_model=bpmn_semantic_model,
+                ),
+                "context": context,
+            },
+        )
+
+    if operation == "compare_with_current":
+        xml = proposed_xml
+        context = {}
+        if not xml:
+            xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        current_xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        clean_proposed_xml = replace_bpmn_xml(xml)
+        return format_workspace_result(
+            "Costruzione canvas BPMN",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "objective": objective,
+                "source": source,
+                **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
+                "context": context,
+            },
+        )
+
+    if operation == "apply_approved_preview":
+        if not proposed_xml:
+            raise ValueError("proposed_xml obbligatorio per apply_approved_preview.")
+        if not confirm_apply:
+            raise ValueError("apply_approved_preview richiede confirm_apply=True dopo preview e approvazione.")
+        validation = validate_canvas_against_process(
+            xml=proposed_xml,
+            process_understanding=process_understanding,
+            bpmn_semantic_model=bpmn_semantic_model,
+        )
+        if validation.get("issues"):
+            raise ValueError("Preview BPMN non applicata: validazione con issue bloccanti.")
+        clean_xml = replace_bpmn_xml(proposed_xml)
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            clean_xml,
+            change_summary=change_summary or "Costruzione canvas BPMN approvata",
+            source="canvas_construction_apply",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Costruzione canvas BPMN",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "objective": objective,
+                "validation": validation,
+                "xml_saved": True,
+            },
+        )
+
+    raise ValueError(f"Operazione construction non supportata: {operation}")
+
+
+@tool
+def manage_canvas_validation(
+    bpmn_model_id: str,
+    operation: CanvasValidationOperation,
+    state: Annotated[dict, InjectedState()],
+    objective: str,
+) -> str:
+    """
+    Canvas validation facade for technical and semantic BPMN quality checks.
+    Use full_report before applying broad construction work or when the user asks
+    whether the current canvas correctly represents the process.
+    """
+    xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+    review, process_understanding, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
+
+    if operation == "xml_validation":
+        result = validate_bpmn_xml(xml)
+    elif operation in {"semantic_validation", "full_report"}:
+        result = validate_canvas_against_process(
+            xml=xml,
+            process_understanding=process_understanding,
+            bpmn_semantic_model=bpmn_semantic_model,
+        )
+    elif operation == "readiness_validation":
+        readiness_score = state.get("readiness_score")
+        if readiness_score is None and review:
+            readiness_score = review.get("readiness_score")
+        missing_information = state.get("missing_information") or (review.get("missing_information") if review else [])
+        result = {
+            "valid": bool(readiness_score and readiness_score >= 7 and not missing_information),
+            "readiness_score": readiness_score,
+            "missing_information": missing_information or [],
+            "warnings": [] if readiness_score and readiness_score >= 7 else ["Readiness sotto la soglia consigliata."],
+        }
+    elif operation == "traceability_validation":
+        result = {
+            "valid": bool(process_understanding and bpmn_semantic_model),
+            "process_understanding_available": bool(process_understanding),
+            "bpmn_semantic_model_available": bool(bpmn_semantic_model),
+            "warnings": []
+            if process_understanding and bpmn_semantic_model
+            else ["Traceability limitata: ProcessUnderstanding o BPMNSemanticModel mancanti."],
+        }
+    else:
+        raise ValueError(f"Operazione validation non supportata: {operation}")
+
+    return format_workspace_result(
+        "Validazione canvas BPMN",
+        {
+            "operation": operation,
+            "bpmn_model_id": bpmn_model_id,
+            "source": source,
+            "objective": objective,
+            "result": result,
+        },
+    )
 
 
 @tool
@@ -793,6 +1036,8 @@ def approve_canvas_bpmn_review(bpmn_model_id: str) -> str:
 
 bpmn_review_tools = [
     manage_canvas_bpmn_model,
+    manage_canvas_construction,
+    manage_canvas_validation,
     read_process_bpmn_xml,
     read_canvas_bpmn_xml,
     list_canvas_bpmn_elements,

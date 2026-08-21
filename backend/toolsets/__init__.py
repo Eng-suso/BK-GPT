@@ -8,6 +8,8 @@ from backend.toolsets.bpmn import (
     list_canvas_bpmn_elements,
     list_canvas_bpmn_versions,
     manage_canvas_bpmn_model,
+    manage_canvas_construction,
+    manage_canvas_validation,
     prepare_canvas_bpmn_review,
     prepare_process_bpmn_review,
     preview_canvas_bpmn_change,
