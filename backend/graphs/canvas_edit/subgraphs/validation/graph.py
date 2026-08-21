@@ -15,6 +15,11 @@ actors/lanes, gateways, alternative paths, handoffs, loops, exceptions and
 evidence traceability. Return a concise validation report with issues, warnings
 and next actions.
 
+Use the business_report returned by validation tools for the user-facing answer.
+Say problemi da correggere, punti da verificare and prossime azioni. Do not
+expose XML, ids, sourceRef, targetRef, node, gateway, sequenceFlow,
+BPMNSemanticModel or ProcessUnderstanding unless explicitly requested.
+
 {tool_prompts}
 """.format(
     tool_policy=VALIDATION_TOOL_POLICY,

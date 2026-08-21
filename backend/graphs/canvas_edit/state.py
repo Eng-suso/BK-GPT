@@ -32,6 +32,17 @@ class CanvasState(ConversationState):
     canvas_route: str | None
     canvas_mode: str | None
     canvas_objective: str | None
+    goal: str | None
+    intent: str | None
+    next_action: str | None
+    suggested_capability: str | None
+    authorized_capability: str | None
+    orchestration_status: str | None
+    termination_reason: str | None
+    blocking_conditions: list[str]
+    required_context: list[str]
+    reasoning_summary: str | None
+    workflow_scope: str | None
     delegation_target: str | None
     delegation_reason: str | None
     delegation_payload: dict

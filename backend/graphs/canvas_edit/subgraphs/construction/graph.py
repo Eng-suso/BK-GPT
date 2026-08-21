@@ -17,6 +17,11 @@ state. If they are absent or weak, load process semantic context or prepare a
 review before attempting construction. Broad changes require preview and
 validation; saving requires an approved review or explicit confirmation.
 
+When presenting the work, describe it as a draft or revision of the process
+drawing. Use business language and the business_report returned by tools. Do not
+show XML, ids, BPMNSemanticModel, ProcessUnderstanding, sourceRef, targetRef,
+node, gateway or sequenceFlow unless explicitly requested.
+
 {tool_prompts}
 """.format(
     tool_policy=CONSTRUCTION_TOOL_POLICY,

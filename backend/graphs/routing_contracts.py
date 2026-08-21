@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
-Owner = Literal["consultant", "project", "process"]
+Owner = Literal["consultant", "project", "process", "canvas"]
 WorkflowScope = Literal["direct", "local_operation", "single_step", "full_workflow", "clarification"]
 
 
@@ -96,6 +96,22 @@ class ProcessRoutingDecision(RoutingDecisionBase):
         return self
 
 
+class CanvasRoutingDecision(RoutingDecisionBase):
+    owner: Literal["canvas"] = "canvas"
+    route: Literal["direct", "patch_edit", "construction", "validation", "clarification"] = "direct"
+    canvas_mode: Literal["inspection", "patch_edit", "construction", "validation", "clarification"] | None = None
+    canvas_objective: str | None = None
+    workflow_scope: WorkflowScope = "single_step"
+
+    @model_validator(mode="after")
+    def normalize_route_clarification(self):
+        if self.route == "clarification":
+            self.needs_clarification = True
+            self.canvas_mode = "clarification"
+            self.workflow_scope = "clarification"
+        return self
+
+
 class CapabilitySpec(BaseModel):
     id: str
     owner: Owner
@@ -165,6 +181,32 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         prerequisites=["process_id", "bpmn_semantic_model", "readiness_for_canvas"],
     ),
     "process.clarification": CapabilitySpec(id="process.clarification", owner="process", route="clarification"),
+    "canvas.direct": CapabilitySpec(id="canvas.direct", owner="canvas", route="direct"),
+    "canvas.patch_edit": CapabilitySpec(
+        id="canvas.patch_edit",
+        owner="canvas",
+        route="patch_edit",
+        target="patch_edit_subgraph",
+        prerequisites=["bpmn_model_id", "effective_bpmn_xml"],
+        description="Local deterministic BPMN XML/canvas patch with semantic and memory context available.",
+    ),
+    "canvas.construction": CapabilitySpec(
+        id="canvas.construction",
+        owner="canvas",
+        route="construction",
+        target="construction_subgraph",
+        prerequisites=["bpmn_model_id", "canvas_semantic_context"],
+        description="Build or rebuild canvas sections from process semantic context and traceability memory.",
+    ),
+    "canvas.validation": CapabilitySpec(
+        id="canvas.validation",
+        owner="canvas",
+        route="validation",
+        target="validation_subgraph",
+        prerequisites=["bpmn_model_id", "effective_bpmn_xml"],
+        description="Validate the current canvas against BPMN XML, semantic context and traceability memory.",
+    ),
+    "canvas.clarification": CapabilitySpec(id="canvas.clarification", owner="canvas", route="clarification"),
 }
 
 
@@ -224,6 +266,26 @@ def invalid_process_decision(reason: str) -> ProcessRoutingDecision:
         intent="clarification",
         next_action="ASK_CLARIFICATION",
         suggested_capability="process.clarification",
+        blocking_conditions=[reason],
+        expected_next_state="WAITING_FOR_USER",
+        reasoning_summary=reason,
+        reason=reason,
+    )
+
+
+def invalid_canvas_decision(reason: str) -> CanvasRoutingDecision:
+    return CanvasRoutingDecision(
+        route="clarification",
+        confidence=0.0,
+        needs_clarification=True,
+        clarification_question="Mi serve un chiarimento sul canvas o sulla modifica richiesta prima di procedere.",
+        canvas_mode="clarification",
+        canvas_objective="Resolve invalid routing decision.",
+        workflow_scope="clarification",
+        goal="CLARIFY_REQUEST",
+        intent="clarification",
+        next_action="ASK_CLARIFICATION",
+        suggested_capability="canvas.clarification",
         blocking_conditions=[reason],
         expected_next_state="WAITING_FOR_USER",
         reasoning_summary=reason,
@@ -304,6 +366,19 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
             processes = state.get("project_processes") or []
             if not hints.get("process") and len(processes) != 1:
                 missing.append(prerequisite)
+        elif prerequisite == "bpmn_model_id" and not (state.get("bpmn_model_id") or (state.get("entity_hints") or {}).get("canvas")):
+            missing.append(prerequisite)
+        elif prerequisite == "effective_bpmn_xml" and not (
+            state.get("effective_bpmn_xml") or state.get("current_bpmn_xml") or state.get("saved_bpmn_xml")
+        ):
+            missing.append(prerequisite)
+        elif prerequisite == "canvas_semantic_context" and not (
+            state.get("process_understanding_json")
+            or state.get("bpmn_semantic_model_json")
+            or state.get("process_understanding")
+            or state.get("bpmn_semantic_model")
+        ):
+            missing.append(prerequisite)
     return missing
 
 

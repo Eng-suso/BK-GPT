@@ -16,3 +16,14 @@ Validation checks technical and semantic quality.
 - Lane and actor coherence.
 - Handoffs, loops, exceptions and alternative paths against semantic context.
 - Evidence traceability when graph context exists.
+
+## User Language
+
+Translate technical results into:
+
+- problemi da correggere
+- punti da verificare
+- passaggi mancanti
+- ruoli non chiari
+- documenti o informazioni non rappresentati
+- prossime azioni

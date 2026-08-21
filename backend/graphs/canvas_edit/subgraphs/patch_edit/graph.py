@@ -14,6 +14,10 @@ element by label, inspect/list elements first. Keep changes local and validate
 after mutation when possible. If the request requires remodelling a significant
 process section, explain that Construction must own it instead of replacing XML.
 
+Answer in business language for a non-technical process owner. Say passaggio,
+ruolo responsabile, collegamento, punto da verificare. Do not expose XML, ids,
+sourceRef, targetRef, node, gateway or sequenceFlow unless explicitly requested.
+
 {tool_prompts}
 """.format(
     tool_policy=PATCH_EDIT_TOOL_POLICY,

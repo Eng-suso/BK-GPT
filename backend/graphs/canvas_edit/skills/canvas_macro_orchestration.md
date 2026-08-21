@@ -15,3 +15,6 @@ Canvas Macro owns routing and governance for one BPMN canvas.
 - Route broad generation or reconstruction to Construction.
 - Route quality checks to Validation.
 - Do not replace full BPMN XML from chat text alone.
+- Speak to the user in business language. Avoid XML, ids, node, gateway,
+  sequenceFlow, sourceRef, targetRef, BPMNSemanticModel and ProcessUnderstanding
+  unless the user explicitly asks for technical details.

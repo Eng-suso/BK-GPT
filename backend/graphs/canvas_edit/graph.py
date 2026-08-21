@@ -1,12 +1,9 @@
-import json
-import re
 from pathlib import Path
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
-from backend.graphs.canvas_edit.models import CanvasRouteDecision
 from backend.graphs.canvas_edit.nodes import load_canvas_context
 from backend.graphs.canvas_edit.state import CanvasState
 from backend.graphs.canvas_edit.subgraphs.construction import build_construction_subgraph, construction_tools
@@ -15,6 +12,13 @@ from backend.graphs.canvas_edit.subgraphs.validation import build_validation_sub
 from backend.graphs.canvas_edit.tools import CANVAS_TOOL_POLICY, canvas_macro_tools
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
+from backend.graphs.routing_contracts import (
+    CanvasRoutingDecision,
+    authorize_routing_decision,
+    invalid_canvas_decision,
+    invoke_structured_router,
+    parse_routing_decision,
+)
 
 
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
@@ -39,6 +43,13 @@ Distinguish local patching from structural construction:
 The macro agent should route work to a subagent whenever the request is not a
 small read-only answer. It should not freely replace BPMN XML.
 
+When answering the user, speak like a senior process consultant, not like a
+developer. Prefer business words: passaggio, ruolo responsabile, punto di
+decisione, documento, punto da verificare, problema da correggere. Do not expose
+XML, ids, sourceRef, targetRef, BPMNSemanticModel, ProcessUnderstanding, DI,
+node, gateway or sequenceFlow unless the user explicitly asks for technical BPMN
+details.
+
 {skill_context}
 
 {tool_prompts}
@@ -51,7 +62,9 @@ small read-only answer. It should not freely replace BPMN XML.
 
 CANVAS_ROUTER_PROMPT = """
 You are the Canvas graph router for DeliR.
-Choose exactly one route for the latest user request using intent and ownership, not keyword matching.
+You are the reasoning layer, not the execution controller.
+Propose exactly one route for the latest user request using canvas state, process
+semantic context, traceability memory needs and ownership.
 
 Routes:
 - direct: read-only canvas explanation, scope/context check, or very light discussion.
@@ -60,18 +73,12 @@ Routes:
 - validation: validate XML, semantic coverage, traceability, layout quality, gateway/lane/path correctness.
 - clarification: required ids/context or requested change scope is unclear.
 
-Return only JSON:
-{
-  "route":"direct|patch_edit|construction|validation|clarification",
-  "confidence":0.0,
-  "needs_clarification":false,
-  "clarification_question":null,
-  "entity_hints":{"project":null,"process":null,"canvas":null,"element":null},
-  "canvas_mode":"inspection|patch_edit|construction|validation|clarification",
-  "canvas_objective":"brief current objective",
-  "expected_result":"brief expected outcome",
-  "reason":"brief reason"
-}
+Return structured output matching the CanvasRoutingDecision schema.
+Set goal, intent, next_action and suggested_capability separately.
+Suggested capability must be registered: canvas.direct, canvas.patch_edit,
+canvas.construction, canvas.validation or canvas.clarification.
+For small changes, still consider semantic context and traceability memory before
+proposing patch_edit; do not treat local as context-free.
 """.strip()
 
 
@@ -95,73 +102,104 @@ def latest_user_text(state: dict) -> str:
     return ""
 
 
-def parse_canvas_router_json(content: str, user_request: str = "") -> dict:
-    text = str(content or "").strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        text = match.group(0)
-
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        payload = {}
-
-    route = str(payload.get("route") or "direct").strip()
-    if route not in VALID_CANVAS_ROUTES:
-        route = "direct"
-
-    try:
-        confidence = float(payload.get("confidence", 0.0))
-    except (TypeError, ValueError):
-        confidence = 0.0
-    confidence = max(0.0, min(confidence, 1.0))
-
-    entity_hints = payload.get("entity_hints")
-    if not isinstance(entity_hints, dict):
-        entity_hints = {}
-
-    decision = CanvasRouteDecision(
-        route=route,
-        confidence=confidence,
-        needs_clarification=bool(payload.get("needs_clarification", route == "clarification")),
-        clarification_question=payload.get("clarification_question"),
-        entity_hints=entity_hints,
-        canvas_mode=payload.get("canvas_mode") or "inspection",
-        canvas_objective=str(payload.get("canvas_objective") or payload.get("expected_result") or "").strip(),
-        expected_result=str(payload.get("expected_result") or "").strip(),
-        reason=str(payload.get("reason") or "Canvas router decision.").strip(),
+def canvas_routing_state(
+    decision: CanvasRoutingDecision,
+    *,
+    user_request: str = "",
+    state: dict | None = None,
+    parse_source: str = "structured",
+    parse_error: str | None = None,
+) -> dict:
+    authorization = authorize_routing_decision(
+        owner="canvas",
+        decision=decision,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
     )
-    target = ROUTE_TARGETS[decision.route]
+    route = authorization["route"]
+    target = authorization["target"]
+    reason = decision.reason or decision.reasoning_summary or "Canvas router decision."
+    expected_result = decision.expected_result or ""
+    canvas_mode = decision.canvas_mode or ("clarification" if route == "clarification" else route)
+    canvas_objective = decision.canvas_objective or decision.goal or expected_result or None
+    needs_clarification = bool(decision.needs_clarification or route == "clarification")
     delegation_payload = {
         "target": target,
-        "route": decision.route,
+        "route": route,
         "user_request": user_request,
         "entity_hints": decision.entity_hints,
-        "expected_result": decision.expected_result,
-        "reason": decision.reason,
+        "expected_result": expected_result,
+        "reason": reason,
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "workflow_scope": decision.workflow_scope,
+        "authorized_capability": authorization["authorized_capability"],
     }
     routing_event = {
-        "route": decision.route,
+        "owner": "canvas",
+        "route": route,
+        "proposed_route": authorization["proposed_route"],
         "target": target,
         "confidence": decision.confidence,
-        "needs_clarification": decision.needs_clarification,
-        "reason": decision.reason,
+        "needs_clarification": needs_clarification,
+        "status": authorization["status"],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "workflow_scope": decision.workflow_scope,
+        "proposed_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "expected_next_state": decision.expected_next_state,
+        "termination_reason": authorization["termination_reason"],
+        "parse_source": authorization["parse_source"],
+        "reason": reason,
+        "reasoning_summary": decision.reasoning_summary,
     }
 
     return {
-        "canvas_route": decision.route,
-        "canvas_mode": decision.canvas_mode,
-        "canvas_objective": decision.canvas_objective,
+        "canvas_route": route,
+        "canvas_mode": canvas_mode,
+        "canvas_objective": canvas_objective,
         "delegation_target": target,
-        "delegation_reason": decision.reason,
+        "delegation_reason": reason,
         "routing_confidence": decision.confidence,
-        "needs_clarification": decision.needs_clarification,
+        "needs_clarification": needs_clarification,
         "clarification_question": decision.clarification_question,
         "entity_hints": decision.entity_hints,
         "delegation_payload": delegation_payload,
         "routing_trace": [routing_event],
         "delegation_events": [delegation_payload] if target else [],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "suggested_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "orchestration_status": authorization["status"],
+        "termination_reason": authorization["termination_reason"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "reasoning_summary": decision.reasoning_summary,
+        "workflow_scope": decision.workflow_scope,
     }
+
+
+def parse_canvas_router_json(content: str, user_request: str = "", state: dict | None = None) -> dict:
+    decision, parse_source, parse_error = parse_routing_decision(
+        content,
+        CanvasRoutingDecision,
+        invalid_canvas_decision,
+    )
+    return canvas_routing_state(
+        decision,
+        user_request=user_request,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
+    )
 
 
 def build_canvas_router(llm):
@@ -173,7 +211,9 @@ def build_canvas_router(llm):
             )
 
         try:
-            response = llm.invoke(
+            decision, parse_source, parse_error = invoke_structured_router(
+                llm,
+                CanvasRoutingDecision,
                 [
                     SystemMessage(content=CANVAS_ROUTER_PROMPT),
                     HumanMessage(
@@ -195,23 +235,37 @@ def build_canvas_router(llm):
                     ),
                 ],
                 config=config,
+                invalid_factory=invalid_canvas_decision,
             )
         except Exception:
-            return parse_canvas_router_json(
-                '{"route":"direct","confidence":0,"reason":"Router unavailable; defaulted to Canvas Macro Agent."}',
-                user_request=user_text,
-            )
+            decision = invalid_canvas_decision("Structured router failed unexpectedly.")
+            parse_source = "invalid"
+            parse_error = "Structured router failed unexpectedly."
 
-        return parse_canvas_router_json(getattr(response, "content", response), user_request=user_text)
+        return canvas_routing_state(
+            decision,
+            user_request=user_text,
+            state=state,
+            parse_source=parse_source,
+            parse_error=parse_error,
+        )
 
     return route_canvas_intent
 
 
 def selected_canvas_route(state: CanvasState) -> str:
-    route = state.get("canvas_route") or "direct"
-    if route == "clarification":
-        return "direct"
-    return route
+    return state.get("canvas_route") or "direct"
+
+
+def ask_canvas_clarification(state: CanvasState) -> dict:
+    return {
+        "messages": [
+            AIMessage(
+                content=state.get("clarification_question")
+                or "Mi serve un chiarimento sul canvas o sulla modifica richiesta prima di procedere."
+            )
+        ]
+    }
 
 
 def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messages):
@@ -250,6 +304,7 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
             build_context_messages=build_context_messages,
         ),
     )
+    workflow.add_node("ask_canvas_clarification", ask_canvas_clarification)
 
     workflow.add_edge(START, "load_canvas_context")
     workflow.add_edge("load_canvas_context", "canvas_router")
@@ -261,11 +316,13 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
             "patch_edit": "patch_edit_subgraph",
             "construction": "construction_subgraph",
             "validation": "validation_subgraph",
+            "clarification": "ask_canvas_clarification",
         },
     )
     workflow.add_edge("canvas_macro_agent", END)
     workflow.add_edge("patch_edit_subgraph", END)
     workflow.add_edge("construction_subgraph", END)
     workflow.add_edge("validation_subgraph", END)
+    workflow.add_edge("ask_canvas_clarification", END)
 
     return workflow.compile()

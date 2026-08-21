@@ -6,8 +6,10 @@ from backend.graphs.canvas_edit.tools import (
     patch_edit_tools,
     validation_tools,
 )
+from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
 from backend.toolsets.bpmn import bpmn_review_tools, manage_canvas_bpmn_model
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
+from backend.workspace_services.canvas_business_report import canvas_business_report
 
 
 def tool_names(tools: list) -> set[str]:
@@ -30,6 +32,10 @@ def test_parse_canvas_router_json_returns_structured_state():
         }
         """,
         user_request="rinomina la task validazione",
+        state={
+            "bpmn_model_id": "proc-bpmn",
+            "effective_bpmn_xml": "<definitions />",
+        },
     )
 
     assert result["canvas_route"] == "patch_edit"
@@ -40,12 +46,65 @@ def test_parse_canvas_router_json_returns_structured_state():
     assert result["delegation_events"][0]["target"] == "patch_edit_subgraph"
 
 
-def test_parse_canvas_router_json_falls_back_to_direct_for_invalid_route():
+def test_parse_canvas_router_json_blocks_invalid_route():
     result = parse_canvas_router_json('{"route":"unknown","confidence":5}')
 
-    assert result["canvas_route"] == "direct"
+    assert result["canvas_route"] == "clarification"
     assert result["delegation_target"] is None
-    assert result["routing_confidence"] == 1.0
+    assert result["routing_confidence"] == 0.0
+    assert result["needs_clarification"] is True
+    assert result["orchestration_status"] == "invalid_structured_decision"
+
+
+def test_canvas_router_refuses_unregistered_capability():
+    result = parse_canvas_router_json(
+        """
+        {
+          "route": "patch_edit",
+          "confidence": 0.8,
+          "suggested_capability": "canvas.run_arbitrary_tool",
+          "reason": "Bad capability."
+        }
+        """,
+        state={
+            "bpmn_model_id": "proc-bpmn",
+            "effective_bpmn_xml": "<definitions />",
+        },
+    )
+
+    assert result["canvas_route"] == "clarification"
+    assert result["delegation_events"] == []
+    assert result["orchestration_status"] == "unregistered_capability"
+
+
+def test_canvas_patch_requires_current_canvas_xml():
+    result = parse_canvas_router_json(
+        """
+        {
+          "route": "patch_edit",
+          "confidence": 0.86,
+          "goal": "PATCH_CANVAS",
+          "intent": "local_canvas_patch",
+          "next_action": "PATCH_EXISTING_XML",
+          "suggested_capability": "canvas.patch_edit",
+          "canvas_mode": "patch_edit",
+          "workflow_scope": "local_operation",
+          "reason": "Rename one element."
+        }
+        """,
+        state={"bpmn_model_id": "proc-bpmn"},
+    )
+
+    assert result["canvas_route"] == "clarification"
+    assert result["delegation_target"] is None
+    assert result["orchestration_status"] == "missing_prerequisite"
+    assert "Missing prerequisite: effective_bpmn_xml" in result["blocking_conditions"]
+
+
+def test_canvas_capability_registry_declares_canvas_owners():
+    assert CAPABILITY_REGISTRY["canvas.patch_edit"].target == "patch_edit_subgraph"
+    assert CAPABILITY_REGISTRY["canvas.construction"].target == "construction_subgraph"
+    assert CAPABILITY_REGISTRY["canvas.validation"].target == "validation_subgraph"
 
 
 def test_canvas_toolsets_are_owned_and_facade_first():
@@ -56,8 +115,11 @@ def test_canvas_toolsets_are_owned_and_facade_first():
 
     assert "manage_canvas_bpmn_model" in macro_names
     assert "prepare_canvas_delegation_payload" in macro_names
+    assert "retrieve_process_canvas_traceability_context" in macro_names
     assert patch_names == {
         "manage_canvas_bpmn_model",
+        "get_process_semantic_context",
+        "retrieve_process_canvas_traceability_context",
         "search_bpmn_preferences",
         "remember_bpmn_preference",
     }
@@ -114,3 +176,40 @@ def test_semantic_canvas_validation_flags_missing_gateway_for_decision():
 
     assert result["valid"] is False
     assert "Il processo contiene decisioni ma il canvas non contiene gateway." in result["issues"]
+
+
+def test_canvas_business_report_hides_developer_language():
+    report = canvas_business_report(
+        {
+            "issues": [
+                "Gateway Gateway_Check ha meno di due uscite.",
+                "Sequence flow Flow_1 ha sourceRef non valido: Missing_Node",
+            ],
+            "warnings": [
+                "BPMNSemanticModel non disponibile: validazione semantica limitata.",
+                "XML BPMN non valido.",
+            ],
+            "counts": {
+                "flow_nodes": 3,
+                "sequence_flows": 2,
+                "gateways": 1,
+                "lanes": 0,
+                "data_objects": 0,
+                "annotations": 0,
+            },
+            "coverage": {},
+        }
+    )
+    rendered = str(report)
+    normalized = rendered.casefold()
+
+    assert "punto di decisione" in normalized
+    assert "collegamento" in normalized
+    assert "struttura del processo" in normalized
+    assert "gateway" not in normalized
+    assert "sequenceflow" not in normalized
+    assert "sourceref" not in normalized
+    assert "bpmnsemanticmodel" not in normalized
+    assert "xml" not in normalized
+    assert "gateway_check" not in normalized
+    assert "missing_node" not in normalized

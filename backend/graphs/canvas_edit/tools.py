@@ -71,7 +71,9 @@ inspect context, decide whether the request is a local patch, structural
 construction, validation, or direct read-only explanation, then delegate narrowly.
 Project/process discovery belongs to process agents. Full reconstruction belongs
 to the construction subgraph and must preserve ProcessUnderstanding and
-BPMNSemanticModel context.
+BPMNSemanticModel context. Canvas always has access to process semantic context,
+BPMN preferences and process-to-canvas traceability memory, including for small
+local patches.
 """.strip()
 
 PATCH_EDIT_TOOL_POLICY = """
@@ -80,7 +82,9 @@ Patch/Edit subagent tools.
 Use only local deterministic BPMN operations through manage_canvas_bpmn_model:
 inspect, list_elements, update_element, add_element, delete_element,
 connect_elements, reconnect_flow, layout and validate. Do not replace the whole
-XML and do not rediscover or remodel the process.
+XML and do not rediscover or remodel the process. Before small changes that may
+affect meaning, use semantic context, BPMN preferences and traceability memory
+to keep the patch aligned with the process model and evidence.
 """.strip()
 
 CONSTRUCTION_TOOL_POLICY = """
@@ -109,11 +113,14 @@ canvas_macro_tools = [
     manage_canvas_bpmn_model,
     prepare_canvas_delegation_payload,
     search_bpmn_preferences,
+    retrieve_process_canvas_traceability_context,
 ]
 
 
 patch_edit_tools = [
     manage_canvas_bpmn_model,
+    get_process_semantic_context,
+    retrieve_process_canvas_traceability_context,
     search_bpmn_preferences,
     remember_bpmn_preference,
 ]

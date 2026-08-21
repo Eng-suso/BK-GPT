@@ -20,6 +20,10 @@ from backend.workspace_services.bpmn_canvas_edit import (
     validate_bpmn_xml,
 )
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
+from backend.workspace_services.canvas_business_report import (
+    canvas_business_report,
+    construction_business_report,
+)
 
 
 CanvasBpmnOperation = Literal[
@@ -436,43 +440,48 @@ def manage_canvas_construction(
     if operation == "prepare_plan":
         semantic_model = BPMNSemanticModel.model_validate(bpmn_semantic_model) if bpmn_semantic_model else None
         missing_information = state.get("missing_information") or (review.get("missing_information") if review else [])
+        payload = {
+            "operation": operation,
+            "bpmn_model_id": bpmn_model_id,
+            "process_id": process_id or state.get("process_id"),
+            "objective": objective,
+            "source": "bpmn_semantic_model" if semantic_model else "missing_semantic_model",
+            "reconstruction_scope": "full_model",
+            "semantic_requirements": [
+                f"{len(semantic_model.flowNodes)} flow nodes",
+                f"{len(semantic_model.sequenceFlows)} sequence flows",
+                f"{len(semantic_model.lanes)} lanes",
+            ]
+            if semantic_model
+            else [],
+            "unresolved_gaps": missing_information or [],
+            "constraints": constraints,
+            "requires_preview": True,
+            "requires_user_approval": True,
+            "warnings": [] if semantic_model else ["BPMNSemanticModel non disponibile."],
+        }
+        payload["business_report"] = construction_business_report(payload)
         return format_workspace_result(
             "Costruzione canvas BPMN",
-            {
-                "operation": operation,
-                "bpmn_model_id": bpmn_model_id,
-                "process_id": process_id or state.get("process_id"),
-                "objective": objective,
-                "source": "bpmn_semantic_model" if semantic_model else "missing_semantic_model",
-                "reconstruction_scope": "full_model",
-                "semantic_requirements": [
-                    f"{len(semantic_model.flowNodes)} flow nodes",
-                    f"{len(semantic_model.sequenceFlows)} sequence flows",
-                    f"{len(semantic_model.lanes)} lanes",
-                ]
-                if semantic_model
-                else [],
-                "unresolved_gaps": missing_information or [],
-                "constraints": constraints,
-                "requires_preview": True,
-                "requires_user_approval": True,
-                "warnings": [] if semantic_model else ["BPMNSemanticModel non disponibile."],
-            },
+            payload,
         )
 
     if operation == "generate_preview":
         xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        validation = validate_bpmn_xml(xml)
+        payload = {
+            "operation": operation,
+            "bpmn_model_id": bpmn_model_id,
+            "objective": objective,
+            "proposed_xml": xml,
+            "validation": validation,
+            "context": context,
+            "constraints": constraints,
+        }
+        payload["business_report"] = construction_business_report(payload)
         return format_workspace_result(
             "Costruzione canvas BPMN",
-            {
-                "operation": operation,
-                "bpmn_model_id": bpmn_model_id,
-                "objective": objective,
-                "proposed_xml": xml,
-                "validation": validate_bpmn_xml(xml),
-                "context": context,
-                "constraints": constraints,
-            },
+            payload,
         )
 
     if operation == "validate_preview":
@@ -480,19 +489,22 @@ def manage_canvas_construction(
         context = {}
         if not xml:
             xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        validation = validate_canvas_against_process(
+            xml=xml,
+            process_understanding=process_understanding,
+            bpmn_semantic_model=bpmn_semantic_model,
+        )
+        payload = {
+            "operation": operation,
+            "bpmn_model_id": bpmn_model_id,
+            "objective": objective,
+            "validation": validation,
+            "context": context,
+        }
+        payload["business_report"] = construction_business_report(payload)
         return format_workspace_result(
             "Costruzione canvas BPMN",
-            {
-                "operation": operation,
-                "bpmn_model_id": bpmn_model_id,
-                "objective": objective,
-                "validation": validate_canvas_against_process(
-                    xml=xml,
-                    process_understanding=process_understanding,
-                    bpmn_semantic_model=bpmn_semantic_model,
-                ),
-                "context": context,
-            },
+            payload,
         )
 
     if operation == "compare_with_current":
@@ -502,16 +514,18 @@ def manage_canvas_construction(
             xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
         current_xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
         clean_proposed_xml = replace_bpmn_xml(xml)
+        payload = {
+            "operation": operation,
+            "bpmn_model_id": bpmn_model_id,
+            "objective": objective,
+            "source": source,
+            **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
+            "context": context,
+        }
+        payload["business_report"] = construction_business_report(payload)
         return format_workspace_result(
             "Costruzione canvas BPMN",
-            {
-                "operation": operation,
-                "bpmn_model_id": bpmn_model_id,
-                "objective": objective,
-                "source": source,
-                **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
-                "context": context,
-            },
+            payload,
         )
 
     if operation == "apply_approved_preview":
@@ -542,6 +556,9 @@ def manage_canvas_construction(
                 "bpmn_model_id": bpmn_model_id,
                 "objective": objective,
                 "validation": validation,
+                "business_report": construction_business_report(
+                    {"operation": operation, "validation": validation}
+                ),
                 "xml_saved": True,
             },
         )
@@ -603,6 +620,7 @@ def manage_canvas_validation(
             "source": source,
             "objective": objective,
             "result": result,
+            "business_report": canvas_business_report(result),
         },
     )
 
