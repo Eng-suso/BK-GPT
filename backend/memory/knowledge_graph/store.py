@@ -508,7 +508,11 @@ class KnowledgeGraphStore:
                 f"query: {query.query}",
             ]
         )
-        results = retriever.retrieve(vector_query)
+        try:
+            results = retriever.retrieve(vector_query)
+        except Exception:
+            return []
+
         matches = []
         for result in results:
             node = result.node

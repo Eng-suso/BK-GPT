@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { API_BASE } from "../../../lib/api";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatComposerProps {
@@ -14,12 +15,13 @@ interface ChatComposerProps {
 const LIVE_TRANSCRIPTION_SAMPLE_RATE = 24000;
 
 function buildLiveTranscriptionUrl(): string {
-  if (window.location.protocol === "file:") {
-    return "ws://127.0.0.1:8000/v1/audio/live-transcription";
-  }
-
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/v1/audio/live-transcription`;
+  const baseUrl = API_BASE || window.location.origin;
+  const url = new URL(baseUrl, window.location.origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/v1/audio/live-transcription";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }
 
 function downsampleBuffer(buffer: Float32Array, inputRate: number, outputRate: number): Float32Array {

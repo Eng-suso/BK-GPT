@@ -118,6 +118,25 @@ def build_scope_system_prompt(state: dict) -> str:
             ]
         )
 
+    if scope_type == "canvas" and state.get("canvas_loop_status"):
+        loop_snapshot = {
+            "status": state.get("canvas_loop_status"),
+            "attempt": state.get("canvas_loop_attempt") or 0,
+            "max_attempts": state.get("canvas_loop_max_attempts") or 0,
+            "objective": state.get("canvas_objective"),
+            "next_actions": state.get("canvas_next_actions") or [],
+            "latest_validation": state.get("canvas_last_validation") or state.get("validation_report"),
+            "task_log": state.get("canvas_task_log") or [],
+        }
+        lines.extend(
+            [
+                "",
+                "Canvas completion loop corrente.",
+                "Se lo status e' needs_fix, correggi solo i problemi indicati dalla latest_validation e poi lascia verificare di nuovo il canvas.",
+                _state_value_to_text(loop_snapshot, MAX_STATE_ARTIFACT_CHARS),
+            ]
+        )
+
     current_bpmn_xml = state.get("current_bpmn_xml")
     if scope_type == "canvas" and current_bpmn_xml:
         xml = str(current_bpmn_xml)

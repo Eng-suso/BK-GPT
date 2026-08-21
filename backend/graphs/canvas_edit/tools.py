@@ -24,6 +24,7 @@ CanvasTargetOwner = Literal[
     "canvas_macro",
     "patch_edit_subgraph",
     "construction_subgraph",
+    "layout_subgraph",
     "validation_subgraph",
 ]
 
@@ -81,10 +82,13 @@ Patch/Edit subagent tools.
 
 Use only local deterministic BPMN operations through manage_canvas_bpmn_model:
 inspect, list_elements, update_element, add_element, delete_element,
-connect_elements, reconnect_flow, layout and validate. Do not replace the whole
-XML and do not rediscover or remodel the process. Before small changes that may
-affect meaning, use semantic context, BPMN preferences and traceability memory
-to keep the patch aligned with the process model and evidence.
+clear_canvas, connect_elements, reconnect_flow, layout and validate. Do not
+replace the whole XML and do not rediscover or remodel the process. If the user
+asks to remove every visible canvas element, call clear_canvas directly. If the
+user refers to one visible element by label, list_elements first and use the
+exact BPMN id from the listed model element; do not do fuzzy/token search and do
+not ask for confirmation when there is exactly one structural match. Ask only
+when the listed model has no match or multiple plausible matches.
 """.strip()
 
 CONSTRUCTION_TOOL_POLICY = """
@@ -92,8 +96,10 @@ Process Construction subagent tools.
 
 Use ProcessUnderstanding and BPMNSemanticModel as the semantic source of truth.
 For broad creation or reconstruction, prepare/load a review, generate or inspect
-the preview, validate it and wait for explicit approval before saving.
-Do not infer missing process semantics from raw canvas XML alone.
+the preview, validate it and wait for explicit approval before saving. If the
+user supplied a raw process description and no semantic model exists yet, call
+prepare_canvas_bpmn_review using that description. Do not infer missing process
+semantics from raw canvas XML alone.
 """.strip()
 
 VALIDATION_TOOL_POLICY = """
@@ -102,6 +108,16 @@ Canvas Validation subagent tools.
 Validate the current canvas technically and semantically against available
 ProcessUnderstanding/BPMNSemanticModel context. Report issues, warnings and next
 actions. Do not mutate XML except when explicitly asked only for layout repair.
+""".strip()
+
+LAYOUT_TOOL_POLICY = """
+Canvas Drawing/Layout subagent tools.
+
+Own visual readability only: layout, spacing, row wrapping, lane size,
+annotation placement, data object placement and edge routing. Do not alter
+business semantics, labels, owners or sequence flow source/target. A layout
+pass should end with layout validation and a saved BPMN XML version only when
+the geometry is readable.
 """.strip()
 
 
@@ -150,6 +166,12 @@ validation_tools = [
 ]
 
 
+layout_tools = [
+    manage_canvas_bpmn_model,
+    manage_canvas_validation,
+]
+
+
 def _dedupe_tools(tools: list) -> list:
     seen = set()
     result = []
@@ -166,5 +188,6 @@ canvas_tools = _dedupe_tools([
     *canvas_macro_tools,
     *patch_edit_tools,
     *construction_tools,
+    *layout_tools,
     *validation_tools,
 ])

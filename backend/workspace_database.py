@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select, text
 
 from backend.workspace_services.bpmn_review import build_bpmn_review_fields, bpmn_xml_from_review
+from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
     DATA_DIR,
     WorkspaceBase,
@@ -469,13 +470,13 @@ def approve_bpmn_review(bpmn_model_id: str) -> dict:
         if review is None:
             raise ValueError("Nessuna review BPMN pronta da approvare per questo canvas.")
 
-        xml = bpmn_xml_from_review(
+        xml, _layout_report = optimize_bpmn_layout(bpmn_xml_from_review(
             bpmn_process_id=f"Process_{slugify(model.process.name, 'process').replace('-', '_')}",
             process_name=model.process.name,
             source_text=review.source_text,
             process_understanding_json=review.process_understanding_json,
             bpmn_semantic_model_json=review.bpmn_semantic_model_json,
-        )
+        ))
         model.xml = xml
         create_bpmn_version(
             session=session,

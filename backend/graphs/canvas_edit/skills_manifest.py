@@ -8,6 +8,9 @@ CANVAS_REQUIRED_SKILLS = {
     "construction_subgraph": [
         "canvas_construction",
     ],
+    "layout_subgraph": [
+        "canvas_layout",
+    ],
     "validation_subgraph": [
         "canvas_validation",
     ],

@@ -12,10 +12,12 @@ Canvas Process Construction subgraph contract.
 
 {tool_policy}
 
-Start from process_understanding and bpmn_semantic_model already loaded in
-state. If they are absent or weak, load process semantic context or prepare a
-review before attempting construction. Broad changes require preview and
-validation; saving requires an approved review or explicit confirmation.
+Prefer process_understanding and bpmn_semantic_model already loaded in state.
+If they are absent and the latest user message contains the process description
+to map, call prepare_canvas_bpmn_review with that description. If loaded context
+is weak, load process semantic context or prepare a review before attempting
+construction. Broad changes require preview and validation; saving requires an
+approved review or explicit confirmation.
 
 When presenting the work, describe it as a draft or revision of the process
 drawing. Use business language and the business_report returned by tools. Do not

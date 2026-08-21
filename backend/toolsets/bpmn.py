@@ -9,14 +9,16 @@ from backend.bpmn_semantic import BPMNSemanticModel, semantic_model_to_bpmn_xml
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
+    clear_bpmn_process,
     connect_bpmn_elements,
     delete_bpmn_element,
-    layout_bpmn_di,
     list_bpmn_elements,
+    optimize_bpmn_layout,
     preview_bpmn_xml_change,
     reconnect_bpmn_flow,
     replace_bpmn_xml,
     update_bpmn_element,
+    validate_bpmn_layout,
     validate_bpmn_xml,
 )
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
@@ -32,9 +34,11 @@ CanvasBpmnOperation = Literal[
     "update_element",
     "add_element",
     "delete_element",
+    "clear_canvas",
     "connect_elements",
     "reconnect_flow",
     "layout",
+    "validate_layout",
     "validate",
     "preview_change",
     "replace_xml",
@@ -256,6 +260,29 @@ def manage_canvas_bpmn_model(
             },
         )
 
+    if operation == "clear_canvas":
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        updated_xml, change = clear_bpmn_process(xml=xml)
+        model = workspace_database.update_bpmn_model(
+            bpmn_model_id,
+            updated_xml,
+            change_summary="Svuotato canvas BPMN",
+            source="canvas_facade_clear",
+        )
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "change": change,
+                "validation": validate_bpmn_xml(updated_xml),
+                "xml_saved": True,
+            },
+        )
+
     if operation == "connect_elements":
         if not source_id or not target_id:
             raise ValueError("source_id e target_id sono obbligatori per connect_elements.")
@@ -317,7 +344,8 @@ def manage_canvas_bpmn_model(
 
     if operation == "layout":
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
-        updated_xml = layout_bpmn_di(xml)
+        updated_xml, layout_optimization = optimize_bpmn_layout(xml)
+        layout_validation = layout_optimization.get("selected_report") or validate_bpmn_layout(updated_xml)
         model = workspace_database.update_bpmn_model(
             bpmn_model_id,
             updated_xml,
@@ -333,7 +361,21 @@ def manage_canvas_bpmn_model(
                 "bpmn_model_id": bpmn_model_id,
                 "source": source,
                 "validation": validate_bpmn_xml(updated_xml),
+                "layout_validation": layout_validation,
+                "layout_optimization": layout_optimization,
                 "xml_saved": True,
+            },
+        )
+
+    if operation == "validate_layout":
+        xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
+        return format_workspace_result(
+            "Canvas BPMN gestito",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                **validate_bpmn_layout(xml),
             },
         )
 
@@ -919,7 +961,8 @@ def layout_canvas_bpmn(
     This should not change BPMN semantics.
     """
     xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
-    updated_xml = layout_bpmn_di(xml)
+    updated_xml, layout_optimization = optimize_bpmn_layout(xml)
+    layout_validation = layout_optimization.get("selected_report") or validate_bpmn_layout(updated_xml)
     model = workspace_database.update_bpmn_model(
         bpmn_model_id,
         updated_xml,
@@ -935,6 +978,8 @@ def layout_canvas_bpmn(
             "bpmn_model_id": bpmn_model_id,
             "source": source,
             "validation": validate_bpmn_xml(updated_xml),
+            "layout_validation": layout_validation,
+            "layout_optimization": layout_optimization,
             "xml_saved": True,
         },
     )

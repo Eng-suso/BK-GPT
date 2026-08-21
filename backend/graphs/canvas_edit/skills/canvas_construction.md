@@ -9,7 +9,8 @@ Construction handles significant build or rebuild work.
 
 ## Rules
 
-- Start from ProcessUnderstanding and BPMNSemanticModel.
+- Start from ProcessUnderstanding and BPMNSemanticModel when available.
+- If the user supplies a raw process description and no semantic model exists yet, prepare a BPMN review from that description.
 - Retrieve evidence/traceability context when available.
 - Preserve unresolved gaps as warnings or annotations.
 - Produce a preview before applying broad changes.

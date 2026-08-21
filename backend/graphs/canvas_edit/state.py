@@ -54,8 +54,16 @@ class CanvasState(ConversationState):
     patch_plan: CanvasPatchPlan | dict | None
     construction_plan: CanvasConstructionPlan | dict | None
     validation_report: CanvasValidationReport | dict | None
+    canvas_layout_report: dict | None
+    canvas_layout_status: str | None
     preview_diff: dict | None
     canvas_warnings: list[str]
     canvas_next_actions: list[dict]
+    canvas_loop_status: str | None
+    canvas_loop_attempt: int
+    canvas_loop_max_attempts: int
+    canvas_initial_saved_bpmn_xml: str | None
+    canvas_last_validation: dict | None
+    canvas_task_log: Annotated[list[dict], add]
     routing_trace: Annotated[list[dict], add]
     delegation_events: Annotated[list[dict], add]

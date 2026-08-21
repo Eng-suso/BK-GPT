@@ -5,8 +5,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-CanvasRoute = Literal["direct", "patch_edit", "construction", "validation", "clarification"]
-CanvasMode = Literal["inspection", "patch_edit", "construction", "validation", "clarification"]
+CanvasRoute = Literal["direct", "patch_edit", "construction", "layout", "validation", "clarification"]
+CanvasMode = Literal["inspection", "patch_edit", "construction", "layout", "validation", "clarification"]
 
 
 class CanvasRouteDecision(BaseModel):

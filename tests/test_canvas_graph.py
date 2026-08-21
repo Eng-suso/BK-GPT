@@ -1,4 +1,9 @@
-from backend.graphs.canvas_edit.graph import parse_canvas_router_json
+from backend.graphs.canvas_edit.graph import (
+    evaluate_canvas_completion,
+    parse_canvas_router_json,
+    route_after_canvas_completion_check,
+    route_after_validation_subgraph,
+)
 from backend.graphs.canvas_edit.skills_manifest import required_skills_for
 from backend.graphs.canvas_edit.tools import (
     canvas_macro_tools,
@@ -8,6 +13,14 @@ from backend.graphs.canvas_edit.tools import (
 )
 from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
 from backend.toolsets.bpmn import bpmn_review_tools, manage_canvas_bpmn_model
+from backend.workspace_services.bpmn_canvas_edit import (
+    clear_bpmn_process,
+    layout_bpmn_di,
+    list_bpmn_elements,
+    optimize_bpmn_layout,
+    validate_bpmn_layout,
+    validate_bpmn_xml,
+)
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 from backend.workspace_services.canvas_business_report import canvas_business_report
 
@@ -101,9 +114,111 @@ def test_canvas_patch_requires_current_canvas_xml():
     assert "Missing prerequisite: effective_bpmn_xml" in result["blocking_conditions"]
 
 
+def test_canvas_construction_allows_raw_process_description_without_semantic_context():
+    result = parse_canvas_router_json(
+        """
+        {
+          "route": "construction",
+          "confidence": 0.88,
+          "goal": "MAP_PROCESS_TO_BPMN",
+          "intent": "map_raw_process_description",
+          "next_action": "PREPARE_BPMN_REVIEW",
+          "suggested_capability": "canvas.construction",
+          "canvas_mode": "construction",
+          "workflow_scope": "full_workflow",
+          "reason": "The user supplied a substantive process description to map."
+        }
+        """,
+        user_request="L'Ufficio Acquisti aggiorna il database fornitori...",
+        state={"bpmn_model_id": "proc-bpmn"},
+    )
+
+    assert result["canvas_route"] == "construction"
+    assert result["delegation_target"] == "construction_subgraph"
+    assert result["authorized_capability"] == "canvas.construction"
+    assert result["orchestration_status"] == "authorized"
+
+
+def test_canvas_completion_loop_marks_valid_canvas_completed(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Review" name="Rivedi ordine"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Review" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Review" targetRef="End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process_Test" /></bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
+    monkeypatch.setattr(
+        "backend.graphs.canvas_edit.graph.workspace_database.get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "xml": xml},
+    )
+
+    result = evaluate_canvas_completion(
+        {
+            "bpmn_model_id": "proc-bpmn",
+            "canvas_loop_attempt": 0,
+            "canvas_loop_max_attempts": 2,
+            "canvas_objective": "Rinomina un passaggio",
+        }
+    )
+
+    assert result["canvas_loop_status"] == "completed"
+    assert result["validation_report"]["issues"] == []
+    assert route_after_canvas_completion_check(result) == "completion_report"
+
+
+def test_canvas_completion_loop_retries_patch_for_blocking_validation_issue(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Review" name="Rivedi ordine"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Review" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Review" targetRef="End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process_Test" /></bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
+    process_understanding = {
+        "schema_version": "process_understanding.v1",
+        "language": "it",
+        "title": "Order Review",
+        "steps": [{"id": "Task_Review", "label": "Rivedi ordine", "type": "user_task"}],
+        "sequence": ["Task_Review"],
+        "decisions": [{"id": "Gateway_Check", "label": "Ordine approvato?", "outcomes": ["Si", "No"]}],
+        "unknowns": [],
+    }
+    monkeypatch.setattr(
+        "backend.graphs.canvas_edit.graph.workspace_database.get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "xml": xml},
+    )
+
+    result = evaluate_canvas_completion(
+        {
+            "bpmn_model_id": "proc-bpmn",
+            "process_understanding": process_understanding,
+            "canvas_loop_attempt": 0,
+            "canvas_loop_max_attempts": 2,
+        }
+    )
+
+    assert result["canvas_loop_status"] == "needs_fix"
+    assert result["canvas_route"] == "patch_edit"
+    assert route_after_canvas_completion_check(result) == "patch_edit_subgraph"
+    assert "Il processo contiene decisioni ma il canvas non contiene gateway." in result["validation_report"]["issues"]
+
+
+def test_standalone_canvas_validation_does_not_enter_completion_loop():
+    assert route_after_validation_subgraph({"canvas_loop_status": None}) == "end"
+
+
 def test_canvas_capability_registry_declares_canvas_owners():
     assert CAPABILITY_REGISTRY["canvas.patch_edit"].target == "patch_edit_subgraph"
     assert CAPABILITY_REGISTRY["canvas.construction"].target == "construction_subgraph"
+    assert CAPABILITY_REGISTRY["canvas.layout"].target == "layout_subgraph"
     assert CAPABILITY_REGISTRY["canvas.validation"].target == "validation_subgraph"
 
 
@@ -136,6 +251,7 @@ def test_canvas_skills_manifest_declares_required_skills():
     assert "canvas_macro_orchestration" in required_skills_for("canvas_macro")
     assert "canvas_patch_edit" in required_skills_for("patch_edit_subgraph")
     assert "canvas_construction" in required_skills_for("construction_subgraph")
+    assert "canvas_layout" in required_skills_for("layout_subgraph")
     assert "canvas_validation" in required_skills_for("validation_subgraph")
 
 
@@ -144,6 +260,91 @@ def test_bpmn_review_tools_include_canvas_facade_for_compatibility():
     assert "manage_canvas_construction" in tool_names(bpmn_review_tools)
     assert "manage_canvas_validation" in tool_names(bpmn_review_tools)
     assert manage_canvas_bpmn_model.name == "manage_canvas_bpmn_model"
+
+
+def test_clear_bpmn_process_removes_visible_canvas_elements():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Input"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Collect" name="Raccolta dati"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="Output"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Collect" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Collect" targetRef="End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process_Test" /></bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
+
+    updated_xml, change = clear_bpmn_process(xml)
+
+    assert change["removed_count"] == 5
+    assert {item["name"] for item in change["removed"]} >= {"Input", "Raccolta dati", "Output"}
+    assert list_bpmn_elements(updated_xml) == [
+        {"id": "Process_Test", "type": "process", "name": "", "documentation": ""}
+    ]
+    validation = validate_bpmn_xml(updated_xml)
+    assert validation["valid"] is True
+    assert validation["counts"] == {"flow_nodes": 0, "sequence_flows": 0}
+
+
+def test_layout_bpmn_di_wraps_long_process_into_readable_rows():
+    tasks = "\n".join(
+        f'    <bpmn:userTask id="Task_{idx}" name="Attivita molto lunga numero {idx}">'
+        f'<bpmn:incoming>Flow_{idx}</bpmn:incoming><bpmn:outgoing>Flow_{idx + 1}</bpmn:outgoing></bpmn:userTask>'
+        for idx in range(1, 13)
+    )
+    flows = "\n".join(
+        f'    <bpmn:sequenceFlow id="Flow_{idx}" sourceRef="{source}" targetRef="{target}" />'
+        for idx, (source, target) in enumerate(
+            [("Start", "Task_1")]
+            + [(f"Task_{idx}", f"Task_{idx + 1}") for idx in range(1, 12)]
+            + [("Task_12", "End")],
+            start=1,
+        )
+    )
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+{tasks}
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_13</bpmn:incoming></bpmn:endEvent>
+{flows}
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    updated_xml = layout_bpmn_di(xml)
+    result = validate_bpmn_layout(updated_xml)
+    bounds = result["metrics"]["bounds"]
+
+    assert result["valid"] is True
+    assert bounds["width"] <= 1900
+    assert bounds["height"] > 400
+
+
+def test_optimize_bpmn_layout_retries_until_canvas_is_readable():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_1" name="Raccogli dati"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="Task_2" name="Verifica dati"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="Task_3" name="Registra esito"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="Task_2" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_2" targetRef="Task_3" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_3" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    updated_xml, optimization = optimize_bpmn_layout(xml)
+    report = validate_bpmn_layout(updated_xml)
+
+    assert len(optimization["attempts"]) > 1
+    assert optimization["attempts"][0]["report"]["warnings"]
+    assert optimization["valid"] is True
+    assert report["valid"] is True
+    assert not report["warnings"]
 
 
 def test_semantic_canvas_validation_flags_missing_gateway_for_decision():

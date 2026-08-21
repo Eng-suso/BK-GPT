@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
@@ -98,8 +98,8 @@ class ProcessRoutingDecision(RoutingDecisionBase):
 
 class CanvasRoutingDecision(RoutingDecisionBase):
     owner: Literal["canvas"] = "canvas"
-    route: Literal["direct", "patch_edit", "construction", "validation", "clarification"] = "direct"
-    canvas_mode: Literal["inspection", "patch_edit", "construction", "validation", "clarification"] | None = None
+    route: Literal["direct", "patch_edit", "construction", "layout", "validation", "clarification"] = "direct"
+    canvas_mode: Literal["inspection", "patch_edit", "construction", "layout", "validation", "clarification"] | None = None
     canvas_objective: str | None = None
     workflow_scope: WorkflowScope = "single_step"
 
@@ -195,8 +195,19 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="canvas",
         route="construction",
         target="construction_subgraph",
-        prerequisites=["bpmn_model_id", "canvas_semantic_context"],
-        description="Build or rebuild canvas sections from process semantic context and traceability memory.",
+        prerequisites=["bpmn_model_id"],
+        description=(
+            "Build or rebuild canvas sections from existing semantic context, "
+            "or prepare that semantic context from a raw process description."
+        ),
+    ),
+    "canvas.layout": CapabilitySpec(
+        id="canvas.layout",
+        owner="canvas",
+        route="layout",
+        target="layout_subgraph",
+        prerequisites=["bpmn_model_id", "effective_bpmn_xml"],
+        description="Repair BPMN diagram layout for readability, spacing, labels and viewport-friendly structure.",
     ),
     "canvas.validation": CapabilitySpec(
         id="canvas.validation",
@@ -293,6 +304,56 @@ def invalid_canvas_decision(reason: str) -> CanvasRoutingDecision:
     )
 
 
+def router_failure_direct_decision(
+    model: type[RoutingDecisionBase],
+    reason: str,
+) -> RoutingDecisionBase:
+    common = {
+        "confidence": 0.0,
+        "needs_clarification": False,
+        "goal": "ANSWER_DIRECTLY",
+        "intent": "router_failure_recovery",
+        "next_action": "ANSWER_WITH_AVAILABLE_CONTEXT_AND_TOOLS",
+        "blocking_conditions": [reason],
+        "reasoning_summary": reason,
+        "reason": reason,
+    }
+
+    if model is ConsultingRoutingDecision:
+        return ConsultingRoutingDecision(
+            route="direct",
+            suggested_capability="consultant.direct",
+            consulting_mode="triage",
+            **common,
+        )
+    if model is ProjectRoutingDecision:
+        return ProjectRoutingDecision(
+            route="direct",
+            suggested_capability="project.direct",
+            project_mode="discussion",
+            **common,
+        )
+    if model is ProcessRoutingDecision:
+        return ProcessRoutingDecision(
+            route="direct",
+            suggested_capability="process.direct",
+            process_mode="discussion",
+            workflow_scope="direct",
+            **common,
+        )
+    if model is CanvasRoutingDecision:
+        return CanvasRoutingDecision(
+            route="direct",
+            suggested_capability="canvas.direct",
+            canvas_mode="inspection",
+            workflow_scope="direct",
+            **common,
+        )
+
+    raise ValueError(f"Unsupported routing decision model: {model}")
+
+
+
 def parse_routing_decision(
     content: Any,
     model: type[RoutingDecisionBase],
@@ -324,12 +385,47 @@ def invoke_structured_router(
     invalid_factory,
 ) -> tuple[RoutingDecisionBase, str, str | None]:
     try:
-        structured_llm = llm.with_structured_output(model)
+        structured_llm = llm.with_structured_output(model, method="function_calling")
         response = structured_llm.invoke(messages, config=config)
+        if response is None:
+            json_response = _invoke_json_mode_router(llm, model, messages, config)
+            if json_response is not None:
+                return parse_routing_decision(json_response, model, invalid_factory)
+            reason = "Structured router returned no tool call and JSON fallback returned no decision."
+            return router_failure_direct_decision(model, reason), "router_recovery_direct", reason
         return parse_routing_decision(response, model, invalid_factory)
     except Exception as exc:
-        reason = f"Structured router failed: {type(exc).__name__}"
-        return invalid_factory(reason), "invalid", reason
+        try:
+            json_response = _invoke_json_mode_router(llm, model, messages, config)
+            if json_response is not None:
+                return parse_routing_decision(json_response, model, invalid_factory)
+        except Exception:
+            pass
+        reason = f"Structured router failed: {type(exc).__name__}: {exc}"
+        return router_failure_direct_decision(model, reason), "router_recovery_direct", reason
+
+
+def _invoke_json_mode_router(
+    llm,
+    model: type[RoutingDecisionBase],
+    messages: list[BaseMessage],
+    config: RunnableConfig,
+):
+    route_field = model.model_fields.get("route")
+    route_options = ""
+    if route_field is not None:
+        route_options = str(route_field.annotation)
+
+    instruction = SystemMessage(
+        content=(
+            "Return only one valid JSON object matching the routing schema. "
+            "Do not include markdown or prose. "
+            f"The `route` value must satisfy this type: {route_options}. "
+            "Set `suggested_capability` to the registered capability matching the owner and route."
+        )
+    )
+    structured_llm = llm.with_structured_output(model, method="json_mode")
+    return structured_llm.invoke([instruction, *messages], config=config)
 
 
 def _has_critical_contradiction(state: dict[str, Any]) -> bool:
@@ -410,12 +506,14 @@ def authorize_routing_decision(
     route = proposed_route
     termination_reason = None
 
-    if parse_error:
+    if parse_error and parse_source != "router_recovery_direct":
         status = "invalid_structured_decision"
         route = "clarification"
         capability_id = f"{owner}.clarification"
         blocking_conditions.append(parse_error)
         termination_reason = "WAITING_FOR_USER"
+    elif parse_error:
+        status = "router_recovery_direct"
 
     if decision.needs_clarification or proposed_route == "clarification":
         status = "clarification_required" if status == "authorized" else status

@@ -2256,6 +2256,40 @@
   cursor: not-allowed;
 }
 
+.api-status-card {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--state-warning-border);
+  border-radius: 8px;
+  background: var(--state-warning-surface);
+  color: var(--color-text-primary);
+}
+
+.api-status-card strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.api-status-card p {
+  margin: 0 0 10px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.api-status-card button {
+  min-height: 32px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .embedded-chat-header {
   display: flex;
   align-items: center;
@@ -2425,6 +2459,53 @@
 
 .embedded-chat-panel .message.assistant.markdown {
   overflow-x: auto;
+}
+
+.agent-activity {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding-bottom: 10px;
+}
+
+.agent-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.agent-activity-item span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-activity-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+  background: var(--color-border-subtle);
+}
+
+.agent-activity-item-running {
+  color: var(--color-action-primary-hover);
+}
+
+.agent-activity-item-running .agent-activity-dot {
+  background: var(--color-action-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus-ring) 25%, transparent);
+}
+
+.agent-activity-item-completed .agent-activity-dot {
+  background: var(--green-600);
 }
 
 .embedded-chat-panel .message.markdown table {

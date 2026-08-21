@@ -38,7 +38,7 @@ type BpmnCanvasService = {
 };
 
 type BpmnEventBus = {
-  on: (events: string | string[], callback: (event?: any) => void) => void;
+  on: (events: string | string[], callback: (event?: unknown) => void) => void;
 };
 
 type BpmnElementRegistry = {
@@ -423,7 +423,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           };
         };
 
-        eventBus.on("selection.changed", (e: { newSelection?: BpmnElementSelection[] }) => {
+        eventBus.on("selection.changed", (event?: unknown) => {
+          const e = event as { newSelection?: BpmnElementSelection[] };
           const selected = e.newSelection?.[0];
           if (!selected || selected.id === "__implicitroot") {
             setSelectedElement(null);
@@ -482,10 +483,18 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   }, []);
 
   useEffect(() => {
-    return onWorkspaceChanged(async () => {
-      if (!modelerRef.current || hasUnsavedChangesRef.current) return;
+    return onWorkspaceChanged(async (detail) => {
+      if (detail.bpmnModelId && detail.bpmnModelId !== bpmnModelId) return;
+      if (!modelerRef.current || (hasUnsavedChangesRef.current && !detail.forceCanvasReload)) return;
 
       try {
+        if (detail.forceCanvasReload) {
+          clearDraftTimer();
+          clearChangeCheckTimer();
+          clearLocalBpmnDraft(bpmnModelId);
+          markUnsaved(false);
+        }
+
         const xml = await loadInitialXml(bpmnModelId, processName);
         isImportingRef.current = true;
         await modelerRef.current.importXML(xml);
@@ -504,7 +513,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     });
   }, [bpmnModelId, processName, loadVersions]);
 
-  async function saveCurrentXml() {
+  const saveCurrentXml = useCallback(async () => {
     if (!modelerRef.current) return;
 
     isSavingRef.current = true;
@@ -544,7 +553,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         isSavingRef.current = false;
       }, 250);
     }
-  }
+  }, [bpmnModelId, loadVersions, onCurrentXmlChange]);
 
   async function restoreVersion(versionId: number) {
     if (!modelerRef.current) return;

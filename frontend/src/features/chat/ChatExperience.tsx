@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { chatScopeKey, toApiChatScope } from "../../contracts/chat";
 import { API_BASE } from "../../lib/api";
 import { notifyWorkspaceChanged } from "../../lib/workspaceEvents";
-import type { ChatMessage, ChatSession } from "./types";
+import type { AgentActivity, ChatMessage, ChatSession } from "./types";
 import type { NavigationTab } from "./navigationTypes";
 import type { ChatScope } from "./chatScope";
 import { titleForScope } from "./chatScope";
@@ -11,6 +11,68 @@ import { ChatShell } from "./ChatShell";
 function sessionTitle(message: string): string {
   const clean = message.trim().replace(/\s+/g, " ");
   return clean.length > 28 ? `${clean.slice(0, 28)}...` : clean || "Nuova chat";
+}
+
+function notifyChatWorkspaceChanged(scope: ChatScope) {
+  if (scope.type !== "canvas") {
+    notifyWorkspaceChanged();
+    return;
+  }
+
+  notifyWorkspaceChanged({
+    bpmnModelId: scope.bpmnModelId,
+    forceCanvasReload: true,
+  });
+}
+
+const AGENT_ACTIVITY_LABELS: Record<string, string> = {
+  canvas_subgraph: "Apro il contesto canvas",
+  canvas_router: "Scelgo il percorso operativo",
+  canvas_macro_agent: "Coordino il lavoro sul canvas",
+  patch_edit_subgraph: "Eseguo la modifica locale",
+  canvas_patch_edit_agent: "Aggiorno gli elementi del canvas",
+  construction_subgraph: "Preparo la costruzione del canvas",
+  canvas_construction_agent: "Genero o revisiono il modello",
+  layout_subgraph: "Preparo il disegno del canvas",
+  canvas_drawing_agent: "Ridisegno elementi e collegamenti",
+  validation_subgraph: "Verifico il canvas",
+  canvas_validation_agent: "Controllo struttura e copertura",
+  evaluate_canvas_completion: "Valuto se la richiesta e' completa",
+  canvas_completion_report: "Chiudo con il risultato verificato",
+  ask_canvas_clarification: "Preparo una domanda di chiarimento",
+};
+
+function activityLabelForNode(nodeName: string) {
+  return AGENT_ACTIVITY_LABELS[nodeName] || nodeName.replace(/_/g, " ");
+}
+
+function nextAgentActivity(
+  current: AgentActivity[] | undefined,
+  nodeName: string
+): AgentActivity[] {
+  const existing = current || [];
+  const completed = existing.map((item) =>
+    item.status === "running" ? { ...item, status: "completed" as const } : item
+  );
+  const previousIndex = completed.findIndex((item) => item.key === nodeName);
+  const nextItem: AgentActivity = {
+    key: nodeName,
+    label: activityLabelForNode(nodeName),
+    status: "running",
+  };
+
+  if (previousIndex >= 0) {
+    const updated = [...completed];
+    updated[previousIndex] = nextItem;
+    return updated;
+  }
+
+  return [...completed, nextItem];
+}
+
+function completeAgentActivity(current: AgentActivity[] | undefined): AgentActivity[] | undefined {
+  if (!current || current.length === 0) return current;
+  return current.map((item) => ({ ...item, status: "completed" }));
 }
 
 type RawMessage = {
@@ -56,6 +118,11 @@ type ChatExperienceProps = {
   chrome?: "full" | "panel";
   layout?: "standalone" | "embedded";
   scope?: ChatScope;
+};
+
+type ApiConnectionState = {
+  status: "checking" | "connected" | "offline";
+  message: string | null;
 };
 
 type BpmnReview = {
@@ -106,17 +173,31 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [bpmnReview, setBpmnReview] = useState<BpmnReview | null>(null);
   const [isApprovingReview, setIsApprovingReview] = useState(false);
-
-  // Keep the ref in sync with state so callbacks can read the latest value without being dependencies.
-  currentThreadIdRef.current = currentThreadId;
+  const [apiConnection, setApiConnection] = useState<ApiConnectionState>({
+    status: "checking",
+    message: null,
+  });
+  const loadSessionsRetryRef = useRef<number | null>(null);
 
   const activeSession = sessions.find((s) => s.threadId === currentThreadId) || null;
   const messages = activeSession ? activeSession.messages : [];
   const activeTitle = activeSession ? activeSession.title : titleForScope(scope);
 
+  // Keep the ref in sync with state so callbacks can read the latest value without being dependencies.
+  useEffect(() => {
+    currentThreadIdRef.current = currentThreadId;
+  }, [currentThreadId]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2800);
+  };
+
+  const clearLoadSessionsRetry = () => {
+    if (loadSessionsRetryRef.current !== null) {
+      window.clearTimeout(loadSessionsRetryRef.current);
+      loadSessionsRetryRef.current = null;
+    }
   };
 
   const upsertSession = (rawSession: RawSession): ChatSession => {
@@ -147,22 +228,42 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   }, []);
 
   const loadSessions = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({ scope_key: scopeKey });
-      const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions?${params}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const list: ChatSession[] = data.map(normalizeSession);
-      setSessions(list);
-      // Use ref instead of state to avoid making currentThreadId a dependency,
-      // which would cause an infinite loop: loadSessions mutates currentThreadId
-      // → new useCallback ref → useEffect re-fires → loadSessions again.
-      if (list.length > 0 && !currentThreadIdRef.current) {
-        setCurrentThreadId(list[0].threadId);
-        loadSessionDetail(list[0].threadId);
+    clearLoadSessionsRetry();
+
+    for (let attempt = 0; attempt <= 20; attempt += 1) {
+      try {
+        const params = new URLSearchParams({ scope_key: scopeKey });
+        const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions?${params}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const list: ChatSession[] = data.map(normalizeSession);
+        clearLoadSessionsRetry();
+        setApiConnection({ status: "connected", message: null });
+        setSessions(list);
+        // Use ref instead of state to avoid making currentThreadId a dependency,
+        // which would cause an infinite loop: loadSessions mutates currentThreadId
+        // -> new useCallback ref -> useEffect re-fires -> loadSessions again.
+        if (list.length > 0 && !currentThreadIdRef.current) {
+          setCurrentThreadId(list[0].threadId);
+          loadSessionDetail(list[0].threadId);
+        }
+        return;
+      } catch (err) {
+        console.error(err);
+        setApiConnection({
+          status: "offline",
+          message: `Backend non raggiungibile su ${API_BASE || "origine corrente"}. Riprovo a caricare la cronologia...`,
+        });
+
+        if (attempt === 20) return;
+
+        await new Promise<void>((resolve) => {
+          loadSessionsRetryRef.current = window.setTimeout(
+            resolve,
+            Math.min(1000 + attempt * 250, 4000)
+          );
+        });
       }
-    } catch (err) {
-      console.error(err);
     }
   }, [scopeKey, loadSessionDetail]);
 
@@ -216,6 +317,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 
     return () => {
       isMounted = false;
+      clearLoadSessionsRetry();
     };
   }, [scopeKey, loadSessions, loadBpmnReview]);
 
@@ -225,7 +327,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model_name: selectedModel, scope: persistentApiScope }),
     });
-    if (!res.ok) throw new Error("Impossible creare la sessione");
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.detail || "Impossibile creare la sessione");
+    }
     return res.json();
   };
 
@@ -256,30 +361,66 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     return session;
   };
 
+  const appendVisibleSendError = (session: ChatSession | null, content: string, message: string) => {
+    const errorMessage: ChatMessage = { role: "error", content: message };
+
+    if (session) {
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.threadId !== session.threadId) return s;
+          const msgs = s.messages.at(-1)?.content === "Sto elaborando..." ? s.messages.slice(0, -1) : s.messages;
+          return { ...s, messages: [...msgs, errorMessage] };
+        })
+      );
+      return;
+    }
+
+    const fallbackThreadId = `local-error-${Date.now()}`;
+    setCurrentThreadId(fallbackThreadId);
+    setSessions((prev) => [
+      {
+        threadId: fallbackThreadId,
+        title: sessionTitle(content),
+        modelName: selectedModel,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messageCount: 2,
+        messages: [
+          { role: "user", content },
+          errorMessage,
+        ],
+      },
+      ...prev,
+    ]);
+  };
+
   const sendMessage = async (content: string) => {
     setLastUserPrompt(content);
-    const session = await ensureSession(content);
+    let session: ChatSession | null = null;
 
     const userMessage: ChatMessage = { role: "user", content };
-    const loadingMessage: ChatMessage = { role: "assistant", content: "Sto elaborando..." };
-
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.threadId !== session.threadId) return s;
-        const cleanMsgs = s.messages.filter((m) => m.role !== "error");
-        return {
-          ...s,
-          title: s.title === "Nuova chat" ? sessionTitle(content) : s.title,
-          messages: [...cleanMsgs, userMessage, loadingMessage],
-        };
-      })
-    );
+    const loadingMessage: ChatMessage = { role: "assistant", content: "Sto elaborando...", activity: [] };
 
     setIsBusy(true);
 
     try {
+      session = await ensureSession(content);
+      const sendSession = session;
+
+      setSessions((prev) =>
+        prev.map((s) => {
+          if (s.threadId !== sendSession.threadId) return s;
+          const cleanMsgs = s.messages.filter((m) => m.role !== "error");
+          return {
+            ...s,
+            title: s.title === "Nuova chat" ? sessionTitle(content) : s.title,
+            messages: [...cleanMsgs, userMessage, loadingMessage],
+          };
+        })
+      );
+
       const res = await fetch(
-        `${API_BASE}/v1/consultant-chat/sessions/${session.threadId}/messages/stream`,
+        `${API_BASE}/v1/consultant-chat/sessions/${sendSession.threadId}/messages/stream`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -291,7 +432,12 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         }
       );
 
-      if (!res.ok || !res.body) throw new Error("Streaming fallito");
+      if (!res.ok || !res.body) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "Streaming fallito");
+      }
+
+      setApiConnection({ status: "connected", message: null });
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -310,13 +456,34 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
           if (!line.trim()) continue;
           const event = JSON.parse(line);
 
+          if (event.type === "node" && event.node) {
+            setSessions((prev) =>
+              prev.map((s) => {
+                if (s.threadId !== sendSession.threadId) return s;
+                const msgs = [...s.messages];
+                const last = msgs[msgs.length - 1];
+                if (!last || last.role !== "assistant") return s;
+                msgs[msgs.length - 1] = {
+                  ...last,
+                  activity: nextAgentActivity(last.activity, String(event.node)),
+                };
+                return { ...s, messages: msgs };
+              })
+            );
+          }
+
           if (event.type === "delta") {
             accumulatedText += event.content || "";
             setSessions((prev) =>
               prev.map((s) => {
-                if (s.threadId !== session.threadId) return s;
+                if (s.threadId !== sendSession.threadId) return s;
                 const msgs = [...s.messages];
-                msgs[msgs.length - 1] = { role: "assistant", content: accumulatedText };
+                const last = msgs[msgs.length - 1];
+                msgs[msgs.length - 1] = {
+                  ...(last || { role: "assistant" as const }),
+                  role: "assistant",
+                  content: accumulatedText,
+                };
                 return { ...s, messages: msgs };
               })
             );
@@ -324,31 +491,49 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 
           if (event.type === "done") {
             accumulatedText = event.message || accumulatedText;
+            if (accumulatedText) {
+              setSessions((prev) =>
+                prev.map((s) => {
+                  if (s.threadId !== sendSession.threadId) return s;
+                  const msgs = [...s.messages];
+                  const last = msgs[msgs.length - 1];
+                  msgs[msgs.length - 1] = {
+                    ...(last || { role: "assistant" as const }),
+                    role: "assistant",
+                    content: accumulatedText,
+                    activity: completeAgentActivity(last?.activity),
+                  };
+                  return { ...s, messages: msgs };
+                })
+              );
+            }
           }
 
           if (event.type === "error") {
-            throw new Error(event.detail || "Errore backend");
+            throw new Error(
+              event.error?.message ||
+                event.error?.detail ||
+                event.detail ||
+                "Errore backend"
+            );
           }
         }
       }
 
-      await loadSessionDetail(session.threadId);
+      await loadSessionDetail(sendSession.threadId);
       await loadBpmnReview();
-      notifyWorkspaceChanged();
+      notifyChatWorkspaceChanged(scope);
     } catch (err) {
       console.error(err);
-      setSessions((prev) =>
-        prev.map((s) => {
-          if (s.threadId !== session.threadId) return s;
-          const msgs = s.messages.slice(0, -1);
-          return {
-            ...s,
-            messages: [
-              ...msgs,
-              { role: "error", content: "Non sono riuscito a completare questa richiesta." },
-            ],
-          };
-        })
+      const detail = err instanceof Error ? err.message : "Errore sconosciuto";
+      setApiConnection({
+        status: "offline",
+        message: `Backend non raggiungibile o richiesta fallita: ${detail}`,
+      });
+      appendVisibleSendError(
+        session,
+        content,
+        `Non sono riuscito a completare questa richiesta. ${detail}`
       );
     } finally {
       setIsBusy(false);
@@ -372,7 +557,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       }
 
       setBpmnReview(null);
-      notifyWorkspaceChanged();
+      notifyWorkspaceChanged({ bpmnModelId: scope.bpmnModelId, forceCanvasReload: true });
       showToast("BPMN generato e salvato.");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Approvazione BPMN non riuscita.");
@@ -436,13 +621,24 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         onVoice={() => showToast("Registrazione vocale pronta.")}
         onModelChange={setSelectedModel}
         reviewSlot={
-          bpmnReview ? (
-            <BpmnReviewCard
-              review={bpmnReview}
-              isApproving={isApprovingReview}
-              onApprove={approveBpmnReview}
-            />
-          ) : null
+          <>
+            {apiConnection.status === "offline" && apiConnection.message ? (
+              <section className="api-status-card" role="status">
+                <strong>Backend scollegato</strong>
+                <p>{apiConnection.message}</p>
+                <button type="button" onClick={() => void loadSessions()}>
+                  Riprova ora
+                </button>
+              </section>
+            ) : null}
+            {bpmnReview ? (
+              <BpmnReviewCard
+                review={bpmnReview}
+                isApproving={isApprovingReview}
+                onApprove={approveBpmnReview}
+              />
+            ) : null}
+          </>
         }
       />
 
