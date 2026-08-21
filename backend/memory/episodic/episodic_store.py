@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Index, String, Text, create_engine, func, select
+from sqlalchemy import ForeignKey, Index, String, Text, create_engine, func, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.memory.models import EpisodeMemory, episode_memory_to_mem0_content
@@ -42,6 +42,9 @@ class Episode(Base):
     insights: Mapped[str] = mapped_column(Text, nullable=False)
     tags: Mapped[str] = mapped_column(Text, nullable=False)
     source_id: Mapped[str | None] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    archived_at: Mapped[str | None] = mapped_column(String)
+    archive_reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -102,6 +105,23 @@ def episodic_connection():
 def init_episodic_memory_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
+    ensure_episodic_lifecycle_columns()
+
+
+def ensure_episodic_lifecycle_columns() -> None:
+    with engine.begin() as connection:
+        columns = {
+            row[1]
+            for row in connection.execute(text("PRAGMA table_info(episodes)")).fetchall()
+        }
+        if "status" not in columns:
+            connection.execute(
+                text("ALTER TABLE episodes ADD COLUMN status VARCHAR NOT NULL DEFAULT 'active'")
+            )
+        if "archived_at" not in columns:
+            connection.execute(text("ALTER TABLE episodes ADD COLUMN archived_at VARCHAR"))
+        if "archive_reason" not in columns:
+            connection.execute(text("ALTER TABLE episodes ADD COLUMN archive_reason TEXT"))
 
 
 def normalize_list(value: str | list[str] | None) -> list[str]:
@@ -216,6 +236,9 @@ def save_episode_memory(
         "summary": summary.strip(),
         "insights": json.dumps(normalize_list(insights), ensure_ascii=False),
         "tags": json.dumps(normalize_list(tags), ensure_ascii=False),
+        "status": "active",
+        "archived_at": None,
+        "archive_reason": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -241,6 +264,9 @@ def save_episode_memory(
                 insights=episode["insights"],
                 tags=episode["tags"],
                 source_id=episode["source_id"],
+                status=episode["status"],
+                archived_at=episode["archived_at"],
+                archive_reason=episode["archive_reason"],
                 created_at=episode["created_at"],
                 updated_at=episode["updated_at"],
             )
@@ -272,6 +298,7 @@ def local_episode_matches(
     episode_type: str | None = None,
     project: str | None = None,
     limit: int = 5,
+    include_archived: bool = False,
 ) -> list[dict]:
     statement = (
         select(Episode, EpisodeSource)
@@ -285,6 +312,9 @@ def local_episode_matches(
 
     if project:
         statement = statement.where(Episode.project == project)
+
+    if not include_archived:
+        statement = statement.where(Episode.status == "active")
 
     matches = []
 
@@ -314,9 +344,14 @@ def episode_to_dict(episode: Episode, source: EpisodeSource | None) -> dict:
         "summary": episode.summary,
         "insights": episode.insights,
         "tags": episode.tags,
+        "status": episode.status,
+        "archived_at": episode.archived_at,
+        "archive_reason": episode.archive_reason,
         "source_id": source.source_id if source else episode.source_id,
         "path": source.path if source else "",
         "content_hash": source.content_hash if source else "",
+        "created_at": episode.created_at,
+        "updated_at": episode.updated_at,
     }
 
 
@@ -373,6 +408,7 @@ def format_local_episode_matches(matches: list[dict]) -> str:
                     f"date: {match['occurred_at'] or 'unknown'}",
                     f"participants: {', '.join(participants) or 'unknown'}",
                     f"project: {match['project'] or 'none'}",
+                    f"status: {match.get('status') or 'active'}",
                     f"tags: {', '.join(tags) or 'none'}",
                     f"summary: {match['summary'] or 'none'}",
                     f"insights: {'; '.join(insights) or 'none'}",
@@ -389,6 +425,7 @@ def search_episode_memory(
     episode_type: str | None = None,
     project: str | None = None,
     limit: int = 5,
+    include_archived: bool = False,
 ) -> str:
     category = f"episodic:{episode_type}" if episode_type else "episodic"
     mem0_result = search_consultant_memory(query=query, category=category)
@@ -398,6 +435,7 @@ def search_episode_memory(
             episode_type=episode_type,
             project=project,
             limit=limit,
+            include_archived=include_archived,
         )
     )
 
@@ -437,13 +475,219 @@ def search_interview_memory(
     query: str,
     project: str | None = None,
     limit: int = 5,
+    include_archived: bool = False,
 ) -> str:
     return search_episode_memory(
         query=query,
         episode_type="interview",
         project=project,
         limit=limit,
+        include_archived=include_archived,
     )
+
+
+def _episode_statement(episode_id: str | None = None, source_id: str | None = None):
+    statement = select(Episode, EpisodeSource).join(
+        EpisodeSource,
+        EpisodeSource.source_id == Episode.source_id,
+        isouter=True,
+    )
+    if episode_id:
+        return statement.where(Episode.episode_id == episode_id)
+    if source_id:
+        return statement.where(EpisodeSource.source_id == source_id)
+    return statement.where(Episode.episode_id == "")
+
+
+def get_episode_memory(
+    episode_id: str | None = None,
+    source_id: str | None = None,
+    include_source_text: bool = False,
+) -> dict | None:
+    with episodic_connection() as session:
+        row = session.execute(_episode_statement(episode_id, source_id)).first()
+
+    if not row:
+        return None
+
+    episode, source = row
+    result = episode_to_dict(episode, source)
+    if include_source_text:
+        result["source_text"] = read_source_text(result.get("path"))
+    return result
+
+
+def list_episode_memory(
+    *,
+    project: str | None = None,
+    episode_type: str | None = None,
+    query: str = "",
+    status: str = "active",
+    limit: int = 20,
+) -> list[dict]:
+    statement = (
+        select(Episode, EpisodeSource)
+        .join(EpisodeSource, EpisodeSource.source_id == Episode.source_id, isouter=True)
+        .order_by(func.coalesce(Episode.occurred_at, Episode.created_at).desc())
+        .limit(max(min(limit, 100), 1) * 3)
+    )
+    if project:
+        statement = statement.where(Episode.project == project)
+    if episode_type:
+        statement = statement.where(Episode.episode_type == episode_type)
+    if status != "any":
+        statement = statement.where(Episode.status == status)
+
+    with episodic_connection() as session:
+        rows = session.execute(statement).all()
+
+    matches = []
+    for episode, source in rows:
+        item = episode_to_dict(episode, source)
+        if query and not episode_matches_query(item, query):
+            continue
+        matches.append(item)
+        if len(matches) >= limit:
+            break
+    return matches
+
+
+def update_episode_metadata(
+    episode_id: str,
+    *,
+    title: str | None = None,
+    summary: str | None = None,
+    insights: list[str] | str | None = None,
+    participants: list[str] | str | None = None,
+    project: str | None = None,
+    tags: list[str] | str | None = None,
+    occurred_at: str | None = None,
+) -> dict:
+    normalized_episode_id = episode_id.strip()
+    if not normalized_episode_id:
+        return {"status": "error", "message": "episode_id mancante."}
+
+    with episodic_connection() as session:
+        episode = session.get(Episode, normalized_episode_id)
+        if episode is None:
+            return {"status": "not_found", "message": f"Episodio non trovato: {normalized_episode_id}"}
+
+        if title is not None:
+            episode.title = title.strip() or episode.title
+        if summary is not None:
+            episode.summary = summary.strip()
+        if insights is not None:
+            episode.insights = json.dumps(normalize_list(insights), ensure_ascii=False)
+        if participants is not None:
+            episode.participants = json.dumps(normalize_list(participants), ensure_ascii=False)
+        if project is not None:
+            episode.project = project.strip() or None
+        if tags is not None:
+            episode.tags = json.dumps(normalize_list(tags), ensure_ascii=False)
+        if occurred_at is not None:
+            episode.occurred_at = occurred_at.strip() or None
+        episode.updated_at = utc_now()
+
+    return {
+        "status": "updated",
+        "episode_id": normalized_episode_id,
+        "message": f"Metadati episodio aggiornati: {normalized_episode_id}",
+    }
+
+
+def archive_episode_memory(episode_id: str, reason: str = "") -> dict:
+    normalized_episode_id = episode_id.strip()
+    if not normalized_episode_id:
+        return {"status": "error", "message": "episode_id mancante."}
+
+    now = utc_now()
+    with episodic_connection() as session:
+        episode = session.get(Episode, normalized_episode_id)
+        if episode is None:
+            return {"status": "not_found", "message": f"Episodio non trovato: {normalized_episode_id}"}
+        episode.status = "archived"
+        episode.archived_at = now
+        episode.archive_reason = reason.strip()
+        episode.updated_at = now
+
+    return {
+        "status": "archived",
+        "episode_id": normalized_episode_id,
+        "archived_at": now,
+        "message": f"Episodio archiviato: {normalized_episode_id}",
+    }
+
+
+def restore_episode_memory(episode_id: str) -> dict:
+    normalized_episode_id = episode_id.strip()
+    if not normalized_episode_id:
+        return {"status": "error", "message": "episode_id mancante."}
+
+    now = utc_now()
+    with episodic_connection() as session:
+        episode = session.get(Episode, normalized_episode_id)
+        if episode is None:
+            return {"status": "not_found", "message": f"Episodio non trovato: {normalized_episode_id}"}
+        episode.status = "active"
+        episode.archived_at = None
+        episode.archive_reason = None
+        episode.updated_at = now
+
+    return {
+        "status": "restored",
+        "episode_id": normalized_episode_id,
+        "message": f"Episodio ripristinato: {normalized_episode_id}",
+    }
+
+
+def delete_episode_memory(
+    episode_id: str,
+    *,
+    confirm_destructive_action: bool = False,
+    delete_raw_source: bool = False,
+) -> dict:
+    normalized_episode_id = episode_id.strip()
+    if not normalized_episode_id:
+        return {"status": "error", "message": "episode_id mancante."}
+    if not confirm_destructive_action:
+        return {
+            "status": "blocked",
+            "episode_id": normalized_episode_id,
+            "message": "Hard delete bloccato: serve confirm_destructive_action=True.",
+        }
+
+    source_paths = []
+    with episodic_connection() as session:
+        episode = session.get(Episode, normalized_episode_id)
+        if episode is None:
+            return {"status": "not_found", "message": f"Episodio non trovato: {normalized_episode_id}"}
+        source_paths = [source.path for source in episode.sources if source.path]
+        session.delete(episode)
+
+    deleted_paths = []
+    skipped_paths = []
+    if delete_raw_source:
+        source_root = SOURCES_DIR.resolve()
+        for source_path in source_paths:
+            path = Path(source_path)
+            try:
+                resolved = path.resolve()
+                if not resolved.is_relative_to(source_root):
+                    skipped_paths.append(str(path))
+                    continue
+                if resolved.exists():
+                    resolved.unlink()
+                    deleted_paths.append(str(resolved))
+            except OSError:
+                skipped_paths.append(str(path))
+
+    return {
+        "status": "deleted",
+        "episode_id": normalized_episode_id,
+        "deleted_raw_source_paths": deleted_paths,
+        "skipped_raw_source_paths": skipped_paths,
+        "message": f"Episodio eliminato: {normalized_episode_id}",
+    }
 
 
 init_episodic_memory_db()

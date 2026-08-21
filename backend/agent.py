@@ -347,6 +347,7 @@ def build_agent(model_name: str | None = None):
         "process_subgraph",
         build_process_subgraph(
             tools=tools_by_scope["process"],
+            llm=llm,
             llm_with_tools=llm.bind_tools(tools_by_scope["process"]),
             build_context_messages=build_context_messages,
         ),

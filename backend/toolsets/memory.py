@@ -9,7 +9,7 @@ from backend.memory.models import (
     EpisodeMemory,
 )
 from backend.memory.semantic import semantic_store
-from backend.toolsets.workspace import get_workspace_overview
+from backend.toolsets.workspace import enterprise_tool_result, get_workspace_overview
 
 
 class RememberConsultantFactInput(BaseModel):
@@ -31,6 +31,35 @@ class SaveEpisodeInput(BaseModel):
     project: str | None = Field(default=None, description="Related project name or id.")
     tags: list[str] = Field(default_factory=list, description="Retrieval tags.")
     occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
+
+
+class ManageConsultingEvidenceInput(BaseModel):
+    operation: str = Field(
+        description=(
+            "Evidence lifecycle operation. Use list/search/inspect to retrieve source-backed evidence; "
+            "use save_interview or save_episode to store new raw evidence; use update_metadata for labels; "
+            "use archive for normal removal from active retrieval; use restore to reactivate; use delete only "
+            "after the user explicitly confirms destructive deletion."
+        )
+    )
+    episode_id: str | None = Field(default=None, description="Target episode_id for inspect, update_metadata, archive, restore, or delete.")
+    source_id: str | None = Field(default=None, description="Optional source_id for inspect when episode_id is unknown.")
+    query: str = Field(default="", description="Search/list query. Leave empty to list recent evidence.")
+    episode_type: str | None = Field(default=None, description="Filter or save type: interview, call, note, decision, workshop, feedback, observation.")
+    title: str = Field(default="", description="Evidence title for save/update.")
+    raw_content: str = Field(default="", description="Original notes/transcript/source text for save operations.")
+    summary: str = Field(default="", description="Concise extracted summary for save/update.")
+    insights: list[str] = Field(default_factory=list, description="Source-backed insights for save/update.")
+    participants: list[str] = Field(default_factory=list, description="People, roles or teams involved.")
+    project: str | None = Field(default=None, description="Optional project name/id for consulting-level evidence.")
+    tags: list[str] = Field(default_factory=list, description="Retrieval tags for save/update.")
+    occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
+    status: str = Field(default="active", description="For list: active, archived, or any.")
+    reason: str = Field(default="", description="Why this lifecycle action is being taken, especially archive/delete.")
+    limit: int = Field(default=10, ge=1, le=50, description="Maximum evidence records to return.")
+    include_source_text: bool = Field(default=False, description="For inspect: include raw source text when needed.")
+    confirm_destructive_action: bool = Field(default=False, description="Required for hard delete. Prefer archive for ordinary removal.")
+    delete_raw_source: bool = Field(default=False, description="Also delete local raw source file during confirmed hard delete.")
 
 
 @tool(args_schema=RememberConsultantFactInput)
@@ -238,6 +267,151 @@ def forget_consultant_memory(memory_id: str, delete_linked: bool = False) -> str
     return semantic_store.delete_consultant_memory(memory_id=memory_id, delete_linked=delete_linked)
 
 
+@tool(args_schema=ManageConsultingEvidenceInput)
+def manage_consulting_evidence(
+    operation: str,
+    episode_id: str | None = None,
+    source_id: str | None = None,
+    query: str = "",
+    episode_type: str | None = None,
+    title: str = "",
+    raw_content: str = "",
+    summary: str = "",
+    insights: list[str] | None = None,
+    participants: list[str] | None = None,
+    project: str | None = None,
+    tags: list[str] | None = None,
+    occurred_at: str | None = None,
+    status: str = "active",
+    reason: str = "",
+    limit: int = 10,
+    include_source_text: bool = False,
+    confirm_destructive_action: bool = False,
+    delete_raw_source: bool = False,
+) -> str:
+    """
+    Manage consulting-level source-backed evidence through one lifecycle facade.
+    Use this for interviews, calls, notes, decisions, workshops, observations and
+    other episodic evidence. Do not use it for durable consultant profile facts,
+    preferences, methods or BPMN rules; those remain semantic memory tools.
+    Prefer archive over delete when the user asks to remove evidence from active use.
+    Hard delete requires confirm_destructive_action=True.
+    """
+    normalized_operation = operation.strip().lower()
+    normalized_status = status if status in {"active", "archived", "any"} else "active"
+
+    if normalized_operation in {"list", "search"}:
+        evidence = episodic_store.list_episode_memory(
+            project=project,
+            episode_type=episode_type,
+            query=query,
+            status=normalized_status,
+            limit=limit,
+        )
+        return enterprise_tool_result(
+            status="ok",
+            action="manage_consulting_evidence",
+            entity_type="consulting_evidence_collection",
+            summary=f"Consulting evidence {normalized_operation}: {len(evidence)} record.",
+            payload={
+                "operation": normalized_operation,
+                "query": query,
+                "project": project,
+                "episode_type": episode_type,
+                "status": normalized_status,
+                "evidence": evidence,
+            },
+        )
+
+    if normalized_operation == "inspect":
+        evidence = episodic_store.get_episode_memory(
+            episode_id=episode_id,
+            source_id=source_id,
+            include_source_text=include_source_text,
+        )
+        return enterprise_tool_result(
+            status="ok" if evidence else "not_found",
+            action="manage_consulting_evidence",
+            entity_type="consulting_evidence",
+            entity_id=episode_id,
+            summary="Consulting evidence inspected." if evidence else "Consulting evidence not found.",
+            payload={"operation": normalized_operation, "evidence": evidence},
+        )
+
+    if normalized_operation in {"save_interview", "save_episode"}:
+        if not raw_content.strip():
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_consulting_evidence",
+                entity_type="consulting_evidence",
+                summary="Cannot save evidence without raw_content.",
+                payload={"operation": normalized_operation},
+            )
+        save_result = episodic_store.save_episode_memory(
+            episode_type="interview" if normalized_operation == "save_interview" else (episode_type or "note"),
+            title=title,
+            raw_content=raw_content,
+            summary=summary,
+            insights=insights or [],
+            participants=participants or [],
+            project=project,
+            tags=["interview", *(tags or [])] if normalized_operation == "save_interview" else (tags or []),
+            occurred_at=occurred_at,
+        )
+        return enterprise_tool_result(
+            status="saved",
+            action="manage_consulting_evidence",
+            entity_type="consulting_interview" if normalized_operation == "save_interview" else "consulting_episode",
+            summary=f"Consulting evidence saved: {title or 'untitled'}",
+            payload={"operation": normalized_operation, "memory_result": save_result},
+        )
+
+    if normalized_operation == "update_metadata":
+        result = episodic_store.update_episode_metadata(
+            episode_id=episode_id or "",
+            title=title if title else None,
+            summary=summary if summary else None,
+            insights=insights if insights else None,
+            participants=participants if participants else None,
+            project=project,
+            tags=tags if tags else None,
+            occurred_at=occurred_at,
+        )
+        return enterprise_tool_result(
+            status=result["status"],
+            action="manage_consulting_evidence",
+            entity_type="consulting_evidence",
+            entity_id=episode_id,
+            summary=result["message"],
+            payload={"operation": normalized_operation, "result": result},
+        )
+
+    if normalized_operation == "archive":
+        result = episodic_store.archive_episode_memory(episode_id=episode_id or "", reason=reason)
+    elif normalized_operation == "restore":
+        result = episodic_store.restore_episode_memory(episode_id=episode_id or "")
+    elif normalized_operation == "delete":
+        result = episodic_store.delete_episode_memory(
+            episode_id=episode_id or "",
+            confirm_destructive_action=confirm_destructive_action,
+            delete_raw_source=delete_raw_source,
+        )
+    else:
+        result = {
+            "status": "blocked",
+            "message": f"Unsupported operation: {operation}.",
+        }
+
+    return enterprise_tool_result(
+        status=result["status"],
+        action="manage_consulting_evidence",
+        entity_type="consulting_evidence",
+        entity_id=episode_id,
+        summary=result["message"],
+        payload={"operation": normalized_operation, "result": result},
+    )
+
+
 @tool
 def remember_bpmn_preference(rule: str, area: str) -> str:
     """
@@ -385,6 +559,7 @@ memory_tools = [
     retrieve_consulting_context,
     retrieve_consulting_graph_context,
     forget_consultant_memory,
+    manage_consulting_evidence,
     remember_bpmn_preference,
     search_bpmn_preferences,
     save_episode,

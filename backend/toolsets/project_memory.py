@@ -3,6 +3,15 @@ from pydantic import BaseModel, Field
 
 from backend import workspace_database
 from backend.memory.episodic import episodic_store
+from backend.memory.knowledge_graph import knowledge_graph_store
+from backend.memory.knowledge_graph.models import (
+    KnowledgeGraphContradiction,
+    KnowledgeGraphEvidence,
+    KnowledgeGraphGap,
+    KnowledgeGraphImpact,
+    KnowledgeGraphQuery,
+    KnowledgeGraphRelationship,
+)
 from backend.memory.semantic import semantic_store
 from backend.toolsets.workspace import enterprise_tool_result
 
@@ -67,6 +76,41 @@ class RetrieveProjectEvidenceInput(BaseModel):
     process_id: str | None = Field(default=None, description="Optional related process id.")
     limit: int = Field(default=5, ge=1, le=10, description="Maximum local evidence matches.")
     reason: str = Field(description="Why this evidence retrieval is needed for the current turn.")
+
+
+class ManageProjectEvidenceInput(BaseModel):
+    operation: str = Field(
+        description=(
+            "Project evidence lifecycle operation. Use list/search/inspect to retrieve project evidence; "
+            "use save_interview or save_episode to store source-backed project evidence with optional KG extraction; "
+            "use update_metadata for labels; use archive for normal removal from active retrieval; "
+            "use restore to reactivate; use delete only after explicit destructive confirmation."
+        )
+    )
+    project_id: str = Field(description="Current project id from the active Project Chat scope.")
+    episode_id: str | None = Field(default=None, description="Target episode_id for inspect, update_metadata, archive, restore, or delete.")
+    source_id: str | None = Field(default=None, description="Optional source_id for inspect when episode_id is unknown.")
+    query: str = Field(default="", description="Search/list query. Leave empty to list recent project evidence.")
+    episode_type: str | None = Field(default=None, description="Filter or save type: interview, call, note, decision, workshop, feedback, observation.")
+    title: str = Field(default="", description="Evidence title for save/update.")
+    raw_content: str = Field(default="", description="Original notes/transcript/source text for save operations.")
+    summary: str = Field(default="", description="Concise extracted summary for save/update.")
+    insights: list[str] = Field(default_factory=list, description="Source-backed insights for save/update.")
+    participants: list[str] = Field(default_factory=list, description="People, roles or teams involved.")
+    process_ids: list[str] = Field(default_factory=list, description="Related process ids inside the project.")
+    entities: list[str] = Field(default_factory=list, description="Named project entities mentioned in the evidence.")
+    relationships: list["ProjectGraphRelationship"] = Field(default_factory=list, description="Enterprise graph relationships extracted from evidence.")
+    gaps: list["ProjectGraphGap"] = Field(default_factory=list, description="Missing data or evidence gaps.")
+    inconsistencies: list["ProjectGraphInconsistency"] = Field(default_factory=list, description="Contradictions or incoherent stories across evidence.")
+    roi_impacts: list["ProjectROIImpact"] = Field(default_factory=list, description="ROI, cost, risk, quality, time or efficiency impacts.")
+    tags: list[str] = Field(default_factory=list, description="Retrieval tags for save/update.")
+    occurred_at: str | None = Field(default=None, description="ISO date/time if known.")
+    status: str = Field(default="active", description="For list: active, archived, or any.")
+    reason: str = Field(default="", description="Why this lifecycle action is being taken, especially archive/delete.")
+    limit: int = Field(default=10, ge=1, le=50, description="Maximum evidence records to return.")
+    include_source_text: bool = Field(default=False, description="For inspect: include raw source text when needed.")
+    confirm_destructive_action: bool = Field(default=False, description="Required for hard delete. Prefer archive for ordinary removal.")
+    delete_raw_source: bool = Field(default=False, description="Also delete local raw source file during confirmed hard delete.")
 
 
 class RetrieveProjectGraphContextInput(BaseModel):
@@ -287,6 +331,75 @@ def _graph_tags(
     return tags
 
 
+def _knowledge_graph_evidence_payload(
+    *,
+    project_id: str,
+    scope: str,
+    title: str,
+    raw_content: str,
+    reason: str,
+    process_ids: list[str],
+    entities: list[str] | None,
+    relationships: list[ProjectGraphRelationship] | None,
+    gaps: list[ProjectGraphGap] | None,
+    inconsistencies: list[ProjectGraphInconsistency] | None,
+    roi_impacts: list[ProjectROIImpact] | None,
+    source_refs: list[str] | None = None,
+) -> KnowledgeGraphEvidence:
+    return KnowledgeGraphEvidence(
+        project_id=project_id,
+        scope=scope,
+        source_title=title,
+        raw_content=raw_content,
+        reason=reason,
+        process_ids=process_ids,
+        entities=_clean_text_list(entities),
+        relationships=[
+            KnowledgeGraphRelationship(
+                source=item.source,
+                relation=item.relation,
+                target=item.target,
+                evidence=item.evidence,
+                confidence=item.confidence,
+                confirmed=item.confirmed,
+            )
+            for item in relationships or []
+        ],
+        gaps=[
+            KnowledgeGraphGap(
+                title=item.title,
+                missing_information=item.missing_information,
+                affected_process_ids=item.affected_process_ids,
+                required_evidence=item.required_evidence,
+                severity=item.severity,
+            )
+            for item in gaps or []
+        ],
+        contradictions=[
+            KnowledgeGraphContradiction(
+                title=item.title,
+                conflicting_claims=item.conflicting_claims,
+                affected_process_ids=item.affected_process_ids,
+                resolution_question=item.resolution_question,
+                severity=item.severity,
+            )
+            for item in inconsistencies or []
+        ],
+        impacts=[
+            KnowledgeGraphImpact(
+                title=item.title,
+                impact_area=item.impact_area,
+                affected_process_ids=item.affected_process_ids,
+                mechanism=item.mechanism,
+                evidence=item.evidence,
+                confidence=item.confidence,
+            )
+            for item in roi_impacts or []
+        ],
+        source_refs=source_refs or [],
+    )
+
+
 def _project_workspace_graph_grounding(project_id: str) -> dict:
     project = _require_project(project_id)
     processes = workspace_database.list_project_processes(project_id)
@@ -416,6 +529,24 @@ def _save_project_episode_payload(
     if len(graph_lines) > 2:
         indexed_insights.append("PROJECT_GRAPH_INDEX\n" + "\n".join(graph_lines))
 
+    kg_index_result = None
+    if relationships or valid_gaps or valid_inconsistencies or valid_roi_impacts or entities:
+        kg_index_result = knowledge_graph_store.index_evidence_graph(
+            _knowledge_graph_evidence_payload(
+                project_id=project_id,
+                scope="project",
+                title=title,
+                raw_content=raw_content,
+                reason=f"{action}: {summary or title}",
+                process_ids=valid_process_ids,
+                entities=entities,
+                relationships=relationships,
+                gaps=valid_gaps,
+                inconsistencies=valid_inconsistencies,
+                roi_impacts=valid_roi_impacts,
+            )
+        )
+
     result = episodic_store.save_episode_memory(
         episode_type=episode_type,
         title=title,
@@ -455,6 +586,7 @@ def _save_project_episode_payload(
             "gaps": [item.model_dump() for item in valid_gaps],
             "inconsistencies": [item.model_dump() for item in valid_inconsistencies],
             "roi_impacts": [item.model_dump() for item in valid_roi_impacts],
+            "knowledge_graph_index": kg_index_result,
             "memory_result": result,
         },
     )
@@ -601,6 +733,17 @@ def retrieve_project_graph_context(
         if include_workspace_snapshot
         else {"status": "workspace_snapshot_not_requested"}
     )
+    knowledge_graph_context = knowledge_graph_store.retrieve_graph_context(
+        KnowledgeGraphQuery(
+            project_id=project_id,
+            query=query,
+            relation_focus=relation_focus,
+            reason=reason,
+            entities=entity_terms,
+            process_ids=valid_process_ids,
+            limit=limit,
+        )
+    )
 
     return enterprise_tool_result(
         status="ok",
@@ -616,6 +759,7 @@ def retrieve_project_graph_context(
             "reason": reason,
             "entities": entity_terms,
             "process_ids": valid_process_ids,
+            "enterprise_knowledge_graph": knowledge_graph_context.model_dump(mode="json"),
             "mem0_relational_memory": mem0_result,
             "project_evidence": evidence_result,
             "workspace_grounding": workspace_grounding,
