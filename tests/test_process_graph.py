@@ -1,4 +1,4 @@
-from backend.graphs.process.graph import parse_process_router_json
+from backend.graphs.process.graph import evaluate_process_iteration, parse_process_router_json
 from backend.graphs.process.skills_manifest import required_skills_for
 from backend.graphs.process.state import ProcessState
 from backend.graphs.process.subgraphs.discovery.state import ProcessDiscoveryState
@@ -59,9 +59,224 @@ def test_parse_process_router_json_returns_structured_state():
 def test_parse_process_router_json_falls_back_to_direct_for_invalid_route():
     result = parse_process_router_json('{"route":"unknown","confidence":5}')
 
-    assert result["process_route"] == "direct"
+    assert result["process_route"] == "clarification"
     assert result["delegation_target"] is None
-    assert result["routing_confidence"] == 1.0
+    assert result["routing_confidence"] == 0.0
+    assert result["needs_clarification"] is True
+    assert result["orchestration_status"] == "invalid_structured_decision"
+
+
+def test_process_goal_model_as_is_with_insufficient_understanding_routes_to_evidence():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "modeling",
+          "confidence": 0.88,
+          "goal": "MODEL_AS_IS",
+          "intent": "model_as_is",
+          "next_action": "BUILD_SEMANTIC_MODEL",
+          "suggested_capability": "process.modeling",
+          "process_mode": "modeling",
+          "workflow_scope": "full_workflow",
+          "reason": "User asked to build the AS-IS."
+        }
+        """,
+        state={
+            "process_id": "proc-1",
+            "process_understanding_json": None,
+            "missing_information": [],
+        },
+    )
+
+    assert result["goal"] == "MODEL_AS_IS"
+    assert result["process_route"] == "evidence"
+    assert result["authorized_capability"] == "process.evidence"
+    assert result["orchestration_status"] == "state_constrained_reroute"
+
+
+def test_process_modeling_allowed_when_understanding_is_available():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "modeling",
+          "confidence": 0.86,
+          "goal": "MODEL_AS_IS",
+          "intent": "model_as_is",
+          "next_action": "BUILD_SEMANTIC_MODEL",
+          "suggested_capability": "process.modeling",
+          "process_mode": "modeling",
+          "workflow_scope": "single_step",
+          "reason": "Understanding is ready."
+        }
+        """,
+        state={
+            "process_id": "proc-1",
+            "process_understanding_json": {"steps": []},
+            "missing_information": [],
+            "contradictions": [],
+        },
+    )
+
+    assert result["process_route"] == "modeling"
+    assert result["delegation_target"] == "modeling_subgraph"
+    assert result["authorized_capability"] == "process.modeling"
+    assert result["orchestration_status"] == "authorized"
+
+
+def test_process_canvas_handoff_allowed_when_semantic_model_ready():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "delegate_canvas",
+          "confidence": 0.9,
+          "goal": "BUILD_CANVAS",
+          "intent": "canvas_handoff",
+          "next_action": "HANDOFF_TO_CANVAS",
+          "suggested_capability": "process.canvas_handoff",
+          "process_mode": "delegation",
+          "workflow_scope": "single_step",
+          "reason": "Semantic model and readiness are sufficient."
+        }
+        """,
+        state={
+            "process_id": "proc-1",
+            "bpmn_semantic_model_json": {"flowNodes": []},
+            "readiness_score": 8,
+            "missing_information": [],
+        },
+    )
+
+    assert result["process_route"] == "delegate_canvas"
+    assert result["delegation_target"] == "canvas_macro"
+    assert result["authorized_capability"] == "process.canvas_handoff"
+
+
+def test_process_critical_contradiction_blocks_modeling():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "modeling",
+          "confidence": 0.8,
+          "goal": "MODEL_AS_IS",
+          "intent": "model_as_is",
+          "next_action": "BUILD_SEMANTIC_MODEL",
+          "suggested_capability": "process.modeling",
+          "process_mode": "modeling",
+          "workflow_scope": "full_workflow",
+          "reason": "Model after resolving contradiction."
+        }
+        """,
+        state={
+            "process_id": "proc-1",
+            "process_understanding_json": {"steps": []},
+            "missing_information": [],
+            "contradictions": [{"severity": "critical", "description": "Two actors disagree on approval."}],
+        },
+    )
+
+    assert result["process_route"] == "evidence"
+    assert result["authorized_capability"] == "process.evidence"
+    assert "Missing prerequisite: no_critical_contradictions" in result["blocking_conditions"]
+
+
+def test_process_local_canvas_patch_does_not_force_full_engineering_loop():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "delegate_canvas",
+          "confidence": 0.92,
+          "goal": "PATCH_CANVAS",
+          "intent": "local_canvas_patch",
+          "next_action": "PATCH_EXISTING_XML",
+          "suggested_capability": "process.canvas_handoff",
+          "process_mode": "delegation",
+          "workflow_scope": "local_operation",
+          "reason": "Rename one existing actor."
+        }
+        """,
+        state={
+            "process_id": "proc-1",
+            "saved_bpmn_xml": "<definitions />",
+            "bpmn_semantic_model_json": None,
+            "readiness_score": None,
+            "missing_information": ["approval threshold"],
+        },
+    )
+
+    assert result["process_route"] == "delegate_canvas"
+    assert result["workflow_scope"] == "local_operation"
+    assert result["authorized_capability"] == "process.canvas_handoff"
+
+
+def test_process_refuses_unregistered_capability():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "evidence",
+          "confidence": 0.7,
+          "suggested_capability": "process.run_arbitrary_tool",
+          "reason": "Bad capability."
+        }
+        """,
+        state={"process_id": "proc-1"},
+    )
+
+    assert result["process_route"] == "clarification"
+    assert result["delegation_events"] == []
+    assert result["orchestration_status"] == "unregistered_capability"
+
+
+def test_process_registered_capability_not_allowed_by_state_is_not_executed():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "delegate_canvas",
+          "confidence": 0.85,
+          "goal": "BUILD_CANVAS",
+          "intent": "canvas_handoff",
+          "next_action": "HANDOFF_TO_CANVAS",
+          "suggested_capability": "process.canvas_handoff",
+          "process_mode": "delegation",
+          "workflow_scope": "single_step",
+          "reason": "Canvas requested."
+        }
+        """,
+        state={
+            "process_id": "proc-1",
+            "process_understanding_json": None,
+            "bpmn_semantic_model_json": None,
+            "readiness_score": 3,
+            "missing_information": ["actors"],
+        },
+    )
+
+    assert result["process_route"] != "delegate_canvas"
+    assert result["delegation_target"] != "canvas_macro"
+    assert result["orchestration_status"] == "state_constrained_reroute"
+
+
+def test_process_no_progress_terminates_controlled_loop():
+    state = {
+        "workflow_scope": "full_workflow",
+        "process_route": "evidence",
+        "engineering_loop_iteration": 0,
+        "engineering_loop_max_iterations": 3,
+        "process_no_progress_count": 0,
+        "process_progress_signature": "False|False|None|0|False|0|0|0",
+        "process_understanding_json": None,
+        "bpmn_semantic_model_json": None,
+        "readiness_score": None,
+        "missing_information": [],
+        "saved_bpmn_xml": None,
+        "contradictions": [],
+        "process_claims": [],
+        "process_gaps": [],
+    }
+
+    result = evaluate_process_iteration(state)
+
+    assert result["process_continue_loop"] is False
+    assert result["termination_reason"] == "BLOCKED_NO_PROGRESS"
 
 
 def test_process_states_define_orchestration_fields():

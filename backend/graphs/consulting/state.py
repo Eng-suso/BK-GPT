@@ -11,6 +11,16 @@ class ConsultingState(ConversationState):
     consulting_route: str
     consulting_mode: str | None
     consulting_objective: str | None
+    goal: str | None
+    intent: str | None
+    next_action: str | None
+    suggested_capability: str | None
+    authorized_capability: str | None
+    orchestration_status: str | None
+    termination_reason: str | None
+    blocking_conditions: list[str]
+    required_context: list[str]
+    reasoning_summary: str | None
 
     delegation_target: str | None
     delegation_reason: str | None

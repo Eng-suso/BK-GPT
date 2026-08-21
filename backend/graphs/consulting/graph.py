@@ -1,5 +1,3 @@
-import json
-import re
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -13,6 +11,13 @@ from backend.graphs.consulting.subgraphs.home import build_home_subgraph, home_t
 from backend.graphs.consulting.subgraphs.setup import build_setup_subgraph, setup_tools
 from backend.graphs.consulting.tools import CONSULTING_TOOL_POLICY
 from backend.graphs.consulting.state import ConsultingState
+from backend.graphs.routing_contracts import (
+    ConsultingRoutingDecision,
+    authorize_routing_decision,
+    invalid_consulting_decision,
+    invoke_structured_router,
+    parse_routing_decision,
+)
 
 
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
@@ -45,7 +50,8 @@ def latest_user_text(state: dict) -> str:
 
 CONSULTING_ROUTER_PROMPT = """
 You are the Consulting graph router for DeliR.
-Choose exactly one route for the latest user request using intent and ownership, not keyword matching.
+You are the reasoning layer, not the execution controller.
+Propose exactly one route for the latest user request using intent, context and ownership.
 
 Routes:
 - direct: consultant-level strategy, memory, planning, positioning, offers, cross-project synthesis, or general advice.
@@ -55,19 +61,14 @@ Routes:
 - delegate_project: project execution, project status, sources, decisions, deliverables, phase, progress, or next step.
 - delegate_process: AS-IS/TO-BE discovery, process analysis, evidence synthesis, readiness, or BPMN semantic review.
 - delegate_canvas: BPMN XML, canvas inspection, canvas edits, validation, layout, versions, or approval.
+- clarification: context, owner or entity reference is ambiguous.
 
-Return only JSON:
-{
-  "route":"direct|home|clients|setup|delegate_project|delegate_process|delegate_canvas",
-  "confidence":0.0,
-  "needs_clarification":false,
-  "clarification_question":null,
-  "entity_hints":{"client":null,"project":null,"process":null,"canvas":null},
-  "consulting_mode":"strategy|triage|memory|setup|delegation|clarification",
-  "consulting_objective":"brief current objective",
-  "expected_result":"brief expected outcome",
-  "reason":"brief reason"
-}
+Return structured output matching the ConsultingRoutingDecision schema.
+Set goal, intent, next_action and suggested_capability separately.
+Suggested capability must be one registered capability such as consultant.home,
+consultant.clients, consultant.setup, consultant.project_delegation,
+consultant.process_delegation, consultant.canvas_delegation or consultant.direct.
+If clarification is required, route must be clarification and no delegation should be proposed.
 """.strip()
 
 
@@ -79,6 +80,7 @@ VALID_CONSULTING_ROUTES = {
     "delegate_project",
     "delegate_process",
     "delegate_canvas",
+    "clarification",
 }
 
 
@@ -90,63 +92,65 @@ ROUTE_TARGETS = {
     "delegate_project": "project_macro",
     "delegate_process": "process_macro",
     "delegate_canvas": "canvas_macro",
+    "clarification": None,
 }
 
 
-def parse_router_json(content: str, user_request: str = "") -> dict:
-    text = str(content or "").strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        text = match.group(0)
-
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        payload = {}
-
-    route = str(payload.get("route") or "direct").strip()
-    if route not in VALID_CONSULTING_ROUTES:
-        route = "direct"
-
-    try:
-        confidence = float(payload.get("confidence", 0.0))
-    except (TypeError, ValueError):
-        confidence = 0.0
-
-    confidence = max(0.0, min(confidence, 1.0))
-    entity_hints = payload.get("entity_hints")
-    if not isinstance(entity_hints, dict):
-        entity_hints = {}
-
-    reason = str(payload.get("reason") or "Consulting router decision.").strip()
-    needs_clarification = bool(payload.get("needs_clarification", False))
-    clarification_question = payload.get("clarification_question")
-    if clarification_question is not None:
-        clarification_question = str(clarification_question).strip() or None
-
-    expected_result = str(payload.get("expected_result") or "").strip()
-    consulting_mode = str(payload.get("consulting_mode") or "").strip() or None
-    consulting_objective = str(payload.get("consulting_objective") or expected_result).strip() or None
-    target = ROUTE_TARGETS[route]
+def consulting_routing_state(
+    decision: ConsultingRoutingDecision,
+    *,
+    user_request: str = "",
+    state: dict | None = None,
+    parse_source: str = "structured",
+    parse_error: str | None = None,
+) -> dict:
+    authorization = authorize_routing_decision(
+        owner="consultant",
+        decision=decision,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
+    )
+    route = authorization["route"]
+    target = authorization["target"]
+    reason = decision.reason or decision.reasoning_summary or "Consulting router decision."
+    expected_result = decision.expected_result or ""
+    consulting_mode = decision.consulting_mode or ("clarification" if route == "clarification" else None)
+    consulting_objective = decision.consulting_objective or decision.goal or expected_result or None
+    needs_clarification = bool(decision.needs_clarification or route == "clarification")
     delegation_payload = {
         "target": target,
         "route": route,
         "user_request": user_request,
-        "entity_hints": entity_hints,
+        "entity_hints": decision.entity_hints,
         "expected_result": expected_result,
         "reason": reason,
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "authorized_capability": authorization["authorized_capability"],
     }
     routing_event = {
+        "owner": "consultant",
         "route": route,
+        "proposed_route": authorization["proposed_route"],
         "target": target,
-        "confidence": confidence,
+        "confidence": decision.confidence,
         "needs_clarification": needs_clarification,
+        "status": authorization["status"],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "proposed_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "expected_next_state": decision.expected_next_state,
+        "termination_reason": authorization["termination_reason"],
+        "parse_source": authorization["parse_source"],
         "reason": reason,
+        "reasoning_summary": decision.reasoning_summary,
     }
-    delegation_events = []
-
-    if target is not None:
-        delegation_events.append(delegation_payload)
 
     return {
         "consulting_route": route,
@@ -154,14 +158,39 @@ def parse_router_json(content: str, user_request: str = "") -> dict:
         "consulting_objective": consulting_objective,
         "delegation_target": target,
         "delegation_reason": reason,
-        "routing_confidence": confidence,
+        "routing_confidence": decision.confidence,
         "needs_clarification": needs_clarification,
-        "clarification_question": clarification_question,
-        "entity_hints": entity_hints,
+        "clarification_question": decision.clarification_question,
+        "entity_hints": decision.entity_hints,
         "delegation_payload": delegation_payload,
         "routing_trace": [routing_event],
-        "delegation_events": delegation_events,
+        "delegation_events": [delegation_payload] if target else [],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "suggested_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "orchestration_status": authorization["status"],
+        "termination_reason": authorization["termination_reason"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "reasoning_summary": decision.reasoning_summary,
     }
+
+
+def parse_router_json(content: str, user_request: str = "", state: dict | None = None) -> dict:
+    decision, parse_source, parse_error = parse_routing_decision(
+        content,
+        ConsultingRoutingDecision,
+        invalid_consulting_decision,
+    )
+    return consulting_routing_state(
+        decision,
+        user_request=user_request,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
+    )
 
 
 def build_consulting_router(llm):
@@ -184,7 +213,9 @@ def build_consulting_router(llm):
             }
 
         try:
-            response = llm.invoke(
+            decision, parse_source, parse_error = invoke_structured_router(
+                llm,
+                ConsultingRoutingDecision,
                 [
                     SystemMessage(content=CONSULTING_ROUTER_PROMPT),
                     HumanMessage(
@@ -196,38 +227,37 @@ def build_consulting_router(llm):
                     ),
                 ],
                 config=config,
+                invalid_factory=invalid_consulting_decision,
             )
         except Exception:
-            return {
-                "consulting_route": "direct",
-                "consulting_mode": None,
-                "consulting_objective": None,
-                "delegation_target": None,
-                "delegation_reason": "Router unavailable; defaulted to Consult Macro Agent.",
-                "routing_confidence": 0.0,
-                "needs_clarification": False,
-                "clarification_question": None,
-                "entity_hints": {},
-                "delegation_payload": {},
-                "routing_trace": [
-                    {
-                        "route": "direct",
-                        "target": None,
-                        "confidence": 0.0,
-                        "needs_clarification": False,
-                        "reason": "Router unavailable; defaulted to Consult Macro Agent.",
-                    }
-                ],
-                "delegation_events": [],
-            }
+            decision = invalid_consulting_decision("Structured router failed unexpectedly.")
+            parse_source = "invalid"
+            parse_error = "Structured router failed unexpectedly."
 
-        return parse_router_json(getattr(response, "content", response), user_request=user_text)
+        return consulting_routing_state(
+            decision,
+            user_request=user_text,
+            state=state,
+            parse_source=parse_source,
+            parse_error=parse_error,
+        )
 
     return route_consulting_intent
 
 
 def selected_consulting_route(state: ConsultingState) -> str:
     return state.get("consulting_route") or "direct"
+
+
+def ask_consulting_clarification(state: ConsultingState) -> dict:
+    return {
+        "messages": [
+            AIMessage(
+                content=state.get("clarification_question")
+                or "Mi serve un chiarimento prima di instradare correttamente questa richiesta."
+            )
+        ]
+    }
 
 
 def delegate_to_project_macro(state: ConsultingState) -> dict:
@@ -310,6 +340,7 @@ def build_consulting_subgraph(tools: list, llm, llm_with_tools, build_context_me
     workflow.add_node("delegate_to_project_macro", delegate_to_project_macro)
     workflow.add_node("delegate_to_process_macro", delegate_to_process_macro)
     workflow.add_node("delegate_to_canvas_macro", delegate_to_canvas_macro)
+    workflow.add_node("ask_consulting_clarification", ask_consulting_clarification)
 
     workflow.add_edge(START, "consult_router")
     workflow.add_conditional_edges(
@@ -323,6 +354,7 @@ def build_consulting_subgraph(tools: list, llm, llm_with_tools, build_context_me
             "delegate_project": "delegate_to_project_macro",
             "delegate_process": "delegate_to_process_macro",
             "delegate_canvas": "delegate_to_canvas_macro",
+            "clarification": "ask_consulting_clarification",
         },
     )
     workflow.add_edge("consult_macro_agent", END)
@@ -332,5 +364,6 @@ def build_consulting_subgraph(tools: list, llm, llm_with_tools, build_context_me
     workflow.add_edge("delegate_to_project_macro", END)
     workflow.add_edge("delegate_to_process_macro", END)
     workflow.add_edge("delegate_to_canvas_macro", END)
+    workflow.add_edge("ask_consulting_clarification", END)
 
     return workflow.compile()

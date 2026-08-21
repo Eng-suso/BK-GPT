@@ -21,6 +21,22 @@ class ProcessState(ConversationState):
     process_mode: str | None
     process_objective: str | None
     process_phase: str | None
+    goal: str | None
+    intent: str | None
+    next_action: str | None
+    suggested_capability: str | None
+    authorized_capability: str | None
+    orchestration_status: str | None
+    termination_reason: str | None
+    blocking_conditions: list[str]
+    required_context: list[str]
+    reasoning_summary: str | None
+    workflow_scope: str | None
+    engineering_loop_iteration: int
+    engineering_loop_max_iterations: int
+    process_no_progress_count: int
+    process_progress_signature: str | None
+    process_continue_loop: bool
     delegation_target: str | None
     delegation_reason: str | None
     delegation_payload: dict

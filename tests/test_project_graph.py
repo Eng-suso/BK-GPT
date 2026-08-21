@@ -57,9 +57,39 @@ def test_parse_project_router_json_returns_structured_state():
 def test_parse_project_router_json_falls_back_to_direct_for_invalid_route():
     result = parse_project_router_json('{"route":"unknown","confidence":5}')
 
-    assert result["project_route"] == "direct"
+    assert result["project_route"] == "clarification"
     assert result["delegation_target"] is None
-    assert result["routing_confidence"] == 1.0
+    assert result["routing_confidence"] == 0.0
+    assert result["needs_clarification"] is True
+    assert result["orchestration_status"] == "invalid_structured_decision"
+
+
+def test_project_router_requires_unambiguous_process_for_delegation():
+    result = parse_project_router_json(
+        """
+        {
+          "route": "delegate_process",
+          "confidence": 0.83,
+          "entity_hints": {"project": "project-1", "process": null},
+          "goal": "MODEL_AS_IS",
+          "intent": "process_engineering",
+          "next_action": "DELEGATE_TO_PROCESS",
+          "suggested_capability": "project.process_delegation",
+          "reason": "Deep work on one process."
+        }
+        """,
+        state={
+            "project_processes": [
+                {"id": "proc-1", "name": "Acquisti"},
+                {"id": "proc-2", "name": "Vendite"},
+            ]
+        },
+    )
+
+    assert result["project_route"] == "clarification"
+    assert result["delegation_events"] == []
+    assert result["orchestration_status"] == "missing_prerequisite"
+    assert "Missing prerequisite: unambiguous_process_target" in result["blocking_conditions"]
 
 
 def test_project_states_separate_snapshot_from_append_fields():

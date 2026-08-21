@@ -1,5 +1,3 @@
-import json
-import re
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -16,6 +14,13 @@ from backend.graphs.project.subgraphs.process_coordination import (
     process_coordination_tools,
 )
 from backend.graphs.project.tools import PROJECT_TOOL_POLICY
+from backend.graphs.routing_contracts import (
+    ProjectRoutingDecision,
+    authorize_routing_decision,
+    invalid_project_decision,
+    invoke_structured_router,
+    parse_routing_decision,
+)
 
 
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
@@ -61,7 +66,8 @@ the evidence should become project memory.
 
 PROJECT_ROUTER_PROMPT = """
 You are the Project graph router for DeliR.
-Choose exactly one route for the latest user request using intent and ownership, not keyword matching.
+You are the reasoning layer, not the execution controller.
+Propose exactly one route for the latest user request using project state, intent and ownership.
 
 Routes:
 - direct: project-level discussion, project context retrieval, project evidence/interview saving or retrieval, project-scoped GraphRAG, light synthesis, scope clarification, source/decision awareness, or general project coordination.
@@ -71,18 +77,12 @@ Routes:
 - delegate_canvas: BPMN XML, canvas inspection, canvas edits, validation, layout, versions, or approval.
 - clarification: project intent is unclear or required ids/context are missing.
 
-Return only JSON:
-{
-  "route":"direct|delivery|process_coordination|delegate_process|delegate_canvas|clarification",
-  "confidence":0.0,
-  "needs_clarification":false,
-  "clarification_question":null,
-  "entity_hints":{"project":null,"process":null,"canvas":null,"source":null,"decision":null},
-  "project_mode":"discussion|delivery|coordination|delegation|clarification",
-  "project_objective":"brief current objective",
-  "expected_result":"brief expected outcome",
-  "reason":"brief reason"
-}
+Return structured output matching the ProjectRoutingDecision schema.
+Set goal, intent, next_action and suggested_capability separately.
+Suggested capability must be registered, for example project.direct,
+project.delivery, project.process_coordination, project.process_delegation or
+project.canvas_delegation. If process/canvas delegation has an ambiguous target,
+route to clarification.
 """.strip()
 
 
@@ -115,60 +115,61 @@ def latest_user_text(state: dict) -> str:
     return ""
 
 
-def parse_project_router_json(content: str, user_request: str = "") -> dict:
-    text = str(content or "").strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        text = match.group(0)
-
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        payload = {}
-
-    route = str(payload.get("route") or "direct").strip()
-    if route not in VALID_PROJECT_ROUTES:
-        route = "direct"
-
-    try:
-        confidence = float(payload.get("confidence", 0.0))
-    except (TypeError, ValueError):
-        confidence = 0.0
-
-    confidence = max(0.0, min(confidence, 1.0))
-    entity_hints = payload.get("entity_hints")
-    if not isinstance(entity_hints, dict):
-        entity_hints = {}
-
-    reason = str(payload.get("reason") or "Project router decision.").strip()
-    needs_clarification = bool(payload.get("needs_clarification", route == "clarification"))
-    clarification_question = payload.get("clarification_question")
-    if clarification_question is not None:
-        clarification_question = str(clarification_question).strip() or None
-
-    expected_result = str(payload.get("expected_result") or "").strip()
-    project_mode = str(payload.get("project_mode") or "").strip() or None
-    project_objective = str(payload.get("project_objective") or expected_result).strip() or None
-    target = ROUTE_TARGETS[route]
+def project_routing_state(
+    decision: ProjectRoutingDecision,
+    *,
+    user_request: str = "",
+    state: dict | None = None,
+    parse_source: str = "structured",
+    parse_error: str | None = None,
+) -> dict:
+    authorization = authorize_routing_decision(
+        owner="project",
+        decision=decision,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
+    )
+    route = authorization["route"]
+    target = authorization["target"]
+    reason = decision.reason or decision.reasoning_summary or "Project router decision."
+    expected_result = decision.expected_result or ""
+    project_mode = decision.project_mode or ("clarification" if route == "clarification" else None)
+    project_objective = decision.project_objective or decision.goal or expected_result or None
+    needs_clarification = bool(decision.needs_clarification or route == "clarification")
     delegation_payload = {
         "target": target,
         "route": route,
         "user_request": user_request,
-        "entity_hints": entity_hints,
+        "entity_hints": decision.entity_hints,
         "expected_result": expected_result,
         "reason": reason,
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "authorized_capability": authorization["authorized_capability"],
     }
     routing_event = {
+        "owner": "project",
         "route": route,
+        "proposed_route": authorization["proposed_route"],
         "target": target,
-        "confidence": confidence,
+        "confidence": decision.confidence,
         "needs_clarification": needs_clarification,
+        "status": authorization["status"],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "proposed_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "expected_next_state": decision.expected_next_state,
+        "termination_reason": authorization["termination_reason"],
+        "parse_source": authorization["parse_source"],
         "reason": reason,
+        "reasoning_summary": decision.reasoning_summary,
     }
-    delegation_events = []
-
-    if target is not None:
-        delegation_events.append(delegation_payload)
 
     return {
         "project_route": route,
@@ -176,14 +177,39 @@ def parse_project_router_json(content: str, user_request: str = "") -> dict:
         "project_objective": project_objective,
         "delegation_target": target,
         "delegation_reason": reason,
-        "routing_confidence": confidence,
+        "routing_confidence": decision.confidence,
         "needs_clarification": needs_clarification,
-        "clarification_question": clarification_question,
-        "entity_hints": entity_hints,
+        "clarification_question": decision.clarification_question,
+        "entity_hints": decision.entity_hints,
         "delegation_payload": delegation_payload,
         "routing_trace": [routing_event],
-        "delegation_events": delegation_events,
+        "delegation_events": [delegation_payload] if target else [],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "suggested_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "orchestration_status": authorization["status"],
+        "termination_reason": authorization["termination_reason"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "reasoning_summary": decision.reasoning_summary,
     }
+
+
+def parse_project_router_json(content: str, user_request: str = "", state: dict | None = None) -> dict:
+    decision, parse_source, parse_error = parse_routing_decision(
+        content,
+        ProjectRoutingDecision,
+        invalid_project_decision,
+    )
+    return project_routing_state(
+        decision,
+        user_request=user_request,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
+    )
 
 
 def build_project_router(llm):
@@ -206,7 +232,9 @@ def build_project_router(llm):
             }
 
         try:
-            response = llm.invoke(
+            decision, parse_source, parse_error = invoke_structured_router(
+                llm,
+                ProjectRoutingDecision,
                 [
                     SystemMessage(content=PROJECT_ROUTER_PROMPT),
                     HumanMessage(
@@ -221,41 +249,37 @@ def build_project_router(llm):
                     ),
                 ],
                 config=config,
+                invalid_factory=invalid_project_decision,
             )
         except Exception:
-            return {
-                "project_route": "direct",
-                "project_mode": None,
-                "project_objective": None,
-                "delegation_target": None,
-                "delegation_reason": "Router unavailable; defaulted to Project Macro Agent.",
-                "routing_confidence": 0.0,
-                "needs_clarification": False,
-                "clarification_question": None,
-                "entity_hints": {},
-                "delegation_payload": {},
-                "routing_trace": [
-                    {
-                        "route": "direct",
-                        "target": None,
-                        "confidence": 0.0,
-                        "needs_clarification": False,
-                        "reason": "Router unavailable; defaulted to Project Macro Agent.",
-                    }
-                ],
-                "delegation_events": [],
-            }
+            decision = invalid_project_decision("Structured router failed unexpectedly.")
+            parse_source = "invalid"
+            parse_error = "Structured router failed unexpectedly."
 
-        return parse_project_router_json(getattr(response, "content", response), user_request=user_text)
+        return project_routing_state(
+            decision,
+            user_request=user_text,
+            state=state,
+            parse_source=parse_source,
+            parse_error=parse_error,
+        )
 
     return route_project_intent
 
 
 def selected_project_route(state: ProjectState) -> str:
-    route = state.get("project_route") or "direct"
-    if route == "clarification":
-        return "direct"
-    return route
+    return state.get("project_route") or "direct"
+
+
+def ask_project_clarification(state: ProjectState) -> dict:
+    return {
+        "messages": [
+            AIMessage(
+                content=state.get("clarification_question")
+                or "Mi serve un chiarimento sul progetto o sul processo target prima di procedere."
+            )
+        ]
+    }
 
 
 def delegate_to_process_macro(state: ProjectState) -> dict:
@@ -317,6 +341,7 @@ def build_project_subgraph(tools: list, llm, llm_with_tools, build_context_messa
     )
     workflow.add_node("delegate_to_process_macro", delegate_to_process_macro)
     workflow.add_node("delegate_to_canvas_macro", delegate_to_canvas_macro)
+    workflow.add_node("ask_project_clarification", ask_project_clarification)
 
     workflow.add_edge(START, "load_project_context")
     workflow.add_edge("load_project_context", "project_router")
@@ -329,6 +354,7 @@ def build_project_subgraph(tools: list, llm, llm_with_tools, build_context_messa
             "process_coordination": "process_coordination_subgraph",
             "delegate_process": "delegate_to_process_macro",
             "delegate_canvas": "delegate_to_canvas_macro",
+            "clarification": "ask_project_clarification",
         },
     )
     workflow.add_edge("project_macro_agent", END)
@@ -336,5 +362,6 @@ def build_project_subgraph(tools: list, llm, llm_with_tools, build_context_messa
     workflow.add_edge("process_coordination_subgraph", END)
     workflow.add_edge("delegate_to_process_macro", END)
     workflow.add_edge("delegate_to_canvas_macro", END)
+    workflow.add_edge("ask_project_clarification", END)
 
     return workflow.compile()

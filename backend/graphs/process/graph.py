@@ -1,5 +1,3 @@
-import json
-import re
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -14,6 +12,13 @@ from backend.graphs.process.subgraphs.discovery import build_discovery_subgraph,
 from backend.graphs.process.subgraphs.evidence import build_evidence_subgraph, evidence_tools
 from backend.graphs.process.subgraphs.modeling import build_modeling_subgraph, modeling_tools
 from backend.graphs.process.tools import PROCESS_TOOL_POLICY
+from backend.graphs.routing_contracts import (
+    ProcessRoutingDecision,
+    authorize_routing_decision,
+    invalid_process_decision,
+    invoke_structured_router,
+    parse_routing_decision,
+)
 
 
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
@@ -51,7 +56,9 @@ without changing the tool contract.
 
 PROCESS_ROUTER_PROMPT = """
 You are the Process graph router for DeliR.
-Choose exactly one route for the latest user request using intent and ownership, not keyword matching.
+You are the reasoning layer, not the execution controller.
+Propose the next best engineering action using user goal and current process state.
+Do not equate the user's goal with the next executable action.
 
 Routes:
 - direct: process-level discussion, existing context retrieval, light explanation, or scope clarification that Process Macro can answer.
@@ -61,18 +68,13 @@ Routes:
 - delegate_canvas: BPMN XML, canvas inspection, canvas edits, layout, validation, versions, approval, or saved XML changes.
 - clarification: process intent is unclear or required ids/context are missing.
 
-Return only JSON:
-{
-  "route":"direct|discovery|evidence|modeling|delegate_canvas|clarification",
-  "confidence":0.0,
-  "needs_clarification":false,
-  "clarification_question":null,
-  "entity_hints":{"project":null,"process":null,"canvas":null,"source":null},
-  "process_mode":"discussion|discovery|evidence|modeling|delegation|clarification",
-  "process_objective":"brief current objective",
-  "expected_result":"brief expected outcome",
-  "reason":"brief reason"
-}
+Return structured output matching the ProcessRoutingDecision schema.
+Set goal, intent, next_action and suggested_capability separately.
+Suggested capability must be registered: process.direct, process.discovery,
+process.evidence, process.modeling, process.canvas_handoff or process.clarification.
+Use workflow_scope=local_operation for narrow canvas/XML patch requests, single_step
+for one bounded capability, and full_workflow only when the user asks for an
+end-to-end engineering outcome.
 """.strip()
 
 
@@ -105,60 +107,79 @@ def latest_user_text(state: dict) -> str:
     return ""
 
 
-def parse_process_router_json(content: str, user_request: str = "") -> dict:
-    text = str(content or "").strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        text = match.group(0)
+def process_state_signature(state: dict) -> str:
+    return "|".join(
+        [
+            str(bool(state.get("process_understanding_json"))),
+            str(bool(state.get("bpmn_semantic_model_json"))),
+            str(state.get("readiness_score")),
+            str(len(state.get("missing_information") or [])),
+            str(bool(state.get("saved_bpmn_xml"))),
+            str(len(state.get("contradictions") or [])),
+            str(len(state.get("process_claims") or [])),
+            str(len(state.get("process_gaps") or [])),
+        ]
+    )
 
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        payload = {}
 
-    route = str(payload.get("route") or "direct").strip()
-    if route not in VALID_PROCESS_ROUTES:
-        route = "direct"
-
-    try:
-        confidence = float(payload.get("confidence", 0.0))
-    except (TypeError, ValueError):
-        confidence = 0.0
-
-    confidence = max(0.0, min(confidence, 1.0))
-    entity_hints = payload.get("entity_hints")
-    if not isinstance(entity_hints, dict):
-        entity_hints = {}
-
-    reason = str(payload.get("reason") or "Process router decision.").strip()
-    needs_clarification = bool(payload.get("needs_clarification", route == "clarification"))
-    clarification_question = payload.get("clarification_question")
-    if clarification_question is not None:
-        clarification_question = str(clarification_question).strip() or None
-
-    expected_result = str(payload.get("expected_result") or "").strip()
-    process_mode = str(payload.get("process_mode") or "").strip() or None
-    process_objective = str(payload.get("process_objective") or expected_result).strip() or None
-    target = ROUTE_TARGETS[route]
+def process_routing_state(
+    decision: ProcessRoutingDecision,
+    *,
+    user_request: str = "",
+    state: dict | None = None,
+    parse_source: str = "structured",
+    parse_error: str | None = None,
+) -> dict:
+    authorization = authorize_routing_decision(
+        owner="process",
+        decision=decision,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
+    )
+    state = state or {}
+    route = authorization["route"]
+    target = authorization["target"]
+    reason = decision.reason or decision.reasoning_summary or "Process router decision."
+    expected_result = decision.expected_result or ""
+    process_mode = decision.process_mode or ("clarification" if route == "clarification" else route)
+    process_objective = decision.process_objective or decision.goal or expected_result or None
+    needs_clarification = bool(decision.needs_clarification or route == "clarification")
     delegation_payload = {
         "target": target,
         "route": route,
         "user_request": user_request,
-        "entity_hints": entity_hints,
+        "entity_hints": decision.entity_hints,
         "expected_result": expected_result,
         "reason": reason,
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "workflow_scope": decision.workflow_scope,
+        "authorized_capability": authorization["authorized_capability"],
     }
     routing_event = {
+        "owner": "process",
         "route": route,
+        "proposed_route": authorization["proposed_route"],
         "target": target,
-        "confidence": confidence,
+        "confidence": decision.confidence,
         "needs_clarification": needs_clarification,
+        "status": authorization["status"],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "workflow_scope": decision.workflow_scope,
+        "proposed_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "expected_next_state": decision.expected_next_state,
+        "termination_reason": authorization["termination_reason"],
+        "parse_source": authorization["parse_source"],
         "reason": reason,
+        "reasoning_summary": decision.reasoning_summary,
     }
-    delegation_events = []
-
-    if target is not None:
-        delegation_events.append(delegation_payload)
 
     return {
         "process_route": route,
@@ -167,14 +188,44 @@ def parse_process_router_json(content: str, user_request: str = "") -> dict:
         "process_phase": process_mode,
         "delegation_target": target,
         "delegation_reason": reason,
-        "routing_confidence": confidence,
+        "routing_confidence": decision.confidence,
         "needs_clarification": needs_clarification,
-        "clarification_question": clarification_question,
-        "entity_hints": entity_hints,
+        "clarification_question": decision.clarification_question,
+        "entity_hints": decision.entity_hints,
         "delegation_payload": delegation_payload,
         "routing_trace": [routing_event],
-        "delegation_events": delegation_events,
+        "delegation_events": [delegation_payload] if target else [],
+        "goal": decision.goal,
+        "intent": decision.intent,
+        "next_action": decision.next_action,
+        "suggested_capability": authorization["proposed_capability"],
+        "authorized_capability": authorization["authorized_capability"],
+        "orchestration_status": authorization["status"],
+        "termination_reason": authorization["termination_reason"],
+        "blocking_conditions": authorization["blocking_conditions"],
+        "required_context": decision.required_context,
+        "reasoning_summary": decision.reasoning_summary,
+        "workflow_scope": decision.workflow_scope,
+        "engineering_loop_iteration": state.get("engineering_loop_iteration", 0),
+        "engineering_loop_max_iterations": decision.max_iterations,
+        "process_progress_signature": process_state_signature(state),
+        "process_continue_loop": False,
     }
+
+
+def parse_process_router_json(content: str, user_request: str = "", state: dict | None = None) -> dict:
+    decision, parse_source, parse_error = parse_routing_decision(
+        content,
+        ProcessRoutingDecision,
+        invalid_process_decision,
+    )
+    return process_routing_state(
+        decision,
+        user_request=user_request,
+        state=state,
+        parse_source=parse_source,
+        parse_error=parse_error,
+    )
 
 
 def build_process_router(llm):
@@ -186,7 +237,9 @@ def build_process_router(llm):
             )
 
         try:
-            response = llm.invoke(
+            decision, parse_source, parse_error = invoke_structured_router(
+                llm,
+                ProcessRoutingDecision,
                 [
                     SystemMessage(content=PROCESS_ROUTER_PROMPT),
                     HumanMessage(
@@ -206,23 +259,90 @@ def build_process_router(llm):
                     ),
                 ],
                 config=config,
+                invalid_factory=invalid_process_decision,
             )
         except Exception:
-            return parse_process_router_json(
-                '{"route":"direct","confidence":0,"reason":"Router unavailable; defaulted to Process Macro Agent."}',
-                user_request=user_text,
-            )
+            decision = invalid_process_decision("Structured router failed unexpectedly.")
+            parse_source = "invalid"
+            parse_error = "Structured router failed unexpectedly."
 
-        return parse_process_router_json(getattr(response, "content", response), user_request=user_text)
+        return process_routing_state(
+            decision,
+            user_request=user_text,
+            state=state,
+            parse_source=parse_source,
+            parse_error=parse_error,
+        )
 
     return route_process_intent
 
 
 def selected_process_route(state: ProcessState) -> str:
-    route = state.get("process_route") or "direct"
-    if route == "clarification":
-        return "direct"
-    return route
+    return state.get("process_route") or "direct"
+
+
+def ask_process_clarification(state: ProcessState) -> dict:
+    return {
+        "messages": [
+            AIMessage(
+                content=state.get("clarification_question")
+                or "Mi serve un chiarimento sul processo o sull'obiettivo prima di procedere."
+            )
+        ]
+    }
+
+
+def evaluate_process_iteration(state: ProcessState) -> dict:
+    iteration = int(state.get("engineering_loop_iteration") or 0) + 1
+    max_iterations = int(state.get("engineering_loop_max_iterations") or 2)
+    previous_signature = state.get("process_progress_signature")
+    current_signature = process_state_signature(state)
+    no_progress_count = int(state.get("process_no_progress_count") or 0)
+
+    if previous_signature == current_signature:
+        no_progress_count += 1
+    else:
+        no_progress_count = 0
+
+    workflow_scope = state.get("workflow_scope") or "single_step"
+    continue_loop = (
+        workflow_scope == "full_workflow"
+        and iteration < max_iterations
+        and no_progress_count == 0
+        and state.get("process_route") not in {"direct", "clarification", "delegate_canvas"}
+    )
+    termination_reason = state.get("termination_reason")
+
+    if not continue_loop:
+        if iteration >= max_iterations and workflow_scope == "full_workflow":
+            termination_reason = "SAFE_LIMIT_REACHED"
+        elif no_progress_count > 0 and workflow_scope == "full_workflow":
+            termination_reason = "BLOCKED_NO_PROGRESS"
+        else:
+            termination_reason = termination_reason or "DONE"
+
+    return {
+        "engineering_loop_iteration": iteration,
+        "process_no_progress_count": no_progress_count,
+        "process_progress_signature": current_signature,
+        "process_continue_loop": continue_loop,
+        "termination_reason": termination_reason,
+        "routing_trace": [
+            {
+                "owner": "process",
+                "event": "engineering_loop_evaluation",
+                "iteration": iteration,
+                "max_iterations": max_iterations,
+                "no_progress_count": no_progress_count,
+                "continue_loop": continue_loop,
+                "termination_reason": termination_reason,
+            }
+        ],
+    }
+
+
+def selected_process_loop_transition(state: ProcessState) -> str:
+    return "continue" if state.get("process_continue_loop") else "end"
 
 
 def delegate_to_canvas_macro(state: ProcessState) -> dict:
@@ -276,6 +396,8 @@ def build_process_subgraph(tools: list, llm, llm_with_tools, build_context_messa
         ),
     )
     workflow.add_node("delegate_to_canvas_macro", delegate_to_canvas_macro)
+    workflow.add_node("ask_process_clarification", ask_process_clarification)
+    workflow.add_node("evaluate_process_iteration", evaluate_process_iteration)
 
     workflow.add_edge(START, "load_process_context")
     workflow.add_edge("load_process_context", "process_router")
@@ -288,12 +410,22 @@ def build_process_subgraph(tools: list, llm, llm_with_tools, build_context_messa
             "evidence": "evidence_subgraph",
             "modeling": "modeling_subgraph",
             "delegate_canvas": "delegate_to_canvas_macro",
+            "clarification": "ask_process_clarification",
         },
     )
     workflow.add_edge("process_macro_agent", END)
-    workflow.add_edge("discovery_subgraph", END)
-    workflow.add_edge("evidence_subgraph", END)
-    workflow.add_edge("modeling_subgraph", END)
+    workflow.add_edge("discovery_subgraph", "evaluate_process_iteration")
+    workflow.add_edge("evidence_subgraph", "evaluate_process_iteration")
+    workflow.add_edge("modeling_subgraph", "evaluate_process_iteration")
+    workflow.add_conditional_edges(
+        "evaluate_process_iteration",
+        selected_process_loop_transition,
+        {
+            "continue": "load_process_context",
+            "end": END,
+        },
+    )
     workflow.add_edge("delegate_to_canvas_macro", END)
+    workflow.add_edge("ask_process_clarification", END)
 
     return workflow.compile()

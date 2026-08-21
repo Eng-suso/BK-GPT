@@ -62,9 +62,29 @@ def test_parse_router_json_returns_structured_state():
 def test_parse_router_json_falls_back_to_direct_for_invalid_route():
     result = parse_router_json('{"route":"unknown","confidence":5}')
 
-    assert result["consulting_route"] == "direct"
+    assert result["consulting_route"] == "clarification"
     assert result["delegation_target"] is None
-    assert result["routing_confidence"] == 1.0
+    assert result["routing_confidence"] == 0.0
+    assert result["needs_clarification"] is True
+    assert result["orchestration_status"] == "invalid_structured_decision"
+
+
+def test_consulting_router_refuses_unregistered_capability():
+    result = parse_router_json(
+        """
+        {
+          "route": "delegate_project",
+          "confidence": 0.8,
+          "suggested_capability": "consultant.run_any_tool",
+          "reason": "Bad capability"
+        }
+        """
+    )
+
+    assert result["consulting_route"] == "clarification"
+    assert result["delegation_events"] == []
+    assert result["orchestration_status"] == "unregistered_capability"
+    assert "Capability is not registered" in result["blocking_conditions"][-1]
 
 
 def test_workspace_overview_tool_is_read_only_snapshot():
