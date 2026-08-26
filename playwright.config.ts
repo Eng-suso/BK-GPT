@@ -43,11 +43,8 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       testIgnore: ['**/performance-lighthouse.spec.ts'],
     },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-      testIgnore: ['**/performance-lighthouse.spec.ts'],
-    },
+    // Firefox is intentionally excluded from the default local matrix because the
+    // current Windows runner fails before navigation at browser.newPage().
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },

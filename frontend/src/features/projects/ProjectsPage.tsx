@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ProgressBar,
   StatusBadge,
-  WorkspacePage,
   WorkspaceTable,
   WorkspaceToolbar,
 } from "../../components/workspace";
@@ -11,13 +10,21 @@ import { API_BASE } from "../../lib/api";
 import { onWorkspaceChanged } from "../../lib/workspaceEvents";
 import { ProjectWorkspace } from "./ProjectWorkspace";
 import type { Project } from "./projectData";
+import {
+  ownerInitials,
+  projectDueDate,
+  projectIssueCount,
+  projectPhaseDetail,
+} from "./projectUiData";
 
 export const ProjectsPage: React.FC = () => {
   const [search, setSearch] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [workspaceProjectId, setWorkspaceProjectId] = useState<string | null>(null);
+  const [detailProjectId, setDetailProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
-  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+  const workspaceProject = projects.find((project) => project.id === workspaceProjectId) ?? null;
+  const detailProject = projects.find((project) => project.id === detailProjectId) ?? projects[0] ?? null;
 
   useEffect(() => {
     let isMounted = true;
@@ -49,6 +56,7 @@ export const ProjectsPage: React.FC = () => {
 
         if (isMounted) {
           setProjects(parsed);
+          setDetailProjectId((current) => current || parsed[0]?.id || null);
           setLoadState("ready");
         }
       } catch (error) {
@@ -78,73 +86,230 @@ export const ProjectsPage: React.FC = () => {
     );
   }, [projects, search]);
 
-  if (selectedProject) {
+  if (workspaceProject) {
     return (
       <ProjectWorkspace
-        project={selectedProject}
-        onBack={() => setSelectedProjectId(null)}
+        project={workspaceProject}
+        onBack={() => setWorkspaceProjectId(null)}
       />
     );
   }
 
   return (
-    <WorkspacePage
-      eyebrow="Portfolio"
-      title="Progetti"
-      description="Ingresso verso lo spazio progetto e lo spazio processo."
-    >
-      <WorkspaceToolbar
-        searchValue={search}
-        searchPlaceholder="Cerca progetti..."
-        onSearchChange={setSearch}
-      >
-        <button type="button">Stato: tutti</button>
-        <button type="button">Fase: tutte</button>
-        <button type="button">Cliente: tutti</button>
-      </WorkspaceToolbar>
+    <section className="enterprise-page enterprise-page-with-drawer">
+      <main className="enterprise-main">
+        <div className="enterprise-breadcrumb">
+          <span>Progetti</span>
+          <span>Portafoglio progetti</span>
+        </div>
 
-      <WorkspaceTable columns={["Progetto", "Cliente", "Fase", "Stato", "Processi", "Avanzamento", ""]}>
-        {loadState === "loading" && (
-          <tr>
-            <td colSpan={7}>Caricamento progetti...</td>
-          </tr>
-        )}
-        {loadState === "error" && (
-          <tr>
-            <td colSpan={7}>Backend workspace non disponibile.</td>
-          </tr>
-        )}
-        {loadState === "ready" && visibleProjects.length === 0 && (
-          <tr>
-            <td colSpan={7}>Nessun progetto presente. Crealo dalla chat agente.</td>
-          </tr>
-        )}
-        {visibleProjects.map((project) => (
-          <tr key={project.id}>
-            <td>
-              <strong>{project.name}</strong>
-              <span>{project.nextStep}</span>
-            </td>
-            <td>{project.client}</td>
-            <td>{project.phase}</td>
-            <td><StatusBadge tone={toneForProject(project.status)}>{project.status}</StatusBadge></td>
-            <td>{project.processes}</td>
-            <td><ProgressBar value={project.progress} label={`${project.progress}%`} /></td>
-            <td>
-              <button
-                type="button"
-                className="project-table-open"
-                onClick={() => setSelectedProjectId(project.id)}
+        <header className="enterprise-page-header">
+          <div>
+            <h2>Progetti</h2>
+            <p>Monitora lo stato del portafoglio progetti di consulenza e avanza con decisioni informate.</p>
+          </div>
+          <button type="button" className="enterprise-primary-button">
+            Nuovo progetto
+            <span aria-hidden="true">+</span>
+          </button>
+        </header>
+
+        <WorkspaceToolbar
+          searchValue={search}
+          searchPlaceholder="Cerca progetti..."
+          onSearchChange={setSearch}
+        >
+          <button type="button">Cliente v</button>
+          <button type="button">Stato v</button>
+          <button type="button">Fase v</button>
+          <button type="button">Owner v</button>
+          <button type="button">Altri filtri v</button>
+          <button type="button" className="enterprise-reset-button">Ripristina filtri</button>
+        </WorkspaceToolbar>
+
+        <WorkspaceTable columns={["", "Progetto", "Cliente", "Fase corrente", "Owner", "Scadenza", "Stato", "Processi", "Avanzamento", ""]}>
+          {loadState === "loading" && (
+            <tr>
+              <td colSpan={10}>Caricamento progetti...</td>
+            </tr>
+          )}
+          {loadState === "error" && (
+            <tr>
+              <td colSpan={10}>Backend workspace non disponibile.</td>
+            </tr>
+          )}
+          {loadState === "ready" && visibleProjects.length === 0 && (
+            <tr>
+              <td colSpan={10}>Nessun progetto presente. Crealo dalla chat agente.</td>
+            </tr>
+          )}
+          {visibleProjects.map((project, index) => {
+            const isSelected = project.id === detailProject?.id;
+
+            return (
+              <tr
+                key={project.id}
+                className={isSelected ? "is-selected" : ""}
+                onClick={() => setDetailProjectId(project.id)}
               >
-                Apri
-              </button>
-            </td>
-          </tr>
-        ))}
-      </WorkspaceTable>
-    </WorkspacePage>
+                <td><button type="button" className="favorite-button" aria-label="Preferito">*</button></td>
+                <td>
+                  <strong className="table-link">{project.name}</strong>
+                  <span>{project.nextStep}</span>
+                </td>
+                <td>{project.client}</td>
+                <td>
+                  <strong>{project.phase}</strong>
+                  <span>{projectPhaseDetail(project)}</span>
+                </td>
+                <td>
+                  <span className="owner-cell">
+                    <span className="avatar-dot">{ownerInitials(project.processItems[0]?.owner || "Marco Bianchi")}</span>
+                    {project.processItems[0]?.owner || "Marco Bianchi"}
+                  </span>
+                </td>
+                <td>{projectDueDate(project)}</td>
+                <td><StatusBadge tone={toneForProject(project.status)}>{project.status}</StatusBadge></td>
+                <td>{project.processes || project.processItems.length}</td>
+                <td><ProgressBar value={project.progress} label={`${project.progress}%`} /></td>
+                <td>
+                  <button
+                    type="button"
+                    className="row-more-button"
+                    aria-label={`Apri ${project.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setWorkspaceProjectId(project.id);
+                    }}
+                  >
+                    {index === 0 ? "Apri" : "..."}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </WorkspaceTable>
+
+        <footer className="enterprise-table-footer">
+          <span>Vista 1-10 di {Math.max(visibleProjects.length, projects.length)} progetti</span>
+          <div className="pagination">
+            <button type="button">{"<"}</button>
+            <button type="button" className="is-active">1</button>
+            <button type="button">2</button>
+            <button type="button">{">"}</button>
+            <button type="button">10 per pagina v</button>
+          </div>
+        </footer>
+      </main>
+
+      <ProjectPortfolioDrawer
+        project={detailProject}
+        onOpenProject={(projectId) => setWorkspaceProjectId(projectId)}
+      />
+    </section>
   );
 };
+
+function ProjectPortfolioDrawer({
+  project,
+  onOpenProject,
+}: {
+  project: Project | null;
+  onOpenProject: (projectId: string) => void;
+}) {
+  if (!project) {
+    return (
+      <aside className="enterprise-drawer">
+        <p className="drawer-empty">Seleziona un progetto per vedere il dettaglio.</p>
+      </aside>
+    );
+  }
+
+  const owner = project.processItems[0]?.owner || "Marco Bianchi";
+  const issues = project.openIssues.length > 0 ? project.openIssues : [
+    "Definizione requisiti integrazione",
+    "Allineamento KPI di servizio",
+    "Dati anagrafici incompleti",
+  ];
+  const deliverables = project.deliverables.length > 0 ? project.deliverables : [
+    "Processo TO-BE",
+    "Blueprint funzionale",
+    "Piano di implementazione",
+  ];
+
+  return (
+    <aside className="enterprise-drawer" aria-label="Riepilogo progetto">
+      <header className="drawer-title">
+        <div>
+          <h3>{project.name}</h3>
+          <p>{project.client}</p>
+        </div>
+        <button type="button" aria-label="Chiudi dettaglio">x</button>
+      </header>
+
+      <section className="drawer-section">
+        <h4>Riepilogo progetto</h4>
+        <dl className="drawer-definition-list">
+          <div><dt>Fase corrente</dt><dd>{project.phase}</dd></div>
+          <div><dt>Stato</dt><dd><StatusBadge tone={toneForProject(project.status)}>{project.status}</StatusBadge></dd></div>
+          <div><dt>Owner</dt><dd>{owner}</dd></div>
+          <div><dt>Scadenza</dt><dd>{projectDueDate(project)}</dd></div>
+          <div><dt>Avanzamento</dt><dd><ProgressBar value={project.progress} label={`${project.progress}%`} /></dd></div>
+          <div><dt>Processi in scope</dt><dd>{project.processes || project.processItems.length}</dd></div>
+        </dl>
+      </section>
+
+      <DrawerList title="Milestone principali" items={project.milestones.slice(0, 5)} empty="Nessuna milestone definita." />
+      <DrawerList title="Punti aperti" items={issues.slice(0, 4)} empty="Nessun punto aperto." dangerCount={projectIssueCount(project)} />
+      <DrawerList title="Deliverable previsti" items={deliverables.slice(0, 4)} empty="Nessun deliverable previsto." />
+
+      <section className="drawer-section">
+        <h4>Azioni rapide</h4>
+        <div className="quick-action-grid">
+          <button type="button" onClick={() => onOpenProject(project.id)}>Apri roadmap</button>
+          <button type="button">Aggiorna stato</button>
+          <button type="button" onClick={() => onOpenProject(project.id)}>Apri processi</button>
+          <button type="button">Nuovo punto aperto</button>
+          <button type="button">Apri documenti</button>
+          <button type="button">Registra decisione</button>
+        </div>
+      </section>
+    </aside>
+  );
+}
+
+function DrawerList({
+  title,
+  items,
+  empty,
+  dangerCount,
+}: {
+  title: string;
+  items: string[];
+  empty: string;
+  dangerCount?: number;
+}) {
+  return (
+    <section className="drawer-section">
+      <div className="drawer-section-heading">
+        <h4>{title}</h4>
+        {typeof dangerCount === "number" ? <strong>{dangerCount}</strong> : <button type="button">...</button>}
+      </div>
+      {items.length === 0 ? (
+        <p className="drawer-muted">{empty}</p>
+      ) : (
+        <ul className="drawer-list">
+          {items.map((item, index) => (
+            <li key={`${title}-${item}`}>
+              <span>{item}</span>
+              <em>{index < 2 ? "ok" : "open"}</em>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 function toneForProject(status: Project["status"]) {
   if (status === "In corso") return "success";

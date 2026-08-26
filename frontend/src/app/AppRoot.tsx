@@ -9,7 +9,7 @@ import { ModelsPage } from "../features/models/ModelsPage";
 import { ProjectsPage } from "../features/projects/ProjectsPage";
 
 export const AppRoot: React.FC = () => {
-  const [activeSection, setActiveSection] = useState<ShellSection>("consultant");
+  const [activeSection, setActiveSection] = useState<ShellSection>("projects");
 
   return (
     <AppShell activeSection={activeSection} onSectionChange={setActiveSection}>

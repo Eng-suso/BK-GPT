@@ -7,7 +7,7 @@ type WorkspaceTableProps = {
 
 export const WorkspaceTable: React.FC<WorkspaceTableProps> = ({ columns, children }) => {
   return (
-    <div className="workspace-table-card">
+    <div className="workspace-table-card" tabIndex={0}>
       <table className="workspace-table">
         <thead>
           <tr>

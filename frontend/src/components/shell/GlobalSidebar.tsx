@@ -21,12 +21,10 @@ export const GlobalSidebar: React.FC<GlobalSidebarProps> = ({
       aria-label="Navigazione principale"
     >
       <div className="product-brand">
-        <div className="product-brand-mark" aria-hidden="true">
-          A
-        </div>
+        <div className="product-brand-mark" aria-hidden="true">D</div>
         <div className="product-brand-copy" aria-hidden={isCollapsed}>
-          <strong>Area lavoro</strong>
-          <span>Processi</span>
+          <strong>DeliR</strong>
+          <span>Workspace</span>
         </div>
       </div>
 
@@ -51,6 +49,17 @@ export const GlobalSidebar: React.FC<GlobalSidebarProps> = ({
           );
         })}
       </nav>
+
+      <div className="product-sidebar-footer" aria-hidden={isCollapsed}>
+        <button type="button" className="product-nav-item" aria-label="Aiuto">
+          <span className="product-nav-icon" aria-hidden="true">?</span>
+          <span className="product-nav-label" aria-hidden="true">Aiuto</span>
+        </button>
+        <button type="button" className="product-nav-item" aria-label="Profilo e impostazioni">
+          <span className="product-nav-icon" aria-hidden="true">S</span>
+          <span className="product-nav-label" aria-hidden="true">Profilo / Impostazioni</span>
+        </button>
+      </div>
 
       <button
         type="button"
