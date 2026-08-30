@@ -73,6 +73,89 @@ def test_normalize_bpmn_is_noop_for_single_end_event():
     assert normalize_bpmn_for_prosimos(MINIMAL_BPMN) == MINIMAL_BPMN
 
 
+def test_normalize_bpmn_maps_every_element_to_prosimos_vocabulary():
+    bpmn = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:laneSet id="ls"><bpmn:lane id="l1"><bpmn:flowNodeRef>T_U</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+    <bpmn:startEvent id="S1"><bpmn:outgoing>f1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:startEvent id="S2"><bpmn:outgoing>f1b</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="T_U"><bpmn:incoming>f1</bpmn:incoming><bpmn:incoming>f1b</bpmn:incoming><bpmn:outgoing>f2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:intermediateCatchEvent id="IC"><bpmn:timerEventDefinition/><bpmn:incoming>f2</bpmn:incoming><bpmn:outgoing>f3</bpmn:outgoing></bpmn:intermediateCatchEvent>
+    <bpmn:subProcess id="SP"><bpmn:incoming>f3</bpmn:incoming><bpmn:outgoing>f4</bpmn:outgoing>
+      <bpmn:startEvent id="sp_s"/><bpmn:task id="sp_t"/><bpmn:endEvent id="sp_e"/>
+    </bpmn:subProcess>
+    <bpmn:endEvent id="E1"><bpmn:incoming>f4</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="E2"><bpmn:incoming>f5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="S1" targetRef="T_U"/>
+    <bpmn:sequenceFlow id="f1b" sourceRef="S2" targetRef="T_U"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="T_U" targetRef="IC"/>
+    <bpmn:sequenceFlow id="f3" sourceRef="IC" targetRef="SP"/>
+    <bpmn:sequenceFlow id="f4" sourceRef="SP" targetRef="E1"/>
+    <bpmn:sequenceFlow id="f5" sourceRef="T_U" targetRef="E2"/>
+  </bpmn:process>
+</bpmn:definitions>
+"""
+    root = ElementTree.fromstring(normalize_bpmn_for_prosimos(bpmn))
+
+    def tags(name: str) -> list:
+        return root.findall(f".//{{{_BPMN_NS}}}{name}")
+
+    supported = {
+        "task",
+        "startEvent",
+        "endEvent",
+        "exclusiveGateway",
+        "parallelGateway",
+        "inclusiveGateway",
+        "eventBasedGateway",
+        "sequenceFlow",
+        "process",
+        "definitions",
+        "incoming",
+        "outgoing",
+    }
+    seen = {_BPMN_NS and el.tag.rsplit("}", 1)[-1] for el in root.iter()}
+    assert seen <= supported, seen - supported
+
+    assert len(tags("startEvent")) == 1
+    assert len(tags("endEvent")) == 1
+    assert tags("laneSet") == []
+    assert tags("subProcess") == []
+    assert tags("intermediateCatchEvent") == []
+    # IC spliced: T_U now flows straight into the sub-process (now a task).
+    assert {"sp_s", "sp_t", "sp_e"}.isdisjoint(
+        {el.get("id") for el in root.iter()}
+    )
+
+
+def test_normalize_bpmn_downcasts_activities_and_drops_boundary_events():
+    bpmn = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:startEvent id="Start_1" />
+    <bpmn:userTask id="Task_U" name="Verifica" />
+    <bpmn:serviceTask id="Task_S" name="Notifica" />
+    <bpmn:boundaryEvent id="Boundary_1" attachedToRef="Task_U" />
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Start_1" targetRef="Task_U" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Task_U" targetRef="Task_S" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Task_S" targetRef="End_1" />
+    <bpmn:sequenceFlow id="F_err" sourceRef="Boundary_1" targetRef="End_1" />
+  </bpmn:process>
+</bpmn:definitions>
+"""
+    root = ElementTree.fromstring(normalize_bpmn_for_prosimos(bpmn))
+
+    assert root.findall(f".//{{{_BPMN_NS}}}userTask") == []
+    assert root.findall(f".//{{{_BPMN_NS}}}serviceTask") == []
+    assert len(root.findall(f".//{{{_BPMN_NS}}}task")) == 2
+    assert root.findall(f".//{{{_BPMN_NS}}}boundaryEvent") == []
+    flow_ids = {f.get("id") for f in root.findall(f".//{{{_BPMN_NS}}}sequenceFlow")}
+    assert "F_err" not in flow_ids
+    assert {"F1", "F2", "F3"} <= flow_ids
+
+
 @pytest.fixture()
 def client():
     from backend.app import app

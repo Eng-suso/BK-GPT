@@ -82,12 +82,30 @@ the full compose stack).
 
 ### BPMN normalization
 
-Prosimos 1.2.6 rejects models with more than one end event ("Temporarily not
-supporting multiple end events"). `backend/simulation/bpmn_normalizer.py`
-collapses them into one before the model reaches the scenario builder and the
-engine: every flow that targeted a dropped end event is rewired to the survivor,
-and the matching DI shapes are removed. It is best-effort — a parse failure
-returns the original XML so Prosimos reports its own error.
+Prosimos 1.2.6 only simulates a narrow subset of BPMN — plain `<task>`,
+`startEvent`, `endEvent`, the four gateways, `intermediateCatchEvent` (and only
+with an `event_distribution` entry) — and blows up with a bare `KeyError` on the
+element id for anything else. `backend/simulation/bpmn_normalizer.py`
+(`normalize_bpmn_for_prosimos`) rewrites a DeliR model into that subset before it
+reaches the scenario builder and the engine. Per process:
+
+| DeliR / imported element | Handling |
+| --- | --- |
+| `userTask` / `serviceTask` / `manualTask` / `scriptTask` / `businessRuleTask` / `sendTask` / `receiveTask` / `callActivity` | retagged to `<task>` |
+| `subProcess` / `transaction` / `adHocSubProcess` | retagged to `<task>`, inner elements discarded (black box) |
+| `complexGateway` | retagged to `exclusiveGateway` |
+| `boundaryEvent` | removed with its exception flow (path not simulated) |
+| `intermediateCatchEvent` / `intermediateThrowEvent` | spliced out — predecessor wired straight to successor (zero-duration) |
+| multiple `startEvent` | collapsed to one, inbound sources rewired |
+| multiple `endEvent` | collapsed to one, inbound flows rewired |
+| `laneSet` / `dataObject*` / `textAnnotation` / `association` / `group` | removed |
+
+DI shapes/edges that no longer reference a live element are dropped. Best-effort:
+a parse failure returns the original XML so Prosimos reports its own error.
+
+Timer/message intermediate events are currently modelled as zero-duration
+pass-throughs. Giving them real durations means emitting an `event_distribution`
+section from the scenario builder — a later enhancement.
 
 ### Idempotency
 
