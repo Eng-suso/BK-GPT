@@ -8,8 +8,10 @@ import "@fontsource-variable/geist-mono";
 // Design token system — order matters: primitive -> semantic -> Tailwind bridge -> legacy
 import "../styles/tokens/primitive.css";
 import "../styles/tokens/semantic.css";
+import "./styles/globals.css";
 import "./styles/theme.css";
-import "./styles/app-shell.css";
+import "./features/process/process.css";
+import "./features/chat/chat.css";
 
 import { AppProviders } from "./app/providers";
 

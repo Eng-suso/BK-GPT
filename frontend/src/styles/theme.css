@@ -1,14 +1,16 @@
 /*
  * Tailwind v4 entry + DeliR token bridge.
  *
- * Preflight (Tailwind's global reset) is intentionally OFF: the legacy
- * app-shell.css and the inline <style> in index.html are still live and a
- * global reset would break them. Re-enable in step 8c (chat de-glass) with:
- *   @import "tailwindcss/preflight.css" layer(base);
+ * Preflight (Tailwind's global reset) is ON as of step 8c-3. The legacy
+ * app-shell.css is gone; the surviving legacy classes (process studio,
+ * embedded chat, bpmn review) live in unlayered stylesheets
+ * (features/process/process.css, features/chat/chat.css) that still win
+ * over `@layer base`, so their explicit rules survive the reset.
  */
 @layer theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /*
@@ -81,61 +83,17 @@
     letter-spacing: -0.01em;
   }
 
-  /*
-   * Preflight is OFF (legacy CSS still live), so mirror just the button/field
-   * normalisations for the migrated surfaces. This sits in `@layer base` — the
-   * unlayered legacy stylesheets (app-shell.css, the index.html <style>) still
-   * win, and Tailwind utilities (`@layer utilities`) still win over this.
-   */
-  button,
-  [type="button"],
-  [type="submit"],
-  [type="reset"] {
-    appearance: none;
-    -webkit-appearance: none;
-    background-color: transparent;
-    background-image: none;
-    border: 0;
-    padding: 0;
-    color: inherit;
-    font: inherit;
-    letter-spacing: inherit;
-    cursor: pointer;
-  }
-
-  input,
-  textarea,
-  select {
-    background-color: transparent;
-    border: 0;
-    color: inherit;
-    font: inherit;
-    letter-spacing: inherit;
-  }
-
+  /* Preflight makes fields transparent/borderless already; keep focus quiet
+     (the design system components manage their own focus rings). */
   input:focus,
   textarea:focus,
   select:focus {
     outline: none;
   }
 
-  /* Typography normalisations preflight would do — legacy markdown/menu CSS
-     is unlayered and still overrides these where it needs bullets. */
-  h1, h2, h3, h4, h5, h6 {
-    font-size: inherit;
-    font-weight: inherit;
-    margin: 0;
-  }
-  p, blockquote, dl, dd, figure {
-    margin: 0;
-  }
-  ol, ul, menu {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  a {
-    color: inherit;
-    text-decoration: inherit;
+  /* bpmn-js renders inline <svg> that must not be forced to display:block. */
+  .process-bpmn-canvas svg,
+  .bio-properties-panel svg {
+    display: inline;
   }
 }

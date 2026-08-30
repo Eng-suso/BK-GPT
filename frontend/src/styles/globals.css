@@ -1,0 +1,26 @@
+/*
+ * App-wide base rules previously inlined in index.html.
+ * Loaded before theme.css / app-shell.css / chat.css.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  height: var(--layout-viewport-height, 100dvh);
+  background-color: var(--color-surface-app);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+[hidden] {
+  display: none !important;
+}
