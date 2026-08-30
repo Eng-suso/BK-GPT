@@ -1,4 +1,7 @@
 import React from "react";
+import { Plus, Search } from "lucide-react";
+
+import { Button } from "@/ui/button";
 import type { ChatSession } from "../types";
 import { ConversationList } from "./ConversationList";
 
@@ -24,29 +27,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSearch,
 }) => {
   return (
-    <aside className={`sidebar ${isOpen ? "open" : ""}`} aria-label="Conversazioni recenti">
-      <div className="sidebar-header">
-        <h2 className="sidebar-title">Chat</h2>
-        <button
+    <aside
+      className={`sidebar ${isOpen ? "open" : ""}`}
+      aria-label="Conversazioni recenti"
+    >
+      <div className="mb-3.5 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">Chat</h2>
+        <Button
           type="button"
-          className="icon-btn"
+          variant="ghost"
+          size="icon-sm"
           onClick={() => onSearch?.()}
           title="Cerca conversazione"
           aria-label="Cerca conversazione"
         >
-          <svg viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-        </button>
+          <Search />
+        </Button>
       </div>
 
-      <button type="button" className="btn-new-chat" onClick={() => onNewChat?.()}>
-        <span>+</span>
-        <span>Nuova chat</span>
-      </button>
+      <Button
+        type="button"
+        className="mb-3.5 w-full"
+        onClick={() => onNewChat?.()}
+      >
+        <Plus />
+        Nuova chat
+      </Button>
 
-      <div className="section-label">
+      <div className="mx-1 mt-3 mb-2 flex items-center justify-between text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
         <span>Recenti</span>
         <span>{sessions.length}</span>
       </div>
@@ -58,9 +66,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onDeleteSession={onDeleteSession}
       />
 
-      <button type="button" className="btn-clear-history" onClick={() => onClearHistory?.()}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-auto w-full"
+        onClick={() => onClearHistory?.()}
+      >
         Pulisci cronologia
-      </button>
+      </Button>
     </aside>
   );
 };
