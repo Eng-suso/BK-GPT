@@ -1,4 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
+import { ArrowUp, Check, Mic, Paperclip, Square } from "lucide-react";
+
+import { Badge } from "@/ui/badge";
+import { Button } from "@/ui/button";
+import { cn } from "@/lib/utils";
 import { API_BASE } from "../../../lib/api";
 import { appendAuthQueryParams } from "../../../lib/security";
 import { ModelSelector } from "./ModelSelector";
@@ -415,21 +420,36 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   return (
     <div className="composer-wrap">
       {hasInterviewPanel && (
-        <section className="interview-panel" aria-label="Trascrizione intervista">
-          <div className="interview-toolbar">
+        <section
+          className="mx-auto mb-3 w-[min(calc(100%-48px),1040px)] rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(14,20,32,0.06)]"
+          aria-label="Trascrizione intervista"
+        >
+          <div className="mb-3 flex items-center justify-between gap-4 @[540px]/composer-wrap:items-center @max-[540px]/composer-wrap:flex-col @max-[540px]/composer-wrap:items-stretch">
             <div>
-              <div className="interview-title">Intervista live</div>
-              <div className="interview-meta">
-                <span className={`status-chip ${isLiveConnected ? "online" : ""}`}>
+              <div className="text-sm font-semibold text-foreground">
+                Intervista live
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "border-warning-border bg-warning-surface text-[var(--amber-700)]",
+                    isLiveConnected &&
+                      "border-success-border bg-success-surface text-[var(--color-status-success)]",
+                  )}
+                >
                   {isLiveConnected ? "Live WebSocket" : "Connessione"}
-                </span>
+                </Badge>
                 <span>{formatDuration(elapsedSeconds)}</span>
-                <span>{isTranscribing ? "Diarizzazione finale" : "Draft realtime"}</span>
+                <span>
+                  {isTranscribing ? "Diarizzazione finale" : "Draft realtime"}
+                </span>
               </div>
             </div>
-            <button
-              className="btn-pill-light"
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => {
                 const text = finalTranscript || liveTranscript;
                 appendTranscription(text);
@@ -437,24 +457,28 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               disabled={!finalTranscript && !liveTranscript}
               title="Inserisci transcript nel messaggio"
             >
-              <svg viewBox="0 0 24 24">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span>Usa transcript</span>
-            </button>
+              <Check />
+              Usa transcript
+            </Button>
           </div>
 
-          <div className="interview-transcript">
-            <div className="transcript-column">
-              <div className="transcript-label">Live draft</div>
-              <div className="transcript-body">
-                {liveTranscript || "Il testo live apparira qui durante l'intervista."}
+          <div className="grid grid-cols-1 gap-3 @[540px]/composer-wrap:grid-cols-2">
+            <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/40">
+              <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
+                Live draft
+              </div>
+              <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-[13px] leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
+                {liveTranscript ||
+                  "Il testo live apparira qui durante l'intervista."}
               </div>
             </div>
-            <div className="transcript-column final">
-              <div className="transcript-label">Finale diarizzato</div>
-              <div className="transcript-body">
-                {finalTranscript || "Dopo Stop, qui arriva il transcript definitivo con speaker attribution."}
+            <div className="min-w-0 overflow-hidden rounded-lg border border-[var(--green-200)] bg-[var(--green-50)]">
+              <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
+                Finale diarizzato
+              </div>
+              <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-[13px] leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
+                {finalTranscript ||
+                  "Dopo Stop, qui arriva il transcript definitivo con speaker attribution."}
               </div>
             </div>
           </div>
@@ -482,15 +506,22 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           placeholder="Scrivi un messaggio..."
           disabled={isLocked}
           autoComplete="off"
+          className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-[14.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
         />
-        {audioStatus && <div className="composer-status">{audioStatus}</div>}
+        {audioStatus && (
+          <div className="min-h-[18px] px-0.5 text-xs leading-normal text-muted-foreground">
+            {audioStatus}
+          </div>
+        )}
         <div className="composer-bottom-bar">
           <ModelSelector selectedModel={selectedModel} onChange={onModelChange} />
 
           <div className="composer-actions">
-            <button
+            <Button
               className="btn-pill-light"
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => {
                 if (onTranscribeAudio) {
                   fileInputRef.current?.click();
@@ -501,42 +532,41 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               disabled={isLocked || isRecording}
               title="Carica audio da trascrivere"
             >
-              <svg viewBox="0 0 24 24">
-                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
+              <Paperclip />
               <span>Audio</span>
-            </button>
-            <button
-              className={`btn-pill-light ${isRecording ? "recording" : ""}`}
+            </Button>
+            <Button
+              className={cn(
+                "btn-pill-light",
+                isRecording &&
+                  "border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10",
+              )}
               type="button"
+              variant="outline"
+              size="sm"
               onClick={handleVoiceClick}
               disabled={isBusy || isTranscribing}
               title={isRecording ? "Ferma intervista" : "Avvia intervista live"}
             >
-              <svg viewBox="0 0 24 24">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
+              {isRecording ? <Square /> : <Mic />}
               <span>{isRecording ? "Stop" : "Intervista"}</span>
-            </button>
-            <button
+            </Button>
+            <Button
               className="btn-send"
               type="submit"
+              size="sm"
               disabled={isLocked || isRecording || !value.trim()}
               title="Invia messaggio"
             >
               <span>Invia</span>
-              <svg viewBox="0 0 24 24">
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5 19 12" />
-              </svg>
-            </button>
+              <ArrowUp />
+            </Button>
           </div>
         </div>
       </form>
-      <div className="footnote">Il modello puo commettere errori. Verifica sempre le risposte importanti.</div>
+      <div className="mt-2 text-center text-[11px] text-muted-foreground">
+        Il modello puo commettere errori. Verifica sempre le risposte importanti.
+      </div>
     </div>
   );
 };

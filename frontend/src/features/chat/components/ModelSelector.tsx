@@ -1,22 +1,40 @@
 import React from "react";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/ui/select";
+
 interface ModelSelectorProps {
   selectedModel?: string;
   onChange?: (model: string) => void;
 }
+
+const MODELS = ["gpt-5.6-luna"];
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
   selectedModel = "gpt-5.6-luna",
   onChange,
 }) => {
   return (
-    <select
-      className="model-select"
-      value={selectedModel}
-      onChange={(e) => onChange?.(e.target.value)}
-      aria-label="Modello AI"
-    >
-      <option value="gpt-5.6-luna">gpt-5.6-luna</option>
-    </select>
+    <Select value={selectedModel} onValueChange={(value) => onChange?.(value)}>
+      <SelectTrigger
+        size="sm"
+        className="model-select max-w-[160px]"
+        aria-label="Modello AI"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {MODELS.map((model) => (
+          <SelectItem key={model} value={model}>
+            {model}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 };
