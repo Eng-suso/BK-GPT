@@ -3,24 +3,29 @@
 .env.*
 !.env.example
 
-# Python generated files
+# Python generated files and tooling caches
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 *$py.class
 build/
 dist/
-frontend/dist/
-frontend_dist/
-frontend/storybook-static/
-storybook-static/
 wheels/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.pyre/
+.dmypy.json
+.hypothesis/
+.tox/
+.nox/
 .coverage
+.coverage.*
 coverage.xml
 htmlcov/
+pytest-results.xml
 
 # Virtual environments and package caches
 .venv/
@@ -30,35 +35,65 @@ env/
 
 # Node/npm local files
 node_modules/
+.npm/
+.pnpm-store/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.tsbuildinfo
+
+# Frontend build, coverage, and generated report output
+frontend/dist/
+frontend_dist/
+frontend/.vite/
+frontend/coverage/
+frontend/eslint-report.json
+frontend/storybook-static/
+storybook-static/
+coverage/
+
+# Playwright and browser test output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # Runtime data: local chat history, LangGraph checkpoints, sqlite WAL files
-data/
+/data/
 *.db
 *.db-*
 *.sqlite
 *.sqlite-*
+*.sqlite3
+*.sqlite3-*
 
 # Local logs and process output
 *.log
+logs/
 backend_server*.log
 
 # Local-only helper scripts
 scripts/dev.ps1
 
+# Local AI assistant/tool state
+.agents/
+.codex/
+.claude/settings.local.json
+.claude/**/__pycache__/
+
 # Deployment and editor local state
 .vercel/
 .vscode/
 .idea/
-.agents/
 
 # OS files
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-
-
+# Local export/checkout folders
 Open-source-DeliR/
+
+# Local simulation scratch
+.tmpsim/
