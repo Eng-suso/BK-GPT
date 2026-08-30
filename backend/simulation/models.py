@@ -6,11 +6,24 @@ from pydantic import BaseModel, Field
 class BpmnTask(BaseModel):
     id: str
     name: str
+    type: str = "task"
+
+
+class BpmnFlow(BaseModel):
+    id: str
+    name: str = ""
+    target_name: str = ""
 
 
 class BpmnGateway(BaseModel):
     id: str
-    outgoing_flow_ids: tuple[str, ...] = Field(default_factory=tuple)
+    name: str = ""
+    type: str = "exclusiveGateway"
+    outgoing_flows: tuple[BpmnFlow, ...] = Field(default_factory=tuple)
+
+    @property
+    def outgoing_flow_ids(self) -> tuple[str, ...]:
+        return tuple(flow.id for flow in self.outgoing_flows)
 
 
 class ProsimosScenario(BaseModel):

@@ -1,24 +1,30 @@
 import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { HttpError } from "@/lib/http";
 import { EmptyState } from "@/components/feedback";
+import { cn } from "@/lib/utils";
 import type { ProjectProcess } from "../../contracts/workspace";
 import { useBpmnModelQuery } from "./api";
 import {
+  fetchScenarioTemplate,
   getProsimosSimulationRun,
   listProsimosSimulationRuns,
   runProsimosSimulation,
 } from "./simulationApi";
-import type { SimulationRun } from "./simulationTypes";
-import { SimulationConfigBar } from "./SimulationConfigBar";
-import { scenarioToInput, type ScenarioDraft } from "./simulationScenario";
+import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
+import { SimulationConfigRail } from "./SimulationConfigRail";
+import {
+  loadScenarioDraft,
+  saveScenarioDraft,
+  scenarioToInput,
+  seedDraftFromTemplate,
+  type ScenarioDraft,
+} from "./simulationScenario";
 import { SimulationBpmnView, type SimulationNodeOverlay } from "./SimulationBpmnView";
 import { SimulationResults } from "./SimulationResultsView";
-import {
-  formatDuration,
-  readSimulationInsights,
-} from "./simulationResults";
+import { formatDuration, readSimulationInsights } from "./simulationResults";
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000;
@@ -37,7 +43,6 @@ export function SimulationWorkspace({
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const modelQuery = useBpmnModelQuery(process.bpmnModelId);
-
   const bpmnXml = currentBpmnXml ?? modelQuery.data?.xml ?? null;
 
   const [runs, setRuns] = React.useState<SimulationRun[]>([]);
@@ -45,7 +50,27 @@ export function SimulationWorkspace({
   const [isRunning, setIsRunning] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = React.useState<string | null>(null);
+  const [railCollapsed, setRailCollapsed] = React.useState(false);
+
+  const [storedDraft, setStoredDraft] = React.useState<ScenarioDraft>(() =>
+    loadScenarioDraft(process.bpmnModelId),
+  );
   const mountedRef = React.useRef(true);
+
+  const templateQuery = useQuery<ScenarioTemplate>({
+    queryKey: ["workspace", "simulation-template", process.bpmnModelId, currentBpmnXml],
+    queryFn: () => fetchScenarioTemplate(process.bpmnModelId, currentBpmnXml),
+    enabled: bpmnXml !== null,
+    staleTime: 60_000,
+  });
+  const template: ScenarioTemplate | null = templateQuery.data ?? null;
+  const templateLoading = templateQuery.isLoading && bpmnXml !== null;
+
+  // Editable draft = stored user edits with template defaults filled in.
+  const draft = React.useMemo(
+    () => (template ? seedDraftFromTemplate(storedDraft, template) : storedDraft),
+    [storedDraft, template],
+  );
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -54,6 +79,7 @@ export function SimulationWorkspace({
     };
   }, []);
 
+  // Load existing runs.
   React.useEffect(() => {
     let cancelled = false;
     void listProsimosSimulationRuns(process.bpmnModelId)
@@ -75,6 +101,14 @@ export function SimulationWorkspace({
       cancelled = true;
     };
   }, [process.bpmnModelId]);
+
+  const updateDraft = React.useCallback(
+    (next: ScenarioDraft) => {
+      setStoredDraft(next);
+      saveScenarioDraft(process.bpmnModelId, next);
+    },
+    [process.bpmnModelId],
+  );
 
   const upsertRun = React.useCallback((run: SimulationRun) => {
     setRuns((cur) => [run, ...cur.filter((r) => r.id !== run.id)].sort((a, b) => b.id - a.id));
@@ -107,7 +141,7 @@ export function SimulationWorkspace({
     [t, upsertRun],
   );
 
-  async function handleRun(draft: ScenarioDraft) {
+  async function handleRun() {
     setIsRunning(true);
     setError(null);
     setSelectedElementId(null);
@@ -129,6 +163,11 @@ export function SimulationWorkspace({
     }
   }
 
+  function selectElement(elementId: string | null) {
+    setSelectedElementId(elementId);
+    if (elementId) setRailCollapsed(false);
+  }
+
   const insights = React.useMemo(
     () => readSimulationInsights(activeRun?.result, { bpmnXml }),
     [activeRun?.result, bpmnXml],
@@ -136,14 +175,14 @@ export function SimulationWorkspace({
 
   const overlays: SimulationNodeOverlay[] = React.useMemo(() => {
     if (!insights.hasData) return [];
-    const utilByAll = insights.resources[0]?.utilizationPct;
+    const singleResourceUtil =
+      insights.resources.length === 1 ? insights.resources[0].utilizationPct : undefined;
     return insights.tasks
       .filter((task) => task.elementId)
       .map((task) => ({
         elementId: task.elementId as string,
         waitLabel: formatDuration(task.avgWaitingSec, lang),
-        utilizationPct:
-          insights.resources.length === 1 ? utilByAll : undefined,
+        utilizationPct: singleResourceUtil,
         isBottleneck: task.elementId === insights.bottleneckElementId,
       }));
   }, [insights, lang]);
@@ -151,86 +190,98 @@ export function SimulationWorkspace({
   const isPending = activeRun?.status === "pending";
 
   return (
-    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden p-3">
-      <SimulationConfigBar
+    <div
+      className={cn(
+        "grid h-full min-h-0 gap-3 overflow-hidden p-3",
+        railCollapsed
+          ? "grid-cols-1 xl:grid-cols-[40px_minmax(0,1fr)_minmax(340px,380px)]"
+          : "grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)_minmax(340px,380px)]",
+      )}
+    >
+      <SimulationConfigRail
+        template={template}
+        templateLoading={templateLoading}
+        draft={draft}
+        onDraftChange={updateDraft}
         isRunning={isRunning}
         error={error}
         runs={runs}
         activeRunId={activeRun?.id ?? null}
-        onRun={(draft) => void handleRun(draft)}
+        onRun={() => void handleRun()}
         onSelectRun={(run) => {
           setActiveRun(run);
           setSelectedElementId(null);
         }}
+        focusElementId={selectedElementId}
+        collapsed={railCollapsed}
+        onToggleCollapsed={() => setRailCollapsed((v) => !v)}
       />
 
-      <div className="grid min-h-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]">
-        <section
-          aria-label={t("simulation.diagram.title")}
-          className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:min-h-0"
-        >
-          {bpmnXml ? (
-            <SimulationBpmnView
-              className="h-full"
-              bpmnXml={bpmnXml}
-              overlays={overlays}
-              selectedElementId={selectedElementId}
-              onSelectElement={setSelectedElementId}
-            />
+      <section
+        aria-label={t("simulation.diagram.title")}
+        className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm xl:min-h-0"
+      >
+        {bpmnXml ? (
+          <SimulationBpmnView
+            className="h-full"
+            bpmnXml={bpmnXml}
+            overlays={overlays}
+            selectedElementId={selectedElementId}
+            onSelectElement={selectElement}
+          />
+        ) : (
+          <div className="p-3.5">
+            <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />
+          </div>
+        )}
+      </section>
+
+      <section
+        aria-label={t("simulation.output.eyebrow")}
+        className="flex min-h-[320px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm xl:min-h-0"
+      >
+        <header className="flex min-h-[52px] items-center border-b border-border px-3.5 py-2.5">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              {t("simulation.output.eyebrow")}
+            </p>
+            <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">
+              {activeRun?.scenario_name ?? t("simulation.output.title")}
+            </h3>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-auto p-3.5">
+          {!activeRun ? (
+            <EmptyState variant="inline" title={t("simulation.empty")} />
+          ) : activeRun.error ? (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium leading-relaxed text-destructive"
+            >
+              {activeRun.error}
+            </p>
+          ) : isPending ? (
+            <EmptyState variant="inline" title={t("simulation.running")} />
           ) : (
-            <div className="p-3.5">
-              <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />
+            <div className="grid content-start gap-3">
+              <SimulationResults
+                insights={insights}
+                selectedElementId={selectedElementId}
+                onSelectElement={selectElement}
+              />
+              <details className="rounded-md border border-border bg-muted/40 p-2.5">
+                <summary className="cursor-pointer text-xs font-semibold text-foreground">
+                  {t("simulation.jsonSummary")}
+                </summary>
+                <pre className="mt-2.5 max-h-[320px] overflow-auto rounded-md border border-border bg-card p-2.5 font-mono text-[11px] leading-relaxed text-foreground/80">
+                  {JSON.stringify(activeRun.result, null, 2)}
+                </pre>
+              </details>
             </div>
           )}
-        </section>
-
-        <section
-          aria-label={t("simulation.output.eyebrow")}
-          className="flex min-h-[320px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:min-h-0"
-        >
-          <header className="flex min-h-[52px] items-center border-b border-border px-3.5 py-2.5">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {t("simulation.output.eyebrow")}
-              </p>
-              <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">
-                {activeRun?.scenario_name ?? t("simulation.output.title")}
-              </h3>
-            </div>
-          </header>
-
-          <div className="min-h-0 flex-1 overflow-auto p-3.5">
-            {!activeRun ? (
-              <EmptyState variant="inline" title={t("simulation.empty")} />
-            ) : activeRun.error ? (
-              <p
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium leading-relaxed text-destructive"
-              >
-                {activeRun.error}
-              </p>
-            ) : isPending ? (
-              <EmptyState variant="inline" title={t("simulation.running")} />
-            ) : (
-              <div className="grid content-start gap-3">
-                <SimulationResults
-                  insights={insights}
-                  selectedElementId={selectedElementId}
-                  onSelectElement={setSelectedElementId}
-                />
-                <details className="rounded-md border border-border bg-muted/40 p-2.5">
-                  <summary className="cursor-pointer text-xs font-semibold text-foreground">
-                    {t("simulation.jsonSummary")}
-                  </summary>
-                  <pre className="mt-2.5 max-h-[320px] overflow-auto rounded-md border border-border bg-card p-2.5 font-mono text-[11px] leading-relaxed text-foreground/80">
-                    {JSON.stringify(activeRun.result, null, 2)}
-                  </pre>
-                </details>
-              </div>
-            )}
-          </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

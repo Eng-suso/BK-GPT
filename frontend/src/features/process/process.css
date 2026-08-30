@@ -1296,3 +1296,18 @@
   top: auto;
   transform: none;
 }
+
+/* Flash a config-rail element when jumped to from the diagram. */
+@keyframes sim-el-flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  30% {
+    box-shadow: 0 0 0 2px var(--color-status-info, #2563eb);
+  }
+}
+
+.sim-el-flash {
+  animation: sim-el-flash 1.2s ease-in-out;
+}

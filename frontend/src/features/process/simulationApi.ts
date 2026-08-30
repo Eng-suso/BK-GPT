@@ -1,9 +1,11 @@
 import { http } from "@/lib/http";
 
 import {
+  scenarioTemplateSchema,
   simulationRunSchema,
   simulationRunsSchema,
   type CreateSimulationRunInput,
+  type ScenarioTemplate,
   type SimulationRun,
 } from "./simulationTypes";
 
@@ -24,12 +26,43 @@ export async function runProsimosSimulation(
         default_cost_per_hour: input.defaultCostPerHour,
         resource_amount: input.resourceAmount,
         resource_name: input.resourceName,
+        resources: input.resources?.map((r) => ({
+          id: r.id,
+          name: r.name,
+          cost_per_hour: r.costPerHour,
+          amount: r.amount,
+        })),
+        tasks: input.tasks?.map((task) => ({
+          element_id: task.elementId,
+          mean_seconds: task.meanSeconds,
+          distribution: task.distribution,
+          resource_id: task.resourceId,
+        })),
+        gateways: input.gateways?.map((g) => ({
+          element_id: g.elementId,
+          branches: g.branches.map((b) => ({
+            flow_id: b.flowId,
+            probability: b.probability,
+          })),
+        })),
         idempotency_key: input.idempotencyKey,
       },
     },
   );
 
   return simulationRunSchema.parse(raw);
+}
+
+export async function fetchScenarioTemplate(
+  bpmnModelId: string,
+  currentBpmnXml: string | null,
+): Promise<ScenarioTemplate> {
+  const raw = await http<unknown>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/simulation-template`,
+    { method: "POST", body: { current_bpmn_xml: currentBpmnXml } },
+  );
+
+  return scenarioTemplateSchema.parse(raw);
 }
 
 export async function listProsimosSimulationRuns(

@@ -35,7 +35,21 @@
     "perElementHint": "Durata per task e probabilità per gateway arrivano nella prossima iterazione.",
     "config": {
       "collapse": "Comprimi parametri",
-      "expand": "Espandi parametri"
+      "expand": "Espandi parametri",
+      "globals": "Globali",
+      "defaultDuration": "Durata default, min",
+      "resources": "Risorse",
+      "addResource": "Aggiungi",
+      "removeResource": "Rimuovi risorsa",
+      "activities": "Attività",
+      "gateways": "Decisioni",
+      "noElements": "Nessun elemento configurabile nel modello.",
+      "durationMin": "Durata, min",
+      "dist": {
+        "norm": "Normale",
+        "expon": "Esponenziale",
+        "fixed": "Fissa"
+      }
     },
     "diagram": {
       "title": "Modello di processo",

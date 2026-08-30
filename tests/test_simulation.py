@@ -192,6 +192,90 @@ def test_build_prosimos_scenario_from_bpmn():
     ]
 
 
+def test_build_prosimos_scenario_applies_per_element_overrides():
+    from backend.schemas.simulation import (
+        SimGatewayBranchConfig,
+        SimGatewayConfig,
+        SimResourceConfig,
+        SimTaskConfig,
+    )
+
+    scenario = build_prosimos_scenario(
+        bpmn_xml=MINIMAL_BPMN,
+        request=CreateSimulationRunRequest(
+            resources=[
+                SimResourceConfig(id="r_front", name="Front", cost_per_hour=30, amount=2),
+                SimResourceConfig(id="r_back", name="Back", cost_per_hour=45, amount=1),
+            ],
+            tasks=[
+                SimTaskConfig(element_id="Task_A", mean_seconds=1200, distribution="fixed", resource_id="r_front"),
+                SimTaskConfig(element_id="Task_B", mean_seconds=600, resource_id="r_back"),
+            ],
+            gateways=[
+                SimGatewayConfig(
+                    element_id="Gateway_1",
+                    branches=[
+                        SimGatewayBranchConfig(flow_id="Flow_3", probability=0.7),
+                        SimGatewayBranchConfig(flow_id="Flow_4", probability=0.3),
+                    ],
+                )
+            ],
+        ),
+    )
+    payload = scenario.payload
+
+    pool = payload["resource_profiles"][0]["resource_list"]
+    by_id = {r["id"]: r for r in pool}
+    assert "Task_A" in by_id["r_front"]["assignedTasks"]
+    assert by_id["r_back"]["assignedTasks"] == ["Task_B"]
+    # Task_C had no config → falls to the first resource.
+    assert "Task_C" in by_id["r_front"]["assignedTasks"]
+
+    dist = {d["task_id"]: d["resources"][0] for d in payload["task_resource_distribution"]}
+    assert dist["Task_A"]["distribution_name"] == "fix"
+    assert dist["Task_A"]["distribution_params"][0]["value"] == 1200
+    assert dist["Task_A"]["resource_id"] == "r_front"
+    assert dist["Task_B"]["resource_id"] == "r_back"
+
+    probs = payload["gateway_branching_probabilities"][0]["probabilities"]
+    assert [p["value"] for p in probs] == ["0.7", "0.3"]
+
+
+def test_describe_scenario_template_lists_tasks_and_branches():
+    from backend.simulation.scenario_builder import describe_scenario_template
+
+    template = describe_scenario_template(MINIMAL_BPMN)
+    task_ids = {t.element_id for t in template.tasks}
+    assert {"Task_A", "Task_B", "Task_C"} <= task_ids
+    assert len(template.gateways) == 1
+    gateway = template.gateways[0]
+    assert gateway.element_id == "Gateway_1"
+    assert {b.flow_id for b in gateway.branches} == {"Flow_3", "Flow_4"}
+    assert {b.target_name for b in gateway.branches} == {"Approva", "Rifiuta"}
+
+
+def test_scenario_template_endpoint(client):
+    client_payload = client.post("/v1/workspace/clients", json={"name": "Tmpl Client"})
+    project_payload = client.post(
+        "/v1/workspace/projects",
+        json={"client_id": client_payload.json()["id"], "name": "Tmpl Project"},
+    )
+    process_payload = client.post(
+        f"/v1/workspace/projects/{project_payload.json()['id']}/processes",
+        json={"name": "Tmpl Process"},
+    )
+    bpmn_model_id = process_payload.json()["bpmn_model_id"]
+
+    response = client.post(
+        f"/v1/workspace/bpmn-models/{bpmn_model_id}/simulation-template",
+        json={"current_bpmn_xml": MINIMAL_BPMN},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["tasks"]) == 3
+    assert body["gateways"][0]["element_id"] == "Gateway_1"
+
+
 def test_simulation_endpoint_uses_prosimos_adapter_contract(client, monkeypatch):
     async def fake_run_prosimos_simulation(request):
         assert request.scenario.task_count == 3

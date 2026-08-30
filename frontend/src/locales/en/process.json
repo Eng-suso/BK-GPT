@@ -35,7 +35,21 @@
     "perElementHint": "Per-task durations and per-gateway probabilities are coming in the next iteration.",
     "config": {
       "collapse": "Collapse parameters",
-      "expand": "Expand parameters"
+      "expand": "Expand parameters",
+      "globals": "Global",
+      "defaultDuration": "Default duration, min",
+      "resources": "Resources",
+      "addResource": "Add",
+      "removeResource": "Remove resource",
+      "activities": "Activities",
+      "gateways": "Decisions",
+      "noElements": "No configurable element in the model.",
+      "durationMin": "Duration, min",
+      "dist": {
+        "norm": "Normal",
+        "expon": "Exponential",
+        "fixed": "Fixed"
+      }
     },
     "diagram": {
       "title": "Process model",

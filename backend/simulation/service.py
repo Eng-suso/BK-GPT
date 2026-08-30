@@ -6,11 +6,15 @@ import json
 from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id, set_current_tenant_id
+from backend.schemas.simulation import ScenarioTemplateResponse
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
 from backend.simulation.result_parser import with_output_files
-from backend.simulation.scenario_builder import build_prosimos_scenario
+from backend.simulation.scenario_builder import (
+    build_prosimos_scenario,
+    describe_scenario_template,
+)
 from backend.simulation.storage import (
     complete_simulation_run,
     create_simulation_run,
@@ -43,6 +47,21 @@ def _derive_idempotency_key(
         ensure_ascii=False,
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def scenario_template_for_model(
+    *,
+    bpmn_model: BpmnModelResponse,
+    current_bpmn_xml: str | None,
+) -> ScenarioTemplateResponse:
+    """Tasks + branching gateways the frontend can build a per-element form from.
+
+    The BPMN is normalised first so the element ids match those the run will
+    actually simulate."""
+    bpmn_xml = (current_bpmn_xml or bpmn_model.xml or "").strip()
+    if not bpmn_xml:
+        raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
+    return describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml))
 
 
 def prepare_simulation_run(

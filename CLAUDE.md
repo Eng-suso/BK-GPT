@@ -180,3 +180,4 @@ For final frontend verification:
 - Copy complete skill folders when adding a skill, including `SKILL.md`, `references/`, `scripts/`, `assets/`, and any other local files.
 - Do not store secrets, credentials, tokens, private keys, customer raw data, health data, banking data, or non-anonymized PII in `.claude`.
 - When a task spans backend, storage, security, or deployment, do not expand this file automatically. Add those routing sections only when Sohay explicitly asks for them.
+- committa sempre a mio nome sohayb raqaq e mai come co author claude (trailer) fallo per ogni pr
