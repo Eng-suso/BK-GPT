@@ -421,7 +421,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     <div className="composer-wrap">
       {hasInterviewPanel && (
         <section
-          className="mx-auto mb-3 w-[min(calc(100%-48px),1040px)] rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(14,20,32,0.06)]"
+          className="interview-panel mx-auto mb-3 w-[min(calc(100%-48px),1040px)] rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(14,20,32,0.06)]"
           aria-label="Trascrizione intervista"
         >
           <div className="mb-3 flex items-center justify-between gap-4 @[540px]/composer-wrap:items-center @max-[540px]/composer-wrap:flex-col @max-[540px]/composer-wrap:items-stretch">
@@ -564,7 +564,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         </div>
       </form>
-      <div className="mt-2 text-center text-[11px] text-muted-foreground">
+      <div className="footnote mt-2 text-center text-[11px] text-muted-foreground">
         Il modello puo commettere errori. Verifica sempre le risposte importanti.
       </div>
     </div>
