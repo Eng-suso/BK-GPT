@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { PageHeader } from "@/components/layout";
+import { NavRow } from "@/components/data";
 import { StatusIndicator } from "@/components/status";
 import { EmptyState, ErrorState } from "@/components/feedback";
 import { Skeleton } from "@/ui/skeleton";
@@ -159,20 +160,14 @@ function HomeList({
         <ul className="flex flex-col">
           {items.map((item) => (
             <li key={item.id}>
-              <Link
+              <NavRow
                 to={item.to}
-                className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5 last:border-b-0 hover:bg-muted/40"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-[12.5px] font-medium text-foreground">
-                    {item.title}
-                  </span>
-                  <span className="block truncate text-[11.5px] text-muted-foreground">
-                    {item.meta}
-                  </span>
-                </span>
-                <StatusIndicator tone={item.tone} label={item.status} />
-              </Link>
+                title={item.title}
+                meta={item.meta}
+                trailing={
+                  <StatusIndicator tone={item.tone} label={item.status} />
+                }
+              />
             </li>
           ))}
         </ul>
