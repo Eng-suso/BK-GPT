@@ -80,6 +80,15 @@ the full compose stack).
 - Statistics come back as multiply json-encoded strings; the adapter decodes
   `ResourceUtilization`, `IndividualTaskStatistics`, `OverallScenarioStatistics`.
 
+### BPMN normalization
+
+Prosimos 1.2.6 rejects models with more than one end event ("Temporarily not
+supporting multiple end events"). `backend/simulation/bpmn_normalizer.py`
+collapses them into one before the model reaches the scenario builder and the
+engine: every flow that targeted a dropped end event is rewired to the survivor,
+and the matching DI shapes are removed. It is best-effort — a parse failure
+returns the original XML so Prosimos reports its own error.
+
 ### Idempotency
 
 `POST /v1/workspace/bpmn-models/{id}/simulation-runs` derives a key from the

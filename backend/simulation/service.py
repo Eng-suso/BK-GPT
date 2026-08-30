@@ -6,6 +6,7 @@ import json
 from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id, set_current_tenant_id
+from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
 from backend.simulation.result_parser import with_output_files
@@ -58,6 +59,10 @@ def prepare_simulation_run(
     bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
+
+    # Adapt the model to Prosimos' constraints (e.g. single end event) before it
+    # feeds both the scenario and the engine request.
+    bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
 
     scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
 

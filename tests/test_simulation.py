@@ -1,7 +1,10 @@
+import xml.etree.ElementTree as ElementTree
+
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.schemas.simulation import CreateSimulationRunRequest
+from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.models import ProsimosSimulationResult
 from backend.simulation.scenario_builder import build_prosimos_scenario
 
@@ -24,6 +27,50 @@ MINIMAL_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
   </bpmn:process>
 </bpmn:definitions>
 """
+
+
+MULTI_END_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:startEvent id="Start_1" />
+    <bpmn:task id="Task_A" name="Ricevi" />
+    <bpmn:exclusiveGateway id="Gw_1" />
+    <bpmn:task id="Task_B" name="Approva" />
+    <bpmn:task id="Task_C" name="Rifiuta" />
+    <bpmn:endEvent id="End_OK" />
+    <bpmn:endEvent id="End_KO" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Start_1" targetRef="Task_A" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Task_A" targetRef="Gw_1" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Gw_1" targetRef="Task_B" />
+    <bpmn:sequenceFlow id="F4" sourceRef="Gw_1" targetRef="Task_C" />
+    <bpmn:sequenceFlow id="F5" sourceRef="Task_B" targetRef="End_OK" />
+    <bpmn:sequenceFlow id="F6" sourceRef="Task_C" targetRef="End_KO" />
+  </bpmn:process>
+</bpmn:definitions>
+"""
+
+_BPMN_NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
+
+
+def test_normalize_bpmn_collapses_multiple_end_events():
+    normalized = normalize_bpmn_for_prosimos(MULTI_END_BPMN)
+    root = ElementTree.fromstring(normalized)
+
+    end_events = root.findall(f".//{{{_BPMN_NS}}}endEvent")
+    assert len(end_events) == 1
+    survivor_id = end_events[0].get("id")
+
+    targets = {
+        flow.get("targetRef")
+        for flow in root.findall(f".//{{{_BPMN_NS}}}sequenceFlow")
+    }
+    # Every flow that used to hit End_KO now points at the survivor.
+    assert "End_KO" not in targets
+    assert survivor_id in targets
+
+
+def test_normalize_bpmn_is_noop_for_single_end_event():
+    assert normalize_bpmn_for_prosimos(MINIMAL_BPMN) == MINIMAL_BPMN
 
 
 @pytest.fixture()
