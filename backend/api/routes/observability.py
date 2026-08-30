@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from backend.services.eval_runner import run_observability_smoke_eval
 from backend.services.trace_recorder import get_trace
+from backend.security import require_principal
 
 
-router = APIRouter(prefix="/v1", tags=["observability"])
+router = APIRouter(prefix="/v1", tags=["observability"], dependencies=[Depends(require_principal)])
 
 
 @router.get("/observability/traces/{trace_id}")

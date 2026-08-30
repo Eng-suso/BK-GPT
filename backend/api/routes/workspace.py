@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.schemas.workspace import (
     ApproveBpmnReviewResponse,
@@ -18,6 +18,7 @@ from backend.schemas.workspace import (
     RestoreBpmnVersionResponse,
     UpdateBpmnModelRequest,
 )
+from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_database import (
     approve_bpmn_review,
     create_client,
@@ -41,7 +42,7 @@ from backend.workspace_database import (
 )
 
 
-router = APIRouter(prefix="/v1/workspace", tags=["workspace"])
+router = APIRouter(prefix="/v1/workspace", tags=["workspace"], dependencies=[Depends(require_principal)])
 
 
 @router.get("/clients")
@@ -203,6 +204,6 @@ def approve_workspace_bpmn_review(bpmn_model_id: str) -> ApproveBpmnReviewRespon
 
 
 @router.delete("")
-def clear_workspace():
+def clear_workspace(_principal: AuthPrincipal = Depends(require_admin_principal)):
     reset_workspace()
     return {"status": "ok"}

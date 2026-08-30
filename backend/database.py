@@ -5,6 +5,8 @@ from pathlib import Path
 from sqlalchemy import ForeignKey, String, Text, create_engine, func, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+from backend.security import get_current_tenant_id
+
 
 DATA_DIR = Path("data")
 CHAT_HISTORY_DB = DATA_DIR / "chat_history.db"
@@ -19,6 +21,7 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     thread_id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     model_name: Mapped[str | None] = mapped_column(String)
     scope_type: Mapped[str | None] = mapped_column(String, index=True)
@@ -40,6 +43,7 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     thread_id: Mapped[str] = mapped_column(
         ForeignKey("chat_sessions.thread_id", ondelete="CASCADE"),
         nullable=False,
@@ -92,6 +96,7 @@ def ensure_chat_session_scope_columns() -> None:
     inspector = inspect(engine)
     existing_columns = {column["name"] for column in inspector.get_columns("chat_sessions")}
     scope_columns = {
+        "tenant_id": "VARCHAR NOT NULL DEFAULT 'local'",
         "scope_type": "VARCHAR",
         "project_id": "VARCHAR",
         "process_id": "VARCHAR",
@@ -111,6 +116,13 @@ def ensure_chat_session_scope_columns() -> None:
                 "WHERE scope_key IS NULL"
             )
         )
+
+    existing_message_columns = {column["name"] for column in inspector.get_columns("chat_messages")}
+    with engine.begin() as connection:
+        if "tenant_id" not in existing_message_columns:
+            connection.execute(
+                text("ALTER TABLE chat_messages ADD COLUMN tenant_id VARCHAR NOT NULL DEFAULT 'local'")
+            )
 
 
 def normalize_scope_fields(
@@ -143,6 +155,7 @@ def create_chat_session(
     scope_key: str | None = None,
 ) -> dict:
     now = utc_now()
+    tenant_id = get_current_tenant_id()
     scope_fields = normalize_scope_fields(
         scope_type=scope_type,
         project_id=project_id,
@@ -152,10 +165,15 @@ def create_chat_session(
     )
 
     with chat_connection() as session:
-        if session.get(ChatSession, thread_id) is None:
+        existing_session = session.get(ChatSession, thread_id)
+        if existing_session is not None and existing_session.tenant_id != tenant_id:
+            raise ValueError("Sessione non disponibile per il tenant corrente.")
+
+        if existing_session is None:
             session.add(
                 ChatSession(
                     thread_id=thread_id,
+                    tenant_id=tenant_id,
                     title=title,
                     model_name=model_name,
                     **scope_fields,
@@ -176,9 +194,11 @@ def create_chat_session(
 
 
 def list_chat_sessions(limit: int = 50, scope_key: str | None = None) -> list[dict]:
+    tenant_id = get_current_tenant_id()
     statement = (
         select(
             ChatSession.thread_id,
+            ChatSession.tenant_id,
             ChatSession.title,
             ChatSession.model_name,
             ChatSession.scope_type,
@@ -195,6 +215,7 @@ def list_chat_sessions(limit: int = 50, scope_key: str | None = None) -> list[di
         .order_by(ChatSession.updated_at.desc())
         .limit(limit)
     )
+    statement = statement.where(ChatSession.tenant_id == tenant_id)
 
     if scope_key:
         statement = statement.where(ChatSession.scope_key == scope_key)
@@ -206,20 +227,23 @@ def list_chat_sessions(limit: int = 50, scope_key: str | None = None) -> list[di
 
 
 def get_chat_session(thread_id: str) -> dict | None:
+    tenant_id = get_current_tenant_id()
     with chat_connection() as db_session:
         chat_session = db_session.get(ChatSession, thread_id)
 
-        if chat_session is None:
+        if chat_session is None or chat_session.tenant_id != tenant_id:
             return None
 
         messages = db_session.execute(
             select(ChatMessage)
             .where(ChatMessage.thread_id == thread_id)
+            .where(ChatMessage.tenant_id == tenant_id)
             .order_by(ChatMessage.id.asc())
         ).scalars().all()
 
         return {
             "thread_id": chat_session.thread_id,
+            "tenant_id": chat_session.tenant_id,
             "title": chat_session.title,
             "model_name": chat_session.model_name,
             "scope_type": chat_session.scope_type or "consultant",
@@ -245,6 +269,7 @@ def append_chat_message(
     scope_key: str | None = None,
 ) -> None:
     now = utc_now()
+    tenant_id = get_current_tenant_id()
     normalized_content = content.strip()
     scope_fields = normalize_scope_fields(
         scope_type=scope_type,
@@ -260,9 +285,13 @@ def append_chat_message(
     with chat_connection() as session:
         chat_session = session.get(ChatSession, thread_id)
 
+        if chat_session is not None and chat_session.tenant_id != tenant_id:
+            raise ValueError("Sessione non disponibile per il tenant corrente.")
+
         if chat_session is None:
             chat_session = ChatSession(
                 thread_id=thread_id,
+                tenant_id=tenant_id,
                 title=title_from_message(normalized_content),
                 model_name=model_name,
                 **scope_fields,
@@ -274,6 +303,7 @@ def append_chat_message(
         session.add(
             ChatMessage(
                 thread_id=thread_id,
+                tenant_id=tenant_id,
                 role=role,
                 content=normalized_content,
                 created_at=now,
@@ -311,22 +341,31 @@ def title_from_message(message: str) -> str:
 
 
 def delete_chat_session(thread_id: str) -> None:
+    tenant_id = get_current_tenant_id()
     with chat_connection() as session:
         chat_session = session.get(ChatSession, thread_id)
 
-        if chat_session is not None:
+        if chat_session is not None and chat_session.tenant_id == tenant_id:
             session.delete(chat_session)
 
 
 def delete_all_chat_sessions() -> None:
+    tenant_id = get_current_tenant_id()
     with chat_connection() as session:
-        for chat_session in session.execute(select(ChatSession)).scalars():
+        for chat_session in session.execute(
+            select(ChatSession).where(ChatSession.tenant_id == tenant_id)
+        ).scalars():
             session.delete(chat_session)
 
 
 def delete_chat_sessions_by_scope(scope_key: str) -> None:
+    tenant_id = get_current_tenant_id()
     with chat_connection() as session:
-        statement = select(ChatSession).where(ChatSession.scope_key == scope_key)
+        statement = (
+            select(ChatSession)
+            .where(ChatSession.scope_key == scope_key)
+            .where(ChatSession.tenant_id == tenant_id)
+        )
 
         for chat_session in session.execute(statement).scalars():
             session.delete(chat_session)

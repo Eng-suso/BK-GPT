@@ -1,7 +1,7 @@
 import json
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from backend.database import (
@@ -24,6 +24,7 @@ from backend.schemas.chat_api import (
     CreateSessionResponse,
     SendMessageRequest,
 )
+from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.services.agent_runtime import (
     build_trace_context,
     scope_fields,
@@ -33,7 +34,7 @@ from backend.services.agent_runtime import (
 from backend.workspace_database import approve_bpmn_review, get_bpmn_review
 
 
-router = APIRouter(tags=["chat"])
+router = APIRouter(tags=["chat"], dependencies=[Depends(require_principal)])
 
 
 def ndjson_event(event_type: str, **payload) -> str:
@@ -137,7 +138,10 @@ def get_consultant_chat_session(thread_id: str) -> ChatSessionDetail:
 
 
 @router.delete("/v1/consultant-chat/sessions")
-def clear_consultant_chat_sessions(scope_key: str | None = None):
+def clear_consultant_chat_sessions(
+    scope_key: str | None = None,
+    _principal: AuthPrincipal = Depends(require_admin_principal),
+):
     if scope_key:
         delete_chat_sessions_by_scope(scope_key)
     else:
@@ -147,7 +151,10 @@ def clear_consultant_chat_sessions(scope_key: str | None = None):
 
 
 @router.delete("/v1/consultant-chat/sessions/{thread_id}")
-def remove_consultant_chat_session(thread_id: str):
+def remove_consultant_chat_session(
+    thread_id: str,
+    _principal: AuthPrincipal = Depends(require_admin_principal),
+):
     delete_chat_session(thread_id)
     return {"status": "ok"}
 

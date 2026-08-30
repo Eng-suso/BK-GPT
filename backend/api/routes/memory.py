@@ -1,10 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from backend.memory.semantic.semantic_store import save_consultant_memory, search_consultant_memory
 from backend.schemas.chat_api import SaveMemoryRequest, SearchMemoryRequest
+from backend.security import require_principal
 
 
-router = APIRouter(prefix="/v1/memory", tags=["memory"])
+router = APIRouter(prefix="/v1/memory", tags=["memory"], dependencies=[Depends(require_principal)])
 
 
 @router.post("/save")

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select, text
 
 from backend.process_understanding import ProcessUnderstanding, quality_report_from_understanding
+from backend.security import get_current_tenant_id
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
@@ -17,6 +18,7 @@ from backend.workspace_storage import (
     WorkspaceDecision,
     WorkspaceProcess,
     WorkspaceProject,
+    WorkspaceSimulationRun,
     WorkspaceSource,
     workspace_connection,
     workspace_engine,
@@ -34,6 +36,17 @@ def decode_list(value: str) -> list[str]:
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def tenant_id() -> str:
+    return get_current_tenant_id()
+
+
+def tenant_row(session, model, row_id: str):
+    row = session.get(model, row_id)
+    if row is None or getattr(row, "tenant_id", "local") != tenant_id():
+        return None
+    return row
 
 
 def slugify(value: str, fallback: str) -> str:
@@ -115,7 +128,11 @@ def client_to_dict(client: WorkspaceClient) -> dict:
 
 def list_clients() -> list[dict]:
     with workspace_connection() as session:
-        clients = session.execute(select(WorkspaceClient).order_by(WorkspaceClient.name)).scalars().all()
+        clients = session.execute(
+            select(WorkspaceClient)
+            .where(WorkspaceClient.tenant_id == tenant_id())
+            .order_by(WorkspaceClient.name)
+        ).scalars().all()
         return [client_to_dict(client) for client in clients]
 
 
@@ -132,7 +149,10 @@ def create_client(
         raise ValueError("Il nome cliente è obbligatorio.")
 
     with workspace_connection() as session:
-        existing_clients = session.execute(select(WorkspaceClient)).scalars().all()
+        current_tenant_id = tenant_id()
+        existing_clients = session.execute(
+            select(WorkspaceClient).where(WorkspaceClient.tenant_id == current_tenant_id)
+        ).scalars().all()
         existing_client = next(
             (
                 client
@@ -148,6 +168,7 @@ def create_client(
         client_id = unique_id(session, WorkspaceClient, slugify(clean_name, "client"))
         client = WorkspaceClient(
             id=client_id,
+            tenant_id=current_tenant_id,
             name=clean_name,
             sector=sector.strip() or "Non specificato",
             status=status.strip() or "Prospect",
@@ -161,7 +182,11 @@ def create_client(
 
 def list_projects() -> list[dict]:
     with workspace_connection() as session:
-        projects = session.execute(select(WorkspaceProject).order_by(WorkspaceProject.name)).scalars().all()
+        projects = session.execute(
+            select(WorkspaceProject)
+            .where(WorkspaceProject.tenant_id == tenant_id())
+            .order_by(WorkspaceProject.name)
+        ).scalars().all()
         return [project_to_dict(project) for project in projects]
 
 
@@ -177,7 +202,8 @@ def create_project(
     deliverables: list[str] | None = None,
 ) -> dict:
     with workspace_connection() as session:
-        client = session.get(WorkspaceClient, client_id)
+        current_tenant_id = tenant_id()
+        client = tenant_row(session, WorkspaceClient, client_id)
 
         if client is None:
             raise ValueError(f"Cliente non trovato: {client_id}")
@@ -185,6 +211,7 @@ def create_project(
         project_id = unique_id(session, WorkspaceProject, slugify(name, "project"))
         project = WorkspaceProject(
             id=project_id,
+            tenant_id=current_tenant_id,
             client_id=client_id,
             name=name.strip(),
             phase=phase.strip() or "Discovery",
@@ -203,15 +230,19 @@ def create_project(
 
 def get_project(project_id: str) -> dict | None:
     with workspace_connection() as session:
-        project = session.get(WorkspaceProject, project_id)
+        project = tenant_row(session, WorkspaceProject, project_id)
         return project_to_dict(project) if project else None
 
 
 def list_project_processes(project_id: str) -> list[dict]:
     with workspace_connection() as session:
+        if tenant_row(session, WorkspaceProject, project_id) is None:
+            return []
+
         statement = (
             select(WorkspaceProcess)
             .where(WorkspaceProcess.project_id == project_id)
+            .where(WorkspaceProcess.tenant_id == tenant_id())
             .order_by(WorkspaceProcess.name)
         )
         processes = session.execute(statement).scalars().all()
@@ -227,7 +258,8 @@ def create_process(
     readiness: int = 0,
 ) -> dict:
     with workspace_connection() as session:
-        project = session.get(WorkspaceProject, project_id)
+        current_tenant_id = tenant_id()
+        project = tenant_row(session, WorkspaceProject, project_id)
 
         if project is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
@@ -236,6 +268,7 @@ def create_process(
         bpmn_model_id = unique_id(session, WorkspaceBpmnModel, f"{process_id}-bpmn")
         process = WorkspaceProcess(
             id=process_id,
+            tenant_id=current_tenant_id,
             project_id=project_id,
             bpmn_model_id=bpmn_model_id,
             name=name.strip(),
@@ -248,6 +281,7 @@ def create_process(
         session.add(
             WorkspaceBpmnModel(
                 id=bpmn_model_id,
+                tenant_id=current_tenant_id,
                 process_id=process_id,
                 name=f"{process.name} BPMN",
                 xml=None,
@@ -255,20 +289,23 @@ def create_process(
         )
         session.flush()
         project.process_count = session.scalar(
-            select(func.count()).select_from(WorkspaceProcess).where(WorkspaceProcess.project_id == project_id)
+            select(func.count())
+            .select_from(WorkspaceProcess)
+            .where(WorkspaceProcess.project_id == project_id)
+            .where(WorkspaceProcess.tenant_id == current_tenant_id)
         ) or 0
         return process_to_dict(process)
 
 
 def get_process(process_id: str) -> dict | None:
     with workspace_connection() as session:
-        process = session.get(WorkspaceProcess, process_id)
+        process = tenant_row(session, WorkspaceProcess, process_id)
         return process_to_dict(process) if process else None
 
 
 def get_bpmn_model(bpmn_model_id: str) -> dict | None:
     with workspace_connection() as session:
-        model = session.get(WorkspaceBpmnModel, bpmn_model_id)
+        model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
 
         if model is None:
             return None
@@ -301,6 +338,7 @@ def create_bpmn_version(
     source: str,
 ) -> WorkspaceBpmnVersion:
     version = WorkspaceBpmnVersion(
+        tenant_id=getattr(model, "tenant_id", tenant_id()),
         bpmn_model_id=model.id,
         process_id=model.process_id,
         xml=xml,
@@ -319,7 +357,7 @@ def update_bpmn_model(
     source: str = "manual_save",
 ) -> dict | None:
     with workspace_connection() as session:
-        model = session.get(WorkspaceBpmnModel, bpmn_model_id)
+        model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
 
         if model is None:
             return None
@@ -347,9 +385,13 @@ def update_bpmn_model(
 
 def list_bpmn_versions(bpmn_model_id: str) -> list[dict]:
     with workspace_connection() as session:
+        if tenant_row(session, WorkspaceBpmnModel, bpmn_model_id) is None:
+            return []
+
         statement = (
             select(WorkspaceBpmnVersion)
             .where(WorkspaceBpmnVersion.bpmn_model_id == bpmn_model_id)
+            .where(WorkspaceBpmnVersion.tenant_id == tenant_id())
             .order_by(WorkspaceBpmnVersion.id.desc())
         )
         versions = session.execute(statement).scalars().all()
@@ -358,12 +400,16 @@ def list_bpmn_versions(bpmn_model_id: str) -> list[dict]:
 
 def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
     with workspace_connection() as session:
-        model = session.get(WorkspaceBpmnModel, bpmn_model_id)
+        model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
         version = session.get(WorkspaceBpmnVersion, version_id)
 
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        if version is None or version.bpmn_model_id != bpmn_model_id:
+        if (
+            version is None
+            or version.bpmn_model_id != bpmn_model_id
+            or getattr(version, "tenant_id", "local") != tenant_id()
+        ):
             raise ValueError(f"Versione BPMN non trovata: {version_id}")
 
         model.xml = version.xml
@@ -413,7 +459,7 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
 
 def get_bpmn_review(bpmn_model_id: str, include_approved: bool = False) -> dict | None:
     with workspace_connection() as session:
-        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
 
         if review is None:
             return None
@@ -445,7 +491,8 @@ def prepare_bpmn_review(
         raise ValueError("Descrizione processo obbligatoria.")
 
     with workspace_connection() as session:
-        model = session.get(WorkspaceBpmnModel, bpmn_model_id)
+        current_tenant_id = tenant_id()
+        model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
 
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
@@ -460,8 +507,12 @@ def prepare_bpmn_review(
 
         timestamp = now_iso()
         review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None and getattr(review, "tenant_id", "local") != current_tenant_id:
+            review = None
+
         if review is None:
             review = WorkspaceBpmnReview(
+                tenant_id=current_tenant_id,
                 bpmn_model_id=bpmn_model_id,
                 process_id=model.process_id,
                 source_text=review_draft.source_text,
@@ -491,8 +542,8 @@ def prepare_bpmn_review(
 
 def approve_bpmn_review(bpmn_model_id: str) -> dict:
     with workspace_connection() as session:
-        model = session.get(WorkspaceBpmnModel, bpmn_model_id)
-        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
 
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
@@ -549,9 +600,13 @@ def decision_to_dict(decision: WorkspaceDecision) -> dict:
 
 def list_project_sources(project_id: str) -> list[dict]:
     with workspace_connection() as session:
+        if tenant_row(session, WorkspaceProject, project_id) is None:
+            return []
+
         statement = (
             select(WorkspaceSource)
             .where(WorkspaceSource.project_id == project_id)
+            .where(WorkspaceSource.tenant_id == tenant_id())
             .order_by(WorkspaceSource.name)
         )
         sources = session.execute(statement).scalars().all()
@@ -566,15 +621,19 @@ def create_project_source(
     process_id: str | None = None,
 ) -> dict:
     with workspace_connection() as session:
-        if session.get(WorkspaceProject, project_id) is None:
+        current_tenant_id = tenant_id()
+        if tenant_row(session, WorkspaceProject, project_id) is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
-        if process_id and session.get(WorkspaceProcess, process_id) is None:
-            raise ValueError(f"Processo non trovato: {process_id}")
+        if process_id:
+            process = tenant_row(session, WorkspaceProcess, process_id)
+            if process is None or process.project_id != project_id:
+                raise ValueError(f"Processo non trovato: {process_id}")
 
         source_id = unique_id(session, WorkspaceSource, f"src-{slugify(name, 'source')}")
         source = WorkspaceSource(
             id=source_id,
+            tenant_id=current_tenant_id,
             project_id=project_id,
             process_id=process_id,
             name=name.strip(),
@@ -588,9 +647,13 @@ def create_project_source(
 
 def list_project_decisions(project_id: str) -> list[dict]:
     with workspace_connection() as session:
+        if tenant_row(session, WorkspaceProject, project_id) is None:
+            return []
+
         statement = (
             select(WorkspaceDecision)
             .where(WorkspaceDecision.project_id == project_id)
+            .where(WorkspaceDecision.tenant_id == tenant_id())
             .order_by(WorkspaceDecision.title)
         )
         decisions = session.execute(statement).scalars().all()
@@ -605,15 +668,19 @@ def create_project_decision(
     process_id: str | None = None,
 ) -> dict:
     with workspace_connection() as session:
-        if session.get(WorkspaceProject, project_id) is None:
+        current_tenant_id = tenant_id()
+        if tenant_row(session, WorkspaceProject, project_id) is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
-        if process_id and session.get(WorkspaceProcess, process_id) is None:
-            raise ValueError(f"Processo non trovato: {process_id}")
+        if process_id:
+            process = tenant_row(session, WorkspaceProcess, process_id)
+            if process is None or process.project_id != project_id:
+                raise ValueError(f"Processo non trovato: {process_id}")
 
         decision_id = unique_id(session, WorkspaceDecision, f"dec-{slugify(title, 'decision')}")
         decision = WorkspaceDecision(
             id=decision_id,
+            tenant_id=current_tenant_id,
             project_id=project_id,
             process_id=process_id,
             title=title.strip(),
@@ -627,9 +694,11 @@ def create_project_decision(
 
 def reset_workspace() -> None:
     with workspace_connection() as session:
+        current_tenant_id = tenant_id()
         for model in (
             WorkspaceSource,
             WorkspaceDecision,
+            WorkspaceSimulationRun,
             WorkspaceBpmnReview,
             WorkspaceBpmnVersion,
             WorkspaceBpmnModel,
@@ -637,7 +706,9 @@ def reset_workspace() -> None:
             WorkspaceProject,
             WorkspaceClient,
         ):
-            for row in session.execute(select(model)).scalars():
+            for row in session.execute(
+                select(model).where(model.tenant_id == current_tenant_id)
+            ).scalars():
                 session.delete(row)
 
 
@@ -649,6 +720,44 @@ def init_workspace_db() -> None:
 
 def ensure_workspace_schema() -> None:
     with workspace_engine.begin() as connection:
+        tenant_tables = (
+            "workspace_clients",
+            "workspace_projects",
+            "workspace_processes",
+            "workspace_bpmn_models",
+            "workspace_bpmn_versions",
+            "workspace_bpmn_reviews",
+            "workspace_simulation_runs",
+            "workspace_sources",
+            "workspace_decisions",
+        )
+        for table_name in tenant_tables:
+            columns = {
+                row[1]
+                for row in connection.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            }
+            if "tenant_id" not in columns:
+                connection.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN tenant_id VARCHAR NOT NULL DEFAULT 'local'")
+                )
+
+        simulation_columns = {
+            row[1]
+            for row in connection.execute(
+                text("PRAGMA table_info(workspace_simulation_runs)")
+            ).fetchall()
+        }
+        if "idempotency_key" not in simulation_columns:
+            connection.execute(
+                text("ALTER TABLE workspace_simulation_runs ADD COLUMN idempotency_key VARCHAR")
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_workspace_simulation_runs_idempotency_key "
+                    "ON workspace_simulation_runs (idempotency_key)"
+                )
+            )
+
         review_columns = {
             row[1]
             for row in connection.execute(text("PRAGMA table_info(workspace_bpmn_reviews)")).fetchall()

@@ -1,31 +1,72 @@
 from pathlib import Path
 
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.api.errors import setup_api_error_handlers
 from backend.api.routes.audio import router as audio_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
 from backend.api.routes.observability import router as observability_router
+from backend.api.routes.simulation import router as simulation_router
 from backend.api.routes.workspace import router as workspace_router
+from backend.security import (
+    assert_allowed_tenant,
+    normalize_tenant_id,
+    reset_current_tenant_id,
+    set_current_tenant_id,
+)
+from backend.settings import settings
 
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 setup_api_error_handlers(app)
 
+
+def configured_cors_origins() -> list[str]:
+    if not settings.delir_auth_enabled:
+        return ["*"]
+
+    origins = [
+        origin.strip()
+        for origin in settings.delir_cors_origins.split(",")
+        if origin.strip()
+    ]
+    return origins or ["http://127.0.0.1:3030", "http://localhost:3030"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=configured_cors_origins(),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def tenant_context_middleware(request: Request, call_next):
+    try:
+        tenant_id = normalize_tenant_id(request.headers.get("X-DeliR-Tenant-ID"))
+        assert_allowed_tenant(tenant_id)
+    except HTTPException as exc:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers,
+        )
+
+    token = set_current_tenant_id(tenant_id)
+    try:
+        return await call_next(request)
+    finally:
+        reset_current_tenant_id(token)
+
+
 app.include_router(workspace_router)
+app.include_router(simulation_router)
 app.include_router(memory_router)
 app.include_router(observability_router)
 app.include_router(chat_router)

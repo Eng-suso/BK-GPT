@@ -18,6 +18,7 @@ class WorkspaceClient(WorkspaceBase):
     __tablename__ = "workspace_clients"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     sector: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
@@ -31,6 +32,7 @@ class WorkspaceProject(WorkspaceBase):
     __tablename__ = "workspace_projects"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     client_id: Mapped[str] = mapped_column(ForeignKey("workspace_clients.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
     phase: Mapped[str] = mapped_column(String, nullable=False)
@@ -54,6 +56,7 @@ class WorkspaceProcess(WorkspaceBase):
     __tablename__ = "workspace_processes"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("workspace_projects.id"), nullable=False, index=True)
     bpmn_model_id: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -74,6 +77,7 @@ class WorkspaceBpmnModel(WorkspaceBase):
     __tablename__ = "workspace_bpmn_models"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     process_id: Mapped[str] = mapped_column(ForeignKey("workspace_processes.id"), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     xml: Mapped[str | None] = mapped_column(Text)
@@ -85,6 +89,7 @@ class WorkspaceBpmnVersion(WorkspaceBase):
     __tablename__ = "workspace_bpmn_versions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     bpmn_model_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     process_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     xml: Mapped[str] = mapped_column(Text, nullable=False)
@@ -97,6 +102,7 @@ class WorkspaceBpmnReview(WorkspaceBase):
     __tablename__ = "workspace_bpmn_reviews"
 
     bpmn_model_id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     process_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
     process_understanding_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
@@ -109,10 +115,31 @@ class WorkspaceBpmnReview(WorkspaceBase):
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class WorkspaceSimulationRun(WorkspaceBase):
+    __tablename__ = "workspace_simulation_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    bpmn_model_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    process_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    scenario_name: Mapped[str] = mapped_column(String, nullable=False)
+    engine: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String, index=True)
+    request_json: Mapped[str] = mapped_column(Text, nullable=False)
+    scenario_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    outputs_json: Mapped[str] = mapped_column(Text, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    completed_at: Mapped[str | None] = mapped_column(String)
+
+
 class WorkspaceSource(WorkspaceBase):
     __tablename__ = "workspace_sources"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("workspace_projects.id"), nullable=False, index=True)
     process_id: Mapped[str | None] = mapped_column(String, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -124,6 +151,7 @@ class WorkspaceDecision(WorkspaceBase):
     __tablename__ = "workspace_decisions"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("workspace_projects.id"), nullable=False, index=True)
     process_id: Mapped[str | None] = mapped_column(String, index=True)
     title: Mapped[str] = mapped_column(String, nullable=False)

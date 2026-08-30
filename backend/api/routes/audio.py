@@ -4,10 +4,11 @@ from io import BytesIO
 from typing import Any
 
 import websockets
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from openai import OpenAI
 
 from backend.schemas.chat_api import TranscriptionResponse
+from backend.security import AuthPrincipal, authenticate_websocket, require_principal
 from backend.settings import settings
 
 
@@ -58,6 +59,7 @@ async def send_ws_event(websocket: WebSocket, event_type: str, **payload) -> Non
 async def transcribe_audio(
     file: UploadFile = File(...),
     language: str | None = Form(default="it"),
+    _principal: AuthPrincipal = Depends(require_principal),
 ) -> TranscriptionResponse:
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY non configurata.")
@@ -103,6 +105,10 @@ async def transcribe_audio(
 
 @router.websocket("/live-transcription")
 async def live_audio_transcription(websocket: WebSocket):
+    principal = await authenticate_websocket(websocket)
+    if principal is None:
+        return
+
     await websocket.accept()
 
     if not settings.openai_api_key:

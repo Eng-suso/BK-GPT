@@ -27,6 +27,18 @@ class Settings(BaseSettings):
 
     tavily_max_results: int = 5
 
+    delir_auth_enabled: bool = False
+    delir_api_token: str | None = None
+    delir_admin_token: str | None = None
+    delir_default_tenant_id: str = "local"
+    delir_allowed_tenant_ids: str = ""
+    delir_cors_origins: str = "http://127.0.0.1:3030,http://localhost:3030"
+
+    prosimos_base_url: str = "http://127.0.0.1:5000"
+    # Sync Prosimos runs the whole simulation inside the HTTP call, so this must
+    # cover the slowest expected simulation, not just connect latency.
+    prosimos_timeout_seconds: float = 900.0
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
