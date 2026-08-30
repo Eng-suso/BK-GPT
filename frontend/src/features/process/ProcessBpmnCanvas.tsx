@@ -16,10 +16,13 @@ import {
   RotateCcw,
   Save,
   Upload,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import { Input } from "@/ui/input";
+import { Textarea } from "@/ui/textarea";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
@@ -1017,35 +1020,53 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       <div className={`process-bpmn-body ${isHistoryOpen ? "with-history" : ""}`}>
         <div className="process-bpmn-canvas" ref={containerRef}>
           {selectedElement && (
-            <aside className="bpmn-node-inspector" aria-label="Ispettore nodo selezionato">
-              <div className="bpmn-node-inspector-header">
-                <div>
-                  <span className="bpmn-node-badge">{selectedElement.type}</span>
-                  <strong>{selectedElement.name || selectedElement.id}</strong>
+            <aside
+              className="absolute right-[18px] bottom-[18px] z-50 w-[290px] rounded-[9px] border border-border bg-card p-3 shadow-lg"
+              aria-label="Ispettore nodo selezionato"
+            >
+              <div className="mb-2.5 flex items-start justify-between gap-2 border-b border-border pb-2">
+                <div className="min-w-0">
+                  <Badge
+                    variant="outline"
+                    className="mb-1 text-[10px] tracking-wide uppercase"
+                  >
+                    {selectedElement.type}
+                  </Badge>
+                  <strong className="block max-w-[210px] truncate text-[13px] text-foreground">
+                    {selectedElement.name || selectedElement.id}
+                  </strong>
                 </div>
-                <button
+                <Button
                   type="button"
-                  className="bpmn-node-inspector-close"
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => setSelectedElement(null)}
                   title="Chiudi ispettore"
+                  aria-label="Chiudi ispettore"
                 >
-                  ×
-                </button>
+                  <X />
+                </Button>
               </div>
-              <div className="bpmn-node-inspector-body">
-                <label>
-                  <span>Etichetta / Nome</span>
-                  <input
+              <div className="grid gap-2.5">
+                <label className="grid gap-1.5">
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    Etichetta / Nome
+                  </span>
+                  <Input
                     type="text"
+                    className="h-8 text-xs"
                     value={selectedElement.name}
                     onChange={(e) => updateSelectedNodeName(e.target.value)}
                     placeholder="es. Raccolta dati..."
                   />
                 </label>
-                <label>
-                  <span>Note / Documentazione</span>
-                  <textarea
+                <label className="grid gap-1.5">
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    Note / Documentazione
+                  </span>
+                  <Textarea
                     rows={2}
+                    className="min-h-0 text-xs"
                     value={selectedElement.documentation}
                     onChange={(e) => updateSelectedNodeDoc(e.target.value)}
                     placeholder="Aggiungi dettagli o regole per questo nodo..."
@@ -1058,28 +1079,45 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
 
         {isHistoryOpen && (
           <aside className="process-bpmn-history" aria-label="Cronologia BPMN">
-            <div className="process-bpmn-history-header">
-              <p className="product-eyebrow">Versioni</p>
-              <strong>Cronologia</strong>
+            <div className="border-b border-border p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                Versioni
+              </p>
+              <strong className="mt-0.5 block text-[13px] font-semibold text-foreground">
+                Cronologia
+              </strong>
             </div>
             {versions.length === 0 ? (
-              <p className="process-bpmn-history-empty">Nessuna versione salvata.</p>
+              <p className="p-3 text-xs font-medium text-muted-foreground">
+                Nessuna versione salvata.
+              </p>
             ) : (
-              <ul>
+              <ul className="grid content-start gap-2 overflow-auto p-2.5">
                 {versions.map((version) => (
-                  <li key={version.id}>
-                    <div>
-                      <strong>v{version.id}</strong>
-                      <span>{formatVersionDate(version.created_at)}</span>
-                      <small>{version.change_summary}</small>
+                  <li
+                    key={version.id}
+                    className="grid gap-2 rounded-md border border-border bg-card p-2.5"
+                  >
+                    <div className="grid min-w-0 gap-0.5">
+                      <strong className="text-xs font-semibold text-foreground">
+                        v{version.id}
+                      </strong>
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        {formatVersionDate(version.created_at)}
+                      </span>
+                      <small className="truncate text-[11px] font-medium text-muted-foreground">
+                        {version.change_summary}
+                      </small>
                     </div>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       disabled={!isReady || restoringVersionId === version.id || hasUnsavedChanges}
                       onClick={() => void restoreVersion(version.id)}
                     >
                       {restoringVersionId === version.id ? "..." : "Ripristina"}
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
