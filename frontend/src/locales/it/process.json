@@ -75,5 +75,31 @@
       "completed": "Completata",
       "failed": "Fallita"
     }
+  },
+  "side": {
+    "summary": {
+      "title": "Riepilogo",
+      "status": "Stato",
+      "owner": "Owner",
+      "phase": "Fase",
+      "readiness": "Readiness"
+    },
+    "transition": {
+      "title": "Transizione",
+      "body": "Parti dalla chat generale del processo, passa al canvas BPMN quando vuoi lavorare sul modello, poi apri le proprietà per modificare gli elementi.",
+      "openCanvas": "Apri canvas",
+      "openProperties": "Apri proprietà"
+    },
+    "quality": {
+      "title": "Qualità",
+      "sources": "Fonti collegate",
+      "roles": "Ruoli verificati",
+      "exceptions": "Eccezioni da completare"
+    }
+  },
+  "properties": {
+    "eyebrow": "BPMN 2.0",
+    "title": "Pannello proprietà",
+    "hint": "Elemento selezionato"
   }
 }

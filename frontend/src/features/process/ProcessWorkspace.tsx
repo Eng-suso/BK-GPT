@@ -140,14 +140,14 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
                 <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-3.5 py-3">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      BPMN 2.0
+                      {t("properties.eyebrow")}
                     </p>
                     <h3 className="mt-0.5 text-sm font-semibold text-foreground">
-                      Pannello Proprietà
+                      {t("properties.title")}
                     </h3>
                   </div>
                   <span className="text-xs text-muted-foreground">
-                    Elemento selezionato
+                    {t("properties.hint")}
                   </span>
                 </header>
                 <div
@@ -209,40 +209,47 @@ function ProcessSideSummary({
   onOpenCanvas: () => void;
   onOpenProperties: () => void;
 }) {
+  const { t } = useTranslation("process");
   return (
     <div className="flex flex-col gap-3.5 p-3.5">
-      <SidePanel title="Riepilogo">
+      <SidePanel title={t("side.summary.title")}>
         <DetailPanelKeyValue
           rows={[
-            { label: "Stato", value: process.status },
-            { label: "Owner", value: process.owner },
-            { label: "Fase", value: process.stage },
-            { label: "Readiness", value: `${process.readiness}%` },
+            { label: t("side.summary.status"), value: process.status },
+            { label: t("side.summary.owner"), value: process.owner },
+            { label: t("side.summary.phase"), value: process.stage },
+            {
+              label: t("side.summary.readiness"),
+              value: `${process.readiness}%`,
+            },
           ]}
         />
       </SidePanel>
 
-      <SidePanel title="Transizione">
+      <SidePanel title={t("side.transition.title")}>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-          Parti dalla chat generale del processo, passa al canvas BPMN quando vuoi
-          lavorare sul modello, poi apri le proprieta per modificare gli elementi.
+          {t("side.transition.body")}
         </p>
         <div className="mt-3.5 grid gap-2">
           <Button variant="outline" size="sm" onClick={onOpenCanvas}>
-            Apri canvas
+            {t("side.transition.openCanvas")}
           </Button>
           <Button variant="outline" size="sm" onClick={onOpenProperties}>
-            Apri proprieta
+            {t("side.transition.openProperties")}
           </Button>
         </div>
       </SidePanel>
 
-      <SidePanel title="Qualita">
+      <SidePanel title={t("side.quality.title")}>
         <ul className="grid gap-2 text-[12px] font-medium text-muted-foreground">
-          <li className="rounded-md bg-muted/60 px-2.5 py-2">Fonti collegate</li>
-          <li className="rounded-md bg-muted/60 px-2.5 py-2">Ruoli verificati</li>
           <li className="rounded-md bg-muted/60 px-2.5 py-2">
-            Eccezioni da completare
+            {t("side.quality.sources")}
+          </li>
+          <li className="rounded-md bg-muted/60 px-2.5 py-2">
+            {t("side.quality.roles")}
+          </li>
+          <li className="rounded-md bg-muted/60 px-2.5 py-2">
+            {t("side.quality.exceptions")}
           </li>
         </ul>
       </SidePanel>
