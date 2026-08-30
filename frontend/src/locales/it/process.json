@@ -32,14 +32,44 @@
     "loading": "Caricamento simulazioni…",
     "empty": "Nessuna simulazione eseguita.",
     "timeout": "Timeout: la simulazione sta impiegando troppo tempo.",
-    "kpi": {
-      "engine": "Engine",
-      "status": "Status",
-      "tasks": "Task",
-      "gateways": "Gateway"
+    "perElementHint": "Durata per task e probabilità per gateway arrivano nella prossima iterazione.",
+    "config": {
+      "collapse": "Comprimi parametri",
+      "expand": "Espandi parametri"
     },
-    "outputs": "File generati",
-    "jsonSummary": "Risposta Prosimos",
+    "diagram": {
+      "title": "Modello di processo",
+      "noModel": "Nessun BPMN da simulare. Genera o salva un modello nel canvas.",
+      "legend": "Etichette: attesa media per attività · bordo arancione = collo di bottiglia",
+      "animate": "Anima un caso",
+      "newCase": "Nuovo caso",
+      "resume": "Riprendi",
+      "pause": "Pausa",
+      "reset": "Reset",
+      "fit": "Adatta alla vista"
+    },
+    "results": {
+      "noData": "Prosimos non ha restituito statistiche per questa run.",
+      "bottleneck": "Collo di bottiglia",
+      "bottleneckDetail": "{{wait}} di attesa media, il {{share}} del tempo di attraversamento.",
+      "cases": "Casi completati",
+      "cycleTime": "Attraversamento medio",
+      "waitingShare": "di cui {{share}} in attesa",
+      "waitingTime": "Attesa media",
+      "processingTime": "Lavoro medio",
+      "costPerCase": "Costo medio / caso",
+      "totalCost": "Totale {{total}}",
+      "resourceLoad": "Carico risorse",
+      "table": {
+        "activity": "Attività",
+        "volume": "Volume",
+        "waiting": "Attesa media",
+        "processing": "Lavoro medio",
+        "cycle": "Attraversamento",
+        "cost": "Costo medio"
+      }
+    },
+    "jsonSummary": "Dati grezzi Prosimos",
     "status": {
       "pending": "In corso",
       "completed": "Completata",

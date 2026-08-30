@@ -32,14 +32,44 @@
     "loading": "Loading simulations…",
     "empty": "No simulation has been run.",
     "timeout": "Timeout: the simulation is taking too long.",
-    "kpi": {
-      "engine": "Engine",
-      "status": "Status",
-      "tasks": "Tasks",
-      "gateways": "Gateways"
+    "perElementHint": "Per-task durations and per-gateway probabilities are coming in the next iteration.",
+    "config": {
+      "collapse": "Collapse parameters",
+      "expand": "Expand parameters"
     },
-    "outputs": "Generated files",
-    "jsonSummary": "Prosimos response",
+    "diagram": {
+      "title": "Process model",
+      "noModel": "No BPMN to simulate. Generate or save a model in the canvas.",
+      "legend": "Labels: average wait per activity · orange border = bottleneck",
+      "animate": "Animate a case",
+      "newCase": "New case",
+      "resume": "Resume",
+      "pause": "Pause",
+      "reset": "Reset",
+      "fit": "Fit to view"
+    },
+    "results": {
+      "noData": "Prosimos returned no statistics for this run.",
+      "bottleneck": "Bottleneck",
+      "bottleneckDetail": "{{wait}} average wait — {{share}} of cycle time.",
+      "cases": "Cases completed",
+      "cycleTime": "Avg cycle time",
+      "waitingShare": "{{share}} spent waiting",
+      "waitingTime": "Avg waiting time",
+      "processingTime": "Avg processing time",
+      "costPerCase": "Avg cost / case",
+      "totalCost": "Total {{total}}",
+      "resourceLoad": "Resource load",
+      "table": {
+        "activity": "Activity",
+        "volume": "Volume",
+        "waiting": "Avg waiting",
+        "processing": "Avg processing",
+        "cycle": "Cycle",
+        "cost": "Avg cost"
+      }
+    },
+    "jsonSummary": "Raw Prosimos data",
     "status": {
       "pending": "Running",
       "completed": "Completed",
