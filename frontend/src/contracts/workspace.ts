@@ -210,3 +210,72 @@ export function toProjectDecision(
     status: decision.status,
   };
 }
+
+/* ── BPMN model + versions ─────────────────────────────────────────
+ * Backend: /v1/workspace/bpmn-models/*  (see docs/frontend-audit.md).
+ * Consumed by features/process/api.ts.
+ */
+
+export type BpmnModel = {
+  id: string;
+  processId: string;
+  name: string;
+  xml: string | null;
+};
+
+export type BpmnVersion = {
+  id: number;
+  bpmnModelId: string;
+  processId: string;
+  changeSummary: string;
+  source: string;
+  createdAt: string;
+};
+
+export const apiBpmnModelSchema = z.object({
+  id: z.string(),
+  process_id: z.string(),
+  name: z.string(),
+  xml: z.string().nullable(),
+});
+
+// `xml` is present on the wire but intentionally not carried into the client
+// cache — the version list never renders it.
+export const apiBpmnVersionSchema = z.object({
+  id: z.number(),
+  bpmn_model_id: z.string(),
+  process_id: z.string(),
+  change_summary: z.string(),
+  source: z.string(),
+  created_at: z.string(),
+});
+
+export const apiBpmnVersionsSchema = z.array(apiBpmnVersionSchema);
+
+export const apiRestoreBpmnVersionSchema = z.object({
+  bpmn_model: apiBpmnModelSchema,
+  restored_from: apiBpmnVersionSchema,
+  created_version: apiBpmnVersionSchema,
+});
+
+export function toBpmnModel(model: z.infer<typeof apiBpmnModelSchema>): BpmnModel {
+  return {
+    id: model.id,
+    processId: model.process_id,
+    name: model.name,
+    xml: model.xml,
+  };
+}
+
+export function toBpmnVersion(
+  version: z.infer<typeof apiBpmnVersionSchema>,
+): BpmnVersion {
+  return {
+    id: version.id,
+    bpmnModelId: version.bpmn_model_id,
+    processId: version.process_id,
+    changeSummary: version.change_summary,
+    source: version.source,
+    createdAt: version.created_at,
+  };
+}
