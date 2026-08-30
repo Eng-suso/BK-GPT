@@ -1,9 +1,14 @@
 from backend.graphs.canvas_edit.graph import (
+    canvas_completion_report,
     evaluate_canvas_completion,
     parse_canvas_router_json,
+    route_after_canvas_layout,
     route_after_canvas_completion_check,
+    route_after_canvas_work,
     route_after_validation_subgraph,
 )
+from backend.graphs.canvas_edit.subgraphs.layout.graph import run_canvas_drawing_agent
+import backend.graphs.canvas_edit.subgraphs.layout.graph as layout_graph_module
 from backend.graphs.canvas_edit.skills_manifest import required_skills_for
 from backend.graphs.canvas_edit.tools import (
     canvas_macro_tools,
@@ -12,6 +17,9 @@ from backend.graphs.canvas_edit.tools import (
     validation_tools,
 )
 from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
+from backend.bpmn_semantic import build_bpmn_semantic_model
+from backend.process_understanding import ProcessUnderstanding
+from backend.services.agent_runtime import STREAMABLE_AGENT_NODES
 from backend.toolsets.bpmn import bpmn_review_tools, manage_canvas_bpmn_model
 from backend.workspace_services.bpmn_canvas_edit import (
     clear_bpmn_process,
@@ -191,6 +199,11 @@ def test_canvas_completion_loop_retries_patch_for_blocking_validation_issue(monk
         "decisions": [{"id": "Gateway_Check", "label": "Ordine approvato?", "outcomes": ["Si", "No"]}],
         "unknowns": [],
     }
+    canonical_semantic_model = build_bpmn_semantic_model(
+        process_id="Process_Test",
+        process_name="Order Review",
+        process=ProcessUnderstanding.model_validate(process_understanding)
+    ).model_dump(mode="json")
     monkeypatch.setattr(
         "backend.graphs.canvas_edit.graph.workspace_database.get_bpmn_model",
         lambda bpmn_model_id: {"id": bpmn_model_id, "xml": xml},
@@ -199,7 +212,7 @@ def test_canvas_completion_loop_retries_patch_for_blocking_validation_issue(monk
     result = evaluate_canvas_completion(
         {
             "bpmn_model_id": "proc-bpmn",
-            "process_understanding": process_understanding,
+            "bpmn_semantic_model": canonical_semantic_model,
             "canvas_loop_attempt": 0,
             "canvas_loop_max_attempts": 2,
         }
@@ -209,6 +222,72 @@ def test_canvas_completion_loop_retries_patch_for_blocking_validation_issue(monk
     assert result["canvas_route"] == "patch_edit"
     assert route_after_canvas_completion_check(result) == "patch_edit_subgraph"
     assert "Il processo contiene decisioni ma il canvas non contiene gateway." in result["validation_report"]["issues"]
+
+
+def test_canvas_completion_treats_intentional_clear_as_completed(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test" />
+  <bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process_Test" /></bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
+    process_understanding = {
+        "schema_version": "process_understanding.v1",
+        "language": "it",
+        "title": "Order Review",
+        "steps": [{"id": "Task_Review", "label": "Rivedi ordine", "type": "user_task"}],
+        "sequence": ["Task_Review"],
+        "decisions": [{"id": "Gateway_Check", "label": "Ordine approvato?", "outcomes": ["Si", "No"]}],
+        "unknowns": [],
+    }
+    canonical_semantic_model = build_bpmn_semantic_model(
+        process_id="Process_Test",
+        process_name="Order Review",
+        process=ProcessUnderstanding.model_validate(process_understanding),
+    ).model_dump(mode="json")
+    monkeypatch.setattr(
+        "backend.graphs.canvas_edit.graph.workspace_database.get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "xml": xml},
+    )
+
+    result = evaluate_canvas_completion(
+        {
+            "bpmn_model_id": "proc-bpmn",
+            "bpmn_semantic_model": canonical_semantic_model,
+            "canvas_objective": "elimina quello che c'e nel canvas",
+            "intent": "clear_canvas",
+            "canvas_loop_attempt": 0,
+            "canvas_loop_max_attempts": 2,
+        }
+    )
+
+    assert result["canvas_loop_status"] == "completed"
+    assert result["validation_report"]["completion_kind"] == "empty_canvas"
+    assert result["validation_report"]["issues"] == []
+    assert result["validation_report"]["semantic_valid"] is None
+    assert route_after_canvas_completion_check(result) == "completion_report"
+    final_report = canvas_completion_report(result)
+    content = final_report["messages"][0].content
+    assert content == "Canvas svuotato. Ho verificato che non ci siano piu' elementi o collegamenti visibili."
+    assert "Payload semantico" not in content
+    assert "gateway" not in content.casefold()
+
+
+def test_clear_canvas_intent_skips_semantic_validation_subgraph():
+    state = {
+        "canvas_route": "patch_edit",
+        "canvas_loop_status": "running",
+        "canvas_objective": "elimina quello che c'e nel canvas",
+    }
+
+    assert route_after_canvas_work(state) == "evaluate_canvas_completion"
+    assert route_after_canvas_layout({**state, "canvas_layout_status": "completed"}) == "evaluate_canvas_completion"
+
+
+def test_canvas_subagent_intermediate_messages_are_not_streamed():
+    assert "canvas_completion_report" in STREAMABLE_AGENT_NODES
+    assert "canvas_patch_edit_agent" not in STREAMABLE_AGENT_NODES
+    assert "canvas_construction_agent" not in STREAMABLE_AGENT_NODES
+    assert "canvas_validation_agent" not in STREAMABLE_AGENT_NODES
 
 
 def test_standalone_canvas_validation_does_not_enter_completion_loop():
@@ -285,6 +364,45 @@ def test_clear_bpmn_process_removes_visible_canvas_elements():
     validation = validate_bpmn_xml(updated_xml)
     assert validation["valid"] is True
     assert validation["counts"] == {"flow_nodes": 0, "sequence_flows": 0}
+
+
+def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Review" name="Rivedi ordine"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Review" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Review" targetRef="End" />
+    <bpmn:dataObjectReference id="Data_Order" name="Ordine" />
+    <bpmn:textAnnotation id="TextAnnotation_1"><bpmn:text>Regola business visiva</bpmn:text></bpmn:textAnnotation>
+    <bpmn:association id="Association_1" sourceRef="Task_Review" targetRef="TextAnnotation_1" />
+  </bpmn:process>
+</bpmn:definitions>"""
+    saved = {}
+
+    monkeypatch.setattr(
+        layout_graph_module.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+
+    def fake_update_bpmn_model(bpmn_model_id, updated_xml, change_summary, source):
+        saved["xml"] = updated_xml
+        saved["source"] = source
+        return {"id": bpmn_model_id, "process_id": "proc-1", "xml": updated_xml}
+
+    monkeypatch.setattr(layout_graph_module.workspace_database, "update_bpmn_model", fake_update_bpmn_model)
+
+    result = run_canvas_drawing_agent({"bpmn_model_id": "proc-bpmn"})
+
+    assert result["canvas_layout_status"] == "completed"
+    assert saved["source"] == "canvas_layout_agent"
+    assert "<bpmn:textAnnotation" not in saved["xml"]
+    assert "<bpmn:association" not in saved["xml"]
+    assert "<bpmn:dataObjectReference" not in saved["xml"]
+    assert validate_bpmn_xml(saved["xml"])["valid"] is True
 
 
 def test_layout_bpmn_di_wraps_long_process_into_readable_rows():

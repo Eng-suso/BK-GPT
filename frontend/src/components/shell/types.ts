@@ -1,1 +1,7 @@
-export type ShellSection = "home" | "consultant" | "clients" | "projects" | "models" | "archive";
+export type ShellSection =
+  | "home"
+  | "consultant"
+  | "clients"
+  | "projects"
+  | "models"
+  | "archive";

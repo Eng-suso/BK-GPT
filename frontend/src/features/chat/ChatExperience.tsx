@@ -131,6 +131,7 @@ type BpmnReview = {
   source_text: string;
   process_understanding?: ProcessUnderstandingSummary;
   bpmn_semantic_model?: BpmnSemanticModelSummary;
+  quality_report?: ProcessQualityReportSummary;
   bpmn_brief: string;
   readiness_score: number;
   missing_information: string[];
@@ -146,6 +147,15 @@ type ProcessUnderstandingSummary = {
   handoffs?: Array<{ id: string; artifact?: string | null; trigger?: string | null }>;
   alternative_paths?: Array<{ id: string; label: string; is_confirmed?: boolean }>;
   unknowns?: Array<{ question: string; severity: string }>;
+};
+
+type ProcessQualityReportSummary = {
+  overall_score?: number;
+  approval_recommendation?: string;
+  dimension_scores?: Array<{ dimension: string; score: number; findings?: string[]; blocking?: boolean }>;
+  blocking_issues?: Array<{ id: string; message: string; recommendation?: string | null }>;
+  warnings?: Array<{ id: string; message: string; recommendation?: string | null }>;
+  improvement_actions?: Array<{ id: string; target_field: string; action: string; priority?: string }>;
 };
 
 type BpmnSemanticModelSummary = {
@@ -668,10 +678,14 @@ function BpmnReviewCard({
   const handoffs = understanding.handoffs || [];
   const alternativePaths = understanding.alternative_paths || [];
   const unknowns = understanding.unknowns || [];
+  const qualityReport = review.quality_report || {};
   const semanticModel = review.bpmn_semantic_model || {};
   const lanes = semanticModel.lanes || [];
   const flowNodes = semanticModel.flowNodes || [];
   const semanticWarnings = semanticModel.model_warnings || [];
+  const qualityWarnings = [...(qualityReport.blocking_issues || []), ...(qualityReport.warnings || [])].map(
+    (item) => item.message
+  );
 
   return (
     <section className="bpmn-review-card" aria-label="Review BPMN pronta">
@@ -720,12 +734,17 @@ function BpmnReviewCard({
           title="Alternative"
           items={alternativePaths.map((item) => (item.is_confirmed === false ? `${item.label}: da confermare` : item.label))}
         />
+        <ReviewMiniSection
+          title="Qualita"
+          items={(qualityReport.dimension_scores || []).map((item) => `${item.dimension}: ${item.score}/10`)}
+        />
+        <ReviewMiniSection title="Azioni" items={(qualityReport.improvement_actions || []).map((item) => item.action)} />
         <ReviewMiniSection title="Warning" items={semanticWarnings} />
       </div>
 
       <div className="bpmn-review-missing">
         <span>Informazioni mancanti</span>
-        {review.missing_information.length > 0 || unknowns.length > 0 ? (
+        {review.missing_information.length > 0 || unknowns.length > 0 || qualityWarnings.length > 0 ? (
           <ul>
             {review.missing_information.map((item) => (
               <li key={item}>{item}</li>
@@ -734,6 +753,9 @@ function BpmnReviewCard({
               <li key={item.question}>
                 {item.question} <strong>{item.severity}</strong>
               </li>
+            ))}
+            {qualityWarnings.map((item) => (
+              <li key={item}>{item}</li>
             ))}
           </ul>
         ) : (

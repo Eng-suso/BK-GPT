@@ -11,6 +11,8 @@ build/
 dist/
 frontend/dist/
 frontend_dist/
+frontend/storybook-static/
+storybook-static/
 wheels/
 *.egg-info/
 .pytest_cache/
@@ -51,6 +53,7 @@ scripts/dev.ps1
 .vercel/
 .vscode/
 .idea/
+.agents/
 
 # OS files
 .DS_Store

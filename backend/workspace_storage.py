@@ -104,6 +104,7 @@ class WorkspaceBpmnReview(WorkspaceBase):
     bpmn_brief: Mapped[str] = mapped_column(Text, nullable=False)
     readiness_score: Mapped[int] = mapped_column(Integer, nullable=False)
     missing_information_json: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 

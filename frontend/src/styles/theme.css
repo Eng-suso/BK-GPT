@@ -1,0 +1,141 @@
+/*
+ * Tailwind v4 entry + DeliR token bridge.
+ *
+ * Preflight (Tailwind's global reset) is intentionally OFF: the legacy
+ * app-shell.css and the inline <style> in index.html are still live and a
+ * global reset would break them. Re-enable in step 8c (chat de-glass) with:
+ *   @import "tailwindcss/preflight.css" layer(base);
+ */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/*
+ * Premium enterprise direction (see docs/design/ + docs/frontend-audit.md).
+ * The token system stays untouched; here we only re-point a few semantic
+ * tokens to their premium primitives and set the control radius. These load
+ * after styles/tokens/semantic.css so they win the cascade.
+ */
+:root {
+  /* Action colour: deep royal blue (blue-700), not the brighter blue-600 —
+     reads "consulting platform", not "generic SaaS". */
+  --color-action-primary: var(--blue-700);
+  --color-action-primary-hover: var(--blue-800);
+  --primary: var(--blue-700);
+
+  /* 8px control radius across the design system. */
+  --radius: 0.5rem;
+}
+
+/*
+ * Bridge: DeliR semantic tokens -> Tailwind color/radius/font utilities.
+ * `inline` keeps the var() reference in the generated utilities so values
+ * still resolve from the token cascade at runtime.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* DeliR domain-role colours, surfaced as Tailwind utilities for the
+     status / priority / validation composites. */
+  --color-success: var(--color-status-success);
+  --color-success-surface: var(--state-success-surface);
+  --color-success-border: var(--state-success-border);
+  --color-warning: var(--color-status-warning);
+  --color-warning-surface: var(--state-warning-surface);
+  --color-warning-border: var(--state-warning-border);
+  --color-danger: var(--color-status-danger);
+  --color-danger-surface: var(--state-invalid-surface);
+  --color-danger-border: var(--state-invalid-border);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-family-geist);
+  --font-mono: var(--font-family-geist-mono);
+}
+
+@layer base {
+  body {
+    font-family: var(--font-family-geist);
+    letter-spacing: -0.01em;
+  }
+
+  /*
+   * Preflight is OFF (legacy CSS still live), so mirror just the button/field
+   * normalisations for the migrated surfaces. This sits in `@layer base` — the
+   * unlayered legacy stylesheets (app-shell.css, the index.html <style>) still
+   * win, and Tailwind utilities (`@layer utilities`) still win over this.
+   */
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"] {
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: transparent;
+    background-image: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+  }
+
+  input,
+  textarea,
+  select {
+    background-color: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+  }
+
+  /* Typography normalisations preflight would do — legacy markdown/menu CSS
+     is unlayered and still overrides these where it needs bullets. */
+  h1, h2, h3, h4, h5, h6 {
+    font-size: inherit;
+    font-weight: inherit;
+    margin: 0;
+  }
+  p, blockquote, dl, dd, figure {
+    margin: 0;
+  }
+  ol, ul, menu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  a {
+    color: inherit;
+    text-decoration: inherit;
+  }
+}

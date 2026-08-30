@@ -99,7 +99,10 @@ For broad creation or reconstruction, prepare/load a review, generate or inspect
 the preview, validate it and wait for explicit approval before saving. If the
 user supplied a raw process description and no semantic model exists yet, call
 prepare_canvas_bpmn_review using that description. Do not infer missing process
-semantics from raw canvas XML alone.
+semantics from raw canvas XML alone. The visible canvas must stay operational:
+show BPMN flow nodes, gateways, lanes and sequence flows; keep rules, unknowns,
+data objects, handoffs and traceability in the semantic payload, not as visible
+text annotations or data artifacts.
 """.strip()
 
 VALIDATION_TOOL_POLICY = """
@@ -114,10 +117,11 @@ LAYOUT_TOOL_POLICY = """
 Canvas Drawing/Layout subagent tools.
 
 Own visual readability only: layout, spacing, row wrapping, lane size,
-annotation placement, data object placement and edge routing. Do not alter
-business semantics, labels, owners or sequence flow source/target. A layout
-pass should end with layout validation and a saved BPMN XML version only when
-the geometry is readable.
+and edge routing. Remove semantic text annotations, association edges and data
+artifacts from the visible canvas before layout; they belong in the canonical
+BPMNSemanticModel payload. Do not alter business semantics, labels, owners or
+sequence flow source/target. A layout pass should end with layout validation and
+a saved BPMN XML version only when the geometry is readable.
 """.strip()
 
 

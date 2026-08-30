@@ -1,0 +1,79 @@
+{
+  "breadcrumb": {
+    "projects": "Progetti",
+    "portfolio": "Portafoglio progetti"
+  },
+  "list": {
+    "title": "Progetti",
+    "description": "Monitora lo stato del portafoglio progetti di consulenza e avanza con decisioni informate.",
+    "actions": { "new": "Nuovo progetto" },
+    "filter": {
+      "placeholder": "Cerca progetti…",
+      "client": "Cliente",
+      "status": "Stato",
+      "phase": "Fase",
+      "owner": "Owner"
+    },
+    "columns": {
+      "project": "Progetto",
+      "client": "Cliente",
+      "phase": "Fase corrente",
+      "owner": "Owner",
+      "status": "Stato",
+      "processes": "Proc.",
+      "progress": "Avanzamento"
+    },
+    "owner": { "unassigned": "Da assegnare" },
+    "empty": {
+      "title": "Nessun progetto",
+      "description": "Crea il primo progetto dalla chat agente."
+    },
+    "pagination": {
+      "total": "Vista {{from}}–{{to}} di {{count}} progetti"
+    }
+  },
+  "detail": {
+    "backToList": "Torna ai progetti",
+    "phaseLabel": "Fase",
+    "actions": {
+      "updateStatus": "Aggiorna stato",
+      "openRoadmap": "Apri roadmap"
+    },
+    "tabs": {
+      "overview": "Panoramica",
+      "processes": "Processi",
+      "sources": "Fonti",
+      "decisions": "Decisioni",
+      "analysis": "Analisi",
+      "kpi": "KPI",
+      "team": "Team"
+    },
+    "overview": {
+      "processes": "Processi in scope",
+      "decisions": "Decisioni",
+      "kpi": "KPI di progetto",
+      "team": "Team"
+    },
+    "processes": { "empty": "Nessun processo in scope" },
+    "sources": { "empty": "Nessuna fonte collegata" },
+    "decisions": { "empty": "Nessuna decisione registrata" },
+    "unavailable": {
+      "title": "Non disponibile",
+      "kpi": "I KPI di progetto non sono ancora tracciati dal backend. La sezione si attiva quando l'endpoint è pronto.",
+      "team": "Il team di progetto non è ancora tracciato dal backend."
+    },
+    "panel": {
+      "summary": "Riepilogo progetto",
+      "openIssues": "Punti aperti",
+      "milestones": "Milestone principali",
+      "actions": "Azioni rapide",
+      "nextStep": "Prossimo passo",
+      "openRoadmap": "Apri roadmap",
+      "openProcesses": "Apri processi",
+      "selectPrompt": "Seleziona un progetto per vederne il dettaglio."
+    }
+  },
+  "state": {
+    "loadError": "Non è stato possibile caricare i progetti. Verifica che il backend sia attivo."
+  }
+}

@@ -79,6 +79,7 @@ FLOW_NODE_TYPES = {
 
 DATA_ARTIFACT_TYPES = {"dataObjectReference", "dataStoreReference"}
 ANNOTATION_TYPES = {"textAnnotation"}
+CANVAS_METADATA_ARTIFACT_TYPES = DATA_ARTIFACT_TYPES | ANNOTATION_TYPES | {"association"}
 
 LAYOUT_LEFT = 140
 LAYOUT_TOP = 190
@@ -256,6 +257,40 @@ def clear_bpmn_process(xml: str) -> tuple[str, dict]:
     updated_xml = layout_bpmn_di(_xml_to_string(root))
     return updated_xml, {
         "action": "clear_process",
+        "removed": removed,
+        "removed_count": len(removed),
+    }
+
+
+def clean_bpmn_visual_metadata_artifacts(xml: str) -> tuple[str, dict]:
+    root = _parse_bpmn_xml(xml)
+    process = _find_process(root)
+    removed = []
+
+    for element in list(process):
+        if _namespace(element.tag) != BPMN_NS:
+            continue
+
+        element_type = _local_name(element.tag)
+        if element_type not in CANVAS_METADATA_ARTIFACT_TYPES:
+            continue
+
+        element_id = element.attrib.get("id", "")
+        if element_id:
+            removed.append(
+                {
+                    "id": element_id,
+                    "type": element_type,
+                    "name": element.attrib.get("name", ""),
+                }
+            )
+        process.remove(element)
+
+    if removed:
+        _remove_di_for_elements(root, {item["id"] for item in removed if item["id"]})
+
+    return _xml_to_string(root), {
+        "action": "clean_visual_metadata_artifacts",
         "removed": removed,
         "removed_count": len(removed),
     }
@@ -950,6 +985,20 @@ def _remove_element(root: ET.Element, target: ET.Element) -> None:
                 return
 
     raise ValueError("Elemento BPMN non rimosso.")
+
+
+def _remove_di_for_elements(root: ET.Element, element_ids: set[str]) -> None:
+    if not element_ids:
+        return
+
+    for parent in root.iter():
+        for child in list(parent):
+            if _namespace(child.tag) != BPMNDI_NS:
+                continue
+            if _local_name(child.tag) not in {"BPMNShape", "BPMNEdge"}:
+                continue
+            if child.attrib.get("bpmnElement") in element_ids:
+                parent.remove(child)
 
 
 def _remove_flow_references(root: ET.Element, element_id: str) -> None:

@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select, text
 
-from backend.workspace_services.bpmn_review import build_bpmn_review_fields, bpmn_xml_from_review
+from backend.process_understanding import ProcessUnderstanding, quality_report_from_understanding
+from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
     DATA_DIR,
@@ -387,33 +388,58 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
 
 
 def review_to_dict(review: WorkspaceBpmnReview) -> dict:
-    process_understanding = json.loads(review.process_understanding_json or "{}")
     bpmn_semantic_model = json.loads(review.bpmn_semantic_model_json or "{}")
+    if not _is_canonical_semantic_model_payload(bpmn_semantic_model):
+        raise ValueError("Review BPMN legacy rifiutata: semantic model non canonicale.")
+    process_understanding = bpmn_semantic_model.get("sourceProcessUnderstanding") or {}
+    quality_report = quality_report_from_understanding(
+        ProcessUnderstanding.model_validate(process_understanding)
+    ).model_dump(mode="json")
     return {
         "bpmn_model_id": review.bpmn_model_id,
         "process_id": review.process_id,
         "source_text": review.source_text,
         "process_understanding": process_understanding,
         "bpmn_semantic_model": bpmn_semantic_model,
+        "quality_report": quality_report,
         "bpmn_brief": review.bpmn_brief,
         "readiness_score": review.readiness_score,
         "missing_information": decode_list(review.missing_information_json),
+        "status": getattr(review, "status", "pending"),
         "created_at": review.created_at,
         "updated_at": review.updated_at,
     }
 
 
-def get_bpmn_review(bpmn_model_id: str) -> dict | None:
+def get_bpmn_review(bpmn_model_id: str, include_approved: bool = False) -> dict | None:
     with workspace_connection() as session:
         review = session.get(WorkspaceBpmnReview, bpmn_model_id)
 
         if review is None:
             return None
+        if not include_approved and getattr(review, "status", "pending") != "pending":
+            return None
+        stored_semantic_model = json.loads(review.bpmn_semantic_model_json or "{}")
+        if not _is_canonical_semantic_model_payload(stored_semantic_model):
+            return None
 
         return review_to_dict(review)
 
 
-def prepare_bpmn_review(bpmn_model_id: str, process_description: str) -> dict:
+def _is_canonical_semantic_model_payload(value: dict) -> bool:
+    return bool(
+        value.get("flowNodes")
+        and value.get("sequenceFlows")
+        and value.get("compilationPlan")
+        and value.get("sourceProcessUnderstanding")
+    )
+
+
+def prepare_bpmn_review(
+    bpmn_model_id: str,
+    process_description: str,
+    process_understanding: dict | None = None,
+) -> dict:
     clean_text = process_description.strip()
     if not clean_text:
         raise ValueError("Descrizione processo obbligatoria.")
@@ -425,10 +451,11 @@ def prepare_bpmn_review(bpmn_model_id: str, process_description: str) -> dict:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
 
         bpmn_process_id = f"Process_{slugify(model.process.name, 'process').replace('-', '_')}"
-        review_fields = build_bpmn_review_fields(
+        review_draft = build_bpmn_review_draft(
             bpmn_process_id=bpmn_process_id,
             process_name=model.process.name,
             source_text=clean_text,
+            process_understanding=process_understanding,
         )
 
         timestamp = now_iso()
@@ -437,23 +464,25 @@ def prepare_bpmn_review(bpmn_model_id: str, process_description: str) -> dict:
             review = WorkspaceBpmnReview(
                 bpmn_model_id=bpmn_model_id,
                 process_id=model.process_id,
-                source_text=review_fields["source_text"],
-                process_understanding_json=review_fields["process_understanding_json"],
-                bpmn_semantic_model_json=review_fields["bpmn_semantic_model_json"],
-                bpmn_brief=review_fields["bpmn_brief"],
-                readiness_score=review_fields["readiness_score"],
-                missing_information_json=encode_list(review_fields["missing_information"]),
+                source_text=review_draft.source_text,
+                process_understanding_json=review_draft.process_understanding_json(),
+                bpmn_semantic_model_json=review_draft.bpmn_semantic_model_json(),
+                bpmn_brief=review_draft.bpmn_brief,
+                readiness_score=review_draft.readiness_score,
+                missing_information_json=encode_list(review_draft.missing_information),
+                status="pending",
                 created_at=timestamp,
                 updated_at=timestamp,
             )
             session.add(review)
         else:
-            review.source_text = review_fields["source_text"]
-            review.process_understanding_json = review_fields["process_understanding_json"]
-            review.bpmn_semantic_model_json = review_fields["bpmn_semantic_model_json"]
-            review.bpmn_brief = review_fields["bpmn_brief"]
-            review.readiness_score = review_fields["readiness_score"]
-            review.missing_information_json = encode_list(review_fields["missing_information"])
+            review.source_text = review_draft.source_text
+            review.process_understanding_json = review_draft.process_understanding_json()
+            review.bpmn_semantic_model_json = review_draft.bpmn_semantic_model_json()
+            review.bpmn_brief = review_draft.bpmn_brief
+            review.readiness_score = review_draft.readiness_score
+            review.missing_information_json = encode_list(review_draft.missing_information)
+            review.status = "pending"
             review.updated_at = timestamp
 
         session.flush()
@@ -471,10 +500,6 @@ def approve_bpmn_review(bpmn_model_id: str) -> dict:
             raise ValueError("Nessuna review BPMN pronta da approvare per questo canvas.")
 
         xml, _layout_report = optimize_bpmn_layout(bpmn_xml_from_review(
-            bpmn_process_id=f"Process_{slugify(model.process.name, 'process').replace('-', '_')}",
-            process_name=model.process.name,
-            source_text=review.source_text,
-            process_understanding_json=review.process_understanding_json,
             bpmn_semantic_model_json=review.bpmn_semantic_model_json,
         ))
         model.xml = xml
@@ -485,8 +510,9 @@ def approve_bpmn_review(bpmn_model_id: str) -> dict:
             change_summary="Generazione da review BPMN approvata",
             source="review_approval",
         )
+        review.status = "approved"
+        review.updated_at = now_iso()
         review_payload = review_to_dict(review)
-        session.delete(review)
         session.flush()
         return {
             "bpmn_model": {
@@ -639,6 +665,13 @@ def ensure_workspace_schema() -> None:
                 text(
                     "ALTER TABLE workspace_bpmn_reviews "
                     "ADD COLUMN bpmn_semantic_model_json TEXT NOT NULL DEFAULT '{}'"
+                )
+            )
+        if "status" not in review_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE workspace_bpmn_reviews "
+                    "ADD COLUMN status VARCHAR NOT NULL DEFAULT 'pending'"
                 )
             )
 

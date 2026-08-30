@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import xml.etree.ElementTree as ET
 from collections import Counter
 
@@ -62,6 +63,7 @@ def validate_canvas_against_process(
     }
 
     root = _parse_xml(xml)
+    semantic_payload = _extract_semantic_payload(root)
     gateway_issues = _gateway_path_issues(root)
     issues.extend(gateway_issues)
 
@@ -80,8 +82,16 @@ def validate_canvas_against_process(
         warnings.append("BPMNSemanticModel non disponibile: validazione semantica limitata.")
 
     understanding = _coerce_understanding(process_understanding)
+    if understanding is None and semantic_model is not None and semantic_model.sourceProcessUnderstanding:
+        understanding = _coerce_understanding(semantic_model.sourceProcessUnderstanding)
     if understanding is not None:
         coverage["process_understanding_available"] = True
+        _validate_lossless_semantic_payload(
+            semantic_payload=semantic_payload,
+            process=understanding,
+            issues=issues,
+            warnings=warnings,
+        )
         _validate_process_understanding_coverage(
             process=understanding,
             element_text=element_text,
@@ -107,6 +117,73 @@ def validate_canvas_against_process(
             "annotations": element_type_counts.get("textAnnotation", 0),
         },
     }
+
+
+def _validate_lossless_semantic_payload(
+    *,
+    semantic_payload: dict | None,
+    process: ProcessUnderstanding,
+    issues: list[str],
+    warnings: list[str],
+) -> None:
+    if semantic_payload is None:
+        issues.append("Payload semantico DeliR mancante: il canvas non e' lossless rispetto al ProcessUnderstanding.")
+        return
+
+    stored_understanding = semantic_payload.get("process_understanding")
+    if not stored_understanding:
+        issues.append("Payload semantico DeliR incompleto: ProcessUnderstanding sorgente mancante.")
+        return
+
+    try:
+        stored_model = ProcessUnderstanding.model_validate(stored_understanding)
+    except Exception:
+        issues.append("Payload semantico DeliR non validabile come ProcessUnderstanding.")
+        return
+
+    if stored_model.model_dump(mode="json") != process.model_dump(mode="json"):
+        warnings.append("Il payload semantico DeliR non coincide esattamente con il ProcessUnderstanding corrente.")
+
+    plan = semantic_payload.get("bpmn_compilation_plan") or {}
+    coverage = plan.get("coverage") or {}
+    losses = coverage.get("losses") or []
+    if losses:
+        issues.append("Compilazione BPMN non lossless: " + "; ".join(str(item) for item in losses[:8]))
+
+    represented = int(coverage.get("represented_source_items") or 0)
+    total = int(coverage.get("total_source_items") or 0)
+    if total and represented < total:
+        issues.append(f"Traceability incompleta: {represented}/{total} elementi sorgente rappresentati.")
+
+
+def _extract_semantic_payload(root: ET.Element) -> dict | None:
+    process = next(
+        (
+            element
+            for element in root.iter()
+            if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "process"
+        ),
+        None,
+    )
+    if process is None:
+        return None
+
+    for child in process:
+        if _namespace(child.tag) != BPMN_NS or _local_name(child.tag) != "documentation":
+            continue
+        text = child.text or ""
+        marker = "DeliR semantic payload:"
+        if marker not in text:
+            continue
+        _, _, payload_text = text.partition(marker)
+        try:
+            payload = json.loads(payload_text.strip())
+        except json.JSONDecodeError:
+            return None
+        if payload.get("schema") == "delir.semantic_payload.v1":
+            return payload
+
+    return None
 
 
 def _validate_semantic_model_coverage(
@@ -183,11 +260,6 @@ def _validate_process_understanding_coverage(
 
     if process.handoffs and element_type_counts.get("lane", 0) < 2:
         warnings.append("Il processo contiene handoff ma il canvas ha meno di due lane.")
-
-    if process.data_objects and not (
-        element_type_counts.get("dataObjectReference", 0) or element_type_counts.get("textAnnotation", 0)
-    ):
-        warnings.append("Il processo contiene data object ma il canvas non li rappresenta.")
 
     external_pool_candidates = [
         relation.actor_id

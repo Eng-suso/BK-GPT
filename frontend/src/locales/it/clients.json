@@ -1,0 +1,39 @@
+{
+  "breadcrumb": { "clients": "Clienti", "directory": "Anagrafica clienti" },
+  "list": {
+    "title": "Clienti",
+    "description": "Clienti, referenti, processi collegati e prossime attività operative.",
+    "actions": { "new": "Nuovo cliente" },
+    "filter": {
+      "placeholder": "Cerca clienti…",
+      "status": "Stato",
+      "owner": "Owner",
+      "sector": "Settore"
+    },
+    "columns": {
+      "client": "Cliente",
+      "status": "Stato",
+      "projects": "Progetti",
+      "nextActivity": "Prossima attività",
+      "owner": "Owner"
+    },
+    "empty": {
+      "title": "Nessun cliente",
+      "description": "Crea il primo cliente dalla chat agente."
+    },
+    "pagination": { "total": "Vista {{from}}–{{to}} di {{count}} clienti" }
+  },
+  "detail": {
+    "summary": "Riepilogo",
+    "activeProjects": "Progetti attivi",
+    "owner": "Responsabile",
+    "contact": "Referente",
+    "nextActivity": "Prossima attività",
+    "processes": "Processi attivi",
+    "documents": "Documenti recenti",
+    "selectPrompt": "Seleziona un cliente per vederne il dettaglio."
+  },
+  "state": {
+    "loadError": "Non è stato possibile caricare i clienti. Verifica che il backend sia attivo."
+  }
+}

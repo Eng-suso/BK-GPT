@@ -1,173 +1,182 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { WorkspacePage } from "../../components/workspace";
-import { apiClientsSchema, apiProjectsSchema, toClient, toProject } from "../../contracts/workspace";
-import type { Client } from "../../contracts/workspace";
-import type { Project } from "../projects/projectData";
-import { API_BASE } from "../../lib/api";
-import { onWorkspaceChanged } from "../../lib/workspaceEvents";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
-const workspaces = [
-  {
-    title: "Consulente",
-    focus: "Chat generale",
-    note: "Conversazioni trasversali e contesto di lavoro.",
-  },
-  {
-    title: "Progetti",
-    focus: "Chat progetto",
-    note: "Fonti, decisioni, milestone e deliverable.",
-  },
-  {
-    title: "Processi",
-    focus: "Chat processo + canvas",
-    note: "Riepilogo, BPMN e proprieta operative.",
-  },
-];
+import { PageHeader } from "@/components/layout";
+import { StatusIndicator } from "@/components/status";
+import { EmptyState, ErrorState } from "@/components/feedback";
+import { Skeleton } from "@/ui/skeleton";
+import { ROUTES } from "@/app/routes";
+import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
+// Home is an aggregation dashboard; importing the projects/clients query hooks
+// is a deliberate exception to the no-cross-feature-import rule.
+import { useProjectsQuery } from "@/features/projects/api";
+import { projectStatusTone } from "@/features/projects/types";
+import { useClientsQuery } from "@/features/clients/api";
+import { clientStatusTone } from "@/features/clients/types";
 
-export const HomePage: React.FC = () => {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+export function HomePage(): React.JSX.Element {
+  const { t } = useTranslation("common");
+  useWorkspaceRefresh();
 
-  const loadWorkspace = useCallback(async () => {
-    try {
-      const [clientsRes, projectsRes] = await Promise.all([
-        fetch(`${API_BASE}/v1/workspace/clients`, { cache: "no-store" }),
-        fetch(`${API_BASE}/v1/workspace/projects`, { cache: "no-store" }),
-      ]);
+  const projectsQ = useProjectsQuery();
+  const clientsQ = useClientsQuery();
 
-      if (!clientsRes.ok || !projectsRes.ok) {
-        setLoadState("error");
-        return;
-      }
-
-      const [clientsJson, projectsJson] = await Promise.all([
-        clientsRes.json(),
-        projectsRes.json(),
-      ]);
-
-      setClients(apiClientsSchema.parse(clientsJson).map(toClient));
-      setProjects(apiProjectsSchema.parse(projectsJson).map(toProject));
-      setLoadState("ready");
-    } catch (error) {
-      console.error(error);
-      setLoadState("error");
-    }
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function init() {
-      await Promise.resolve();
-      if (isMounted) {
-        void loadWorkspace();
-      }
-    }
-
-    void init();
-    const unsubscribe = onWorkspaceChanged(() => {
-      void loadWorkspace();
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  }, [loadWorkspace]);
+  const projects = useMemo(() => projectsQ.data ?? [], [projectsQ.data]);
+  const clients = useMemo(() => clientsQ.data ?? [], [clientsQ.data]);
+  const isLoading = projectsQ.isLoading || clientsQ.isLoading;
+  const isError = projectsQ.isError || clientsQ.isError;
 
   const processCount = useMemo(
-    () => projects.reduce((total, project) => total + project.processes, 0),
+    () => projects.reduce((sum, p) => sum + (p.processes || 0), 0),
     [projects],
   );
 
   const metrics = [
-    { label: "Clienti", value: String(clients.length), note: "Creati dall'agente" },
-    { label: "Progetti", value: String(projects.length), note: "Collegati al workspace" },
-    { label: "Processi", value: String(processCount), note: "Da modellare nel canvas" },
+    { key: "clients", value: clients.length },
+    { key: "projects", value: projects.length },
+    { key: "processes", value: processCount },
   ];
 
   return (
-    <WorkspacePage
-      eyebrow="Panoramica"
-      title="Home"
-      description="Panoramica operativa di clienti, progetti e processi presenti nel workspace."
-    >
-      <div className="metric-grid">
-        {metrics.map((metric) => (
-          <article key={metric.label} className="workspace-card metric-card">
-            <span>{metric.label}</span>
-            <strong>{loadState === "loading" ? "-" : metric.value}</strong>
-            <p>{loadState === "error" ? "Backend workspace non disponibile" : metric.note}</p>
-          </article>
-        ))}
-      </div>
+    <div className="flex h-full flex-col gap-5 overflow-auto px-7 py-6">
+      <PageHeader
+        breadcrumbs={[{ label: t("nav.home") }]}
+        title={t("nav.home")}
+        description={t("home.description")}
+      />
 
-      <div className="metric-grid">
-        {workspaces.map((workspace) => (
-          <article key={workspace.title} className="workspace-card metric-card">
-            <span>{workspace.title}</span>
-            <strong>{workspace.focus}</strong>
-            <p>{workspace.note}</p>
-          </article>
-        ))}
-      </div>
-
-      <div className="workspace-two-column">
-        <section className="workspace-card">
-          <div className="section-heading">
-            <h3>Progetti</h3>
+      {isError ? (
+        <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
+          <ErrorState onRetry={() => void projectsQ.refetch()} />
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            {metrics.map((m) => (
+              <div
+                key={m.key}
+                className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(14,20,32,0.06)]"
+              >
+                <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                  {t(`home.metrics.${m.key}`)}
+                </div>
+                <div className="mt-2 text-2xl font-semibold tabular-nums tracking-[-0.02em]">
+                  {isLoading ? (
+                    <Skeleton className="h-7 w-10" />
+                  ) : (
+                    m.value
+                  )}
+                </div>
+                <div className="mt-1.5 text-[11.5px] text-muted-foreground">
+                  {t(`home.metrics.${m.key}Note`)}
+                </div>
+              </div>
+            ))}
           </div>
-          <WorkspaceList
-            emptyLabel="Nessun progetto presente."
-            items={projects.map((project) => ({
-              title: project.name,
-              meta: `${project.client} - ${project.phase}`,
-              status: project.status,
-            }))}
-          />
-        </section>
 
-        <section className="workspace-card">
-          <div className="section-heading">
-            <h3>Clienti</h3>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <HomeList
+              title={t("nav.projects")}
+              seeAllTo={ROUTES.projects.list}
+              seeAllLabel={t("home.seeAll")}
+              loading={isLoading}
+              emptyLabel={t("home.emptyProjects")}
+              items={projects.slice(0, 6).map((p) => ({
+                id: p.id,
+                to: ROUTES.projects.detail(p.id),
+                title: p.name,
+                meta: `${p.client} · ${p.phase}`,
+                tone: projectStatusTone(p.status),
+                status: p.status,
+              }))}
+            />
+            <HomeList
+              title={t("nav.clients")}
+              seeAllTo={ROUTES.clients.list}
+              seeAllLabel={t("home.seeAll")}
+              loading={isLoading}
+              emptyLabel={t("home.emptyClients")}
+              items={clients.slice(0, 6).map((c) => ({
+                id: c.id,
+                to: ROUTES.clients.list,
+                title: c.name,
+                meta: c.nextActivity,
+                tone: clientStatusTone(c.status),
+                status: c.status,
+              }))}
+            />
           </div>
-          <WorkspaceList
-            emptyLabel="Nessun cliente presente."
-            items={clients.map((client) => ({
-              title: client.name,
-              meta: client.nextActivity,
-              status: client.status,
-            }))}
-          />
-        </section>
-      </div>
-    </WorkspacePage>
+        </>
+      )}
+    </div>
   );
+}
+
+type HomeListItem = {
+  id: string;
+  to: string;
+  title: string;
+  meta: string;
+  tone: React.ComponentProps<typeof StatusIndicator>["tone"];
+  status: string;
 };
 
-function WorkspaceList({
+function HomeList({
+  title,
+  seeAllTo,
+  seeAllLabel,
+  loading,
   emptyLabel,
   items,
 }: {
+  title: string;
+  seeAllTo: string;
+  seeAllLabel: string;
+  loading: boolean;
   emptyLabel: string;
-  items: Array<{ title: string; meta: string; status: string }>;
-}) {
-  if (items.length === 0) {
-    return <p className="side-note">{emptyLabel}</p>;
-  }
-
+  items: HomeListItem[];
+}): React.JSX.Element {
   return (
-    <ul className="compact-list">
-      {items.map((item) => (
-        <li key={`${item.title}-${item.status}`}>
-          <div>
-            <strong>{item.title}</strong>
-            <span>{item.meta}</span>
-          </div>
-          <em>{item.status}</em>
-        </li>
-      ))}
-    </ul>
+    <section className="flex flex-col rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(14,20,32,0.06)]">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
+          {title}
+        </h3>
+        <Link to={seeAllTo} className="text-[12px] font-medium text-primary hover:text-primary/85">
+          {seeAllLabel}
+        </Link>
+      </div>
+      {loading ? (
+        <div className="flex flex-col gap-2 p-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-4 w-full" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <EmptyState variant="inline" title={emptyLabel} className="px-4" />
+      ) : (
+        <ul className="flex flex-col">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link
+                to={item.to}
+                className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5 last:border-b-0 hover:bg-muted/40"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[12.5px] font-medium text-foreground">
+                    {item.title}
+                  </span>
+                  <span className="block truncate text-[11.5px] text-muted-foreground">
+                    {item.meta}
+                  </span>
+                </span>
+                <StatusIndicator tone={item.tone} label={item.status} />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

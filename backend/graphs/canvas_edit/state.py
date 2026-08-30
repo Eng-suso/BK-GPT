@@ -8,7 +8,11 @@ from backend.graphs.canvas_edit.models import (
     CanvasValidationReport,
 )
 from backend.bpmn_semantic import BPMNSemanticModel
-from backend.process_understanding import ProcessUnderstanding
+from backend.process_understanding import (
+    ProcessUnderstanding,
+    ProcessUnderstandingDiagnostics,
+    ProcessUnderstandingQualityReport,
+)
 
 
 class CanvasState(ConversationState):
@@ -19,10 +23,10 @@ class CanvasState(ConversationState):
     bpmn_model_id: str
     process_name: str | None
     current_bpmn_xml: str | None
-    process_understanding_json: dict | str | None
-    bpmn_semantic_model_json: dict | str | None
-    process_understanding: ProcessUnderstanding | dict | None
-    bpmn_semantic_model: BPMNSemanticModel | dict | None
+    process_understanding: ProcessUnderstanding | None
+    process_understanding_diagnostics: ProcessUnderstandingDiagnostics | None
+    process_quality_report: ProcessUnderstandingQualityReport | None
+    bpmn_semantic_model: BPMNSemanticModel | None
     readiness_score: int | None
     missing_information: list[str]
     saved_bpmn_xml: str | None

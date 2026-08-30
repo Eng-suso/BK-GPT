@@ -13,6 +13,12 @@ from backend.graphs.canvas_edit import build_canvas_subgraph
 from backend.graphs.consulting import build_consulting_subgraph
 from backend.graphs.process import build_process_subgraph
 from backend.graphs.project import build_project_subgraph
+from backend.bpmn_semantic import BPMNSemanticModel
+from backend.process_understanding import (
+    ProcessUnderstanding,
+    ProcessUnderstandingDiagnostics,
+    ProcessUnderstandingQualityReport,
+)
 from backend.settings import ALLOWED_MODELS, DEFAULT_OPENAI_MODEL, settings
 from backend.tools import tools_by_scope
 from backend.memory.consultant_context_classifier import (
@@ -36,8 +42,10 @@ class ConsultantState(MessagesState):
     bpmn_model_id: str | None
     process_name: str | None
     current_bpmn_xml: str | None
-    process_understanding_json: dict | str | None
-    bpmn_semantic_model_json: dict | str | None
+    process_understanding: ProcessUnderstanding | None
+    process_understanding_diagnostics: ProcessUnderstandingDiagnostics | None
+    process_quality_report: ProcessUnderstandingQualityReport | None
+    bpmn_semantic_model: BPMNSemanticModel | None
     readiness_score: int | None
     missing_information: list[str]
     saved_bpmn_xml: str | None

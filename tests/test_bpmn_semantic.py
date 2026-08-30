@@ -1,3 +1,5 @@
+import json
+
 from backend.bpmn_semantic import (
     build_bpmn_semantic_model,
     semantic_model_to_bpmn_xml,
@@ -5,15 +7,36 @@ from backend.bpmn_semantic import (
 )
 from backend.process_understanding import (
     ActorRelationship,
+    BpmnLaneCandidate,
+    BpmnMessageFlowCandidate,
+    BpmnParticipantTopology,
+    BpmnPoolCandidate,
+    ConsultantFinding,
     ProcessActor,
+    ProcessBoundaries,
+    ProcessBusinessRule,
+    ProcessControl,
     ProcessDataObject,
     ProcessDecision,
+    ProcessDecisionOutcome,
+    ProcessDocumentRequirement,
+    ProcessEvent,
+    ProcessFlowEdge,
     ProcessHandoff,
     ProcessLoop,
+    ProcessParticipant,
     ProcessPath,
     ProcessStep,
     ProcessUnderstanding,
+    ProcessUnderstandingQualityReport,
+    QualityDimensionScore,
+    QualityImprovementAction,
+    QualityIssue,
+    conservative_process_quality_report,
+    process_understanding_diagnostics,
 )
+import backend.workspace_services.bpmn_review as bpmn_review_service
+from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 
@@ -39,6 +62,20 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
                 label="Ordine approvato?",
                 question="L'ordine e approvato?",
                 outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(
+                        id="Outcome_Order_Approved",
+                        label="Si",
+                        condition="Ordine approvato",
+                        target_ref="Task_Ship",
+                    ),
+                    ProcessDecisionOutcome(
+                        id="Outcome_Order_NotApproved",
+                        label="No",
+                        condition="Ordine non approvato",
+                        target_path_id="Alt_Correction",
+                    ),
+                ],
             )
         ],
         alternative_paths=[
@@ -69,6 +106,42 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
         ],
         data_objects=[
             ProcessDataObject(id="Data_Order", label="Ordine", kind="record"),
+        ],
+        flow_edges=[
+            ProcessFlowEdge(
+                id="Edge_Receive_Review",
+                source_id="Task_Receive",
+                target_id="Task_Review",
+                label="Ordine ricevuto",
+            ),
+            ProcessFlowEdge(
+                id="Edge_Review_Gateway",
+                source_id="Task_Review",
+                target_id="Gateway_Order_Approved",
+                label="Controllo completato",
+            ),
+            ProcessFlowEdge(
+                id="Edge_Gateway_Ship",
+                source_id="Gateway_Order_Approved",
+                target_id="Task_Ship",
+                label="Ordine approvato",
+                condition="Si",
+            ),
+            ProcessFlowEdge(
+                id="Edge_Gateway_Correct",
+                source_id="Gateway_Order_Approved",
+                target_id="Task_Correct",
+                label="Ordine da correggere",
+                condition="No",
+                path_id="Alt_Correction",
+            ),
+            ProcessFlowEdge(
+                id="Edge_Correct_Review",
+                source_id="Task_Correct",
+                target_id="Task_Review",
+                label="Ordine corretto",
+                path_id="Alt_Correction",
+            ),
         ],
         actor_relationships=[
             ActorRelationship(
@@ -103,12 +176,580 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     assert len(outgoing_by_node[gateway.id]) >= 2
     assert any(flow.name == "No" for flow in outgoing_by_node[gateway.id])
     assert any(flow.name == "Serve nuova revisione" for flow in model.sequenceFlows)
-    assert model.dataObjects[0].name == "Ordine"
-    assert model.associations
-    assert any("Handoff" in annotation.text for annotation in model.textAnnotations)
-    assert "dataObjectReference" in xml
-    assert "textAnnotation" in xml
-    assert "association" in xml
+    assert model.dataObjects == []
+    assert model.textAnnotations == []
+    assert model.associations == []
+    assert model.sourceProcessUnderstanding is not None
+    assert model.compilationPlan is not None
+    assert model.compilationPlan.coverage.losses == []
+    assert model.compilationPlan.coverage.represented_source_items == model.compilationPlan.coverage.total_source_items
+    assert model.compilationPlan.data_objects[0].name == "Ordine"
+    assert model.compilationPlan.data_objects[0].mapping_status == "semantic_payload"
+    assert any(
+        link.source.field == "handoffs" and link.source.id == "Handoff_Customer_Ops"
+        for link in model.compilationPlan.coverage.traceability
+    )
+    assert "DeliR semantic payload" in xml
+    assert "DeliR traceability" in xml
+    assert "dataObjectReference" not in xml
+    assert "textAnnotation" not in xml
+    assert "bpmn:association" not in xml
     assert not any("senza almeno due uscite" in warning for warning in warnings)
     assert xml_validation["valid"] is True
     assert semantic_validation["semantic_valid"] is True
+
+
+def test_canvas_validation_requires_lossless_semantic_payload_when_process_context_exists():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Review" name="Rivedi ordine"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Review" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Review" targetRef="End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process_Test" /></bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
+    process = ProcessUnderstanding(
+        title="Order Review",
+        steps=[ProcessStep(id="Task_Review", label="Rivedi ordine")],
+        sequence=["Task_Review"],
+    )
+
+    result = validate_canvas_against_process(xml=xml, process_understanding=process)
+
+    assert result["semantic_valid"] is False
+    assert any("Payload semantico DeliR mancante" in issue for issue in result["issues"])
+
+
+def test_review_xml_rejects_legacy_semantic_model_without_lossless_payload():
+    legacy_semantic_model = {
+        "id": "Process_Order_Review",
+        "name": "Order Review",
+        "flowNodes": [
+            {"id": "StartEvent_1", "type": "startEvent", "name": "Start"},
+            {"id": "Task_Review", "type": "userTask", "name": "Rivedi ordine"},
+            {"id": "EndEvent_1", "type": "endEvent", "name": "End"},
+        ],
+        "sequenceFlows": [
+            {"id": "Flow_1", "sourceRef": "StartEvent_1", "targetRef": "Task_Review"},
+            {"id": "Flow_2", "sourceRef": "Task_Review", "targetRef": "EndEvent_1"},
+        ],
+    }
+
+    try:
+        bpmn_xml_from_review(
+            bpmn_semantic_model_json=json.dumps(legacy_semantic_model),
+        )
+    except ValueError as exc:
+        assert "legacy rifiutato" in str(exc)
+    else:
+        raise AssertionError("Expected legacy BPMNSemanticModel to be rejected.")
+
+
+def test_review_xml_uses_only_canonical_semantic_model_source_of_truth():
+    process = ProcessUnderstanding(
+        title="Order Review",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[ProcessStep(id="Task_Review", label="Rivedi ordine", actor_ids=["Actor_Ops"])],
+        sequence=["Task_Review"],
+        business_rules=["Gli ordini incompleti non avanzano."],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Order_Review",
+        process_name="Order Review",
+        process=process,
+    )
+
+    xml = bpmn_xml_from_review(
+        bpmn_semantic_model_json=json.dumps(model.model_dump(mode="json")),
+    )
+    validation = validate_canvas_against_process(
+        xml=xml,
+        process_understanding=process,
+    )
+
+    assert "DeliR semantic payload" in xml
+    assert "Gli ordini incompleti non avanzano." in xml
+    assert validation["semantic_valid"] is True
+
+
+def test_process_understanding_supports_consultant_grade_discovery_contract():
+    process = ProcessUnderstanding(
+        title="Richiesta pensione di vecchiaia tramite patronato",
+        actors=[
+            ProcessActor(id="Actor_Richiedente", label="Richiedente", kind="person"),
+            ProcessActor(id="Actor_Patronato", label="Patronato", kind="organization"),
+            ProcessActor(id="Actor_INPS", label="INPS", kind="organization"),
+        ],
+        participants=[
+            ProcessParticipant(
+                id="Participant_Richiedente",
+                label="Richiedente",
+                actor_id="Actor_Richiedente",
+                kind="individual",
+                responsibility="initiator",
+                bpmn_container="lane",
+                parent_pool_id="Pool_ProcessoRichiestaPensione",
+            ),
+            ProcessParticipant(
+                id="Participant_INPS",
+                label="INPS",
+                actor_id="Actor_INPS",
+                kind="public_authority",
+                responsibility="service_provider",
+                bpmn_container="pool",
+            ),
+        ],
+        steps=[
+            ProcessStep(id="Task_ScegliPatronato", label="Sceglie il patronato", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_ConsegnaDocumenti", label="Consegna i documenti", actor_ids=["Actor_Richiedente"]),
+        ],
+        sequence=["Task_ScegliPatronato", "Task_ConsegnaDocumenti"],
+        data_objects=[
+            ProcessDataObject(id="Data_ProvvedimentoDivorzio", label="Provvedimento giudiziale di divorzio", kind="document"),
+        ],
+        document_requirements=[
+            ProcessDocumentRequirement(
+                id="DocReq_Divorzio",
+                label="Copia del provvedimento giudiziale di divorzio",
+                data_object_id="Data_ProvvedimentoDivorzio",
+                required_when="il richiedente e divorziato",
+                provided_by_actor_id="Actor_Richiedente",
+                received_by_actor_id="Actor_Patronato",
+                mandatory=True,
+            ),
+        ],
+        structured_business_rules=[
+            ProcessBusinessRule(
+                id="Rule_Divorzio",
+                label="Documento divorzio richiesto",
+                condition="stato civile divorziato",
+                consequence="richiedere copia del provvedimento giudiziale di divorzio",
+                applies_to_ids=["Data_ProvvedimentoDivorzio"],
+            ),
+        ],
+        flow_edges=[
+            ProcessFlowEdge(
+                id="Edge_Scelta_Consegna",
+                source_id="Task_ScegliPatronato",
+                target_id="Task_ConsegnaDocumenti",
+                label="Dopo appuntamento e preparazione documenti",
+            ),
+        ],
+        consultant_findings=[
+            ConsultantFinding(
+                id="Finding_INPS",
+                finding="L'inoltro a INPS e necessario ma implicito nelle note.",
+                category="assumption",
+            )
+        ],
+    )
+
+    diagnostics = process_understanding_diagnostics(process)
+    review = build_bpmn_review_draft(
+        bpmn_process_id="Process_Pensione",
+        process_name=process.title,
+        source_text="Mario Rossi sceglie il patronato e consegna i documenti.",
+        process_understanding=process,
+    )
+
+    assert diagnostics.blocking == []
+    assert diagnostics.counts["participants"] == 2
+    assert diagnostics.counts["document_requirements"] == 1
+    assert review.process_understanding.title == process.title
+    assert review.bpmn_semantic_model.sourceProcessUnderstanding is not None
+    assert review.bpmn_semantic_model_json().find("document_requirements") > 0
+    assert "Partecipanti e contenitori BPMN suggeriti" in review.bpmn_brief
+    assert "Collegamenti semantici da preservare" in review.bpmn_brief
+
+
+def test_conservative_quality_fallback_never_auto_approves_flat_summary():
+    process = ProcessUnderstanding(
+        title="Processo narrativo debole",
+        steps=[
+            ProcessStep(id="Task_1", label="Riceve una richiesta e poi fa varie verifiche"),
+            ProcessStep(id="Task_2", label="Gestisce la pratica"),
+            ProcessStep(id="Task_3", label="Comunica esito"),
+            ProcessStep(id="Task_4", label="Termina"),
+        ],
+        sequence=["Task_1", "Task_2", "Task_3", "Task_4"],
+        decisions=[
+            ProcessDecision(
+                id="Gateway_1",
+                label="Verifica esito?",
+                question="Verifica esito?",
+                outcomes=["Si", "No"],
+            )
+        ],
+    )
+
+    quality = conservative_process_quality_report(
+        process,
+        reason="Evaluator non disponibile durante il test.",
+    )
+
+    assert quality.overall_score <= 5
+    assert quality.approval_recommendation != "ready_to_generate"
+    assert any(issue.category == "quality_evaluator" for issue in quality.warnings)
+    assert any(item.dimension == "bpmn_compilability" for item in quality.dimension_scores)
+
+
+def test_quality_report_from_evaluator_drives_structured_review_readiness(monkeypatch):
+    process = ProcessUnderstanding(
+        title="Richiesta pensione di vecchiaia tramite patronato",
+        objective="Presentare domanda di pensione di vecchiaia tramite patronato fino a ricezione o sollecito.",
+        scope="AS-IS del canale patronato; canali online e call center fuori dettaglio operativo.",
+        actors=[
+            ProcessActor(id="Actor_Richiedente", label="Richiedente", kind="person"),
+            ProcessActor(id="Actor_Patronato", label="Patronato", kind="organization"),
+            ProcessActor(id="Actor_INPS", label="INPS", kind="organization"),
+        ],
+        participants=[
+            ProcessParticipant(
+                id="Participant_Richiedente",
+                label="Richiedente",
+                actor_id="Actor_Richiedente",
+                kind="individual",
+                responsibility="initiator",
+                bpmn_container="lane",
+                parent_pool_id="Pool_CanalePatronato",
+            ),
+            ProcessParticipant(
+                id="Participant_Patronato",
+                label="Patronato",
+                actor_id="Actor_Patronato",
+                kind="organization",
+                responsibility="intermediary",
+                bpmn_container="lane",
+                parent_pool_id="Pool_CanalePatronato",
+            ),
+            ProcessParticipant(
+                id="Participant_INPS",
+                label="INPS",
+                actor_id="Actor_INPS",
+                kind="public_authority",
+                responsibility="service_provider",
+                bpmn_container="pool",
+            ),
+        ],
+        bpmn_topology=BpmnParticipantTopology(
+            pools=[
+                BpmnPoolCandidate(
+                    id="Pool_CanalePatronato",
+                    label="Richiesta tramite patronato",
+                    participant_id="Participant_Patronato",
+                    actor_ids=["Actor_Richiedente", "Actor_Patronato"],
+                ),
+                BpmnPoolCandidate(
+                    id="Pool_INPS",
+                    label="INPS",
+                    participant_id="Participant_INPS",
+                    actor_ids=["Actor_INPS"],
+                    is_external=True,
+                    rendering_intent="black_box",
+                ),
+            ],
+            lanes=[
+                BpmnLaneCandidate(
+                    id="Lane_Richiedente",
+                    label="Richiedente",
+                    pool_id="Pool_CanalePatronato",
+                    participant_id="Participant_Richiedente",
+                    actor_ids=["Actor_Richiedente"],
+                ),
+                BpmnLaneCandidate(
+                    id="Lane_Patronato",
+                    label="Patronato",
+                    pool_id="Pool_CanalePatronato",
+                    participant_id="Participant_Patronato",
+                    actor_ids=["Actor_Patronato"],
+                ),
+            ],
+            message_flows=[
+                BpmnMessageFlowCandidate(
+                    id="MessageFlow_Domanda_INPS",
+                    label="Domanda pensione trasmessa a INPS",
+                    from_participant_id="Participant_Patronato",
+                    to_participant_id="Participant_INPS",
+                    from_actor_id="Actor_Patronato",
+                    to_actor_id="Actor_INPS",
+                    source_ref="Task_InoltraDomanda",
+                    artifact="Domanda pensione",
+                )
+            ],
+            black_box_participant_ids=["Participant_INPS"],
+        ),
+        events=[
+            ProcessEvent(id="StartEvent_Decisione", label="Decisione di richiedere pensione", type="start"),
+            ProcessEvent(
+                id="Timer_Decorrenza",
+                label="Primo giorno del mese successivo",
+                type="timer",
+                timing="Primo giorno del mese successivo alla domanda",
+            ),
+            ProcessEvent(id="EndEvent_PensioneRicevuta", label="Pensione ricevuta", type="end"),
+            ProcessEvent(id="EndEvent_Sollecito", label="Sollecito attivato", type="end"),
+        ],
+        steps=[
+            ProcessStep(id="Task_ScegliePatronato", label="Sceglie il patronato", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_TelefonaPatronato", label="Telefona al patronato", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_FissaAppuntamento", label="Fissa appuntamento", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_ComunicaDocumenti", label="Comunica documenti richiesti", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_PreparaDocumenti", label="Prepara documenti", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_ConsegnaDocumenti", label="Consegna documenti", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_VerificaRequisiti", label="Verifica requisiti e documenti", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_InoltraDomanda", label="Inoltra domanda a INPS", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_VerificaRicezione", label="Verifica ricezione pensione", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_RichiamaPatronato", label="Richiama il patronato", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_AttivaSollecito", label="Attiva sollecito", actor_ids=["Actor_Patronato"]),
+        ],
+        main_success_path=[
+            "Task_ScegliePatronato",
+            "Task_TelefonaPatronato",
+            "Task_FissaAppuntamento",
+            "Task_ComunicaDocumenti",
+            "Task_PreparaDocumenti",
+            "Task_ConsegnaDocumenti",
+            "Task_VerificaRequisiti",
+            "Task_InoltraDomanda",
+            "Task_VerificaRicezione",
+        ],
+        sequence=[
+            "Task_ScegliePatronato",
+            "Task_TelefonaPatronato",
+            "Task_FissaAppuntamento",
+            "Task_ComunicaDocumenti",
+            "Task_PreparaDocumenti",
+            "Task_ConsegnaDocumenti",
+            "Task_VerificaRequisiti",
+            "Task_InoltraDomanda",
+            "Task_VerificaRicezione",
+        ],
+        decisions=[
+            ProcessDecision(
+                id="Gateway_Modalita",
+                label="Modalita scelta?",
+                question="Quale modalita di presentazione viene scelta?",
+                outcomes=["Patronato", "Online", "Call center"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="Outcome_Patronato", label="Patronato", target_ref="Task_TelefonaPatronato"),
+                    ProcessDecisionOutcome(id="Outcome_Online", label="Online", target_path_id="Alt_Online"),
+                    ProcessDecisionOutcome(id="Outcome_CallCenter", label="Call center", target_path_id="Alt_CallCenter"),
+                ],
+            ),
+            ProcessDecision(
+                id="Gateway_PensioneRicevuta",
+                label="Pensione ricevuta alla data prevista?",
+                question="La pensione e stata ricevuta alla data prevista?",
+                outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="Outcome_Ricevuta", label="Si", target_ref="EndEvent_PensioneRicevuta", ends_process=True),
+                    ProcessDecisionOutcome(id="Outcome_NonRicevuta", label="No", target_ref="Task_RichiamaPatronato"),
+                ],
+            ),
+        ],
+        alternative_paths=[
+            ProcessPath(
+                id="Alt_Sollecito",
+                label="Pensione non ricevuta",
+                trigger_or_condition="No alla verifica ricezione pensione",
+                sequence=["Task_RichiamaPatronato", "Task_AttivaSollecito"],
+                ends_at="EndEvent_Sollecito",
+            ),
+        ],
+        out_of_scope_alternatives=[
+            ProcessPath(id="Alt_Online", label="Presentazione online", trigger_or_condition="Scelta online", ends_at="EndEvent_PensioneRicevuta"),
+            ProcessPath(
+                id="Alt_CallCenter",
+                label="Presentazione tramite call center",
+                trigger_or_condition="Scelta call center",
+                ends_at="EndEvent_PensioneRicevuta",
+            ),
+        ],
+        data_objects=[
+            ProcessDataObject(id="Data_DocumentoIdentita", label="Documento identita valido", kind="document"),
+            ProcessDataObject(id="Data_ProvvedimentoDivorzio", label="Provvedimento giudiziale di divorzio", kind="document"),
+        ],
+        document_requirements=[
+            ProcessDocumentRequirement(
+                id="DocReq_DocumentoIdentita",
+                label="Copia documento identita valido",
+                data_object_id="Data_DocumentoIdentita",
+                required_when="sempre",
+                provided_by_actor_id="Actor_Richiedente",
+                received_by_actor_id="Actor_Patronato",
+                validation_owner_actor_id="Actor_Patronato",
+                mandatory=True,
+            ),
+            ProcessDocumentRequirement(
+                id="DocReq_Divorzio",
+                label="Copia provvedimento giudiziale di divorzio",
+                data_object_id="Data_ProvvedimentoDivorzio",
+                required_when="richiedente divorziato",
+                provided_by_actor_id="Actor_Richiedente",
+                received_by_actor_id="Actor_Patronato",
+                validation_owner_actor_id="Actor_Patronato",
+                mandatory=True,
+            ),
+        ],
+        controls=[
+            ProcessControl(
+                id="Control_Requisiti",
+                label="Controllo requisiti pensione",
+                control_type="eligibility",
+                checked_item="67 anni di eta e 20 anni di contributi",
+                control_owner_actor_id="Actor_Patronato",
+                pass_condition="requisiti soddisfatti",
+                fail_condition="requisiti non soddisfatti",
+                pass_target_ref="Task_InoltraDomanda",
+            ),
+            ProcessControl(
+                id="Control_Documenti",
+                label="Controllo documentazione",
+                control_type="document_correctness",
+                checked_item="completezza e correttezza documenti richiesti",
+                control_owner_actor_id="Actor_Patronato",
+                pass_condition="documentazione corretta",
+                fail_condition="documentazione mancante o errata",
+                pass_target_ref="Task_InoltraDomanda",
+            ),
+        ],
+        structured_business_rules=[
+            ProcessBusinessRule(
+                id="Rule_Decorrenza",
+                label="Decorrenza pensione",
+                condition="domanda presentata e requisiti/documenti corretti",
+                consequence="pensione attesa dal primo giorno del mese successivo",
+                applies_to_ids=["Timer_Decorrenza"],
+            ),
+            ProcessBusinessRule(
+                id="Rule_Divorzio",
+                label="Documento divorzio richiesto",
+                condition="richiedente divorziato",
+                consequence="richiedere copia del provvedimento giudiziale di divorzio",
+                applies_to_ids=["DocReq_Divorzio"],
+            ),
+            ProcessBusinessRule(
+                id="Rule_InoltroINPS",
+                label="Inoltro domanda implicito",
+                consequence="il patronato inoltra la domanda a INPS",
+                applies_to_ids=["Task_InoltraDomanda"],
+                certainty="inferred",
+            ),
+        ],
+        handoffs=[
+            ProcessHandoff(
+                id="Handoff_Richiedente_Patronato",
+                from_actor_id="Actor_Richiedente",
+                to_actor_id="Actor_Patronato",
+                artifact="Documentazione pensione",
+                trigger="Appuntamento al patronato",
+            ),
+            ProcessHandoff(
+                id="Handoff_Patronato_INPS",
+                from_actor_id="Actor_Patronato",
+                to_actor_id="Actor_INPS",
+                artifact="Domanda pensione",
+                trigger="Documentazione corretta",
+            ),
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="Edge_Start_Scelta", source_id="StartEvent_Decisione", target_id="Task_ScegliePatronato", label="Decisione di presentare domanda"),
+            ProcessFlowEdge(id="Edge_Scelta_Modalita", source_id="Task_ScegliePatronato", target_id="Gateway_Modalita", label="Dopo confronto delle modalita"),
+            ProcessFlowEdge(id="Edge_Modalita_Telefono", source_id="Gateway_Modalita", target_id="Task_TelefonaPatronato", label="Canale patronato scelto", condition="Patronato"),
+            ProcessFlowEdge(id="Edge_Telefono_Appuntamento", source_id="Task_TelefonaPatronato", target_id="Task_FissaAppuntamento", label="Richiesta appuntamento"),
+            ProcessFlowEdge(id="Edge_Appuntamento_Documenti", source_id="Task_FissaAppuntamento", target_id="Task_ComunicaDocumenti", label="Appuntamento fissato"),
+            ProcessFlowEdge(id="Edge_Documenti_Prepara", source_id="Task_ComunicaDocumenti", target_id="Task_PreparaDocumenti", label="Lista documenti ricevuta"),
+            ProcessFlowEdge(id="Edge_Prepara_Consegna", source_id="Task_PreparaDocumenti", target_id="Task_ConsegnaDocumenti", label="Documenti preparati"),
+            ProcessFlowEdge(id="Edge_Consegna_Verifica", source_id="Task_ConsegnaDocumenti", target_id="Task_VerificaRequisiti", label="Documentazione consegnata"),
+            ProcessFlowEdge(id="Edge_Verifica_Inoltro", source_id="Task_VerificaRequisiti", target_id="Task_InoltraDomanda", label="Requisiti e documenti corretti"),
+            ProcessFlowEdge(id="Edge_Inoltro_Timer", source_id="Task_InoltraDomanda", target_id="Timer_Decorrenza", label="Domanda presentata"),
+            ProcessFlowEdge(id="Edge_Timer_Verifica", source_id="Timer_Decorrenza", target_id="Task_VerificaRicezione", label="Alla data prevista"),
+            ProcessFlowEdge(id="Edge_Verifica_Gateway", source_id="Task_VerificaRicezione", target_id="Gateway_PensioneRicevuta", label="Controllo accredito pensione"),
+            ProcessFlowEdge(id="Edge_Gateway_Fine", source_id="Gateway_PensioneRicevuta", target_id="EndEvent_PensioneRicevuta", label="Pensione ricevuta", condition="Si"),
+            ProcessFlowEdge(id="Edge_Gateway_Richiamo", source_id="Gateway_PensioneRicevuta", target_id="Task_RichiamaPatronato", label="Pensione non ricevuta", condition="No"),
+            ProcessFlowEdge(id="Edge_Richiamo_Sollecito", source_id="Task_RichiamaPatronato", target_id="Task_AttivaSollecito", label="Richiesta sollecito"),
+            ProcessFlowEdge(id="Edge_Sollecito_Fine", source_id="Task_AttivaSollecito", target_id="EndEvent_Sollecito", label="Sollecito attivato"),
+        ],
+        boundaries=ProcessBoundaries(
+            start_event="Decisione di richiedere pensione di vecchiaia",
+            success_end="Pensione ricevuta",
+            failure_ends=["Sollecito attivato"],
+            in_scope=["Presentazione tramite patronato"],
+            out_of_scope=["Presentazione online", "Presentazione tramite call center"],
+        ),
+        assumptions=["L'inoltro della domanda a INPS e implicito nel ruolo del patronato."],
+        consultant_findings=[
+            ConsultantFinding(
+                id="Finding_Inoltro",
+                finding="L'inoltro a INPS e necessario ma implicito nelle note.",
+                category="assumption",
+                recommendation="Mantenerlo come attivita inferita nella review.",
+            )
+        ],
+    )
+
+    def evaluator_stub(
+        candidate: ProcessUnderstanding,
+        *,
+        source_text: str = "",
+        bpmn_warnings: list[str] | None = None,
+        use_llm: bool = True,
+    ) -> ProcessUnderstandingQualityReport:
+        assert candidate.title == process.title
+        assert source_text == "Caso pensione tramite patronato"
+        assert bpmn_warnings is not None
+        assert use_llm is True
+        return ProcessUnderstandingQualityReport(
+            overall_score=9,
+            dimension_scores=[
+                QualityDimensionScore(
+                    dimension="pool_lane_separation",
+                    score=9,
+                    findings=["Pool/lane e black box separati in modo coerente."],
+                ),
+                QualityDimensionScore(
+                    dimension="flow_edge_readability",
+                    score=9,
+                    findings=["Flow edge leggibili e orientati alla generazione canvas."],
+                ),
+            ],
+            blocking_issues=[],
+            warnings=[
+                QualityIssue(
+                    id="QualityWarning_Assumption",
+                    severity="note",
+                    category="assumption",
+                    message="Inoltro a INPS mantenuto come inferenza esplicita.",
+                )
+            ],
+            improvement_actions=[
+                QualityImprovementAction(
+                    id="Improve_Layout",
+                    priority="low",
+                    target_field="bpmn_layout",
+                    action="Mantenere il ramo di sollecito sotto il main path.",
+                )
+            ],
+            approval_recommendation="ready_to_generate",
+        )
+
+    monkeypatch.setattr(
+        bpmn_review_service,
+        "evaluate_process_understanding_quality",
+        evaluator_stub,
+    )
+    review = build_bpmn_review_draft(
+        bpmn_process_id="Process_Pensione",
+        process_name=process.title,
+        source_text="Caso pensione tramite patronato",
+        process_understanding=process,
+    )
+
+    assert review.readiness_score >= 9
+    assert review.quality_report.approval_recommendation == "ready_to_generate"
+    assert json.loads(review.process_understanding_json())["quality_report"]["overall_score"] == 9
+    assert "Controlli e verifiche" in review.bpmn_brief
+    assert "Topologia BPMN proposta" in review.bpmn_brief

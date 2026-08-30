@@ -1,0 +1,410 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;450;500;600;700&display=swap');
+    :root {
+      --bg: #f6f8fa; --surface: #ffffff; --surface-2: #f9fafc;
+      --border: #e6e8ee; --hair: #eef0f4;
+      --ink: #0e1420; --ink-2: #48505e; --ink-3: #858d9b;
+      --blue: #1d4ed8; --blue-hover: #1740b8; --blue-wash: #eef3fd; --blue-line: #d3e0fa;
+      --green: #157f52; --amber: #b0740f; --red: #c9362f; --gray-dot: #9aa2b0;
+      --sh-1: 0 1px 2px rgba(14,20,32,0.05);
+      --sh-card: 0 1px 3px rgba(14,20,32,0.06), 0 1px 2px -1px rgba(14,20,32,0.05);
+      --sh-panel: 0 0 0 1px rgba(14,20,32,0.03), 0 18px 44px -18px rgba(14,20,32,0.16);
+      --r-ctl: 8px; --r-card: 12px;
+      --focus: 0 0 0 3px rgba(29,78,216,0.16);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-size: 13px; letter-spacing: -0.01em; }
+    a { color: var(--blue); text-decoration: none; } a:hover { color: var(--blue-hover); }
+    h1,h2,h3,h4 { margin: 0; font-weight: 600; }
+    ul { margin: 0; padding: 0; list-style: none; }
+    button { font-family: inherit; }
+    ::selection { background: rgba(37,99,235,0.16); }
+
+    .shell { display: grid; grid-template-columns: 224px minmax(0,1fr); height: 1000px; }
+
+    /* Sidebar */
+    .side { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 18px 14px; }
+    .wordmark { font-size: 19px; font-weight: 700; color: var(--blue); letter-spacing: -0.03em; padding: 4px 8px 22px; }
+    .nav { display: flex; flex-direction: column; gap: 2px; }
+    .nav-item { position: relative; display: flex; align-items: center; gap: 11px; height: 37px; padding: 0 11px; border-radius: 8px; color: var(--ink-2); font-weight: 450; font-size: 13.5px; }
+    .nav-item svg { width: 17px; height: 17px; opacity: 0.7; }
+    .nav-item:hover { background: var(--surface-2); color: var(--ink); }
+    .nav-item.on { background: var(--blue-wash); color: var(--blue); font-weight: 550; }
+    .nav-item.on svg { opacity: 1; }
+    .nav-item.on::before { content: ""; position: absolute; left: -14px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--blue); }
+    .side-foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--hair); display: flex; flex-direction: column; gap: 2px; }
+
+    /* Topbar */
+    .work { display: grid; grid-template-rows: 61px minmax(0,1fr); min-width: 0; }
+    .topbar { display: flex; align-items: center; gap: 14px; padding: 0 22px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .tenant { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--r-ctl); font-size: 13px; font-weight: 500; box-shadow: var(--sh-1); }
+    .tenant .g { width: 15px; height: 15px; color: var(--ink-3); }
+    .tenant .cv { width: 13px; height: 13px; color: var(--ink-3); }
+    .search { flex: 1; max-width: 440px; display: flex; align-items: center; gap: 9px; height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface-2); color: var(--ink-3); }
+    .search svg { width: 15px; height: 15px; }
+    .search input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 13px; width: 100%; color: var(--ink); letter-spacing: -0.01em; }
+    .spacer { flex: 1; }
+    .daterange { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--r-ctl); font-size: 12.5px; font-weight: 500; color: var(--ink-2); box-shadow: var(--sh-1); }
+    .daterange svg { width: 14px; height: 14px; color: var(--ink-3); }
+    .bell { position: relative; width: 34px; height: 34px; border-radius: var(--r-ctl); background: transparent; border: 0; display: grid; place-items: center; color: var(--ink-2); }
+    .bell:hover { background: var(--surface-2); }
+    .bell svg { width: 17px; height: 17px; }
+    .bell .n { position: absolute; top: 2px; right: 2px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px; background: var(--red); color: #fff; font-size: 9px; font-weight: 700; display: grid; place-items: center; border: 2px solid var(--surface); }
+    .user { display: inline-flex; align-items: center; gap: 9px; padding: 3px 7px 3px 3px; border-radius: 9px; }
+    .user:hover { background: var(--surface-2); }
+    .user .av { width: 30px; height: 30px; border-radius: 999px; background: #eceef2; color: var(--ink-2); display: grid; place-items: center; font-size: 11px; font-weight: 600; box-shadow: inset 0 0 0 1px rgba(18,21,27,0.05); }
+    .user .nm { line-height: 1.25; }
+    .user .nm strong { display: block; font-size: 12.5px; font-weight: 600; }
+    .user .nm span { font-size: 11px; color: var(--ink-3); }
+    .user .cv { width: 13px; height: 13px; color: var(--ink-3); }
+
+    .content { display: grid; grid-template-columns: minmax(0,1fr) 352px; min-height: 0; }
+    .main-col { padding: 26px 30px; display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
+
+    .crumb { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-3); }
+    .crumb svg { width: 12px; height: 12px; }
+    .crumb b { color: var(--ink-2); font-weight: 450; }
+
+    .page-head h1 { font-size: 24px; font-weight: 600; letter-spacing: -0.03em; }
+    .page-head p { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-2); max-width: 560px; line-height: 1.5; }
+
+    .toolbar { display: flex; align-items: center; gap: 8px; }
+    .t-search { display: flex; align-items: center; gap: 7px; height: 33px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); width: 208px; color: var(--ink-3); box-shadow: var(--sh-1); }
+    .t-search svg { width: 13px; height: 13px; }
+    .t-search input { border: 0; outline: 0; background: transparent; font: inherit; font-size: 12.5px; width: 100%; color: var(--ink); }
+    .fdrop { display: inline-flex; align-items: center; gap: 6px; height: 33px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); font-size: 12.5px; font-weight: 450; color: var(--ink-2); box-shadow: var(--sh-1); }
+    .fdrop svg { width: 12px; height: 12px; color: var(--ink-3); }
+    .link-btn { background: transparent; border: 0; color: var(--blue); font-size: 12.5px; font-weight: 500; padding: 0 6px; }
+    .btn-new { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 16px; border-radius: var(--r-ctl); background: var(--blue); color: #fff; border: 0; font-size: 13px; font-weight: 550; letter-spacing: -0.012em; box-shadow: 0 1px 2px rgba(14,20,32,0.14), 0 2px 8px -2px rgba(29,78,216,0.4), inset 0 1px 0 rgba(255,255,255,0.16); }
+    .btn-new:hover { background: var(--blue-hover); }
+    .btn-new svg { width: 15px; height: 15px; }
+
+    /* Table */
+    .tbl-card { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); box-shadow: var(--sh-card); overflow: hidden; }
+    .tbl-scroll { flex: 1; min-height: 0; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { text-align: left; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.055em; color: var(--ink-3); padding: 12px 18px; border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface); }
+    thead th .sh { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+    thead th .sh svg { width: 11px; height: 11px; opacity: 0.7; }
+    thead th.r { text-align: right; }
+    tbody td { padding: 0 18px; height: 62px; border-bottom: 1px solid var(--hair); vertical-align: middle; color: var(--ink-2); }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr { position: relative; }
+    tbody tr:hover td { background: var(--surface-2); }
+    tbody tr.sel td { background: var(--blue-wash); }
+    tbody tr.sel td:first-child::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--blue); }
+    .star { width: 15px; height: 15px; color: var(--ink-3); }
+    .star.f { color: var(--blue); }
+    .cell-name .txt strong { display: block; font-size: 13.5px; font-weight: 600; color: var(--blue); letter-spacing: -0.012em; }
+    .cell-name .txt span { font-size: 12px; color: var(--ink-3); }
+    .two strong { display: block; color: var(--ink); font-weight: 450; font-size: 13px; }
+    .two span { font-size: 11.5px; color: var(--ink-3); }
+    .who { display: inline-flex; align-items: center; gap: 8px; }
+    .who .av { width: 23px; height: 23px; border-radius: 999px; background: #eceef2; color: var(--ink-2); display: grid; place-items: center; font-size: 9.5px; font-weight: 600; box-shadow: inset 0 0 0 1px rgba(18,21,27,0.05); }
+    .who span { color: var(--ink); }
+    .st { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink); }
+    .st i { width: 6px; height: 6px; border-radius: 999px; box-shadow: 0 0 0 3px rgba(0,0,0,0.035); }
+    .st.ok i { background: var(--green); } .st.late i { background: var(--amber); } .st.late { color: #a76a10; } .st.block i { background: var(--red); } .st.block { color: var(--red); } .st.done i { background: var(--gray-dot); }
+    .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+    .prog { display: inline-flex; align-items: center; gap: 10px; }
+    .prog .t { width: 100px; height: 5px; border-radius: 999px; background: #eceef1; overflow: hidden; }
+    .prog .t span { display: block; height: 100%; border-radius: 999px; background: var(--blue); }
+    .prog b { font-size: 12.5px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 30px; }
+    .kebab { width: 26px; height: 26px; border-radius: 7px; border: 0; background: transparent; color: var(--ink-3); display: grid; place-items: center; }
+    .kebab:hover { background: var(--hair); color: var(--ink-2); }
+    .kebab svg { width: 15px; height: 15px; }
+
+    .tbl-foot { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--ink-3); background: var(--surface); }
+    .pager { display: flex; align-items: center; gap: 4px; }
+    .pager button { height: 28px; min-width: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; box-shadow: var(--sh-1); }
+    .pager button.on { background: var(--blue); border-color: var(--blue); color: #fff; box-shadow: 0 1px 2px rgba(37,99,235,0.24); }
+    .pager .pp { display: inline-flex; align-items: center; gap: 5px; }
+    .pager .pp svg { width: 11px; height: 11px; color: var(--ink-3); }
+
+    /* Detail panel */
+    .panel { border-left: 1px solid var(--border); background: var(--surface); padding: 20px 20px 0; overflow: hidden; display: flex; flex-direction: column; box-shadow: -16px 0 40px -24px rgba(18,21,27,0.10); }
+    .p-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 18px; }
+    .p-head h3 { font-size: 15.5px; font-weight: 600; letter-spacing: -0.02em; }
+    .p-head p { margin: 3px 0 0; font-size: 12px; color: var(--ink-3); }
+    .p-close { width: 26px; height: 26px; border: 0; background: transparent; color: var(--ink-3); display: grid; place-items: center; border-radius: 7px; }
+    .p-close:hover { background: var(--surface-2); }
+    .p-close svg { width: 15px; height: 15px; }
+    .p-sec { padding: 16px 0; border-top: 1px solid var(--hair); }
+    .p-sec-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .p-sec-h h4 { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.055em; color: var(--ink-3); }
+    .p-sec-h .more { width: 20px; height: 20px; border: 0; background: transparent; color: var(--ink-3); border-radius: 5px; display: grid; place-items: center; }
+    .p-sec-h .more svg { width: 14px; height: 14px; }
+    .kv { display: flex; flex-direction: column; }
+    .kv > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--hair); font-size: 12.5px; }
+    .kv > div:last-child { border-bottom: 0; }
+    .kv dt { color: var(--ink-3); } .kv dd { margin: 0; color: var(--ink); font-weight: 500; text-align: right; }
+    .kv .sub2 { color: var(--ink-3); font-weight: 400; }
+    .rowlist { display: flex; flex-direction: column; }
+    .rowlist li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hair); font-size: 12.5px; color: var(--ink); }
+    .rowlist li:last-child { border-bottom: 0; }
+    .rowlist .date { margin-left: auto; font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+    .rowlist .mstat { width: 15px; height: 15px; flex: none; }
+    .rowlist .mstat.ok { color: var(--green); } .rowlist .mstat.wait { color: var(--amber); } .rowlist .mstat.todo { color: var(--ink-3); }
+    .prio { flex: none; height: 19px; padding: 0 7px; border-radius: 5px; font-size: 10.5px; font-weight: 600; display: inline-flex; align-items: center; }
+    .prio.alta { background: #fdecec; color: var(--red); } .prio.media { background: #fbf1de; color: #a76a10; }
+    .seelink { display: inline-block; margin-top: 12px; font-size: 12px; font-weight: 500; }
+    .qa { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-bottom: 20px; }
+    .qa button { display: flex; align-items: center; gap: 8px; height: 35px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--surface); font-size: 12px; font-weight: 450; color: var(--ink); text-align: left; box-shadow: var(--sh-1); }
+    .qa button:hover { background: var(--surface-2); border-color: #dcdde3; }
+    .qa button svg.ic { width: 14px; height: 14px; color: var(--ink-3); flex: none; }
+    .qa button svg.cv { width: 12px; height: 12px; color: var(--ink-3); margin-left: auto; flex: none; }
+  </style>
+</helmet>
+
+<div class="shell">
+  <aside class="side">
+    <div class="wordmark">DeliR</div>
+    <nav class="nav">
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg>Home</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>Clienti</div>
+      <div class="nav-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Progetti</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg>Modelli</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/></svg>Archivio</div>
+    </nav>
+    <div class="side-foot">
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 0 1 5.6 1c0 2-3 2.5-3 2.5M12 17h.01"/></svg>Aiuto</div>
+      <div class="nav-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.18V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4.5a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6.28 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 12 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.18l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 12v.1a2 2 0 0 1 0 4Z"/></svg>Profilo / Impostazioni</div>
+    </div>
+  </aside>
+
+  <div class="work">
+    <header class="topbar">
+      <div class="tenant"><svg class="g" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h4M10 13h4M10 17h4"/></svg>Gruppo DeliR<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+      <div class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Cerca processi, KPI, documenti…" /></div>
+      <div class="spacer"></div>
+      <div class="daterange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>01 mag – 31 lug 2024<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:13px;height:13px;"><path d="m6 9 6 6 6-6"/></svg></div>
+      <button class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="n">3</span></button>
+      <div class="user"><span class="av">MB</span><span class="nm"><strong>Marco Bianchi</strong><span>Admin</span></span><svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+    </header>
+
+    <div class="content">
+      <div class="main-col">
+        <div class="crumb"><span>Progetti</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg><b>Portafoglio progetti</b></div>
+
+        <div class="page-head">
+          <h1>Progetti</h1>
+          <p>Monitora lo stato del portafoglio progetti di consulenza e avanza con decisioni informate.</p>
+        </div>
+
+        <div class="toolbar">
+          <div class="t-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Cerca progetti…" /></div>
+          <span class="fdrop">Cliente <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+          <span class="fdrop">Stato <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+          <span class="fdrop">Fase <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+          <span class="fdrop">Owner <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
+          <button class="link-btn">Ripristina</button>
+          <button class="btn-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuovo progetto</button>
+        </div>
+
+        <div class="tbl-card">
+          <div class="tbl-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:36px;"></th>
+                <th><span class="sh">Progetto <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m8 9 4-4 4 4M8 15l4 4 4-4"/></svg></span></th>
+                <th>Cliente</th>
+                <th>Fase corrente</th>
+                <th>Owner</th>
+                <th>Scadenza</th>
+                <th>Stato</th>
+                <th class="r">Proc.</th>
+                <th><span class="sh">Avanzamento <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span></th>
+                <th style="width:44px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="sel">
+                <td><svg class="star f" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="m12 2 3 6.9 7.5.8-5.6 5 1.6 7.4L12 24l-6.5-1.9 1.6-7.4-5.6-5 7.5-.8Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>Trasformazione Supply Chain</strong><span>Ridisegno end-to-end e digitalizzazione</span></span></span></td>
+                <td><a href="#">Acme S.p.A.</a></td>
+                <td class="two"><strong>Implementazione</strong><span>Esecuzione</span></td>
+                <td><span class="who"><span class="av">SB</span><span>Sara Bellini</span></span></td>
+                <td style="color:var(--ink);">30/09/2024</td>
+                <td><span class="st ok"><i></i>In corso</span></td>
+                <td class="num">28</td>
+                <td><span class="prog"><span class="t"><span style="width:62%"></span></span><b>62%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><svg class="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 2.6 5.9 6.4.7-4.8 4.3 1.4 6.3L12 21l-5.6 2.2 1.4-6.3-4.8-4.3 6.4-.7Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>Ottimizzazione Order-to-Cash</strong><span>Miglioramento ciclo O2C</span></span></span></td>
+                <td>Beta Industria S.r.l.</td>
+                <td class="two"><strong>Analisi</strong><span>Mappatura AS-IS</span></td>
+                <td><span class="who"><span class="av">FM</span><span>Fabio Moretti</span></span></td>
+                <td style="color:var(--ink);">15/08/2024</td>
+                <td><span class="st ok"><i></i>In corso</span></td>
+                <td class="num">21</td>
+                <td><span class="prog"><span class="t"><span style="width:38%"></span></span><b>38%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><svg class="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 2.6 5.9 6.4.7-4.8 4.3 1.4 6.3L12 21l-5.6 2.2 1.4-6.3-4.8-4.3 6.4-.7Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>Implementazione ERP Finance</strong><span>Roll-out modulo Finance</span></span></span></td>
+                <td>Gamma S.p.A.</td>
+                <td class="two"><strong>Implementazione</strong><span>Esecuzione</span></td>
+                <td><span class="who"><span class="av">LC</span><span>Luca Conti</span></span></td>
+                <td style="color:var(--ink);">31/10/2024</td>
+                <td><span class="st ok"><i></i>In corso</span></td>
+                <td class="num">17</td>
+                <td><span class="prog"><span class="t"><span style="width:55%"></span></span><b>55%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><svg class="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 2.6 5.9 6.4.7-4.8 4.3 1.4 6.3L12 21l-5.6 2.2 1.4-6.3-4.8-4.3 6.4-.7Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>Ridefinizione Processo Acquisti</strong><span>Efficienza e compliance</span></span></span></td>
+                <td>Delta S.r.l.</td>
+                <td class="two"><strong>Design</strong><span>Soluzione TO-BE</span></td>
+                <td><span class="who"><span class="av">SB</span><span>Sara Bellini</span></span></td>
+                <td style="color:var(--ink);">20/09/2024</td>
+                <td><span class="st late"><i></i>In ritardo</span></td>
+                <td class="num">14</td>
+                <td><span class="prog"><span class="t"><span style="width:72%"></span></span><b>72%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><svg class="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 2.6 5.9 6.4.7-4.8 4.3 1.4 6.3L12 21l-5.6 2.2 1.4-6.3-4.8-4.3 6.4-.7Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>PMO e Governance dei Progetti</strong><span>Setup PMO e KPI framework</span></span></span></td>
+                <td>Epsilon S.p.A.</td>
+                <td class="two"><strong>Pianificazione</strong><span>Kick-off</span></td>
+                <td><span class="who"><span class="av">FM</span><span>Fabio Moretti</span></span></td>
+                <td style="color:var(--ink);">31/07/2024</td>
+                <td><span class="st late"><i></i>In ritardo</span></td>
+                <td class="num">9</td>
+                <td><span class="prog"><span class="t"><span style="width:18%"></span></span><b>18%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><svg class="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 2.6 5.9 6.4.7-4.8 4.3 1.4 6.3L12 21l-5.6 2.2 1.4-6.3-4.8-4.3 6.4-.7Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>Trasformazione Customer Service</strong><span>Omnicanalità e automazione</span></span></span></td>
+                <td>Zeta Retail S.p.A.</td>
+                <td class="two"><strong>Implementazione</strong><span>Esecuzione</span></td>
+                <td><span class="who"><span class="av">GB</span><span>Giulia Bianchi</span></span></td>
+                <td style="color:var(--ink);">15/11/2024</td>
+                <td><span class="st ok"><i></i>In corso</span></td>
+                <td class="num">19</td>
+                <td><span class="prog"><span class="t"><span style="width:47%"></span></span><b>47%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><svg class="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 2.6 5.9 6.4.7-4.8 4.3 1.4 6.3L12 21l-5.6 2.2 1.4-6.3-4.8-4.3 6.4-.7Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>Assessment Cyber Security</strong><span>Valutazione rischi e gap</span></span></span></td>
+                <td>Eta Tech S.r.l.</td>
+                <td class="two"><strong>Analisi</strong><span>Assessment</span></td>
+                <td><span class="who"><span class="av">VR</span><span>Vittorio Romano</span></span></td>
+                <td style="color:var(--ink);">10/07/2024</td>
+                <td><span class="st ok"><i></i>In corso</span></td>
+                <td class="num">11</td>
+                <td><span class="prog"><span class="t"><span style="width:90%"></span></span><b>90%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+              <tr>
+                <td><svg class="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 2.6 5.9 6.4.7-4.8 4.3 1.4 6.3L12 21l-5.6 2.2 1.4-6.3-4.8-4.3 6.4-.7Z"/></svg></td>
+                <td><span class="cell-name"><span class="txt"><strong>Miglioramento Processo Produzione</strong><span>Lean manufacturing</span></span></span></td>
+                <td>Theta Manufacturing S.p.A.</td>
+                <td class="two"><strong>Design</strong><span>Soluzione TO-BE</span></td>
+                <td><span class="who"><span class="av">LC</span><span>Luca Conti</span></span></td>
+                <td style="color:var(--ink);">30/08/2024</td>
+                <td><span class="st block"><i></i>Bloccato</span></td>
+                <td class="num">16</td>
+                <td><span class="prog"><span class="t"><span style="width:33%"></span></span><b>33%</b></span></td>
+                <td><button class="kebab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+          <div class="tbl-foot">
+            <span>Vista 1–8 di 24 progetti</span>
+            <div class="pager">
+              <button>‹</button><button class="on">1</button><button>2</button><button>3</button><button>›</button>
+              <button class="pp">10 per pagina <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="panel">
+        <div class="p-head">
+          <div><h3>Trasformazione Supply Chain</h3><p>Acme S.p.A.</p></div>
+          <button class="p-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+
+        <div class="p-sec">
+          <div class="p-sec-h"><h4>Riepilogo progetto</h4></div>
+          <dl class="kv">
+            <div><dt>Fase corrente</dt><dd>Implementazione <span class="sub2">(Esecuzione)</span></dd></div>
+            <div><dt>Stato</dt><dd><span class="st ok"><i></i>In corso</span></dd></div>
+            <div><dt>Owner</dt><dd>Sara Bellini</dd></div>
+            <div><dt>Scadenza</dt><dd>30/09/2024 <span class="sub2">(70 gg)</span></dd></div>
+            <div><dt>Avanzamento</dt><dd><span class="prog"><span class="t" style="width:74px;"><span style="width:62%"></span></span><b>62%</b></span></dd></div>
+            <div><dt>Processi in scope</dt><dd>28</dd></div>
+            <div><dt>Sponsor cliente</dt><dd>Alessandro Verdi <span class="sub2">(CPO)</span></dd></div>
+          </dl>
+        </div>
+
+        <div class="p-sec">
+          <div class="p-sec-h"><h4>Milestone principali</h4><button class="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+          <ul class="rowlist">
+            <li><svg class="mstat ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Kick-off progetto<span class="date">15/04/2024</span></li>
+            <li><svg class="mstat ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Completamento Analisi AS-IS<span class="date">31/05/2024</span></li>
+            <li><svg class="mstat wait" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Rilascio MVP<span class="date">31/07/2024</span></li>
+            <li><svg class="mstat todo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Go-live<span class="date">30/09/2024</span></li>
+          </ul>
+          <a class="seelink" href="#">Vedi tutte le milestone (6)</a>
+        </div>
+
+        <div class="p-sec">
+          <div class="p-sec-h"><h4>Punti aperti</h4><button class="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+          <ul class="rowlist">
+            <li>Definizione requisiti integrazione WMS<span class="prio alta" style="margin-left:auto;">Alta</span></li>
+            <li>Allineamento su KPI di servizio<span class="prio media" style="margin-left:auto;">Media</span></li>
+            <li>Dati anagrafici fornitori incompleti<span class="prio media" style="margin-left:auto;">Media</span></li>
+          </ul>
+          <a class="seelink" href="#">Vedi tutti i punti aperti (5)</a>
+        </div>
+
+        <div class="p-sec">
+          <div class="p-sec-h"><h4>Deliverable previsti</h4><button class="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+          <ul class="rowlist">
+            <li><svg class="mstat ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Processo TO-BE Supply Chain<span class="date">15/06/2024</span></li>
+            <li><svg class="mstat wait" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Piano di implementazione<span class="date">15/07/2024</span></li>
+            <li><svg class="mstat todo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Manuali operativi<span class="date">31/08/2024</span></li>
+          </ul>
+          <a class="seelink" href="#">Vedi tutti i deliverable (7)</a>
+        </div>
+
+        <div class="p-sec">
+          <div class="p-sec-h"><h4>Azioni rapide</h4></div>
+          <div class="qa">
+            <button><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Apri roadmap<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Aggiorna stato<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Apri processi<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Nuovo punto<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>Documenti<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Decisione<svg class="cv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1600,"height":1000}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

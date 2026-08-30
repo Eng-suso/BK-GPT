@@ -1,5 +1,29 @@
 import { z } from "zod";
-import type { Project, ProjectProcess } from "../features/projects/projectData";
+
+export type ProjectProcess = {
+  id: string;
+  bpmnModelId: string;
+  name: string;
+  stage: "Discovery" | "AS-IS" | "TO-BE" | "Validazione";
+  status: "In corso" | "Da validare" | "Bozza";
+  owner: string;
+  readiness: number;
+};
+
+export type Project = {
+  id: string;
+  name: string;
+  client: string;
+  phase: string;
+  status: "In corso" | "A rischio" | "Bozza";
+  progress: number;
+  processes: number;
+  nextStep: string;
+  milestones: string[];
+  openIssues: string[];
+  deliverables: string[];
+  processItems: ProjectProcess[];
+};
 
 export type Client = {
   id: string;
@@ -36,7 +60,8 @@ const apiClientSchema = z.object({
   id: z.string(),
   name: z.string(),
   sector: z.string(),
-  status: z.enum(["Attivo", "Da seguire", "Prospect"]),
+  // Backend status is free-form; normalised in `toClient`.
+  status: z.string(),
   projects: z.number(),
   next_activity: z.string(),
   owner: z.string(),
@@ -44,6 +69,19 @@ const apiClientSchema = z.object({
   processes: z.array(z.string()),
   documents: z.array(z.string()),
 });
+
+const CLIENT_STATUS: Record<string, Client["status"]> = {
+  attivo: "Attivo",
+  cliente: "Attivo",
+  active: "Attivo",
+  "da seguire": "Da seguire",
+  "follow up": "Da seguire",
+  prospect: "Prospect",
+};
+
+function normalizeClientStatus(raw: string): Client["status"] {
+  return CLIENT_STATUS[raw.trim().toLowerCase()] ?? "Prospect";
+}
 
 const apiProcessSchema = z.object({
   id: z.string(),
@@ -56,7 +94,7 @@ const apiProcessSchema = z.object({
   readiness: z.number(),
 });
 
-const apiProjectSchema = z.object({
+export const apiProjectSchema = z.object({
   id: z.string(),
   client_id: z.string(),
   client: z.string(),
@@ -100,7 +138,7 @@ export function toClient(client: z.infer<typeof apiClientSchema>): Client {
     id: client.id,
     name: client.name,
     sector: client.sector,
-    status: client.status,
+    status: normalizeClientStatus(client.status),
     projects: client.projects,
     nextActivity: client.next_activity,
     owner: client.owner,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 from langchain_core.messages import BaseMessage, SystemMessage
@@ -438,14 +439,40 @@ def _has_critical_contradiction(state: dict[str, Any]) -> bool:
     return False
 
 
+def _state_value_as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            loaded = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return loaded if isinstance(loaded, dict) else {}
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    return {}
+
+
+def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
+    semantic_model = _state_value_as_dict(
+        state.get("bpmn_semantic_model")
+    )
+    return bool(
+        semantic_model.get("flowNodes")
+        and semantic_model.get("sequenceFlows")
+        and semantic_model.get("compilationPlan")
+        and semantic_model.get("sourceProcessUnderstanding")
+    )
+
+
 def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[str]:
     missing = []
     for prerequisite in spec.prerequisites:
         if prerequisite == "process_id" and not (state.get("process_id") or (state.get("entity_hints") or {}).get("process")):
             missing.append(prerequisite)
-        elif prerequisite == "process_understanding" and not state.get("process_understanding_json"):
+        elif prerequisite == "process_understanding" and not _has_canonical_semantic_model(state):
             missing.append(prerequisite)
-        elif prerequisite == "bpmn_semantic_model" and not state.get("bpmn_semantic_model_json"):
+        elif prerequisite == "bpmn_semantic_model" and not _has_canonical_semantic_model(state):
             if state.get("workflow_scope") == "local_operation" and state.get("saved_bpmn_xml"):
                 continue
             missing.append(prerequisite)
@@ -468,12 +495,7 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
             state.get("effective_bpmn_xml") or state.get("current_bpmn_xml") or state.get("saved_bpmn_xml")
         ):
             missing.append(prerequisite)
-        elif prerequisite == "canvas_semantic_context" and not (
-            state.get("process_understanding_json")
-            or state.get("bpmn_semantic_model_json")
-            or state.get("process_understanding")
-            or state.get("bpmn_semantic_model")
-        ):
+        elif prerequisite == "canvas_semantic_context" and not _has_canonical_semantic_model(state):
             missing.append(prerequisite)
     return missing
 
@@ -484,7 +506,7 @@ def _process_recovery_route(route: str, state: dict[str, Any]) -> tuple[str, str
             return "discovery", "process.discovery"
         return "evidence", "process.evidence"
     if route == "delegate_canvas":
-        if state.get("process_understanding_json") and not state.get("missing_information"):
+        if _has_canonical_semantic_model(state) and not state.get("missing_information"):
             return "modeling", "process.modeling"
         return "evidence", "process.evidence"
     return "clarification", "process.clarification"

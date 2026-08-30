@@ -2,6 +2,12 @@ from operator import add
 from typing import Annotated
 
 from backend.graphs.common import ConversationState
+from backend.bpmn_semantic import BPMNSemanticModel
+from backend.process_understanding import (
+    ProcessUnderstanding,
+    ProcessUnderstandingDiagnostics,
+    ProcessUnderstandingQualityReport,
+)
 
 
 class ProcessState(ConversationState):
@@ -11,8 +17,10 @@ class ProcessState(ConversationState):
     process_id: str
     process_name: str | None
     bpmn_model_id: str | None
-    process_understanding_json: dict | str | None
-    bpmn_semantic_model_json: dict | str | None
+    process_understanding: ProcessUnderstanding | None
+    process_understanding_diagnostics: ProcessUnderstandingDiagnostics | None
+    process_quality_report: ProcessUnderstandingQualityReport | None
+    bpmn_semantic_model: BPMNSemanticModel | None
     readiness_score: int | None
     missing_information: list[str]
     saved_bpmn_xml: str | None

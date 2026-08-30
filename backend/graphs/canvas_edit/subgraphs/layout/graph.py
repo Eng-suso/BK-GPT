@@ -2,18 +2,20 @@ from langgraph.graph import START, END, StateGraph
 
 from backend import workspace_database
 from backend.graphs.canvas_edit.subgraphs.layout.state import CanvasLayoutState
-from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
+from backend.workspace_services.bpmn_canvas_edit import clean_bpmn_visual_metadata_artifacts, optimize_bpmn_layout
 
 
 LAYOUT_SUBGRAPH_CONTRACT = """
 Canvas Drawing/Layout subgraph contract.
 
 Own only the visual arrangement of the BPMN canvas: spacing, row wrapping,
-lane shape sizing, annotation placement, data object placement and edge routing.
-Do not change process semantics, labels, ownership, sequence flow source/target
-or business meaning. A layout pass is successful only when the drawing has no
-overlapping flow nodes, visible positions for all flow nodes and a readable
-overall aspect ratio.
+lane shape sizing and edge routing. Before layout, remove visible semantic
+metadata artifacts: text annotations, association edges and data object shapes.
+Those details belong to BPMNSemanticModel/sourceProcessUnderstanding/
+compilationPlan, not to the canvas view. Do not change process semantics,
+labels, ownership, sequence flow source/target or business meaning. A layout
+pass is successful only when the drawing has no overlapping flow nodes, visible
+positions for all flow nodes and a readable overall aspect ratio.
 """.strip()
 
 
@@ -51,7 +53,8 @@ def run_canvas_drawing_agent(state: CanvasLayoutState) -> dict:
             ],
         }
 
-    updated_xml, optimization = optimize_bpmn_layout(xml)
+    clean_xml, clean_report = clean_bpmn_visual_metadata_artifacts(xml)
+    updated_xml, optimization = optimize_bpmn_layout(clean_xml)
     report = optimization.get("selected_report") or {}
     attempts = optimization.get("attempts") or []
     status = "completed" if optimization.get("valid") else "blocked"
@@ -83,6 +86,7 @@ def run_canvas_drawing_agent(state: CanvasLayoutState) -> dict:
                 if status == "completed"
                 else "Il layout del canvas richiede intervento: la validazione geometrica non passa.",
                 "report": report,
+                "clean_report": clean_report,
             }
         ],
         "layout_steps": [

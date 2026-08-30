@@ -246,8 +246,8 @@
   --curve-accelerate: cubic-bezier(0.2, 0, 1, 0.9);
   --curve-linear: cubic-bezier(0, 0, 1, 1);
 
-  --font-family-geist: Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-family-geist-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-family-geist: "Geist Variable", Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-geist-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --font-size-100: 12px;
   --font-size-200: 13px;

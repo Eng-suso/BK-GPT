@@ -1,0 +1,222 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;450;500;600;700&display=swap');
+    :root {
+      --bg: #f6f8fa; --surface: #ffffff; --surface-2: #f9fafc;
+      --border: #e6e8ee; --border-2: #eef0f4;
+      --ink: #0e1420; --ink-2: #48505e; --ink-3: #858d9b;
+      --blue: #1d4ed8; --blue-hover: #1740b8; --blue-wash: #eef3fd;
+      --green: #157f52; --amber: #b0740f; --red: #c9362f; --gray-dot: #9aa2b0;
+      --sh: 0 1px 2px rgba(14,20,32,0.05);
+      --sh-card: 0 1px 3px rgba(14,20,32,0.06), 0 1px 2px -1px rgba(14,20,32,0.05);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-size: 13px; letter-spacing: -0.01em; }
+    a { color: var(--blue); text-decoration: none; }
+    h1,h2,h3,h4 { margin: 0; font-weight: 600; }
+    ul { margin: 0; padding: 0; list-style: none; }
+    button { font-family: inherit; }
+
+    .sheet { padding: 34px 40px; display: flex; flex-direction: column; gap: 30px; max-width: 1080px; }
+    .sheet-h h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    .sheet-h p { margin: 6px 0 0; font-size: 13.5px; color: var(--ink-2); }
+    .grp { display: flex; flex-direction: column; gap: 12px; }
+    .grp > span { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.055em; color: var(--ink-3); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--sh-card); padding: 20px 22px; display: flex; flex-direction: column; gap: 18px; }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .col { display: flex; flex-direction: column; gap: 10px; }
+    .cap { font-size: 11.5px; color: var(--ink-3); }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 7px; font-size: 13px; font-weight: 500; border: 1px solid transparent; cursor: pointer; letter-spacing: -0.006em; }
+    .btn svg { width: 14px; height: 14px; }
+    .btn-primary { background: var(--blue); color: #fff; font-weight: 550; letter-spacing: -0.012em; box-shadow: 0 1px 2px rgba(14,20,32,0.14), 0 2px 8px -2px rgba(29,78,216,0.4), inset 0 1px 0 rgba(255,255,255,0.16); }
+    .btn-primary:hover { background: var(--blue-hover); }
+    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+    .btn-secondary:hover { background: var(--surface-2); border-color: #d7dae0; }
+    .btn-ghost { background: transparent; color: var(--ink-2); }
+    .btn-ghost:hover { background: #eef0f3; color: var(--ink); }
+    .btn-danger { background: var(--surface); color: var(--red); border-color: #f2c9c9; }
+    .btn-link { background: transparent; color: var(--blue); border: 0; height: auto; padding: 0; }
+    .btn-xs { height: 26px; padding: 0 9px; font-size: 12px; }
+    .btn-sm { height: 30px; padding: 0 11px; font-size: 12.5px; }
+    .btn-lg { height: 38px; padding: 0 18px; }
+    .btn-ic { width: 34px; padding: 0; }
+
+    .st { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink); }
+    .st i { width: 6px; height: 6px; border-radius: 999px; }
+    .st.ok i { background: var(--green); } .st.late i { background: var(--amber); } .st.late { color: #b45309; }
+    .st.block i { background: var(--red); } .st.block { color: var(--red); } .st.done i { background: var(--gray-dot); }
+    .prio { height: 20px; padding: 0 8px; border-radius: 6px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; }
+    .prio.alta { background: #fef2f2; color: var(--red); }
+    .prio.media { background: #fffbeb; color: #b45309; }
+    .prio.bassa { background: #f0fdf4; color: #15803d; }
+    .kind { height: 20px; padding: 0 8px; border-radius: 6px; font-size: 11px; font-weight: 500; display: inline-flex; align-items: center; }
+    .kind.prob { background: #fef2f2; color: var(--red); }
+    .kind.risk { background: #fff7ed; color: #c2410c; }
+    .kind.opp { background: #f0fdf4; color: #15803d; }
+    .kind.rec { background: #fffbeb; color: #b45309; }
+    .kind.core { background: var(--blue-wash); color: var(--blue); }
+    .kind.supp { background: #f1f5f9; color: #475569; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; width: 240px; }
+    .field label { font-size: 12px; color: var(--ink-2); font-weight: 450; }
+    .input { height: 34px; padding: 0 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: inherit; color: var(--ink); background: var(--surface); outline: none; }
+    .input::placeholder { color: var(--ink-3); }
+    .input.focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    .isearch { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); width: 240px; }
+    .isearch svg { width: 14px; height: 14px; color: var(--ink-3); }
+    .isearch input { border: 0; outline: 0; font: inherit; font-size: 13px; background: transparent; width: 100%; }
+
+    .seg { display: inline-flex; background: #eef0f3; padding: 3px; border-radius: 8px; }
+    .seg button { height: 28px; padding: 0 13px; border: 0; border-radius: 6px; background: transparent; font-size: 12.5px; font-weight: 450; color: var(--ink-3); cursor: pointer; }
+    .seg button.on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--sh); }
+    .uln { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+    .uln button { height: 38px; padding: 0 8px; margin-bottom: -1px; background: none; border: 0; border-bottom: 2px solid transparent; font-size: 13.5px; font-weight: 450; color: var(--ink-3); cursor: pointer; }
+    .uln button.on { color: var(--blue); font-weight: 500; border-bottom-color: var(--blue); }
+
+    .crumb { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-3); }
+    .crumb svg { width: 12px; height: 12px; } .crumb b { color: var(--ink-2); font-weight: 450; }
+
+    table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    table.tbl th { text-align: left; font-size: 12px; font-weight: 500; color: var(--ink-3); padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    table.tbl td { padding: 0 14px; height: 52px; border-bottom: 1px solid var(--border-2); color: var(--ink-2); }
+    table.tbl tr:last-child td { border-bottom: 0; }
+    table.tbl tr:hover td { background: var(--surface-2); }
+    table.tbl .lk { color: var(--blue); font-weight: 600; }
+    .prog { display: inline-flex; align-items: center; gap: 10px; }
+    .prog .t { width: 96px; height: 6px; border-radius: 999px; background: #eaecef; overflow: hidden; }
+    .prog .t span { display: block; height: 100%; border-radius: 999px; background: var(--blue); }
+    .prog b { font-size: 12.5px; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .sk { background: #eef0f3; border-radius: 5px; height: 12px; }
+    .empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 9px; padding: 30px; }
+    .empty .ic { width: 38px; height: 38px; border-radius: 9px; background: #eef0f3; display: grid; place-items: center; color: var(--ink-3); }
+    .empty .ic svg { width: 18px; height: 18px; }
+    .empty h4 { font-size: 13.5px; font-weight: 600; }
+    .empty p { margin: 0; font-size: 12px; color: var(--ink-3); max-width: 280px; }
+
+    .dialog { width: 420px; background: var(--surface); border-radius: 12px; box-shadow: 0 16px 48px rgba(16,24,40,0.18), 0 0 0 1px var(--border); overflow: hidden; }
+    .dialog .b { padding: 20px 22px 16px; }
+    .dialog h4 { font-size: 15px; font-weight: 600; margin-bottom: 5px; }
+    .dialog p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+    .dialog .f { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--border); background: var(--surface-2); }
+  </style>
+</helmet>
+
+<div class="sheet">
+  <div class="sheet-h">
+    <h1>DeliR — Design System</h1>
+    <p>Piattaforma di consulenza enterprise. Blu come colore d'azione, densità alta, tabelle serie, pannello dettaglio. Le primitive dello Step 5 si costruiscono qui.</p>
+  </div>
+
+  <div class="grp">
+    <span>Button</span>
+    <div class="card">
+      <div class="row">
+        <button class="btn btn-primary btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuovo progetto</button>
+        <button class="btn btn-secondary btn-sm">Filtri</button>
+        <button class="btn btn-ghost btn-sm">Ripristina</button>
+        <button class="btn btn-danger btn-sm">Elimina</button>
+        <button class="btn btn-link">Ripristina filtri</button>
+        <button class="btn btn-secondary btn-sm btn-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary btn-xs">xs</button><button class="btn btn-primary btn-sm">sm</button><button class="btn btn-primary">default 34</button><button class="btn btn-primary btn-lg">lg</button>
+        <span class="cap">primary · secondary · ghost · danger · link &nbsp;|&nbsp; xs · sm · default · lg · icon</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grp">
+    <span>Stato, priorità, categoria</span>
+    <div class="card">
+      <div class="row">
+        <span class="st ok"><i></i>In corso</span>
+        <span class="st late"><i></i>In ritardo</span>
+        <span class="st block"><i></i>Bloccato</span>
+        <span class="st done"><i></i>Completato</span>
+      </div>
+      <div class="row">
+        <span class="prio alta">Alta</span><span class="prio media">Media</span><span class="prio bassa">Bassa</span>
+        <span style="width:16px;"></span>
+        <span class="kind prob">Problema</span><span class="kind risk">Rischio</span><span class="kind opp">Opportunità</span><span class="kind rec">Raccomandazione</span>
+        <span style="width:16px;"></span>
+        <span class="kind core">Core</span><span class="kind supp">Supporto</span>
+      </div>
+      <span class="cap">Stato = punto + testo. Priorità/categoria = tag pieno solo dove il valore è categorico e va scansionato in tabella.</span>
+    </div>
+  </div>
+
+  <div class="grp">
+    <span>Input</span>
+    <div class="card">
+      <div class="row" style="align-items:flex-end;">
+        <div class="field"><label>Nome progetto</label><input class="input" placeholder="Es. Trasformazione Supply Chain" /></div>
+        <div class="field"><label>Focus</label><input class="input focus" value="Order-to-Cash" /></div>
+        <div class="field"><label>Ricerca</label><div class="isearch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Cerca progetti" /></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grp">
+    <span>Tabs</span>
+    <div class="card">
+      <div class="col"><div class="seg"><button class="on">Intero progetto</button><button>Singolo processo</button></div><span class="cap">segmented — scope di vista</span></div>
+      <div class="col"><div class="uln"><button class="on">Panoramica</button><button>Piano e consegna</button><button>Processi</button><button>Analisi</button><button>Documenti</button></div><span class="cap">underline — navigazione pagina</span></div>
+    </div>
+  </div>
+
+  <div class="grp">
+    <span>Breadcrumb + header</span>
+    <div class="card">
+      <div class="crumb"><span>Progetti</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg><span>Trasformazione Supply Chain</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg><b>Panoramica</b></div>
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+        <div><h2 style="font-size:22px; letter-spacing:-0.02em;">Trasformazione Supply Chain</h2><p style="margin:4px 0 0; font-size:13px; color:var(--ink-2);">Acme S.p.A. · Sara Bellini (Owner) · <span class="st ok"><i></i>In corso</span></p></div>
+        <div class="row"><button class="btn btn-secondary btn-sm">Azioni progetto</button><button class="btn btn-primary btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuova attività</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grp">
+    <span>DataTable</span>
+    <div class="card" style="padding:0;">
+      <table class="tbl">
+        <thead><tr><th>Progetto</th><th>Cliente</th><th>Fase</th><th>Owner</th><th>Stato</th><th style="text-align:right;">Proc.</th><th>Avanzamento</th></tr></thead>
+        <tbody>
+          <tr><td><span class="lk">Trasformazione Supply Chain</span></td><td>Acme S.p.A.</td><td>Implementazione</td><td>Sara Bellini</td><td><span class="st ok"><i></i>In corso</span></td><td style="text-align:right;font-variant-numeric:tabular-nums;">28</td><td><span class="prog"><span class="t"><span style="width:62%"></span></span><b>62%</b></span></td></tr>
+          <tr><td><span class="lk">Ottimizzazione Order-to-Cash</span></td><td>Beta Industria</td><td>Analisi</td><td>Fabio Moretti</td><td><span class="st ok"><i></i>In corso</span></td><td style="text-align:right;font-variant-numeric:tabular-nums;">21</td><td><span class="prog"><span class="t"><span style="width:38%"></span></span><b>38%</b></span></td></tr>
+          <tr><td><span class="lk">Ridefinizione Processo Acquisti</span></td><td>Delta S.r.l.</td><td>Design</td><td>Sara Bellini</td><td><span class="st late"><i></i>In ritardo</span></td><td style="text-align:right;font-variant-numeric:tabular-nums;">14</td><td><span class="prog"><span class="t"><span style="width:72%"></span></span><b>72%</b></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="row" style="align-items:stretch; gap:20px;">
+    <div class="grp" style="flex:1;"><span>Skeleton</span><div class="card"><div class="sk" style="width:38%"></div><div class="sk" style="width:100%"></div><div class="sk" style="width:86%"></div><div class="sk" style="width:92%"></div></div></div>
+    <div class="grp" style="flex:1;"><span>Empty state</span><div class="card" style="align-items:center;"><div class="empty"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-6l-2-3H5a2 2 0 0 0-2 2Z"/></svg></div><h4>Nessun processo in scope</h4><p>Aggiungi processi dalla chat agente per popolare la roadmap.</p><button class="btn btn-secondary btn-sm">Apri chat</button></div></div></div>
+  </div>
+
+  <div class="grp">
+    <span>Dialog</span>
+    <div class="card" style="align-items:flex-start; background:var(--surface-2);">
+      <div class="dialog">
+        <div class="b"><h4>Elimina progetto</h4><p>Rimuove “Trasformazione Supply Chain” e i processi collegati. Non è reversibile.</p></div>
+        <div class="f"><button class="btn btn-ghost btn-sm">Annulla</button><button class="btn btn-danger btn-sm">Elimina</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1120,"height":1560}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

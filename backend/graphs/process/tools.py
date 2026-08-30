@@ -102,7 +102,7 @@ def process_workspace_payload(process_id: str) -> dict:
 
     project = workspace_database.get_project(process["project_id"])
     bpmn_model = workspace_database.get_bpmn_model(process["bpmn_model_id"])
-    review = workspace_database.get_bpmn_review(process["bpmn_model_id"])
+    review = workspace_database.get_bpmn_review(process["bpmn_model_id"], include_approved=True)
     project_sources = workspace_database.list_project_sources(process["project_id"])
     project_decisions = workspace_database.list_project_decisions(process["project_id"])
 
@@ -124,8 +124,10 @@ def process_workspace_payload(process_id: str) -> dict:
 
 
 def process_understanding_from_payload(payload: dict) -> ProcessUnderstanding | None:
-    review = payload.get("review") or {}
-    raw = review.get("process_understanding")
+    semantic_model = bpmn_semantic_model_from_payload(payload)
+    if semantic_model is None:
+        return None
+    raw = semantic_model.sourceProcessUnderstanding
     if not raw:
         return None
 
@@ -142,9 +144,12 @@ def bpmn_semantic_model_from_payload(payload: dict) -> BPMNSemanticModel | None:
         return None
 
     try:
-        return BPMNSemanticModel.model_validate(raw)
+        model = BPMNSemanticModel.model_validate(raw)
     except Exception:
         return None
+    if not model.compilationPlan or not model.sourceProcessUnderstanding:
+        return None
+    return model
 
 
 @tool
@@ -207,6 +212,7 @@ def get_process_semantic_context(process_id: str) -> str:
             "process_understanding": understanding.model_dump(mode="json") if understanding else None,
             "process_review_markdown": render_process_review(understanding) if understanding else "",
             "bpmn_semantic_model": semantic_model.model_dump(mode="json") if semantic_model else None,
+            "quality_report": review.get("quality_report") if review else None,
             "readiness_score": review.get("readiness_score") if review else None,
             "missing_information": review.get("missing_information") if review else [],
             "model_warnings": semantic_model.model_warnings if semantic_model else [],

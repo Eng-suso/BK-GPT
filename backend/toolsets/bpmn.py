@@ -9,6 +9,7 @@ from backend.bpmn_semantic import BPMNSemanticModel, semantic_model_to_bpmn_xml
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
+    clean_bpmn_visual_metadata_artifacts,
     clear_bpmn_process,
     connect_bpmn_elements,
     delete_bpmn_element,
@@ -92,32 +93,45 @@ def _saved_canvas_model_payload(bpmn_model_id: str) -> dict:
     }
 
 
-def _review_or_state_semantic_context(bpmn_model_id: str, state: dict) -> tuple[dict | None, dict | None, dict | None]:
-    process_understanding = state.get("process_understanding") or state.get("process_understanding_json")
-    bpmn_semantic_model = state.get("bpmn_semantic_model") or state.get("bpmn_semantic_model_json")
-    review = workspace_database.get_bpmn_review(bpmn_model_id)
+def _canonical_semantic_model(value: dict | BPMNSemanticModel | None) -> BPMNSemanticModel | None:
+    if not value:
+        return None
+    model = value if isinstance(value, BPMNSemanticModel) else BPMNSemanticModel.model_validate(value)
+    if not model.compilationPlan or not model.sourceProcessUnderstanding:
+        raise ValueError("BPMNSemanticModel legacy rifiutato: manca il payload semantico canonicale.")
+    return model
 
-    if review:
-        process_understanding = process_understanding or review.get("process_understanding")
-        bpmn_semantic_model = bpmn_semantic_model or review.get("bpmn_semantic_model")
 
-    return review, process_understanding, bpmn_semantic_model
+def _review_or_state_semantic_context(
+    bpmn_model_id: str,
+    state: dict,
+) -> tuple[dict | None, dict | None, BPMNSemanticModel | None]:
+    bpmn_semantic_model = state.get("bpmn_semantic_model")
+    review = workspace_database.get_bpmn_review(bpmn_model_id, include_approved=True)
+
+    if review and not bpmn_semantic_model:
+        bpmn_semantic_model = review.get("bpmn_semantic_model")
+
+    model = _canonical_semantic_model(bpmn_semantic_model)
+    if model is None:
+        return review, None, None
+
+    return review, model.sourceProcessUnderstanding, model
 
 
 def _semantic_model_to_xml_from_context(bpmn_model_id: str, state: dict) -> tuple[str, dict]:
-    review, _, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
+    review, _process_understanding, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
     if not bpmn_semantic_model:
         raise ValueError("BPMNSemanticModel non disponibile per generare la preview canvas.")
 
-    model = BPMNSemanticModel.model_validate(bpmn_semantic_model)
-    xml = semantic_model_to_bpmn_xml(model)
+    xml = semantic_model_to_bpmn_xml(bpmn_semantic_model)
     return xml, {
         "review_pending": review is not None,
-        "semantic_model_id": model.id,
-        "semantic_node_count": len(model.flowNodes),
-        "semantic_flow_count": len(model.sequenceFlows),
-        "semantic_lane_count": len(model.lanes),
-        "model_warnings": model.model_warnings,
+        "semantic_model_id": bpmn_semantic_model.id,
+        "semantic_node_count": len(bpmn_semantic_model.flowNodes),
+        "semantic_flow_count": len(bpmn_semantic_model.sequenceFlows),
+        "semantic_lane_count": len(bpmn_semantic_model.lanes),
+        "model_warnings": bpmn_semantic_model.model_warnings,
     }
 
 
@@ -510,6 +524,7 @@ def manage_canvas_construction(
 
     if operation == "generate_preview":
         xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        xml, clean_report = clean_bpmn_visual_metadata_artifacts(xml)
         validation = validate_bpmn_xml(xml)
         payload = {
             "operation": operation,
@@ -518,6 +533,7 @@ def manage_canvas_construction(
             "proposed_xml": xml,
             "validation": validation,
             "context": context,
+            "clean_report": clean_report,
             "constraints": constraints,
         }
         payload["business_report"] = construction_business_report(payload)
@@ -531,6 +547,7 @@ def manage_canvas_construction(
         context = {}
         if not xml:
             xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        xml, clean_report = clean_bpmn_visual_metadata_artifacts(xml)
         validation = validate_canvas_against_process(
             xml=xml,
             process_understanding=process_understanding,
@@ -542,6 +559,7 @@ def manage_canvas_construction(
             "objective": objective,
             "validation": validation,
             "context": context,
+            "clean_report": clean_report,
         }
         payload["business_report"] = construction_business_report(payload)
         return format_workspace_result(
@@ -554,6 +572,7 @@ def manage_canvas_construction(
         context = {}
         if not xml:
             xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
+        xml, clean_report = clean_bpmn_visual_metadata_artifacts(xml)
         current_xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
         clean_proposed_xml = replace_bpmn_xml(xml)
         payload = {
@@ -563,6 +582,7 @@ def manage_canvas_construction(
             "source": source,
             **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
             "context": context,
+            "clean_report": clean_report,
         }
         payload["business_report"] = construction_business_report(payload)
         return format_workspace_result(
@@ -575,6 +595,7 @@ def manage_canvas_construction(
             raise ValueError("proposed_xml obbligatorio per apply_approved_preview.")
         if not confirm_apply:
             raise ValueError("apply_approved_preview richiede confirm_apply=True dopo preview e approvazione.")
+        proposed_xml, clean_report = clean_bpmn_visual_metadata_artifacts(proposed_xml)
         validation = validate_canvas_against_process(
             xml=proposed_xml,
             process_understanding=process_understanding,
@@ -598,6 +619,7 @@ def manage_canvas_construction(
                 "bpmn_model_id": bpmn_model_id,
                 "objective": objective,
                 "validation": validation,
+                "clean_report": clean_report,
                 "business_report": construction_business_report(
                     {"operation": operation, "validation": validation}
                 ),

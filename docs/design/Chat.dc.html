@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;450;500;600;700&display=swap');
+    :root {
+      --bg: #f6f8fa; --surface: #ffffff; --surface-2: #f9fafc;
+      --border: #e6e8ee; --border-2: #eef0f4;
+      --ink: #0e1420; --ink-2: #48505e; --ink-3: #858d9b;
+      --blue: #1d4ed8; --blue-hover: #1740b8; --blue-wash: #eef3fd;
+      --green: #157f52; --amber: #b0740f;
+      --sh: 0 1px 2px rgba(14,20,32,0.05);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-size: 13.5px; letter-spacing: -0.01em; }
+    a { color: var(--blue); text-decoration: none; }
+    h1,h2,h3,h4 { margin: 0; font-weight: 600; }
+    ul { margin: 0; padding: 0; }
+
+    .frame { height: 900px; display: grid; grid-template-columns: 1fr 420px; }
+    .note { border-right: 1px solid var(--border); background: var(--bg); padding: 30px; display: flex; flex-direction: column; gap: 12px; }
+    .note .scope { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--ink-2); background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; }
+    .note .scope svg { width: 13px; height: 13px; color: var(--ink-3); }
+    .note h3 { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+    .note p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.6; }
+    .note code { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; background: #eef0f3; padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+
+    .chat { display: grid; grid-template-rows: 52px auto minmax(0,1fr) auto; background: var(--surface); border-left: 1px solid var(--border); min-height: 0; }
+    .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--border); }
+    .chat-head .eyebrow { font-size: 11px; font-weight: 500; color: var(--ink-3); }
+    .chat-head h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    .chat-head .acts { display: flex; gap: 4px; }
+    .chip { height: 28px; padding: 0 10px; border-radius: 7px; background: transparent; font-size: 12px; font-weight: 450; color: var(--ink-2); border: 1px solid var(--border); cursor: pointer; }
+    .chip:hover { background: var(--surface-2); color: var(--ink); }
+
+    .threads { display: flex; align-items: center; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border-2); background: var(--surface-2); overflow: hidden; }
+    .threads .lbl { font-size: 11px; font-weight: 500; color: var(--ink-3); margin-right: 4px; }
+    .thread { flex: none; height: 24px; padding: 0 9px; display: inline-flex; align-items: center; border-radius: 6px; font-size: 12px; font-weight: 450; color: var(--ink-2); border: 1px solid transparent; }
+    .thread:hover { background: var(--surface); }
+    .thread.on { background: var(--surface); color: var(--blue); font-weight: 500; border-color: var(--border); }
+
+    .msgs { overflow: hidden; padding: 20px 18px; display: flex; flex-direction: column; gap: 16px; }
+    .msg { max-width: 90%; font-size: 13.5px; line-height: 1.6; }
+    .msg.user { align-self: flex-end; background: var(--blue-wash); border-radius: 12px; padding: 9px 13px; color: var(--ink); }
+    .msg.bot { align-self: flex-start; color: var(--ink); }
+    .msg.bot p { margin: 0 0 7px; } .msg.bot p:last-child { margin: 0; }
+    .msg.bot strong { font-weight: 550; }
+    .msg.bot ul { margin: 5px 0; padding-left: 18px; list-style: disc; color: var(--ink-2); }
+    .msg.bot li { margin-bottom: 2px; }
+    .msg-role { font-size: 11px; font-weight: 500; color: var(--ink-3); margin-bottom: 5px; display: block; }
+
+    .review { align-self: stretch; border: 1px solid var(--border); border-radius: 9px; padding: 13px 14px; display: flex; flex-direction: column; gap: 9px; box-shadow: var(--sh); }
+    .review .h { display: flex; align-items: center; justify-content: space-between; }
+    .review h4 { font-size: 13px; font-weight: 600; }
+    .review .score { font-size: 12px; font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .review .meter { height: 5px; border-radius: 999px; background: #eaecef; overflow: hidden; }
+    .review .meter span { display: block; height: 100%; background: var(--blue); }
+    .review p { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+    .review .a { display: flex; gap: 8px; margin-top: 2px; }
+
+    .cwrap { padding: 12px 16px 15px; border-top: 1px solid var(--border); }
+    .composer { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 9px 11px; display: flex; flex-direction: column; gap: 8px; }
+    .composer:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+    .composer textarea { border: 0; outline: 0; resize: none; font: inherit; font-size: 13.5px; line-height: 1.5; color: var(--ink); min-height: 22px; background: transparent; }
+    .composer .r { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .model { height: 28px; padding: 0 9px; border-radius: 7px; background: transparent; border: 1px solid var(--border); font-size: 12px; font-weight: 450; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .model svg { width: 12px; height: 12px; color: var(--ink-3); }
+    .cacts { display: flex; align-items: center; gap: 4px; }
+    .ipill { width: 30px; height: 30px; border-radius: 7px; background: transparent; display: grid; place-items: center; color: var(--ink-2); border: 0; cursor: pointer; }
+    .ipill:hover { background: #eef0f3; }
+    .ipill svg { width: 15px; height: 15px; }
+    .send { height: 30px; padding: 0 12px; border-radius: 7px; background: var(--blue); color: #fff; border: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 550; box-shadow: 0 1px 2px rgba(14,20,32,0.14), 0 2px 8px -2px rgba(29,78,216,0.4), inset 0 1px 0 rgba(255,255,255,0.16); }
+    .send svg { width: 14px; height: 14px; }
+    .hint { font-size: 11px; color: var(--ink-3); margin-top: 8px; }
+    .bm { height: 28px; padding: 0 11px; border-radius: 7px; font-size: 12px; font-weight: 500; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
+    .bm.pri { background: var(--blue); color: #fff; border-color: transparent; font-weight: 550; box-shadow: 0 1px 2px rgba(14,20,32,0.14), 0 2px 8px -2px rgba(29,78,216,0.4), inset 0 1px 0 rgba(255,255,255,0.16); }
+  </style>
+</helmet>
+
+<div class="frame">
+  <div class="note">
+    <span class="scope"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>scope: process</span>
+    <h3>Chat unica</h3>
+    <p>Un solo componente per <b>Consultant</b>, <b>Project</b>, <b>Process</b>. Cambia solo lo <code>scope</code> e il layout (pannello vs schermo intero). Stesse primitive: composer su <code>Input/Button</code>, review card su <code>Card</code>.</p>
+    <p>Qui è montata come pannello a destra del canvas BPMN nel process studio.</p>
+  </div>
+
+  <section class="chat">
+    <header class="chat-head">
+      <div><span class="eyebrow">Chat</span><h3>Order-to-Cash</h3></div>
+      <div class="acts"><button class="chip">Nuova</button><button class="chip">Copia</button></div>
+    </header>
+
+    <div class="threads">
+      <span class="lbl">Thread</span>
+      <span class="thread on">Modellazione TO-BE</span>
+      <span class="thread">Evidenze AS-IS</span>
+      <span class="thread">Discovery</span>
+    </div>
+
+    <div class="msgs">
+      <div class="msg user">Aggiungi un gateway dopo la verifica del credito: se il cliente è a rischio, invia a revisione manuale.</div>
+
+      <div class="msg bot">
+        <span class="msg-role">Assistente</span>
+        <p>Ho aggiornato il modello TO-BE. Dopo <strong>Verifica credito</strong> ho inserito un gateway esclusivo:</p>
+        <ul>
+          <li>cliente <strong>non a rischio</strong> → <strong>Conferma ordine</strong></li>
+          <li>cliente <strong>a rischio</strong> → <strong>Revisione manuale</strong> (owner: Credit team)</li>
+        </ul>
+        <p>Il canvas è pronto. Valido la coerenza con le evidenze AS-IS?</p>
+      </div>
+
+      <div class="review">
+        <div class="h"><h4>Review canvas BPMN</h4><span class="score">Readiness 8 / 10</span></div>
+        <div class="meter"><span style="width:80%"></span></div>
+        <p>Struttura coerente. Manca l'SLA sul ramo di revisione manuale e il ruolo owner di “Conferma ordine”.</p>
+        <div class="a"><button class="bm pri">Approva</button><button class="bm">Rivedi</button></div>
+      </div>
+    </div>
+
+    <div class="cwrap">
+      <div class="composer">
+        <textarea placeholder="Scrivi un messaggio">Aggiungi l'SLA di 24h sul ramo di revisione</textarea>
+        <div class="r">
+          <button class="model"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3 4 7v10l8 4 8-4V7Z"/></svg>gpt-5.6-luna<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></button>
+          <div class="cacts">
+            <button class="ipill" aria-label="Allega"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="m21.4 11.1-9.2 9.2a5 5 0 0 1-7-7l9.2-9.2a3.3 3.3 0 0 1 4.7 4.7l-9.2 9.2a1.7 1.7 0 0 1-2.4-2.4l8.5-8.5"/></svg></button>
+            <button class="ipill" aria-label="Voce"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5"/></svg></button>
+            <button class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg>Invia</button>
+          </div>
+        </div>
+      </div>
+      <div class="hint">L'agente instrada la richiesta allo scope corretto. Le decisioni restano lato server.</div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1200,"height":900}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

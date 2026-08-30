@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1600, "h": 1000, "title": "Progetti — lista" },
+    { "file": "ProjectDetail.dc.html", "x": 1720, "y": 0, "w": 1520, "h": 1020, "title": "Progetto — panoramica" },
+    { "file": "Chat.dc.html", "x": 0, "y": 1200, "w": 1200, "h": 900, "title": "Chat unica" },
+    { "file": "Components.dc.html", "x": 1360, "y": 1200, "w": 1120, "h": 1560, "title": "Design system" }
+  ],
+  "annotations": [
+    { "id": "note-dir", "x": 0, "y": -150, "w": 680, "text": "Direzione: match del blueprint DeliR (le 5 schermate di riferimento) + più polish. SaaS enterprise di consulenza: sidebar bianca con wordmark blu, topbar con tenant/search/date-range/notifiche/utente, tabelle dense a 64px con nome progetto blu + sottotitolo, pannello dettaglio a sezioni, blu #2563eb solo come colore d'azione. Font Geist." }
+  ],
+  "launch": { "view": "canvas" }
+}

@@ -102,9 +102,11 @@ class BpmnReviewResponse(BaseModel):
     source_text: str
     process_understanding: dict[str, Any] = Field(default_factory=dict)
     bpmn_semantic_model: dict[str, Any] = Field(default_factory=dict)
+    quality_report: dict[str, Any] = Field(default_factory=dict)
     bpmn_brief: str
     readiness_score: int
     missing_information: list[str]
+    status: str = "pending"
     created_at: str
     updated_at: str
 

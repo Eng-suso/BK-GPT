@@ -1,14 +1,26 @@
+import {
+  Archive,
+  Boxes,
+  Home,
+  MessageSquareText,
+  Briefcase,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+
 import type { ShellSection } from "./types";
 
-export const shellSections: Array<{ id: ShellSection; label: string; shortLabel: string }> = [
-  { id: "home", label: "Home", shortLabel: "H" },
-  { id: "consultant", label: "Consulente", shortLabel: "D" },
-  { id: "clients", label: "Clienti", shortLabel: "C" },
-  { id: "projects", label: "Progetti", shortLabel: "P" },
-  { id: "models", label: "Modelli", shortLabel: "M" },
-  { id: "archive", label: "Archivio", shortLabel: "A" },
-];
+export type ShellNavItem = {
+  id: ShellSection;
+  labelKey: string;
+  icon: LucideIcon;
+};
 
-export const sectionTitles = Object.fromEntries(
-  shellSections.map((section) => [section.id, section.label]),
-) as Record<ShellSection, string>;
+export const shellSections: ShellNavItem[] = [
+  { id: "home", labelKey: "nav.home", icon: Home },
+  { id: "consultant", labelKey: "nav.consultant", icon: MessageSquareText },
+  { id: "clients", labelKey: "nav.clients", icon: Users },
+  { id: "projects", labelKey: "nav.projects", icon: Briefcase },
+  { id: "models", labelKey: "nav.models", icon: Boxes },
+  { id: "archive", labelKey: "nav.archive", icon: Archive },
+];

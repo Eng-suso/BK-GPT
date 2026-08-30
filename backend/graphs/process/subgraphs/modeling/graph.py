@@ -15,7 +15,11 @@ Process Modeling subgraph contract.
 
 Use ProcessUnderstanding as the canonical semantic context. A BPMNSemanticModel
 may be derived only from ProcessUnderstanding, not directly from free text.
-Preserve assumptions, gaps and model warnings.
+For new AS-IS mapping, build a consultant-grade ProcessUnderstanding first:
+separate actors from BPMN participants, classify pool/lane/black-box candidates,
+assign every activity to an actor, preserve document requirements and business
+rules, separate main path from alternatives, and provide readable flow_edges for
+the future canvas arrows. Preserve assumptions, gaps and model warnings.
 
 {skill_context}
 

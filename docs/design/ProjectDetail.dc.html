@@ -1,0 +1,204 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;450;500;600;700&display=swap');
+    :root {
+      --bg: #f6f8fa; --surface: #ffffff; --surface-2: #f9fafc;
+      --border: #e6e8ee; --border-2: #eef0f4;
+      --ink: #0e1420; --ink-2: #48505e; --ink-3: #858d9b;
+      --blue: #1d4ed8; --blue-hover: #1740b8; --blue-wash: #eef3fd;
+      --green: #157f52; --amber: #b0740f; --red: #c9362f; --gray-dot: #9aa2b0;
+      --sh: 0 1px 2px rgba(14,20,32,0.05);
+      --sh-card: 0 1px 3px rgba(14,20,32,0.06), 0 1px 2px -1px rgba(14,20,32,0.05);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'Geist', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-size: 13px; letter-spacing: -0.01em; }
+    a { color: var(--blue); text-decoration: none; }
+    h1,h2,h3,h4 { margin: 0; font-weight: 600; }
+    ul { margin: 0; padding: 0; list-style: none; }
+    button { font-family: inherit; }
+
+    .page { display: grid; grid-template-columns: minmax(0,1fr) 340px; min-height: 1020px; }
+    .col { padding: 22px 26px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+
+    .crumb { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-3); }
+    .crumb svg { width: 12px; height: 12px; } .crumb a { color: var(--ink-3); } .crumb b { color: var(--ink-2); font-weight: 450; }
+
+    .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .head h1 { font-size: 23px; font-weight: 600; letter-spacing: -0.03em; }
+    .head .sub { margin-top: 5px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+    .st { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); }
+    .st i { width: 6px; height: 6px; border-radius: 999px; }
+    .st.ok i { background: var(--green); } .st.late i { background: var(--amber); } .st.late { color: #b45309; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 7px; font-size: 12.5px; font-weight: 500; border: 1px solid transparent; cursor: pointer; }
+    .btn svg { width: 14px; height: 14px; }
+    .btn-primary { background: var(--blue); color: #fff; font-weight: 550; box-shadow: 0 1px 2px rgba(14,20,32,0.14), 0 2px 8px -2px rgba(29,78,216,0.4), inset 0 1px 0 rgba(255,255,255,0.16); }
+    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+    .seg { display: inline-flex; background: #eef0f3; padding: 3px; border-radius: 8px; }
+    .seg button { height: 27px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; font-size: 12px; font-weight: 450; color: var(--ink-3); cursor: pointer; }
+    .seg button.on { background: var(--surface); color: var(--ink); font-weight: 500; box-shadow: var(--sh); }
+
+    .uln { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+    .uln button { height: 38px; padding: 0 8px; margin-bottom: -1px; background: none; border: 0; border-bottom: 2px solid transparent; font-size: 13px; font-weight: 450; color: var(--ink-3); cursor: pointer; white-space: nowrap; }
+    .uln button.on { color: var(--blue); font-weight: 500; border-bottom-color: var(--blue); }
+    .uln button.dim { color: #b6bbc3; }
+
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .metric { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--sh-card); padding: 15px 17px; }
+    .metric .lbl { font-size: 10.5px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric .val { margin-top: 8px; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .metric .val small { font-size: 13px; color: var(--ink-3); font-weight: 500; }
+    .metric .foot { margin-top: 6px; font-size: 11.5px; color: var(--ink-2); }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .panel-c { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--sh-card); padding: 17px 19px; display: flex; flex-direction: column; }
+    .panel-c > .ch { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .panel-c > .ch h3 { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.055em; color: var(--ink-3); }
+    .panel-c > .ch a { font-size: 12px; }
+
+    .proc { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-2); }
+    .proc:last-child { border-bottom: 0; }
+    .proc .n strong { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink); }
+    .proc .n span { font-size: 11.5px; color: var(--ink-3); }
+    .rd { display: inline-flex; align-items: center; gap: 8px; }
+    .rd .t { width: 58px; height: 5px; border-radius: 999px; background: #eaecef; overflow: hidden; }
+    .rd .t span { display: block; height: 100%; background: var(--blue); }
+    .rd b { font-size: 11.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+    .li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-2); font-size: 12.5px; color: var(--ink); }
+    .li:last-child { border-bottom: 0; }
+    .li .ms { width: 15px; height: 15px; flex: none; }
+    .li .ms.ok { color: var(--green); } .li .ms.wait { color: var(--amber); } .li .ms.todo { color: var(--ink-3); }
+    .li .meta { margin-left: auto; font-size: 11px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+    .li .prio { flex: none; height: 19px; padding: 0 7px; border-radius: 5px; font-size: 10.5px; font-weight: 600; display: inline-flex; align-items: center; margin-left: auto; }
+    .li .prio.alta { background: #fef2f2; color: var(--red); } .li .prio.media { background: #fffbeb; color: #b45309; }
+
+    .empty { padding: 14px 0; }
+    .empty h4 { font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+    .empty p { margin: 5px 0 0; font-size: 12px; color: var(--ink-3); line-height: 1.5; max-width: 300px; }
+
+    .summary { grid-column: 1 / -1; }
+    .summary p { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.65; }
+
+    .rp { border-left: 1px solid var(--border); background: var(--surface); padding: 18px; overflow: hidden; box-shadow: -16px 0 40px -24px rgba(14,20,32,0.10); }
+    .rp .rh { padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+    .rp .rh h3 { font-size: 15.5px; font-weight: 600; letter-spacing: -0.02em; }
+    .rp .rh p { margin: 3px 0 0; font-size: 12px; color: var(--ink-3); }
+    .rp .rs { padding: 15px 0; border-bottom: 1px solid var(--border-2); }
+    .rp .rs:last-child { border-bottom: 0; }
+    .rp .rs h4 { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.055em; color: var(--ink-3); margin-bottom: 10px; }
+    .kv { display: flex; flex-direction: column; }
+    .kv > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border-2); font-size: 12px; }
+    .kv > div:last-child { border-bottom: 0; }
+    .kv dt { color: var(--ink-3); } .kv dd { margin: 0; color: var(--ink); font-weight: 500; text-align: right; }
+    .cta { border: 1px solid var(--border); border-radius: 9px; padding: 13px; display: flex; flex-direction: column; gap: 9px; }
+    .cta p { margin: 0; font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+  </style>
+</helmet>
+
+<div class="page">
+  <div class="col">
+    <div class="crumb"><a>Progetti</a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg><span>Trasformazione Supply Chain</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg><b>Panoramica</b></div>
+
+    <div class="head">
+      <div>
+        <h1>Trasformazione Supply Chain</h1>
+        <div class="sub"><span>Acme S.p.A.</span> · <span>Sara Bellini (Owner)</span> · <span class="st ok"><i></i>In corso</span></div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <div class="seg"><button class="on">Intero progetto</button><button>Singolo processo</button></div>
+        <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Nuova attività</button>
+      </div>
+    </div>
+
+    <div class="uln">
+      <button class="on">Panoramica</button><button>Piano e consegna</button><button>Processi</button><button>Analisi</button>
+      <button>Rischi e issue</button><button>Documenti</button><button class="dim">KPI</button><button class="dim">Team</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><div class="lbl">Avanzamento complessivo</div><div class="val">62<small>%</small></div><div class="foot">17 processi in corso · 6 completati</div></div>
+      <div class="metric"><div class="lbl">Processi coinvolti</div><div class="val">28</div><div class="foot">5 non avviati</div></div>
+      <div class="metric"><div class="lbl">Problemi critici</div><div class="val" style="color:var(--red);">12</div><div class="foot">5 non mitigati · 3 in scadenza</div></div>
+      <div class="metric"><div class="lbl">Scadenza</div><div class="val" style="font-size:16px;">30/09/2024</div><div class="foot">70 giorni · 62% del tempo trascorso</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel-c">
+        <div class="ch"><h3>Processi in scope</h3><a href="#">Tutti (28)</a></div>
+        <div class="proc"><div class="n"><strong>Order-to-Cash</strong><span>TO-BE · Sara Bellini</span></div><span class="rd"><span class="t"><span style="width:80%"></span></span><b>8/10</b></span></div>
+        <div class="proc"><div class="n"><strong>Procure-to-Pay</strong><span>AS-IS · Luca Conti</span></div><span class="rd"><span class="t"><span style="width:55%"></span></span><b>5/10</b></span></div>
+        <div class="proc"><div class="n"><strong>Demand Planning</strong><span>Discovery · Vittorio Romano</span></div><span class="rd"><span class="t"><span style="width:25%"></span></span><b>2/10</b></span></div>
+        <div class="proc"><div class="n"><strong>Customer Service</strong><span>TO-BE · Giulia Bianchi</span></div><span class="rd"><span class="t"><span style="width:70%"></span></span><b>7/10</b></span></div>
+      </div>
+
+      <div class="panel-c">
+        <div class="ch"><h3>Milestone chiave</h3></div>
+        <div class="li"><svg class="ms ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Kick-off completato<span class="meta">03/05/2024</span></div>
+        <div class="li"><svg class="ms ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>Design validato<span class="meta">28/06/2024</span></div>
+        <div class="li"><svg class="ms wait" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2"/></svg>Piano di implementazione approvato<span class="meta">12/07/2024</span></div>
+        <div class="li"><svg class="ms todo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Go-live<span class="meta">30/09/2024</span></div>
+      </div>
+
+      <div class="panel-c">
+        <div class="ch"><h3>Rischi principali</h3><a href="#">Registro rischi</a></div>
+        <div class="li">Ritardi integrazione sistemi<span class="prio alta">Alta</span></div>
+        <div class="li">Qualità dati anagrafici<span class="prio alta">Alta</span></div>
+        <div class="li">Adozione utenti<span class="prio media">Media</span></div>
+        <div class="li">Dipendenze da terze parti<span class="prio media">Media</span></div>
+      </div>
+
+      <div class="panel-c">
+        <div class="ch"><h3>KPI essenziali</h3></div>
+        <div class="empty">
+          <h4>Non disponibile</h4>
+          <p>I KPI di progetto (OTIF, cycle time, forecast accuracy) non sono ancora tracciati dal backend. La sezione si attiva quando l'endpoint è pronto.</p>
+        </div>
+      </div>
+
+      <div class="panel-c summary">
+        <div class="ch"><h3>Sintesi manageriale</h3></div>
+        <p>Il progetto procede in linea con quanto pianificato, avanzamento complessivo al 62%. Completati 6 processi su 17 in esecuzione. Permangono criticità sull'integrazione dei sistemi e sulla qualità dei dati anagrafici. Le decisioni richieste nei prossimi 15 giorni sono cruciali per mantenere il go-live di fine settembre.</p>
+      </div>
+    </div>
+  </div>
+
+  <aside class="rp">
+    <div class="rh"><h3>Trasformazione Supply Chain</h3><p>Acme S.p.A.</p></div>
+    <div class="rs">
+      <h4>Riepilogo progetto</h4>
+      <dl class="kv">
+        <div><dt>Fase corrente</dt><dd>Implementazione</dd></div>
+        <div><dt>Owner</dt><dd>Sara Bellini</dd></div>
+        <div><dt>Sponsor cliente</dt><dd>Alessandro Verdi</dd></div>
+        <div><dt>Prossimo passo</dt><dd style="max-width:150px;">Approvazione piano impl.</dd></div>
+        <div><dt>Processi in scope</dt><dd>28</dd></div>
+      </dl>
+    </div>
+    <div class="rs">
+      <h4>Punti aperti</h4>
+      <div class="li" style="border:0; padding:6px 0;">Requisiti integrazione WMS<span class="prio alta">Alta</span></div>
+      <div class="li" style="border:0; padding:6px 0;">Allineamento KPI di servizio<span class="prio media">Media</span></div>
+      <div class="li" style="border:0; padding:6px 0;">Dati anagrafici fornitori<span class="prio media">Media</span></div>
+    </div>
+    <div class="rs">
+      <div class="cta">
+        <p><strong>Assistente di progetto.</strong> Chiedi analisi, avanza processi o genera un canvas dalla chat contestuale.</p>
+        <button class="btn btn-primary" style="align-self:flex-start;">Apri chat</button>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1520,"height":1020}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

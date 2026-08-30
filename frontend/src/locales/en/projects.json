@@ -1,0 +1,79 @@
+{
+  "breadcrumb": {
+    "projects": "Projects",
+    "portfolio": "Project portfolio"
+  },
+  "list": {
+    "title": "Projects",
+    "description": "Track the consulting project portfolio and move forward with informed decisions.",
+    "actions": { "new": "New project" },
+    "filter": {
+      "placeholder": "Search projects…",
+      "client": "Client",
+      "status": "Status",
+      "phase": "Phase",
+      "owner": "Owner"
+    },
+    "columns": {
+      "project": "Project",
+      "client": "Client",
+      "phase": "Current phase",
+      "owner": "Owner",
+      "status": "Status",
+      "processes": "Proc.",
+      "progress": "Progress"
+    },
+    "owner": { "unassigned": "Unassigned" },
+    "empty": {
+      "title": "No projects",
+      "description": "Create the first project from the agent chat."
+    },
+    "pagination": {
+      "total": "Showing {{from}}–{{to}} of {{count}} projects"
+    }
+  },
+  "detail": {
+    "backToList": "Back to projects",
+    "phaseLabel": "Phase",
+    "actions": {
+      "updateStatus": "Update status",
+      "openRoadmap": "Open roadmap"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "processes": "Processes",
+      "sources": "Sources",
+      "decisions": "Decisions",
+      "analysis": "Analysis",
+      "kpi": "KPI",
+      "team": "Team"
+    },
+    "overview": {
+      "processes": "Processes in scope",
+      "decisions": "Decisions",
+      "kpi": "Project KPIs",
+      "team": "Team"
+    },
+    "processes": { "empty": "No processes in scope" },
+    "sources": { "empty": "No linked sources" },
+    "decisions": { "empty": "No decisions recorded" },
+    "unavailable": {
+      "title": "Not available",
+      "kpi": "Project KPIs are not tracked by the backend yet. This section activates once the endpoint is ready.",
+      "team": "The project team is not tracked by the backend yet."
+    },
+    "panel": {
+      "summary": "Project summary",
+      "openIssues": "Open issues",
+      "milestones": "Key milestones",
+      "actions": "Quick actions",
+      "nextStep": "Next step",
+      "openRoadmap": "Open roadmap",
+      "openProcesses": "Open processes",
+      "selectPrompt": "Select a project to see its details."
+    }
+  },
+  "state": {
+    "loadError": "Could not load projects. Check that the backend is running."
+  }
+}

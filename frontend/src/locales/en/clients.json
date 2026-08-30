@@ -1,0 +1,39 @@
+{
+  "breadcrumb": { "clients": "Clients", "directory": "Client directory" },
+  "list": {
+    "title": "Clients",
+    "description": "Clients, contacts, linked processes and upcoming operational activities.",
+    "actions": { "new": "New client" },
+    "filter": {
+      "placeholder": "Search clients…",
+      "status": "Status",
+      "owner": "Owner",
+      "sector": "Sector"
+    },
+    "columns": {
+      "client": "Client",
+      "status": "Status",
+      "projects": "Projects",
+      "nextActivity": "Next activity",
+      "owner": "Owner"
+    },
+    "empty": {
+      "title": "No clients",
+      "description": "Create the first client from the agent chat."
+    },
+    "pagination": { "total": "Showing {{from}}–{{to}} of {{count}} clients" }
+  },
+  "detail": {
+    "summary": "Summary",
+    "activeProjects": "Active projects",
+    "owner": "Owner",
+    "contact": "Contact",
+    "nextActivity": "Next activity",
+    "processes": "Active processes",
+    "documents": "Recent documents",
+    "selectPrompt": "Select a client to see its details."
+  },
+  "state": {
+    "loadError": "Could not load clients. Check that the backend is running."
+  }
+}

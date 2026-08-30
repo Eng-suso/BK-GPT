@@ -21,11 +21,78 @@ from backend.graphs.routing_contracts import (
     invoke_structured_router,
     parse_routing_decision,
 )
+from backend.bpmn_semantic import BPMNSemanticModel
+from backend.process_understanding import ProcessUnderstanding
+from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 
 
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 CANVAS_LOOP_MAX_ATTEMPTS = 2
+
+
+def canonical_semantic_context_from_state(state: dict) -> tuple[ProcessUnderstanding | None, BPMNSemanticModel | None]:
+    raw_model = state.get("bpmn_semantic_model")
+    if not raw_model:
+        return None, None
+
+    try:
+        model = BPMNSemanticModel.model_validate(raw_model)
+    except Exception:
+        return None, None
+    if not model.compilationPlan or not model.sourceProcessUnderstanding:
+        return None, None
+
+    try:
+        understanding = ProcessUnderstanding.model_validate(model.sourceProcessUnderstanding)
+    except Exception:
+        return None, model
+
+    return understanding, model
+
+
+def _is_clear_canvas_intent(state: dict) -> bool:
+    text_parts = [
+        latest_user_text(state),
+        str(state.get("canvas_objective") or ""),
+        str(state.get("goal") or ""),
+        str(state.get("intent") or ""),
+        str(state.get("next_action") or ""),
+    ]
+    normalized = " ".join(text_parts).casefold()
+    clear_terms = (
+        "clear_canvas",
+        "empty_canvas",
+        "svuota",
+        "svuot",
+        "cancella tutto",
+        "elimina tutto",
+        "rimuovi tutto",
+        "elimina quello che c",
+        "elimina cio che c",
+        "empty the canvas",
+        "clear the canvas",
+    )
+    return any(term in normalized for term in clear_terms)
+
+
+def _empty_canvas_completion_report(xml: str) -> dict:
+    validation = validate_bpmn_xml(xml)
+    counts = validation.get("counts") or {}
+    flow_nodes = int(counts.get("flow_nodes") or 0)
+    sequence_flows = int(counts.get("sequence_flows") or 0)
+    is_empty = flow_nodes == 0 and sequence_flows == 0
+    issues = [] if is_empty and validation.get("valid") else (validation.get("issues") or ["Il canvas non e' vuoto."])
+    return {
+        "valid": bool(is_empty and validation.get("valid")),
+        "technical": validation,
+        "issues": issues,
+        "warnings": [],
+        "counts": {
+            "flow_nodes": flow_nodes,
+            "sequence_flows": sequence_flows,
+        },
+    }
 
 
 CANVAS_SUBGRAPH_CONTRACT = """
@@ -324,6 +391,9 @@ def route_after_canvas_work(state: CanvasState) -> str:
     if state.get("canvas_loop_status") == "blocked":
         return "completion_report"
 
+    if _is_clear_canvas_intent(state):
+        return "evaluate_canvas_completion"
+
     if state.get("canvas_route") != "construction":
         return "layout_subgraph"
 
@@ -346,6 +416,9 @@ def route_after_canvas_work(state: CanvasState) -> str:
 def route_after_canvas_layout(state: CanvasState) -> str:
     if state.get("canvas_layout_status") == "blocked" or state.get("canvas_loop_status") == "blocked":
         return "completion_report"
+
+    if _is_clear_canvas_intent(state):
+        return "evaluate_canvas_completion"
 
     return "validation_subgraph"
 
@@ -382,11 +455,43 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
             ],
         }
 
-    validation = validate_canvas_against_process(
-        xml=xml,
-        process_understanding=state.get("process_understanding") or state.get("process_understanding_json"),
-        bpmn_semantic_model=state.get("bpmn_semantic_model") or state.get("bpmn_semantic_model_json"),
-    )
+    if _is_clear_canvas_intent(state):
+        validation = _empty_canvas_completion_report(xml)
+        issues = validation.get("issues") or []
+        next_attempt = int(state.get("canvas_loop_attempt") or 0) + 1
+        if not issues:
+            return {
+                "canvas_loop_status": "completed",
+                "canvas_loop_attempt": next_attempt,
+                "canvas_last_validation": validation,
+                "validation_report": {
+                    "objective": state.get("canvas_objective") or "Svuotamento canvas",
+                    "xml_valid": True,
+                    "semantic_valid": None,
+                    "issues": [],
+                    "warnings": [],
+                    "next_actions": [],
+                    "completion_kind": "empty_canvas",
+                },
+                "canvas_warnings": [],
+                "canvas_next_actions": [],
+                "canvas_task_log": [
+                    {
+                        "step": "completion_check",
+                        "status": "completed",
+                        "owner": "canvas_loop",
+                        "summary": "Canvas vuoto verificato rispetto alla richiesta di cancellazione.",
+                    }
+                ],
+            }
+
+    else:
+        process_understanding, bpmn_semantic_model = canonical_semantic_context_from_state(state)
+        validation = validate_canvas_against_process(
+            xml=xml,
+            process_understanding=process_understanding,
+            bpmn_semantic_model=bpmn_semantic_model,
+        )
     issues = validation.get("issues") or []
     warnings = validation.get("warnings") or []
     next_attempt = int(state.get("canvas_loop_attempt") or 0) + 1
@@ -505,8 +610,11 @@ def canvas_completion_report(state: CanvasState) -> dict:
     warnings = report.get("warnings") or validation.get("warnings") or []
 
     if status == "completed":
-        content = "Ho completato la richiesta sul canvas e ho verificato il risultato: non ci sono problemi bloccanti."
-        if warnings:
+        if report.get("completion_kind") == "empty_canvas":
+            content = "Canvas svuotato. Ho verificato che non ci siano piu' elementi o collegamenti visibili."
+        else:
+            content = "Operazione completata. Il canvas e' stato aggiornato e verificato senza problemi bloccanti."
+        if warnings and report.get("completion_kind") != "empty_canvas":
             content += "\n\nPunti da verificare non bloccanti:\n" + "\n".join(f"- {item}" for item in warnings[:5])
     elif status == "blocked":
         content = "Ho lavorato sul canvas, ma la verifica finale indica che la richiesta non e' ancora chiudibile."
@@ -605,6 +713,7 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
         route_after_canvas_work,
         {
             "layout_subgraph": "layout_subgraph",
+            "evaluate_canvas_completion": "evaluate_canvas_completion",
             "completion_report": "canvas_completion_report",
         },
     )
@@ -613,6 +722,7 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
         route_after_canvas_layout,
         {
             "validation_subgraph": "validation_subgraph",
+            "evaluate_canvas_completion": "evaluate_canvas_completion",
             "completion_report": "canvas_completion_report",
         },
     )

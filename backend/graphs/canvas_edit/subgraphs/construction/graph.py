@@ -19,6 +19,12 @@ is weak, load process semantic context or prepare a review before attempting
 construction. Broad changes require preview and validation; saving requires an
 approved review or explicit confirmation.
 
+The canvas is a BPMN operating view, not a semantic scratchpad. Do not make
+rules, unknowns, data objects, handoffs, evidence or traceability visible as
+text annotations, association edges or data artifacts. Those details must remain
+inside BPMNSemanticModel/sourceProcessUnderstanding/compilationPlan and the
+business report.
+
 When presenting the work, describe it as a draft or revision of the process
 drawing. Use business language and the business_report returned by tools. Do not
 show XML, ids, BPMNSemanticModel, ProcessUnderstanding, sourceRef, targetRef,

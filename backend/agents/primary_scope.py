@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Literal
 
+from pydantic import BaseModel
+
 from backend.schemas.chat import ChatScope, chat_scope_key
 
 
@@ -84,21 +86,37 @@ def build_scope_system_prompt(state: dict) -> str:
             + _state_value_to_text(state["missing_information"], MAX_STATE_ARTIFACT_CHARS)
         )
 
-    if state.get("process_understanding_json"):
+    if state.get("process_understanding"):
         lines.extend(
             [
                 "",
                 "ProcessUnderstanding corrente nello state:",
-                _state_value_to_text(state["process_understanding_json"], MAX_STATE_ARTIFACT_CHARS),
+                _state_value_to_text(state["process_understanding"], MAX_STATE_ARTIFACT_CHARS),
+            ]
+        )
+    if state.get("process_understanding_diagnostics"):
+        lines.extend(
+            [
+                "",
+                "Diagnostica ProcessUnderstanding corrente:",
+                _state_value_to_text(state["process_understanding_diagnostics"], MAX_STATE_ARTIFACT_CHARS),
+            ]
+        )
+    if state.get("process_quality_report"):
+        lines.extend(
+            [
+                "",
+                "Quality report ProcessUnderstanding corrente:",
+                _state_value_to_text(state["process_quality_report"], MAX_STATE_ARTIFACT_CHARS),
             ]
         )
 
-    if state.get("bpmn_semantic_model_json"):
+    if state.get("bpmn_semantic_model"):
         lines.extend(
             [
                 "",
                 "BPMNSemanticModel corrente nello state:",
-                _state_value_to_text(state["bpmn_semantic_model_json"], MAX_STATE_ARTIFACT_CHARS),
+                _state_value_to_text(state["bpmn_semantic_model"], MAX_STATE_ARTIFACT_CHARS),
             ]
         )
 
@@ -176,6 +194,8 @@ def tool_scope_type(scope_type: str | None) -> AgentScopeType:
 def _state_value_to_text(value, max_chars: int) -> str:
     if isinstance(value, str):
         text = value
+    elif isinstance(value, BaseModel):
+        text = value.model_dump_json(indent=2)
     else:
         text = json.dumps(value, ensure_ascii=False, indent=2)
 

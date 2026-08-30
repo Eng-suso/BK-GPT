@@ -1,0 +1,56 @@
+{
+  "nav": {
+    "primary": "Primary navigation",
+    "home": "Home",
+    "consultant": "Consultant",
+    "clients": "Clients",
+    "projects": "Projects",
+    "models": "Models",
+    "archive": "Archive",
+    "help": "Help",
+    "profile": "Settings"
+  },
+  "actions": {
+    "new": "New",
+    "save": "Save",
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "open": "Open",
+    "close": "Close",
+    "search": "Search"
+  },
+  "state": {
+    "loading": "Loading…",
+    "error": "Something went wrong",
+    "empty": "No data available",
+    "backendUnavailable": "Backend unavailable",
+    "comingSoon": "Coming soon"
+  },
+  "home": {
+    "description": "Operational overview of clients, projects and processes in the workspace.",
+    "seeAll": "See all",
+    "emptyProjects": "No projects yet",
+    "emptyClients": "No clients yet",
+    "metrics": {
+      "clients": "Clients",
+      "clientsNote": "In the workspace",
+      "projects": "Projects",
+      "projectsNote": "Linked to the workspace",
+      "processes": "Processes",
+      "processesNote": "To model on the canvas"
+    }
+  },
+  "models": {
+    "description": "Reusable templates for interviews, processes and deliverables.",
+    "empty": "The model library activates once the dedicated endpoint is ready."
+  },
+  "archive": {
+    "description": "Documents, versions, exports and project deliverables.",
+    "empty": "The document archive activates once the dedicated endpoint is ready."
+  },
+  "language": {
+    "label": "Language",
+    "it": "Italian",
+    "en": "English"
+  }
+}

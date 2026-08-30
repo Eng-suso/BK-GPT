@@ -1,6 +1,6 @@
 import React from "react";
 import { ChatExperience } from "../chat/ChatExperience";
-import type { Project, ProjectProcess } from "../projects/projectData";
+import type { Project, ProjectProcess } from "../../contracts/workspace";
 import { ProcessBpmnCanvas } from "./ProcessBpmnCanvas";
 
 type ProcessWorkspaceProps = {

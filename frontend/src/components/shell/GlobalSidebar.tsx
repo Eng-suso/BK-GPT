@@ -1,77 +1,80 @@
-import React from "react";
+import { HelpCircle, Settings } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { cn } from "@/lib/utils";
 import { shellSections } from "./sections";
 import type { ShellSection } from "./types";
 
-type GlobalSidebarProps = {
+export type GlobalSidebarProps = {
   activeSection: ShellSection;
-  isCollapsed: boolean;
   onSectionChange: (section: ShellSection) => void;
-  onToggleCollapsed: () => void;
 };
 
-export const GlobalSidebar: React.FC<GlobalSidebarProps> = ({
+export function GlobalSidebar({
   activeSection,
-  isCollapsed,
   onSectionChange,
-  onToggleCollapsed,
-}) => {
+}: GlobalSidebarProps): React.JSX.Element {
+  const { t } = useTranslation("common");
+
   return (
     <aside
-      className={`product-sidebar${isCollapsed ? " product-sidebar-collapsed" : ""}`}
-      aria-label="Navigazione principale"
+      aria-label={t("nav.primary")}
+      className="flex flex-col items-center border-r border-border bg-card px-2 py-4 lg:items-stretch lg:px-3"
     >
-      <div className="product-brand">
-        <div className="product-brand-mark" aria-hidden="true">D</div>
-        <div className="product-brand-copy" aria-hidden={isCollapsed}>
-          <strong>DeliR</strong>
-          <span>Workspace</span>
-        </div>
+      <div className="pb-[18px] pt-1 text-[19px] font-bold tracking-[-0.03em] text-primary lg:px-2">
+        <span className="lg:hidden">D</span>
+        <span className="hidden lg:inline">DeliR</span>
       </div>
 
-      <nav className="product-nav" aria-label="Sezioni principali">
+      <nav className="flex w-full flex-col gap-0.5">
         {shellSections.map((item) => {
+          const Icon = item.icon;
           const isActive = item.id === activeSection;
-
           return (
             <button
               key={item.id}
               type="button"
-              className={`product-nav-item${isActive ? " product-nav-item-active" : ""}`}
-              aria-label={item.label}
               aria-current={isActive ? "page" : undefined}
+              title={t(item.labelKey)}
               onClick={() => onSectionChange(item.id)}
+              className={cn(
+                "relative flex h-9 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] font-normal text-muted-foreground lg:justify-start lg:px-2.5",
+                "hover:bg-muted/60 hover:text-foreground",
+                isActive &&
+                  "bg-[var(--color-surface-selected)] font-medium text-primary lg:before:absolute lg:before:-left-3 lg:before:inset-y-2 lg:before:w-[3px] lg:before:rounded-r-[3px] lg:before:bg-primary lg:before:content-['']",
+              )}
             >
-              <span className="product-nav-icon" aria-hidden="true">
-                {item.shortLabel}
-              </span>
-              <span className="product-nav-label" aria-hidden="true">{item.label}</span>
+              <Icon
+                className={cn(
+                  "size-[17px] shrink-0",
+                  isActive ? "opacity-100" : "opacity-70",
+                )}
+                strokeWidth={1.6}
+              />
+              <span className="hidden lg:inline">{t(item.labelKey)}</span>
             </button>
           );
         })}
       </nav>
 
-      <div className="product-sidebar-footer" aria-hidden={isCollapsed}>
-        <button type="button" className="product-nav-item" aria-label="Aiuto">
-          <span className="product-nav-icon" aria-hidden="true">?</span>
-          <span className="product-nav-label" aria-hidden="true">Aiuto</span>
+      <div className="mt-auto flex w-full flex-col gap-0.5 border-t border-border/70 pt-2.5">
+        <button
+          type="button"
+          title={t("nav.help")}
+          className="flex h-9 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground lg:justify-start lg:px-2.5"
+        >
+          <HelpCircle className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
+          <span className="hidden lg:inline">{t("nav.help")}</span>
         </button>
-        <button type="button" className="product-nav-item" aria-label="Profilo e impostazioni">
-          <span className="product-nav-icon" aria-hidden="true">S</span>
-          <span className="product-nav-label" aria-hidden="true">Profilo / Impostazioni</span>
+        <button
+          type="button"
+          title={t("nav.profile")}
+          className="flex h-9 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground lg:justify-start lg:px-2.5"
+        >
+          <Settings className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
+          <span className="hidden lg:inline">{t("nav.profile")}</span>
         </button>
       </div>
-
-      <button
-        type="button"
-        className="product-sidebar-toggle"
-        aria-label={isCollapsed ? "Espandi navigazione" : "Riduci navigazione"}
-        onClick={onToggleCollapsed}
-      >
-        <span aria-hidden="true">{isCollapsed ? ">" : "<"}</span>
-        <span className="product-sidebar-toggle-label">
-          {isCollapsed ? "Espandi" : "Riduci"}
-        </span>
-      </button>
     </aside>
   );
-};
+}

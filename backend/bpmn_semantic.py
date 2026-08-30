@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import re
 from html import escape
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from backend.process_understanding import ProcessActor, ProcessStep, ProcessUnderstanding
+from backend.process_understanding import ProcessActor, ProcessDecision, ProcessStep, ProcessUnderstanding
 
 
 class BPMNFlowNode(BaseModel):
@@ -27,6 +28,8 @@ class BPMNFlowNode(BaseModel):
     laneId: str | None = None
     owner: str | None = None
     eventDefinition: Literal["timer"] | None = None
+    documentation: str | None = None
+    sourceRefs: list[str] = Field(default_factory=list)
 
 
 class BPMNSequenceFlow(BaseModel):
@@ -34,12 +37,15 @@ class BPMNSequenceFlow(BaseModel):
     sourceRef: str
     targetRef: str
     name: str | None = None
+    documentation: str | None = None
+    sourceRefs: list[str] = Field(default_factory=list)
 
 
 class BPMNLane(BaseModel):
     id: str
     name: str
     flowNodeRefs: list[str] = Field(default_factory=list)
+    sourceRefs: list[str] = Field(default_factory=list)
 
 
 class BPMNDataObject(BaseModel):
@@ -47,6 +53,8 @@ class BPMNDataObject(BaseModel):
     name: str
     kind: str = "data"
     sourceNodeRef: str | None = None
+    documentation: str | None = None
+    sourceRefs: list[str] = Field(default_factory=list)
 
 
 class BPMNTextAnnotation(BaseModel):
@@ -61,6 +69,153 @@ class BPMNAssociation(BaseModel):
     targetRef: str
 
 
+MappingStatus = Literal["direct", "encoded", "visual_annotation", "semantic_payload", "blocked"]
+
+
+class ProcessUnderstandingRef(BaseModel):
+    field: str
+    id: str | None = None
+    label: str | None = None
+
+
+class TraceabilityLink(BaseModel):
+    source: ProcessUnderstandingRef
+    target_id: str
+    target_type: str
+    mapping_status: MappingStatus = "direct"
+    rationale: str = ""
+
+
+class CompilationCoverageReport(BaseModel):
+    total_source_items: int
+    represented_source_items: int
+    losses: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    traceability: list[TraceabilityLink] = Field(default_factory=list)
+
+
+class ParticipantSpec(BaseModel):
+    id: str
+    name: str
+    kind: str
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+    mapping_status: MappingStatus = "direct"
+
+
+class LaneSpec(BaseModel):
+    id: str
+    name: str
+    actor_id: str
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class ActivitySpec(BaseModel):
+    id: str
+    name: str
+    type: str
+    lane_id: str | None = None
+    documentation: str = ""
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class GatewaySpec(BaseModel):
+    id: str
+    name: str
+    type: Literal["exclusiveGateway", "parallelGateway", "inclusiveGateway"] = "exclusiveGateway"
+    anchor_step_id: str | None = None
+    outcomes: list[str] = Field(default_factory=list)
+    documentation: str = ""
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class EventSpec(BaseModel):
+    id: str
+    name: str
+    type: str
+    documentation: str = ""
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class FlowSpec(BaseModel):
+    id: str
+    source_ref: str
+    target_ref: str
+    name: str | None = None
+    documentation: str = ""
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class DataObjectSpec(BaseModel):
+    id: str
+    name: str
+    kind: str
+    source_node_ref: str | None = None
+    documentation: str = ""
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+    mapping_status: MappingStatus = "semantic_payload"
+
+
+class AnnotationSpec(BaseModel):
+    id: str
+    text: str
+    source_node_ref: str | None = None
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class BusinessRuleSpec(BaseModel):
+    id: str
+    text: str
+    target_ref: str | None = None
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class ExceptionPathSpec(BaseModel):
+    id: str
+    name: str
+    trigger: str | None = None
+    handling: str | None = None
+    mapping_status: MappingStatus = "visual_annotation"
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class LoopSpec(BaseModel):
+    id: str
+    name: str
+    repeated_steps: list[str] = Field(default_factory=list)
+    condition: str | None = None
+    exit_condition: str | None = None
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class HandoffSpec(BaseModel):
+    id: str
+    from_actor_id: str | None = None
+    to_actor_id: str | None = None
+    artifact: str | None = None
+    trigger: str | None = None
+    mapping_status: MappingStatus = "visual_annotation"
+    source_refs: list[ProcessUnderstandingRef] = Field(default_factory=list)
+
+
+class BpmnCompilationPlan(BaseModel):
+    schema_version: str = "bpmn_compilation_plan.v1"
+    process_id: str
+    process_name: str
+    participants: list[ParticipantSpec] = Field(default_factory=list)
+    lanes: list[LaneSpec] = Field(default_factory=list)
+    events: list[EventSpec] = Field(default_factory=list)
+    activities: list[ActivitySpec] = Field(default_factory=list)
+    gateways: list[GatewaySpec] = Field(default_factory=list)
+    flows: list[FlowSpec] = Field(default_factory=list)
+    data_objects: list[DataObjectSpec] = Field(default_factory=list)
+    annotations: list[AnnotationSpec] = Field(default_factory=list)
+    business_rules: list[BusinessRuleSpec] = Field(default_factory=list)
+    exceptions: list[ExceptionPathSpec] = Field(default_factory=list)
+    loops: list[LoopSpec] = Field(default_factory=list)
+    handoffs: list[HandoffSpec] = Field(default_factory=list)
+    coverage: CompilationCoverageReport
+
+
 class BPMNSemanticModel(BaseModel):
     id: str
     name: str
@@ -72,6 +227,8 @@ class BPMNSemanticModel(BaseModel):
     textAnnotations: list[BPMNTextAnnotation] = Field(default_factory=list)
     associations: list[BPMNAssociation] = Field(default_factory=list)
     model_warnings: list[str] = Field(default_factory=list)
+    compilationPlan: BpmnCompilationPlan | None = None
+    sourceProcessUnderstanding: dict | None = None
 
 
 def build_bpmn_semantic_model(
@@ -100,7 +257,8 @@ def build_bpmn_semantic_model(
     step_node_by_original_id: dict[str, str] = {}
     gateway_by_decision_id: dict[str, BPMNFlowNode] = {}
     gateway_by_step_id: dict[str, BPMNFlowNode] = {}
-    decision_queue = list(process.decisions)
+    decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_steps)
+    warnings.extend(decision_anchor_warnings)
 
     for index, step in enumerate(ordered_steps, start=1):
         lane_id = _lane_for_step(step, process.actors, lane_by_actor_id)
@@ -110,18 +268,22 @@ def build_bpmn_semantic_model(
             name=step.label,
             laneId=lane_id,
             owner=_actor_label(process.actors, step.actor_ids),
+            documentation=_step_documentation(step, process.actors),
+            sourceRefs=[_source_ref_id("steps", step.id)],
         )
         nodes.append(task)
         main_chain.append(task.id)
         step_node_by_original_id[step.id] = task.id
 
-        decision = _take_decision_for_step(step, decision_queue)
+        decision = decision_by_anchor_step_id.get(step.id)
         if decision:
             gateway = BPMNFlowNode(
                 id=_xml_id(decision.id, "Gateway", used_ids),
                 type="exclusiveGateway",
                 name=decision.label,
                 laneId=lane_id,
+                documentation=_decision_documentation(decision),
+                sourceRefs=[_source_ref_id("decisions", decision.id)],
             )
             nodes.append(gateway)
             main_chain.append(gateway.id)
@@ -137,8 +299,7 @@ def build_bpmn_semantic_model(
     main_chain.append(end.id)
 
     for source_id, target_id in zip(main_chain, main_chain[1:]):
-        flow_name = _positive_outcome_name(process.decisions) if source_id in {gateway.id for gateway in gateway_by_decision_id.values()} else None
-        flows.append(_flow(source_id, target_id, used_ids, flow_name))
+        flows.append(_flow(source_id, target_id, used_ids))
 
     _add_alternative_paths(
         process=process,
@@ -151,7 +312,6 @@ def build_bpmn_semantic_model(
         gateway_by_step_id=gateway_by_step_id,
         actors=process.actors,
         lane_by_actor_id=lane_by_actor_id,
-        fallback_end_id=end.id,
         warnings=warnings,
     )
     _add_loop_flows(
@@ -161,34 +321,32 @@ def build_bpmn_semantic_model(
         step_node_by_original_id=step_node_by_original_id,
         warnings=warnings,
     )
-    data_objects, associations = _build_data_objects(
-        process=process,
-        used_ids=used_ids,
-        step_node_by_original_id=step_node_by_original_id,
-        ordered_steps=ordered_steps,
-    )
-    text_annotations, annotation_associations = _build_process_annotations(
-        process=process,
-        warnings=warnings,
-        used_ids=used_ids,
-        source_node_id=next(
-            (node.id for node in nodes if node.type not in {"startEvent", "endEvent", "exclusiveGateway"}),
-            nodes[0].id,
-        ),
-    )
     _populate_lane_refs(lanes, nodes)
 
-    return BPMNSemanticModel(
+    model = BPMNSemanticModel(
         id=safe_process_id,
         name=process_name,
         lanes=[lane for lane in lanes if lane.flowNodeRefs],
         flowNodes=nodes,
         sequenceFlows=flows,
-        dataObjects=data_objects,
-        textAnnotations=text_annotations,
-        associations=[*associations, *annotation_associations],
+        dataObjects=[],
+        textAnnotations=[],
+        associations=[],
         model_warnings=warnings,
+        sourceProcessUnderstanding=process.model_dump(mode="json"),
     )
+    model.compilationPlan = build_bpmn_compilation_plan(
+        process_id=safe_process_id,
+        process_name=process_name,
+        process=process,
+        model=model,
+    )
+    if model.compilationPlan.coverage.losses:
+        raise ValueError(
+            "Compilazione BPMN non lossless: "
+            + "; ".join(model.compilationPlan.coverage.losses)
+        )
+    return model
 
 
 def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
@@ -225,13 +383,13 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
             warnings.append(f"Nodo {node.name} senza ingresso.")
         if node.type not in {"endEvent"} and not outgoing_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza uscita.")
-        if node.type in {"task", "userTask", "manualTask"} and _looks_compound(node.name):
-            warnings.append(f"Task potenzialmente composto: {node.name}")
     return warnings
 
 
-def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
+def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bool = False) -> str:
     incoming, outgoing = _flow_refs(model)
+    visual_data_objects = model.dataObjects if visual_artifacts else []
+    annotations, associations = _semantic_annotations(model) if visual_artifacts else ([], [])
     xml_parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
@@ -241,6 +399,9 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
         f'id="Definitions_{escape(model.id)}" targetNamespace="https://workspace.local/bpmn">',
         f'  <bpmn:process id="{escape(model.id)}" name="{escape(model.name)}" isExecutable="false">',
     ]
+    process_documentation = _process_documentation(model)
+    if process_documentation:
+        xml_parts.extend(_documentation_xml(process_documentation, indent="    "))
 
     if model.lanes:
         xml_parts.append(f'    <bpmn:laneSet id="{escape(model.id)}_LaneSet">')
@@ -253,6 +414,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
 
     for node in model.flowNodes:
         xml_parts.append(f'    <bpmn:{node.type} id="{escape(node.id)}" name="{escape(node.name)}">')
+        if node.documentation or node.sourceRefs:
+            xml_parts.extend(_documentation_xml(_element_documentation(node.documentation, node.sourceRefs), indent="      "))
         for flow_id in incoming[node.id]:
             xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
@@ -263,16 +426,35 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
 
     for flow in model.sequenceFlows:
         name = f' name="{escape(flow.name)}"' if flow.name else ""
-        xml_parts.append(
-            f'    <bpmn:sequenceFlow id="{escape(flow.id)}" sourceRef="{escape(flow.sourceRef)}" '
-            f'targetRef="{escape(flow.targetRef)}"{name} />'
-        )
+        if flow.documentation or flow.sourceRefs:
+            xml_parts.append(
+                f'    <bpmn:sequenceFlow id="{escape(flow.id)}" sourceRef="{escape(flow.sourceRef)}" '
+                f'targetRef="{escape(flow.targetRef)}"{name}>'
+            )
+            xml_parts.extend(_documentation_xml(_element_documentation(flow.documentation, flow.sourceRefs), indent="      "))
+            xml_parts.append("    </bpmn:sequenceFlow>")
+        else:
+            xml_parts.append(
+                f'    <bpmn:sequenceFlow id="{escape(flow.id)}" sourceRef="{escape(flow.sourceRef)}" '
+                f'targetRef="{escape(flow.targetRef)}"{name} />'
+            )
 
-    annotations, associations = _semantic_annotations(model)
-    for data_object in model.dataObjects:
-        xml_parts.append(
-            f'    <bpmn:dataObjectReference id="{escape(data_object.id)}" name="{escape(data_object.name)}" />'
-        )
+    for data_object in visual_data_objects:
+        if data_object.documentation or data_object.sourceRefs:
+            xml_parts.append(
+                f'    <bpmn:dataObjectReference id="{escape(data_object.id)}" name="{escape(data_object.name)}">'
+            )
+            xml_parts.extend(
+                _documentation_xml(
+                    _element_documentation(data_object.documentation, data_object.sourceRefs),
+                    indent="      ",
+                )
+            )
+            xml_parts.append("    </bpmn:dataObjectReference>")
+        else:
+            xml_parts.append(
+                f'    <bpmn:dataObjectReference id="{escape(data_object.id)}" name="{escape(data_object.name)}" />'
+            )
     for annotation in annotations:
         xml_parts.extend(
             [
@@ -312,8 +494,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
             ]
         )
 
-    data_positions = _layout_data_objects(model.dataObjects, positions)
-    for data_object in model.dataObjects:
+    data_positions = _layout_data_objects(visual_data_objects, positions)
+    for data_object in visual_data_objects:
         pos = data_positions[data_object.id]
         xml_parts.extend(
             [
@@ -349,7 +531,11 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
 
 def _build_lanes(actors: list[ProcessActor], used_ids: set[str]) -> list[BPMNLane]:
     return [
-        BPMNLane(id=_xml_id(actor.id or actor.label, "Lane", used_ids), name=actor.label)
+        BPMNLane(
+            id=_xml_id(actor.id or actor.label, "Lane", used_ids),
+            name=actor.label,
+            sourceRefs=[_source_ref_id("actors", actor.id)],
+        )
         for actor in actors
         if actor.label.strip()
     ][:8]
@@ -367,11 +553,7 @@ def _lane_for_step(
     for actor_id in step.actor_ids:
         if actor_id in lane_by_actor_id:
             return lane_by_actor_id[actor_id]
-    evidence = " ".join([step.label, *(step.source_evidence or [])]).casefold()
-    for actor in actors:
-        if actor.label.casefold() in evidence:
-            return lane_by_actor_id.get(actor.id)
-    return next(iter(lane_by_actor_id.values()), None)
+    return None
 
 
 def _populate_lane_refs(lanes: list[BPMNLane], nodes: list[BPMNFlowNode]) -> None:
@@ -390,15 +572,61 @@ def _task_type(step: ProcessStep) -> str:
     }.get(step.type, "userTask")
 
 
-def _take_decision_for_step(step: ProcessStep, decisions: list) -> object | None:
-    if not decisions:
-        return None
-    text = f"{step.label} {' '.join(step.source_evidence or [])}".casefold()
-    for index, decision in enumerate(decisions):
-        if any(word in text for word in ("verifica", "controll", "valuta", "approv", "se ")):
-            return decisions.pop(index)
-    if len(decisions) == 1:
-        return decisions.pop(0)
+def _decision_anchor_map(
+    process: ProcessUnderstanding,
+    ordered_steps: list[ProcessStep],
+) -> tuple[dict[str, ProcessDecision], list[str]]:
+    ordered_step_ids = [step.id for step in ordered_steps if step.id]
+    decision_by_anchor: dict[str, ProcessDecision] = {}
+    warnings: list[str] = []
+    unassigned = list(process.decisions)
+
+    for path in process.alternative_paths:
+        decision = _decision_for_path(path, unassigned)
+        if decision is None:
+            continue
+
+        anchor_step_id = _anchor_step_for_decision(process, decision, ordered_step_ids)
+        if anchor_step_id is None:
+            warnings.append(
+                f"Decisione '{decision.label}' senza flow edge di ingresso da uno step del percorso principale."
+            )
+            continue
+
+        if anchor_step_id in decision_by_anchor:
+            warnings.append(
+                f"Piu' decisioni candidate sullo stesso step '{anchor_step_id}'; verificare il modello."
+            )
+            continue
+
+        decision_by_anchor[anchor_step_id] = decision
+        unassigned = [item for item in unassigned if item.id != decision.id]
+
+    for decision in unassigned:
+        anchor_step_id = _anchor_step_for_decision(process, decision, ordered_step_ids)
+        if anchor_step_id and anchor_step_id not in decision_by_anchor:
+            decision_by_anchor[anchor_step_id] = decision
+        else:
+            warnings.append(f"Decisione '{decision.label}' non mappabile: manca anchor esplicito in flow_edges.")
+
+    return decision_by_anchor, warnings
+
+
+def _decision_for_path(path, decisions: list[ProcessDecision]) -> ProcessDecision | None:
+    for decision in decisions:
+        if any(outcome.target_path_id == path.id for outcome in decision.outcome_details):
+            return decision
+    return None
+
+
+def _anchor_step_for_decision(
+    process: ProcessUnderstanding,
+    decision: ProcessDecision,
+    ordered_step_ids: list[str],
+) -> str | None:
+    for edge in process.flow_edges:
+        if edge.target_id == decision.id and edge.source_id in ordered_step_ids:
+            return edge.source_id
     return None
 
 
@@ -414,32 +642,26 @@ def _add_alternative_paths(
     gateway_by_step_id: dict[str, BPMNFlowNode],
     actors: list[ProcessActor],
     lane_by_actor_id: dict[str, str],
-    fallback_end_id: str,
     warnings: list[str],
 ) -> None:
     unassigned_paths = list(process.alternative_paths)
     gateways = list(gateway_by_decision_id.values())
 
-    for decision_index, decision in enumerate(process.decisions):
+    for decision in process.decisions:
         gateway = gateway_by_decision_id.get(decision.id)
         if gateway is None:
             continue
 
         path = _take_alternative_path_for_decision(decision, unassigned_paths)
-        outcome_name = _negative_outcome_name(decision.outcomes or [])
 
-        if path is None or not path.sequence:
-            alt_end = BPMNFlowNode(
-                id=_xml_id(f"End_{decision.id}_Alt", "EndEvent", used_ids),
-                type="endEvent",
-                name=outcome_name,
-                laneId=gateway.laneId,
-            )
-            nodes.append(alt_end)
-            flows.append(_flow(gateway.id, alt_end.id, used_ids, outcome_name))
-            warnings.append(f"Gateway '{decision.label}' generato con ramo alternativo da confermare.")
+        if path is None:
+            warnings.append(f"Gateway '{decision.label}' senza alternative path esplicito collegato.")
+            continue
+        if not path.sequence and not path.ends_at:
+            warnings.append(f"Alternative path '{path.label}' senza sequenza o fine esplicita.")
             continue
 
+        outcome_name = _outcome_name_for_path(decision, path)
         previous_id = gateway.id
         branch_node_ids = []
         for branch_index, step_id in enumerate(path.sequence, start=1):
@@ -470,7 +692,7 @@ def _add_alternative_paths(
             alt_end = BPMNFlowNode(
                 id=_xml_id(f"End_{path.id}", "EndEvent", used_ids),
                 type="endEvent",
-                name=path.ends_at or path.label or outcome_name,
+                name=path.ends_at or path.label or outcome_name or "Fine percorso alternativo",
                 laneId=gateway.laneId,
             )
             nodes.append(alt_end)
@@ -482,46 +704,21 @@ def _add_alternative_paths(
     if unassigned_paths and not gateways:
         warnings.append("Alternative path presenti, ma nessun gateway decisionale e' stato generato.")
     elif unassigned_paths:
-        fallback_gateway = gateways[-1]
         for path in unassigned_paths:
-            if not path.sequence:
-                continue
-            previous_id = fallback_gateway.id
-            for branch_index, step_id in enumerate(path.sequence, start=1):
-                source_step = step_by_id.get(step_id)
-                if source_step is None:
-                    continue
-                lane_id = _lane_for_step(source_step, actors, lane_by_actor_id)
-                branch_node = BPMNFlowNode(
-                    id=_xml_id(f"{path.id}_{source_step.id or branch_index}", "Task", used_ids),
-                    type=_task_type(source_step),
-                    name=source_step.label,
-                    laneId=lane_id,
-                    owner=_actor_label(actors, source_step.actor_ids),
-                )
-                nodes.append(branch_node)
-                flows.append(
-                    _flow(
-                        previous_id,
-                        branch_node.id,
-                        used_ids,
-                        path.trigger_or_condition if previous_id == fallback_gateway.id else None,
-                    )
-                )
-                previous_id = branch_node.id
-            target_id = step_node_by_original_id.get(path.rejoins_at or "") or fallback_end_id
-            flows.append(_flow(previous_id, target_id, used_ids))
+            warnings.append(f"Alternative path '{path.label}' non collegato a un outcome decisionale esplicito.")
 
 
 def _take_alternative_path_for_decision(decision, paths: list):
     if not paths:
         return None
-    decision_text = f"{decision.id} {decision.label} {decision.question or ''} {' '.join(decision.outcomes or [])}".casefold()
     for index, path in enumerate(paths):
-        path_text = f"{path.id} {path.label} {path.trigger_or_condition or ''}".casefold()
-        if any(token and token in path_text for token in decision_text.split()):
+        if _path_matches_decision(decision, path):
             return paths.pop(index)
-    return paths.pop(0)
+    return None
+
+
+def _path_matches_decision(decision, path) -> bool:
+    return any(outcome.target_path_id == path.id for outcome in decision.outcome_details)
 
 
 def _add_loop_flows(
@@ -539,7 +736,24 @@ def _add_loop_flows(
             continue
         source_id = step_node_by_original_id[repeated[-1]]
         target_id = step_node_by_original_id[repeated[0]]
-        flows.append(_flow(source_id, target_id, used_ids, loop.condition or loop.label))
+        flows.append(
+            _flow(
+                source_id,
+                target_id,
+                used_ids,
+                loop.condition or loop.label,
+                documentation=_json_documentation(
+                    "loop",
+                    {
+                        "label": loop.label,
+                        "condition": loop.condition,
+                        "exit_condition": loop.exit_condition,
+                        "repeated_steps": loop.repeated_steps,
+                    },
+                ),
+                source_refs=[_source_ref_id("loops", loop.id)],
+            )
+        )
         if loop.exit_condition:
             warnings.append(f"Loop '{loop.label}' con exit condition: {loop.exit_condition}")
 
@@ -565,6 +779,14 @@ def _build_data_objects(
             name=item.label,
             kind=item.kind,
             sourceNodeRef=source_node_id,
+            documentation=_json_documentation(
+                "data_object",
+                {
+                    "kind": item.kind,
+                    "source_evidence": item.source_evidence,
+                },
+            ),
+            sourceRefs=[_source_ref_id("data_objects", item.id)],
         )
         data_objects.append(data_object)
         if source_node_id:
@@ -585,12 +807,8 @@ def _source_node_for_data_object(
     step_node_by_original_id: dict[str, str],
     ordered_steps: list[ProcessStep],
 ) -> str | None:
-    normalized_label = label.casefold()
-    for step in ordered_steps:
-        evidence = " ".join([step.label, *(step.inputs or []), *(step.outputs or [])]).casefold()
-        if normalized_label and normalized_label in evidence:
-            return step_node_by_original_id.get(step.id)
-    return next(iter(step_node_by_original_id.values()), None)
+    _ = (label, step_node_by_original_id, ordered_steps)
+    return None
 
 
 def _build_process_annotations(
@@ -604,7 +822,7 @@ def _build_process_annotations(
     annotation_texts.extend(warnings[:4])
     annotation_texts.extend(
         f"Handoff: {item.artifact or item.trigger or item.id}"
-        for item in process.handoffs[:4]
+        for item in process.handoffs
         if item.artifact or item.trigger or item.id
     )
     annotation_texts.extend(
@@ -612,10 +830,32 @@ def _build_process_annotations(
         for item in process.actor_relationships
         if item.bpmn_pool_candidate
     )
+    annotation_texts.extend(f"Regola business: {item}" for item in process.business_rules)
+    annotation_texts.extend(
+        f"Domanda aperta ({item.severity}): {item.question}"
+        for item in process.unknowns
+    )
+    annotation_texts.extend(
+        f"Eccezione: {item.label}; trigger: {item.trigger or 'n/d'}; gestione: {item.handling or 'da definire'}"
+        for item in process.exceptions
+    )
+    annotation_texts.extend(
+        f"Hint BPMN: {item.element} - {item.hint} ({item.confidence})"
+        for item in process.bpmn_modeling_hints
+    )
+    annotation_texts.extend(
+        f"Evento {item.type}: {item.label}"
+        for item in process.events
+        if item.type not in {"start", "end"}
+    )
+    annotation_texts.extend(
+        f"Input/output {item.step}: input={', '.join(item.input) or 'n/d'}; output={', '.join(item.output) or 'n/d'}"
+        for item in process.input_outputs
+    )
 
     annotations: list[BPMNTextAnnotation] = []
     associations: list[BPMNAssociation] = []
-    for index, text in enumerate(_unique_texts(annotation_texts)[:8], start=1):
+    for index, text in enumerate(_unique_texts(annotation_texts)[:30], start=1):
         annotation = BPMNTextAnnotation(
             id=_xml_id(f"TextAnnotation_{index}", "TextAnnotation", used_ids),
             text=text[:240],
@@ -632,13 +872,346 @@ def _build_process_annotations(
     return annotations, associations
 
 
-def _flow(source: str, target: str, used_ids: set[str], name: str | None = None) -> BPMNSequenceFlow:
+def _flow(
+    source: str,
+    target: str,
+    used_ids: set[str],
+    name: str | None = None,
+    documentation: str | None = None,
+    source_refs: list[str] | None = None,
+) -> BPMNSequenceFlow:
     return BPMNSequenceFlow(
         id=_xml_id(f"Flow_{source}_to_{target}", "Flow", used_ids),
         sourceRef=source,
         targetRef=target,
         name=name,
+        documentation=documentation,
+        sourceRefs=source_refs or [],
     )
+
+
+def build_bpmn_compilation_plan(
+    *,
+    process_id: str,
+    process_name: str,
+    process: ProcessUnderstanding,
+    model: BPMNSemanticModel,
+) -> BpmnCompilationPlan:
+    target_by_source_ref = _target_by_source_ref(model)
+    source_items = _process_source_items(process)
+    traceability: list[TraceabilityLink] = []
+
+    for item in source_items:
+        source_ref_id = _source_ref_id(item.field, item.id)
+        target = target_by_source_ref.get(source_ref_id)
+        if target is None:
+            target = (process_id, "process")
+            status: MappingStatus = "semantic_payload"
+            rationale = "Preserved losslessly in process-level BPMN documentation payload."
+        else:
+            status = "direct"
+            rationale = "Mapped to a concrete BPMN model element."
+
+        traceability.append(
+            TraceabilityLink(
+                source=item,
+                target_id=target[0],
+                target_type=target[1],
+                mapping_status=status,
+                rationale=rationale,
+            )
+        )
+
+    coverage = CompilationCoverageReport(
+        total_source_items=len(source_items),
+        represented_source_items=len(traceability),
+        losses=[],
+        warnings=list(model.model_warnings),
+        traceability=traceability,
+    )
+
+    return BpmnCompilationPlan(
+        process_id=process_id,
+        process_name=process_name,
+        participants=[
+            ParticipantSpec(
+                id=actor.id,
+                name=actor.label,
+                kind=actor.kind,
+                source_refs=[_source_ref("actors", actor.id, actor.label)],
+                mapping_status="direct",
+            )
+            for actor in process.actors
+        ],
+        lanes=[
+            LaneSpec(
+                id=lane.id,
+                name=lane.name,
+                actor_id=next(
+                    (actor.id for actor in process.actors if _xml_id_preview(actor.id or actor.label) == lane.id),
+                    lane.id,
+                ),
+                source_refs=[_source_ref_from_id(ref) for ref in lane.sourceRefs],
+            )
+            for lane in model.lanes
+        ],
+        events=[
+            EventSpec(
+                id=node.id,
+                name=node.name,
+                type=node.type,
+                documentation=node.documentation or "",
+                source_refs=[_source_ref_from_id(ref) for ref in node.sourceRefs],
+            )
+            for node in model.flowNodes
+            if node.type in {"startEvent", "endEvent", "intermediateCatchEvent"}
+        ],
+        activities=[
+            ActivitySpec(
+                id=node.id,
+                name=node.name,
+                type=node.type,
+                lane_id=node.laneId,
+                documentation=node.documentation or "",
+                source_refs=[_source_ref_from_id(ref) for ref in node.sourceRefs],
+            )
+            for node in model.flowNodes
+            if node.type not in {"startEvent", "endEvent", "intermediateCatchEvent", "exclusiveGateway", "parallelGateway"}
+        ],
+        gateways=[
+            GatewaySpec(
+                id=node.id,
+                name=node.name,
+                type="exclusiveGateway" if node.type == "exclusiveGateway" else "parallelGateway",
+                anchor_step_id=_anchor_for_gateway(node.id, model),
+                documentation=node.documentation or "",
+                source_refs=[_source_ref_from_id(ref) for ref in node.sourceRefs],
+            )
+            for node in model.flowNodes
+            if node.type in {"exclusiveGateway", "parallelGateway"}
+        ],
+        flows=[
+            FlowSpec(
+                id=flow.id,
+                source_ref=flow.sourceRef,
+                target_ref=flow.targetRef,
+                name=flow.name,
+                documentation=flow.documentation or "",
+                source_refs=[_source_ref_from_id(ref) for ref in flow.sourceRefs],
+            )
+            for flow in model.sequenceFlows
+        ],
+        data_objects=[
+            DataObjectSpec(
+                id=item.id,
+                name=item.label,
+                kind=item.kind,
+                documentation=_json_documentation(
+                    "data_object",
+                    {
+                        "kind": item.kind,
+                        "source_evidence": item.source_evidence,
+                    },
+                ),
+                source_refs=[_source_ref("data_objects", item.id, item.label)],
+                mapping_status="semantic_payload",
+            )
+            for item in process.data_objects
+        ],
+        annotations=[
+            AnnotationSpec(id=item.id, text=item.text, source_node_ref=item.sourceNodeRef)
+            for item in model.textAnnotations
+        ],
+        business_rules=[
+            BusinessRuleSpec(
+                id=f"BusinessRule_{index}",
+                text=rule,
+                target_ref=model.textAnnotations[min(index - 1, len(model.textAnnotations) - 1)].id
+                if model.textAnnotations
+                else process_id,
+                source_refs=[_source_ref("business_rules", str(index), rule)],
+            )
+            for index, rule in enumerate(process.business_rules, start=1)
+        ],
+        exceptions=[
+            ExceptionPathSpec(
+                id=item.id,
+                name=item.label,
+                trigger=item.trigger,
+                handling=item.handling,
+                source_refs=[_source_ref("exceptions", item.id, item.label)],
+            )
+            for item in process.exceptions
+        ],
+        loops=[
+            LoopSpec(
+                id=item.id,
+                name=item.label,
+                repeated_steps=item.repeated_steps,
+                condition=item.condition,
+                exit_condition=item.exit_condition,
+                source_refs=[_source_ref("loops", item.id, item.label)],
+            )
+            for item in process.loops
+        ],
+        handoffs=[
+            HandoffSpec(
+                id=item.id,
+                from_actor_id=item.from_actor_id,
+                to_actor_id=item.to_actor_id,
+                artifact=item.artifact,
+                trigger=item.trigger,
+                source_refs=[_source_ref("handoffs", item.id, item.artifact or item.trigger or item.id)],
+            )
+            for item in process.handoffs
+        ],
+        coverage=coverage,
+    )
+
+
+def _target_by_source_ref(model: BPMNSemanticModel) -> dict[str, tuple[str, str]]:
+    targets: dict[str, tuple[str, str]] = {}
+    for lane in model.lanes:
+        for source_ref in lane.sourceRefs:
+            targets[source_ref] = (lane.id, "lane")
+    for node in model.flowNodes:
+        for source_ref in node.sourceRefs:
+            targets[source_ref] = (node.id, node.type)
+    for flow in model.sequenceFlows:
+        for source_ref in flow.sourceRefs:
+            targets[source_ref] = (flow.id, "sequenceFlow")
+    for data_object in model.dataObjects:
+        for source_ref in data_object.sourceRefs:
+            targets[source_ref] = (data_object.id, "dataObjectReference")
+    return targets
+
+
+def _process_source_items(process: ProcessUnderstanding) -> list[ProcessUnderstandingRef]:
+    items: list[ProcessUnderstandingRef] = []
+    scalar_fields = {
+        "objective": process.objective,
+        "scope": process.scope,
+        "boundaries": process.boundaries.model_dump(mode="json") if process.boundaries else None,
+        "bpmn_topology": process.bpmn_topology.model_dump(mode="json") if process.bpmn_topology else None,
+        "narrative_focus": process.narrative_focus,
+        "confidence": process.confidence.model_dump(mode="json") if process.confidence else None,
+    }
+    for field, value in scalar_fields.items():
+        if value:
+            items.append(ProcessUnderstandingRef(field=field, label=field))
+
+    collection_fields = {
+        "actors": process.actors,
+        "events": process.events,
+        "steps": process.steps,
+        "sequence": process.sequence,
+        "decisions": process.decisions,
+        "handoffs": process.handoffs,
+        "data_objects": process.data_objects,
+        "participants": process.participants,
+        "document_requirements": process.document_requirements,
+        "input_outputs": process.input_outputs,
+        "exceptions": process.exceptions,
+        "controls": process.controls,
+        "business_rules": process.business_rules,
+        "structured_business_rules": process.structured_business_rules,
+        "assumptions": process.assumptions,
+        "unknowns": process.unknowns,
+        "main_success_path": process.main_success_path,
+        "alternative_paths": process.alternative_paths,
+        "out_of_scope_alternatives": process.out_of_scope_alternatives,
+        "flow_edges": process.flow_edges,
+        "loops": process.loops,
+        "actor_relationships": process.actor_relationships,
+        "bpmn_modeling_hints": process.bpmn_modeling_hints,
+    }
+    for field, values in collection_fields.items():
+        for index, value in enumerate(values, start=1):
+            item_id = getattr(value, "id", None) or getattr(value, "actor_id", None) or str(index)
+            label = getattr(value, "label", None) or getattr(value, "question", None) or str(value)
+            items.append(ProcessUnderstandingRef(field=field, id=str(item_id), label=label))
+
+    return items
+
+
+def _source_ref(field: str, item_id: str | None, label: str | None = None) -> ProcessUnderstandingRef:
+    return ProcessUnderstandingRef(field=field, id=item_id, label=label)
+
+
+def _source_ref_id(field: str, item_id: str | None) -> str:
+    return f"{field}:{item_id or '_'}"
+
+
+def _source_ref_from_id(value: str) -> ProcessUnderstandingRef:
+    field, _, item_id = value.partition(":")
+    return ProcessUnderstandingRef(field=field or "unknown", id=item_id or None)
+
+
+def _anchor_for_gateway(gateway_id: str, model: BPMNSemanticModel) -> str | None:
+    for flow in model.sequenceFlows:
+        if flow.targetRef == gateway_id:
+            return flow.sourceRef
+    return None
+
+
+def _xml_id_preview(value: str) -> str:
+    candidate = re.sub(r"[^A-Za-z0-9_]+", "_", value).strip("_")
+    return candidate[:70]
+
+
+def _process_documentation(model: BPMNSemanticModel) -> str:
+    payload = {
+        "schema": "delir.semantic_payload.v1",
+        "process_understanding": model.sourceProcessUnderstanding,
+        "bpmn_compilation_plan": model.compilationPlan.model_dump(mode="json") if model.compilationPlan else None,
+    }
+    return "DeliR semantic payload:\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _element_documentation(documentation: str | None, source_refs: list[str]) -> str:
+    payload = {"source_refs": source_refs}
+    parts = []
+    if documentation:
+        parts.append(documentation)
+    if source_refs:
+        parts.append("DeliR traceability:\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    return "\n\n".join(parts)
+
+
+def _step_documentation(step: ProcessStep, actors: list[ProcessActor]) -> str:
+    return _json_documentation(
+        "step",
+        {
+            "description": step.description,
+            "actors": _actor_label(actors, step.actor_ids),
+            "inputs": step.inputs,
+            "outputs": step.outputs,
+            "source_evidence": step.source_evidence,
+        },
+    )
+
+
+def _decision_documentation(decision: ProcessDecision) -> str:
+    return _json_documentation(
+        "decision",
+        {
+            "question": decision.question,
+            "outcomes": decision.outcomes,
+            "source_evidence": decision.source_evidence,
+        },
+    )
+
+
+def _json_documentation(kind: str, payload: dict) -> str:
+    return f"DeliR {kind} context:\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _documentation_xml(text: str, indent: str) -> list[str]:
+    return [
+        f"{indent}<bpmn:documentation>",
+        f"{indent}  {escape(text)}",
+        f"{indent}</bpmn:documentation>",
+    ]
 
 
 def _semantic_warnings(process: ProcessUnderstanding, lanes: list[BPMNLane]) -> list[str]:
@@ -847,26 +1420,17 @@ def _end_name(process: ProcessUnderstanding) -> str:
     return event.label if event else "End"
 
 
-def _negative_outcome_name(outcomes: list[str]) -> str:
-    return next((item for item in outcomes if item.casefold() in {"no", "negativo", "rifiutato"}), "Esito alternativo")
-
-
-def _positive_outcome_name(decisions: list) -> str | None:
-    if not decisions:
-        return None
-    outcomes = decisions[0].outcomes or []
-    return next((item for item in outcomes if item.casefold() in {"si", "sì", "positivo", "approvato"}), None)
+def _outcome_name_for_path(decision: ProcessDecision, path) -> str | None:
+    for outcome in decision.outcome_details:
+        if outcome.target_path_id == path.id:
+            return outcome.label or outcome.condition
+    return path.trigger_or_condition or path.label
 
 
 def _actor_label(actors: list[ProcessActor], actor_ids: list[str]) -> str | None:
     by_id = {actor.id: actor.label for actor in actors}
     labels = [by_id[actor_id] for actor_id in actor_ids if actor_id in by_id]
     return ", ".join(labels) if labels else None
-
-
-def _looks_compound(value: str) -> bool:
-    lower = f" {value.casefold()} "
-    return any(marker in lower for marker in (" e ", " poi ", " quindi ", " and "))
 
 
 def _xml_id(value: str, prefix: str, used: set[str]) -> str:

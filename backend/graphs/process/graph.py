@@ -3,6 +3,7 @@ from pathlib import Path
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
+from pydantic import BaseModel
 
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
@@ -107,13 +108,42 @@ def latest_user_text(state: dict) -> str:
     return ""
 
 
+def _artifact_is_present(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, BaseModel):
+        return True
+    return bool(value)
+
+
+def _artifact_field(value, field: str):
+    if value is None:
+        return None
+    if isinstance(value, BaseModel):
+        return getattr(value, field, None)
+    if isinstance(value, dict):
+        return value.get(field)
+    return None
+
+
+def _artifact_for_prompt(value):
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    return value or {}
+
+
 def process_state_signature(state: dict) -> str:
+    diagnostics = state.get("process_understanding_diagnostics")
+    quality_report = state.get("process_quality_report")
     return "|".join(
         [
-            str(bool(state.get("process_understanding_json"))),
-            str(bool(state.get("bpmn_semantic_model_json"))),
+            str(_artifact_is_present(state.get("process_understanding"))),
+            str(_artifact_is_present(state.get("bpmn_semantic_model"))),
             str(state.get("readiness_score")),
             str(len(state.get("missing_information") or [])),
+            str(bool(_artifact_field(diagnostics, "blocking"))),
+            str(bool(_artifact_field(diagnostics, "warnings"))),
+            str(_artifact_field(quality_report, "overall_score")),
             str(bool(state.get("saved_bpmn_xml"))),
             str(len(state.get("contradictions") or [])),
             str(len(state.get("process_claims") or [])),
@@ -250,8 +280,12 @@ def build_process_router(llm):
                             f"process_name: {state.get('process_name')}\n"
                             f"readiness_score: {state.get('readiness_score')}\n"
                             f"missing_information: {state.get('missing_information') or []}\n"
-                            f"has_process_understanding: {bool(state.get('process_understanding_json'))}\n"
-                            f"has_bpmn_semantic_model: {bool(state.get('bpmn_semantic_model_json'))}\n"
+                            f"has_process_understanding: {_artifact_is_present(state.get('process_understanding'))}\n"
+                            "process_understanding_diagnostics: "
+                            f"{_artifact_for_prompt(state.get('process_understanding_diagnostics'))}\n"
+                            "process_quality_report: "
+                            f"{_artifact_for_prompt(state.get('process_quality_report'))}\n"
+                            f"has_bpmn_semantic_model: {_artifact_is_present(state.get('bpmn_semantic_model'))}\n"
                             f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"

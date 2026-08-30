@@ -1,0 +1,56 @@
+{
+  "nav": {
+    "primary": "Navigazione principale",
+    "home": "Home",
+    "consultant": "Consulente",
+    "clients": "Clienti",
+    "projects": "Progetti",
+    "models": "Modelli",
+    "archive": "Archivio",
+    "help": "Aiuto",
+    "profile": "Impostazioni"
+  },
+  "actions": {
+    "new": "Nuovo",
+    "save": "Salva",
+    "cancel": "Annulla",
+    "retry": "Riprova",
+    "open": "Apri",
+    "close": "Chiudi",
+    "search": "Cerca"
+  },
+  "state": {
+    "loading": "Caricamento…",
+    "error": "Si è verificato un errore",
+    "empty": "Nessun dato disponibile",
+    "backendUnavailable": "Backend non raggiungibile",
+    "comingSoon": "In arrivo"
+  },
+  "home": {
+    "description": "Panoramica operativa di clienti, progetti e processi nel workspace.",
+    "seeAll": "Vedi tutti",
+    "emptyProjects": "Nessun progetto presente",
+    "emptyClients": "Nessun cliente presente",
+    "metrics": {
+      "clients": "Clienti",
+      "clientsNote": "Nel workspace",
+      "projects": "Progetti",
+      "projectsNote": "Collegati al workspace",
+      "processes": "Processi",
+      "processesNote": "Da modellare nel canvas"
+    }
+  },
+  "models": {
+    "description": "Template riutilizzabili per interviste, processi e deliverable.",
+    "empty": "La libreria modelli si attiverà quando l'endpoint dedicato sarà pronto."
+  },
+  "archive": {
+    "description": "Documenti, versioni, esportazioni e deliverable di progetto.",
+    "empty": "L'archivio documenti si attiverà quando l'endpoint dedicato sarà pronto."
+  },
+  "language": {
+    "label": "Lingua",
+    "it": "Italiano",
+    "en": "Inglese"
+  }
+}

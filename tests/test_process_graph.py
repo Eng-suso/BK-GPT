@@ -18,6 +18,8 @@ from backend.graphs.process.tools import (
     prepare_canvas_handoff,
     process_tools,
 )
+from backend.bpmn_semantic import build_bpmn_semantic_model
+from backend.process_understanding import ProcessUnderstanding
 import backend.graphs.process.tools as process_tools_module
 from backend.toolsets.process_memory import (
     index_process_evidence_graph,
@@ -25,6 +27,19 @@ from backend.toolsets.process_memory import (
     retrieve_process_graph_context,
 )
 import backend.toolsets.process_memory as process_memory_module
+
+
+def canonical_semantic_model_fixture():
+    process = ProcessUnderstanding(
+        title="Order Review",
+        steps=[{"id": "Task_Review", "label": "Rivedi ordine", "type": "user_task"}],
+        sequence=["Task_Review"],
+    )
+    return build_bpmn_semantic_model(
+        process_id="Process_Order_Review",
+        process_name="Order Review",
+        process=process,
+    )
 
 
 def test_parse_process_router_json_returns_structured_state():
@@ -83,7 +98,7 @@ def test_process_goal_model_as_is_with_insufficient_understanding_routes_to_evid
         """,
         state={
             "process_id": "proc-1",
-            "process_understanding_json": None,
+            "process_understanding": None,
             "missing_information": [],
         },
     )
@@ -111,7 +126,7 @@ def test_process_modeling_allowed_when_understanding_is_available():
         """,
         state={
             "process_id": "proc-1",
-            "process_understanding_json": {"steps": []},
+            "bpmn_semantic_model": canonical_semantic_model_fixture(),
             "missing_information": [],
             "contradictions": [],
         },
@@ -140,7 +155,7 @@ def test_process_canvas_handoff_allowed_when_semantic_model_ready():
         """,
         state={
             "process_id": "proc-1",
-            "bpmn_semantic_model_json": {"flowNodes": []},
+            "bpmn_semantic_model": canonical_semantic_model_fixture(),
             "readiness_score": 8,
             "missing_information": [],
         },
@@ -168,7 +183,7 @@ def test_process_critical_contradiction_blocks_modeling():
         """,
         state={
             "process_id": "proc-1",
-            "process_understanding_json": {"steps": []},
+            "bpmn_semantic_model": canonical_semantic_model_fixture(),
             "missing_information": [],
             "contradictions": [{"severity": "critical", "description": "Two actors disagree on approval."}],
         },
@@ -197,7 +212,7 @@ def test_process_local_canvas_patch_does_not_force_full_engineering_loop():
         state={
             "process_id": "proc-1",
             "saved_bpmn_xml": "<definitions />",
-            "bpmn_semantic_model_json": None,
+            "bpmn_semantic_model": None,
             "readiness_score": None,
             "missing_information": ["approval threshold"],
         },
@@ -243,8 +258,8 @@ def test_process_registered_capability_not_allowed_by_state_is_not_executed():
         """,
         state={
             "process_id": "proc-1",
-            "process_understanding_json": None,
-            "bpmn_semantic_model_json": None,
+            "process_understanding": None,
+            "bpmn_semantic_model": None,
             "readiness_score": 3,
             "missing_information": ["actors"],
         },
@@ -262,9 +277,9 @@ def test_process_no_progress_terminates_controlled_loop():
         "engineering_loop_iteration": 0,
         "engineering_loop_max_iterations": 3,
         "process_no_progress_count": 0,
-        "process_progress_signature": "False|False|None|0|False|0|0|0",
-        "process_understanding_json": None,
-        "bpmn_semantic_model_json": None,
+        "process_progress_signature": "False|False|None|0|False|False|None|False|0|0|0",
+        "process_understanding": None,
+        "bpmn_semantic_model": None,
         "readiness_score": None,
         "missing_information": [],
         "saved_bpmn_xml": None,
@@ -283,6 +298,12 @@ def test_process_states_define_orchestration_fields():
     assert "process_route" in ProcessState.__annotations__
     assert "routing_trace" in ProcessState.__annotations__
     assert "process_claims" in ProcessState.__annotations__
+    assert "process_understanding" in ProcessState.__annotations__
+    assert "bpmn_semantic_model" in ProcessState.__annotations__
+    assert "process_understanding_json" not in ProcessState.__annotations__
+    assert "bpmn_semantic_model_json" not in ProcessState.__annotations__
+    assert "process_understanding_diagnostics" in ProcessState.__annotations__
+    assert "process_quality_report" in ProcessState.__annotations__
     assert "discovery_facts" in ProcessDiscoveryState.__annotations__
 
 
@@ -324,37 +345,33 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
         "owner": "Ops",
         "readiness": 35,
     }
+    process_understanding = {
+        "schema_version": "process_understanding.v1",
+        "language": "it",
+        "title": "Order to Cash",
+        "steps": [
+            {"id": "Task_1", "label": "Ricevi ordine", "type": "user_task"},
+            {"id": "Task_2", "label": "Verifica ordine", "type": "user_task"},
+        ],
+        "sequence": ["Task_1", "Task_2"],
+        "unknowns": [],
+    }
+    canonical_understanding = ProcessUnderstanding.model_validate(process_understanding)
+    canonical_semantic_model = build_bpmn_semantic_model(
+        process_id="Process_proc_1",
+        process_name="Order to Cash",
+        process=canonical_understanding,
+    ).model_dump(mode="json")
     review = {
         "bpmn_model_id": "proc-1-bpmn",
         "process_id": "proc-1",
         "source_text": "Cliente invia ordine. Ops verifica. Fattura emessa.",
-        "process_understanding": {
-            "schema_version": "process_understanding.v1",
-            "language": "it",
-            "title": "Order to Cash",
-            "steps": [
-                {"id": "Task_1", "label": "Ricevi ordine", "type": "user_task"},
-                {"id": "Task_2", "label": "Verifica ordine", "type": "user_task"},
-            ],
-            "sequence": ["Task_1", "Task_2"],
-            "unknowns": [],
-        },
-        "bpmn_semantic_model": {
-            "id": "Process_proc_1",
-            "name": "Order to Cash",
-            "flowNodes": [
-                {"id": "StartEvent_1", "type": "startEvent", "name": "Start"},
-                {"id": "Task_1", "type": "userTask", "name": "Ricevi ordine"},
-                {"id": "EndEvent_1", "type": "endEvent", "name": "End"},
-            ],
-            "sequenceFlows": [
-                {"id": "Flow_1", "sourceRef": "StartEvent_1", "targetRef": "Task_1"},
-                {"id": "Flow_2", "sourceRef": "Task_1", "targetRef": "EndEvent_1"},
-            ],
-        },
+        "process_understanding": canonical_semantic_model["sourceProcessUnderstanding"],
+        "bpmn_semantic_model": canonical_semantic_model,
         "bpmn_brief": "## Order to Cash",
         "readiness_score": 8,
         "missing_information": [],
+        "status": "pending",
     }
     saved_sources = []
 
@@ -374,7 +391,11 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
             "xml": None,
         },
     )
-    monkeypatch.setattr(process_tools_module.workspace_database, "get_bpmn_review", lambda bpmn_model_id: review)
+    monkeypatch.setattr(
+        process_tools_module.workspace_database,
+        "get_bpmn_review",
+        lambda bpmn_model_id, include_approved=False: review,
+    )
     monkeypatch.setattr(
         process_tools_module.workspace_database,
         "list_project_sources",
@@ -563,7 +584,11 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
         "get_bpmn_model",
         lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "name": "BPMN", "xml": None},
     )
-    monkeypatch.setattr(process_tools_module.workspace_database, "get_bpmn_review", lambda bpmn_model_id: None)
+    monkeypatch.setattr(
+        process_tools_module.workspace_database,
+        "get_bpmn_review",
+        lambda bpmn_model_id, include_approved=False: None,
+    )
     monkeypatch.setattr(process_tools_module.workspace_database, "list_project_sources", lambda project_id: [])
     monkeypatch.setattr(process_tools_module.workspace_database, "list_project_decisions", lambda project_id: [])
 
