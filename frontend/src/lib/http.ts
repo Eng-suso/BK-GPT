@@ -1,4 +1,5 @@
 import { API_BASE } from "./api";
+import { authHeaders } from "./security";
 
 /** Thrown for any non-2xx response. `body` holds the parsed JSON error, if any. */
 export class HttpError extends Error {
@@ -24,10 +25,10 @@ export async function http<T>(path: string, options: HttpOptions = {}): Promise<
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...rest,
-    headers: {
+    headers: authHeaders({
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       ...headers,
-    },
+    }),
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 

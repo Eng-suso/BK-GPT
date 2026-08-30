@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, CheckCircle2, Circle, Clock, FileText } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
-import { ProgressBar } from "@/components/data";
+import { ProgressBar, NavRow } from "@/components/data";
 import { EmptyState, ErrorState } from "@/components/feedback";
 import { StatusIndicator } from "@/components/status";
 import {
@@ -15,9 +15,8 @@ import {
 } from "@/components/panel";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
-import { ProcessWorkspace } from "@/features/process/ProcessWorkspace";
 import {
   useProjectQuery,
   useProjectSourcesQuery,
@@ -40,11 +39,16 @@ export function ProjectDetailPage(): React.JSX.Element {
   const decisionsQ = useProjectDecisionsQuery(projectId);
 
   const [tab, setTab] = useState("overview");
-  const [openProcess, setOpenProcess] = useState<ProjectProcess | null>(null);
 
   const goList = useCallback(
     () => navigate(ROUTES.projects.list),
     [navigate],
+  );
+
+  const openProcess = useCallback(
+    (p: ProjectProcess) =>
+      navigate(ROUTES.projects.process(projectId, p.id)),
+    [navigate, projectId],
   );
 
   if (projectQ.isLoading) {
@@ -75,16 +79,6 @@ export function ProjectDetailPage(): React.JSX.Element {
   }
 
   const project = projectQ.data;
-
-  if (openProcess) {
-    return (
-      <ProcessWorkspace
-        project={project}
-        process={openProcess}
-        onBack={() => setOpenProcess(null)}
-      />
-    );
-  }
 
   return (
     <div className="grid h-full min-h-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -119,57 +113,51 @@ export function ProjectDetailPage(): React.JSX.Element {
           </span>
         </p>
 
-        {/* underline tabs */}
-        <div
-          role="tablist"
-          className="flex gap-1 border-b border-border"
+        <Tabs
+          value={tab}
+          onValueChange={setTab}
+          className="flex flex-col gap-4"
         >
-          {PROJECT_TABS.map((tabDef) => (
-            <button
-              key={tabDef.id}
-              role="tab"
-              aria-selected={tab === tabDef.id}
-              disabled={!tabDef.available}
-              onClick={() => tabDef.available && setTab(tabDef.id)}
-              className={cn(
-                "-mb-px h-9 whitespace-nowrap border-b-2 border-transparent px-2.5 text-[13px] font-normal text-muted-foreground",
-                tab === tabDef.id &&
-                  "border-primary font-medium text-foreground",
-                !tabDef.available && "opacity-40",
-              )}
-            >
-              {t(tabDef.labelKey)}
-            </button>
-          ))}
-        </div>
+          <TabsList variant="line">
+            {PROJECT_TABS.map((tabDef) => (
+              <TabsTrigger
+                key={tabDef.id}
+                value={tabDef.id}
+                disabled={!tabDef.available}
+              >
+                {t(tabDef.labelKey)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        {tab === "overview" && (
-          <OverviewTab
-            project={project}
-            decisions={decisionsQ.data ?? []}
-            onOpenProcess={setOpenProcess}
-          />
-        )}
-        {tab === "processes" && (
-          <ProcessesTab
-            processes={project.processItems}
-            onOpenProcess={setOpenProcess}
-          />
-        )}
-        {tab === "sources" && (
-          <SimpleList
-            items={(sourcesQ.data ?? []).map((s) => `${s.name} · ${s.type}`)}
-            emptyTitle={t("detail.sources.empty")}
-          />
-        )}
-        {tab === "decisions" && (
-          <SimpleList
-            items={(decisionsQ.data ?? []).map(
-              (d) => `${d.title} · ${d.status}`,
-            )}
-            emptyTitle={t("detail.decisions.empty")}
-          />
-        )}
+          <TabsContent value="overview">
+            <OverviewTab
+              project={project}
+              decisions={decisionsQ.data ?? []}
+              onOpenProcess={openProcess}
+            />
+          </TabsContent>
+          <TabsContent value="processes">
+            <ProcessesTab
+              processes={project.processItems}
+              onOpenProcess={openProcess}
+            />
+          </TabsContent>
+          <TabsContent value="sources">
+            <SimpleList
+              items={(sourcesQ.data ?? []).map((s) => `${s.name} · ${s.type}`)}
+              emptyTitle={t("detail.sources.empty")}
+            />
+          </TabsContent>
+          <TabsContent value="decisions">
+            <SimpleList
+              items={(decisionsQ.data ?? []).map(
+                (d) => `${d.title} · ${d.status}`,
+              )}
+              emptyTitle={t("detail.decisions.empty")}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <DetailPanel className="hidden bg-card xl:flex">
@@ -237,32 +225,26 @@ function OverviewTab({
           <EmptyState variant="inline" title={t("detail.processes.empty")} />
         ) : (
           project.processItems.slice(0, 5).map((p) => (
-            <button
+            <NavRow
               key={p.id}
-              type="button"
               onClick={() => onOpenProcess(p)}
-              className="flex w-full items-center justify-between gap-3 border-b border-border/60 py-2.5 text-left last:border-b-0"
-            >
-              <span>
-                <span className="block text-[12.5px] font-medium text-foreground">
-                  {p.name}
-                </span>
-                <span className="text-[11.5px] text-muted-foreground">
-                  {p.stage} · {p.owner}
-                </span>
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="block h-1 w-14 overflow-hidden rounded-full bg-[var(--slate-200)]">
-                  <span
-                    className="block h-full rounded-full bg-primary"
-                    style={{ width: `${p.readiness}%` }}
-                  />
-                </span>
-                <b className="text-[11.5px] tabular-nums text-foreground">
-                  {Math.round(p.readiness / 10)}/10
-                </b>
-              </span>
-            </button>
+              className="px-0"
+              title={p.name}
+              meta={`${p.stage} · ${p.owner}`}
+              trailing={
+                <>
+                  <span className="block h-1 w-14 overflow-hidden rounded-full bg-[var(--slate-200)]">
+                    <span
+                      className="block h-full rounded-full bg-primary"
+                      style={{ width: `${p.readiness}%` }}
+                    />
+                  </span>
+                  <b className="text-[11.5px] tabular-nums text-foreground">
+                    {Math.round(p.readiness / 10)}/10
+                  </b>
+                </>
+              }
+            />
           ))
         )}
       </Block>
@@ -317,22 +299,15 @@ function ProcessesTab({
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card">
       {processes.map((p) => (
-        <button
+        <NavRow
           key={p.id}
-          type="button"
           onClick={() => onOpenProcess(p)}
-          className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 text-left last:border-b-0 hover:bg-muted/40"
-        >
-          <span>
-            <span className="block text-[13px] font-medium text-primary">
-              {p.name}
-            </span>
-            <span className="text-[11.5px] text-muted-foreground">
-              {p.stage} · {p.owner}
-            </span>
-          </span>
-          <ArrowRight className="size-4 text-muted-foreground" />
-        </button>
+          className="py-3"
+          titleClassName="text-[13px] text-primary"
+          title={p.name}
+          meta={`${p.stage} · ${p.owner}`}
+          trailing={<ArrowRight className="size-4 text-muted-foreground" />}
+        />
       ))}
     </div>
   );

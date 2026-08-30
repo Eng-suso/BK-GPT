@@ -7,6 +7,7 @@ import { ClientsListPage } from "@/features/clients";
 import { ConsultantPage } from "@/features/consultant/ConsultantPage";
 import { HomePage } from "@/features/home/HomePage";
 import { ModelsPage } from "@/features/models/ModelsPage";
+import { ProcessStudioPage } from "@/features/process";
 import { ProjectsListPage, ProjectDetailPage } from "@/features/projects";
 
 /**
@@ -24,6 +25,10 @@ export const router = createBrowserRouter([
       { path: "clients", element: <ClientsListPage /> },
       { path: "projects", element: <ProjectsListPage /> },
       { path: "projects/:projectId", element: <ProjectDetailPage /> },
+      {
+        path: "projects/:projectId/processes/:processId",
+        element: <ProcessStudioPage />,
+      },
       { path: "models", element: <ModelsPage /> },
       { path: "archive", element: <ArchivePage /> },
       { path: "*", element: <Navigate to={DEFAULT_ROUTE} replace /> },

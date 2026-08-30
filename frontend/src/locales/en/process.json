@@ -1,0 +1,17 @@
+{
+  "breadcrumb": { "projects": "Projects" },
+  "tabs": {
+    "canvas": "Model",
+    "chat": "Discussion",
+    "simulation": "Simulation",
+    "properties": "Details"
+  },
+  "actions": {
+    "backToProject": "Back to project",
+    "toggleChat": "Canvas chat"
+  },
+  "state": {
+    "processNotFound": "Process not found in this project.",
+    "loadError": "Could not load the process."
+  }
+}

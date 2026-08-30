@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { API_BASE } from "../../../lib/api";
+import { appendAuthQueryParams } from "../../../lib/security";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatComposerProps {
@@ -21,7 +22,7 @@ function buildLiveTranscriptionUrl(): string {
   url.pathname = "/v1/audio/live-transcription";
   url.search = "";
   url.hash = "";
-  return url.toString();
+  return appendAuthQueryParams(url).toString();
 }
 
 function downsampleBuffer(buffer: Float32Array, inputRate: number, outputRate: number): Float32Array {

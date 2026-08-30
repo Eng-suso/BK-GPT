@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { chatScopeKey, toApiChatScope } from "../../contracts/chat";
 import { API_BASE } from "../../lib/api";
+import { withAdminAuth, withAuth } from "../../lib/security";
 import { notifyWorkspaceChanged } from "../../lib/workspaceEvents";
 import type { AgentActivity, ChatMessage, ChatSession } from "./types";
 import type { NavigationTab } from "./navigationTypes";
@@ -228,7 +229,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 
   const loadSessionDetail = useCallback(async (threadId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions/${threadId}`);
+      const res = await fetch(
+        `${API_BASE}/v1/consultant-chat/sessions/${threadId}`,
+        withAuth(),
+      );
       if (!res.ok) return;
       const data = await res.json();
       upsertSession(data);
@@ -243,7 +247,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     for (let attempt = 0; attempt <= 20; attempt += 1) {
       try {
         const params = new URLSearchParams({ scope_key: scopeKey });
-        const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions?${params}`);
+        const res = await fetch(
+          `${API_BASE}/v1/consultant-chat/sessions?${params}`,
+          withAuth(),
+        );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const list: ChatSession[] = data.map(normalizeSession);
@@ -292,7 +299,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     try {
       const res = await fetch(
         `${API_BASE}/v1/workspace/bpmn-models/${bpmnModelIdForReview}/review`,
-        { cache: "no-store" }
+        withAuth({ cache: "no-store" }),
       );
 
       if (!res.ok) {
@@ -332,11 +339,11 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   }, [scopeKey, loadSessions, loadBpmnReview]);
 
   const createBackendSession = async () => {
-    const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions`, {
+    const res = await fetch(`${API_BASE}/v1/consultant-chat/sessions`, withAuth({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model_name: selectedModel, scope: persistentApiScope }),
-    });
+    }));
     if (!res.ok) {
       const body = await res.json().catch(() => null);
       throw new Error(body?.detail || "Impossibile creare la sessione");
@@ -349,10 +356,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     formData.append("file", file);
     formData.append("language", "it");
 
-    const res = await fetch(`${API_BASE}/v1/audio/transcriptions`, {
+    const res = await fetch(`${API_BASE}/v1/audio/transcriptions`, withAuth({
       method: "POST",
       body: formData,
-    });
+    }));
 
     if (!res.ok) {
       const errorBody = await res.json().catch(() => null);
@@ -431,7 +438,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 
       const res = await fetch(
         `${API_BASE}/v1/consultant-chat/sessions/${sendSession.threadId}/messages/stream`,
-        {
+        withAuth({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -439,7 +446,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
             model_name: selectedModel,
             scope: apiScope,
           }),
-        }
+        }),
       );
 
       if (!res.ok || !res.body) {
@@ -558,7 +565,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     try {
       const res = await fetch(
         `${API_BASE}/v1/workspace/bpmn-models/${scope.bpmnModelId}/review/approve`,
-        { method: "POST" }
+        withAuth({ method: "POST" }),
       );
 
       if (!res.ok) {
@@ -597,7 +604,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         }}
         onDeleteSession={async (id) => {
           try {
-            await fetch(`${API_BASE}/v1/consultant-chat/sessions/${id}`, { method: "DELETE" });
+            await fetch(
+              `${API_BASE}/v1/consultant-chat/sessions/${id}`,
+              withAdminAuth({ method: "DELETE" }),
+            );
           } catch (e) {
             console.error(e);
           }
@@ -608,7 +618,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         onClearHistory={async () => {
           try {
             const params = new URLSearchParams({ scope_key: scopeKey });
-            await fetch(`${API_BASE}/v1/consultant-chat/sessions?${params}`, { method: "DELETE" });
+            await fetch(
+              `${API_BASE}/v1/consultant-chat/sessions?${params}`,
+              withAdminAuth({ method: "DELETE" }),
+            );
           } catch (e) {
             console.error(e);
           }

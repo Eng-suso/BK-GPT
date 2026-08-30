@@ -3,12 +3,14 @@ import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
 import TokenSimulationModule from "bpmn-js-token-simulation";
 import { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule } from "bpmn-js-properties-panel";
+import { Activity, MessageSquareText, Pause, Play, RotateCcw } from "lucide-react";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 // Note: bpmn-js-properties-panel bundles its styles internally; no separate CSS import needed.
 import "bpmn-js-token-simulation/assets/css/bpmn-js-token-simulation.css";
 import { API_BASE } from "../../lib/api";
+import { withAuth } from "../../lib/security";
 import { onWorkspaceChanged } from "../../lib/workspaceEvents";
 import { buildInitialProcessDiagram } from "./initialProcessDiagram";
 
@@ -21,6 +23,7 @@ type BpmnModeler = {
 
 type BpmnConnection = {
   id: string;
+  type?: string;
   businessObject?: {
     $type?: string;
   };
@@ -42,7 +45,7 @@ type BpmnEventBus = {
 };
 
 type BpmnElementRegistry = {
-  filter: (predicate: (element: BpmnConnection) => boolean) => BpmnConnection[];
+  filter: (predicate: (element: BpmnRegistryElement) => boolean) => BpmnRegistryElement[];
   getAll?: () => BpmnDiagramElement[];
 };
 
@@ -50,10 +53,33 @@ type BpmnModeling = {
   layoutConnection: (connection: BpmnConnection) => void;
 };
 
+type BpmnRegistryElement = BpmnConnection & {
+  type?: string;
+};
+
+type BpmnEditorActions = {
+  trigger: (action: string) => void;
+};
+
+type BpmnToggleMode = {
+  toggleMode: (active?: boolean) => void;
+};
+
+type BpmnSimulationSubscription = {
+  event: unknown;
+  scope: unknown;
+};
+
+type BpmnSimulator = {
+  findSubscriptions: (filter: { element?: unknown }) => BpmnSimulationSubscription[];
+  trigger: (context: BpmnSimulationSubscription) => void;
+};
+
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
+  visualSimulationMode?: boolean;
   onCurrentXmlChange?: (xml: string) => void;
 };
 
@@ -129,7 +155,7 @@ function fitCanvas(modeler: BpmnModeler) {
   canvasService.viewbox(padded);
 }
 
-function isConnection(element: BpmnConnection) {
+function isConnection(element: BpmnRegistryElement): element is BpmnConnection {
   return Boolean(
     element.id &&
       element.source &&
@@ -138,8 +164,12 @@ function isConnection(element: BpmnConnection) {
   );
 }
 
-function isDockableSequenceConnection(element: BpmnConnection) {
+function isDockableSequenceConnection(element: BpmnRegistryElement) {
   return isConnection(element) && element.businessObject?.$type === "bpmn:SequenceFlow";
+}
+
+function isStartEvent(element: BpmnRegistryElement) {
+  return element.type === "bpmn:StartEvent" || element.businessObject?.$type === "bpmn:StartEvent";
 }
 
 function getDiagramBounds(elements: BpmnDiagramElement[]) {
@@ -261,6 +291,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   bpmnModelId,
   processName,
   propertiesPanelRef,
+  visualSimulationMode = false,
   onCurrentXmlChange,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -280,6 +311,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const [versions, setVersions] = useState<BpmnVersionResponse[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isTokenSimulationActive, setIsTokenSimulationActive] = useState(false);
+  const [isTokenSimulationPaused, setIsTokenSimulationPaused] = useState(true);
   const [selectedElement, setSelectedElement] = useState<{
     id: string;
     type: string;
@@ -365,7 +398,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const loadVersions = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/v1/workspace/bpmn-models/${bpmnModelId}/versions`, {
-        cache: "no-store",
+        ...withAuth({ cache: "no-store" }),
       });
 
       if (!res.ok) return;
@@ -412,6 +445,20 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           if (!isImportingRef.current && !isSavingRef.current) {
             scheduleUnsavedCheck();
           }
+        });
+        eventBus.on("tokenSimulation.toggleMode", (event?: unknown) => {
+          const payload = event as { active?: boolean };
+          setIsTokenSimulationActive(Boolean(payload.active));
+          if (!payload.active) setIsTokenSimulationPaused(true);
+        });
+        eventBus.on("tokenSimulation.playSimulation", () => {
+          setIsTokenSimulationPaused(false);
+        });
+        eventBus.on("tokenSimulation.pauseSimulation", () => {
+          setIsTokenSimulationPaused(true);
+        });
+        eventBus.on("tokenSimulation.resetSimulation", () => {
+          setIsTokenSimulationPaused(true);
         });
 
         type BpmnElementSelection = {
@@ -472,6 +519,11 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   }, [bpmnModelId, processName, propertiesPanelRef, loadVersions, scheduleUnsavedCheck]);
 
   useEffect(() => {
+    if (!modelerRef.current || !isReady) return;
+    setTokenSimulationMode(visualSimulationMode);
+  }, [isReady, visualSimulationMode]);
+
+  useEffect(() => {
     if (!containerRef.current) return;
 
     const resizeObserver = new ResizeObserver(() => {
@@ -527,11 +579,11 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       if (!xml) throw new Error("Il canvas non ha restituito XML BPMN.");
       onCurrentXmlChange?.(xml);
 
-      const res = await fetch(`${API_BASE}/v1/workspace/bpmn-models/${bpmnModelId}`, {
+      const res = await fetch(`${API_BASE}/v1/workspace/bpmn-models/${bpmnModelId}`, withAuth({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ xml }),
-      });
+      }));
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
@@ -569,7 +621,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     try {
       const res = await fetch(
         `${API_BASE}/v1/workspace/bpmn-models/${bpmnModelId}/versions/${versionId}/restore`,
-        { method: "POST" },
+        withAuth({ method: "POST" }),
       );
 
       if (!res.ok) {
@@ -704,6 +756,89 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     fitCanvas(modelerRef.current);
   }
 
+  function setTokenSimulationMode(active: boolean) {
+    if (!modelerRef.current) return;
+
+    try {
+      const toggleMode = modelerRef.current.get("toggleMode") as BpmnToggleMode;
+      toggleMode.toggleMode(active);
+      setIsTokenSimulationActive(active);
+      if (!active) setIsTokenSimulationPaused(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Simulazione visuale non disponibile");
+    }
+  }
+
+  function triggerSimulationCase() {
+    if (!modelerRef.current) return;
+
+    try {
+      if (!isTokenSimulationActive) {
+        setTokenSimulationMode(true);
+      }
+
+      window.requestAnimationFrame(() => {
+        if (!modelerRef.current) return;
+
+        const simulator = modelerRef.current.get("simulator") as BpmnSimulator;
+        const elementRegistry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
+        const startEvents = elementRegistry.filter(isStartEvent);
+        const startEvent = startEvents[0];
+
+        if (!startEvent) {
+          setError("Il BPMN non contiene uno start event da simulare.");
+          return;
+        }
+
+        const subscriptions = simulator.findSubscriptions({ element: startEvent });
+        const subscription = subscriptions[0];
+        if (!subscription) {
+          setError("Nessun trigger disponibile per lo start event selezionato.");
+          return;
+        }
+
+        simulator.trigger(subscription);
+        setError(null);
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Avvio simulazione visuale non riuscito");
+    }
+  }
+
+  function toggleTokenSimulationPause() {
+    if (!modelerRef.current || !isTokenSimulationActive) return;
+
+    try {
+      const editorActions = modelerRef.current.get("editorActions") as BpmnEditorActions;
+      editorActions.trigger("togglePauseTokenSimulation");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Play/Pausa simulazione non disponibile");
+    }
+  }
+
+  function resetTokenSimulation() {
+    if (!modelerRef.current || !isTokenSimulationActive) return;
+
+    try {
+      const editorActions = modelerRef.current.get("editorActions") as BpmnEditorActions;
+      editorActions.trigger("resetTokenSimulation");
+      setIsTokenSimulationPaused(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reset simulazione non disponibile");
+    }
+  }
+
+  function toggleTokenSimulationLog() {
+    if (!modelerRef.current || !isTokenSimulationActive) return;
+
+    try {
+      const editorActions = modelerRef.current.get("editorActions") as BpmnEditorActions;
+      editorActions.trigger("toggleTokenSimulationLog");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Log simulazione non disponibile");
+    }
+  }
+
   return (
     <section className="process-bpmn-shell" aria-label="Canvas BPMN">
       <header className="process-bpmn-toolbar">
@@ -721,6 +856,55 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </button>
             <button type="button" onClick={handleZoomOut} title="Riduci">
               -
+            </button>
+          </div>
+
+          <div className="bpmn-simulation-group" aria-label="Controlli simulazione token">
+            <button
+              type="button"
+              className={isTokenSimulationActive ? "is-active" : ""}
+              disabled={!isReady}
+              onClick={() => setTokenSimulationMode(!isTokenSimulationActive)}
+              title={isTokenSimulationActive ? "Disattiva simulazione visuale" : "Attiva simulazione visuale"}
+            >
+              <Activity size={14} aria-hidden="true" />
+              <span>Token</span>
+            </button>
+            <button
+              type="button"
+              disabled={!isReady}
+              onClick={triggerSimulationCase}
+              title="Avvia un nuovo caso sullo start event"
+            >
+              <Play size={14} aria-hidden="true" />
+              <span>Caso</span>
+            </button>
+            <button
+              type="button"
+              disabled={!isReady || !isTokenSimulationActive}
+              onClick={toggleTokenSimulationPause}
+              title={isTokenSimulationPaused ? "Riprendi simulazione" : "Metti in pausa simulazione"}
+            >
+              {isTokenSimulationPaused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
+              <span>{isTokenSimulationPaused ? "Play" : "Pausa"}</span>
+            </button>
+            <button
+              type="button"
+              disabled={!isReady || !isTokenSimulationActive}
+              onClick={resetTokenSimulation}
+              title="Reset simulazione visuale"
+            >
+              <RotateCcw size={14} aria-hidden="true" />
+              <span>Reset</span>
+            </button>
+            <button
+              type="button"
+              disabled={!isReady || !isTokenSimulationActive}
+              onClick={toggleTokenSimulationLog}
+              title="Mostra o nascondi log token"
+            >
+              <MessageSquareText size={14} aria-hidden="true" />
+              <span>Log</span>
             </button>
           </div>
 
@@ -875,7 +1059,7 @@ async function loadInitialXml(bpmnModelId: string, processName: string) {
 
   try {
     const res = await fetch(`${API_BASE}/v1/workspace/bpmn-models/${bpmnModelId}`, {
-      cache: "no-store",
+      ...withAuth({ cache: "no-store" }),
     });
 
     if (!res.ok) return fallbackXml;
