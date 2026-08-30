@@ -1,6 +1,13 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import { HttpError } from "@/lib/http";
+import { Button } from "@/ui/button";
+import { Input } from "@/ui/input";
+import { Label } from "@/ui/label";
+import { EmptyState } from "@/components/feedback";
+import { StatusIndicator, type StatusTone } from "@/components/status";
+import { cn } from "@/lib/utils";
 import type { ProjectProcess } from "../../contracts/workspace";
 import {
   getProsimosSimulationRun,
@@ -11,6 +18,12 @@ import type { SimulationRun } from "./simulationTypes";
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000;
+
+const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
+  pending: "pending",
+  completed: "ok",
+  failed: "danger",
+};
 
 function delay(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -25,6 +38,8 @@ export const ProcessSimulationPanel: React.FC<ProcessSimulationPanelProps> = ({
   process,
   currentBpmnXml,
 }) => {
+  const { t } = useTranslation("process");
+  const fieldId = React.useId();
   const [scenarioName, setScenarioName] = React.useState("Baseline AS-IS");
   const [totalCases, setTotalCases] = React.useState(100);
   const [arrivalIntervalMinutes, setArrivalIntervalMinutes] = React.useState(30);
@@ -59,6 +74,12 @@ export const ProcessSimulationPanel: React.FC<ProcessSimulationPanelProps> = ({
       })
       .catch((err: unknown) => {
         if (isCancelled) return;
+        // No simulation-runs resource yet for this model → empty, not an error.
+        if (err instanceof HttpError && err.status === 404) {
+          setRuns([]);
+          setError(null);
+          return;
+        }
         setError(readErrorMessage(err));
       })
       .finally(() => {
@@ -105,7 +126,7 @@ export const ProcessSimulationPanel: React.FC<ProcessSimulationPanelProps> = ({
       }
     }
 
-    setError("Timeout: la simulazione sta impiegando troppo tempo.");
+    setError(t("simulation.timeout"));
   }
 
   async function handleRun() {
@@ -140,137 +161,200 @@ export const ProcessSimulationPanel: React.FC<ProcessSimulationPanelProps> = ({
     }
   }
 
-  return (
-    <div className="simulation-workspace">
-      <section className="simulation-config" aria-label="Parametri simulazione">
-        <header className="simulation-section-header">
-          <div>
-            <p className="product-eyebrow">Prosimos</p>
-            <h3>Scenario</h3>
-          </div>
-          <span>{process.stage}</span>
-        </header>
+  const runStatusLabel = (status: SimulationRun["status"]) =>
+    t(`simulation.status.${status}`, { defaultValue: status });
 
-        <div className="simulation-form-grid">
-          <label>
-            <span>Nome scenario</span>
-            <input
+  return (
+    <div className="grid h-full min-h-0 grid-cols-1 gap-3 p-3 xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+      <section
+        aria-label={t("simulation.scenario.title")}
+        className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+      >
+        <PanelHeader
+          eyebrow={t("simulation.scenario.eyebrow")}
+          title={t("simulation.scenario.title")}
+          trailing={
+            <span className="rounded-md border border-border bg-muted/60 px-2 py-1 text-xs font-medium text-muted-foreground">
+              {process.stage}
+            </span>
+          }
+        />
+
+        <div className="grid grid-cols-1 gap-2.5 overflow-auto p-3.5 sm:grid-cols-2">
+          <Field
+            id={`${fieldId}-name`}
+            label={t("simulation.fields.scenarioName")}
+            className="sm:col-span-2"
+          >
+            <Input
+              id={`${fieldId}-name`}
               type="text"
               value={scenarioName}
               onChange={(event) => setScenarioName(event.target.value)}
             />
-          </label>
-          <label>
-            <span>Casi</span>
-            <input
+          </Field>
+          <Field id={`${fieldId}-cases`} label={t("simulation.fields.cases")}>
+            <Input
+              id={`${fieldId}-cases`}
               type="number"
-              min="1"
-              max="100000"
+              min={1}
+              max={100000}
               value={totalCases}
               onChange={(event) => setTotalCases(Number(event.target.value))}
             />
-          </label>
-          <label>
-            <span>Arrivo medio, min</span>
-            <input
+          </Field>
+          <Field id={`${fieldId}-arrival`} label={t("simulation.fields.arrival")}>
+            <Input
+              id={`${fieldId}-arrival`}
               type="number"
-              min="1"
+              min={1}
               value={arrivalIntervalMinutes}
-              onChange={(event) => setArrivalIntervalMinutes(Number(event.target.value))}
+              onChange={(event) =>
+                setArrivalIntervalMinutes(Number(event.target.value))
+              }
             />
-          </label>
-          <label>
-            <span>Durata task, min</span>
-            <input
+          </Field>
+          <Field
+            id={`${fieldId}-duration`}
+            label={t("simulation.fields.taskDuration")}
+          >
+            <Input
+              id={`${fieldId}-duration`}
               type="number"
-              min="1"
+              min={1}
               value={taskDurationMinutes}
-              onChange={(event) => setTaskDurationMinutes(Number(event.target.value))}
+              onChange={(event) =>
+                setTaskDurationMinutes(Number(event.target.value))
+              }
             />
-          </label>
-          <label>
-            <span>Costo ora</span>
-            <input
+          </Field>
+          <Field id={`${fieldId}-cost`} label={t("simulation.fields.costPerHour")}>
+            <Input
+              id={`${fieldId}-cost`}
               type="number"
-              min="0"
-              step="0.01"
+              min={0}
+              step={0.01}
               value={costPerHour}
               onChange={(event) => setCostPerHour(Number(event.target.value))}
             />
-          </label>
-          <label>
-            <span>Risorse</span>
-            <input
+          </Field>
+          <Field
+            id={`${fieldId}-resources`}
+            label={t("simulation.fields.resources")}
+          >
+            <Input
+              id={`${fieldId}-resources`}
               type="number"
-              min="1"
-              max="1000"
+              min={1}
+              max={1000}
               value={resourceAmount}
               onChange={(event) => setResourceAmount(Number(event.target.value))}
             />
-          </label>
-          <label className="simulation-form-wide">
-            <span>Pool risorse</span>
-            <input
+          </Field>
+          <Field
+            id={`${fieldId}-pool`}
+            label={t("simulation.fields.resourcePool")}
+            className="sm:col-span-2"
+          >
+            <Input
+              id={`${fieldId}-pool`}
               type="text"
               value={resourceName}
               onChange={(event) => setResourceName(event.target.value)}
             />
-          </label>
+          </Field>
         </div>
 
-        <button
-          type="button"
-          className="simulation-run-button"
-          disabled={isRunning}
-          onClick={() => void handleRun()}
-        >
-          {isRunning ? "Simulazione in corso..." : "Avvia Prosimos"}
-        </button>
+        <div className="px-3.5 pb-3.5">
+          <Button
+            type="button"
+            className="w-full"
+            disabled={isRunning}
+            onClick={() => void handleRun()}
+          >
+            {isRunning ? t("simulation.running") : t("simulation.run")}
+          </Button>
+        </div>
 
-        {error && <p className="simulation-error">{error}</p>}
+        {error && (
+          <p
+            role="alert"
+            className="mx-3.5 mb-3.5 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-relaxed font-medium text-destructive"
+          >
+            {error}
+          </p>
+        )}
       </section>
 
-      <section className="simulation-results" aria-label="Risultati simulazione">
-        <header className="simulation-section-header">
-          <div>
-            <p className="product-eyebrow">Output</p>
-            <h3>Run Prosimos</h3>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setIsLoadingRuns(true);
-              setReloadKey((current) => current + 1);
-            }}
-            disabled={isLoadingRuns}
-          >
-            Aggiorna
-          </button>
-        </header>
+      <section
+        aria-label={t("simulation.output.title")}
+        className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+      >
+        <PanelHeader
+          eyebrow={t("simulation.output.eyebrow")}
+          title={t("simulation.output.title")}
+          trailing={
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isLoadingRuns}
+              onClick={() => {
+                setIsLoadingRuns(true);
+                setReloadKey((current) => current + 1);
+              }}
+            >
+              {t("simulation.refresh")}
+            </Button>
+          }
+        />
 
         {isLoadingRuns && runs.length === 0 ? (
-          <p className="simulation-empty">Caricamento simulazioni...</p>
+          <div className="p-3.5">
+            <EmptyState variant="inline" title={t("simulation.loading")} />
+          </div>
         ) : runs.length === 0 ? (
-          <p className="simulation-empty">Nessuna simulazione eseguita.</p>
+          <div className="p-3.5">
+            <EmptyState variant="inline" title={t("simulation.empty")} />
+          </div>
         ) : (
-          <div className="simulation-runs-layout">
-            <ul className="simulation-run-list">
-              {runs.map((run) => (
-                <li key={run.id}>
-                  <button
-                    type="button"
-                    className={activeRun?.id === run.id ? "is-active" : ""}
-                    onClick={() => setActiveRun(run)}
-                  >
-                    <strong>{run.scenario_name}</strong>
-                    <span>{run.status}</span>
-                    <small>{formatDate(run.created_at)}</small>
-                  </button>
-                </li>
-              ))}
+          <div className="grid min-h-0 grid-cols-1 overflow-hidden lg:grid-cols-[240px_minmax(0,1fr)]">
+            <ul className="grid content-start gap-2 overflow-auto border-b border-border bg-muted/30 p-2.5 lg:border-r lg:border-b-0">
+              {runs.map((run) => {
+                const isActive = activeRun?.id === run.id;
+                return (
+                  <li key={run.id}>
+                    <button
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => setActiveRun(run)}
+                      className={cn(
+                        "grid w-full gap-1 rounded-md border border-border bg-card px-2.5 py-2 text-left transition-colors hover:bg-accent/60",
+                        isActive && "border-primary bg-accent",
+                      )}
+                    >
+                      <span className="truncate text-xs font-semibold text-foreground">
+                        {run.scenario_name}
+                      </span>
+                      <StatusIndicator
+                        tone={RUN_TONE[run.status]}
+                        label={runStatusLabel(run.status)}
+                      />
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        {formatDate(run.created_at)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
 
-            {activeRun && <SimulationRunDetail run={activeRun} />}
+            {activeRun && (
+              <SimulationRunDetail
+                run={activeRun}
+                statusLabel={runStatusLabel(activeRun.status)}
+              />
+            )}
           </div>
         )}
       </section>
@@ -278,7 +362,57 @@ export const ProcessSimulationPanel: React.FC<ProcessSimulationPanelProps> = ({
   );
 };
 
-function SimulationRunDetail({ run }: { run: SimulationRun }) {
+function PanelHeader({
+  eyebrow,
+  title,
+  trailing,
+}: {
+  eyebrow: string;
+  title: string;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <header className="flex min-h-[58px] items-center justify-between gap-3 border-b border-border px-3.5 py-3">
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          {eyebrow}
+        </p>
+        <h3 className="mt-0.5 text-sm font-semibold text-foreground">{title}</h3>
+      </div>
+      {trailing}
+    </header>
+  );
+}
+
+function Field({
+  id,
+  label,
+  className,
+  children,
+}: {
+  id: string;
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("grid gap-1.5", className)}>
+      <Label htmlFor={id} className="text-[11px] font-semibold text-muted-foreground">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
+function SimulationRunDetail({
+  run,
+  statusLabel,
+}: {
+  run: SimulationRun;
+  statusLabel: string;
+}) {
+  const { t } = useTranslation("process");
   const taskCount = Array.isArray(run.scenario.task_resource_distribution)
     ? run.scenario.task_resource_distribution.length
     : 0;
@@ -287,47 +421,59 @@ function SimulationRunDetail({ run }: { run: SimulationRun }) {
     : 0;
 
   return (
-    <article className="simulation-run-detail">
-      <div className="simulation-kpi-grid">
-        <div>
-          <span>Engine</span>
-          <strong>{run.engine}</strong>
-        </div>
-        <div>
-          <span>Status</span>
-          <strong>{run.status}</strong>
-        </div>
-        <div>
-          <span>Task</span>
-          <strong>{taskCount}</strong>
-        </div>
-        <div>
-          <span>Gateway</span>
-          <strong>{gatewayCount}</strong>
-        </div>
+    <article className="grid content-start gap-3 overflow-auto p-3.5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Kpi label={t("simulation.kpi.engine")} value={run.engine} />
+        <Kpi label={t("simulation.kpi.status")} value={statusLabel} />
+        <Kpi label={t("simulation.kpi.tasks")} value={taskCount} />
+        <Kpi label={t("simulation.kpi.gateways")} value={gatewayCount} />
       </div>
 
       {run.error ? (
-        <p className="simulation-error">{run.error}</p>
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs leading-relaxed font-medium text-destructive"
+        >
+          {run.error}
+        </p>
       ) : (
         <>
           {run.outputs.length > 0 && (
-            <div className="simulation-output-files">
-              <span>File generati</span>
-              <ul>
+            <div className="rounded-md border border-border bg-muted/40 p-2.5">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {t("simulation.outputs")}
+              </span>
+              <ul className="grid list-disc gap-1 pl-4 text-xs text-foreground/80">
                 {run.outputs.map((file) => (
                   <li key={file}>{file}</li>
                 ))}
               </ul>
             </div>
           )}
-          <details className="simulation-json" open>
-            <summary>Risposta Prosimos</summary>
-            <pre>{JSON.stringify(run.result, null, 2)}</pre>
+          <details className="rounded-md border border-border bg-muted/40 p-2.5" open>
+            <summary className="cursor-pointer text-xs font-semibold text-foreground">
+              {t("simulation.jsonSummary")}
+            </summary>
+            <pre className="mt-2.5 max-h-[360px] overflow-auto rounded-md border border-border bg-card p-2.5 font-mono text-[11px] leading-relaxed text-foreground/80">
+              {JSON.stringify(run.result, null, 2)}
+            </pre>
           </details>
         </>
       )}
     </article>
+  );
+}
+
+function Kpi({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border bg-muted/40 p-2.5">
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <strong className="block truncate text-sm font-semibold text-foreground">
+        {value}
+      </strong>
+    </div>
   );
 }
 

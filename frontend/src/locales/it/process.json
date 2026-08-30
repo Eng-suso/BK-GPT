@@ -13,5 +13,37 @@
   "state": {
     "processNotFound": "Processo non trovato in questo progetto.",
     "loadError": "Non è stato possibile caricare il processo."
+  },
+  "simulation": {
+    "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
+    "output": { "eyebrow": "Output", "title": "Run Prosimos" },
+    "fields": {
+      "scenarioName": "Nome scenario",
+      "cases": "Casi",
+      "arrival": "Arrivo medio, min",
+      "taskDuration": "Durata task, min",
+      "costPerHour": "Costo ora",
+      "resources": "Risorse",
+      "resourcePool": "Pool risorse"
+    },
+    "run": "Avvia Prosimos",
+    "running": "Simulazione in corso…",
+    "refresh": "Aggiorna",
+    "loading": "Caricamento simulazioni…",
+    "empty": "Nessuna simulazione eseguita.",
+    "timeout": "Timeout: la simulazione sta impiegando troppo tempo.",
+    "kpi": {
+      "engine": "Engine",
+      "status": "Status",
+      "tasks": "Task",
+      "gateways": "Gateway"
+    },
+    "outputs": "File generati",
+    "jsonSummary": "Risposta Prosimos",
+    "status": {
+      "pending": "In corso",
+      "completed": "Completata",
+      "failed": "Fallita"
+    }
   }
 }
