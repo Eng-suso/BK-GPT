@@ -4,8 +4,6 @@ import { X } from "lucide-react";
 import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatSession } from "./types";
-import type { NavigationTab } from "./navigationTypes";
-import { NavigationRail } from "./navigation/NavigationRail";
 import { Sidebar } from "./navigation/Sidebar";
 import { ChatHeader } from "./components/ChatHeader";
 import { EmptyState } from "./components/EmptyState";
@@ -15,15 +13,12 @@ import { ChatComposer } from "./components/ChatComposer";
 interface ChatShellProps {
   chrome?: "full" | "panel";
   layout?: "standalone" | "embedded";
-  activeTab?: NavigationTab;
   sessions?: ChatSession[];
   currentThreadId?: string | null;
   messages?: ChatMessage[];
   activeTitle?: string;
   isBusy?: boolean;
   selectedModel?: string;
-  onTabChange?: (tab: NavigationTab) => void;
-  onThemeToggle?: () => void;
   onNewChat?: () => void;
   onSelectSession?: (threadId: string) => void;
   onDeleteSession?: (threadId: string) => void;
@@ -44,15 +39,12 @@ interface ChatShellProps {
 export const ChatShell: React.FC<ChatShellProps> = ({
   chrome = "full",
   layout = "standalone",
-  activeTab = "chat",
   sessions = [],
   currentThreadId = null,
   messages = [],
   activeTitle = "Chat consulente",
   isBusy = false,
   selectedModel = "gpt-5.6-luna",
-  onTabChange,
-  onThemeToggle,
   onNewChat,
   onSelectSession,
   onDeleteSession,
@@ -199,19 +191,6 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   return (
     <div className={`viewport ${isEmbedded ? "viewport-embedded" : ""}`}>
       <main className={`shell ${isEmbedded ? "chat-shell-embedded" : ""}`} aria-label="Chat consulente">
-        {!isEmbedded && (
-          <NavigationRail
-            activeTab={activeTab}
-            onTabChange={(tab) => {
-              if (tab === "chat" && window.innerWidth < 1100) {
-                setIsDrawerOpen((prev) => !prev);
-              }
-              onTabChange?.(tab);
-            }}
-            onThemeToggle={onThemeToggle}
-          />
-        )}
-
         <Sidebar
           sessions={sessions}
           currentThreadId={currentThreadId}

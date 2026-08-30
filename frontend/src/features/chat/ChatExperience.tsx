@@ -4,7 +4,6 @@ import { API_BASE } from "../../lib/api";
 import { withAdminAuth, withAuth } from "../../lib/security";
 import { notifyWorkspaceChanged } from "../../lib/workspaceEvents";
 import type { AgentActivity, ChatMessage, ChatSession } from "./types";
-import type { NavigationTab } from "./navigationTypes";
 import type { ChatScope } from "./chatScope";
 import { titleForScope } from "./chatScope";
 import { ChatShell } from "./ChatShell";
@@ -174,7 +173,6 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const apiScope = toApiChatScope(scope);
   const persistentApiScope = toApiChatScope(scope, { includeTransient: false });
   const scopeKey = chatScopeKey(apiScope);
-  const [activeTab, setActiveTab] = useState<NavigationTab>("chat");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const currentThreadIdRef = useRef<string | null>(null);
@@ -588,15 +586,12 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       <ChatShell
         chrome={chrome}
         layout={layout}
-        activeTab={activeTab}
         sessions={sessions}
         currentThreadId={currentThreadId}
         messages={messages}
         activeTitle={activeTitle}
         isBusy={isBusy}
         selectedModel={selectedModel}
-        onTabChange={setActiveTab}
-        onThemeToggle={() => showToast("Tema attivo.")}
         onNewChat={() => setCurrentThreadId(null)}
         onSelectSession={(id) => {
           setCurrentThreadId(id);
