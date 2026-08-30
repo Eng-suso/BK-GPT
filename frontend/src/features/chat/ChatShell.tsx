@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
+import { X } from "lucide-react";
+
+import { Button } from "@/ui/button";
+import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatSession } from "./types";
 import type { NavigationTab } from "./navigationTypes";
 import { NavigationRail } from "./navigation/NavigationRail";
@@ -95,30 +99,41 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   if (chrome === "panel") {
     return (
       <section className="embedded-chat-panel" aria-label="Chat contestuale">
-        <header className="embedded-chat-header">
+        <header className="embedded-chat-header flex min-h-14 items-center justify-between gap-3 border-b border-border px-3.5 py-3">
           <div>
-            <p className="product-eyebrow">Chat</p>
-            <h3>{activeTitle}</h3>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Chat
+            </p>
+            <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">
+              {activeTitle}
+            </h3>
           </div>
-          <div className="embedded-chat-actions">
-            <button type="button" onClick={onNewChat}>
+          <div className="flex items-center gap-1.5">
+            <Button type="button" variant="outline" size="sm" onClick={onNewChat}>
               Nuova
-            </button>
-            <button type="button" onClick={onShare}>
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={onShare}>
               Copia
-            </button>
+            </Button>
           </div>
         </header>
 
-        <div className="embedded-thread-bar" aria-label="Thread della chat corrente">
-          <div className="embedded-thread-label">
+        <div
+          className="flex items-start gap-2.5 border-b border-border bg-muted/40 px-3.5 py-2.5"
+          aria-label="Thread della chat corrente"
+        >
+          <div className="flex flex-col gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             <span>Thread</span>
-            <strong>{sessions.length}</strong>
+            <strong className="text-[13px] text-foreground">
+              {sessions.length}
+            </strong>
           </div>
 
-          <div className="embedded-thread-list">
+          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5">
             {sessions.length === 0 && (
-              <span className="embedded-thread-empty">Nessun thread</span>
+              <span className="inline-flex min-h-7 items-center text-xs text-muted-foreground">
+                Nessun thread
+              </span>
             )}
             {sessions.map((session) => {
               const isActive = session.threadId === currentThreadId;
@@ -126,24 +141,31 @@ export const ChatShell: React.FC<ChatShellProps> = ({
               return (
                 <div
                   key={session.threadId}
-                  className={`embedded-thread-item${isActive ? " is-active" : ""}`}
+                  className={cn(
+                    "flex max-w-[210px] flex-none items-center overflow-hidden rounded-full border border-border bg-card",
+                    isActive && "border-primary bg-accent",
+                  )}
                 >
                   <button
                     type="button"
                     title={session.title}
                     aria-current={isActive ? "true" : undefined}
                     onClick={() => onSelectSession?.(session.threadId)}
+                    className={cn(
+                      "min-w-0 max-w-[170px] truncate py-0 pr-2 pl-2.5 text-xs font-semibold leading-7",
+                      isActive ? "text-primary" : "text-foreground",
+                    )}
                   >
                     {session.title}
                   </button>
                   <button
                     type="button"
-                    className="embedded-thread-delete"
                     title="Elimina thread"
                     aria-label="Elimina thread"
                     onClick={() => onDeleteSession?.(session.threadId)}
+                    className="mr-0.5 grid size-6 flex-none place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
-                    x
+                    <X className="size-3.5" />
                   </button>
                 </div>
               );

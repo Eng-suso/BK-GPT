@@ -3,7 +3,23 @@ import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
 import TokenSimulationModule from "bpmn-js-token-simulation";
 import { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule } from "bpmn-js-properties-panel";
-import { Activity, MessageSquareText, Pause, Play, RotateCcw } from "lucide-react";
+import {
+  Activity,
+  Download,
+  History,
+  Maximize2,
+  MessageSquareText,
+  Minus,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  Save,
+  Upload,
+} from "lucide-react";
+
+import { Badge } from "@/ui/badge";
+import { Button } from "@/ui/button";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
@@ -848,69 +864,106 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         </div>
         <div className="process-bpmn-toolbar-actions">
           <div className="bpmn-zoom-group" aria-label="Controlli Zoom">
-            <button type="button" onClick={handleZoomFit} title="Centra e adatta diagramma">
-              🔍 Centra
-            </button>
-            <button type="button" onClick={handleZoomIn} title="Ingrandisci">
-              +
-            </button>
-            <button type="button" onClick={handleZoomOut} title="Riduci">
-              -
-            </button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleZoomFit}
+              title="Centra e adatta diagramma"
+            >
+              <Maximize2 />
+              Centra
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={handleZoomIn}
+              title="Ingrandisci"
+              aria-label="Ingrandisci"
+            >
+              <Plus />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={handleZoomOut}
+              title="Riduci"
+              aria-label="Riduci"
+            >
+              <Minus />
+            </Button>
           </div>
 
           <div className="bpmn-simulation-group" aria-label="Controlli simulazione token">
-            <button
+            <Button
               type="button"
-              className={isTokenSimulationActive ? "is-active" : ""}
+              variant={isTokenSimulationActive ? "secondary" : "outline"}
+              size="sm"
               disabled={!isReady}
               onClick={() => setTokenSimulationMode(!isTokenSimulationActive)}
               title={isTokenSimulationActive ? "Disattiva simulazione visuale" : "Attiva simulazione visuale"}
             >
-              <Activity size={14} aria-hidden="true" />
-              <span>Token</span>
-            </button>
-            <button
+              <Activity aria-hidden="true" />
+              Token
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={!isReady}
               onClick={triggerSimulationCase}
               title="Avvia un nuovo caso sullo start event"
             >
-              <Play size={14} aria-hidden="true" />
-              <span>Caso</span>
-            </button>
-            <button
+              <Play aria-hidden="true" />
+              Caso
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={!isReady || !isTokenSimulationActive}
               onClick={toggleTokenSimulationPause}
               title={isTokenSimulationPaused ? "Riprendi simulazione" : "Metti in pausa simulazione"}
             >
-              {isTokenSimulationPaused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}
-              <span>{isTokenSimulationPaused ? "Play" : "Pausa"}</span>
-            </button>
-            <button
+              {isTokenSimulationPaused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+              {isTokenSimulationPaused ? "Play" : "Pausa"}
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={!isReady || !isTokenSimulationActive}
               onClick={resetTokenSimulation}
               title="Reset simulazione visuale"
             >
-              <RotateCcw size={14} aria-hidden="true" />
-              <span>Reset</span>
-            </button>
-            <button
+              <RotateCcw aria-hidden="true" />
+              Reset
+            </Button>
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               disabled={!isReady || !isTokenSimulationActive}
               onClick={toggleTokenSimulationLog}
               title="Mostra o nascondi log token"
             >
-              <MessageSquareText size={14} aria-hidden="true" />
-              <span>Log</span>
-            </button>
+              <MessageSquareText aria-hidden="true" />
+              Log
+            </Button>
           </div>
 
-          <span className={`status-pill ${hasUnsavedChanges ? "unsaved" : "saved"}`}>
+          <Badge
+            variant="outline"
+            className={
+              hasUnsavedChanges
+                ? "border-warning-border bg-warning-surface text-[var(--amber-700)]"
+                : "text-muted-foreground"
+            }
+          >
             {hasUnsavedChanges ? "Modifiche non salvate" : status}
-          </span>
+          </Badge>
           <input
             ref={fileInputRef}
             className="process-bpmn-file-input"
@@ -918,33 +971,46 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             accept=".bpmn,.xml,.bpm"
             onChange={(event) => void importFile(event.target.files?.[0])}
           />
-          <button
+          <Button
             type="button"
-            className={isHistoryOpen ? "is-active" : ""}
+            variant={isHistoryOpen ? "secondary" : "outline"}
+            size="sm"
             onClick={() => setIsHistoryOpen((prev) => !prev)}
             title={isHistoryOpen ? "Nascondi Cronologia" : "Mostra Cronologia Versioni"}
           >
+            <History />
             Cronologia {versions.length > 0 ? `(${versions.length})` : ""}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             disabled={!isReady}
             onClick={() => fileInputRef.current?.click()}
           >
+            <Upload />
             Importa
-          </button>
-          <button type="button" disabled={!isReady} onClick={() => void exportCurrentXml()}>
-            Esporta
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={hasUnsavedChanges ? "btn-save-unsaved" : ""}
+            variant="outline"
+            size="sm"
+            disabled={!isReady}
+            onClick={() => void exportCurrentXml()}
+          >
+            <Download />
+            Esporta
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             disabled={!isReady || isSaving || !hasUnsavedChanges}
             onClick={() => void saveCurrentXml()}
             title="Salva processo (Ctrl+S)"
           >
+            <Save />
             {isSaving ? "Salvo..." : "Salva (Ctrl+S)"}
-          </button>
+          </Button>
         </div>
       </header>
 

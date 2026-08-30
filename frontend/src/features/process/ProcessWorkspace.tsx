@@ -2,10 +2,12 @@ import React from "react";
 import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/ui/button";
+import { DetailPanelKeyValue } from "@/components/panel";
 import type { Project, ProjectProcess } from "../../contracts/workspace";
 import { ChatExperience } from "../chat/ChatExperience";
 import { ProcessBpmnCanvas } from "./ProcessBpmnCanvas";
-import { ProcessSimulationPanel } from "./ProcessSimulationPanel";
+import { SimulationWorkspace } from "./SimulationWorkspace";
 
 export type ProcessView = "chat" | "canvas" | "simulation" | "properties";
 
@@ -64,15 +66,16 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
     <section className="process-workspace process-workspace--embedded">
       {showStudio && (
         <div className="process-workspace-subbar">
-          <button
+          <Button
             type="button"
-            className={`process-chat-toggle ${isCanvasChatOpen ? "is-active" : ""}`}
+            variant={isCanvasChatOpen ? "secondary" : "outline"}
+            size="sm"
             onClick={() => setIsCanvasChatOpen((prev) => !prev)}
             title={t("actions.toggleChat")}
           >
-            <MessageSquare aria-hidden width={14} height={14} />
-            <span>{t("actions.toggleChat")}</span>
-          </button>
+            <MessageSquare aria-hidden className="size-3.5" />
+            {t("actions.toggleChat")}
+          </Button>
         </div>
       )}
 
@@ -134,12 +137,18 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
                 style={{ width: "340px", flex: "0 0 340px", marginLeft: "8px" }}
                 aria-label="Proprietà BPMN"
               >
-                <header className="process-studio-properties-header">
+                <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-3.5 py-3">
                   <div>
-                    <p className="product-eyebrow">BPMN 2.0</p>
-                    <h3>Pannello Proprietà</h3>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      BPMN 2.0
+                    </p>
+                    <h3 className="mt-0.5 text-sm font-semibold text-foreground">
+                      Pannello Proprietà
+                    </h3>
                   </div>
-                  <span>Elemento selezionato</span>
+                  <span className="text-xs text-muted-foreground">
+                    Elemento selezionato
+                  </span>
                 </header>
                 <div
                   className="process-bpmn-properties-host"
@@ -155,7 +164,7 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
             className="process-simulation-panel"
             aria-label="Simulazione processo"
           >
-            <ProcessSimulationPanel
+            <SimulationWorkspace
               process={process}
               currentBpmnXml={currentCanvasXml}
             />
@@ -201,37 +210,57 @@ function ProcessSideSummary({
   onOpenProperties: () => void;
 }) {
   return (
-    <div className="process-side-summary">
-      <section className="project-panel">
-        <h3>Riepilogo</h3>
-        <dl className="process-property-list">
-          <div><dt>Stato</dt><dd>{process.status}</dd></div>
-          <div><dt>Owner</dt><dd>{process.owner}</dd></div>
-          <div><dt>Fase</dt><dd>{process.stage}</dd></div>
-          <div><dt>Readiness</dt><dd>{process.readiness}%</dd></div>
-        </dl>
-      </section>
+    <div className="flex flex-col gap-3.5 p-3.5">
+      <SidePanel title="Riepilogo">
+        <DetailPanelKeyValue
+          rows={[
+            { label: "Stato", value: process.status },
+            { label: "Owner", value: process.owner },
+            { label: "Fase", value: process.stage },
+            { label: "Readiness", value: `${process.readiness}%` },
+          ]}
+        />
+      </SidePanel>
 
-      <section className="project-panel">
-        <h3>Transizione</h3>
-        <p>
+      <SidePanel title="Transizione">
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">
           Parti dalla chat generale del processo, passa al canvas BPMN quando vuoi
           lavorare sul modello, poi apri le proprieta per modificare gli elementi.
         </p>
-        <div className="process-transition-actions">
-          <button type="button" onClick={onOpenCanvas}>Apri canvas</button>
-          <button type="button" onClick={onOpenProperties}>Apri proprieta</button>
+        <div className="mt-3.5 grid gap-2">
+          <Button variant="outline" size="sm" onClick={onOpenCanvas}>
+            Apri canvas
+          </Button>
+          <Button variant="outline" size="sm" onClick={onOpenProperties}>
+            Apri proprieta
+          </Button>
         </div>
-      </section>
+      </SidePanel>
 
-      <section className="project-panel">
-        <h3>Qualita</h3>
-        <ul className="process-check-list">
-          <li>Fonti collegate</li>
-          <li>Ruoli verificati</li>
-          <li>Eccezioni da completare</li>
+      <SidePanel title="Qualita">
+        <ul className="grid gap-2 text-[12px] font-medium text-muted-foreground">
+          <li className="rounded-md bg-muted/60 px-2.5 py-2">Fonti collegate</li>
+          <li className="rounded-md bg-muted/60 px-2.5 py-2">Ruoli verificati</li>
+          <li className="rounded-md bg-muted/60 px-2.5 py-2">
+            Eccezioni da completare
+          </li>
         </ul>
-      </section>
+      </SidePanel>
     </div>
+  );
+}
+
+function SidePanel({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_var(--shadow-100)]">
+      <h3 className="mb-2 text-sm font-semibold text-foreground">{title}</h3>
+      {children}
+    </section>
   );
 }
