@@ -65,6 +65,33 @@ async def run_prosimos_simulation(
     except ValueError:
         payload = {"raw": response.text}
 
-    return ProsimosSimulationResult(
-        payload=payload if isinstance(payload, dict) else {"result": payload},
-    )
+    if not isinstance(payload, dict):
+        payload = {"result": payload}
+
+    return ProsimosSimulationResult(payload=_normalize_prosimos_payload(payload))
+
+
+_STATISTIC_KEYS = (
+    "ResourceUtilization",
+    "IndividualTaskStatistics",
+    "OverallScenarioStatistics",
+)
+
+
+def _normalize_prosimos_payload(payload: dict) -> dict:
+    """Prosimos returns statistics as multiply json-encoded strings; decode them
+    so the UI and downstream comparison get real objects."""
+    normalized = dict(payload)
+    for key in _STATISTIC_KEYS:
+        if key in normalized:
+            normalized[key] = _deep_json_decode(normalized[key])
+    return normalized
+
+
+def _deep_json_decode(value: object, _depth: int = 0) -> object:
+    if _depth >= 5 or not isinstance(value, str):
+        return value
+    try:
+        return _deep_json_decode(json.loads(value), _depth + 1)
+    except (ValueError, TypeError):
+        return value

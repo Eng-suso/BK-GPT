@@ -39,9 +39,12 @@ Use `Simod` later for event-log based discovery.
 From the cloned `prosimos-microservice` repository:
 
 ```powershell
-docker build --progress=plain --no-cache -f Dockerfile.api -t prosimos-api .
+docker build --progress=plain -f Dockerfile.api -t prosimos-api .
 docker run --rm -p 5000:5000 prosimos-api
 ```
+
+`scripts/dev.ps1` does this automatically (build cache on; set `PROSIMOS_NO_CACHE=1`
+to force a clean rebuild, `SKIP_PROSIMOS=1` to skip it).
 
 Prosimos Swagger should be available at:
 
@@ -53,8 +56,37 @@ DeliR reads the base URL from:
 
 ```text
 PROSIMOS_BASE_URL=http://127.0.0.1:5000
-PROSIMOS_TIMEOUT_SECONDS=60
+PROSIMOS_TIMEOUT_SECONDS=900
 ```
+
+### Sync vs async mode
+
+Upstream `prosimos-microservice` is async: `POST /api/simulate` enqueues a Celery
+task (needs RabbitMQ + Redis + a worker) and returns `{"TaskId": ...}`; the client
+polls `GET /api/task?taskId=...`.
+
+DeliR patches `src/api/SimulationApiHandler.py` to run **synchronously by default**
+(`simulation_task.apply(...)` in-process, no broker). `POST /api/simulate` then
+returns the statistics directly. `Dockerfile.api` runs 6 gunicorn sync workers, so
+~5 consultants can simulate concurrently. Original async behaviour is still
+available with form field `async=true` or header `X-Prosimos-Async: 1` (requires
+the full compose stack).
+
+### Scenario contract notes (prosimos 1.2.6 / pix-framework)
+
+- `norm` distributions need `[mean, std, min, max]` (4 params). min/max bound a
+  rejection-sampling loop, so keep them a few std wide.
+- `expon` (arrival) needs `[mean, min, max]`: `scale = mean - min`, `loc = min`.
+- Statistics come back as multiply json-encoded strings; the adapter decodes
+  `ResourceUtilization`, `IndividualTaskStatistics`, `OverallScenarioStatistics`.
+
+### Idempotency
+
+`POST /v1/workspace/bpmn-models/{id}/simulation-runs` derives a key from the
+scenario inputs (or takes the client `idempotency_key`). A duplicate submit while
+an identical run is still `pending` returns the existing run instead of launching
+a second simulation. Once a run finishes, an identical request starts a fresh run
+(Prosimos is stochastic — a re-sample is intentional).
 
 ## DeliR Folder Structure
 
@@ -100,6 +132,9 @@ The request is multipart form data with:
 - `numProcesses`
 - `modelFile`
 - `simScenarioFile`
+
+The DeliR endpoint returns immediately with a `pending` run and executes Prosimos
+in a background task; the frontend polls `GET /v1/workspace/simulation-runs/{run_id}`.
 
 ## Next Phase
 
