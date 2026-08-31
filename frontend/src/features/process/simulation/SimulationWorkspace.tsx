@@ -1,10 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Activity, LineChart } from "lucide-react";
 
-import { HttpError } from "@/lib/http";
 import { EmptyState } from "@/components/feedback";
 import { StatusIndicator, type StatusTone } from "@/components/status";
 import { StatTile } from "@/components/data";
@@ -12,25 +10,10 @@ import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/app/routes";
 
-import { useBpmnModelQuery } from "../api";
-import {
-  fetchScenarioTemplate,
-  getProsimosSimulationRun,
-  runProsimosSimulation,
-} from "./simulationApi";
-import type {
-  ScenarioTemplate,
-  SimulationRun,
-  SimulationSummary,
-} from "./simulationTypes";
+import type { SimulationRun, SimulationSummary } from "./simulationTypes";
 import { SimulationConfigRail } from "./SimulationConfigRail";
-import {
-  loadScenarioDraft,
-  saveScenarioDraft,
-  scenarioToInput,
-  seedDraftFromTemplate,
-  type ScenarioDraft,
-} from "./simulationScenario";
+import { ReadinessSummary } from "./ReadinessSummary";
+import { useScenarioLab } from "./useScenarioLab";
 import { SimulationBpmnView, type SimulationNodeOverlay } from "./SimulationBpmnView";
 import { SimulationResults } from "./SimulationResultsView";
 import {
@@ -42,138 +25,42 @@ import {
   topBottleneckElementIds,
   withDiagnosticBottleneck,
 } from "./simulationResults";
-import { resolveActiveRun, useSimulationSection } from "./useSimulationSection";
+import { useSimulationSection } from "./useSimulationSection";
 
-const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 15 * 60 * 1000;
 const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
   pending: "pending",
   completed: "ok",
   failed: "danger",
 };
 
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 /**
  * Panoramica — one scrolling page: the active run's KPI snapshot, then the
- * scenario you'll run next (left) beside the model + results (right).
+ * scenario you'll run next (left, with its input-confidence roll-up) beside the
+ * model + results (right).
  */
 export function SimulationWorkspace(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
-  const { projectId, processId, process, runs: sectionRuns, refetchRuns } =
-    useSimulationSection();
-  const modelQuery = useBpmnModelQuery(process.bpmnModelId);
-  const bpmnXml = modelQuery.data?.xml ?? null;
+  const { projectId, processId } = useSimulationSection();
+  const lab = useScenarioLab();
+  const {
+    bpmnXml,
+    template,
+    templateLoading,
+    draft,
+    updateDraft,
+    provenance,
+    confidence,
+    activeRun,
+    isRunning,
+    isPending,
+    error,
+    handleRun,
+  } = lab;
 
-  const [pickedRunId, setPickedRunId] = React.useState<number | null>(null);
-  const [polledRun, setPolledRun] = React.useState<SimulationRun | null>(null);
-  const [isRunning, setIsRunning] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = React.useState<string | null>(null);
-  const mountedRef = React.useRef(true);
-
-  const activeRun: SimulationRun | null = React.useMemo(() => {
-    if (polledRun) return polledRun;
-    if (pickedRunId != null) {
-      return sectionRuns.find((r) => r.id === pickedRunId) ?? null;
-    }
-    return resolveActiveRun(sectionRuns, undefined);
-  }, [polledRun, pickedRunId, sectionRuns]);
-
-  const [storedDraft, setStoredDraft] = React.useState<ScenarioDraft>(() =>
-    loadScenarioDraft(process.bpmnModelId),
-  );
-
-  const templateQuery = useQuery<ScenarioTemplate>({
-    queryKey: ["workspace", "simulation-template", process.bpmnModelId],
-    queryFn: () => fetchScenarioTemplate(process.bpmnModelId, null),
-    enabled: bpmnXml !== null,
-    staleTime: 60_000,
-  });
-  const template = templateQuery.data ?? null;
-  const templateLoading = templateQuery.isLoading && bpmnXml !== null;
-
-  const draft = React.useMemo(
-    () => (template ? seedDraftFromTemplate(storedDraft, template) : storedDraft),
-    [storedDraft, template],
-  );
-
-  React.useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const updateDraft = React.useCallback(
-    (next: ScenarioDraft) => {
-      setStoredDraft(next);
-      saveScenarioDraft(process.bpmnModelId, next);
-    },
-    [process.bpmnModelId],
-  );
-
-  const syncSection = React.useCallback(() => {
-    void queryClient.invalidateQueries({
-      queryKey: ["workspace", "simulation-runs", process.bpmnModelId],
-    });
-    refetchRuns();
-  }, [queryClient, process.bpmnModelId, refetchRuns]);
-
-  const pollRun = React.useCallback(
-    async (runId: number) => {
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
-      while (Date.now() < deadline) {
-        await delay(POLL_INTERVAL_MS);
-        if (!mountedRef.current) return;
-        let latest: SimulationRun;
-        try {
-          latest = await getProsimosSimulationRun(runId);
-        } catch (err) {
-          if (mountedRef.current) setError(readError(err));
-          return;
-        }
-        if (!mountedRef.current) return;
-        setPolledRun(latest);
-        if (latest.status !== "pending") {
-          syncSection();
-          setPickedRunId(latest.id);
-          setPolledRun(null);
-          if (latest.status === "failed" && latest.error) setError(latest.error);
-          return;
-        }
-      }
-      setError(t("simulation.timeout"));
-    },
-    [t, syncSection],
-  );
-
-  async function handleRun() {
-    setIsRunning(true);
-    setError(null);
-    setSelectedElementId(null);
-    try {
-      const run = await runProsimosSimulation(process.bpmnModelId, {
-        ...scenarioToInput(draft, bpmnXml),
-        idempotencyKey:
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${process.bpmnModelId}-${Date.now()}`,
-      });
-      setPolledRun(run);
-      syncSection();
-      if (run.status === "pending") await pollRun(run.id);
-      else setPickedRunId(run.id);
-    } catch (err) {
-      setError(readError(err));
-    } finally {
-      if (mountedRef.current) setIsRunning(false);
-    }
-  }
 
   const summary = (activeRun?.summary as SimulationSummary | null) ?? null;
   const insights = React.useMemo(
@@ -200,8 +87,6 @@ export function SimulationWorkspace(): React.JSX.Element {
       }));
   }, [insights, lang]);
 
-  const isPending = activeRun?.status === "pending";
-
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto pb-4">
       <RunSnapshot
@@ -212,27 +97,27 @@ export function SimulationWorkspace(): React.JSX.Element {
         onOpenReplay={() =>
           activeRun &&
           navigate(
-            ROUTES.projects.simulation(
-              projectId,
-              processId,
-              `replay/${activeRun.id}`,
-            ),
+            ROUTES.projects.simulation(projectId, processId, `replay/${activeRun.id}`),
           )
         }
         onOpenDashboard={() =>
           activeRun &&
           navigate(
-            ROUTES.projects.simulation(
-              projectId,
-              processId,
-              `dashboard/${activeRun.id}`,
-            ),
+            ROUTES.projects.simulation(projectId, processId, `dashboard/${activeRun.id}`),
           )
         }
       />
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(320px,0.82fr)_minmax(0,1.18fr)]">
-        <div className="self-start">
+        <div className="flex flex-col gap-4 self-start">
+          <ReadinessSummary
+            dense
+            confidence={confidence}
+            provenance={provenance}
+            onReview={() =>
+              navigate(ROUTES.projects.simulation(projectId, processId, "scenario"))
+            }
+          />
           <SimulationConfigRail
             embedded
             template={template}
@@ -243,6 +128,7 @@ export function SimulationWorkspace(): React.JSX.Element {
             error={error}
             onRun={() => void handleRun()}
             focusElementId={selectedElementId}
+            provenance={confidence}
           />
         </div>
 
@@ -368,12 +254,7 @@ function RunSnapshot({
                 <Activity aria-hidden className="size-3.5" />
                 {t("simulation.section.nav.replay")}
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={onOpenDashboard}
-              >
+              <Button type="button" size="sm" variant="outline" onClick={onOpenDashboard}>
                 <LineChart aria-hidden className="size-3.5" />
                 {t("simulation.section.nav.dashboard")}
               </Button>
@@ -468,17 +349,4 @@ function RunSnapshot({
       )}
     </section>
   );
-}
-
-function readError(error: unknown): string {
-  if (error instanceof HttpError) {
-    const body = error.body;
-    if (body && typeof body === "object") {
-      if ("detail" in body && typeof body.detail === "string") return body.detail;
-      const nested = (body as { error?: { message?: unknown } }).error;
-      if (nested && typeof nested.message === "string") return nested.message;
-    }
-    return error.message;
-  }
-  return error instanceof Error ? error.message : "Simulazione non riuscita.";
 }

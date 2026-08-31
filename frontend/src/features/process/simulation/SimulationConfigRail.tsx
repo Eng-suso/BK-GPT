@@ -23,6 +23,8 @@ import {
   type ScenarioDraft,
   type TaskDraft,
 } from "./simulationScenario";
+import type { InputConfidence } from "./simulationProvenance";
+import { ProvenanceChip } from "./ProvenanceChip";
 
 const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
   pending: "pending",
@@ -49,6 +51,8 @@ type SimulationConfigRailProps = {
   onCollapse?: () => void;
   /** Drop the card border / internal scroll when the parent page already scrolls. */
   embedded?: boolean;
+  /** Per-field input-confidence badges (phase 5). */
+  provenance?: InputConfidence | null;
 };
 
 export function SimulationConfigRail({
@@ -65,6 +69,7 @@ export function SimulationConfigRail({
   focusElementId,
   onCollapse,
   embedded = false,
+  provenance,
 }: SimulationConfigRailProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
@@ -160,6 +165,18 @@ export function SimulationConfigRail({
                 onChange={(v) => patch({ defaultTaskMinutes: v })}
               />
             </div>
+            {provenance && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
+                <ChipRow
+                  label={t("simulation.fields.cases")}
+                  field={provenance.globals.cases}
+                />
+                <ChipRow
+                  label={t("simulation.fields.arrivalMin")}
+                  field={provenance.globals.arrival}
+                />
+              </div>
+            )}
           </div>
         </DetailPanelSection>
 
@@ -190,6 +207,11 @@ export function SimulationConfigRail({
             </Button>
           }
         >
+          {provenance && (
+            <div className="pb-2">
+              <ProvenanceChip field={provenance.resources} />
+            </div>
+          )}
           <div className="grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5 px-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             <span>{t("simulation.config.role")}</span>
             <span>€/h</span>
@@ -294,12 +316,17 @@ export function SimulationConfigRail({
                     data-sim-el={task.element_id}
                     className="rounded-md border border-border bg-muted/30 p-2.5"
                   >
-                    <p
-                      className="mb-2 truncate text-xs font-medium text-foreground"
-                      title={task.name}
-                    >
-                      {task.name}
-                    </p>
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                      <p
+                        className="truncate text-xs font-medium text-foreground"
+                        title={task.name}
+                      >
+                        {task.name}
+                      </p>
+                      {provenance?.activities[task.element_id] && (
+                        <ProvenanceChip field={provenance.activities[task.element_id]} />
+                      )}
+                    </div>
                     <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-1.5">
                       <FieldLabel label={t("simulation.config.durationMin")}>
                         <Input
@@ -394,13 +421,21 @@ export function SimulationConfigRail({
                     data-sim-el={gateway.element_id}
                     className="rounded-md border border-border bg-muted/30 p-2.5"
                   >
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span
-                        className="truncate text-xs font-medium text-foreground"
-                        title={gateway.name}
-                      >
-                        {gateway.name}
-                      </span>
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span
+                          className="block truncate text-xs font-medium text-foreground"
+                          title={gateway.name}
+                        >
+                          {gateway.name}
+                        </span>
+                        {provenance?.gateways[gateway.element_id] && (
+                          <ProvenanceChip
+                            className="mt-1"
+                            field={provenance.gateways[gateway.element_id]}
+                          />
+                        )}
+                      </div>
                       {balanced ? (
                         <StatusIndicator tone="ok" label="100%" />
                       ) : (
@@ -553,6 +588,23 @@ function NumberField({
         onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
       />
     </FieldLabel>
+  );
+}
+
+function ChipRow({
+  label,
+  field,
+}: {
+  label: string;
+  field: InputConfidence["globals"]["cases"];
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <ProvenanceChip field={field} hideNote />
+    </span>
   );
 }
 

@@ -102,7 +102,17 @@
         "busiestResource": "Busiest resource"
       }
     },
-    "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
+    "scenario": {
+      "eyebrow": "Prosimos",
+      "title": "Scenario",
+      "pageTitle": "Scenario builder",
+      "pageSubtitle": "Review every assumption and where it came from before you simulate.",
+      "assumptions": "Per-element assumptions",
+      "globalsTitle": "Global parameters",
+      "backedByInterview": "{{count}} element from interview",
+      "backedByInterview_other": "{{count}} elements from interview",
+      "ofTotal": "of {{total}}"
+    },
     "output": {
       "eyebrow": "Results",
       "title": "No run",
@@ -193,6 +203,50 @@
       "pending": "Running",
       "completed": "Completed",
       "failed": "Failed"
+    },
+    "provenance": {
+      "label": "Source",
+      "sourceLabel": "Source: {{source}} · {{confidence}} confidence",
+      "source": {
+        "interview": "from interview",
+        "confirmed": "confirmed",
+        "inferred": "inferred",
+        "estimated": "estimated",
+        "default": "default"
+      },
+      "confidence": {
+        "high": "high",
+        "medium": "medium",
+        "low": "low"
+      },
+      "evidenceTitle": "Discovery evidence",
+      "noEvidence": "No linked evidence",
+      "aiInferredHint": "Structure not found in discovery",
+      "openQuestions_one": "{{count}} outcome to validate",
+      "openQuestions_other": "{{count}} outcomes to validate"
+    },
+    "readiness": {
+      "title": "Simulation readiness",
+      "subtitle": "How grounded this scenario's parameters are.",
+      "overall": "Overall confidence",
+      "row": {
+        "structure": "Process structure",
+        "durations": "Activity durations",
+        "resources": "Resource capacity",
+        "arrivals": "Arrival data",
+        "gateways": "Gateway probabilities"
+      },
+      "flagged_one": "{{count}} to review",
+      "flagged_other": "{{count}} to review",
+      "reviewAssumptions": "Review assumptions",
+      "openScenario": "Open scenario builder",
+      "noDiscovery": "No discovery evidence for this process — parameters start from defaults.",
+      "missingInfo": "Information missing from discovery",
+      "weakPoints": "Discovery weak points",
+      "gatewaysToValidate_one": "{{count}} gateway outcome still to validate",
+      "gatewaysToValidate_other": "{{count}} gateway outcomes still to validate",
+      "allGrounded": "Every parameter is grounded in evidence.",
+      "compact": "Readiness"
     }
   },
   "side": {

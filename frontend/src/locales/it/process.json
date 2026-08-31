@@ -102,7 +102,17 @@
         "busiestResource": "Risorsa più carica"
       }
     },
-    "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
+    "scenario": {
+      "eyebrow": "Prosimos",
+      "title": "Scenario",
+      "pageTitle": "Costruttore scenario",
+      "pageSubtitle": "Rivedi ogni assunzione e la sua origine prima di simulare.",
+      "assumptions": "Assunzioni per elemento",
+      "globalsTitle": "Parametri globali",
+      "backedByInterview": "{{count}} elemento da intervista",
+      "backedByInterview_other": "{{count}} elementi da intervista",
+      "ofTotal": "su {{total}}"
+    },
     "output": {
       "eyebrow": "Risultati",
       "title": "Nessuna run",
@@ -193,6 +203,50 @@
       "pending": "In corso",
       "completed": "Completata",
       "failed": "Fallita"
+    },
+    "provenance": {
+      "label": "Origine",
+      "sourceLabel": "Origine: {{source}} · confidenza {{confidence}}",
+      "source": {
+        "interview": "da intervista",
+        "confirmed": "confermato",
+        "inferred": "dedotto",
+        "estimated": "stimato",
+        "default": "predefinito"
+      },
+      "confidence": {
+        "high": "alta",
+        "medium": "media",
+        "low": "bassa"
+      },
+      "evidenceTitle": "Evidenza dalla discovery",
+      "noEvidence": "Nessuna evidenza collegata",
+      "aiInferredHint": "Struttura non emersa dalla discovery",
+      "openQuestions_one": "{{count}} esito da validare",
+      "openQuestions_other": "{{count}} esiti da validare"
+    },
+    "readiness": {
+      "title": "Prontezza simulazione",
+      "subtitle": "Quanto sono fondati i parametri di questo scenario.",
+      "overall": "Confidenza complessiva",
+      "row": {
+        "structure": "Struttura processo",
+        "durations": "Durata attività",
+        "resources": "Capacità risorse",
+        "arrivals": "Dati di arrivo",
+        "gateways": "Probabilità gateway"
+      },
+      "flagged_one": "{{count}} da rivedere",
+      "flagged_other": "{{count}} da rivedere",
+      "reviewAssumptions": "Rivedi assunzioni",
+      "openScenario": "Apri costruttore scenario",
+      "noDiscovery": "Nessuna evidenza di discovery per questo processo: i parametri partono dai valori predefiniti.",
+      "missingInfo": "Informazioni mancanti dalla discovery",
+      "weakPoints": "Punti deboli della discovery",
+      "gatewaysToValidate_one": "{{count}} esito gateway ancora da validare",
+      "gatewaysToValidate_other": "{{count}} esiti gateway ancora da validare",
+      "allGrounded": "Ogni parametro è fondato sull'evidenza.",
+      "compact": "Prontezza"
     }
   },
   "side": {

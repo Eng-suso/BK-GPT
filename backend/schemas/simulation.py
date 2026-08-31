@@ -107,3 +107,49 @@ class SimulationReplayResponse(BaseModel):
     run_id: int
     schema_version: int
     replay: dict[str, Any] = Field(default_factory=dict)
+
+
+# --- Input confidence / scenario provenance (phase 5) ------------------------
+
+
+class ScenarioProvenanceRequest(BaseModel):
+    current_bpmn_xml: str | None = None
+
+
+class ProvenanceRef(BaseModel):
+    """Pointer back into the process-understanding artifact that grounds a value."""
+
+    field: str
+    id: str | None = None
+    label: str | None = None
+
+
+class ScenarioElementProvenance(BaseModel):
+    element_id: str
+    kind: Literal["activity", "gateway"]
+    name: str
+    # Which scenario parameter the consultant sets for this element.
+    parameter: Literal["duration", "branching"]
+    # Where the element itself came from — discovery evidence or a model inference.
+    origin: Literal["interview", "ai_inferred"]
+    # How well grounded the parameter is, before the consultant confirms it.
+    confidence: Literal["high", "medium", "low"]
+    # Short verbatim snippets from the interview / discovery notes.
+    evidence: list[str] = Field(default_factory=list)
+    # Gateway outcomes still flagged as inferred / assumed (0 for activities).
+    open_questions: int = 0
+    hint_ref: ProvenanceRef | None = None
+
+
+class ScenarioProvenanceResponse(BaseModel):
+    """Per-element structural provenance for the scenario builder. The frontend
+    combines this with the local draft (default vs consultant-set) to roll up a
+    Simulation Readiness score."""
+
+    has_discovery: bool = False
+    process_confidence: Literal["high", "medium", "low"] | None = None
+    # Discovery readiness, rescaled to 0–100 from the 1–10 quality score.
+    readiness_score: int | None = None
+    missing_information: list[str] = Field(default_factory=list)
+    weak_points: list[str] = Field(default_factory=list)
+    elements: list[ScenarioElementProvenance] = Field(default_factory=list)

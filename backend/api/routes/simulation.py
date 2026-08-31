@@ -2,6 +2,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from backend.schemas.simulation import (
     CreateSimulationRunRequest,
+    ScenarioProvenanceRequest,
+    ScenarioProvenanceResponse,
     ScenarioTemplateRequest,
     ScenarioTemplateResponse,
     SimulationReplayResponse,
@@ -12,6 +14,7 @@ from backend.security import get_current_tenant_id, require_principal
 from backend.simulation.service import (
     execute_simulation_run,
     prepare_simulation_run,
+    scenario_provenance_for_model,
     scenario_template_for_model,
 )
 from backend.simulation.storage import (
@@ -72,6 +75,24 @@ def get_workspace_scenario_template(
 
     try:
         return scenario_template_for_model(
+            bpmn_model=BpmnModelResponse(**model),
+            current_bpmn_xml=request.current_bpmn_xml,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-provenance")
+def get_workspace_scenario_provenance(
+    bpmn_model_id: str,
+    request: ScenarioProvenanceRequest,
+) -> ScenarioProvenanceResponse:
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+
+    try:
+        return scenario_provenance_for_model(
             bpmn_model=BpmnModelResponse(**model),
             current_bpmn_xml=request.current_bpmn_xml,
         )

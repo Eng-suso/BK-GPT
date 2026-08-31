@@ -1,11 +1,13 @@
 import { http } from "@/lib/http";
 
 import {
+  scenarioProvenanceSchema,
   scenarioTemplateSchema,
   simulationReplaySchema,
   simulationRunSchema,
   simulationRunsSchema,
   type CreateSimulationRunInput,
+  type ScenarioProvenance,
   type ScenarioTemplate,
   type SimulationReplay,
   type SimulationRun,
@@ -65,6 +67,19 @@ export async function fetchScenarioTemplate(
   );
 
   return scenarioTemplateSchema.parse(raw);
+}
+
+/** Where each simulable element came from — discovery evidence or inference. */
+export async function fetchScenarioProvenance(
+  bpmnModelId: string,
+  currentBpmnXml: string | null,
+): Promise<ScenarioProvenance> {
+  const raw = await http<unknown>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/simulation-provenance`,
+    { method: "POST", body: { current_bpmn_xml: currentBpmnXml } },
+  );
+
+  return scenarioProvenanceSchema.parse(raw);
 }
 
 export async function listProsimosSimulationRuns(

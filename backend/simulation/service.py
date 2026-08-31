@@ -6,8 +6,9 @@ import json
 from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id, set_current_tenant_id
-from backend.schemas.simulation import ScenarioTemplateResponse
+from backend.schemas.simulation import ScenarioProvenanceResponse, ScenarioTemplateResponse
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+from backend.simulation.provenance import build_scenario_provenance
 from backend.simulation.log_processor import (
     activity_name_to_element_id,
     process_prosimos_log,
@@ -66,6 +67,20 @@ def scenario_template_for_model(
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
     return describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml))
+
+
+def scenario_provenance_for_model(
+    *,
+    bpmn_model: BpmnModelResponse,
+    current_bpmn_xml: str | None,
+) -> ScenarioProvenanceResponse:
+    """Per-element structural provenance for the scenario builder — sourced from
+    the approved BPMN review's process-understanding artifact."""
+    return build_scenario_provenance(
+        bpmn_model_id=bpmn_model.id,
+        current_bpmn_xml=current_bpmn_xml,
+        stored_bpmn_xml=bpmn_model.xml,
+    )
 
 
 def prepare_simulation_run(

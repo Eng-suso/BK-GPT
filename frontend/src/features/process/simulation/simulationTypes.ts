@@ -124,6 +124,43 @@ export type ScenarioTemplate = z.infer<typeof scenarioTemplateSchema>;
 export type ScenarioTemplateTask = ScenarioTemplate["tasks"][number];
 export type ScenarioTemplateGateway = ScenarioTemplate["gateways"][number];
 
+/**
+ * Structural provenance for the scenario builder (Phase 5). Says where each
+ * simulable element came from — discovery evidence or a model inference — so the
+ * consultant knows how far to trust the parameter they set for it. Backend:
+ * `backend/simulation/provenance.py`.
+ */
+export const scenarioProvenanceSchema = z.object({
+  has_discovery: z.boolean(),
+  process_confidence: z.enum(["high", "medium", "low"]).nullable().optional(),
+  readiness_score: z.number().nullable().optional(),
+  missing_information: z.array(z.string()).default([]),
+  weak_points: z.array(z.string()).default([]),
+  elements: z.array(
+    z.object({
+      element_id: z.string(),
+      kind: z.enum(["activity", "gateway"]),
+      name: z.string(),
+      parameter: z.enum(["duration", "branching"]),
+      origin: z.enum(["interview", "ai_inferred"]),
+      confidence: z.enum(["high", "medium", "low"]),
+      evidence: z.array(z.string()).default([]),
+      open_questions: z.number().default(0),
+      hint_ref: z
+        .object({
+          field: z.string(),
+          id: z.string().nullable().optional(),
+          label: z.string().nullable().optional(),
+        })
+        .nullable()
+        .optional(),
+    }),
+  ),
+});
+
+export type ScenarioProvenance = z.infer<typeof scenarioProvenanceSchema>;
+export type ScenarioElementProvenance = ScenarioProvenance["elements"][number];
+
 export type SimResourceInput = {
   id: string;
   name: string;
