@@ -261,3 +261,28 @@ export function formatCount(value: number, lang: "it" | "en" = "it"): string {
     Math.round(Number.isFinite(value) ? value : 0),
   );
 }
+
+// --- diagram overlay policy -------------------------------------------------
+
+/** 0–4 heat bucket by share of the worst waiting time (0 = coolest). */
+export function heatBucket(waitSec: number, maxWaitSec: number): 0 | 1 | 2 | 3 | 4 {
+  if (maxWaitSec <= 0 || waitSec <= 0) return 0;
+  const ratio = Math.min(1, waitSec / maxWaitSec);
+  return Math.min(4, Math.floor(ratio * 5)) as 0 | 1 | 2 | 3 | 4;
+}
+
+/**
+ * The element ids that earn a text badge on the diagram: the bottleneck plus
+ * the next worst-waiting tasks, up to `limit`. Everything else gets a heat
+ * tint only, so a busy model stays readable.
+ */
+export function topBottleneckElementIds(
+  insights: SimulationInsights,
+  limit = 4,
+): string[] {
+  return [...insights.tasks]
+    .filter((task) => task.elementId && task.avgWaitingSec > 0)
+    .sort((a, b) => b.avgWaitingSec - a.avgWaitingSec)
+    .slice(0, Math.max(1, limit))
+    .map((task) => task.elementId as string);
+}

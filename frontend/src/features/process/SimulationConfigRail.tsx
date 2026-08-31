@@ -1,9 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
+import { PanelLeftClose, Plus, X } from "lucide-react";
 
+import { DetailPanelSection } from "@/components/panel";
+import { StatusIndicator, type StatusTone } from "@/components/status";
+import { EmptyState } from "@/components/feedback";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
+import { Label } from "@/ui/label";
 import {
   Select,
   SelectContent,
@@ -11,9 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
-import { StatusIndicator, type StatusTone } from "@/components/status";
-import { EmptyState } from "@/components/feedback";
-import { cn } from "@/lib/utils";
 
 import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
 import {
@@ -42,8 +43,7 @@ type SimulationConfigRailProps = {
   onRun: () => void;
   onSelectRun: (run: SimulationRun) => void;
   focusElementId: string | null;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
+  onCollapse: () => void;
 };
 
 export function SimulationConfigRail({
@@ -58,14 +58,13 @@ export function SimulationConfigRail({
   onRun,
   onSelectRun,
   focusElementId,
-  collapsed,
-  onToggleCollapsed,
+  onCollapse,
 }: SimulationConfigRailProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
-    if (collapsed || !focusElementId || !scrollRef.current) return;
+    if (!focusElementId || !scrollRef.current) return;
     const node = scrollRef.current.querySelector<HTMLElement>(
       `[data-sim-el="${CSS.escape(focusElementId)}"]`,
     );
@@ -73,40 +72,18 @@ export function SimulationConfigRail({
     node?.classList.add("sim-el-flash");
     const timer = window.setTimeout(() => node?.classList.remove("sim-el-flash"), 1200);
     return () => window.clearTimeout(timer);
-  }, [focusElementId, collapsed]);
+  }, [focusElementId]);
 
   const patch = (partial: Partial<ScenarioDraft>) =>
     onDraftChange({ ...draft, ...partial });
   const num = (raw: string) => (raw === "" ? 0 : Number(raw));
 
-  if (collapsed) {
-    return (
-      <div className="flex w-10 flex-col items-center gap-2 rounded-lg border border-border bg-card py-2 shadow-sm">
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="h-8 w-8 p-0"
-          onClick={onToggleCollapsed}
-          title={t("simulation.config.expand")}
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-        <span className="[writing-mode:vertical-rl] rotate-180 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t("simulation.scenario.title")}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <header className="flex min-h-[52px] items-center justify-between gap-2 border-b border-border px-3.5 py-2.5">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-            {t("simulation.scenario.eyebrow")}
-          </p>
-          <h3 className="mt-0.5 text-sm font-semibold text-foreground">
+      <header className="flex min-h-[52px] items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>
+          <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">
             {t("simulation.scenario.title")}
           </h3>
         </div>
@@ -114,67 +91,58 @@ export function SimulationConfigRail({
           type="button"
           size="sm"
           variant="ghost"
-          className="h-8 w-8 p-0 text-muted-foreground"
-          onClick={onToggleCollapsed}
+          className="size-8 shrink-0 p-0 text-muted-foreground"
+          onClick={onCollapse}
           title={t("simulation.config.collapse")}
         >
-          <ChevronLeft className="size-4" />
+          <PanelLeftClose className="size-4" />
         </Button>
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-auto p-3.5">
-        {/* --- globals --- */}
-        <Section title={t("simulation.config.globals")}>
-          <Field label={t("simulation.fields.scenarioName")}>
-            <Input
-              className="h-8"
-              value={draft.scenarioName}
-              onChange={(e) => patch({ scenarioName: e.target.value })}
-            />
-          </Field>
-          <div className="grid grid-cols-3 gap-2">
-            <Field label={t("simulation.fields.cases")}>
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-4">
+        <DetailPanelSection title={t("simulation.config.globals")}>
+          <div className="grid gap-2.5">
+            <label className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">
+                {t("simulation.fields.scenarioName")}
+              </Label>
               <Input
-                className="h-8"
-                type="number"
+                value={draft.scenarioName}
+                onChange={(e) => patch({ scenarioName: e.target.value })}
+              />
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <NumberField
+                label={t("simulation.fields.cases")}
+                value={draft.totalCases}
                 min={1}
                 max={100000}
-                value={draft.totalCases}
-                onChange={(e) => patch({ totalCases: num(e.target.value) })}
+                onChange={(v) => patch({ totalCases: v })}
               />
-            </Field>
-            <Field label={t("simulation.fields.arrival")}>
-              <Input
-                className="h-8"
-                type="number"
-                min={1}
+              <NumberField
+                label={t("simulation.fields.arrivalMin")}
                 value={draft.arrivalIntervalMinutes}
-                onChange={(e) =>
-                  patch({ arrivalIntervalMinutes: num(e.target.value) })
-                }
-              />
-            </Field>
-            <Field label={t("simulation.config.defaultDuration")}>
-              <Input
-                className="h-8"
-                type="number"
                 min={1}
-                value={draft.defaultTaskMinutes}
-                onChange={(e) => patch({ defaultTaskMinutes: num(e.target.value) })}
+                onChange={(v) => patch({ arrivalIntervalMinutes: v })}
               />
-            </Field>
+              <NumberField
+                label={t("simulation.config.defaultDurationMin")}
+                value={draft.defaultTaskMinutes}
+                min={1}
+                onChange={(v) => patch({ defaultTaskMinutes: v })}
+              />
+            </div>
           </div>
-        </Section>
+        </DetailPanelSection>
 
-        {/* --- resources --- */}
-        <Section
+        <DetailPanelSection
           title={t("simulation.config.resources")}
           action={
             <Button
               type="button"
               size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-xs text-muted-foreground"
+              variant="outline"
+              className="h-7 gap-1 px-2 text-xs"
               onClick={() =>
                 patch({
                   resources: [
@@ -189,19 +157,26 @@ export function SimulationConfigRail({
                 })
               }
             >
-              <Plus className="size-3.5" /> {t("simulation.config.addResource")}
+              <Plus className="size-3.5" />
+              {t("simulation.config.addResource")}
             </Button>
           }
         >
-          <ul className="space-y-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5 px-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <span>{t("simulation.config.role")}</span>
+            <span>€/h</span>
+            <span>{t("simulation.config.qty")}</span>
+            <span />
+          </div>
+          <ul className="grid gap-1.5">
             {draft.resources.map((resource, index) => (
               <li
                 key={resource.id}
-                className="grid grid-cols-[minmax(0,1fr)_64px_52px_auto] items-center gap-1.5 rounded-md border border-border bg-muted/30 p-1.5"
+                className="grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5"
               >
                 <Input
-                  aria-label={t("simulation.fields.resourcePool")}
-                  className="h-7"
+                  aria-label={t("simulation.config.role")}
+                  className="h-8"
                   value={resource.name}
                   onChange={(e) =>
                     patch({
@@ -213,7 +188,7 @@ export function SimulationConfigRail({
                 />
                 <Input
                   aria-label={t("simulation.fields.costPerHour")}
-                  className="h-7"
+                  className="h-8"
                   type="number"
                   min={0}
                   value={resource.costPerHour}
@@ -226,8 +201,8 @@ export function SimulationConfigRail({
                   }
                 />
                 <Input
-                  aria-label={t("simulation.fields.resources")}
-                  className="h-7"
+                  aria-label={t("simulation.config.qty")}
+                  className="h-8"
                   type="number"
                   min={1}
                   max={1000}
@@ -244,18 +219,19 @@ export function SimulationConfigRail({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="h-7 w-7 p-0 text-muted-foreground"
+                  className="size-8 p-0 text-muted-foreground"
                   disabled={draft.resources.length <= 1}
                   onClick={() => {
-                    const fallbackResourceId =
-                      draft.resources.find((_, i) => i !== index)?.id ?? draft.resources[0].id;
+                    const fallback =
+                      draft.resources.find((_, i) => i !== index)?.id ??
+                      draft.resources[0].id;
                     patch({
                       resources: draft.resources.filter((_, i) => i !== index),
                       tasks: Object.fromEntries(
                         Object.entries(draft.tasks).map(([id, task]) => [
                           id,
                           task.resourceId === resource.id
-                            ? { ...task, resourceId: fallbackResourceId }
+                            ? { ...task, resourceId: fallback }
                             : task,
                         ]),
                       ),
@@ -268,22 +244,19 @@ export function SimulationConfigRail({
               </li>
             ))}
           </ul>
-          <p className="mt-1 grid grid-cols-[minmax(0,1fr)_64px_52px_auto] gap-1.5 px-1.5 text-[10px] font-medium text-muted-foreground">
-            <span>{t("simulation.fields.resourcePool")}</span>
-            <span>€/h</span>
-            <span>n°</span>
-            <span />
-          </p>
-        </Section>
+        </DetailPanelSection>
 
-        {/* --- per-task --- */}
-        <Section title={t("simulation.config.activities")}>
+        <DetailPanelSection
+          title={`${t("simulation.config.activities")}${
+            template ? ` · ${template.tasks.length}` : ""
+          }`}
+        >
           {templateLoading ? (
             <EmptyState variant="inline" title={t("simulation.loading")} />
           ) : !template || template.tasks.length === 0 ? (
             <EmptyState variant="inline" title={t("simulation.config.noElements")} />
           ) : (
-            <ul className="space-y-1.5">
+            <ul className="grid gap-2">
               {template.tasks.map((task) => {
                 const cfg = draft.tasks[task.element_id];
                 if (!cfg) return null;
@@ -291,139 +264,180 @@ export function SimulationConfigRail({
                   <li
                     key={task.element_id}
                     data-sim-el={task.element_id}
-                    className="rounded-md border border-border bg-muted/30 p-2"
+                    className="rounded-md border border-border bg-muted/30 p-2.5"
                   >
-                    <p className="mb-1.5 truncate text-xs font-medium text-foreground">
+                    <p
+                      className="mb-2 truncate text-xs font-medium text-foreground"
+                      title={task.name}
+                    >
                       {task.name}
                     </p>
-                    <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1.5">
-                      <Input
-                        aria-label={t("simulation.config.durationMin")}
-                        className="h-7"
-                        type="number"
-                        min={1}
-                        value={cfg.meanMinutes}
-                        onChange={(e) =>
-                          patch({
-                            tasks: {
-                              ...draft.tasks,
-                              [task.element_id]: {
-                                ...cfg,
-                                meanMinutes: num(e.target.value),
+                    <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-1.5">
+                      <FieldLabel label={t("simulation.config.durationMin")}>
+                        <Input
+                          className="h-8"
+                          type="number"
+                          min={1}
+                          value={cfg.meanMinutes}
+                          onChange={(e) =>
+                            patch({
+                              tasks: {
+                                ...draft.tasks,
+                                [task.element_id]: {
+                                  ...cfg,
+                                  meanMinutes: num(e.target.value),
+                                },
                               },
-                            },
-                          })
-                        }
-                      />
-                      <Select
-                        value={cfg.distribution}
-                        onValueChange={(value) =>
-                          patch({
-                            tasks: {
-                              ...draft.tasks,
-                              [task.element_id]: {
-                                ...cfg,
-                                distribution: value as TaskDraft["distribution"],
+                            })
+                          }
+                        />
+                      </FieldLabel>
+                      <FieldLabel label={t("simulation.config.distribution")}>
+                        <Select
+                          value={cfg.distribution}
+                          onValueChange={(value) =>
+                            patch({
+                              tasks: {
+                                ...draft.tasks,
+                                [task.element_id]: {
+                                  ...cfg,
+                                  distribution: value as TaskDraft["distribution"],
+                                },
                               },
-                            },
-                          })
-                        }
-                      >
-                        <SelectTrigger className="h-7">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DISTRIBUTIONS.map((d) => (
-                            <SelectItem key={d} value={d}>
-                              {t(`simulation.config.dist.${d}`)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={cfg.resourceId}
-                        onValueChange={(value) =>
-                          patch({
-                            tasks: {
-                              ...draft.tasks,
-                              [task.element_id]: { ...cfg, resourceId: value },
-                            },
-                          })
-                        }
-                      >
-                        <SelectTrigger className="h-7">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {draft.resources.map((r) => (
-                            <SelectItem key={r.id} value={r.id}>
-                              {r.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                            })
+                          }
+                        >
+                          <SelectTrigger size="sm" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DISTRIBUTIONS.map((d) => (
+                              <SelectItem key={d} value={d}>
+                                {t(`simulation.config.dist.${d}`)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FieldLabel>
+                    </div>
+                    <div className="mt-1.5">
+                      <FieldLabel label={t("simulation.config.role")}>
+                        <Select
+                          value={cfg.resourceId}
+                          onValueChange={(value) =>
+                            patch({
+                              tasks: {
+                                ...draft.tasks,
+                                [task.element_id]: { ...cfg, resourceId: value },
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger size="sm" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {draft.resources.map((r) => (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FieldLabel>
                     </div>
                   </li>
                 );
               })}
             </ul>
           )}
-        </Section>
+        </DetailPanelSection>
 
-        {/* --- per-gateway --- */}
         {template && template.gateways.length > 0 && (
-          <Section title={t("simulation.config.gateways")}>
-            <ul className="space-y-1.5">
+          <DetailPanelSection title={t("simulation.config.gateways")}>
+            <ul className="grid gap-2">
               {template.gateways.map((gateway) => {
                 const cfg = draft.gateways[gateway.element_id] ?? {};
                 const sum = Object.values(cfg).reduce((a, b) => a + b, 0);
+                const balanced = Math.abs(sum - 100) < 0.5;
                 return (
                   <li
                     key={gateway.element_id}
                     data-sim-el={gateway.element_id}
-                    className="rounded-md border border-border bg-muted/30 p-2"
+                    className="rounded-md border border-border bg-muted/30 p-2.5"
                   >
-                    <p className="mb-1.5 flex items-center justify-between text-xs font-medium text-foreground">
-                      <span className="truncate">{gateway.name}</span>
+                    <div className="mb-2 flex items-center justify-between gap-2">
                       <span
-                        className={cn(
-                          "shrink-0 text-[11px] tabular-nums",
-                          Math.abs(sum - 100) > 0.5
-                            ? "text-[var(--color-status-warning)]"
-                            : "text-muted-foreground",
-                        )}
+                        className="truncate text-xs font-medium text-foreground"
+                        title={gateway.name}
                       >
-                        {Math.round(sum)}%
+                        {gateway.name}
                       </span>
-                    </p>
-                    <div className="space-y-1">
+                      {balanced ? (
+                        <StatusIndicator tone="ok" label="100%" />
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--amber-700)] hover:underline"
+                          onClick={() => {
+                            const flows = gateway.branches.map((b) => b.flow_id);
+                            const total = flows.reduce((acc, f) => acc + (cfg[f] ?? 0), 0);
+                            const next =
+                              total > 0
+                                ? Object.fromEntries(
+                                    flows.map((f) => [
+                                      f,
+                                      Math.round(((cfg[f] ?? 0) / total) * 1000) / 10,
+                                    ]),
+                                  )
+                                : Object.fromEntries(
+                                    flows.map((f) => [f, Math.round(1000 / flows.length) / 10]),
+                                  );
+                            patch({
+                              gateways: { ...draft.gateways, [gateway.element_id]: next },
+                            });
+                          }}
+                        >
+                          {Math.round(sum)}% · {t("simulation.config.normalize")}
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid gap-1">
                       {gateway.branches.map((branch) => (
                         <div
                           key={branch.flow_id}
-                          className="grid grid-cols-[minmax(0,1fr)_56px] items-center gap-1.5"
+                          className="grid grid-cols-[minmax(0,1fr)_72px] items-center gap-1.5"
                         >
-                          <span className="truncate text-[11px] text-muted-foreground">
+                          <span
+                            className="truncate text-[11px] text-muted-foreground"
+                            title={branch.target_name || branch.flow_name}
+                          >
                             {branch.target_name || branch.flow_name || branch.flow_id}
                           </span>
-                          <Input
-                            aria-label={branch.target_name || branch.flow_id}
-                            className="h-7"
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={cfg[branch.flow_id] ?? 0}
-                            onChange={(e) =>
-                              patch({
-                                gateways: {
-                                  ...draft.gateways,
-                                  [gateway.element_id]: {
-                                    ...cfg,
-                                    [branch.flow_id]: num(e.target.value),
+                          <div className="relative">
+                            <Input
+                              aria-label={branch.target_name || branch.flow_id}
+                              className="h-8 pr-6"
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={cfg[branch.flow_id] ?? 0}
+                              onChange={(e) =>
+                                patch({
+                                  gateways: {
+                                    ...draft.gateways,
+                                    [gateway.element_id]: {
+                                      ...cfg,
+                                      [branch.flow_id]: num(e.target.value),
+                                    },
                                   },
-                                },
-                              })
-                            }
-                          />
+                                })
+                              }
+                            />
+                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+                              %
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -431,17 +445,12 @@ export function SimulationConfigRail({
                 );
               })}
             </ul>
-          </Section>
+          </DetailPanelSection>
         )}
       </div>
 
       <div className="border-t border-border p-3">
-        <Button
-          type="button"
-          className="w-full"
-          disabled={isRunning}
-          onClick={onRun}
-        >
+        <Button type="button" className="w-full" disabled={isRunning} onClick={onRun}>
           {isRunning ? t("simulation.running") : t("simulation.run")}
         </Button>
         {runs.length > 0 && (
@@ -452,7 +461,7 @@ export function SimulationConfigRail({
               if (run) onSelectRun(run);
             }}
           >
-            <SelectTrigger className="mt-2 h-8">
+            <SelectTrigger className="mt-2 w-full">
               <SelectValue placeholder={t("simulation.output.title")} />
             </SelectTrigger>
             <SelectContent>
@@ -485,29 +494,34 @@ export function SimulationConfigRail({
   );
 }
 
-function Section({
-  title,
-  action,
-  children,
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
 }: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  onChange: (value: number) => void;
 }) {
   return (
-    <section className="space-y-2">
-      <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
-        </h4>
-        {action}
-      </div>
-      {children}
-    </section>
+    <FieldLabel label={label}>
+      <Input
+        className="h-8"
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+      />
+    </FieldLabel>
   );
 }
 
-function Field({
+function FieldLabel({
   label,
   children,
 }: {

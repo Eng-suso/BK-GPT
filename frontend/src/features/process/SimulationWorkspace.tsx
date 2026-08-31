@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import { HttpError } from "@/lib/http";
 import { EmptyState } from "@/components/feedback";
+import { ResizeHandle } from "@/components/layout";
+import { StatusIndicator, type StatusTone } from "@/components/status";
+import { usePanelSize } from "@/lib/usePanelSize";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 import type { ProjectProcess } from "../../contracts/workspace";
 import { useBpmnModelQuery } from "./api";
@@ -24,10 +28,20 @@ import {
 } from "./simulationScenario";
 import { SimulationBpmnView, type SimulationNodeOverlay } from "./SimulationBpmnView";
 import { SimulationResults } from "./SimulationResultsView";
-import { formatDuration, readSimulationInsights } from "./simulationResults";
+import {
+  formatDuration,
+  heatBucket,
+  readSimulationInsights,
+  topBottleneckElementIds,
+} from "./simulationResults";
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000;
+const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
+  pending: "pending",
+  completed: "ok",
+  failed: "danger",
+};
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -42,6 +56,7 @@ export function SimulationWorkspace({
 }: SimulationWorkspaceProps): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
+  const stacked = useMediaQuery("(max-width: 1023px)");
   const modelQuery = useBpmnModelQuery(process.bpmnModelId);
   const bpmnXml = currentBpmnXml ?? modelQuery.data?.xml ?? null;
 
@@ -51,6 +66,15 @@ export function SimulationWorkspace({
   const [error, setError] = React.useState<string | null>(null);
   const [selectedElementId, setSelectedElementId] = React.useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = React.useState(false);
+
+  const [railWidth, setRailWidth] = usePanelSize(`sim-rail:${process.bpmnModelId}`, 340, 260, 440);
+  const [resultsWidth, setResultsWidth] = usePanelSize(
+    `sim-results:${process.bpmnModelId}`,
+    360,
+    300,
+    480,
+  );
+  const dragStart = React.useRef(0);
 
   const [storedDraft, setStoredDraft] = React.useState<ScenarioDraft>(() =>
     loadScenarioDraft(process.bpmnModelId),
@@ -66,7 +90,6 @@ export function SimulationWorkspace({
   const template: ScenarioTemplate | null = templateQuery.data ?? null;
   const templateLoading = templateQuery.isLoading && bpmnXml !== null;
 
-  // Editable draft = stored user edits with template defaults filled in.
   const draft = React.useMemo(
     () => (template ? seedDraftFromTemplate(storedDraft, template) : storedDraft),
     [storedDraft, template],
@@ -79,7 +102,6 @@ export function SimulationWorkspace({
     };
   }, []);
 
-  // Load existing runs.
   React.useEffect(() => {
     let cancelled = false;
     void listProsimosSimulationRuns(process.bpmnModelId)
@@ -175,113 +197,151 @@ export function SimulationWorkspace({
 
   const overlays: SimulationNodeOverlay[] = React.useMemo(() => {
     if (!insights.hasData) return [];
-    const singleResourceUtil =
-      insights.resources.length === 1 ? insights.resources[0].utilizationPct : undefined;
+    const badgeIds = new Set(topBottleneckElementIds(insights, 4));
+    const maxWait = Math.max(1, ...insights.tasks.map((task) => task.avgWaitingSec));
     return insights.tasks
       .filter((task) => task.elementId)
       .map((task) => ({
         elementId: task.elementId as string,
         waitLabel: formatDuration(task.avgWaitingSec, lang),
-        utilizationPct: singleResourceUtil,
+        heat: heatBucket(task.avgWaitingSec, maxWait),
+        showBadge: badgeIds.has(task.elementId as string),
         isBottleneck: task.elementId === insights.bottleneckElementId,
       }));
   }, [insights, lang]);
 
   const isPending = activeRun?.status === "pending";
 
-  return (
-    <div
-      className={cn(
-        "grid h-full min-h-0 gap-3 overflow-hidden p-3",
-        railCollapsed
-          ? "grid-cols-1 xl:grid-cols-[40px_minmax(0,1fr)_minmax(340px,380px)]"
-          : "grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)_minmax(340px,380px)]",
-      )}
-    >
-      <SimulationConfigRail
-        template={template}
-        templateLoading={templateLoading}
-        draft={draft}
-        onDraftChange={updateDraft}
-        isRunning={isRunning}
-        error={error}
-        runs={runs}
-        activeRunId={activeRun?.id ?? null}
-        onRun={() => void handleRun()}
-        onSelectRun={(run) => {
-          setActiveRun(run);
-          setSelectedElementId(null);
-        }}
-        focusElementId={selectedElementId}
-        collapsed={railCollapsed}
-        onToggleCollapsed={() => setRailCollapsed((v) => !v)}
-      />
+  const rail = (
+    <SimulationConfigRail
+      template={template}
+      templateLoading={templateLoading}
+      draft={draft}
+      onDraftChange={updateDraft}
+      isRunning={isRunning}
+      error={error}
+      runs={runs}
+      activeRunId={activeRun?.id ?? null}
+      onRun={() => void handleRun()}
+      onSelectRun={(run) => {
+        setActiveRun(run);
+        setSelectedElementId(null);
+      }}
+      focusElementId={selectedElementId}
+      onCollapse={() => setRailCollapsed(true)}
+    />
+  );
 
-      <section
-        aria-label={t("simulation.diagram.title")}
-        className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm xl:min-h-0"
-      >
-        {bpmnXml ? (
-          <SimulationBpmnView
-            className="h-full"
-            bpmnXml={bpmnXml}
-            overlays={overlays}
-            selectedElementId={selectedElementId}
-            onSelectElement={selectElement}
+  const diagram = (
+    <section
+      aria-label={t("simulation.diagram.title")}
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+    >
+      {bpmnXml ? (
+        <SimulationBpmnView
+          className="h-full"
+          bpmnXml={bpmnXml}
+          overlays={overlays}
+          selectedElementId={selectedElementId}
+          onSelectElement={selectElement}
+          onExpandRail={
+            !stacked && railCollapsed ? () => setRailCollapsed(false) : undefined
+          }
+        />
+      ) : (
+        <div className="p-4">
+          <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />
+        </div>
+      )}
+    </section>
+  );
+
+  const results = (
+    <section
+      aria-label={t("simulation.output.eyebrow")}
+      className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+    >
+      <header className="flex min-h-[52px] items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <p className="eyebrow">{t("simulation.output.eyebrow")}</p>
+          <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">
+            {activeRun?.scenario_name ?? t("simulation.output.title")}
+          </h3>
+        </div>
+        {activeRun && (
+          <StatusIndicator
+            tone={RUN_TONE[activeRun.status]}
+            label={t(`simulation.status.${activeRun.status}`, {
+              defaultValue: activeRun.status,
+            })}
+            className="shrink-0"
           />
+        )}
+      </header>
+
+      <div className={cn("min-h-0 flex-1 overflow-auto", !activeRun && "p-4")}>
+        {!activeRun ? (
+          <EmptyState variant="inline" title={t("simulation.empty")} />
+        ) : activeRun.error ? (
+          <p
+            role="alert"
+            className="m-4 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium leading-relaxed text-destructive"
+          >
+            {activeRun.error}
+          </p>
+        ) : isPending ? (
+          <div className="p-4">
+            <EmptyState variant="inline" title={t("simulation.running")} />
+          </div>
         ) : (
-          <div className="p-3.5">
-            <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />
+          <div className="px-4">
+            <SimulationResults
+              insights={insights}
+              selectedElementId={selectedElementId}
+              onSelectElement={selectElement}
+            />
           </div>
         )}
-      </section>
+      </div>
+    </section>
+  );
 
-      <section
-        aria-label={t("simulation.output.eyebrow")}
-        className="flex min-h-[320px] flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm xl:min-h-0"
-      >
-        <header className="flex min-h-[52px] items-center border-b border-border px-3.5 py-2.5">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              {t("simulation.output.eyebrow")}
-            </p>
-            <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">
-              {activeRun?.scenario_name ?? t("simulation.output.title")}
-            </h3>
+  if (stacked) {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-3 overflow-auto p-3">
+        <div className="min-h-[240px] shrink-0">{rail}</div>
+        <div className="min-h-[420px] shrink-0">{diagram}</div>
+        <div className="min-h-[360px] shrink-0">{results}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 gap-2 overflow-hidden p-3">
+      {!railCollapsed && (
+        <>
+          <div className="min-h-0 shrink-0" style={{ width: railWidth }}>
+            {rail}
           </div>
-        </header>
+          <ResizeHandle
+            ariaLabel={t("simulation.config.resizeRail")}
+            onResizeStart={() => (dragStart.current = railWidth)}
+            onDelta={(dx) => setRailWidth(dragStart.current + dx)}
+          />
+        </>
+      )}
 
-        <div className="min-h-0 flex-1 overflow-auto p-3.5">
-          {!activeRun ? (
-            <EmptyState variant="inline" title={t("simulation.empty")} />
-          ) : activeRun.error ? (
-            <p
-              role="alert"
-              className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium leading-relaxed text-destructive"
-            >
-              {activeRun.error}
-            </p>
-          ) : isPending ? (
-            <EmptyState variant="inline" title={t("simulation.running")} />
-          ) : (
-            <div className="grid content-start gap-3">
-              <SimulationResults
-                insights={insights}
-                selectedElementId={selectedElementId}
-                onSelectElement={selectElement}
-              />
-              <details className="rounded-md border border-border bg-muted/40 p-2.5">
-                <summary className="cursor-pointer text-xs font-semibold text-foreground">
-                  {t("simulation.jsonSummary")}
-                </summary>
-                <pre className="mt-2.5 max-h-[320px] overflow-auto rounded-md border border-border bg-card p-2.5 font-mono text-[11px] leading-relaxed text-foreground/80">
-                  {JSON.stringify(activeRun.result, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
-        </div>
-      </section>
+      {diagram}
+
+      <ResizeHandle
+        ariaLabel={t("simulation.output.resize")}
+        onResizeStart={() => (dragStart.current = resultsWidth)}
+        onDelta={(dx) => setResultsWidth(dragStart.current - dx)}
+      />
+
+      <div className="min-h-0 shrink-0" style={{ width: resultsWidth }}>
+        {results}
+      </div>
     </div>
   );
 }

@@ -3,12 +3,12 @@
   "tabs": {
     "canvas": "Model",
     "chat": "Discussion",
-    "simulation": "Simulation",
-    "properties": "Details"
+    "simulation": "Simulation"
   },
   "actions": {
     "backToProject": "Back to project",
-    "toggleChat": "Canvas chat"
+    "toggleChat": "Canvas chat",
+    "toggleProperties": "Properties"
   },
   "state": {
     "processNotFound": "Process not found in this project.",
@@ -16,15 +16,20 @@
   },
   "simulation": {
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
-    "output": { "eyebrow": "Output", "title": "Prosimos runs" },
+    "output": {
+      "eyebrow": "Results",
+      "title": "No run",
+      "resize": "Resize results panel"
+    },
     "fields": {
       "scenarioName": "Scenario name",
       "cases": "Cases",
       "arrival": "Mean arrival, min",
+      "arrivalMin": "Arrival, min",
       "taskDuration": "Task duration, min",
       "costPerHour": "Cost per hour",
-      "resources": "Resources",
-      "resourcePool": "Resource pool"
+      "resources": "Quantity",
+      "resourcePool": "Role"
     },
     "run": "Run Prosimos",
     "running": "Simulation running…",
@@ -36,15 +41,21 @@
     "config": {
       "collapse": "Collapse parameters",
       "expand": "Expand parameters",
-      "globals": "Global",
+      "globals": "General",
       "defaultDuration": "Default duration, min",
+      "defaultDurationMin": "Def. duration, min",
       "resources": "Resources",
-      "addResource": "Add",
-      "removeResource": "Remove resource",
+      "addResource": "Add role",
+      "removeResource": "Remove role",
       "activities": "Activities",
       "gateways": "Decisions",
       "noElements": "No configurable element in the model.",
       "durationMin": "Duration, min",
+      "distribution": "Distribution",
+      "role": "Role",
+      "qty": "Qty",
+      "normalize": "normalise",
+      "resizeRail": "Resize scenario panel",
       "dist": {
         "norm": "Normal",
         "expon": "Exponential",
@@ -55,15 +66,21 @@
       "title": "Process model",
       "noModel": "No BPMN to simulate. Generate or save a model in the canvas.",
       "legend": "Labels: average wait per activity · orange border = bottleneck",
+      "legendWait": "Average wait",
       "animate": "Animate a case",
       "newCase": "New case",
       "resume": "Resume",
       "pause": "Pause",
       "reset": "Reset",
-      "fit": "Fit to view"
+      "fit": "Fit to view",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "loadError": "Diagram could not load.",
+      "noStart": "The model has no start event."
     },
     "results": {
       "noData": "Prosimos returned no statistics for this run.",
+      "summary": "Summary",
       "bottleneck": "Bottleneck",
       "bottleneckDetail": "{{wait}} average wait — {{share}} of cycle time.",
       "cases": "Cases completed",
@@ -72,6 +89,7 @@
       "waitingTime": "Avg waiting time",
       "processingTime": "Avg processing time",
       "costPerCase": "Avg cost / case",
+      "busiestResource": "Busiest resource",
       "totalCost": "Total {{total}}",
       "resourceLoad": "Resource load",
       "table": {
@@ -98,17 +116,9 @@
       "phase": "Phase",
       "readiness": "Readiness"
     },
-    "transition": {
-      "title": "Transition",
-      "body": "Start from the process-wide chat, move to the BPMN canvas when you want to work on the model, then open the properties to edit elements.",
-      "openCanvas": "Open canvas",
-      "openProperties": "Open properties"
-    },
     "quality": {
       "title": "Quality",
-      "sources": "Linked sources",
-      "roles": "Verified roles",
-      "exceptions": "Exceptions to complete"
+      "unavailable": "Quality checks (linked sources, verified roles, exceptions) activate once the endpoint is ready."
     }
   },
   "properties": {

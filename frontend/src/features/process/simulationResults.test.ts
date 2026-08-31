@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   formatCurrency,
   formatDuration,
+  heatBucket,
   readSimulationInsights,
+  topBottleneckElementIds,
+  type SimulationInsights,
 } from "./simulationResults";
 
 const RESULT = {
@@ -105,5 +108,31 @@ describe("formatCurrency", () => {
   it("drops decimals above 1000", () => {
     expect(formatCurrency(1752.9, "en")).toBe("€1,753");
     expect(formatCurrency(17.53, "en")).toBe("€17.53");
+  });
+});
+
+describe("heatBucket", () => {
+  it("maps waiting time to 0–4 by share of the worst", () => {
+    expect(heatBucket(0, 100)).toBe(0);
+    expect(heatBucket(10, 100)).toBe(0);
+    expect(heatBucket(50, 100)).toBe(2);
+    expect(heatBucket(100, 100)).toBe(4);
+    expect(heatBucket(5, 0)).toBe(0);
+  });
+});
+
+describe("topBottleneckElementIds", () => {
+  it("returns the worst-waiting mapped tasks, capped", () => {
+    const insights = {
+      hasData: true,
+      tasks: [
+        { name: "A", elementId: "a", avgWaitingSec: 10 },
+        { name: "B", elementId: "b", avgWaitingSec: 90 },
+        { name: "C", elementId: "c", avgWaitingSec: 40 },
+        { name: "D", elementId: null, avgWaitingSec: 999 },
+        { name: "E", elementId: "e", avgWaitingSec: 0 },
+      ],
+    } as unknown as SimulationInsights;
+    expect(topBottleneckElementIds(insights, 2)).toEqual(["b", "c"]);
   });
 });
