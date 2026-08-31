@@ -42,3 +42,7 @@ class ProsimosSimulationRequest(BaseModel):
 class ProsimosSimulationResult(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     outputs: list[str] = Field(default_factory=list)
+    # Full simulation event log (CSV text) fetched from the Prosimos service after
+    # the run. None when the run failed or the log couldn't be retrieved — the
+    # DeliR run still completes, only the replay artifact is missing.
+    event_log_csv: str | None = None

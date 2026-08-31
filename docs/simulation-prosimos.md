@@ -163,7 +163,64 @@ The request is multipart form data with:
 The DeliR endpoint returns immediately with a `pending` run and executes Prosimos
 in a background task; the frontend polls `GET /v1/workspace/simulation-runs/{run_id}`.
 
-## Next Phase
+## Event-log pipeline (Phase 1 — `feat/simulation-event-log`)
+
+The `/api/simulate` response also names a generated **simulation event log**;
+DeliR now fetches it and turns it into a run summary + a compact replay artifact.
+
+### Confirmed Prosimos contract (integration spike, prosimos 1.2.6)
+
+`POST /api/simulate` → JSON with keys:
+`ResourceUtilization`, `IndividualTaskStatistics`, `OverallScenarioStatistics`
+(each a multiply-json-encoded string), plus `StatsFilename` (`stats_*.csv`) and
+`LogsFilename` (`logs_*.csv`).
+
+Files are downloaded from **`GET {PROSIMOS_BASE_URL}/api/simulationFile?fileName=…`**
+(`app.py` registers `FileApiHandler` at `/simulationFile` — **not** `/api/file`).
+
+Event log CSV header (with `is_event_added_to_log=False`, so no event rows):
+```
+case_id,activity,enable_time,start_time,end_time,resource
+0,Ricevi richiesta,2026-01-05 09:00:00.000000+00:00,2026-01-05 09:00:00.000000+00:00,2026-01-05 09:09:04.632381+00:00,Operatore_0
+```
+- `activity` is the task **name**, not its id → name→element-id mapping required
+  (first occurrence wins on duplicate names).
+- `resource` is `<pool name>_<instance index>` (`Operatore_0`); de-suffix to get
+  the pool.
+- timestamps: space-separated ISO, microseconds, `+00:00`.
+- `end - start` (wall) equals Prosimos `idle_processing_time`; the log has no
+  calendar info, so DeliR reports **wall-clock** KPIs
+  (`cycle == waiting + processing`, matching Prosimos `idle_cycle_time`).
+  Prosimos' calendar-active `cycle_time`/`processing_time` are kept only as
+  `summary.prosimosCrossCheck`.
+
+Recorded fixtures: `tests/fixtures/prosimos/{sim_log_sample.csv,simulate_response.json}`.
+
+### Processing — `backend/simulation/log_processor.py`
+
+Full log → **`summary`** (every KPI / P50·P90·P95 / queue stat / diagnostic
+bottleneck — the only metric source) **and** → **`replay`** (display only:
+≤ `SIM_REPLAY_MAX_CASES` sampled case paths, `SIM_REPLAY_BUCKETS` time buckets,
+sequence-flow volumes). Changing the sample size must not move a `summary` number
+(regression-tested). Flow volumes are attributed to a sequence flow only when the
+BPMN control-flow graph (`flow_graph.py`) has exactly one activity-free path
+between the two activities; ambiguous transitions are dropped.
+
+### Storage + API
+
+`WorkspaceSimulationRunArtifact` (own table, PK = `run_id`,
+`replay_schema_version`) holds `summary_json` + `replay_json`. Run rows stay lean.
+
+```text
+GET /v1/workspace/simulation-runs/{id}          -> run + summary  (no replay blob)
+GET /v1/workspace/simulation-runs/{id}/replay   -> { run_id, schema_version, replay }
+GET /v1/workspace/bpmn-models/{id}/simulation-runs -> runs + summary each
+```
+
+Log fetch / parse failure ⇒ warning, run still `completed`, no artifact
+(`/replay` → 404).
+
+## Later phases
 
 Add a second input path for companies with event logs:
 

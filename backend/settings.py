@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     # cover the slowest expected simulation, not just connect latency.
     prosimos_timeout_seconds: float = 900.0
 
+    # --- simulation replay artifact (Phase 1) -------------------------------
+    # KPIs are always computed from the full Prosimos event log; these bound the
+    # *display* representation only (sampled token paths + time buckets).
+    sim_replay_max_cases: int = 250
+    sim_replay_buckets: int = 120
+    sim_replay_schema_version: int = 1
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

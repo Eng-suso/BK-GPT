@@ -20,4 +20,8 @@ def with_output_files(result: ProsimosSimulationResult) -> ProsimosSimulationRes
                 files.append(value)
 
     visit(result.payload)
-    return ProsimosSimulationResult(payload=result.payload, outputs=files)
+    return ProsimosSimulationResult(
+        payload=result.payload,
+        outputs=files,
+        event_log_csv=result.event_log_csv,
+    )

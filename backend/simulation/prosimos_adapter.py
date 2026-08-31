@@ -68,7 +68,37 @@ async def run_prosimos_simulation(
     if not isinstance(payload, dict):
         payload = {"result": payload}
 
-    return ProsimosSimulationResult(payload=_normalize_prosimos_payload(payload))
+    event_log_csv = await _fetch_event_log(base_url, payload)
+
+    return ProsimosSimulationResult(
+        payload=_normalize_prosimos_payload(payload),
+        event_log_csv=event_log_csv,
+    )
+
+
+async def _fetch_event_log(base_url: str, payload: dict) -> str | None:
+    """Download the generated simulation event log.
+
+    Verified against prosimos-microservice: the run response carries
+    ``LogsFilename`` and the file is served at
+    ``GET {base}/api/simulationFile?fileName=...`` (``app.py`` registers
+    ``FileApiHandler`` at ``/simulationFile``). Best effort — a failure here just
+    means no replay artifact, the run still completes.
+    """
+    filename = payload.get("LogsFilename") or payload.get("logFile")
+    if not isinstance(filename, str) or not filename:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=settings.prosimos_timeout_seconds) as client:
+            response = await client.get(
+                f"{base_url}/api/simulationFile",
+                params={"fileName": filename},
+            )
+        if response.status_code >= 400:
+            return None
+        return response.text
+    except httpx.HTTPError:
+        return None
 
 
 _STATISTIC_KEYS = (

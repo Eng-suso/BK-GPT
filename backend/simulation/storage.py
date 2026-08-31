@@ -8,15 +8,24 @@ from sqlalchemy import select
 
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id
+from backend.settings import settings
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
-from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
+from backend.workspace_storage import (
+    WorkspaceSimulationRun,
+    WorkspaceSimulationRunArtifact,
+    workspace_connection,
+)
 
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def simulation_run_to_dict(run: WorkspaceSimulationRun) -> dict[str, Any]:
+def simulation_run_to_dict(
+    run: WorkspaceSimulationRun,
+    *,
+    summary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "id": run.id,
         "bpmn_model_id": run.bpmn_model_id,
@@ -29,6 +38,9 @@ def simulation_run_to_dict(run: WorkspaceSimulationRun) -> dict[str, Any]:
         "scenario": json.loads(run.scenario_json or "{}"),
         "result": json.loads(run.result_json or "{}"),
         "outputs": json.loads(run.outputs_json or "[]"),
+        # Full-log KPI summary (from the artifact table). Small — always included
+        # so run cards / detail can show KPIs without fetching the replay blob.
+        "summary": summary,
         "error": run.error,
         "created_at": run.created_at,
         "completed_at": run.completed_at,
@@ -90,13 +102,67 @@ def complete_simulation_run(
     *,
     run_id: int,
     result: ProsimosSimulationResult,
+    summary: dict[str, Any] | None = None,
+    replay: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return _update_simulation_run(
+    run = _update_simulation_run(
         run_id=run_id,
         status="completed",
         result=result,
         error=None,
     )
+    if summary is not None or replay is not None:
+        _write_simulation_artifact(run_id=run_id, summary=summary or {}, replay=replay or {})
+        run["summary"] = summary
+    return run
+
+
+def _write_simulation_artifact(
+    *,
+    run_id: int,
+    summary: dict[str, Any],
+    replay: dict[str, Any],
+) -> None:
+    with workspace_connection() as session:
+        existing = session.get(WorkspaceSimulationRunArtifact, run_id)
+        if existing is None:
+            session.add(
+                WorkspaceSimulationRunArtifact(
+                    run_id=run_id,
+                    tenant_id=get_current_tenant_id(),
+                    replay_schema_version=settings.sim_replay_schema_version,
+                    summary_json=json.dumps(summary, ensure_ascii=False),
+                    replay_json=json.dumps(replay, ensure_ascii=False),
+                    created_at=now_iso(),
+                )
+            )
+        else:
+            existing.replay_schema_version = settings.sim_replay_schema_version
+            existing.summary_json = json.dumps(summary, ensure_ascii=False)
+            existing.replay_json = json.dumps(replay, ensure_ascii=False)
+        session.flush()
+
+
+def get_simulation_replay(run_id: int) -> dict[str, Any] | None:
+    """The heavy display artifact — fetched only by the replay endpoint."""
+    with workspace_connection() as session:
+        run = session.get(WorkspaceSimulationRun, run_id)
+        if run is None or run.tenant_id != get_current_tenant_id():
+            return None
+        artifact = session.get(WorkspaceSimulationRunArtifact, run_id)
+        if artifact is None:
+            return None
+        return {
+            "schema_version": artifact.replay_schema_version,
+            "replay": json.loads(artifact.replay_json or "{}"),
+        }
+
+
+def _summary_for(session, run_id: int) -> dict[str, Any] | None:
+    artifact = session.get(WorkspaceSimulationRunArtifact, run_id)
+    if artifact is None:
+        return None
+    return json.loads(artifact.summary_json or "{}") or None
 
 
 def fail_simulation_run(*, run_id: int, error: str) -> dict[str, Any]:
@@ -113,7 +179,7 @@ def get_simulation_run(run_id: int) -> dict[str, Any] | None:
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             return None
-        return simulation_run_to_dict(run)
+        return simulation_run_to_dict(run, summary=_summary_for(session, run_id))
 
 
 def list_simulation_runs(bpmn_model_id: str) -> list[dict[str, Any]]:
@@ -124,7 +190,10 @@ def list_simulation_runs(bpmn_model_id: str) -> list[dict[str, Any]]:
             .where(WorkspaceSimulationRun.bpmn_model_id == bpmn_model_id)
             .order_by(WorkspaceSimulationRun.id.desc())
         ).scalars().all()
-        return [simulation_run_to_dict(row) for row in rows]
+        return [
+            simulation_run_to_dict(row, summary=_summary_for(session, row.id))
+            for row in rows
+        ]
 
 
 def _update_simulation_run(

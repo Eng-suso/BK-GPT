@@ -92,6 +92,18 @@ class SimulationRunResponse(BaseModel):
     scenario: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] = Field(default_factory=dict)
     outputs: list[str] = Field(default_factory=list)
+    # Full-log KPI summary (cycle/waiting/cost percentiles, per-activity stats,
+    # diagnostic bottleneck). None until the run completes with an event log.
+    summary: dict[str, Any] | None = None
     error: str | None = None
     created_at: str
     completed_at: str | None = None
+
+
+class SimulationReplayResponse(BaseModel):
+    """The heavy display artifact — sampled case paths + bucketed time series +
+    flow volumes. Served by its own endpoint so run list / detail stay lean."""
+
+    run_id: int
+    schema_version: int
+    replay: dict[str, Any] = Field(default_factory=dict)

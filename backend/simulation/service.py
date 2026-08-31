@@ -8,6 +8,10 @@ from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id, set_current_tenant_id
 from backend.schemas.simulation import ScenarioTemplateResponse
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+from backend.simulation.log_processor import (
+    activity_name_to_element_id,
+    process_prosimos_log,
+)
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
 from backend.simulation.result_parser import with_output_files
@@ -135,7 +139,33 @@ async def execute_simulation_run(
     except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "pending"
         return fail_simulation_run(run_id=run_id, error=f"Errore inatteso: {exc}")
 
-    return complete_simulation_run(run_id=run_id, result=result)
+    summary, replay = _process_event_log(result, bpmn_xml=bpmn_xml, scenario=scenario)
+    return complete_simulation_run(
+        run_id=run_id, result=result, summary=summary, replay=replay
+    )
+
+
+def _process_event_log(
+    result,
+    *,
+    bpmn_xml: str,
+    scenario: ProsimosScenario,
+) -> tuple[dict | None, dict | None]:
+    """Turn the Prosimos event log into the run summary + replay artifact.
+    Never raises — a log/parse failure just means no artifact for this run."""
+    csv_text = getattr(result, "event_log_csv", None)
+    if not csv_text:
+        return None, None
+    try:
+        return process_prosimos_log(
+            csv_text,
+            normalized_bpmn_xml=bpmn_xml,
+            scenario_payload=scenario.payload,
+            prosimos_stats=result.payload,
+            name_to_element_id=activity_name_to_element_id(bpmn_xml),
+        )
+    except Exception:  # noqa: BLE001 - the replay artifact is best-effort
+        return None, None
 
 
 async def create_and_run_simulation(

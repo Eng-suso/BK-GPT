@@ -2,10 +2,12 @@ import { http } from "@/lib/http";
 
 import {
   scenarioTemplateSchema,
+  simulationReplaySchema,
   simulationRunSchema,
   simulationRunsSchema,
   type CreateSimulationRunInput,
   type ScenarioTemplate,
+  type SimulationReplay,
   type SimulationRun,
 } from "./simulationTypes";
 
@@ -81,4 +83,15 @@ export async function getProsimosSimulationRun(
   const raw = await http<unknown>(`/v1/workspace/simulation-runs/${runId}`);
 
   return simulationRunSchema.parse(raw);
+}
+
+/** The heavy replay artifact — only the replay / dashboard screens need it. */
+export async function getSimulationReplay(
+  runId: number,
+): Promise<SimulationReplay> {
+  const raw = await http<unknown>(
+    `/v1/workspace/simulation-runs/${runId}/replay`,
+  );
+
+  return simulationReplaySchema.parse(raw);
 }

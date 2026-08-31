@@ -135,6 +135,24 @@ class WorkspaceSimulationRun(WorkspaceBase):
     completed_at: Mapped[str | None] = mapped_column(String)
 
 
+class WorkspaceSimulationRunArtifact(WorkspaceBase):
+    """Heavy replay payload for a simulation run, kept out of the run row so
+    listing / fetching runs stays cheap. One row per run."""
+
+    __tablename__ = "workspace_simulation_run_artifacts"
+
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("workspace_simulation_runs.id"), primary_key=True
+    )
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    replay_schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Full-log KPIs / percentiles / bottleneck — the metric source of truth.
+    summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    # Display representation: sampled case paths + bucketed series + flow volumes.
+    replay_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class WorkspaceSource(WorkspaceBase):
     __tablename__ = "workspace_sources"
 

@@ -1,5 +1,26 @@
 import { z } from "zod";
 
+/**
+ * Full-log KPI summary attached to a completed run (Phase 1). Kept loose for now —
+ * Phase 5+ screens will pin the exact shape as they consume each field. Backend
+ * contract: backend/simulation/log_processor.py `_build_summary`.
+ */
+export const simulationSummarySchema = z
+  .object({
+    casesCompleted: z.number(),
+    cycle: z.object({ avg: z.number(), p50: z.number(), p90: z.number(), p95: z.number() }),
+    waiting: z.object({ avg: z.number(), p95: z.number(), share: z.number() }),
+    processing: z.object({ avg: z.number(), p95: z.number().optional() }),
+    cost: z.object({ total: z.number(), perCase: z.number() }),
+    throughputPerHour: z.number(),
+    byActivity: z.array(z.record(z.string(), z.unknown())),
+    byResource: z.array(z.record(z.string(), z.unknown())),
+    bottleneck: z.record(z.string(), z.unknown()).nullable(),
+  })
+  .loose();
+
+export type SimulationSummary = z.infer<typeof simulationSummarySchema>;
+
 export const simulationRunSchema = z.object({
   id: z.number(),
   bpmn_model_id: z.string(),
@@ -12,10 +33,68 @@ export const simulationRunSchema = z.object({
   scenario: z.record(z.string(), z.unknown()),
   result: z.record(z.string(), z.unknown()),
   outputs: z.array(z.string()),
+  summary: simulationSummarySchema.nullable().optional(),
   error: z.string().nullable(),
   created_at: z.string(),
   completed_at: z.string().nullable(),
 });
+
+/**
+ * Heavy display artifact — sampled case paths + bucketed series + flow volumes.
+ * Fetched only by the replay/dashboard screens, never with the run. Backend:
+ * `_build_replay` + GET /v1/workspace/simulation-runs/{id}/replay.
+ */
+export const simulationReplaySchema = z.object({
+  run_id: z.number(),
+  schema_version: z.number(),
+  replay: z
+    .object({
+      schemaVersion: z.number(),
+      meta: z.object({
+        start: z.string(),
+        durationSec: z.number(),
+        totalCases: z.number(),
+        sampledCases: z.number(),
+        bucketSec: z.number(),
+      }),
+      elements: z.record(z.string(), z.object({ name: z.string() })),
+      cases: z.array(
+        z.object({
+          id: z.string(),
+          cycleSec: z.number(),
+          events: z.array(
+            z.object({
+              el: z.string().nullable(),
+              enable: z.number(),
+              start: z.number(),
+              end: z.number(),
+              res: z.string(),
+            }),
+          ),
+        }),
+      ),
+      series: z.object({
+        t: z.array(z.number()),
+        byElement: z.record(
+          z.string(),
+          z.object({
+            active: z.array(z.number()),
+            queued: z.array(z.number()),
+            done: z.array(z.number()),
+          }),
+        ),
+        byResource: z.record(z.string(), z.object({ busy: z.array(z.number()) })),
+        global: z.record(z.string(), z.array(z.number())),
+      }),
+      flows: z.record(
+        z.string(),
+        z.object({ count: z.number(), attributed: z.boolean() }),
+      ),
+    })
+    .loose(),
+});
+
+export type SimulationReplay = z.infer<typeof simulationReplaySchema>;
 
 export const simulationRunsSchema = z.array(simulationRunSchema);
 

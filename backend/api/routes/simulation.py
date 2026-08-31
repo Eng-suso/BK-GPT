@@ -4,6 +4,7 @@ from backend.schemas.simulation import (
     CreateSimulationRunRequest,
     ScenarioTemplateRequest,
     ScenarioTemplateResponse,
+    SimulationReplayResponse,
     SimulationRunResponse,
 )
 from backend.schemas.workspace import BpmnModelResponse
@@ -13,7 +14,11 @@ from backend.simulation.service import (
     prepare_simulation_run,
     scenario_template_for_model,
 )
-from backend.simulation.storage import get_simulation_run, list_simulation_runs
+from backend.simulation.storage import (
+    get_simulation_replay,
+    get_simulation_run,
+    list_simulation_runs,
+)
 from backend.workspace_database import get_bpmn_model
 
 
@@ -89,3 +94,18 @@ def get_workspace_simulation_run(run_id: int) -> SimulationRunResponse:
         raise HTTPException(status_code=404, detail="Simulazione non trovata.")
 
     return SimulationRunResponse(**run)
+
+
+@router.get("/simulation-runs/{run_id}/replay")
+def get_workspace_simulation_replay(run_id: int) -> SimulationReplayResponse:
+    artifact = get_simulation_replay(run_id)
+    if artifact is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Nessun replay per questa simulazione.",
+        )
+    return SimulationReplayResponse(
+        run_id=run_id,
+        schema_version=artifact["schema_version"],
+        replay=artifact["replay"],
+    )
