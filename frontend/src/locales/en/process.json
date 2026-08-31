@@ -48,10 +48,24 @@
       "inQueue": "{{n}} queued",
       "nodeInspector": "Node detail",
       "closeInspector": "Close detail",
+      "rail": {
+        "clock": "Simulation clock",
+        "dayOf": "Day {{n}} of {{total}}",
+        "bottleneck": "Under pressure",
+        "bottleneckLine": "{{queued}} queued, {{active}} in progress.",
+        "noPressure": "No significant queue right now.",
+        "resources": "Resources",
+        "legend": "What you see",
+        "legendActive": "Case in progress",
+        "legendQueued": "Case queued"
+      },
       "noRun": "No simulation to replay",
-      "noRunHint": "Run a simulation from the Scenario screen, then come back here.",
+      "noRunHint": "Run a simulation from Overview, then come back here.",
       "noArtifact": "No replay for this run",
       "noArtifactHint": "Runs from before the new pipeline have no event log. Run a new simulation."
+    },
+    "overview": {
+      "noRunHint": "Configure the scenario below and launch the first simulation."
     },
     "dashboard": {
       "throughput": "Throughput",
@@ -59,16 +73,22 @@
       "costAccrued": "Cost accrued",
       "throughputChart": "Throughput per hour",
       "loadChart": "Active & queued cases",
+      "loadCaption": "The queue peaks at {{peak}} cases.",
       "costChart": "Cost accrued",
       "cycleChart": "Avg cycle time",
       "perActivity": "Load per activity",
-      "perResource": "Utilisation per resource"
+      "perResource": "Utilisation per resource",
+      "peakQueue": "Peak queue",
+      "headline": "Over the run the queue builds to {{peak}} cases and {{bottleneck}} is the bottleneck: {{share}} of cycle time is waiting.",
+      "headlineNoBottleneck": "The process flows with no structural bottleneck; waiting is {{share}} of cycle time."
     },
     "compare": {
       "runA": "Scenario A",
       "runB": "Scenario B",
       "modeLabel": "Model view",
       "metric": "Metric",
+      "kpiHeader": "KPI comparison",
+      "verdict": "cycle time {{cyclePct}} ({{cycleFrom}} → {{cycleTo}}), cost per case {{costPct}}.",
       "better": "Improves",
       "worse": "Regresses",
       "needTwo": "Two completed simulations are needed",

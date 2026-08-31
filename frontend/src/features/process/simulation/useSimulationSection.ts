@@ -26,6 +26,20 @@ export function useSimulationSection(): SimulationSectionValue {
   return ctx;
 }
 
+/** "{scenario} · 14 mar 10:32" — scenario names collide, dates disambiguate. */
+export function formatRunOption(run: SimulationRun, lang: "it" | "en"): string {
+  const when = new Date(run.created_at);
+  const date = Number.isNaN(when.getTime())
+    ? ""
+    : ` · ${when.toLocaleString(lang === "it" ? "it-IT" : "en-US", {
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+  return `${run.scenario_name}${date}`;
+}
+
 /**
  * Resolve which run a run-scoped page should show: the `:runId` from the URL when
  * valid, otherwise the newest completed run, otherwise the newest run.

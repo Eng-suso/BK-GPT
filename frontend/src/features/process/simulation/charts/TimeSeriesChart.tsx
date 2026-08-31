@@ -3,7 +3,6 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -25,6 +24,8 @@ export type TimeSeriesSeries = {
 
 type TimeSeriesChartProps = {
   title: string;
+  /** one-line "so what" under the title */
+  caption?: string;
   data: TimeSeriesPoint[];
   series: TimeSeriesSeries[];
   engine: ReplayEngine;
@@ -38,28 +39,49 @@ type TimeSeriesChartProps = {
 
 export function TimeSeriesChart({
   title,
+  caption,
   data,
   series,
   engine,
   formatValue = (v) => String(Math.round(v)),
   formatAxisValue,
   formatTime,
-  height = 148,
+  height = 156,
 }: TimeSeriesChartProps): React.JSX.Element {
   const durationSec = engine.durationSec;
   const tNow = usePlayhead(engine);
   const frac = Math.min(1, Math.max(0, durationSec ? tNow / durationSec : 0));
 
   return (
-    <figure className="m-0 flex min-w-0 flex-col rounded-lg border border-border bg-card p-3">
-      <figcaption className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold text-foreground">{title}</span>
-        {series.length === 1 && (
-          <span
-            className="size-2 shrink-0 rounded-full"
-            style={{ background: series[0].color }}
-            aria-hidden
-          />
+    <figure className="m-0 flex min-w-0 flex-col rounded-lg border border-border bg-card p-3.5">
+      <figcaption className="mb-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="eyebrow">{title}</span>
+          {series.length > 1 ? (
+            <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              {series.map((s) => (
+                <span key={s.key} className="inline-flex items-center gap-1">
+                  <span
+                    className="size-1.5 rounded-full"
+                    style={{ background: s.color }}
+                    aria-hidden
+                  />
+                  {s.label}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span
+              className="size-2 shrink-0 rounded-full"
+              style={{ background: series[0].color }}
+              aria-hidden
+            />
+          )}
+        </div>
+        {caption && (
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
+            {caption}
+          </p>
         )}
       </figcaption>
 
@@ -123,6 +145,8 @@ const ChartBody = React.memo(function ChartBody({
           domain={[0, durationSec]}
           tickFormatter={formatTime}
           tickCount={4}
+          tickMargin={6}
+          padding={{ left: 8, right: 2 }}
           {...axisProps}
         />
         <YAxis
@@ -157,17 +181,6 @@ const ChartBody = React.memo(function ChartBody({
             ) : null
           }
         />
-        {series.length > 1 && (
-          <Legend
-            verticalAlign="top"
-            height={20}
-            iconType="circle"
-            iconSize={7}
-            formatter={(value) => (
-              <span className="text-[11px] text-muted-foreground">{value}</span>
-            )}
-          />
-        )}
         {series.map((s) => (
           <Area
             key={s.key}

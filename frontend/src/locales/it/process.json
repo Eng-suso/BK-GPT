@@ -48,10 +48,24 @@
       "inQueue": "{{n}} in coda",
       "nodeInspector": "Dettaglio nodo",
       "closeInspector": "Chiudi dettaglio",
+      "rail": {
+        "clock": "Orologio simulazione",
+        "dayOf": "Giorno {{n}} di {{total}}",
+        "bottleneck": "Sotto pressione",
+        "bottleneckLine": "{{queued}} in coda, {{active}} in lavorazione.",
+        "noPressure": "Nessuna coda rilevante in questo momento.",
+        "resources": "Risorse",
+        "legend": "Cosa vedi",
+        "legendActive": "Caso in lavorazione",
+        "legendQueued": "Caso in coda"
+      },
       "noRun": "Nessuna simulazione da riprodurre",
-      "noRunHint": "Avvia una simulazione dalla schermata Scenario, poi torna qui.",
+      "noRunHint": "Avvia una simulazione dalla Panoramica, poi torna qui.",
       "noArtifact": "Replay non disponibile per questa run",
       "noArtifactHint": "Le run precedenti alla nuova pipeline non hanno l'event log. Esegui una nuova simulazione."
+    },
+    "overview": {
+      "noRunHint": "Configura lo scenario qui sotto e avvia la prima simulazione."
     },
     "dashboard": {
       "throughput": "Throughput",
@@ -59,16 +73,22 @@
       "costAccrued": "Costo accumulato",
       "throughputChart": "Throughput orario",
       "loadChart": "Casi attivi e in coda",
+      "loadCaption": "La coda arriva a un massimo di {{peak}} casi.",
       "costChart": "Costo accumulato",
       "cycleChart": "Attraversamento medio",
       "perActivity": "Carico per attività",
-      "perResource": "Utilizzo per risorsa"
+      "perResource": "Utilizzo per risorsa",
+      "peakQueue": "Coda massima",
+      "headline": "Nel corso della run la coda si accumula fino a {{peak}} casi e {{bottleneck}} è il collo di bottiglia: il {{share}} del tempo di attraversamento è attesa.",
+      "headlineNoBottleneck": "Il processo scorre senza colli di bottiglia strutturali; l'attesa è il {{share}} del tempo di attraversamento."
     },
     "compare": {
       "runA": "Scenario A",
       "runB": "Scenario B",
       "modeLabel": "Vista modello",
       "metric": "Metrica",
+      "kpiHeader": "Confronto KPI",
+      "verdict": "attraversamento {{cyclePct}} ({{cycleFrom}} → {{cycleTo}}), costo per caso {{costPct}}.",
       "better": "Migliora",
       "worse": "Peggiora",
       "needTwo": "Servono almeno due simulazioni completate",

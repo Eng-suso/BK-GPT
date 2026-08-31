@@ -30,7 +30,7 @@
   --sim-chart-cycle: var(--violet-600);
   --sim-chart-grid: var(--color-border-subtle);
   --sim-chart-axis: var(--color-text-muted);
-  --sim-chart-fill-opacity: 0.14;
+  --sim-chart-fill-opacity: 0.2;
 }
 
 .sim-badge {
@@ -161,18 +161,18 @@
   top: 6px;
   bottom: 20px;
   width: 0;
-  border-left: 2px solid var(--sim-info);
+  border-left: 1px solid color-mix(in oklab, var(--color-text-muted) 65%, transparent);
   pointer-events: none;
 }
 .sim-chart-playhead::before {
   content: "";
   position: absolute;
-  top: -3px;
+  top: -2px;
   left: -3px;
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: var(--sim-info);
+  background: var(--color-text-secondary);
 }
 
 /* dim the not-yet-played region of a time-series */
@@ -181,7 +181,7 @@
   top: 6px;
   bottom: 20px;
   right: 10px;
-  background: color-mix(in oklab, var(--color-surface-muted) 45%, transparent);
+  background: color-mix(in oklab, var(--color-surface-muted) 55%, transparent);
   pointer-events: none;
 }
 
@@ -252,6 +252,18 @@
 .simulation-bpmn-view .bjs-powered-by,
 .simulation-bpmn-view .bts-toggle-mode {
   display: none;
+}
+
+/* dot grid so the canvas reads as a workspace, not empty white */
+.simulation-bpmn-view .djs-container {
+  background-color: var(--color-surface-primary);
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-text-muted) 22%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 22px 22px;
+  background-position: -1px -1px;
 }
 
 .simulation-bpmn-view .bts-palette {

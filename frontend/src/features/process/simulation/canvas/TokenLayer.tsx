@@ -11,8 +11,8 @@ import {
 } from "./bpmnViewer";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const TOKEN_R = 6;
-const QUEUE_GAP = 15;
+const TOKEN_R = 7;
+const QUEUE_GAP = 17;
 const QUEUE_MAX_DOTS = 6;
 
 type TokenLayerProps = {

@@ -2,6 +2,7 @@
  * Turns the raw Prosimos statistics payload (see backend prosimos_adapter) into
  * a small, typed view model a non-technical consultant can read.
  */
+import type { SimulationSummary } from "./simulationTypes";
 
 export type ResourceLoad = {
   id: string;
@@ -222,6 +223,22 @@ export function readSimulationInsights(
     bottleneckElementId: realBottleneck?.elementId ?? null,
     files,
   };
+}
+
+/**
+ * Re-point an insights view at the backend's full-log **diagnostic** bottleneck
+ * (multi-factor — `summary.bottleneck`) instead of the naive max-wait one, so the
+ * whole section agrees on which node is the constraint.
+ */
+export function withDiagnosticBottleneck(
+  insights: SimulationInsights,
+  summary: SimulationSummary | null | undefined,
+): SimulationInsights {
+  const el = (summary?.bottleneck as { el?: string } | null | undefined)?.el;
+  if (!el || !insights.hasData) return insights;
+  const task = insights.tasks.find((candidate) => candidate.elementId === el);
+  if (!task) return insights;
+  return { ...insights, bottleneck: task, bottleneckElementId: el };
 }
 
 const DURATION_UNITS: Record<"it" | "en", { d: string; h: string; m: string; s: string }> = {

@@ -1,7 +1,7 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowRight, Minus } from "lucide-react";
 
 import { EmptyState } from "@/components/feedback";
 import {
@@ -22,12 +22,13 @@ import {
 import { cn } from "@/lib/utils";
 
 import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanvas";
-import { useSimulationSection } from "../useSimulationSection";
+import { formatRunOption, useSimulationSection } from "../useSimulationSection";
 import type { SimulationRun, SimulationSummary } from "../simulationTypes";
 import {
   elementWaitDeltas,
   kpiDeltas,
   type DeltaDirection,
+  type KpiDelta,
 } from "../compareDeltas";
 import {
   formatCurrency,
@@ -57,7 +58,7 @@ export function ComparePage(): React.JSX.Element {
 
   if (candidates.length < 2) {
     return (
-      <div className="flex h-full items-center justify-center p-6">
+      <div className="flex h-full items-center justify-center">
         <EmptyState
           title={t("simulation.compare.needTwo")}
           description={t("simulation.compare.needTwoHint")}
@@ -65,37 +66,31 @@ export function ComparePage(): React.JSX.Element {
       </div>
     );
   }
-  if (!runA || !runB) {
-    return <div className="p-6" />;
-  }
+  if (!runA || !runB) return <div />;
 
   const setRun = (side: "a" | "b", id: string) => {
     const next = new URLSearchParams(params);
     next.set(side, id);
-    // keep the other side pinned so it doesn't drift to a default
     next.set(side === "a" ? "b" : "a", String(side === "a" ? runB.id : runA.id));
     setParams(next, { replace: true });
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
         <RunPicker
           label={t("simulation.compare.runA")}
           runs={candidates}
           value={String(runA.id)}
           onChange={(v) => setRun("a", v)}
         />
-        <span className="text-muted-foreground" aria-hidden>
-          →
-        </span>
+        <ArrowRight aria-hidden className="size-4 text-muted-foreground" />
         <RunPicker
           label={t("simulation.compare.runB")}
           runs={candidates}
           value={String(runB.id)}
           onChange={(v) => setRun("b", v)}
         />
-
         <div
           className="ml-auto flex items-center rounded-md border border-border p-0.5"
           role="group"
@@ -115,25 +110,40 @@ export function ComparePage(): React.JSX.Element {
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {m === "a"
-                ? runA.scenario_name
-                : m === "b"
-                  ? runB.scenario_name
-                  : "Δ"}
+              {m === "a" ? "A" : m === "b" ? "B" : "Δ"}
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[400px_minmax(0,1fr)]">
-        <div className="min-h-0 overflow-auto border-b border-border p-3 lg:border-b-0 lg:border-r">
-          <div className="overflow-x-auto">
+      <Verdict runA={runA} runB={runB} />
+
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <header className="border-b border-border px-4 py-2.5">
+            <p className="eyebrow">{t("simulation.compare.kpiHeader")}</p>
+          </header>
+          <div className="min-h-0 flex-1 overflow-auto">
             <KpiDeltaTable runA={runA} runB={runB} />
           </div>
-        </div>
-        <div className="min-h-0">
+        </section>
+
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+            <p className="eyebrow">{t("simulation.diagram.title")}</p>
+            {mode === "delta" ? (
+              <span className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                <Legend color="var(--color-status-success)" label={t("simulation.compare.better")} />
+                <Legend color="var(--color-status-danger)" label={t("simulation.compare.worse")} />
+              </span>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">
+                {t("simulation.diagram.legendWait")}
+              </span>
+            )}
+          </header>
           <CompareCanvas runA={runA} runB={runB} mode={mode} />
-        </div>
+        </section>
       </div>
     </div>
   );
@@ -150,17 +160,19 @@ function RunPicker({
   value: string;
   onChange: (id: string) => void;
 }) {
+  const { i18n } = useTranslation("process");
+  const lang = i18n.language?.startsWith("it") ? "it" : "en";
   return (
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
       {label}
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger size="sm" className="w-[180px]">
+        <SelectTrigger size="sm" className="w-[220px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {runs.map((run) => (
             <SelectItem key={run.id} value={String(run.id)}>
-              {run.scenario_name}
+              {formatRunOption(run, lang)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -169,15 +181,42 @@ function RunPicker({
   );
 }
 
+function Verdict({ runA, runB }: { runA: SimulationRun; runB: SimulationRun }) {
+  const { t, i18n } = useTranslation("process");
+  const lang = i18n.language?.startsWith("it") ? "it" : "en";
+  const rows = kpiDeltas(
+    runA.summary as SimulationSummary,
+    runB.summary as SimulationSummary,
+  );
+  const cycle = rows.find((r) => r.key === "cycleAvg");
+  const cost = rows.find((r) => r.key === "costPerCase");
+  if (!cycle) return null;
+
+  const pct = (r: KpiDelta) =>
+    r.deltaPct != null
+      ? `${r.deltaPct > 0 ? "+" : "−"}${formatPercent(Math.abs(r.deltaPct))}`
+      : "—";
+
+  return (
+    <p className="shrink-0 rounded-lg border border-border bg-card px-4 py-2.5 text-[13px] leading-relaxed text-foreground">
+      <strong className="font-semibold">{runB.scenario_name}</strong>
+      {": "}
+      {t("simulation.compare.verdict", {
+        cyclePct: pct(cycle),
+        cycleFrom: formatDuration(cycle.a, lang),
+        cycleTo: formatDuration(cycle.b, lang),
+        costPct: cost ? pct(cost) : "—",
+      })}
+    </p>
+  );
+}
+
 function KpiDeltaTable({ runA, runB }: { runA: SimulationRun; runB: SimulationRun }) {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const rows = React.useMemo(
     () =>
-      kpiDeltas(
-        runA.summary as SimulationSummary,
-        runB.summary as SimulationSummary,
-      ),
+      kpiDeltas(runA.summary as SimulationSummary, runB.summary as SimulationSummary),
     [runA, runB],
   );
 
@@ -212,7 +251,7 @@ function KpiDeltaTable({ runA, runB }: { runA: SimulationRun; runB: SimulationRu
             <TableCell className="text-right text-xs tabular-nums text-foreground">
               {fmt(row.b, row.format)}
             </TableCell>
-            <TableCell className="text-right text-xs tabular-nums">
+            <TableCell className="py-2 text-right text-xs tabular-nums">
               <DeltaCell
                 direction={row.direction}
                 rising={row.delta > 0}
@@ -277,7 +316,7 @@ function CompareCanvas({
   runB: SimulationRun;
   mode: Mode;
 }) {
-  const { t, i18n } = useTranslation("process");
+  const { i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const { bpmnXml } = useSimulationSection();
 
@@ -323,19 +362,11 @@ function CompareCanvas({
   }, [mode, runA, runB, lang]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">
-        {mode === "delta" ? (
-          <>
-            <Legend color="var(--color-status-success)" label={t("simulation.compare.better")} />
-            <Legend color="var(--color-status-danger)" label={t("simulation.compare.worse")} />
-          </>
-        ) : (
-          <span>{t("simulation.diagram.legendWait")}</span>
-        )}
-      </div>
-      <SimulationCanvas className="min-h-0 flex-1" bpmnXml={bpmnXml} decorations={decorations} />
-    </div>
+    <SimulationCanvas
+      className="min-h-0 flex-1"
+      bpmnXml={bpmnXml}
+      decorations={decorations}
+    />
   );
 }
 

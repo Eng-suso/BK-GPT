@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/ui/select";
+import { cn } from "@/lib/utils";
 
 import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
 import {
@@ -38,12 +39,16 @@ type SimulationConfigRailProps = {
   onDraftChange: (next: ScenarioDraft) => void;
   isRunning: boolean;
   error: string | null;
-  runs: SimulationRun[];
-  activeRunId: number | null;
   onRun: () => void;
-  onSelectRun: (run: SimulationRun) => void;
   focusElementId: string | null;
-  onCollapse: () => void;
+  /** Past-runs picker in the footer — hidden when the section has its own switcher. */
+  runs?: SimulationRun[];
+  activeRunId?: number | null;
+  onSelectRun?: (run: SimulationRun) => void;
+  /** Collapse affordance — only shown in the resizable-rail layout. */
+  onCollapse?: () => void;
+  /** Drop the card border / internal scroll when the parent page already scrolls. */
+  embedded?: boolean;
 };
 
 export function SimulationConfigRail({
@@ -59,6 +64,7 @@ export function SimulationConfigRail({
   onSelectRun,
   focusElementId,
   onCollapse,
+  embedded = false,
 }: SimulationConfigRailProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
@@ -79,7 +85,12 @@ export function SimulationConfigRail({
   const num = (raw: string) => (raw === "" ? 0 : Number(raw));
 
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+    <div
+      className={cn(
+        "flex min-h-0 flex-col rounded-lg border border-border bg-card",
+        embedded ? "" : "overflow-hidden shadow-sm",
+      )}
+    >
       <header className="flex min-h-[52px] items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
           <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>
@@ -87,19 +98,36 @@ export function SimulationConfigRail({
             {t("simulation.scenario.title")}
           </h3>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="size-8 shrink-0 p-0 text-muted-foreground"
-          onClick={onCollapse}
-          title={t("simulation.config.collapse")}
-        >
-          <PanelLeftClose className="size-4" />
-        </Button>
+        {embedded ? (
+          <Button
+            type="button"
+            size="sm"
+            className="shrink-0"
+            disabled={isRunning}
+            onClick={onRun}
+          >
+            {isRunning ? t("simulation.running") : t("simulation.run")}
+          </Button>
+        ) : (
+          onCollapse && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="size-8 shrink-0 p-0 text-muted-foreground"
+              onClick={onCollapse}
+              title={t("simulation.config.collapse")}
+            >
+              <PanelLeftClose className="size-4" />
+            </Button>
+          )
+        )}
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto px-4">
+      <div
+        ref={scrollRef}
+        className={cn("px-4", embedded ? "" : "min-h-0 flex-1 overflow-auto")}
+      >
         <DetailPanelSection title={t("simulation.config.globals")}>
           <div className="grid gap-2.5">
             <label className="grid gap-1.5">
@@ -449,11 +477,14 @@ export function SimulationConfigRail({
         )}
       </div>
 
+      {(!embedded || error) && (
       <div className="border-t border-border p-3">
-        <Button type="button" className="w-full" disabled={isRunning} onClick={onRun}>
-          {isRunning ? t("simulation.running") : t("simulation.run")}
-        </Button>
-        {runs.length > 0 && (
+        {!embedded && (
+          <Button type="button" className="w-full" disabled={isRunning} onClick={onRun}>
+            {isRunning ? t("simulation.running") : t("simulation.run")}
+          </Button>
+        )}
+        {!embedded && runs && runs.length > 0 && onSelectRun && (
           <Select
             value={activeRunId ? String(activeRunId) : undefined}
             onValueChange={(value) => {
@@ -484,12 +515,16 @@ export function SimulationConfigRail({
         {error && (
           <p
             role="alert"
-            className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium leading-relaxed text-destructive"
+            className={cn(
+              "rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium leading-relaxed text-destructive",
+              !embedded && "mt-2",
+            )}
           >
             {error}
           </p>
         )}
       </div>
+      )}
     </div>
   );
 }

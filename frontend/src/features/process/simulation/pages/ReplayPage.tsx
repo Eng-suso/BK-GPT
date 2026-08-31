@@ -9,6 +9,7 @@ import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanva
 import { TokenLayer } from "../canvas/TokenLayer";
 import { TransportBar } from "../replay/TransportBar";
 import { ReplayGate } from "../replay/ReplayGate";
+import { ReplayInsightRail } from "../replay/ReplayInsightRail";
 import { useReplayFrame } from "../replay/useReplay";
 import type { ReplayEngine } from "../replay/replayEngine";
 import type { BpmnViewer } from "../canvas/bpmnViewer";
@@ -80,58 +81,67 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   const nodeState = selectedId && frame ? frame.elements[selectedId] : undefined;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <TransportBar engine={engine} />
-      <div className="relative flex min-h-0 flex-1">
-        <SimulationCanvas
-          className="h-full flex-1"
-          bpmnXml={bpmnXml}
-          decorations={decorations}
-          selectedElementId={selectedId}
-          onSelectElement={setSelectedId}
-          onViewerReady={setViewer}
-        />
-        <TokenLayer viewer={viewer} engine={engine} />
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="shrink-0 overflow-hidden rounded-lg border border-border bg-card">
+        <TransportBar engine={engine} />
+      </div>
 
-        {selectedId && (
-          <aside
-            className="absolute right-3 top-3 z-10 w-[248px] rounded-lg border border-border bg-card p-3 shadow-lg"
-            aria-label={t("simulation.replay.nodeInspector")}
-          >
-            <div className="mb-2 flex items-start justify-between gap-2 border-b border-border pb-2">
-              <strong className="min-w-0 truncate text-[13px] text-foreground">
-                {(activity?.name as string) ?? selectedId}
-              </strong>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="size-6 shrink-0 p-0 text-muted-foreground"
-                onClick={() => setSelectedId(null)}
-                aria-label={t("simulation.replay.closeInspector")}
-              >
-                <X className="size-3.5" />
-              </Button>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-              <Row label={t("simulation.replay.active")} value={nodeState?.active ?? 0} />
-              <Row label={t("simulation.replay.queued")} value={nodeState?.queued ?? 0} />
-              <Row
-                label={t("simulation.replay.completed")}
-                value={nodeState?.done ?? 0}
-              />
-              {activity && (
+      <div className="flex min-h-0 flex-1 gap-3">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <SimulationCanvas
+            className="min-h-0 flex-1"
+            bpmnXml={bpmnXml}
+            decorations={decorations}
+            selectedElementId={selectedId}
+            onSelectElement={setSelectedId}
+            onViewerReady={setViewer}
+          />
+          <TokenLayer viewer={viewer} engine={engine} />
+
+          {selectedId && (
+            <aside
+              className="absolute right-3 top-14 z-10 w-[236px] rounded-lg border border-border bg-card p-3 shadow-lg"
+              aria-label={t("simulation.replay.nodeInspector")}
+            >
+              <div className="mb-2 flex items-start justify-between gap-2 border-b border-border pb-2">
+                <strong className="min-w-0 truncate text-[13px] text-foreground">
+                  {(activity?.name as string) ?? selectedId}
+                </strong>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="size-6 shrink-0 p-0 text-muted-foreground"
+                  onClick={() => setSelectedId(null)}
+                  aria-label={t("simulation.replay.closeInspector")}
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                <Row label={t("simulation.replay.active")} value={nodeState?.active ?? 0} />
+                <Row label={t("simulation.replay.queued")} value={nodeState?.queued ?? 0} />
                 <Row
-                  label={t("simulation.results.table.waiting")}
-                  value={formatDuration(
-                    Number((activity.wait as { avg?: number })?.avg ?? 0),
-                    lang,
-                  )}
+                  label={t("simulation.replay.completed")}
+                  value={nodeState?.done ?? 0}
                 />
-              )}
-            </dl>
-          </aside>
-        )}
+                {activity && (
+                  <Row
+                    label={t("simulation.results.table.waiting")}
+                    value={formatDuration(
+                      Number((activity.wait as { avg?: number })?.avg ?? 0),
+                      lang,
+                    )}
+                  />
+                )}
+              </dl>
+            </aside>
+          )}
+        </div>
+
+        <div className="hidden xl:block">
+          <ReplayInsightRail engine={engine} run={run} />
+        </div>
       </div>
     </div>
   );
