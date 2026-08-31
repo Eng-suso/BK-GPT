@@ -206,6 +206,24 @@ def test_diagnostic_bottleneck_carries_its_factor_breakdown():
     assert bottleneck["el"] in {row["el"] for row in summary["byActivity"]}
 
 
+def test_by_activity_rows_carry_the_heatmap_metrics():
+    log, stats = _fixture_log(), _fixture_stats()
+    bpmn = normalize_bpmn_for_prosimos(MINIMAL_BPMN)
+    summary, _ = process_prosimos_log(
+        log,
+        normalized_bpmn_xml=bpmn,
+        scenario_payload=_scenario_payload(),
+        prosimos_stats=stats,
+        name_to_element_id=activity_name_to_element_id(bpmn),
+    )
+    for row in summary["byActivity"]:
+        assert set(row["processing"]) == {"avg", "p95"}
+        assert row["processing"]["avg"] >= 0
+        assert row["processing"]["p95"] >= 0
+        assert 0 <= row["utilizationPct"] <= 100
+        assert row["count"] >= 0
+
+
 # --------------------------------------------------------------------------- #
 # replay — display representation
 # --------------------------------------------------------------------------- #

@@ -314,6 +314,93 @@ export function heatBucket(waitSec: number, maxWaitSec: number): 0 | 1 | 2 | 3 |
   return Math.min(4, Math.floor(ratio * 5)) as 0 | 1 | 2 | 3 | 4;
 }
 
+// --- Heatmap (phase 6) ----------------------------------------------------
+
+export type HeatMetric =
+  | "wait"
+  | "work"
+  | "utilization"
+  | "cost"
+  | "volume"
+  | "cycleShare";
+
+/** One row of `summary.byActivity`, loosely typed (backend keeps it flexible). */
+export type ActivityStat = {
+  el: string | null;
+  name: string;
+  count: number;
+  wait: { avg: number; p95: number };
+  processing: { avg: number; p95: number };
+  queue: { avg: number; max: number };
+  utilizationPct: number;
+  avgCost: number;
+  cycleContributionPct: number;
+  casesAffectedPct: number;
+};
+
+export type HeatMetricConfig = {
+  /** number the tint / ranking is driven by */
+  value: (row: ActivityStat) => number;
+  /** display string for a value */
+  format: (value: number, lang: "it" | "en") => string;
+};
+
+export const HEAT_METRICS: Record<HeatMetric, HeatMetricConfig> = {
+  wait: { value: (r) => r.wait?.avg ?? 0, format: (v, l) => formatDuration(v, l) },
+  work: { value: (r) => r.processing?.avg ?? 0, format: (v, l) => formatDuration(v, l) },
+  utilization: {
+    value: (r) => r.utilizationPct ?? 0,
+    format: (v) => `${Math.round(v)}%`,
+  },
+  cost: { value: (r) => r.avgCost ?? 0, format: (v, l) => formatCurrency(v, l) },
+  volume: { value: (r) => r.count ?? 0, format: (v, l) => formatCount(v, l) },
+  cycleShare: {
+    value: (r) => (r.cycleContributionPct ?? 0) * 100,
+    format: (v) => `${Math.round(v)}%`,
+  },
+};
+
+export const HEAT_METRIC_ORDER: HeatMetric[] = [
+  "wait",
+  "work",
+  "utilization",
+  "cost",
+  "volume",
+  "cycleShare",
+];
+
+export function readActivityStats(
+  summary: SimulationSummary | null | undefined,
+): ActivityStat[] {
+  const rows = (summary?.byActivity as Array<Record<string, unknown>> | undefined) ?? [];
+  return rows.map((r) => ({
+    el: (r.el as string | null) ?? null,
+    name: String(r.name ?? "—"),
+    count: Number(r.count ?? 0),
+    wait: normNum2(r.wait, "avg", "p95"),
+    processing: normNum2(r.processing, "avg", "p95"),
+    queue: normNum2(r.queue, "avg", "max"),
+    utilizationPct: Number(r.utilizationPct ?? 0),
+    avgCost: Number(r.avgCost ?? 0),
+    cycleContributionPct: Number(r.cycleContributionPct ?? 0),
+    casesAffectedPct: Number(r.casesAffectedPct ?? 0),
+  }));
+}
+
+function normNum2<A extends string, B extends string>(
+  source: unknown,
+  a: A,
+  b: B,
+): Record<A | B, number> {
+  const obj = (source ?? {}) as Record<string, unknown>;
+  return { [a]: Number(obj[a] ?? 0), [b]: Number(obj[b] ?? 0) } as Record<A | B, number>;
+}
+
+/** 0–4 tint bucket for a metric value against the run's worst on that metric. */
+export function metricBucket(value: number, maxValue: number): 0 | 1 | 2 | 3 | 4 {
+  return heatBucket(value, maxValue);
+}
+
 /**
  * The element ids that earn a text badge on the diagram: the bottleneck plus
  * the next worst-waiting tasks, up to `limit`. Everything else gets a heat

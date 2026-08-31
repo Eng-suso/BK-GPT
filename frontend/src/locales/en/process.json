@@ -247,6 +247,46 @@
       "gatewaysToValidate_other": "{{count}} gateway outcomes still to validate",
       "allGrounded": "Every parameter is grounded in evidence.",
       "compact": "Readiness"
+    },
+    "heatmap": {
+      "metricLabel": "Metric",
+      "metric": {
+        "wait": "Wait",
+        "work": "Work",
+        "utilization": "Utilisation",
+        "cost": "Cost",
+        "volume": "Volume",
+        "cycleShare": "Cycle-time share"
+      },
+      "legendLow": "low",
+      "legendHigh": "high",
+      "ranking": "Ranked by {{metric}}",
+      "bottleneckTag": "Bottleneck",
+      "diagnostic": "Structural bottleneck — a multi-factor, whole-run verdict, distinct from the Replay's live pressure.",
+      "noRun": "No simulation to analyse.",
+      "noRunHint": "Launch a run from the overview to see the heatmap.",
+      "noData": "Prosimos returned no statistics for this run.",
+      "factors": "Why it's a bottleneck",
+      "factor": {
+        "waitingContribution": "Share of total wait",
+        "utilization": "Resource utilisation",
+        "queueGrowth": "Queue growth",
+        "casesAffected": "Cases queued",
+        "cycleContribution": "Share of cycle time",
+        "persistence": "Persistence"
+      },
+      "fields": {
+        "wait": "Avg wait",
+        "waitP95": "Wait P95",
+        "work": "Avg work",
+        "queue": "Avg queue",
+        "queueMax": "Max queue",
+        "utilization": "Resource utilisation",
+        "cost": "Avg cost",
+        "volume": "Volume",
+        "cycleShare": "Cycle-time share",
+        "casesAffected": "Cases affected"
+      }
     }
   },
   "side": {

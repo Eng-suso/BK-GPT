@@ -340,13 +340,28 @@ def _build_summary(
     active_span_hours = max(1e-9, (run_end - run_start) / 3600.0)
     throughput_per_hour = cases_completed / active_span_hours
 
+    # utilisation of the busiest pool each activity draws on (calendar-active,
+    # from Prosimos' resource stats) — lets the Heatmap tint by "how loaded".
+    util_by_pool: dict[str, float] = {}
+    for res_row in resource_rows:
+        pool = str(
+            res_row.get("Pool name")
+            or _pool_key(str(res_row.get("Resource name", res_row.get("Resource ID", ""))))
+        )
+        util_by_pool[pool] = max(
+            util_by_pool.get(pool, 0.0), _num(res_row.get("Utilization Ratio"))
+        )
+
     by_activity_out: list[dict] = []
     for name, act_events in by_activity.items():
         act_waits = sorted(max(0.0, ev.start - ev.enable) for ev in act_events)
+        act_procs = sorted(max(0.0, ev.end - ev.start) for ev in act_events)
         spans = [(ev.enable, ev.start) for ev in act_events]
         queue_avg, queue_max = _time_weighted_queue(spans, run_start, run_end)
         act_wait_total = sum(act_waits)
-        act_proc_total = sum(max(0.0, ev.end - ev.start) for ev in act_events)
+        act_proc_total = sum(act_procs)
+        act_pools = {_pool_key(ev.resource) for ev in act_events}
+        act_utilization = max((util_by_pool.get(p, 0.0) for p in act_pools), default=0.0)
         affected_cases = {
             ev.case_id for ev in act_events if (ev.start - ev.enable) > _QUEUE_EPSILON_SEC
         }
@@ -360,7 +375,12 @@ def _build_summary(
                     "avg": _mean(act_waits),
                     "p95": _percentile(act_waits, 95),
                 },
+                "processing": {
+                    "avg": _mean(act_procs),
+                    "p95": _percentile(act_procs, 95),
+                },
                 "queue": {"avg": round(queue_avg, 3), "max": queue_max},
+                "utilizationPct": round(act_utilization * 100),
                 "avgCost": _num(prosimos_row.get("Avg Cost")),
                 "cycleContributionPct": round(
                     (act_wait_total + act_proc_total) / case_cycle_total, 4

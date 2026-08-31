@@ -247,6 +247,46 @@
       "gatewaysToValidate_other": "{{count}} esiti gateway ancora da validare",
       "allGrounded": "Ogni parametro è fondato sull'evidenza.",
       "compact": "Prontezza"
+    },
+    "heatmap": {
+      "metricLabel": "Metrica",
+      "metric": {
+        "wait": "Attesa",
+        "work": "Lavoro",
+        "utilization": "Utilizzo",
+        "cost": "Costo",
+        "volume": "Volume",
+        "cycleShare": "Contributo al ciclo"
+      },
+      "legendLow": "basso",
+      "legendHigh": "alto",
+      "ranking": "Classifica per {{metric}}",
+      "bottleneckTag": "Collo di bottiglia",
+      "diagnostic": "Collo di bottiglia strutturale — verdetto multi-fattore sull'intera run, distinto dalla pressione istantanea del Replay.",
+      "noRun": "Nessuna simulazione da analizzare.",
+      "noRunHint": "Avvia una run dalla Panoramica per vedere la heatmap.",
+      "noData": "Prosimos non ha restituito statistiche per questa run.",
+      "factors": "Perché è un collo di bottiglia",
+      "factor": {
+        "waitingContribution": "Quota dell'attesa totale",
+        "utilization": "Utilizzo risorsa",
+        "queueGrowth": "Crescita della coda",
+        "casesAffected": "Casi in coda",
+        "cycleContribution": "Quota del tempo di ciclo",
+        "persistence": "Persistenza"
+      },
+      "fields": {
+        "wait": "Attesa media",
+        "waitP95": "Attesa P95",
+        "work": "Lavoro medio",
+        "queue": "Coda media",
+        "queueMax": "Coda max",
+        "utilization": "Utilizzo risorsa",
+        "cost": "Costo medio",
+        "volume": "Volume",
+        "cycleShare": "Contributo al ciclo",
+        "casesAffected": "Casi impattati"
+      }
     }
   },
   "side": {
