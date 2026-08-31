@@ -74,7 +74,7 @@ export function PageHeader({
             )}
           </div>
           {description && (
-            <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
+            <p className="mt-1.5 max-w-xl text-body-sm leading-relaxed text-muted-foreground">
               {description}
             </p>
           )}

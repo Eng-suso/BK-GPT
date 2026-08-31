@@ -17,11 +17,19 @@
     "retry": "Riprova",
     "open": "Apri",
     "close": "Chiudi",
-    "search": "Cerca"
+    "search": "Cerca",
+    "clearFilter": "Azzera questo filtro",
+    "clearFilters": "Azzera filtri"
+  },
+  "pagination": {
+    "previous": "Pagina precedente",
+    "next": "Pagina successiva",
+    "rowsPerPage": "Righe per pagina"
   },
   "state": {
     "loading": "Caricamento…",
     "error": "Si è verificato un errore",
+    "errorBody": "Non è stato possibile caricare i dati. Riprova.",
     "empty": "Nessun dato disponibile",
     "backendUnavailable": "Backend non raggiungibile",
     "comingSoon": "In arrivo"

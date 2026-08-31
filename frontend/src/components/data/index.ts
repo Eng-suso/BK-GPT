@@ -1,7 +1,7 @@
 export { DataTable } from "./DataTable";
 export type { DataTableProps } from "./DataTable";
 export { ListToolbar } from "./ListToolbar";
-export type { FilterChip } from "./ListToolbar";
+export type { ListFilterMenu } from "./ListToolbar";
 export { DataTablePagination } from "./DataTablePagination";
 export type { DataTablePaginationProps } from "./DataTablePagination";
 export { ProgressBar } from "./ProgressBar";
@@ -12,3 +12,5 @@ export { StatTile } from "./StatTile";
 export type { StatTileProps, StatTone } from "./StatTile";
 export { NavRow } from "./NavRow";
 export type { NavRowProps } from "./NavRow";
+export { ListSummary } from "./ListSummary";
+export type { ListSummaryItem } from "./ListSummary";

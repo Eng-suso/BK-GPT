@@ -30,7 +30,7 @@ export function PriorityTag({
   return (
     <span
       className={cn(
-        "inline-flex h-[19px] items-center rounded-[5px] px-[7px] text-[10.5px] font-semibold",
+        "inline-flex h-5 items-center rounded-sm px-1.5 text-micro font-semibold",
         STYLES[priority],
         className,
       )}

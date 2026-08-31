@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -17,8 +18,7 @@ export function DetailPanel({
   return (
     <aside
       className={cn(
-        "flex flex-col overflow-hidden border-l border-border bg-card px-5 pt-5",
-        "shadow-[-16px_0_40px_-24px_rgba(14,20,32,0.10)]",
+        "flex flex-col overflow-hidden border-l border-border bg-card px-5 pt-5 shadow-panel-left",
         className,
       )}
     >
@@ -36,10 +36,11 @@ export function DetailPanelHeader({
   subtitle?: string;
   onClose?: () => void;
 }): React.JSX.Element {
+  const { t } = useTranslation("common");
   return (
     <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
       <div>
-        <h3 className="text-[15.5px] font-semibold tracking-[-0.02em] text-foreground">
+        <h3 className="text-subtitle font-semibold tracking-[-0.02em] text-foreground">
           {title}
         </h3>
         {subtitle && (
@@ -50,8 +51,8 @@ export function DetailPanelHeader({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Chiudi pannello"
-          className="grid size-[26px] place-items-center rounded-[7px] text-muted-foreground hover:bg-muted"
+          aria-label={t("actions.close")}
+          className="grid size-[26px] place-items-center rounded-md text-muted-foreground hover:bg-muted"
         >
           <X className="size-3.5" />
         </button>

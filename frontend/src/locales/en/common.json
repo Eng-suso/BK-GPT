@@ -17,11 +17,19 @@
     "retry": "Retry",
     "open": "Open",
     "close": "Close",
-    "search": "Search"
+    "search": "Search",
+    "clearFilter": "Clear this filter",
+    "clearFilters": "Clear filters"
+  },
+  "pagination": {
+    "previous": "Previous page",
+    "next": "Next page",
+    "rowsPerPage": "Rows per page"
   },
   "state": {
     "loading": "Loading…",
     "error": "Something went wrong",
+    "errorBody": "The data could not be loaded. Try again.",
     "empty": "No data available",
     "backendUnavailable": "Backend unavailable",
     "comingSoon": "Coming soon"

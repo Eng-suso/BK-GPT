@@ -28,6 +28,17 @@
 
   /* 8px control radius across the design system. */
   --radius: 0.5rem;
+
+  /* One panel width, referenced by every list screen so the main column and
+     the right detail panel never drift by a few px (was 344 vs 340). */
+  --workspace-detail-panel: 20rem; /* 320px */
+
+  /* Card / elevation composites used across the workspace surfaces. Anchored
+     on the primitive shadow colour (slate-900 @ low alpha), not ad-hoc rgba. */
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06),
+    0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  --shadow-panel-left: -16px 0 40px -24px rgba(15, 23, 42, 0.1);
+  --shadow-control: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 /*
@@ -75,6 +86,34 @@
 
   --font-sans: var(--font-family-geist);
   --font-mono: var(--font-family-geist-mono);
+
+  /* Elevation utilities — `shadow-card`, `shadow-panel-left`, `shadow-control`.
+     Replaces the 4+ hand-rolled `shadow-[0_1px_…rgba(14,20,32,…)]` variants. */
+  --shadow-card: var(--shadow-card);
+  --shadow-panel-left: var(--shadow-panel-left);
+  --shadow-control: var(--shadow-control);
+}
+
+/*
+ * Workspace type ramp. The primitive `--font-size-*` scale is complete but was
+ * bypassed by ~80 arbitrary `text-[12.5px]` literals. These four semantic steps
+ * cover the dense list/panel surfaces; `text-xs` (12) / `text-sm` (14) /
+ * `text-2xl` (24) from Tailwind's default theme cover the rest.
+ */
+@theme {
+  /* Workspace list screens only mount the right detail panel once there is
+     room for it beside a full-width table (below this the panel would squeeze
+     the columns). `panel:` variant. */
+  --breakpoint-panel: 96rem; /* 1536px */
+
+  --text-2xs: 0.625rem; /* 10px — avatar initials, counters */
+  --text-2xs--line-height: 0.875rem; /* 14px */
+  --text-micro: 0.6875rem; /* 11px — table headers, meta lines, tags */
+  --text-micro--line-height: 0.875rem; /* 14px */
+  --text-body-sm: 0.8125rem; /* 13px — table cells, panel body */
+  --text-body-sm--line-height: 1.125rem; /* 18px */
+  --text-subtitle: 0.9375rem; /* 15px — panel header title */
+  --text-subtitle--line-height: 1.25rem; /* 20px */
 }
 
 @layer base {
