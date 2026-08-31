@@ -1,5 +1,7 @@
 {
-  "breadcrumb": { "projects": "Progetti" },
+  "breadcrumb": {
+    "projects": "Progetti"
+  },
   "tabs": {
     "canvas": "Modello",
     "chat": "Discussione",
@@ -8,7 +10,8 @@
   "actions": {
     "backToProject": "Torna al progetto",
     "toggleChat": "Chat canvas",
-    "toggleProperties": "Proprietà"
+    "toggleProperties": "Proprietà",
+    "closeOverlays": "Chiudi i pannelli"
   },
   "state": {
     "processNotFound": "Processo non trovato in questo progetto.",
