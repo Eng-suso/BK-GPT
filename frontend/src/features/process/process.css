@@ -89,8 +89,14 @@
 }
 
 .workspace-splitter:hover,
-.workspace-splitter.is-active {
+.workspace-splitter.is-active,
+.workspace-splitter:focus-visible {
   background: var(--color-surface-selected);
+}
+
+.workspace-splitter:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
 }
 
 .splitter-line {
@@ -102,7 +108,8 @@
 }
 
 .workspace-splitter:hover .splitter-line,
-.workspace-splitter.is-active .splitter-line {
+.workspace-splitter.is-active .splitter-line,
+.workspace-splitter:focus-visible .splitter-line {
   background: var(--blue-400);
   height: 60px;
 }
@@ -321,40 +328,22 @@
   padding: var(--space-300) var(--space-400);
 }
 
-.process-studio-chat .embedded-chat-panel .message.user {
-  max-width: 82%;
-}
-
 .process-studio-chat .embedded-chat-panel .composer-wrap {
   padding: var(--space-200);
 }
 
 .process-studio-chat .embedded-chat-panel .composer-box {
-  padding: 11px 12px 10px;
+  padding: var(--space-300) var(--space-300) var(--space-200);
 }
 
-/* Narrow canvas chat: icon-only composer buttons to keep the row compact. */
+/*
+ * Narrow canvas chat: tighten the composer action row. Label collapse is left
+ * to the `@container composer-wrap (max-width: 540px)` query in chat.css, so a
+ * wide-resized panel gets its button labels back instead of being stuck
+ * icon-only.
+ */
 .process-studio-chat .embedded-chat-panel .composer-actions {
   gap: var(--space-100);
-}
-
-.process-studio-chat .embedded-chat-panel .composer-actions .btn-pill-light {
-  width: 36px;
-  min-width: 36px;
-  padding: 0;
-  justify-content: center;
-}
-
-.process-studio-chat .embedded-chat-panel .composer-actions .btn-pill-light span,
-.process-studio-chat .embedded-chat-panel .btn-send span {
-  display: none;
-}
-
-.process-studio-chat .embedded-chat-panel .btn-send {
-  width: 38px;
-  min-width: 38px;
-  padding: 0;
-  justify-content: center;
 }
 
 @media (max-width: 1180px) {
@@ -378,7 +367,7 @@
 
 .embedded-chat-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -564,35 +553,31 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 16px;
+  padding: var(--space-400);
   background: var(--color-surface-primary);
 }
 
 .embedded-chat-panel .welcome {
   min-height: 100%;
-  padding: 24px 12px;
+  padding: var(--space-600) var(--space-300);
 }
 
-.embedded-chat-panel .welcome-inner,
 .embedded-chat-panel .message-list,
 .embedded-chat-panel .composer-box,
 .embedded-chat-panel .interview-panel {
   width: 100%;
 }
 
+/* Panel is already narrow — the column spans it, no reading cap. */
 .embedded-chat-panel .message-list {
-  gap: 18px;
+  gap: var(--space-400);
   max-width: none;
 }
 
 .embedded-chat-panel .message {
   min-width: 0;
-  font-size: 14px;
+  font-size: var(--font-size-300);
   overflow-wrap: anywhere;
-}
-
-.embedded-chat-panel .message.user {
-  max-width: 86%;
 }
 
 .embedded-chat-panel .message.assistant.markdown {
@@ -608,20 +593,20 @@
 }
 
 .embedded-chat-panel .composer-wrap {
-  padding: 12px;
+  padding: var(--space-300);
   border-top: 1px solid var(--color-border-subtle);
   background: var(--color-surface-primary);
 }
 
 .embedded-chat-panel .composer-box {
-  border-radius: var(--radius-400);
-  padding: 12px 14px 10px;
+  border-radius: var(--radius-300);
+  padding: var(--space-300) var(--space-300) var(--space-200);
   box-shadow: none;
 }
 
 .embedded-chat-panel .footnote {
-  margin-top: 6px;
-  font-size: 11px;
+  margin-top: var(--space-100);
+  font-size: var(--font-size-100);
 }
 
 @media (max-width: 980px) {

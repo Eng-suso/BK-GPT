@@ -37,11 +37,14 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
 }) => {
   const { t } = useTranslation("process");
   const [isCanvasChatOpen, setIsCanvasChatOpen] = React.useState(true);
+  const CHAT_MIN = 300;
+  const CHAT_MAX = 600;
+  // One remembered width for the canvas chat, not one per model.
   const [chatWidth, setChatWidth] = usePanelSize(
-    `process-chat:${process.bpmnModelId}`,
+    "process-chat",
     380,
-    260,
-    600,
+    CHAT_MIN,
+    CHAT_MAX,
   );
   const dragStart = React.useRef(0);
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(
@@ -78,6 +81,10 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
                   ariaLabel={t("actions.toggleChat")}
                   onResizeStart={() => (dragStart.current = chatWidth)}
                   onDelta={(dx) => setChatWidth(dragStart.current + dx)}
+                  onStep={(dx) => setChatWidth(chatWidth + dx)}
+                  valueNow={chatWidth}
+                  valueMin={CHAT_MIN}
+                  valueMax={CHAT_MAX}
                 />
               </>
             )}

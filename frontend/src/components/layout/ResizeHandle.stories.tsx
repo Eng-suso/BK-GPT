@@ -24,6 +24,10 @@ function TwoPanelsDemo() {
         ariaLabel="Resize left panel"
         onResizeStart={() => setStart(width)}
         onDelta={(dx) => setWidth(Math.max(140, Math.min(420, start + dx)))}
+        onStep={(dx) => setWidth(Math.max(140, Math.min(420, width + dx)))}
+        valueNow={width}
+        valueMin={140}
+        valueMax={420}
       />
       <div className="flex-1 rounded-md border border-border bg-card p-3 text-sm">
         Right panel (flex)
