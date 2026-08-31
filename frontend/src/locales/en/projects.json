@@ -37,10 +37,12 @@
     "phaseLabel": "Phase",
     "actions": {
       "updateStatus": "Update status",
-      "openRoadmap": "Open roadmap"
+      "openRoadmap": "Open roadmap",
+      "openChat": "Open chat"
     },
     "tabs": {
       "overview": "Overview",
+      "chat": "Project chat",
       "processes": "Processes",
       "sources": "Sources",
       "decisions": "Decisions",

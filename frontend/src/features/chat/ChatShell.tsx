@@ -1,9 +1,18 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { MoreHorizontal, Plus, Share2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, ChatSession } from "./types";
+import type { ChatScope } from "./chatScope";
+import { subjectForScope } from "./chatScope";
 import { Sidebar } from "./navigation/Sidebar";
 import { ChatHeader } from "./components/ChatHeader";
 import { EmptyState } from "./components/EmptyState";
@@ -13,6 +22,7 @@ import { ChatComposer } from "./components/ChatComposer";
 interface ChatShellProps {
   chrome?: "full" | "panel";
   layout?: "standalone" | "embedded";
+  scope?: ChatScope;
   sessions?: ChatSession[];
   currentThreadId?: string | null;
   messages?: ChatMessage[];
@@ -39,6 +49,7 @@ interface ChatShellProps {
 export const ChatShell: React.FC<ChatShellProps> = ({
   chrome = "full",
   layout = "standalone",
+  scope,
   sessions = [],
   currentThreadId = null,
   messages = [],
@@ -61,9 +72,17 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   onModelChange,
   reviewSlot,
 }) => {
+  const { t } = useTranslation("chat");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isEmbedded = layout === "embedded";
+  const hasConversation = messages.length > 0;
+  const headerTitle = hasConversation
+    ? activeTitle
+    : subjectForScope(
+        scope ?? { type: "consultant" },
+        t("scope.consultant.title"),
+      );
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -91,83 +110,109 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   if (chrome === "panel") {
     return (
       <section className="embedded-chat-panel" aria-label="Chat contestuale">
-        <header className="embedded-chat-header flex min-h-14 items-center justify-between gap-3 border-b border-border px-3.5 py-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Chat
-            </p>
-            <h3 className="mt-0.5 text-sm font-semibold leading-tight text-foreground">
-              {activeTitle}
+        <header className="embedded-chat-header flex min-h-[var(--inspector-header-height)] items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="eyebrow">{t("header.eyebrow")}</p>
+            <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">
+              {headerTitle}
             </h3>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1.5">
             <Button type="button" variant="outline" size="sm" onClick={onNewChat}>
-              Nuova
+              <Plus className="size-3.5" />
+              {t("actions.new")}
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={onShare}>
-              Copia
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("actions.more")}
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onShare?.()}>
+                  <Share2 />
+                  {t("actions.copy")}
+                </DropdownMenuItem>
+                {onClearHistory && (
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => onClearHistory()}
+                  >
+                    <Trash2 />
+                    {t("actions.clearHistory")}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
-        <div
-          className="flex items-start gap-2.5 border-b border-border bg-muted/40 px-3.5 py-2.5"
-          aria-label="Thread della chat corrente"
-        >
-          <div className="flex flex-col gap-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            <span>Thread</span>
-            <strong className="text-[13px] text-foreground">
-              {sessions.length}
-            </strong>
-          </div>
-
-          <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5">
-            {sessions.length === 0 && (
-              <span className="inline-flex min-h-7 items-center text-xs text-muted-foreground">
-                Nessun thread
-              </span>
-            )}
-            {sessions.map((session) => {
-              const isActive = session.threadId === currentThreadId;
-
-              return (
-                <div
-                  key={session.threadId}
-                  className={cn(
-                    "flex max-w-[210px] flex-none items-center overflow-hidden rounded-full border border-border bg-card",
-                    isActive && "border-primary bg-accent",
-                  )}
-                >
-                  <button
-                    type="button"
-                    title={session.title}
-                    aria-current={isActive ? "true" : undefined}
-                    onClick={() => onSelectSession?.(session.threadId)}
+        {sessions.length > 0 && (
+          <div
+            className="flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-1.5"
+            aria-label={t("threads.label")}
+          >
+            <span className="eyebrow shrink-0">{t("threads.label")}</span>
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+              {sessions.map((session) => {
+                const isActive = session.threadId === currentThreadId;
+                return (
+                  <span
+                    key={session.threadId}
                     className={cn(
-                      "min-w-0 max-w-[170px] truncate py-0 pr-2 pl-2.5 text-xs font-semibold leading-7",
-                      isActive ? "text-primary" : "text-foreground",
+                      "inline-flex flex-none items-center rounded-md border",
+                      isActive
+                        ? "border-border bg-card"
+                        : "border-transparent",
                     )}
                   >
-                    {session.title}
-                  </button>
-                  <button
-                    type="button"
-                    title="Elimina thread"
-                    aria-label="Elimina thread"
-                    onClick={() => onDeleteSession?.(session.threadId)}
-                    className="mr-0.5 grid size-6 flex-none place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              );
-            })}
+                    <button
+                      type="button"
+                      title={session.title}
+                      aria-current={isActive ? "true" : undefined}
+                      onClick={() => onSelectSession?.(session.threadId)}
+                      className={cn(
+                        "max-w-[160px] truncate rounded-md px-2 py-1 text-xs leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        isActive
+                          ? "font-medium text-primary"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {session.title}
+                    </button>
+                    {isActive && (
+                      <button
+                        type="button"
+                        aria-label={t("threads.delete")}
+                        onClick={() => onDeleteSession?.(session.threadId)}
+                        className="mr-0.5 grid size-5 flex-none place-items-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => onNewChat?.()}
+                className="inline-flex flex-none items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Plus className="size-3" />
+                {t("threads.new")}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="embedded-chat-body">
           {messages.length === 0 ? (
-            <EmptyState onSelectPrompt={onSelectPrompt} />
+            <EmptyState scope={scope} onSelectPrompt={onSelectPrompt} />
           ) : (
             <MessageList messages={messages} onRetry={onRetry} />
           )}
@@ -215,7 +260,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
         <section className="main">
           <ChatHeader
-            title={activeTitle}
+            title={headerTitle}
             isDrawerOpen={isDrawerOpen}
             onMenuToggle={() => setIsDrawerOpen((prev) => !prev)}
             onConfig={onConfig}
@@ -225,7 +270,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           <div className="content">
             <div className="messages" id="messages">
               {messages.length === 0 ? (
-                <EmptyState onSelectPrompt={onSelectPrompt} />
+                <EmptyState scope={scope} onSelectPrompt={onSelectPrompt} />
               ) : (
                 <MessageList messages={messages} onRetry={onRetry} />
               )}

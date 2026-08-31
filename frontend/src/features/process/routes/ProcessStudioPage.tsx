@@ -11,9 +11,11 @@ import { ROUTES } from "@/app/routes";
 import { useProjectQuery } from "@/features/projects/api";
 import { ProcessWorkspace, type ProcessView } from "../ProcessWorkspace";
 
-const VIEWS: ProcessView[] = ["canvas", "chat", "simulation", "properties"];
+const VIEWS: ProcessView[] = ["canvas", "chat", "simulation"];
 
 function parseView(raw: string | null): ProcessView {
+  // Back-compat: the old standalone "properties" view is now a canvas dock.
+  if (raw === "properties") return "canvas";
   return VIEWS.includes(raw as ProcessView) ? (raw as ProcessView) : "canvas";
 }
 
@@ -24,7 +26,11 @@ export function ProcessStudioPage(): React.JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const projectQ = useProjectQuery(projectId);
-  const view = parseView(searchParams.get("view"));
+  const rawView = searchParams.get("view");
+  const view = parseView(rawView);
+  const propertiesOpen =
+    view === "canvas" &&
+    (searchParams.get("panel") === "properties" || rawView === "properties");
 
   const setView = useCallback(
     (next: string) => {
@@ -39,6 +45,19 @@ export function ProcessStudioPage(): React.JSX.Element {
     },
     [setSearchParams],
   );
+
+  const togglePropertiesPanel = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const sp = new URLSearchParams(prev);
+        sp.set("view", "canvas");
+        if (sp.get("panel") === "properties") sp.delete("panel");
+        else sp.set("panel", "properties");
+        return sp;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
 
   const backToProject = useCallback(
     () => navigate(ROUTES.projects.detail(projectId)),
@@ -81,7 +100,7 @@ export function ProcessStudioPage(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-col gap-3 px-7 pb-2 pt-5">
+      <div className="flex flex-col gap-3 px-7 pb-2 pt-6">
         <PageHeader
           breadcrumbs={[
             { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
@@ -111,7 +130,8 @@ export function ProcessStudioPage(): React.JSX.Element {
           project={project}
           process={process}
           view={view}
-          onViewChange={setView}
+          propertiesOpen={propertiesOpen}
+          onTogglePropertiesPanel={togglePropertiesPanel}
         />
       </div>
     </div>

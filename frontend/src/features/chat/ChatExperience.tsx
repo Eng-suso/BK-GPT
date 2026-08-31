@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { chatScopeKey, toApiChatScope } from "../../contracts/chat";
 import { API_BASE } from "../../lib/api";
 import { withAdminAuth, withAuth } from "../../lib/security";
@@ -170,6 +171,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   layout = "standalone",
   scope = { type: "consultant" },
 }) => {
+  const { t } = useTranslation("chat");
   const apiScope = toApiChatScope(scope);
   const persistentApiScope = toApiChatScope(scope, { includeTransient: false });
   const scopeKey = chatScopeKey(apiScope);
@@ -383,7 +385,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       setSessions((prev) =>
         prev.map((s) => {
           if (s.threadId !== session.threadId) return s;
-          const msgs = s.messages.at(-1)?.content === "Sto elaborando..." ? s.messages.slice(0, -1) : s.messages;
+          const msgs =
+            s.messages.at(-1)?.content === t("status.thinking")
+              ? s.messages.slice(0, -1)
+              : s.messages;
           return { ...s, messages: [...msgs, errorMessage] };
         })
       );
@@ -414,7 +419,11 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     let session: ChatSession | null = null;
 
     const userMessage: ChatMessage = { role: "user", content };
-    const loadingMessage: ChatMessage = { role: "assistant", content: "Sto elaborando...", activity: [] };
+    const loadingMessage: ChatMessage = {
+      role: "assistant",
+      content: t("status.thinking"),
+      activity: [],
+    };
 
     setIsBusy(true);
 
@@ -586,6 +595,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
       <ChatShell
         chrome={chrome}
         layout={layout}
+        scope={scope}
         sessions={sessions}
         currentThreadId={currentThreadId}
         messages={messages}

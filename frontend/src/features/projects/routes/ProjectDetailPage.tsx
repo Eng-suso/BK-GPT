@@ -1,10 +1,17 @@
 import { useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, CheckCircle2, Circle, Clock, FileText } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Circle,
+  Clock,
+  FileText,
+  MessageSquare,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
-import { ProgressBar, NavRow } from "@/components/data";
+import { ProgressBar, NavRow, Meter } from "@/components/data";
 import { EmptyState, ErrorState } from "@/components/feedback";
 import { StatusIndicator } from "@/components/status";
 import {
@@ -14,9 +21,11 @@ import {
   DetailPanelSection,
 } from "@/components/panel";
 import { Button } from "@/ui/button";
+import { Card } from "@/ui/card";
 import { Skeleton } from "@/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
+import { ChatExperience } from "@/features/chat/ChatExperience";
 import {
   useProjectQuery,
   useProjectSourcesQuery,
@@ -89,8 +98,25 @@ export function ProjectDetailPage(): React.JSX.Element {
             { label: project.name },
           ]}
           title={project.name}
+          meta={
+            <>
+              <span>{project.client}</span>
+              <span aria-hidden>·</span>
+              <StatusIndicator
+                tone={projectStatusTone(project.status)}
+                label={project.status}
+              />
+              <span aria-hidden>·</span>
+              <span>
+                {t("detail.phaseLabel")} {project.phase}
+              </span>
+            </>
+          }
           actions={
             <>
+              <Button variant="outline" size="sm" onClick={() => setTab("chat")}>
+                <MessageSquare /> {t("detail.actions.openChat")}
+              </Button>
               <Button variant="ghost" size="sm">
                 {t("detail.actions.updateStatus")}
               </Button>
@@ -100,35 +126,25 @@ export function ProjectDetailPage(): React.JSX.Element {
             </>
           }
         />
-        <p className="-mt-2 flex items-center gap-2 text-[12.5px] text-muted-foreground">
-          <span>{project.client}</span>
-          <span>·</span>
-          <StatusIndicator
-            tone={projectStatusTone(project.status)}
-            label={project.status}
-          />
-          <span>·</span>
-          <span>
-            {t("detail.phaseLabel")} {project.phase}
-          </span>
-        </p>
 
         <Tabs
           value={tab}
           onValueChange={setTab}
-          className="flex flex-col gap-4"
+          className="flex min-w-0 flex-col gap-4"
         >
-          <TabsList variant="line">
-            {PROJECT_TABS.map((tabDef) => (
-              <TabsTrigger
-                key={tabDef.id}
-                value={tabDef.id}
-                disabled={!tabDef.available}
-              >
-                {t(tabDef.labelKey)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="-mx-7 min-w-0 overflow-x-auto px-7 pb-1">
+            <TabsList variant="line" className="min-w-max">
+              {PROJECT_TABS.map((tabDef) => (
+                <TabsTrigger
+                  key={tabDef.id}
+                  value={tabDef.id}
+                  disabled={!tabDef.available}
+                >
+                  {t(tabDef.labelKey)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           <TabsContent value="overview">
             <OverviewTab
@@ -136,6 +152,9 @@ export function ProjectDetailPage(): React.JSX.Element {
               decisions={decisionsQ.data ?? []}
               onOpenProcess={openProcess}
             />
+          </TabsContent>
+          <TabsContent value="chat" className="min-h-0">
+            <ProjectChatTab project={project} />
           </TabsContent>
           <TabsContent value="processes">
             <ProcessesTab
@@ -186,14 +205,14 @@ export function ProjectDetailPage(): React.JSX.Element {
               {project.milestones.slice(0, 5).map((m, i) => (
                 <li
                   key={m}
-                  className="flex items-center gap-2.5 border-b border-border/60 py-2 text-[12.5px] text-foreground last:border-b-0"
+                  className="flex items-center gap-2 border-b border-border/60 py-2 text-xs text-foreground last:border-b-0"
                 >
                   {i === 0 ? (
-                    <CheckCircle2 className="size-[15px] flex-none text-[var(--color-status-success)]" />
+                    <CheckCircle2 className="size-4 flex-none text-[var(--color-status-success)]" />
                   ) : i === 1 ? (
-                    <Clock className="size-[15px] flex-none text-[var(--color-status-warning)]" />
+                    <Clock className="size-4 flex-none text-[var(--color-status-warning)]" />
                   ) : (
-                    <Circle className="size-[15px] flex-none text-muted-foreground" />
+                    <Circle className="size-4 flex-none text-muted-foreground" />
                   )}
                   {m}
                 </li>
@@ -219,7 +238,7 @@ function OverviewTab({
 }): React.JSX.Element {
   const { t } = useTranslation("projects");
   return (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Block title={t("detail.overview.processes")}>
         {project.processItems.length === 0 ? (
           <EmptyState variant="inline" title={t("detail.processes.empty")} />
@@ -233,13 +252,13 @@ function OverviewTab({
               meta={`${p.stage} · ${p.owner}`}
               trailing={
                 <>
-                  <span className="block h-1 w-14 overflow-hidden rounded-full bg-[var(--slate-200)]">
-                    <span
-                      className="block h-full rounded-full bg-primary"
-                      style={{ width: `${p.readiness}%` }}
-                    />
-                  </span>
-                  <b className="text-[11.5px] tabular-nums text-foreground">
+                  <Meter
+                    value={p.readiness}
+                    showValue={false}
+                    height={4}
+                    className="w-16"
+                  />
+                  <b className="text-xs tabular-nums text-foreground">
                     {Math.round(p.readiness / 10)}/10
                   </b>
                 </>
@@ -256,7 +275,7 @@ function OverviewTab({
           decisions.slice(0, 5).map((d) => (
             <div
               key={d.title}
-              className="flex items-center gap-2.5 border-b border-border/60 py-2.5 text-[12.5px] text-foreground last:border-b-0"
+              className="flex items-center gap-2 border-b border-border/60 py-2 text-xs text-foreground last:border-b-0"
             >
               {d.title}
               <span className="ml-auto text-[11px] text-muted-foreground">
@@ -282,6 +301,27 @@ function OverviewTab({
         />
       </Block>
     </div>
+  );
+}
+
+function ProjectChatTab({
+  project,
+}: {
+  project: Project;
+}): React.JSX.Element {
+  return (
+    // Fills the viewport below the app chrome (top bar + page header + tab bar).
+    <Card className="h-[calc(100dvh-16rem)] min-h-[32rem] w-full min-w-0 gap-0 overflow-hidden rounded-lg py-0 shadow-none">
+      <ChatExperience
+        chrome="panel"
+        layout="embedded"
+        scope={{
+          type: "project",
+          projectId: project.id,
+          projectName: project.name,
+        }}
+      />
+    </Card>
   );
 }
 
@@ -328,7 +368,7 @@ function SimpleList({
       {items.map((item) => (
         <li
           key={item}
-          className="flex items-center gap-2.5 border-b border-border/60 px-4 py-2.5 text-[12.5px] text-muted-foreground last:border-b-0"
+          className="flex items-center gap-2 border-b border-border/60 px-4 py-2 text-xs text-muted-foreground last:border-b-0"
         >
           <FileText className="size-3.5 flex-none" />
           {item}
@@ -347,9 +387,7 @@ function Block({
 }): React.JSX.Element {
   return (
     <section className="flex flex-col">
-      <h3 className="border-b border-border pb-2.5 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
-        {title}
-      </h3>
+      <h3 className="eyebrow border-b border-border pb-2">{title}</h3>
       {children}
     </section>
   );

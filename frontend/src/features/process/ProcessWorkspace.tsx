@@ -1,22 +1,26 @@
 import React from "react";
-import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { Button } from "@/ui/button";
-import { DetailPanelKeyValue } from "@/components/panel";
+import { PanelShellHeader } from "@/components/panel";
+import { EmptyState } from "@/components/feedback";
+import { Meter } from "@/components/data";
+import { ResizeHandle } from "@/components/layout";
+import { usePanelSize } from "@/lib/usePanelSize";
 import type { Project, ProjectProcess } from "../../contracts/workspace";
 import { ChatExperience } from "../chat/ChatExperience";
 import { ProcessBpmnCanvas } from "./ProcessBpmnCanvas";
 import { SimulationWorkspace } from "./SimulationWorkspace";
 
-export type ProcessView = "chat" | "canvas" | "simulation" | "properties";
+export type ProcessView = "chat" | "canvas" | "simulation";
 
 type ProcessWorkspaceProps = {
   project: Project;
   process: ProjectProcess;
   /** Active view — owned by the route (URL `?view=`). */
   view: ProcessView;
-  onViewChange: (view: ProcessView) => void;
+  /** BPMN properties dock — owned by the route (URL `?panel=properties`). */
+  propertiesOpen: boolean;
+  onTogglePropertiesPanel: () => void;
 };
 
 /**
@@ -28,94 +32,54 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
   project,
   process,
   view,
-  onViewChange,
+  propertiesOpen,
+  onTogglePropertiesPanel,
 }) => {
   const { t } = useTranslation("process");
   const [isCanvasChatOpen, setIsCanvasChatOpen] = React.useState(true);
-  const [chatWidth, setChatWidth] = React.useState(380);
-  const [isDragging, setIsDragging] = React.useState(false);
+  const [chatWidth, setChatWidth] = usePanelSize(
+    `process-chat:${process.bpmnModelId}`,
+    380,
+    260,
+    600,
+  );
+  const dragStart = React.useRef(0);
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(
     null,
   );
   const propertiesPanelRef = React.useRef<HTMLDivElement | null>(null);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    setIsDragging(true);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging) return;
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setChatWidth(Math.max(260, Math.min(e.clientX - rect.left, 600)));
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const showStudio = view === "canvas" || view === "properties";
-
   return (
     <section className="process-workspace process-workspace--embedded">
-      {showStudio && (
-        <div className="process-workspace-subbar">
-          <Button
-            type="button"
-            variant={isCanvasChatOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setIsCanvasChatOpen((prev) => !prev)}
-            title={t("actions.toggleChat")}
-          >
-            <MessageSquare aria-hidden className="size-3.5" />
-            {t("actions.toggleChat")}
-          </Button>
-        </div>
-      )}
-
       <div className={`process-workspace-grid process-view-${view}`}>
-        {showStudio && (
-          <div
-            className={`process-studio-flex ${isDragging ? "is-dragging" : ""}`}
-            aria-label="Studio BPMN"
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-          >
+        {view === "canvas" && (
+          <div className="process-studio-flex" aria-label="Studio BPMN">
             {isCanvasChatOpen && (
-              <section
-                className="process-studio-chat"
-                style={{ width: `${chatWidth}px`, flex: `0 0 ${chatWidth}px` }}
-                aria-label="Chat canvas"
-              >
-                <ChatExperience
-                  chrome="panel"
-                  layout="embedded"
-                  scope={{
-                    type: "canvas",
-                    projectId: project.id,
-                    processId: process.id,
-                    bpmnModelId: process.bpmnModelId,
-                    processName: process.name,
-                    currentBpmnXml: currentCanvasXml,
-                  }}
+              <>
+                <section
+                  className="process-studio-chat"
+                  style={{ width: chatWidth, flex: `0 0 ${chatWidth}px` }}
+                  aria-label={t("actions.toggleChat")}
+                >
+                  <ChatExperience
+                    chrome="panel"
+                    layout="embedded"
+                    scope={{
+                      type: "canvas",
+                      projectId: project.id,
+                      processId: process.id,
+                      bpmnModelId: process.bpmnModelId,
+                      processName: process.name,
+                      currentBpmnXml: currentCanvasXml,
+                    }}
+                  />
+                </section>
+                <ResizeHandle
+                  ariaLabel={t("actions.toggleChat")}
+                  onResizeStart={() => (dragStart.current = chatWidth)}
+                  onDelta={(dx) => setChatWidth(dragStart.current + dx)}
                 />
-              </section>
-            )}
-
-            {isCanvasChatOpen && (
-              <div
-                className={`workspace-splitter ${isDragging ? "is-active" : ""}`}
-                onPointerDown={handlePointerDown}
-                title="Trascina per ridimensionare la chat"
-              >
-                <div className="splitter-line" />
-              </div>
+              </>
             )}
 
             <section
@@ -128,41 +92,44 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
                 processName={process.name}
                 propertiesPanelRef={propertiesPanelRef}
                 onCurrentXmlChange={setCurrentCanvasXml}
+                isCanvasChatOpen={isCanvasChatOpen}
+                onToggleCanvasChat={() => setIsCanvasChatOpen((prev) => !prev)}
+                isPropertiesOpen={propertiesOpen}
+                onTogglePropertiesPanel={onTogglePropertiesPanel}
               />
             </section>
 
-            {view === "properties" && (
-              <aside
-                className="process-studio-properties"
-                style={{ width: "340px", flex: "0 0 340px", marginLeft: "8px" }}
-                aria-label="Proprietà BPMN"
-              >
-                <header className="flex min-h-14 items-center justify-between gap-3 border-b border-border px-3.5 py-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                      {t("properties.eyebrow")}
-                    </p>
-                    <h3 className="mt-0.5 text-sm font-semibold text-foreground">
-                      {t("properties.title")}
-                    </h3>
-                  </div>
+            {/*
+              The properties host stays mounted so bpmn-js keeps its panel
+              attached; `hidden` toggles only its visibility / layout.
+            */}
+            <aside
+              className="process-studio-properties"
+              style={{ width: 340, flex: "0 0 340px", marginLeft: 8 }}
+              aria-label={t("properties.title")}
+              hidden={!propertiesOpen}
+            >
+              <PanelShellHeader
+                eyebrow={t("properties.eyebrow")}
+                title={t("properties.title")}
+                actions={
                   <span className="text-xs text-muted-foreground">
                     {t("properties.hint")}
                   </span>
-                </header>
-                <div
-                  className="process-bpmn-properties-host"
-                  ref={propertiesPanelRef}
-                />
-              </aside>
-            )}
+                }
+              />
+              <div
+                className="process-bpmn-properties-host"
+                ref={propertiesPanelRef}
+              />
+            </aside>
           </div>
         )}
 
         {view === "simulation" && (
           <section
             className="process-simulation-panel"
-            aria-label="Simulazione processo"
+            aria-label={t("simulation.diagram.title")}
           >
             <SimulationWorkspace
               process={process}
@@ -187,11 +154,7 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
             </section>
 
             <aside className="process-side-panel" aria-label="Pannello processo">
-              <ProcessSideSummary
-                process={process}
-                onOpenCanvas={() => onViewChange("canvas")}
-                onOpenProperties={() => onViewChange("properties")}
-              />
+              <ProcessSideSummary process={process} />
             </aside>
           </>
         )}
@@ -200,59 +163,43 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
   );
 };
 
-function ProcessSideSummary({
-  process,
-  onOpenCanvas,
-  onOpenProperties,
-}: {
-  process: ProjectProcess;
-  onOpenCanvas: () => void;
-  onOpenProperties: () => void;
-}) {
+function ProcessSideSummary({ process }: { process: ProjectProcess }) {
   const { t } = useTranslation("process");
   return (
-    <div className="flex flex-col gap-3.5 p-3.5">
+    <div className="flex flex-col gap-4 p-6">
       <SidePanel title={t("side.summary.title")}>
-        <DetailPanelKeyValue
-          rows={[
-            { label: t("side.summary.status"), value: process.status },
-            { label: t("side.summary.owner"), value: process.owner },
-            { label: t("side.summary.phase"), value: process.stage },
-            {
-              label: t("side.summary.readiness"),
-              value: `${process.readiness}%`,
-            },
-          ]}
-        />
-      </SidePanel>
-
-      <SidePanel title={t("side.transition.title")}>
-        <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-          {t("side.transition.body")}
-        </p>
-        <div className="mt-3.5 grid gap-2">
-          <Button variant="outline" size="sm" onClick={onOpenCanvas}>
-            {t("side.transition.openCanvas")}
-          </Button>
-          <Button variant="outline" size="sm" onClick={onOpenProperties}>
-            {t("side.transition.openProperties")}
-          </Button>
+        <dl className="flex flex-col">
+          <SummaryRow label={t("side.summary.status")} value={process.status} />
+          <SummaryRow label={t("side.summary.owner")} value={process.owner} />
+          <SummaryRow label={t("side.summary.phase")} value={process.stage} />
+        </dl>
+        <div className="mt-3">
+          <p className="eyebrow mb-1.5">{t("side.summary.readiness")}</p>
+          <Meter
+            value={process.readiness}
+            tone={
+              process.readiness >= 70
+                ? "ok"
+                : process.readiness >= 40
+                  ? "warning"
+                  : "danger"
+            }
+          />
         </div>
       </SidePanel>
 
       <SidePanel title={t("side.quality.title")}>
-        <ul className="grid gap-2 text-[12px] font-medium text-muted-foreground">
-          <li className="rounded-md bg-muted/60 px-2.5 py-2">
-            {t("side.quality.sources")}
-          </li>
-          <li className="rounded-md bg-muted/60 px-2.5 py-2">
-            {t("side.quality.roles")}
-          </li>
-          <li className="rounded-md bg-muted/60 px-2.5 py-2">
-            {t("side.quality.exceptions")}
-          </li>
-        </ul>
+        <EmptyState variant="inline" title={t("side.quality.unavailable")} />
       </SidePanel>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-border/60 py-2 text-xs last:border-b-0">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="m-0 text-right font-medium text-foreground">{value}</dd>
     </div>
   );
 }
@@ -266,7 +213,7 @@ function SidePanel({
 }) {
   return (
     <section className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_var(--shadow-100)]">
-      <h3 className="mb-2 text-sm font-semibold text-foreground">{title}</h3>
+      <h3 className="eyebrow mb-2">{title}</h3>
       {children}
     </section>
   );

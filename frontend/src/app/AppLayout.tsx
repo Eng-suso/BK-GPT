@@ -15,7 +15,7 @@ export function AppLayout(): React.JSX.Element {
         activeSection={activeSection}
         onSectionChange={(section) => navigate(SECTION_PATH[section])}
       />
-      <div className="grid grid-rows-[60px_minmax(0,1fr)] overflow-hidden">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[60px_minmax(0,1fr)] overflow-hidden">
         <TopBar />
         <main className="min-h-0 overflow-hidden">
           <Outlet />

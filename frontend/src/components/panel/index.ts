@@ -5,3 +5,4 @@ export {
   DetailPanelKeyValue,
 } from "./DetailPanel";
 export type { DetailRow } from "./DetailPanel";
+export { PanelShell, PanelShellHeader } from "./PanelShell";

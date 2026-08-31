@@ -3,6 +3,7 @@ import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
 import TokenSimulationModule from "bpmn-js-token-simulation";
 import { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule } from "bpmn-js-properties-panel";
+import { useTranslation } from "react-i18next";
 import {
   Activity,
   Download,
@@ -10,6 +11,9 @@ import {
   Maximize2,
   MessageSquareText,
   Minus,
+  MoreHorizontal,
+  PanelLeft,
+  PanelRight,
   Pause,
   Play,
   Plus,
@@ -21,8 +25,15 @@ import {
 
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import { Input } from "@/ui/input";
 import { Textarea } from "@/ui/textarea";
+import { StatusIndicator, type StatusTone } from "@/components/status";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
@@ -100,6 +111,12 @@ type ProcessBpmnCanvasProps = {
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
   visualSimulationMode?: boolean;
   onCurrentXmlChange?: (xml: string) => void;
+  /** Canvas-chat rail toggle (owned by ProcessWorkspace). */
+  isCanvasChatOpen?: boolean;
+  onToggleCanvasChat?: () => void;
+  /** BPMN properties dock toggle (owned by the route, URL `?panel=properties`). */
+  isPropertiesOpen?: boolean;
+  onTogglePropertiesPanel?: () => void;
 };
 
 type BpmnModelResponse = {
@@ -312,7 +329,12 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   propertiesPanelRef,
   visualSimulationMode = false,
   onCurrentXmlChange,
+  isCanvasChatOpen,
+  onToggleCanvasChat,
+  isPropertiesOpen,
+  onTogglePropertiesPanel,
 }) => {
+  const { t } = useTranslation("process");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modelerRef = useRef<BpmnModeler | null>(null);
@@ -858,15 +880,57 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     }
   }
 
+  const saveTone: StatusTone = hasUnsavedChanges
+    ? "warning"
+    : status.toLowerCase().startsWith("errore")
+      ? "danger"
+      : "ok";
+  const saveLabel = hasUnsavedChanges ? "Modifiche non salvate" : status;
+
   return (
     <section className="process-bpmn-shell" aria-label="Canvas BPMN">
       <header className="process-bpmn-toolbar">
-        <div>
-          <p className="product-eyebrow">BPMN 2.0</p>
-          <h3>Canvas processo</h3>
+        <div className="flex shrink-0 items-center gap-3">
+          <div>
+            <p className="product-eyebrow whitespace-nowrap">BPMN 2.0</p>
+            <h3>Canvas processo</h3>
+          </div>
+          {(onToggleCanvasChat || onTogglePropertiesPanel) && (
+            <div className="flex items-center gap-1 border-l border-border pl-3">
+              {onToggleCanvasChat && (
+                <Button
+                  type="button"
+                  variant={isCanvasChatOpen ? "secondary" : "ghost"}
+                  size="icon-sm"
+                  onClick={onToggleCanvasChat}
+                  aria-pressed={isCanvasChatOpen}
+                  title={t("actions.toggleChat")}
+                  aria-label={t("actions.toggleChat")}
+                >
+                  <PanelLeft className="size-4" />
+                </Button>
+              )}
+              {onTogglePropertiesPanel && (
+                <Button
+                  type="button"
+                  variant={isPropertiesOpen ? "secondary" : "ghost"}
+                  size="icon-sm"
+                  onClick={onTogglePropertiesPanel}
+                  aria-pressed={isPropertiesOpen}
+                  title={t("actions.toggleProperties")}
+                  aria-label={t("actions.toggleProperties")}
+                >
+                  <PanelRight className="size-4" />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
+
         <div className="process-bpmn-toolbar-actions">
-          <div className="bpmn-zoom-group" aria-label="Controlli Zoom">
+          <StatusIndicator tone={saveTone} label={saveLabel} className="mr-1" />
+
+          <div className="bpmn-zoom-group" aria-label="Controlli zoom">
             <Button
               type="button"
               variant="outline"
@@ -907,66 +971,61 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
               disabled={!isReady}
               onClick={() => setTokenSimulationMode(!isTokenSimulationActive)}
               title={isTokenSimulationActive ? "Disattiva simulazione visuale" : "Attiva simulazione visuale"}
+              aria-pressed={isTokenSimulationActive}
             >
               <Activity aria-hidden="true" />
               Token
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!isReady}
-              onClick={triggerSimulationCase}
-              title="Avvia un nuovo caso sullo start event"
-            >
-              <Play aria-hidden="true" />
-              Caso
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!isReady || !isTokenSimulationActive}
-              onClick={toggleTokenSimulationPause}
-              title={isTokenSimulationPaused ? "Riprendi simulazione" : "Metti in pausa simulazione"}
-            >
-              {isTokenSimulationPaused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
-              {isTokenSimulationPaused ? "Play" : "Pausa"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!isReady || !isTokenSimulationActive}
-              onClick={resetTokenSimulation}
-              title="Reset simulazione visuale"
-            >
-              <RotateCcw aria-hidden="true" />
-              Reset
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!isReady || !isTokenSimulationActive}
-              onClick={toggleTokenSimulationLog}
-              title="Mostra o nascondi log token"
-            >
-              <MessageSquareText aria-hidden="true" />
-              Log
-            </Button>
+            {isTokenSimulationActive && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={!isReady}
+                  onClick={triggerSimulationCase}
+                  title="Avvia un nuovo caso sullo start event"
+                  aria-label="Nuovo caso"
+                >
+                  <Play aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={!isReady}
+                  onClick={toggleTokenSimulationPause}
+                  title={isTokenSimulationPaused ? "Riprendi simulazione" : "Metti in pausa simulazione"}
+                  aria-label={isTokenSimulationPaused ? "Riprendi" : "Pausa"}
+                >
+                  {isTokenSimulationPaused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={!isReady}
+                  onClick={resetTokenSimulation}
+                  title="Reset simulazione visuale"
+                  aria-label="Reset simulazione"
+                >
+                  <RotateCcw aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={!isReady}
+                  onClick={toggleTokenSimulationLog}
+                  title="Mostra o nascondi log token"
+                  aria-label="Log token"
+                >
+                  <MessageSquareText aria-hidden="true" />
+                </Button>
+              </>
+            )}
           </div>
 
-          <Badge
-            variant="outline"
-            className={
-              hasUnsavedChanges
-                ? "border-warning-border bg-warning-surface text-[var(--amber-700)]"
-                : "text-muted-foreground"
-            }
-          >
-            {hasUnsavedChanges ? "Modifiche non salvate" : status}
-          </Badge>
           <input
             ref={fileInputRef}
             className="process-bpmn-file-input"
@@ -974,36 +1033,44 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             accept=".bpmn,.xml,.bpm"
             onChange={(event) => void importFile(event.target.files?.[0])}
           />
-          <Button
-            type="button"
-            variant={isHistoryOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setIsHistoryOpen((prev) => !prev)}
-            title={isHistoryOpen ? "Nascondi Cronologia" : "Mostra Cronologia Versioni"}
-          >
-            <History />
-            Cronologia {versions.length > 0 ? `(${versions.length})` : ""}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!isReady}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload />
-            Importa
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!isReady}
-            onClick={() => void exportCurrentXml()}
-          >
-            <Download />
-            Esporta
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant={isHistoryOpen ? "secondary" : "outline"}
+                size="icon-sm"
+                aria-label="Importa, esporta, cronologia"
+                title="Importa, esporta, cronologia"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={!isReady}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload />
+                Importa BPMN
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!isReady}
+                onClick={() => void exportCurrentXml()}
+              >
+                <Download />
+                Esporta BPMN
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setIsHistoryOpen((prev) => !prev)}
+              >
+                <History />
+                {isHistoryOpen ? "Nascondi cronologia" : "Cronologia versioni"}
+                {versions.length > 0 ? ` (${versions.length})` : ""}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             type="button"
             size="sm"
@@ -1012,7 +1079,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             title="Salva processo (Ctrl+S)"
           >
             <Save />
-            {isSaving ? "Salvo..." : "Salva (Ctrl+S)"}
+            {isSaving ? "Salvo…" : "Salva"}
           </Button>
         </div>
       </header>

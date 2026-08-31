@@ -1,0 +1,78 @@
+{
+  "header": {
+    "eyebrow": "Assistente"
+  },
+  "actions": {
+    "new": "Nuova",
+    "newChat": "Nuova conversazione",
+    "copy": "Copia conversazione",
+    "share": "Condividi",
+    "config": "Configurazione API",
+    "more": "Altre azioni",
+    "history": "Cronologia",
+    "clearHistory": "Svuota cronologia",
+    "search": "Cerca nella cronologia"
+  },
+  "threads": {
+    "label": "Thread",
+    "new": "Nuovo thread",
+    "empty": "Nessun thread",
+    "delete": "Elimina thread"
+  },
+  "composer": {
+    "placeholder": "Scrivi un messaggio…",
+    "send": "Invia",
+    "audio": "Audio",
+    "interview": "Intervista",
+    "stop": "Stop",
+    "disclaimer": "L'assistente può commettere errori. Verifica le informazioni importanti."
+  },
+  "status": {
+    "thinking": "Sto elaborando…"
+  },
+  "empty": {
+    "tryLabel": "Prova a chiedere"
+  },
+  "scope": {
+    "consultant": {
+      "title": "Assistente consulente",
+      "description": "Il copilota per l'intero portafoglio: analizza clienti, progetti e processi e prepara i prossimi passi.",
+      "prompts": [
+        "Riepiloga lo stato dei progetti a rischio",
+        "Quali decisioni aspettano una mia risposta?",
+        "Prepara l'agenda del prossimo comitato di avanzamento",
+        "Apri un nuovo progetto per un cliente"
+      ]
+    },
+    "project": {
+      "title": "Chat di progetto",
+      "description": "Ragiona sull'intero progetto: avanzamento, processi in scope, rischi e decisioni aperte.",
+      "prompts": [
+        "Qual è lo stato di avanzamento del progetto?",
+        "Elenca i processi in scope e la loro readiness",
+        "Quali rischi sono ancora da mitigare?",
+        "Genera la sintesi manageriale per lo sponsor"
+      ]
+    },
+    "process": {
+      "title": "Chat di processo",
+      "description": "Lavora su questo processo: evidenze AS-IS, ruoli, eccezioni e passaggio al modello BPMN.",
+      "prompts": [
+        "Riassumi le evidenze raccolte finora",
+        "Quali informazioni mancano per modellare il processo?",
+        "Elenca ruoli ed eccezioni da confermare",
+        "Prepara il brief per generare il BPMN"
+      ]
+    },
+    "canvas": {
+      "title": "Chat del canvas",
+      "description": "Modifica il modello BPMN a parole: l'assistente aggiorna il diagramma e verifica la coerenza.",
+      "prompts": [
+        "Genera il BPMN dalle evidenze del processo",
+        "Aggiungi un gateway dopo la verifica del credito",
+        "Assegna un ruolo owner a ogni attività",
+        "Valida la copertura di ruoli ed eccezioni"
+      ]
+    }
+  }
+}

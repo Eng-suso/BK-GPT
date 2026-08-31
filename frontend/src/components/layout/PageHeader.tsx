@@ -15,6 +15,8 @@ export type PageHeaderProps = {
   title: string;
   /** Optional short lead paragraph under the title. */
   description?: string;
+  /** Inline meta row under the title (client, status, phase…). */
+  meta?: ReactNode;
   /** Inline count shown next to the title (e.g. total rows). */
   count?: number | string;
   /** Right-aligned action slot (buttons, menus). */
@@ -26,6 +28,7 @@ export function PageHeader({
   breadcrumbs,
   title,
   description,
+  meta,
   count,
   actions,
   className,
@@ -71,9 +74,14 @@ export function PageHeader({
             )}
           </div>
           {description && (
-            <p className="mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-muted-foreground">
+            <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
               {description}
             </p>
+          )}
+          {meta && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {meta}
+            </div>
           )}
         </div>
         {actions && (

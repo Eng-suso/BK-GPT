@@ -19,6 +19,10 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   selectedModel = "gpt-5.6-luna",
   onChange,
 }) => {
+  // A one-option picker is just noise in an enterprise surface — only show the
+  // selector once there is an actual choice to make.
+  if (MODELS.length <= 1) return null;
+
   return (
     <Select value={selectedModel} onValueChange={(value) => onChange?.(value)}>
       <SelectTrigger

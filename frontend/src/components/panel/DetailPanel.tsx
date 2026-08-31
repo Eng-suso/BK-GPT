@@ -72,9 +72,7 @@ export function DetailPanelSection({
   return (
     <section className="border-t border-border/70 py-4 first:border-t-0">
       <div className="mb-3 flex items-center justify-between">
-        <h4 className="text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
-          {title}
-        </h4>
+        <h4 className="eyebrow">{title}</h4>
         {action}
       </div>
       {children}
@@ -98,7 +96,7 @@ export function DetailPanelKeyValue({
         <div
           key={row.label}
           className={cn(
-            "flex items-baseline justify-between gap-3.5 py-2 text-[12.5px]",
+            "flex items-baseline justify-between gap-3 py-2 text-xs",
             i < rows.length - 1 && "border-b border-border/60",
           )}
         >

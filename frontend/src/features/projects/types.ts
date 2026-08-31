@@ -11,6 +11,7 @@ export type ProjectTab = {
 
 export const PROJECT_TABS: ProjectTab[] = [
   { id: "overview", labelKey: "detail.tabs.overview", available: true },
+  { id: "chat", labelKey: "detail.tabs.chat", available: true },
   { id: "processes", labelKey: "detail.tabs.processes", available: true },
   { id: "sources", labelKey: "detail.tabs.sources", available: true },
   { id: "decisions", labelKey: "detail.tabs.decisions", available: true },

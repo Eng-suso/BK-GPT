@@ -1,10 +1,12 @@
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
 
+import enChat from "@/locales/en/chat.json";
 import enClients from "@/locales/en/clients.json";
 import enCommon from "@/locales/en/common.json";
 import enProcess from "@/locales/en/process.json";
 import enProjects from "@/locales/en/projects.json";
+import itChat from "@/locales/it/chat.json";
 import itClients from "@/locales/it/clients.json";
 import itCommon from "@/locales/it/common.json";
 import itProcess from "@/locales/it/process.json";
@@ -34,15 +36,17 @@ void i18n.use(initReactI18next).init({
       projects: itProjects,
       clients: itClients,
       process: itProcess,
+      chat: itChat,
     },
     en: {
       common: enCommon,
       projects: enProjects,
       clients: enClients,
       process: enProcess,
+      chat: enChat,
     },
   },
-  ns: ["common", "projects", "clients", "process"],
+  ns: ["common", "projects", "clients", "process", "chat"],
   lng: initialLanguage(),
   fallbackLng: "it",
   defaultNS: "common",

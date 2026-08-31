@@ -1,8 +1,14 @@
 import React from "react";
-import { Menu, Settings, Share2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Menu, MoreHorizontal, Settings, Share2 } from "lucide-react";
 
-import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 
 interface ChatHeaderProps {
   title?: string;
@@ -19,6 +25,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onConfig,
   onShare,
 }) => {
+  const { t } = useTranslation("chat");
+
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -28,37 +36,38 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           size="icon"
           className="menu-toggle"
           onClick={() => onMenuToggle?.()}
-          title="Menu conversazioni"
-          aria-label="Apri conversazioni"
+          title={t("actions.history")}
+          aria-label={t("actions.history")}
           aria-expanded={isDrawerOpen}
         >
           <Menu />
         </Button>
         <strong className="chat-title">{title}</strong>
-        <Badge variant="outline">Locale</Badge>
       </div>
 
       <div className="topbar-right">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onConfig?.()}
-          title="Configurazione API"
-        >
-          <Settings />
-          <span className="hidden sm:inline">Configurazione</span>
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onShare?.()}
-          title="Condividi chat"
-        >
-          <Share2 />
-          <span className="hidden sm:inline">Condividi</span>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              aria-label={t("actions.more")}
+            >
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onShare?.()}>
+              <Share2 />
+              {t("actions.copy")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onConfig?.()}>
+              <Settings />
+              {t("actions.config")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

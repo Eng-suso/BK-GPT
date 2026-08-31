@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowUp, Check, Mic, Paperclip, Square } from "lucide-react";
 
 import { Badge } from "@/ui/badge";
@@ -94,6 +95,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onVoice,
   onModelChange,
 }) => {
+  const { t } = useTranslation("chat");
   const [value, setValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isLiveConnected, setIsLiveConnected] = useState(false);
@@ -503,7 +505,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Scrivi un messaggio..."
+          placeholder={t("composer.placeholder")}
           disabled={isLocked}
           autoComplete="off"
           className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-[14.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
@@ -533,7 +535,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               title="Carica audio da trascrivere"
             >
               <Paperclip />
-              <span>Audio</span>
+              <span>{t("composer.audio")}</span>
             </Button>
             <Button
               className={cn(
@@ -549,7 +551,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               title={isRecording ? "Ferma intervista" : "Avvia intervista live"}
             >
               {isRecording ? <Square /> : <Mic />}
-              <span>{isRecording ? "Stop" : "Intervista"}</span>
+              <span>{isRecording ? t("composer.stop") : t("composer.interview")}</span>
             </Button>
             <Button
               className="btn-send"
@@ -558,14 +560,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               disabled={isLocked || isRecording || !value.trim()}
               title="Invia messaggio"
             >
-              <span>Invia</span>
+              <span>{t("composer.send")}</span>
               <ArrowUp />
             </Button>
           </div>
         </div>
       </form>
       <div className="footnote mt-2 text-center text-[11px] text-muted-foreground">
-        Il modello puo commettere errori. Verifica sempre le risposte importanti.
+        {t("composer.disclaimer")}
       </div>
     </div>
   );

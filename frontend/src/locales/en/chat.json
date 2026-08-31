@@ -1,0 +1,78 @@
+{
+  "header": {
+    "eyebrow": "Assistant"
+  },
+  "actions": {
+    "new": "New",
+    "newChat": "New conversation",
+    "copy": "Copy conversation",
+    "share": "Share",
+    "config": "API configuration",
+    "more": "More actions",
+    "history": "History",
+    "clearHistory": "Clear history",
+    "search": "Search history"
+  },
+  "threads": {
+    "label": "Threads",
+    "new": "New thread",
+    "empty": "No threads",
+    "delete": "Delete thread"
+  },
+  "composer": {
+    "placeholder": "Write a message…",
+    "send": "Send",
+    "audio": "Audio",
+    "interview": "Interview",
+    "stop": "Stop",
+    "disclaimer": "The assistant can make mistakes. Verify important information."
+  },
+  "status": {
+    "thinking": "Working on it…"
+  },
+  "empty": {
+    "tryLabel": "Try asking"
+  },
+  "scope": {
+    "consultant": {
+      "title": "Consultant assistant",
+      "description": "Your copilot across the whole portfolio: analyse clients, projects and processes, and line up the next steps.",
+      "prompts": [
+        "Summarise the status of at-risk projects",
+        "Which decisions are waiting on me?",
+        "Draft the agenda for the next steering committee",
+        "Open a new project for a client"
+      ]
+    },
+    "project": {
+      "title": "Project chat",
+      "description": "Reason across the whole project: progress, processes in scope, risks and open decisions.",
+      "prompts": [
+        "What is the project's progress?",
+        "List the processes in scope and their readiness",
+        "Which risks are still unmitigated?",
+        "Generate the management summary for the sponsor"
+      ]
+    },
+    "process": {
+      "title": "Process chat",
+      "description": "Work on this process: AS-IS evidence, roles, exceptions and the handoff to the BPMN model.",
+      "prompts": [
+        "Summarise the evidence gathered so far",
+        "What information is missing to model the process?",
+        "List roles and exceptions still to confirm",
+        "Prepare the brief to generate the BPMN"
+      ]
+    },
+    "canvas": {
+      "title": "Canvas chat",
+      "description": "Edit the BPMN model in words: the assistant updates the diagram and checks it stays consistent.",
+      "prompts": [
+        "Generate the BPMN from the process evidence",
+        "Add a gateway after the credit check",
+        "Assign an owner role to every activity",
+        "Validate the coverage of roles and exceptions"
+      ]
+    }
+  }
+}
