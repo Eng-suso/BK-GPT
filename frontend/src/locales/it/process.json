@@ -53,6 +53,17 @@
       "noArtifact": "Replay non disponibile per questa run",
       "noArtifactHint": "Le run precedenti alla nuova pipeline non hanno l'event log. Esegui una nuova simulazione."
     },
+    "dashboard": {
+      "throughput": "Throughput",
+      "avgCycle": "Attraversamento medio",
+      "costAccrued": "Costo accumulato",
+      "throughputChart": "Throughput orario",
+      "loadChart": "Casi attivi e in coda",
+      "costChart": "Costo accumulato",
+      "cycleChart": "Attraversamento medio",
+      "perActivity": "Carico per attività",
+      "perResource": "Utilizzo per risorsa"
+    },
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
     "output": {
       "eyebrow": "Risultati",

@@ -1,19 +1,18 @@
 import React from "react";
-import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Play, X } from "lucide-react";
+import { X } from "lucide-react";
 
-import { EmptyState } from "@/components/feedback";
 import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 
 import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanvas";
 import { TokenLayer } from "../canvas/TokenLayer";
 import { TransportBar } from "../replay/TransportBar";
-import { useReplayEngine, useReplayFrame } from "../replay/useReplay";
+import { ReplayGate } from "../replay/ReplayGate";
+import { useReplayFrame } from "../replay/useReplay";
 import type { ReplayEngine } from "../replay/replayEngine";
 import type { BpmnViewer } from "../canvas/bpmnViewer";
-import { resolveActiveRun, useSimulationSection } from "../useSimulationSection";
+import type { SimulationRun } from "../simulationTypes";
 import { formatDuration } from "../simulationResults";
 
 const PRESSURE_MARKER: Record<string, string> = {
@@ -23,59 +22,19 @@ const PRESSURE_MARKER: Record<string, string> = {
 };
 
 export function ReplayPage(): React.JSX.Element {
-  const { t } = useTranslation("process");
-  const { runId: runIdParam } = useParams();
-  const { runs, bpmnXml } = useSimulationSection();
-  const activeRun = resolveActiveRun(runs, runIdParam);
-
-  const { engine, isLoading, noArtifact, error } = useReplayEngine(
-    activeRun?.status === "completed" ? activeRun.id : null,
+  return (
+    <ReplayGate>
+      {({ engine, run, bpmnXml }) => (
+        <ReplayStage engine={engine} run={run} bpmnXml={bpmnXml} />
+      )}
+    </ReplayGate>
   );
-
-  let body: React.ReactNode;
-  if (!activeRun) {
-    body = (
-      <EmptyState
-        icon={Play}
-        title={t("simulation.replay.noRun")}
-        description={t("simulation.replay.noRunHint")}
-      />
-    );
-  } else if (activeRun.status === "pending") {
-    body = <EmptyState icon={Play} title={t("simulation.running")} />;
-  } else if (activeRun.status === "failed") {
-    body = (
-      <EmptyState
-        icon={Play}
-        title={t("simulation.status.failed")}
-        description={activeRun.error ?? undefined}
-      />
-    );
-  } else if (isLoading) {
-    body = <EmptyState icon={Play} title={t("simulation.loading")} />;
-  } else if (noArtifact) {
-    body = (
-      <EmptyState
-        icon={Play}
-        title={t("simulation.replay.noArtifact")}
-        description={t("simulation.replay.noArtifactHint")}
-      />
-    );
-  } else if (error) {
-    body = <EmptyState icon={X} title={error} />;
-  } else if (engine && bpmnXml) {
-    body = <ReplayStage engine={engine} bpmnXml={bpmnXml} run={activeRun} />;
-  } else {
-    body = <EmptyState icon={Play} title={t("simulation.diagram.noModel")} />;
-  }
-
-  return <div className="flex h-full min-h-0 flex-col">{body}</div>;
 }
 
 type ReplayStageProps = {
   engine: ReplayEngine;
   bpmnXml: string;
-  run: ReturnType<typeof resolveActiveRun>;
+  run: SimulationRun;
 };
 
 function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Element {
@@ -86,7 +45,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
   const bottleneckEl =
-    (run?.summary?.bottleneck as { el?: string } | null | undefined)?.el ?? null;
+    (run.summary?.bottleneck as { el?: string } | null | undefined)?.el ?? null;
 
   const decorations = React.useMemo<NodeDecoration[]>(() => {
     if (!frame) return [];
@@ -113,7 +72,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   }, [frame, bottleneckEl, t]);
 
   const activity =
-    selectedId && Array.isArray(run?.summary?.byActivity)
+    selectedId && Array.isArray(run.summary?.byActivity)
       ? (run.summary.byActivity as Array<Record<string, unknown>>).find(
           (a) => a.el === selectedId,
         )
@@ -121,7 +80,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   const nodeState = selectedId && frame ? frame.elements[selectedId] : undefined;
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <TransportBar engine={engine} />
       <div className="relative flex min-h-0 flex-1">
         <SimulationCanvas
@@ -141,9 +100,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
           >
             <div className="mb-2 flex items-start justify-between gap-2 border-b border-border pb-2">
               <strong className="min-w-0 truncate text-[13px] text-foreground">
-                {(activity?.name as string) ??
-                  frame?.elements[selectedId]?.pressure ??
-                  selectedId}
+                {(activity?.name as string) ?? selectedId}
               </strong>
               <Button
                 type="button"
@@ -176,7 +133,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
           </aside>
         )}
       </div>
-    </>
+    </div>
   );
 }
 

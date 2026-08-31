@@ -18,6 +18,19 @@
   /* replay token colours (Phase 2) */
   --sim-token: var(--color-status-info, #2563eb);
   --sim-token-queued: var(--color-status-warning, #d97706);
+
+  /* Cruscotto chart series (Phase 3) — one colour per metric, fixed.
+     WIP↔Queue is the only pair that ever shares a chart; validated
+     (dataviz scripts/validate_palette.js) ΔE 38 normal / 32 CVD.
+     DeliR is light-only, so no dark steps. */
+  --sim-chart-throughput: var(--blue-600);
+  --sim-chart-wip: var(--blue-600);
+  --sim-chart-queue: var(--amber-600);
+  --sim-chart-cost: var(--teal-600);
+  --sim-chart-cycle: var(--violet-600);
+  --sim-chart-grid: var(--color-border-subtle);
+  --sim-chart-axis: var(--color-text-muted);
+  --sim-chart-fill-opacity: 0.14;
 }
 
 .sim-badge {
@@ -134,6 +147,68 @@
   outline: 2px solid var(--sim-info);
   outline-offset: 3px;
   border-radius: 999px;
+}
+
+/* --- Cruscotto (Phase 3) --- */
+
+.sim-chart {
+  position: relative;
+}
+
+/* playhead overlay — a plain div, moved by the ReplayClock, never a chart re-render */
+.sim-chart-playhead {
+  position: absolute;
+  top: 6px;
+  bottom: 20px;
+  width: 0;
+  border-left: 2px solid var(--sim-info);
+  pointer-events: none;
+}
+.sim-chart-playhead::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--sim-info);
+}
+
+/* dim the not-yet-played region of a time-series */
+.sim-chart-future {
+  position: absolute;
+  top: 6px;
+  bottom: 20px;
+  right: 10px;
+  background: color-mix(in oklab, var(--color-surface-muted) 45%, transparent);
+  pointer-events: none;
+}
+
+.sim-barrow-track {
+  background: var(--color-surface-muted);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.sim-barrow-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sim-barrow-fill {
+    transition: width 240ms ease-out;
+  }
+}
+
+.sim-chart-tooltip {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(14, 20, 32, 0.14);
+  padding: 6px 9px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--color-text-primary);
 }
 
 /* Heat tint on task nodes, coolest -> hottest by chosen metric. */

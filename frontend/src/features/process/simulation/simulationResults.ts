@@ -244,6 +244,32 @@ export function formatDuration(totalSeconds: number, lang: "it" | "en" = "it"): 
   return `${minutes} ${u.m}`;
 }
 
+/** Single largest unit only — for chart axes ("3g", "20h", "45min"). */
+export function formatDurationShort(
+  totalSeconds: number,
+  lang: "it" | "en" = "it",
+): string {
+  const u = DURATION_UNITS[lang] ?? DURATION_UNITS.it;
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  if (seconds < 60) return `${seconds}${u.s}`;
+  const days = Math.floor(seconds / 86_400);
+  if (days > 0) return `${days}${u.d}`;
+  const hours = Math.floor(seconds / 3_600);
+  if (hours > 0) return `${hours}${u.h}`;
+  return `${Math.floor(seconds / 60)}${u.m}`;
+}
+
+/** Compact currency for chart axes: "€3.2k" past a thousand. */
+export function formatCurrencyShort(
+  value: number,
+  lang: "it" | "en" = "it",
+): string {
+  const v = Number.isFinite(value) ? value : 0;
+  const sym = lang === "it" ? "€" : "€";
+  if (Math.abs(v) >= 1000) return `${sym}${(v / 1000).toFixed(1)}k`;
+  return `${sym}${Math.round(v)}`;
+}
+
 export function formatCurrency(value: number, lang: "it" | "en" = "it"): string {
   return new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", {
     style: "currency",

@@ -53,6 +53,17 @@
       "noArtifact": "No replay for this run",
       "noArtifactHint": "Runs from before the new pipeline have no event log. Run a new simulation."
     },
+    "dashboard": {
+      "throughput": "Throughput",
+      "avgCycle": "Avg cycle time",
+      "costAccrued": "Cost accrued",
+      "throughputChart": "Throughput per hour",
+      "loadChart": "Active & queued cases",
+      "costChart": "Cost accrued",
+      "cycleChart": "Avg cycle time",
+      "perActivity": "Load per activity",
+      "perResource": "Utilisation per resource"
+    },
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
     "output": {
       "eyebrow": "Results",
