@@ -77,7 +77,9 @@
         "work": "In lavorazione {{value}}",
         "waitLabel": "In coda",
         "workLabel": "In lavorazione"
-      }
+      },
+      "systemChip": "{{active}} in lav · {{queued}} in coda",
+      "systemLegend": "Spessore linea = volume di casi sul percorso"
     },
     "overview": {
       "noRunHint": "Configura lo scenario qui sotto e avvia la prima simulazione."

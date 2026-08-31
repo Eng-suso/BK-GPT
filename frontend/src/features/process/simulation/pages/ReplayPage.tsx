@@ -51,19 +51,44 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   const bottleneckEl =
     (run.summary?.bottleneck as { el?: string } | null | undefined)?.el ?? null;
 
+  const systemMode = status?.granularity === "system";
+
+  const flowMarkers = React.useMemo<NodeDecoration[]>(() => {
+    if (!systemMode) return [];
+    const flows = engine.payload.flows ?? {};
+    const attributed = Object.entries(flows).filter(([, v]) => v.attributed);
+    const max = Math.max(1, ...attributed.map(([, v]) => v.count));
+    return attributed
+      .filter(([, v]) => v.count > 0)
+      .map(([id, v]) => ({
+        elementId: id,
+        markers: [`sim-flow-${Math.min(4, Math.max(1, Math.ceil((v.count / max) * 4)))}`],
+      }));
+  }, [systemMode, engine]);
+
   const decorations = React.useMemo<NodeDecoration[]>(() => {
-    if (!frame) return [];
-    const out: NodeDecoration[] = [];
+    if (!frame) return flowMarkers;
+    const out: NodeDecoration[] = [...flowMarkers];
     for (const [el, state] of Object.entries(frame.elements)) {
       const markers: string[] = [];
       if (state.pressure !== "none") markers.push(PRESSURE_MARKER[state.pressure]);
       if (el === bottleneckEl) markers.push("sim-node-bottleneck");
-      if (markers.length === 0 && state.queued === 0) continue;
+      // system mode: chip every active node; otherwise only queued / pressured ones
+      const chip = systemMode
+        ? state.active > 0 || state.queued > 0
+        : state.queued > 0;
+      if (markers.length === 0 && !chip) continue;
       out.push({
         elementId: el,
         markers,
-        badge:
-          state.queued > 0
+        badge: systemMode
+          ? chip
+            ? t("simulation.replay.systemChip", {
+                active: state.active,
+                queued: state.queued,
+              })
+            : undefined
+          : state.queued > 0
             ? t("simulation.replay.inQueue", { n: state.queued })
             : undefined,
         badgeTone:
@@ -73,7 +98,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
       });
     }
     return out;
-  }, [frame, bottleneckEl, t]);
+  }, [frame, bottleneckEl, t, flowMarkers, systemMode]);
 
   const activity =
     selectedId && Array.isArray(run.summary?.byActivity)

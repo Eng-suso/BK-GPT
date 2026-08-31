@@ -10,7 +10,7 @@ import { StatusIndicator, type StatusTone } from "@/components/status";
 import { Meter } from "@/components/data";
 
 import type { ReplayEngine, ReplayFrame } from "./replayEngine";
-import { useReplayFrame, usePlayhead } from "./useReplay";
+import { useReplayFrame, usePlayhead, useReplayStatus } from "./useReplay";
 import type { SimulationRun } from "../simulationTypes";
 import { formatDuration } from "../simulationResults";
 
@@ -34,6 +34,7 @@ export function ReplayInsightRail({
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const frame = useReplayFrame(engine);
+  const status = useReplayStatus(engine);
   const tNow = usePlayhead(engine);
 
   const numberFmt = React.useMemo(
@@ -143,6 +144,15 @@ export function ReplayInsightRail({
             color="var(--sim-token-queued)"
             label={t("simulation.replay.rail.legendQueued")}
           />
+          {status?.granularity === "system" && (
+            <li className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="h-1 w-3 rounded-full bg-[var(--sim-token)]"
+              />
+              {t("simulation.replay.systemLegend")}
+            </li>
+          )}
         </ul>
       </DetailPanelSection>
     </DetailPanel>

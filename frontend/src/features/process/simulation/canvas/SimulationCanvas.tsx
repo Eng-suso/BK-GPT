@@ -287,4 +287,8 @@ const KNOWN_MARKERS = [
   "sim-delta-better",
   "sim-delta-worse",
   "sim-delta-neutral",
+  "sim-flow-1",
+  "sim-flow-2",
+  "sim-flow-3",
+  "sim-flow-4",
 ];

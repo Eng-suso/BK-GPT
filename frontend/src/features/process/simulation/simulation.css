@@ -298,3 +298,32 @@
 .sim-el-flash {
   animation: sim-el-flash 1.2s ease-in-out;
 }
+
+/* --- System mode: sequence-flow volume (phase 8) ----------------------- */
+/* stroke width ∝ case volume on that edge; only attributed flows are painted */
+.djs-connection.sim-flow-1 .djs-visual > path { stroke-width: 2px; }
+.djs-connection.sim-flow-2 .djs-visual > path { stroke-width: 3px; }
+.djs-connection.sim-flow-3 .djs-visual > path { stroke-width: 4.5px; }
+.djs-connection.sim-flow-4 .djs-visual > path {
+  stroke-width: 6px;
+  stroke: color-mix(in oklab, var(--sim-token) 70%, var(--color-text-primary));
+}
+.djs-connection[class*="sim-flow-"] .djs-visual > path {
+  stroke: color-mix(in oklab, var(--sim-token) 55%, var(--color-text-muted));
+}
+.djs-connection.sim-flow-3 .djs-visual > path,
+.djs-connection.sim-flow-4 .djs-visual > path {
+  stroke-dasharray: 6 4;
+  animation: sim-flow-march 0.9s linear infinite;
+}
+@keyframes sim-flow-march {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .djs-connection[class*="sim-flow-"] .djs-visual > path {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}
