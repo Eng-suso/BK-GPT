@@ -1,8 +1,10 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 
 import { PanelShellHeader } from "@/components/panel";
 import { ResizeHandle } from "@/components/layout";
+import { Button } from "@/ui/button";
 import { usePanelSize } from "@/lib/usePanelSize";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
@@ -83,12 +85,24 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
             aria-label="Studio BPMN"
           >
             {overlayOpen && (
-              <button
-                type="button"
-                className="process-studio-scrim"
-                aria-label={t("actions.closeOverlays")}
-                onClick={dismissOverlays}
-              />
+              <>
+                <button
+                  type="button"
+                  className="process-studio-scrim"
+                  aria-label={t("actions.closeOverlays")}
+                  onClick={dismissOverlays}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="absolute left-1/2 top-16 z-[31] -translate-x-1/2 border border-border shadow-md"
+                  onClick={dismissOverlays}
+                >
+                  <X className="size-3.5" />
+                  {t("actions.closeOverlays")}
+                </Button>
+              </>
             )}
 
             {isCanvasChatOpen && (
