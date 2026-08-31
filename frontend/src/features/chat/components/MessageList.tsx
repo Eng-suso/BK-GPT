@@ -11,7 +11,12 @@ export const MessageList: React.FC<MessageListProps> = ({ messages, onRetry }) =
   return (
     <div className="message-list" id="messageList">
       {messages.map((message, index) => (
-        <MessageBubble key={message.id || index} message={message} onRetry={onRetry} />
+        <MessageBubble
+          key={message.id || index}
+          message={message}
+          isLast={index === messages.length - 1}
+          onRetry={onRetry}
+        />
       ))}
     </div>
   );
