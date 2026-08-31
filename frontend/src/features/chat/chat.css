@@ -1,12 +1,24 @@
 /*
- * Chat surface styles — ported out of the index.html <style> block and
- * de-glassed for the premium enterprise direction: no backdrop-filter,
- * no ambient gradients, glass fills -> solid token surfaces, near-black
- * action buttons -> blue-700. Structure/layout unchanged.
+ * Chat surface styles — de-glassed for the enterprise direction: no
+ * backdrop-filter, no ambient gradients, solid token surfaces, tight focus
+ * rings. Step P1: ported off raw px onto the --space / --font-size / --radius
+ * token scale, and collapsed the old double gutter (padding + inner
+ * calc(100% - 48px)) into one --chat-gutter.
  *
  * Scope: standalone chat (.viewport / .shell) used by /consultant, and the
- * embedded panel (.embedded-chat-panel) — see also app-shell.css.
+ * embedded panel (.embedded-chat-panel) — see also process.css.
  */
+
+/* ── Shared chat metrics ────────────────────────────────────── */
+.viewport,
+.embedded-chat-panel {
+  /* One outer gutter. The message column and the composer both sit inside a
+     parent padded by this, then cap their own width at --chat-measure — so
+     they line up and there is no second inner margin. */
+  --chat-gutter: var(--space-600);
+  --chat-measure: 60rem;
+  --chat-msg-gap: 1.25rem;
+}
 
 /* ── Outer viewport & shell ─────────────────────────────────── */
 .viewport {
@@ -55,7 +67,7 @@
   flex-direction: column;
   background: var(--color-surface-primary);
   border-right: 1px solid var(--color-border-subtle);
-  padding: 16px 14px;
+  padding: var(--space-400) var(--space-300);
   min-width: 0;
   height: 100%;
 }
@@ -72,12 +84,12 @@
 }
 
 .topbar {
-  height: 56px;
-  padding: 0 20px;
+  height: var(--inspector-header-height);
+  padding: 0 var(--space-400);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-400);
   background: var(--color-surface-primary);
   border-bottom: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
@@ -86,23 +98,24 @@
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-300);
   min-width: 0;
 }
 
 .chat-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 320px;
 }
+
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-200);
   flex-shrink: 0;
 }
 
@@ -119,16 +132,29 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: var(--chat-gutter);
   scroll-behavior: smooth;
 }
 
 .message-list {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  width: min(calc(100% - 48px), 1040px);
+  gap: var(--chat-msg-gap);
+  width: min(100%, var(--chat-measure));
   margin-inline: auto;
+}
+
+/* One shared cap for the user bubble across both surfaces (was 75 / 82 / 86%). */
+.message.user {
+  max-width: min(82%, 40rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .messages {
+    scroll-behavior: auto;
+  }
 }
 
 /* Markdown rich styling */
@@ -137,7 +163,7 @@
   line-height: 1.6;
 }
 .message.markdown p {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-300);
 }
 .message.markdown p:last-child {
   margin-bottom: 0;
@@ -147,8 +173,8 @@
 .message.markdown h3,
 .message.markdown h4 {
   color: var(--color-text-primary);
-  margin: 16px 0 8px;
-  font-weight: 600;
+  margin: var(--space-400) 0 var(--space-200);
+  font-weight: var(--font-weight-semibold);
 }
 .message.markdown h1 {
   font-size: 1.35em;
@@ -161,8 +187,8 @@
 }
 .message.markdown ul,
 .message.markdown ol {
-  margin: 0 0 12px;
-  padding-left: 24px;
+  margin: 0 0 var(--space-300);
+  padding-left: var(--space-600);
 }
 .message.markdown ul {
   list-style: disc;
@@ -171,22 +197,22 @@
   list-style: decimal;
 }
 .message.markdown li {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-100);
 }
 .message.markdown code {
-  padding: 2px 6px;
-  border-radius: 6px;
+  padding: var(--space-50) var(--space-100);
+  border-radius: var(--radius-200);
   background: var(--color-surface-muted);
   font-family: var(--font-family-geist-mono);
   font-size: 0.88em;
 }
 .message.markdown pre {
   overflow-x: auto;
-  padding: 16px;
-  border-radius: 10px;
+  padding: var(--space-400);
+  border-radius: var(--radius-300);
   background: var(--slate-900);
   color: var(--slate-50);
-  margin: 12px 0;
+  margin: var(--space-300) 0;
   box-shadow: none;
 }
 .message.markdown pre code {
@@ -197,26 +223,26 @@
 }
 .message.markdown blockquote {
   border-left: 3px solid var(--blue-400);
-  margin: 12px 0;
-  padding: 8px 16px;
+  margin: var(--space-300) 0;
+  padding: var(--space-200) var(--space-400);
   color: var(--color-text-secondary);
   background: var(--blue-50);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 var(--radius-300) var(--radius-300) 0;
 }
 .message.markdown table {
   width: 100%;
   border-collapse: collapse;
-  margin: 12px 0;
+  margin: var(--space-300) 0;
 }
 .message.markdown th,
 .message.markdown td {
   border: 1px solid var(--color-border-subtle);
-  padding: 8px 12px;
+  padding: var(--space-200) var(--space-300);
   text-align: left;
 }
 .message.markdown th {
   background: var(--color-surface-muted);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 .message.markdown a {
   color: var(--blue-700);
@@ -225,43 +251,44 @@
 
 /* ── Composer ──────────────────────────────────────────────── */
 .composer-wrap {
-  padding: 16px 24px 24px;
+  padding: var(--space-400) var(--chat-gutter) var(--chat-gutter);
   flex-shrink: 0;
   container-type: inline-size;
   container-name: composer-wrap;
 }
 
 .composer-box {
-  width: min(calc(100% - 48px), 1040px);
+  width: min(100%, var(--chat-measure));
   margin-inline: auto;
   background: var(--color-surface-primary);
   border: 1px solid var(--color-border-strong);
-  border-radius: 12px;
-  padding: 12px 14px 10px;
-  box-shadow: 0 1px 3px rgba(14, 20, 32, 0.06);
+  border-radius: var(--radius-300);
+  padding: var(--space-300) var(--space-300) var(--space-200);
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-200);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .composer-box:focus-within {
-  border-color: var(--blue-700);
-  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.16);
+  border-color: var(--color-border-selected);
+  box-shadow: 0 0 0 var(--border-width-200)
+    color-mix(in srgb, var(--color-border-selected) 28%, transparent);
 }
 
 .composer-bottom-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-top: 4px;
+  gap: var(--space-300);
+  padding-top: var(--space-100);
 }
 
 .composer-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-200);
   margin-left: auto;
 }
 
@@ -270,7 +297,7 @@
     display: none;
   }
   .composer-actions .btn-pill-light {
-    padding: 0 8px;
+    padding: 0 var(--space-200);
     min-width: 34px;
   }
 }
@@ -292,20 +319,20 @@
 /* ── Toast ─────────────────────────────────────────────────── */
 .toast {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
+  right: var(--space-600);
+  bottom: var(--space-600);
   max-width: 360px;
-  padding: 12px 16px;
-  border-radius: 10px;
+  padding: var(--space-300) var(--space-400);
+  border-radius: var(--radius-300);
   background: var(--slate-900);
-  color: #fff;
-  font-size: 13px;
-  box-shadow: 0 12px 32px -12px rgba(14, 20, 32, 0.3);
+  color: var(--white);
+  font-size: var(--font-size-200);
+  box-shadow: var(--shadow-300);
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
   transition: opacity 0.15s ease, transform 0.15s ease;
-  z-index: 3200;
+  z-index: var(--layer-critical);
 }
 
 .toast.show {
@@ -322,7 +349,7 @@
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(14, 20, 32, 0.4);
+  background: var(--color-backdrop-default);
   z-index: 1599;
   opacity: 0;
   pointer-events: none;
@@ -372,7 +399,7 @@
     visibility: hidden;
     pointer-events: none;
     transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s ease;
-    box-shadow: 0 12px 40px -12px rgba(14, 20, 32, 0.18);
+    box-shadow: var(--shadow-300);
   }
   .sidebar.open {
     transform: translateX(0);
@@ -409,7 +436,7 @@
     visibility: hidden;
     pointer-events: none;
     transition: transform 0.25s ease, opacity 0.25s ease, visibility 0.25s ease;
-    box-shadow: 0 12px 40px -12px rgba(14, 20, 32, 0.18);
+    box-shadow: var(--shadow-300);
   }
   .sidebar.open {
     transform: translateX(0);
@@ -425,19 +452,16 @@
     pointer-events: auto;
   }
   .topbar {
-    padding: 0 16px;
+    padding: 0 var(--space-400);
   }
   .composer-wrap {
-    padding: 12px;
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding: var(--space-300);
+    padding-bottom: max(var(--space-300), env(safe-area-inset-bottom));
   }
 }
 
 @media (max-width: 639px) {
   .topbar {
     height: 54px;
-  }
-  .suggestions-grid {
-    grid-template-columns: 1fr;
   }
 }

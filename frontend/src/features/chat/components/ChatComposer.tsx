@@ -423,7 +423,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     <div className="composer-wrap">
       {hasInterviewPanel && (
         <section
-          className="interview-panel mx-auto mb-3 w-[min(calc(100%-48px),1040px)] rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(14,20,32,0.06)]"
+          className="interview-panel mx-auto mb-3 w-full max-w-[var(--chat-measure)] rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-100)]"
           aria-label="Trascrizione intervista"
         >
           <div className="mb-3 flex items-center justify-between gap-4 @[540px]/composer-wrap:items-center @max-[540px]/composer-wrap:flex-col @max-[540px]/composer-wrap:items-stretch">
@@ -508,7 +508,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           placeholder={t("composer.placeholder")}
           disabled={isLocked}
           autoComplete="off"
-          className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-[14.5px] leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
+          className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
         />
         {audioStatus && (
           <div className="min-h-[18px] px-0.5 text-xs leading-normal text-muted-foreground">
