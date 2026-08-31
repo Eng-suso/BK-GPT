@@ -4,14 +4,24 @@ import { useTranslation } from "react-i18next";
 
 import { PageHeader } from "@/components/layout";
 import { ErrorState } from "@/components/feedback";
+import { StatusIndicator, type StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
 import { useProjectQuery } from "@/features/projects/api";
+import type { ProjectProcess } from "@/contracts/workspace";
 import { ProcessWorkspace, type ProcessView } from "../ProcessWorkspace";
 
-const VIEWS: ProcessView[] = ["canvas", "chat", "simulation"];
+const PROCESS_STATUS_TONE: Record<ProjectProcess["status"], StatusTone> = {
+  "In corso": "ok",
+  "Da validare": "pending",
+  Bozza: "neutral",
+};
+
+// Tab order: the discussion leads (chat-driven modelling), then the model,
+// then the simulation. Arriving with no `?view=` still lands on the model.
+const VIEWS: ProcessView[] = ["chat", "canvas", "simulation"];
 
 function parseView(raw: string | null): ProcessView {
   // Back-compat: the old standalone "properties" view is now a canvas dock.
@@ -108,6 +118,22 @@ export function ProcessStudioPage(): React.JSX.Element {
             { label: process.name },
           ]}
           title={process.name}
+          meta={
+            <>
+              <StatusIndicator
+                tone={PROCESS_STATUS_TONE[process.status] ?? "neutral"}
+                label={process.status}
+              />
+              <span aria-hidden>·</span>
+              <span>{process.owner}</span>
+              <span aria-hidden>·</span>
+              <span>{process.stage}</span>
+              <span aria-hidden>·</span>
+              <span className="tabular-nums">
+                {t("side.summary.readiness")} {process.readiness}%
+              </span>
+            </>
+          }
           actions={
             <Button variant="ghost" size="sm" onClick={backToProject}>
               {t("actions.backToProject")}
@@ -115,13 +141,15 @@ export function ProcessStudioPage(): React.JSX.Element {
           }
         />
         <Tabs value={view} onValueChange={setView}>
-          <TabsList variant="line">
-            {VIEWS.map((v) => (
-              <TabsTrigger key={v} value={v}>
-                {t(`tabs.${v}`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="-mx-7 overflow-x-auto px-7 pb-0.5">
+            <TabsList variant="line" className="min-w-max">
+              {VIEWS.map((v) => (
+                <TabsTrigger key={v} value={v}>
+                  {t(`tabs.${v}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
         </Tabs>
       </div>
 

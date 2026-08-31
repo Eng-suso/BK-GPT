@@ -1,5 +1,7 @@
 {
-  "breadcrumb": { "projects": "Projects" },
+  "breadcrumb": {
+    "projects": "Projects"
+  },
   "tabs": {
     "canvas": "Model",
     "chat": "Discussion",
@@ -8,14 +10,18 @@
   "actions": {
     "backToProject": "Back to project",
     "toggleChat": "Canvas chat",
-    "toggleProperties": "Properties"
+    "toggleProperties": "Properties",
+    "closeOverlays": "Close panels"
   },
   "state": {
     "processNotFound": "Process not found in this project.",
     "loadError": "Could not load the process."
   },
   "simulation": {
-    "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
+    "scenario": {
+      "eyebrow": "Prosimos",
+      "title": "Scenario"
+    },
     "output": {
       "eyebrow": "Results",
       "title": "No run",

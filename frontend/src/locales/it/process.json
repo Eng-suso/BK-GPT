@@ -1,5 +1,7 @@
 {
-  "breadcrumb": { "projects": "Progetti" },
+  "breadcrumb": {
+    "projects": "Progetti"
+  },
   "tabs": {
     "canvas": "Modello",
     "chat": "Discussione",
@@ -8,14 +10,18 @@
   "actions": {
     "backToProject": "Torna al progetto",
     "toggleChat": "Chat canvas",
-    "toggleProperties": "Proprietà"
+    "toggleProperties": "Proprietà",
+    "closeOverlays": "Chiudi i pannelli"
   },
   "state": {
     "processNotFound": "Processo non trovato in questo progetto.",
     "loadError": "Non è stato possibile caricare il processo."
   },
   "simulation": {
-    "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
+    "scenario": {
+      "eyebrow": "Prosimos",
+      "title": "Scenario"
+    },
     "output": {
       "eyebrow": "Risultati",
       "title": "Nessuna run",

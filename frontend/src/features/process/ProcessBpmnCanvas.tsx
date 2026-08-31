@@ -1,23 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
-import TokenSimulationModule from "bpmn-js-token-simulation";
 import { BpmnPropertiesPanelModule, BpmnPropertiesProviderModule } from "bpmn-js-properties-panel";
 import { useTranslation } from "react-i18next";
 import {
-  Activity,
   Download,
   History,
   Maximize2,
-  MessageSquareText,
   Minus,
   MoreHorizontal,
   PanelLeft,
   PanelRight,
-  Pause,
-  Play,
   Plus,
-  RotateCcw,
   Save,
   Upload,
   X,
@@ -38,7 +32,6 @@ import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 // Note: bpmn-js-properties-panel bundles its styles internally; no separate CSS import needed.
-import "bpmn-js-token-simulation/assets/css/bpmn-js-token-simulation.css";
 import { API_BASE } from "../../lib/api";
 import { withAuth } from "../../lib/security";
 import { onWorkspaceChanged } from "../../lib/workspaceEvents";
@@ -87,29 +80,10 @@ type BpmnRegistryElement = BpmnConnection & {
   type?: string;
 };
 
-type BpmnEditorActions = {
-  trigger: (action: string) => void;
-};
-
-type BpmnToggleMode = {
-  toggleMode: (active?: boolean) => void;
-};
-
-type BpmnSimulationSubscription = {
-  event: unknown;
-  scope: unknown;
-};
-
-type BpmnSimulator = {
-  findSubscriptions: (filter: { element?: unknown }) => BpmnSimulationSubscription[];
-  trigger: (context: BpmnSimulationSubscription) => void;
-};
-
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
-  visualSimulationMode?: boolean;
   onCurrentXmlChange?: (xml: string) => void;
   /** Canvas-chat rail toggle (owned by ProcessWorkspace). */
   isCanvasChatOpen?: boolean;
@@ -202,10 +176,6 @@ function isConnection(element: BpmnRegistryElement): element is BpmnConnection {
 
 function isDockableSequenceConnection(element: BpmnRegistryElement) {
   return isConnection(element) && element.businessObject?.$type === "bpmn:SequenceFlow";
-}
-
-function isStartEvent(element: BpmnRegistryElement) {
-  return element.type === "bpmn:StartEvent" || element.businessObject?.$type === "bpmn:StartEvent";
 }
 
 function getDiagramBounds(elements: BpmnDiagramElement[]) {
@@ -327,7 +297,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   bpmnModelId,
   processName,
   propertiesPanelRef,
-  visualSimulationMode = false,
   onCurrentXmlChange,
   isCanvasChatOpen,
   onToggleCanvasChat,
@@ -352,8 +321,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const [versions, setVersions] = useState<BpmnVersionResponse[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [isTokenSimulationActive, setIsTokenSimulationActive] = useState(false);
-  const [isTokenSimulationPaused, setIsTokenSimulationPaused] = useState(true);
   const [selectedElement, setSelectedElement] = useState<{
     id: string;
     type: string;
@@ -464,7 +431,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             ? { parent: propertiesPanelRef.current }
             : undefined,
           additionalModules: [
-            TokenSimulationModule,
             BpmnPropertiesPanelModule,
             BpmnPropertiesProviderModule,
           ],
@@ -486,20 +452,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           if (!isImportingRef.current && !isSavingRef.current) {
             scheduleUnsavedCheck();
           }
-        });
-        eventBus.on("tokenSimulation.toggleMode", (event?: unknown) => {
-          const payload = event as { active?: boolean };
-          setIsTokenSimulationActive(Boolean(payload.active));
-          if (!payload.active) setIsTokenSimulationPaused(true);
-        });
-        eventBus.on("tokenSimulation.playSimulation", () => {
-          setIsTokenSimulationPaused(false);
-        });
-        eventBus.on("tokenSimulation.pauseSimulation", () => {
-          setIsTokenSimulationPaused(true);
-        });
-        eventBus.on("tokenSimulation.resetSimulation", () => {
-          setIsTokenSimulationPaused(true);
         });
 
         type BpmnElementSelection = {
@@ -558,11 +510,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       setIsReady(false);
     };
   }, [bpmnModelId, processName, propertiesPanelRef, loadVersions, scheduleUnsavedCheck]);
-
-  useEffect(() => {
-    if (!modelerRef.current || !isReady) return;
-    setTokenSimulationMode(visualSimulationMode);
-  }, [isReady, visualSimulationMode]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -797,89 +744,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     fitCanvas(modelerRef.current);
   }
 
-  function setTokenSimulationMode(active: boolean) {
-    if (!modelerRef.current) return;
-
-    try {
-      const toggleMode = modelerRef.current.get("toggleMode") as BpmnToggleMode;
-      toggleMode.toggleMode(active);
-      setIsTokenSimulationActive(active);
-      if (!active) setIsTokenSimulationPaused(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Simulazione visuale non disponibile");
-    }
-  }
-
-  function triggerSimulationCase() {
-    if (!modelerRef.current) return;
-
-    try {
-      if (!isTokenSimulationActive) {
-        setTokenSimulationMode(true);
-      }
-
-      window.requestAnimationFrame(() => {
-        if (!modelerRef.current) return;
-
-        const simulator = modelerRef.current.get("simulator") as BpmnSimulator;
-        const elementRegistry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
-        const startEvents = elementRegistry.filter(isStartEvent);
-        const startEvent = startEvents[0];
-
-        if (!startEvent) {
-          setError("Il BPMN non contiene uno start event da simulare.");
-          return;
-        }
-
-        const subscriptions = simulator.findSubscriptions({ element: startEvent });
-        const subscription = subscriptions[0];
-        if (!subscription) {
-          setError("Nessun trigger disponibile per lo start event selezionato.");
-          return;
-        }
-
-        simulator.trigger(subscription);
-        setError(null);
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Avvio simulazione visuale non riuscito");
-    }
-  }
-
-  function toggleTokenSimulationPause() {
-    if (!modelerRef.current || !isTokenSimulationActive) return;
-
-    try {
-      const editorActions = modelerRef.current.get("editorActions") as BpmnEditorActions;
-      editorActions.trigger("togglePauseTokenSimulation");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Play/Pausa simulazione non disponibile");
-    }
-  }
-
-  function resetTokenSimulation() {
-    if (!modelerRef.current || !isTokenSimulationActive) return;
-
-    try {
-      const editorActions = modelerRef.current.get("editorActions") as BpmnEditorActions;
-      editorActions.trigger("resetTokenSimulation");
-      setIsTokenSimulationPaused(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Reset simulazione non disponibile");
-    }
-  }
-
-  function toggleTokenSimulationLog() {
-    if (!modelerRef.current || !isTokenSimulationActive) return;
-
-    try {
-      const editorActions = modelerRef.current.get("editorActions") as BpmnEditorActions;
-      editorActions.trigger("toggleTokenSimulationLog");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Log simulazione non disponibile");
-    }
-  }
-
   const saveTone: StatusTone = hasUnsavedChanges
     ? "warning"
     : status.toLowerCase().startsWith("errore")
@@ -961,69 +825,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             >
               <Minus />
             </Button>
-          </div>
-
-          <div className="bpmn-simulation-group" aria-label="Controlli simulazione token">
-            <Button
-              type="button"
-              variant={isTokenSimulationActive ? "secondary" : "outline"}
-              size="sm"
-              disabled={!isReady}
-              onClick={() => setTokenSimulationMode(!isTokenSimulationActive)}
-              title={isTokenSimulationActive ? "Disattiva simulazione visuale" : "Attiva simulazione visuale"}
-              aria-pressed={isTokenSimulationActive}
-            >
-              <Activity aria-hidden="true" />
-              Token
-            </Button>
-            {isTokenSimulationActive && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={!isReady}
-                  onClick={triggerSimulationCase}
-                  title="Avvia un nuovo caso sullo start event"
-                  aria-label="Nuovo caso"
-                >
-                  <Play aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={!isReady}
-                  onClick={toggleTokenSimulationPause}
-                  title={isTokenSimulationPaused ? "Riprendi simulazione" : "Metti in pausa simulazione"}
-                  aria-label={isTokenSimulationPaused ? "Riprendi" : "Pausa"}
-                >
-                  {isTokenSimulationPaused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={!isReady}
-                  onClick={resetTokenSimulation}
-                  title="Reset simulazione visuale"
-                  aria-label="Reset simulazione"
-                >
-                  <RotateCcw aria-hidden="true" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  disabled={!isReady}
-                  onClick={toggleTokenSimulationLog}
-                  title="Mostra o nascondi log token"
-                  aria-label="Log token"
-                >
-                  <MessageSquareText aria-hidden="true" />
-                </Button>
-              </>
-            )}
           </div>
 
           <input
