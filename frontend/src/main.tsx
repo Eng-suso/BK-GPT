@@ -11,6 +11,7 @@ import "../styles/tokens/semantic.css";
 import "./styles/globals.css";
 import "./styles/theme.css";
 import "./features/process/process.css";
+import "./features/process/simulation/simulation.css";
 import "./features/chat/chat.css";
 
 import { AppProviders } from "./app/providers";

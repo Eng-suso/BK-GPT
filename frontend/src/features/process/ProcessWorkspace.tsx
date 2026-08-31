@@ -9,9 +9,8 @@ import { usePanelSize } from "@/lib/usePanelSize";
 import type { Project, ProjectProcess } from "../../contracts/workspace";
 import { ChatExperience } from "../chat/ChatExperience";
 import { ProcessBpmnCanvas } from "./ProcessBpmnCanvas";
-import { SimulationWorkspace } from "./SimulationWorkspace";
 
-export type ProcessView = "chat" | "canvas" | "simulation";
+export type ProcessView = "chat" | "canvas";
 
 type ProcessWorkspaceProps = {
   project: Project;
@@ -124,18 +123,6 @@ export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
               />
             </aside>
           </div>
-        )}
-
-        {view === "simulation" && (
-          <section
-            className="process-simulation-panel"
-            aria-label={t("simulation.diagram.title")}
-          >
-            <SimulationWorkspace
-              process={process}
-              currentBpmnXml={currentCanvasXml}
-            />
-          </section>
         )}
 
         {view === "chat" && (

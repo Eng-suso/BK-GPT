@@ -1,6 +1,12 @@
 import { useCallback } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { FlaskConical } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
 import { ErrorState } from "@/components/feedback";
@@ -11,7 +17,7 @@ import { ROUTES } from "@/app/routes";
 import { useProjectQuery } from "@/features/projects/api";
 import { ProcessWorkspace, type ProcessView } from "../ProcessWorkspace";
 
-const VIEWS: ProcessView[] = ["canvas", "chat", "simulation"];
+const VIEWS: ProcessView[] = ["canvas", "chat"];
 
 function parseView(raw: string | null): ProcessView {
   // Back-compat: the old standalone "properties" view is now a canvas dock.
@@ -28,6 +34,8 @@ export function ProcessStudioPage(): React.JSX.Element {
   const projectQ = useProjectQuery(projectId);
   const rawView = searchParams.get("view");
   const view = parseView(rawView);
+  // Simulation moved to its own section — keep old `?view=simulation` links working.
+  const redirectToSimulation = rawView === "simulation";
   const propertiesOpen =
     view === "canvas" &&
     (searchParams.get("panel") === "properties" || rawView === "properties");
@@ -63,6 +71,15 @@ export function ProcessStudioPage(): React.JSX.Element {
     () => navigate(ROUTES.projects.detail(projectId)),
     [navigate, projectId],
   );
+
+  if (redirectToSimulation) {
+    return (
+      <Navigate
+        to={ROUTES.projects.simulation(projectId, processId)}
+        replace
+      />
+    );
+  }
 
   if (projectQ.isLoading) {
     return (
@@ -109,9 +126,23 @@ export function ProcessStudioPage(): React.JSX.Element {
           ]}
           title={process.name}
           actions={
-            <Button variant="ghost" size="sm" onClick={backToProject}>
-              {t("actions.backToProject")}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate(
+                    ROUTES.projects.simulation(project.id, process.id),
+                  )
+                }
+              >
+                <FlaskConical aria-hidden className="size-4" />
+                {t("simulation.section.title")}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={backToProject}>
+                {t("actions.backToProject")}
+              </Button>
+            </>
           }
         />
         <Tabs value={view} onValueChange={setView}>

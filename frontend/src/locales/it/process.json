@@ -15,6 +15,22 @@
     "loadError": "Non è stato possibile caricare il processo."
   },
   "simulation": {
+    "section": {
+      "title": "Simulazione",
+      "navLabel": "Sezioni simulazione",
+      "back": "Torna al processo",
+      "runSwitcher": "Scegli una run",
+      "comingSoon": "Questa schermata arriva in una fase successiva.",
+      "nav": {
+        "overview": "Panoramica",
+        "scenario": "Scenario",
+        "replay": "Replay",
+        "dashboard": "Cruscotto",
+        "heatmap": "Heatmap",
+        "compare": "Confronto",
+        "insights": "Insight"
+      }
+    },
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
     "output": {
       "eyebrow": "Risultati",

@@ -12,6 +12,11 @@ export const ROUTES = {
     detail: (projectId: string) => `/projects/${projectId}`,
     process: (projectId: string, processId: string) =>
       `/projects/${projectId}/processes/${processId}`,
+    simulation: (
+      projectId: string,
+      processId: string,
+      sub: string = "overview",
+    ) => `/projects/${projectId}/processes/${processId}/simulation/${sub}`,
   },
   models: "/models",
   archive: "/archive",

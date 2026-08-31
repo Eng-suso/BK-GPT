@@ -15,6 +15,22 @@
     "loadError": "Could not load the process."
   },
   "simulation": {
+    "section": {
+      "title": "Simulation",
+      "navLabel": "Simulation sections",
+      "back": "Back to process",
+      "runSwitcher": "Pick a run",
+      "comingSoon": "This screen ships in a later phase.",
+      "nav": {
+        "overview": "Overview",
+        "scenario": "Scenario",
+        "replay": "Replay",
+        "dashboard": "Dashboard",
+        "heatmap": "Heatmap",
+        "compare": "Compare",
+        "insights": "Insights"
+      }
+    },
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
     "output": {
       "eyebrow": "Results",

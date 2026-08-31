@@ -9,8 +9,8 @@ import { StatusIndicator, type StatusTone } from "@/components/status";
 import { usePanelSize } from "@/lib/usePanelSize";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
-import type { ProjectProcess } from "../../contracts/workspace";
-import { useBpmnModelQuery } from "./api";
+import type { ProjectProcess } from "../../../contracts/workspace";
+import { useBpmnModelQuery } from "../api";
 import {
   fetchScenarioTemplate,
   getProsimosSimulationRun,
