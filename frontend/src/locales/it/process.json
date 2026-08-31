@@ -31,6 +31,28 @@
         "insights": "Insight"
       }
     },
+    "replay": {
+      "play": "Riproduci",
+      "pause": "Pausa",
+      "replay": "Rivedi",
+      "restart": "Riparti da inizio",
+      "scrubber": "Posizione temporale",
+      "speed": "Velocità",
+      "granularity": "Granularità",
+      "counters": "Contatori live",
+      "grain": { "case": "Caso", "sample": "Campione", "system": "Sistema" },
+      "active": "Attivi",
+      "queued": "In coda",
+      "completed": "Completati",
+      "throughput": "Throughput",
+      "inQueue": "{{n}} in coda",
+      "nodeInspector": "Dettaglio nodo",
+      "closeInspector": "Chiudi dettaglio",
+      "noRun": "Nessuna simulazione da riprodurre",
+      "noRunHint": "Avvia una simulazione dalla schermata Scenario, poi torna qui.",
+      "noArtifact": "Replay non disponibile per questa run",
+      "noArtifactHint": "Le run precedenti alla nuova pipeline non hanno l'event log. Esegui una nuova simulazione."
+    },
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
     "output": {
       "eyebrow": "Risultati",

@@ -38,9 +38,102 @@
   pointer-events: none;
 }
 
-.sim-badge.is-bottleneck {
+.sim-badge.is-bottleneck,
+.sim-badge.is-warning {
   border-color: var(--sim-bottleneck-border);
   background: var(--sim-bottleneck-surface);
+}
+
+.sim-badge.is-danger {
+  border-color: color-mix(in oklab, var(--color-status-danger) 45%, transparent);
+  background: color-mix(in oklab, var(--color-status-danger) 12%, var(--color-surface-primary));
+}
+
+/* --- replay token layer (Phase 2) --- */
+
+.sim-token-layer {
+  pointer-events: none;
+}
+
+.sim-token {
+  fill: var(--sim-token);
+  stroke: var(--color-surface-primary);
+  stroke-width: 1.5px;
+}
+
+.sim-token[data-state="queued"] {
+  fill: var(--sim-token-queued);
+}
+
+.sim-token-overflow {
+  fill: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--color-surface-primary);
+  stroke-width: 3px;
+}
+
+/* --- live queue pressure on task nodes (distinct from the diagnostic bottleneck) --- */
+
+.djs-element.sim-pressure-building .djs-visual > :nth-child(1) {
+  stroke: var(--sim-heat-1);
+  stroke-width: 2px;
+}
+.djs-element.sim-pressure-high .djs-visual > :nth-child(1) {
+  stroke: var(--color-status-warning);
+  stroke-width: 2.5px;
+}
+.djs-element.sim-pressure-saturated .djs-visual > :nth-child(1) {
+  stroke: var(--color-status-danger);
+  stroke-width: 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sim-token {
+    transition:
+      cx 90ms linear,
+      cy 90ms linear;
+  }
+}
+
+/* --- transport scrubber --- */
+
+.sim-scrubber {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.sim-scrubber::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-border-subtle);
+}
+.sim-scrubber::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-border-subtle);
+}
+.sim-scrubber::-webkit-slider-thumb {
+  appearance: none;
+  margin-top: -5px;
+  height: 14px;
+  width: 14px;
+  border-radius: 999px;
+  background: var(--primary, var(--sim-info));
+  border: 2px solid var(--color-surface-primary);
+}
+.sim-scrubber::-moz-range-thumb {
+  height: 14px;
+  width: 14px;
+  border: 2px solid var(--color-surface-primary);
+  border-radius: 999px;
+  background: var(--primary, var(--sim-info));
+}
+.sim-scrubber:focus-visible {
+  outline: 2px solid var(--sim-info);
+  outline-offset: 3px;
+  border-radius: 999px;
 }
 
 /* Heat tint on task nodes, coolest -> hottest by chosen metric. */
@@ -70,6 +163,17 @@
   bottom: 12px;
   top: auto;
   transform: none;
+}
+
+/* NavigatedViewer makes the container focusable for keyboard pan/zoom; a full
+   canvas-width outline is too loud — keep a subtle inset ring instead. */
+.simulation-bpmn-view .djs-container:focus,
+.simulation-bpmn-view .djs-container:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--sim-info) 55%, transparent);
+  outline-offset: -2px;
+}
+.simulation-bpmn-view .djs-container:focus:not(:focus-visible) {
+  outline: none;
 }
 
 /* Flash a config-rail element when jumped to from the diagram. */
