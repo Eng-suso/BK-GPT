@@ -6,6 +6,8 @@
     "new": "New",
     "newChat": "New conversation",
     "copy": "Copy conversation",
+    "copyMessage": "Copy message",
+    "retry": "Retry",
     "share": "Share",
     "config": "API configuration",
     "more": "More actions",
@@ -13,11 +15,28 @@
     "clearHistory": "Clear history",
     "search": "Search history"
   },
+  "message": {
+    "you": "You",
+    "assistant": "Assistant"
+  },
+  "sidebar": {
+    "title": "Chat",
+    "recent": "Recent conversations",
+    "newChat": "New chat"
+  },
   "threads": {
     "label": "Threads",
     "new": "New thread",
-    "empty": "No threads",
-    "delete": "Delete thread"
+    "empty": "No threads yet",
+    "delete": "Delete thread",
+    "deleteCurrent": "Delete this thread",
+    "switch": "Switch thread",
+    "group": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "last7": "Previous 7 days",
+      "older": "Older"
+    }
   },
   "composer": {
     "placeholder": "Write a message…",

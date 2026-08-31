@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Search } from "lucide-react";
 
 import { Button } from "@/ui/button";
@@ -8,6 +9,7 @@ import { ConversationList } from "./ConversationList";
 interface SidebarProps {
   sessions: ChatSession[];
   currentThreadId: string | null;
+  locale: string;
   isOpen?: boolean;
   onNewChat?: () => void;
   onSelectSession?: (threadId: string) => void;
@@ -19,6 +21,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   sessions,
   currentThreadId,
+  locale,
   isOpen = false,
   onNewChat,
   onSelectSession,
@@ -26,55 +29,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onClearHistory,
   onSearch,
 }) => {
+  const { t } = useTranslation("chat");
+
   return (
     <aside
       className={`sidebar ${isOpen ? "open" : ""}`}
-      aria-label="Conversazioni recenti"
+      aria-label={t("sidebar.recent")}
     >
-      <div className="mb-3.5 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground">Chat</h2>
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-foreground">
+          {t("sidebar.title")}
+        </h2>
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           onClick={() => onSearch?.()}
-          title="Cerca conversazione"
-          aria-label="Cerca conversazione"
+          title={t("actions.search")}
+          aria-label={t("actions.search")}
         >
           <Search />
         </Button>
       </div>
 
-      <Button
-        type="button"
-        className="mb-3.5 w-full"
-        onClick={() => onNewChat?.()}
-      >
+      <Button type="button" className="mb-4 w-full" onClick={() => onNewChat?.()}>
         <Plus />
-        Nuova chat
+        {t("sidebar.newChat")}
       </Button>
-
-      <div className="mx-1 mt-3 mb-2 flex items-center justify-between text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
-        <span>Recenti</span>
-        <span>{sessions.length}</span>
-      </div>
 
       <ConversationList
         sessions={sessions}
         currentThreadId={currentThreadId}
+        locale={locale}
         onSelectSession={onSelectSession}
         onDeleteSession={onDeleteSession}
       />
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="mt-auto w-full"
-        onClick={() => onClearHistory?.()}
-      >
-        Pulisci cronologia
-      </Button>
+      {sessions.length > 0 && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 w-full"
+          onClick={() => onClearHistory?.()}
+        >
+          {t("actions.clearHistory")}
+        </Button>
+      )}
     </aside>
   );
 };

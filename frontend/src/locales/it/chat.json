@@ -6,6 +6,8 @@
     "new": "Nuova",
     "newChat": "Nuova conversazione",
     "copy": "Copia conversazione",
+    "copyMessage": "Copia messaggio",
+    "retry": "Riprova",
     "share": "Condividi",
     "config": "Configurazione API",
     "more": "Altre azioni",
@@ -13,11 +15,28 @@
     "clearHistory": "Svuota cronologia",
     "search": "Cerca nella cronologia"
   },
+  "message": {
+    "you": "Tu",
+    "assistant": "Assistente"
+  },
+  "sidebar": {
+    "title": "Chat",
+    "recent": "Conversazioni recenti",
+    "newChat": "Nuova chat"
+  },
   "threads": {
     "label": "Thread",
     "new": "Nuovo thread",
-    "empty": "Nessun thread",
-    "delete": "Elimina thread"
+    "empty": "Ancora nessun thread",
+    "delete": "Elimina thread",
+    "deleteCurrent": "Elimina questo thread",
+    "switch": "Cambia thread",
+    "group": {
+      "today": "Oggi",
+      "yesterday": "Ieri",
+      "last7": "Ultimi 7 giorni",
+      "older": "Meno recenti"
+    }
   },
   "composer": {
     "placeholder": "Scrivi un messaggio…",
