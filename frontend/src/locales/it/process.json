@@ -64,6 +64,24 @@
       "perActivity": "Carico per attività",
       "perResource": "Utilizzo per risorsa"
     },
+    "compare": {
+      "runA": "Scenario A",
+      "runB": "Scenario B",
+      "modeLabel": "Vista modello",
+      "metric": "Metrica",
+      "better": "Migliora",
+      "worse": "Peggiora",
+      "needTwo": "Servono almeno due simulazioni completate",
+      "needTwoHint": "Esegui un secondo scenario, poi confrontali qui.",
+      "kpi": {
+        "cycleAvg": "Attraversamento medio",
+        "cycleP95": "Attraversamento P95",
+        "waitAvg": "Attesa media",
+        "costPerCase": "Costo per caso",
+        "throughput": "Throughput orario",
+        "busiestResource": "Risorsa più carica"
+      }
+    },
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
     "output": {
       "eyebrow": "Risultati",

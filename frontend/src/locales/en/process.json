@@ -64,6 +64,24 @@
       "perActivity": "Load per activity",
       "perResource": "Utilisation per resource"
     },
+    "compare": {
+      "runA": "Scenario A",
+      "runB": "Scenario B",
+      "modeLabel": "Model view",
+      "metric": "Metric",
+      "better": "Improves",
+      "worse": "Regresses",
+      "needTwo": "Two completed simulations are needed",
+      "needTwoHint": "Run a second scenario, then compare them here.",
+      "kpi": {
+        "cycleAvg": "Avg cycle time",
+        "cycleP95": "Cycle time P95",
+        "waitAvg": "Avg waiting time",
+        "costPerCase": "Cost per case",
+        "throughput": "Throughput per hour",
+        "busiestResource": "Busiest resource"
+      }
+    },
     "scenario": { "eyebrow": "Prosimos", "title": "Scenario" },
     "output": {
       "eyebrow": "Results",

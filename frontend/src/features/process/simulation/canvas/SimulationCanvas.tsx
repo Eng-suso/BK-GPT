@@ -284,4 +284,7 @@ const KNOWN_MARKERS = [
   "sim-pressure-building",
   "sim-pressure-high",
   "sim-pressure-saturated",
+  "sim-delta-better",
+  "sim-delta-worse",
+  "sim-delta-neutral",
 ];

@@ -211,16 +211,37 @@
   color: var(--color-text-primary);
 }
 
-/* Heat tint on task nodes, coolest -> hottest by chosen metric. */
-.djs-element.sim-heat-0 .djs-visual > :nth-child(1) { fill: var(--sim-heat-0); }
-.djs-element.sim-heat-1 .djs-visual > :nth-child(1) { fill: var(--sim-heat-1); }
-.djs-element.sim-heat-2 .djs-visual > :nth-child(1) { fill: var(--sim-heat-2); }
-.djs-element.sim-heat-3 .djs-visual > :nth-child(1) { fill: var(--sim-heat-3); }
-.djs-element.sim-heat-4 .djs-visual > :nth-child(1) { fill: var(--sim-heat-4); }
+/* Heat tint on task nodes, coolest -> hottest by chosen metric.
+   Target rect + first path so it works across bpmn-js task/subprocess shapes;
+   !important because bpmn-js sets a `fill` attribute on the shape. */
+.djs-element.sim-heat-0 .djs-visual > rect,
+.djs-element.sim-heat-0 .djs-visual > path:first-of-type { fill: var(--sim-heat-0) !important; }
+.djs-element.sim-heat-1 .djs-visual > rect,
+.djs-element.sim-heat-1 .djs-visual > path:first-of-type { fill: var(--sim-heat-1) !important; }
+.djs-element.sim-heat-2 .djs-visual > rect,
+.djs-element.sim-heat-2 .djs-visual > path:first-of-type { fill: var(--sim-heat-2) !important; }
+.djs-element.sim-heat-3 .djs-visual > rect,
+.djs-element.sim-heat-3 .djs-visual > path:first-of-type { fill: var(--sim-heat-3) !important; }
+.djs-element.sim-heat-4 .djs-visual > rect,
+.djs-element.sim-heat-4 .djs-visual > path:first-of-type { fill: var(--sim-heat-4) !important; }
 
 .djs-element.sim-node-bottleneck .djs-visual > :nth-child(1) {
   stroke: var(--color-status-warning);
   stroke-width: 2.5px;
+}
+
+/* --- scenario compare: diverging Δ paint (Phase 4) --- */
+.djs-element.sim-delta-better .djs-visual > rect,
+.djs-element.sim-delta-better .djs-visual > path:first-of-type {
+  fill: color-mix(in oklab, var(--color-status-success) 34%, white) !important;
+}
+.djs-element.sim-delta-worse .djs-visual > rect,
+.djs-element.sim-delta-worse .djs-visual > path:first-of-type {
+  fill: color-mix(in oklab, var(--color-status-danger) 34%, white) !important;
+}
+.djs-element.sim-delta-neutral .djs-visual > rect,
+.djs-element.sim-delta-neutral .djs-visual > path:first-of-type {
+  fill: color-mix(in oklab, var(--color-text-muted) 12%, white) !important;
 }
 
 .djs-element.sim-node-selected .djs-visual > :nth-child(1) {
