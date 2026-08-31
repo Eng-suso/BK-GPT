@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ReplayEngine, medianCaseId } from "./replayEngine";
+import { ReplayEngine, medianCaseId, pickCaseId } from "./replayEngine";
 import type { SimulationReplay } from "../simulationTypes";
 
 type Payload = SimulationReplay["replay"];
@@ -152,6 +152,43 @@ describe("ReplayEngine", () => {
       engine.seek(50);
       const at = engine.tokensAt()[0].at;
       expect(at.kind === "node" || at.kind === "flow").toBe(true);
+    });
+  });
+
+  describe("case depth (phase 7)", () => {
+    it("picks the fastest / slowest case by cycle time", () => {
+      const p = makePayload();
+      expect(pickCaseId(p, "fastest")).toBe("0"); // 150s
+      expect(pickCaseId(p, "slowest")).toBe("2"); // 400s
+      expect(pickCaseId(p, "median")).toBe("1");
+    });
+
+    it("followCase switches to case mode and seeks onto the case", () => {
+      const engine = new ReplayEngine(makePayload());
+      engine.seek(390); // past case 0's life (ends 150)
+      engine.followCase("fastest");
+      expect(engine.getStatus().granularity).toBe("case");
+      expect(engine.getStatus().focusCaseId).toBe("0");
+      expect(engine.now).toBe(0); // case 0 starts at enable 0
+      expect(engine.tokensAt()).toHaveLength(1);
+    });
+
+    it("followCase keeps the clock when it is already inside the case", () => {
+      const engine = new ReplayEngine(makePayload());
+      engine.seek(100);
+      engine.followCase("slowest"); // case 2 spans 0..400
+      expect(engine.now).toBe(100);
+    });
+
+    it("exposes the focused case timeline and its serving pool", () => {
+      const engine = new ReplayEngine(makePayload());
+      engine.followCase("median"); // case 1
+      const rows = engine.focusCaseEvents();
+      expect(rows?.map((r) => r.name)).toEqual(["Alpha", "Beta"]);
+      expect(rows?.[0]).toMatchObject({ enable: 0, start: 50, end: 120, res: "r" });
+      expect(engine.focusCaseSpan()).toMatchObject({ start: 0, end: 250, cycleSec: 250 });
+      expect(engine.poolForElement("A")).toBe("r");
+      expect(engine.poolForElement("nope")).toBeNull();
     });
   });
 

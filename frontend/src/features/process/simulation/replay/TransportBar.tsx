@@ -12,10 +12,15 @@ import {
 } from "@/ui/select";
 import { cn } from "@/lib/utils";
 
-import { type Granularity, type ReplayEngine } from "./replayEngine";
+import {
+  type CasePreset,
+  type Granularity,
+  type ReplayEngine,
+} from "./replayEngine";
 import { useReplayFrame, useReplayStatus, usePlayhead } from "./useReplay";
 
 const GRANULARITIES: Granularity[] = ["case", "sample", "system"];
+const CASE_PRESETS: CasePreset[] = ["median", "fastest", "slowest"];
 
 type TransportBarProps = {
   engine: ReplayEngine;
@@ -27,6 +32,7 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
   const status = useReplayStatus(engine);
   const frame = useReplayFrame(engine);
   const tNow = usePlayhead(engine);
+  const [casePreset, setCasePreset] = React.useState<CasePreset>("median");
 
   const numberFmt = React.useMemo(() => new Intl.NumberFormat(lang), [lang]);
   const clockFmt = React.useMemo(
@@ -126,7 +132,9 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
               key={g}
               type="button"
               aria-pressed={status.granularity === g}
-              onClick={() => engine.setGranularity(g)}
+              onClick={() =>
+                g === "case" ? engine.followCase(casePreset) : engine.setGranularity(g)
+              }
               className={cn(
                 "rounded px-2 py-1 text-xs font-medium transition-colors",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--sim-info)]",
@@ -139,6 +147,31 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
             </button>
           ))}
         </div>
+
+        {status.granularity === "case" && (
+          <Select
+            value={casePreset}
+            onValueChange={(v) => {
+              setCasePreset(v as CasePreset);
+              engine.followCase(v as CasePreset);
+            }}
+          >
+            <SelectTrigger
+              size="sm"
+              className="w-[150px] shrink-0"
+              aria-label={t("simulation.replay.casePicker")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CASE_PRESETS.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {t(`simulation.replay.casePreset.${p}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <dl
           className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"

@@ -101,11 +101,29 @@ function clamp(value: number, min: number, max: number): number {
 
 /** Pick a representative case to follow in "case" mode: the median cycle time. */
 export function medianCaseId(replay: ReplayPayload): string | null {
+  return pickCaseId(replay, "median");
+}
+
+export type CasePreset = "median" | "fastest" | "slowest";
+
+export function pickCaseId(replay: ReplayPayload, preset: CasePreset): string | null {
   const cases = replay.cases;
   if (cases.length === 0) return null;
   const sorted = [...cases].sort((a, b) => a.cycleSec - b.cycleSec);
+  if (preset === "fastest") return sorted[0]?.id ?? null;
+  if (preset === "slowest") return sorted[sorted.length - 1]?.id ?? null;
   return sorted[Math.floor(sorted.length / 2)]?.id ?? null;
 }
+
+export type CaseTimelineRow = {
+  el: string | null;
+  name: string;
+  /** seconds, run-relative (same axis as the engine clock) */
+  enable: number;
+  start: number;
+  end: number;
+  res: string;
+};
 
 export class ReplayEngine {
   private readonly replay: ReplayPayload;
@@ -116,6 +134,8 @@ export class ReplayEngine {
   private readonly elQueueStats: Record<string, { p75: number; max: number }>;
   private readonly elementIds: string[];
   private readonly resourceIds: string[];
+  /** element id -> the pool ("res") that served it, from the sampled cases */
+  private readonly elToPool: Record<string, string>;
 
   readonly speedOptions: SpeedOption[];
 
@@ -148,6 +168,12 @@ export class ReplayEngine {
 
     this.elementIds = Object.keys(replay.series.byElement);
     this.resourceIds = Object.keys(replay.series.byResource);
+    this.elToPool = {};
+    for (const c of replay.cases) {
+      for (const e of c.events) {
+        if (e.el && e.res && !(e.el in this.elToPool)) this.elToPool[e.el] = e.res;
+      }
+    }
     this.elQueueStats = {};
     for (const el of this.elementIds) {
       const q = replay.series.byElement[el].queued;
@@ -258,6 +284,50 @@ export class ReplayEngine {
       this.emitTick();
     }
     this.commitStatus();
+  }
+
+  /** Switch to case mode following the median / fastest / slowest case, and
+   *  seek onto it if the clock is currently outside its lifetime. */
+  followCase(preset: CasePreset): void {
+    this.focusCaseId = pickCaseId(this.replay, preset);
+    this.granularity = "case";
+    const span = this.focusCaseSpan();
+    if (span && (this.tNow < span.start || this.tNow >= span.end)) {
+      this.tNow = clamp(span.start, 0, this.durationSec);
+    }
+    this.maybeCommitFrame(true);
+    this.emitTick();
+    this.commitStatus();
+  }
+
+  poolForElement(el: string): string | null {
+    return this.elToPool[el] ?? null;
+  }
+
+  focusCaseEvents(caseId: string | null = this.focusCaseId): CaseTimelineRow[] | null {
+    const c = this.replay.cases.find((x) => x.id === caseId);
+    if (!c) return null;
+    const names = this.replay.elements;
+    return c.events.map((e) => ({
+      el: e.el,
+      name: (e.el && names[e.el]?.name) || e.el || "—",
+      enable: e.enable,
+      start: e.start,
+      end: e.end,
+      res: e.res,
+    }));
+  }
+
+  focusCaseSpan(
+    caseId: string | null = this.focusCaseId,
+  ): { start: number; end: number; cycleSec: number } | null {
+    const c = this.replay.cases.find((x) => x.id === caseId);
+    if (!c || c.events.length === 0) return null;
+    return {
+      start: Math.min(...c.events.map((e) => e.enable)),
+      end: Math.max(...c.events.map((e) => e.end)),
+      cycleSec: c.cycleSec,
+    };
   }
 
   restart(): void {

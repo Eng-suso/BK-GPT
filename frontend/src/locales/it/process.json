@@ -62,7 +62,22 @@
       "noRun": "Nessuna simulazione da riprodurre",
       "noRunHint": "Avvia una simulazione dalla Panoramica, poi torna qui.",
       "noArtifact": "Replay non disponibile per questa run",
-      "noArtifactHint": "Le run precedenti alla nuova pipeline non hanno l'event log. Esegui una nuova simulazione."
+      "noArtifactHint": "Le run precedenti alla nuova pipeline non hanno l'event log. Esegui una nuova simulazione.",
+      "casePicker": "Caso da seguire",
+      "casePreset": {
+        "median": "Caso mediano",
+        "fastest": "Più veloce",
+        "slowest": "Più lento"
+      },
+      "servedBy": "Risorsa",
+      "timeline": {
+        "title": "Percorso del caso {{id}}",
+        "cycle": "Attraversamento {{value}}",
+        "wait": "In coda {{value}}",
+        "work": "In lavorazione {{value}}",
+        "waitLabel": "In coda",
+        "workLabel": "In lavorazione"
+      }
     },
     "overview": {
       "noRunHint": "Configura lo scenario qui sotto e avvia la prima simulazione."

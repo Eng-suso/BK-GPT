@@ -62,7 +62,22 @@
       "noRun": "No simulation to replay",
       "noRunHint": "Run a simulation from Overview, then come back here.",
       "noArtifact": "No replay for this run",
-      "noArtifactHint": "Runs from before the new pipeline have no event log. Run a new simulation."
+      "noArtifactHint": "Runs from before the new pipeline have no event log. Run a new simulation.",
+      "casePicker": "Case to follow",
+      "casePreset": {
+        "median": "Median case",
+        "fastest": "Fastest",
+        "slowest": "Slowest"
+      },
+      "servedBy": "Resource",
+      "timeline": {
+        "title": "Case {{id}} path",
+        "cycle": "Cycle {{value}}",
+        "wait": "Queued {{value}}",
+        "work": "Working {{value}}",
+        "waitLabel": "Queued",
+        "workLabel": "Working"
+      }
     },
     "overview": {
       "noRunHint": "Configure the scenario below and launch the first simulation."

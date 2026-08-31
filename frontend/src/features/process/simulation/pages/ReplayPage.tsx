@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import { Meter } from "@/components/data";
 import { cn } from "@/lib/utils";
 
 import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanvas";
@@ -10,7 +11,8 @@ import { TokenLayer } from "../canvas/TokenLayer";
 import { TransportBar } from "../replay/TransportBar";
 import { ReplayGate } from "../replay/ReplayGate";
 import { ReplayInsightRail } from "../replay/ReplayInsightRail";
-import { useReplayFrame } from "../replay/useReplay";
+import { CaseTimeline } from "../replay/CaseTimeline";
+import { useReplayFrame, useReplayStatus } from "../replay/useReplay";
 import type { ReplayEngine } from "../replay/replayEngine";
 import type { BpmnViewer } from "../canvas/bpmnViewer";
 import type { SimulationRun } from "../simulationTypes";
@@ -42,6 +44,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const frame = useReplayFrame(engine);
+  const status = useReplayStatus(engine);
   const [viewer, setViewer] = React.useState<BpmnViewer | null>(null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
@@ -79,6 +82,8 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
         )
       : undefined;
   const nodeState = selectedId && frame ? frame.elements[selectedId] : undefined;
+  const pool = selectedId ? engine.poolForElement(selectedId) : null;
+  const poolBusy = pool && frame ? frame.resources[pool]?.busy ?? 0 : 0;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -135,6 +140,23 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
                   />
                 )}
               </dl>
+              {pool && (
+                <div className="mt-2 border-t border-border pt-2">
+                  <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      {t("simulation.replay.servedBy")}
+                    </span>
+                    <span className="min-w-0 truncate font-medium text-foreground" title={pool}>
+                      {pool}
+                    </span>
+                  </div>
+                  <Meter
+                    value={Math.round(poolBusy * 100)}
+                    tone={poolBusy >= 0.95 ? "danger" : poolBusy >= 0.8 ? "warning" : "ok"}
+                    height={5}
+                  />
+                </div>
+              )}
             </aside>
           )}
         </div>
@@ -143,6 +165,12 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
           <ReplayInsightRail engine={engine} run={run} />
         </div>
       </div>
+
+      {status?.granularity === "case" && (
+        <div className="flex h-[156px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card px-4 py-3">
+          <CaseTimeline engine={engine} />
+        </div>
+      )}
     </div>
   );
 }
