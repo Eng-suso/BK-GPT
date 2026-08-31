@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 /**
  * Standard workspace list screen: a scrolling main column
  * (page header + toolbar + table) beside an optional right detail panel.
- * The panel is hidden below `xl`.
+ * The panel is hidden below the `panel` breakpoint (1440px) so it never
+ * squeezes the table.
  */
 export function WorkspaceListView({
   header,
@@ -26,7 +27,8 @@ export function WorkspaceListView({
     <div
       className={cn(
         "grid h-full min-h-0 grid-cols-1",
-        detail && "xl:grid-cols-[minmax(0,1fr)_344px]",
+        detail &&
+          "panel:grid-cols-[minmax(0,1fr)_var(--workspace-detail-panel)]",
         className,
       )}
     >

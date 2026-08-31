@@ -25,9 +25,7 @@ export function EmptyState({
   if (variant === "inline") {
     return (
       <div className={cn("flex flex-col items-start gap-1.5 py-3.5", className)}>
-        <h4 className="text-[12.5px] font-semibold text-muted-foreground">
-          {title}
-        </h4>
+        <h4 className="text-xs font-semibold text-muted-foreground">{title}</h4>
         {description && (
           <p className="max-w-[300px] text-xs leading-relaxed text-muted-foreground/80">
             {description}
@@ -45,7 +43,7 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="grid size-10 place-items-center rounded-[9px] bg-muted text-muted-foreground">
+      <div className="grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
         <Icon className="size-5" />
       </div>
       <h4 className="text-sm font-semibold text-foreground">{title}</h4>

@@ -24,7 +24,7 @@ export function ProgressBar({
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        className="block h-[5px] overflow-hidden rounded-full bg-[var(--slate-200)]"
+        className="block h-[5px] overflow-hidden rounded-full bg-border"
         style={{ width }}
       >
         <span
@@ -33,7 +33,7 @@ export function ProgressBar({
         />
       </span>
       {showValue && (
-        <b className="min-w-[30px] text-[12.5px] font-semibold tabular-nums text-foreground">
+        <b className="min-w-[30px] text-xs font-semibold tabular-nums text-foreground">
           {pct}%
         </b>
       )}

@@ -25,7 +25,7 @@ export function DataTablePagination({
   ).filter((p) => p >= 1 && p <= pageCount);
 
   const btn =
-    "grid h-7 min-w-7 place-items-center rounded-md border border-border bg-card px-2 text-[12.5px] font-medium tabular-nums text-muted-foreground shadow-[0_1px_2px_rgba(14,20,32,0.05)] disabled:opacity-40";
+    "grid h-7 min-w-7 place-items-center rounded-md border border-border bg-card px-2 text-xs font-medium tabular-nums text-muted-foreground shadow-control disabled:opacity-40";
 
   return (
     <>

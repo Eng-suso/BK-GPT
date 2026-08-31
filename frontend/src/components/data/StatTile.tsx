@@ -47,7 +47,7 @@ export function StatTile({
         {value}
       </strong>
       {hint != null && (
-        <span className="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">
+        <span className="mt-0.5 block truncate text-micro leading-tight text-muted-foreground">
           {hint}
         </span>
       )}

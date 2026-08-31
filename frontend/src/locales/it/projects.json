@@ -12,15 +12,15 @@
       "client": "Cliente",
       "status": "Stato",
       "phase": "Fase",
-      "owner": "Owner"
+      "owner": "Referente"
     },
     "columns": {
       "project": "Progetto",
       "client": "Cliente",
       "phase": "Fase corrente",
-      "owner": "Owner",
+      "lead": "Referente",
       "status": "Stato",
-      "processes": "Proc.",
+      "processes": "Processi",
       "progress": "Avanzamento"
     },
     "owner": { "unassigned": "Da assegnare" },
@@ -36,42 +36,30 @@
     "backToList": "Torna ai progetti",
     "phaseLabel": "Fase",
     "actions": {
-      "updateStatus": "Aggiorna stato",
-      "openRoadmap": "Apri roadmap",
-      "openChat": "Apri chat"
+      "openChat": "Apri chat",
+      "openProcess": "Apri processo"
     },
     "tabs": {
       "overview": "Panoramica",
       "chat": "Chat progetto",
       "processes": "Processi",
       "sources": "Fonti",
-      "decisions": "Decisioni",
-      "analysis": "Analisi",
-      "kpi": "KPI",
-      "team": "Team"
+      "decisions": "Decisioni"
     },
     "overview": {
       "processes": "Processi in scope",
-      "decisions": "Decisioni",
-      "kpi": "KPI di progetto",
-      "team": "Team"
+      "decisions": "Decisioni"
     },
     "processes": { "empty": "Nessun processo in scope" },
     "sources": { "empty": "Nessuna fonte collegata" },
     "decisions": { "empty": "Nessuna decisione registrata" },
-    "unavailable": {
-      "title": "Non disponibile",
-      "kpi": "I KPI di progetto non sono ancora tracciati dal backend. La sezione si attiva quando l'endpoint è pronto.",
-      "team": "Il team di progetto non è ancora tracciato dal backend."
-    },
     "panel": {
       "summary": "Riepilogo progetto",
       "openIssues": "Punti aperti",
       "milestones": "Milestone principali",
       "actions": "Azioni rapide",
       "nextStep": "Prossimo passo",
-      "openRoadmap": "Apri roadmap",
-      "openProcesses": "Apri processi",
+      "openProject": "Apri progetto",
       "selectPrompt": "Seleziona un progetto per vederne il dettaglio."
     }
   },

@@ -12,15 +12,15 @@
       "client": "Client",
       "status": "Status",
       "phase": "Phase",
-      "owner": "Owner"
+      "owner": "Lead"
     },
     "columns": {
       "project": "Project",
       "client": "Client",
       "phase": "Current phase",
-      "owner": "Owner",
+      "lead": "Lead",
       "status": "Status",
-      "processes": "Proc.",
+      "processes": "Processes",
       "progress": "Progress"
     },
     "owner": { "unassigned": "Unassigned" },
@@ -36,42 +36,30 @@
     "backToList": "Back to projects",
     "phaseLabel": "Phase",
     "actions": {
-      "updateStatus": "Update status",
-      "openRoadmap": "Open roadmap",
-      "openChat": "Open chat"
+      "openChat": "Open chat",
+      "openProcess": "Open process"
     },
     "tabs": {
       "overview": "Overview",
       "chat": "Project chat",
       "processes": "Processes",
       "sources": "Sources",
-      "decisions": "Decisions",
-      "analysis": "Analysis",
-      "kpi": "KPI",
-      "team": "Team"
+      "decisions": "Decisions"
     },
     "overview": {
       "processes": "Processes in scope",
-      "decisions": "Decisions",
-      "kpi": "Project KPIs",
-      "team": "Team"
+      "decisions": "Decisions"
     },
     "processes": { "empty": "No processes in scope" },
     "sources": { "empty": "No linked sources" },
     "decisions": { "empty": "No decisions recorded" },
-    "unavailable": {
-      "title": "Not available",
-      "kpi": "Project KPIs are not tracked by the backend yet. This section activates once the endpoint is ready.",
-      "team": "The project team is not tracked by the backend yet."
-    },
     "panel": {
       "summary": "Project summary",
       "openIssues": "Open issues",
       "milestones": "Key milestones",
       "actions": "Quick actions",
       "nextStep": "Next step",
-      "openRoadmap": "Open roadmap",
-      "openProcesses": "Open processes",
+      "openProject": "Open project",
       "selectPrompt": "Select a project to see its details."
     }
   },

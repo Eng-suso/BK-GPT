@@ -39,14 +39,14 @@ export function NavRow({
       <span className="min-w-0">
         <span
           className={cn(
-            "block truncate text-[12.5px] font-medium text-foreground",
+            "block truncate text-xs font-medium text-foreground",
             titleClassName,
           )}
         >
           {title}
         </span>
         {meta != null && (
-          <span className="block truncate text-[11.5px] text-muted-foreground">
+          <span className="block truncate text-micro text-muted-foreground">
             {meta}
           </span>
         )}

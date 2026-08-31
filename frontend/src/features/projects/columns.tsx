@@ -1,11 +1,10 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
-import { Star } from "lucide-react";
 
 import { ProgressBar } from "@/components/data";
 import { StatusIndicator } from "@/components/status";
 import type { Project } from "./types";
-import { projectStatusTone } from "./types";
+import { projectStatusRank, projectStatusTone } from "./types";
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -16,20 +15,11 @@ function initials(name: string): string {
 export function buildProjectColumns(t: TFunction): ColumnDef<Project>[] {
   return [
     {
-      id: "favorite",
-      header: "",
-      enableSorting: false,
-      size: 36,
-      cell: () => (
-        <Star className="size-[15px] text-muted-foreground/70" strokeWidth={1.6} />
-      ),
-    },
-    {
       accessorKey: "name",
       header: t("list.columns.project"),
       cell: ({ row }) => (
         <span className="block max-w-[300px]">
-          <span className="block truncate text-[13.5px] font-semibold tracking-[-0.012em] text-primary">
+          <span className="block truncate text-body-sm font-semibold tracking-[-0.012em] text-primary">
             {row.original.name}
           </span>
           <span className="block truncate text-xs text-muted-foreground">
@@ -53,17 +43,17 @@ export function buildProjectColumns(t: TFunction): ColumnDef<Project>[] {
       ),
     },
     {
-      id: "owner",
-      header: t("list.columns.owner"),
+      id: "lead",
+      header: t("list.columns.lead"),
       enableSorting: false,
       cell: ({ row }) => {
-        const owner = row.original.processItems[0]?.owner;
-        return owner ? (
+        const lead = row.original.processItems[0]?.owner;
+        return lead ? (
           <span className="inline-flex max-w-[160px] items-center gap-2">
-            <span className="grid size-[23px] flex-none place-items-center rounded-full bg-muted text-[9.5px] font-semibold text-muted-foreground ring-1 ring-black/5">
-              {initials(owner)}
+            <span className="grid size-[23px] flex-none place-items-center rounded-full bg-muted text-2xs font-semibold text-muted-foreground ring-1 ring-black/5">
+              {initials(lead)}
             </span>
-            <span className="truncate text-foreground">{owner}</span>
+            <span className="truncate text-foreground">{lead}</span>
           </span>
         ) : (
           <span className="text-muted-foreground">
@@ -75,7 +65,9 @@ export function buildProjectColumns(t: TFunction): ColumnDef<Project>[] {
     {
       accessorKey: "status",
       header: t("list.columns.status"),
-      enableSorting: false,
+      sortingFn: (a, b) =>
+        projectStatusRank(a.original.status) -
+        projectStatusRank(b.original.status),
       cell: ({ row }) => (
         <StatusIndicator
           tone={projectStatusTone(row.original.status)}
@@ -95,7 +87,9 @@ export function buildProjectColumns(t: TFunction): ColumnDef<Project>[] {
     {
       accessorKey: "progress",
       header: t("list.columns.progress"),
-      cell: ({ getValue }) => <ProgressBar value={getValue<number>()} width={84} />,
+      cell: ({ getValue }) => (
+        <ProgressBar value={getValue<number>()} width={84} />
+      ),
     },
   ];
 }

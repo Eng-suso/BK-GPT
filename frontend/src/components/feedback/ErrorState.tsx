@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -14,13 +15,14 @@ export type ErrorStateProps = {
 };
 
 export function ErrorState({
-  title = "Si è verificato un errore",
-  description = "Non è stato possibile caricare i dati. Riprova.",
+  title,
+  description,
   onRetry,
-  retryLabel = "Riprova",
+  retryLabel,
   action,
   className,
 }: ErrorStateProps): React.JSX.Element {
+  const { t } = useTranslation("common");
   return (
     <div
       role="alert"
@@ -29,16 +31,20 @@ export function ErrorState({
         className,
       )}
     >
-      <div className="grid size-10 place-items-center rounded-[9px] bg-[var(--red-50)] text-[var(--color-status-danger)]">
+      <div className="grid size-10 place-items-center rounded-lg bg-[var(--red-50)] text-[var(--color-status-danger)]">
         <TriangleAlert className="size-5" />
       </div>
-      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-      <p className="max-w-[300px] text-xs text-muted-foreground">{description}</p>
+      <h4 className="text-sm font-semibold text-foreground">
+        {title ?? t("state.error")}
+      </h4>
+      <p className="max-w-[300px] text-xs text-muted-foreground">
+        {description ?? t("state.errorBody")}
+      </p>
       {(onRetry || action) && (
         <div className="mt-1 flex items-center gap-2">
           {onRetry && (
             <Button variant="outline" size="sm" onClick={onRetry}>
-              {retryLabel}
+              {retryLabel ?? t("actions.retry")}
             </Button>
           )}
           {action}

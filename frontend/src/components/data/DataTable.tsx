@@ -75,7 +75,7 @@ export function DataTable<T>({
       Array.from({ length: skeletonRows }, (_, i) => (
         <TableRow key={`sk-${i}`} className="border-border/60">
           {columns.map((_, c) => (
-            <TableCell key={c} className="h-[62px] px-[18px]">
+            <TableCell key={c} className="h-14 px-4">
               <Skeleton className="h-3 w-[60%]" />
             </TableCell>
           ))}
@@ -87,8 +87,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card",
-        "shadow-[0_1px_3px_rgba(14,20,32,0.06),0_1px_2px_-1px_rgba(14,20,32,0.05)]",
+        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card",
         className,
       )}
     >
@@ -103,30 +102,43 @@ export function DataTable<T>({
                   return (
                     <TableHead
                       key={header.id}
-                      className={cn(
-                        "h-auto bg-card px-[18px] py-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground",
-                        canSort && "cursor-pointer select-none",
-                      )}
-                      onClick={
-                        canSort
-                          ? header.column.getToggleSortingHandler()
-                          : undefined
+                      aria-sort={
+                        !canSort
+                          ? undefined
+                          : sorted === "asc"
+                            ? "ascending"
+                            : sorted === "desc"
+                              ? "descending"
+                              : "none"
                       }
+                      className="h-auto bg-card px-4 py-3 text-micro font-semibold tracking-[0.04em] text-muted-foreground uppercase"
                     >
-                      <span className="inline-flex items-center gap-1">
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                        {canSort &&
-                          (sorted === "asc" ? (
+                      {canSort ? (
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="-mx-1 inline-flex items-center gap-1 rounded-sm px-1 py-0.5 uppercase select-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                        >
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                          {sorted === "asc" ? (
                             <ChevronUp className="size-3 opacity-70" />
                           ) : sorted === "desc" ? (
                             <ChevronDown className="size-3 opacity-70" />
                           ) : (
                             <ChevronsUpDown className="size-3 opacity-40" />
-                          ))}
-                      </span>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                        </span>
+                      )}
                     </TableHead>
                   );
                 })}
@@ -146,15 +158,28 @@ export function DataTable<T>({
             ) : (
               table.getRowModel().rows.map((row: Row<T>) => {
                 const isSelected = selectedRowId === row.id;
+                const activate = onRowClick
+                  ? () => onRowClick(row.original)
+                  : undefined;
                 return (
                   <TableRow
                     key={row.id}
                     data-state={isSelected ? "selected" : undefined}
-                    onClick={
-                      onRowClick ? () => onRowClick(row.original) : undefined
+                    onClick={activate}
+                    onKeyDown={
+                      activate
+                        ? (e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              activate();
+                            }
+                          }
+                        : undefined
                     }
+                    tabIndex={activate ? 0 : undefined}
+                    aria-current={isSelected ? true : undefined}
                     className={cn(
-                      "relative border-border/60",
+                      "relative border-border/60 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                       onRowClick && "cursor-pointer",
                       isSelected
                         ? "bg-[var(--color-surface-selected)] hover:bg-[var(--color-surface-selected)]"
@@ -165,7 +190,7 @@ export function DataTable<T>({
                       <TableCell
                         key={cell.id}
                         className={cn(
-                          "h-[62px] px-[18px] text-[13px] text-muted-foreground",
+                          "h-14 px-4 text-body-sm text-muted-foreground",
                           ci === 0 &&
                             isSelected &&
                             "before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-primary before:content-['']",
@@ -186,7 +211,7 @@ export function DataTable<T>({
       </div>
 
       {footer && (
-        <div className="flex items-center justify-between border-t border-border bg-card px-[18px] py-3 text-[12.5px] text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-border bg-card px-4 py-3 text-xs text-muted-foreground">
           {footer}
         </div>
       )}

@@ -1,7 +1,7 @@
 export { DataTable } from "./DataTable";
 export type { DataTableProps } from "./DataTable";
 export { ListToolbar } from "./ListToolbar";
-export type { FilterChip } from "./ListToolbar";
+export type { ListFilterMenu } from "./ListToolbar";
 export { DataTablePagination } from "./DataTablePagination";
 export type { DataTablePaginationProps } from "./DataTablePagination";
 export { ProgressBar } from "./ProgressBar";

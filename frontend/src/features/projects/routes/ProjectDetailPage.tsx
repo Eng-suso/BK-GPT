@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
@@ -16,7 +16,6 @@ import { EmptyState, ErrorState } from "@/components/feedback";
 import { StatusIndicator } from "@/components/status";
 import {
   DetailPanel,
-  DetailPanelHeader,
   DetailPanelKeyValue,
   DetailPanelSection,
 } from "@/components/panel";
@@ -33,6 +32,7 @@ import {
 } from "../api";
 import {
   PROJECT_TABS,
+  PROJECT_TAB_IDS,
   projectStatusTone,
   type Project,
   type ProjectProcess,
@@ -42,12 +42,28 @@ export function ProjectDetailPage(): React.JSX.Element {
   const { projectId = "" } = useParams();
   const { t } = useTranslation("projects");
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const projectQ = useProjectQuery(projectId);
   const sourcesQ = useProjectSourcesQuery(projectId);
   const decisionsQ = useProjectDecisionsQuery(projectId);
 
-  const [tab, setTab] = useState("overview");
+  const tabParam = searchParams.get("tab") ?? "";
+  const tab = PROJECT_TAB_IDS.includes(tabParam) ? tabParam : "overview";
+  const setTab = useCallback(
+    (next: string) => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next === "overview") params.delete("tab");
+          else params.set("tab", next);
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const goList = useCallback(
     () => navigate(ROUTES.projects.list),
@@ -88,9 +104,10 @@ export function ProjectDetailPage(): React.JSX.Element {
   }
 
   const project = projectQ.data;
+  const firstProcess = project.processItems[0];
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="grid h-full min-h-0 grid-cols-1 panel:grid-cols-[minmax(0,1fr)_var(--workspace-detail-panel)]">
       <div className="flex min-w-0 flex-col gap-4 overflow-auto bg-card px-7 py-6">
         <PageHeader
           breadcrumbs={[
@@ -114,15 +131,18 @@ export function ProjectDetailPage(): React.JSX.Element {
           }
           actions={
             <>
-              <Button variant="outline" size="sm" onClick={() => setTab("chat")}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTab("chat")}
+              >
                 <MessageSquare /> {t("detail.actions.openChat")}
               </Button>
-              <Button variant="ghost" size="sm">
-                {t("detail.actions.updateStatus")}
-              </Button>
-              <Button size="sm">
-                <ArrowRight /> {t("detail.actions.openRoadmap")}
-              </Button>
+              {firstProcess && (
+                <Button size="sm" onClick={() => openProcess(firstProcess)}>
+                  <ArrowRight /> {t("detail.actions.openProcess")}
+                </Button>
+              )}
             </>
           }
         />
@@ -135,11 +155,7 @@ export function ProjectDetailPage(): React.JSX.Element {
           <div className="-mx-7 min-w-0 overflow-x-auto px-7 pb-1">
             <TabsList variant="line" className="min-w-max">
               {PROJECT_TABS.map((tabDef) => (
-                <TabsTrigger
-                  key={tabDef.id}
-                  value={tabDef.id}
-                  disabled={!tabDef.available}
-                >
+                <TabsTrigger key={tabDef.id} value={tabDef.id}>
                   {t(tabDef.labelKey)}
                 </TabsTrigger>
               ))}
@@ -179,8 +195,7 @@ export function ProjectDetailPage(): React.JSX.Element {
         </Tabs>
       </div>
 
-      <DetailPanel className="hidden bg-card xl:flex">
-        <DetailPanelHeader title={project.name} subtitle={project.client} />
+      <DetailPanel className="hidden bg-card panel:flex">
         <DetailPanelSection title={t("detail.panel.summary")}>
           <DetailPanelKeyValue
             rows={[
@@ -278,27 +293,12 @@ function OverviewTab({
               className="flex items-center gap-2 border-b border-border/60 py-2 text-xs text-foreground last:border-b-0"
             >
               {d.title}
-              <span className="ml-auto text-[11px] text-muted-foreground">
+              <span className="ml-auto text-micro text-muted-foreground">
                 {d.status}
               </span>
             </div>
           ))
         )}
-      </Block>
-
-      <Block title={t("detail.overview.kpi")}>
-        <EmptyState
-          variant="inline"
-          title={t("detail.unavailable.title")}
-          description={t("detail.unavailable.kpi")}
-        />
-      </Block>
-      <Block title={t("detail.overview.team")}>
-        <EmptyState
-          variant="inline"
-          title={t("detail.unavailable.title")}
-          description={t("detail.unavailable.team")}
-        />
       </Block>
     </div>
   );
@@ -343,7 +343,7 @@ function ProcessesTab({
           key={p.id}
           onClick={() => onOpenProcess(p)}
           className="py-3"
-          titleClassName="text-[13px] text-primary"
+          titleClassName="text-body-sm text-primary"
           title={p.name}
           meta={`${p.stage} · ${p.owner}`}
           trailing={<ArrowRight className="size-4 text-muted-foreground" />}

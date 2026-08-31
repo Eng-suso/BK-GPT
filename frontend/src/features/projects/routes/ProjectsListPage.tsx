@@ -5,7 +5,12 @@ import type { SortingState } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 
 import { PageHeader, WorkspaceListView } from "@/components/layout";
-import { DataTable, DataTablePagination, ListToolbar, ProgressBar } from "@/components/data";
+import {
+  DataTable,
+  DataTablePagination,
+  ListToolbar,
+  ProgressBar,
+} from "@/components/data";
 import { EmptyState, ErrorState } from "@/components/feedback";
 import { StatusIndicator } from "@/components/status";
 import {
@@ -17,12 +22,12 @@ import {
 import { Button } from "@/ui/button";
 import { ROUTES } from "@/app/routes";
 import { usePagedList } from "@/lib/hooks/usePagedList";
+import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { buildProjectColumns } from "../columns";
 import { useProjectsQuery } from "../api";
 import { projectStatusTone, type Project } from "../types";
-
-const FILTER_IDS = ["client", "status", "phase", "owner"] as const;
 
 function matchProject(p: Project, q: string): boolean {
   return [p.name, p.client, p.phase, p.status, p.nextStep].some((v) =>
@@ -38,16 +43,49 @@ export function ProjectsListPage(): React.JSX.Element {
   const { data: projects = [], isLoading, isError, refetch } = useProjectsQuery();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The detail panel only mounts at ≥1536px (the `panel` breakpoint); below
+  // that a row click opens the full detail page instead of selecting into a
+  // panel nobody can see.
+  const hasPanel = useMediaQuery("(min-width: 1536px)");
 
-  const list = usePagedList(projects, matchProject);
-  const selected =
-    projects.find((p) => p.id === selectedId) ?? list.pageRows[0] ?? null;
+  const filterDefs = useMemo<ListFilterDef<Project>[]>(
+    () => [
+      { id: "client", label: t("list.filter.client"), accessor: (p) => p.client },
+      { id: "status", label: t("list.filter.status"), accessor: (p) => p.status },
+      { id: "phase", label: t("list.filter.phase"), accessor: (p) => p.phase },
+      {
+        id: "lead",
+        label: t("list.filter.owner"),
+        accessor: (p) =>
+          p.processItems[0]?.owner ?? t("list.owner.unassigned"),
+      },
+    ],
+    [t],
+  );
+  const filters = useListFilters(projects, filterDefs);
+
+  const filtered = useMemo(
+    () => projects.filter(filters.match),
+    [projects, filters.match],
+  );
+  const list = usePagedList(filtered, matchProject);
+  const selected = hasPanel
+    ? (projects.find((p) => p.id === selectedId) ?? list.pageRows[0] ?? null)
+    : null;
 
   const columns = useMemo(() => buildProjectColumns(t), [t]);
-  const handleRowClick = useCallback((p: Project) => setSelectedId(p.id), []);
   const openDetail = useCallback(
-    (id: string) => navigate(ROUTES.projects.detail(id)),
+    (id: string, tab?: string) =>
+      navigate(
+        tab
+          ? `${ROUTES.projects.detail(id)}?tab=${tab}`
+          : ROUTES.projects.detail(id),
+      ),
     [navigate],
+  );
+  const handleRowClick = useCallback(
+    (p: Project) => (hasPanel ? setSelectedId(p.id) : openDetail(p.id)),
+    [hasPanel, openDetail],
   );
 
   return (
@@ -62,7 +100,7 @@ export function ProjectsListPage(): React.JSX.Element {
           description={t("list.description")}
           count={projects.length || undefined}
           actions={
-            <Button size="sm">
+            <Button size="sm" onClick={() => navigate(ROUTES.consultant)}>
               <Plus /> {t("list.actions.new")}
             </Button>
           }
@@ -73,11 +111,12 @@ export function ProjectsListPage(): React.JSX.Element {
           search={list.search}
           onSearchChange={list.setSearch}
           searchPlaceholder={t("list.filter.placeholder")}
-          filters={FILTER_IDS.map((id) => ({ id, label: t(`list.filter.${id}`) }))}
+          filters={filters.menus}
+          onClearFilters={filters.clear}
         />
       }
       detail={
-        <DetailPanel className="hidden xl:flex">
+        <DetailPanel className="hidden panel:flex">
           {selected ? (
             <>
               <DetailPanelHeader
@@ -98,7 +137,7 @@ export function ProjectsListPage(): React.JSX.Element {
                       ),
                     },
                     {
-                      label: t("list.columns.owner"),
+                      label: t("list.columns.lead"),
                       value:
                         selected.processItems[0]?.owner ??
                         t("list.owner.unassigned"),
@@ -119,7 +158,7 @@ export function ProjectsListPage(): React.JSX.Element {
 
               {selected.openIssues.length > 0 && (
                 <DetailPanelSection title={t("detail.panel.openIssues")}>
-                  <ul className="flex flex-col text-[12.5px] text-foreground">
+                  <ul className="flex flex-col text-xs text-foreground">
                     {selected.openIssues.slice(0, 4).map((issue) => (
                       <li
                         key={issue}
@@ -135,18 +174,17 @@ export function ProjectsListPage(): React.JSX.Element {
               <DetailPanelSection title={t("detail.panel.actions")}>
                 <div className="grid grid-cols-2 gap-2 pb-5">
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={() => openDetail(selected.id)}
                   >
-                    {t("detail.panel.openRoadmap")}
+                    {t("detail.panel.openProject")}
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => openDetail(selected.id)}
+                    onClick={() => openDetail(selected.id, "chat")}
                   >
-                    {t("detail.panel.openProcesses")}
+                    {t("detail.actions.openChat")}
                   </Button>
                 </div>
               </DetailPanelSection>

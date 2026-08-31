@@ -16,12 +16,11 @@ import {
 import { Button } from "@/ui/button";
 import { ROUTES } from "@/app/routes";
 import { usePagedList } from "@/lib/hooks/usePagedList";
+import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
 import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { buildClientColumns } from "../columns";
 import { useClientsQuery } from "../api";
 import { clientStatusTone, type Client } from "../types";
-
-const FILTER_IDS = ["status", "owner", "sector"] as const;
 
 function matchClient(c: Client, q: string): boolean {
   return [c.name, c.sector, c.owner, c.contact].some((v) =>
@@ -37,7 +36,21 @@ export function ClientsListPage(): React.JSX.Element {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const list = usePagedList(clients, matchClient);
+  const filterDefs = useMemo<ListFilterDef<Client>[]>(
+    () => [
+      { id: "status", label: t("list.filter.status"), accessor: (c) => c.status },
+      { id: "owner", label: t("list.filter.owner"), accessor: (c) => c.owner },
+      { id: "sector", label: t("list.filter.sector"), accessor: (c) => c.sector },
+    ],
+    [t],
+  );
+  const filters = useListFilters(clients, filterDefs);
+
+  const filtered = useMemo(
+    () => clients.filter(filters.match),
+    [clients, filters.match],
+  );
+  const list = usePagedList(filtered, matchClient);
   const selected =
     clients.find((c) => c.id === selectedId) ?? list.pageRows[0] ?? null;
 
@@ -67,11 +80,12 @@ export function ClientsListPage(): React.JSX.Element {
           search={list.search}
           onSearchChange={list.setSearch}
           searchPlaceholder={t("list.filter.placeholder")}
-          filters={FILTER_IDS.map((id) => ({ id, label: t(`list.filter.${id}`) }))}
+          filters={filters.menus}
+          onClearFilters={filters.clear}
         />
       }
       detail={
-        <DetailPanel className="hidden xl:flex">
+        <DetailPanel className="hidden panel:flex">
           {selected ? (
             <>
               <DetailPanelHeader
@@ -113,7 +127,7 @@ export function ClientsListPage(): React.JSX.Element {
               )}
               {selected.documents.length > 0 && (
                 <DetailPanelSection title={t("detail.documents")}>
-                  <ul className="flex flex-col text-[12.5px] text-muted-foreground">
+                  <ul className="flex flex-col text-xs text-muted-foreground">
                     {selected.documents.slice(0, 6).map((d) => (
                       <li key={d} className="py-1.5">
                         {d}
@@ -172,7 +186,7 @@ export function ClientsListPage(): React.JSX.Element {
 
 function PanelBulletList({ items }: { items: string[] }): React.JSX.Element {
   return (
-    <ul className="flex flex-col text-[12.5px] text-foreground">
+    <ul className="flex flex-col text-xs text-foreground">
       {items.map((item) => (
         <li
           key={item}
