@@ -304,6 +304,23 @@
         "cycleShare": "Cycle-time share",
         "casesAffected": "Cases affected"
       }
+    },
+    "insights": {
+      "title": "What to try",
+      "noRun": "No simulation to analyse.",
+      "noRunHint": "Launch a run from the overview to get suggestions.",
+      "noData": "Prosimos returned no statistics for this run.",
+      "noBottleneck": "No structural bottleneck found in this run.",
+      "noExperiment": "No experiment suggested — capacity looks adequate for the volume.",
+      "diagnostic": "{{name}} absorbs {{wait}} of average wait — {{share}} of cycle time is queueing.",
+      "lowConfidenceCaveat": "The bottleneck rests on low-confidence inputs. Validate the assumptions in the scenario builder before acting.",
+      "experimentKind": {
+        "add_resource": "Experiment"
+      },
+      "addResourceTitle": "Add 1 resource to {{pool}} ({{from}} → {{to}})",
+      "estimateNote": "Estimate — the real answer is to simulate",
+      "createScenario": "Create scenario",
+      "scenarioName": "{{base}} · +1 {{pool}}"
     }
   },
   "side": {

@@ -1,12 +1,14 @@
 import { http } from "@/lib/http";
 
 import {
+  experimentReportSchema,
   scenarioProvenanceSchema,
   scenarioTemplateSchema,
   simulationReplaySchema,
   simulationRunSchema,
   simulationRunsSchema,
   type CreateSimulationRunInput,
+  type ExperimentReport,
   type ScenarioProvenance,
   type ScenarioTemplate,
   type SimulationReplay,
@@ -98,6 +100,16 @@ export async function getProsimosSimulationRun(
   const raw = await http<unknown>(`/v1/workspace/simulation-runs/${runId}`);
 
   return simulationRunSchema.parse(raw);
+}
+
+/** Heuristic "what should I try next" for a completed run (Phase 9). */
+export async function fetchSimulationExperiments(
+  runId: number,
+): Promise<ExperimentReport> {
+  const raw = await http<unknown>(
+    `/v1/workspace/simulation-runs/${runId}/experiments`,
+  );
+  return experimentReportSchema.parse(raw);
 }
 
 /** The heavy replay artifact — only the replay / dashboard screens need it. */

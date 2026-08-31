@@ -304,6 +304,23 @@
         "cycleShare": "Contributo al ciclo",
         "casesAffected": "Casi impattati"
       }
+    },
+    "insights": {
+      "title": "Cosa provare",
+      "noRun": "Nessuna simulazione da analizzare.",
+      "noRunHint": "Avvia una run dalla Panoramica per ottenere suggerimenti.",
+      "noData": "Prosimos non ha restituito statistiche per questa run.",
+      "noBottleneck": "Nessun collo di bottiglia strutturale rilevato in questa run.",
+      "noExperiment": "Nessun esperimento suggerito: la capacità sembra adeguata al volume.",
+      "diagnostic": "{{name}} assorbe {{wait}} di attesa media — il {{share}} del tempo di ciclo è coda.",
+      "lowConfidenceCaveat": "Il collo di bottiglia poggia su parametri a bassa confidenza. Valida le assunzioni nel Costruttore scenario prima di agire.",
+      "experimentKind": {
+        "add_resource": "Esperimento"
+      },
+      "addResourceTitle": "Aggiungi 1 risorsa a {{pool}} ({{from}} → {{to}})",
+      "estimateNote": "Stima — la risposta reale è simulare",
+      "createScenario": "Crea scenario",
+      "scenarioName": "{{base}} · +1 {{pool}}"
     }
   },
   "side": {

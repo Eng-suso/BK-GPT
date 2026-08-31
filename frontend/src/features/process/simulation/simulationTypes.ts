@@ -161,6 +161,31 @@ export const scenarioProvenanceSchema = z.object({
 export type ScenarioProvenance = z.infer<typeof scenarioProvenanceSchema>;
 export type ScenarioElementProvenance = ScenarioProvenance["elements"][number];
 
+/**
+ * Heuristic experiment suggestions for a completed run (Phase 9). Backend:
+ * `backend/simulation/advisor.py` — no LLM, M/M/c waiting-time ratio.
+ */
+export const experimentReportSchema = z.object({
+  bottleneck_el: z.string().nullable().optional(),
+  bottleneck_name: z.string().nullable().optional(),
+  factors: z.record(z.string(), z.number()).default({}),
+  experiments: z.array(
+    z.object({
+      kind: z.literal("add_resource"),
+      pool_id: z.string(),
+      pool_name: z.string(),
+      from_amount: z.number(),
+      to_amount: z.number(),
+      rationale: z.string(),
+      estimate: z.object({ cycle_pct: z.number(), cost_pct: z.number() }),
+      target_el: z.string().nullable().optional(),
+    }),
+  ),
+});
+
+export type ExperimentReport = z.infer<typeof experimentReportSchema>;
+export type Experiment = ExperimentReport["experiments"][number];
+
 export type SimResourceInput = {
   id: string;
   name: string;
