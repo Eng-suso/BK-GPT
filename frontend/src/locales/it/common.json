@@ -21,6 +21,11 @@
     "clearFilter": "Azzera questo filtro",
     "clearFilters": "Azzera filtri"
   },
+  "pagination": {
+    "previous": "Pagina precedente",
+    "next": "Pagina successiva",
+    "rowsPerPage": "Righe per pagina"
+  },
   "state": {
     "loading": "Caricamento…",
     "error": "Si è verificato un errore",

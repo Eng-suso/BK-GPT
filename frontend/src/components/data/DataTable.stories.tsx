@@ -3,7 +3,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 
 import { EmptyState } from "@/components/feedback/EmptyState";
-import { StatusIndicator, type StatusTone } from "@/components/status/StatusIndicator";
+import { StatusIndicator } from "@/components/status/StatusIndicator";
+import type { StatusTone } from "@/components/status/tones";
 import { DataTable } from "./DataTable";
 import { DataTablePagination } from "./DataTablePagination";
 import { ProgressBar } from "./ProgressBar";

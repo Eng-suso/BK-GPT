@@ -12,3 +12,5 @@ export { StatTile } from "./StatTile";
 export type { StatTileProps, StatTone } from "./StatTile";
 export { NavRow } from "./NavRow";
 export type { NavRowProps } from "./NavRow";
+export { ListSummary } from "./ListSummary";
+export type { ListSummaryItem } from "./ListSummary";

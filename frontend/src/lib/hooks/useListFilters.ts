@@ -30,20 +30,41 @@ export type UseListFilters<T> = {
   clear: () => void;
 };
 
+export type UseListFiltersOptions = {
+  /** Controlled selection — omit to keep it in local state. */
+  selected?: Record<string, string[]>;
+  onSelectedChange?: (next: Record<string, string[]>) => void;
+};
+
 function toValues(raw: string | string[]): string[] {
   return (Array.isArray(raw) ? raw : [raw]).filter(Boolean);
 }
 
 /**
  * Client-side multi-select filtering for a workspace list. Options and their
- * counts are derived from the rows; selection lives in component state. Pair
- * with `usePagedList` (filter first, then page).
+ * counts are derived from the rows; selection is local state by default, or
+ * driven from the URL via the controlled props. Pair with `usePagedList`
+ * (filter first, then page).
  */
 export function useListFilters<T>(
   rows: T[],
   defs: ListFilterDef<T>[],
+  options: UseListFiltersOptions = {},
 ): UseListFilters<T> {
-  const [selected, setSelected] = useState<Record<string, string[]>>({});
+  const { selected: controlledSelected, onSelectedChange } = options;
+  const isControlled = controlledSelected !== undefined;
+  const [internalSelected, setInternalSelected] = useState<
+    Record<string, string[]>
+  >({});
+  const selected = isControlled ? controlledSelected : internalSelected;
+
+  const setSelected = useCallback(
+    (updater: (prev: Record<string, string[]>) => Record<string, string[]>) => {
+      if (isControlled) onSelectedChange?.(updater(controlledSelected));
+      else setInternalSelected(updater);
+    },
+    [isControlled, onSelectedChange, controlledSelected],
+  );
 
   const menus = useMemo<ListFilterMenu[]>(() => {
     return defs.map((def) => {
@@ -65,7 +86,7 @@ export function useListFilters<T>(
           setSelected((prev) => ({ ...prev, [def.id]: next })),
       };
     });
-  }, [rows, defs, selected]);
+  }, [rows, defs, selected, setSelected]);
 
   const match = useCallback(
     (row: T) =>
@@ -82,7 +103,7 @@ export function useListFilters<T>(
     [selected],
   );
 
-  const clear = useCallback(() => setSelected({}), []);
+  const clear = useCallback(() => setSelected(() => ({})), [setSelected]);
 
   return { menus, match, activeCount, clear };
 }

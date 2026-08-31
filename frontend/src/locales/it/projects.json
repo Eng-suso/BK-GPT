@@ -6,7 +6,7 @@
   "list": {
     "title": "Progetti",
     "description": "Monitora lo stato del portafoglio progetti di consulenza e avanza con decisioni informate.",
-    "actions": { "new": "Nuovo progetto" },
+    "actions": { "new": "Nuovo progetto", "export": "Esporta" },
     "filter": {
       "placeholder": "Cerca progetti…",
       "client": "Cliente",
@@ -27,6 +27,11 @@
     "empty": {
       "title": "Nessun progetto",
       "description": "Crea il primo progetto dalla chat agente."
+    },
+    "noResults": {
+      "title": "Nessun progetto corrispondente",
+      "description": "Nessun progetto corrisponde a ricerca e filtri attuali.",
+      "reset": "Azzera ricerca e filtri"
     },
     "pagination": {
       "total": "Vista {{from}}–{{to}} di {{count}} progetti"

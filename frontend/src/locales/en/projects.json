@@ -6,7 +6,7 @@
   "list": {
     "title": "Projects",
     "description": "Track the consulting project portfolio and move forward with informed decisions.",
-    "actions": { "new": "New project" },
+    "actions": { "new": "New project", "export": "Export" },
     "filter": {
       "placeholder": "Search projects…",
       "client": "Client",
@@ -27,6 +27,11 @@
     "empty": {
       "title": "No projects",
       "description": "Create the first project from the agent chat."
+    },
+    "noResults": {
+      "title": "No matching projects",
+      "description": "No project matches the current search and filters.",
+      "reset": "Clear search and filters"
     },
     "pagination": {
       "total": "Showing {{from}}–{{to}} of {{count}} projects"

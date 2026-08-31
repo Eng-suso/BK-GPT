@@ -21,6 +21,11 @@
     "clearFilter": "Clear this filter",
     "clearFilters": "Clear filters"
   },
+  "pagination": {
+    "previous": "Previous page",
+    "next": "Next page",
+    "rowsPerPage": "Rows per page"
+  },
   "state": {
     "loading": "Loading…",
     "error": "Something went wrong",

@@ -1,15 +1,7 @@
 import { cn } from "@/lib/utils";
+import { STATUS_DOT, type StatusTone } from "./tones";
 
-/** Semantic status tone. Mapped to DeliR domain-role colours. */
-export type StatusTone = "ok" | "pending" | "warning" | "danger" | "neutral";
-
-const DOT: Record<StatusTone, string> = {
-  ok: "bg-[var(--color-status-success)]",
-  pending: "bg-[var(--color-status-info)]",
-  warning: "bg-[var(--color-status-warning)]",
-  danger: "bg-[var(--color-status-danger)]",
-  neutral: "bg-muted-foreground",
-};
+const DOT = STATUS_DOT;
 
 const TEXT: Record<StatusTone, string> = {
   ok: "text-foreground",
