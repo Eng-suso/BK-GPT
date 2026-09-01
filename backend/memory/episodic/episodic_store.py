@@ -9,6 +9,7 @@ from uuid import uuid4
 from sqlalchemy import ForeignKey, Index, String, Text, create_engine, func, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+from backend.memory import scope as canonical_scope
 from backend.memory.models import EpisodeMemory, episode_memory_to_mem0_content
 from backend.memory.semantic.semantic_store import (
     add_mem0_memory_with_id,
@@ -285,12 +286,26 @@ def save_episode_memory(
             )
         )
 
-    mem0_result, mem0_id = add_mem0_memory_with_id(build_mem0_episode_content(episode, source))
+    # Un episodio appartiene a un progetto -> a un cliente: memoria
+    # client-scoped (INV-13). Best-effort: senza canonical resta consultant-level.
+    client_id = canonical_project_id = None
+    if episode["project"]:
+        try:
+            resolved = canonical_scope.resolve(episode["project"])
+            client_id, canonical_project_id = resolved.client_id, resolved.project_id
+        except Exception:  # noqa: BLE001
+            client_id = canonical_project_id = None
+
+    mem0_result, mem0_id = add_mem0_memory_with_id(
+        build_mem0_episode_content(episode, source), client_id=client_id
+    )
     mirror_episodic_to_canonical(
         episode_type=episode["episode_type"],
         title=episode["title"],
         summary=episode["summary"] or episode["title"],
         mem0_id=mem0_id,
+        client_id=client_id,
+        project_id=canonical_project_id,
     )
 
     return (
@@ -435,7 +450,10 @@ def search_episode_memory(
     include_archived: bool = False,
 ) -> str:
     category = f"episodic:{episode_type}" if episode_type else "episodic"
-    mem0_result = search_consultant_memory(query=query, category=category)
+    client_id = canonical_scope.resolve_client_id(project) if project else None
+    mem0_result = search_consultant_memory(
+        query=query, category=category, client_id=client_id
+    )
     local_result = format_local_episode_matches(
         local_episode_matches(
             query=query,
