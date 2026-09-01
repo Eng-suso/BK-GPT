@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 
-from backend.memory import gateway
+from backend.memory import canonical_memory, gateway
 from backend.memory import scope as canonical_scope
 from backend.settings import settings
 
@@ -28,6 +28,7 @@ def build_playbook_context(
     *,
     project_id: str | None = None,
     limit: int = MAX_PLAYBOOKS_PER_TURN,
+    record_usage: bool = True,
 ) -> str:
     if not gateway.procedural_available():
         return ""
@@ -53,6 +54,13 @@ def build_playbook_context(
     playbooks = result.get("playbooks") or []
     if not playbooks:
         return ""
+
+    if record_usage:
+        canonical_memory.record_playbook_usage(
+            settings.default_consultant_id,
+            client_id=client_id,
+            playbook_ids=[p["id"] for p in playbooks],
+        )
 
     blocks = []
     for playbook in playbooks:

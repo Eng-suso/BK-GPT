@@ -109,6 +109,7 @@ def test_project_toolsets_are_small_and_owned():
         "prepare_project_delegation_payload",
         "manage_project_evidence",
         "extract_project_graph_from_evidence",
+        "extract_playbook_from_episodes",
         "retrieve_project_graph_context",
         "retrieve_project_gap_context",
         "retrieve_cross_process_impact_context",

@@ -418,10 +418,15 @@ class ManageConsultantPlaybookInput(BaseModel):
             "list to retrieve active playbooks relevant to a task; inspect for one "
             "playbook by id; save_candidate to store a new learned method as a "
             "candidate (NOT active); promote to run the guardrail and activate a "
-            "candidate; deprecate to retire an active playbook."
+            "candidate; deprecate to retire an active playbook; generalize to turn a "
+            "client-scoped playbook into a consultant-scoped candidate (needs project + "
+            "playbook_id, INV-13 — a rewrite, not a copy); record_outcome to log how a "
+            "playbook performed (outcome worked|partial|didn't_work)."
         )
     )
-    playbook_id: str | None = Field(default=None, description="Target id for inspect, promote, or deprecate.")
+    playbook_id: str | None = Field(default=None, description="Target id for inspect, promote, deprecate, record_outcome, or the source for generalize.")
+    outcome: str = Field(default="", description="For record_outcome: worked, partial, or didn't_work.")
+    note: str = Field(default="", description="For record_outcome: short free-text on why it worked or not.")
     query: str = Field(default="", description="Task description for list ranking. Leave empty to list recent active playbooks.")
     kind: str = Field(default="playbook", description="playbook, heuristic, or checklist. For save_candidate.")
     title: str = Field(default="", description="Short playbook title. For save_candidate.")
@@ -448,6 +453,8 @@ def manage_consultant_playbook(
     derived_from: list[str] | None = None,
     confidence: float = 0.5,
     limit: int = 10,
+    outcome: str = "",
+    note: str = "",
 ) -> str:
     """
     Manage the consultant's learned playbooks (procedural memory, stored in Postgres).
@@ -468,7 +475,8 @@ def manage_consultant_playbook(
 
     normalized_operation = (operation or "").strip().lower()
     consultant_id = settings.default_consultant_id
-    use_client_scope = (scope or "").strip().lower() == "client"
+    # generalize opera sempre su un sorgente client-scoped, a prescindere da `scope`
+    use_client_scope = (scope or "").strip().lower() == "client" or normalized_operation == "generalize"
     client_id: str | None = None
     canonical_project_id: str | None = None
 
@@ -478,7 +486,7 @@ def manage_consultant_playbook(
                 status="blocked",
                 action="manage_consultant_playbook",
                 entity_type="consultant_playbook",
-                summary="scope 'client' richiede il parametro project.",
+                summary="questa operazione richiede il parametro project.",
                 payload={"operation": normalized_operation},
             )
         try:
@@ -625,12 +633,190 @@ def manage_consultant_playbook(
             payload={"operation": normalized_operation, **result},
         )
 
+    if normalized_operation == "record_outcome":
+        if not playbook_id or not outcome.strip():
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_consultant_playbook",
+                entity_type="consultant_playbook",
+                summary="record_outcome richiede playbook_id e outcome.",
+                payload={"operation": normalized_operation},
+            )
+        result = canonical_memory.record_playbook_outcome(
+            playbook_id,
+            outcome,
+            consultant_id=consultant_id,
+            client_id=client_id,
+        )
+        status_map = {"recorded": "ok", "bad_outcome": "blocked", "not_found": "not_found"}
+        return enterprise_tool_result(
+            status=status_map.get(result["status"], result["status"]),
+            action="manage_consultant_playbook",
+            entity_type="consultant_playbook",
+            entity_id=playbook_id,
+            summary=(
+                f"Esito registrato: {result.get('outcome')}, "
+                f"confidence {result.get('confidence')}"
+                + (", playbook auto-deprecato." if result.get("auto_deprecated") else ".")
+                if result["status"] == "recorded"
+                else "Esito non registrato."
+            ),
+            payload={"operation": normalized_operation, "note": note, **result},
+        )
+
+    if normalized_operation == "generalize":
+        if not playbook_id:
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_consultant_playbook",
+                entity_type="consultant_playbook",
+                summary="generalize richiede playbook_id (il playbook client-scoped sorgente).",
+                payload={"operation": normalized_operation},
+            )
+        result = canonical_memory.generalize_procedural(
+            playbook_id, consultant_id=consultant_id, client_id=client_id
+        )
+        status_map = {
+            "generalized": "saved",
+            "not_found": "not_found",
+            "blocked": "blocked",
+            "no_method": "empty",
+        }
+        summary_map = {
+            "generalized": "Candidate consultant-scoped creato dalla generalizzazione. Rivedi e poi promote.",
+            "not_found": "Playbook sorgente non trovato.",
+            "blocked": "Il sorgente non e' client-scoped: niente da generalizzare.",
+            "no_method": "Nessun metodo generalizzabile dal playbook sorgente.",
+        }
+        return enterprise_tool_result(
+            status=status_map.get(result["status"], result["status"]),
+            action="manage_consultant_playbook",
+            entity_type="consultant_playbook",
+            entity_id=result.get("candidate_id") or playbook_id,
+            summary=summary_map.get(result["status"], result["status"]),
+            payload={"operation": normalized_operation, **result},
+        )
+
     return enterprise_tool_result(
         status="blocked",
         action="manage_consultant_playbook",
         entity_type="consultant_playbook",
         summary=f"Operazione non supportata: {operation}.",
         payload={"operation": normalized_operation},
+    )
+
+
+class ExtractPlaybookFromEpisodesInput(BaseModel):
+    project: str = Field(
+        description="Workspace project id/name. Episodes and the resulting playbook are client-scoped."
+    )
+    limit: int = Field(default=8, ge=2, le=12, description="How many recent episodes to feed the extractor.")
+
+
+@tool(args_schema=ExtractPlaybookFromEpisodesInput)
+def extract_playbook_from_episodes(project: str, limit: int = 8) -> str:
+    """
+    Extract a reusable method from a project's recent episodes (procedural learning, L2).
+    Reads the client-scoped episodic memory, asks an LLM to synthesize one reusable
+    method (when it applies, the steps, what to avoid) and stores it as a client-scoped
+    procedural_memory candidate with derived_from set to those episode ids.
+    The candidate is NOT active: review the text, then use manage_consultant_playbook
+    operation=promote. Idempotent on the same set of episodes: a second call returns the
+    existing playbook instead of creating a duplicate.
+    Returns an enterprise tool result with the candidate id and the episode ids it used.
+    """
+    from backend.memory import canonical_memory
+    from backend.memory import scope as canonical_scope
+    from backend.memory.procedural import extraction
+    from backend.settings import settings
+
+    consultant_id = settings.default_consultant_id
+    try:
+        resolved = canonical_scope.resolve(project)
+    except Exception as exc:  # noqa: BLE001
+        return enterprise_tool_result(
+            status="error",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary=f"scope cliente non risolto: {exc}",
+            payload={"project": project},
+        )
+    client_id, canonical_project_id = resolved.client_id, resolved.project_id
+
+    episodes = canonical_memory.list_episodes_for_learning(
+        consultant_id,
+        client_id=client_id,
+        project_id=canonical_project_id,
+        limit=max(2, min(limit, 12)),
+    )
+    if len(episodes) < 2:
+        return enterprise_tool_result(
+            status="empty",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary="Meno di 2 episodi disponibili: niente da estrarre.",
+            payload={"project": project, "episodes": len(episodes)},
+        )
+
+    episode_ids = [e["id"] for e in episodes]
+    existing = canonical_memory.procedural_candidate_for_episodes(
+        consultant_id, client_id=client_id, episode_ids=episode_ids
+    )
+    if existing:
+        return enterprise_tool_result(
+            status="noop",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            entity_id=existing,
+            summary="Esiste gia' un playbook derivato da questi episodi.",
+            payload={"playbook_id": existing, "derived_from": episode_ids},
+        )
+
+    extracted = extraction.extract_playbook_from_episodes(episodes)
+    if extracted is None:
+        return enterprise_tool_result(
+            status="empty",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary="Nessun metodo generalizzabile dagli episodi.",
+            payload={"project": project, "episodes": len(episodes)},
+        )
+
+    try:
+        new_id = canonical_memory.write_procedural_candidate(
+            consultant_id,
+            kind=extracted.kind,
+            title=extracted.title,
+            body=extracted.body,
+            applies_when=extracted.applies_when or None,
+            scope="client",
+            client_id=client_id,
+            project_id=canonical_project_id,
+            derived_from=episode_ids,
+            confidence=extracted.confidence,
+            created_by="agent",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return enterprise_tool_result(
+            status="error",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary=f"Salvataggio candidate fallito: {exc}",
+            payload={"project": project},
+        )
+
+    return enterprise_tool_result(
+        status="saved",
+        action="extract_playbook_from_episodes",
+        entity_type="consultant_playbook",
+        entity_id=new_id,
+        summary="Playbook candidate estratto dagli episodi (non attivo finche' non promosso).",
+        payload={
+            "playbook_id": new_id,
+            "status": "candidate",
+            "title": extracted.title,
+            "derived_from": episode_ids,
+        },
     )
 
 
@@ -783,6 +969,7 @@ memory_tools = [
     forget_consultant_memory,
     manage_consulting_evidence,
     manage_consultant_playbook,
+    extract_playbook_from_episodes,
     remember_bpmn_preference,
     search_bpmn_preferences,
     save_episode,

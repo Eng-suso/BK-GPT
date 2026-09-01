@@ -4,6 +4,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.toolsets.memory import extract_playbook_from_episodes
 from backend.toolsets.project_memory import (
     extract_project_graph_from_evidence,
     manage_project_evidence,
@@ -505,6 +506,7 @@ project_tools = [
     prepare_project_delegation_payload,
     manage_project_evidence,
     extract_project_graph_from_evidence,
+    extract_playbook_from_episodes,
     retrieve_project_graph_context,
     retrieve_project_gap_context,
     retrieve_cross_process_impact_context,
