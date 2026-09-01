@@ -10,9 +10,10 @@ su Mem0), il mirror registra solo la riga canonical + l'audit trail in
 `mem0_projection_log` con `mem0_memory_id` gia' noto — il worker non ha
 nulla da rifare.
 
-Nota: oggi lo scope e' consultant-level (`settings.mem0_user_id` /
-`settings.default_consultant_id`). Lo scope per cliente arrivera' col gateway
-(piano "Cervello DeliR", INV-13).
+La lettura (`search_consultant_memory`) passa dal gateway (INV-9), che
+inietta lo scope e interroga Mem0. Oggi lo scope e' consultant-level; il
+gateway e' gia' pronto al filtro per cliente (INV-13) quando i chiamanti
+passeranno un `client_id`.
 """
 
 from __future__ import annotations
@@ -33,10 +34,6 @@ _KIND_BY_DURABILITY = {
     "working_assumption": "fact",
     "stable": "fact",
 }
-
-
-def memory_filters() -> dict:
-    return {"user_id": settings.mem0_user_id}
 
 
 def _disabled_message(memory: Mem0Disabled) -> str:
@@ -172,23 +169,22 @@ def save_consultant_memory(content: str, category: str) -> str:
 
 
 def search_consultant_memory(query: str, category: str | None = None) -> str:
-    memory = mem0_client.get_memory()
+    """Recall semantico. Passa dal gateway (INV-9), che inietta lo scope e
+    interroga Mem0 — nessuna query diretta da qui."""
+    from backend.memory import gateway
 
-    if isinstance(memory, Mem0Disabled):
-        return _disabled_message(memory)
-
-    search_query = f"[{category}] {query}" if category else query
-
-    try:
-        response = memory.search(
-            query=search_query,
-            filters=memory_filters(),
-            limit=5,
-        )
-    except Exception as exc:
-        return f"Non sono riuscito a recuperare memorie da Mem0: {exc}"
-
-    return format_memory_results(response)
+    result = gateway.memory_search(
+        consultant_id=settings.default_consultant_id,
+        query=query,
+        category=category,
+        limit=5,
+    )
+    status = result.get("status")
+    if status == "not_configured":
+        return f"Memoria semantica disattivata: {result.get('reason', 'Mem0 non configurato')}."
+    if status == "error":
+        return f"Non sono riuscito a recuperare memorie da Mem0: {result.get('reason')}"
+    return format_memory_results(result.get("matches", []))
 
 
 def delete_consultant_memory(memory_id: str, delete_linked: bool = False) -> str:

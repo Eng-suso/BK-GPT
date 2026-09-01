@@ -134,20 +134,34 @@ consultant-level (`settings.default_consultant_id`), non ancora per cliente.
 
 Test: `tests/test_semantic_episodic_mirror.py`.
 
-## Lettura KG — gateway INV-9 ✅
+## Lettura — gateway INV-9 ✅
 
-`retrieve_process_graph_context` / `retrieve_project_graph_context` leggono
-**solo** dal gateway scoped (`backend/memory/gateway.py` → `graph_retrieve`):
-seed entità da Postgres (RLS per client), espansione k-hop in Neo4j filtrata
-per `client_id`, idratazione dei nomi da Postgres. Se il canonical / Neo4j non
-sono configurati il payload torna `{"status": "not_configured"}` e i tool
-restano funzionanti sul resto (Mem0, evidence episodica, workspace snapshot).
+`backend/memory/gateway.py` è l'unico punto di lettura del cervello. Nessun
+tool interroga Neo4j / Postgres-KG / Mem0 direttamente.
+
+- **`graph_retrieve`** (grafo tipizzato) — usato da
+  `retrieve_process_graph_context` / `retrieve_project_graph_context`: seed
+  entità da Postgres (RLS per client), espansione k-hop in Neo4j filtrata per
+  `client_id`, idratazione dei nomi da Postgres. Payload sotto
+  `"knowledge_graph"`, status `ok|empty|not_configured|error`.
+- **`memory_search`** (recall Mem0) — `semantic_store.search_consultant_memory`
+  (e quindi `search_bpmn_preferences`, `episodic_store.search_episode_memory`,
+  la route `/memory`) passa da qui. `user_id` Mem0 mappato dal `consultant_id`
+  (oggi mono-consulente locale); post-filtro per `client_id` sui metadata: le
+  memorie consultant-level restano visibili ovunque, quelle client-scoped solo
+  nel loro cliente. Status `ok|empty|not_configured|error`.
+
+Se canonical / Neo4j / Mem0 non sono configurati il gateway torna uno status
+esplicito e i tool restano funzionanti sul resto.
+
+Test: `tests/test_gateway.py`, `tests/test_gateway_memory.py`.
 
 ## Non ancora fatto
 
 - `semantic_store.py` / `episodic_store.py`: la add su Mem0 resta autoritativa,
   il canonical è mirror audit-only (vedi sopra). Ridurli a canonical-first.
-- scope per cliente su semantic/episodic (oggi solo consultant-level)
+- scope per cliente su semantic/episodic (oggi solo consultant-level; il
+  gateway è già pronto al filtro, mancano i chiamanti che passano `client_id`)
+- `gateway.workspace_read` — lettura scoped della workspace SQLite operativa
 - procedural memory canonical (playbook appresi, P7)
-- gateway INV-9: restano `workspace_read` (Postgres) e `memory_search` (Mem0)
 - seed vettoriale su `kg_chunk` + RRF nel gateway (P3)
