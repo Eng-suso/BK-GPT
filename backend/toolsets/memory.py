@@ -634,6 +634,120 @@ def manage_consultant_playbook(
     )
 
 
+class ExtractPlaybookFromEpisodesInput(BaseModel):
+    project: str = Field(
+        description="Workspace project id/name. Episodes and the resulting playbook are client-scoped."
+    )
+    limit: int = Field(default=8, ge=2, le=12, description="How many recent episodes to feed the extractor.")
+
+
+@tool(args_schema=ExtractPlaybookFromEpisodesInput)
+def extract_playbook_from_episodes(project: str, limit: int = 8) -> str:
+    """
+    Extract a reusable method from a project's recent episodes (procedural learning, L2).
+    Reads the client-scoped episodic memory, asks an LLM to synthesize one reusable
+    method (when it applies, the steps, what to avoid) and stores it as a client-scoped
+    procedural_memory candidate with derived_from set to those episode ids.
+    The candidate is NOT active: review the text, then use manage_consultant_playbook
+    operation=promote. Idempotent on the same set of episodes: a second call returns the
+    existing playbook instead of creating a duplicate.
+    Returns an enterprise tool result with the candidate id and the episode ids it used.
+    """
+    from backend.memory import canonical_memory
+    from backend.memory import scope as canonical_scope
+    from backend.memory.procedural import extraction
+    from backend.settings import settings
+
+    consultant_id = settings.default_consultant_id
+    try:
+        resolved = canonical_scope.resolve(project)
+    except Exception as exc:  # noqa: BLE001
+        return enterprise_tool_result(
+            status="error",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary=f"scope cliente non risolto: {exc}",
+            payload={"project": project},
+        )
+    client_id, canonical_project_id = resolved.client_id, resolved.project_id
+
+    episodes = canonical_memory.list_episodes_for_learning(
+        consultant_id,
+        client_id=client_id,
+        project_id=canonical_project_id,
+        limit=max(2, min(limit, 12)),
+    )
+    if len(episodes) < 2:
+        return enterprise_tool_result(
+            status="empty",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary="Meno di 2 episodi disponibili: niente da estrarre.",
+            payload={"project": project, "episodes": len(episodes)},
+        )
+
+    episode_ids = [e["id"] for e in episodes]
+    existing = canonical_memory.procedural_candidate_for_episodes(
+        consultant_id, client_id=client_id, episode_ids=episode_ids
+    )
+    if existing:
+        return enterprise_tool_result(
+            status="noop",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            entity_id=existing,
+            summary="Esiste gia' un playbook derivato da questi episodi.",
+            payload={"playbook_id": existing, "derived_from": episode_ids},
+        )
+
+    extracted = extraction.extract_playbook_from_episodes(episodes)
+    if extracted is None:
+        return enterprise_tool_result(
+            status="empty",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary="Nessun metodo generalizzabile dagli episodi.",
+            payload={"project": project, "episodes": len(episodes)},
+        )
+
+    try:
+        new_id = canonical_memory.write_procedural_candidate(
+            consultant_id,
+            kind=extracted.kind,
+            title=extracted.title,
+            body=extracted.body,
+            applies_when=extracted.applies_when or None,
+            scope="client",
+            client_id=client_id,
+            project_id=canonical_project_id,
+            derived_from=episode_ids,
+            confidence=extracted.confidence,
+            created_by="agent",
+        )
+    except Exception as exc:  # noqa: BLE001
+        return enterprise_tool_result(
+            status="error",
+            action="extract_playbook_from_episodes",
+            entity_type="consultant_playbook",
+            summary=f"Salvataggio candidate fallito: {exc}",
+            payload={"project": project},
+        )
+
+    return enterprise_tool_result(
+        status="saved",
+        action="extract_playbook_from_episodes",
+        entity_type="consultant_playbook",
+        entity_id=new_id,
+        summary="Playbook candidate estratto dagli episodi (non attivo finche' non promosso).",
+        payload={
+            "playbook_id": new_id,
+            "status": "candidate",
+            "title": extracted.title,
+            "derived_from": episode_ids,
+        },
+    )
+
+
 @tool
 def remember_bpmn_preference(rule: str, area: str) -> str:
     """
@@ -783,6 +897,7 @@ memory_tools = [
     forget_consultant_memory,
     manage_consulting_evidence,
     manage_consultant_playbook,
+    extract_playbook_from_episodes,
     remember_bpmn_preference,
     search_bpmn_preferences,
     save_episode,

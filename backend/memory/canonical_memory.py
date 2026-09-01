@@ -453,3 +453,63 @@ def deprecate_procedural(
             "status": "deprecated" if result.rowcount else "noop",
             "id": str(memory_id),
         }
+
+
+def list_episodes_for_learning(
+    consultant_id: str,
+    *,
+    client_id: str | None = None,
+    project_id: str | None = None,
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    """Episodi `active` recenti per il pattern extraction (P7.2), scope via RLS."""
+    with canonical_session(consultant_id, client_id) as session:
+        rows = session.execute(
+            text(
+                "SELECT id, episode_type, title, summary, occurred_at "
+                "FROM episodic_memory "
+                "WHERE status = 'active' "
+                "  AND (CAST(:pid AS uuid) IS NULL OR project_id = CAST(:pid AS uuid)) "
+                "ORDER BY COALESCE(occurred_at, created_at) DESC "
+                "LIMIT :lim"
+            ),
+            {
+                "pid": str(project_id) if project_id else None,
+                "lim": max(1, min(int(limit), 50)),
+            },
+        ).all()
+    return [
+        {
+            "id": str(row.id),
+            "episode_type": row.episode_type,
+            "title": row.title,
+            "summary": row.summary,
+            "occurred_at": _jsonable(row.occurred_at),
+        }
+        for row in rows
+    ]
+
+
+def procedural_candidate_for_episodes(
+    consultant_id: str,
+    *,
+    client_id: str | None = None,
+    episode_ids: list[str],
+) -> str | None:
+    """Id di un playbook (non `rejected`) gia' derivato ESATTAMENTE da questo set
+    di episodi — dedup per il pattern extraction (P7.2)."""
+    ids = sorted({str(e) for e in (episode_ids or []) if e})
+    if not ids:
+        return None
+    with canonical_session(consultant_id, client_id) as session:
+        row = session.execute(
+            text(
+                "SELECT id FROM procedural_memory "
+                "WHERE status <> 'rejected' "
+                "  AND derived_from @> CAST(:ids AS uuid[]) "
+                "  AND derived_from <@ CAST(:ids AS uuid[]) "
+                "ORDER BY created_at DESC LIMIT 1"
+            ),
+            {"ids": ids},
+        ).first()
+    return str(row.id) if row is not None else None
