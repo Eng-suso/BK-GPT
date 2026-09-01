@@ -657,6 +657,15 @@ def _chunk_text(content: str) -> list[str]:
     return chunks
 
 
+def prepare_source(content: str) -> tuple[list[str], list[list[float]] | None]:
+    """Chunk + embed del testo, SENZA toccare il DB. Da chiamare fuori dalla
+    transazione (la chiamata all'embedder e' di rete): `write_evidence` lo fa
+    prima di aprire `canonical_session` per non tenere lock durante l'HTTP."""
+    chunks = _chunk_text(content)
+    vectors = embeddings.embed_texts(chunks) if chunks else None
+    return chunks, vectors
+
+
 def write_source_chunks(
     consultant_id: str,
     client_id: str,
@@ -666,9 +675,14 @@ def write_source_chunks(
     kind: str = "note",
     project_id: str | None = None,
     process_id: str | None = None,
+    prepared: tuple[list[str], list[list[float]] | None] | None = None,
     tx: Session | None = None,
 ) -> tuple[str | None, int]:
     """Registra una `kg_source` + i suoi `kg_chunk` (embeddati se possibile).
+
+    `prepared` = output di `prepare_source(content)`; se assente viene
+    calcolato qui (comodo per i test / le chiamate singole, ma tiene la
+    transazione aperta durante l'embedding).
 
     Ritorna `(source_id, n_chunk)`. Idempotente sul `content_hash`: se la
     sorgente esiste gia' ritorna il suo id senza re-inserire nulla. Se
@@ -680,6 +694,7 @@ def write_source_chunks(
         return None, 0
     kind = _enum(kind, _SOURCE_KINDS, "note")
     content_hash = hashlib.sha256(text_value.encode("utf-8")).hexdigest()
+    chunks, vectors = prepared if prepared is not None else prepare_source(text_value)
 
     with _open(consultant_id, client_id, tx) as session:
         existing = session.execute(
@@ -720,8 +735,6 @@ def write_source_chunks(
             return (str(row.id), 0) if row else (None, 0)
         source_id = str(inserted.id)
 
-        chunks = _chunk_text(text_value)
-        vectors = embeddings.embed_texts(chunks) if chunks else None
         for ordinal, chunk in enumerate(chunks):
             vec = embeddings.to_pgvector(vectors[ordinal]) if vectors else None
             session.execute(
@@ -779,14 +792,19 @@ def write_evidence(
         "entities": 0, "relationships": 0, "claims": 0,
         "gaps": 0, "contradictions": 0, "impacts": 0, "chunks": 0,
     }
+    # chunk + embedding FUORI dalla transazione: la chiamata all'embedder e' di
+    # rete e non deve tenere lock sul pacchetto di evidenza atomico.
+    has_source = bool(source_text and source_text.strip())
+    prepared = prepare_source(source_text) if has_source else None
+
     with canonical_session(consultant_id, client_id) as session:
         source_ids: list[str] | None = None
-        if source_text and source_text.strip():
+        if has_source:
             source_id, n_chunks = write_source_chunks(
                 consultant_id, client_id,
                 title=source_title or "(evidenza)", content=source_text,
                 kind=source_kind, project_id=project_id, process_id=process_id,
-                tx=session,
+                prepared=prepared, tx=session,
             )
             if source_id:
                 source_ids = [source_id]

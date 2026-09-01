@@ -94,13 +94,23 @@ def _vector_seed(
 
     Ritorna `(entity_ids ordinati per rilevanza, chunk di contesto)`.
     """
-    if not (query or "").strip():
+    if not (query or "").strip() or not embeddings.available():
         return [], []
-    vec = embeddings.embed_query(query)
-    if vec is None:
-        return [], []
-    q = embeddings.to_pgvector(vec)
     with canonical_session(consultant_id, client_id) as session:
+        has_chunks = session.execute(
+            text(
+                "SELECT 1 FROM kg_chunk "
+                "WHERE client_id = :cl AND embedding IS NOT NULL LIMIT 1"
+            ),
+            {"cl": client_id},
+        ).first()
+        if not has_chunks:  # niente da cercare: risparmia la chiamata all'embedder
+            return [], []
+
+        vec = embeddings.embed_query(query)
+        if vec is None:
+            return [], []
+        q = embeddings.to_pgvector(vec)
         chunk_rows = session.execute(
             text(
                 "SELECT source_id, content, "
