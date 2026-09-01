@@ -325,18 +325,11 @@ def _graph_tags(
     return tags
 
 
-def _project_workspace_graph_grounding(project_id: str) -> dict:
-    project = _require_project(project_id)
-    processes = workspace_database.list_project_processes(project_id)
-    sources = workspace_database.list_project_sources(project_id)
-    decisions = workspace_database.list_project_decisions(project_id)
-
-    return {
-        "project": project,
-        "processes": processes,
-        "sources": sources,
-        "decisions": decisions,
-    }
+def _project_workspace_graph_grounding(
+    project_id: str, process_ids: list[str] | None = None
+) -> dict:
+    """Grounding operativo via gateway (INV-9): stato workspace scoped."""
+    return gateway.workspace_read(project_id=project_id, process_ids=process_ids)
 
 
 @tool(args_schema=SaveProjectEpisodeInput)
@@ -860,7 +853,7 @@ def retrieve_project_graph_context(
         else "Project evidence not requested."
     )
     workspace_grounding = (
-        _project_workspace_graph_grounding(project_id)
+        _project_workspace_graph_grounding(project_id, valid_process_ids)
         if include_workspace_snapshot
         else {"status": "workspace_snapshot_not_requested"}
     )
@@ -923,7 +916,7 @@ def extract_project_graph_from_evidence(
     questions_to_validate: list[str] | None = None,
 ) -> str:
     """
-    Prepare an enterprise GraphRAG extraction from project evidence. The LLM
+    Prepare a GraphRAG extraction from project evidence. The LLM
     supplies candidate relationships, gaps, inconsistencies and ROI impacts based
     on the raw content; this tool validates project/process scope and returns a
     structured review. It does not save memory automatically.

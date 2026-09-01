@@ -150,11 +150,19 @@ tool interroga Neo4j / Postgres-KG / Mem0 direttamente.
   (oggi mono-consulente locale); post-filtro per `client_id` sui metadata: le
   memorie consultant-level restano visibili ovunque, quelle client-scoped solo
   nel loro cliente. Status `ok|empty|not_configured|error`.
+- **`workspace_read`** (stato operativo) — snapshot scoped della workspace
+  SQLite (SoT operativa, INV-8): project + processi + sources/decisions,
+  filtrati per `process_ids` (le righe project-level senza `process_id`
+  restano). Usato da `retrieve_project_graph_context` per il grounding.
+  Status `ok|not_found`.
 
 Se canonical / Neo4j / Mem0 non sono configurati il gateway torna uno status
 esplicito e i tool restano funzionanti sul resto.
 
-Test: `tests/test_gateway.py`, `tests/test_gateway_memory.py`.
+Test: `tests/test_gateway.py`, `tests/test_gateway_memory.py`,
+`tests/test_gateway_workspace.py`.
+
+**Gateway INV-9 completo** (`graph_retrieve` + `memory_search` + `workspace_read`).
 
 ## Non ancora fatto
 
@@ -162,6 +170,5 @@ Test: `tests/test_gateway.py`, `tests/test_gateway_memory.py`.
   il canonical è mirror audit-only (vedi sopra). Ridurli a canonical-first.
 - scope per cliente su semantic/episodic (oggi solo consultant-level; il
   gateway è già pronto al filtro, mancano i chiamanti che passano `client_id`)
-- `gateway.workspace_read` — lettura scoped della workspace SQLite operativa
 - procedural memory canonical (playbook appresi, P7)
 - seed vettoriale su `kg_chunk` + RRF nel gateway (P3)

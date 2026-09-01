@@ -19,6 +19,10 @@ questo e' l'unico punto di enforcement in lettura.
     (senza client_id) restano visibili ovunque, quelle client-scoped solo
     nel loro cliente
 
+`workspace_read` (stato operativo):
+  - snapshot scoped della workspace SQLite (SoT operativa, INV-8): project +
+    processi + sources/decisions, filtrati per `process_ids`
+
 Disattivato in silenzio se canonical / Neo4j / Mem0 non sono configurati: i
 chiamanti degradano con uno status esplicito.
 """
@@ -278,3 +282,49 @@ def memory_search(
             break
 
     return {"status": "ok" if matches else "empty", "count": len(matches), "matches": matches}
+
+
+# --------------------------------------------------------------------------- #
+# workspace_read — snapshot operativo della workspace, scoped (INV-9)
+# --------------------------------------------------------------------------- #
+
+_WS_SECTIONS = ("processes", "sources", "decisions")
+
+
+def workspace_read(
+    *,
+    project_id: str,
+    process_ids: list[str] | None = None,
+    include: tuple[str, ...] = _WS_SECTIONS,
+) -> dict[str, Any]:
+    """Snapshot operativo scoped della workspace (SQLite, SoT operativa INV-8).
+
+    Unico read che i tool di retrieval usano per il grounding operativo.
+    `process_ids` filtra i processi + le sources/decisions collegate; quelle
+    project-level (senza `process_id`) restano sempre. Project inesistente ->
+    status `not_found`, nessuna eccezione.
+    """
+    from backend import workspace_database
+
+    project = workspace_database.get_project(project_id)
+    if project is None:
+        return {"status": "not_found", "project": None}
+
+    wanted = {str(p) for p in (process_ids or []) if p}
+    out: dict[str, Any] = {"status": "ok", "project": project}
+
+    if "processes" in include:
+        procs = workspace_database.list_project_processes(project_id)
+        out["processes"] = [p for p in procs if p.get("id") in wanted] if wanted else procs
+
+    def _scoped(rows: list[dict]) -> list[dict]:
+        if not wanted:
+            return rows
+        return [r for r in rows if not r.get("process_id") or r.get("process_id") in wanted]
+
+    if "sources" in include:
+        out["sources"] = _scoped(workspace_database.list_project_sources(project_id))
+    if "decisions" in include:
+        out["decisions"] = _scoped(workspace_database.list_project_decisions(project_id))
+
+    return out
