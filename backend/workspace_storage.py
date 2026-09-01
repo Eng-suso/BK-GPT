@@ -1,13 +1,12 @@
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+from backend.local_store import local_engine
 
 DATA_DIR = Path("data")
-WORKSPACE_DB = DATA_DIR / "workspace.db"
-WORKSPACE_DB_URL = f"sqlite:///{WORKSPACE_DB.as_posix()}"
 
 
 class WorkspaceBase(DeclarativeBase):
@@ -178,11 +177,7 @@ class WorkspaceDecision(WorkspaceBase):
 
 
 def build_workspace_engine():
-    DATA_DIR.mkdir(exist_ok=True)
-    return create_engine(
-        WORKSPACE_DB_URL,
-        connect_args={"check_same_thread": False},
-    )
+    return local_engine("workspace.db")
 
 
 workspace_engine = build_workspace_engine()

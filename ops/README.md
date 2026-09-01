@@ -20,6 +20,9 @@ Al primo avvio del volume Postgres girano, come superuser:
   `delir_worker`, ownership schema `public`, estensioni `vector` + `pg_trgm`
 - `postgres/init/01-mem0.sh` — ruolo `delir_mem0`, database `mem0` che possiede,
   estensioni in quel db
+- `postgres/init/02-workspace.sh` — ruolo `delir_workspace`, database
+  `workspace` che possiede (stato operativo: clienti/progetti/processi/BPMN/
+  simulazioni + cronologia chat + indice memoria episodica)
 
 Per rieseguirli: `docker compose down -v && docker compose up -d`.
 
@@ -32,6 +35,7 @@ Per rieseguirli: `docker compose down -v && docker compose up -d`.
 | `delir_app` | backend | solo DML, `NOBYPASSRLS`, non-owner; su `graph_outbox`/`mem0_projection_log` solo `INSERT` |
 | `delir_worker` | worker outbox | solo `SELECT/UPDATE` sulle due code |
 | `delir_mem0` | Mem0 OSS | owner del database `mem0` (isolato dallo schema canonical) |
+| `delir_workspace` | stato operativo | owner del database `workspace` (isolato: churn alto, niente RLS) |
 
 `delir_app` non possiede le tabelle → `FORCE ROW LEVEL SECURITY` (0005) vale anche per lui.
 
@@ -49,6 +53,7 @@ uv run alembic downgrade base     # reversibile
 ## Config app (`.env` alla root del repo)
 
 ```
+WORKSPACE_DATABASE_URL=postgresql+psycopg://delir_workspace:<pw>@127.0.0.1:55432/workspace
 CANONICAL_DATABASE_URL=postgresql+psycopg://delir_app:<pw>@127.0.0.1:55432/delir
 CANONICAL_MIGRATOR_URL=postgresql+psycopg://delir_migrator:<pw>@127.0.0.1:55432/delir
 CANONICAL_WORKER_URL=postgresql+psycopg://delir_worker:<pw>@127.0.0.1:55432/delir
@@ -56,6 +61,17 @@ MEM0_DATABASE_URL=postgresql://delir_mem0:<pw>@127.0.0.1:55432/mem0
 MEM0_LLM_MODEL=gpt-4o-mini      # override se il tuo account OpenAI non ce l'ha
 NEO4J_PASSWORD=<pw>             # = NEO4J_PASSWORD in ops/.env
 ```
+
+`WORKSPACE_DATABASE_URL` assente → fallback SQLite in `data/` (solo dev/CI:
+SQLite è single-writer, non regge la concorrenza multi-cliente). Migrazione
+dei file SQLite esistenti al Postgres:
+
+```bash
+WORKSPACE_DATABASE_URL=... uv run python -m scripts.migrate_local_sqlite_to_pg --truncate
+```
+
+La custodia grezza degli episodi (`data/episodic/sources/*.md`) è su disco,
+non nel DB: su un host nuovo va sincronizzata a parte (`rsync data/episodic/`).
 
 L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, client_id)`
 (imposta il contesto RLS). Mem0 solo via `backend.memory.mem0_client.get_memory()`.
