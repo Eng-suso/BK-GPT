@@ -69,8 +69,9 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0003 | `semantic_memory` / `episodic_memory` / `procedural_memory` — scope `client\|consultant`, lifecycle, `guardrail_status` + gate, provenance |
 | 0004 | `graph_outbox` + `mem0_projection_log` (delir_app solo INSERT) + view `v_projection_backlog` |
 | 0005 | RLS `ENABLE`+`FORCE` su tenant tables; `consultant` solo `ENABLE` |
+| 0006 | catalogo struttura KG L1: `kg_entity` / `kg_relation` / `kg_claim` / `kg_gap` / `kg_contradiction` / `kg_impact` + RLS + trigger. Mappa PG→Neo4j in `backend/memory/knowledge_graph/catalog.py` |
 
-Test: `tests/test_canonical_rls.py` (6 casi, skip senza le due DSN in env).
+Test: `tests/test_canonical_rls.py` (6) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 
 ## Mem0 OSS ✅
 
@@ -82,8 +83,9 @@ se `MEM0_DATABASE_URL` non è configurata.
 Scope oggi = consultant-level (`mem0_user_id`). Lo scope per cliente arriva con
 la migrazione della memoria canonica (INV-13).
 
-## Non ancora fatto in P0
+## Non ancora fatto
 
 - worker che drena `graph_outbox` + `mem0_projection_log`
-- projection contracts (whitelist campi Neo4j / Mem0) + wiring Neo4j (LlamaIndex)
-- P0.5: `kg_entity` / `kg_relation` / `kg_claim` / … + catalogo nodi/archi
+- projector PG→Neo4j (legge `catalog.py`) + wiring Neo4j via LlamaIndex
+- rewire dell'ingestion KG (oggi ancora sul vecchio `store.py` LlamaIndex/JSON)
+  → poi `rm -rf data/knowledge_graph/`
