@@ -17,14 +17,18 @@ if not settings.workspace_database_url:
 
 from backend import database as chat_db  # noqa: E402
 from backend import workspace_database as wd  # noqa: E402
+from backend import workspace_storage  # noqa: E402
 from backend.memory.episodic import episodic_store  # noqa: E402
 from backend.security import reset_current_tenant_id, set_current_tenant_id  # noqa: E402
 
 
 def test_engines_are_postgres():
-    assert wd.workspace_engine.dialect.name == "postgresql"
+    assert workspace_storage.workspace_engine.dialect.name == "postgresql"
     assert chat_db.engine.dialect.name == "postgresql"
     assert episodic_store.engine.dialect.name == "postgresql"
+    # un solo engine condiviso dai tre moduli
+    assert chat_db.engine is workspace_storage.workspace_engine
+    assert episodic_store.engine is workspace_storage.workspace_engine
 
 
 def test_workspace_round_trip_and_tenant_isolation():
@@ -65,6 +69,36 @@ def test_langgraph_checkpointer_is_postgres():
     saver.setup()
     cfg = {"configurable": {"thread_id": f"ck-{uuid.uuid4().hex[:8]}"}}
     assert saver.get(cfg) is None  # thread nuovo, nessun checkpoint
+
+
+def test_workspace_schema_is_at_head():
+    from sqlalchemy import text
+
+    with workspace_storage.workspace_engine.connect() as conn:
+        v = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+    assert v == "0001_workspace_schema"
+
+
+def test_episode_raw_text_lives_in_the_db(tmp_path, monkeypatch):
+    # forza la custodia disco in una dir usa-e-getta: il testo deve tornare
+    # comunque, letto da `sources.content`
+    monkeypatch.setattr(episodic_store, "SOURCES_DIR", tmp_path)
+    tok = set_current_tenant_id(f"t-{uuid.uuid4().hex[:8]}")
+    try:
+        marker = uuid.uuid4().hex[:8]
+        res = episodic_store.save_episode_memory(
+            episode_type="note",
+            title=f"Nota {marker}",
+            raw_content=f"contenuto grezzo {marker} che deve stare nel DB",
+        )
+        eid = res.split("episode_id: ")[1].split("]")[0]
+        # cancella la cache su disco: il testo deve venire dal DB
+        for p in tmp_path.rglob("*.md"):
+            p.unlink()
+        got = episodic_store.get_episode_memory(episode_id=eid, include_source_text=True)
+        assert marker in got["source_text"]
+    finally:
+        reset_current_tenant_id(tok)
 
 
 def test_chat_history_round_trip_on_postgres():

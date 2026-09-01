@@ -30,7 +30,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    from backend.local_store import ensure_schema
     from backend.workers.supervisor import run_queue_workers
+
+    if settings.workspace_database_url:
+        await asyncio.to_thread(ensure_schema)  # migra il DB operativo a head
 
     worker_task = asyncio.create_task(run_queue_workers(), name="queue_workers")
     try:
