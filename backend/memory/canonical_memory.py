@@ -39,7 +39,17 @@ def _emit_mem0(
     metadata: dict[str, Any],
     source_ids: list[str] | None,
     op: str = "add",
+    already_applied: bool = False,
+    applied_mem0_id: str | None = None,
 ) -> None:
+    """Scrive la riga di log per il worker Mem0.
+
+    `already_applied=True` quando il chiamante ha gia' fatto la add/search
+    sincrona su Mem0 (vedi semantic_store / episodic_store): la riga nasce
+    gia' `applied_at = now()` (+ `mem0_memory_id` se noto) — e' solo l'audit
+    trail, il worker non deve rifare nulla. Altrimenti resta pending per
+    backend.workers.mem0_worker.
+    """
     payload = {
         "text": text_value,
         "user_id": str(consultant_id),
@@ -48,10 +58,14 @@ def _emit_mem0(
     session.execute(
         text(
             "INSERT INTO mem0_projection_log "
-            "(memory_kind, memory_id, consultant_id, client_id, op, mem0_payload, source_ids) "
-            "VALUES (:k, :mid, :c, :cl, :op, CAST(:p AS jsonb), CAST(:src AS uuid[]))"
+            "(memory_kind, memory_id, consultant_id, client_id, op, mem0_payload, "
+            " source_ids, mem0_memory_id, applied_at) "
+            "VALUES (:k, :mid, :c, :cl, :op, CAST(:p AS jsonb), CAST(:src AS uuid[]), "
+            "        :appmid, CASE WHEN :already THEN now() ELSE NULL END)"
         ),
         {
+            "appmid": applied_mem0_id,
+            "already": already_applied,
             "k": memory_kind,
             "mid": memory_id,
             "c": str(consultant_id),
@@ -75,7 +89,11 @@ def write_semantic_memory(
     category: str | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
+    already_applied_mem0_id: str | None = None,
 ) -> str:
+    """`already_applied_mem0_id`: passalo quando hai gia' chiamato Mem0 in modo
+    sincrono (es. semantic_store) — il log nasce gia' applicato, il worker non
+    ripete la add."""
     with canonical_session(consultant_id, client_id) as session:
         memory_id = str(
             session.execute(
@@ -117,6 +135,8 @@ def write_semantic_memory(
                 "category": category,
             },
             source_ids=source_ids,
+            already_applied=already_applied_mem0_id is not None,
+            applied_mem0_id=already_applied_mem0_id,
         )
         return memory_id
 
@@ -135,6 +155,7 @@ def write_episodic_memory(
     raw_source_id: str | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
+    already_applied_mem0_id: str | None = None,
 ) -> str:
     with canonical_session(consultant_id, client_id) as session:
         memory_id = str(
@@ -181,5 +202,7 @@ def write_episodic_memory(
                 "title": title,
             },
             source_ids=source_ids,
+            already_applied=already_applied_mem0_id is not None,
+            applied_mem0_id=already_applied_mem0_id,
         )
         return memory_id

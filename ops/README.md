@@ -123,11 +123,21 @@ un'eccezione verso l'agente; il risultato è nel payload sotto
 Test: `tests/test_canonical_mirror.py` — chiama il tool vero, verifica i
 count del mirror e che l'entità/relazione sia arrivata su Neo4j via il worker.
 
+**Semantic + episodic** (`semantic_store.py` / `episodic_store.py`): la add su
+Mem0 resta sincrona e unica (mai due write della stessa memoria); il mirror
+scrive la riga `semantic_memory` / `episodic_memory` canonical + una riga di
+`mem0_projection_log` **già `applied_at`** con l'`mem0_memory_id` noto — il
+worker non deve rifare nulla, è solo audit trail. Scope oggi:
+consultant-level (`settings.default_consultant_id`), non ancora per cliente.
+
+Test: `tests/test_semantic_episodic_mirror.py`.
+
 ## Non ancora fatto
 
 - **cutover** — rendere il canonical autoritativo e spegnere `store.py` /
-  il path Mem0 diretto in `semantic_store.py` / `episodic_store.py`.
-  Poi `rm -rf data/knowledge_graph/`
+  ridurre `semantic_store.py`/`episodic_store.py` a leggere/scrivere solo
+  canonical. Poi `rm -rf data/knowledge_graph/`
+- scope per cliente su semantic/episodic (oggi solo consultant-level)
 - procedural memory canonical (playbook appresi, P7)
 - gateway INV-9 (`workspace_read` / `graph_retrieve` / `memory_search`) —
   oggi la lettura passa ancora dal vecchio store
