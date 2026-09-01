@@ -60,7 +60,7 @@ NEO4J_PASSWORD=<pw>             # = NEO4J_PASSWORD in ops/.env
 L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, client_id)`
 (imposta il contesto RLS). Mem0 solo via `backend.memory.mem0_client.get_memory()`.
 
-## Stato — schema canonical (migration 0001-0005) ✅
+## Stato — schema canonical (migration 0001-0008) ✅
 
 | | |
 |---|---|
@@ -70,6 +70,8 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0004 | `graph_outbox` + `mem0_projection_log` (delir_app solo INSERT) + view `v_projection_backlog` |
 | 0005 | RLS `ENABLE`+`FORCE` su tenant tables; `consultant` solo `ENABLE` |
 | 0006 | catalogo struttura KG L1: `kg_entity` / `kg_relation` / `kg_claim` / `kg_gap` / `kg_contradiction` / `kg_impact` + RLS + trigger. Mappa PG→Neo4j in `backend/memory/knowledge_graph/catalog.py` |
+| 0007 | ponte workspace SQLite → canonical (`workspace_id`, seed consulente di default) |
+| 0008 | dedup `kg_entity`/`kg_relation` su indice unique PARZIALE `WHERE client_id IS NOT NULL` (fix review) |
 
 Test: `tests/test_canonical_rls.py` (6) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 

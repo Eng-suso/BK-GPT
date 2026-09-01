@@ -29,6 +29,7 @@ class ScopeIds:
     client_id: str
     project_id: str
     process_id: str | None
+    process_name: str | None = None
 
 
 def _slug(value: str) -> str:
@@ -93,4 +94,4 @@ def resolve(workspace_project_id: str, workspace_process_id: str | None = None) 
                 },
             )
 
-    return ScopeIds(consultant_id, client_id, project_id, process_id)
+    return ScopeIds(consultant_id, client_id, project_id, process_id, process_name)
