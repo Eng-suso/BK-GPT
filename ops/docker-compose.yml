@@ -1,0 +1,64 @@
+# Stack dati di DeliR — piano "Cervello DeliR" (INV-3: un docker-compose).
+#
+#   cd ops
+#   cp .env.example .env      # e cambia le password
+#   docker compose up -d
+#
+# Niente e' esposto oltre 127.0.0.1. Sulla Oracle Free VM questi servizi
+# restano sulla rete docker interna, mai sulla :443; l'accesso passa solo
+# dal gateway applicativo (INV-9).
+#
+# Mem0 OSS NON e' un servizio qui: e' una libreria Python in-process nel
+# backend, con vector store nel database `mem0` creato da init/01-mem0.sh.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: delir-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: delir_super
+      POSTGRES_PASSWORD: ${POSTGRES_SUPER_PASSWORD:?serve POSTGRES_SUPER_PASSWORD}
+      POSTGRES_DB: delir
+      DELIR_MIGRATOR_PASSWORD: ${DELIR_MIGRATOR_PASSWORD:?serve DELIR_MIGRATOR_PASSWORD}
+      DELIR_APP_PASSWORD: ${DELIR_APP_PASSWORD:?serve DELIR_APP_PASSWORD}
+      DELIR_WORKER_PASSWORD: ${DELIR_WORKER_PASSWORD:?serve DELIR_WORKER_PASSWORD}
+      DELIR_MEM0_PASSWORD: ${DELIR_MEM0_PASSWORD:?serve DELIR_MEM0_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - delir_pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U delir_super -d delir"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5-community
+    container_name: delir-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?serve NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 512M
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 512M
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    ports:
+      - "127.0.0.1:${NEO4J_HTTP_PORT:-7474}:7474"
+      - "127.0.0.1:${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - delir_neo4jdata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  delir_pgdata:
+    name: delir_pgdata
+  delir_neo4jdata:
+    name: delir_neo4jdata

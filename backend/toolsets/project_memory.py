@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from backend import workspace_database
 from backend.memory.episodic import episodic_store
 from backend.memory.knowledge_graph import knowledge_graph_store
+from backend.memory.knowledge_graph import mirror as knowledge_graph_mirror
 from backend.memory.knowledge_graph.models import (
     KnowledgeGraphContradiction,
     KnowledgeGraphEvidence,
@@ -530,6 +531,7 @@ def _save_project_episode_payload(
         indexed_insights.append("PROJECT_GRAPH_INDEX\n" + "\n".join(graph_lines))
 
     kg_index_result = None
+    canonical_mirror_result = None
     if relationships or valid_gaps or valid_inconsistencies or valid_roi_impacts or entities:
         kg_index_result = knowledge_graph_store.index_evidence_graph(
             _knowledge_graph_evidence_payload(
@@ -545,6 +547,17 @@ def _save_project_episode_payload(
                 inconsistencies=valid_inconsistencies,
                 roi_impacts=valid_roi_impacts,
             )
+        )
+        # Specchia sul canonical Postgres + Neo4j/Mem0 (piano "Cervello DeliR",
+        # slice 3). Best-effort: mai un'eccezione verso il chiamante.
+        canonical_mirror_result = knowledge_graph_mirror.mirror_evidence(
+            workspace_project_id=project_id,
+            workspace_process_ids=valid_process_ids,
+            entities=entities,
+            relationships=relationships,
+            gaps=valid_gaps,
+            contradictions=valid_inconsistencies,
+            impacts=valid_roi_impacts,
         )
 
     result = episodic_store.save_episode_memory(
@@ -587,6 +600,7 @@ def _save_project_episode_payload(
             "inconsistencies": [item.model_dump() for item in valid_inconsistencies],
             "roi_impacts": [item.model_dump() for item in valid_roi_impacts],
             "knowledge_graph_index": kg_index_result,
+            "canonical_mirror": canonical_mirror_result,
             "memory_result": result,
         },
     )

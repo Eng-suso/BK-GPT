@@ -23,7 +23,7 @@
  */
 .process-workspace--embedded {
   grid-template-rows: minmax(0, 1fr);
-  padding: 0 28px 28px;
+  padding: 0 28px 16px;
 }
 
 .process-workspace--embedded > .process-workspace-grid {
@@ -173,14 +173,14 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--space-200) var(--space-300);
+  gap: var(--space-200);
   min-height: var(--inspector-header-height);
   border-bottom: 1px solid var(--color-border-subtle);
-  padding: var(--space-300) var(--space-400);
+  padding: var(--space-200) var(--space-400);
 }
 
 .process-bpmn-toolbar h3 {
-  margin: 2px 0 0;
+  margin: 0;
   color: var(--color-text-primary);
   font-size: var(--font-size-300);
   font-weight: var(--font-weight-semibold);
@@ -251,15 +251,39 @@
   font-size: 13px;
 }
 
+/*
+ * Label colour only. Do NOT override font-size / weight / family here: bpmn-js
+ * pre-computes line wrapping with its own TextRenderer metrics (12px / normal),
+ * so forcing a heavier weight makes every task label overflow its shape.
+ */
 .process-bpmn-canvas .djs-visual text,
 .process-bpmn-canvas .djs-label text {
   fill: var(--color-text-primary) !important;
-  font-size: 12px !important;
-  font-weight: 600;
 }
 
 .process-bpmn-canvas .djs-shape .djs-visual > :is(rect, circle, polygon, path) {
   vector-effect: non-scaling-stroke;
+}
+
+/*
+ * Palette: tighter entries + subtle token border. bpmn-js flips the palette to
+ * a cramped two-column strip once its single-column height exceeds the canvas
+ * height — shrinking each entry keeps it single-column on shorter viewports.
+ */
+.process-bpmn-canvas .djs-palette {
+  border-color: var(--color-border-subtle);
+  box-shadow: var(--shadow-100);
+}
+
+.process-bpmn-canvas .djs-palette .entry {
+  width: 40px;
+  height: 40px;
+  line-height: 40px;
+  font-size: 1.15rem;
+}
+
+.process-bpmn-canvas .djs-palette.two-column .djs-palette-entries {
+  width: 80px;
 }
 
 .process-bpmn-canvas .djs-connection .djs-visual > path {
@@ -584,6 +608,12 @@
 .embedded-chat-panel .welcome {
   min-height: 100%;
   padding: var(--space-600) var(--space-300);
+  /*
+   * Centre the intro when it fits; fall back to top-aligned when the panel is
+   * shorter than the content (mobile / short viewports). Plain `center` would
+   * overflow the scroll origin and clip the title out of reach.
+   */
+  justify-content: safe center;
 }
 
 .embedded-chat-panel .message-list,

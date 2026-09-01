@@ -35,6 +35,10 @@ dependencies = [
     "unstructured>=0.25.2",
     "uvicorn==0.48.0",
     "llama-index>=0.14.24",
+    "alembic>=1.14",
+    "psycopg[binary,pool]>=3.2",
+    "en-core-web-sm",
+    "neo4j>=5.28",
 ]
 
 [dependency-groups]
@@ -66,3 +70,6 @@ files = [
     "backend/graphs/canvas_edit/graph.py",
     "backend/schemas",
 ]
+
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }

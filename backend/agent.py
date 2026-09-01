@@ -19,7 +19,14 @@ from backend.process_understanding import (
     ProcessUnderstandingDiagnostics,
     ProcessUnderstandingQualityReport,
 )
-from backend.settings import ALLOWED_MODELS, DEFAULT_OPENAI_MODEL, settings
+from backend.settings import (
+    ALLOWED_MODELS,
+    DEFAULT_OPENAI_MODEL,
+    effective_langsmith_model_name,
+    langsmith_metadata,
+    langsmith_tags,
+    settings,
+)
 from backend.tools import tools_by_scope
 from backend.memory.consultant_context_classifier import (
     classify_and_select_context,
@@ -32,6 +39,18 @@ RECENT_MESSAGE_LIMIT = 8
 RECENT_MESSAGE_SCAN_LIMIT = 24
 SUMMARY_TRIGGER_MESSAGE_COUNT = 10
 SUMMARY_KEEP_RECENT_MESSAGES = 6
+
+
+class DeliRChatOpenAI(ChatOpenAI):
+    langsmith_provider: str = "openai"
+    langsmith_model_name: str | None = None
+
+    def _get_ls_params(self, stop: list[str] | None = None, **kwargs):
+        params = super()._get_ls_params(stop=stop, **kwargs)
+        params["ls_provider"] = self.langsmith_provider or "openai"
+        if self.langsmith_model_name:
+            params["ls_model_name"] = self.langsmith_model_name
+        return params
 
 
 class ConsultantState(MessagesState):
@@ -254,8 +273,12 @@ def normalize_model_name(model_name: str | None = None) -> str:
 
 def build_agent(model_name: str | None = None):
     selected_model = normalize_model_name(model_name)
+    model_metadata = langsmith_metadata(
+        selected_model,
+        delir_model_name=selected_model,
+    )
 
-    llm = ChatOpenAI(
+    llm = DeliRChatOpenAI(
         model=selected_model,
         api_key=settings.openai_api_key,
         temperature=settings.model_temperature,
@@ -264,10 +287,14 @@ def build_agent(model_name: str | None = None):
         max_retries=settings.model_max_retries,
         streaming=True,
         stream_usage=True,
+        langsmith_provider=settings.langsmith_provider,
+        langsmith_model_name=effective_langsmith_model_name(selected_model),
+        metadata=model_metadata,
+        tags=langsmith_tags("llm", "agent-runtime"),
         reasoning_effort="none",
     )
 
-    context_router_llm = ChatOpenAI(
+    context_router_llm = DeliRChatOpenAI(
         model=selected_model,
         api_key=settings.openai_api_key,
         temperature=settings.model_temperature,
@@ -275,6 +302,10 @@ def build_agent(model_name: str | None = None):
         timeout=settings.model_timeout_seconds,
         max_retries=settings.model_max_retries,
         streaming=False,
+        langsmith_provider=settings.langsmith_provider,
+        langsmith_model_name=effective_langsmith_model_name(selected_model),
+        metadata=model_metadata,
+        tags=langsmith_tags("llm", "context-router"),
         reasoning_effort="none",
     )
 

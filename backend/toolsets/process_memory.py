@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 from backend import workspace_database
 from backend.memory.episodic import episodic_store
-from backend.memory.knowledge_graph import knowledge_graph_store
+from backend.memory.knowledge_graph import knowledge_graph_store, mirror
 from backend.memory.knowledge_graph.models import (
     KnowledgeGraphClaim,
     KnowledgeGraphContradiction,
@@ -210,6 +210,7 @@ def _save_process_episode_payload(
     scoped_impacts = _scope_items_to_process(impacts or [], process_id)
     graph_payload_present = bool(claims or relationships or scoped_gaps or scoped_contradictions or scoped_impacts or entities)
     kg_index_result = None
+    canonical_mirror_result = None
 
     if graph_payload_present:
         kg_index_result = knowledge_graph_store.index_evidence_graph(
@@ -228,6 +229,18 @@ def _save_process_episode_payload(
                 contradictions=scoped_contradictions,
                 impacts=scoped_impacts,
             )
+        )
+        # Specchia sul canonical Postgres + Neo4j/Mem0 (piano "Cervello DeliR",
+        # slice 3). Best-effort: mai un'eccezione verso il chiamante.
+        canonical_mirror_result = mirror.mirror_evidence(
+            workspace_project_id=project_id,
+            workspace_process_ids=[process_id],
+            entities=entities,
+            relationships=relationships,
+            claims=claims,
+            gaps=scoped_gaps,
+            contradictions=scoped_contradictions,
+            impacts=scoped_impacts,
         )
 
     memory_result = episodic_store.save_episode_memory(
@@ -274,6 +287,7 @@ def _save_process_episode_payload(
             "contradictions": [item.model_dump(mode="json") for item in scoped_contradictions],
             "impacts": [item.model_dump(mode="json") for item in scoped_impacts],
             "knowledge_graph_index": kg_index_result,
+            "canonical_mirror": canonical_mirror_result,
             "memory_result": memory_result,
         },
         next_actions=[
@@ -702,13 +716,23 @@ def index_process_evidence_graph(
             impacts=scoped_impacts,
         )
     )
+    canonical_mirror_result = mirror.mirror_evidence(
+        workspace_project_id=project_id,
+        workspace_process_ids=[process_id],
+        entities=entities,
+        relationships=relationships,
+        claims=claims,
+        gaps=scoped_gaps,
+        contradictions=scoped_contradictions,
+        impacts=scoped_impacts,
+    )
     return enterprise_tool_result(
         status="indexed",
         action="index_process_evidence_graph",
         entity_type="process_knowledge_graph",
         entity_id=process_id,
         summary=f"Graph evidence indexed for {process['name']}.",
-        payload=result,
+        payload={**result, "canonical_mirror": canonical_mirror_result},
     )
 
 

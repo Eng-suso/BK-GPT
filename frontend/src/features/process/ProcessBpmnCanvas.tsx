@@ -148,21 +148,11 @@ function fitCanvas(modeler: BpmnModeler) {
     return;
   }
 
-  const padded = withViewportPadding(bounds, outer.width / outer.height);
-  const scale = outer.width / padded.width;
-  const minReadableScale = 0.55;
-
-  if (scale < minReadableScale) {
-    canvasService.viewbox({
-      x: bounds.x - 140,
-      y: bounds.y - 140,
-      width: outer.width / minReadableScale,
-      height: outer.height / minReadableScale,
-    });
-    return;
-  }
-
-  canvasService.viewbox(padded);
+  // Always frame the whole diagram, centred, with padding. The old
+  // `minReadableScale` floor cropped large diagrams (pinned top-left, let the
+  // rest overflow off-screen) — worse than a smaller-but-complete view the user
+  // can zoom into.
+  canvasService.viewbox(withViewportPadding(bounds, outer.width / outer.height));
 }
 
 function isConnection(element: BpmnRegistryElement): element is BpmnConnection {
@@ -312,6 +302,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const isSavingRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
   const changeCheckTimerRef = useRef<number | null>(null);
+  const fitTimerRef = useRef<number | null>(null);
   const lastSavedXmlRef = useRef<string | null>(null);
   const [status, setStatus] = useState("Caricamento canvas...");
   const [error, setError] = useState<string | null>(null);
@@ -349,6 +340,13 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     if (changeCheckTimerRef.current) {
       window.clearTimeout(changeCheckTimerRef.current);
       changeCheckTimerRef.current = null;
+    }
+  }
+
+  function clearFitTimer() {
+    if (fitTimerRef.current) {
+      window.clearTimeout(fitTimerRef.current);
+      fitTimerRef.current = null;
     }
   }
 
@@ -392,15 +390,16 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     }, 120);
   }, [scheduleLocalDraftSave]);
 
+  // Debounced: one fit after the layout settles. Collapses the burst of
+  // ResizeObserver callbacks fired while the user drags the chat splitter, and
+  // the double mount/import fit, into a single reframe.
   function scheduleCanvasFit() {
-    window.requestAnimationFrame(() => {
+    if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
+    fitTimerRef.current = window.setTimeout(() => {
+      fitTimerRef.current = null;
       if (document.hidden || !modelerRef.current) return;
-
       fitCanvas(modelerRef.current);
-      window.setTimeout(() => {
-        if (modelerRef.current) fitCanvas(modelerRef.current);
-      }, 120);
-    });
+    }, 100);
   }
 
   const loadVersions = useCallback(async () => {
@@ -505,6 +504,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     return () => {
       isMounted = false;
       clearChangeCheckTimer();
+      clearFitTimer();
       modelerRef.current?.destroy();
       modelerRef.current = null;
       setIsReady(false);
@@ -519,7 +519,10 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     });
     resizeObserver.observe(containerRef.current);
 
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      clearFitTimer();
+    };
   }, []);
 
   useEffect(() => {
@@ -744,21 +747,25 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     fitCanvas(modelerRef.current);
   }
 
-  const saveTone: StatusTone = hasUnsavedChanges
-    ? "warning"
-    : status.toLowerCase().startsWith("errore")
-      ? "danger"
+  const isError = status.toLowerCase().startsWith("errore");
+  const saveTone: StatusTone = isError
+    ? "danger"
+    : hasUnsavedChanges
+      ? "warning"
       : "ok";
-  const saveLabel = hasUnsavedChanges ? "Modifiche non salvate" : status;
+  // Keep it to one short chip so the toolbar stays on a single row; the full
+  // error text still renders in the canvas error banner.
+  const saveLabel = isError
+    ? status
+    : hasUnsavedChanges
+      ? "Non salvato"
+      : "Salvato";
 
   return (
     <section className="process-bpmn-shell" aria-label="Canvas BPMN">
       <header className="process-bpmn-toolbar">
-        <div className="flex shrink-0 items-center gap-3">
-          <div>
-            <p className="product-eyebrow whitespace-nowrap">BPMN 2.0</p>
-            <h3>Canvas processo</h3>
-          </div>
+        <div className="flex min-w-0 shrink-0 items-center gap-3">
+          <h3>Canvas processo</h3>
           {(onToggleCanvasChat || onTogglePropertiesPanel) && (
             <div className="flex items-center gap-1 border-l border-border pl-3">
               {onToggleCanvasChat && (
