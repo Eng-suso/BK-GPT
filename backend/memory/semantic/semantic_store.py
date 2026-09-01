@@ -1,36 +1,28 @@
-from mem0 import MemoryClient
+"""Memoria semantica del consulente su Mem0 OSS self-hosted.
 
+Vedi backend/memory/mem0_client.py per la config. Se Mem0 e' disattivato
+(nessun MEM0_DATABASE_URL) i chiamanti ricevono un messaggio esplicito e
+nulla si rompe.
+
+Nota: oggi lo scope e' consultant-level (`settings.mem0_user_id`). Lo scope
+per cliente/progetto arrivera' con la migrazione della memoria canonica
+(piano "Cervello DeliR", INV-13).
+"""
+
+from __future__ import annotations
+
+from backend.memory import mem0_client
+from backend.memory.mem0_client import Mem0Disabled
 from backend.memory.models import ConsultantSemanticMemory, semantic_memory_to_mem0_content
 from backend.settings import settings
 
 
-_client = None
-_client_error: str | None = None
-
-
 def memory_filters() -> dict:
-    return {
-        "user_id": settings.mem0_user_id,
-    }
+    return {"user_id": settings.mem0_user_id}
 
 
-def get_memory_client():
-    global _client, _client_error
-
-    if _client is not None:
-        return _client
-
-    if not settings.mem0_api_key:
-        _client_error = "manca MEM0_API_KEY"
-        return None
-
-    try:
-        _client = MemoryClient(api_key=settings.mem0_api_key)
-    except Exception as exc:
-        _client_error = str(exc)
-        return None
-
-    return _client
+def _disabled_message(memory: Mem0Disabled) -> str:
+    return f"Memoria semantica disattivata: {memory.reason}."
 
 
 def format_memory_results(response, limit: int = 5) -> str:
@@ -49,11 +41,7 @@ def format_memory_results(response, limit: int = 5) -> str:
 
     for item in results[:limit]:
         if isinstance(item, dict):
-            memory_id = (
-                item.get("id")
-                or item.get("memory_id")
-                or item.get("uuid")
-            )
+            memory_id = item.get("id") or item.get("memory_id") or item.get("uuid")
             memory = (
                 item.get("memory")
                 or item.get("text")
@@ -78,21 +66,16 @@ def format_memory_results(response, limit: int = 5) -> str:
 
 
 def add_mem0_memory(content: str) -> str:
-    client = get_memory_client()
+    memory = mem0_client.get_memory()
 
-    if client is None:
-        reason = _client_error or "client non disponibile"
-        return f"Memoria semantica disattivata: {reason}."
+    if isinstance(memory, Mem0Disabled):
+        return _disabled_message(memory)
 
     try:
-        client.add(
-            messages=[
-                {
-                    "role": "user",
-                    "content": content,
-                }
-            ],
+        memory.add(
+            content,
             user_id=settings.mem0_user_id,
+            metadata={"source": "delir"},
         )
     except Exception as exc:
         return f"Non sono riuscito a salvare in Mem0: {exc}"
@@ -119,18 +102,18 @@ def save_consultant_memory(content: str, category: str) -> str:
 
 
 def search_consultant_memory(query: str, category: str | None = None) -> str:
-    client = get_memory_client()
+    memory = mem0_client.get_memory()
 
-    if client is None:
-        reason = _client_error or "client non disponibile"
-        return f"Memoria semantica disattivata: {reason}."
+    if isinstance(memory, Mem0Disabled):
+        return _disabled_message(memory)
 
     search_query = f"[{category}] {query}" if category else query
 
     try:
-        response = client.search(
+        response = memory.search(
             query=search_query,
             filters=memory_filters(),
+            limit=5,
         )
     except Exception as exc:
         return f"Non sono riuscito a recuperare memorie da Mem0: {exc}"
@@ -139,11 +122,10 @@ def search_consultant_memory(query: str, category: str | None = None) -> str:
 
 
 def delete_consultant_memory(memory_id: str, delete_linked: bool = False) -> str:
-    client = get_memory_client()
+    memory = mem0_client.get_memory()
 
-    if client is None:
-        reason = _client_error or "client non disponibile"
-        return f"Memoria semantica disattivata: {reason}."
+    if isinstance(memory, Mem0Disabled):
+        return _disabled_message(memory)
 
     normalized_memory_id = memory_id.strip()
 
@@ -151,10 +133,7 @@ def delete_consultant_memory(memory_id: str, delete_linked: bool = False) -> str
         return "Non posso eliminare la memoria: memory_id mancante."
 
     try:
-        client.delete(
-            memory_id=normalized_memory_id,
-            delete_linked=delete_linked,
-        )
+        memory.delete(memory_id=normalized_memory_id)
     except Exception as exc:
         return f"Non sono riuscito a eliminare la memoria Mem0 {normalized_memory_id}: {exc}"
 
@@ -162,15 +141,9 @@ def delete_consultant_memory(memory_id: str, delete_linked: bool = False) -> str
 
 
 def save_bpmn_preference(rule: str, area: str) -> str:
-    return save_consultant_memory(
-        content=rule,
-        category=f"bpmn:{area}",
-    )
+    return save_consultant_memory(content=rule, category=f"bpmn:{area}")
 
 
 def search_bpmn_preferences(query: str, area: str | None = None) -> str:
     category = f"bpmn:{area}" if area else "bpmn"
-    return search_consultant_memory(
-        query=query,
-        category=category,
-    )
+    return search_consultant_memory(query=query, category=category)

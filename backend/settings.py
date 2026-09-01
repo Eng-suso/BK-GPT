@@ -15,6 +15,16 @@ class Settings(BaseSettings):
     mem0_api_key: str | None = None
     mem0_user_id: str = "local-consultant"
 
+    # --- Mem0 OSS self-hosted (D1) ---------------------------------------
+    # DSN del database mem0 isolato (ruolo delir_mem0). Vuoto = Mem0 disattivato.
+    mem0_database_url: str | None = None
+    mem0_collection: str = "delir_memories"
+    mem0_history_db_path: str = "data/mem0_history.db"
+    # modello per l'estrazione fatti di Mem0: serve JSON mode. Override se il
+    # tuo account non ha gpt-4o-mini.
+    mem0_llm_model: str = "gpt-4o-mini"
+    mem0_embedder_model: str = "text-embedding-3-small"
+
     # --- canonical Postgres (piano "Cervello DeliR", P0) ------------------
     # DSN come ruolo delir_app (solo DML, NOBYPASSRLS, non-owner). Usata dall'app.
     canonical_database_url: str | None = None
@@ -22,6 +32,11 @@ class Settings(BaseSettings):
     canonical_migrator_url: str | None = None
     # DSN come ruolo delir_worker (drena solo le due code). Usata dai worker outbox.
     canonical_worker_url: str | None = None
+
+    # --- Neo4j Community (projection grafo tipizzato, P0.5+) --------------
+    neo4j_url: str = "bolt://127.0.0.1:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str | None = None
 
     langsmith_api_key: str | None = None
     langsmith_tracing: bool = False

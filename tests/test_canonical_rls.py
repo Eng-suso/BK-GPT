@@ -1,6 +1,6 @@
 """Isolamento tenant sul Postgres canonical (INV-6 / INV-9).
 
-Richiede un Postgres canonical migrato (docker compose in ops/postgres +
+Richiede un Postgres canonical migrato (`docker compose up -d` in ops/ +
 `alembic upgrade head`) e le due DSN in ambiente o in .env:
 
     CANONICAL_MIGRATOR_URL=postgresql+psycopg://delir_migrator:...@127.0.0.1:55432/delir
