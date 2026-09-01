@@ -418,10 +418,12 @@ class ManageConsultantPlaybookInput(BaseModel):
             "list to retrieve active playbooks relevant to a task; inspect for one "
             "playbook by id; save_candidate to store a new learned method as a "
             "candidate (NOT active); promote to run the guardrail and activate a "
-            "candidate; deprecate to retire an active playbook."
+            "candidate; deprecate to retire an active playbook; generalize to turn a "
+            "client-scoped playbook into a consultant-scoped candidate (needs project + "
+            "playbook_id, INV-13 — a rewrite, not a copy)."
         )
     )
-    playbook_id: str | None = Field(default=None, description="Target id for inspect, promote, or deprecate.")
+    playbook_id: str | None = Field(default=None, description="Target id for inspect, promote, deprecate, or the source for generalize.")
     query: str = Field(default="", description="Task description for list ranking. Leave empty to list recent active playbooks.")
     kind: str = Field(default="playbook", description="playbook, heuristic, or checklist. For save_candidate.")
     title: str = Field(default="", description="Short playbook title. For save_candidate.")
@@ -468,7 +470,8 @@ def manage_consultant_playbook(
 
     normalized_operation = (operation or "").strip().lower()
     consultant_id = settings.default_consultant_id
-    use_client_scope = (scope or "").strip().lower() == "client"
+    # generalize opera sempre su un sorgente client-scoped, a prescindere da `scope`
+    use_client_scope = (scope or "").strip().lower() == "client" or normalized_operation == "generalize"
     client_id: str | None = None
     canonical_project_id: str | None = None
 
@@ -478,7 +481,7 @@ def manage_consultant_playbook(
                 status="blocked",
                 action="manage_consultant_playbook",
                 entity_type="consultant_playbook",
-                summary="scope 'client' richiede il parametro project.",
+                summary="questa operazione richiede il parametro project.",
                 payload={"operation": normalized_operation},
             )
         try:
@@ -622,6 +625,39 @@ def manage_consultant_playbook(
             entity_type="consultant_playbook",
             entity_id=playbook_id,
             summary="Playbook ritirato." if result["status"] == "deprecated" else "Nessuna modifica.",
+            payload={"operation": normalized_operation, **result},
+        )
+
+    if normalized_operation == "generalize":
+        if not playbook_id:
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_consultant_playbook",
+                entity_type="consultant_playbook",
+                summary="generalize richiede playbook_id (il playbook client-scoped sorgente).",
+                payload={"operation": normalized_operation},
+            )
+        result = canonical_memory.generalize_procedural(
+            playbook_id, consultant_id=consultant_id, client_id=client_id
+        )
+        status_map = {
+            "generalized": "saved",
+            "not_found": "not_found",
+            "blocked": "blocked",
+            "no_method": "empty",
+        }
+        summary_map = {
+            "generalized": "Candidate consultant-scoped creato dalla generalizzazione. Rivedi e poi promote.",
+            "not_found": "Playbook sorgente non trovato.",
+            "blocked": "Il sorgente non e' client-scoped: niente da generalizzare.",
+            "no_method": "Nessun metodo generalizzabile dal playbook sorgente.",
+        }
+        return enterprise_tool_result(
+            status=status_map.get(result["status"], result["status"]),
+            action="manage_consultant_playbook",
+            entity_type="consultant_playbook",
+            entity_id=result.get("candidate_id") or playbook_id,
+            summary=summary_map.get(result["status"], result["status"]),
             payload={"operation": normalized_operation, **result},
         )
 

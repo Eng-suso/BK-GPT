@@ -34,6 +34,12 @@ class ExtractedPlaybook(BaseModel):
     confidence: float = Field(default=0.4, ge=0.0, le=1.0)
 
 
+class GeneralizedPlaybook(BaseModel):
+    title: str = Field(description="Titolo generico del metodo")
+    applies_when: str = Field(default="", description="Quando si applica, senza riferimenti cliente")
+    body: str = Field(description="Il metodo generalizzato, senza nomi cliente ne' dati riservati")
+
+
 def _supports_reasoning_controls(model: str) -> bool:
     return model.lower().startswith(("gpt-5", "o1", "o3", "o4"))
 
@@ -142,4 +148,75 @@ def extract_playbook_from_episodes(
         applies_when=str(data.get("applies_when") or "").strip(),
         body=body,
         confidence=confidence,
+    )
+
+
+def _build_generalize_prompt(playbook: dict[str, Any], client_names: list[str]) -> list:
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    names = ", ".join(n for n in client_names if n) or "(nessuno noto)"
+    source = "\n".join(
+        part
+        for part in (
+            f"Titolo: {playbook.get('title') or ''}",
+            f"Si applica quando: {playbook.get('applies_when') or ''}",
+            f"Corpo:\n{playbook.get('body') or ''}",
+        )
+        if part
+    )
+    return [
+        SystemMessage(
+            content=(
+                "Sei l'analista di metodo di un consulente. Ti do un playbook nato "
+                "per un singolo cliente. Riscrivilo come metodo GENERICO, riutilizzabile "
+                "con qualsiasi cliente: togli i nomi dei clienti, i nomi di persona, i "
+                "numeri riservati (importi, percentuali contrattuali, tempi specifici), "
+                "i dettagli non trasferibili. Mantieni i passi e la logica. Non "
+                f"reintrodurre questi nomi cliente: {names}. Rispondi SOLO JSON: "
+                '{"title":"...","applies_when":"...","body":"..."}. Se non resta un '
+                'metodo generalizzabile rispondi {"title":"","body":""}.'
+            )
+        ),
+        HumanMessage(content=source[:6000]),
+    ]
+
+
+def generalize_playbook_body(
+    playbook: dict[str, Any],
+    client_names: list[str],
+    *,
+    llm: Any | None = None,
+) -> GeneralizedPlaybook | None:
+    """Riscrive un playbook client-scoped come metodo generico (P7.3).
+
+    `None` se l'LLM non e' disponibile o non resta un metodo. Il verdetto finale
+    su "abbastanza generico" resta al guardrail in fase di promote.
+    """
+    model = llm if llm is not None else (_extraction_llm() if settings.openai_api_key else None)
+    if model is None:
+        return None
+
+    try:
+        response = model.invoke(_build_generalize_prompt(playbook, client_names))
+    except Exception:  # noqa: BLE001
+        logger.warning("generalize: invoke LLM fallito", exc_info=True)
+        return None
+
+    content = str(getattr(response, "content", response) or "")
+    start, end = content.find("{"), content.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        data = json.loads(content[start : end + 1])
+    except json.JSONDecodeError:
+        return None
+
+    title = str(data.get("title") or "").strip()
+    body = str(data.get("body") or "").strip()
+    if not title or not body:
+        return None
+    return GeneralizedPlaybook(
+        title=title,
+        applies_when=str(data.get("applies_when") or "").strip(),
+        body=body,
     )

@@ -272,9 +272,19 @@ code potate da sole. Stato operativo su Postgres.
   runtime — `backend/memory/procedural/playbook_context.py` appende i playbook
   `active` allo `active_skill_context` accanto alle repo-skill, nessun codice
   generato. Test: `tests/test_procedural_memory.py`.
-  Restano P7.2 (pattern extraction episodic → candidate), P7.3 (generalizzazione
-  client → consultant), P7.4 (feedback loop usage/outcome → nuova versione),
-  P7.5 (proiezione Mem0 opzionale).
+  **P7.2 fatto**: `backend/memory/procedural/extraction.py` (LLM iniettabile) +
+  `canonical_memory.list_episodes_for_learning` / `procedural_candidate_for_episodes`
+  (dedup) + tool `extract_playbook_from_episodes` (project scope): dagli episodi
+  client-scoped a un candidate scope='client' con `derived_from`. Test:
+  `tests/test_procedural_extraction.py`.
+  **P7.3 fatto**: `extraction.generalize_playbook_body` + `canonical_memory.generalize_procedural`
+  + `manage_consultant_playbook operation=generalize` — riscrive un playbook
+  client-scoped come candidate consultant-scoped (`derived_from` = sorgente,
+  `guardrail_status='pending'`); il guardrail al promote blocca se un nome
+  cliente e' rimasto. Mai una copia (INV-13). Test:
+  `tests/test_procedural_generalization.py`.
+  Restano P7.4 (feedback loop usage/outcome → nuova versione) e P7.5
+  (proiezione Mem0 opzionale).
 - **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
   ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)

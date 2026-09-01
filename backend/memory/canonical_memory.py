@@ -389,7 +389,7 @@ def promote_procedural(
                 str(r.name)
                 for r in session.execute(text("SELECT name FROM client")).all()
                 if r.name
-            ]
+            ]  # contesto consultant-only: la RLS strict-client li mostra tutti
 
         guardrail_status, findings = guardrail.check(
             body=row.body,
@@ -488,6 +488,74 @@ def list_episodes_for_learning(
         }
         for row in rows
     ]
+
+
+def list_client_names(consultant_id: str) -> list[str]:
+    """Nomi di tutti i clienti del consulente (contesto consultant-only:
+    la RLS strict-client li mostra tutti). Usato dal guardrail / generalizzazione."""
+    with canonical_session(consultant_id) as session:
+        return [
+            str(row.name)
+            for row in session.execute(text("SELECT name FROM client")).all()
+            if row.name
+        ]
+
+
+def generalize_procedural(
+    source_id: str,
+    *,
+    consultant_id: str,
+    client_id: str,
+    llm: Any | None = None,
+) -> dict[str, Any]:
+    """Promozione client -> consultant come GENERALIZZAZIONE, non copia (INV-13).
+
+    Legge il playbook client-scoped `source_id`, lo fa riscrivere come metodo
+    generico (nomi cliente e dati riservati rimossi) e crea un NUOVO
+    `procedural_memory` scope='consultant', `client_id=NULL`, status='candidate',
+    `derived_from=[source_id]`, `guardrail_status='pending'`.
+
+    Non attiva nulla: `promote_procedural` sul nuovo candidate fa girare il
+    guardrail, che blocca la promozione se un nome cliente e' sopravvissuto.
+    """
+    from backend.memory.procedural import extraction
+
+    with canonical_session(consultant_id, client_id) as session:
+        row = session.execute(
+            text(
+                "SELECT id, scope, kind, title, applies_when, body "
+                "FROM procedural_memory WHERE id = :i"
+            ),
+            {"i": str(source_id)},
+        ).first()
+    if row is None:
+        return {"status": "not_found", "id": str(source_id)}
+    if row.scope != "client":
+        return {"status": "blocked", "id": str(source_id), "reason": "il sorgente non e' client-scoped"}
+
+    generalized = extraction.generalize_playbook_body(
+        {"title": row.title, "applies_when": row.applies_when, "body": row.body},
+        list_client_names(consultant_id),
+        llm=llm,
+    )
+    if generalized is None:
+        return {"status": "no_method", "id": str(source_id)}
+
+    candidate_id = write_procedural_candidate(
+        consultant_id,
+        kind=row.kind,
+        title=generalized.title,
+        body=generalized.body,
+        applies_when=generalized.applies_when or None,
+        scope="consultant",
+        derived_from=[str(source_id)],
+        created_by="agent",
+    )
+    return {
+        "status": "generalized",
+        "source_id": str(source_id),
+        "candidate_id": candidate_id,
+    }
 
 
 def procedural_candidate_for_episodes(
