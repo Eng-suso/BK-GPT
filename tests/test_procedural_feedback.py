@@ -89,15 +89,26 @@ def test_record_usage_counts_only_active(consultant):
     assert rows[uuid.UUID(candidate)] == 0
 
 
-def test_outcome_moves_confidence_and_auto_deprecates(consultant):
-    playbook = _active_playbook(consultant, "Playbook da bocciare", confidence=0.3)
+def test_positive_outcomes_raise_confidence(consultant):
+    playbook = _active_playbook(consultant, "Playbook che funziona", confidence=0.3)
 
-    up = canonical_memory.record_playbook_outcome(
+    worked = canonical_memory.record_playbook_outcome(
         playbook, "worked", consultant_id=consultant
     )
-    assert up["status"] == "recorded"
-    assert up["confidence"] == pytest.approx(0.4)
-    assert up["auto_deprecated"] is False
+    assert worked["status"] == "recorded"
+    # ratio smussato: (1 + 0 + 0.5) / (1 + 0 + 0 + 1)
+    assert worked["confidence"] == pytest.approx(0.75)
+    assert worked["auto_deprecated"] is False
+
+    partial = canonical_memory.record_playbook_outcome(
+        playbook, "partial", consultant_id=consultant
+    )
+    # (1 + 0.5 + 0.5) / (1 + 1 + 0 + 1)
+    assert partial["confidence"] == pytest.approx(0.6667, abs=1e-3)
+
+
+def test_repeated_failures_auto_deprecate(consultant):
+    playbook = _active_playbook(consultant, "Playbook da bocciare", confidence=0.5)
 
     results = [
         canonical_memory.record_playbook_outcome(playbook, "didn't_work", consultant_id=consultant)
@@ -109,7 +120,7 @@ def test_outcome_moves_confidence_and_auto_deprecates(consultant):
     detail = canonical_memory.get_procedural(playbook, consultant_id=consultant)
     assert detail["status"] == "deprecated"
     assert detail["outcome_failed"] == 3
-    assert detail["outcome_worked"] == 1
+    assert detail["outcome_worked"] == 0
 
 
 def test_bad_outcome_is_rejected(consultant):

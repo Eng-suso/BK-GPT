@@ -432,8 +432,8 @@ class ManageConsultantPlaybookInput(BaseModel):
     title: str = Field(default="", description="Short playbook title. For save_candidate.")
     applies_when: str = Field(default="", description="When this method applies. For save_candidate.")
     body: str = Field(default="", description="The reusable method: when it applies, the steps, what to avoid. For save_candidate.")
-    scope: str = Field(default="consultant", description="consultant for a generalized method, client for a client-specific one.")
-    project: str | None = Field(default=None, description="Workspace project id/name. Required when scope is client.")
+    scope: str = Field(default="consultant", description="For save_candidate: consultant for a generalized method, client for a client-specific one (client also needs project).")
+    project: str | None = Field(default=None, description="Workspace project id/name. Pass it to operate in that client's scope — required for generalize and to reach client-scoped playbooks with promote/inspect/deprecate/record_outcome.")
     derived_from: list[str] = Field(default_factory=list, description="episodic_memory ids this method was extracted from (provenance).")
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Initial confidence for save_candidate.")
     limit: int = Field(default=10, ge=1, le=25, description="Max playbooks for list.")
@@ -475,12 +475,15 @@ def manage_consultant_playbook(
 
     normalized_operation = (operation or "").strip().lower()
     consultant_id = settings.default_consultant_id
-    # generalize opera sempre su un sorgente client-scoped, a prescindere da `scope`
-    use_client_scope = (scope or "").strip().lower() == "client" or normalized_operation == "generalize"
+    scope_value = (scope or "").strip().lower()
+    # `project` = si opera nello scope di quel cliente (necessario per vedere /
+    # promuovere / valutare i playbook client-scoped). generalize lo richiede
+    # sempre: il sorgente e' client-scoped.
+    need_client_ctx = bool(project) or normalized_operation == "generalize"
     client_id: str | None = None
     canonical_project_id: str | None = None
 
-    if use_client_scope:
+    if need_client_ctx:
         if not project:
             return enterprise_tool_result(
                 status="blocked",
@@ -500,6 +503,10 @@ def manage_consultant_playbook(
                 summary=f"scope cliente non risolto: {exc}",
                 payload={"operation": normalized_operation, "project": project},
             )
+
+    # save_candidate: riga client-scoped solo se c'e' un cliente risolto e non e'
+    # stato chiesto esplicitamente lo scope consultant.
+    save_as_client = client_id is not None and scope_value != "consultant"
 
     if normalized_operation in {"list", "search"}:
         result = gateway.procedural_retrieve(
@@ -553,9 +560,9 @@ def manage_consultant_playbook(
                 title=title.strip(),
                 body=body.strip(),
                 applies_when=applies_when.strip() or None,
-                scope="client" if use_client_scope else "consultant",
-                client_id=client_id,
-                project_id=canonical_project_id,
+                scope="client" if save_as_client else "consultant",
+                client_id=client_id if save_as_client else None,
+                project_id=canonical_project_id if save_as_client else None,
                 derived_from=derived_from or [],
                 confidence=confidence,
                 created_by="consultant",

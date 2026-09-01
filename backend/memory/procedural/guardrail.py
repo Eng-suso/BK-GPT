@@ -46,8 +46,11 @@ _PII_CHECKS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("carta", _CARD),
 )
 
-# nomi cliente sotto questa lunghezza sono troppo generici per un match affidabile
-_MIN_CLIENT_NAME = 4
+# un nome cliente a parola singola sotto questa lunghezza e' troppo generico
+# (rischio di falso positivo su parole comuni tipo "Delta", "Nord", "Sigma").
+# I nomi multi-parola ("Rossi Manifattura") sono distintivi -> soglia piu' bassa.
+_MIN_SINGLE_TOKEN_NAME = 6
+_MIN_MULTI_TOKEN_NAME = 4
 
 
 def _pii_findings(blob: str) -> list[dict[str, str]]:
@@ -65,7 +68,9 @@ def _client_reference_findings(
     out: list[dict[str, str]] = []
     for raw in client_names or []:
         name = (raw or "").strip()
-        if len(name) < _MIN_CLIENT_NAME:
+        multi_token = len(name.split()) > 1
+        min_len = _MIN_MULTI_TOKEN_NAME if multi_token else _MIN_SINGLE_TOKEN_NAME
+        if len(name) < min_len:
             continue
         if re.search(rf"\b{re.escape(name.lower())}\b", low):
             out.append({"kind": "client_reference", "match": name})

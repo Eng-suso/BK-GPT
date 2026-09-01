@@ -456,16 +456,26 @@ def deprecate_procedural(
         }
 
 
-# outcome normalizzato -> (colonna contatore, delta di confidence)
-_OUTCOME = {
-    "worked": ("outcome_worked", 0.1),
-    "partial": ("outcome_partial", 0.0),
-    "didn't_work": ("outcome_failed", -0.15),
-    "didnt_work": ("outcome_failed", -0.15),
-    "failed": ("outcome_failed", -0.15),
+# outcome normalizzato -> colonna contatore
+_OUTCOME_COLUMN = {
+    "worked": "outcome_worked",
+    "partial": "outcome_partial",
+    "didn't_work": "outcome_failed",
+    "didnt_work": "outcome_failed",
+    "failed": "outcome_failed",
 }
-_AUTO_DEPRECATE_CONFIDENCE = 0.15
+# confidence = ratio di successo smussato (media mobile su TUTTI gli esiti):
+#   (worked + 0.5*partial + prior) / (worked + partial + failed + prior_weight)
+_CONFIDENCE_PRIOR = 0.5
+_CONFIDENCE_PRIOR_WEIGHT = 1.0
+_AUTO_DEPRECATE_CONFIDENCE = 0.2
 _AUTO_DEPRECATE_FAILURES = 3
+
+
+def _blended_confidence(worked: int, partial: int, failed: int) -> float:
+    numerator = worked + 0.5 * partial + _CONFIDENCE_PRIOR
+    denominator = worked + partial + failed + _CONFIDENCE_PRIOR_WEIGHT
+    return min(1.0, max(0.0, numerator / denominator))
 
 
 def record_playbook_usage(
@@ -505,28 +515,33 @@ def record_playbook_outcome(
 ) -> dict[str, Any]:
     """Registra l'esito d'uso di un playbook (`worked` | `partial` | `didn't_work`).
 
-    Incrementa il contatore, aggiorna `confidence` con una media mobile e, se la
-    confidence scende sotto la soglia con abbastanza esiti negativi, auto-deprecа
-    il playbook (`status='deprecated'`).
+    Incrementa il contatore e ricalcola `confidence` come ratio di successo
+    smussato su tutti gli esiti registrati:
+    `(worked + 0.5*partial + prior) / (worked + partial + failed + prior_weight)`.
+    Se la confidence scende sotto `_AUTO_DEPRECATE_CONFIDENCE` con almeno
+    `_AUTO_DEPRECATE_FAILURES` esiti negativi, auto-depreca il playbook
+    (`status='deprecated'`).
     """
     key = (outcome or "").strip().lower()
-    mapping = _OUTCOME.get(key)
-    if mapping is None:
+    column = _OUTCOME_COLUMN.get(key)
+    if column is None:
         return {"status": "bad_outcome", "id": str(playbook_id), "outcome": outcome}
-    column, delta = mapping
 
     with canonical_session(consultant_id, client_id) as session:
         row = session.execute(
             text(
-                "SELECT status, confidence, outcome_failed FROM procedural_memory WHERE id = :i"
+                "SELECT status, outcome_worked, outcome_partial, outcome_failed "
+                "FROM procedural_memory WHERE id = :i"
             ),
             {"i": str(playbook_id)},
         ).first()
         if row is None:
             return {"status": "not_found", "id": str(playbook_id)}
 
-        new_confidence = min(1.0, max(0.0, float(row.confidence) + delta))
+        worked = int(row.outcome_worked) + (1 if column == "outcome_worked" else 0)
+        partial = int(row.outcome_partial) + (1 if column == "outcome_partial" else 0)
         failures = int(row.outcome_failed) + (1 if column == "outcome_failed" else 0)
+        new_confidence = _blended_confidence(worked, partial, failures)
         auto_deprecate = (
             row.status == "active"
             and new_confidence < _AUTO_DEPRECATE_CONFIDENCE

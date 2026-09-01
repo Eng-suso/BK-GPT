@@ -30,7 +30,7 @@ def build_playbook_context(
     limit: int = MAX_PLAYBOOKS_PER_TURN,
     record_usage: bool = True,
 ) -> str:
-    if not gateway.procedural_available():
+    if not (task_text or "").strip() or not gateway.procedural_available():
         return ""
 
     client_id: str | None = None
