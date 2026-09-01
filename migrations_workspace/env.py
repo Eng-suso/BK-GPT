@@ -10,9 +10,13 @@ from __future__ import annotations
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, text
 
 from backend.settings import settings
+
+# lock advisory: `ensure_schema()` gira allo startup dell'app; se partono due
+# istanze insieme, la seconda aspetta invece di correre in parallelo sul DDL.
+_MIGRATION_LOCK_KEY = 0x44454C4952_5753  # "DELIR_WS"
 
 config = context.config
 
@@ -54,6 +58,9 @@ def run_migrations_online() -> None:
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
+            connection.execute(
+                text("SELECT pg_advisory_xact_lock(:k)"), {"k": _MIGRATION_LOCK_KEY}
+            )
             context.run_migrations()
 
 

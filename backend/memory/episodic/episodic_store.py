@@ -330,7 +330,7 @@ def local_episode_matches(
     for episode, source in rows:
         match = episode_to_dict(episode, source)
 
-        if episode_matches_query(match, query):
+        if episode_matches_query(match, query, read_source_text(source)):
             matches.append(match)
 
         if len(matches) >= limit:
@@ -340,6 +340,8 @@ def local_episode_matches(
 
 
 def episode_to_dict(episode: Episode, source: EpisodeSource | None) -> dict:
+    # NB: niente `content` qui — puo' essere un transcript intero. Il testo
+    # grezzo si prende con `read_source_text(source)` solo quando serve.
     return {
         "episode_id": episode.episode_id,
         "episode_type": episode.episode_type,
@@ -355,18 +357,20 @@ def episode_to_dict(episode: Episode, source: EpisodeSource | None) -> dict:
         "archive_reason": episode.archive_reason,
         "source_id": source.source_id if source else episode.source_id,
         "path": source.path if source else "",
-        "content": source.content if source else None,
         "content_hash": source.content_hash if source else "",
         "created_at": episode.created_at,
         "updated_at": episode.updated_at,
     }
 
 
-def read_source_text(source: dict) -> str:
+def read_source_text(source: "EpisodeSource | dict | None") -> str:
     """Testo grezzo dell'episodio: prima dal DB (`content`), poi cache su disco."""
-    if source.get("content"):
-        return source["content"]
-    path = source.get("path")
+    if source is None:
+        return ""
+    content = source.get("content") if isinstance(source, dict) else source.content
+    if content:
+        return content
+    path = source.get("path") if isinstance(source, dict) else source.path
     if not path:
         return ""
     try:
@@ -375,13 +379,12 @@ def read_source_text(source: dict) -> str:
         return ""
 
 
-def episode_matches_query(match: dict, query: str) -> bool:
+def episode_matches_query(match: dict, query: str, source_text: str = "") -> bool:
     terms = [term.strip().lower() for term in query.split() if term.strip()]
 
     if not terms:
         return True
 
-    source_text = read_source_text(match)
     haystack = " ".join(
         [
             match.get("title") or "",
@@ -526,7 +529,7 @@ def get_episode_memory(
     episode, source = row
     result = episode_to_dict(episode, source)
     if include_source_text:
-        result["source_text"] = read_source_text(result)
+        result["source_text"] = read_source_text(source)
     return result
 
 
