@@ -2,16 +2,15 @@
 sul canonical, oltre al vecchio knowledge_graph_store.
 
 Best-effort e non bloccante: se il canonical non e' configurato, o lo scope
-non si risolve, o una singola scrittura fallisce, si registra e si va avanti.
-Il chiamante non deve mai fallire per colpa di questo modulo.
+non si risolve, o la scrittura fallisce, si registra e si va avanti. Il
+chiamante non deve mai fallire per colpa di questo modulo.
 
 E' uno strato transitorio (slice 3 del piano "Cervello DeliR"): quando il
-rewire sara' completo il vecchio store sparira' e questo modulo former`a`
-l'unico percorso di scrittura, chiamato direttamente invece che "in specchio".
+rewire sara' completo il vecchio store sparira' e questo modulo diventera'
+l'unico percorso di scrittura, chiamato direttamente (non "in specchio").
 
-Le forme attese per relationships/claims/gaps/contradictions/impacts sono le
-stesse dei modelli in backend.toolsets.{project,process}_memory /
-backend.memory.knowledge_graph.models (duck-typing sugli attributi).
+L'intero pacchetto di evidenza va in UNA transazione via
+`canonical.write_evidence` (fix review #1): o tutto o niente.
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ from typing import Any
 
 from backend.memory import scope as scope_module
 from backend.memory.knowledge_graph import canonical
-from backend.memory.scope import ScopeIds
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -33,10 +31,14 @@ def enabled() -> bool:
     return bool(settings.canonical_database_url and settings.canonical_ingest_mirror)
 
 
-def _as_confidence(value: Any) -> float:
+def _conf(value: Any) -> float:
     if isinstance(value, (int, float)):
         return float(value)
     return _CONFIDENCE_WORDS.get(str(value or "").lower(), 0.5)
+
+
+def _get(obj: Any, name: str, default: Any = None) -> Any:
+    return getattr(obj, name, default)
 
 
 def mirror_evidence(
@@ -54,19 +56,23 @@ def mirror_evidence(
         return {"mirrored": False, "reason": "disabled"}
 
     process_ids = [p for p in (workspace_process_ids or []) if p]
-    process_scope: dict[str, ScopeIds] = {}
+    process_scope: dict[str, scope_module.ScopeIds] = {}
 
     try:
-        base_scope = scope_module.resolve(workspace_project_id, process_ids[0] if process_ids else None)
+        base_scope = scope_module.resolve(
+            workspace_project_id, process_ids[0] if process_ids else None
+        )
         if process_ids:
             process_scope[process_ids[0]] = base_scope
         for wpid in process_ids[1:]:
             process_scope[wpid] = scope_module.resolve(workspace_project_id, wpid)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("canonical mirror: scope non risolvibile per %s (%s)", workspace_project_id, exc)
+        logger.warning(
+            "canonical mirror: scope non risolvibile per %s (%s)", workspace_project_id, exc
+        )
         return {"mirrored": False, "reason": str(exc)}
 
-    def _canonical_process_ids(workspace_ids: list[str] | None) -> list[str]:
+    def _canon_processes(workspace_ids: list[str] | None) -> list[str]:
         resolved = []
         for wpid in workspace_ids or []:
             s = process_scope.get(wpid)
@@ -80,106 +86,84 @@ def mirror_evidence(
                 resolved.append(s.process_id)
         return resolved or ([base_scope.process_id] if base_scope.process_id else [])
 
-    entity_ids: dict[str, str] = {}
-    counts = {"entities": 0, "relationships": 0, "claims": 0, "gaps": 0, "contradictions": 0, "impacts": 0}
-    errors: list[str] = []
+    rel_dicts = [
+        {
+            "source": _get(r, "source"),
+            "relation": _get(r, "relation"),
+            "target": _get(r, "target"),
+            "evidence": _get(r, "evidence", ""),
+            "confidence": _conf(_get(r, "confidence")),
+            "confirmed": bool(_get(r, "confirmed")),
+        }
+        for r in relationships or []
+    ]
+    claim_dicts = [
+        {
+            "statement": _get(c, "claim"),
+            "process_area": _get(c, "process_area", "other"),
+            "claim_status": _get(c, "status", "partial"),
+            "linked_element_hint": _get(c, "linked_element_hint"),
+            "confidence": _conf(_get(c, "confidence")),
+        }
+        for c in claims or []
+    ]
+    gap_dicts = [
+        {
+            "title": _get(g, "title"),
+            "missing_information": _get(g, "missing_information", ""),
+            "required_evidence": _get(g, "required_evidence", ""),
+            "severity": _get(g, "severity", "medium"),
+            "affected_process_ids": _canon_processes(_get(g, "affected_process_ids")),
+        }
+        for g in gaps or []
+    ]
+    contra_dicts = [
+        {
+            "title": _get(c, "title"),
+            "conflicting_statements": list(_get(c, "conflicting_claims", []) or []),
+            "resolution_question": _get(c, "resolution_question", ""),
+            "severity": _get(c, "severity", "medium"),
+            "affected_process_ids": _canon_processes(_get(c, "affected_process_ids")),
+        }
+        for c in contradictions or []
+    ]
+    impact_dicts = [
+        {
+            "title": _get(i, "title"),
+            "impact_area": _get(i, "impact_area", "efficiency"),
+            "mechanism": _get(i, "mechanism", ""),
+            "evidence": _get(i, "evidence", ""),
+            "confidence": _conf(_get(i, "confidence")),
+            "affected_process_ids": _canon_processes(_get(i, "affected_process_ids")),
+        }
+        for i in impacts or []
+    ]
 
-    def _entity(name: str) -> str:
-        cleaned = " ".join(str(name or "").split())
-        if not cleaned:
-            return ""
-        if cleaned not in entity_ids:
-            try:
-                entity_ids[cleaned] = canonical.write_entity(
-                    base_scope.consultant_id, base_scope.client_id, "other", cleaned,
-                    project_id=base_scope.project_id, process_id=base_scope.process_id,
-                )
-            except Exception as exc:  # noqa: BLE001
-                errors.append(f"entity {cleaned!r}: {exc}")
-                return ""
-        return entity_ids[cleaned]
-
-    for name in entities or []:
-        if _entity(name):
-            counts["entities"] += 1
-
-    for rel in relationships or []:
-        try:
-            src, tgt = _entity(rel.source), _entity(rel.target)
-            if not src or not tgt:
-                continue
-            canonical.write_relation(
-                base_scope.consultant_id, base_scope.client_id, src, rel.relation, tgt,
-                project_id=base_scope.project_id, process_id=base_scope.process_id,
-                evidence=rel.evidence, confidence=_as_confidence(rel.confidence),
-                confirmed=bool(rel.confirmed),
-            )
-            counts["relationships"] += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"relationship {rel!r}: {exc}")
-
-    for claim in claims or []:
-        try:
-            canonical.write_claim(
-                base_scope.consultant_id, base_scope.client_id, claim.claim, claim.process_area,
-                project_id=base_scope.project_id, process_id=base_scope.process_id,
-                claim_status=claim.status, linked_element_hint=claim.linked_element_hint,
-                confidence=_as_confidence(claim.confidence),
-            )
-            counts["claims"] += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"claim {claim!r}: {exc}")
-
-    for gap in gaps or []:
-        try:
-            canonical.write_gap(
-                base_scope.consultant_id, base_scope.client_id, gap.title, gap.missing_information,
-                project_id=base_scope.project_id, process_id=base_scope.process_id,
-                required_evidence=gap.required_evidence, severity=gap.severity,
-                affected_process_ids=_canonical_process_ids(gap.affected_process_ids),
-            )
-            counts["gaps"] += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"gap {gap!r}: {exc}")
-
-    for contra in contradictions or []:
-        try:
-            canonical.write_contradiction(
-                base_scope.consultant_id, base_scope.client_id, contra.title,
-                project_id=base_scope.project_id, process_id=base_scope.process_id,
-                conflicting_statements=list(contra.conflicting_claims),
-                resolution_question=contra.resolution_question, severity=contra.severity,
-                affected_process_ids=_canonical_process_ids(contra.affected_process_ids),
-            )
-            counts["contradictions"] += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"contradiction {contra!r}: {exc}")
-
-    for impact in impacts or []:
-        try:
-            canonical.write_impact(
-                base_scope.consultant_id, base_scope.client_id, impact.title,
-                impact.impact_area, impact.mechanism,
-                project_id=base_scope.project_id, process_id=base_scope.process_id,
-                evidence=impact.evidence,
-                affected_process_ids=_canonical_process_ids(impact.affected_process_ids),
-                confidence=_as_confidence(impact.confidence),
-            )
-            counts["impacts"] += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"impact {impact!r}: {exc}")
-
-    if errors:
-        logger.warning("canonical mirror: %d errori su %s", len(errors), workspace_project_id)
-
-    return {
-        "mirrored": True,
-        "scope": {
-            "consultant_id": base_scope.consultant_id,
-            "client_id": base_scope.client_id,
-            "project_id": base_scope.project_id,
-            "process_id": base_scope.process_id,
-        },
-        "counts": counts,
-        "errors": errors,
+    scope_out = {
+        "consultant_id": base_scope.consultant_id,
+        "client_id": base_scope.client_id,
+        "project_id": base_scope.project_id,
+        "process_id": base_scope.process_id,
     }
+
+    try:
+        counts = canonical.write_evidence(
+            consultant_id=base_scope.consultant_id,
+            client_id=base_scope.client_id,
+            project_id=base_scope.project_id,
+            process_id=base_scope.process_id,
+            process_name=base_scope.process_name,
+            entities=entities,
+            relationships=rel_dicts,
+            claims=claim_dicts,
+            gaps=gap_dicts,
+            contradictions=contra_dicts,
+            impacts=impact_dicts,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "canonical mirror: write_evidence fallito per %s (%s)", workspace_project_id, exc
+        )
+        return {"mirrored": False, "reason": str(exc), "scope": scope_out}
+
+    return {"mirrored": True, "scope": scope_out, "counts": counts}

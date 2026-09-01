@@ -171,6 +171,38 @@ def test_claim_gap_impact_reach_neo4j_with_structural_edges(scope):
         assert imp["a"] == "working_capital"
 
 
+def test_write_evidence_is_atomic(scope):
+    from sqlalchemy import create_engine, text
+    from backend.memory.knowledge_graph import canonical
+
+    # process_id malformato: l'INSERT dell'entita' fallira' a meta' pacchetto
+    with pytest.raises(Exception):
+        canonical.write_evidence(
+            consultant_id=scope["consultant"],
+            client_id=scope["client"],
+            project_id=scope["project"],
+            process_id="non-e-un-uuid",
+            entities=["Alfa", "Beta"],
+            relationships=[{"source": "Alfa", "relation": "linked", "target": "Beta"}],
+        )
+
+    eng = create_engine(settings.canonical_migrator_url, future=True)
+    with eng.begin() as conn:
+        conn.execute(
+            text("SELECT set_config('app.current_consultant_id', :v, true)"),
+            {"v": scope["consultant"]},
+        )
+        conn.execute(
+            text("SELECT set_config('app.current_client_id', :v, true)"),
+            {"v": scope["client"]},
+        )
+        n = conn.execute(
+            text("SELECT count(*) FROM kg_entity WHERE client_id = :c"),
+            {"c": scope["client"]},
+        ).scalar_one()
+    assert n == 0  # rollback totale: nessuna entita' parziale
+
+
 def test_worker_marks_processed_and_is_idempotent(scope):
     canonical.write_entity(scope["consultant"], scope["client"], "system", "SAP")
     first = drain_once()

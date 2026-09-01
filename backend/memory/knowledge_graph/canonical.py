@@ -15,7 +15,10 @@ usera' al posto del vecchio knowledge_graph_store.
 
 from __future__ import annotations
 
+import json
+import logging
 import secrets
+from contextlib import contextmanager
 from typing import Any
 
 from sqlalchemy import text
@@ -24,11 +27,53 @@ from sqlalchemy.orm import Session
 from backend.db import canonical_session
 from backend.memory.knowledge_graph import catalog
 
+logger = logging.getLogger(__name__)
+
 _ENTITY = catalog.NODE_BY_TABLE["kg_entity"]
 
+# Enum accettati dai CHECK delle tabelle (migration 0003/0006). Un valore fuori
+# lista viene coerciato al default con un warning: meglio un dato leggermente
+# impreciso che un INSERT fallito (soprattutto per il mirror best-effort).
+_PROCESS_AREAS = frozenset(
+    {"scope", "actor", "activity", "decision", "handoff", "system", "data",
+     "exception", "control", "timing", "other"}
+)
+_CLAIM_STATUS = frozenset(
+    {"confirmed", "partial", "contradicted", "inferred", "unsupported"}
+)
+_SEVERITY = frozenset({"low", "medium", "high", "critical", "blocking"})
+_IMPACT_AREAS = frozenset(
+    {"cost", "revenue", "working_capital", "risk", "quality", "time",
+     "compliance", "efficiency", "roi"}
+)
 
-def _nonce() -> str:
-    return secrets.token_hex(8)
+
+def _enum(value: Any, allowed: frozenset[str], default: str) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in allowed:
+        return normalized
+    if value:
+        logger.warning("valore enum %r non valido, uso %r", value, default)
+    return default
+
+
+@contextmanager
+def _open(consultant_id: str, client_id: str | None, tx: Session | None):
+    """Riusa la transazione passata (`tx`) oppure ne apre una nuova.
+
+    `write_evidence` passa una sola sessione a tutti i write cosi' l'intero
+    pacchetto di evidenza e' atomico. I write chiamati singolarmente (test,
+    cutover parziale) aprono la propria transazione come prima.
+    """
+    if tx is not None:
+        yield tx
+    else:
+        with canonical_session(consultant_id, client_id) as session:
+            yield session
+
+
+def _json(value: dict) -> str:
+    return json.dumps(value, default=str, sort_keys=True)
 
 
 def _emit(
@@ -41,6 +86,10 @@ def _emit(
     payload: dict[str, Any],
     op: str = "upsert",
 ) -> None:
+    # dedupe_key: nonce per riga. delir_app ha solo INSERT su graph_outbox
+    # (nessun SELECT), quindi niente ON CONFLICT. Un eventuale doppione e'
+    # innocuo: il projector riapplica a Neo4j in modo idempotente (MERGE), e
+    # l'upsert su kg_entity/kg_relation garantisce id stabili.
     session.execute(
         text(
             "INSERT INTO graph_outbox "
@@ -54,25 +103,9 @@ def _emit(
             "clid": str(client_id) if client_id else None,
             "op": op,
             "payload": _json(payload),
-            "dk": f"{aggregate_type}:{aggregate_id}:{_nonce()}",
+            "dk": f"{aggregate_type}:{aggregate_id}:{secrets.token_hex(8)}",
         },
     )
-
-
-def _json(value: dict) -> str:
-    import json
-
-    return json.dumps(value, default=str)
-
-
-def _scope_props(row: dict) -> dict:
-    return {
-        "client_id": str(row["client_id"]) if row.get("client_id") else None,
-        "project_id": str(row["project_id"]) if row.get("project_id") else None,
-        "layer": row.get("layer", "L1"),
-        "status": row.get("status", "active"),
-        "confidence": row.get("confidence", 0.5),
-    }
 
 
 # --- Process (nodo di ancoraggio) -----------------------------------------
@@ -84,6 +117,7 @@ def write_process_node(
     name: str,
     *,
     project_id: str | None = None,
+    tx: Session | None = None,
 ) -> None:
     """Proietta un nodo Process (ancoraggio per claim/gap/impact)."""
     props = {
@@ -96,7 +130,7 @@ def write_process_node(
         "name": name,
     }
     catalog.assert_projectable(props, context="Process")
-    with canonical_session(consultant_id, client_id) as session:
+    with _open(consultant_id, client_id, tx) as session:
         _emit(
             session,
             aggregate_type="process",
@@ -126,9 +160,10 @@ def write_entity(
     attributes: dict[str, Any] | None = None,
     source_ids: list[str] | None = None,
     confidence: float = 0.5,
+    tx: Session | None = None,
 ) -> str:
     attributes = attributes or {}
-    with canonical_session(consultant_id, client_id) as session:
+    with _open(consultant_id, client_id, tx) as session:
         row = session.execute(
             text(
                 "INSERT INTO kg_entity "
@@ -137,6 +172,7 @@ def write_entity(
                 "VALUES (:c, :cl, :p, :pr, 'client', :et, :name, CAST(:attrs AS jsonb), "
                 "        CAST(:src AS uuid[]), :conf, 'agent') "
                 "ON CONFLICT (consultant_id, client_id, entity_type, canonical_name) "
+                "WHERE client_id IS NOT NULL "
                 "DO UPDATE SET "
                 "  attributes = kg_entity.attributes || EXCLUDED.attributes, "
                 "  confidence = GREATEST(kg_entity.confidence, EXCLUDED.confidence), "
@@ -206,9 +242,10 @@ def write_relation(
     confidence: float = 0.5,
     confirmed: bool = False,
     source_ids: list[str] | None = None,
+    tx: Session | None = None,
 ) -> str:
     label = _normalize_relation(relation)
-    with canonical_session(consultant_id, client_id) as session:
+    with _open(consultant_id, client_id, tx) as session:
         row = session.execute(
             text(
                 "INSERT INTO kg_relation "
@@ -218,6 +255,7 @@ def write_relation(
                 "VALUES (:c, :cl, :p, :pr, 'client', :s, :t, :rel, :ev, :conf, :cf, "
                 "        CAST(:src AS uuid[]), 'agent') "
                 "ON CONFLICT (consultant_id, client_id, source_entity_id, target_entity_id, relation) "
+                "WHERE client_id IS NOT NULL "
                 "DO UPDATE SET "
                 "  evidence = EXCLUDED.evidence, "
                 "  confidence = GREATEST(kg_relation.confidence, EXCLUDED.confidence), "
@@ -345,8 +383,11 @@ def write_claim(
     linked_element_hint: str | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
+    tx: Session | None = None,
 ) -> str:
-    with canonical_session(consultant_id, client_id) as session:
+    process_area = _enum(process_area, _PROCESS_AREAS, "other")
+    claim_status = _enum(claim_status, _CLAIM_STATUS, "partial")
+    with _open(consultant_id, client_id, tx) as session:
         claim_id = str(
             session.execute(
                 text(
@@ -402,9 +443,11 @@ def write_gap(
     affected_process_ids: list[str] | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
+    tx: Session | None = None,
 ) -> str:
+    severity = _enum(severity, _SEVERITY, "medium")
     affected = _pg_uuid_array(affected_process_ids)
-    with canonical_session(consultant_id, client_id) as session:
+    with _open(consultant_id, client_id, tx) as session:
         gap_id = str(
             session.execute(
                 text(
@@ -459,10 +502,12 @@ def write_contradiction(
     affected_process_ids: list[str] | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
+    tx: Session | None = None,
 ) -> str:
+    severity = _enum(severity, _SEVERITY, "medium")
     claim_ids = _pg_uuid_array(conflicting_claim_ids)
     affected = _pg_uuid_array(affected_process_ids)
-    with canonical_session(consultant_id, client_id) as session:
+    with _open(consultant_id, client_id, tx) as session:
         contra_id = str(
             session.execute(
                 text(
@@ -529,9 +574,11 @@ def write_impact(
     affected_process_ids: list[str] | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
+    tx: Session | None = None,
 ) -> str:
+    impact_area = _enum(impact_area, _IMPACT_AREAS, "efficiency")
     affected = _pg_uuid_array(affected_process_ids)
-    with canonical_session(consultant_id, client_id) as session:
+    with _open(consultant_id, client_id, tx) as session:
         impact_id = str(
             session.execute(
                 text(
@@ -573,7 +620,134 @@ def write_impact(
         return impact_id
 
 
+# --- pacchetto di evidenza (atomico) -----------------------------------
+
+def write_evidence(
+    *,
+    consultant_id: str,
+    client_id: str,
+    project_id: str | None = None,
+    process_id: str | None = None,
+    process_name: str | None = None,
+    entities: list[str] | None = None,
+    relationships: list[dict] | None = None,
+    claims: list[dict] | None = None,
+    gaps: list[dict] | None = None,
+    contradictions: list[dict] | None = None,
+    impacts: list[dict] | None = None,
+) -> dict[str, int]:
+    """Scrive un intero pacchetto di evidenza in UNA transazione (fix review #1).
+
+    Tutti gli id di processo (`process_id` e `affected_process_ids` nei dict)
+    devono essere gia' canonical. Le entita' delle relazioni sono per nome:
+    upsertate una volta, mappa nome->id interna alla transazione.
+
+    Solleva su errore: il chiamante (mirror / cutover) decide se e' fatale.
+    """
+    counts = {
+        "entities": 0, "relationships": 0, "claims": 0,
+        "gaps": 0, "contradictions": 0, "impacts": 0,
+    }
+    with canonical_session(consultant_id, client_id) as session:
+        if process_id and process_name:
+            write_process_node(
+                consultant_id, client_id, process_id, process_name,
+                project_id=project_id, tx=session,
+            )
+
+        entity_ids: dict[str, str] = {}
+
+        def _ent(name: Any) -> str:
+            key = " ".join(str(name or "").split())
+            if not key:
+                return ""
+            if key not in entity_ids:
+                entity_ids[key] = write_entity(
+                    consultant_id, client_id, "other", key,
+                    project_id=project_id, process_id=process_id, tx=session,
+                )
+            return entity_ids[key]
+
+        for name in entities or []:
+            if _ent(name):
+                counts["entities"] += 1
+
+        for rel in relationships or []:
+            src, tgt = _ent(rel.get("source")), _ent(rel.get("target"))
+            if not src or not tgt:
+                continue
+            write_relation(
+                consultant_id, client_id, src, rel.get("relation", ""), tgt,
+                project_id=project_id, process_id=process_id,
+                evidence=rel.get("evidence", "") or "",
+                confidence=_float(rel.get("confidence")),
+                confirmed=bool(rel.get("confirmed")),
+                tx=session,
+            )
+            counts["relationships"] += 1
+
+        for claim in claims or []:
+            write_claim(
+                consultant_id, client_id, claim.get("statement", "") or "",
+                claim.get("process_area", "other"),
+                project_id=project_id, process_id=process_id,
+                claim_status=claim.get("claim_status", "partial"),
+                linked_element_hint=claim.get("linked_element_hint"),
+                confidence=_float(claim.get("confidence")),
+                tx=session,
+            )
+            counts["claims"] += 1
+
+        for gap in gaps or []:
+            write_gap(
+                consultant_id, client_id, gap.get("title", "") or "",
+                gap.get("missing_information", "") or "",
+                project_id=project_id, process_id=process_id,
+                required_evidence=gap.get("required_evidence", "") or "",
+                severity=gap.get("severity", "medium"),
+                affected_process_ids=gap.get("affected_process_ids"),
+                tx=session,
+            )
+            counts["gaps"] += 1
+
+        for contra in contradictions or []:
+            write_contradiction(
+                consultant_id, client_id, contra.get("title", "") or "",
+                project_id=project_id, process_id=process_id,
+                conflicting_statements=contra.get("conflicting_statements"),
+                conflicting_claim_ids=contra.get("conflicting_claim_ids"),
+                resolution_question=contra.get("resolution_question", "") or "",
+                severity=contra.get("severity", "medium"),
+                affected_process_ids=contra.get("affected_process_ids"),
+                tx=session,
+            )
+            counts["contradictions"] += 1
+
+        for impact in impacts or []:
+            write_impact(
+                consultant_id, client_id, impact.get("title", "") or "",
+                impact.get("impact_area", "efficiency"),
+                impact.get("mechanism", "") or "",
+                project_id=project_id, process_id=process_id,
+                evidence=impact.get("evidence", "") or "",
+                affected_process_ids=impact.get("affected_process_ids"),
+                confidence=_float(impact.get("confidence")),
+                tx=session,
+            )
+            counts["impacts"] += 1
+
+    return counts
+
+
 # --- helpers ---------------------------------------------------------------
+
+def _float(value: Any, default: float = 0.5) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return min(1.0, max(0.0, result))
+
 
 def _pg_uuid_array(ids: list[str] | None) -> list[str]:
     return [str(i) for i in (ids or [])]

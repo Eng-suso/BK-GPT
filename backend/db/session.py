@@ -64,6 +64,12 @@ def canonical_session(
     if not consultant_id:
         raise ValueError("consultant_id obbligatorio per canonical_session")
 
+    # difensivo: "None" / "null" / "" letterali -> nessun cliente, cosi'
+    # app_client_id()::uuid non esplode su una stringa non-uuid.
+    client_value = str(client_id).strip() if client_id else ""
+    if client_value.lower() in {"none", "null"}:
+        client_value = ""
+
     session = _factory()()
     try:
         session.execute(
@@ -72,7 +78,7 @@ def canonical_session(
         )
         session.execute(
             text("SELECT set_config('app.current_client_id', :v, true)"),
-            {"v": str(client_id) if client_id else ""},
+            {"v": client_value},
         )
         yield session
         session.commit()
