@@ -6,9 +6,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Index, String, Text, create_engine, func, select, text
+from sqlalchemy import ForeignKey, Index, String, Text, func, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+from backend.local_store import local_engine
 from backend.memory import scope as canonical_scope
 from backend.memory.models import EpisodeMemory, episode_memory_to_mem0_content
 from backend.memory.semantic.semantic_store import (
@@ -20,8 +21,6 @@ from backend.memory.semantic.semantic_store import (
 
 DATA_DIR = Path("data") / "episodic"
 SOURCES_DIR = DATA_DIR / "sources"
-EPISODIC_MEMORY_DB = DATA_DIR / "episodic_memory.db"
-EPISODIC_MEMORY_DB_URL = f"sqlite:///{EPISODIC_MEMORY_DB.as_posix()}"
 
 
 class Base(DeclarativeBase):
@@ -75,11 +74,8 @@ class EpisodeSource(Base):
 
 
 def build_engine():
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return create_engine(
-        EPISODIC_MEMORY_DB_URL,
-        connect_args={"check_same_thread": False},
-    )
+    SOURCES_DIR.mkdir(parents=True, exist_ok=True)
+    return local_engine("episodic/episodic_memory.db")
 
 
 engine = build_engine()
@@ -111,6 +107,9 @@ def init_episodic_memory_db() -> None:
 
 
 def ensure_episodic_lifecycle_columns() -> None:
+    # Su Postgres lo schema completo lo fa `create_all`.
+    if engine.dialect.name != "sqlite":
+        return
     with engine.begin() as connection:
         columns = {
             row[1]

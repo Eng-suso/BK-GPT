@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     mem0_llm_model: str = "gpt-4o-mini"
     mem0_embedder_model: str = "text-embedding-3-small"
 
+    # --- stato operativo su Postgres (workspace / chat / indice episodico) --
+    # DSN come ruolo delir_workspace (owner del database `workspace`). Vuoto =
+    # fallback su SQLite locale (dev/CI). In prod va sempre configurata: SQLite
+    # e' single-writer e non regge la concorrenza multi-cliente.
+    workspace_database_url: str | None = None
+
     # --- canonical Postgres (piano "Cervello DeliR", P0) ------------------
     # DSN come ruolo delir_app (solo DML, NOBYPASSRLS, non-owner). Usata dall'app.
     canonical_database_url: str | None = None

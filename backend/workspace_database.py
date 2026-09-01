@@ -719,6 +719,11 @@ def init_workspace_db() -> None:
 
 
 def ensure_workspace_schema() -> None:
+    # Su Postgres lo schema lo costruisce interamente `create_all`: le patch
+    # incrementali qui sotto (PRAGMA table_info) servono solo al vecchio file
+    # SQLite gia' popolato.
+    if workspace_engine.dialect.name != "sqlite":
+        return
     with workspace_engine.begin() as connection:
         tenant_tables = (
             "workspace_clients",

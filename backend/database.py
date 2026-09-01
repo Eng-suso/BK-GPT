@@ -2,15 +2,14 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import ForeignKey, String, Text, create_engine, func, inspect, select, text
+from sqlalchemy import ForeignKey, String, Text, func, inspect, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
+from backend.local_store import local_engine
 from backend.security import get_current_tenant_id
 
 
 DATA_DIR = Path("data")
-CHAT_HISTORY_DB = DATA_DIR / "chat_history.db"
-CHAT_HISTORY_DB_URL = f"sqlite:///{CHAT_HISTORY_DB.as_posix()}"
 
 
 class Base(DeclarativeBase):
@@ -57,11 +56,7 @@ class ChatMessage(Base):
 
 
 def build_engine():
-    DATA_DIR.mkdir(exist_ok=True)
-    return create_engine(
-        CHAT_HISTORY_DB_URL,
-        connect_args={"check_same_thread": False},
-    )
+    return local_engine("chat_history.db")
 
 
 engine = build_engine()
@@ -93,6 +88,10 @@ def init_chat_history_db() -> None:
 
 
 def ensure_chat_session_scope_columns() -> None:
+    # Su Postgres lo schema completo lo fa `create_all`; le ALTER incrementali
+    # servono solo al vecchio file SQLite gia' popolato.
+    if engine.dialect.name != "sqlite":
+        return
     inspector = inspect(engine)
     existing_columns = {column["name"] for column in inspector.get_columns("chat_sessions")}
     scope_columns = {
