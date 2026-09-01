@@ -9,7 +9,6 @@ from backend.security import get_current_tenant_id
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
-    WorkspaceBase,
     WorkspaceBpmnModel,
     WorkspaceBpmnReview,
     WorkspaceBpmnVersion,
@@ -20,7 +19,6 @@ from backend.workspace_storage import (
     WorkspaceSimulationRun,
     WorkspaceSource,
     workspace_connection,
-    workspace_engine,
 )
 
 
@@ -709,12 +707,3 @@ def reset_workspace() -> None:
                 select(model).where(model.tenant_id == current_tenant_id)
             ).scalars():
                 session.delete(row)
-
-
-def init_workspace_db() -> None:
-    # Postgres, database `workspace` (ruolo owner). Lo schema e' interamente
-    # nei modelli SQLAlchemy: `create_all` e' idempotente.
-    WorkspaceBase.metadata.create_all(workspace_engine)
-
-
-init_workspace_db()

@@ -32,9 +32,12 @@ def get_checkpointer():
     from psycopg.rows import dict_row
     from psycopg_pool import ConnectionPool
 
+    # pool contenuto: il budget connessioni si divide con local_engine, il
+    # canonical e Mem0. Un pool piccolo basta per un solo processo app.
     pool = ConnectionPool(
         conninfo=_conninfo(),
-        max_size=10,
+        min_size=1,
+        max_size=5,
         open=True,
         kwargs={"autocommit": True, "row_factory": dict_row},
     )

@@ -70,10 +70,12 @@ jobs:
           NEO4J_HTTP_PORT=7474
           NEO4J_BOLT_PORT=7687
           EOF
-          docker compose -f ops/docker-compose.yml up -d --wait --wait-timeout 180
+          docker compose -f ops/docker-compose.yml up -d --wait --wait-timeout 240
 
-      - name: Run canonical migrations
-        run: uv run alembic upgrade head
+      - name: Run migrations (canonical + workspace)
+        run: |
+          uv run alembic upgrade head
+          uv run alembic -c alembic_workspace.ini upgrade head
 
       - name: Run pytest
         env:

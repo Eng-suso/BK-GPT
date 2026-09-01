@@ -10,13 +10,12 @@ script assume che esistano gia' e siano vuote (o passa `--truncate`).
     WORKSPACE_DATABASE_URL=postgresql+psycopg://delir_workspace:...@host/workspace \
       uv run python -m scripts.migrate_local_sqlite_to_pg [--truncate] [--dry-run]
 
-Ordine di copia rispettato per le foreign key. Le sequenze delle PK
-autoincrement vengono riallineate a fine copia.
+Insert riga-per-riga con savepoint: una riga corrotta viene saltata, non fa
+fallire la tabella. Sequenze PK autoincrement riallineate a fine copia.
 
-ATTENZIONE: la custodia grezza degli episodi (`data/episodic/sources/*.md`,
-puntata da `sources.path`) NON e' nel database e NON viene copiata da questo
-script. Su un host nuovo va sincronizzata a parte (`rsync data/episodic/`),
-altrimenti l'ispezione del testo sorgente di un episodio fallisce.
+Il testo grezzo degli episodi (vecchi file `data/episodic/sources/*.md`) viene
+letto e messo in `sources.content`: dopo la migrazione l'host non dipende piu'
+da quei file.
 """
 
 from __future__ import annotations
@@ -63,22 +62,59 @@ PLAN = [
 ]
 
 
-def _copy_table(src: Engine, dst: Engine, table: str, dry_run: bool) -> int:
+def _copy_table(src: Engine, dst: Engine, table: str, dry_run: bool) -> tuple[int, int]:
+    """Ritorna (righe inserite, righe saltate). Insert riga-per-riga con
+    savepoint: una riga corrotta (FK orfana, tipo strano) viene saltata, non
+    fa fallire tutta la tabella."""
     with src.connect() as sconn:
         if table not in _table_names(src):
-            return 0
+            return 0, 0
         rows = [dict(r) for r in sconn.execute(text(f"SELECT * FROM {table}")).mappings()]
     if not rows or dry_run:
-        return len(rows)
+        return len(rows), 0
+
     cols = list(rows[0].keys())
     placeholders = ", ".join(f":{c}" for c in cols)
     stmt = text(
         f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) "
         f"ON CONFLICT DO NOTHING"
     )
+    inserted = skipped = 0
     with dst.begin() as dconn:
-        dconn.execute(stmt, rows)
-    return len(rows)
+        for row in rows:
+            sp = dconn.begin_nested()
+            try:
+                dconn.execute(stmt, row)
+                sp.commit()
+                inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                sp.rollback()
+                skipped += 1
+                print(f"    ! {table}: riga saltata ({exc})")
+    return inserted, skipped
+
+
+def _backfill_episode_content(dst: Engine, dry_run: bool) -> int:
+    """Riempie `sources.content` leggendo i file `.md` su disco (`path`), cosi'
+    gli episodi vecchi non dipendono piu' dalla custodia su disco."""
+    if dry_run:
+        return 0
+    filled = 0
+    with dst.begin() as conn:
+        pending = conn.execute(
+            text("SELECT source_id, path FROM sources WHERE content IS NULL AND path <> ''")
+        ).all()
+        for source_id, path in pending:
+            try:
+                text_value = Path(path).read_text(encoding="utf-8")
+            except OSError:
+                continue
+            conn.execute(
+                text("UPDATE sources SET content = :c WHERE source_id = :i"),
+                {"c": text_value, "i": source_id},
+            )
+            filled += 1
+    return filled
 
 
 def _table_names(engine: Engine) -> set[str]:
@@ -113,12 +149,13 @@ def main() -> int:
 
     dst = create_engine(settings.workspace_database_url, future=True)
 
-    # forza la creazione delle tabelle di destinazione
-    import backend.database  # noqa: F401
-    import backend.memory.episodic.episodic_store  # noqa: F401
-    import backend.workspace_database  # noqa: F401
+    # lo schema di destinazione lo porta a head Alembic (migrations_workspace)
+    from backend.local_store import ensure_schema
 
-    total = 0
+    ensure_schema.cache_clear()
+    ensure_schema()
+
+    total = skipped_total = 0
     for sqlite_path, tables, id_cols in PLAN:
         if not sqlite_path.exists():
             print(f"skip {sqlite_path} (assente)")
@@ -131,15 +168,21 @@ def main() -> int:
                     conn.execute(text(f"TRUNCATE {table} CASCADE"))
 
         for table in tables:
-            n = _copy_table(src, dst, table, args.dry_run)
+            n, skipped = _copy_table(src, dst, table, args.dry_run)
             total += n
-            print(f"  {table}: {n}")
+            skipped_total += skipped
+            print(f"  {table}: {n}" + (f" ({skipped} saltate)" if skipped else ""))
 
         for table, id_col in id_cols.items():
             if not args.dry_run:
                 _reset_sequence(dst, table, id_col)
 
-    print(f"{'(dry-run) ' if args.dry_run else ''}righe totali: {total}")
+    filled = _backfill_episode_content(dst, args.dry_run)
+    if filled:
+        print(f"  sources.content: {filled} riempite da disco")
+
+    tag = "(dry-run) " if args.dry_run else ""
+    print(f"{tag}righe totali: {total}" + (f", saltate: {skipped_total}" if skipped_total else ""))
     return 0
 
 

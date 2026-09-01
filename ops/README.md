@@ -42,14 +42,23 @@ Per rieseguirli: `docker compose down -v && docker compose up -d`.
 
 ## Migration
 
-Scritte a mano con `op.execute()`. Girano SEMPRE come `delir_migrator`.
+Due tracce Alembic separate:
+
+| | script | ruolo | contenuto |
+|---|---|---|---|
+| **canonical** | `alembic.ini` / `migrations/` | `delir_migrator` | schema `delir` (RLS, funzioni, pgvector) — scritto a mano |
+| **workspace** | `alembic_workspace.ini` / `migrations_workspace/` | `delir_workspace` | database `workspace` — `metadata.create_all` dai modelli |
 
 ```bash
-# dalla root del repo
 export CANONICAL_MIGRATOR_URL="postgresql+psycopg://delir_migrator:<pw>@127.0.0.1:55432/delir"
+export WORKSPACE_DATABASE_URL="postgresql+psycopg://delir_workspace:<pw>@127.0.0.1:55432/workspace"
 uv run alembic upgrade head
-uv run alembic downgrade base     # reversibile
+uv run alembic -c alembic_workspace.ini upgrade head
 ```
+
+La traccia workspace la applica anche da sola l'app allo startup
+(`local_store.ensure_schema()` nel lifespan). I checkpoint LangGraph
+(`checkpoint_*`) li crea `PostgresSaver.setup()`, fuori Alembic.
 
 ## Config app (`.env` alla root del repo)
 
@@ -65,9 +74,13 @@ NEO4J_PASSWORD=<pw>             # = NEO4J_PASSWORD in ops/.env
 
 **Niente SQLite.** `WORKSPACE_DATABASE_URL` è **obbligatoria**: senza, l'app
 non parte. Il database `workspace` tiene lo stato operativo (workspace,
-cronologia chat, indice memoria episodica) **e i checkpoint LangGraph**
-(`PostgresSaver`, tabelle create da solo). La history interna di Mem0 è
+cronologia chat, indice memoria episodica + testo grezzo episodi) **e i
+checkpoint LangGraph** (`PostgresSaver`). La history interna di Mem0 è
 in-memory (`MEM0_HISTORY_DB_PATH=:memory:`, default).
+
+`data/episodic/sources/*.md` resta solo come **cache** su disco: il testo
+autoritativo degli episodi è in `sources.content`. Un host nuovo non ha
+bisogno di quei file.
 
 Migrazione una tantum dai vecchi file SQLite:
 

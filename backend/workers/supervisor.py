@@ -16,6 +16,8 @@ import asyncio
 import logging
 import sys
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from typing import TypeVar
 
 from backend.settings import settings
 
@@ -23,6 +25,17 @@ logger = logging.getLogger(__name__)
 
 _STATS_EVERY_SECONDS = 120.0
 _PRUNE_EVERY_SECONDS = 3600.0
+
+# Executor dedicato: le passate di drain fanno I/O bloccante (Postgres + Neo4j)
+# e non devono competere con il threadpool di default che serve le route sync
+# di FastAPI. Due worker = due loop, uno alla volta ciascuno.
+_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="queue-worker")
+
+_T = TypeVar("_T")
+
+
+async def _run(fn: Callable[[], _T]) -> _T:
+    return await asyncio.get_running_loop().run_in_executor(_EXECUTOR, fn)
 
 
 async def _drain_loop(
@@ -37,7 +50,7 @@ async def _drain_loop(
     next_prune = loop.time() + _PRUNE_EVERY_SECONDS
     while True:
         try:
-            processed = await asyncio.to_thread(drain_once)
+            processed = await _run(drain_once)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001 — una passata storta non ferma il loop
@@ -48,7 +61,7 @@ async def _drain_loop(
         if now >= next_report:
             next_report = now + _STATS_EVERY_SECONDS
             try:
-                s = await asyncio.to_thread(stats)
+                s = await _run(stats)
                 if s["stuck"]:
                     logger.warning("%s: %d in coda, %d bloccati (dead-letter)", name, s["pending"], s["stuck"])
                 elif s["pending"]:
@@ -59,7 +72,7 @@ async def _drain_loop(
         if prune is not None and now >= next_prune:
             next_prune = now + _PRUNE_EVERY_SECONDS
             try:
-                removed = await asyncio.to_thread(prune)
+                removed = await _run(prune)
                 if removed:
                     logger.info("%s: potate %d righe processate", name, removed)
             except Exception:  # noqa: BLE001

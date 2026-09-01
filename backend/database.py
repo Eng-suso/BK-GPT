@@ -77,11 +77,6 @@ def chat_connection():
         session.close()
 
 
-def init_chat_history_db() -> None:
-    # Postgres (database `workspace`). Schema interamente nei modelli.
-    Base.metadata.create_all(engine)
-
-
 def normalize_scope_fields(
     scope_type: str | None = None,
     project_id: str | None = None,
@@ -326,6 +321,3 @@ def delete_chat_sessions_by_scope(scope_key: str) -> None:
 
         for chat_session in session.execute(statement).scalars():
             session.delete(chat_session)
-
-
-init_chat_history_db()

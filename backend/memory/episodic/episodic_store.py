@@ -65,7 +65,10 @@ class EpisodeSource(Base):
     )
     source_type: Mapped[str] = mapped_column(String, nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)
+    # `path` = cache su disco (compat); `content` = testo grezzo autoritativo,
+    # cosi' l'host non dipende da data/episodic/sources/ per l'ispezione.
     path: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str | None] = mapped_column(Text)
     origin: Mapped[str] = mapped_column(String, nullable=False)
     content_hash: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
@@ -98,13 +101,6 @@ def episodic_connection():
         raise
     finally:
         session.close()
-
-
-def init_episodic_memory_db() -> None:
-    # L'indice episodico e' su Postgres (database `workspace`); la custodia
-    # grezza (`data/episodic/sources/*.md`) resta su disco.
-    SOURCES_DIR.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(engine)
 
 
 def normalize_list(value: str | list[str] | None) -> list[str]:
@@ -141,7 +137,12 @@ def save_raw_source(
     path = source_directory(episode_type) / filename
     normalized_content = raw_content.strip()
 
-    path.write_text(normalized_content, encoding="utf-8")
+    # cache su disco best-effort (comoda per ispezione manuale); il testo
+    # autoritativo va comunque nel DB (`content`).
+    try:
+        path.write_text(normalized_content, encoding="utf-8")
+    except OSError:
+        pass
 
     return {
         "source_id": source_id,
@@ -149,6 +150,7 @@ def save_raw_source(
         "source_type": episode_type,
         "title": title,
         "path": str(path),
+        "content": normalized_content,
         "origin": "chat",
         "content_hash": hashlib.sha256(
             normalized_content.encode("utf-8")
@@ -261,6 +263,7 @@ def save_episode_memory(
                 source_type=source["source_type"],
                 title=source["title"],
                 path=source["path"],
+                content=source.get("content"),
                 origin=source["origin"],
                 content_hash=source["content_hash"],
                 created_at=source["created_at"],
@@ -327,7 +330,7 @@ def local_episode_matches(
     for episode, source in rows:
         match = episode_to_dict(episode, source)
 
-        if episode_matches_query(match, query):
+        if episode_matches_query(match, query, read_source_text(source)):
             matches.append(match)
 
         if len(matches) >= limit:
@@ -337,6 +340,8 @@ def local_episode_matches(
 
 
 def episode_to_dict(episode: Episode, source: EpisodeSource | None) -> dict:
+    # NB: niente `content` qui — puo' essere un transcript intero. Il testo
+    # grezzo si prende con `read_source_text(source)` solo quando serve.
     return {
         "episode_id": episode.episode_id,
         "episode_type": episode.episode_type,
@@ -358,23 +363,28 @@ def episode_to_dict(episode: Episode, source: EpisodeSource | None) -> dict:
     }
 
 
-def read_source_text(path: str | None) -> str:
+def read_source_text(source: "EpisodeSource | dict | None") -> str:
+    """Testo grezzo dell'episodio: prima dal DB (`content`), poi cache su disco."""
+    if source is None:
+        return ""
+    content = source.get("content") if isinstance(source, dict) else source.content
+    if content:
+        return content
+    path = source.get("path") if isinstance(source, dict) else source.path
     if not path:
         return ""
-
     try:
         return Path(path).read_text(encoding="utf-8")
     except OSError:
         return ""
 
 
-def episode_matches_query(match: dict, query: str) -> bool:
+def episode_matches_query(match: dict, query: str, source_text: str = "") -> bool:
     terms = [term.strip().lower() for term in query.split() if term.strip()]
 
     if not terms:
         return True
 
-    source_text = read_source_text(match.get("path"))
     haystack = " ".join(
         [
             match.get("title") or "",
@@ -519,7 +529,7 @@ def get_episode_memory(
     episode, source = row
     result = episode_to_dict(episode, source)
     if include_source_text:
-        result["source_text"] = read_source_text(result.get("path"))
+        result["source_text"] = read_source_text(source)
     return result
 
 
@@ -694,6 +704,3 @@ def delete_episode_memory(
         "skipped_raw_source_paths": skipped_paths,
         "message": f"Episodio eliminato: {normalized_episode_id}",
     }
-
-
-init_episodic_memory_db()
