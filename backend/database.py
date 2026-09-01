@@ -1,15 +1,11 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from pathlib import Path
 
-from sqlalchemy import ForeignKey, String, Text, func, inspect, select, text
+from sqlalchemy import ForeignKey, String, Text, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.local_store import local_engine
 from backend.security import get_current_tenant_id
-
-
-DATA_DIR = Path("data")
 
 
 class Base(DeclarativeBase):
@@ -56,7 +52,7 @@ class ChatMessage(Base):
 
 
 def build_engine():
-    return local_engine("chat_history.db")
+    return local_engine()
 
 
 engine = build_engine()
@@ -82,46 +78,8 @@ def chat_connection():
 
 
 def init_chat_history_db() -> None:
-    DATA_DIR.mkdir(exist_ok=True)
+    # Postgres (database `workspace`). Schema interamente nei modelli.
     Base.metadata.create_all(engine)
-    ensure_chat_session_scope_columns()
-
-
-def ensure_chat_session_scope_columns() -> None:
-    # Su Postgres lo schema completo lo fa `create_all`; le ALTER incrementali
-    # servono solo al vecchio file SQLite gia' popolato.
-    if engine.dialect.name != "sqlite":
-        return
-    inspector = inspect(engine)
-    existing_columns = {column["name"] for column in inspector.get_columns("chat_sessions")}
-    scope_columns = {
-        "tenant_id": "VARCHAR NOT NULL DEFAULT 'local'",
-        "scope_type": "VARCHAR",
-        "project_id": "VARCHAR",
-        "process_id": "VARCHAR",
-        "bpmn_model_id": "VARCHAR",
-        "scope_key": "VARCHAR",
-    }
-
-    with engine.begin() as connection:
-        for column_name, column_type in scope_columns.items():
-            if column_name not in existing_columns:
-                connection.execute(text(f"ALTER TABLE chat_sessions ADD COLUMN {column_name} {column_type}"))
-
-        connection.execute(
-            text(
-                "UPDATE chat_sessions "
-                "SET scope_type = 'consultant', scope_key = 'consultant' "
-                "WHERE scope_key IS NULL"
-            )
-        )
-
-    existing_message_columns = {column["name"] for column in inspector.get_columns("chat_messages")}
-    with engine.begin() as connection:
-        if "tenant_id" not in existing_message_columns:
-            connection.execute(
-                text("ALTER TABLE chat_messages ADD COLUMN tenant_id VARCHAR NOT NULL DEFAULT 'local'")
-            )
 
 
 def normalize_scope_fields(

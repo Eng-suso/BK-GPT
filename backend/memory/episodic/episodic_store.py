@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Index, String, Text, func, select, text
+from sqlalchemy import ForeignKey, Index, String, Text, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.local_store import local_engine
@@ -75,7 +75,7 @@ class EpisodeSource(Base):
 
 def build_engine():
     SOURCES_DIR.mkdir(parents=True, exist_ok=True)
-    return local_engine("episodic/episodic_memory.db")
+    return local_engine()
 
 
 engine = build_engine()
@@ -101,28 +101,10 @@ def episodic_connection():
 
 
 def init_episodic_memory_db() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # L'indice episodico e' su Postgres (database `workspace`); la custodia
+    # grezza (`data/episodic/sources/*.md`) resta su disco.
+    SOURCES_DIR.mkdir(parents=True, exist_ok=True)
     Base.metadata.create_all(engine)
-    ensure_episodic_lifecycle_columns()
-
-
-def ensure_episodic_lifecycle_columns() -> None:
-    # Su Postgres lo schema completo lo fa `create_all`.
-    if engine.dialect.name != "sqlite":
-        return
-    with engine.begin() as connection:
-        columns = {
-            row[1]
-            for row in connection.execute(text("PRAGMA table_info(episodes)")).fetchall()
-        }
-        if "status" not in columns:
-            connection.execute(
-                text("ALTER TABLE episodes ADD COLUMN status VARCHAR NOT NULL DEFAULT 'active'")
-            )
-        if "archived_at" not in columns:
-            connection.execute(text("ALTER TABLE episodes ADD COLUMN archived_at VARCHAR"))
-        if "archive_reason" not in columns:
-            connection.execute(text("ALTER TABLE episodes ADD COLUMN archive_reason TEXT"))
 
 
 def normalize_list(value: str | list[str] | None) -> list[str]:

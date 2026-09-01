@@ -1,8 +1,9 @@
 """Ponte tra gli id stringa del workspace e le righe canonical.
 
-Finche' `workspace.db` (SQLite) non e' migrato su Postgres, l'ingestion mappa
-"project-1" / "proc-1" a `client` / `project` / `process` canonical (uuid) con
-un upsert idempotente su `workspace_id` (migration 0007).
+La workspace (Postgres, database `workspace`) tiene id stringa tipo
+"project-1" / "proc-1"; l'ingestion li mappa a `client` / `project` /
+`process` canonical (uuid) con un upsert idempotente su `workspace_id`
+(migration 0007).
 
 Consulente = quello unico di default (`settings.default_consultant_id`).
 Cliente = derivato dal campo `client` del progetto workspace.

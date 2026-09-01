@@ -19,16 +19,17 @@ class Settings(BaseSettings):
     # DSN del database mem0 isolato (ruolo delir_mem0). Vuoto = Mem0 disattivato.
     mem0_database_url: str | None = None
     mem0_collection: str = "delir_memories"
-    mem0_history_db_path: str = "data/mem0_history.db"
+    # history interna di Mem0 (change-log ADD/UPDATE/DELETE): in-memory, niente
+    # file su disco. Le memorie vere stanno in pgvector, non qui.
+    mem0_history_db_path: str = ":memory:"
     # modello per l'estrazione fatti di Mem0: serve JSON mode. Override se il
     # tuo account non ha gpt-4o-mini.
     mem0_llm_model: str = "gpt-4o-mini"
     mem0_embedder_model: str = "text-embedding-3-small"
 
-    # --- stato operativo su Postgres (workspace / chat / indice episodico) --
-    # DSN come ruolo delir_workspace (owner del database `workspace`). Vuoto =
-    # fallback su SQLite locale (dev/CI). In prod va sempre configurata: SQLite
-    # e' single-writer e non regge la concorrenza multi-cliente.
+    # --- stato operativo su Postgres (workspace / chat / checkpoint / episodic) --
+    # DSN come ruolo delir_workspace (owner del database `workspace`).
+    # OBBLIGATORIA: senza, l'app non parte. Niente fallback SQLite.
     workspace_database_url: str | None = None
 
     # --- canonical Postgres (piano "Cervello DeliR", P0) ------------------

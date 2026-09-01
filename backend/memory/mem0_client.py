@@ -110,7 +110,7 @@ def _shutdown() -> None:
     if isinstance(inst, Mem0Disabled):
         return
     try:
-        inst.close()  # chiude solo la SQLite history di Mem0
+        inst.close()  # chiude la history in-memory di Mem0
     except Exception:
         pass
     # il pool pgvector non e' chiuso da Memory.close(): va fatto a mano

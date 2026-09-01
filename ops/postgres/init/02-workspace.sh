@@ -1,6 +1,7 @@
 #!/bin/bash
-# Database dello stato operativo locale: workspace (clienti/progetti/processi/
-# BPMN/simulazioni), cronologia chat, indice della memoria episodica.
+# Database dello stato operativo: workspace (clienti/progetti/processi/BPMN/
+# simulazioni), cronologia chat, indice della memoria episodica, checkpoint
+# LangGraph (stato conversazioni). Niente SQLite: e' un prodotto.
 #
 # Isolato dal canonical (schema public) e da mem0: churn operativo alto, niente
 # RLS, ruolo proprio. Gira come superuser al primo init del volume.
