@@ -263,6 +263,303 @@ def write_relation(
         return relation_id
 
 
+# --- Claim / Gap / Contradiction / Impact --------------------------------
+
+def _emit_node(
+    session: Session,
+    *,
+    aggregate_type: str,
+    node_id: str,
+    label: str,
+    id_prop: str,
+    props: dict[str, Any],
+    consultant_id: str,
+    client_id: str | None,
+) -> None:
+    catalog.assert_projectable(props, context=label)
+    _emit(
+        session,
+        aggregate_type=aggregate_type,
+        aggregate_id=node_id,
+        consultant_id=consultant_id,
+        client_id=client_id,
+        payload={
+            "kind": "node",
+            "label": label,
+            "id_prop": id_prop,
+            "id_value": node_id,
+            "props": props,
+        },
+    )
+
+
+def _emit_structural_edge(
+    session: Session,
+    *,
+    aggregate_type: str,
+    aggregate_id: str,
+    edge_label: str,
+    source: tuple[str, str, str],
+    target: tuple[str, str, str],
+    consultant_id: str,
+    client_id: str | None,
+) -> None:
+    _emit(
+        session,
+        aggregate_type=aggregate_type,
+        aggregate_id=aggregate_id,
+        consultant_id=consultant_id,
+        client_id=client_id,
+        payload={
+            "kind": "edge",
+            "label": edge_label,
+            "source": {"label": source[0], "id_prop": source[1], "id_value": source[2]},
+            "target": {"label": target[0], "id_prop": target[1], "id_value": target[2]},
+            "props": {"client_id": str(client_id) if client_id else None},
+        },
+    )
+
+
+def write_claim(
+    consultant_id: str,
+    client_id: str,
+    statement: str,
+    process_area: str,
+    *,
+    project_id: str | None = None,
+    process_id: str | None = None,
+    claim_status: str = "partial",
+    linked_element_hint: str | None = None,
+    confidence: float = 0.5,
+    source_ids: list[str] | None = None,
+) -> str:
+    with canonical_session(consultant_id, client_id) as session:
+        claim_id = str(
+            session.execute(
+                text(
+                    "INSERT INTO kg_claim "
+                    "(consultant_id, client_id, project_id, process_id, scope, "
+                    " statement, process_area, claim_status, linked_element_hint, "
+                    " confidence, source_ids, created_by) "
+                    "VALUES (:c,:cl,:p,:pr,'client',:st,:pa,:cs,:hint,:conf,"
+                    "        CAST(:src AS uuid[]),'agent') RETURNING id"
+                ),
+                {
+                    "c": str(consultant_id), "cl": str(client_id),
+                    "p": str(project_id) if project_id else None,
+                    "pr": str(process_id) if process_id else None,
+                    "st": statement, "pa": process_area, "cs": claim_status,
+                    "hint": linked_element_hint, "conf": confidence,
+                    "src": _pg_uuid_array(source_ids),
+                },
+            ).one().id
+        )
+        _emit_node(
+            session, aggregate_type="claim", node_id=claim_id, label="Claim",
+            id_prop="claim_id", consultant_id=consultant_id, client_id=client_id,
+            props={
+                "claim_id": claim_id, "client_id": str(client_id),
+                "project_id": str(project_id) if project_id else None,
+                "layer": "L1", "status": "active", "confidence": confidence,
+                "process_area": process_area, "claim_status": claim_status,
+                "linked_element_hint": linked_element_hint,
+            },
+        )
+        if process_id:
+            _emit_structural_edge(
+                session, aggregate_type="claim", aggregate_id=claim_id,
+                edge_label="HAS_CLAIM",
+                source=("Process", "process_id", str(process_id)),
+                target=("Claim", "claim_id", claim_id),
+                consultant_id=consultant_id, client_id=client_id,
+            )
+        return claim_id
+
+
+def write_gap(
+    consultant_id: str,
+    client_id: str,
+    title: str,
+    missing_information: str,
+    *,
+    project_id: str | None = None,
+    process_id: str | None = None,
+    required_evidence: str = "",
+    severity: str = "medium",
+    affected_process_ids: list[str] | None = None,
+    confidence: float = 0.5,
+    source_ids: list[str] | None = None,
+) -> str:
+    affected = _pg_uuid_array(affected_process_ids)
+    with canonical_session(consultant_id, client_id) as session:
+        gap_id = str(
+            session.execute(
+                text(
+                    "INSERT INTO kg_gap "
+                    "(consultant_id, client_id, project_id, process_id, scope, "
+                    " title, missing_information, required_evidence, severity, "
+                    " affected_process_ids, confidence, source_ids, created_by) "
+                    "VALUES (:c,:cl,:p,:pr,'client',:t,:mi,:re,:sev,"
+                    "        CAST(:aff AS uuid[]),:conf,CAST(:src AS uuid[]),'agent') RETURNING id"
+                ),
+                {
+                    "c": str(consultant_id), "cl": str(client_id),
+                    "p": str(project_id) if project_id else None,
+                    "pr": str(process_id) if process_id else None,
+                    "t": title, "mi": missing_information, "re": required_evidence,
+                    "sev": severity, "aff": affected, "conf": confidence,
+                    "src": _pg_uuid_array(source_ids),
+                },
+            ).one().id
+        )
+        _emit_node(
+            session, aggregate_type="gap", node_id=gap_id, label="Gap",
+            id_prop="gap_id", consultant_id=consultant_id, client_id=client_id,
+            props={
+                "gap_id": gap_id, "client_id": str(client_id),
+                "project_id": str(project_id) if project_id else None,
+                "layer": "L1", "status": "active", "confidence": confidence,
+                "severity": severity,
+            },
+        )
+        for target_process in affected or ([str(process_id)] if process_id else []):
+            _emit_structural_edge(
+                session, aggregate_type="gap", aggregate_id=gap_id, edge_label="BLOCKS",
+                source=("Gap", "gap_id", gap_id),
+                target=("Process", "process_id", str(target_process)),
+                consultant_id=consultant_id, client_id=client_id,
+            )
+        return gap_id
+
+
+def write_contradiction(
+    consultant_id: str,
+    client_id: str,
+    title: str,
+    *,
+    project_id: str | None = None,
+    process_id: str | None = None,
+    conflicting_claim_ids: list[str] | None = None,
+    conflicting_statements: list[str] | None = None,
+    resolution_question: str = "",
+    severity: str = "medium",
+    affected_process_ids: list[str] | None = None,
+    confidence: float = 0.5,
+    source_ids: list[str] | None = None,
+) -> str:
+    claim_ids = _pg_uuid_array(conflicting_claim_ids)
+    affected = _pg_uuid_array(affected_process_ids)
+    with canonical_session(consultant_id, client_id) as session:
+        contra_id = str(
+            session.execute(
+                text(
+                    "INSERT INTO kg_contradiction "
+                    "(consultant_id, client_id, project_id, process_id, scope, "
+                    " title, conflicting_claim_ids, conflicting_statements, "
+                    " resolution_question, severity, affected_process_ids, "
+                    " confidence, source_ids, created_by) "
+                    "VALUES (:c,:cl,:p,:pr,'client',:t,CAST(:cc AS uuid[]),"
+                    "        CAST(:cst AS text[]),:rq,:sev,CAST(:aff AS uuid[]),"
+                    "        :conf,CAST(:src AS uuid[]),'agent') RETURNING id"
+                ),
+                {
+                    "c": str(consultant_id), "cl": str(client_id),
+                    "p": str(project_id) if project_id else None,
+                    "pr": str(process_id) if process_id else None,
+                    "t": title, "cc": claim_ids,
+                    "cst": list(conflicting_statements or []),
+                    "rq": resolution_question, "sev": severity, "aff": affected,
+                    "conf": confidence, "src": _pg_uuid_array(source_ids),
+                },
+            ).one().id
+        )
+        _emit_node(
+            session, aggregate_type="contradiction", node_id=contra_id,
+            label="Contradiction", id_prop="contradiction_id",
+            consultant_id=consultant_id, client_id=client_id,
+            props={
+                "contradiction_id": contra_id, "client_id": str(client_id),
+                "project_id": str(project_id) if project_id else None,
+                "layer": "L1", "status": "active", "confidence": confidence,
+                "severity": severity,
+            },
+        )
+        for target_process in affected or ([str(process_id)] if process_id else []):
+            _emit_structural_edge(
+                session, aggregate_type="contradiction", aggregate_id=contra_id,
+                edge_label="AFFECTS",
+                source=("Contradiction", "contradiction_id", contra_id),
+                target=("Process", "process_id", str(target_process)),
+                consultant_id=consultant_id, client_id=client_id,
+            )
+        for claim_id in claim_ids:
+            _emit_structural_edge(
+                session, aggregate_type="contradiction", aggregate_id=contra_id,
+                edge_label="BETWEEN",
+                source=("Contradiction", "contradiction_id", contra_id),
+                target=("Claim", "claim_id", claim_id),
+                consultant_id=consultant_id, client_id=client_id,
+            )
+        return contra_id
+
+
+def write_impact(
+    consultant_id: str,
+    client_id: str,
+    title: str,
+    impact_area: str,
+    mechanism: str,
+    *,
+    project_id: str | None = None,
+    process_id: str | None = None,
+    evidence: str = "",
+    affected_process_ids: list[str] | None = None,
+    confidence: float = 0.5,
+    source_ids: list[str] | None = None,
+) -> str:
+    affected = _pg_uuid_array(affected_process_ids)
+    with canonical_session(consultant_id, client_id) as session:
+        impact_id = str(
+            session.execute(
+                text(
+                    "INSERT INTO kg_impact "
+                    "(consultant_id, client_id, project_id, process_id, scope, "
+                    " title, impact_area, mechanism, evidence, affected_process_ids, "
+                    " confidence, source_ids, created_by) "
+                    "VALUES (:c,:cl,:p,:pr,'client',:t,:ia,:mech,:ev,"
+                    "        CAST(:aff AS uuid[]),:conf,CAST(:src AS uuid[]),'agent') RETURNING id"
+                ),
+                {
+                    "c": str(consultant_id), "cl": str(client_id),
+                    "p": str(project_id) if project_id else None,
+                    "pr": str(process_id) if process_id else None,
+                    "t": title, "ia": impact_area, "mech": mechanism, "ev": evidence,
+                    "aff": affected, "conf": confidence,
+                    "src": _pg_uuid_array(source_ids),
+                },
+            ).one().id
+        )
+        _emit_node(
+            session, aggregate_type="impact", node_id=impact_id, label="Impact",
+            id_prop="impact_id", consultant_id=consultant_id, client_id=client_id,
+            props={
+                "impact_id": impact_id, "client_id": str(client_id),
+                "project_id": str(project_id) if project_id else None,
+                "layer": "L1", "status": "active", "confidence": confidence,
+                "impact_area": impact_area,
+            },
+        )
+        for target_process in affected or ([str(process_id)] if process_id else []):
+            _emit_structural_edge(
+                session, aggregate_type="impact", aggregate_id=impact_id,
+                edge_label="AFFECTS",
+                source=("Impact", "impact_id", impact_id),
+                target=("Process", "process_id", str(target_process)),
+                consultant_id=consultant_id, client_id=client_id,
+            )
+        return impact_id
+
+
 # --- helpers ---------------------------------------------------------------
 
 def _pg_uuid_array(ids: list[str] | None) -> list[str]:

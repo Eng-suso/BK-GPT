@@ -17,6 +17,7 @@ degradano con un messaggio, senza rompere nulla.
 
 from __future__ import annotations
 
+import atexit
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -96,3 +97,26 @@ def get_memory():
 
 def is_enabled() -> bool:
     return not isinstance(get_memory(), Mem0Disabled)
+
+
+@atexit.register
+def _shutdown() -> None:
+    # Il vector store pgvector di Mem0 tiene un ConnectionPool con thread che
+    # non si chiude da solo: va chiuso prima della finalizzazione dell'interprete
+    # (altrimenti Python 3.14 lancia PythonFinalizationError allo shutdown).
+    if get_memory.cache_info().currsize == 0:
+        return
+    inst = get_memory()
+    if isinstance(inst, Mem0Disabled):
+        return
+    try:
+        inst.close()  # chiude solo la SQLite history di Mem0
+    except Exception:
+        pass
+    # il pool pgvector non e' chiuso da Memory.close(): va fatto a mano
+    pool = getattr(getattr(inst, "vector_store", None), "connection_pool", None)
+    if pool is not None:
+        try:
+            pool.close()
+        except Exception:
+            pass

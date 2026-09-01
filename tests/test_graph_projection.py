@@ -123,6 +123,54 @@ def test_entity_and_relation_reach_neo4j(scope):
         assert edge["cl"] == scope["client"]
 
 
+def test_claim_gap_impact_reach_neo4j_with_structural_edges(scope):
+    claim = canonical.write_claim(
+        scope["consultant"], scope["client"],
+        "Finance emette fattura dopo validazione ordine.", "activity",
+        project_id=scope["project"], process_id=scope["process"],
+        claim_status="confirmed", linked_element_hint="Emissione fattura",
+    )
+    gap = canonical.write_gap(
+        scope["consultant"], scope["client"],
+        "Soglia approvazione CFO non chiara", "Manca la soglia in euro.",
+        project_id=scope["project"], severity="high",
+        affected_process_ids=[scope["process"]],
+    )
+    canonical.write_impact(
+        scope["consultant"], scope["client"],
+        "Ritardo incasso", "working_capital",
+        "La validazione seriale allunga il ciclo di 3 giorni.",
+        project_id=scope["project"], affected_process_ids=[scope["process"]],
+        confidence=0.7,
+    )
+
+    assert drain_once() >= 6
+
+    driver = neo4j_store.get_driver()
+    with driver.session() as neo:
+        c = neo.run(
+            "MATCH (:Process {process_id:$p})-[:HAS_CLAIM]->(n:Claim {claim_id:$id}) "
+            "RETURN n.process_area AS a, n.linked_element_hint AS h, n.statement AS s",
+            p=scope["process"], id=claim,
+        ).single()
+        assert c["a"] == "activity"
+        assert c["h"] == "Emissione fattura"
+        assert c["s"] is None  # B+: statement mai in Neo4j
+
+        g = neo.run(
+            "MATCH (:Gap {gap_id:$id})-[:BLOCKS]->(:Process {process_id:$p}) RETURN 1 AS ok",
+            id=gap, p=scope["process"],
+        ).single()
+        assert g is not None
+
+        imp = neo.run(
+            "MATCH (n:Impact)-[:AFFECTS]->(:Process {process_id:$p}) "
+            "RETURN n.impact_area AS a",
+            p=scope["process"],
+        ).single()
+        assert imp["a"] == "working_capital"
+
+
 def test_worker_marks_processed_and_is_idempotent(scope):
     canonical.write_entity(scope["consultant"], scope["client"], "system", "SAP")
     first = drain_once()

@@ -83,24 +83,33 @@ se `MEM0_DATABASE_URL` non è configurata.
 Scope oggi = consultant-level (`mem0_user_id`). Lo scope per cliente arriva con
 la migrazione della memoria canonica (INV-13).
 
-## Pipeline di proiezione (P1) — parziale ✅
+## Pipeline di proiezione (P1) — porta di scrittura + worker ✅
 
-`canonical.write_entity` / `write_relation` / `write_process_node` → INSERT
-Postgres + riga `graph_outbox` nella stessa TX. `backend/workers/graph_worker.py`
-(ruolo `delir_worker`) drena l'outbox e applica a Neo4j via `projector.py`
-(MERGE idempotenti, payload B+-safe). `neo4j_store.purge_client()` per INV-10.
+**Grafo:** `backend/memory/knowledge_graph/canonical.py` — `write_entity` /
+`write_relation` / `write_process_node` / `write_claim` / `write_gap` /
+`write_contradiction` / `write_impact`. INSERT tabella + riga `graph_outbox`
+(payload B+-safe, `assert_projectable`) nella stessa TX. Archi strutturali
+(`HAS_CLAIM`, `BLOCKS`, `AFFECTS`, `BETWEEN`) emessi insieme al nodo.
+`backend/workers/graph_worker.py` (ruolo `delir_worker`) drena l'outbox →
+`projector.py` (MERGE idempotenti). `neo4j_store.purge_client()` per INV-10.
+
+**Mem0:** `backend/memory/canonical_memory.py` — `write_semantic_memory` /
+`write_episodic_memory`. INSERT tabella + riga `mem0_projection_log` nella
+stessa TX. `backend/workers/mem0_worker.py` drena → Mem0 OSS (`add`/`update`/
+`delete`), scrive indietro `mem0_memory_id`.
 
 ```bash
 uv run python -m backend.workers.graph_worker   # loop
+uv run python -m backend.workers.mem0_worker    # loop
 ```
 
-Test: `tests/test_graph_projection.py` (canonical → outbox → worker → Neo4j).
+Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`.
 
 ## Non ancora fatto
 
-- `write_claim` / `write_gap` / `write_contradiction` / `write_impact` + archi strutturali
-- worker per `mem0_projection_log`
-- rewire dell'ingestion (`toolsets/*_memory.py` ancora sul vecchio `store.py`)
-  → poi `rm -rf data/knowledge_graph/`
+- **rewire dell'ingestion** — `toolsets/project_memory.py` / `process_memory.py`
+  e `semantic_store.py` ancora sul vecchio `store.py` / path diretto Mem0.
+  Poi `rm -rf data/knowledge_graph/`
+- procedural memory canonical (playbook appresi, P7)
 - gateway INV-9 (`workspace_read` / `graph_retrieve` / `memory_search`)
 - lato retrieval Neo4j via LlamaIndex `Neo4jPropertyGraphStore`
