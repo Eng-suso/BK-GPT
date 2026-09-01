@@ -107,14 +107,14 @@ uv run python -m backend.workers.mem0_worker    # loop
 
 Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`.
 
-## Mirror sul canonical (P1 slice 3, parziale) — strangler fig ✅
+## Scrittura KG sul canonical — cutover ✅
 
 `manage_process_evidence` / `save_process_episode` / `index_process_evidence_graph`
-/ `manage_project_evidence` continuano a scrivere sul vecchio `store.py`
-(autoritativo per ora) **e in più** specchiano su Postgres canonical + outbox
-tramite `backend/memory/knowledge_graph/mirror.py`. Best-effort, mai
-un'eccezione verso l'agente; il risultato è nel payload sotto
-`"canonical_mirror"`.
+/ `manage_project_evidence` scrivono il knowledge graph **solo** sul canonical
+Postgres + outbox tramite `backend/memory/knowledge_graph/mirror.py` →
+`canonical.write_evidence` (atomico). Il vecchio `store.py` LlamaIndex è
+rimosso. Best-effort, mai un'eccezione verso l'agente; il risultato è nel
+payload sotto `"canonical_write"`.
 
 - `backend/memory/scope.py` — ponte "project-1"/"proc-1" (workspace SQLite) →
   `client`/`project`/`process` canonical, upsert idempotente su `workspace_id`
@@ -134,13 +134,20 @@ consultant-level (`settings.default_consultant_id`), non ancora per cliente.
 
 Test: `tests/test_semantic_episodic_mirror.py`.
 
+## Lettura KG — gateway INV-9 ✅
+
+`retrieve_process_graph_context` / `retrieve_project_graph_context` leggono
+**solo** dal gateway scoped (`backend/memory/gateway.py` → `graph_retrieve`):
+seed entità da Postgres (RLS per client), espansione k-hop in Neo4j filtrata
+per `client_id`, idratazione dei nomi da Postgres. Se il canonical / Neo4j non
+sono configurati il payload torna `{"status": "not_configured"}` e i tool
+restano funzionanti sul resto (Mem0, evidence episodica, workspace snapshot).
+
 ## Non ancora fatto
 
-- **cutover** — rendere il canonical autoritativo e spegnere `store.py` /
-  ridurre `semantic_store.py`/`episodic_store.py` a leggere/scrivere solo
-  canonical. Poi `rm -rf data/knowledge_graph/`
+- `semantic_store.py` / `episodic_store.py`: la add su Mem0 resta autoritativa,
+  il canonical è mirror audit-only (vedi sopra). Ridurli a canonical-first.
 - scope per cliente su semantic/episodic (oggi solo consultant-level)
 - procedural memory canonical (playbook appresi, P7)
-- gateway INV-9 (`workspace_read` / `graph_retrieve` / `memory_search`) —
-  oggi la lettura passa ancora dal vecchio store
-- lato retrieval Neo4j via LlamaIndex `Neo4jPropertyGraphStore`
+- gateway INV-9: restano `workspace_read` (Postgres) e `memory_search` (Mem0)
+- seed vettoriale su `kg_chunk` + RRF nel gateway (P3)

@@ -5,16 +5,7 @@ from backend import workspace_database
 from backend.memory import gateway
 from backend.memory import scope as canonical_scope
 from backend.memory.episodic import episodic_store
-from backend.memory.knowledge_graph import knowledge_graph_store
 from backend.memory.knowledge_graph import mirror as knowledge_graph_mirror
-from backend.memory.knowledge_graph.models import (
-    KnowledgeGraphContradiction,
-    KnowledgeGraphEvidence,
-    KnowledgeGraphGap,
-    KnowledgeGraphImpact,
-    KnowledgeGraphQuery,
-    KnowledgeGraphRelationship,
-)
 from backend.memory.semantic import semantic_store
 from backend.toolsets.workspace import enterprise_tool_result
 
@@ -334,75 +325,6 @@ def _graph_tags(
     return tags
 
 
-def _knowledge_graph_evidence_payload(
-    *,
-    project_id: str,
-    scope: str,
-    title: str,
-    raw_content: str,
-    reason: str,
-    process_ids: list[str],
-    entities: list[str] | None,
-    relationships: list[ProjectGraphRelationship] | None,
-    gaps: list[ProjectGraphGap] | None,
-    inconsistencies: list[ProjectGraphInconsistency] | None,
-    roi_impacts: list[ProjectROIImpact] | None,
-    source_refs: list[str] | None = None,
-) -> KnowledgeGraphEvidence:
-    return KnowledgeGraphEvidence(
-        project_id=project_id,
-        scope=scope,
-        source_title=title,
-        raw_content=raw_content,
-        reason=reason,
-        process_ids=process_ids,
-        entities=_clean_text_list(entities),
-        relationships=[
-            KnowledgeGraphRelationship(
-                source=item.source,
-                relation=item.relation,
-                target=item.target,
-                evidence=item.evidence,
-                confidence=item.confidence,
-                confirmed=item.confirmed,
-            )
-            for item in relationships or []
-        ],
-        gaps=[
-            KnowledgeGraphGap(
-                title=item.title,
-                missing_information=item.missing_information,
-                affected_process_ids=item.affected_process_ids,
-                required_evidence=item.required_evidence,
-                severity=item.severity,
-            )
-            for item in gaps or []
-        ],
-        contradictions=[
-            KnowledgeGraphContradiction(
-                title=item.title,
-                conflicting_claims=item.conflicting_claims,
-                affected_process_ids=item.affected_process_ids,
-                resolution_question=item.resolution_question,
-                severity=item.severity,
-            )
-            for item in inconsistencies or []
-        ],
-        impacts=[
-            KnowledgeGraphImpact(
-                title=item.title,
-                impact_area=item.impact_area,
-                affected_process_ids=item.affected_process_ids,
-                mechanism=item.mechanism,
-                evidence=item.evidence,
-                confidence=item.confidence,
-            )
-            for item in roi_impacts or []
-        ],
-        source_refs=source_refs or [],
-    )
-
-
 def _project_workspace_graph_grounding(project_id: str) -> dict:
     project = _require_project(project_id)
     processes = workspace_database.list_project_processes(project_id)
@@ -532,27 +454,12 @@ def _save_project_episode_payload(
     if len(graph_lines) > 2:
         indexed_insights.append("PROJECT_GRAPH_INDEX\n" + "\n".join(graph_lines))
 
-    kg_index_result = None
-    canonical_mirror_result = None
+    canonical_write_result = None
     if relationships or valid_gaps or valid_inconsistencies or valid_roi_impacts or entities:
-        kg_index_result = knowledge_graph_store.index_evidence_graph(
-            _knowledge_graph_evidence_payload(
-                project_id=project_id,
-                scope="project",
-                title=title,
-                raw_content=raw_content,
-                reason=f"{action}: {summary or title}",
-                process_ids=valid_process_ids,
-                entities=entities,
-                relationships=relationships,
-                gaps=valid_gaps,
-                inconsistencies=valid_inconsistencies,
-                roi_impacts=valid_roi_impacts,
-            )
-        )
-        # Specchia sul canonical Postgres + Neo4j/Mem0 (piano "Cervello DeliR",
-        # slice 3). Best-effort: mai un'eccezione verso il chiamante.
-        canonical_mirror_result = knowledge_graph_mirror.mirror_evidence(
+        # Percorso di scrittura KG unico (piano "Cervello DeliR", cutover):
+        # write_evidence -> canonical Postgres -> outbox -> Neo4j/Mem0.
+        # Best-effort: mai un'eccezione verso il chiamante.
+        canonical_write_result = knowledge_graph_mirror.mirror_evidence(
             workspace_project_id=project_id,
             workspace_process_ids=valid_process_ids,
             entities=entities,
@@ -601,8 +508,7 @@ def _save_project_episode_payload(
             "gaps": [item.model_dump() for item in valid_gaps],
             "inconsistencies": [item.model_dump() for item in valid_inconsistencies],
             "roi_impacts": [item.model_dump() for item in valid_roi_impacts],
-            "knowledge_graph_index": kg_index_result,
-            "canonical_mirror": canonical_mirror_result,
+            "canonical_write": canonical_write_result,
             "memory_result": result,
         },
     )
@@ -846,7 +752,7 @@ def manage_project_evidence(
                 "result": result,
                 "knowledge_graph_note": (
                     "Archived evidence is excluded from active episodic retrieval. "
-                    "Existing LlamaIndex KG records remain available until a KG lifecycle operation is added."
+                    "Canonical KG nodes/edges persist until a KG lifecycle operation is added."
                 ),
             },
         )
@@ -958,25 +864,13 @@ def retrieve_project_graph_context(
         if include_workspace_snapshot
         else {"status": "workspace_snapshot_not_requested"}
     )
-    knowledge_graph_context = knowledge_graph_store.retrieve_graph_context(
-        KnowledgeGraphQuery(
-            project_id=project_id,
-            query=query,
-            relation_focus=relation_focus,
-            reason=reason,
-            entities=entity_terms,
-            process_ids=valid_process_ids,
-            limit=limit,
-        )
-    )
-
-    canonical_graph = None
+    knowledge_graph = {"status": "not_configured", "matches": [], "count": 0}
     if gateway.graph_available():
         try:
             s = canonical_scope.resolve(
                 project_id, valid_process_ids[0] if valid_process_ids else None
             )
-            canonical_graph = gateway.graph_retrieve(
+            knowledge_graph = gateway.graph_retrieve(
                 consultant_id=s.consultant_id,
                 client_id=s.client_id,
                 query=query,
@@ -985,8 +879,8 @@ def retrieve_project_graph_context(
                 relation_focus=relation_focus,
                 limit=limit,
             )
-        except Exception:  # noqa: BLE001
-            canonical_graph = None
+        except Exception as exc:  # noqa: BLE001
+            knowledge_graph = {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
 
     return enterprise_tool_result(
         status="ok",
@@ -1002,8 +896,7 @@ def retrieve_project_graph_context(
             "reason": reason,
             "entities": entity_terms,
             "process_ids": valid_process_ids,
-            "enterprise_knowledge_graph": knowledge_graph_context.model_dump(mode="json"),
-            "canonical_graph": canonical_graph,
+            "knowledge_graph": knowledge_graph,
             "mem0_relational_memory": mem0_result,
             "project_evidence": evidence_result,
             "workspace_grounding": workspace_grounding,

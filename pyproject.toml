@@ -34,7 +34,6 @@ dependencies = [
     "tavily-python==0.7.24",
     "unstructured>=0.25.2",
     "uvicorn==0.48.0",
-    "llama-index>=0.14.24",
     "alembic>=1.14",
     "psycopg[binary,pool]>=3.2",
     "en-core-web-sm",

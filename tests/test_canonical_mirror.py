@@ -1,4 +1,4 @@
-"""Slice 3: manage_process_evidence specchia sul canonical (Postgres + Neo4j).
+"""Cutover: manage_process_evidence scrive il KG sul canonical (Postgres + Neo4j).
 
 Skip senza le tre DSN Postgres + NEO4J_PASSWORD in env.
 """
@@ -98,7 +98,7 @@ def test_manage_process_evidence_mirrors_to_canonical(workspace_process):
         }
     )
     payload = json.loads(raw.split("\n", 1)[1])["payload"]
-    mirror = payload["canonical_mirror"]
+    mirror = payload["canonical_write"]
     assert mirror["mirrored"] is True
     assert mirror["counts"]["entities"] == 2
     assert mirror["counts"]["relationships"] == 1

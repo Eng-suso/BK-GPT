@@ -9,8 +9,8 @@ Ogni `write_*`:
 Il projector (projector.py) applichera' quei payload a Neo4j senza rileggere
 Postgres. La mappa dei nodi/archi e delle whitelist e' catalog.py.
 
-Questo modulo e' la porta di scrittura che l'ingestion (toolsets/*_memory.py)
-usera' al posto del vecchio knowledge_graph_store.
+Questo modulo e' l'unica porta di scrittura del knowledge graph: l'ingestion
+(toolsets/*_memory.py) ci arriva via ``mirror.mirror_evidence``.
 """
 
 from __future__ import annotations

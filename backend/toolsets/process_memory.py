@@ -5,14 +5,12 @@ from backend import workspace_database
 from backend.memory import gateway
 from backend.memory import scope as canonical_scope
 from backend.memory.episodic import episodic_store
-from backend.memory.knowledge_graph import knowledge_graph_store, mirror
+from backend.memory.knowledge_graph import mirror
 from backend.memory.knowledge_graph.models import (
     KnowledgeGraphClaim,
     KnowledgeGraphContradiction,
-    KnowledgeGraphEvidence,
     KnowledgeGraphGap,
     KnowledgeGraphImpact,
-    KnowledgeGraphQuery,
     KnowledgeGraphRelationship,
 )
 from backend.toolsets.workspace import enterprise_tool_result
@@ -211,30 +209,13 @@ def _save_process_episode_payload(
     scoped_contradictions = _scope_items_to_process(contradictions or [], process_id)
     scoped_impacts = _scope_items_to_process(impacts or [], process_id)
     graph_payload_present = bool(claims or relationships or scoped_gaps or scoped_contradictions or scoped_impacts or entities)
-    kg_index_result = None
-    canonical_mirror_result = None
+    canonical_write_result = None
 
     if graph_payload_present:
-        kg_index_result = knowledge_graph_store.index_evidence_graph(
-            KnowledgeGraphEvidence(
-                project_id=project_id,
-                scope="process",
-                source_title=title,
-                raw_content=raw_content,
-                reason=f"{action}: {summary or title}",
-                process_ids=[process_id],
-                entities=entities or [],
-                source_refs=source_refs or [],
-                claims=claims or [],
-                relationships=relationships or [],
-                gaps=scoped_gaps,
-                contradictions=scoped_contradictions,
-                impacts=scoped_impacts,
-            )
-        )
-        # Specchia sul canonical Postgres + Neo4j/Mem0 (piano "Cervello DeliR",
-        # slice 3). Best-effort: mai un'eccezione verso il chiamante.
-        canonical_mirror_result = mirror.mirror_evidence(
+        # Percorso di scrittura KG unico (piano "Cervello DeliR", cutover):
+        # write_evidence -> canonical Postgres -> outbox -> Neo4j/Mem0.
+        # Best-effort: mai un'eccezione verso il chiamante.
+        canonical_write_result = mirror.mirror_evidence(
             workspace_project_id=project_id,
             workspace_process_ids=[process_id],
             entities=entities,
@@ -288,8 +269,7 @@ def _save_process_episode_payload(
             "gaps": [item.model_dump(mode="json") for item in scoped_gaps],
             "contradictions": [item.model_dump(mode="json") for item in scoped_contradictions],
             "impacts": [item.model_dump(mode="json") for item in scoped_impacts],
-            "knowledge_graph_index": kg_index_result,
-            "canonical_mirror": canonical_mirror_result,
+            "canonical_write": canonical_write_result,
             "memory_result": memory_result,
         },
         next_actions=[
@@ -612,7 +592,7 @@ def manage_process_evidence(
                 "result": result,
                 "knowledge_graph_note": (
                     "Archived evidence is excluded from active episodic retrieval. "
-                    "Existing LlamaIndex KG records remain available until a KG lifecycle operation is added."
+                    "Canonical KG nodes/edges persist until a KG lifecycle operation is added."
                 ),
             },
         )
@@ -701,24 +681,7 @@ def index_process_evidence_graph(
     scoped_gaps = _scope_items_to_process(gaps or [], process_id)
     scoped_contradictions = _scope_items_to_process(contradictions or [], process_id)
     scoped_impacts = _scope_items_to_process(impacts or [], process_id)
-    result = knowledge_graph_store.index_evidence_graph(
-        KnowledgeGraphEvidence(
-            project_id=project_id,
-            scope="process",
-            source_title=source_title,
-            raw_content=raw_content,
-            reason=reason,
-            process_ids=[process_id],
-            entities=entities or [],
-            source_refs=source_refs or [],
-            claims=claims or [],
-            relationships=relationships or [],
-            gaps=scoped_gaps,
-            contradictions=scoped_contradictions,
-            impacts=scoped_impacts,
-        )
-    )
-    canonical_mirror_result = mirror.mirror_evidence(
+    canonical_write_result = mirror.mirror_evidence(
         workspace_project_id=project_id,
         workspace_process_ids=[process_id],
         entities=entities,
@@ -734,7 +697,21 @@ def index_process_evidence_graph(
         entity_type="process_knowledge_graph",
         entity_id=process_id,
         summary=f"Graph evidence indexed for {process['name']}.",
-        payload={**result, "canonical_mirror": canonical_mirror_result},
+        payload={
+            "project_id": project_id,
+            "process_id": process_id,
+            "process_name": process["name"],
+            "source_title": source_title,
+            "reason": reason,
+            "entities": _clean_text_list(entities),
+            "source_refs": source_refs or [],
+            "claims": [item.model_dump(mode="json") for item in claims or []],
+            "relationships": [item.model_dump(mode="json") for item in relationships or []],
+            "gaps": [item.model_dump(mode="json") for item in scoped_gaps],
+            "contradictions": [item.model_dump(mode="json") for item in scoped_contradictions],
+            "impacts": [item.model_dump(mode="json") for item in scoped_impacts],
+            "canonical_write": canonical_write_result,
+        },
     )
 
 
@@ -754,36 +731,23 @@ def retrieve_process_graph_context(
     handoffs, decisions, contradictions, modeling blockers and canvas mapping.
     """
     process = _require_process(project_id, process_id)
-    context = knowledge_graph_store.retrieve_graph_context(
-        KnowledgeGraphQuery(
-            project_id=project_id,
-            query=query,
-            relation_focus=relation_focus,
-            reason=reason,
-            process_ids=[process_id],
-            entities=entities or [],
-            limit=limit,
-        )
-    )
-    payload = {
-        "project_id": project_id,
-        "process_id": process_id,
-        "process_name": process["name"],
-        "reason": reason,
-        "context": context.model_dump(mode="json"),
-    }
-    canonical_graph = _canonical_graph_context(
+    graph = _canonical_graph_context(
         project_id, process_id, query, relation_focus, entities, limit
-    )
-    if canonical_graph is not None:
-        payload["canonical_graph"] = canonical_graph
+    ) or {"status": "not_configured", "matches": [], "count": 0}
     return enterprise_tool_result(
-        status=context.status,
+        status=graph.get("status", "empty"),
         action="retrieve_process_graph_context",
         entity_type="process_graph_context",
         entity_id=process_id,
         summary=f"Process KG retrieval for {process['name']}: {relation_focus}",
-        payload=payload,
+        payload={
+            "project_id": project_id,
+            "process_id": process_id,
+            "process_name": process["name"],
+            "reason": reason,
+            "relation_focus": relation_focus,
+            "knowledge_graph": graph,
+        },
     )
 
 
