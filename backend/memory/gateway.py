@@ -2,10 +2,10 @@
 
 Nessun tool o agente interroga Neo4j / Postgres-KG / Mem0 direttamente: si
 passa da qui, che inietta lo scope (`consultant_id`, `client_id`) in ogni
-query. Con Neo4j Community senza subgraph ACL, questo e' l'unico punto di
-enforcement in lettura sul grafo.
+query. Con Neo4j Community senza subgraph ACL, e con Mem0 senza tenant ACL,
+questo e' l'unico punto di enforcement in lettura.
 
-`graph_retrieve`:
+`graph_retrieve` (grafo tipizzato):
   1. seed  — risolve i nomi entita' -> entity_id (Postgres kg_entity, RLS
      per client) + il process_id passato
   2. espansione — k-hop in Neo4j dai seed, ogni nodo del path filtrato per
@@ -13,8 +13,14 @@ enforcement in lettura sul grafo.
   3. idratazione — ogni id opaco -> testo autoritativo da Postgres (RLS):
      canonical_name, statement, title, ...
 
-Disattivato in silenzio se il canonical o Neo4j non sono configurati: i
-chiamanti ricadono sul percorso vecchio (strangler fig).
+`memory_search` (recall Mem0):
+  - `user_id` Mem0 = mappa dal `consultant_id` (oggi mono-consulente locale)
+  - post-filtro per `client_id` sui metadata: le memorie consultant-level
+    (senza client_id) restano visibili ovunque, quelle client-scoped solo
+    nel loro cliente
+
+Disattivato in silenzio se canonical / Neo4j / Mem0 non sono configurati: i
+chiamanti degradano con uno status esplicito.
 """
 
 from __future__ import annotations
@@ -26,7 +32,9 @@ from typing import Any
 from sqlalchemy import text
 
 from backend.db import canonical_session
+from backend.memory import mem0_client
 from backend.memory.knowledge_graph import neo4j_store
+from backend.memory.mem0_client import Mem0Disabled
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -36,6 +44,10 @@ _WORD = re.compile(r"[\wÀ-ÿ]{3,}")
 
 def graph_available() -> bool:
     return bool(settings.canonical_database_url) and neo4j_store.is_enabled()
+
+
+def memory_available() -> bool:
+    return mem0_client.is_enabled()
 
 
 def _resolve_seed_entities(
@@ -189,3 +201,80 @@ def graph_retrieve(
         matches.sort(key=lambda m: 0 if focus in (m["relation"] or "") else 1)
 
     return {"status": "ok", "count": len(matches), "matches": matches}
+
+
+# --------------------------------------------------------------------------- #
+# memory_search — recall Mem0 con scope iniettato (INV-9)
+# --------------------------------------------------------------------------- #
+
+
+def _mem0_user_id(consultant_id: str) -> str:
+    """Mem0 non ha tenant ACL: lo scope consulente e' l'`user_id`.
+
+    Setup mono-consulente locale -> un solo `user_id` (`settings.mem0_user_id`).
+    La mappa `consultant_id -> user_id` vivra' qui quando ci saranno piu'
+    consulenti."""
+    return settings.mem0_user_id
+
+
+def _mem0_items(raw: Any) -> list:
+    if isinstance(raw, dict):
+        return raw.get("results") or raw.get("memories") or []
+    return raw or []
+
+
+def memory_search(
+    *,
+    consultant_id: str,
+    client_id: str | None = None,
+    query: str,
+    category: str | None = None,
+    limit: int = 5,
+) -> dict[str, Any]:
+    """Recall dalla memoria Mem0 con lo scope iniettato (INV-9).
+
+    Le memorie consultant-level (senza `client_id` nei metadata) restano
+    visibili in ogni contesto; quelle client-scoped solo nel loro cliente.
+    Ritorna `{"status": ok|empty|not_configured|error, "count", "matches"}`.
+    """
+    memory = mem0_client.get_memory()
+    if isinstance(memory, Mem0Disabled):
+        return {"status": "not_configured", "matches": [], "count": 0, "reason": memory.reason}
+
+    search_query = f"[{category}] {query}" if category else (query or "")
+    try:
+        raw = memory.search(
+            query=search_query,
+            filters={"user_id": _mem0_user_id(consultant_id)},
+            limit=max(limit * 4, 20),
+        )
+    except Exception as exc:  # noqa: BLE001 — la lettura non deve far fallire il tool
+        logger.warning("gateway.memory_search fallito: %s", exc)
+        return {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
+
+    cid = str(client_id) if client_id else None
+    matches: list[dict[str, Any]] = []
+    for item in _mem0_items(raw):
+        if not isinstance(item, dict):
+            matches.append(
+                {"memory_id": None, "memory": str(item), "score": None, "client_scoped": False}
+            )
+        else:
+            mem_client = (item.get("metadata") or {}).get("client_id")
+            if mem_client and mem_client != cid:
+                continue  # memoria di un altro cliente: fuori scope
+            matches.append(
+                {
+                    "memory_id": item.get("id") or item.get("memory_id") or item.get("uuid"),
+                    "memory": item.get("memory")
+                    or item.get("text")
+                    or item.get("content")
+                    or str(item),
+                    "score": item.get("score"),
+                    "client_scoped": bool(mem_client),
+                }
+            )
+        if len(matches) >= limit:
+            break
+
+    return {"status": "ok" if matches else "empty", "count": len(matches), "matches": matches}
