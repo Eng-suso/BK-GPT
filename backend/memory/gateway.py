@@ -5,13 +5,17 @@ passa da qui, che inietta lo scope (`consultant_id`, `client_id`) in ogni
 query. Con Neo4j Community senza subgraph ACL, e con Mem0 senza tenant ACL,
 questo e' l'unico punto di enforcement in lettura.
 
-`graph_retrieve` (grafo tipizzato):
-  1. seed  — risolve i nomi entita' -> entity_id (Postgres kg_entity, RLS
-     per client) + il process_id passato
-  2. espansione — k-hop in Neo4j dai seed, ogni nodo del path filtrato per
+`graph_retrieve` (grafo tipizzato, retrieval ibrido — P3):
+  1. seed lessicale — nomi entita' + parole della query -> entity_id
+     (Postgres kg_entity, RLS per client)
+  2. seed vettoriale — embedding della query -> cosine su kg_chunk (RLS) ->
+     source_id dei chunk -> entita' con quella provenance
+  3. fusione RRF dei due ranking -> lista seed unica
+  4. espansione — k-hop in Neo4j dai seed, ogni nodo del path filtrato per
      client_id
-  3. idratazione — ogni id opaco -> testo autoritativo da Postgres (RLS):
+  5. idratazione — ogni id opaco -> testo autoritativo da Postgres (RLS):
      canonical_name, statement, title, ...
+  I chunk piu' vicini tornano anche come contesto testuale (`chunks`).
 
 `memory_search` (recall Mem0):
   - `user_id` Mem0 = mappa dal `consultant_id` (oggi mono-consulente locale)
@@ -36,7 +40,7 @@ from typing import Any
 from sqlalchemy import text
 
 from backend.db import canonical_session
-from backend.memory import mem0_client
+from backend.memory import embeddings, mem0_client
 from backend.memory.knowledge_graph import neo4j_store
 from backend.memory.mem0_client import Mem0Disabled
 from backend.settings import settings
@@ -77,6 +81,62 @@ def _resolve_seed_entities(
             {"cl": client_id, "exact": list(terms), "like": like_patterns},
         ).all()
     return [str(r.id) for r in rows]
+
+
+def _vector_seed(
+    consultant_id: str,
+    client_id: str,
+    query: str,
+    chunk_k: int,
+) -> tuple[list[str], list[dict]]:
+    """Seed vettoriale: embedda la query, cerca i chunk piu' vicini (RLS per
+    client), risale a `source_id` -> entita' con quella provenance.
+
+    Ritorna `(entity_ids ordinati per rilevanza, chunk di contesto)`.
+    """
+    if not (query or "").strip():
+        return [], []
+    vec = embeddings.embed_query(query)
+    if vec is None:
+        return [], []
+    q = embeddings.to_pgvector(vec)
+    with canonical_session(consultant_id, client_id) as session:
+        chunk_rows = session.execute(
+            text(
+                "SELECT source_id, content, "
+                "       1 - (embedding <=> CAST(:q AS vector)) AS score "
+                "FROM kg_chunk "
+                "WHERE client_id = :cl AND embedding IS NOT NULL "
+                "ORDER BY embedding <=> CAST(:q AS vector) "
+                "LIMIT :k"
+            ),
+            {"q": q, "cl": client_id, "k": chunk_k},
+        ).all()
+        if not chunk_rows:
+            return [], []
+        source_ids = list({str(r.source_id) for r in chunk_rows})
+        ent_rows = session.execute(
+            text(
+                "SELECT DISTINCT id FROM kg_entity "
+                "WHERE client_id = :cl AND status <> 'rejected' "
+                "  AND source_ids && CAST(:sids AS uuid[])"
+            ),
+            {"cl": client_id, "sids": source_ids},
+        ).all()
+    chunks = [
+        {"content": r.content, "score": round(float(r.score), 4)}
+        for r in chunk_rows
+    ]
+    return [str(r.id) for r in ent_rows], chunks
+
+
+def _rrf(ranked_lists: list[list[str]], k: int = 60) -> list[str]:
+    """Reciprocal Rank Fusion: combina piu' ranking di id in uno solo."""
+    scores: dict[str, float] = {}
+    for lst in ranked_lists:
+        for rank, item in enumerate(lst):
+            scores[item] = scores.get(item, 0.0) + 1.0 / (k + rank + 1)
+    return [item for item, _ in sorted(scores.items(), key=lambda kv: -kv[1])]
 
 
 def _expand(
@@ -184,27 +244,30 @@ def graph_retrieve(
     limit: int = 25,
 ) -> dict[str, Any]:
     if not graph_available():
-        return {"status": "not_configured", "matches": [], "count": 0}
+        return {"status": "not_configured", "matches": [], "count": 0, "chunks": []}
 
     try:
-        seeds = _resolve_seed_entities(consultant_id, client_id, entity_names or [], query)
+        lexical = _resolve_seed_entities(consultant_id, client_id, entity_names or [], query)
+        vector, chunks = _vector_seed(consultant_id, client_id, query, chunk_k=max(limit // 3, 8))
+        seeds = _rrf([lexical, vector])[:40]
         if not seeds and not process_id:
-            return {"status": "empty", "matches": [], "count": 0, "reason": "nessun seed"}
+            return {
+                "status": "empty", "matches": [], "count": 0,
+                "chunks": chunks, "reason": "nessun seed",
+            }
 
         triples = _expand(client_id, seeds, process_id, max_hops, limit)
-        if not triples:
-            return {"status": "empty", "matches": [], "count": 0}
-
-        matches = _hydrate(consultant_id, client_id, triples)
+        matches = _hydrate(consultant_id, client_id, triples) if triples else []
     except Exception as exc:  # noqa: BLE001 — la lettura non deve mai far fallire il tool
         logger.warning("gateway.graph_retrieve fallito: %s", exc)
-        return {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
+        return {"status": "error", "matches": [], "count": 0, "chunks": [], "reason": str(exc)}
 
     if relation_focus:
         focus = relation_focus.strip().upper().replace("-", "_")
         matches.sort(key=lambda m: 0 if focus in (m["relation"] or "") else 1)
 
-    return {"status": "ok", "count": len(matches), "matches": matches}
+    status = "ok" if (matches or chunks) else "empty"
+    return {"status": status, "count": len(matches), "matches": matches, "chunks": chunks}
 
 
 # --------------------------------------------------------------------------- #

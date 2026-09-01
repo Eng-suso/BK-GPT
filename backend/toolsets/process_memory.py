@@ -224,6 +224,8 @@ def _save_process_episode_payload(
             gaps=scoped_gaps,
             contradictions=scoped_contradictions,
             impacts=scoped_impacts,
+            raw_content=raw_content,
+            source_title=title,
         )
 
     memory_result = episodic_store.save_episode_memory(
@@ -690,6 +692,8 @@ def index_process_evidence_graph(
         gaps=scoped_gaps,
         contradictions=scoped_contradictions,
         impacts=scoped_impacts,
+        raw_content=raw_content,
+        source_title=source_title,
     )
     return enterprise_tool_result(
         status="indexed",

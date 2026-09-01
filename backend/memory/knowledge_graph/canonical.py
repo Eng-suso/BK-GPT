@@ -15,6 +15,7 @@ Questo modulo e' l'unica porta di scrittura del knowledge graph: l'ingestion
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import secrets
@@ -25,6 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
+from backend.memory import embeddings
 from backend.memory.knowledge_graph import catalog
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,10 @@ _SEVERITY = frozenset({"low", "medium", "high", "critical", "blocking"})
 _IMPACT_AREAS = frozenset(
     {"cost", "revenue", "working_capital", "risk", "quality", "time",
      "compliance", "efficiency", "roi"}
+)
+_SOURCE_KINDS = frozenset(
+    {"interview_transcript", "document", "chat_extract",
+     "system_export", "note", "observation"}
 )
 
 
@@ -620,6 +626,124 @@ def write_impact(
         return impact_id
 
 
+# --- kg_source + kg_chunk (indice vettoriale, P3) ----------------------
+
+_CHUNK_CHARS = 1600
+_CHUNK_OVERLAP = 200
+
+
+def _chunk_text(content: str) -> list[str]:
+    """Split greedy per dimensione, con overlap, spezzando su un confine di
+    frase o parola quando possibile. Whitespace normalizzato."""
+    normalized = " ".join((content or "").split())
+    if not normalized:
+        return []
+    if len(normalized) <= _CHUNK_CHARS:
+        return [normalized]
+    chunks: list[str] = []
+    start = 0
+    while start < len(normalized):
+        end = start + _CHUNK_CHARS
+        if end < len(normalized):
+            cut = normalized.rfind(". ", start + _CHUNK_CHARS // 2, end)
+            if cut == -1:
+                cut = normalized.rfind(" ", start + _CHUNK_CHARS // 2, end)
+            if cut > start:
+                end = cut + 1
+        piece = normalized[start:end].strip()
+        if piece:
+            chunks.append(piece)
+        start = max(end - _CHUNK_OVERLAP, start + 1)
+    return chunks
+
+
+def write_source_chunks(
+    consultant_id: str,
+    client_id: str,
+    *,
+    title: str,
+    content: str,
+    kind: str = "note",
+    project_id: str | None = None,
+    process_id: str | None = None,
+    tx: Session | None = None,
+) -> tuple[str | None, int]:
+    """Registra una `kg_source` + i suoi `kg_chunk` (embeddati se possibile).
+
+    Ritorna `(source_id, n_chunk)`. Idempotente sul `content_hash`: se la
+    sorgente esiste gia' ritorna il suo id senza re-inserire nulla. Se
+    l'embedding non e' disponibile i chunk entrano comunque (tsvector di
+    fallback), `embedding` NULL.
+    """
+    text_value = (content or "").strip()
+    if not text_value:
+        return None, 0
+    kind = _enum(kind, _SOURCE_KINDS, "note")
+    content_hash = hashlib.sha256(text_value.encode("utf-8")).hexdigest()
+
+    with _open(consultant_id, client_id, tx) as session:
+        existing = session.execute(
+            text(
+                "SELECT id FROM kg_source "
+                "WHERE consultant_id = :c AND content_hash = :h"
+            ),
+            {"c": str(consultant_id), "h": content_hash},
+        ).first()
+        if existing:
+            return str(existing.id), 0
+
+        inserted = session.execute(
+            text(
+                "INSERT INTO kg_source "
+                "(consultant_id, client_id, project_id, process_id, scope, kind, "
+                " title, content_hash, byte_size) "
+                "VALUES (:c,:cl,:p,:pr,'client',:k,:t,:h,:bs) "
+                "ON CONFLICT (consultant_id, content_hash) DO NOTHING "
+                "RETURNING id"
+            ),
+            {
+                "c": str(consultant_id), "cl": str(client_id),
+                "p": str(project_id) if project_id else None,
+                "pr": str(process_id) if process_id else None,
+                "k": kind, "t": title or "(senza titolo)", "h": content_hash,
+                "bs": len(text_value.encode("utf-8")),
+            },
+        ).first()
+        if inserted is None:  # gara: inserita da un'altra transazione
+            row = session.execute(
+                text(
+                    "SELECT id FROM kg_source "
+                    "WHERE consultant_id = :c AND content_hash = :h"
+                ),
+                {"c": str(consultant_id), "h": content_hash},
+            ).first()
+            return (str(row.id), 0) if row else (None, 0)
+        source_id = str(inserted.id)
+
+        chunks = _chunk_text(text_value)
+        vectors = embeddings.embed_texts(chunks) if chunks else None
+        for ordinal, chunk in enumerate(chunks):
+            vec = embeddings.to_pgvector(vectors[ordinal]) if vectors else None
+            session.execute(
+                text(
+                    "INSERT INTO kg_chunk "
+                    "(source_id, consultant_id, client_id, project_id, ordinal, "
+                    " content, embedding, embed_model, embed_dim, embed_version, embedded_at) "
+                    "VALUES (:sid,:c,:cl,:p,:ord,:content, CAST(:emb AS vector), "
+                    "        :em,:ed,:ev, CASE WHEN :emb IS NULL THEN NULL ELSE now() END)"
+                ),
+                {
+                    "sid": source_id, "c": str(consultant_id), "cl": str(client_id),
+                    "p": str(project_id) if project_id else None,
+                    "ord": ordinal, "content": chunk, "emb": vec,
+                    "em": embeddings.EMBED_MODEL if vec else None,
+                    "ed": embeddings.EMBED_DIM if vec else None,
+                    "ev": embeddings.EMBED_VERSION if vec else None,
+                },
+            )
+        return source_id, len(chunks)
+
+
 # --- pacchetto di evidenza (atomico) -----------------------------------
 
 def write_evidence(
@@ -635,6 +759,9 @@ def write_evidence(
     gaps: list[dict] | None = None,
     contradictions: list[dict] | None = None,
     impacts: list[dict] | None = None,
+    source_title: str | None = None,
+    source_text: str | None = None,
+    source_kind: str = "note",
 ) -> dict[str, int]:
     """Scrive un intero pacchetto di evidenza in UNA transazione (fix review #1).
 
@@ -642,13 +769,29 @@ def write_evidence(
     devono essere gia' canonical. Le entita' delle relazioni sono per nome:
     upsertate una volta, mappa nome->id interna alla transazione.
 
+    Se `source_text` e' passato viene registrata una `kg_source` + i suoi
+    `kg_chunk` (indice vettoriale), e il `source_id` risultante finisce nei
+    `source_ids` di ogni nodo scritto (provenance).
+
     Solleva su errore: il chiamante (mirror / cutover) decide se e' fatale.
     """
     counts = {
         "entities": 0, "relationships": 0, "claims": 0,
-        "gaps": 0, "contradictions": 0, "impacts": 0,
+        "gaps": 0, "contradictions": 0, "impacts": 0, "chunks": 0,
     }
     with canonical_session(consultant_id, client_id) as session:
+        source_ids: list[str] | None = None
+        if source_text and source_text.strip():
+            source_id, n_chunks = write_source_chunks(
+                consultant_id, client_id,
+                title=source_title or "(evidenza)", content=source_text,
+                kind=source_kind, project_id=project_id, process_id=process_id,
+                tx=session,
+            )
+            if source_id:
+                source_ids = [source_id]
+                counts["chunks"] = n_chunks
+
         if process_id and process_name:
             write_process_node(
                 consultant_id, client_id, process_id, process_name,
@@ -664,7 +807,8 @@ def write_evidence(
             if key not in entity_ids:
                 entity_ids[key] = write_entity(
                     consultant_id, client_id, "other", key,
-                    project_id=project_id, process_id=process_id, tx=session,
+                    project_id=project_id, process_id=process_id,
+                    source_ids=source_ids, tx=session,
                 )
             return entity_ids[key]
 
@@ -682,7 +826,7 @@ def write_evidence(
                 evidence=rel.get("evidence", "") or "",
                 confidence=_float(rel.get("confidence")),
                 confirmed=bool(rel.get("confirmed")),
-                tx=session,
+                source_ids=source_ids, tx=session,
             )
             counts["relationships"] += 1
 
@@ -694,7 +838,7 @@ def write_evidence(
                 claim_status=claim.get("claim_status", "partial"),
                 linked_element_hint=claim.get("linked_element_hint"),
                 confidence=_float(claim.get("confidence")),
-                tx=session,
+                source_ids=source_ids, tx=session,
             )
             counts["claims"] += 1
 
@@ -706,7 +850,7 @@ def write_evidence(
                 required_evidence=gap.get("required_evidence", "") or "",
                 severity=gap.get("severity", "medium"),
                 affected_process_ids=gap.get("affected_process_ids"),
-                tx=session,
+                source_ids=source_ids, tx=session,
             )
             counts["gaps"] += 1
 
@@ -719,7 +863,7 @@ def write_evidence(
                 resolution_question=contra.get("resolution_question", "") or "",
                 severity=contra.get("severity", "medium"),
                 affected_process_ids=contra.get("affected_process_ids"),
-                tx=session,
+                source_ids=source_ids, tx=session,
             )
             counts["contradictions"] += 1
 
@@ -732,7 +876,7 @@ def write_evidence(
                 evidence=impact.get("evidence", "") or "",
                 affected_process_ids=impact.get("affected_process_ids"),
                 confidence=_float(impact.get("confidence")),
-                tx=session,
+                source_ids=source_ids, tx=session,
             )
             counts["impacts"] += 1
 
