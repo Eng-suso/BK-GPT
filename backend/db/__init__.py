@@ -5,8 +5,8 @@ una transazione impostando il contesto RLS (app.current_consultant_id /
 app.current_client_id). L'app si connette come ruolo delir_app: NOBYPASSRLS,
 non-owner, solo DML.
 
-Separato di proposito da backend.database (SQLite chat history), che ha la sua
-traccia di migrazione.
+Separato di proposito da backend.database (cronologia chat, database
+`workspace`): schema diverso, ruolo diverso, nessuna RLS.
 """
 
 from backend.db.session import canonical_engine, canonical_session

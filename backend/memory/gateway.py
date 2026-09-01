@@ -24,7 +24,7 @@ questo e' l'unico punto di enforcement in lettura.
     nel loro cliente
 
 `workspace_read` (stato operativo):
-  - snapshot scoped della workspace SQLite (SoT operativa, INV-8): project +
+  - snapshot scoped della workspace (Postgres, SoT operativa INV-8): project +
     processi + sources/decisions, filtrati per `process_ids`
 
 Disattivato in silenzio se canonical / Neo4j / Mem0 non sono configurati: i
@@ -373,7 +373,7 @@ def workspace_read(
     process_ids: list[str] | None = None,
     include: tuple[str, ...] = _WS_SECTIONS,
 ) -> dict[str, Any]:
-    """Snapshot operativo scoped della workspace (SQLite, SoT operativa INV-8).
+    """Snapshot operativo scoped della workspace (Postgres, SoT operativa INV-8).
 
     Unico read che i tool di retrieval usano per il grounding operativo.
     `process_ids` filtra i processi + le sources/decisions collegate; quelle

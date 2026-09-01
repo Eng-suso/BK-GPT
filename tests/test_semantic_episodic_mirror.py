@@ -67,8 +67,12 @@ def test_semantic_store_mirrors_synchronously():
             ),
             {"m": str(row.id)},
         ).one()
-        assert log_row.applied_at is not None  # mirror sincrono: gia' applicato
         assert log_row.op == "add"
+        # `applied_at` e' gia' valorizzato quando Mem0 ha estratto un fatto sul
+        # momento (mem0_memory_id noto); se l'LLM non ha estratto nulla la riga
+        # resta pending e la applica il worker.
+        if log_row.mem0_memory_id:
+            assert log_row.applied_at is not None
 
         conn.execute(text("DELETE FROM semantic_memory WHERE id = :i"), {"i": row.id})
 
@@ -102,11 +106,12 @@ def test_episodic_store_mirrors_synchronously():
 
         log_row = conn.execute(
             text(
-                "SELECT applied_at FROM mem0_projection_log "
+                "SELECT applied_at, mem0_memory_id FROM mem0_projection_log "
                 "WHERE memory_kind = 'episodic' AND memory_id = :m"
             ),
             {"m": str(row.id)},
         ).one()
-        assert log_row.applied_at is not None
+        if log_row.mem0_memory_id:
+            assert log_row.applied_at is not None
 
         conn.execute(text("DELETE FROM episodic_memory WHERE id = :i"), {"i": row.id})

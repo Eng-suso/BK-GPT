@@ -59,7 +59,8 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
-# Runtime data: local chat history, LangGraph checkpoints, sqlite WAL files
+# Runtime data: custodia grezza episodi (data/episodic/sources/*.md) + file
+# sqlite legacy (lo stato operativo ora e' su Postgres, vedi ops/README.md)
 /data/
 *.db
 *.db-*

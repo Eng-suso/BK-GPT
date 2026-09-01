@@ -1,8 +1,7 @@
-"""Lo stato operativo gira su Postgres quando `WORKSPACE_DATABASE_URL` e' set.
+"""Lo stato operativo (workspace / chat / indice episodico) gira su Postgres.
 
-Il resto della suite esercita il fallback SQLite; questo file verifica il
-percorso Postgres (schema creato da `create_all`, round-trip, isolamento per
-tenant). Skip senza la DSN.
+Nessun fallback SQLite: senza `WORKSPACE_DATABASE_URL` l'app non parte, quindi
+questi test o girano su Postgres o si skippano.
 """
 
 from __future__ import annotations
@@ -18,13 +17,11 @@ if not settings.workspace_database_url:
 
 from backend import database as chat_db  # noqa: E402
 from backend import workspace_database as wd  # noqa: E402
-from backend.local_store import using_postgres  # noqa: E402
 from backend.memory.episodic import episodic_store  # noqa: E402
 from backend.security import reset_current_tenant_id, set_current_tenant_id  # noqa: E402
 
 
 def test_engines_are_postgres():
-    assert using_postgres()
     assert wd.workspace_engine.dialect.name == "postgresql"
     assert chat_db.engine.dialect.name == "postgresql"
     assert episodic_store.engine.dialect.name == "postgresql"
@@ -57,6 +54,17 @@ def test_workspace_round_trip_and_tenant_isolation():
         assert wd.list_projects() == []
     finally:
         reset_current_tenant_id(tok)
+
+
+def test_langgraph_checkpointer_is_postgres():
+    from backend.agent_checkpoint import get_checkpointer
+
+    saver = get_checkpointer()
+    assert type(saver).__name__ == "PostgresSaver"
+    # setup() e' idempotente: una seconda chiamata non deve sollevare
+    saver.setup()
+    cfg = {"configurable": {"thread_id": f"ck-{uuid.uuid4().hex[:8]}"}}
+    assert saver.get(cfg) is None  # thread nuovo, nessun checkpoint
 
 
 def test_chat_history_round_trip_on_postgres():

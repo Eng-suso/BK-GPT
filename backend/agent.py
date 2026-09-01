@@ -1,12 +1,11 @@
-import sqlite3
-
 from pathlib import Path
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import START, END, StateGraph, MessagesState
+
+from backend.agent_checkpoint import get_checkpointer
 
 from backend.agents.primary_scope import build_scope_system_prompt, tool_scope_type
 from backend.graphs.canvas_edit import build_canvas_subgraph
@@ -418,10 +417,7 @@ def build_agent(model_name: str | None = None):
     workflow.add_edge("process_subgraph", END)
     workflow.add_edge("canvas_subgraph", END)
 
-    conn = sqlite3.connect("data/agent_checkpoint.db", check_same_thread=False)
-    checkpointer = SqliteSaver(conn)
-
-    return workflow.compile(checkpointer=checkpointer)
+    return workflow.compile(checkpointer=get_checkpointer())
 
 
 _AGENT_CACHE = {}

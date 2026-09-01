@@ -22,7 +22,8 @@ Al primo avvio del volume Postgres girano, come superuser:
   estensioni in quel db
 - `postgres/init/02-workspace.sh` — ruolo `delir_workspace`, database
   `workspace` che possiede (stato operativo: clienti/progetti/processi/BPMN/
-  simulazioni + cronologia chat + indice memoria episodica)
+  simulazioni + cronologia chat + indice memoria episodica + checkpoint
+  LangGraph)
 
 Per rieseguirli: `docker compose down -v && docker compose up -d`.
 
@@ -62,9 +63,13 @@ MEM0_LLM_MODEL=gpt-4o-mini      # override se il tuo account OpenAI non ce l'ha
 NEO4J_PASSWORD=<pw>             # = NEO4J_PASSWORD in ops/.env
 ```
 
-`WORKSPACE_DATABASE_URL` assente → fallback SQLite in `data/` (solo dev/CI:
-SQLite è single-writer, non regge la concorrenza multi-cliente). Migrazione
-dei file SQLite esistenti al Postgres:
+**Niente SQLite.** `WORKSPACE_DATABASE_URL` è **obbligatoria**: senza, l'app
+non parte. Il database `workspace` tiene lo stato operativo (workspace,
+cronologia chat, indice memoria episodica) **e i checkpoint LangGraph**
+(`PostgresSaver`, tabelle create da solo). La history interna di Mem0 è
+in-memory (`MEM0_HISTORY_DB_PATH=:memory:`, default).
+
+Migrazione una tantum dai vecchi file SQLite:
 
 ```bash
 WORKSPACE_DATABASE_URL=... uv run python -m scripts.migrate_local_sqlite_to_pg --truncate
@@ -86,7 +91,7 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0004 | `graph_outbox` + `mem0_projection_log` (delir_app solo INSERT) + view `v_projection_backlog` |
 | 0005 | RLS `ENABLE`+`FORCE` su tenant tables; `consultant` solo `ENABLE` |
 | 0006 | catalogo struttura KG L1: `kg_entity` / `kg_relation` / `kg_claim` / `kg_gap` / `kg_contradiction` / `kg_impact` + RLS + trigger. Mappa PG→Neo4j in `backend/memory/knowledge_graph/catalog.py` |
-| 0007 | ponte workspace SQLite → canonical (`workspace_id`, seed consulente di default) |
+| 0007 | ponte workspace Postgres → canonical (`workspace_id`, seed consulente di default) |
 | 0008 | dedup `kg_entity`/`kg_relation` su indice unique PARZIALE `WHERE client_id IS NOT NULL` (fix review) |
 
 Test: `tests/test_canonical_rls.py` (6) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
@@ -150,7 +155,7 @@ Postgres + outbox tramite `backend/memory/knowledge_graph/mirror.py` →
 rimosso. Best-effort, mai un'eccezione verso l'agente; il risultato è nel
 payload sotto `"canonical_write"`.
 
-- `backend/memory/scope.py` — ponte "project-1"/"proc-1" (workspace SQLite) →
+- `backend/memory/scope.py` — ponte "project-1"/"proc-1" (workspace Postgres) →
   `client`/`project`/`process` canonical, upsert idempotente su `workspace_id`
   (migration `0007`, che semina anche il consulente unico di default)
 - `write_entity` / `write_relation` ora fanno `ON CONFLICT ... DO UPDATE`
@@ -202,7 +207,7 @@ tool interroga Neo4j / Postgres-KG / Mem0 direttamente.
   memorie consultant-level restano visibili ovunque, quelle client-scoped solo
   nel loro cliente. Status `ok|empty|not_configured|error`.
 - **`workspace_read`** (stato operativo) — snapshot scoped della workspace
-  SQLite (SoT operativa, INV-8): project + processi + sources/decisions,
+  Postgres (SoT operativa, INV-8): project + processi + sources/decisions,
   filtrati per `process_ids` (le righe project-level senza `process_id`
   restano). Usato da `retrieve_project_graph_context` per il grounding.
   Status `ok|not_found`.

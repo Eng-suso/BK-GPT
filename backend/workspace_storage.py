@@ -177,7 +177,7 @@ class WorkspaceDecision(WorkspaceBase):
 
 
 def build_workspace_engine():
-    return local_engine("workspace.db")
+    return local_engine()
 
 
 workspace_engine = build_workspace_engine()

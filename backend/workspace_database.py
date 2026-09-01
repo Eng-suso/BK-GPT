@@ -2,14 +2,13 @@ import json
 import re
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
 from backend.process_understanding import ProcessUnderstanding, quality_report_from_understanding
 from backend.security import get_current_tenant_id
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
-    DATA_DIR,
     WorkspaceBase,
     WorkspaceBpmnModel,
     WorkspaceBpmnReview,
@@ -713,81 +712,9 @@ def reset_workspace() -> None:
 
 
 def init_workspace_db() -> None:
-    DATA_DIR.mkdir(exist_ok=True)
+    # Postgres, database `workspace` (ruolo owner). Lo schema e' interamente
+    # nei modelli SQLAlchemy: `create_all` e' idempotente.
     WorkspaceBase.metadata.create_all(workspace_engine)
-    ensure_workspace_schema()
-
-
-def ensure_workspace_schema() -> None:
-    # Su Postgres lo schema lo costruisce interamente `create_all`: le patch
-    # incrementali qui sotto (PRAGMA table_info) servono solo al vecchio file
-    # SQLite gia' popolato.
-    if workspace_engine.dialect.name != "sqlite":
-        return
-    with workspace_engine.begin() as connection:
-        tenant_tables = (
-            "workspace_clients",
-            "workspace_projects",
-            "workspace_processes",
-            "workspace_bpmn_models",
-            "workspace_bpmn_versions",
-            "workspace_bpmn_reviews",
-            "workspace_simulation_runs",
-            "workspace_sources",
-            "workspace_decisions",
-        )
-        for table_name in tenant_tables:
-            columns = {
-                row[1]
-                for row in connection.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
-            }
-            if "tenant_id" not in columns:
-                connection.execute(
-                    text(f"ALTER TABLE {table_name} ADD COLUMN tenant_id VARCHAR NOT NULL DEFAULT 'local'")
-                )
-
-        simulation_columns = {
-            row[1]
-            for row in connection.execute(
-                text("PRAGMA table_info(workspace_simulation_runs)")
-            ).fetchall()
-        }
-        if "idempotency_key" not in simulation_columns:
-            connection.execute(
-                text("ALTER TABLE workspace_simulation_runs ADD COLUMN idempotency_key VARCHAR")
-            )
-            connection.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_workspace_simulation_runs_idempotency_key "
-                    "ON workspace_simulation_runs (idempotency_key)"
-                )
-            )
-
-        review_columns = {
-            row[1]
-            for row in connection.execute(text("PRAGMA table_info(workspace_bpmn_reviews)")).fetchall()
-        }
-        if "process_understanding_json" not in review_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE workspace_bpmn_reviews "
-                    "ADD COLUMN process_understanding_json TEXT NOT NULL DEFAULT '{}'"
-                )
-            )
-        if "bpmn_semantic_model_json" not in review_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE workspace_bpmn_reviews "
-                    "ADD COLUMN bpmn_semantic_model_json TEXT NOT NULL DEFAULT '{}'"
-                )
-            )
-        if "status" not in review_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE workspace_bpmn_reviews "
-                    "ADD COLUMN status VARCHAR NOT NULL DEFAULT 'pending'"
-                )
-            )
 
 
 init_workspace_db()
