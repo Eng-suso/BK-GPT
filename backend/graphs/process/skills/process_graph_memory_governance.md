@@ -7,11 +7,13 @@ description: Prepare process evidence for future GraphRAG without claiming retri
 
 ## Current Status
 
-Process GraphRAG is enabled through the enterprise Knowledge Graph facade.
-The current backend is local and replaceable; LlamaIndex should sit behind the
-same facade when the RAG backend is added.
+Process GraphRAG runs on the canonical Knowledge Graph: a Postgres store
+(authoritative, RLS-scoped) projected to Neo4j through a transactional outbox.
+Writes go through `mirror.mirror_evidence` -> `canonical.write_evidence`; reads
+go through the scoped gateway (`backend.memory.gateway`). No tool queries Neo4j
+or Postgres-KG directly.
 
-## Future Entities
+## Entities
 
 - process
 - source
@@ -26,7 +28,7 @@ same facade when the RAG backend is added.
 - contradiction
 - BPMN element
 
-## Future Relations
+## Relations
 
 - SOURCE_SUPPORTS_CLAIM
 - CLAIM_DESCRIBES_ACTIVITY

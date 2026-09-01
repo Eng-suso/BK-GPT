@@ -1,13 +1,14 @@
-"""Specchia l'evidenza estratta dai toolset (project_memory / process_memory)
-sul canonical, oltre al vecchio knowledge_graph_store.
+"""Traduce l'evidenza estratta dai toolset (project_memory / process_memory)
+nello schema canonical e la scrive.
+
+E' l'UNICO percorso di scrittura del knowledge graph dai toolset (cutover
+"Cervello DeliR"): risolve lo scope workspace -> canonical, adatta i modelli
+pydantic dei tool a dict, e chiama `canonical.write_evidence`.
 
 Best-effort e non bloccante: se il canonical non e' configurato, o lo scope
 non si risolve, o la scrittura fallisce, si registra e si va avanti. Il
-chiamante non deve mai fallire per colpa di questo modulo.
-
-E' uno strato transitorio (slice 3 del piano "Cervello DeliR"): quando il
-rewire sara' completo il vecchio store sparira' e questo modulo diventera'
-l'unico percorso di scrittura, chiamato direttamente (non "in specchio").
+chiamante (un tool di salvataggio evidenza) non deve mai fallire per colpa
+di questo modulo.
 
 L'intero pacchetto di evidenza va in UNA transazione via
 `canonical.write_evidence` (fix review #1): o tutto o niente.

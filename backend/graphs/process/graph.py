@@ -45,8 +45,8 @@ user to repeat context.
 
 Enterprise Knowledge Graph retrieval is available through process KG tools.
 Treat it as relation-heavy retrieval context and keep workspace DB records as
-the authoritative operational state. LlamaIndex can replace the local KG adapter
-without changing the tool contract.
+the authoritative operational state. The KG is a canonical Postgres store
+projected to Neo4j; all reads go through the scoped gateway.
 
 {skill_context}
 """.format(

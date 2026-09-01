@@ -1,9 +1,15 @@
+"""Modelli-argomento per gli strumenti di estrazione KG.
+
+I toolset (``process_memory`` / ``project_memory``) usano queste classi come
+schema degli argomenti che l'LLM riempie. La scrittura vera passa da
+``backend.memory.knowledge_graph.mirror`` -> ``canonical.write_evidence``; la
+lettura da ``backend.memory.gateway``. Non esistono piu' modelli di I/O verso
+un vecchio store (rimosso nel cutover "Cervello DeliR").
+"""
+
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
-
-
-KGScope = Literal["project", "process", "canvas"]
 
 
 class KnowledgeGraphRelationship(BaseModel):
@@ -56,39 +62,3 @@ class KnowledgeGraphImpact(BaseModel):
     mechanism: str = Field(description="How the issue or dependency creates business impact.")
     evidence: str = Field(default="", description="Evidence supporting this impact.")
     confidence: float = Field(default=0.6, ge=0.0, le=1.0)
-
-
-class KnowledgeGraphEvidence(BaseModel):
-    project_id: str = Field(description="Project scope for the enterprise KG.")
-    scope: KGScope = Field(description="Primary graph scope for this evidence package.")
-    source_title: str = Field(description="Human-readable source title.")
-    raw_content: str = Field(default="", description="Raw or summarized source content used for extraction.")
-    reason: str = Field(description="Why this graph package is being indexed.")
-    process_ids: list[str] = Field(default_factory=list, description="Related process ids.")
-    entities: list[str] = Field(default_factory=list, description="Named enterprise entities.")
-    claims: list[KnowledgeGraphClaim] = Field(default_factory=list)
-    relationships: list[KnowledgeGraphRelationship] = Field(default_factory=list)
-    gaps: list[KnowledgeGraphGap] = Field(default_factory=list)
-    contradictions: list[KnowledgeGraphContradiction] = Field(default_factory=list)
-    impacts: list[KnowledgeGraphImpact] = Field(default_factory=list)
-    source_refs: list[str] = Field(default_factory=list, description="source_id, episode_id or document ids.")
-
-
-class KnowledgeGraphQuery(BaseModel):
-    project_id: str = Field(description="Project scope for enterprise retrieval.")
-    query: str = Field(description="Relation-heavy retrieval question.")
-    relation_focus: str = Field(description="Relation area to inspect.")
-    reason: str = Field(description="Why retrieval is needed now.")
-    process_ids: list[str] = Field(default_factory=list, description="Optional process filter.")
-    entities: list[str] = Field(default_factory=list, description="Entity anchors.")
-    limit: int = Field(default=8, ge=1, le=20)
-
-
-class KnowledgeGraphContext(BaseModel):
-    status: Literal["ok", "empty", "not_configured"] = "ok"
-    backend: str = Field(description="Retrieval backend name.")
-    project_id: str
-    query: str
-    relation_focus: str
-    matches: list[dict] = Field(default_factory=list)
-    caveat: str = Field(default="Use workspace DB as authoritative operational state.")

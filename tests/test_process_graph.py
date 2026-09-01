@@ -467,7 +467,9 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
     )
     assert '"action": "manage_process_evidence"' in interview
     assert '"entity_type": "process_interview"' in interview
-    assert '"knowledge_graph_index": {' in interview
+    # cutover: la scrittura KG passa da canonical.write_evidence (via mirror),
+    # e il suo esito e' sempre nel payload sotto "canonical_write".
+    assert '"canonical_write":' in interview
 
     indexed = index_process_evidence_graph.invoke(
         {
@@ -501,7 +503,10 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
         }
     )
     assert '"action": "retrieve_process_graph_context"' in graph_context
-    assert "CLAIM_SUPPORTS_ACTIVITY" in graph_context
+    # cutover: la lettura KG passa dal gateway (INV-9); il payload porta sempre
+    # il blocco "knowledge_graph" con il suo status (ok/empty/not_configured).
+    assert '"knowledge_graph":' in graph_context
+    assert '"status":' in graph_context
 
     handoff = prepare_canvas_handoff.invoke(
         {
