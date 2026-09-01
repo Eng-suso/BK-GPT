@@ -66,8 +66,17 @@ def _mirror_semantic(memory: ConsultantSemanticMemory, mem0_id: str | None) -> N
         logger.warning("canonical mirror (semantic) fallito", exc_info=True)
 
 
-def mirror_episodic_to_canonical(*, episode_type: str, title: str, summary: str, mem0_id: str | None) -> None:
-    """Usata da episodic_store.py: lo stesso mirror best-effort, per il tipo episodic."""
+def mirror_episodic_to_canonical(
+    *,
+    episode_type: str,
+    title: str,
+    summary: str,
+    mem0_id: str | None,
+    client_id: str | None = None,
+    project_id: str | None = None,
+) -> None:
+    """Usata da episodic_store.py: lo stesso mirror best-effort, per il tipo
+    episodic. `client_id`/`project_id` gia' canonical -> scope 'client'."""
     if not settings.canonical_database_url:
         return
     try:
@@ -78,6 +87,8 @@ def mirror_episodic_to_canonical(*, episode_type: str, title: str, summary: str,
             episode_type=episode_type,
             title=title,
             summary=summary,
+            client_id=client_id,
+            project_id=project_id,
             already_applied_mem0_id=mem0_id,
         )
     except Exception:  # noqa: BLE001
@@ -124,19 +135,28 @@ def format_memory_results(response, limit: int = 5) -> str:
     )
 
 
-def add_mem0_memory_with_id(content: str) -> tuple[str, str | None]:
+def add_mem0_memory_with_id(
+    content: str, *, client_id: str | None = None
+) -> tuple[str, str | None]:
     """Come add_mem0_memory, ma ritorna anche il memory_id di Mem0 (se noto) —
-    serve al mirror canonical per registrare la riga gia' applicata."""
+    serve al mirror canonical per registrare la riga gia' applicata.
+
+    `client_id` (canonical uuid) finisce nei metadata: il gateway lo usa per
+    scoprare la memoria per cliente in ricerca (INV-13). Assente = memoria
+    consultant-level, visibile in ogni contesto."""
     memory = mem0_client.get_memory()
 
     if isinstance(memory, Mem0Disabled):
         return _disabled_message(memory), None
 
+    metadata = {"source": "delir"}
+    if client_id:
+        metadata["client_id"] = str(client_id)
     try:
         result = memory.add(
             content,
             user_id=settings.mem0_user_id,
-            metadata={"source": "delir"},
+            metadata=metadata,
         )
     except Exception as exc:
         return f"Non sono riuscito a salvare in Mem0: {exc}", None
@@ -168,13 +188,20 @@ def save_consultant_memory(content: str, category: str) -> str:
     return save_structured_consultant_memory(memory)
 
 
-def search_consultant_memory(query: str, category: str | None = None) -> str:
+def search_consultant_memory(
+    query: str, category: str | None = None, client_id: str | None = None
+) -> str:
     """Recall semantico. Passa dal gateway (INV-9), che inietta lo scope e
-    interroga Mem0 — nessuna query diretta da qui."""
+    interroga Mem0 — nessuna query diretta da qui.
+
+    `client_id` (canonical uuid, opzionale): in un contesto cliente il
+    recall include le memorie consultant-level + quelle di quel cliente, mai
+    di altri clienti."""
     from backend.memory import gateway
 
     result = gateway.memory_search(
         consultant_id=settings.default_consultant_id,
+        client_id=client_id,
         query=query,
         category=category,
         limit=5,

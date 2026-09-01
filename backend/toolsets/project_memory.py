@@ -844,6 +844,7 @@ def retrieve_project_graph_context(
     mem0_result = semantic_store.search_consultant_memory(
         query=relational_query,
         category=None,
+        client_id=canonical_scope.resolve_client_id(project_id),
     )
     evidence_result = (
         episodic_store.search_episode_memory(

@@ -129,10 +129,22 @@ count del mirror e che l'entità/relazione sia arrivata su Neo4j via il worker.
 Mem0 resta sincrona e unica (mai due write della stessa memoria); il mirror
 scrive la riga `semantic_memory` / `episodic_memory` canonical + una riga di
 `mem0_projection_log` **già `applied_at`** con l'`mem0_memory_id` noto — il
-worker non deve rifare nulla, è solo audit trail. Scope oggi:
-consultant-level (`settings.default_consultant_id`), non ancora per cliente.
+worker non deve rifare nulla, è solo audit trail.
 
-Test: `tests/test_semantic_episodic_mirror.py`.
+**Scope per cliente (INV-13)**: un episodio salvato con `project` risolve il
+cliente via `canonical_scope.resolve(project)` e finisce in Mem0 con
+`client_id` (uuid canonical) nei metadata + nella riga `episodic_memory` con
+`scope='client'`. In lettura `search_episode_memory` / il chat progetto
+risolvono il `client_id` (read-only, `canonical_scope.resolve_client_id`) e lo
+passano a `gateway.memory_search`: recall = memorie consultant-level + quelle
+di quel cliente, mai di altri. Best-effort: senza canonical → consultant-level.
+La memoria semantica del consulente resta consultant-level per natura (il
+plumbing `client_id` c'è comunque).
+
+Test: `tests/test_semantic_episodic_mirror.py`, `tests/test_client_scoped_recall.py`.
+Nota: i test che assertano un marker nel recall Mem0 sono fragili se il DB
+`mem0` di dev è pieno di memorie di run precedenti — `TRUNCATE delir_memories,
+delir_memories_entities` quando serve.
 
 ## Lettura — gateway INV-9 ✅
 

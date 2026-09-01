@@ -52,6 +52,30 @@ def _upsert(session, table: str, workspace_id: str, name: str, extra_cols: dict)
     return str(row.id)
 
 
+def resolve_client_id(workspace_project_id: str) -> str | None:
+    """Solo lettura: workspace project id -> `client_id` canonical.
+
+    `None` se il canonical non e' configurato, o il progetto / cliente non
+    sono ancora stati materializzati. Non crea righe (a differenza di
+    `resolve`): serve ai path di lettura (recall Mem0 client-scoped).
+    """
+    if not settings.canonical_database_url:
+        return None
+    try:
+        project = workspace_database.get_project(workspace_project_id)
+        if project is None:
+            return None
+        client_ws = f"client:{_slug(str(project.get('client') or 'Cliente'))}"
+        with canonical_session(settings.default_consultant_id) as session:
+            row = session.execute(
+                text("SELECT id FROM client WHERE workspace_id = :w"),
+                {"w": client_ws},
+            ).first()
+        return str(row.id) if row else None
+    except Exception:  # noqa: BLE001 — la lettura non deve far fallire il chiamante
+        return None
+
+
 def resolve(workspace_project_id: str, workspace_process_id: str | None = None) -> ScopeIds:
     if not settings.canonical_database_url:
         raise RuntimeError("canonical_database_url non configurata")
