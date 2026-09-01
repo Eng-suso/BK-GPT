@@ -139,11 +139,16 @@ Test: `tests/test_semantic_episodic_mirror.py`.
 `backend/memory/gateway.py` è l'unico punto di lettura del cervello. Nessun
 tool interroga Neo4j / Postgres-KG / Mem0 direttamente.
 
-- **`graph_retrieve`** (grafo tipizzato) — usato da
-  `retrieve_process_graph_context` / `retrieve_project_graph_context`: seed
-  entità da Postgres (RLS per client), espansione k-hop in Neo4j filtrata per
-  `client_id`, idratazione dei nomi da Postgres. Payload sotto
-  `"knowledge_graph"`, status `ok|empty|not_configured|error`.
+- **`graph_retrieve`** (grafo tipizzato, retrieval ibrido P3) — usato da
+  `retrieve_process_graph_context` / `retrieve_project_graph_context`:
+  (1) seed lessicale su `kg_entity.canonical_name` (RLS per client);
+  (2) seed vettoriale — embedding della query → cosine su `kg_chunk` (RLS) →
+  `source_id` dei chunk → entità con quella provenance;
+  (3) fusione RRF dei due ranking;
+  (4) espansione k-hop in Neo4j filtrata per `client_id`;
+  (5) idratazione dei nomi da Postgres.
+  Payload sotto `"knowledge_graph"` con `matches` (triple) + `chunks`
+  (contesto testuale più vicino), status `ok|empty|not_configured|error`.
 - **`memory_search`** (recall Mem0) — `semantic_store.search_consultant_memory`
   (e quindi `search_bpmn_preferences`, `episodic_store.search_episode_memory`,
   la route `/memory`) passa da qui. `user_id` Mem0 mappato dal `consultant_id`
@@ -160,9 +165,24 @@ Se canonical / Neo4j / Mem0 non sono configurati il gateway torna uno status
 esplicito e i tool restano funzionanti sul resto.
 
 Test: `tests/test_gateway.py`, `tests/test_gateway_memory.py`,
-`tests/test_gateway_workspace.py`.
+`tests/test_gateway_workspace.py`, `tests/test_kg_vector_retrieval.py`.
 
 **Gateway INV-9 completo** (`graph_retrieve` + `memory_search` + `workspace_read`).
+
+## Ingestione vettoriale KG — P3 ✅
+
+Se un tool evidence passa `raw_content`, il mirror lo gira a
+`canonical.write_evidence(source_text=...)` che:
+- registra una `kg_source` (provenance, dedup su `content_hash`);
+- splitta il testo in chunk (~1600 char, overlap 200) e li embedda
+  (`backend/memory/embeddings.py`, contract v1 = `text-embedding-3-small` /
+  1536, INV-4). Senza `OPENAI_API_KEY` i chunk entrano comunque, `embedding`
+  NULL (tsvector di fallback);
+- mette il `source_id` nei `source_ids` di ogni nodo scritto (provenance
+  che il seed vettoriale usa per risalire dalle chunk alle entità).
+
+`kg_source` / `kg_chunk` sono Postgres-only: NON vengono proiettati su Neo4j
+(sono l'indice vettoriale, non struttura del grafo).
 
 ## Non ancora fatto
 
@@ -171,4 +191,5 @@ Test: `tests/test_gateway.py`, `tests/test_gateway_memory.py`,
 - scope per cliente su semantic/episodic (oggi solo consultant-level; il
   gateway è già pronto al filtro, mancano i chiamanti che passano `client_id`)
 - procedural memory canonical (playbook appresi, P7)
-- seed vettoriale su `kg_chunk` + RRF nel gateway (P3)
+- reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)
+- backfill embedding di `kg_entity` (colonna esiste, P2 entity resolution)

@@ -3,7 +3,9 @@ nello schema canonical e la scrive.
 
 E' l'UNICO percorso di scrittura del knowledge graph dai toolset (cutover
 "Cervello DeliR"): risolve lo scope workspace -> canonical, adatta i modelli
-pydantic dei tool a dict, e chiama `canonical.write_evidence`.
+pydantic dei tool a dict, e chiama `canonical.write_evidence`. Se il tool
+passa `raw_content`, il testo diventa una `kg_source` + `kg_chunk` embeddati
+(indice vettoriale, P3) e la sua provenance finisce nei nodi scritti.
 
 Best-effort e non bloccante: se il canonical non e' configurato, o lo scope
 non si risolve, o la scrittura fallisce, si registra e si va avanti. Il
@@ -52,6 +54,8 @@ def mirror_evidence(
     gaps: list | None = None,
     contradictions: list | None = None,
     impacts: list | None = None,
+    raw_content: str | None = None,
+    source_title: str | None = None,
 ) -> dict[str, Any]:
     if not enabled():
         return {"mirrored": False, "reason": "disabled"}
@@ -160,6 +164,8 @@ def mirror_evidence(
             gaps=gap_dicts,
             contradictions=contra_dicts,
             impacts=impact_dicts,
+            source_text=raw_content,
+            source_title=source_title,
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(

@@ -460,6 +460,8 @@ def _save_project_episode_payload(
             gaps=valid_gaps,
             contradictions=valid_inconsistencies,
             impacts=valid_roi_impacts,
+            raw_content=raw_content,
+            source_title=title,
         )
 
     result = episodic_store.save_episode_memory(
