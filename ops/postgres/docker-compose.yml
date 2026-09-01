@@ -1,0 +1,35 @@
+# Postgres canonical per DeliR — piano "Cervello DeliR", P0.
+#
+#   cd ops/postgres
+#   cp .env.example .env      # e cambia le password
+#   docker compose up -d
+#
+# Postgres NON e' esposto oltre 127.0.0.1: nel deployment finale sulla Oracle VM
+# resta sulla rete docker interna, mai sulla :443 (INV-3 / INV-9).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: delir-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: delir_super
+      POSTGRES_PASSWORD: ${POSTGRES_SUPER_PASSWORD:?serve POSTGRES_SUPER_PASSWORD}
+      POSTGRES_DB: delir
+      DELIR_MIGRATOR_PASSWORD: ${DELIR_MIGRATOR_PASSWORD:?serve DELIR_MIGRATOR_PASSWORD}
+      DELIR_APP_PASSWORD: ${DELIR_APP_PASSWORD:?serve DELIR_APP_PASSWORD}
+      DELIR_WORKER_PASSWORD: ${DELIR_WORKER_PASSWORD:?serve DELIR_WORKER_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - delir_pgdata:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U delir_super -d delir"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  delir_pgdata:
+    name: delir_pgdata

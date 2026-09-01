@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     mem0_api_key: str | None = None
     mem0_user_id: str = "local-consultant"
 
+    # --- canonical Postgres (piano "Cervello DeliR", P0) ------------------
+    # DSN come ruolo delir_app (solo DML, NOBYPASSRLS, non-owner). Usata dall'app.
+    canonical_database_url: str | None = None
+    # DSN come ruolo delir_migrator (owner dello schema). Usata solo da Alembic.
+    canonical_migrator_url: str | None = None
+    # DSN come ruolo delir_worker (drena solo le due code). Usata dai worker outbox.
+    canonical_worker_url: str | None = None
+
     langsmith_api_key: str | None = None
     langsmith_tracing: bool = False
     langsmith_endpoint: str = "https://api.smith.langchain.com"
