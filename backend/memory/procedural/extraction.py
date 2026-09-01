@@ -6,12 +6,14 @@ Il risultato e' un `procedural_memory` candidate (scope 'client' di default,
 `derived_from` = gli id degli episodi). NON diventa 'active': serve la
 promozione col guardrail (P7.1).
 
-L'LLM e' iniettabile (come nel guardrail) cosi' i test restano ermetici.
+L'LLM e' iniettabile cosi' i test restano ermetici. E' un runnable con
+`with_structured_output`: `invoke(messages)` ritorna direttamente il modello
+Pydantic (`ExtractedPlaybook` / `GeneralizedPlaybook`), stesso pattern di
+`backend/process_understanding.py`.
 """
 
 from __future__ import annotations
 
-import json
 import logging
 from functools import lru_cache
 from typing import Any
@@ -25,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 _MIN_EPISODES = 2
 _MAX_EPISODES = 12
+_KINDS = {"playbook", "heuristic", "checklist"}
 
 
 class ExtractedPlaybook(BaseModel):
@@ -42,10 +45,17 @@ class GeneralizedPlaybook(BaseModel):
 
 
 @lru_cache(maxsize=1)
-def _extraction_llm() -> Any:
+def _extract_llm() -> Any:
     from langchain_openai import ChatOpenAI
 
-    return ChatOpenAI(**chat_openai_kwargs())
+    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(ExtractedPlaybook)
+
+
+@lru_cache(maxsize=1)
+def _generalize_llm() -> Any:
+    from langchain_openai import ChatOpenAI
+
+    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(GeneralizedPlaybook)
 
 
 def _format_episodes(episodes: list[dict[str, Any]]) -> str:
@@ -69,12 +79,10 @@ def _build_prompt(episodes: list[dict[str, Any]]) -> list:
                 "Sei l'analista di metodo di un consulente di processo. Ti do una "
                 "serie di episodi (interviste, decisioni, note, feedback) di uno "
                 "stesso progetto. Estrai UN metodo riutilizzabile, non un riassunto "
-                "degli episodi. Scrivi in italiano. Rispondi SOLO JSON con questa "
-                'forma: {"kind":"playbook|heuristic|checklist","title":"...",'
-                '"applies_when":"...","body":"...","confidence":0.0}. '
-                "Il body deve dire: quando si applica, i passi in ordine, e cosa "
-                "evitare. Se gli episodi non contengono un metodo generalizzabile "
-                'rispondi {"title":"","body":""}.'
+                "degli episodi. Scrivi in italiano. Il campo body deve dire: quando "
+                "si applica, i passi in ordine, e cosa evitare. Se gli episodi non "
+                "contengono un metodo generalizzabile lascia title e body vuoti. "
+                "Restituisci solo lo schema strutturato richiesto."
             )
         ),
         HumanMessage(content=_format_episodes(episodes)[:6000]),
@@ -95,44 +103,36 @@ def extract_playbook_from_episodes(
     if len(episodes) < _MIN_EPISODES:
         return None
 
-    model = llm if llm is not None else (_extraction_llm() if settings.openai_api_key else None)
+    model = llm if llm is not None else (_extract_llm() if settings.openai_api_key else None)
     if model is None:
         return None
 
     try:
-        response = model.invoke(_build_prompt(episodes))
+        result = model.invoke(_build_prompt(episodes))
     except Exception:  # noqa: BLE001 — l'estrazione e' best-effort
         logger.warning("extraction: invoke LLM fallito", exc_info=True)
         return None
 
-    content = str(getattr(response, "content", response) or "")
-    start, end = content.find("{"), content.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        data = json.loads(content[start : end + 1])
-    except json.JSONDecodeError:
+    if not isinstance(result, ExtractedPlaybook):
         return None
 
-    title = str(data.get("title") or "").strip()
-    body = str(data.get("body") or "").strip()
+    title = (result.title or "").strip()
+    body = (result.body or "").strip()
     if not title or not body:
         return None
 
-    kind = str(data.get("kind") or "playbook").strip().lower()
-    if kind not in {"playbook", "heuristic", "checklist"}:
+    kind = (result.kind or "playbook").strip().lower()
+    if kind not in _KINDS:
         kind = "playbook"
-    try:
-        confidence = min(1.0, max(0.0, float(data.get("confidence", 0.4))))
-    except (TypeError, ValueError):
-        confidence = 0.4
 
+    # `confidence` e' gia' in [0, 1]: lo garantisce lo schema Pydantic validato
+    # da `with_structured_output`.
     return ExtractedPlaybook(
         kind=kind,
         title=title,
-        applies_when=str(data.get("applies_when") or "").strip(),
+        applies_when=(result.applies_when or "").strip(),
         body=body,
-        confidence=confidence,
+        confidence=result.confidence,
     )
 
 
@@ -157,9 +157,9 @@ def _build_generalize_prompt(playbook: dict[str, Any], client_names: list[str]) 
                 "con qualsiasi cliente: togli i nomi dei clienti, i nomi di persona, i "
                 "numeri riservati (importi, percentuali contrattuali, tempi specifici), "
                 "i dettagli non trasferibili. Mantieni i passi e la logica. Non "
-                f"reintrodurre questi nomi cliente: {names}. Rispondi SOLO JSON: "
-                '{"title":"...","applies_when":"...","body":"..."}. Se non resta un '
-                'metodo generalizzabile rispondi {"title":"","body":""}.'
+                f"reintrodurre questi nomi cliente: {names}. Se non resta un metodo "
+                "generalizzabile lascia title e body vuoti. Restituisci solo lo schema "
+                "strutturato richiesto."
             )
         ),
         HumanMessage(content=source[:6000]),
@@ -177,31 +177,25 @@ def generalize_playbook_body(
     `None` se l'LLM non e' disponibile o non resta un metodo. Il verdetto finale
     su "abbastanza generico" resta al guardrail in fase di promote.
     """
-    model = llm if llm is not None else (_extraction_llm() if settings.openai_api_key else None)
+    model = llm if llm is not None else (_generalize_llm() if settings.openai_api_key else None)
     if model is None:
         return None
 
     try:
-        response = model.invoke(_build_generalize_prompt(playbook, client_names))
+        result = model.invoke(_build_generalize_prompt(playbook, client_names))
     except Exception:  # noqa: BLE001
         logger.warning("generalize: invoke LLM fallito", exc_info=True)
         return None
 
-    content = str(getattr(response, "content", response) or "")
-    start, end = content.find("{"), content.rfind("}")
-    if start == -1 or end <= start:
-        return None
-    try:
-        data = json.loads(content[start : end + 1])
-    except json.JSONDecodeError:
+    if not isinstance(result, GeneralizedPlaybook):
         return None
 
-    title = str(data.get("title") or "").strip()
-    body = str(data.get("body") or "").strip()
+    title = (result.title or "").strip()
+    body = (result.body or "").strip()
     if not title or not body:
         return None
     return GeneralizedPlaybook(
         title=title,
-        applies_when=str(data.get("applies_when") or "").strip(),
+        applies_when=(result.applies_when or "").strip(),
         body=body,
     )
