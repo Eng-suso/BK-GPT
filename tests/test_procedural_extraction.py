@@ -119,6 +119,23 @@ def test_extract_creates_candidate_then_dedups(project_scope, monkeypatch):
     assert payload2["status"] == "noop"
     assert payload2["payload"]["playbook_id"] == new_id
 
+    # il candidate client-scoped si promuove via il tool passando project
+    from backend.toolsets.memory import manage_consultant_playbook as playbook_tool
+
+    promoted = json.loads(
+        playbook_tool.invoke(
+            {"operation": "promote", "project": project_scope, "playbook_id": new_id}
+        ).split("\n", 1)[1]
+    )
+    assert promoted["status"] == "activated"
+
+    seen = json.loads(
+        playbook_tool.invoke(
+            {"operation": "list", "project": project_scope, "query": fake.title}
+        ).split("\n", 1)[1]
+    )
+    assert new_id in [p["id"] for p in seen["payload"]["playbooks"]]
+
 
 def test_extract_needs_at_least_two_episodes(project_scope, monkeypatch):
     consultant = settings.default_consultant_id

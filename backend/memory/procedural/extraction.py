@@ -18,6 +18,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from backend.llm_config import chat_openai_kwargs
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -40,27 +41,11 @@ class GeneralizedPlaybook(BaseModel):
     body: str = Field(description="Il metodo generalizzato, senza nomi cliente ne' dati riservati")
 
 
-def _supports_reasoning_controls(model: str) -> bool:
-    return model.lower().startswith(("gpt-5", "o1", "o3", "o4"))
-
-
 @lru_cache(maxsize=1)
 def _extraction_llm() -> Any:
     from langchain_openai import ChatOpenAI
 
-    kwargs: dict[str, Any] = {
-        "api_key": settings.openai_api_key,
-        "model": settings.openai_model,
-        "temperature": 0,
-        "timeout": settings.model_timeout_seconds,
-        "max_retries": settings.model_max_retries,
-        "streaming": False,
-        "disable_streaming": True,
-    }
-    if _supports_reasoning_controls(settings.openai_model):
-        kwargs["reasoning_effort"] = "medium"
-        kwargs["verbosity"] = "low"
-    return ChatOpenAI(**kwargs)
+    return ChatOpenAI(**chat_openai_kwargs())
 
 
 def _format_episodes(episodes: list[dict[str, Any]]) -> str:

@@ -359,15 +359,18 @@ def build_agent(model_name: str | None = None):
             config=config,
         )
         # L2: accanto alle repo-skill, i playbook appresi 'active' pertinenti al
-        # turno (Postgres, INV-12). build_playbook_context non solleva mai.
-        playbook_context = build_playbook_context(
-            recent_user_text(state["messages"]),
-            project_id=state.get("project_id"),
-        )
-        if playbook_context:
-            existing = result.get("active_skill_context") or ""
-            joiner = "\n\n---\n\n" if existing else ""
-            result["active_skill_context"] = existing + joiner + playbook_context
+        # turno (Postgres, INV-12). Best-effort: mai rompere il turno per questo.
+        try:
+            playbook_context = build_playbook_context(
+                recent_user_text(state["messages"]),
+                project_id=state.get("project_id"),
+            )
+            if playbook_context:
+                existing = result.get("active_skill_context") or ""
+                joiner = "\n\n---\n\n" if existing else ""
+                result["active_skill_context"] = existing + joiner + playbook_context
+        except Exception:  # noqa: BLE001
+            pass
         return result
 
     def route_scope(state: ConsultantState):

@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
+from backend.llm_config import chat_openai_kwargs
 from backend.settings import settings
 
 
@@ -760,40 +761,14 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
 
 @lru_cache(maxsize=1)
 def _understanding_llm() -> ChatOpenAI:
-    kwargs = {
-        "api_key": settings.openai_api_key,
-        "model": settings.openai_model,
-        "temperature": 0,
-        "timeout": settings.model_timeout_seconds,
-        "max_retries": settings.model_max_retries,
-        "streaming": False,
-        "disable_streaming": True,
-    }
-    if _supports_reasoning_controls(settings.openai_model):
-        kwargs["reasoning_effort"] = "medium"
-        kwargs["verbosity"] = "low"
-    return ChatOpenAI(**kwargs).with_structured_output(ProcessUnderstanding)
+    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(ProcessUnderstanding)
 
 
 @lru_cache(maxsize=1)
 def _quality_evaluator_llm() -> ChatOpenAI:
-    kwargs = {
-        "api_key": settings.openai_api_key,
-        "model": settings.openai_model,
-        "temperature": 0,
-        "timeout": settings.model_timeout_seconds,
-        "max_retries": settings.model_max_retries,
-        "streaming": False,
-        "disable_streaming": True,
-    }
-    if _supports_reasoning_controls(settings.openai_model):
-        kwargs["reasoning_effort"] = "medium"
-        kwargs["verbosity"] = "low"
-    return ChatOpenAI(**kwargs).with_structured_output(ProcessUnderstandingQualityReport)
-
-
-def _supports_reasoning_controls(model: str) -> bool:
-    return model.lower().startswith(("gpt-5", "o1", "o3", "o4"))
+    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(
+        ProcessUnderstandingQualityReport
+    )
 
 
 def _actor_labels(process: ProcessUnderstanding, actor_ids: list[str]) -> list[str]:
