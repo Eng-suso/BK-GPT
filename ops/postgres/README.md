@@ -57,7 +57,25 @@ che apre la transazione impostando il contesto RLS.
 - **0001** — funzioni di contesto (`app_consultant_id`, `app_client_id`),
   `set_updated_at`, backbone `consultant → client → project → process`, grant
   `delir_app`. ✅
-- 0002 — `kg_source`, `kg_chunk` (pgvector). _da fare_
-- 0003 — `semantic_memory` / `episodic_memory` / `procedural_memory` + lifecycle. _da fare_
-- 0004 — `graph_outbox` + `mem0_projection_log` + grant worker. _da fare_
-- 0005 — policy RLS su tutte le tabelle tenant + test CI di isolamento. _da fare_
+- **0002** — `kg_source` (provenance), `kg_chunk` (`vector(1536)` + HNSW +
+  tsvector). ✅
+- **0003** — `semantic_memory` / `episodic_memory` / `procedural_memory`:
+  scope `client|consultant`, lifecycle (`status`/`confidence`/`version`/
+  `lineage_id`/`supersedes_id`), `guardrail_status` + gate `status<>'active' OR
+  guardrail_status='clean'`, provenance `source_ids[]`/`derived_from[]`. ✅
+- **0004** — `graph_outbox` + `mem0_projection_log`: `delir_app` = solo INSERT,
+  `delir_worker` = SELECT/UPDATE, debug via view `v_projection_backlog`
+  (scoped per consultant). ✅
+- **0005** — RLS `ENABLE` + `FORCE` su client/project/process/kg_source/
+  kg_chunk/*_memory (policy `FOR ALL`, `USING = WITH CHECK`); `consultant`
+  solo `ENABLE`. ✅
+
+Test: `tests/test_canonical_rls.py` (6 casi, skippato senza le due DSN in env).
+
+## Non ancora fatto in P0
+
+- worker che drena le due code
+- Mem0 OSS self-hosted (`mem0.Memory` + pgvector) al posto del Platform SDK
+- `docker-compose` completo (Neo4j Community + Mem0 OSS accanto a Postgres)
+- projection contracts (whitelist campi Neo4j / Mem0)
+- P0.5: `kg_entity` / `kg_relation` / `kg_claim` / … + catalogo nodi/archi
