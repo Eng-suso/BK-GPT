@@ -136,6 +136,12 @@ def write_entity(
                 " entity_type, canonical_name, attributes, source_ids, confidence, created_by) "
                 "VALUES (:c, :cl, :p, :pr, 'client', :et, :name, CAST(:attrs AS jsonb), "
                 "        CAST(:src AS uuid[]), :conf, 'agent') "
+                "ON CONFLICT (consultant_id, client_id, entity_type, canonical_name) "
+                "DO UPDATE SET "
+                "  attributes = kg_entity.attributes || EXCLUDED.attributes, "
+                "  confidence = GREATEST(kg_entity.confidence, EXCLUDED.confidence), "
+                "  source_ids = (SELECT array_agg(DISTINCT x) FROM unnest("
+                "    kg_entity.source_ids || EXCLUDED.source_ids) AS x) "
                 "RETURNING id"
             ),
             {
@@ -211,6 +217,13 @@ def write_relation(
                 " confirmed, source_ids, created_by) "
                 "VALUES (:c, :cl, :p, :pr, 'client', :s, :t, :rel, :ev, :conf, :cf, "
                 "        CAST(:src AS uuid[]), 'agent') "
+                "ON CONFLICT (consultant_id, client_id, source_entity_id, target_entity_id, relation) "
+                "DO UPDATE SET "
+                "  evidence = EXCLUDED.evidence, "
+                "  confidence = GREATEST(kg_relation.confidence, EXCLUDED.confidence), "
+                "  confirmed = kg_relation.confirmed OR EXCLUDED.confirmed, "
+                "  source_ids = (SELECT array_agg(DISTINCT x) FROM unnest("
+                "    kg_relation.source_ids || EXCLUDED.source_ids) AS x) "
                 "RETURNING id"
             ),
             {

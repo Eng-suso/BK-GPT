@@ -105,11 +105,30 @@ uv run python -m backend.workers.mem0_worker    # loop
 
 Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`.
 
+## Mirror sul canonical (P1 slice 3, parziale) — strangler fig ✅
+
+`manage_process_evidence` / `save_process_episode` / `index_process_evidence_graph`
+/ `manage_project_evidence` continuano a scrivere sul vecchio `store.py`
+(autoritativo per ora) **e in più** specchiano su Postgres canonical + outbox
+tramite `backend/memory/knowledge_graph/mirror.py`. Best-effort, mai
+un'eccezione verso l'agente; il risultato è nel payload sotto
+`"canonical_mirror"`.
+
+- `backend/memory/scope.py` — ponte "project-1"/"proc-1" (workspace SQLite) →
+  `client`/`project`/`process` canonical, upsert idempotente su `workspace_id`
+  (migration `0007`, che semina anche il consulente unico di default)
+- `write_entity` / `write_relation` ora fanno `ON CONFLICT ... DO UPDATE`
+  (idempotenti: la stessa entità/relazione menzionata più volte non duplica)
+
+Test: `tests/test_canonical_mirror.py` — chiama il tool vero, verifica i
+count del mirror e che l'entità/relazione sia arrivata su Neo4j via il worker.
+
 ## Non ancora fatto
 
-- **rewire dell'ingestion** — `toolsets/project_memory.py` / `process_memory.py`
-  e `semantic_store.py` ancora sul vecchio `store.py` / path diretto Mem0.
+- **cutover** — rendere il canonical autoritativo e spegnere `store.py` /
+  il path Mem0 diretto in `semantic_store.py` / `episodic_store.py`.
   Poi `rm -rf data/knowledge_graph/`
 - procedural memory canonical (playbook appresi, P7)
-- gateway INV-9 (`workspace_read` / `graph_retrieve` / `memory_search`)
+- gateway INV-9 (`workspace_read` / `graph_retrieve` / `memory_search`) —
+  oggi la lettura passa ancora dal vecchio store
 - lato retrieval Neo4j via LlamaIndex `Neo4jPropertyGraphStore`

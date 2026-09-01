@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     canonical_migrator_url: str | None = None
     # DSN come ruolo delir_worker (drena solo le due code). Usata dai worker outbox.
     canonical_worker_url: str | None = None
+    # consulente unico per l'MVP self-hosted; seed in migration 0007
+    default_consultant_id: str = "3fcba7a0-4e34-59ed-9937-6879896bbdad"
+    # specchia i write dei toolset (project_memory/process_memory) sul canonical
+    # oltre al vecchio store; no-op se canonical_database_url non e' configurata
+    canonical_ingest_mirror: bool = True
 
     # --- Neo4j Community (projection grafo tipizzato, P0.5+) --------------
     neo4j_url: str = "bolt://127.0.0.1:7687"
