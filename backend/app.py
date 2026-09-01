@@ -1,3 +1,6 @@
+import asyncio
+import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 
@@ -22,7 +25,25 @@ from backend.settings import settings
 
 from fastapi.staticfiles import StaticFiles
 
-app = FastAPI()
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    from backend.workers.supervisor import run_queue_workers
+
+    worker_task = asyncio.create_task(run_queue_workers(), name="queue_workers")
+    try:
+        yield
+    finally:
+        worker_task.cancel()
+        try:
+            await worker_task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass
+
+
+app = FastAPI(lifespan=lifespan)
 setup_api_error_handlers(app)
 
 

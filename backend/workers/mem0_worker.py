@@ -103,6 +103,35 @@ def drain_once(limit: int = 200) -> int:
     return done
 
 
+def prune(older_than_days: int = 14) -> int:
+    """Cancella le righe gia' applicate piu' vecchie di N giorni. Ritorna
+    quante ne ha tolte."""
+    with _engine().begin() as conn:
+        return conn.execute(
+            text(
+                "DELETE FROM mem0_projection_log "
+                "WHERE applied_at IS NOT NULL "
+                "  AND applied_at < now() - make_interval(days => :d)"
+            ),
+            {"d": older_than_days},
+        ).rowcount
+
+
+def queue_stats() -> dict[str, int]:
+    """`pending` = da applicare, `stuck` = falliti troppe volte (dead-letter)."""
+    with _engine().begin() as conn:
+        row = conn.execute(
+            text(
+                "SELECT "
+                "  count(*) FILTER (WHERE applied_at IS NULL AND attempts < :m) AS pending, "
+                "  count(*) FILTER (WHERE applied_at IS NULL AND attempts >= :m) AS stuck "
+                "FROM mem0_projection_log"
+            ),
+            {"m": _MAX_ATTEMPTS},
+        ).one()
+    return {"pending": int(row.pending), "stuck": int(row.stuck)}
+
+
 def run_forever(idle_sleep: float = 3.0) -> None:
     logger.info("mem0_worker avviato")
     while True:

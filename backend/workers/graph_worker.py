@@ -80,6 +80,35 @@ def drain_once(limit: int = 200) -> int:
     return done
 
 
+def prune(older_than_days: int = 14) -> int:
+    """Cancella le righe gia' proiettate piu' vecchie di N giorni (INV-2: la
+    coda e' ricostruibile). Ritorna quante ne ha tolte."""
+    with _engine().begin() as conn:
+        return conn.execute(
+            text(
+                "DELETE FROM graph_outbox "
+                "WHERE processed_at IS NOT NULL "
+                "  AND processed_at < now() - make_interval(days => :d)"
+            ),
+            {"d": older_than_days},
+        ).rowcount
+
+
+def queue_stats() -> dict[str, int]:
+    """`pending` = da processare, `stuck` = falliti troppe volte (dead-letter)."""
+    with _engine().begin() as conn:
+        row = conn.execute(
+            text(
+                "SELECT "
+                "  count(*) FILTER (WHERE processed_at IS NULL AND attempts < :m) AS pending, "
+                "  count(*) FILTER (WHERE processed_at IS NULL AND attempts >= :m) AS stuck "
+                "FROM graph_outbox"
+            ),
+            {"m": _MAX_ATTEMPTS},
+        ).one()
+    return {"pending": int(row.pending), "stuck": int(row.stuck)}
+
+
 def run_forever(idle_sleep: float = 2.0) -> None:
     logger.info("graph_worker avviato")
     while True:

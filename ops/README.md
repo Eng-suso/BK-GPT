@@ -116,12 +116,30 @@ la migrazione della memoria canonica (INV-13).
 stessa TX. `backend/workers/mem0_worker.py` drena → Mem0 OSS (`add`/`update`/
 `delete`), scrive indietro `mem0_memory_id`.
 
+**Avvio dei worker.** Di default l'app li fa girare in-process: il lifespan
+FastAPI avvia due task di background (`backend/workers/supervisor.py`) che
+drenano le code, loggano il backlog ogni ~2 min e potano le righe processate
+> 14 giorni ogni ora. Nessun processo separato da gestire.
+
+Per scalare / isolarli: `WORKERS_IN_PROCESS=false` + service dedicati.
+`FOR UPDATE SKIP LOCKED` rende sicuro anche farli girare in parallelo.
+
 ```bash
-uv run python -m backend.workers.graph_worker   # loop
-uv run python -m backend.workers.mem0_worker    # loop
+uv run python -m backend.workers.graph_worker   # loop dedicato
+uv run python -m backend.workers.mem0_worker    # loop dedicato
 ```
 
-Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`.
+**Health + dead-letter.** `GET /v1/observability/queues` → `{pending, stuck}`
+per coda (`stuck` = falliti 5 volte). Ispezione / requeue:
+
+```bash
+CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin list
+CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin show <id> [--queue mem0_projection_log]
+CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin requeue-stuck
+```
+
+Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`,
+`tests/test_queue_supervisor.py`.
 
 ## Scrittura KG sul canonical — cutover ✅
 
@@ -212,12 +230,24 @@ Se un tool evidence passa `raw_content`, il mirror lo gira a
 `kg_source` / `kg_chunk` sono Postgres-only: NON vengono proiettati su Neo4j
 (sono l'indice vettoriale, non struttura del grafo).
 
+## Stato L1 (process-consulting per progetto) — solido ✅
+
+Loop completo e non presidiato: evidence tool → `mirror` → `write_evidence`
+(atomico, + `kg_source`/`kg_chunk`) → `graph_outbox` → **worker in-process** →
+Neo4j; lettura via `gateway.graph_retrieve` (ibrido lessicale+vettoriale+RRF).
+Memoria episodica client-scoped. Backlog visibile, dead-letter ispezionabile,
+code potate da sole. Stato operativo su Postgres.
+
 ## Non ancora fatto
 
 - `semantic_store.py` / `episodic_store.py`: la add su Mem0 resta autoritativa,
-  il canonical è mirror audit-only (vedi sopra). Ridurli a canonical-first.
-- scope per cliente su semantic/episodic (oggi solo consultant-level; il
-  gateway è già pronto al filtro, mancano i chiamanti che passano `client_id`)
-- procedural memory canonical (playbook appresi, P7)
+  il canonical è mirror audit-only. Ridurli a canonical-first.
+- memoria **semantica** client-scoped (l'episodica c'è; la semantica del
+  consulente è consultant-level per natura, manca un writer client-scoped)
+- **L2** — metodo cross-progetto + learning loop (procedural candidate →
+  validazione → playbook promosso → runtime → feedback). Zero fatto.
+- **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
+  ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)
 - backfill embedding di `kg_entity` (colonna esiste, P2 entity resolution)
+- `workspace_id` UNIQUE è globale, non per-consultant (latente multi-tenant)
