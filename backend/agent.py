@@ -31,6 +31,8 @@ from backend.memory.consultant_context_classifier import (
     classify_and_select_context,
     format_classification_context,
 )
+from backend.memory.procedural.playbook_context import build_playbook_context
+from backend.memory.procedural.skill_loader import recent_user_text
 
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
@@ -351,11 +353,22 @@ def build_agent(model_name: str | None = None):
         }
 
     def classify_and_select_context_node(state: ConsultantState, config: RunnableConfig):
-        return classify_and_select_context(
+        result = classify_and_select_context(
             state["messages"],
             classifier_llm=context_router_llm,
             config=config,
         )
+        # L2: accanto alle repo-skill, i playbook appresi 'active' pertinenti al
+        # turno (Postgres, INV-12). build_playbook_context non solleva mai.
+        playbook_context = build_playbook_context(
+            recent_user_text(state["messages"]),
+            project_id=state.get("project_id"),
+        )
+        if playbook_context:
+            existing = result.get("active_skill_context") or ""
+            joiner = "\n\n---\n\n" if existing else ""
+            result["active_skill_context"] = existing + joiner + playbook_context
+        return result
 
     def route_scope(state: ConsultantState):
         return tool_scope_type(state.get("scope_type"))

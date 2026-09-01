@@ -15,13 +15,17 @@ appresi arriveranno col learning flow (P7).
 from __future__ import annotations
 
 import json
-from datetime import datetime
+import logging
+from datetime import date, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
+
+logger = logging.getLogger(__name__)
 
 
 def _scope(client_id: str | None) -> str:
@@ -206,3 +210,246 @@ def write_episodic_memory(
             applied_mem0_id=already_applied_mem0_id,
         )
         return memory_id
+
+
+# --------------------------------------------------------------------------- #
+# procedural memory — playbook appresi del consulente (L2 / INV-11/12/13)
+# --------------------------------------------------------------------------- #
+#
+# Le skill spedite restano nel repo/git (INV-12): NON entrano qui. Questa
+# tabella tiene solo i metodi appresi lavorando col consulente. Un playbook
+# nasce `candidate` (fuori dal runtime) e diventa `active` solo dopo il
+# guardrail (`backend.memory.procedural.guardrail`), che il gate DB
+# (`procedural_guardrail_gate`) rende obbligatorio.
+
+_PROCEDURAL_KINDS = frozenset({"playbook", "heuristic", "checklist"})
+_CREATED_BY = frozenset({"agent", "consultant", "migration"})
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+def _procedural_row(row: Any) -> dict[str, Any]:
+    return {key: _jsonable(val) for key, val in row._mapping.items()}
+
+
+def write_procedural_candidate(
+    consultant_id: str,
+    *,
+    kind: str,
+    title: str,
+    body: str,
+    applies_when: str | None = None,
+    scope: str = "client",
+    client_id: str | None = None,
+    project_id: str | None = None,
+    derived_from: list[str] | None = None,
+    source_ids: list[str] | None = None,
+    confidence: float = 0.5,
+    created_by: str = "agent",
+    supersedes_id: str | None = None,
+) -> str:
+    """INSERT di un playbook appreso in stato `candidate` (non attivo).
+
+    scope `client` -> `client_id` obbligatorio; scope `consultant` -> `client_id`
+    None (generalizzato, INV-13). `guardrail_status` nasce `pending`:
+    `promote_procedural` lo valida prima di portare la riga ad `active`.
+
+    Con `supersedes_id` la riga eredita `lineage_id` e prende `version+1` della
+    riga superata: e' la nuova versione di un playbook esistente (P7.4), non una
+    lineage nuova.
+    """
+    scope = "consultant" if scope == "consultant" else "client"
+    if scope == "consultant":
+        client_id = None
+    elif not client_id:
+        raise ValueError("scope 'client' richiede client_id")
+    if kind not in _PROCEDURAL_KINDS:
+        raise ValueError(f"kind procedurale non valido: {kind!r}")
+    if not (title or "").strip() or not (body or "").strip():
+        raise ValueError("title e body sono obbligatori")
+
+    with canonical_session(consultant_id, client_id) as session:
+        lineage_id: str | None = None
+        version = 1
+        if supersedes_id:
+            prev = session.execute(
+                text(
+                    "SELECT lineage_id, version FROM procedural_memory WHERE id = :i"
+                ),
+                {"i": str(supersedes_id)},
+            ).first()
+            if prev is not None:
+                lineage_id = str(prev.lineage_id)
+                version = int(prev.version) + 1
+
+        row = session.execute(
+            text(
+                "INSERT INTO procedural_memory "
+                "(consultant_id, client_id, project_id, scope, kind, title, "
+                " applies_when, body, status, confidence, version, lineage_id, "
+                " supersedes_id, guardrail_status, source_ids, derived_from, created_by) "
+                "VALUES (:c,:cl,:p,:sc,:k,:t,:aw,:b,'candidate',:conf,:ver,"
+                "        COALESCE(CAST(:lin AS uuid), gen_random_uuid()), "
+                "        CAST(:sup AS uuid),'pending', "
+                "        CAST(:src AS uuid[]), CAST(:df AS uuid[]), :cb) "
+                "RETURNING id"
+            ),
+            {
+                "c": str(consultant_id),
+                "cl": str(client_id) if client_id else None,
+                "p": str(project_id) if project_id else None,
+                "sc": scope,
+                "k": kind,
+                "t": title,
+                "aw": applies_when,
+                "b": body,
+                "conf": min(1.0, max(0.0, float(confidence))),
+                "ver": version,
+                "lin": lineage_id,
+                "sup": str(supersedes_id) if supersedes_id else None,
+                "src": [str(s) for s in (source_ids or [])],
+                "df": [str(d) for d in (derived_from or [])],
+                "cb": created_by if created_by in _CREATED_BY else "agent",
+            },
+        ).one()
+        return str(row.id)
+
+
+def get_procedural(
+    memory_id: str,
+    *,
+    consultant_id: str,
+    client_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Dettaglio di una riga `procedural_memory` (RLS applicata dallo scope)."""
+    with canonical_session(consultant_id, client_id) as session:
+        row = session.execute(
+            text(
+                "SELECT id, scope, kind, title, applies_when, body, status, "
+                " confidence, guardrail_status, version, lineage_id, supersedes_id, "
+                " derived_from, source_ids, project_id, client_id, created_by, "
+                " created_at, updated_at, activated_at "
+                "FROM procedural_memory WHERE id = :i"
+            ),
+            {"i": str(memory_id)},
+        ).first()
+        return _procedural_row(row) if row is not None else None
+
+
+def promote_procedural(
+    candidate_id: str,
+    *,
+    consultant_id: str,
+    client_id: str | None = None,
+    llm: Any | None = None,
+) -> dict[str, Any]:
+    """`candidate` -> `active`, previo guardrail.
+
+    Verdetto del guardrail scritto in `guardrail_status`. Se non e' `clean` la
+    riga resta `candidate` (e il gate DB impedisce comunque l'attivazione).
+    Se `clean`: deprecata l'eventuale `active` dello stesso `lineage_id`, la
+    riga passa `active` con `activated_at = now()` (una sola active per lineage,
+    indice UNIQUE `procedural_one_active`).
+
+    Per scope `consultant` il guardrail verifica anche che nessun nome cliente
+    del consulente sia rimasto nel corpo (generalizzazione non completa, INV-13).
+    """
+    from backend.memory.procedural import guardrail
+
+    with canonical_session(consultant_id, client_id) as session:
+        row = session.execute(
+            text(
+                "SELECT id, scope, kind, title, applies_when, body, status, lineage_id "
+                "FROM procedural_memory WHERE id = :i"
+            ),
+            {"i": str(candidate_id)},
+        ).first()
+        if row is None:
+            return {"status": "not_found", "id": str(candidate_id)}
+        if row.status == "active":
+            return {"status": "already_active", "id": str(candidate_id)}
+        if row.status in {"deprecated", "rejected"}:
+            return {
+                "status": "blocked",
+                "id": str(candidate_id),
+                "reason": f"status {row.status}",
+            }
+
+        client_names: list[str] = []
+        if row.scope == "consultant":
+            client_names = [
+                str(r.name)
+                for r in session.execute(text("SELECT name FROM client")).all()
+                if r.name
+            ]
+
+        guardrail_status, findings = guardrail.check(
+            body=row.body,
+            title=row.title,
+            applies_when=row.applies_when,
+            scope=row.scope,
+            client_names=client_names,
+            llm=llm,
+        )
+        session.execute(
+            text(
+                "UPDATE procedural_memory SET guardrail_status = :g WHERE id = :i"
+            ),
+            {"g": guardrail_status, "i": str(candidate_id)},
+        )
+        if guardrail_status != "clean":
+            return {
+                "status": "guardrail_flagged",
+                "id": str(candidate_id),
+                "guardrail_status": guardrail_status,
+                "findings": findings,
+            }
+
+        session.execute(
+            text(
+                "UPDATE procedural_memory SET status = 'deprecated' "
+                "WHERE lineage_id = :lin AND status = 'active' AND id <> :i"
+            ),
+            {"lin": str(row.lineage_id), "i": str(candidate_id)},
+        )
+        session.execute(
+            text(
+                "UPDATE procedural_memory "
+                "SET status = 'active', activated_at = now() WHERE id = :i"
+            ),
+            {"i": str(candidate_id)},
+        )
+        return {
+            "status": "promoted",
+            "id": str(candidate_id),
+            "guardrail_status": "clean",
+        }
+
+
+def deprecate_procedural(
+    memory_id: str,
+    *,
+    consultant_id: str,
+    client_id: str | None = None,
+) -> dict[str, Any]:
+    """Ritira un playbook: `status='deprecated'` (idempotente)."""
+    with canonical_session(consultant_id, client_id) as session:
+        result = session.execute(
+            text(
+                "UPDATE procedural_memory SET status = 'deprecated' "
+                "WHERE id = :i AND status <> 'deprecated'"
+            ),
+            {"i": str(memory_id)},
+        )
+        return {
+            "status": "deprecated" if result.rowcount else "noop",
+            "id": str(memory_id),
+        }

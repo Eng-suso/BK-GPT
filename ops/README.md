@@ -262,8 +262,19 @@ code potate da sole. Stato operativo su Postgres.
   il canonical è mirror audit-only. Ridurli a canonical-first.
 - memoria **semantica** client-scoped (l'episodica c'è; la semantica del
   consulente è consultant-level per natura, manca un writer client-scoped)
-- **L2** — metodo cross-progetto + learning loop (procedural candidate →
-  validazione → playbook promosso → runtime → feedback). Zero fatto.
+- **L2** — metodo cross-progetto + learning loop. **P7.1 fatto** (fondamenta):
+  `canonical_memory.write_procedural_candidate` / `promote_procedural` /
+  `deprecate_procedural` / `get_procedural`; guardrail regex
+  (`backend/memory/procedural/guardrail.py`: PII + nomi cliente non
+  generalizzati per scope consultant); `gateway.procedural_retrieve`
+  (playbook `active`, ranking lessicale, scope via RLS); tool agente
+  `manage_consultant_playbook` (list/inspect/save_candidate/promote/deprecate);
+  runtime — `backend/memory/procedural/playbook_context.py` appende i playbook
+  `active` allo `active_skill_context` accanto alle repo-skill, nessun codice
+  generato. Test: `tests/test_procedural_memory.py`.
+  Restano P7.2 (pattern extraction episodic → candidate), P7.3 (generalizzazione
+  client → consultant), P7.4 (feedback loop usage/outcome → nuova versione),
+  P7.5 (proiezione Mem0 opzionale).
 - **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
   ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)
