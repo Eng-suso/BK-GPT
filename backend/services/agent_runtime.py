@@ -1,13 +1,27 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from threading import Lock
-from typing import Iterator
+from typing import Any, Iterator
+from uuid import UUID
 
-from backend.agent import get_agent
+from backend.agent import get_agent, normalize_model_name
 from backend.agents.primary_scope import agent_scope_state
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
 from backend.schemas.chat import ChatScope, chat_scope_key
-from backend.services.trace_recorder import new_trace_context, trace_event
+from backend.services.trace_recorder import elapsed_ms, new_trace_context, trace_event
+from backend.settings import (
+    effective_langsmith_model_name,
+    langsmith_metadata,
+    langsmith_tags,
+    langsmith_tracing_enabled,
+    settings,
+)
+
+try:
+    import langsmith as ls
+except ImportError:  # pragma: no cover - langsmith is provided by LangChain deps.
+    ls = None
 
 
 THREAD_LOCK_TIMEOUT_SECONDS = 30
@@ -52,6 +66,29 @@ STREAMABLE_AGENT_NODES = {
 
 _THREAD_LOCKS: dict[str, Lock] = {}
 _THREAD_LOCKS_GUARD = Lock()
+
+
+def merge_usage_metadata(
+    totals: dict[str, Any],
+    usage_metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not usage_metadata:
+        return totals
+
+    for key, value in usage_metadata.items():
+        if isinstance(value, bool):
+            continue
+
+        if isinstance(value, int | float):
+            totals[key] = totals.get(key, 0) + value
+            continue
+
+        if isinstance(value, dict):
+            nested = totals.setdefault(key, {})
+            if isinstance(nested, dict):
+                merge_usage_metadata(nested, value)
+
+    return totals
 
 
 def get_thread_lock(thread_id: str) -> Lock:
@@ -131,7 +168,8 @@ def stream_agent_events(
     trace_context: TraceContext | None = None,
 ) -> Iterator[AgentStreamEvent]:
     fields = scope_fields(scope)
-    agent = get_agent(model_name, scope_type=fields["scope_type"])
+    selected_model = normalize_model_name(model_name)
+    agent = get_agent(selected_model, scope_type=fields["scope_type"])
     checkpoint_thread_id = agent_checkpoint_thread_id(thread_id, fields["scope_key"])
     context = trace_context or new_trace_context(
         thread_id=thread_id,
@@ -142,6 +180,29 @@ def stream_agent_events(
     )
     thread_lock = get_thread_lock(checkpoint_thread_id)
     last_node = None
+    first_token_recorded = False
+    usage_totals: dict[str, Any] = {}
+    run_tags = langsmith_tags(
+        "consultant-chat",
+        f"scope:{fields['scope_type']}",
+        f"scope_key:{fields['scope_key']}",
+    )
+    run_metadata = {
+        **langsmith_metadata(
+            selected_model,
+            thread_id=thread_id,
+            session_id=thread_id,
+            conversation_id=thread_id,
+            checkpoint_thread_id=checkpoint_thread_id,
+            scope_type=fields["scope_type"],
+            scope_key=fields["scope_key"],
+            trace_id=context.trace_id,
+            request_id=context.request_id,
+        ),
+        "delir_requested_model_name": model_name or "",
+        "delir_model_name": selected_model,
+        "delir_effective_langsmith_model_name": effective_langsmith_model_name(selected_model),
+    }
 
     yield AgentStreamEvent(
         type="start",
@@ -196,74 +257,111 @@ def stream_agent_events(
         return
 
     try:
-        events = agent.stream(
-            {
-                "messages": messages,
-                **agent_scope_state(scope),
-            },
-            config={
-                "configurable": {
-                    "thread_id": checkpoint_thread_id,
-                },
-                "run_name": "DeliR scoped agent",
-                "tags": [
-                    f"scope:{fields['scope_type']}",
-                    f"scope_key:{fields['scope_key']}",
-                ],
-                "metadata": {
-                    "thread_id": thread_id,
-                    "checkpoint_thread_id": checkpoint_thread_id,
-                    "scope_type": fields["scope_type"],
-                    "scope_key": fields["scope_key"],
-                    "model_name": model_name,
-                    "trace_id": context.trace_id,
-                    "request_id": context.request_id,
-                },
-            },
-            stream_mode="messages",
+        tracing_context = (
+            ls.tracing_context(
+                enabled=True,
+                project_name=settings.langsmith_project,
+                tags=run_tags,
+                metadata=run_metadata,
+            )
+            if ls is not None and langsmith_tracing_enabled()
+            else nullcontext()
         )
 
-        for event in events:
-            if isinstance(event, tuple):
-                chunk, metadata = event
-            else:
-                chunk, metadata = event, {}
+        with tracing_context:
+            events = agent.stream(
+                {
+                    "messages": messages,
+                    **agent_scope_state(scope),
+                },
+                config={
+                    "configurable": {
+                        "thread_id": checkpoint_thread_id,
+                    },
+                    "run_id": UUID(context.trace_id),
+                    "run_name": "DeliR scoped agent",
+                    "tags": run_tags,
+                    "metadata": run_metadata,
+                },
+                stream_mode="messages",
+            )
 
-            node_name = metadata.get("langgraph_node")
-            if node_name and node_name not in STREAMABLE_AGENT_NODES:
-                continue
+            for event in events:
+                if isinstance(event, tuple):
+                    chunk, metadata = event
+                else:
+                    chunk, metadata = event, {}
 
-            if node_name and node_name != last_node:
-                last_node = node_name
-                node_trace = trace_event(
+                node_name = metadata.get("langgraph_node")
+                if node_name and node_name not in STREAMABLE_AGENT_NODES:
+                    continue
+
+                if node_name and node_name != last_node:
+                    last_node = node_name
+                    node_trace = trace_event(
+                        context,
+                        "node",
+                        node=node_name,
+                        message=f"Agent entered node: {node_name}",
+                    )
+                    yield AgentStreamEvent(
+                        type="node",
+                        request_id=context.request_id,
+                        trace_id=context.trace_id,
+                        thread_id=thread_id,
+                        node=node_name,
+                        payload=node_trace.model_dump(),
+                    )
+
+                if getattr(chunk, "type", None) not in {"AIMessageChunk", "ai"}:
+                    continue
+
+                usage_metadata = getattr(chunk, "usage_metadata", None)
+                if usage_metadata:
+                    merge_usage_metadata(usage_totals, dict(usage_metadata))
+
+                content = message_content_to_text(getattr(chunk, "content", ""))
+
+                if content and not first_token_recorded:
+                    first_token_recorded = True
+                    first_token_trace = trace_event(
+                        context,
+                        "first_token",
+                        node=node_name,
+                        message="First streamed model token received.",
+                        payload={"ttft_ms": elapsed_ms(context.trace_id)},
+                    )
+                    yield AgentStreamEvent(
+                        type="trace",
+                        request_id=context.request_id,
+                        trace_id=context.trace_id,
+                        thread_id=thread_id,
+                        payload=first_token_trace.model_dump(),
+                    )
+
+                if content:
+                    yield AgentStreamEvent(
+                        type="delta",
+                        request_id=context.request_id,
+                        trace_id=context.trace_id,
+                        thread_id=thread_id,
+                        node=node_name,
+                        content=content,
+                    )
+
+        if usage_totals:
+            yield AgentStreamEvent(
+                type="trace",
+                request_id=context.request_id,
+                trace_id=context.trace_id,
+                thread_id=thread_id,
+                payload=trace_event(
                     context,
-                    "node",
-                    node=node_name,
-                    message=f"Agent entered node: {node_name}",
-                )
-                yield AgentStreamEvent(
-                    type="node",
-                    request_id=context.request_id,
-                    trace_id=context.trace_id,
-                    thread_id=thread_id,
-                    node=node_name,
-                    payload=node_trace.model_dump(),
-                )
-
-            if getattr(chunk, "type", None) not in {"AIMessageChunk", "ai"}:
-                continue
-
-            content = message_content_to_text(getattr(chunk, "content", ""))
-
-            if content:
-                yield AgentStreamEvent(
-                    type="delta",
-                    request_id=context.request_id,
-                    trace_id=context.trace_id,
-                    thread_id=thread_id,
-                    node=node_name,
-                    content=content,
-                )
+                    "usage",
+                    message="Aggregated streamed model usage received.",
+                    payload={"usage_metadata": usage_totals},
+                ).model_dump(),
+            )
 
         yield AgentStreamEvent(
             type="trace",

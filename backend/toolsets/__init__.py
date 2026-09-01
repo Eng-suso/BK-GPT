@@ -23,6 +23,7 @@ from backend.toolsets.bpmn import (
 )
 from backend.toolsets.memory import (
     forget_consultant_memory,
+    manage_consultant_memory,
     manage_consulting_evidence,
     memory_tools,
     remember_bpmn_preference,

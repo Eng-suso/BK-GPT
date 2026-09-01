@@ -1,36 +1,16 @@
-from mem0 import MemoryClient
-
 from backend.memory.models import ConsultantSemanticMemory, semantic_memory_to_mem0_content
+from backend.memory import mem0_mcp_client
 from backend.settings import settings
-
-
-_client = None
-_client_error: str | None = None
 
 
 def memory_filters() -> dict:
     return {
-        "user_id": settings.mem0_user_id,
+        "AND": [
+            {
+                "user_id": settings.mem0_user_id,
+            }
+        ],
     }
-
-
-def get_memory_client():
-    global _client, _client_error
-
-    if _client is not None:
-        return _client
-
-    if not settings.mem0_api_key:
-        _client_error = "manca MEM0_API_KEY"
-        return None
-
-    try:
-        _client = MemoryClient(api_key=settings.mem0_api_key)
-    except Exception as exc:
-        _client_error = str(exc)
-        return None
-
-    return _client
 
 
 def format_memory_results(response, limit: int = 5) -> str:
@@ -78,26 +58,20 @@ def format_memory_results(response, limit: int = 5) -> str:
 
 
 def add_mem0_memory(content: str) -> str:
-    client = get_memory_client()
-
-    if client is None:
-        reason = _client_error or "client non disponibile"
-        return f"Memoria semantica disattivata: {reason}."
-
     try:
-        client.add(
-            messages=[
-                {
-                    "role": "user",
-                    "content": content,
-                }
-            ],
+        result = mem0_mcp_client.add_memory(
+            text=content,
             user_id=settings.mem0_user_id,
+            metadata={"source": "delir"},
         )
     except Exception as exc:
-        return f"Non sono riuscito a salvare in Mem0: {exc}"
+        return f"Non sono riuscito a salvare in Mem0 MCP: {exc}"
 
-    return "Memoria salvata in Mem0."
+    event_id = ""
+    if isinstance(result, dict) and result.get("event_id"):
+        event_id = f" [event_id: {result['event_id']}]"
+
+    return f"Memoria salvata in Mem0 MCP.{event_id}"
 
 
 def save_structured_consultant_memory(memory: ConsultantSemanticMemory) -> str:
@@ -119,46 +93,86 @@ def save_consultant_memory(content: str, category: str) -> str:
 
 
 def search_consultant_memory(query: str, category: str | None = None) -> str:
-    client = get_memory_client()
-
-    if client is None:
-        reason = _client_error or "client non disponibile"
-        return f"Memoria semantica disattivata: {reason}."
-
     search_query = f"[{category}] {query}" if category else query
 
     try:
-        response = client.search(
+        response = mem0_mcp_client.search_memories(
             query=search_query,
             filters=memory_filters(),
+            limit=5,
         )
     except Exception as exc:
-        return f"Non sono riuscito a recuperare memorie da Mem0: {exc}"
+        return f"Non sono riuscito a recuperare memorie da Mem0 MCP: {exc}"
 
     return format_memory_results(response)
 
 
 def delete_consultant_memory(memory_id: str, delete_linked: bool = False) -> str:
-    client = get_memory_client()
-
-    if client is None:
-        reason = _client_error or "client non disponibile"
-        return f"Memoria semantica disattivata: {reason}."
-
     normalized_memory_id = memory_id.strip()
 
     if not normalized_memory_id:
         return "Non posso eliminare la memoria: memory_id mancante."
 
     try:
-        client.delete(
+        mem0_mcp_client.delete_memory(
             memory_id=normalized_memory_id,
-            delete_linked=delete_linked,
         )
     except Exception as exc:
-        return f"Non sono riuscito a eliminare la memoria Mem0 {normalized_memory_id}: {exc}"
+        return f"Non sono riuscito a eliminare la memoria Mem0 MCP {normalized_memory_id}: {exc}"
 
-    return f"Memoria Mem0 eliminata: {normalized_memory_id}"
+    linked_note = " I link esterni non sono gestiti da questo tool MCP." if delete_linked else ""
+    return f"Memoria Mem0 MCP eliminata: {normalized_memory_id}.{linked_note}"
+
+
+def get_mem0_memories(filters: dict | None = None, page: int = 1, limit: int = 20):
+    return mem0_mcp_client.get_memories(
+        filters=filters or memory_filters(),
+        page=page,
+        limit=limit,
+    )
+
+
+def get_mem0_memory(memory_id: str):
+    return mem0_mcp_client.get_memory(memory_id=memory_id.strip())
+
+
+def update_mem0_memory(memory_id: str, text: str | None = None, metadata: dict | None = None):
+    return mem0_mcp_client.update_memory(
+        memory_id=memory_id.strip(),
+        text=text,
+        metadata=metadata,
+    )
+
+
+def delete_all_mem0_memories(filters: dict | None = None):
+    return mem0_mcp_client.delete_all_memories(filters=filters or memory_filters())
+
+
+def delete_mem0_entities(entity_type: str, entity_id: str):
+    return mem0_mcp_client.delete_entities(
+        entity_type=entity_type.strip(),
+        entity_id=entity_id.strip(),
+    )
+
+
+def list_mem0_entities(entity_type: str | None = None, page: int = 1, limit: int = 50):
+    return mem0_mcp_client.list_entities(
+        entity_type=entity_type,
+        page=page,
+        limit=limit,
+    )
+
+
+def list_mem0_events(filters: dict | None = None, page: int = 1, limit: int = 50):
+    return mem0_mcp_client.list_events(
+        filters=filters or memory_filters(),
+        page=page,
+        limit=limit,
+    )
+
+
+def get_mem0_event_status(event_id: str):
+    return mem0_mcp_client.get_event_status(event_id=event_id.strip())
 
 
 def save_bpmn_preference(rule: str, area: str) -> str:

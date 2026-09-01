@@ -81,6 +81,7 @@ scripts/dev.ps1
 .codex/
 .claude/settings.local.json
 .claude/**/__pycache__/
+.claude/worktrees/
 
 # Deployment and editor local state
 .vercel/

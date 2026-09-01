@@ -14,11 +14,22 @@ class Settings(BaseSettings):
 
     mem0_api_key: str | None = None
     mem0_user_id: str = "local-consultant"
+    mem0_mcp_enabled: bool = False
+    mem0_mcp_transport: str = "http"
+    mem0_mcp_url: str = "https://mcp.mem0.ai/mcp"
+    mem0_mcp_auth_scheme: str = "Token"
+    mem0_mcp_headers_json: str = ""
+    mem0_mcp_command: str | None = None
+    mem0_mcp_args: str = ""
+    mem0_mcp_env_json: str = ""
 
     langsmith_api_key: str | None = None
     langsmith_tracing: bool = False
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     langsmith_project: str = "BK-GPT"
+    langsmith_provider: str = "openai"
+    langsmith_model_name: str | None = None
+    langsmith_tags: str = "delir"
 
     model_temperature: float = 1.0
     model_max_tokens: int = 4096
@@ -52,24 +63,63 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+def truthy_env(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def langsmith_tracing_enabled() -> bool:
+    return (
+        settings.langsmith_tracing
+        or truthy_env("LANGSMITH_TRACING")
+        or truthy_env("LANGCHAIN_TRACING_V2")
+    )
+
+
+def effective_langsmith_model_name(model_name: str | None = None) -> str:
+    return (settings.langsmith_model_name or model_name or settings.openai_model).strip()
+
+
+def langsmith_metadata(model_name: str | None = None, **extra: str | None) -> dict[str, str]:
+    metadata = {
+        "ls_provider": settings.langsmith_provider.strip() or "openai",
+        "ls_model_name": effective_langsmith_model_name(model_name),
+    }
+    metadata.update({key: value for key, value in extra.items() if value})
+    return metadata
+
+
+def langsmith_tags(*extra_tags: str | None) -> list[str]:
+    tags: list[str] = []
+
+    for tag in [
+        *(settings.langsmith_tags.split(",") if settings.langsmith_tags else []),
+        *extra_tags,
+    ]:
+        normalized = (tag or "").strip()
+        if normalized and normalized not in tags:
+            tags.append(normalized)
+
+    return tags
+
+
 def configure_langsmith_environment() -> None:
-    if not settings.langsmith_tracing:
+    if not langsmith_tracing_enabled():
         return
 
-    os.environ.setdefault("LANGSMITH_TRACING", "true")
-    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
 
     if settings.langsmith_api_key:
-        os.environ.setdefault("LANGSMITH_API_KEY", settings.langsmith_api_key)
-        os.environ.setdefault("LANGCHAIN_API_KEY", settings.langsmith_api_key)
+        os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
+        os.environ["LANGCHAIN_API_KEY"] = settings.langsmith_api_key
 
     if settings.langsmith_endpoint:
-        os.environ.setdefault("LANGSMITH_ENDPOINT", settings.langsmith_endpoint)
-        os.environ.setdefault("LANGCHAIN_ENDPOINT", settings.langsmith_endpoint)
+        os.environ["LANGSMITH_ENDPOINT"] = settings.langsmith_endpoint
+        os.environ["LANGCHAIN_ENDPOINT"] = settings.langsmith_endpoint
 
     if settings.langsmith_project:
-        os.environ.setdefault("LANGSMITH_PROJECT", settings.langsmith_project)
-        os.environ.setdefault("LANGCHAIN_PROJECT", settings.langsmith_project)
+        os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
+        os.environ["LANGCHAIN_PROJECT"] = settings.langsmith_project
 
 
 configure_langsmith_environment()

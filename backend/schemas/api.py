@@ -11,6 +11,8 @@ TraceEventType = Literal[
     "tool_start",
     "tool_result",
     "route",
+    "first_token",
+    "usage",
     "warning",
     "error",
 ]

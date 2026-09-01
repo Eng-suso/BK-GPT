@@ -28,6 +28,7 @@ from backend.toolsets.bpmn import (
 )
 from backend.toolsets.memory import (
     forget_consultant_memory,
+    manage_consultant_memory,
     memory_tools,
     remember_bpmn_preference,
     remember_consultant_fact,
@@ -103,6 +104,7 @@ __all__ = [
     "list_workspace_project_sources",
     "list_workspace_clients",
     "list_workspace_projects",
+    "manage_consultant_memory",
     "manage_client_record",
     "memory_tools",
     "main_tools",

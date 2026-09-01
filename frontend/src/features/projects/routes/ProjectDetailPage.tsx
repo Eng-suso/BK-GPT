@@ -20,7 +20,6 @@ import {
   DetailPanelSection,
 } from "@/components/panel";
 import { Button } from "@/ui/button";
-import { Card } from "@/ui/card";
 import { Skeleton } from "@/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
@@ -310,8 +309,11 @@ function ProjectChatTab({
   project: Project;
 }): React.JSX.Element {
   return (
-    // Fills the viewport below the app chrome (top bar + page header + tab bar).
-    <Card className="h-[calc(100dvh-16rem)] min-h-[32rem] w-full min-w-0 gap-0 overflow-hidden rounded-lg py-0 shadow-none">
+    // Chat surface. Fills the viewport below the app chrome (top bar + page
+    // header + tab bar). A quiet slate hairline bounds it — the bare `<Card>`
+    // `border` utility resolved to currentColor (near-black) under Tailwind v4
+    // preflight; `border-border` pins it back to the subtle token.
+    <div className="flex h-[calc(100dvh-16rem)] min-h-[32rem] w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
       <ChatExperience
         chrome="panel"
         layout="embedded"
@@ -321,7 +323,7 @@ function ProjectChatTab({
           projectName: project.name,
         }}
       />
-    </Card>
+    </div>
   );
 }
 

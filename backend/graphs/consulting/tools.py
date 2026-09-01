@@ -4,6 +4,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend.toolsets.memory import (
+    manage_consultant_memory,
     manage_consulting_evidence,
     remember_consultant_fact,
     retrieve_consulting_context,
@@ -65,6 +66,7 @@ consultant_memory_tools = [
     remember_consultant_fact,
     retrieve_consulting_context,
     retrieve_consulting_graph_context,
+    manage_consultant_memory,
     manage_consulting_evidence,
 ]
 
