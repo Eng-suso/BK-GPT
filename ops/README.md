@@ -283,8 +283,14 @@ code potate da sole. Stato operativo su Postgres.
   `guardrail_status='pending'`); il guardrail al promote blocca se un nome
   cliente e' rimasto. Mai una copia (INV-13). Test:
   `tests/test_procedural_generalization.py`.
-  Restano P7.4 (feedback loop usage/outcome → nuova versione) e P7.5
-  (proiezione Mem0 opzionale).
+  **P7.4 fatto**: migration `0010_procedural_feedback` (contatori `used_count` /
+  `outcome_worked|partial|failed` / `last_used_at` / `last_outcome_at` sulla
+  riga). `canonical_memory.record_playbook_usage` (chiamato da
+  `playbook_context` a ogni iniezione) + `record_playbook_outcome` (media mobile
+  su `confidence`, auto-deprecate sotto 0.15 con ≥3 fallimenti) +
+  `manage_consultant_playbook operation=record_outcome`. Test:
+  `tests/test_procedural_feedback.py`.
+  Resta P7.5 (proiezione Mem0 opzionale).
 - **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
   ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)

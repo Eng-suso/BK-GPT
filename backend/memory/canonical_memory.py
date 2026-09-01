@@ -336,7 +336,8 @@ def get_procedural(
                 "SELECT id, scope, kind, title, applies_when, body, status, "
                 " confidence, guardrail_status, version, lineage_id, supersedes_id, "
                 " derived_from, source_ids, project_id, client_id, created_by, "
-                " created_at, updated_at, activated_at "
+                " created_at, updated_at, activated_at, used_count, last_used_at, "
+                " outcome_worked, outcome_partial, outcome_failed, last_outcome_at "
                 "FROM procedural_memory WHERE id = :i"
             ),
             {"i": str(memory_id)},
@@ -452,6 +453,102 @@ def deprecate_procedural(
         return {
             "status": "deprecated" if result.rowcount else "noop",
             "id": str(memory_id),
+        }
+
+
+# outcome normalizzato -> (colonna contatore, delta di confidence)
+_OUTCOME = {
+    "worked": ("outcome_worked", 0.1),
+    "partial": ("outcome_partial", 0.0),
+    "didn't_work": ("outcome_failed", -0.15),
+    "didnt_work": ("outcome_failed", -0.15),
+    "failed": ("outcome_failed", -0.15),
+}
+_AUTO_DEPRECATE_CONFIDENCE = 0.15
+_AUTO_DEPRECATE_FAILURES = 3
+
+
+def record_playbook_usage(
+    consultant_id: str,
+    *,
+    client_id: str | None = None,
+    playbook_ids: list[str],
+) -> int:
+    """Segna che questi playbook `active` sono stati iniettati nel prompt
+    (`used_count += 1`, `last_used_at = now()`). Best-effort: ritorna quante
+    righe ha toccato, 0 su qualsiasi problema."""
+    ids = sorted({str(p) for p in (playbook_ids or []) if p})
+    if not ids:
+        return 0
+    try:
+        with canonical_session(consultant_id, client_id) as session:
+            result = session.execute(
+                text(
+                    "UPDATE procedural_memory "
+                    "SET used_count = used_count + 1, last_used_at = now() "
+                    "WHERE id = ANY(:ids) AND status = 'active'"
+                ),
+                {"ids": ids},
+            )
+            return int(result.rowcount or 0)
+    except Exception:  # noqa: BLE001 — il conteggio non deve mai rompere il turno
+        logger.warning("record_playbook_usage fallito", exc_info=True)
+        return 0
+
+
+def record_playbook_outcome(
+    playbook_id: str,
+    outcome: str,
+    *,
+    consultant_id: str,
+    client_id: str | None = None,
+) -> dict[str, Any]:
+    """Registra l'esito d'uso di un playbook (`worked` | `partial` | `didn't_work`).
+
+    Incrementa il contatore, aggiorna `confidence` con una media mobile e, se la
+    confidence scende sotto la soglia con abbastanza esiti negativi, auto-deprecа
+    il playbook (`status='deprecated'`).
+    """
+    key = (outcome or "").strip().lower()
+    mapping = _OUTCOME.get(key)
+    if mapping is None:
+        return {"status": "bad_outcome", "id": str(playbook_id), "outcome": outcome}
+    column, delta = mapping
+
+    with canonical_session(consultant_id, client_id) as session:
+        row = session.execute(
+            text(
+                "SELECT status, confidence, outcome_failed FROM procedural_memory WHERE id = :i"
+            ),
+            {"i": str(playbook_id)},
+        ).first()
+        if row is None:
+            return {"status": "not_found", "id": str(playbook_id)}
+
+        new_confidence = min(1.0, max(0.0, float(row.confidence) + delta))
+        failures = int(row.outcome_failed) + (1 if column == "outcome_failed" else 0)
+        auto_deprecate = (
+            row.status == "active"
+            and new_confidence < _AUTO_DEPRECATE_CONFIDENCE
+            and failures >= _AUTO_DEPRECATE_FAILURES
+        )
+        session.execute(
+            text(
+                f"UPDATE procedural_memory "
+                f"SET {column} = {column} + 1, "
+                f"    confidence = :conf, "
+                f"    last_outcome_at = now()"
+                + (", status = 'deprecated'" if auto_deprecate else "")
+                + " WHERE id = :i"
+            ),
+            {"conf": new_confidence, "i": str(playbook_id)},
+        )
+        return {
+            "status": "recorded",
+            "id": str(playbook_id),
+            "outcome": key,
+            "confidence": round(new_confidence, 4),
+            "auto_deprecated": auto_deprecate,
         }
 
 

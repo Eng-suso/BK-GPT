@@ -420,10 +420,13 @@ class ManageConsultantPlaybookInput(BaseModel):
             "candidate (NOT active); promote to run the guardrail and activate a "
             "candidate; deprecate to retire an active playbook; generalize to turn a "
             "client-scoped playbook into a consultant-scoped candidate (needs project + "
-            "playbook_id, INV-13 — a rewrite, not a copy)."
+            "playbook_id, INV-13 — a rewrite, not a copy); record_outcome to log how a "
+            "playbook performed (outcome worked|partial|didn't_work)."
         )
     )
-    playbook_id: str | None = Field(default=None, description="Target id for inspect, promote, deprecate, or the source for generalize.")
+    playbook_id: str | None = Field(default=None, description="Target id for inspect, promote, deprecate, record_outcome, or the source for generalize.")
+    outcome: str = Field(default="", description="For record_outcome: worked, partial, or didn't_work.")
+    note: str = Field(default="", description="For record_outcome: short free-text on why it worked or not.")
     query: str = Field(default="", description="Task description for list ranking. Leave empty to list recent active playbooks.")
     kind: str = Field(default="playbook", description="playbook, heuristic, or checklist. For save_candidate.")
     title: str = Field(default="", description="Short playbook title. For save_candidate.")
@@ -450,6 +453,8 @@ def manage_consultant_playbook(
     derived_from: list[str] | None = None,
     confidence: float = 0.5,
     limit: int = 10,
+    outcome: str = "",
+    note: str = "",
 ) -> str:
     """
     Manage the consultant's learned playbooks (procedural memory, stored in Postgres).
@@ -626,6 +631,37 @@ def manage_consultant_playbook(
             entity_id=playbook_id,
             summary="Playbook ritirato." if result["status"] == "deprecated" else "Nessuna modifica.",
             payload={"operation": normalized_operation, **result},
+        )
+
+    if normalized_operation == "record_outcome":
+        if not playbook_id or not outcome.strip():
+            return enterprise_tool_result(
+                status="blocked",
+                action="manage_consultant_playbook",
+                entity_type="consultant_playbook",
+                summary="record_outcome richiede playbook_id e outcome.",
+                payload={"operation": normalized_operation},
+            )
+        result = canonical_memory.record_playbook_outcome(
+            playbook_id,
+            outcome,
+            consultant_id=consultant_id,
+            client_id=client_id,
+        )
+        status_map = {"recorded": "ok", "bad_outcome": "blocked", "not_found": "not_found"}
+        return enterprise_tool_result(
+            status=status_map.get(result["status"], result["status"]),
+            action="manage_consultant_playbook",
+            entity_type="consultant_playbook",
+            entity_id=playbook_id,
+            summary=(
+                f"Esito registrato: {result.get('outcome')}, "
+                f"confidence {result.get('confidence')}"
+                + (", playbook auto-deprecato." if result.get("auto_deprecated") else ".")
+                if result["status"] == "recorded"
+                else "Esito non registrato."
+            ),
+            payload={"operation": normalized_operation, "note": note, **result},
         )
 
     if normalized_operation == "generalize":
