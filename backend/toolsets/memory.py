@@ -1,6 +1,3 @@
-import json
-from typing import Any, Literal
-
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
@@ -63,64 +60,6 @@ class ManageConsultingEvidenceInput(BaseModel):
     include_source_text: bool = Field(default=False, description="For inspect: include raw source text when needed.")
     confirm_destructive_action: bool = Field(default=False, description="Required for hard delete. Prefer archive for ordinary removal.")
     delete_raw_source: bool = Field(default=False, description="Also delete local raw source file during confirmed hard delete.")
-
-
-class ManageConsultantMemoryInput(BaseModel):
-    operation: Literal[
-        "get_memories",
-        "get_memory",
-        "update_memory",
-        "delete_memory",
-        "delete_all_memories",
-        "delete_entities",
-        "list_entities",
-        "list_events",
-        "get_event_status",
-    ] = Field(
-        description=(
-            "Mem0 MCP management operation. Use domain tools for normal add/search memory work; "
-            "use this only to inspect, update, delete, audit, list entities/events, or perform explicitly confirmed bulk deletion."
-        )
-    )
-    memory_id: str | None = Field(default=None, description="Required for get_memory and update_memory.")
-    event_id: str | None = Field(default=None, description="Required for get_event_status.")
-    text: str | None = Field(default=None, description="Replacement memory text for update_memory.")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Metadata for update_memory.")
-    filters: dict[str, Any] = Field(default_factory=dict, description="Structured Mem0 filters. Defaults to the configured DeliR user scope.")
-    entity_type: str | None = Field(default=None, description="Optional entity kind, such as user, agent, app, or run.")
-    entity_id: str | None = Field(default=None, description="Required for delete_entities.")
-    page: int = Field(default=1, ge=1, description="Pagination page for list operations.")
-    limit: int = Field(default=20, ge=1, le=100, description="Maximum records to return.")
-    confirm_memory_id: bool = Field(
-        default=False,
-        description="Required before update_memory, confirming the caller checked the exact memory_id.",
-    )
-    confirm_destructive_action: bool = Field(
-        default=False,
-        description="Required before delete_all_memories or delete_entities.",
-    )
-    destructive_confirmation_text: str = Field(
-        default="",
-        description="Must equal DELETE MEM0 MEMORIES for bulk destructive operations.",
-    )
-
-
-def _jsonable(value):
-    try:
-        json.dumps(value, ensure_ascii=False)
-        return value
-    except TypeError:
-        return str(value)
-
-
-def _memory_management_error(operation: str, message: str) -> str:
-    return enterprise_tool_result(
-        status="blocked",
-        action="manage_consultant_memory",
-        entity_type="mem0_memory_management",
-        summary=message,
-        payload={"operation": operation},
-    )
 
 
 @tool(args_schema=RememberConsultantFactInput)
@@ -326,109 +265,6 @@ def forget_consultant_memory(memory_id: str, delete_linked: bool = False) -> str
     Returns a deletion confirmation, or a clear disabled/error message.
     """
     return semantic_store.delete_consultant_memory(memory_id=memory_id, delete_linked=delete_linked)
-
-
-@tool(args_schema=ManageConsultantMemoryInput)
-def manage_consultant_memory(
-    operation: str,
-    memory_id: str | None = None,
-    event_id: str | None = None,
-    text: str | None = None,
-    metadata: dict[str, Any] | None = None,
-    filters: dict[str, Any] | None = None,
-    entity_type: str | None = None,
-    entity_id: str | None = None,
-    page: int = 1,
-    limit: int = 20,
-    confirm_memory_id: bool = False,
-    confirm_destructive_action: bool = False,
-    destructive_confirmation_text: str = "",
-) -> str:
-    """
-    Manage Mem0 MCP records without duplicating normal domain tools.
-
-    Use `remember_consultant_fact` for add_memory and `retrieve_consulting_context`
-    for search_memories. Use this facade for get/list/update/delete/audit/entity
-    operations and confirmed bulk deletion. Workspace records remain the operational
-    source of truth.
-    """
-    normalized_operation = operation.strip()
-    scoped_filters = filters or semantic_store.memory_filters()
-
-    try:
-        if normalized_operation == "get_memories":
-            result = semantic_store.get_mem0_memories(filters=scoped_filters, page=page, limit=limit)
-        elif normalized_operation == "get_memory":
-            if not memory_id:
-                return _memory_management_error(normalized_operation, "memory_id richiesto per get_memory.")
-            result = semantic_store.get_mem0_memory(memory_id)
-        elif normalized_operation == "update_memory":
-            if not memory_id:
-                return _memory_management_error(normalized_operation, "memory_id richiesto per update_memory.")
-            if not confirm_memory_id:
-                return _memory_management_error(
-                    normalized_operation,
-                    "update_memory bloccato: conferma prima il memory_id esatto.",
-                )
-            result = semantic_store.update_mem0_memory(memory_id, text=text, metadata=metadata or {})
-        elif normalized_operation == "delete_memory":
-            if not memory_id:
-                return _memory_management_error(normalized_operation, "memory_id richiesto per delete_memory.")
-            if not confirm_memory_id:
-                return _memory_management_error(
-                    normalized_operation,
-                    "delete_memory bloccato: conferma prima il memory_id esatto.",
-                )
-            result = semantic_store.delete_consultant_memory(memory_id)
-        elif normalized_operation == "delete_all_memories":
-            if not confirm_destructive_action or destructive_confirmation_text != "DELETE MEM0 MEMORIES":
-                return _memory_management_error(
-                    normalized_operation,
-                    "delete_all_memories bloccato: serve conferma distruttiva esplicita.",
-                )
-            result = semantic_store.delete_all_mem0_memories(filters=scoped_filters)
-        elif normalized_operation == "delete_entities":
-            if not entity_type or not entity_id:
-                return _memory_management_error(
-                    normalized_operation,
-                    "entity_type ed entity_id richiesti per delete_entities.",
-                )
-            if not confirm_destructive_action or destructive_confirmation_text != "DELETE MEM0 MEMORIES":
-                return _memory_management_error(
-                    normalized_operation,
-                    "delete_entities bloccato: serve conferma distruttiva esplicita.",
-                )
-            result = semantic_store.delete_mem0_entities(entity_type=entity_type, entity_id=entity_id)
-        elif normalized_operation == "list_entities":
-            result = semantic_store.list_mem0_entities(entity_type=entity_type, page=page, limit=limit)
-        elif normalized_operation == "list_events":
-            result = semantic_store.list_mem0_events(filters=scoped_filters, page=page, limit=limit)
-        elif normalized_operation == "get_event_status":
-            if not event_id:
-                return _memory_management_error(normalized_operation, "event_id richiesto per get_event_status.")
-            result = semantic_store.get_mem0_event_status(event_id)
-        else:
-            return _memory_management_error(normalized_operation, f"Operazione Mem0 MCP non supportata: {operation}.")
-    except Exception as exc:
-        return enterprise_tool_result(
-            status="error",
-            action="manage_consultant_memory",
-            entity_type="mem0_memory_management",
-            summary=f"Operazione Mem0 MCP fallita: {exc}",
-            payload={"operation": normalized_operation},
-        )
-
-    return enterprise_tool_result(
-        status="ok",
-        action="manage_consultant_memory",
-        entity_type="mem0_memory_management",
-        entity_id=memory_id or event_id or entity_id,
-        summary=f"Operazione Mem0 MCP completata: {normalized_operation}.",
-        payload={
-            "operation": normalized_operation,
-            "result": _jsonable(result),
-        },
-    )
 
 
 @tool(args_schema=ManageConsultingEvidenceInput)
@@ -722,7 +558,7 @@ memory_tools = [
     search_consultant_memory,
     retrieve_consulting_context,
     retrieve_consulting_graph_context,
-    manage_consultant_memory,
+    forget_consultant_memory,
     manage_consulting_evidence,
     remember_bpmn_preference,
     search_bpmn_preferences,

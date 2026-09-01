@@ -14,11 +14,8 @@ from backend.memory.models import (
     episode_memory_to_mem0_content,
     semantic_memory_to_mem0_content,
 )
-from backend.memory.semantic import semantic_store
 from backend.toolsets.memory import (
-    manage_consultant_memory,
     manage_consulting_evidence,
-    memory_tools,
     retrieve_consulting_context,
     retrieve_consulting_graph_context,
 )
@@ -201,10 +198,6 @@ def test_graph_retrieval_tool_is_explicit_and_consulting_owned():
     tool_names = {tool.name for tool in consultant_tools}
 
     assert "retrieve_consulting_graph_context" in tool_names
-    assert "manage_consultant_memory" in tool_names
-    assert "search_consultant_memory" not in tool_names
-    assert "forget_consultant_memory" not in tool_names
-    assert "forget_consultant_memory" not in {tool.name for tool in memory_tools}
     assert len(consultant_tools) <= 8
 
     request = ConsultingGraphRetrievalRequest(
@@ -215,128 +208,6 @@ def test_graph_retrieval_tool_is_explicit_and_consulting_owned():
         include_workspace_overview=False,
     )
     assert request.relation_focus == "project-to-decision"
-
-
-def test_semantic_store_routes_to_mem0_mcp_only(monkeypatch):
-    calls = []
-
-    def fake_add_memory(**kwargs):
-        calls.append(("add_memory", kwargs))
-        return {"event_id": "evt-1"}
-
-    def fake_search_memories(**kwargs):
-        calls.append(("search_memories", kwargs))
-        return {"results": [{"id": "mem-1", "memory": "DeliR usa Mem0 MCP."}]}
-
-    def fake_delete_memory(**kwargs):
-        calls.append(("delete_memory", kwargs))
-        return {"deleted": True}
-
-    monkeypatch.setattr(semantic_store.settings, "mem0_user_id", "test-user")
-    monkeypatch.setattr(semantic_store.mem0_mcp_client, "add_memory", fake_add_memory)
-    monkeypatch.setattr(semantic_store.mem0_mcp_client, "search_memories", fake_search_memories)
-    monkeypatch.setattr(semantic_store.mem0_mcp_client, "delete_memory", fake_delete_memory)
-
-    save_result = semantic_store.add_mem0_memory("stable fact")
-    search_result = semantic_store.search_consultant_memory("MCP", category="architecture")
-    delete_result = semantic_store.delete_consultant_memory("mem-1")
-
-    assert save_result == "Memoria salvata in Mem0 MCP. [event_id: evt-1]"
-    assert "DeliR usa Mem0 MCP." in search_result
-    assert delete_result == "Memoria Mem0 MCP eliminata: mem-1."
-    assert calls == [
-        (
-            "add_memory",
-            {
-                "text": "stable fact",
-                "user_id": "test-user",
-                "metadata": {"source": "delir"},
-            },
-        ),
-        (
-            "search_memories",
-            {
-                "query": "[architecture] MCP",
-                "filters": {"AND": [{"user_id": "test-user"}]},
-                "limit": 5,
-            },
-        ),
-        ("delete_memory", {"memory_id": "mem-1"}),
-    ]
-    assert not hasattr(semantic_store, "get_memory_client")
-
-
-def test_manage_consultant_memory_facade_routes_mcp_management_tools(monkeypatch):
-    calls = []
-
-    def fake_get_mem0_memory(memory_id):
-        calls.append(("get_memory", memory_id))
-        return {"id": memory_id, "memory": "Existing memory"}
-
-    def fake_update_mem0_memory(memory_id, text=None, metadata=None):
-        calls.append(("update_memory", memory_id, text, metadata))
-        return {"id": memory_id, "memory": text, "metadata": metadata}
-
-    def fake_delete_consultant_memory(memory_id):
-        calls.append(("delete_memory", memory_id))
-        return f"Memoria Mem0 MCP eliminata: {memory_id}."
-
-    monkeypatch.setattr(memory_module.semantic_store, "get_mem0_memory", fake_get_mem0_memory)
-    monkeypatch.setattr(memory_module.semantic_store, "update_mem0_memory", fake_update_mem0_memory)
-    monkeypatch.setattr(memory_module.semantic_store, "delete_consultant_memory", fake_delete_consultant_memory)
-
-    inspected = manage_consultant_memory.invoke(
-        {
-            "operation": "get_memory",
-            "memory_id": "mem-1",
-        }
-    )
-    blocked_update = manage_consultant_memory.invoke(
-        {
-            "operation": "update_memory",
-            "memory_id": "mem-1",
-            "text": "Updated memory",
-        }
-    )
-    updated = manage_consultant_memory.invoke(
-        {
-            "operation": "update_memory",
-            "memory_id": "mem-1",
-            "text": "Updated memory",
-            "metadata": {"category": "architecture"},
-            "confirm_memory_id": True,
-        }
-    )
-    deleted = manage_consultant_memory.invoke(
-        {
-            "operation": "delete_memory",
-            "memory_id": "mem-1",
-            "confirm_memory_id": True,
-        }
-    )
-
-    assert '"operation": "get_memory"' in inspected
-    assert "update_memory bloccato" in blocked_update
-    assert '"operation": "update_memory"' in updated
-    assert '"operation": "delete_memory"' in deleted
-    assert calls == [
-        ("get_memory", "mem-1"),
-        ("update_memory", "mem-1", "Updated memory", {"category": "architecture"}),
-        ("delete_memory", "mem-1"),
-    ]
-
-
-def test_manage_consultant_memory_blocks_bulk_delete_without_exact_confirmation():
-    result = manage_consultant_memory.invoke(
-        {
-            "operation": "delete_all_memories",
-            "confirm_destructive_action": True,
-            "destructive_confirmation_text": "delete",
-        }
-    )
-
-    assert "delete_all_memories bloccato" in result
-    assert '"status": "blocked"' in result
 
 
 def test_consulting_uses_manage_evidence_facade(monkeypatch):

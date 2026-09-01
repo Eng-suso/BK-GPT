@@ -14,14 +14,6 @@ class Settings(BaseSettings):
 
     mem0_api_key: str | None = None
     mem0_user_id: str = "local-consultant"
-    mem0_mcp_enabled: bool = False
-    mem0_mcp_transport: str = "http"
-    mem0_mcp_url: str = "https://mcp.mem0.ai/mcp"
-    mem0_mcp_auth_scheme: str = "Token"
-    mem0_mcp_headers_json: str = ""
-    mem0_mcp_command: str | None = None
-    mem0_mcp_args: str = ""
-    mem0_mcp_env_json: str = ""
 
     langsmith_api_key: str | None = None
     langsmith_tracing: bool = False
