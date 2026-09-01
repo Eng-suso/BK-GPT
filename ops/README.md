@@ -94,7 +94,7 @@ non nel DB: su un host nuovo va sincronizzata a parte (`rsync data/episodic/`).
 L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, client_id)`
 (imposta il contesto RLS). Mem0 solo via `backend.memory.mem0_client.get_memory()`.
 
-## Stato — schema canonical (migration 0001-0008) ✅
+## Stato — schema canonical (migration 0001-0010) ✅
 
 | | |
 |---|---|
@@ -106,6 +106,8 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0006 | catalogo struttura KG L1: `kg_entity` / `kg_relation` / `kg_claim` / `kg_gap` / `kg_contradiction` / `kg_impact` + RLS + trigger. Mappa PG→Neo4j in `backend/memory/knowledge_graph/catalog.py` |
 | 0007 | ponte workspace Postgres → canonical (`workspace_id`, seed consulente di default) |
 | 0008 | dedup `kg_entity`/`kg_relation` su indice unique PARZIALE `WHERE client_id IS NOT NULL` (fix review) |
+| 0009 | `delir_worker` può potare (DELETE) le righe processate delle due code |
+| 0010 | `procedural_memory`: contatori `used_count` / `outcome_*` / `last_used_at` / `last_outcome_at` (L2 P7.4) |
 
 Test: `tests/test_canonical_rls.py` (6) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 
@@ -256,41 +258,37 @@ Neo4j; lettura via `gateway.graph_retrieve` (ibrido lessicale+vettoriale+RRF).
 Memoria episodica client-scoped. Backlog visibile, dead-letter ispezionabile,
 code potate da sole. Stato operativo su Postgres.
 
+## L2 — learning loop (memoria procedurale canonica) ✅
+
+Ciclo: episodio → pattern extraction → candidate → guardrail → playbook `active`
+→ runtime (accanto alle repo-skill, INV-12) → usage/outcome → auto-deprecate.
+Le skill spedite restano repo/git; i playbook appresi sono Postgres
+(`procedural_memory`).
+
+| Fase | Cosa | File |
+|---|---|---|
+| P7.1 | write/promote/deprecate/get + guardrail (PII + nomi cliente per scope consultant) + `gateway.procedural_retrieve` (ranking lessicale, scope via RLS) + tool `manage_consultant_playbook` + iniezione runtime `playbook_context` | `backend/memory/canonical_memory.py`, `backend/memory/procedural/{guardrail,playbook_context}.py`, `backend/memory/gateway.py`, `backend/toolsets/memory.py` |
+| P7.2 | pattern extraction episodi → candidate `scope='client'` (`derived_from`, dedup sul set esatto). LLM iniettabile | `backend/memory/procedural/extraction.py`, tool `extract_playbook_from_episodes` |
+| P7.3 | generalizzazione client → consultant (riscrittura, non copia): nuovo candidate consultant-scoped, il guardrail al promote blocca se resta un nome cliente | `canonical_memory.generalize_procedural`, `manage_consultant_playbook operation=generalize` |
+| P7.4 | feedback: `used_count` a ogni iniezione + `record_playbook_outcome` (confidence = ratio smussato, auto-deprecate < 0.2 con ≥3 fallimenti) | migration `0010`, `manage_consultant_playbook operation=record_outcome` |
+
+LLM task-scoped via `backend/llm_config.py` (`chat_openai_kwargs`), condiviso con
+`process_understanding`.
+
+Test: `tests/test_procedural_{memory,extraction,generalization,feedback}.py`
+(gated `CANONICAL_*`; l'LLM di estrazione/generalizzazione e' fake nei test).
+
+**P7.5 (proiezione Mem0 dei playbook) non fatto di proposito**: il retrieval SQL
+di `procedural_retrieve` basta per il runtime, e proiettare su Mem0 aggiungerebbe
+il costo di tenere in sync deprecation/versioning. `mem0_projection_log` accetta
+gia' `memory_kind='procedural'` se in futuro serve il recall semantico.
+
 ## Non ancora fatto
 
 - `semantic_store.py` / `episodic_store.py`: la add su Mem0 resta autoritativa,
   il canonical è mirror audit-only. Ridurli a canonical-first.
 - memoria **semantica** client-scoped (l'episodica c'è; la semantica del
   consulente è consultant-level per natura, manca un writer client-scoped)
-- **L2** — metodo cross-progetto + learning loop. **P7.1 fatto** (fondamenta):
-  `canonical_memory.write_procedural_candidate` / `promote_procedural` /
-  `deprecate_procedural` / `get_procedural`; guardrail regex
-  (`backend/memory/procedural/guardrail.py`: PII + nomi cliente non
-  generalizzati per scope consultant); `gateway.procedural_retrieve`
-  (playbook `active`, ranking lessicale, scope via RLS); tool agente
-  `manage_consultant_playbook` (list/inspect/save_candidate/promote/deprecate);
-  runtime — `backend/memory/procedural/playbook_context.py` appende i playbook
-  `active` allo `active_skill_context` accanto alle repo-skill, nessun codice
-  generato. Test: `tests/test_procedural_memory.py`.
-  **P7.2 fatto**: `backend/memory/procedural/extraction.py` (LLM iniettabile) +
-  `canonical_memory.list_episodes_for_learning` / `procedural_candidate_for_episodes`
-  (dedup) + tool `extract_playbook_from_episodes` (project scope): dagli episodi
-  client-scoped a un candidate scope='client' con `derived_from`. Test:
-  `tests/test_procedural_extraction.py`.
-  **P7.3 fatto**: `extraction.generalize_playbook_body` + `canonical_memory.generalize_procedural`
-  + `manage_consultant_playbook operation=generalize` — riscrive un playbook
-  client-scoped come candidate consultant-scoped (`derived_from` = sorgente,
-  `guardrail_status='pending'`); il guardrail al promote blocca se un nome
-  cliente e' rimasto. Mai una copia (INV-13). Test:
-  `tests/test_procedural_generalization.py`.
-  **P7.4 fatto**: migration `0010_procedural_feedback` (contatori `used_count` /
-  `outcome_worked|partial|failed` / `last_used_at` / `last_outcome_at` sulla
-  riga). `canonical_memory.record_playbook_usage` (chiamato da
-  `playbook_context` a ogni iniezione) + `record_playbook_outcome` (media mobile
-  su `confidence`, auto-deprecate sotto 0.15 con ≥3 fallimenti) +
-  `manage_consultant_playbook operation=record_outcome`. Test:
-  `tests/test_procedural_feedback.py`.
-  Resta P7.5 (proiezione Mem0 opzionale).
 - **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
   ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)
