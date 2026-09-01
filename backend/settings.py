@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # specchia i write dei toolset (project_memory/process_memory) sul canonical
     # oltre al vecchio store; no-op se canonical_database_url non e' configurata
     canonical_ingest_mirror: bool = True
+    # l'app drena graph_outbox + mem0_projection_log in un task di background.
+    # Metti False se usi processi worker dedicati (`python -m backend.workers.*`).
+    workers_in_process: bool = True
 
     # --- Neo4j Community (projection grafo tipizzato, P0.5+) --------------
     neo4j_url: str = "bolt://127.0.0.1:7687"

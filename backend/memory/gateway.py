@@ -76,6 +76,9 @@ def _resolve_seed_entities(
                 "WHERE client_id = :cl AND status <> 'rejected' "
                 "  AND (lower(canonical_name) = ANY(:exact) "
                 "       OR lower(canonical_name) LIKE ANY(:like)) "
+                # match esatto prima, poi nome piu' corto (piu' probabilmente
+                # l'entita' precisa): da' un ranking vero alla RRF
+                "ORDER BY (lower(canonical_name) = ANY(:exact)) DESC, char_length(canonical_name) "
                 "LIMIT 40"
             ),
             {"cl": client_id, "exact": list(terms), "like": like_patterns},
