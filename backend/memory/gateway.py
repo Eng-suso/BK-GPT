@@ -1,0 +1,191 @@
+"""Gateway unico di lettura del cervello (INV-9).
+
+Nessun tool o agente interroga Neo4j / Postgres-KG / Mem0 direttamente: si
+passa da qui, che inietta lo scope (`consultant_id`, `client_id`) in ogni
+query. Con Neo4j Community senza subgraph ACL, questo e' l'unico punto di
+enforcement in lettura sul grafo.
+
+`graph_retrieve`:
+  1. seed  — risolve i nomi entita' -> entity_id (Postgres kg_entity, RLS
+     per client) + il process_id passato
+  2. espansione — k-hop in Neo4j dai seed, ogni nodo del path filtrato per
+     client_id
+  3. idratazione — ogni id opaco -> testo autoritativo da Postgres (RLS):
+     canonical_name, statement, title, ...
+
+Disattivato in silenzio se il canonical o Neo4j non sono configurati: i
+chiamanti ricadono sul percorso vecchio (strangler fig).
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from typing import Any
+
+from sqlalchemy import text
+
+from backend.db import canonical_session
+from backend.memory.knowledge_graph import neo4j_store
+from backend.settings import settings
+
+logger = logging.getLogger(__name__)
+
+_WORD = re.compile(r"[\wÀ-ÿ]{3,}")
+
+
+def graph_available() -> bool:
+    return bool(settings.canonical_database_url) and neo4j_store.is_enabled()
+
+
+def _resolve_seed_entities(
+    consultant_id: str,
+    client_id: str,
+    entity_names: list[str],
+    query: str,
+) -> list[str]:
+    terms = {" ".join(n.split()).lower() for n in entity_names if n and n.strip()}
+    terms |= {w.lower() for w in _WORD.findall(query or "")}
+    if not terms:
+        return []
+    like_patterns = [f"%{t}%" for t in terms]
+    with canonical_session(consultant_id, client_id) as session:
+        rows = session.execute(
+            text(
+                "SELECT id FROM kg_entity "
+                "WHERE client_id = :cl AND status <> 'rejected' "
+                "  AND (lower(canonical_name) = ANY(:exact) "
+                "       OR lower(canonical_name) LIKE ANY(:like)) "
+                "LIMIT 40"
+            ),
+            {"cl": client_id, "exact": list(terms), "like": like_patterns},
+        ).all()
+    return [str(r.id) for r in rows]
+
+
+def _expand(
+    client_id: str,
+    seed_entity_ids: list[str],
+    process_id: str | None,
+    max_hops: int,
+    limit: int,
+) -> list[dict]:
+    driver = neo4j_store.get_driver()
+    hops = max(1, min(3, max_hops))
+    cypher = (
+        f"MATCH p = (seed)-[*1..{hops}]-(other) "
+        "WHERE (seed.entity_id IN $eids OR seed.process_id = $pid) "
+        "  AND all(n IN nodes(p) WHERE coalesce(n.client_id, $cid) = $cid) "
+        "UNWIND relationships(p) AS r "
+        "WITH DISTINCT r, startNode(r) AS a, endNode(r) AS b "
+        "RETURN type(r) AS rt, properties(r) AS rp, "
+        "       labels(a) AS la, properties(a) AS ap, "
+        "       labels(b) AS lb, properties(b) AS bp "
+        "LIMIT $lim"
+    )
+    with driver.session() as neo:
+        result = neo.run(
+            cypher,
+            eids=seed_entity_ids,
+            pid=str(process_id) if process_id else "",
+            cid=str(client_id),
+            lim=limit,
+        )
+        return [dict(record) for record in result]
+
+
+_ID_PROP = {
+    "Entity": "entity_id",
+    "Process": "process_id",
+    "Claim": "claim_id",
+    "Gap": "gap_id",
+    "Contradiction": "contradiction_id",
+    "Impact": "impact_id",
+}
+
+
+def _node_ref(labels: list[str], props: dict) -> tuple[str, str] | None:
+    for label in labels:
+        prop = _ID_PROP.get(label)
+        if prop and props.get(prop):
+            return label, str(props[prop])
+    return None
+
+
+def _hydrate(consultant_id: str, client_id: str, triples: list[dict]) -> list[dict]:
+    by_label: dict[str, set[str]] = {}
+    for tri in triples:
+        for labels, props in ((tri["la"], tri["ap"]), (tri["lb"], tri["bp"])):
+            ref = _node_ref(labels, props)
+            if ref:
+                by_label.setdefault(ref[0], set()).add(ref[1])
+
+    names: dict[tuple[str, str], str] = {}
+    _q = {
+        "Entity": "SELECT id, canonical_name AS label FROM kg_entity WHERE id = ANY(:ids)",
+        "Process": "SELECT id, name AS label FROM process WHERE id = ANY(:ids)",
+        "Claim": "SELECT id, statement AS label FROM kg_claim WHERE id = ANY(:ids)",
+        "Gap": "SELECT id, title AS label FROM kg_gap WHERE id = ANY(:ids)",
+        "Contradiction": "SELECT id, title AS label FROM kg_contradiction WHERE id = ANY(:ids)",
+        "Impact": "SELECT id, title AS label FROM kg_impact WHERE id = ANY(:ids)",
+    }
+    with canonical_session(consultant_id, client_id) as session:
+        for label, ids in by_label.items():
+            if label not in _q:
+                continue
+            for row in session.execute(text(_q[label]), {"ids": list(ids)}).all():
+                names[(label, str(row.id))] = row.label
+
+    def _label_of(labels, props) -> str:
+        ref = _node_ref(labels, props)
+        if not ref:
+            return "?"
+        return names.get(ref, ref[1])  # nome autoritativo, o id se non idratato
+
+    matches = []
+    for tri in triples:
+        matches.append(
+            {
+                "source": _label_of(tri["la"], tri["ap"]),
+                "relation": tri["rt"],
+                "target": _label_of(tri["lb"], tri["bp"]),
+                "confidence": tri["rp"].get("confidence"),
+                "confirmed": tri["rp"].get("confirmed"),
+            }
+        )
+    return matches
+
+
+def graph_retrieve(
+    *,
+    consultant_id: str,
+    client_id: str,
+    query: str = "",
+    entity_names: list[str] | None = None,
+    process_id: str | None = None,
+    relation_focus: str | None = None,
+    max_hops: int = 2,
+    limit: int = 25,
+) -> dict[str, Any]:
+    if not graph_available():
+        return {"status": "not_configured", "matches": [], "count": 0}
+
+    try:
+        seeds = _resolve_seed_entities(consultant_id, client_id, entity_names or [], query)
+        if not seeds and not process_id:
+            return {"status": "empty", "matches": [], "count": 0, "reason": "nessun seed"}
+
+        triples = _expand(client_id, seeds, process_id, max_hops, limit)
+        if not triples:
+            return {"status": "empty", "matches": [], "count": 0}
+
+        matches = _hydrate(consultant_id, client_id, triples)
+    except Exception as exc:  # noqa: BLE001 — la lettura non deve mai far fallire il tool
+        logger.warning("gateway.graph_retrieve fallito: %s", exc)
+        return {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
+
+    if relation_focus:
+        focus = relation_focus.strip().upper().replace("-", "_")
+        matches.sort(key=lambda m: 0 if focus in (m["relation"] or "") else 1)
+
+    return {"status": "ok", "count": len(matches), "matches": matches}

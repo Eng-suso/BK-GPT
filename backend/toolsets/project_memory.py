@@ -2,6 +2,8 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.memory import gateway
+from backend.memory import scope as canonical_scope
 from backend.memory.episodic import episodic_store
 from backend.memory.knowledge_graph import knowledge_graph_store
 from backend.memory.knowledge_graph import mirror as knowledge_graph_mirror
@@ -968,6 +970,24 @@ def retrieve_project_graph_context(
         )
     )
 
+    canonical_graph = None
+    if gateway.graph_available():
+        try:
+            s = canonical_scope.resolve(
+                project_id, valid_process_ids[0] if valid_process_ids else None
+            )
+            canonical_graph = gateway.graph_retrieve(
+                consultant_id=s.consultant_id,
+                client_id=s.client_id,
+                query=query,
+                entity_names=entity_terms,
+                process_id=s.process_id,
+                relation_focus=relation_focus,
+                limit=limit,
+            )
+        except Exception:  # noqa: BLE001
+            canonical_graph = None
+
     return enterprise_tool_result(
         status="ok",
         action="retrieve_project_graph_context",
@@ -983,6 +1003,7 @@ def retrieve_project_graph_context(
             "entities": entity_terms,
             "process_ids": valid_process_ids,
             "enterprise_knowledge_graph": knowledge_graph_context.model_dump(mode="json"),
+            "canonical_graph": canonical_graph,
             "mem0_relational_memory": mem0_result,
             "project_evidence": evidence_result,
             "workspace_grounding": workspace_grounding,

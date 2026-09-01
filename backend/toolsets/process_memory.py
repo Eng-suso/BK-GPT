@@ -2,6 +2,8 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.memory import gateway
+from backend.memory import scope as canonical_scope
 from backend.memory.episodic import episodic_store
 from backend.memory.knowledge_graph import knowledge_graph_store, mirror
 from backend.memory.knowledge_graph.models import (
@@ -763,19 +765,52 @@ def retrieve_process_graph_context(
             limit=limit,
         )
     )
+    payload = {
+        "project_id": project_id,
+        "process_id": process_id,
+        "process_name": process["name"],
+        "reason": reason,
+        "context": context.model_dump(mode="json"),
+    }
+    canonical_graph = _canonical_graph_context(
+        project_id, process_id, query, relation_focus, entities, limit
+    )
+    if canonical_graph is not None:
+        payload["canonical_graph"] = canonical_graph
     return enterprise_tool_result(
         status=context.status,
         action="retrieve_process_graph_context",
         entity_type="process_graph_context",
         entity_id=process_id,
         summary=f"Process KG retrieval for {process['name']}: {relation_focus}",
-        payload={
-            "project_id": project_id,
-            "process_id": process_id,
-            "process_name": process["name"],
-            "reason": reason,
-            "context": context.model_dump(mode="json"),
-        },
+        payload=payload,
+    )
+
+
+def _canonical_graph_context(
+    project_id: str,
+    process_id: str | None,
+    query: str,
+    relation_focus: str | None,
+    entities: list[str] | None,
+    limit: int,
+) -> dict | None:
+    """Lettura dal grafo canonical via gateway (INV-9). Best-effort: None se
+    il canonical non e' configurato o lo scope non si risolve."""
+    if not gateway.graph_available():
+        return None
+    try:
+        s = canonical_scope.resolve(project_id, process_id)
+    except Exception:  # noqa: BLE001
+        return None
+    return gateway.graph_retrieve(
+        consultant_id=s.consultant_id,
+        client_id=s.client_id,
+        query=query,
+        entity_names=entities or [],
+        process_id=s.process_id,
+        relation_focus=relation_focus,
+        limit=limit,
     )
 
 
