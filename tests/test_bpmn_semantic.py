@@ -310,6 +310,48 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
+def test_flow_graph_completion_wires_gateway_branches_and_warns_on_implicit_splits():
+    process = ProcessUnderstanding(
+        title="Completamento grafo",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_A", label="A", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_B", label="B", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_C", label="C", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_A", "Task_B", "Task_C"],
+        sequence=["Task_A", "Task_B", "Task_C"],
+        decisions=[
+            ProcessDecision(
+                id="Gateway_Rework",
+                label="Rifare?",
+                question="Servono correzioni?",
+                outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="o1", label="Si", target_ref="Task_A"),
+                    ProcessDecisionOutcome(id="o2", label="No", ends_process=True),
+                ],
+            )
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="ea", source_id="Task_C", target_id="Gateway_Rework", label="verifica finale"),
+            ProcessFlowEdge(id="eb", source_id="Gateway_Rework", target_id="Task_A", label="Si", condition="difetti trovati"),
+            ProcessFlowEdge(id="split", source_id="Task_A", target_id="Task_C", label="salta B"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Grafo", process_name="Completamento grafo", process=process
+    )
+    gateway = next(n.id for n in model.flowNodes if n.type == "exclusiveGateway")
+    task_a = next(n.id for n in model.flowNodes if n.name == "A")
+    rework = next(
+        (f for f in model.sequenceFlows if f.sourceRef == gateway and f.targetRef == task_a), None
+    )
+    assert rework is not None
+    assert rework.conditionExpression == "difetti trovati"
+    assert any("ramo implicito" in w for w in model.model_warnings)
+
+
 def test_step_types_compile_to_the_matching_bpmn_task_kinds():
     process = ProcessUnderstanding(
         title="Tipi task",

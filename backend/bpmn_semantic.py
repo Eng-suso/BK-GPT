@@ -387,6 +387,7 @@ def build_bpmn_semantic_model(
         step_node_by_original_id=step_node_by_original_id,
         warnings=warnings,
     )
+    _complete_flow_graph(process, registry, nodes, warnings)
     flows = registry.flows
     _populate_lane_refs(lanes, nodes)
     message_flows = _finalize_message_flows(
@@ -1426,10 +1427,21 @@ class _FlowRegistry:
     flows: list[BPMNSequenceFlow] = field(default_factory=list)
     seen_pairs: set[tuple[str, str]] = field(default_factory=set)
     _original_by_compiled: dict[str, str] = field(default_factory=dict)
+    _compiled_by_original: dict[str, str] = field(default_factory=dict)
 
     def map(self, original_id: str | None, compiled_id: str) -> None:
         if original_id:
             self._original_by_compiled.setdefault(compiled_id, original_id)
+            self._compiled_by_original.setdefault(original_id, compiled_id)
+
+    def compiled_for(self, original_id: str) -> str | None:
+        return self._compiled_by_original.get(original_id)
+
+    def outgoing_count(self, node_id: str) -> int:
+        return sum(1 for flow in self.flows if flow.sourceRef == node_id)
+
+    def incoming_count(self, node_id: str) -> int:
+        return sum(1 for flow in self.flows if flow.targetRef == node_id)
 
     def add(
         self,
@@ -1487,6 +1499,47 @@ def _sequence_flow_edges_by_endpoint(process: ProcessUnderstanding) -> dict[tupl
         if edge.kind == "sequence":
             index.setdefault((edge.source_id, edge.target_id), edge)
     return index
+
+
+def _complete_flow_graph(
+    process: ProcessUnderstanding,
+    registry: _FlowRegistry,
+    nodes: list[BPMNFlowNode],
+    warnings: list[str],
+) -> None:
+    """Add flow_edges transitions the skeleton generators missed.
+
+    Only additions that cannot corrupt control-flow semantics are applied: the
+    source must be a gateway or currently have no outgoing flow, and the target
+    must be a gateway/end or currently have no incoming flow. Anything that would
+    turn a plain activity into an implicit parallel split is reported instead.
+    """
+    node_type_by_id = {node.id: node.type for node in nodes}
+
+    for edge in process.flow_edges:
+        if edge.kind != "sequence":
+            continue
+        source = registry.compiled_for(edge.source_id)
+        target = registry.compiled_for(edge.target_id)
+        if not source or not target or (source, target) in registry.seen_pairs:
+            continue
+
+        source_type = node_type_by_id.get(source, "")
+        target_type = node_type_by_id.get(target, "")
+        target_ok = (
+            target_type.endswith("Gateway")
+            or target_type == "endEvent"
+            or registry.incoming_count(target) == 0
+        )
+        if source_type.endswith("Gateway"):
+            registry.add(source, target)
+        elif registry.outgoing_count(source) == 0 and target_ok:
+            registry.add(source, target)
+        else:
+            warnings.append(
+                f"Transizione '{edge.label or edge.id}' non modellata: creerebbe un ramo "
+                "implicito; serve un gateway esplicito."
+            )
 
 
 def build_bpmn_compilation_plan(
