@@ -33,6 +33,7 @@ import logging
 import secrets
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -58,15 +59,19 @@ class Stats:
 # --------------------------------------------------------------------------- #
 
 
-def backfill_client(session: Session, client: str, apply: bool) -> int:
-    rows = session.execute(
-        text(
-            "SELECT id, canonical_name FROM kg_entity "
-            "WHERE client_id = :cl AND status <> 'rejected' AND embedding IS NULL "
-            "ORDER BY created_at"
-        ),
-        {"cl": client},
-    ).all()
+def backfill_client(consultant: str, client: str, apply: bool) -> int:
+    """Embedda i nomi delle `kg_entity` senza `embedding`. Idempotente
+    (`WHERE embedding IS NULL`): un batch che fallisce si rifa'. Commit per
+    batch (transazione dedicata) per non tenere aperto tutto il cliente."""
+    with canonical_session(consultant, client) as reader:
+        rows = reader.execute(
+            text(
+                "SELECT id, canonical_name FROM kg_entity "
+                "WHERE client_id = :cl AND status <> 'rejected' AND embedding IS NULL "
+                "ORDER BY created_at"
+            ),
+            {"cl": client},
+        ).all()
     if not rows:
         return 0
     if not embeddings.available():
@@ -83,22 +88,23 @@ def backfill_client(session: Session, client: str, apply: bool) -> int:
         if not vectors:
             logger.warning("  embed_texts ha reso None: batch saltato")
             continue
-        for row, vec in zip(batch, vectors):
-            session.execute(
-                text(
-                    "UPDATE kg_entity SET embedding = CAST(:e AS vector), "
-                    "  embed_model = :m, embed_dim = :d, embed_version = :v "
-                    "WHERE id = :i AND embedding IS NULL"
-                ),
-                {
-                    "e": embeddings.to_pgvector(vec),
-                    "m": embeddings.EMBED_MODEL,
-                    "d": embeddings.EMBED_DIM,
-                    "v": embeddings.EMBED_VERSION,
-                    "i": row.id,
-                },
-            )
-            done += 1
+        with canonical_session(consultant, client) as writer:
+            for row, vec in zip(batch, vectors):
+                writer.execute(
+                    text(
+                        "UPDATE kg_entity SET embedding = CAST(:e AS vector), "
+                        "  embed_model = :m, embed_dim = :d, embed_version = :v "
+                        "WHERE id = :i AND embedding IS NULL"
+                    ),
+                    {
+                        "e": embeddings.to_pgvector(vec),
+                        "m": embeddings.EMBED_MODEL,
+                        "d": embeddings.EMBED_DIM,
+                        "v": embeddings.EMBED_VERSION,
+                        "i": row.id,
+                    },
+                )
+                done += 1
     print(f"  backfill embedding: {done} entita'")
     return done
 
@@ -111,11 +117,13 @@ _LOSER_RELS = (
     "SELECT id, source_entity_id, target_entity_id, relation, confidence, confirmed, "
     "       source_ids "
     "FROM kg_relation "
-    "WHERE client_id = :cl AND (source_entity_id = :lo OR target_entity_id = :lo)"
+    "WHERE client_id = :cl AND status <> 'rejected' "
+    "  AND (source_entity_id = :lo OR target_entity_id = :lo)"
 )
 _FIND_TWIN = (
     "SELECT id FROM kg_relation "
-    "WHERE client_id = :cl AND source_entity_id = :ns AND target_entity_id = :nt "
+    "WHERE client_id = :cl AND status <> 'rejected' "
+    "  AND source_entity_id = :ns AND target_entity_id = :nt "
     "  AND relation = :rel AND id <> :self"
 )
 _FOLD_TWIN = (
@@ -177,9 +185,10 @@ def _emit(session: Session, *, agg_type: str, agg_id: str, consultant: str,
 def merge_entities(
     session: Session, consultant: str, client: str, survivor: str, loser: str
 ) -> None:
-    # 1. nome + alias del loser dentro il survivor; e se il survivor non ha
-    #    embedding (riga pre-P2) eredita quello del loser, cosi' resta
-    #    raggiungibile dal candidato vettoriale.
+    # 1. il survivor assorbe dal loser: nome+alias, provenance (source_ids),
+    #    attributi (il survivor vince sui conflitti di chiave), confidence, e
+    #    l'embedding se non ne ha (riga pre-P2). Stesso merge del write path
+    #    (_MERGE_ENTITY in canonical.py).
     session.execute(
         text(
             "UPDATE kg_entity sv SET "
@@ -188,6 +197,10 @@ def merge_entities(
             "      sv.aliases || ARRAY[lower(lo.canonical_name)] || lo.aliases) AS a "
             "    WHERE a <> lower(sv.canonical_name) AND a <> ''"
             "  )), sv.aliases), "
+            "  source_ids = COALESCE((SELECT array_agg(DISTINCT x) FROM unnest("
+            "    sv.source_ids || lo.source_ids) AS x), sv.source_ids), "
+            "  attributes = lo.attributes || sv.attributes, "
+            "  confidence = GREATEST(sv.confidence, lo.confidence), "
             "  embedding = COALESCE(sv.embedding, lo.embedding), "
             "  embed_model = COALESCE(sv.embed_model, lo.embed_model), "
             "  embed_dim = COALESCE(sv.embed_dim, lo.embed_dim), "
@@ -219,7 +232,7 @@ def merge_entities(
         text(
             "SELECT id, source_entity_id, target_entity_id, relation, confidence, "
             "       confirmed, project_id FROM kg_relation "
-            "WHERE client_id = :cl AND status <> 'rejected' "
+            "WHERE client_id = :cl AND status = 'active' "
             "  AND (source_entity_id = :sv OR target_entity_id = :sv)"
         ),
         {"cl": client, "sv": survivor},
@@ -249,26 +262,45 @@ def merge_entities(
 # --------------------------------------------------------------------------- #
 
 
+_ACTIVE_ENTITIES = (
+    "SELECT id, canonical_name, entity_type, created_at, embedding::text AS emb "
+    "FROM kg_entity WHERE client_id = :cl AND status = 'active' "
+    "ORDER BY created_at DESC"  # la piu' recente confluisce nella piu' vecchia
+)
+
+
 def sweep_client(
-    session: Session, consultant: str, client: str, llm, apply: bool, limit: int
+    consultant: str, client: str, llm: Any, apply: bool, limit: int
 ) -> int:
-    ents = session.execute(
-        text(
-            "SELECT id, canonical_name, entity_type, created_at, "
-            "       embedding::text AS emb "
-            "FROM kg_entity WHERE client_id = :cl AND status = 'active' "
-            "ORDER BY created_at DESC"  # la piu' recente confluisce nella piu' vecchia
-        ),
-        {"cl": client},
-    ).all()
-    if len(ents) < 2:
-        return 0
+    """Fase 1: snapshot + lookup deterministico di ogni entita' in una sessione
+    read-only, poi la chiude. Fase 2: giudizio LLM (nessuna connessione aperta)
+    e, per ogni merge deciso, una transazione dedicata (`merge_entities` e'
+    atomico: entita' + relazioni + outbox o niente). Un crash a meta' lascia i
+    merge gia' fatti committati.
+    """
+    with canonical_session(consultant, client) as reader:
+        ents = reader.execute(text(_ACTIVE_ENTITIES), {"cl": client}).all()
+        if len(ents) < 2:
+            return 0
+        shortlisted = [
+            (
+                e,
+                er.shortlist(
+                    reader,
+                    client_id=client,
+                    entity_type=e.entity_type or "other",
+                    name=e.canonical_name,
+                    name_vec=e.emb,
+                    exclude_entity_id=str(e.id),
+                ),
+            )
+            for e in ents
+        ]
 
     born = {str(e.id): e.created_at for e in ents}
     name_of = {str(e.id): e.canonical_name for e in ents}
-    # loser_id -> survivor_id. In apply mode le righe fuse escono da
-    # `status='active'`; questa mappa tiene la catena anche in dry-run, cosi' il
-    # preview non nasconde i duplicati concatenati (A->B, poi C che matcha B).
+    # loser_id -> survivor_id: tiene la catena (A->B, poi C che matcha B) anche
+    # in dry-run, dove nessuna riga cambia stato.
     absorbed_by: dict[str, str] = {}
 
     def _survivor(entity_id: str) -> str:
@@ -280,23 +312,18 @@ def sweep_client(
 
     n_merges = 0
     budget = limit
-    for e in ents:
-        if budget <= 0:
-            logger.warning("  budget di %d giudizi LLM esaurito per questo cliente", limit)
-            break
+    for e, sl in shortlisted:
         eid = str(e.id)
         if eid in absorbed_by:
             continue
-        match = er.find_match(
-            session,
-            client_id=client,
-            entity_type=e.entity_type or "other",
-            name=e.canonical_name,
-            name_vec=e.emb,
-            exclude_entity_id=eid,
-            llm=llm,
+        if sl.needs_llm:
+            if budget <= 0:
+                logger.warning("  budget di %d giudizi LLM esaurito per questo cliente", limit)
+                break
+            budget -= 1
+        match = er.decide(
+            sl, name=e.canonical_name, entity_type=e.entity_type or "other", llm=llm
         )
-        budget -= 1
         if match is None or match.entity_id not in born:
             continue
         target = _survivor(match.entity_id)
@@ -305,7 +332,8 @@ def sweep_client(
 
         survivor, loser = (target, eid) if born[target] <= born[eid] else (eid, target)
         if apply:
-            merge_entities(session, consultant, client, survivor, loser)
+            with canonical_session(consultant, client) as writer:
+                merge_entities(writer, consultant, client, survivor, loser)
             print(f"  MERGE {name_of[loser]!r} -> {name_of[survivor]!r}")
         else:
             print(
@@ -347,15 +375,12 @@ def run(args: argparse.Namespace) -> Stats:
 
     for client in clients:
         print(f"cliente {client}")
-        with canonical_session(consultant, client) as session:
-            if not args.no_backfill:
-                stats.backfilled += backfill_client(session, client, args.apply)
-            if llm is not None:
-                stats.merges += sweep_client(
-                    session, consultant, client, llm, args.apply, args.limit
-                )
-            if not args.apply:
-                session.rollback()  # dry-run: butta via tutto (di norma niente)
+        if not args.no_backfill:
+            stats.backfilled += backfill_client(consultant, client, args.apply)
+        if llm is not None:
+            stats.merges += sweep_client(
+                consultant, client, llm, args.apply, args.limit
+            )
     return stats
 
 

@@ -7,6 +7,7 @@ vettoriale reale sta in `TestVectorPath`, gated anche su OPENAI_API_KEY.
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import pytest
@@ -52,16 +53,17 @@ def _ctx(conn, consultant, client=None):
 
 def _insert_entity(
     conn, consultant, client, name, *, entity_type="other", aliases=None,
-    embedding=None, created_at=None,
+    embedding=None, created_at=None, source_ids=None, attributes=None,
 ):
     row = conn.execute(
         text(
             "INSERT INTO kg_entity "
             "(consultant_id, client_id, scope, entity_type, canonical_name, aliases, "
-            " embedding, embed_model, embed_dim, embed_version, created_by, created_at) "
-            "VALUES (:c, :cl, 'client', :et, :name, :al, "
-            "        CAST(:emb AS vector), :em, :ed, :ev, 'migration', "
-            "        COALESCE(CAST(:ca AS timestamptz), now())) "
+            " attributes, source_ids, embedding, embed_model, embed_dim, embed_version, "
+            " created_by, created_at) "
+            "VALUES (:c, :cl, 'client', :et, :name, :al, CAST(:attrs AS jsonb), "
+            "        CAST(:src AS uuid[]), CAST(:emb AS vector), :em, :ed, :ev, "
+            "        'migration', COALESCE(CAST(:ca AS timestamptz), now())) "
             "RETURNING id"
         ),
         {
@@ -71,6 +73,8 @@ def _insert_entity(
             "et": entity_type,
             "name": name,
             "al": list(aliases or []),
+            "attrs": json.dumps(attributes or {}),
+            "src": [str(s) for s in (source_ids or [])],
             "emb": embedding,
             "em": embeddings.EMBED_MODEL if embedding else None,
             "ed": embeddings.EMBED_DIM if embedding else None,
@@ -503,11 +507,13 @@ class TestSweep:
         from backend.workers.graph_worker import drain_once
 
         base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+        src_surv, src_lose = uuid.uuid4(), uuid.uuid4()
         with MIGRATOR.begin() as conn:
             _ctx(conn, scope["consultant"], scope["client"])
             survivor = _insert_entity(
                 conn, scope["consultant"], scope["client"], "Ufficio Crediti",
-                created_at=base.isoformat(),
+                created_at=base.isoformat(), source_ids=[src_surv],
+                attributes={"role_type": "office"},
             )
             other = _insert_entity(
                 conn, scope["consultant"], scope["client"], "Magazzino Centrale",
@@ -516,6 +522,7 @@ class TestSweep:
             loser = _insert_entity(
                 conn, scope["consultant"], scope["client"], "ufficio del credito",
                 created_at=(base + dt.timedelta(days=2)).isoformat(),
+                source_ids=[src_lose], attributes={"seniority": "senior"},
             )
             conn.execute(
                 text(
@@ -531,18 +538,16 @@ class TestSweep:
             )
 
         # sweep con LLM fake che conferma sempre il primo candidato
-        with canonical_session(scope["consultant"], scope["client"]) as s:
-            n = sweep.sweep_client(
-                s, scope["consultant"], scope["client"],
-                FakeLLM(1), apply=True, limit=50,
-            )
+        n = sweep.sweep_client(
+            scope["consultant"], scope["client"], FakeLLM(1), apply=True, limit=50,
+        )
         assert n == 1
 
         with MIGRATOR.begin() as conn:
             _ctx(conn, scope["consultant"], scope["client"])
             active = conn.execute(
                 text(
-                    "SELECT canonical_name, aliases FROM kg_entity "
+                    "SELECT canonical_name, aliases, source_ids, attributes FROM kg_entity "
                     "WHERE client_id = :cl AND status = 'active' ORDER BY canonical_name"
                 ),
                 {"cl": scope["client"]},
@@ -550,6 +555,9 @@ class TestSweep:
             assert [r.canonical_name for r in active] == ["Magazzino Centrale", "Ufficio Crediti"]
             surv_row = next(r for r in active if r.canonical_name == "Ufficio Crediti")
             assert "ufficio del credito" in (surv_row.aliases or [])
+            # il survivor assorbe la provenance e gli attributi del loser (#1 review)
+            assert {str(x) for x in surv_row.source_ids} == {str(src_surv), str(src_lose)}
+            assert surv_row.attributes == {"role_type": "office", "seniority": "senior"}
 
             dep = conn.execute(
                 text("SELECT status, supersedes_id FROM kg_entity WHERE id = :i"),
