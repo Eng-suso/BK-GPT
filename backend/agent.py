@@ -12,7 +12,7 @@ from backend.graphs.canvas_edit import build_canvas_subgraph
 from backend.graphs.consulting import build_consulting_subgraph
 from backend.graphs.process import build_process_subgraph
 from backend.graphs.project import build_project_subgraph
-from backend.bpmn_semantic import BPMNSemanticModel
+from backend.bpmn import BPMNSemanticModel
 from backend.process_understanding import (
     ProcessUnderstanding,
     ProcessUnderstandingDiagnostics,

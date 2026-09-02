@@ -18,7 +18,7 @@ from backend.graphs.process.tools import (
     prepare_canvas_handoff,
     process_tools,
 )
-from backend.bpmn_semantic import build_bpmn_semantic_model
+from backend.bpmn import build_bpmn_semantic_model
 from backend.process_understanding import ProcessUnderstanding
 import backend.graphs.process.tools as process_tools_module
 from backend.toolsets.process_memory import (

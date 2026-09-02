@@ -17,7 +17,7 @@ from backend.graphs.canvas_edit.tools import (
     validation_tools,
 )
 from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
-from backend.bpmn_semantic import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
+from backend.bpmn import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
 from backend.process_understanding import (
     ProcessActor,
     ProcessExceptionPath,
@@ -559,6 +559,30 @@ def test_semantic_canvas_validation_flags_missing_gateway_for_decision():
 
     assert result["valid"] is False
     assert "Il processo contiene decisioni ma il canvas non contiene gateway." in result["issues"]
+
+
+def test_gateway_validation_accepts_a_join_and_rejects_a_dangling_gateway():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_J">
+  <bpmn:process id="Process_J">
+    <bpmn:startEvent id="Start"><bpmn:outgoing>F0</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:parallelGateway id="Split"><bpmn:incoming>F0</bpmn:incoming><bpmn:outgoing>F1</bpmn:outgoing><bpmn:outgoing>F2</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:userTask id="A" name="A"><bpmn:incoming>F1</bpmn:incoming><bpmn:outgoing>F3</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="B" name="B"><bpmn:incoming>F2</bpmn:incoming><bpmn:outgoing>F4</bpmn:outgoing></bpmn:userTask>
+    <bpmn:parallelGateway id="Join"><bpmn:incoming>F3</bpmn:incoming><bpmn:incoming>F4</bpmn:incoming><bpmn:outgoing>F5</bpmn:outgoing></bpmn:parallelGateway>
+    <bpmn:endEvent id="End"><bpmn:incoming>F5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F0" sourceRef="Start" targetRef="Split" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Split" targetRef="A" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Split" targetRef="B" />
+    <bpmn:sequenceFlow id="F3" sourceRef="A" targetRef="Join" />
+    <bpmn:sequenceFlow id="F4" sourceRef="B" targetRef="Join" />
+    <bpmn:sequenceFlow id="F5" sourceRef="Join" targetRef="End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="D"><bpmndi:BPMNPlane id="P" bpmnElement="Process_J" /></bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
+    result = validate_canvas_against_process(xml=xml, process_understanding=None, bpmn_semantic_model=None)
+    assert not any("Join" in issue and "meno di due" in issue for issue in result["issues"])
+    assert not any("Join" in issue for issue in result["issues"])
 
 
 def test_canvas_business_report_hides_developer_language():

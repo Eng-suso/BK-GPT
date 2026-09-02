@@ -7,7 +7,7 @@ from backend.graphs.canvas_edit.models import (
     CanvasPatchPlan,
     CanvasValidationReport,
 )
-from backend.bpmn_semantic import BPMNSemanticModel
+from backend.bpmn import BPMNSemanticModel
 from backend.process_understanding import (
     ProcessUnderstanding,
     ProcessUnderstandingDiagnostics,
