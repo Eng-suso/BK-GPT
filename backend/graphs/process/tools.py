@@ -5,7 +5,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
-from backend.bpmn_semantic import BPMNSemanticModel
+from backend.bpmn import BPMNSemanticModel
 from backend.process_understanding import ProcessUnderstanding, render_process_review
 from backend.toolsets.process_memory import (
     manage_process_evidence,

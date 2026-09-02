@@ -1,5 +1,5 @@
 from backend import workspace_database
-from backend.bpmn_semantic import BPMNSemanticModel
+from backend.bpmn import BPMNSemanticModel
 from backend.process_understanding import (
     ProcessUnderstanding,
     ProcessUnderstandingQualityReport,

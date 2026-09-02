@@ -302,17 +302,26 @@ def _resolve_from_participants(
     actor_to_pool = _actor_pool_index(pools)
 
     primary_key = _primary_key(pools)
-    lanes = tuple(
-        ResolvedLane(
-            key=lane_participant.id,
-            label=lane_participant.label or lane_participant.id,
-            pool_key=lane_participant.parent_pool_id or primary_key,
-            actor_ids=(lane_participant.actor_id,)
-            if lane_participant.actor_id in actor_ids
-            else (),
+    pool_keys = {pool.key for pool in pools}
+    resolved_lanes: list[ResolvedLane] = []
+    for lane_participant in lane_participants:
+        parent = lane_participant.parent_pool_id
+        if parent and parent not in pool_keys:
+            warnings.append(
+                f"Lane '{lane_participant.label or lane_participant.id}' collegata a pool non definito: {parent}."
+            )
+            parent = None
+        resolved_lanes.append(
+            ResolvedLane(
+                key=lane_participant.id,
+                label=lane_participant.label or lane_participant.id,
+                pool_key=parent or primary_key,
+                actor_ids=(lane_participant.actor_id,)
+                if lane_participant.actor_id in actor_ids
+                else (),
+            )
         )
-        for lane_participant in lane_participants
-    )
+    lanes = tuple(resolved_lanes)
     return PoolTopology(
         pools=tuple(pools),
         lanes=lanes,
