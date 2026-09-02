@@ -6,6 +6,7 @@ Skip senza le tre DSN Postgres + NEO4J_PASSWORD in env.
 from __future__ import annotations
 
 import json
+import time
 import uuid
 
 import pytest
@@ -104,18 +105,23 @@ def test_manage_process_evidence_mirrors_to_canonical(workspace_process):
     assert mirror["counts"]["relationships"] == 1
     assert mirror["counts"]["claims"] == 1
 
-    assert drain_once() >= 3
-
     ids = _entity_ids(mirror)
     driver = neo4j_store.get_driver()
-    with driver.session() as neo:
-        edge = neo.run(
-            "MATCH (:Entity {entity_id:$s})-[r:PERFORMS]->(:Entity {entity_id:$t}) "
-            "RETURN r.confidence AS c",
-            s=ids["Finance"], t=ids["Validazione ordine"],
-        ).single()
-        assert edge is not None
-        assert abs(edge["c"] - 0.8) < 1e-6
+    # best-effort: se l'app gira, il suo worker in-process puo' aver gia' drenato
+    edge = None
+    for _ in range(12):
+        drain_once()
+        with driver.session() as neo:
+            edge = neo.run(
+                "MATCH (:Entity {entity_id:$s})-[r:PERFORMS]->(:Entity {entity_id:$t}) "
+                "RETURN r.confidence AS c",
+                s=ids["Finance"], t=ids["Validazione ordine"],
+            ).single()
+        if edge is not None:
+            break
+        time.sleep(0.5)
+    assert edge is not None
+    assert abs(edge["c"] - 0.8) < 1e-6
 
 
 def _entity_ids(mirror_result: dict) -> dict:

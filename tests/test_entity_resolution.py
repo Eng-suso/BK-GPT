@@ -8,6 +8,7 @@ vettoriale reale sta in `TestVectorPath`, gated anche su OPENAI_API_KEY.
 from __future__ import annotations
 
 import json
+import time
 import uuid
 
 import pytest
@@ -419,16 +420,21 @@ class TestWriteEvidenceResolution:
             ).scalars().all()
             assert rel_src == ["CURA", "GESTISCE"], "entrambe le relazioni sull'entita' fusa"
 
-        assert drain_once() >= 1
-
-        # il gateway trova l'entita' partendo dal nome-alias
+        # il gateway trova l'entita' partendo dal nome-alias. best-effort sul
+        # drain: se l'app gira, il suo worker in-process puo' aver gia' drenato.
         from backend.memory import gateway
 
-        result = gateway.graph_retrieve(
-            consultant_id=scope["consultant"], client_id=scope["client"],
-            entity_names=["ufficio risorse umane"], process_id=scope["process"],
-        )
-        rels = {(m["source"], m["relation"], m["target"]) for m in result["matches"]}
+        rels: set = set()
+        for _ in range(12):
+            drain_once()
+            result = gateway.graph_retrieve(
+                consultant_id=scope["consultant"], client_id=scope["client"],
+                entity_names=["ufficio risorse umane"], process_id=scope["process"],
+            )
+            rels = {(m["source"], m["relation"], m["target"]) for m in result["matches"]}
+            if ("Ufficio del Personale", "CURA", "Onboarding") in rels:
+                break
+            time.sleep(0.5)
         assert ("Ufficio del Personale", "CURA", "Onboarding") in rels
 
         neo4j_store.purge_client(scope["client"])
