@@ -13,6 +13,7 @@ from backend.process_understanding import (
     ProcessActor,
     ProcessDecision,
     ProcessEvent,
+    ProcessFlowEdge,
     ProcessStep,
     ProcessUnderstanding,
 )
@@ -45,6 +46,7 @@ class BPMNSequenceFlow(BaseModel):
     sourceRef: str
     targetRef: str
     name: str | None = None
+    conditionExpression: str | None = None
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
 
@@ -277,11 +279,18 @@ def build_bpmn_semantic_model(
     nodes: list[BPMNFlowNode] = [
         BPMNFlowNode(id=_xml_id("StartEvent_1", "StartEvent", used_ids), type="startEvent", name=_start_name(process)),
     ]
-    flows: list[BPMNSequenceFlow] = []
     warnings = _semantic_warnings(
         process, lanes, collaboration_built=collaboration.collaboration_id is not None
     )
     warnings.extend(collaboration.warnings)
+    registry = _FlowRegistry(
+        used_ids=used_ids,
+        edges_by_original=_sequence_flow_edges_by_endpoint(process),
+    )
+    for event in process.events:
+        if event.type == "start":
+            registry.map(event.id, nodes[0].id)
+
     main_chain: list[str] = [nodes[0].id]
     step_node_by_original_id: dict[str, str] = {}
     gateway_by_decision_id: dict[str, BPMNFlowNode] = {}
@@ -295,6 +304,7 @@ def build_bpmn_semantic_model(
             nodes.append(event_node)
             main_chain.append(event_node.id)
             step_node_by_original_id[item.id] = event_node.id
+            registry.map(item.id, event_node.id)
             _attach_anchored_gateway(
                 anchor_id=item.id,
                 lane_id=None,
@@ -302,6 +312,7 @@ def build_bpmn_semantic_model(
                 used_ids=used_ids,
                 nodes=nodes,
                 main_chain=main_chain,
+                registry=registry,
                 gateway_by_decision_id=gateway_by_decision_id,
                 gateway_by_step_id=gateway_by_step_id,
             )
@@ -326,6 +337,7 @@ def build_bpmn_semantic_model(
         nodes.append(task)
         main_chain.append(task.id)
         step_node_by_original_id[step.id] = task.id
+        registry.map(step.id, task.id)
         _attach_anchored_gateway(
             anchor_id=step.id,
             lane_id=lane_id,
@@ -333,6 +345,7 @@ def build_bpmn_semantic_model(
             used_ids=used_ids,
             nodes=nodes,
             main_chain=main_chain,
+            registry=registry,
             gateway_by_decision_id=gateway_by_decision_id,
             gateway_by_step_id=gateway_by_step_id,
         )
@@ -344,14 +357,17 @@ def build_bpmn_semantic_model(
     )
     nodes.append(end)
     main_chain.append(end.id)
+    for event in process.events:
+        if event.type == "end":
+            registry.map(event.id, end.id)
 
-    for source_id, target_id in zip(main_chain, main_chain[1:]):
-        flows.append(_flow(source_id, target_id, used_ids))
+    registry.gateway_ids = {node.id for node in nodes if node.type.endswith("Gateway")}
+    registry.connect_chain(main_chain)
 
     _add_alternative_paths(
         process=process,
         nodes=nodes,
-        flows=flows,
+        registry=registry,
         used_ids=used_ids,
         step_by_id=step_by_id,
         step_node_by_original_id=step_node_by_original_id,
@@ -363,11 +379,11 @@ def build_bpmn_semantic_model(
     )
     _add_loop_flows(
         process=process,
-        flows=flows,
-        used_ids=used_ids,
+        registry=registry,
         step_node_by_original_id=step_node_by_original_id,
         warnings=warnings,
     )
+    flows = registry.flows
     _populate_lane_refs(lanes, nodes)
     message_flows = _finalize_message_flows(
         collaboration=collaboration,
@@ -453,6 +469,7 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
         'xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" '
         'xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" '
         'xmlns:di="http://www.omg.org/spec/DD/20100524/DI" '
+        'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
         f'id="Definitions_{escape(model.id)}" targetNamespace="https://workspace.local/bpmn">',
     ]
     xml_parts.extend(_collaboration_semantic_xml(model))
@@ -486,18 +503,28 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
 
     for flow in model.sequenceFlows:
         name = f' name="{escape(flow.name)}"' if flow.name else ""
+        body: list[str] = []
         if flow.documentation or flow.sourceRefs:
-            xml_parts.append(
-                f'    <bpmn:sequenceFlow id="{escape(flow.id)}" sourceRef="{escape(flow.sourceRef)}" '
-                f'targetRef="{escape(flow.targetRef)}"{name}>'
+            body.extend(
+                _documentation_xml(
+                    _element_documentation(flow.documentation, flow.sourceRefs), indent="      "
+                )
             )
-            xml_parts.extend(_documentation_xml(_element_documentation(flow.documentation, flow.sourceRefs), indent="      "))
+        if flow.conditionExpression:
+            body.append(
+                '      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">'
+                f"{escape(flow.conditionExpression)}</bpmn:conditionExpression>"
+            )
+        open_tag = (
+            f'    <bpmn:sequenceFlow id="{escape(flow.id)}" '
+            f'sourceRef="{escape(flow.sourceRef)}" targetRef="{escape(flow.targetRef)}"{name}'
+        )
+        if body:
+            xml_parts.append(open_tag + ">")
+            xml_parts.extend(body)
             xml_parts.append("    </bpmn:sequenceFlow>")
         else:
-            xml_parts.append(
-                f'    <bpmn:sequenceFlow id="{escape(flow.id)}" sourceRef="{escape(flow.sourceRef)}" '
-                f'targetRef="{escape(flow.targetRef)}"{name} />'
-            )
+            xml_parts.append(open_tag + " />")
 
     for data_object in visual_data_objects:
         if data_object.documentation or data_object.sourceRefs:
@@ -1032,6 +1059,7 @@ def _attach_anchored_gateway(
     used_ids: set[str],
     nodes: list[BPMNFlowNode],
     main_chain: list[str],
+    registry: _FlowRegistry,
     gateway_by_decision_id: dict[str, BPMNFlowNode],
     gateway_by_step_id: dict[str, BPMNFlowNode],
 ) -> None:
@@ -1048,6 +1076,7 @@ def _attach_anchored_gateway(
     )
     nodes.append(gateway)
     main_chain.append(gateway.id)
+    registry.map(decision.id, gateway.id)
     gateway_by_decision_id[decision.id] = gateway
     gateway_by_step_id[anchor_id] = gateway
 
@@ -1132,7 +1161,7 @@ def _add_alternative_paths(
     *,
     process: ProcessUnderstanding,
     nodes: list[BPMNFlowNode],
-    flows: list[BPMNSequenceFlow],
+    registry: _FlowRegistry,
     used_ids: set[str],
     step_by_id: dict[str, ProcessStep],
     step_node_by_original_id: dict[str, str],
@@ -1179,13 +1208,18 @@ def _add_alternative_paths(
             )
             nodes.append(branch_node)
             branch_node_ids.append(branch_node.id)
-            flows.append(_flow(previous_id, branch_node.id, used_ids, outcome_name if previous_id == gateway.id else None))
+            registry.map(source_step.id, branch_node.id)
+            registry.add(
+                previous_id,
+                branch_node.id,
+                name=outcome_name if previous_id == gateway.id else None,
+            )
             previous_id = branch_node.id
 
         if path.rejoins_at and path.rejoins_at in step_node_by_original_id:
-            flows.append(_flow(previous_id, step_node_by_original_id[path.rejoins_at], used_ids, path.trigger_or_condition))
+            registry.add(previous_id, step_node_by_original_id[path.rejoins_at], name=path.trigger_or_condition)
         elif path.ends_at and path.ends_at in step_node_by_original_id:
-            flows.append(_flow(previous_id, step_node_by_original_id[path.ends_at], used_ids, path.trigger_or_condition))
+            registry.add(previous_id, step_node_by_original_id[path.ends_at], name=path.trigger_or_condition)
         else:
             alt_end = BPMNFlowNode(
                 id=_xml_id(f"End_{path.id}", "EndEvent", used_ids),
@@ -1194,7 +1228,7 @@ def _add_alternative_paths(
                 laneId=gateway.laneId,
             )
             nodes.append(alt_end)
-            flows.append(_flow(previous_id, alt_end.id, used_ids, path.trigger_or_condition))
+            registry.add(previous_id, alt_end.id, name=path.trigger_or_condition)
 
         if not path.is_confirmed:
             warnings.append(f"Alternative path '{path.label}' non confermato.")
@@ -1222,8 +1256,7 @@ def _path_matches_decision(decision, path) -> bool:
 def _add_loop_flows(
     *,
     process: ProcessUnderstanding,
-    flows: list[BPMNSequenceFlow],
-    used_ids: set[str],
+    registry: _FlowRegistry,
     step_node_by_original_id: dict[str, str],
     warnings: list[str],
 ) -> None:
@@ -1234,23 +1267,20 @@ def _add_loop_flows(
             continue
         source_id = step_node_by_original_id[repeated[-1]]
         target_id = step_node_by_original_id[repeated[0]]
-        flows.append(
-            _flow(
-                source_id,
-                target_id,
-                used_ids,
-                loop.condition or loop.label,
-                documentation=_json_documentation(
-                    "loop",
-                    {
-                        "label": loop.label,
-                        "condition": loop.condition,
-                        "exit_condition": loop.exit_condition,
-                        "repeated_steps": loop.repeated_steps,
-                    },
-                ),
-                source_refs=[_source_ref_id("loops", loop.id)],
-            )
+        registry.add(
+            source_id,
+            target_id,
+            name=loop.condition or loop.label,
+            documentation=_json_documentation(
+                "loop",
+                {
+                    "label": loop.label,
+                    "condition": loop.condition,
+                    "exit_condition": loop.exit_condition,
+                    "repeated_steps": loop.repeated_steps,
+                },
+            ),
+            source_refs=[_source_ref_id("loops", loop.id)],
         )
         if loop.exit_condition:
             warnings.append(f"Loop '{loop.label}' con exit condition: {loop.exit_condition}")
@@ -1370,22 +1400,85 @@ def _build_process_annotations(
     return annotations, associations
 
 
-def _flow(
-    source: str,
-    target: str,
-    used_ids: set[str],
-    name: str | None = None,
-    documentation: str | None = None,
-    source_refs: list[str] | None = None,
-) -> BPMNSequenceFlow:
-    return BPMNSequenceFlow(
-        id=_xml_id(f"Flow_{source}_to_{target}", "Flow", used_ids),
-        sourceRef=source,
-        targetRef=target,
-        name=name,
-        documentation=documentation,
-        sourceRefs=source_refs or [],
-    )
+@dataclass
+class _FlowRegistry:
+    """Single writer for sequence flows.
+
+    Deduplicates by (source, target) so overlapping generators (linear chain,
+    alternative-path branches, loop back-edges) cannot emit the same edge twice,
+    and overlays the label / condition / traceability that the ProcessUnderstanding
+    `flow_edges` declared for that transition. Generators call `map()` with the
+    original source-model id of every node they create so the overlay can be
+    resolved against the compiled ids.
+    """
+
+    used_ids: set[str]
+    edges_by_original: dict[tuple[str, str], ProcessFlowEdge] = field(default_factory=dict)
+    gateway_ids: set[str] = field(default_factory=set)
+    flows: list[BPMNSequenceFlow] = field(default_factory=list)
+    seen_pairs: set[tuple[str, str]] = field(default_factory=set)
+    _original_by_compiled: dict[str, str] = field(default_factory=dict)
+
+    def map(self, original_id: str | None, compiled_id: str) -> None:
+        if original_id:
+            self._original_by_compiled.setdefault(compiled_id, original_id)
+
+    def add(
+        self,
+        source: str,
+        target: str,
+        *,
+        name: str | None = None,
+        documentation: str | None = None,
+        source_refs: list[str] | None = None,
+    ) -> BPMNSequenceFlow | None:
+        if not source or not target or source == target:
+            return None
+        pair = (source, target)
+        if pair in self.seen_pairs:
+            return None
+
+        condition: str | None = None
+        edge = self._edge_for(source, target)
+        if edge is not None:
+            if not name and edge.label.strip():
+                name = edge.label.strip()
+            if edge.condition and source in self.gateway_ids:
+                condition = edge.condition
+            if source_refs is None:
+                source_refs = [_source_ref_id("flow_edges", edge.id)]
+
+        flow = BPMNSequenceFlow(
+            id=_xml_id(f"Flow_{source}_to_{target}", "Flow", self.used_ids),
+            sourceRef=source,
+            targetRef=target,
+            name=name,
+            conditionExpression=condition,
+            documentation=documentation,
+            sourceRefs=source_refs or [],
+        )
+        self.flows.append(flow)
+        self.seen_pairs.add(pair)
+        return flow
+
+    def connect_chain(self, chain: list[str]) -> None:
+        for source, target in zip(chain, chain[1:]):
+            self.add(source, target)
+
+    def _edge_for(self, source: str, target: str) -> ProcessFlowEdge | None:
+        origin_source = self._original_by_compiled.get(source)
+        origin_target = self._original_by_compiled.get(target)
+        if origin_source is None or origin_target is None:
+            return None
+        return self.edges_by_original.get((origin_source, origin_target))
+
+
+def _sequence_flow_edges_by_endpoint(process: ProcessUnderstanding) -> dict[tuple[str, str], ProcessFlowEdge]:
+    index: dict[tuple[str, str], ProcessFlowEdge] = {}
+    for edge in process.flow_edges:
+        if edge.kind == "sequence":
+            index.setdefault((edge.source_id, edge.target_id), edge)
+    return index
 
 
 def build_bpmn_compilation_plan(

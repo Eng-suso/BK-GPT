@@ -310,6 +310,60 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
+def test_flow_edges_label_and_condition_the_generated_sequence_flows_without_duplicates():
+    process = ProcessUnderstanding(
+        title="Revisione",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_Receive", label="Ricevi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Review", label="Rivedi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Fix", label="Correggi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Ship", label="Spedisci", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Receive", "Task_Review", "Task_Ship"],
+        sequence=["Task_Receive", "Task_Review", "Task_Ship"],
+        decisions=[
+            ProcessDecision(
+                id="Gateway_Ok",
+                label="Ordine corretto?",
+                question="L'ordine e corretto?",
+                outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="O_Si", label="Si", target_ref="Task_Ship"),
+                    ProcessDecisionOutcome(id="O_No", label="No", target_path_id="Alt_Fix"),
+                ],
+            )
+        ],
+        alternative_paths=[
+            ProcessPath(id="Alt_Fix", label="Correzione", trigger_or_condition="No", sequence=["Task_Fix"], rejoins_at="Task_Review")
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="Edge_Recv_Rev", source_id="Task_Receive", target_id="Task_Review", label="Ordine ricevuto"),
+            ProcessFlowEdge(id="Edge_Rev_Gw", source_id="Task_Review", target_id="Gateway_Ok", label="Revisione completata"),
+            ProcessFlowEdge(id="Edge_Gw_Ship", source_id="Gateway_Ok", target_id="Task_Ship", label="Ordine ok", condition="stato == corretto"),
+            ProcessFlowEdge(id="Edge_Gw_Fix", source_id="Gateway_Ok", target_id="Task_Fix", label="Da correggere", condition="stato == errato", path_id="Alt_Fix"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Revisione", process_name="Revisione", process=process
+    )
+
+    pairs = [(flow.sourceRef, flow.targetRef) for flow in model.sequenceFlows]
+    assert len(pairs) == len(set(pairs))  # registry deduped overlapping generators
+
+    by_name = {flow.name: flow for flow in model.sequenceFlows if flow.name}
+    assert "Ordine ricevuto" in by_name
+    assert "Revisione completata" in by_name
+    gateway = next(node for node in model.flowNodes if node.type == "exclusiveGateway")
+    gateway_out = [flow for flow in model.sequenceFlows if flow.sourceRef == gateway.id]
+    assert {flow.conditionExpression for flow in gateway_out} == {"stato == corretto", "stato == errato"}
+    assert any("flow_edges:Edge_Gw_Ship" in flow.sourceRefs for flow in gateway_out)
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert '<bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">stato == corretto</bpmn:conditionExpression>' in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+
+
 def test_layout_bpmn_di_regenerates_collaboration_di_without_dangling_refs():
     process = ProcessUnderstanding(
         title="Domanda",
