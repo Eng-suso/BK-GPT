@@ -28,6 +28,10 @@ class BPMNFlowNode(BaseModel):
         "userTask",
         "serviceTask",
         "manualTask",
+        "sendTask",
+        "receiveTask",
+        "businessRuleTask",
+        "scriptTask",
         "exclusiveGateway",
         "parallelGateway",
         "intermediateCatchEvent",
@@ -991,6 +995,10 @@ def _task_type(step: ProcessStep) -> str:
         "user_task": "userTask",
         "manual_task": "manualTask",
         "service_task": "serviceTask",
+        "send_task": "sendTask",
+        "receive_task": "receiveTask",
+        "business_rule_task": "businessRuleTask",
+        "script_task": "scriptTask",
         "subprocess": "subProcess",
     }.get(step.type, "userTask")
 

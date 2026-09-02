@@ -310,6 +310,34 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
+def test_step_types_compile_to_the_matching_bpmn_task_kinds():
+    process = ProcessUnderstanding(
+        title="Tipi task",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_U", label="Compila modulo", actor_ids=["Actor_Ops"], type="user_task"),
+            ProcessStep(id="Task_S", label="Invia notifica", actor_ids=["Actor_Ops"], type="send_task"),
+            ProcessStep(id="Task_R", label="Attendi conferma", actor_ids=["Actor_Ops"], type="receive_task"),
+            ProcessStep(id="Task_B", label="Valuta scoring", actor_ids=["Actor_Ops"], type="business_rule_task"),
+            ProcessStep(id="Task_C", label="Aggiorna anagrafica", actor_ids=["Actor_Ops"], type="script_task"),
+        ],
+        main_success_path=["Task_U", "Task_S", "Task_R", "Task_B", "Task_C"],
+        sequence=["Task_U", "Task_S", "Task_R", "Task_B", "Task_C"],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Tipi", process_name="Tipi task", process=process
+    )
+    types_by_name = {node.name: node.type for node in model.flowNodes}
+    assert types_by_name["Invia notifica"] == "sendTask"
+    assert types_by_name["Attendi conferma"] == "receiveTask"
+    assert types_by_name["Valuta scoring"] == "businessRuleTask"
+    assert types_by_name["Aggiorna anagrafica"] == "scriptTask"
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert "<bpmn:sendTask " in xml and "<bpmn:businessRuleTask " in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+
+
 def test_flow_edges_label_and_condition_the_generated_sequence_flows_without_duplicates():
     process = ProcessUnderstanding(
         title="Revisione",

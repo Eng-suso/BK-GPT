@@ -32,7 +32,16 @@ class ProcessStep(BaseModel):
     label: str
     description: str | None = None
     actor_ids: list[str] = Field(default_factory=list)
-    type: Literal["user_task", "manual_task", "service_task", "subprocess"] = "user_task"
+    type: Literal[
+        "user_task",
+        "manual_task",
+        "service_task",
+        "send_task",
+        "receive_task",
+        "business_rule_task",
+        "script_task",
+        "subprocess",
+    ] = "user_task"
     inputs: list[str] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
     source_evidence: list[str] = Field(default_factory=list)
@@ -786,6 +795,11 @@ assunzione o finding con certainty="inferred"; non nasconderlo nel flusso.
 Regole:
 - Usa italiano.
 - Mantieni le attivita atomiche.
+- Classifica step.type: user_task (persona con software), manual_task (attivita
+  umana senza sistema), service_task (sistema/applicazione), send_task (invio
+  messaggio a un altro partecipante), receive_task (attesa di un messaggio in
+  ingresso), business_rule_task (valutazione di regole/decision table),
+  script_task (automazione interna), subprocess (attivita scomponibile).
 - Estrai attori/ruoli, partecipanti, eventi, step, decisioni/gateway, eccezioni,
   handoff, documenti, requisiti documentali, input/output, alternative path,
   loop, regole, assunzioni, findings e unknowns.
