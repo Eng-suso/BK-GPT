@@ -21,6 +21,7 @@ from backend.process_understanding import (
     ProcessDecisionOutcome,
     ProcessDocumentRequirement,
     ProcessEvent,
+    ProcessExceptionPath,
     ProcessFlowEdge,
     ProcessHandoff,
     ProcessLoop,
@@ -308,6 +309,230 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert "<bpmn:collaboration " in laid_out
     assert f'bpmnElement="{external.id}"' in laid_out
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
+
+
+def test_exceptions_compile_to_boundary_events_on_their_step():
+    process = ProcessUnderstanding(
+        title="Gestione eccezioni",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_Wait", label="Attendi pagamento", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Close", label="Chiudi pratica", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Chase", label="Sollecita cliente", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Wait", "Task_Close"],
+        sequence=["Task_Wait", "Task_Close"],
+        exceptions=[
+            ProcessExceptionPath(
+                id="Exc_Timeout",
+                label="Pagamento non ricevuto entro 30 giorni",
+                trigger="scadenza 30 giorni",
+                handling="Avvia sollecito",
+                attached_to_step_id="Task_Wait",
+                interrupting=True,
+            ),
+            ProcessExceptionPath(
+                id="Exc_Escalation",
+                label="Reclamo aperto durante la lavorazione",
+                trigger="segnalazione parallela dal cliente",
+                handling="Gestisci reclamo in parallelo",
+                attached_to_step_id="Task_Close",
+                interrupting=False,
+            ),
+            ProcessExceptionPath(
+                id="Exc_SystemDown",
+                label="Sistema non disponibile",
+                trigger="errore tecnico bloccante",
+                handling="Riprova piu tardi",
+                attached_to_step_id="Task_Close",
+                interrupting=False,
+                is_defined=False,
+            ),
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="e_rejoin", source_id="Exc_Timeout", target_id="Task_Chase", label="dopo timeout"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Exc", process_name="Gestione eccezioni", process=process
+    )
+    boundary = {n.name: n for n in model.flowNodes if n.type == "boundaryEvent"}
+    assert set(boundary) == {
+        "Pagamento non ricevuto entro 30 giorni",
+        "Reclamo aperto durante la lavorazione",
+        "Sistema non disponibile",
+    }
+    timeout = boundary["Pagamento non ricevuto entro 30 giorni"]
+    wait_task = next(n.id for n in model.flowNodes if n.name == "Attendi pagamento")
+    assert timeout.attachedToRef == wait_task
+    assert timeout.eventDefinition == "timer"
+    assert timeout.cancelActivity is True
+    # timeout rejoins the recovery step named only in flow_edges: it is compiled
+    chase = next(n.id for n in model.flowNodes if n.name == "Sollecita cliente")
+    assert any(f.sourceRef == timeout.id and f.targetRef == chase for f in model.sequenceFlows)
+
+    # non-interrupting + no error keyword -> conditional boundary, may stay non-interrupting
+    escalation = boundary["Reclamo aperto durante la lavorazione"]
+    assert escalation.eventDefinition == "conditional"
+    assert escalation.cancelActivity is False
+
+    # error keyword -> forced interrupting per BPMN 2.0, with a warning
+    system_down = boundary["Sistema non disponibile"]
+    assert system_down.eventDefinition == "error"
+    assert system_down.cancelActivity is True
+    assert any("interrupting" in w for w in model.model_warnings)
+
+    for node in model.flowNodes:
+        if node.type == "boundaryEvent":
+            assert model.flowNodes  # boundary has an outgoing flow
+            assert any(f.sourceRef == node.id for f in model.sequenceFlows)
+            assert node.laneId == "Actor_Ops"
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert f'attachedToRef="{wait_task}"' in xml
+    assert 'cancelActivity="false"' in xml
+    assert "<bpmn:timerEventDefinition />" in xml
+    assert "<bpmn:conditionalEventDefinition />" in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert not any(
+        "senza ingresso" in w or "senza uscita" in w or "non agganciato" in w
+        for w in validate_bpmn_semantic_model(model)
+    )
+
+
+def test_flow_graph_completion_wires_gateway_branches_and_warns_on_implicit_splits():
+    process = ProcessUnderstanding(
+        title="Completamento grafo",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_A", label="A", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_B", label="B", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_C", label="C", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_A", "Task_B", "Task_C"],
+        sequence=["Task_A", "Task_B", "Task_C"],
+        decisions=[
+            ProcessDecision(
+                id="Gateway_Rework",
+                label="Rifare?",
+                question="Servono correzioni?",
+                outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="o1", label="Si", target_ref="Task_A"),
+                    ProcessDecisionOutcome(id="o2", label="No", ends_process=True),
+                ],
+            )
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="ea", source_id="Task_C", target_id="Gateway_Rework", label="verifica finale"),
+            ProcessFlowEdge(id="eb", source_id="Gateway_Rework", target_id="Task_A", label="Si", condition="difetti trovati"),
+            ProcessFlowEdge(id="split", source_id="Task_A", target_id="Task_C", label="salta B"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Grafo", process_name="Completamento grafo", process=process
+    )
+    gateway_node = next(n for n in model.flowNodes if n.type == "exclusiveGateway")
+    task_a = next(n.id for n in model.flowNodes if n.name == "A")
+    branches = [f for f in model.sequenceFlows if f.sourceRef == gateway_node.id]
+    rework = next((f for f in branches if f.targetRef == task_a), None)
+    assert rework is not None
+    assert rework.conditionExpression == "difetti trovati"
+    assert any("ramo implicito" in w for w in model.model_warnings)
+
+    # the unconditioned happy branch is marked as the gateway's default flow
+    assert len(branches) == 2
+    default_branch = next(f for f in branches if not f.conditionExpression)
+    assert gateway_node.defaultFlowId == default_branch.id
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert f'default="{default_branch.id}"' in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert validate_canvas_against_process(
+        xml=xml, process_understanding=process, bpmn_semantic_model=model
+    )["semantic_valid"] is True
+
+
+def test_step_types_compile_to_the_matching_bpmn_task_kinds():
+    process = ProcessUnderstanding(
+        title="Tipi task",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_U", label="Compila modulo", actor_ids=["Actor_Ops"], type="user_task"),
+            ProcessStep(id="Task_S", label="Invia notifica", actor_ids=["Actor_Ops"], type="send_task"),
+            ProcessStep(id="Task_R", label="Attendi conferma", actor_ids=["Actor_Ops"], type="receive_task"),
+            ProcessStep(id="Task_B", label="Valuta scoring", actor_ids=["Actor_Ops"], type="business_rule_task"),
+            ProcessStep(id="Task_C", label="Aggiorna anagrafica", actor_ids=["Actor_Ops"], type="script_task"),
+        ],
+        main_success_path=["Task_U", "Task_S", "Task_R", "Task_B", "Task_C"],
+        sequence=["Task_U", "Task_S", "Task_R", "Task_B", "Task_C"],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Tipi", process_name="Tipi task", process=process
+    )
+    types_by_name = {node.name: node.type for node in model.flowNodes}
+    assert types_by_name["Invia notifica"] == "sendTask"
+    assert types_by_name["Attendi conferma"] == "receiveTask"
+    assert types_by_name["Valuta scoring"] == "businessRuleTask"
+    assert types_by_name["Aggiorna anagrafica"] == "scriptTask"
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert "<bpmn:sendTask " in xml and "<bpmn:businessRuleTask " in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+
+
+def test_flow_edges_label_and_condition_the_generated_sequence_flows_without_duplicates():
+    process = ProcessUnderstanding(
+        title="Revisione",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_Receive", label="Ricevi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Review", label="Rivedi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Fix", label="Correggi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Ship", label="Spedisci", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Receive", "Task_Review", "Task_Ship"],
+        sequence=["Task_Receive", "Task_Review", "Task_Ship"],
+        decisions=[
+            ProcessDecision(
+                id="Gateway_Ok",
+                label="Ordine corretto?",
+                question="L'ordine e corretto?",
+                outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="O_Si", label="Si", target_ref="Task_Ship"),
+                    ProcessDecisionOutcome(id="O_No", label="No", target_path_id="Alt_Fix"),
+                ],
+            )
+        ],
+        alternative_paths=[
+            ProcessPath(id="Alt_Fix", label="Correzione", trigger_or_condition="No", sequence=["Task_Fix"], rejoins_at="Task_Review")
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="Edge_Recv_Rev", source_id="Task_Receive", target_id="Task_Review", label="Ordine ricevuto"),
+            ProcessFlowEdge(id="Edge_Rev_Gw", source_id="Task_Review", target_id="Gateway_Ok", label="Revisione completata"),
+            ProcessFlowEdge(id="Edge_Gw_Ship", source_id="Gateway_Ok", target_id="Task_Ship", label="Ordine ok", condition="stato == corretto"),
+            ProcessFlowEdge(id="Edge_Gw_Fix", source_id="Gateway_Ok", target_id="Task_Fix", label="Da correggere", condition="stato == errato", path_id="Alt_Fix"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Revisione", process_name="Revisione", process=process
+    )
+
+    pairs = [(flow.sourceRef, flow.targetRef) for flow in model.sequenceFlows]
+    assert len(pairs) == len(set(pairs))  # registry deduped overlapping generators
+
+    by_name = {flow.name: flow for flow in model.sequenceFlows if flow.name}
+    assert "Ordine ricevuto" in by_name
+    assert "Revisione completata" in by_name
+    gateway = next(node for node in model.flowNodes if node.type == "exclusiveGateway")
+    gateway_out = [flow for flow in model.sequenceFlows if flow.sourceRef == gateway.id]
+    assert {flow.conditionExpression for flow in gateway_out} == {"stato == corretto", "stato == errato"}
+    assert any("flow_edges:Edge_Gw_Ship" in flow.sourceRefs for flow in gateway_out)
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert '<bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">stato == corretto</bpmn:conditionExpression>' in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
 
 
 def test_layout_bpmn_di_regenerates_collaboration_di_without_dangling_refs():

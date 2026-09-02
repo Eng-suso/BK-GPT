@@ -32,7 +32,16 @@ class ProcessStep(BaseModel):
     label: str
     description: str | None = None
     actor_ids: list[str] = Field(default_factory=list)
-    type: Literal["user_task", "manual_task", "service_task", "subprocess"] = "user_task"
+    type: Literal[
+        "user_task",
+        "manual_task",
+        "service_task",
+        "send_task",
+        "receive_task",
+        "business_rule_task",
+        "script_task",
+        "subprocess",
+    ] = "user_task"
     inputs: list[str] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
     source_evidence: list[str] = Field(default_factory=list)
@@ -234,6 +243,8 @@ class ProcessExceptionPath(BaseModel):
     label: str
     trigger: str | None = None
     handling: str | None = None
+    attached_to_step_id: str | None = None
+    interrupting: bool = True
     is_defined: bool = True
 
 
@@ -652,6 +663,15 @@ def conservative_process_quality_report(
 
 
 def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessUnderstandingDiagnostics:
+    """
+    Validate references and structural consistency in a process understanding model.
+    
+    Parameters:
+    	process (ProcessUnderstanding): The process model to diagnose.
+    
+    Returns:
+    	ProcessUnderstandingDiagnostics: Counts of extracted elements and lists of blocking errors and warnings.
+    """
     actor_ids = {actor.id for actor in process.actors}
     step_ids = {step.id for step in process.steps}
     event_ids = {event.id for event in process.events}
@@ -691,6 +711,12 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
         warnings.append("Decisioni presenti senza percorsi alternativi espliciti.")
     if process.alternative_paths and not process.decisions:
         warnings.append("Percorsi alternativi presenti senza decisione/gateway sorgente.")
+    for exception in process.exceptions:
+        if exception.attached_to_step_id and exception.attached_to_step_id not in step_ids:
+            warnings.append(
+                f"Eccezione {exception.id} collegata a uno step non definito: "
+                f"{exception.attached_to_step_id}."
+            )
     for item in process.document_requirements:
         if item.data_object_id and item.data_object_id not in data_object_ids:
             blocking.append(f"Requisito documentale {item.id} collegato a data object non definito.")
@@ -786,6 +812,11 @@ assunzione o finding con certainty="inferred"; non nasconderlo nel flusso.
 Regole:
 - Usa italiano.
 - Mantieni le attivita atomiche.
+- Classifica step.type: user_task (persona con software), manual_task (attivita
+  umana senza sistema), service_task (sistema/applicazione), send_task (invio
+  messaggio a un altro partecipante), receive_task (attesa di un messaggio in
+  ingresso), business_rule_task (valutazione di regole/decision table),
+  script_task (automazione interna), subprocess (attivita scomponibile).
 - Estrai attori/ruoli, partecipanti, eventi, step, decisioni/gateway, eccezioni,
   handoff, documenti, requisiti documentali, input/output, alternative path,
   loop, regole, assunzioni, findings e unknowns.
@@ -811,6 +842,8 @@ Regole:
 - Usa id XML-safe con lettere, numeri e underscore.
 - Metti in unknowns cio che manca; usa blocking solo se impedisce una bozza BPMN minima.
 - Se un'eccezione e citata ma la gestione manca, usa is_defined=false.
+- Per ogni eccezione collega attached_to_step_id allo step su cui puo scattare e
+  imposta interrupting=false solo se lo step prosegue mentre parte la gestione.
 - Distingui ruoli interni da partecipanti esterni negli actor_relationships.
 - Non produrre XML e non rispondere in markdown: restituisci solo lo schema strutturato richiesto.
 """

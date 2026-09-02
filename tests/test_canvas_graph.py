@@ -17,12 +17,18 @@ from backend.graphs.canvas_edit.tools import (
     validation_tools,
 )
 from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
-from backend.bpmn_semantic import build_bpmn_semantic_model
-from backend.process_understanding import ProcessUnderstanding
+from backend.bpmn_semantic import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
+from backend.process_understanding import (
+    ProcessActor,
+    ProcessExceptionPath,
+    ProcessStep,
+    ProcessUnderstanding,
+)
 from backend.services.agent_runtime import STREAMABLE_AGENT_NODES
 from backend.toolsets.bpmn import bpmn_review_tools, manage_canvas_bpmn_model
 from backend.workspace_services.bpmn_canvas_edit import (
     clear_bpmn_process,
+    delete_bpmn_element,
     layout_bpmn_di,
     list_bpmn_elements,
     optimize_bpmn_layout,
@@ -339,6 +345,64 @@ def test_bpmn_review_tools_include_canvas_facade_for_compatibility():
     assert "manage_canvas_construction" in tool_names(bpmn_review_tools)
     assert "manage_canvas_validation" in tool_names(bpmn_review_tools)
     assert manage_canvas_bpmn_model.name == "manage_canvas_bpmn_model"
+
+
+def _process_with_exception() -> ProcessUnderstanding:
+    """Build a process model with a timeout exception attached to its waiting step.
+    
+    Returns:
+        ProcessUnderstanding: A two-step operations process with a 15-day timeout exception.
+    """
+    return ProcessUnderstanding(
+        title="Con eccezione",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_Wait", label="Attendi esito", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Close", label="Chiudi", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Wait", "Task_Close"],
+        sequence=["Task_Wait", "Task_Close"],
+        exceptions=[
+            ProcessExceptionPath(
+                id="Exc_TO",
+                label="Scaduto il termine",
+                trigger="timeout 15 giorni",
+                handling="Sollecita",
+                attached_to_step_id="Task_Wait",
+            )
+        ],
+    )
+
+
+def test_boundary_event_survives_layout_and_is_listed_and_positioned():
+    model = build_bpmn_semantic_model(
+        process_id="Process_Exc", process_name="Con eccezione", process=_process_with_exception()
+    )
+    xml = semantic_model_to_bpmn_xml(model)
+    boundary_id = next(n.id for n in model.flowNodes if n.type == "boundaryEvent")
+
+    relaid = layout_bpmn_di(xml)
+    assert f'bpmnElement="{boundary_id}"' in relaid
+    assert validate_bpmn_layout(relaid)["valid"] is True
+    assert validate_bpmn_xml(relaid)["valid"] is True
+    assert any(e["id"] == boundary_id for e in list_bpmn_elements(relaid))
+
+
+def test_deleting_host_activity_cascades_its_boundary_event():
+    model = build_bpmn_semantic_model(
+        process_id="Process_Exc", process_name="Con eccezione", process=_process_with_exception()
+    )
+    xml = semantic_model_to_bpmn_xml(model)
+    wait_id = next(n.id for n in model.flowNodes if n.name == "Attendi esito")
+    boundary_id = next(n.id for n in model.flowNodes if n.type == "boundaryEvent")
+
+    updated, report = delete_bpmn_element(xml, wait_id)
+    ids = {e["id"] for e in list_bpmn_elements(updated)}
+    assert wait_id not in ids
+    assert boundary_id not in ids
+    assert boundary_id in report["removed_boundary_events"]
+    assert f'attachedToRef="{wait_id}"' not in updated
+    assert validate_bpmn_xml(updated)["valid"] is True
 
 
 def test_clear_bpmn_process_removes_visible_canvas_elements():

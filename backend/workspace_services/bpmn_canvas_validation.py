@@ -23,6 +23,7 @@ FLOW_NODE_TYPES = {
     "endEvent",
     "intermediateCatchEvent",
     "intermediateThrowEvent",
+    "boundaryEvent",
     "task",
     "userTask",
     "serviceTask",
