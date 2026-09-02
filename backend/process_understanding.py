@@ -243,6 +243,8 @@ class ProcessExceptionPath(BaseModel):
     label: str
     trigger: str | None = None
     handling: str | None = None
+    attached_to_step_id: str | None = None
+    interrupting: bool = True
     is_defined: bool = True
 
 
@@ -700,6 +702,12 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
         warnings.append("Decisioni presenti senza percorsi alternativi espliciti.")
     if process.alternative_paths and not process.decisions:
         warnings.append("Percorsi alternativi presenti senza decisione/gateway sorgente.")
+    for exception in process.exceptions:
+        if exception.attached_to_step_id and exception.attached_to_step_id not in step_ids:
+            warnings.append(
+                f"Eccezione {exception.id} collegata a uno step non definito: "
+                f"{exception.attached_to_step_id}."
+            )
     for item in process.document_requirements:
         if item.data_object_id and item.data_object_id not in data_object_ids:
             blocking.append(f"Requisito documentale {item.id} collegato a data object non definito.")
@@ -825,6 +833,8 @@ Regole:
 - Usa id XML-safe con lettere, numeri e underscore.
 - Metti in unknowns cio che manca; usa blocking solo se impedisce una bozza BPMN minima.
 - Se un'eccezione e citata ma la gestione manca, usa is_defined=false.
+- Per ogni eccezione collega attached_to_step_id allo step su cui puo scattare e
+  imposta interrupting=false solo se lo step prosegue mentre parte la gestione.
 - Distingui ruoli interni da partecipanti esterni negli actor_relationships.
 - Non produrre XML e non rispondere in markdown: restituisci solo lo schema strutturato richiesto.
 """

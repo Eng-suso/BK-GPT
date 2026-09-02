@@ -13,6 +13,7 @@ from backend.process_understanding import (
     ProcessActor,
     ProcessDecision,
     ProcessEvent,
+    ProcessExceptionPath,
     ProcessFlowEdge,
     ProcessStep,
     ProcessUnderstanding,
@@ -35,12 +36,15 @@ class BPMNFlowNode(BaseModel):
         "exclusiveGateway",
         "parallelGateway",
         "intermediateCatchEvent",
+        "boundaryEvent",
         "subProcess",
     ]
     name: str
     laneId: str | None = None
     owner: str | None = None
     eventDefinition: Literal["timer", "message", "conditional", "signal", "error"] | None = None
+    attachedToRef: str | None = None
+    cancelActivity: bool = True
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
 
@@ -388,6 +392,15 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     _complete_flow_graph(process, registry, nodes, warnings)
+    _add_boundary_events(
+        process=process,
+        registry=registry,
+        nodes=nodes,
+        step_node_by_original_id=step_node_by_original_id,
+        used_ids=used_ids,
+        end_id=end.id,
+        warnings=warnings,
+    )
     flows = registry.flows
     _populate_lane_refs(lanes, nodes)
     message_flows = _finalize_message_flows(
@@ -457,6 +470,10 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
     for node in model.flowNodes:
         if node.type == "exclusiveGateway" and len(outgoing_by_node.get(node.id, [])) < 2:
             warnings.append(f"Gateway {node.name} senza almeno due uscite.")
+        if node.type == "boundaryEvent":
+            if node.attachedToRef not in node_ids:
+                warnings.append(f"Boundary event {node.name} non agganciato a un'attivita valida.")
+            continue
         if node.type not in {"startEvent"} and not incoming_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza ingresso.")
         if node.type not in {"endEvent"} and not outgoing_by_node.get(node.id):
@@ -495,14 +512,20 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
         xml_parts.append("    </bpmn:laneSet>")
 
     for node in model.flowNodes:
-        xml_parts.append(f'    <bpmn:{node.type} id="{escape(node.id)}" name="{escape(node.name)}">')
+        attrs = f' id="{escape(node.id)}" name="{escape(node.name)}"'
+        if node.type == "boundaryEvent" and node.attachedToRef:
+            attrs += f' attachedToRef="{escape(node.attachedToRef)}"'
+            if not node.cancelActivity:
+                attrs += ' cancelActivity="false"'
+        xml_parts.append(f"    <bpmn:{node.type}{attrs}>")
         if node.documentation or node.sourceRefs:
             xml_parts.extend(_documentation_xml(_element_documentation(node.documentation, node.sourceRefs), indent="      "))
-        for flow_id in incoming[node.id]:
-            xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
+        if node.type != "boundaryEvent":
+            for flow_id in incoming[node.id]:
+                xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
-        if node.type == "intermediateCatchEvent" and node.eventDefinition:
+        if node.type in {"intermediateCatchEvent", "boundaryEvent"} and node.eventDefinition:
             xml_parts.append(f"      <bpmn:{node.eventDefinition}EventDefinition />")
         xml_parts.append(f"    </bpmn:{node.type}>")
 
@@ -1295,6 +1318,113 @@ def _add_loop_flows(
             warnings.append(f"Loop '{loop.label}' con exit condition: {loop.exit_condition}")
 
 
+def _add_boundary_events(
+    *,
+    process: ProcessUnderstanding,
+    registry: _FlowRegistry,
+    nodes: list[BPMNFlowNode],
+    step_node_by_original_id: dict[str, str],
+    used_ids: set[str],
+    end_id: str,
+    warnings: list[str],
+) -> None:
+    for exception in process.exceptions:
+        attached = _exception_attached_node(exception, process, registry, step_node_by_original_id)
+        if attached is None:
+            warnings.append(
+                f"Eccezione '{exception.label}' senza attivita di aggancio: non resa come boundary event."
+            )
+            continue
+
+        boundary = BPMNFlowNode(
+            id=_xml_id(exception.id or "BoundaryEvent", "BoundaryEvent", used_ids),
+            type="boundaryEvent",
+            name=exception.label,
+            attachedToRef=attached,
+            cancelActivity=exception.interrupting,
+            eventDefinition=_exception_event_definition(exception),
+            documentation=_json_documentation(
+                "exception",
+                {
+                    "trigger": exception.trigger,
+                    "handling": exception.handling,
+                    "is_defined": exception.is_defined,
+                },
+            ),
+            sourceRefs=[_source_ref_id("exceptions", exception.id)],
+        )
+        nodes.append(boundary)
+        registry.map(exception.id, boundary.id)
+
+        rejoin = _exception_rejoin_node(exception, process, registry)
+        if rejoin is not None:
+            registry.add(boundary.id, rejoin)
+        elif exception.handling:
+            handler = BPMNFlowNode(
+                id=_xml_id(f"{exception.id}_Handler", "Task", used_ids),
+                type="task",
+                name=exception.handling[:80],
+                sourceRefs=[_source_ref_id("exceptions", exception.id)],
+            )
+            nodes.append(handler)
+            handler_end = BPMNFlowNode(
+                id=_xml_id(f"{exception.id}_End", "EndEvent", used_ids),
+                type="endEvent",
+                name=exception.label or "Fine gestione eccezione",
+            )
+            nodes.append(handler_end)
+            registry.add(boundary.id, handler.id)
+            registry.add(handler.id, handler_end.id)
+        else:
+            registry.add(boundary.id, end_id)
+            warnings.append(
+                f"Eccezione '{exception.label}' senza gestione definita: boundary event collegato alla fine."
+            )
+
+        if not exception.is_defined:
+            warnings.append(f"Eccezione '{exception.label}': gestione da definire nel modello.")
+
+
+def _exception_attached_node(
+    exception: ProcessExceptionPath,
+    process: ProcessUnderstanding,
+    registry: _FlowRegistry,
+    step_node_by_original_id: dict[str, str],
+) -> str | None:
+    if exception.attached_to_step_id and exception.attached_to_step_id in step_node_by_original_id:
+        return step_node_by_original_id[exception.attached_to_step_id]
+    for edge in process.flow_edges:
+        if edge.target_id == exception.id:
+            compiled = registry.compiled_for(edge.source_id)
+            if compiled is not None:
+                return compiled
+    return None
+
+
+def _exception_rejoin_node(
+    exception: ProcessExceptionPath,
+    process: ProcessUnderstanding,
+    registry: _FlowRegistry,
+) -> str | None:
+    for edge in process.flow_edges:
+        if edge.source_id == exception.id:
+            compiled = registry.compiled_for(edge.target_id)
+            if compiled is not None:
+                return compiled
+    return None
+
+
+def _exception_event_definition(
+    exception: ProcessExceptionPath,
+) -> Literal["timer", "message", "error"]:
+    trigger = f"{exception.trigger or ''} {exception.label or ''}".casefold()
+    if any(word in trigger for word in ("timer", "timeout", "scad", "tempo", "termine", "ritardo")):
+        return "timer"
+    if any(word in trigger for word in ("messagg", "risposta", "notifica", "comunicazione")):
+        return "message"
+    return "error"
+
+
 def _build_data_objects(
     *,
     process: ProcessUnderstanding,
@@ -1616,7 +1746,7 @@ def build_bpmn_compilation_plan(
                 source_refs=[_source_ref_from_id(ref) for ref in node.sourceRefs],
             )
             for node in model.flowNodes
-            if node.type in {"startEvent", "endEvent", "intermediateCatchEvent"}
+            if node.type in {"startEvent", "endEvent", "intermediateCatchEvent", "boundaryEvent"}
         ],
         activities=[
             ActivitySpec(
@@ -1628,7 +1758,15 @@ def build_bpmn_compilation_plan(
                 source_refs=[_source_ref_from_id(ref) for ref in node.sourceRefs],
             )
             for node in model.flowNodes
-            if node.type not in {"startEvent", "endEvent", "intermediateCatchEvent", "exclusiveGateway", "parallelGateway"}
+            if node.type
+            not in {
+                "startEvent",
+                "endEvent",
+                "intermediateCatchEvent",
+                "boundaryEvent",
+                "exclusiveGateway",
+                "parallelGateway",
+            }
         ],
         gateways=[
             GatewaySpec(
@@ -1929,7 +2067,8 @@ def _layout_model(model: BPMNSemanticModel) -> tuple[dict[str, dict[str, float]]
     x_gap = 230
     positions: dict[str, dict[str, float]] = {}
 
-    for rank, node in enumerate(model.flowNodes):
+    ranked_nodes = [node for node in model.flowNodes if node.type != "boundaryEvent"]
+    for rank, node in enumerate(ranked_nodes):
         width, height = _node_size(node)
         lane_index = lane_index_by_id.get(node.laneId or "", 0)
         y = top + lane_index * lane_height + (lane_height - height) / 2
@@ -1939,6 +2078,21 @@ def _layout_model(model: BPMNSemanticModel) -> tuple[dict[str, dict[str, float]]
             "width": width,
             "height": height,
         }
+
+    for node in model.flowNodes:
+        if node.type != "boundaryEvent":
+            continue
+        width, height = _node_size(node)
+        attached = positions.get(node.attachedToRef or "")
+        if attached is not None:
+            positions[node.id] = {
+                "x": attached["x"] + attached["width"] * 0.62,
+                "y": attached["y"] + attached["height"] - height / 2,
+                "width": width,
+                "height": height,
+            }
+        else:
+            positions[node.id] = {"x": left, "y": top, "width": width, "height": height}
 
     right = max((pos["x"] + pos["width"] for pos in positions.values()), default=900) + 90
     lane_shapes = [
@@ -2058,6 +2212,8 @@ def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str
 def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
     if node.type in {"startEvent", "endEvent", "intermediateCatchEvent"}:
         return 44, 44
+    if node.type == "boundaryEvent":
+        return 36, 36
     if node.type in {"exclusiveGateway", "parallelGateway"}:
         return 68, 68
     return 188, 92

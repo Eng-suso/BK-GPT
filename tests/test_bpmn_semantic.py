@@ -21,6 +21,7 @@ from backend.process_understanding import (
     ProcessDecisionOutcome,
     ProcessDocumentRequirement,
     ProcessEvent,
+    ProcessExceptionPath,
     ProcessFlowEdge,
     ProcessHandoff,
     ProcessLoop,
@@ -308,6 +309,60 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert "<bpmn:collaboration " in laid_out
     assert f'bpmnElement="{external.id}"' in laid_out
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
+
+
+def test_exceptions_compile_to_boundary_events_on_their_step():
+    process = ProcessUnderstanding(
+        title="Gestione eccezioni",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_Wait", label="Attendi pagamento", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Close", label="Chiudi pratica", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Chase", label="Sollecita cliente", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Wait", "Task_Close"],
+        sequence=["Task_Wait", "Task_Close"],
+        exceptions=[
+            ProcessExceptionPath(
+                id="Exc_Timeout",
+                label="Pagamento non ricevuto entro 30 giorni",
+                trigger="scadenza 30 giorni",
+                handling="Avvia sollecito",
+                attached_to_step_id="Task_Wait",
+                interrupting=True,
+            ),
+            ProcessExceptionPath(
+                id="Exc_SystemDown",
+                label="Sistema non disponibile",
+                trigger="errore tecnico",
+                handling="Riprova piu tardi",
+                attached_to_step_id="Task_Close",
+                interrupting=False,
+                is_defined=False,
+            ),
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="e_rejoin", source_id="Exc_Timeout", target_id="Task_Chase", label="dopo timeout"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Exc", process_name="Gestione eccezioni", process=process
+    )
+    boundary = {n.name: n for n in model.flowNodes if n.type == "boundaryEvent"}
+    assert set(boundary) == {"Pagamento non ricevuto entro 30 giorni", "Sistema non disponibile"}
+    timeout = boundary["Pagamento non ricevuto entro 30 giorni"]
+    wait_task = next(n.id for n in model.flowNodes if n.name == "Attendi pagamento")
+    assert timeout.attachedToRef == wait_task
+    assert timeout.eventDefinition == "timer"
+    assert timeout.cancelActivity is True
+    assert boundary["Sistema non disponibile"].cancelActivity is False
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert f'attachedToRef="{wait_task}"' in xml
+    assert 'cancelActivity="false"' in xml
+    assert "<bpmn:timerEventDefinition />" in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert not any("senza ingresso" in w for w in validate_bpmn_semantic_model(model))
 
 
 def test_flow_graph_completion_wires_gateway_branches_and_warns_on_implicit_splits():
