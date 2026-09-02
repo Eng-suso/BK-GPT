@@ -397,10 +397,14 @@ def build_bpmn_semantic_model(
         registry=registry,
         nodes=nodes,
         step_node_by_original_id=step_node_by_original_id,
+        step_by_id=step_by_id,
+        lane_by_actor_id=lane_by_actor_id,
+        actors=process.actors,
         used_ids=used_ids,
         end_id=end.id,
         warnings=warnings,
     )
+    registry.apply_edge_overlay()
     flows = registry.flows
     _populate_lane_refs(lanes, nodes)
     message_flows = _finalize_message_flows(
@@ -467,16 +471,25 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
         if association.sourceRef not in semantic_element_ids or association.targetRef not in semantic_element_ids:
             warnings.append(f"Association {association.id} punta a un elemento inesistente.")
 
+    node_type_by_id = {node.id: node.type for node in model.flowNodes}
     for node in model.flowNodes:
         if node.type == "exclusiveGateway" and len(outgoing_by_node.get(node.id, [])) < 2:
             warnings.append(f"Gateway {node.name} senza almeno due uscite.")
         if node.type == "boundaryEvent":
-            if node.attachedToRef not in node_ids:
+            if node_type_by_id.get(node.attachedToRef or "") not in _ACTIVITY_NODE_TYPES:
                 warnings.append(f"Boundary event {node.name} non agganciato a un'attivita valida.")
+            if not outgoing_by_node.get(node.id):
+                warnings.append(f"Boundary event {node.name} senza gestione collegata.")
+            if incoming_by_node.get(node.id):
+                warnings.append(f"Boundary event {node.name} non puo' avere frecce in ingresso.")
             continue
-        if node.type not in {"startEvent"} and not incoming_by_node.get(node.id):
+        if node.type == "startEvent" and incoming_by_node.get(node.id):
+            warnings.append(f"Evento iniziale {node.name} con una freccia in ingresso.")
+        if node.type != "startEvent" and not incoming_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza ingresso.")
-        if node.type not in {"endEvent"} and not outgoing_by_node.get(node.id):
+        if node.type == "endEvent" and outgoing_by_node.get(node.id):
+            warnings.append(f"Evento finale {node.name} con una freccia in uscita.")
+        if node.type != "endEvent" and not outgoing_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza uscita.")
     return warnings
 
@@ -1299,7 +1312,7 @@ def _add_loop_flows(
             continue
         source_id = step_node_by_original_id[repeated[-1]]
         target_id = step_node_by_original_id[repeated[0]]
-        registry.add(
+        added = registry.add(
             source_id,
             target_id,
             name=loop.condition or loop.label,
@@ -1314,8 +1327,27 @@ def _add_loop_flows(
             ),
             source_refs=[_source_ref_id("loops", loop.id)],
         )
+        if added is None:
+            warnings.append(
+                f"Loop '{loop.label}' degenere (rientro su se stesso): non reso come freccia."
+            )
         if loop.exit_condition:
             warnings.append(f"Loop '{loop.label}' con exit condition: {loop.exit_condition}")
+
+
+_ACTIVITY_NODE_TYPES = frozenset(
+    {
+        "task",
+        "userTask",
+        "serviceTask",
+        "manualTask",
+        "sendTask",
+        "receiveTask",
+        "businessRuleTask",
+        "scriptTask",
+        "subProcess",
+    }
+)
 
 
 def _add_boundary_events(
@@ -1324,25 +1356,42 @@ def _add_boundary_events(
     registry: _FlowRegistry,
     nodes: list[BPMNFlowNode],
     step_node_by_original_id: dict[str, str],
+    step_by_id: dict[str, ProcessStep],
+    lane_by_actor_id: dict[str, str],
+    actors: list[ProcessActor],
     used_ids: set[str],
     end_id: str,
     warnings: list[str],
 ) -> None:
-    for exception in process.exceptions:
-        attached = _exception_attached_node(exception, process, registry, step_node_by_original_id)
+    node_type_by_id = {node.id: node.type for node in nodes}
+    node_lane_by_id = {node.id: node.laneId for node in nodes}
+
+    for index, exception in enumerate(process.exceptions, start=1):
+        exception_id = exception.id or f"Exception_{index}"
+        attached = _exception_attached_node(
+            exception, process, registry, step_node_by_original_id, node_type_by_id
+        )
         if attached is None:
             warnings.append(
-                f"Eccezione '{exception.label}' senza attivita di aggancio: non resa come boundary event."
+                f"Eccezione '{exception.label}' senza attivita di aggancio valida: non resa come boundary event."
             )
             continue
 
+        definition, interrupting = _exception_event_definition(exception)
+        if interrupting != exception.interrupting:
+            warnings.append(
+                f"Eccezione '{exception.label}': forzata a interrupting perche' un evento "
+                f"di tipo '{definition}' non puo' essere non-interrupting."
+            )
+
         boundary = BPMNFlowNode(
-            id=_xml_id(exception.id or "BoundaryEvent", "BoundaryEvent", used_ids),
+            id=_xml_id(f"{exception_id}_Boundary", "BoundaryEvent", used_ids),
             type="boundaryEvent",
             name=exception.label,
+            laneId=node_lane_by_id.get(attached),
             attachedToRef=attached,
-            cancelActivity=exception.interrupting,
-            eventDefinition=_exception_event_definition(exception),
+            cancelActivity=interrupting,
+            eventDefinition=definition,
             documentation=_json_documentation(
                 "exception",
                 {
@@ -1351,27 +1400,41 @@ def _add_boundary_events(
                     "is_defined": exception.is_defined,
                 },
             ),
-            sourceRefs=[_source_ref_id("exceptions", exception.id)],
+            sourceRefs=[_source_ref_id("exceptions", exception_id)],
         )
         nodes.append(boundary)
-        registry.map(exception.id, boundary.id)
+        registry.map(exception_id, boundary.id)
 
-        rejoin = _exception_rejoin_node(exception, process, registry)
-        if rejoin is not None:
+        rejoin = _exception_rejoin_node(
+            exception,
+            process,
+            registry,
+            step_by_id=step_by_id,
+            lane_by_actor_id=lane_by_actor_id,
+            actors=actors,
+            nodes=nodes,
+            used_ids=used_ids,
+            end_id=end_id,
+            exception_source_ref=_source_ref_id("exceptions", exception_id),
+        )
+        if rejoin is not None and rejoin != boundary.id:
             registry.add(boundary.id, rejoin)
         elif exception.handling:
+            handler_lane = node_lane_by_id.get(attached)
             handler = BPMNFlowNode(
-                id=_xml_id(f"{exception.id}_Handler", "Task", used_ids),
+                id=_xml_id(f"{exception_id}_Handler", "Task", used_ids),
                 type="task",
                 name=exception.handling[:80],
-                sourceRefs=[_source_ref_id("exceptions", exception.id)],
+                laneId=handler_lane,
+                sourceRefs=[_source_ref_id("exceptions", exception_id)],
             )
-            nodes.append(handler)
             handler_end = BPMNFlowNode(
-                id=_xml_id(f"{exception.id}_End", "EndEvent", used_ids),
+                id=_xml_id(f"{exception_id}_End", "EndEvent", used_ids),
                 type="endEvent",
                 name=exception.label or "Fine gestione eccezione",
+                laneId=handler_lane,
             )
+            nodes.append(handler)
             nodes.append(handler_end)
             registry.add(boundary.id, handler.id)
             registry.add(handler.id, handler_end.id)
@@ -1390,14 +1453,21 @@ def _exception_attached_node(
     process: ProcessUnderstanding,
     registry: _FlowRegistry,
     step_node_by_original_id: dict[str, str],
+    node_type_by_id: dict[str, str],
 ) -> str | None:
-    if exception.attached_to_step_id and exception.attached_to_step_id in step_node_by_original_id:
-        return step_node_by_original_id[exception.attached_to_step_id]
+    def as_activity(node_id: str | None) -> str | None:
+        if node_id and node_type_by_id.get(node_id) in _ACTIVITY_NODE_TYPES:
+            return node_id
+        return None
+
+    direct = as_activity(step_node_by_original_id.get(exception.attached_to_step_id or ""))
+    if direct is not None:
+        return direct
     for edge in process.flow_edges:
-        if edge.target_id == exception.id:
-            compiled = registry.compiled_for(edge.source_id)
-            if compiled is not None:
-                return compiled
+        if edge.kind == "sequence" and edge.target_id == exception.id:
+            candidate = as_activity(registry.compiled_for(edge.source_id))
+            if candidate is not None:
+                return candidate
     return None
 
 
@@ -1405,24 +1475,66 @@ def _exception_rejoin_node(
     exception: ProcessExceptionPath,
     process: ProcessUnderstanding,
     registry: _FlowRegistry,
+    *,
+    step_by_id: dict[str, ProcessStep],
+    lane_by_actor_id: dict[str, str],
+    actors: list[ProcessActor],
+    nodes: list[BPMNFlowNode],
+    used_ids: set[str],
+    end_id: str,
+    exception_source_ref: str,
 ) -> str | None:
     for edge in process.flow_edges:
-        if edge.source_id == exception.id:
-            compiled = registry.compiled_for(edge.target_id)
-            if compiled is not None:
-                return compiled
+        if edge.kind != "sequence" or edge.source_id != exception.id:
+            continue
+        compiled = registry.compiled_for(edge.target_id)
+        if compiled is not None:
+            return compiled
+        recovery_step = step_by_id.get(edge.target_id)
+        if recovery_step is not None:
+            recovery = BPMNFlowNode(
+                id=_xml_id(recovery_step.id or "RecoveryTask", "Task", used_ids),
+                type=_task_type(recovery_step),
+                name=recovery_step.label,
+                laneId=_lane_for_step(recovery_step, actors, lane_by_actor_id),
+                owner=_actor_label(actors, recovery_step.actor_ids),
+                sourceRefs=[_source_ref_id("steps", recovery_step.id), exception_source_ref],
+            )
+            nodes.append(recovery)
+            registry.map(recovery_step.id, recovery.id)
+            # Give the freshly compiled recovery step an exit unless another
+            # flow_edge already continues from it.
+            if not any(
+                other.kind == "sequence" and other.source_id == recovery_step.id
+                for other in process.flow_edges
+            ):
+                registry.add(recovery.id, end_id)
+            return recovery.id
     return None
 
 
 def _exception_event_definition(
     exception: ProcessExceptionPath,
-) -> Literal["timer", "message", "error"]:
-    trigger = f"{exception.trigger or ''} {exception.label or ''}".casefold()
-    if any(word in trigger for word in ("timer", "timeout", "scad", "tempo", "termine", "ritardo")):
-        return "timer"
-    if any(word in trigger for word in ("messagg", "risposta", "notifica", "comunicazione")):
-        return "message"
-    return "error"
+) -> tuple[Literal["timer", "message", "error", "conditional"], bool]:
+    """Resolve (eventDefinition, interrupting) for an exception boundary event.
+
+    Error boundary events must be interrupting per BPMN 2.0; when the process
+    asked for non-interrupting handling of an otherwise-unclassified trigger we
+    fall back to a conditional boundary event, which may be non-interrupting.
+    """
+    text = f"{exception.trigger or ''} {exception.label or ''}"
+    if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
+        return "timer", exception.interrupting
+    if _matches_word(text, ("messaggio", "risposta", "notifica", "comunicazione", "riscontro")):
+        return "message", exception.interrupting
+    if exception.interrupting or _matches_word(text, ("errore", "guasto", "eccezione", "fault", "blocco", "anomalia")):
+        return "error", True
+    return "conditional", exception.interrupting
+
+
+def _matches_word(text: str, words: tuple[str, ...]) -> bool:
+    lowered = text.casefold()
+    return any(re.search(rf"\b{re.escape(word)}", lowered) for word in words)
 
 
 def _build_data_objects(
@@ -1544,11 +1656,12 @@ class _FlowRegistry:
     """Single writer for sequence flows.
 
     Deduplicates by (source, target) so overlapping generators (linear chain,
-    alternative-path branches, loop back-edges) cannot emit the same edge twice,
-    and overlays the label / condition / traceability that the ProcessUnderstanding
-    `flow_edges` declared for that transition. Generators call `map()` with the
-    original source-model id of every node they create so the overlay can be
-    resolved against the compiled ids.
+    alternative-path branches, loop back-edges) cannot emit the same edge twice.
+    A generator that hits an already-written pair still contributes its label /
+    documentation / traceability to the existing flow instead of losing it.
+    Generators call `map()` with the original source-model id of every node they
+    create; `apply_edge_overlay()` then folds `flow_edges` labels and gateway
+    conditions onto the compiled flows in one final pass.
     """
 
     used_ids: set[str]
@@ -1556,12 +1669,11 @@ class _FlowRegistry:
     gateway_ids: set[str] = field(default_factory=set)
     flows: list[BPMNSequenceFlow] = field(default_factory=list)
     seen_pairs: set[tuple[str, str]] = field(default_factory=set)
-    _original_by_compiled: dict[str, str] = field(default_factory=dict)
     _compiled_by_original: dict[str, str] = field(default_factory=dict)
+    _flow_by_pair: dict[tuple[str, str], BPMNSequenceFlow] = field(default_factory=dict)
 
     def map(self, original_id: str | None, compiled_id: str) -> None:
         if original_id:
-            self._original_by_compiled.setdefault(compiled_id, original_id)
             self._compiled_by_original.setdefault(original_id, compiled_id)
 
     def compiled_for(self, original_id: str) -> str | None:
@@ -1585,42 +1697,60 @@ class _FlowRegistry:
         if not source or not target or source == target:
             return None
         pair = (source, target)
-        if pair in self.seen_pairs:
-            return None
-
-        condition: str | None = None
-        edge = self._edge_for(source, target)
-        if edge is not None:
-            if not name and edge.label.strip():
-                name = edge.label.strip()
-            if edge.condition and source in self.gateway_ids:
-                condition = edge.condition
-            if source_refs is None:
-                source_refs = [_source_ref_id("flow_edges", edge.id)]
+        existing = self._flow_by_pair.get(pair)
+        if existing is not None:
+            self._enrich(existing, name=name, documentation=documentation, source_refs=source_refs)
+            return existing
 
         flow = BPMNSequenceFlow(
             id=_xml_id(f"Flow_{source}_to_{target}", "Flow", self.used_ids),
             sourceRef=source,
             targetRef=target,
             name=name,
-            conditionExpression=condition,
             documentation=documentation,
-            sourceRefs=source_refs or [],
+            sourceRefs=list(source_refs or []),
         )
         self.flows.append(flow)
         self.seen_pairs.add(pair)
+        self._flow_by_pair[pair] = flow
         return flow
 
     def connect_chain(self, chain: list[str]) -> None:
         for source, target in zip(chain, chain[1:]):
             self.add(source, target)
 
-    def _edge_for(self, source: str, target: str) -> ProcessFlowEdge | None:
-        origin_source = self._original_by_compiled.get(source)
-        origin_target = self._original_by_compiled.get(target)
-        if origin_source is None or origin_target is None:
-            return None
-        return self.edges_by_original.get((origin_source, origin_target))
+    def apply_edge_overlay(self) -> None:
+        for (origin_source, origin_target), edge in self.edges_by_original.items():
+            source = self._compiled_by_original.get(origin_source)
+            target = self._compiled_by_original.get(origin_target)
+            if source is None or target is None:
+                continue
+            flow = self._flow_by_pair.get((source, target))
+            if flow is None:
+                continue
+            self._enrich(
+                flow,
+                name=edge.label.strip() or None,
+                source_refs=[_source_ref_id("flow_edges", edge.id)],
+            )
+            if edge.condition and source in self.gateway_ids and not flow.conditionExpression:
+                flow.conditionExpression = edge.condition
+
+    @staticmethod
+    def _enrich(
+        flow: BPMNSequenceFlow,
+        *,
+        name: str | None = None,
+        documentation: str | None = None,
+        source_refs: list[str] | None = None,
+    ) -> None:
+        if name and not flow.name:
+            flow.name = name
+        if documentation and not flow.documentation:
+            flow.documentation = documentation
+        for ref in source_refs or []:
+            if ref not in flow.sourceRefs:
+                flow.sourceRefs.append(ref)
 
 
 def _sequence_flow_edges_by_endpoint(process: ProcessUnderstanding) -> dict[tuple[str, str], ProcessFlowEdge]:
@@ -1639,31 +1769,36 @@ def _complete_flow_graph(
 ) -> None:
     """Add flow_edges transitions the skeleton generators missed.
 
-    Only additions that cannot corrupt control-flow semantics are applied: the
-    source must be a gateway or currently have no outgoing flow, and the target
-    must be a gateway/end or currently have no incoming flow. Anything that would
-    turn a plain activity into an implicit parallel split is reported instead.
+    An addition is applied only when it cannot corrupt control flow: the target
+    is never a start event and either routes into a gateway/event/end or would
+    not become an uncontrolled merge (<=1 existing incoming); the source is a
+    gateway (which may branch freely) or an activity that still has no outgoing
+    flow. Everything else — a second exit from an activity, a merge onto a busy
+    node — is reported so a gateway can be added instead of silently drawn.
     """
     node_type_by_id = {node.id: node.type for node in nodes}
+    mergeable = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "endEvent"}
 
     for edge in process.flow_edges:
         if edge.kind != "sequence":
             continue
         source = registry.compiled_for(edge.source_id)
         target = registry.compiled_for(edge.target_id)
-        if not source or not target or (source, target) in registry.seen_pairs:
+        if not source or not target or source == target or (source, target) in registry.seen_pairs:
             continue
 
         source_type = node_type_by_id.get(source, "")
         target_type = node_type_by_id.get(target, "")
-        target_ok = (
-            target_type.endswith("Gateway")
-            or target_type == "endEvent"
-            or registry.incoming_count(target) == 0
-        )
-        if source_type.endswith("Gateway"):
-            registry.add(source, target)
-        elif registry.outgoing_count(source) == 0 and target_ok:
+        if target_type == "startEvent":
+            warnings.append(
+                f"Transizione '{edge.label or edge.id}' ignorata: un evento iniziale non "
+                "puo avere frecce in ingresso."
+            )
+            continue
+
+        target_ok = target_type in mergeable or registry.incoming_count(target) <= 1
+        source_ok = source_type.endswith("Gateway") or registry.outgoing_count(source) == 0
+        if source_ok and target_ok:
             registry.add(source, target)
         else:
             warnings.append(

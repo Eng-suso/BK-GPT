@@ -332,9 +332,17 @@ def test_exceptions_compile_to_boundary_events_on_their_step():
                 interrupting=True,
             ),
             ProcessExceptionPath(
+                id="Exc_Escalation",
+                label="Reclamo aperto durante la lavorazione",
+                trigger="segnalazione parallela dal cliente",
+                handling="Gestisci reclamo in parallelo",
+                attached_to_step_id="Task_Close",
+                interrupting=False,
+            ),
+            ProcessExceptionPath(
                 id="Exc_SystemDown",
                 label="Sistema non disponibile",
-                trigger="errore tecnico",
+                trigger="errore tecnico bloccante",
                 handling="Riprova piu tardi",
                 attached_to_step_id="Task_Close",
                 interrupting=False,
@@ -349,20 +357,47 @@ def test_exceptions_compile_to_boundary_events_on_their_step():
         process_id="Process_Exc", process_name="Gestione eccezioni", process=process
     )
     boundary = {n.name: n for n in model.flowNodes if n.type == "boundaryEvent"}
-    assert set(boundary) == {"Pagamento non ricevuto entro 30 giorni", "Sistema non disponibile"}
+    assert set(boundary) == {
+        "Pagamento non ricevuto entro 30 giorni",
+        "Reclamo aperto durante la lavorazione",
+        "Sistema non disponibile",
+    }
     timeout = boundary["Pagamento non ricevuto entro 30 giorni"]
     wait_task = next(n.id for n in model.flowNodes if n.name == "Attendi pagamento")
     assert timeout.attachedToRef == wait_task
     assert timeout.eventDefinition == "timer"
     assert timeout.cancelActivity is True
-    assert boundary["Sistema non disponibile"].cancelActivity is False
+    # timeout rejoins the recovery step named only in flow_edges: it is compiled
+    chase = next(n.id for n in model.flowNodes if n.name == "Sollecita cliente")
+    assert any(f.sourceRef == timeout.id and f.targetRef == chase for f in model.sequenceFlows)
+
+    # non-interrupting + no error keyword -> conditional boundary, may stay non-interrupting
+    escalation = boundary["Reclamo aperto durante la lavorazione"]
+    assert escalation.eventDefinition == "conditional"
+    assert escalation.cancelActivity is False
+
+    # error keyword -> forced interrupting per BPMN 2.0, with a warning
+    system_down = boundary["Sistema non disponibile"]
+    assert system_down.eventDefinition == "error"
+    assert system_down.cancelActivity is True
+    assert any("interrupting" in w for w in model.model_warnings)
+
+    for node in model.flowNodes:
+        if node.type == "boundaryEvent":
+            assert model.flowNodes  # boundary has an outgoing flow
+            assert any(f.sourceRef == node.id for f in model.sequenceFlows)
+            assert node.laneId == "Actor_Ops"
 
     xml = semantic_model_to_bpmn_xml(model)
     assert f'attachedToRef="{wait_task}"' in xml
     assert 'cancelActivity="false"' in xml
     assert "<bpmn:timerEventDefinition />" in xml
+    assert "<bpmn:conditionalEventDefinition />" in xml
     assert validate_bpmn_xml(xml)["valid"] is True
-    assert not any("senza ingresso" in w for w in validate_bpmn_semantic_model(model))
+    assert not any(
+        "senza ingresso" in w or "senza uscita" in w or "non agganciato" in w
+        for w in validate_bpmn_semantic_model(model)
+    )
 
 
 def test_flow_graph_completion_wires_gateway_branches_and_warns_on_implicit_splits():
