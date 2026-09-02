@@ -96,15 +96,16 @@ def test_positive_outcomes_raise_confidence(consultant):
         playbook, "worked", consultant_id=consultant
     )
     assert worked["status"] == "recorded"
-    # ratio smussato: (1 + 0 + 0.5) / (1 + 0 + 0 + 1)
-    assert worked["confidence"] == pytest.approx(0.75)
+    # ratio smussato con prior = confidence di creazione (0.3, non 0.5):
+    # (1 + 0 + 0.3) / (1 + 0 + 0 + 1)
+    assert worked["confidence"] == pytest.approx(0.65)
     assert worked["auto_deprecated"] is False
 
     partial = canonical_memory.record_playbook_outcome(
         playbook, "partial", consultant_id=consultant
     )
-    # (1 + 0.5 + 0.5) / (1 + 1 + 0 + 1)
-    assert partial["confidence"] == pytest.approx(0.6667, abs=1e-3)
+    # (1 + 0.5 + 0.3) / (1 + 1 + 0 + 1)
+    assert partial["confidence"] == pytest.approx(0.6)
 
 
 def test_repeated_failures_auto_deprecate(consultant):

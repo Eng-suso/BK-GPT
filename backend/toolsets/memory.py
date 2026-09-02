@@ -478,8 +478,14 @@ def manage_consultant_playbook(
     scope_value = (scope or "").strip().lower()
     # `project` = si opera nello scope di quel cliente (necessario per vedere /
     # promuovere / valutare i playbook client-scoped). generalize lo richiede
-    # sempre: il sorgente e' client-scoped.
-    need_client_ctx = bool(project) or normalized_operation == "generalize"
+    # sempre (il sorgente e' client-scoped), e cosi' save_candidate con
+    # scope="client" esplicito: senza project non c'e' nessun cliente a cui
+    # agganciare la riga, e non deve silenziosamente ricadere su consultant-scope.
+    need_client_ctx = (
+        bool(project)
+        or normalized_operation == "generalize"
+        or (normalized_operation == "save_candidate" and scope_value == "client")
+    )
     client_id: str | None = None
     canonical_project_id: str | None = None
 

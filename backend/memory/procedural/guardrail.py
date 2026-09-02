@@ -49,7 +49,7 @@ _PII_CHECKS: tuple[tuple[str, re.Pattern[str]], ...] = (
 # un nome cliente a parola singola sotto questa lunghezza e' troppo generico
 # (rischio di falso positivo su parole comuni tipo "Delta", "Nord", "Sigma").
 # I nomi multi-parola ("Rossi Manifattura") sono distintivi -> soglia piu' bassa.
-_MIN_SINGLE_TOKEN_NAME = 6
+_MIN_SINGLE_TOKEN_NAME = 4
 _MIN_MULTI_TOKEN_NAME = 4
 
 

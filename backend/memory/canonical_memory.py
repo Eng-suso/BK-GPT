@@ -294,9 +294,10 @@ def write_procedural_candidate(
             text(
                 "INSERT INTO procedural_memory "
                 "(consultant_id, client_id, project_id, scope, kind, title, "
-                " applies_when, body, status, confidence, version, lineage_id, "
-                " supersedes_id, guardrail_status, source_ids, derived_from, created_by) "
-                "VALUES (:c,:cl,:p,:sc,:k,:t,:aw,:b,'candidate',:conf,:ver,"
+                " applies_when, body, status, confidence, prior_confidence, version, "
+                " lineage_id, supersedes_id, guardrail_status, source_ids, derived_from, "
+                " created_by) "
+                "VALUES (:c,:cl,:p,:sc,:k,:t,:aw,:b,'candidate',:conf,:conf,:ver,"
                 "        COALESCE(CAST(:lin AS uuid), gen_random_uuid()), "
                 "        CAST(:sup AS uuid),'pending', "
                 "        CAST(:src AS uuid[]), CAST(:df AS uuid[]), :cb) "
@@ -464,16 +465,19 @@ _OUTCOME_COLUMN = {
     "didnt_work": "outcome_failed",
     "failed": "outcome_failed",
 }
-# confidence = ratio di successo smussato (media mobile su TUTTI gli esiti):
+# confidence = ratio di successo smussato (media mobile su TUTTI gli esiti),
+# usando come prior la confidence attuale della riga (quella impostata alla
+# creazione, o l'ultima ricalcolata) invece di una costante: cosi' un segnale
+# iniziale deliberato (es. save_candidate con confidence=0.9) viene incorporato
+# nel blend anziche' sovrascritto dal primo esito registrato.
 #   (worked + 0.5*partial + prior) / (worked + partial + failed + prior_weight)
-_CONFIDENCE_PRIOR = 0.5
 _CONFIDENCE_PRIOR_WEIGHT = 1.0
 _AUTO_DEPRECATE_CONFIDENCE = 0.2
 _AUTO_DEPRECATE_FAILURES = 3
 
 
-def _blended_confidence(worked: int, partial: int, failed: int) -> float:
-    numerator = worked + 0.5 * partial + _CONFIDENCE_PRIOR
+def _blended_confidence(worked: int, partial: int, failed: int, prior: float) -> float:
+    numerator = worked + 0.5 * partial + prior
     denominator = worked + partial + failed + _CONFIDENCE_PRIOR_WEIGHT
     return min(1.0, max(0.0, numerator / denominator))
 
@@ -530,7 +534,8 @@ def record_playbook_outcome(
     with canonical_session(consultant_id, client_id) as session:
         row = session.execute(
             text(
-                "SELECT status, outcome_worked, outcome_partial, outcome_failed "
+                "SELECT status, outcome_worked, outcome_partial, outcome_failed, "
+                " prior_confidence "
                 "FROM procedural_memory WHERE id = :i"
             ),
             {"i": str(playbook_id)},
@@ -541,7 +546,12 @@ def record_playbook_outcome(
         worked = int(row.outcome_worked) + (1 if column == "outcome_worked" else 0)
         partial = int(row.outcome_partial) + (1 if column == "outcome_partial" else 0)
         failures = int(row.outcome_failed) + (1 if column == "outcome_failed" else 0)
-        new_confidence = _blended_confidence(worked, partial, failures)
+        # prior_confidence e' fissata alla creazione della riga (mai riscritta
+        # qui sotto): il blend resta funzione consistente dei soli contatori
+        # cumulativi invece di ri-ancorarsi ogni volta alla confidence gia'
+        # derivata dal giro precedente.
+        prior = float(row.prior_confidence) if row.prior_confidence is not None else 0.5
+        new_confidence = _blended_confidence(worked, partial, failures, prior)
         auto_deprecate = (
             row.status == "active"
             and new_confidence < _AUTO_DEPRECATE_CONFIDENCE

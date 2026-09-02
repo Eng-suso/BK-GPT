@@ -416,7 +416,7 @@ def procedural_retrieve(
                     "SELECT id, scope, kind, title, applies_when, body, confidence, client_id "
                     "FROM procedural_memory "
                     "WHERE status = 'active' AND kind = ANY(:kinds) "
-                    "ORDER BY confidence DESC, updated_at DESC LIMIT 60"
+                    "ORDER BY confidence DESC, updated_at DESC LIMIT 200"
                 ),
                 {"kinds": wanted},
             ).all()
