@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass, field
 from html import escape
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from backend.process_understanding import ProcessActor, ProcessDecision, ProcessStep, ProcessUnderstanding
+from backend.bpmn_topology import PoolTopology, ResolvedPool, resolve_pool_topology
+from backend.process_understanding import (
+    ProcessActor,
+    ProcessDecision,
+    ProcessEvent,
+    ProcessStep,
+    ProcessUnderstanding,
+)
 
 
 class BPMNFlowNode(BaseModel):
@@ -27,7 +35,7 @@ class BPMNFlowNode(BaseModel):
     name: str
     laneId: str | None = None
     owner: str | None = None
-    eventDefinition: Literal["timer"] | None = None
+    eventDefinition: Literal["timer", "message", "conditional", "signal", "error"] | None = None
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
 
@@ -67,6 +75,24 @@ class BPMNAssociation(BaseModel):
     id: str
     sourceRef: str
     targetRef: str
+
+
+class BPMNParticipant(BaseModel):
+    id: str
+    name: str
+    processRef: str | None = None
+    isExternal: bool = False
+    rendering: Literal["expanded", "black_box", "out_of_scope"] = "expanded"
+    sourceRefs: list[str] = Field(default_factory=list)
+
+
+class BPMNMessageFlow(BaseModel):
+    id: str
+    sourceRef: str
+    targetRef: str
+    name: str | None = None
+    documentation: str | None = None
+    sourceRefs: list[str] = Field(default_factory=list)
 
 
 MappingStatus = Literal["direct", "encoded", "visual_annotation", "semantic_payload", "blocked"]
@@ -220,9 +246,12 @@ class BPMNSemanticModel(BaseModel):
     id: str
     name: str
     isExecutable: bool = False
+    collaborationId: str | None = None
+    participants: list[BPMNParticipant] = Field(default_factory=list)
     lanes: list[BPMNLane] = Field(default_factory=list)
     flowNodes: list[BPMNFlowNode]
     sequenceFlows: list[BPMNSequenceFlow]
+    messageFlows: list[BPMNMessageFlow] = Field(default_factory=list)
     dataObjects: list[BPMNDataObject] = Field(default_factory=list)
     textAnnotations: list[BPMNTextAnnotation] = Field(default_factory=list)
     associations: list[BPMNAssociation] = Field(default_factory=list)
@@ -239,29 +268,52 @@ def build_bpmn_semantic_model(
 ) -> BPMNSemanticModel:
     used_ids: set[str] = set()
     safe_process_id = _xml_id(process_id, "Process", used_ids)
-    lanes = _build_lanes(process.actors, used_ids)
-    lane_by_actor_id = _lane_by_actor_id(process.actors, lanes)
+    collaboration = _build_collaboration_layer(process, safe_process_id, used_ids)
+    lanes = collaboration.lanes
+    lane_by_actor_id = collaboration.lane_by_actor_id
     step_by_id = {step.id: step for step in process.steps}
-    ordered_steps = [
-        step_by_id[step_id]
-        for step_id in (process.main_success_path or process.sequence)
-        if step_id in step_by_id
-    ] or process.steps
+    ordered_chain = _ordered_chain_items(process, step_by_id)
 
     nodes: list[BPMNFlowNode] = [
         BPMNFlowNode(id=_xml_id("StartEvent_1", "StartEvent", used_ids), type="startEvent", name=_start_name(process)),
     ]
     flows: list[BPMNSequenceFlow] = []
-    warnings = _semantic_warnings(process, lanes)
+    warnings = _semantic_warnings(
+        process, lanes, collaboration_built=collaboration.collaboration_id is not None
+    )
+    warnings.extend(collaboration.warnings)
     main_chain: list[str] = [nodes[0].id]
     step_node_by_original_id: dict[str, str] = {}
     gateway_by_decision_id: dict[str, BPMNFlowNode] = {}
     gateway_by_step_id: dict[str, BPMNFlowNode] = {}
-    decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_steps)
+    decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_chain)
     warnings.extend(decision_anchor_warnings)
 
-    for index, step in enumerate(ordered_steps, start=1):
+    for index, item in enumerate(ordered_chain, start=1):
+        if isinstance(item, ProcessEvent):
+            event_node = _event_node(item, used_ids)
+            nodes.append(event_node)
+            main_chain.append(event_node.id)
+            step_node_by_original_id[item.id] = event_node.id
+            _attach_anchored_gateway(
+                anchor_id=item.id,
+                lane_id=None,
+                decision_by_anchor_step_id=decision_by_anchor_step_id,
+                used_ids=used_ids,
+                nodes=nodes,
+                main_chain=main_chain,
+                gateway_by_decision_id=gateway_by_decision_id,
+                gateway_by_step_id=gateway_by_step_id,
+            )
+            continue
+
+        step = item
         lane_id = _lane_for_step(step, process.actors, lane_by_actor_id)
+        if _step_is_external_only(step, collaboration.external_actor_ids):
+            warnings.append(
+                f"Attivita '{step.label}' e assegnata solo a un partecipante esterno: "
+                "verificare se appartiene al pool esterno o va resa un message flow."
+            )
         task = BPMNFlowNode(
             id=_xml_id(step.id or f"Task_{index}", "Task", used_ids),
             type=_task_type(step),
@@ -274,21 +326,16 @@ def build_bpmn_semantic_model(
         nodes.append(task)
         main_chain.append(task.id)
         step_node_by_original_id[step.id] = task.id
-
-        decision = decision_by_anchor_step_id.get(step.id)
-        if decision:
-            gateway = BPMNFlowNode(
-                id=_xml_id(decision.id, "Gateway", used_ids),
-                type="exclusiveGateway",
-                name=decision.label,
-                laneId=lane_id,
-                documentation=_decision_documentation(decision),
-                sourceRefs=[_source_ref_id("decisions", decision.id)],
-            )
-            nodes.append(gateway)
-            main_chain.append(gateway.id)
-            gateway_by_decision_id[decision.id] = gateway
-            gateway_by_step_id[step.id] = gateway
+        _attach_anchored_gateway(
+            anchor_id=step.id,
+            lane_id=lane_id,
+            decision_by_anchor_step_id=decision_by_anchor_step_id,
+            used_ids=used_ids,
+            nodes=nodes,
+            main_chain=main_chain,
+            gateway_by_decision_id=gateway_by_decision_id,
+            gateway_by_step_id=gateway_by_step_id,
+        )
 
     end = BPMNFlowNode(
         id=_xml_id("EndEvent_1", "EndEvent", used_ids),
@@ -322,13 +369,23 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     _populate_lane_refs(lanes, nodes)
+    message_flows = _finalize_message_flows(
+        collaboration=collaboration,
+        step_node_by_original_id=step_node_by_original_id,
+        node_ids={node.id for node in nodes},
+        used_ids=used_ids,
+        warnings=warnings,
+    )
 
     model = BPMNSemanticModel(
         id=safe_process_id,
         name=process_name,
+        collaborationId=collaboration.collaboration_id,
+        participants=collaboration.participants,
         lanes=[lane for lane in lanes if lane.flowNodeRefs],
         flowNodes=nodes,
         sequenceFlows=flows,
+        messageFlows=message_flows,
         dataObjects=[],
         textAnnotations=[],
         associations=[],
@@ -397,8 +454,11 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
         'xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" '
         'xmlns:di="http://www.omg.org/spec/DD/20100524/DI" '
         f'id="Definitions_{escape(model.id)}" targetNamespace="https://workspace.local/bpmn">',
-        f'  <bpmn:process id="{escape(model.id)}" name="{escape(model.name)}" isExecutable="false">',
     ]
+    xml_parts.extend(_collaboration_semantic_xml(model))
+    xml_parts.append(
+        f'  <bpmn:process id="{escape(model.id)}" name="{escape(model.name)}" isExecutable="false">'
+    )
     process_documentation = _process_documentation(model)
     if process_documentation:
         xml_parts.extend(_documentation_xml(process_documentation, indent="    "))
@@ -420,8 +480,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
             xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
-        if node.type == "intermediateCatchEvent" and node.eventDefinition == "timer":
-            xml_parts.append("      <bpmn:timerEventDefinition />")
+        if node.type == "intermediateCatchEvent" and node.eventDefinition:
+            xml_parts.append(f"      <bpmn:{node.eventDefinition}EventDefinition />")
         xml_parts.append(f"    </bpmn:{node.type}>")
 
     for flow in model.sequenceFlows:
@@ -468,14 +528,26 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
             f'    <bpmn:association id="{association["id"]}" sourceRef="{association["source"]}" targetRef="{association["target"]}" />'
         )
 
+    plane_element = (
+        (model.collaborationId or f"Collaboration_{model.id}") if model.participants else model.id
+    )
     xml_parts.extend(
         [
             "  </bpmn:process>",
             f'  <bpmndi:BPMNDiagram id="BPMNDiagram_{escape(model.id)}">',
-            f'    <bpmndi:BPMNPlane id="BPMNPlane_{escape(model.id)}" bpmnElement="{escape(model.id)}">',
+            f'    <bpmndi:BPMNPlane id="BPMNPlane_{escape(model.id)}" bpmnElement="{escape(plane_element)}">',
         ]
     )
     positions, lane_shapes = _layout_model(model)
+    pool_shapes, pool_positions = _collaboration_pool_shapes(model, positions, lane_shapes)
+    for pool_shape in pool_shapes:
+        xml_parts.extend(
+            [
+                f'      <bpmndi:BPMNShape id="{pool_shape["id"]}_di" bpmnElement="{pool_shape["id"]}" isHorizontal="true">',
+                f'        <dc:Bounds x="{pool_shape["x"]}" y="{pool_shape["y"]}" width="{pool_shape["width"]}" height="{pool_shape["height"]}" />',
+                "      </bpmndi:BPMNShape>",
+            ]
+        )
     for lane_shape in lane_shapes:
         xml_parts.extend(
             [
@@ -525,8 +597,324 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
             for line in _association_edge_xml(association, connectable_positions):
                 xml_parts.append(line)
 
+    message_flow_positions = {**positions, **pool_positions}
+    for message_flow in model.messageFlows:
+        source_pos = message_flow_positions.get(message_flow.sourceRef)
+        target_pos = message_flow_positions.get(message_flow.targetRef)
+        if source_pos and target_pos:
+            for line in _message_flow_edge_xml(message_flow, source_pos, target_pos):
+                xml_parts.append(line)
+
     xml_parts.extend(["    </bpmndi:BPMNPlane>", "  </bpmndi:BPMNDiagram>", "</bpmn:definitions>"])
     return "\n".join(xml_parts)
+
+
+def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
+    if not model.participants:
+        return []
+
+    collaboration_id = model.collaborationId or f"Collaboration_{model.id}"
+    lines = [f'  <bpmn:collaboration id="{escape(collaboration_id)}">']
+    for participant in model.participants:
+        process_ref = (
+            f' processRef="{escape(participant.processRef)}"' if participant.processRef else ""
+        )
+        lines.append(
+            f'    <bpmn:participant id="{escape(participant.id)}" '
+            f'name="{escape(participant.name)}"{process_ref} />'
+        )
+    for message_flow in model.messageFlows:
+        name = f' name="{escape(message_flow.name)}"' if message_flow.name else ""
+        header = (
+            f'    <bpmn:messageFlow id="{escape(message_flow.id)}" '
+            f'sourceRef="{escape(message_flow.sourceRef)}" '
+            f'targetRef="{escape(message_flow.targetRef)}"{name}'
+        )
+        if message_flow.documentation or message_flow.sourceRefs:
+            lines.append(header + ">")
+            lines.extend(
+                _documentation_xml(
+                    _element_documentation(message_flow.documentation, message_flow.sourceRefs),
+                    indent="      ",
+                )
+            )
+            lines.append("    </bpmn:messageFlow>")
+        else:
+            lines.append(header + " />")
+    lines.append("  </bpmn:collaboration>")
+    return lines
+
+
+def _collaboration_pool_shapes(
+    model: BPMNSemanticModel,
+    node_positions: dict[str, dict[str, float]],
+    lane_shapes: list[dict[str, float | str]],
+) -> tuple[list[dict[str, float | str]], dict[str, dict[str, float]]]:
+    if not model.participants:
+        return [], {}
+
+    primary = next((p for p in model.participants if p.processRef), None)
+    externals = [p for p in model.participants if not p.processRef]
+
+    # Cover both the lane band and the flow-node band so lanes never protrude.
+    boxes: list[tuple[float, float, float, float]] = [
+        (float(shape["x"]), float(shape["y"]), float(shape["width"]), float(shape["height"]))
+        for shape in lane_shapes
+    ]
+    boxes.extend(
+        (pos["x"], pos["y"], pos["width"], pos["height"]) for pos in node_positions.values()
+    )
+    if boxes:
+        min_x = min(box[0] for box in boxes)
+        min_y = min(box[1] for box in boxes)
+        max_x = max(box[0] + box[2] for box in boxes)
+        max_y = max(box[1] + box[3] for box in boxes)
+    else:
+        min_x, min_y, max_x, max_y = 110.0, 150.0, 1000.0, 330.0
+
+    pool_left = min_x - 30
+    pool_width = (max_x - pool_left) + 40
+    primary_top = min_y - 30
+    primary_height = max(max_y - primary_top + 30, 160.0)
+
+    shapes: list[dict[str, float | str]] = []
+    pool_positions: dict[str, dict[str, float]] = {}
+    if primary is not None:
+        box = {"x": pool_left, "y": primary_top, "width": pool_width, "height": primary_height}
+        pool_positions[primary.id] = box
+        shapes.append({"id": primary.id, **box})
+
+    external_top = primary_top + primary_height + 40
+    for participant in externals:
+        box = {"x": pool_left, "y": external_top, "width": pool_width, "height": 120.0}
+        pool_positions[participant.id] = box
+        shapes.append({"id": participant.id, **box})
+        external_top += 160
+
+    return shapes, pool_positions
+
+
+def _message_flow_edge_xml(
+    message_flow: BPMNMessageFlow,
+    source: dict[str, float],
+    target: dict[str, float],
+) -> list[str]:
+    start_x = source["x"] + source["width"] / 2
+    end_x = target["x"] + target["width"] / 2
+    if source["y"] <= target["y"]:
+        start_y = source["y"] + source["height"]
+        end_y = target["y"]
+    else:
+        start_y = source["y"]
+        end_y = target["y"] + target["height"]
+    lines = [
+        f'      <bpmndi:BPMNEdge id="{escape(message_flow.id)}_di" bpmnElement="{escape(message_flow.id)}">',
+        f'        <di:waypoint x="{start_x}" y="{start_y}" />',
+        f'        <di:waypoint x="{end_x}" y="{end_y}" />',
+    ]
+    if message_flow.name:
+        label_width = min(180, max(80, len(message_flow.name) * 6))
+        lines.extend(
+            [
+                "        <bpmndi:BPMNLabel>",
+                f'          <dc:Bounds x="{(start_x + end_x) / 2 - label_width / 2}" '
+                f'y="{(start_y + end_y) / 2 - 12}" width="{label_width}" height="24" />',
+                "        </bpmndi:BPMNLabel>",
+            ]
+        )
+    lines.append("      </bpmndi:BPMNEdge>")
+    return lines
+
+
+@dataclass
+class _MessageFlowSpec:
+    key: str
+    label: str
+    from_pool_key: str | None
+    to_pool_key: str | None
+    from_node_ref: str | None
+    to_node_ref: str | None
+    artifact: str | None
+
+
+@dataclass
+class _CollaborationLayer:
+    collaboration_id: str | None
+    participants: list[BPMNParticipant]
+    lanes: list[BPMNLane]
+    lane_by_actor_id: dict[str, str]
+    message_flow_specs: list[_MessageFlowSpec]
+    pool_id_by_key: dict[str, str]
+    external_actor_ids: set[str]
+    warnings: list[str] = field(default_factory=list)
+
+
+def _build_collaboration_layer(
+    process: ProcessUnderstanding,
+    safe_process_id: str,
+    used_ids: set[str],
+) -> _CollaborationLayer:
+    resolved = resolve_pool_topology(
+        topology=process.bpmn_topology,
+        participants=process.participants,
+        actors=process.actors,
+    )
+    if not resolved.is_collaboration or resolved.primary_pool is None:
+        lanes = _build_lanes(process.actors, used_ids)
+        return _CollaborationLayer(
+            collaboration_id=None,
+            participants=[],
+            lanes=lanes,
+            lane_by_actor_id=_lane_by_actor_id(process.actors, lanes),
+            message_flow_specs=[],
+            pool_id_by_key={},
+            external_actor_ids=set(),
+            warnings=list(resolved.warnings),
+        )
+
+    primary = resolved.primary_pool
+    pool_id_by_key: dict[str, str] = {}
+    participants: list[BPMNParticipant] = []
+    for pool in resolved.pools:
+        participant_id = _xml_id(
+            pool.participant_id or pool.label or pool.key, "Participant", used_ids
+        )
+        pool_id_by_key[pool.key] = participant_id
+        participants.append(
+            BPMNParticipant(
+                id=participant_id,
+                name=pool.label,
+                processRef=safe_process_id if pool.is_primary else None,
+                isExternal=pool.is_external and not pool.is_primary,
+                rendering=pool.rendering,
+                sourceRefs=[_source_ref_id("bpmn_topology", pool.key)],
+            )
+        )
+
+    lanes, lane_by_actor_id = _lanes_for_primary_pool(resolved, primary, process.actors, used_ids)
+    external_actor_ids = {
+        actor_id
+        for actor_id, pool_key in resolved.actor_to_pool.items()
+        if pool_key != primary.key
+    }
+    specs = [
+        _MessageFlowSpec(
+            key=flow.key,
+            label=flow.label,
+            from_pool_key=flow.from_pool_key,
+            to_pool_key=flow.to_pool_key,
+            from_node_ref=flow.from_node_ref,
+            to_node_ref=flow.to_node_ref,
+            artifact=flow.artifact,
+        )
+        for flow in resolved.message_flows
+    ]
+    return _CollaborationLayer(
+        collaboration_id=_xml_id(f"Collaboration_{safe_process_id}", "Collaboration", used_ids),
+        participants=participants,
+        lanes=lanes,
+        lane_by_actor_id=lane_by_actor_id,
+        message_flow_specs=specs,
+        pool_id_by_key=pool_id_by_key,
+        external_actor_ids=external_actor_ids,
+        warnings=list(resolved.warnings),
+    )
+
+
+def _lanes_for_primary_pool(
+    resolved: PoolTopology,
+    primary: ResolvedPool,
+    actors: list[ProcessActor],
+    used_ids: set[str],
+) -> tuple[list[BPMNLane], dict[str, str]]:
+    lane_by_actor_id: dict[str, str] = {}
+    lanes: list[BPMNLane] = []
+    primary_lanes = [lane for lane in resolved.lanes if lane.pool_key == primary.key]
+    if primary_lanes:
+        for lane in primary_lanes:
+            lane_id = _xml_id(lane.key or lane.label, "Lane", used_ids)
+            lanes.append(
+                BPMNLane(
+                    id=lane_id,
+                    name=lane.label,
+                    sourceRefs=[_source_ref_id("bpmn_topology", lane.key)],
+                )
+            )
+            for actor_id in lane.actor_ids:
+                lane_by_actor_id.setdefault(actor_id, lane_id)
+        return lanes, lane_by_actor_id
+
+    actor_label = {actor.id: actor.label for actor in actors}
+    for actor_id in primary.actor_ids:
+        label = actor_label.get(actor_id, actor_id)
+        if not label.strip():
+            continue
+        lane_id = _xml_id(actor_id or label, "Lane", used_ids)
+        lanes.append(
+            BPMNLane(id=lane_id, name=label, sourceRefs=[_source_ref_id("actors", actor_id)])
+        )
+        lane_by_actor_id[actor_id] = lane_id
+    return lanes[:8], lane_by_actor_id
+
+
+def _step_is_external_only(step: ProcessStep, external_actor_ids: set[str]) -> bool:
+    if not external_actor_ids or not step.actor_ids:
+        return False
+    return all(actor_id in external_actor_ids for actor_id in step.actor_ids)
+
+
+def _finalize_message_flows(
+    *,
+    collaboration: _CollaborationLayer,
+    step_node_by_original_id: dict[str, str],
+    node_ids: set[str],
+    used_ids: set[str],
+    warnings: list[str],
+) -> list[BPMNMessageFlow]:
+    result: list[BPMNMessageFlow] = []
+    for spec in collaboration.message_flow_specs:
+        source_ref = _message_endpoint(
+            spec.from_node_ref, spec.from_pool_key, collaboration, step_node_by_original_id, node_ids
+        )
+        target_ref = _message_endpoint(
+            spec.to_node_ref, spec.to_pool_key, collaboration, step_node_by_original_id, node_ids
+        )
+        if not source_ref or not target_ref or source_ref == target_ref:
+            warnings.append(
+                f"Message flow '{spec.label}' non collegato: estremi non risolti nel modello BPMN."
+            )
+            continue
+        result.append(
+            BPMNMessageFlow(
+                id=_xml_id(spec.key or f"MessageFlow_{len(result) + 1}", "MessageFlow", used_ids),
+                sourceRef=source_ref,
+                targetRef=target_ref,
+                name=spec.label,
+                documentation=_json_documentation(
+                    "message_flow", {"artifact": spec.artifact, "label": spec.label}
+                ),
+                sourceRefs=[_source_ref_id("bpmn_topology", spec.key)],
+            )
+        )
+    return result
+
+
+def _message_endpoint(
+    node_ref: str | None,
+    pool_key: str | None,
+    collaboration: _CollaborationLayer,
+    step_node_by_original_id: dict[str, str],
+    node_ids: set[str],
+) -> str | None:
+    if node_ref:
+        if node_ref in node_ids:
+            return node_ref
+        mapped = step_node_by_original_id.get(node_ref)
+        if mapped:
+            return mapped
+    if pool_key and pool_key in collaboration.pool_id_by_key:
+        return collaboration.pool_id_by_key[pool_key]
+    return None
 
 
 def _build_lanes(actors: list[ProcessActor], used_ids: set[str]) -> list[BPMNLane]:
@@ -542,7 +930,15 @@ def _build_lanes(actors: list[ProcessActor], used_ids: set[str]) -> list[BPMNLan
 
 
 def _lane_by_actor_id(actors: list[ProcessActor], lanes: list[BPMNLane]) -> dict[str, str]:
-    return {actor.id: lane.id for actor, lane in zip(actors, lanes)}
+    lane_by_source_ref: dict[str, str] = {}
+    for lane in lanes:
+        for source_ref in lane.sourceRefs:
+            lane_by_source_ref[source_ref] = lane.id
+    return {
+        actor.id: lane_by_source_ref[_source_ref_id("actors", actor.id)]
+        for actor in actors
+        if _source_ref_id("actors", actor.id) in lane_by_source_ref
+    }
 
 
 def _lane_for_step(
@@ -572,11 +968,113 @@ def _task_type(step: ProcessStep) -> str:
     }.get(step.type, "userTask")
 
 
+_INTERMEDIATE_EVENT_DEFINITION: dict[str, Literal["timer", "message"]] = {
+    "timer": "timer",
+    "message": "message",
+}
+
+
+def _ordered_chain_items(
+    process: ProcessUnderstanding,
+    step_by_id: dict[str, ProcessStep],
+) -> list[ProcessStep | ProcessEvent]:
+    """Ordered list of flow nodes for the main path: steps plus the timer /
+    message intermediate events that sit between them.
+
+    Events are placed from `main_success_path` / `sequence` when listed there,
+    otherwise spliced in after the predecessor named by a `flow_edges` entry.
+    """
+    flow_event_by_id = {
+        event.id: event
+        for event in process.events
+        if event.id and event.type in _INTERMEDIATE_EVENT_DEFINITION
+    }
+    chain: list[ProcessStep | ProcessEvent] = []
+    for item_id in process.main_success_path or process.sequence:
+        if item_id in step_by_id:
+            chain.append(step_by_id[item_id])
+        elif item_id in flow_event_by_id:
+            chain.append(flow_event_by_id[item_id])
+    if not chain:
+        chain = list(process.steps)
+
+    placed = {item.id for item in chain}
+    progressed = True
+    while progressed:
+        progressed = False
+        for event in flow_event_by_id.values():
+            if event.id in placed:
+                continue
+            predecessor = next(
+                (
+                    edge.source_id
+                    for edge in process.flow_edges
+                    if edge.target_id == event.id and edge.source_id in placed
+                ),
+                None,
+            )
+            if predecessor is None:
+                continue
+            insert_at = next(
+                index for index, item in enumerate(chain) if item.id == predecessor
+            ) + 1
+            chain.insert(insert_at, event)
+            placed.add(event.id)
+            progressed = True
+    return chain
+
+
+def _attach_anchored_gateway(
+    *,
+    anchor_id: str,
+    lane_id: str | None,
+    decision_by_anchor_step_id: dict[str, ProcessDecision],
+    used_ids: set[str],
+    nodes: list[BPMNFlowNode],
+    main_chain: list[str],
+    gateway_by_decision_id: dict[str, BPMNFlowNode],
+    gateway_by_step_id: dict[str, BPMNFlowNode],
+) -> None:
+    decision = decision_by_anchor_step_id.get(anchor_id)
+    if decision is None:
+        return
+    gateway = BPMNFlowNode(
+        id=_xml_id(decision.id, "Gateway", used_ids),
+        type="exclusiveGateway",
+        name=decision.label,
+        laneId=lane_id,
+        documentation=_decision_documentation(decision),
+        sourceRefs=[_source_ref_id("decisions", decision.id)],
+    )
+    nodes.append(gateway)
+    main_chain.append(gateway.id)
+    gateway_by_decision_id[decision.id] = gateway
+    gateway_by_step_id[anchor_id] = gateway
+
+
+def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
+    return BPMNFlowNode(
+        id=_xml_id(event.id or "IntermediateEvent", "IntermediateEvent", used_ids),
+        type="intermediateCatchEvent",
+        name=event.label,
+        eventDefinition=_INTERMEDIATE_EVENT_DEFINITION.get(event.type),
+        documentation=_json_documentation(
+            "event",
+            {
+                "type": event.type,
+                "timing": event.timing,
+                "source_evidence": event.source_evidence,
+            },
+        ),
+        sourceRefs=[_source_ref_id("events", event.id)],
+    )
+
+
 def _decision_anchor_map(
     process: ProcessUnderstanding,
-    ordered_steps: list[ProcessStep],
+    ordered_chain: list[ProcessStep | ProcessEvent],
 ) -> tuple[dict[str, ProcessDecision], list[str]]:
-    ordered_step_ids = [step.id for step in ordered_steps if step.id]
+    ordered_step_ids = [item.id for item in ordered_chain if item.id]
     decision_by_anchor: dict[str, ProcessDecision] = {}
     warnings: list[str] = []
     unassigned = list(process.decisions)
@@ -1214,10 +1712,15 @@ def _documentation_xml(text: str, indent: str) -> list[str]:
     ]
 
 
-def _semantic_warnings(process: ProcessUnderstanding, lanes: list[BPMNLane]) -> list[str]:
+def _semantic_warnings(
+    process: ProcessUnderstanding,
+    lanes: list[BPMNLane],
+    *,
+    collaboration_built: bool = False,
+) -> list[str]:
     warnings = list(process.assumptions)
     external_actor_names = [actor.label for actor in process.actors if actor.kind == "external_party"]
-    if external_actor_names:
+    if external_actor_names and not collaboration_built:
         warnings.append(
             "Partecipanti esterni modellati come lane nella prima slice: "
             + ", ".join(external_actor_names)
@@ -1232,7 +1735,7 @@ def _semantic_warnings(process: ProcessUnderstanding, lanes: list[BPMNLane]) -> 
     if process.loops:
         warnings.append("Loop presenti: verificare condizioni di rientro e uscita nel canvas.")
     pool_candidates = [item.actor_id for item in process.actor_relationships if item.bpmn_pool_candidate]
-    if pool_candidates:
+    if pool_candidates and not collaboration_built:
         warnings.append("Candidati a pool/message flow esterni: " + ", ".join(pool_candidates[:8]))
     if not lanes:
         warnings.append("Nessun ruolo/lane rilevato dalle note.")

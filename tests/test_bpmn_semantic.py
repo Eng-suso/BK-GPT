@@ -37,7 +37,13 @@ from backend.process_understanding import (
 )
 import backend.workspace_services.bpmn_review as bpmn_review_service
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
-from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
+from backend.workspace_services.bpmn_canvas_edit import (
+    add_bpmn_element,
+    layout_bpmn_di,
+    optimize_bpmn_layout,
+    validate_bpmn_layout,
+    validate_bpmn_xml,
+)
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 
 
@@ -197,6 +203,268 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     assert not any("senza almeno due uscite" in warning for warning in warnings)
     assert xml_validation["valid"] is True
     assert semantic_validation["semantic_valid"] is True
+
+
+def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
+    process = ProcessUnderstanding(
+        title="Domanda pensione",
+        actors=[
+            ProcessActor(id="Actor_Richiedente", label="Richiedente", kind="person"),
+            ProcessActor(id="Actor_Patronato", label="Patronato", kind="organization"),
+            ProcessActor(id="Actor_INPS", label="INPS", kind="organization"),
+        ],
+        participants=[
+            ProcessParticipant(
+                id="Participant_Patronato",
+                label="Patronato",
+                actor_id="Actor_Patronato",
+                kind="organization",
+                bpmn_container="lane",
+                parent_pool_id="Pool_Patronato",
+            ),
+            ProcessParticipant(
+                id="Participant_INPS",
+                label="INPS",
+                actor_id="Actor_INPS",
+                kind="public_authority",
+                bpmn_container="pool",
+            ),
+        ],
+        bpmn_topology=BpmnParticipantTopology(
+            pools=[
+                BpmnPoolCandidate(
+                    id="Pool_Patronato",
+                    label="Canale patronato",
+                    participant_id="Participant_Patronato",
+                    actor_ids=["Actor_Richiedente", "Actor_Patronato"],
+                ),
+                BpmnPoolCandidate(
+                    id="Pool_INPS",
+                    label="INPS",
+                    participant_id="Participant_INPS",
+                    actor_ids=["Actor_INPS"],
+                    is_external=True,
+                    rendering_intent="black_box",
+                ),
+            ],
+            lanes=[
+                BpmnLaneCandidate(id="Lane_Richiedente", label="Richiedente", pool_id="Pool_Patronato", actor_ids=["Actor_Richiedente"]),
+                BpmnLaneCandidate(id="Lane_Patronato", label="Patronato", pool_id="Pool_Patronato", actor_ids=["Actor_Patronato"]),
+            ],
+            message_flows=[
+                BpmnMessageFlowCandidate(
+                    id="MessageFlow_Domanda",
+                    label="Domanda trasmessa a INPS",
+                    from_participant_id="Participant_Patronato",
+                    to_participant_id="Participant_INPS",
+                    source_ref="Task_InoltraDomanda",
+                    artifact="Domanda pensione",
+                )
+            ],
+            black_box_participant_ids=["Participant_INPS"],
+        ),
+        steps=[
+            ProcessStep(id="Task_Consegna", label="Consegna documenti", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_Verifica", label="Verifica requisiti", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_InoltraDomanda", label="Inoltra domanda a INPS", actor_ids=["Actor_Patronato"]),
+        ],
+        main_success_path=["Task_Consegna", "Task_Verifica", "Task_InoltraDomanda"],
+        sequence=["Task_Consegna", "Task_Verifica", "Task_InoltraDomanda"],
+    )
+
+    model = build_bpmn_semantic_model(
+        process_id="Process_Domanda_Pensione",
+        process_name="Domanda pensione",
+        process=process,
+    )
+
+    assert model.collaborationId is not None
+    primary = next(p for p in model.participants if p.processRef == model.id)
+    external = next(p for p in model.participants if p.processRef is None)
+    assert primary.name == "Canale patronato"
+    assert external.isExternal is True
+    assert external.rendering == "black_box"
+    assert {lane.name for lane in model.lanes} == {"Richiedente", "Patronato"}
+    assert len(model.messageFlows) == 1
+    flow = model.messageFlows[0]
+    inoltra_node = next(node for node in model.flowNodes if node.name == "Inoltra domanda a INPS")
+    assert flow.sourceRef == inoltra_node.id
+    assert flow.targetRef == external.id
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert f'<bpmn:collaboration id="{model.collaborationId}"' in xml
+    assert xml.count("<bpmn:participant ") == 2
+    assert f'processRef="{model.id}"' in xml
+    assert "<bpmn:messageFlow " in xml
+    assert f'bpmnElement="{model.collaborationId}"' in xml
+    assert f'bpmnElement="{primary.id}"' in xml
+    assert f'bpmnElement="{external.id}"' in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert validate_canvas_against_process(
+        xml=xml, process_understanding=process, bpmn_semantic_model=model
+    )["semantic_valid"] is True
+
+    laid_out, report = optimize_bpmn_layout(xml)
+    assert "<bpmn:collaboration " in laid_out
+    assert f'bpmnElement="{external.id}"' in laid_out
+    assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
+
+
+def test_layout_bpmn_di_regenerates_collaboration_di_without_dangling_refs():
+    process = ProcessUnderstanding(
+        title="Domanda",
+        actors=[
+            ProcessActor(id="Actor_Ops", label="Operations", kind="team"),
+            ProcessActor(id="Actor_Ext", label="Ente esterno", kind="external_party"),
+        ],
+        steps=[
+            ProcessStep(id="Task_A", label="Prepara", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_B", label="Invia", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_A", "Task_B"],
+        sequence=["Task_A", "Task_B"],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Domanda", process_name="Domanda", process=process
+    )
+    xml = semantic_model_to_bpmn_xml(model)
+    external = next(p for p in model.participants if p.processRef is None)
+
+    grown_xml, _ = add_bpmn_element(xml, "task", "Nuovo passo")
+    relaid = layout_bpmn_di(grown_xml)
+
+    assert f'bpmnElement="{model.collaborationId}"' in relaid
+    assert f'bpmnElement="{external.id}"' in relaid
+    assert validate_bpmn_xml(relaid)["valid"] is True
+    assert validate_bpmn_layout(relaid)["valid"] is True
+
+
+def test_decision_gateway_is_created_when_anchored_to_an_intermediate_event():
+    process = ProcessUnderstanding(
+        title="Attesa esito",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        events=[ProcessEvent(id="Msg_Esito", label="Esito ricevuto", type="message")],
+        steps=[
+            ProcessStep(id="Task_Invia", label="Invia richiesta", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Ok", label="Procedi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Ko", label="Gestisci rifiuto", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Invia", "Msg_Esito", "Task_Ok"],
+        sequence=["Task_Invia", "Task_Ok"],
+        decisions=[
+            ProcessDecision(
+                id="Gateway_Esito",
+                label="Esito positivo?",
+                question="L'esito e positivo?",
+                outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="O_Si", label="Si", target_ref="Task_Ok"),
+                    ProcessDecisionOutcome(id="O_No", label="No", target_path_id="Alt_Ko"),
+                ],
+            )
+        ],
+        alternative_paths=[
+            ProcessPath(id="Alt_Ko", label="Rifiuto", trigger_or_condition="No", sequence=["Task_Ko"], ends_at="Task_Ko")
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="E1", source_id="Task_Invia", target_id="Msg_Esito", label="Richiesta inviata"),
+            ProcessFlowEdge(id="E2", source_id="Msg_Esito", target_id="Gateway_Esito", label="Esito arrivato"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Attesa", process_name="Attesa esito", process=process
+    )
+    gateway = next((n for n in model.flowNodes if n.type == "exclusiveGateway"), None)
+    assert gateway is not None and gateway.name == "Esito positivo?"
+    order = [n.id for n in model.flowNodes]
+    event_id = next(n.id for n in model.flowNodes if n.type == "intermediateCatchEvent")
+    assert order.index(event_id) < order.index(gateway.id)
+
+
+def test_ordered_chain_splices_events_regardless_of_events_list_order():
+    process = ProcessUnderstanding(
+        title="Catena eventi",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        events=[
+            ProcessEvent(id="Ev_B", label="Secondo", type="message"),
+            ProcessEvent(id="Ev_A", label="Primo", type="timer"),
+        ],
+        steps=[
+            ProcessStep(id="Task_1", label="Passo 1", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_2", label="Passo 2", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_1", "Task_2"],
+        sequence=["Task_1", "Task_2"],
+        flow_edges=[
+            ProcessFlowEdge(id="E1", source_id="Task_1", target_id="Ev_A", label="a"),
+            ProcessFlowEdge(id="E2", source_id="Ev_A", target_id="Ev_B", label="b"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Catena", process_name="Catena eventi", process=process
+    )
+    names = [n.name for n in model.flowNodes if n.type == "intermediateCatchEvent"]
+    assert names == ["Primo", "Secondo"]
+
+
+def test_compiler_splices_timer_and_message_intermediate_events_into_the_flow():
+    process = ProcessUnderstanding(
+        title="Decorrenza pensione",
+        actors=[ProcessActor(id="Actor_Patronato", label="Patronato", kind="organization")],
+        events=[
+            ProcessEvent(id="Timer_Decorrenza", label="Primo del mese successivo", type="timer"),
+            ProcessEvent(id="Msg_Esito", label="Esito da INPS", type="message"),
+        ],
+        steps=[
+            ProcessStep(id="Task_Inoltra", label="Inoltra domanda", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_Verifica", label="Verifica ricezione", actor_ids=["Actor_Patronato"]),
+        ],
+        main_success_path=["Task_Inoltra", "Msg_Esito", "Task_Verifica"],
+        sequence=["Task_Inoltra", "Task_Verifica"],
+        flow_edges=[
+            ProcessFlowEdge(id="E1", source_id="Task_Inoltra", target_id="Timer_Decorrenza", label="Domanda presentata"),
+            ProcessFlowEdge(id="E2", source_id="Timer_Decorrenza", target_id="Msg_Esito", label="Alla data prevista"),
+        ],
+    )
+
+    model = build_bpmn_semantic_model(
+        process_id="Process_Decorrenza", process_name="Decorrenza pensione", process=process
+    )
+    events = [node for node in model.flowNodes if node.type == "intermediateCatchEvent"]
+    assert {event.name for event in events} == {"Primo del mese successivo", "Esito da INPS"}
+    timer = next(event for event in events if event.name == "Primo del mese successivo")
+    message = next(event for event in events if event.name == "Esito da INPS")
+    assert timer.eventDefinition == "timer"
+    assert message.eventDefinition == "message"
+
+    order = [node.id for node in model.flowNodes]
+    inoltra = next(n.id for n in model.flowNodes if n.name == "Inoltra domanda")
+    verifica = next(n.id for n in model.flowNodes if n.name == "Verifica ricezione")
+    assert order.index(inoltra) < order.index(timer.id) < order.index(message.id) < order.index(verifica)
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert "<bpmn:timerEventDefinition />" in xml
+    assert "<bpmn:messageEventDefinition />" in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert not any(
+        "senza ingresso" in warning or "senza uscita" in warning
+        for warning in validate_bpmn_semantic_model(model)
+    )
+
+
+def test_compiler_keeps_single_process_when_no_collaboration_topology():
+    process = ProcessUnderstanding(
+        title="Processo interno",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[ProcessStep(id="Task_A", label="Passo A", actor_ids=["Actor_Ops"])],
+        sequence=["Task_A"],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Interno", process_name="Processo interno", process=process
+    )
+    assert model.collaborationId is None
+    assert model.participants == []
+    assert model.messageFlows == []
 
 
 def test_canvas_validation_requires_lossless_semantic_payload_when_process_context_exists():
