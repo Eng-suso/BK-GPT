@@ -285,24 +285,41 @@ def _validate_process_understanding_coverage(
 
 
 def _gateway_path_issues(root: ET.Element) -> list[str]:
-    issues = []
-    outgoing_by_id: dict[str, int] = {}
+    """Classify each gateway by degree instead of blindly requiring two exits.
+
+    A join (>=2 in, 1 out) and a parallel/inclusive split are both legitimate;
+    only a data-based split with a single branch, a gateway that both joins and
+    splits, or a gateway wired to nothing is a real problem.
+    """
+    issues: list[str] = []
+    out_degree: dict[str, int] = {}
+    in_degree: dict[str, int] = {}
+    gateway_type: dict[str, str] = {}
 
     for element in root.iter():
         if _namespace(element.tag) != BPMN_NS:
             continue
         element_id = element.attrib.get("id")
-        if not element_id or _local_name(element.tag) not in GATEWAY_TYPES:
-            continue
-        outgoing_by_id[element_id] = sum(
-            1
-            for child in element
-            if _namespace(child.tag) == BPMN_NS and _local_name(child.tag) == "outgoing"
-        )
+        local = _local_name(element.tag)
+        if element_id and local in GATEWAY_TYPES:
+            gateway_type[element_id] = local
+        if local == "sequenceFlow":
+            source = element.attrib.get("sourceRef")
+            target = element.attrib.get("targetRef")
+            if source:
+                out_degree[source] = out_degree.get(source, 0) + 1
+            if target:
+                in_degree[target] = in_degree.get(target, 0) + 1
 
-    for gateway_id, outgoing_count in outgoing_by_id.items():
-        if outgoing_count < 2:
-            issues.append(f"Gateway {gateway_id} ha meno di due uscite.")
+    for gateway_id, local in gateway_type.items():
+        out_deg = out_degree.get(gateway_id, 0)
+        in_deg = in_degree.get(gateway_id, 0)
+        if out_deg == 0 or in_deg == 0:
+            issues.append(f"Gateway {gateway_id} non e' collegato al flusso (ingressi {in_deg}, uscite {out_deg}).")
+        elif in_deg > 1 and out_deg > 1:
+            issues.append(f"Gateway {gateway_id} unisce e divide allo stesso tempo: separare join e split.")
+        elif in_deg <= 1 and out_deg < 2 and local in {"exclusiveGateway", "inclusiveGateway", "eventBasedGateway"}:
+            issues.append(f"Gateway decisionale {gateway_id} ha meno di due rami.")
 
     return issues
 
