@@ -120,11 +120,14 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
 
 
 def _drop_unreachable(process: ElementTree.Element) -> bool:
-    """Remove flow nodes and sequence flows no longer reachable from a start event.
-
-    Dropping boundary events (and their exception flow) leaves the synthesized
-    handler task / handler end / handler flow behind as an island; Prosimos would
-    either KeyError on it or model an activity that can never fire.
+    """
+    Remove flow nodes and sequence flows that cannot be reached from a start event.
+    
+    Parameters:
+        process (ElementTree.Element): BPMN process element to update.
+    
+    Returns:
+        bool: `True` if any unreachable elements were removed, `False` otherwise.
     """
     flow_node_tags = {
         "task",
@@ -174,6 +177,14 @@ def _drop_unreachable(process: ElementTree.Element) -> bool:
 
 
 def _strip_noise(process: ElementTree.Element) -> bool:
+    """Remove decorative and unsupported child elements from a BPMN process.
+    
+    Parameters:
+    	process (ElementTree.Element): The BPMN process element to clean.
+    
+    Returns:
+    	bool: `True` if any elements were removed, `False` otherwise.
+    """
     changed = False
     for element in list(process):
         if _local(element.tag) in _NOISE_TAGS:

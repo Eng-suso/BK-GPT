@@ -277,6 +277,21 @@ def build_bpmn_semantic_model(
     process_name: str,
     process: ProcessUnderstanding,
 ) -> BPMNSemanticModel:
+    """
+    Compile a process understanding into a validated BPMN semantic model.
+    
+    Parameters:
+        process_id (str): Identifier for the generated BPMN process.
+        process_name (str): Display name for the generated BPMN process.
+        process (ProcessUnderstanding): Source process understanding to compile.
+    
+    Returns:
+        BPMNSemanticModel: The compiled BPMN model, including nodes, flows,
+            collaboration data, warnings, source traceability, and a compilation plan.
+    
+    Raises:
+        ValueError: If compilation produces losses according to the compilation plan.
+    """
     used_ids: set[str] = set()
     safe_process_id = _xml_id(process_id, "Process", used_ids)
     collaboration = _build_collaboration_layer(process, safe_process_id, used_ids)
@@ -447,6 +462,15 @@ def build_bpmn_semantic_model(
 
 
 def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
+    """
+    Validate the structural consistency of a BPMN semantic model.
+    
+    Parameters:
+    	model (BPMNSemanticModel): The semantic model to validate.
+    
+    Returns:
+    	list[str]: Validation warnings for duplicate identifiers, missing events, invalid references, and inconsistent node connectivity.
+    """
     warnings: list[str] = []
     node_ids = {node.id for node in model.flowNodes}
     flow_ids = {flow.id for flow in model.sequenceFlows}
@@ -497,6 +521,16 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
 
 
 def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bool = False) -> str:
+    """
+    Serialize a BPMN semantic model into a complete BPMN XML document.
+    
+    Parameters:
+    	model (BPMNSemanticModel): The semantic model to serialize.
+    	visual_artifacts (bool): Whether to include data objects, text annotations, and associations with their visual representations.
+    
+    Returns:
+    	str: The newline-separated BPMN XML document.
+    """
     incoming, outgoing = _flow_refs(model)
     visual_data_objects = model.dataObjects if visual_artifacts else []
     annotations, associations = _semantic_annotations(model) if visual_artifacts else ([], [])
@@ -1032,6 +1066,14 @@ def _populate_lane_refs(lanes: list[BPMNLane], nodes: list[BPMNFlowNode]) -> Non
 
 
 def _task_type(step: ProcessStep) -> str:
+    """Map a process step type to its corresponding BPMN task type.
+    
+    Parameters:
+    	step (ProcessStep): The process step to classify.
+    
+    Returns:
+    	str: The BPMN task type, defaulting to ``"userTask"`` for unsupported step types.
+    """
     return {
         "user_task": "userTask",
         "manual_task": "manualTask",
@@ -1112,6 +1154,20 @@ def _attach_anchored_gateway(
     gateway_by_decision_id: dict[str, BPMNFlowNode],
     gateway_by_step_id: dict[str, BPMNFlowNode],
 ) -> None:
+    """
+    Add an exclusive gateway for the decision anchored to a process step.
+    
+    Parameters:
+    	anchor_id (str): Identifier of the process step anchoring the decision.
+    	lane_id (str | None): Lane assigned to the gateway.
+    	decision_by_anchor_step_id (dict[str, ProcessDecision]): Decisions indexed by their anchor step identifiers.
+    	used_ids (set[str]): Identifiers already allocated for compiled BPMN elements.
+    	nodes (list[BPMNFlowNode]): Collection receiving the created gateway.
+    	main_chain (list[str]): Ordered main-chain identifiers receiving the gateway.
+    	registry (_FlowRegistry): Registry used to map the source decision to the gateway.
+    	gateway_by_decision_id (dict[str, BPMNFlowNode]): Mapping from decision identifiers to gateways.
+    	gateway_by_step_id (dict[str, BPMNFlowNode]): Mapping from anchor step identifiers to gateways.
+    """
     decision = decision_by_anchor_step_id.get(anchor_id)
     if decision is None:
         return
@@ -1220,6 +1276,22 @@ def _add_alternative_paths(
     lane_by_actor_id: dict[str, str],
     warnings: list[str],
 ) -> None:
+    """
+    Add BPMN branches for alternative process paths and connect them to decision gateways.
+    
+    Parameters:
+    	process (ProcessUnderstanding): Process definition containing decisions and alternative paths.
+    	nodes (list[BPMNFlowNode]): Collection to extend with generated branch nodes and end events.
+    	registry (_FlowRegistry): Registry used to create and map branch sequence flows.
+    	used_ids (set[str]): IDs reserved for generated BPMN elements.
+    	step_by_id (dict[str, ProcessStep]): Source steps indexed by identifier.
+    	step_node_by_original_id (dict[str, str]): Mapping of source step IDs to compiled node IDs.
+    	gateway_by_decision_id (dict[str, BPMNFlowNode]): Decision gateways indexed by decision ID.
+    	gateway_by_step_id (dict[str, BPMNFlowNode]): Decision gateways indexed by anchor step ID.
+    	actors (list[ProcessActor]): Process actors used to resolve branch ownership.
+    	lane_by_actor_id (dict[str, str]): Mapping of actor IDs to lane IDs.
+    	warnings (list[str]): Collection to extend with warnings for missing, invalid, or unconfirmed paths.
+    """
     unassigned_paths = list(process.alternative_paths)
     gateways = list(gateway_by_decision_id.values())
 
@@ -1309,6 +1381,15 @@ def _add_loop_flows(
     step_node_by_original_id: dict[str, str],
     warnings: list[str],
 ) -> None:
+    """
+    Add loop-back flows for loops that map to at least two compiled steps.
+    
+    Parameters:
+    	process (ProcessUnderstanding): Process definition containing loop metadata.
+    	registry (_FlowRegistry): Registry used to create and document sequence flows.
+    	step_node_by_original_id (dict[str, str]): Mapping from source step IDs to compiled node IDs.
+    	warnings (list[str]): Collection to which unmappable, degenerate, or exit-condition warnings are appended.
+    """
     for loop in process.loops:
         repeated = [step_id for step_id in loop.repeated_steps if step_id in step_node_by_original_id]
         if len(repeated) < 2:
@@ -1367,6 +1448,11 @@ def _add_boundary_events(
     end_id: str,
     warnings: list[str],
 ) -> None:
+    """
+    Add boundary events for defined process exceptions and connect them to recovery or termination paths.
+    
+    Unattachable exceptions are skipped with warnings. Exceptions without defined handling are connected to the process end and reported in the warnings list.
+    """
     node_type_by_id = {node.id: node.type for node in nodes}
     node_lane_by_id = {node.id: node.laneId for node in nodes}
 
@@ -1459,6 +1545,19 @@ def _exception_attached_node(
     step_node_by_original_id: dict[str, str],
     node_type_by_id: dict[str, str],
 ) -> str | None:
+    """
+    Resolve the compiled activity associated with an exception path.
+    
+    Parameters:
+        exception (ProcessExceptionPath): Exception path whose attachment is resolved.
+        process (ProcessUnderstanding): Process definition containing sequence-flow edges.
+        registry (_FlowRegistry): Registry used to map source identifiers to compiled nodes.
+        step_node_by_original_id (dict[str, str]): Mapping of original step IDs to compiled node IDs.
+        node_type_by_id (dict[str, str]): Mapping of compiled node IDs to BPMN node types.
+    
+    Returns:
+        str | None: The compiled activity ID attached to the exception, or `None` when no activity can be resolved.
+    """
     def as_activity(node_id: str | None) -> str | None:
         if node_id and node_type_by_id.get(node_id) in _ACTIVITY_NODE_TYPES:
             return node_id
@@ -1488,6 +1587,23 @@ def _exception_rejoin_node(
     end_id: str,
     exception_source_ref: str,
 ) -> str | None:
+    """Resolve or create the recovery node for an exception path.
+    
+    Parameters:
+        exception (ProcessExceptionPath): Exception path whose recovery transition is resolved.
+        process (ProcessUnderstanding): Process definition containing recovery sequence edges.
+        registry (_FlowRegistry): Registry of compiled nodes and sequence flows.
+        step_by_id (dict[str, ProcessStep]): Process steps indexed by identifier.
+        lane_by_actor_id (dict[str, str]): Lane identifiers indexed by actor identifier.
+        actors (list[ProcessActor]): Actors used to determine recovery-step ownership and lanes.
+        nodes (list[BPMNFlowNode]): Collection to which a newly created recovery node may be added.
+        used_ids (set[str]): Identifiers reserved for generated BPMN elements.
+        end_id (str): BPMN identifier used when a newly created recovery step has no outgoing transition.
+        exception_source_ref (str): Source reference recorded on a newly created recovery node.
+    
+    Returns:
+        str | None: The compiled recovery node identifier, or `None` when no recovery target can be resolved.
+    """
     for edge in process.flow_edges:
         if edge.kind != "sequence" or edge.source_id != exception.id:
             continue
@@ -1520,11 +1636,14 @@ def _exception_rejoin_node(
 def _exception_event_definition(
     exception: ProcessExceptionPath,
 ) -> tuple[Literal["timer", "message", "error", "conditional"], bool]:
-    """Resolve (eventDefinition, interrupting) for an exception boundary event.
-
-    Error boundary events must be interrupting per BPMN 2.0; when the process
-    asked for non-interrupting handling of an otherwise-unclassified trigger we
-    fall back to a conditional boundary event, which may be non-interrupting.
+    """
+    Determine the boundary-event definition and interrupting behavior for an exception path.
+    
+    Parameters:
+    	exception (ProcessExceptionPath): Exception path whose trigger and handling behavior determine the event definition.
+    
+    Returns:
+    	tuple: The event definition type and whether the boundary event is interrupting.
     """
     text = f"{exception.trigger or ''} {exception.label or ''}"
     if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
@@ -1537,6 +1656,15 @@ def _exception_event_definition(
 
 
 def _matches_word(text: str, words: tuple[str, ...]) -> bool:
+    """Determine whether text contains a word beginning with any specified term.
+    
+    Parameters:
+    	text (str): Text to search.
+    	words (tuple[str, ...]): Terms to match at word boundaries.
+    
+    Returns:
+    	bool: `True` if text contains a matching term, `False` otherwise.
+    """
     lowered = text.casefold()
     return any(re.search(rf"\b{re.escape(word)}", lowered) for word in words)
 
@@ -1548,6 +1676,16 @@ def _build_data_objects(
     step_node_by_original_id: dict[str, str],
     ordered_steps: list[ProcessStep],
 ) -> tuple[list[BPMNDataObject], list[BPMNAssociation]]:
+    """
+    Builds BPMN data objects from the process definition and associates them with resolvable source nodes.
+    
+    Parameters:
+    	process (ProcessUnderstanding): Process definition containing data objects.
+    	used_ids (set[str]): IDs already assigned to BPMN elements.
+    
+    Returns:
+    	tuple[list[BPMNDataObject], list[BPMNAssociation]]: The created data objects and associations to their source nodes.
+    """
     data_objects: list[BPMNDataObject] = []
     associations: list[BPMNAssociation] = []
 
@@ -1601,6 +1739,18 @@ def _build_process_annotations(
     used_ids: set[str],
     source_node_id: str,
 ) -> tuple[list[BPMNTextAnnotation], list[BPMNAssociation]]:
+    """
+    Builds text annotations and associations that capture warnings and process metadata.
+    
+    Parameters:
+    	process (ProcessUnderstanding): Process information used to generate annotation text.
+    	warnings (list[str]): Warnings to include in the annotations.
+    	used_ids (set[str]): IDs already in use for generating unique annotation and association IDs.
+    	source_node_id (str): ID of the BPMN node associated with the annotations.
+    
+    Returns:
+    	tuple[list[BPMNTextAnnotation], list[BPMNAssociation]]: The generated annotations and their associations with the source node.
+    """
     annotation_texts = []
     annotation_texts.extend(warnings[:4])
     annotation_texts.extend(
@@ -1677,16 +1827,41 @@ class _FlowRegistry:
     _flow_by_pair: dict[tuple[str, str], BPMNSequenceFlow] = field(default_factory=dict)
 
     def map(self, original_id: str | None, compiled_id: str) -> None:
+        """Associate an original identifier with its compiled identifier when the original identifier is provided."""
         if original_id:
             self._compiled_by_original.setdefault(original_id, compiled_id)
 
     def compiled_for(self, original_id: str) -> str | None:
+        """Return the compiled BPMN identifier associated with an original identifier.
+        
+        Parameters:
+        	original_id (str): The original source identifier.
+        
+        Returns:
+        	str | None: The compiled BPMN identifier, or `None` if no mapping exists.
+        """
         return self._compiled_by_original.get(original_id)
 
     def outgoing_count(self, node_id: str) -> int:
+        """Count sequence flows originating from a node.
+        
+        Parameters:
+            node_id (str): Identifier of the source node.
+        
+        Returns:
+            int: Number of outgoing sequence flows.
+        """
         return sum(1 for flow in self.flows if flow.sourceRef == node_id)
 
     def incoming_count(self, node_id: str) -> int:
+        """Count the sequence flows entering a node.
+        
+        Parameters:
+        	node_id (str): Identifier of the target node.
+        
+        Returns:
+        	int: Number of sequence flows whose target is the specified node.
+        """
         return sum(1 for flow in self.flows if flow.targetRef == node_id)
 
     def add(
@@ -1698,6 +1873,19 @@ class _FlowRegistry:
         documentation: str | None = None,
         source_refs: list[str] | None = None,
     ) -> BPMNSequenceFlow | None:
+        """
+        Create or retrieve a sequence flow between two distinct BPMN nodes.
+        
+        Parameters:
+            source (str): ID of the source node.
+            target (str): ID of the target node.
+            name (str | None): Optional flow label.
+            documentation (str | None): Optional flow documentation.
+            source_refs (list[str] | None): Optional source-model references.
+        
+        Returns:
+            BPMNSequenceFlow | None: The created or existing sequence flow, or `None` when either endpoint is missing or both endpoints are identical.
+        """
         if not source or not target or source == target:
             return None
         pair = (source, target)
@@ -1720,10 +1908,16 @@ class _FlowRegistry:
         return flow
 
     def connect_chain(self, chain: list[str]) -> None:
+        """Connect each consecutive pair of node IDs in a chain with a sequence flow.
+        
+        Parameters:
+        	chain (list[str]): Ordered node IDs to connect.
+        """
         for source, target in zip(chain, chain[1:]):
             self.add(source, target)
 
     def apply_edge_overlay(self) -> None:
+        """Apply source sequence-edge labels, traceability references, and gateway conditions to compiled flows."""
         for (origin_source, origin_target), edge in self.edges_by_original.items():
             source = self._compiled_by_original.get(origin_source)
             target = self._compiled_by_original.get(origin_target)
@@ -1748,6 +1942,14 @@ class _FlowRegistry:
         documentation: str | None = None,
         source_refs: list[str] | None = None,
     ) -> None:
+        """Enrich a sequence flow with missing metadata and source references.
+        
+        Parameters:
+        	flow (BPMNSequenceFlow): The flow to update.
+        	name (str | None): An optional name applied when the flow has no name.
+        	documentation (str | None): Optional documentation applied when the flow has none.
+        	source_refs (list[str] | None): Source references to add without duplication.
+        """
         if name and not flow.name:
             flow.name = name
         if documentation and not flow.documentation:
@@ -1762,12 +1964,10 @@ def _assign_gateway_defaults(
     flows: list[BPMNSequenceFlow],
     warnings: list[str],
 ) -> None:
-    """Give data-based gateways a default flow.
-
-    A BPMN exclusive/inclusive gateway with two or more outgoing flows must not
-    leave a plain unconditioned branch: the branch with no condition becomes the
-    default. When every branch is conditioned nothing is marked (the modeller
-    owns that); when more than one is unconditioned it is reported.
+    """
+    Assigns default flows to exclusive and inclusive gateways with multiple outgoing branches.
+    
+    An unconditioned branch is marked as the default when exactly one exists. Gateways with multiple unconditioned branches produce a warning.
     """
     outgoing: dict[str, list[BPMNSequenceFlow]] = {}
     for flow in flows:
@@ -1790,6 +1990,14 @@ def _assign_gateway_defaults(
 
 
 def _sequence_flow_edges_by_endpoint(process: ProcessUnderstanding) -> dict[tuple[str, str], ProcessFlowEdge]:
+    """Index sequence-flow edges by their source and target identifiers.
+    
+    Parameters:
+    	process (ProcessUnderstanding): Process model containing flow edges.
+    
+    Returns:
+    	dict[tuple[str, str], ProcessFlowEdge]: The first sequence-flow edge for each source-target pair.
+    """
     index: dict[tuple[str, str], ProcessFlowEdge] = {}
     for edge in process.flow_edges:
         if edge.kind == "sequence":
@@ -1803,14 +2011,14 @@ def _complete_flow_graph(
     nodes: list[BPMNFlowNode],
     warnings: list[str],
 ) -> None:
-    """Add flow_edges transitions the skeleton generators missed.
-
-    An addition is applied only when it cannot corrupt control flow: the target
-    is never a start event and either routes into a gateway/event/end or would
-    not become an uncontrolled merge (<=1 existing incoming); the source is a
-    gateway (which may branch freely) or an activity that still has no outgoing
-    flow. Everything else — a second exit from an activity, a merge onto a busy
-    node — is reported so a gateway can be added instead of silently drawn.
+    """
+    Complete the compiled flow graph with safe sequence transitions from the process definition.
+    
+    Parameters:
+        process (ProcessUnderstanding): Process definition containing source flow edges.
+        registry (_FlowRegistry): Registry of compiled nodes and sequence flows.
+        nodes (list[BPMNFlowNode]): Compiled flow nodes used to validate endpoints.
+        warnings (list[str]): Collection to which unsafe or unsupported transitions are appended.
     """
     node_type_by_id = {node.id: node.type for node in nodes}
     mergeable = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "endEvent"}
@@ -1850,6 +2058,18 @@ def build_bpmn_compilation_plan(
     process: ProcessUnderstanding,
     model: BPMNSemanticModel,
 ) -> BpmnCompilationPlan:
+    """
+    Build a structured compilation plan from a process understanding and its BPMN semantic model.
+    
+    Parameters:
+    	process_id (str): Identifier assigned to the compiled process.
+    	process_name (str): Display name assigned to the compiled process.
+    	process (ProcessUnderstanding): Source process data used to populate the plan.
+    	model (BPMNSemanticModel): Compiled BPMN model used for concrete element mappings and warnings.
+    
+    Returns:
+    	BpmnCompilationPlan: Compilation plan containing BPMN elements, source traceability, and coverage information.
+    """
     target_by_source_ref = _target_by_source_ref(model)
     source_items = _process_source_items(process)
     traceability: list[TraceabilityLink] = []
@@ -2229,6 +2449,16 @@ def _semantic_annotations(model: BPMNSemanticModel) -> tuple[list[dict], list[di
 
 
 def _layout_model(model: BPMNSemanticModel) -> tuple[dict[str, dict[str, float]], list[dict[str, float | str]]]:
+    """Calculate BPMN node positions and lane shapes for diagram layout.
+    
+    Boundary events are positioned relative to their attached nodes when possible.
+    
+    Parameters:
+    	model (BPMNSemanticModel): Semantic model containing flow nodes and lanes.
+    
+    Returns:
+    	tuple: A mapping of node IDs to position and dimension data, and a list of lane shape data.
+    """
     lane_index_by_id = {lane.id: index for index, lane in enumerate(model.lanes)}
     lane_count = max(1, len(model.lanes))
     lane_height = 180
@@ -2381,6 +2611,14 @@ def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str
 
 
 def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
+    """Return the layout dimensions for a BPMN flow node.
+    
+    Parameters:
+        node (BPMNFlowNode): The node whose dimensions are determined.
+    
+    Returns:
+        tuple[int, int]: The node width and height in pixels.
+    """
     if node.type in {"startEvent", "endEvent", "intermediateCatchEvent"}:
         return 44, 44
     if node.type == "boundaryEvent":

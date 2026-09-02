@@ -348,6 +348,11 @@ def test_bpmn_review_tools_include_canvas_facade_for_compatibility():
 
 
 def _process_with_exception() -> ProcessUnderstanding:
+    """Build a process model with a timeout exception attached to its waiting step.
+    
+    Returns:
+        ProcessUnderstanding: A two-step operations process with a 15-day timeout exception.
+    """
     return ProcessUnderstanding(
         title="Con eccezione",
         actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
