@@ -663,6 +663,15 @@ def conservative_process_quality_report(
 
 
 def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessUnderstandingDiagnostics:
+    """
+    Validate references and structural consistency in a process understanding model.
+    
+    Parameters:
+    	process (ProcessUnderstanding): The process model to diagnose.
+    
+    Returns:
+    	ProcessUnderstandingDiagnostics: Counts of extracted elements and lists of blocking errors and warnings.
+    """
     actor_ids = {actor.id for actor in process.actors}
     step_ids = {step.id for step in process.steps}
     event_ids = {event.id for event in process.events}

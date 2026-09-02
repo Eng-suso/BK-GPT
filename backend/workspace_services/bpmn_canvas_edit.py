@@ -203,6 +203,17 @@ def update_bpmn_element(
 
 
 def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
+    """
+    Delete a BPMN element and its related flows, boundary events, references, and diagram metadata.
+    
+    Parameters:
+        xml (str): BPMN XML containing the element to delete.
+        element_id (str): ID of the BPMN element to delete.
+    
+    Returns:
+        tuple[str, dict]: Updated BPMN XML and a summary containing the deleted element,
+            removed connected flow IDs, and removed boundary-event IDs.
+    """
     root = _parse_bpmn_xml(xml)
     element = _find_editable_element(root, element_id)
     element_type = _local_name(element.tag)
@@ -444,6 +455,15 @@ def validate_bpmn_xml(xml: str) -> dict:
 
 
 def validate_bpmn_layout(xml: str) -> dict:
+    """
+    Validate the diagram layout for missing node positions, overlaps, unreadable dimensions, and undrawn sequence flows.
+    
+    Parameters:
+    	xml (str): BPMN XML content to validate.
+    
+    Returns:
+    	dict: A validation report containing validity, issues, warnings, and layout metrics.
+    """
     root = _parse_bpmn_xml(xml)
     process = _find_process(root)
     flow_node_ids = [
@@ -577,6 +597,16 @@ def optimize_bpmn_layout(xml: str) -> tuple[str, dict]:
 
 
 def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
+    """
+    Generate BPMN diagram interchange metadata for the process.
+    
+    Parameters:
+    	xml (str): BPMN XML containing a process.
+    	config (BpmnLayoutConfig | None): Optional layout configuration.
+    
+    Returns:
+    	str: BPMN XML with regenerated diagram, shape, and edge layout metadata.
+    """
     config = config or BpmnLayoutConfig()
     root = _parse_bpmn_xml(xml)
     definitions_id = root.attrib.get("id", "Definitions")
@@ -1044,6 +1074,14 @@ def _sequence_flows(root: ET.Element) -> list[ET.Element]:
 
 
 def _associations(root: ET.Element) -> list[ET.Element]:
+    """Return all BPMN association elements in the XML tree.
+    
+    Parameters:
+    	root (ET.Element): Root element of the BPMN XML tree.
+    
+    Returns:
+    	list[ET.Element]: BPMN association elements found in the tree.
+    """
     return [
         element
         for element in root.iter()
@@ -1052,6 +1090,11 @@ def _associations(root: ET.Element) -> list[ET.Element]:
 
 
 def _boundary_events(root: ET.Element) -> list[ET.Element]:
+    """Find all boundary event elements in the BPMN document.
+    
+    Returns:
+    	list[ET.Element]: Boundary event elements found in the document.
+    """
     return [
         element
         for element in root.iter()
@@ -1060,6 +1103,14 @@ def _boundary_events(root: ET.Element) -> list[ET.Element]:
 
 
 def _find_collaboration(root: ET.Element) -> ET.Element | None:
+    """Find the collaboration element in a BPMN XML tree.
+    
+    Parameters:
+    	root (ET.Element): Root element of the BPMN XML tree.
+    
+    Returns:
+    	ET.Element | None: The collaboration element, or `None` if the tree does not contain one.
+    """
     return next(
         (
             element
