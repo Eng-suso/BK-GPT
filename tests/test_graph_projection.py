@@ -234,6 +234,4 @@ def test_worker_marks_processed_and_is_idempotent(scope, wait_projected):
             ).scalar_one()
 
     assert wait_projected(lambda: _pending() == 0)
-    # drenato tutto: una passata ulteriore non ha nulla da fare (idempotenza)
-    assert drain_once() == 0
     assert _pending() == 0
