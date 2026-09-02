@@ -69,6 +69,24 @@ class BPMNAssociation(BaseModel):
     targetRef: str
 
 
+class BPMNParticipant(BaseModel):
+    id: str
+    name: str
+    processRef: str | None = None
+    isExternal: bool = False
+    rendering: Literal["expanded", "black_box", "out_of_scope"] = "expanded"
+    sourceRefs: list[str] = Field(default_factory=list)
+
+
+class BPMNMessageFlow(BaseModel):
+    id: str
+    sourceRef: str
+    targetRef: str
+    name: str | None = None
+    documentation: str | None = None
+    sourceRefs: list[str] = Field(default_factory=list)
+
+
 MappingStatus = Literal["direct", "encoded", "visual_annotation", "semantic_payload", "blocked"]
 
 
@@ -220,9 +238,12 @@ class BPMNSemanticModel(BaseModel):
     id: str
     name: str
     isExecutable: bool = False
+    collaborationId: str | None = None
+    participants: list[BPMNParticipant] = Field(default_factory=list)
     lanes: list[BPMNLane] = Field(default_factory=list)
     flowNodes: list[BPMNFlowNode]
     sequenceFlows: list[BPMNSequenceFlow]
+    messageFlows: list[BPMNMessageFlow] = Field(default_factory=list)
     dataObjects: list[BPMNDataObject] = Field(default_factory=list)
     textAnnotations: list[BPMNTextAnnotation] = Field(default_factory=list)
     associations: list[BPMNAssociation] = Field(default_factory=list)
