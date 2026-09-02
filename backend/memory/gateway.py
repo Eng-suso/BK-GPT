@@ -6,16 +6,19 @@ query. Con Neo4j Community senza subgraph ACL, e con Mem0 senza tenant ACL,
 questo e' l'unico punto di enforcement in lettura.
 
 `graph_retrieve` (grafo tipizzato, retrieval ibrido — P3):
-  1. seed lessicale — nomi entita' + parole della query -> entity_id
-     (Postgres kg_entity, RLS per client)
-  2. seed vettoriale — embedding della query -> cosine su kg_chunk (RLS) ->
-     source_id dei chunk -> entita' con quella provenance
-  3. fusione RRF dei due ranking -> lista seed unica
+  1. seed entita' — nomi entita' + parole della query -> match esatto/alias/LIKE
+     su kg_entity (Postgres, RLS per client)
+  2. ricerca testo su kg_chunk (`_text_search`), due segnali fusi con RRF:
+       - lessicale: `content_tsv @@ websearch_to_tsquery` + `ts_rank_cd`
+       - vettoriale: cosine sull'embedding della query (se l'embedder c'e')
+     dai chunk fusi si risale ai `source_id` -> entita' con quella provenance,
+     ordinate per rank del miglior chunk.
+  3. fusione RRF di (seed entita', entita' da provenance) -> lista seed unica
   4. espansione — k-hop in Neo4j dai seed, ogni nodo del path filtrato per
      client_id
   5. idratazione — ogni id opaco -> testo autoritativo da Postgres (RLS):
      canonical_name, statement, title, ...
-  I chunk piu' vicini tornano anche come contesto testuale (`chunks`).
+  I chunk fusi tornano come contesto testuale (`chunks`).
 
 `memory_search` (recall Mem0):
   - `user_id` Mem0 = mappa dal `consultant_id`
@@ -35,6 +38,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import text
@@ -96,70 +100,147 @@ def _resolve_seed_entities(
     return [str(r.id) for r in rows]
 
 
-def _vector_seed(
-    consultant_id: str,
-    client_id: str,
-    query: str,
-    chunk_k: int,
-) -> tuple[list[str], list[dict]]:
-    """Seed vettoriale: embedda la query, cerca i chunk piu' vicini (RLS per
-    client), risale a `source_id` -> entita' con quella provenance.
+def _rrf(ranked_lists: list[list[Any]], k: int = 60) -> list[tuple[Any, float]]:
+    """Reciprocal Rank Fusion: piu' ranking -> un ordine unico con punteggio.
 
-    Ritorna `(entity_ids ordinati per rilevanza, chunk di contesto)`.
+    Item hashable qualsiasi (entity_id str, oppure chiave chunk (source_id,
+    ordinal)). Punteggio = somma di 1/(k + rank + 1) su ogni lista.
     """
-    if not (query or "").strip() or not embeddings.available():
-        return [], []
-    with canonical_session(consultant_id, client_id) as session:
-        has_chunks = session.execute(
-            text(
-                "SELECT 1 FROM kg_chunk "
-                "WHERE client_id = :cl AND embedding IS NOT NULL LIMIT 1"
-            ),
-            {"cl": client_id},
-        ).first()
-        if not has_chunks:  # niente da cercare: risparmia la chiamata all'embedder
-            return [], []
-
-        vec = embeddings.embed_query(query)
-        if vec is None:
-            return [], []
-        q = embeddings.to_pgvector(vec)
-        chunk_rows = session.execute(
-            text(
-                "SELECT source_id, content, "
-                "       1 - (embedding <=> CAST(:q AS vector)) AS score "
-                "FROM kg_chunk "
-                "WHERE client_id = :cl AND embedding IS NOT NULL "
-                "ORDER BY embedding <=> CAST(:q AS vector) "
-                "LIMIT :k"
-            ),
-            {"q": q, "cl": client_id, "k": chunk_k},
-        ).all()
-        if not chunk_rows:
-            return [], []
-        source_ids = list({str(r.source_id) for r in chunk_rows})
-        ent_rows = session.execute(
-            text(
-                "SELECT DISTINCT id FROM kg_entity "
-                "WHERE client_id = :cl AND status = 'active' "
-                "  AND source_ids && CAST(:sids AS uuid[])"
-            ),
-            {"cl": client_id, "sids": source_ids},
-        ).all()
-    chunks = [
-        {"content": r.content, "score": round(float(r.score), 4)}
-        for r in chunk_rows
-    ]
-    return [str(r.id) for r in ent_rows], chunks
-
-
-def _rrf(ranked_lists: list[list[str]], k: int = 60) -> list[str]:
-    """Reciprocal Rank Fusion: combina piu' ranking di id in uno solo."""
-    scores: dict[str, float] = {}
+    scores: dict[Any, float] = {}
     for lst in ranked_lists:
         for rank, item in enumerate(lst):
             scores[item] = scores.get(item, 0.0) + 1.0 / (k + rank + 1)
-    return [item for item, _ in sorted(scores.items(), key=lambda kv: -kv[1])]
+    return sorted(scores.items(), key=lambda kv: -kv[1])
+
+
+@dataclass(frozen=True)
+class ChunkHit:
+    content: str
+    source_id: str
+    ordinal: int
+    score: float  # RRF fuso
+    lexical_score: float | None = None
+    vector_score: float | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "content": self.content,
+            "score": round(self.score, 6),
+            "lexical_score": self.lexical_score,
+            "vector_score": self.vector_score,
+        }
+
+
+@dataclass(frozen=True)
+class ChunkSearch:
+    entity_ids: tuple[str, ...]  # entita' da provenance, ordinate per rank chunk
+    chunks: tuple[ChunkHit, ...]
+
+
+_EMPTY_CHUNK_SEARCH = ChunkSearch(entity_ids=(), chunks=())
+
+
+def _text_search(
+    consultant_id: str,
+    client_id: str,
+    query: str,
+    k: int,
+) -> ChunkSearch:
+    """Ricerca ibrida sui `kg_chunk`: lessicale (`ts_rank_cd`) + vettoriale
+    (cosine), fusi con RRF. Dai chunk fusi si risale alle entita' con quella
+    provenance, ordinate per rank del loro miglior chunk.
+
+    Degrada: senza embedder -> solo lessicale; senza match -> vuoto.
+    """
+    if not (query or "").strip():
+        return _EMPTY_CHUNK_SEARCH
+
+    # tsquery OR-of-terms: recall lessicale (qualsiasi parola), ranking a
+    # `ts_rank_cd`. I termini vengono dal regex `_WORD` (solo caratteri di
+    # parola) quindi sono gia' sicuri per `to_tsquery`.
+    lex_terms = list(dict.fromkeys(w.lower() for w in _WORD.findall(query or "")))
+    tsquery = " | ".join(lex_terms)
+
+    with canonical_session(consultant_id, client_id) as session:
+        if not session.execute(
+            text("SELECT 1 FROM kg_chunk WHERE client_id = :cl LIMIT 1"),
+            {"cl": client_id},
+        ).first():
+            return _EMPTY_CHUNK_SEARCH
+
+        lex_rows: list[Any] = []
+        if tsquery:
+            lex_rows = session.execute(
+                text(
+                    "SELECT source_id, ordinal, content, "
+                    "       ts_rank_cd(content_tsv, q) AS score "
+                    "FROM kg_chunk, to_tsquery('simple', :tsq) AS q "
+                    "WHERE client_id = :cl AND content_tsv @@ q "
+                    "ORDER BY score DESC LIMIT :k"
+                ),
+                {"cl": client_id, "tsq": tsquery, "k": k},
+            ).all()
+
+        vec_rows: list[Any] = []
+        vec = embeddings.embed_query(query) if embeddings.available() else None
+        if vec is not None:
+            vec_rows = session.execute(
+                text(
+                    "SELECT source_id, ordinal, content, "
+                    "       1 - (embedding <=> CAST(:q AS vector)) AS score "
+                    "FROM kg_chunk "
+                    "WHERE client_id = :cl AND embedding IS NOT NULL "
+                    "ORDER BY embedding <=> CAST(:q AS vector) LIMIT :k"
+                ),
+                {"q": embeddings.to_pgvector(vec), "cl": client_id, "k": k},
+            ).all()
+
+        if not lex_rows and not vec_rows:
+            return _EMPTY_CHUNK_SEARCH
+
+        def _key(row: Any) -> tuple[str, int]:
+            return (str(row.source_id), int(row.ordinal))
+
+        lexical_by_key = {_key(r): float(r.score) for r in lex_rows}
+        vector_by_key = {_key(r): float(r.score) for r in vec_rows}
+        content_by_key = {_key(r): r.content for r in (*lex_rows, *vec_rows)}
+
+        fused = _rrf([[_key(r) for r in lex_rows], [_key(r) for r in vec_rows]])
+        chunks = tuple(
+            ChunkHit(
+                content=content_by_key[key],
+                source_id=key[0],
+                ordinal=key[1],
+                score=rrf,
+                lexical_score=lexical_by_key.get(key),
+                vector_score=vector_by_key.get(key),
+            )
+            for key, rrf in fused[:k]
+        )
+
+        # entita' con quella provenance, ordinate per il rank del loro miglior chunk
+        source_rank: dict[str, int] = {}
+        for rank, (key, _score) in enumerate(fused):
+            source_rank.setdefault(key[0], rank)
+        ent_rows = session.execute(
+            text(
+                "SELECT id, source_ids FROM kg_entity "
+                "WHERE client_id = :cl AND status = 'active' "
+                "  AND source_ids && CAST(:sids AS uuid[])"
+            ),
+            {"cl": client_id, "sids": list(source_rank)},
+        ).all()
+
+    def _entity_rank(row: Any) -> int:
+        return min(
+            (source_rank[str(s)] for s in row.source_ids if str(s) in source_rank),
+            default=len(source_rank),
+        )
+
+    entity_ids = tuple(
+        str(r.id) for r in sorted(ent_rows, key=_entity_rank)
+    )
+    return ChunkSearch(entity_ids=entity_ids, chunks=chunks)
 
 
 def _expand(
@@ -270,9 +351,17 @@ def graph_retrieve(
         return {"status": "not_configured", "matches": [], "count": 0, "chunks": []}
 
     try:
-        lexical = _resolve_seed_entities(consultant_id, client_id, entity_names or [], query)
-        vector, chunks = _vector_seed(consultant_id, client_id, query, chunk_k=max(limit // 3, 8))
-        seeds = _rrf([lexical, vector])[:40]
+        name_seeds = _resolve_seed_entities(
+            consultant_id, client_id, entity_names or [], query
+        )
+        text_hit = _text_search(
+            consultant_id, client_id, query, k=max(limit // 3, 8)
+        )
+        seeds = [
+            eid
+            for eid, _ in _rrf([name_seeds, list(text_hit.entity_ids)])
+        ][:40]
+        chunks = [c.as_dict() for c in text_hit.chunks]
         if not seeds and not process_id:
             return {
                 "status": "empty", "matches": [], "count": 0,

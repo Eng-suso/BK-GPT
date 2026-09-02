@@ -84,7 +84,7 @@ def scope():
     neo4j_store.purge_client(str(client))
 
 
-def test_entity_and_relation_reach_neo4j(scope):
+def test_entity_and_relation_reach_neo4j(scope, wait_projected):
     cfo = canonical.write_entity(
         scope["consultant"], scope["client"], "role", "CFO",
         project_id=scope["project"], attributes={"role_type": "CFO", "seniority": "executive"},
@@ -99,10 +99,18 @@ def test_entity_and_relation_reach_neo4j(scope):
         confidence=0.8,
     )
 
-    processed = drain_once()
-    assert processed >= 3
-
     driver = neo4j_store.get_driver()
+
+    def _edge_present() -> bool:
+        with driver.session() as neo:
+            return neo.run(
+                "MATCH (:Entity {entity_id:$s})-[r:APPROVES]->(:Entity {entity_id:$t}) "
+                "RETURN count(r) AS c",
+                s=cfo, t=invoice,
+            ).single()["c"] > 0
+
+    assert wait_projected(_edge_present)
+
     with driver.session() as neo:
         node = neo.run(
             "MATCH (n:Entity {entity_id: $id}) RETURN n.entity_type AS t, "
@@ -123,7 +131,7 @@ def test_entity_and_relation_reach_neo4j(scope):
         assert edge["cl"] == scope["client"]
 
 
-def test_claim_gap_impact_reach_neo4j_with_structural_edges(scope):
+def test_claim_gap_impact_reach_neo4j_with_structural_edges(scope, wait_projected):
     claim = canonical.write_claim(
         scope["consultant"], scope["client"],
         "Finance emette fattura dopo validazione ordine.", "activity",
@@ -144,9 +152,18 @@ def test_claim_gap_impact_reach_neo4j_with_structural_edges(scope):
         confidence=0.7,
     )
 
-    assert drain_once() >= 6
-
     driver = neo4j_store.get_driver()
+
+    def _claim_present() -> bool:
+        with driver.session() as neo:
+            return neo.run(
+                "MATCH (:Process {process_id:$p})-[:HAS_CLAIM]->(n:Claim {claim_id:$id}) "
+                "RETURN count(n) AS c",
+                p=scope["process"], id=claim,
+            ).single()["c"] > 0
+
+    assert wait_projected(_claim_present)
+
     with driver.session() as neo:
         c = neo.run(
             "MATCH (:Process {process_id:$p})-[:HAS_CLAIM]->(n:Claim {claim_id:$id}) "
@@ -203,19 +220,20 @@ def test_write_evidence_is_atomic(scope):
     assert n == 0  # rollback totale: nessuna entita' parziale
 
 
-def test_worker_marks_processed_and_is_idempotent(scope):
+def test_worker_marks_processed_and_is_idempotent(scope, wait_projected):
     canonical.write_entity(scope["consultant"], scope["client"], "system", "SAP")
-    first = drain_once()
-    assert first >= 1
-    second = drain_once()
-    assert second == 0  # nulla di pendente
 
-    with MIGRATOR.begin() as conn:
-        pending = conn.execute(
-            text(
-                "SELECT count(*) FROM graph_outbox "
-                "WHERE client_id = :cl AND processed_at IS NULL"
-            ),
-            {"cl": scope["client"]},
-        ).scalar_one()
-    assert pending == 0
+    def _pending() -> int:
+        with MIGRATOR.begin() as conn:  # graph_outbox: nessuna RLS (migration 0004)
+            return conn.execute(
+                text(
+                    "SELECT count(*) FROM graph_outbox "
+                    "WHERE client_id = :cl AND processed_at IS NULL"
+                ),
+                {"cl": scope["client"]},
+            ).scalar_one()
+
+    assert wait_projected(lambda: _pending() == 0)
+    # drenato tutto: una passata ulteriore non ha nulla da fare (idempotenza)
+    assert drain_once() == 0
+    assert _pending() == 0
