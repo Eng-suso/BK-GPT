@@ -432,14 +432,25 @@ def test_flow_graph_completion_wires_gateway_branches_and_warns_on_implicit_spli
     model = build_bpmn_semantic_model(
         process_id="Process_Grafo", process_name="Completamento grafo", process=process
     )
-    gateway = next(n.id for n in model.flowNodes if n.type == "exclusiveGateway")
+    gateway_node = next(n for n in model.flowNodes if n.type == "exclusiveGateway")
     task_a = next(n.id for n in model.flowNodes if n.name == "A")
-    rework = next(
-        (f for f in model.sequenceFlows if f.sourceRef == gateway and f.targetRef == task_a), None
-    )
+    branches = [f for f in model.sequenceFlows if f.sourceRef == gateway_node.id]
+    rework = next((f for f in branches if f.targetRef == task_a), None)
     assert rework is not None
     assert rework.conditionExpression == "difetti trovati"
     assert any("ramo implicito" in w for w in model.model_warnings)
+
+    # the unconditioned happy branch is marked as the gateway's default flow
+    assert len(branches) == 2
+    default_branch = next(f for f in branches if not f.conditionExpression)
+    assert gateway_node.defaultFlowId == default_branch.id
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert f'default="{default_branch.id}"' in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert validate_canvas_against_process(
+        xml=xml, process_understanding=process, bpmn_semantic_model=model
+    )["semantic_valid"] is True
 
 
 def test_step_types_compile_to_the_matching_bpmn_task_kinds():

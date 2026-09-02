@@ -45,6 +45,7 @@ class BPMNFlowNode(BaseModel):
     eventDefinition: Literal["timer", "message", "conditional", "signal", "error"] | None = None
     attachedToRef: str | None = None
     cancelActivity: bool = True
+    defaultFlowId: str | None = None
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
 
@@ -406,6 +407,7 @@ def build_bpmn_semantic_model(
     )
     registry.apply_edge_overlay()
     flows = registry.flows
+    _assign_gateway_defaults(nodes, flows, warnings)
     _populate_lane_refs(lanes, nodes)
     message_flows = _finalize_message_flows(
         collaboration=collaboration,
@@ -530,6 +532,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
             attrs += f' attachedToRef="{escape(node.attachedToRef)}"'
             if not node.cancelActivity:
                 attrs += ' cancelActivity="false"'
+        if node.defaultFlowId and node.type in {"exclusiveGateway", "inclusiveGateway"}:
+            attrs += f' default="{escape(node.defaultFlowId)}"'
         xml_parts.append(f"    <bpmn:{node.type}{attrs}>")
         if node.documentation or node.sourceRefs:
             xml_parts.extend(_documentation_xml(_element_documentation(node.documentation, node.sourceRefs), indent="      "))
@@ -1751,6 +1755,38 @@ class _FlowRegistry:
         for ref in source_refs or []:
             if ref not in flow.sourceRefs:
                 flow.sourceRefs.append(ref)
+
+
+def _assign_gateway_defaults(
+    nodes: list[BPMNFlowNode],
+    flows: list[BPMNSequenceFlow],
+    warnings: list[str],
+) -> None:
+    """Give data-based gateways a default flow.
+
+    A BPMN exclusive/inclusive gateway with two or more outgoing flows must not
+    leave a plain unconditioned branch: the branch with no condition becomes the
+    default. When every branch is conditioned nothing is marked (the modeller
+    owns that); when more than one is unconditioned it is reported.
+    """
+    outgoing: dict[str, list[BPMNSequenceFlow]] = {}
+    for flow in flows:
+        outgoing.setdefault(flow.sourceRef, []).append(flow)
+
+    for node in nodes:
+        if node.type not in {"exclusiveGateway", "inclusiveGateway"}:
+            continue
+        branches = outgoing.get(node.id, [])
+        if len(branches) < 2:
+            continue
+        unconditioned = [flow for flow in branches if not flow.conditionExpression]
+        if len(unconditioned) == 1:
+            node.defaultFlowId = unconditioned[0].id
+        elif len(unconditioned) > 1:
+            warnings.append(
+                f"Gateway '{node.name}' con piu' di un ramo senza condizione: "
+                "definire le condizioni o un ramo di default."
+            )
 
 
 def _sequence_flow_edges_by_endpoint(process: ProcessUnderstanding) -> dict[tuple[str, str], ProcessFlowEdge]:
