@@ -233,6 +233,14 @@ def build_bpmn_semantic_model(
 
 
 def _task_type(step: ProcessStep) -> str:
+    """Map a ProcessStep type to the corresponding BPMN task type.
+
+    Args:
+        step: The ProcessStep to classify.
+
+    Returns:
+        A BPMN task type string (e.g., "userTask", "serviceTask").
+    """
     return {
         "user_task": "userTask",
         "manual_task": "manualTask",
@@ -321,6 +329,15 @@ def _attach_anchored_gateway(
 
 
 def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
+    """Create a BPMN intermediate catch event node from a ProcessEvent.
+
+    Args:
+        event: The ProcessEvent to convert.
+        used_ids: Set of already-allocated IDs.
+
+    Returns:
+        A BPMNFlowNode representing an intermediate catch event.
+    """
     return BPMNFlowNode(
         id=xml_id(event.id or "IntermediateEvent", "IntermediateEvent", used_ids),
         type="intermediateCatchEvent",
@@ -372,6 +389,15 @@ def _decision_anchor_map(
 
 
 def _decision_for_path(path, decisions: list[ProcessDecision]) -> ProcessDecision | None:
+    """Find the decision that leads to a given alternative path.
+
+    Args:
+        path: The alternative path to match.
+        decisions: List of ProcessDecision instances to search.
+
+    Returns:
+        The matching ProcessDecision, or None if not found.
+    """
     for decision in decisions:
         if any(outcome.target_path_id == path.id for outcome in decision.outcome_details):
             return decision
@@ -383,6 +409,16 @@ def _anchor_step_for_decision(
     decision: ProcessDecision,
     ordered_step_ids: list[str],
 ) -> str | None:
+    """Find the anchor step that precedes a decision in the main path.
+
+    Args:
+        process: The ProcessUnderstanding model.
+        decision: The ProcessDecision to find an anchor for.
+        ordered_step_ids: List of step IDs in the main path.
+
+    Returns:
+        The ID of the anchor step, or None if not found.
+    """
     for edge in process.flow_edges:
         if edge.target_id == decision.id and edge.source_id in ordered_step_ids:
             return edge.source_id
@@ -826,6 +862,16 @@ def _semantic_warnings(
     *,
     collaboration_built: bool = False,
 ) -> list[str]:
+    """Generate semantic warnings about the compiled BPMN model.
+
+    Args:
+        process: The source ProcessUnderstanding.
+        lanes: List of compiled BPMN lanes.
+        collaboration_built: Whether a collaboration structure was built.
+
+    Returns:
+        A list of warning messages about semantic concerns.
+    """
     warnings = list(process.assumptions)
     external_actor_names = [actor.label for actor in process.actors if actor.kind == "external_party"]
     if external_actor_names and not collaboration_built:
@@ -851,6 +897,14 @@ def _semantic_warnings(
 
 
 def _start_name(process: ProcessUnderstanding) -> str:
+    """Determine the name for the start event.
+
+    Args:
+        process: The ProcessUnderstanding model.
+
+    Returns:
+        The name for the start event.
+    """
     if process.boundaries and process.boundaries.start_event:
         return process.boundaries.start_event
     event = next((item for item in process.events if item.type == "start"), None)
@@ -858,6 +912,14 @@ def _start_name(process: ProcessUnderstanding) -> str:
 
 
 def _end_name(process: ProcessUnderstanding) -> str:
+    """Determine the name for the primary end event.
+
+    Args:
+        process: The ProcessUnderstanding model.
+
+    Returns:
+        The name for the end event.
+    """
     if process.boundaries and process.boundaries.success_end:
         return process.boundaries.success_end
     event = next((item for item in process.events if item.type == "end"), None)
@@ -865,6 +927,14 @@ def _end_name(process: ProcessUnderstanding) -> str:
 
 
 def _norm_end_key(value: str | None) -> str:
+    """Normalize an end event key for comparison.
+
+    Args:
+        value: The raw key string.
+
+    Returns:
+        A normalized, lowercase, whitespace-collapsed key.
+    """
     return " ".join((value or "").casefold().split())
 
 

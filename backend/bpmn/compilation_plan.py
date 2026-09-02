@@ -40,6 +40,17 @@ def build_bpmn_compilation_plan(
     process: ProcessUnderstanding,
     model: BPMNSemanticModel,
 ) -> BpmnCompilationPlan:
+    """Build a complete traceability plan from source ProcessUnderstanding to BPMN.
+
+    Args:
+        process_id: The identifier for the compiled process.
+        process_name: The name of the process.
+        process: The source ProcessUnderstanding model.
+        model: The compiled BPMNSemanticModel.
+
+    Returns:
+        A BpmnCompilationPlan with full traceability and coverage reporting.
+    """
     target_by_source_ref = _target_by_source_ref(model)
     source_items = _process_source_items(process)
     traceability: list[TraceabilityLink] = []
@@ -225,6 +236,14 @@ def build_bpmn_compilation_plan(
 
 
 def _target_by_source_ref(model: BPMNSemanticModel) -> dict[str, tuple[str, str]]:
+    """Build an index from source reference IDs to their BPMN targets.
+
+    Args:
+        model: The BPMNSemanticModel to index.
+
+    Returns:
+        A dictionary mapping source reference IDs to (target_id, target_type) tuples.
+    """
     targets: dict[str, tuple[str, str]] = {}
     for lane in model.lanes:
         for ref in lane.sourceRefs:
@@ -242,6 +261,14 @@ def _target_by_source_ref(model: BPMNSemanticModel) -> dict[str, tuple[str, str]
 
 
 def _process_source_items(process: ProcessUnderstanding) -> list[ProcessUnderstandingRef]:
+    """Extract all source items from a ProcessUnderstanding for traceability.
+
+    Args:
+        process: The ProcessUnderstanding model to extract items from.
+
+    Returns:
+        A list of ProcessUnderstandingRef instances covering all source content.
+    """
     items: list[ProcessUnderstandingRef] = []
     scalar_fields = {
         "objective": process.objective,
@@ -290,6 +317,15 @@ def _process_source_items(process: ProcessUnderstanding) -> list[ProcessUndersta
 
 
 def _anchor_for_gateway(gateway_id: str, model: BPMNSemanticModel) -> str | None:
+    """Find the anchor node (predecessor) for a gateway.
+
+    Args:
+        gateway_id: The ID of the gateway to find the anchor for.
+        model: The BPMNSemanticModel containing the flows.
+
+    Returns:
+        The ID of the first node flowing into the gateway, or None if not found.
+    """
     for flow in model.sequenceFlows:
         if flow.targetRef == gateway_id:
             return flow.sourceRef
