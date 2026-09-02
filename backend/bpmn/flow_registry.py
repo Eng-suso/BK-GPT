@@ -29,6 +29,7 @@ class FlowRegistry:
     seen_pairs: set[tuple[str, str]] = field(default_factory=set)
     _compiled_by_original: dict[str, str] = field(default_factory=dict)
     _flow_by_pair: dict[tuple[str, str], BPMNSequenceFlow] = field(default_factory=dict)
+    _source_alias: dict[str, str] = field(default_factory=dict)
 
     def map(self, original_id: str | None, compiled_id: str) -> None:
         if original_id:
@@ -81,7 +82,9 @@ class FlowRegistry:
         """Move every flow currently leaving `from_id` so it leaves `to_id`.
 
         Used to splice a gateway in front of a node's existing outgoing flows
-        (e.g. a loop back-edge decision) without recreating them.
+        (e.g. a loop back-edge decision) without recreating them. The move is
+        recorded so `apply_edge_overlay` still matches a flow_edge that named the
+        original `from_id -> successor` transition.
         """
         moved: list[BPMNSequenceFlow] = []
         for flow in self.flows:
@@ -95,6 +98,8 @@ class FlowRegistry:
             self._flow_by_pair[new_pair] = flow
             self.seen_pairs.add(new_pair)
             moved.append(flow)
+        if moved:
+            self._source_alias[from_id] = to_id
         return moved
 
     def apply_edge_overlay(self) -> None:
@@ -105,13 +110,16 @@ class FlowRegistry:
                 continue
             flow = self._flow_by_pair.get((source, target))
             if flow is None:
+                aliased = self._source_alias.get(source)
+                flow = self._flow_by_pair.get((aliased, target)) if aliased else None
+            if flow is None:
                 continue
             self._enrich(
                 flow,
                 name=edge.label.strip() or None,
                 source_refs=[source_ref_id("flow_edges", edge.id)],
             )
-            if edge.condition and source in self.gateway_ids and not flow.conditionExpression:
+            if edge.condition and flow.sourceRef in self.gateway_ids and not flow.conditionExpression:
                 flow.conditionExpression = edge.condition
 
     @staticmethod

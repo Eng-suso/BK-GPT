@@ -117,6 +117,36 @@ def test_gateway_that_both_joins_and_splits_is_an_error():
     assert any(i.code == "gateway_splits_and_joins" and i.node_id == "g" for i in report.errors)
 
 
+def test_nested_boundary_events_are_not_false_unreachable_regardless_of_order():
+    # 'bnd2' (listed first) is attached to 'handler1', which is only reachable
+    # through 'bnd1' (listed after it). A single-pass propagation would flag
+    # handler2's subtree as unreachable.
+    model = _model(
+        [
+            _n("s", "startEvent"),
+            _n("bnd2", "boundaryEvent", attachedToRef="handler1"),
+            _n("wait"),
+            _n("bnd1", "boundaryEvent", attachedToRef="wait"),
+            _n("handler1"),
+            _n("handler2"),
+            _n("e", "endEvent"),
+            _n("e1", "endEvent"),
+            _n("e2", "endEvent"),
+        ],
+        [
+            ("s", "wait"),
+            ("wait", "e"),
+            ("bnd1", "handler1"),
+            ("handler1", "e1"),
+            ("bnd2", "handler2"),
+            ("handler2", "e2"),
+        ],
+    )
+    report = analyze_control_flow(model)
+    assert {"handler1", "handler2", "bnd1", "bnd2"} <= report.reachable_node_ids
+    assert not any(i.code == "unreachable_node" for i in report.errors)
+
+
 def test_boundary_event_handler_reachability():
     model = _model(
         [

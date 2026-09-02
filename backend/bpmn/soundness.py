@@ -89,18 +89,27 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
         node.id: node.attachedToRef for node in model.flowNodes if node.type == "boundaryEvent"
     }
 
+    # A boundary event is reachable once its host is; its handler subtree can in
+    # turn make another host reachable (nested boundary events), so iterate to a
+    # fixpoint rather than a single flowNodes-order pass.
     reachable = _traverse(starts, successors)
-    # A boundary event is reachable exactly when its host activity is reachable.
-    for boundary_id, host in boundary_host.items():
-        if host in reachable:
-            reachable |= _traverse([boundary_id], successors)
+    grew = True
+    while grew:
+        grew = False
+        for boundary_id, host in boundary_host.items():
+            if host in reachable and boundary_id not in reachable:
+                reachable |= _traverse([boundary_id], successors)
+                grew = True
     report.reachable_node_ids = reachable
 
     coreachable = _traverse(ends, predecessors)
-    for boundary_id, host in boundary_host.items():
-        if boundary_id in coreachable and host in nodes_by_id:
-            # the interrupted activity still "completes" via its boundary handler
-            coreachable |= _traverse([host], predecessors)
+    grew = True
+    while grew:
+        grew = False
+        for boundary_id, host in boundary_host.items():
+            if boundary_id in coreachable and host in nodes_by_id and host not in coreachable:
+                coreachable |= _traverse([host], predecessors)
+                grew = True
     report.coreachable_node_ids = coreachable
 
     for node in model.flowNodes:
