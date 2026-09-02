@@ -1101,12 +1101,17 @@ def prepare_process_bpmn_review(process_id: str, process_description: str) -> st
 
 
 @tool
-def approve_canvas_bpmn_review(bpmn_model_id: str) -> str:
+def approve_canvas_bpmn_review(bpmn_model_id: str, override_quality_gate: bool = False) -> str:
     """
     Approve the latest BPMN canvas review and generate/save BPMN XML for the existing BPMN model.
-    Use only after the user explicitly approves the prepared review.
+    Use only after the user explicitly approves the prepared review. Approval is
+    blocked when the quality evaluator did not return ready_to_generate or the
+    compiled model has a control-flow soundness error; set
+    override_quality_gate=True only when the user explicitly accepts those risks.
     """
-    result = workspace_database.approve_bpmn_review(bpmn_model_id=bpmn_model_id)
+    result = workspace_database.approve_bpmn_review(
+        bpmn_model_id=bpmn_model_id, override=override_quality_gate
+    )
     safe_result = {
         "bpmn_model": {
             "id": result["bpmn_model"]["id"],

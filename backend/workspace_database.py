@@ -537,7 +537,7 @@ def prepare_bpmn_review(
         return review_to_dict(review)
 
 
-def approve_bpmn_review(bpmn_model_id: str) -> dict:
+def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
         review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
@@ -546,6 +546,9 @@ def approve_bpmn_review(bpmn_model_id: str) -> dict:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
         if review is None:
             raise ValueError("Nessuna review BPMN pronta da approvare per questo canvas.")
+
+        if not override:
+            _assert_review_ready_for_approval(review)
 
         xml, _layout_report = optimize_bpmn_layout(bpmn_xml_from_review(
             bpmn_semantic_model_json=review.bpmn_semantic_model_json,
@@ -571,6 +574,39 @@ def approve_bpmn_review(bpmn_model_id: str) -> dict:
             },
             "review": review_payload,
         }
+
+
+def review_approval_blockers(quality_report: dict | None, semantic_model: dict | None) -> list[str]:
+    """Reasons a BPMN review must not be auto-approved: the quality evaluator did
+    not clear it, or the compiled model has a control-flow soundness error."""
+    from backend.bpmn import BPMNSemanticModel
+    from backend.bpmn.soundness import analyze_control_flow
+
+    blockers: list[str] = []
+    recommendation = (quality_report or {}).get("approval_recommendation")
+    if recommendation and recommendation != "ready_to_generate":
+        blockers.append(f"la valutazione qualita' e' '{recommendation}', non 'ready_to_generate'.")
+
+    try:
+        model = BPMNSemanticModel.model_validate(semantic_model or {})
+    except Exception:
+        return blockers
+    for issue in analyze_control_flow(model).errors:
+        blockers.append(f"control-flow: {issue.message}")
+    return blockers
+
+
+def _assert_review_ready_for_approval(review: WorkspaceBpmnReview) -> None:
+    payload = review_to_dict(review)
+    blockers = review_approval_blockers(
+        payload.get("quality_report"), payload.get("bpmn_semantic_model")
+    )
+    if blockers:
+        raise ValueError(
+            "Review non approvabile: "
+            + "; ".join(blockers[:5])
+            + ". Correggere il processo oppure approvare con override."
+        )
 
 
 def source_to_dict(source: WorkspaceSource) -> dict:

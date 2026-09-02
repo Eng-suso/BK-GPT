@@ -194,9 +194,12 @@ def get_workspace_bpmn_review(bpmn_model_id: str) -> BpmnReviewResponse | None:
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/review/approve")
-def approve_workspace_bpmn_review(bpmn_model_id: str) -> ApproveBpmnReviewResponse:
+def approve_workspace_bpmn_review(
+    bpmn_model_id: str,
+    override: bool = False,
+) -> ApproveBpmnReviewResponse:
     try:
-        result = approve_bpmn_review(bpmn_model_id)
+        result = approve_bpmn_review(bpmn_model_id, override=override)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
