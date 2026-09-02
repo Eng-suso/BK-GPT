@@ -37,7 +37,7 @@ from backend.process_understanding import (
 )
 import backend.workspace_services.bpmn_review as bpmn_review_service
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
-from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
+from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout, validate_bpmn_xml
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 
 
@@ -284,6 +284,24 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     inoltra_node = next(node for node in model.flowNodes if node.name == "Inoltra domanda a INPS")
     assert flow.sourceRef == inoltra_node.id
     assert flow.targetRef == external.id
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert f'<bpmn:collaboration id="{model.collaborationId}"' in xml
+    assert xml.count("<bpmn:participant ") == 2
+    assert f'processRef="{model.id}"' in xml
+    assert "<bpmn:messageFlow " in xml
+    assert f'bpmnElement="{model.collaborationId}"' in xml
+    assert f'bpmnElement="{primary.id}"' in xml
+    assert f'bpmnElement="{external.id}"' in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert validate_canvas_against_process(
+        xml=xml, process_understanding=process, bpmn_semantic_model=model
+    )["semantic_valid"] is True
+
+    laid_out, report = optimize_bpmn_layout(xml)
+    assert "<bpmn:collaboration " in laid_out
+    assert f'bpmnElement="{external.id}"' in laid_out
+    assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
 def test_compiler_keeps_single_process_when_no_collaboration_topology():

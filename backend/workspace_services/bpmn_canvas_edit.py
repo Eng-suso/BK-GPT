@@ -502,6 +502,16 @@ def preview_bpmn_xml_change(current_xml: str, proposed_xml: str) -> dict:
 
 
 def optimize_bpmn_layout(xml: str) -> tuple[str, dict]:
+    if _has_collaboration(_parse_bpmn_xml(xml)):
+        report = validate_bpmn_layout(xml)
+        return xml, {
+            "valid": bool(report.get("valid")),
+            "selected_score": _layout_score(report),
+            "selected_report": report,
+            "attempts": [],
+            "skipped": "collaboration_layout_owned_by_semantic_serializer",
+        }
+
     strategies = [
         BpmnLayoutConfig(max_nodes_per_row=5, column_gap=320, row_gap=190, lane_row_height=190),
         BpmnLayoutConfig(max_nodes_per_row=4, column_gap=330, row_gap=205, lane_row_height=200),
@@ -546,6 +556,11 @@ def optimize_bpmn_layout(xml: str) -> tuple[str, dict]:
 def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
     config = config or BpmnLayoutConfig()
     root = _parse_bpmn_xml(xml)
+    if _has_collaboration(root):
+        # Pool/collaboration geometry is owned by the DeliR semantic serializer.
+        # The single-process heuristic layout cannot represent pools, so leave a
+        # collaboration diagram untouched instead of stripping its participant DI.
+        return xml
     definitions_id = root.attrib.get("id", "Definitions")
     process = _find_process(root)
     process_id = process.attrib.get("id", "Process")
@@ -1069,6 +1084,13 @@ def _shape_size(element_type: str) -> tuple[int, int]:
 def _has_bpmn_di(root: ET.Element) -> bool:
     return any(
         _namespace(element.tag) == BPMNDI_NS and _local_name(element.tag) == "BPMNDiagram"
+        for element in root.iter()
+    )
+
+
+def _has_collaboration(root: ET.Element) -> bool:
+    return any(
+        _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "collaboration"
         for element in root.iter()
     )
 
