@@ -505,12 +505,11 @@ _SWEEP_NEEDED = (settings.canonical_worker_url, settings.neo4j_password)
     not all(_SWEEP_NEEDED), reason="serve CANONICAL_WORKER_URL + NEO4J_PASSWORD"
 )
 class TestSweep:
-    def test_sweep_merges_existing_duplicates(self, scope):
+    def test_sweep_merges_existing_duplicates(self, scope, wait_projected):
         import datetime as dt
 
         from scripts import kg_resolve_entities as sweep
         from backend.memory.knowledge_graph import neo4j_store
-        from backend.workers.graph_worker import drain_once
 
         base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
         src_surv, src_lose = uuid.uuid4(), uuid.uuid4()
@@ -582,30 +581,36 @@ class TestSweep:
             assert str(rel.source_entity_id) == survivor
             assert str(rel.target_entity_id) == other
 
-            outbox = conn.execute(
-                text(
-                    "SELECT op, payload->>'kind' AS kind FROM graph_outbox "
-                    "WHERE client_id = :cl AND processed_at IS NULL ORDER BY id"
-                ),
-                {"cl": scope["client"]},
-            ).all()
-            kinds = {(o.op, o.kind) for o in outbox}
+            # lo sweep ha accodato sia la cancellazione del loser sia il
+            # re-emit degli archi del survivor (processed_at qui non filtra:
+            # un worker concorrente puo' aver gia' drenato)
+            kinds = {
+                (o.op, o.kind)
+                for o in conn.execute(
+                    text(
+                        "SELECT op, payload->>'kind' AS kind FROM graph_outbox "
+                        "WHERE client_id = :cl"
+                    ),
+                    {"cl": scope["client"]},
+                ).all()
+            }
             assert ("delete", "node_delete") in kinds
             assert ("upsert", "edge") in kinds
 
-        assert drain_once() >= 1
-
         driver = neo4j_store.get_driver()
-        with driver.session() as neo:
-            gone = neo.run(
-                "MATCH (n:Entity {entity_id:$i}) RETURN count(n) AS c", i=loser
-            ).single()["c"]
-            assert gone == 0
-            edge = neo.run(
-                "MATCH (:Entity {entity_id:$s})-[r:BLOCCA]->(:Entity {entity_id:$t}) "
-                "RETURN count(r) AS c",
-                s=survivor, t=other,
-            ).single()["c"]
-            assert edge == 1
+
+        def _projected() -> bool:
+            with driver.session() as neo:
+                gone = neo.run(
+                    "MATCH (n:Entity {entity_id:$i}) RETURN count(n) AS c", i=loser
+                ).single()["c"]
+                edge = neo.run(
+                    "MATCH (:Entity {entity_id:$s})-[r:BLOCCA]->(:Entity {entity_id:$t}) "
+                    "RETURN count(r) AS c",
+                    s=survivor, t=other,
+                ).single()["c"]
+            return gone == 0 and edge == 1
+
+        assert wait_projected(_projected)
 
         neo4j_store.purge_client(scope["client"])

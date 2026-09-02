@@ -70,7 +70,7 @@ def scope():
     neo4j_store.purge_client(str(cl))
 
 
-def test_graph_retrieve_returns_hydrated_triples(scope):
+def test_graph_retrieve_returns_hydrated_triples(scope, wait_projected):
     canonical.write_evidence(
         consultant_id=scope["consultant"],
         client_id=scope["client"],
@@ -87,17 +87,23 @@ def test_graph_retrieve_returns_hydrated_triples(scope):
              "process_area": "activity", "claim_status": "confirmed"},
         ],
     )
-    assert drain_once() >= 3
 
-    result = gateway.graph_retrieve(
-        consultant_id=scope["consultant"],
-        client_id=scope["client"],
-        entity_names=["CFO"],
-        process_id=scope["process"],
+    def _q() -> dict:
+        return gateway.graph_retrieve(
+            consultant_id=scope["consultant"],
+            client_id=scope["client"],
+            entity_names=["CFO"],
+            process_id=scope["process"],
+        )
+
+    target = ("CFO", "APPROVES", "Emissione fattura")
+    assert wait_projected(
+        lambda: target in {(m["source"], m["relation"], m["target"]) for m in _q()["matches"]}
     )
+    result = _q()
     assert result["status"] == "ok"
     rels = {(m["source"], m["relation"], m["target"]) for m in result["matches"]}
-    assert ("CFO", "APPROVES", "Emissione fattura") in rels
+    assert target in rels
     # nomi idratati da Postgres, non id opachi
     assert all(not _looks_like_uuid(m["source"]) for m in result["matches"])
 
