@@ -108,6 +108,7 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0008 | dedup `kg_entity`/`kg_relation` su indice unique PARZIALE `WHERE client_id IS NOT NULL` (fix review) |
 | 0009 | `delir_worker` può potare (DELETE) le righe processate delle due code |
 | 0010 | `procedural_memory`: contatori `used_count` / `outcome_*` / `last_used_at` / `last_outcome_at` (L2 P7.4) |
+| 0011 | entity resolution (P2): HNSW coseno parziale su `kg_entity.embedding`, GIN trigram su `lower(canonical_name)`, GIN su `aliases` |
 
 Test: `tests/test_canonical_rls.py` (6) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 
@@ -283,6 +284,35 @@ di `procedural_retrieve` basta per il runtime, e proiettare su Mem0 aggiungerebb
 il costo di tenere in sync deprecation/versioning. `mem0_projection_log` accetta
 gia' `memory_kind='procedural'` se in futuro serve il recall semantico.
 
+## Entity resolution — P2 ✅
+
+`backend/memory/knowledge_graph/entity_resolution.py`. Prima di inserire una
+`kg_entity`, `canonical.write_entity` chiede a `find_match` se il nome e' gia'
+rappresentato da un'altra riga per lo stesso cliente:
+
+1. **esatto** — `canonical_name` o un `alias` coincide (whitespace + casefold).
+   Deciso senza LLM.
+2. **shortlist** — `pg_trgm` su `lower(canonical_name)` + coseno su
+   `kg_entity.embedding`. Solo recall: la calibrazione su embedding reali mostra
+   che coseno/trigram sui nomi nudi NON decidono l'identita' (coppie distinte
+   con token discriminante, "Segreto A"/"Segreto B", arrivano a 0.92 coseno).
+3. **giudizio** — LLM `temperature=0` + `with_structured_output` decide
+   l'identita' su ogni candidato. Nessuna soglia fonde da sola. Senza LLM il
+   resolver si ferma al livello 1 (solo match esatto).
+
+Su match: la riga esistente assorbe alias + `source_ids` + `confidence` +
+backfill `embedding`, e ne riusa id e tipo. Il seed lessicale del gateway ora
+matcha anche gli `aliases`. Flag `settings.canonical_entity_resolution`.
+
+`scripts/kg_resolve_entities.py` (come `delir_app`, `--apply`, default dry-run):
+backfill dell'`embedding` sulle righe pre-P2 + **sweep** che rifonde i doppioni
+gia' nel grafo (relazioni ripuntate sul survivor, loser `deprecated` con
+`supersedes_id` → survivor, nodo rimosso da Neo4j via outbox).
+
+Test: `tests/test_entity_resolution.py` — livelli esatto/trgm/coseno/LLM
+(fake), `TestWriteEvidenceResolution` (due interviste, sinonimo, un'entita'
+sola), `TestSweep` (grafo sporco → rifuso + Neo4j).
+
 ## Non ancora fatto
 
 - `semantic_store.py` / `episodic_store.py`: la add su Mem0 resta autoritativa,
@@ -292,5 +322,4 @@ gia' `memory_kind='procedural'` se in futuro serve il recall semantico.
 - **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
   ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)
-- backfill embedding di `kg_entity` (colonna esiste, P2 entity resolution)
 - `workspace_id` UNIQUE è globale, non per-consultant (latente multi-tenant)

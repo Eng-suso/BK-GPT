@@ -57,13 +57,18 @@ MAX_CANDIDATES = 5
 # 'other', quindi il gate morde solo quando un tipo e' stato precisato a mano.
 _OTHER = "other"
 
+# uuid "nil": placeholder per "non escludere nessuna riga" (evita il parametro
+# non tipizzato di `:x IS NULL` in psycopg).
+_NIL_UUID = "00000000-0000-0000-0000-000000000000"
+
 
 def normalize(name: str | None) -> str:
     """Chiave di confronto: whitespace collassato, casefold."""
     return " ".join(str(name or "").split()).casefold()
 
 
-def _types_compatible(a: str, b: str) -> bool:
+def types_compatible(a: str, b: str) -> bool:
+    """Due tipi si possono fondere? Si' se uguali o se almeno uno e' 'other'."""
     return a == b or a == _OTHER or b == _OTHER
 
 
@@ -104,23 +109,28 @@ class _Verdict(BaseModel):
 
 
 def _exact(
-    session: Session, client_id: str, norm_name: str, entity_type: str
+    session: Session,
+    client_id: str,
+    norm_name: str,
+    entity_type: str,
+    exclude_id: str | None,
 ) -> Match | None:
     rows = session.execute(
         text(
             "SELECT id, canonical_name, entity_type, "
             "       lower(canonical_name) = :n AS name_hit "
             "FROM kg_entity "
-            "WHERE client_id = :cl AND status <> 'rejected' "
+            "WHERE client_id = :cl AND status = 'active' "
+            "  AND id <> CAST(:excl AS uuid) "
             "  AND (lower(canonical_name) = :n OR aliases @> ARRAY[:n]) "
             # nome esatto prima dell'alias; poi tipo compatibile prima
             "ORDER BY name_hit DESC "
             "LIMIT 10"
         ),
-        {"cl": client_id, "n": norm_name},
+        {"cl": client_id, "n": norm_name, "excl": exclude_id or _NIL_UUID},
     ).all()
     for row in rows:
-        if _types_compatible(entity_type, row.entity_type):
+        if types_compatible(entity_type, row.entity_type):
             return Match(
                 entity_id=str(row.id),
                 canonical_name=row.canonical_name,
@@ -135,24 +145,28 @@ def _candidates(
     norm_name: str,
     name_vec: str | None,
     entity_type: str,
+    exclude_id: str | None = None,
 ) -> list[Candidate]:
     by_id: dict[str, Candidate] = {}
+    common = {"cl": client_id, "n": norm_name, "excl": exclude_id or _NIL_UUID}
+    _not_self = "AND id <> CAST(:excl AS uuid) "
 
     trgm_rows = session.execute(
         text(
             "SELECT id, canonical_name, entity_type, aliases, "
             "       similarity(lower(canonical_name), :n) AS sim "
             "FROM kg_entity "
-            "WHERE client_id = :cl AND status <> 'rejected' "
+            "WHERE client_id = :cl AND status = 'active' "
+            f"  {_not_self}"
             "  AND lower(canonical_name) % :n "
             "ORDER BY sim DESC LIMIT 15"
         ),
-        {"cl": client_id, "n": norm_name},
+        common,
     ).all()
     for row in trgm_rows:
         if row.sim is None or float(row.sim) < CANDIDATE_TRGM_MIN:
             continue
-        if not _types_compatible(entity_type, row.entity_type):
+        if not types_compatible(entity_type, row.entity_type):
             continue
         by_id[str(row.id)] = Candidate(
             entity_id=str(row.id),
@@ -168,17 +182,18 @@ def _candidates(
                 "SELECT id, canonical_name, entity_type, aliases, "
                 "       1 - (embedding <=> CAST(:v AS vector)) AS cosine "
                 "FROM kg_entity "
-                "WHERE client_id = :cl AND status <> 'rejected' "
+                "WHERE client_id = :cl AND status = 'active' "
+                f"  {_not_self}"
                 "  AND embedding IS NOT NULL "
                 "ORDER BY embedding <=> CAST(:v AS vector) LIMIT 15"
             ),
-            {"cl": client_id, "v": name_vec},
+            {**common, "v": name_vec},
         ).all()
         for row in vec_rows:
             cosine = float(row.cosine) if row.cosine is not None else 0.0
             if cosine < CANDIDATE_COSINE_MIN:
                 continue
-            if not _types_compatible(entity_type, row.entity_type):
+            if not types_compatible(entity_type, row.entity_type):
                 continue
             existing = by_id.get(str(row.id))
             if existing:
@@ -237,7 +252,7 @@ def _build_prompt(
     ]
 
 
-def _adjudicate(
+def adjudicate(
     llm: Any, name: str, entity_type: str, context: str | None, candidates: list[Candidate]
 ) -> Match | None:
     try:
@@ -263,7 +278,7 @@ def _adjudicate(
 
 
 @lru_cache(maxsize=1)
-def _default_llm() -> Any | None:
+def build_llm() -> Any | None:
     if not settings.openai_api_key:
         return None
     try:
@@ -290,6 +305,7 @@ def find_match(
     name: str,
     name_vec: str | None = None,
     context: str | None = None,
+    exclude_entity_id: str | None = None,
     llm: Any | None = None,
     use_llm: bool = True,
 ) -> Match | None:
@@ -297,8 +313,10 @@ def find_match(
 
     `session` deve avere gia' il contesto RLS del cliente (la ricerca e' limitata
     a `client_id`). `name_vec` = embedding del nome nel literal pgvector
-    (`embeddings.to_pgvector`), opzionale. `llm` iniettabile per i test; se
-    `None` e `use_llm`, se ne costruisce uno dai settings.
+    (`embeddings.to_pgvector`), opzionale. `exclude_entity_id` esclude una riga
+    dal match (lo sweep P2.4 passa l'id dell'entita' che sta valutando). `llm`
+    iniettabile per i test; se `None` e `use_llm`, se ne costruisce uno dai
+    settings.
     """
     if not client_id:
         return None  # lo scope consultant non ha ancora una chiave di dedup (P7)
@@ -307,17 +325,19 @@ def find_match(
         return None
     entity_type = (entity_type or _OTHER).strip().lower() or _OTHER
 
-    exact = _exact(session, str(client_id), norm_name, entity_type)
+    exact = _exact(session, str(client_id), norm_name, entity_type, exclude_entity_id)
     if exact:
         return exact
 
-    model = llm if llm is not None else (_default_llm() if use_llm else None)
+    model = llm if llm is not None else (build_llm() if use_llm else None)
     if model is None:
         # senza LLM nessun merge fuzzy: un merge sbagliato corrompe il grafo,
         # un merge mancato si recupera (sweep periodico, P2.4).
         return None
 
-    candidates = _candidates(session, str(client_id), norm_name, name_vec, entity_type)
+    candidates = _candidates(
+        session, str(client_id), norm_name, name_vec, entity_type, exclude_entity_id
+    )
     if not candidates:
         return None
-    return _adjudicate(model, name, entity_type, context, candidates)
+    return adjudicate(model, name, entity_type, context, candidates)

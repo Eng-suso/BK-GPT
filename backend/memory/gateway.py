@@ -78,7 +78,7 @@ def _resolve_seed_entities(
         rows = session.execute(
             text(
                 "SELECT id FROM kg_entity "
-                "WHERE client_id = :cl AND status <> 'rejected' "
+                "WHERE client_id = :cl AND status = 'active' "
                 "  AND (lower(canonical_name) = ANY(:exact) "
                 "       OR aliases && CAST(:exact AS text[]) "  # P2: alias noti
                 "       OR lower(canonical_name) LIKE ANY(:like)) "
@@ -139,7 +139,7 @@ def _vector_seed(
         ent_rows = session.execute(
             text(
                 "SELECT DISTINCT id FROM kg_entity "
-                "WHERE client_id = :cl AND status <> 'rejected' "
+                "WHERE client_id = :cl AND status = 'active' "
                 "  AND source_ids && CAST(:sids AS uuid[])"
             ),
             {"cl": client_id, "sids": source_ids},

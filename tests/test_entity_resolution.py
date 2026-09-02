@@ -51,18 +51,21 @@ def _ctx(conn, consultant, client=None):
 
 
 def _insert_entity(
-    conn, consultant, client, name, *, entity_type="other", aliases=None, embedding=None
+    conn, consultant, client, name, *, entity_type="other", aliases=None,
+    embedding=None, created_at=None,
 ):
     row = conn.execute(
         text(
             "INSERT INTO kg_entity "
             "(consultant_id, client_id, scope, entity_type, canonical_name, aliases, "
-            " embedding, embed_model, embed_dim, embed_version, created_by) "
+            " embedding, embed_model, embed_dim, embed_version, created_by, created_at) "
             "VALUES (:c, :cl, 'client', :et, :name, :al, "
-            "        CAST(:emb AS vector), :em, :ed, :ev, 'migration') "
+            "        CAST(:emb AS vector), :em, :ed, :ev, 'migration', "
+            "        COALESCE(CAST(:ca AS timestamptz), now())) "
             "RETURNING id"
         ),
         {
+            "ca": created_at,
             "c": str(consultant),
             "cl": str(client),
             "et": entity_type,
@@ -393,5 +396,116 @@ class TestWriteEvidenceResolution:
         )
         rels = {(m["source"], m["relation"], m["target"]) for m in result["matches"]}
         assert ("Ufficio del Personale", "CURA", "Onboarding") in rels
+
+        neo4j_store.purge_client(scope["client"])
+
+
+# --- sweep: dedup di un grafo gia' sporco (P2.4) -----------------------
+
+_SWEEP_NEEDED = (settings.canonical_worker_url, settings.neo4j_password)
+
+
+@pytest.mark.skipif(
+    not all(_SWEEP_NEEDED), reason="serve CANONICAL_WORKER_URL + NEO4J_PASSWORD"
+)
+class TestSweep:
+    def test_sweep_merges_existing_duplicates(self, scope):
+        import datetime as dt
+
+        from scripts import kg_resolve_entities as sweep
+        from backend.memory.knowledge_graph import neo4j_store
+        from backend.workers.graph_worker import drain_once
+
+        base = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
+        with MIGRATOR.begin() as conn:
+            _ctx(conn, scope["consultant"], scope["client"])
+            survivor = _insert_entity(
+                conn, scope["consultant"], scope["client"], "Ufficio Crediti",
+                created_at=base.isoformat(),
+            )
+            other = _insert_entity(
+                conn, scope["consultant"], scope["client"], "Magazzino Centrale",
+                created_at=(base + dt.timedelta(days=1)).isoformat(),
+            )
+            loser = _insert_entity(
+                conn, scope["consultant"], scope["client"], "ufficio del credito",
+                created_at=(base + dt.timedelta(days=2)).isoformat(),
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO kg_relation "
+                    "(consultant_id, client_id, scope, source_entity_id, target_entity_id, "
+                    " relation, created_by) "
+                    "VALUES (:c,:cl,'client',:s,:t,'BLOCCA','migration')"
+                ),
+                {
+                    "c": scope["consultant"], "cl": scope["client"],
+                    "s": loser, "t": other,
+                },
+            )
+
+        # sweep con LLM fake che conferma sempre il primo candidato
+        with canonical_session(scope["consultant"], scope["client"]) as s:
+            n = sweep.sweep_client(
+                s, scope["consultant"], scope["client"],
+                FakeLLM(1), apply=True, limit=50,
+            )
+        assert n == 1
+
+        with MIGRATOR.begin() as conn:
+            _ctx(conn, scope["consultant"], scope["client"])
+            active = conn.execute(
+                text(
+                    "SELECT canonical_name, aliases FROM kg_entity "
+                    "WHERE client_id = :cl AND status = 'active' ORDER BY canonical_name"
+                ),
+                {"cl": scope["client"]},
+            ).all()
+            assert [r.canonical_name for r in active] == ["Magazzino Centrale", "Ufficio Crediti"]
+            surv_row = next(r for r in active if r.canonical_name == "Ufficio Crediti")
+            assert "ufficio del credito" in (surv_row.aliases or [])
+
+            dep = conn.execute(
+                text("SELECT status, supersedes_id FROM kg_entity WHERE id = :i"),
+                {"i": loser},
+            ).one()
+            assert dep.status == "deprecated"
+            assert str(dep.supersedes_id) == survivor
+
+            rel = conn.execute(
+                text(
+                    "SELECT source_entity_id, target_entity_id, relation "
+                    "FROM kg_relation WHERE client_id = :cl"
+                ),
+                {"cl": scope["client"]},
+            ).one()
+            assert str(rel.source_entity_id) == survivor
+            assert str(rel.target_entity_id) == other
+
+            outbox = conn.execute(
+                text(
+                    "SELECT op, payload->>'kind' AS kind FROM graph_outbox "
+                    "WHERE client_id = :cl AND processed_at IS NULL ORDER BY id"
+                ),
+                {"cl": scope["client"]},
+            ).all()
+            kinds = {(o.op, o.kind) for o in outbox}
+            assert ("delete", "node_delete") in kinds
+            assert ("upsert", "edge") in kinds
+
+        assert drain_once() >= 1
+
+        driver = neo4j_store.get_driver()
+        with driver.session() as neo:
+            gone = neo.run(
+                "MATCH (n:Entity {entity_id:$i}) RETURN count(n) AS c", i=loser
+            ).single()["c"]
+            assert gone == 0
+            edge = neo.run(
+                "MATCH (:Entity {entity_id:$s})-[r:BLOCCA]->(:Entity {entity_id:$t}) "
+                "RETURN count(r) AS c",
+                s=survivor, t=other,
+            ).single()["c"]
+            assert edge == 1
 
         neo4j_store.purge_client(scope["client"])
