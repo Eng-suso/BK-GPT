@@ -156,6 +156,33 @@ def test_normalize_bpmn_downcasts_activities_and_drops_boundary_events():
     assert {"F1", "F2", "F3"} <= flow_ids
 
 
+def test_normalize_bpmn_drops_orphaned_exception_handler_subtree():
+    bpmn = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1" isExecutable="false">
+    <bpmn:startEvent id="Start_1" />
+    <bpmn:userTask id="Task_U" name="Attendi" />
+    <bpmn:endEvent id="End_1" />
+    <bpmn:boundaryEvent id="Boundary_1" attachedToRef="Task_U" />
+    <bpmn:task id="Task_Handler" name="Gestisci errore" />
+    <bpmn:endEvent id="End_Handler" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Start_1" targetRef="Task_U" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Task_U" targetRef="End_1" />
+    <bpmn:sequenceFlow id="F_bnd" sourceRef="Boundary_1" targetRef="Task_Handler" />
+    <bpmn:sequenceFlow id="F_h" sourceRef="Task_Handler" targetRef="End_Handler" />
+  </bpmn:process>
+</bpmn:definitions>
+"""
+    root = ElementTree.fromstring(normalize_bpmn_for_prosimos(bpmn))
+
+    task_ids = {t.get("id") for t in root.findall(f".//{{{_BPMN_NS}}}task")}
+    assert "Task_Handler" not in task_ids
+    end_ids = {e.get("id") for e in root.findall(f".//{{{_BPMN_NS}}}endEvent")}
+    assert "End_Handler" not in end_ids
+    flow_ids = {f.get("id") for f in root.findall(f".//{{{_BPMN_NS}}}sequenceFlow")}
+    assert flow_ids == {"F1", "F2"}
+
+
 @pytest.fixture()
 def client():
     from backend.app import app

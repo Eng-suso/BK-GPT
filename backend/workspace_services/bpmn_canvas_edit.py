@@ -23,6 +23,7 @@ EDITABLE_BPMN_TYPES = {
     "endEvent",
     "intermediateCatchEvent",
     "intermediateThrowEvent",
+    "boundaryEvent",
     "task",
     "userTask",
     "serviceTask",
@@ -62,6 +63,7 @@ FLOW_NODE_TYPES = {
     "endEvent",
     "intermediateCatchEvent",
     "intermediateThrowEvent",
+    "boundaryEvent",
     "task",
     "userTask",
     "serviceTask",
@@ -205,10 +207,17 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
     element = _find_editable_element(root, element_id)
     element_type = _local_name(element.tag)
 
+    doomed_ids = {element_id}
+    if element_type in FLOW_NODE_TYPES:
+        # A boundary event cannot outlive the activity it is attached to.
+        for boundary in _boundary_events(root):
+            if boundary.attrib.get("attachedToRef") == element_id and boundary.attrib.get("id"):
+                doomed_ids.add(boundary.attrib["id"])
+
     removed_flows = []
     if element_type != "sequenceFlow":
         for flow in list(_sequence_flows(root)):
-            if flow.attrib.get("sourceRef") == element_id or flow.attrib.get("targetRef") == element_id:
+            if flow.attrib.get("sourceRef") in doomed_ids or flow.attrib.get("targetRef") in doomed_ids:
                 flow_id = flow.attrib.get("id", "")
                 removed_flows.append(flow_id)
                 if flow_id:
@@ -217,7 +226,11 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
 
     if element_type == "sequenceFlow":
         _remove_flow_references(root, element_id)
+    for doomed in list(root.iter()):
+        if doomed.attrib.get("id") in doomed_ids and doomed is not element and _namespace(doomed.tag) == BPMN_NS:
+            _remove_element(root, doomed)
     _remove_element(root, element)
+    _remove_di_for_elements(root, doomed_ids)
 
     updated_xml = layout_bpmn_di(_xml_to_string(root))
     return updated_xml, {
@@ -225,6 +238,7 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
         "id": element_id,
         "type": element_type,
         "removed_connected_flows": [flow_id for flow_id in removed_flows if flow_id],
+        "removed_boundary_events": sorted(doomed_ids - {element_id}),
     }
 
 
@@ -439,8 +453,17 @@ def validate_bpmn_layout(xml: str) -> dict:
         and _local_name(element.tag) in FLOW_NODE_TYPES
         and element.attrib.get("id")
     ]
+    # Boundary events intentionally sit on their host activity's border.
+    placed_node_ids = [
+        element.attrib["id"]
+        for element in process
+        if _namespace(element.tag) == BPMN_NS
+        and _local_name(element.tag) in FLOW_NODE_TYPES
+        and _local_name(element.tag) != "boundaryEvent"
+        and element.attrib.get("id")
+    ]
     shapes = _shape_bounds(root)
-    node_shapes = {element_id: shapes[element_id] for element_id in flow_node_ids if element_id in shapes}
+    node_shapes = {element_id: shapes[element_id] for element_id in placed_node_ids if element_id in shapes}
     issues = []
     warnings = []
     missing_shapes = [element_id for element_id in flow_node_ids if element_id not in shapes]
@@ -578,11 +601,13 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
         },
     )
 
-    flow_nodes = [
+    all_flow_nodes = [
         element
         for element in process
         if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) in FLOW_NODE_TYPES and element.attrib.get("id")
     ]
+    flow_nodes = [e for e in all_flow_nodes if _local_name(e.tag) != "boundaryEvent"]
+    boundary_nodes = [e for e in all_flow_nodes if _local_name(e.tag) == "boundaryEvent"]
     lane_shapes = _layout_lane_shapes(process, flow_nodes, config)
     for lane_shape in lane_shapes:
         shape = ET.SubElement(
@@ -613,6 +638,35 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
             continue
 
         position = node_positions[element_id]
+        shape = ET.SubElement(
+            plane,
+            _bpmndi_tag("BPMNShape"),
+            {"id": f"{element_id}_di", "bpmnElement": element_id},
+        )
+        ET.SubElement(
+            shape,
+            _dc_tag("Bounds"),
+            {
+                "x": str(position["x"]),
+                "y": str(position["y"]),
+                "width": str(position["width"]),
+                "height": str(position["height"]),
+            },
+        )
+
+    for element in boundary_nodes:
+        element_id = element.attrib["id"]
+        host = node_positions.get(element.attrib.get("attachedToRef"))
+        if host is not None:
+            position = {
+                "x": host["x"] + host["width"] * 0.62,
+                "y": host["y"] + host["height"] - 18,
+                "width": 36,
+                "height": 36,
+            }
+        else:
+            position = {"x": LAYOUT_LEFT, "y": LAYOUT_TOP, "width": 36, "height": 36}
+        node_positions[element_id] = position
         shape = ET.SubElement(
             plane,
             _bpmndi_tag("BPMNShape"),
@@ -994,6 +1048,14 @@ def _associations(root: ET.Element) -> list[ET.Element]:
         element
         for element in root.iter()
         if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "association"
+    ]
+
+
+def _boundary_events(root: ET.Element) -> list[ET.Element]:
+    return [
+        element
+        for element in root.iter()
+        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "boundaryEvent"
     ]
 
 

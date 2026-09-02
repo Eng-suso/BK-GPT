@@ -110,12 +110,67 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
         changed |= _splice_passthrough_events(process)
         changed |= _collapse_start_events(process)
         changed |= _collapse_end_events(process)
+        changed |= _drop_unreachable(process)
 
     if not changed:
         return bpmn_xml
 
     _strip_orphan_di(root)
     return ElementTree.tostring(root, encoding="unicode", xml_declaration=True)
+
+
+def _drop_unreachable(process: ElementTree.Element) -> bool:
+    """Remove flow nodes and sequence flows no longer reachable from a start event.
+
+    Dropping boundary events (and their exception flow) leaves the synthesized
+    handler task / handler end / handler flow behind as an island; Prosimos would
+    either KeyError on it or model an activity that can never fire.
+    """
+    flow_node_tags = {
+        "task",
+        "startEvent",
+        "endEvent",
+        "exclusiveGateway",
+        "parallelGateway",
+        "inclusiveGateway",
+        "eventBasedGateway",
+        "intermediateCatchEvent",
+        "intermediateThrowEvent",
+    }
+    starts = [
+        element.get("id")
+        for element in process
+        if _local(element.tag) == "startEvent" and element.get("id")
+    ]
+    if not starts:
+        return False
+
+    successors: dict[str, list[str]] = {}
+    for flow in _seq_flows(process):
+        successors.setdefault(flow.get("sourceRef", ""), []).append(flow.get("targetRef", ""))
+
+    reachable: set[str] = set()
+    queue = list(starts)
+    while queue:
+        node = queue.pop()
+        if node in reachable:
+            continue
+        reachable.add(node)
+        queue.extend(successors.get(node, []))
+
+    removed = False
+    for element in list(process):
+        local = _local(element.tag)
+        element_id = element.get("id")
+        if local in flow_node_tags and element_id and element_id not in reachable:
+            process.remove(element)
+            removed = True
+        elif local == "sequenceFlow" and (
+            element.get("sourceRef") not in reachable or element.get("targetRef") not in reachable
+        ):
+            process.remove(element)
+            removed = True
+    return removed
 
 
 def _strip_noise(process: ElementTree.Element) -> bool:
