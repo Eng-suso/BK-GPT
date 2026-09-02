@@ -21,7 +21,10 @@ function adminToken(): string {
   return runtimeConfig().DELIR_ADMIN_TOKEN || import.meta.env.VITE_DELIR_ADMIN_TOKEN || "";
 }
 
-export function authHeaders(headers?: HeadersInit): Headers {
+export function authHeaders(
+  headers?: HeadersInit,
+  options: { admin?: boolean } = {},
+): Headers {
   const next = new Headers(headers);
   const token = apiToken();
 
@@ -30,28 +33,14 @@ export function authHeaders(headers?: HeadersInit): Headers {
     next.set("Authorization", `Bearer ${token}`);
   }
 
-  return next;
-}
-
-export function withAuth(init: RequestInit = {}): RequestInit {
-  return {
-    ...init,
-    headers: authHeaders(init.headers),
-  };
-}
-
-export function withAdminAuth(init: RequestInit = {}): RequestInit {
-  const headers = authHeaders(init.headers);
-  const token = adminToken();
-
-  if (token) {
-    headers.set("X-DeliR-Admin-Token", token);
+  if (options.admin) {
+    const admin = adminToken();
+    if (admin) {
+      next.set("X-DeliR-Admin-Token", admin);
+    }
   }
 
-  return {
-    ...init,
-    headers,
-  };
+  return next;
 }
 
 export function appendAuthQueryParams(url: URL): URL {
