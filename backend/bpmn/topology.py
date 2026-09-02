@@ -79,6 +79,14 @@ class PoolTopology:
         return next((pool for pool in self.pools if pool.is_primary), None)
 
     def pool_for_actor(self, actor_id: str) -> str | None:
+        """Look up which pool an actor belongs to.
+
+        Args:
+            actor_id: The actor ID to look up.
+
+        Returns:
+            The pool key for the actor, or None if not found.
+        """
         return self.actor_to_pool.get(actor_id)
 
 

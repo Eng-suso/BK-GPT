@@ -44,6 +44,16 @@ def build_collaboration_layer(
     safe_process_id: str,
     used_ids: set[str],
 ) -> CollaborationLayer:
+    """Build the BPMN collaboration structure from ProcessUnderstanding.
+
+    Args:
+        process: The source process model.
+        safe_process_id: XML-safe identifier for the process.
+        used_ids: Set of already-allocated IDs.
+
+    Returns:
+        A CollaborationLayer containing participants, lanes, and message flows.
+    """
     resolved = resolve_pool_topology(
         topology=process.bpmn_topology,
         participants=process.participants,
@@ -115,6 +125,17 @@ def _lanes_for_primary_pool(
     actors: list[ProcessActor],
     used_ids: set[str],
 ) -> tuple[list[BPMNLane], dict[str, str]]:
+    """Generate BPMN lanes for the primary pool.
+
+    Args:
+        resolved: The resolved pool topology.
+        primary: The primary (modeled) pool.
+        actors: List of all process actors.
+        used_ids: Set of already-allocated IDs.
+
+    Returns:
+        A tuple of (lanes list, actor-to-lane-id mapping).
+    """
     actor_lane_map: dict[str, str] = {}
     lanes: list[BPMNLane] = []
     primary_lanes = [lane for lane in resolved.lanes if lane.pool_key == primary.key]
@@ -146,6 +167,15 @@ def _lanes_for_primary_pool(
 
 
 def build_lanes(actors: list[ProcessActor], used_ids: set[str]) -> list[BPMNLane]:
+    """Build BPMN lanes from a list of process actors.
+
+    Args:
+        actors: List of ProcessActor instances.
+        used_ids: Set of already-allocated IDs.
+
+    Returns:
+        A list of BPMNLane instances, capped at the maximum lane count.
+    """
     return [
         BPMNLane(
             id=xml_id(actor.id or actor.label, "Lane", used_ids),
@@ -158,6 +188,15 @@ def build_lanes(actors: list[ProcessActor], used_ids: set[str]) -> list[BPMNLane
 
 
 def lane_by_actor_id(actors: list[ProcessActor], lanes: list[BPMNLane]) -> dict[str, str]:
+    """Build a mapping from actor IDs to their assigned lane IDs.
+
+    Args:
+        actors: List of ProcessActor instances.
+        lanes: List of BPMNLane instances with traceability references.
+
+    Returns:
+        A dictionary mapping actor IDs to lane IDs.
+    """
     lane_by_source_ref: dict[str, str] = {}
     for lane in lanes:
         for ref in lane.sourceRefs:
@@ -174,6 +213,16 @@ def lane_for_step(
     actors: list[ProcessActor],
     actor_lane_map: dict[str, str],
 ) -> str | None:
+    """Determine which lane a process step belongs to.
+
+    Args:
+        step: The ProcessStep to place.
+        actors: List of all process actors.
+        actor_lane_map: Mapping from actor IDs to lane IDs.
+
+    Returns:
+        The lane ID for the step, or None if no actor match is found.
+    """
     for actor_id in step.actor_ids:
         if actor_id in actor_lane_map:
             return actor_lane_map[actor_id]
@@ -181,6 +230,12 @@ def lane_for_step(
 
 
 def populate_lane_refs(lanes: list[BPMNLane], nodes: list[BPMNFlowNode]) -> None:
+    """Populate each lane's flowNodeRefs list with nodes assigned to it.
+
+    Args:
+        lanes: List of BPMNLane instances to update.
+        nodes: List of BPMNFlowNode instances with laneId assignments.
+    """
     lane_by_id = {lane.id: lane for lane in lanes}
     for node in nodes:
         if node.laneId and node.laneId in lane_by_id and node.id not in lane_by_id[node.laneId].flowNodeRefs:
@@ -188,6 +243,15 @@ def populate_lane_refs(lanes: list[BPMNLane], nodes: list[BPMNFlowNode]) -> None
 
 
 def step_is_external_only(step: ProcessStep, external_actor_ids: set[str]) -> bool:
+    """Check if a step is performed exclusively by external actors.
+
+    Args:
+        step: The ProcessStep to check.
+        external_actor_ids: Set of actor IDs considered external.
+
+    Returns:
+        True if all step actors are external, False otherwise.
+    """
     if not external_actor_ids or not step.actor_ids:
         return False
     return all(actor_id in external_actor_ids for actor_id in step.actor_ids)
@@ -201,6 +265,18 @@ def finalize_message_flows(
     used_ids: set[str],
     warnings: list[str],
 ) -> list[BPMNMessageFlow]:
+    """Resolve message flow specifications into concrete BPMN message flows.
+
+    Args:
+        collaboration: The collaboration layer with message flow specs.
+        step_node_by_original_id: Mapping from original step IDs to compiled node IDs.
+        node_ids: Set of all valid node IDs in the model.
+        used_ids: Set of already-allocated IDs.
+        warnings: List to append warnings to.
+
+    Returns:
+        A list of resolved BPMNMessageFlow instances.
+    """
     result: list[BPMNMessageFlow] = []
     for spec in collaboration.message_flow_specs:
         source_ref = _message_endpoint(
@@ -236,6 +312,18 @@ def _message_endpoint(
     step_node_by_original_id: dict[str, str],
     node_ids: set[str],
 ) -> str | None:
+    """Resolve a message flow endpoint to a concrete node or pool ID.
+
+    Args:
+        node_ref: Optional reference to a specific node.
+        pool_key: Optional key of a pool participant.
+        collaboration: The collaboration layer with pool mappings.
+        step_node_by_original_id: Mapping from original step IDs to compiled node IDs.
+        node_ids: Set of all valid node IDs.
+
+    Returns:
+        The resolved endpoint ID, or None if unresolvable.
+    """
     if node_ref:
         if node_ref in node_ids:
             return node_ref

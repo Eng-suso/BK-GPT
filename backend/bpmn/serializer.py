@@ -428,8 +428,11 @@ def _edge_xml(
     positions: dict[str, dict[str, float]],
     name: str | None,
 ) -> list[str]:
-    source = positions[source_ref]
-    target = positions[target_ref]
+    source = positions.get(source_ref)
+    target = positions.get(target_ref)
+    if source is None or target is None:
+        # dangling sequence flow (model rebuilt from an inconsistent dict) — skip
+        return []
     start_x = source["x"] + source["width"]
     start_y = source["y"] + source["height"] / 2
     end_x = target["x"]

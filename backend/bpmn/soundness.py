@@ -52,10 +52,23 @@ class ControlFlowReport:
         return not self.errors
 
     def messages(self) -> list[str]:
+        """Generate a list of formatted soundness messages.
+
+        Returns:
+            A list of strings describing all errors and warnings.
+        """
         return [f"Soundness: {issue.message}" for issue in (*self.errors, *self.warnings)]
 
 
 def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
+    """Perform a complete control-flow soundness analysis on a BPMN model.
+
+    Args:
+        model: The BPMNSemanticModel to analyze.
+
+    Returns:
+        A ControlFlowReport with errors, warnings, and reachability information.
+    """
     report = ControlFlowReport()
     nodes_by_id = {node.id: node for node in model.flowNodes}
 
@@ -89,18 +102,27 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
         node.id: node.attachedToRef for node in model.flowNodes if node.type == "boundaryEvent"
     }
 
+    # A boundary event is reachable once its host is; its handler subtree can in
+    # turn make another host reachable (nested boundary events), so iterate to a
+    # fixpoint rather than a single flowNodes-order pass.
     reachable = _traverse(starts, successors)
-    # A boundary event is reachable exactly when its host activity is reachable.
-    for boundary_id, host in boundary_host.items():
-        if host in reachable:
-            reachable |= _traverse([boundary_id], successors)
+    grew = True
+    while grew:
+        grew = False
+        for boundary_id, host in boundary_host.items():
+            if host in reachable and boundary_id not in reachable:
+                reachable |= _traverse([boundary_id], successors)
+                grew = True
     report.reachable_node_ids = reachable
 
     coreachable = _traverse(ends, predecessors)
-    for boundary_id, host in boundary_host.items():
-        if boundary_id in coreachable and host in nodes_by_id:
-            # the interrupted activity still "completes" via its boundary handler
-            coreachable |= _traverse([host], predecessors)
+    grew = True
+    while grew:
+        grew = False
+        for boundary_id, host in boundary_host.items():
+            if boundary_id in coreachable and host in nodes_by_id and host not in coreachable:
+                coreachable |= _traverse([host], predecessors)
+                grew = True
     report.coreachable_node_ids = coreachable
 
     for node in model.flowNodes:
@@ -141,6 +163,14 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
 
 
 def _classify_gateway(node, in_deg: int, out_deg: int, report: ControlFlowReport) -> None:
+    """Classify a gateway node and add issues to the report if necessary.
+
+    Args:
+        node: The gateway node to classify.
+        in_deg: The number of incoming flows.
+        out_deg: The number of outgoing flows.
+        report: The ControlFlowReport to update.
+    """
     if in_deg <= 1 and out_deg <= 1:
         report.warnings.append(
             ControlFlowIssue("idle_gateway", node.id, node.name, f"il gateway '{node.name}' non divide ne' unisce il flusso.")
@@ -155,6 +185,14 @@ def _classify_gateway(node, in_deg: int, out_deg: int, report: ControlFlowReport
 
 
 def _check_parallel_balance(model, in_degree, out_degree, report: ControlFlowReport) -> None:
+    """Check that parallel splits and joins are balanced.
+
+    Args:
+        model: The BPMNSemanticModel being analyzed.
+        in_degree: Mapping of node IDs to incoming flow counts.
+        out_degree: Mapping of node IDs to outgoing flow counts.
+        report: The ControlFlowReport to update with warnings.
+    """
     parallel_splits = 0
     parallel_joins = 0
     for node in model.flowNodes:
@@ -175,6 +213,15 @@ def _check_parallel_balance(model, in_degree, out_degree, report: ControlFlowRep
 
 
 def _traverse(seeds: list[str], adjacency: dict[str, list[str]]) -> set[str]:
+    """Traverse a graph from seed nodes following adjacency links.
+
+    Args:
+        seeds: Starting node IDs.
+        adjacency: Mapping of node IDs to their adjacent node IDs.
+
+    Returns:
+        A set of all reachable node IDs from the seeds.
+    """
     seen: set[str] = set()
     stack = list(seeds)
     while stack:

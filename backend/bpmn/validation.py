@@ -20,10 +20,7 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
     semantic_element_ids = node_ids | data_ids | annotation_ids
     if len(node_ids) != len(model.flowNodes) or len(flow_ids) != len(model.sequenceFlows):
         warnings.append("Sono presenti ID duplicati nel modello semantico.")
-    if not any(node.type == "startEvent" for node in model.flowNodes):
-        warnings.append("Manca un evento iniziale BPMN.")
-    if not any(node.type == "endEvent" for node in model.flowNodes):
-        warnings.append("Manca un evento finale BPMN.")
+    # Missing start / end events are reported by analyze_control_flow below.
 
     outgoing_by_node: dict[str, list] = {node.id: [] for node in model.flowNodes}
     incoming_by_node: dict[str, list] = {node.id: [] for node in model.flowNodes}

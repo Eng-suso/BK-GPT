@@ -311,6 +311,60 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
+def test_loop_gateway_splice_preserves_flow_edge_label_and_condition():
+    process = ProcessUnderstanding(
+        title="Loop con flow_edge",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_Draft", label="Bozza", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Review", label="Revisione", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Publish", label="Pubblica", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Draft", "Task_Review", "Task_Publish"],
+        sequence=["Task_Draft", "Task_Review", "Task_Publish"],
+        loops=[
+            ProcessLoop(id="L", label="rework", repeated_steps=["Task_Draft", "Task_Review"], condition="modifiche")
+        ],
+        flow_edges=[
+            # names the loop tail's forward transition; after the gateway splice
+            # this flow leaves the gateway, not Task_Review
+            ProcessFlowEdge(
+                id="e_exit", source_id="Task_Review", target_id="Task_Publish",
+                label="bozza approvata", condition="nessuna modifica",
+            ),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="P", process_name="Loop con flow_edge", process=process
+    )
+    publish = next(n.id for n in model.flowNodes if n.name == "Pubblica")
+    exit_flow = next(f for f in model.sequenceFlows if f.targetRef == publish)
+    assert exit_flow.name == "bozza approvata"
+    assert exit_flow.conditionExpression == "nessuna modifica"
+    assert any("flow_edges:e_exit" in ref for ref in exit_flow.sourceRefs)
+    gateway = next(n for n in model.flowNodes if n.id == exit_flow.sourceRef)
+    assert gateway.type == "exclusiveGateway"
+
+
+def test_serializer_skips_dangling_sequence_flow_instead_of_crashing():
+    model = build_bpmn_semantic_model(
+        process_id="P",
+        process_name="P",
+        process=ProcessUnderstanding(
+            title="P",
+            actors=[ProcessActor(id="A", label="A", kind="team")],
+            steps=[ProcessStep(id="T", label="T", actor_ids=["A"])],
+            sequence=["T"],
+        ),
+    ).model_dump(mode="json")
+    model["sequenceFlows"].append({"id": "F_ghost", "sourceRef": "T", "targetRef": "does_not_exist"})
+    from backend.bpmn import BPMNSemanticModel
+
+    xml = semantic_model_to_bpmn_xml(BPMNSemanticModel.model_validate(model))
+    assert "F_ghost" in xml  # the sequenceFlow element is still written
+    assert "F_ghost_di" not in xml  # but its edge is skipped, no KeyError
+
+
 def test_distinct_end_events_are_kept_separate():
     process = ProcessUnderstanding(
         title="Domanda con esiti distinti",
