@@ -98,7 +98,7 @@ def resolve_pool_topology(
     """
     actor_ids = {actor.id for actor in actors if actor.id}
     if topology is not None and topology.pools:
-        return _resolve_from_topology(topology, participants, actors, actor_ids)
+        return _resolve_from_topology(topology, actor_ids)
     if any(_participant_is_pool(item) for item in participants):
         return _resolve_from_participants(participants, actors, actor_ids)
     return _resolve_from_actors(actors, actor_ids)
@@ -109,15 +109,12 @@ def resolve_pool_topology(
 
 def _resolve_from_topology(
     topology: BpmnParticipantTopology,
-    participants: list[ProcessParticipant],
-    actors: list[ProcessActor],
     actor_ids: set[str],
 ) -> PoolTopology:
     warnings: list[str] = []
     external_participant_ids = set(topology.black_box_participant_ids) | set(
         topology.out_of_scope_participant_ids
     )
-    participant_by_id = {item.id: item for item in participants}
 
     raw_pools: list[ResolvedPool] = []
     for pool in topology.pools:
@@ -149,7 +146,7 @@ def _resolve_from_topology(
             )
         )
 
-    pools = _mark_primary(raw_pools, participant_by_id)
+    pools = _mark_primary(raw_pools)
     actor_to_pool = _actor_pool_index(pools)
 
     lanes: list[ResolvedLane] = []
@@ -301,21 +298,20 @@ def _resolve_from_participants(
                     participant_id=pool.participant_id,
                 )
 
-    participant_by_id = {item.id: item for item in participants}
-    pools = _mark_primary(raw_pools, participant_by_id)
+    pools = _mark_primary(raw_pools)
     actor_to_pool = _actor_pool_index(pools)
 
+    primary_key = _primary_key(pools)
     lanes = tuple(
         ResolvedLane(
             key=lane_participant.id,
             label=lane_participant.label or lane_participant.id,
-            pool_key=lane_participant.parent_pool_id or _primary_key(pools),
+            pool_key=lane_participant.parent_pool_id or primary_key,
             actor_ids=(lane_participant.actor_id,)
             if lane_participant.actor_id in actor_ids
             else (),
         )
         for lane_participant in lane_participants
-        if (lane_participant.parent_pool_id or _primary_key(pools))
     )
     return PoolTopology(
         pools=tuple(pools),
@@ -372,10 +368,12 @@ def _resolve_from_actors(
 # --- shared helpers ----------------------------------------------------
 
 
-def _mark_primary(
-    pools: list[ResolvedPool],
-    participant_by_id: dict[str, ProcessParticipant],
-) -> list[ResolvedPool]:
+def _mark_primary(pools: list[ResolvedPool]) -> list[ResolvedPool]:
+    """Pick the pool that hosts the modelled process and normalise the rest.
+
+    Preference order: an expanded non-external pool, then the pool with the most
+    internal actors, then declaration order.
+    """
     if not pools:
         return []
 

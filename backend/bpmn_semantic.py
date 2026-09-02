@@ -278,7 +278,9 @@ def build_bpmn_semantic_model(
         BPMNFlowNode(id=_xml_id("StartEvent_1", "StartEvent", used_ids), type="startEvent", name=_start_name(process)),
     ]
     flows: list[BPMNSequenceFlow] = []
-    warnings = _semantic_warnings(process, lanes)
+    warnings = _semantic_warnings(
+        process, lanes, collaboration_built=collaboration.collaboration_id is not None
+    )
     warnings.extend(collaboration.warnings)
     main_chain: list[str] = [nodes[0].id]
     step_node_by_original_id: dict[str, str] = {}
@@ -293,6 +295,16 @@ def build_bpmn_semantic_model(
             nodes.append(event_node)
             main_chain.append(event_node.id)
             step_node_by_original_id[item.id] = event_node.id
+            _attach_anchored_gateway(
+                anchor_id=item.id,
+                lane_id=None,
+                decision_by_anchor_step_id=decision_by_anchor_step_id,
+                used_ids=used_ids,
+                nodes=nodes,
+                main_chain=main_chain,
+                gateway_by_decision_id=gateway_by_decision_id,
+                gateway_by_step_id=gateway_by_step_id,
+            )
             continue
 
         step = item
@@ -314,21 +326,16 @@ def build_bpmn_semantic_model(
         nodes.append(task)
         main_chain.append(task.id)
         step_node_by_original_id[step.id] = task.id
-
-        decision = decision_by_anchor_step_id.get(step.id)
-        if decision:
-            gateway = BPMNFlowNode(
-                id=_xml_id(decision.id, "Gateway", used_ids),
-                type="exclusiveGateway",
-                name=decision.label,
-                laneId=lane_id,
-                documentation=_decision_documentation(decision),
-                sourceRefs=[_source_ref_id("decisions", decision.id)],
-            )
-            nodes.append(gateway)
-            main_chain.append(gateway.id)
-            gateway_by_decision_id[decision.id] = gateway
-            gateway_by_step_id[step.id] = gateway
+        _attach_anchored_gateway(
+            anchor_id=step.id,
+            lane_id=lane_id,
+            decision_by_anchor_step_id=decision_by_anchor_step_id,
+            used_ids=used_ids,
+            nodes=nodes,
+            main_chain=main_chain,
+            gateway_by_decision_id=gateway_by_decision_id,
+            gateway_by_step_id=gateway_by_step_id,
+        )
 
     end = BPMNFlowNode(
         id=_xml_id("EndEvent_1", "EndEvent", used_ids),
@@ -521,7 +528,9 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
             f'    <bpmn:association id="{association["id"]}" sourceRef="{association["source"]}" targetRef="{association["target"]}" />'
         )
 
-    plane_element = model.collaborationId if model.participants else model.id
+    plane_element = (
+        (model.collaborationId or f"Collaboration_{model.id}") if model.participants else model.id
+    )
     xml_parts.extend(
         [
             "  </bpmn:process>",
@@ -530,7 +539,7 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
         ]
     )
     positions, lane_shapes = _layout_model(model)
-    pool_shapes, pool_positions = _collaboration_pool_shapes(model, positions, len(model.lanes))
+    pool_shapes, pool_positions = _collaboration_pool_shapes(model, positions, lane_shapes)
     for pool_shape in pool_shapes:
         xml_parts.extend(
             [
@@ -639,7 +648,7 @@ def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
 def _collaboration_pool_shapes(
     model: BPMNSemanticModel,
     node_positions: dict[str, dict[str, float]],
-    lane_count: int,
+    lane_shapes: list[dict[str, float | str]],
 ) -> tuple[list[dict[str, float | str]], dict[str, dict[str, float]]]:
     if not model.participants:
         return [], {}
@@ -647,18 +656,26 @@ def _collaboration_pool_shapes(
     primary = next((p for p in model.participants if p.processRef), None)
     externals = [p for p in model.participants if not p.processRef]
 
-    if node_positions:
-        min_x = min(pos["x"] for pos in node_positions.values())
-        min_y = min(pos["y"] for pos in node_positions.values())
-        max_x = max(pos["x"] + pos["width"] for pos in node_positions.values())
-        max_y = max(pos["y"] + pos["height"] for pos in node_positions.values())
+    # Cover both the lane band and the flow-node band so lanes never protrude.
+    boxes: list[tuple[float, float, float, float]] = [
+        (float(shape["x"]), float(shape["y"]), float(shape["width"]), float(shape["height"]))
+        for shape in lane_shapes
+    ]
+    boxes.extend(
+        (pos["x"], pos["y"], pos["width"], pos["height"]) for pos in node_positions.values()
+    )
+    if boxes:
+        min_x = min(box[0] for box in boxes)
+        min_y = min(box[1] for box in boxes)
+        max_x = max(box[0] + box[2] for box in boxes)
+        max_y = max(box[1] + box[3] for box in boxes)
     else:
         min_x, min_y, max_x, max_y = 110.0, 150.0, 1000.0, 330.0
 
-    pool_left = min_x - 90
-    pool_width = (max_x - pool_left) + 60
+    pool_left = min_x - 30
+    pool_width = (max_x - pool_left) + 40
     primary_top = min_y - 30
-    primary_height = max(max_y - primary_top + 30, max(lane_count, 1) * 180)
+    primary_height = max(max_y - primary_top + 30, 160.0)
 
     shapes: list[dict[str, float | str]] = []
     pool_positions: dict[str, dict[str, float]] = {}
@@ -982,25 +999,57 @@ def _ordered_chain_items(
         chain = list(process.steps)
 
     placed = {item.id for item in chain}
-    for event in flow_event_by_id.values():
-        if event.id in placed:
-            continue
-        predecessor = next(
-            (
-                edge.source_id
-                for edge in process.flow_edges
-                if edge.target_id == event.id and edge.source_id in placed
-            ),
-            None,
-        )
-        if predecessor is None:
-            continue
-        insert_at = next(
-            index for index, item in enumerate(chain) if item.id == predecessor
-        ) + 1
-        chain.insert(insert_at, event)
-        placed.add(event.id)
+    progressed = True
+    while progressed:
+        progressed = False
+        for event in flow_event_by_id.values():
+            if event.id in placed:
+                continue
+            predecessor = next(
+                (
+                    edge.source_id
+                    for edge in process.flow_edges
+                    if edge.target_id == event.id and edge.source_id in placed
+                ),
+                None,
+            )
+            if predecessor is None:
+                continue
+            insert_at = next(
+                index for index, item in enumerate(chain) if item.id == predecessor
+            ) + 1
+            chain.insert(insert_at, event)
+            placed.add(event.id)
+            progressed = True
     return chain
+
+
+def _attach_anchored_gateway(
+    *,
+    anchor_id: str,
+    lane_id: str | None,
+    decision_by_anchor_step_id: dict[str, ProcessDecision],
+    used_ids: set[str],
+    nodes: list[BPMNFlowNode],
+    main_chain: list[str],
+    gateway_by_decision_id: dict[str, BPMNFlowNode],
+    gateway_by_step_id: dict[str, BPMNFlowNode],
+) -> None:
+    decision = decision_by_anchor_step_id.get(anchor_id)
+    if decision is None:
+        return
+    gateway = BPMNFlowNode(
+        id=_xml_id(decision.id, "Gateway", used_ids),
+        type="exclusiveGateway",
+        name=decision.label,
+        laneId=lane_id,
+        documentation=_decision_documentation(decision),
+        sourceRefs=[_source_ref_id("decisions", decision.id)],
+    )
+    nodes.append(gateway)
+    main_chain.append(gateway.id)
+    gateway_by_decision_id[decision.id] = gateway
+    gateway_by_step_id[anchor_id] = gateway
 
 
 def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
@@ -1663,10 +1712,15 @@ def _documentation_xml(text: str, indent: str) -> list[str]:
     ]
 
 
-def _semantic_warnings(process: ProcessUnderstanding, lanes: list[BPMNLane]) -> list[str]:
+def _semantic_warnings(
+    process: ProcessUnderstanding,
+    lanes: list[BPMNLane],
+    *,
+    collaboration_built: bool = False,
+) -> list[str]:
     warnings = list(process.assumptions)
     external_actor_names = [actor.label for actor in process.actors if actor.kind == "external_party"]
-    if external_actor_names:
+    if external_actor_names and not collaboration_built:
         warnings.append(
             "Partecipanti esterni modellati come lane nella prima slice: "
             + ", ".join(external_actor_names)
@@ -1681,7 +1735,7 @@ def _semantic_warnings(process: ProcessUnderstanding, lanes: list[BPMNLane]) -> 
     if process.loops:
         warnings.append("Loop presenti: verificare condizioni di rientro e uscita nel canvas.")
     pool_candidates = [item.actor_id for item in process.actor_relationships if item.bpmn_pool_candidate]
-    if pool_candidates:
+    if pool_candidates and not collaboration_built:
         warnings.append("Candidati a pool/message flow esterni: " + ", ".join(pool_candidates[:8]))
     if not lanes:
         warnings.append("Nessun ruolo/lane rilevato dalle note.")

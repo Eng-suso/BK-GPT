@@ -556,14 +556,13 @@ def optimize_bpmn_layout(xml: str) -> tuple[str, dict]:
 def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
     config = config or BpmnLayoutConfig()
     root = _parse_bpmn_xml(xml)
-    if _has_collaboration(root):
-        # Pool/collaboration geometry is owned by the DeliR semantic serializer.
-        # The single-process heuristic layout cannot represent pools, so leave a
-        # collaboration diagram untouched instead of stripping its participant DI.
-        return xml
     definitions_id = root.attrib.get("id", "Definitions")
     process = _find_process(root)
     process_id = process.attrib.get("id", "Process")
+    collaboration = _find_collaboration(root)
+    plane_element = (
+        collaboration.attrib.get("id", process_id) if collaboration is not None else process_id
+    )
 
     for child in list(root):
         if _namespace(child.tag) == BPMNDI_NS and _local_name(child.tag) == "BPMNDiagram":
@@ -575,7 +574,7 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
         _bpmndi_tag("BPMNPlane"),
         {
             "id": f"{process_id}_Plane",
-            "bpmnElement": process_id,
+            "bpmnElement": plane_element,
         },
     )
 
@@ -691,6 +690,12 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
             _di_tag("waypoint"),
             {"x": str(target["x"] + target["width"] / 2), "y": str(target["y"])},
         )
+
+    if collaboration is not None:
+        pool_positions = _layout_participant_shapes(
+            plane, collaboration, process_id, node_positions, lane_shapes
+        )
+        _layout_message_flow_edges(plane, collaboration, {**node_positions, **pool_positions})
 
     return _xml_to_string(root)
 
@@ -990,6 +995,108 @@ def _associations(root: ET.Element) -> list[ET.Element]:
         for element in root.iter()
         if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "association"
     ]
+
+
+def _find_collaboration(root: ET.Element) -> ET.Element | None:
+    return next(
+        (
+            element
+            for element in root.iter()
+            if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "collaboration"
+        ),
+        None,
+    )
+
+
+def _message_flows(collaboration: ET.Element) -> list[ET.Element]:
+    return [
+        element
+        for element in collaboration
+        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "messageFlow"
+    ]
+
+
+def _layout_participant_shapes(
+    plane: ET.Element,
+    collaboration: ET.Element,
+    process_id: str,
+    node_positions: dict[str, dict[str, float]],
+    lane_shapes: list[dict[str, float | str]],
+) -> dict[str, dict[str, float]]:
+    boxes: list[dict[str, float]] = [
+        {"x": float(shape["x"]), "y": float(shape["y"]), "width": float(shape["width"]), "height": float(shape["height"])}
+        for shape in lane_shapes
+    ]
+    boxes.extend(node_positions.values())
+    if boxes:
+        min_x = min(box["x"] for box in boxes)
+        min_y = min(box["y"] for box in boxes)
+        max_x = max(box["x"] + box["width"] for box in boxes)
+        max_y = max(box["y"] + box["height"] for box in boxes)
+    else:
+        min_x, min_y, max_x, max_y = float(LAYOUT_LEFT), float(LAYOUT_TOP), 1000.0, 400.0
+
+    participants = [
+        element
+        for element in collaboration
+        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "participant"
+    ]
+    pool_left = min_x - 30
+    pool_width = (max_x - pool_left) + 40
+    primary_top = min_y - 30
+    primary_height = max(max_y - primary_top + 30, 160.0)
+
+    positions: dict[str, dict[str, float]] = {}
+    external_top = primary_top + primary_height + 40
+    for participant in participants:
+        participant_id = participant.attrib.get("id")
+        if not participant_id:
+            continue
+        if participant.attrib.get("processRef") == process_id:
+            box = {"x": pool_left, "y": primary_top, "width": pool_width, "height": primary_height}
+        else:
+            box = {"x": pool_left, "y": external_top, "width": pool_width, "height": 120.0}
+            external_top += 160
+        positions[participant_id] = box
+        shape = ET.SubElement(
+            plane,
+            _bpmndi_tag("BPMNShape"),
+            {"id": f"{participant_id}_di", "bpmnElement": participant_id, "isHorizontal": "true"},
+        )
+        ET.SubElement(
+            shape,
+            _dc_tag("Bounds"),
+            {"x": str(box["x"]), "y": str(box["y"]), "width": str(box["width"]), "height": str(box["height"])},
+        )
+    return positions
+
+
+def _layout_message_flow_edges(
+    plane: ET.Element,
+    collaboration: ET.Element,
+    endpoint_positions: dict[str, dict[str, float]],
+) -> None:
+    for message_flow in _message_flows(collaboration):
+        flow_id = message_flow.attrib.get("id")
+        source = endpoint_positions.get(message_flow.attrib.get("sourceRef"))
+        target = endpoint_positions.get(message_flow.attrib.get("targetRef"))
+        if not flow_id or not source or not target:
+            continue
+
+        start_x = source["x"] + source["width"] / 2
+        end_x = target["x"] + target["width"] / 2
+        if source["y"] <= target["y"]:
+            start_y, end_y = source["y"] + source["height"], target["y"]
+        else:
+            start_y, end_y = source["y"], target["y"] + target["height"]
+
+        edge = ET.SubElement(
+            plane,
+            _bpmndi_tag("BPMNEdge"),
+            {"id": f"{flow_id}_di", "bpmnElement": flow_id},
+        )
+        ET.SubElement(edge, _di_tag("waypoint"), {"x": str(start_x), "y": str(start_y)})
+        ET.SubElement(edge, _di_tag("waypoint"), {"x": str(end_x), "y": str(end_y)})
 
 
 def _remove_element(root: ET.Element, target: ET.Element) -> None:
