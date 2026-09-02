@@ -18,6 +18,8 @@ questo e' l'unico punto di enforcement in lettura.
      client_id
   5. idratazione — ogni id opaco -> testo autoritativo da Postgres (RLS):
      canonical_name, statement, title, ...
+  6. rerank opzionale (`settings.retrieval_rerank_enabled`, default off) — un
+     giudice LLM riordina i `chunks` di contesto per rilevanza alla query.
   I chunk fusi tornano come contesto testuale (`chunks`).
 
 `memory_search` (recall Mem0):
@@ -361,7 +363,7 @@ def graph_retrieve(
             eid
             for eid, _ in _rrf([name_seeds, list(text_hit.entity_ids)])
         ][:40]
-        chunks = [c.as_dict() for c in text_hit.chunks]
+        chunks = _context_chunks(query, text_hit)
         if not seeds and not process_id:
             return {
                 "status": "empty", "matches": [], "count": 0,
@@ -380,6 +382,17 @@ def graph_retrieve(
 
     status = "ok" if (matches or chunks) else "empty"
     return {"status": status, "count": len(matches), "matches": matches, "chunks": chunks}
+
+
+def _context_chunks(query: str, text_hit: ChunkSearch) -> list[dict[str, Any]]:
+    """Chunk di contesto per l'agente: fusi RRF (`_text_search`), poi rerank
+    LLM opzionale (`settings.retrieval_rerank_enabled`, default off)."""
+    chunks = [c.as_dict() for c in text_hit.chunks]
+    if not chunks or not settings.retrieval_rerank_enabled:
+        return chunks
+    from backend.memory import reranker
+
+    return reranker.rerank_passages(query, chunks, key="content")
 
 
 # --------------------------------------------------------------------------- #

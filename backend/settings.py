@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # stessa cosa (match esatto -> candidati fuzzy -> giudizio LLM). False =
     # solo dedup per nome esatto (comportamento pre-P2).
     canonical_entity_resolution: bool = True
+    # P3.2: dopo la fusione RRF, un giudice LLM riordina i chunk di contesto di
+    # graph_retrieve per rilevanza alla query. Off di default: aggiunge una
+    # chiamata LLM (~1-2s) sul path di grounding dell'agente.
+    retrieval_rerank_enabled: bool = False
     # l'app drena graph_outbox + mem0_projection_log in un task di background.
     # Metti False se usi processi worker dedicati (`python -m backend.workers.*`).
     workers_in_process: bool = True
