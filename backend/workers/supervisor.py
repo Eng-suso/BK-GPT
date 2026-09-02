@@ -92,9 +92,16 @@ async def run_queue_workers() -> None:
         logger.info("canonical non configurato: worker in-process non avviati")
         return
 
-    from backend.workers import graph_worker, mem0_worker
+    from backend.workers import graph_worker, ingest_worker, mem0_worker
 
     tasks = [
+        asyncio.create_task(
+            _drain_loop(
+                "ingest_worker", ingest_worker.drain_once, ingest_worker.queue_stats,
+                1.0, ingest_worker.prune,
+            ),
+            name="ingest_worker",
+        ),
         asyncio.create_task(
             _drain_loop(
                 "graph_worker", graph_worker.drain_once, graph_worker.queue_stats,
@@ -110,7 +117,7 @@ async def run_queue_workers() -> None:
             name="mem0_worker",
         ),
     ]
-    logger.info("worker in-process avviati (graph + mem0)")
+    logger.info("worker in-process avviati (ingest + graph + mem0)")
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:

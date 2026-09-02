@@ -1009,6 +1009,73 @@ def write_evidence(
     return counts
 
 
+# --- ingestione asincrona (P5) ---------------------------------------------
+
+EVIDENCE_KEYS = (
+    "consultant_id", "client_id", "project_id", "process_id", "process_name",
+    "entities", "relationships", "claims", "gaps", "contradictions", "impacts",
+    "source_title", "source_text", "source_kind",
+)
+
+
+def enqueue_evidence(
+    *,
+    consultant_id: str,
+    client_id: str,
+    project_id: str | None = None,
+    process_id: str | None = None,
+    process_name: str | None = None,
+    entities: list[str] | None = None,
+    relationships: list[dict] | None = None,
+    claims: list[dict] | None = None,
+    gaps: list[dict] | None = None,
+    contradictions: list[dict] | None = None,
+    impacts: list[dict] | None = None,
+    source_title: str | None = None,
+    source_text: str | None = None,
+    source_kind: str = "note",
+) -> int:
+    """Accoda il pacchetto di evidenza su `kg_ingest_queue` (P5).
+
+    Il tool ritorna subito; `backend.workers.ingest_worker` drena la coda e
+    chiama `write_evidence(**payload)` — embedding + entity resolution + write
+    atomico fuori dal giro dell'agente. Ritorna l'id del job. Stessa firma di
+    `write_evidence` meno `resolver_llm` (il worker usa l'LLM reale).
+    """
+    payload = {
+        "consultant_id": str(consultant_id),
+        "client_id": str(client_id),
+        "project_id": str(project_id) if project_id else None,
+        "process_id": str(process_id) if process_id else None,
+        "process_name": process_name,
+        "entities": list(entities or []),
+        "relationships": list(relationships or []),
+        "claims": list(claims or []),
+        "gaps": list(gaps or []),
+        "contradictions": list(contradictions or []),
+        "impacts": list(impacts or []),
+        "source_title": source_title,
+        "source_text": source_text,
+        "source_kind": source_kind,
+    }
+    with canonical_session(consultant_id, client_id) as session:
+        row = session.execute(
+            text(
+                "INSERT INTO kg_ingest_queue "
+                "(consultant_id, client_id, project_id, process_id, payload) "
+                "VALUES (:c, :cl, :p, :pr, CAST(:payload AS jsonb)) RETURNING id"
+            ),
+            {
+                "c": str(consultant_id),
+                "cl": str(client_id),
+                "p": payload["project_id"],
+                "pr": payload["process_id"],
+                "payload": _json(payload),
+            },
+        ).one()
+        return int(row.id)
+
+
 # --- helpers ---------------------------------------------------------------
 
 def _float(value: Any, default: float = 0.5) -> float:

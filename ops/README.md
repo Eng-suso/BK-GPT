@@ -110,6 +110,7 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0010 | `procedural_memory`: contatori `used_count` / `outcome_*` / `last_used_at` / `last_outcome_at` (L2 P7.4) |
 | 0011 | entity resolution (P2): HNSW coseno parziale su `kg_entity.embedding`, GIN trigram su `lower(canonical_name)`, GIN su `aliases` |
 | 0012 | unique key canonical allineate allo scope: `workspace_id` per consultant, `kg_source.content_hash` per client |
+| 0013 | `kg_ingest_queue` (P5): coda di ingestione asincrona dell'evidenza (payload = kwargs di `write_evidence`) + RLS strict-client + grant CRUD a `delir_app` |
 
 Test: `tests/test_canonical_rls.py` (8) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 
@@ -138,21 +139,33 @@ la migrazione della memoria canonica (INV-13).
 stessa TX. `backend/workers/mem0_worker.py` drena → Mem0 OSS (`add`/`update`/
 `delete`), scrive indietro `mem0_memory_id`.
 
+**Ingestione async (P5):** `backend/workers/ingest_worker.py` — drena
+`kg_ingest_queue` e chiama `canonical.write_evidence(**payload)` (chunk +
+embedding + entity resolution + write atomico) **fuori dal giro dell'agente**.
+Gira come `delir_app` (`canonical_database_url`): a differenza degli altri due
+worker deve eseguire la DML di dominio. Ciclo riga: `pending` → (claim)
+`processing` → `done` | `failed` (dopo 5 tentativi). Un `processing` appeso
+> 30 min torna `pending`. Il tool evidenza accoda e ritorna subito
+(`canonical_write.queued = true`, `job_id`). `KG_INGEST_ASYNC=false` → write
+sincrono nel tool call (comportamento pre-P5).
+
 **Avvio dei worker.** Di default l'app li fa girare in-process: il lifespan
-FastAPI avvia due task di background (`backend/workers/supervisor.py`) che
-drenano le code, loggano il backlog ogni ~2 min e potano le righe processate
-> 14 giorni ogni ora. Nessun processo separato da gestire.
+FastAPI avvia tre task di background (`backend/workers/supervisor.py`) —
+ingest + graph + mem0 — che drenano le code, loggano il backlog ogni ~2 min e
+potano le righe processate > 14 giorni ogni ora. Nessun processo separato.
 
 Per scalare / isolarli: `WORKERS_IN_PROCESS=false` + service dedicati.
 `FOR UPDATE SKIP LOCKED` rende sicuro anche farli girare in parallelo.
 
 ```bash
-uv run python -m backend.workers.graph_worker   # loop dedicato
-uv run python -m backend.workers.mem0_worker    # loop dedicato
+uv run python -m backend.workers.ingest_worker  # loop dedicato (delir_app)
+uv run python -m backend.workers.graph_worker   # loop dedicato (delir_worker)
+uv run python -m backend.workers.mem0_worker    # loop dedicato (delir_worker)
 ```
 
 **Health + dead-letter.** `GET /v1/observability/queues` → `{pending, stuck}`
-per coda (`stuck` = falliti 5 volte). Ispezione / requeue:
+per coda (`kg_ingest_queue`, `graph_outbox`, `mem0_projection_log`; `stuck` =
+falliti 5 volte). Ispezione / requeue delle due code di proiezione:
 
 ```bash
 CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin list
@@ -161,7 +174,9 @@ CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin requeue-stuck
 ```
 
 Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`,
-`tests/test_queue_supervisor.py`.
+`tests/test_queue_supervisor.py`, `tests/test_kg_ingest_queue.py` (P5: enqueue,
+worker, retry/dead-letter, requeue stuck, + **E2E** tool → coda → ingest →
+outbox → Neo4j → gateway).
 
 ## Scrittura KG sul canonical — cutover ✅
 
@@ -254,11 +269,12 @@ Se un tool evidence passa `raw_content`, il mirror lo gira a
 
 ## Stato L1 (process-consulting per progetto) — solido ✅
 
-Loop completo e non presidiato: evidence tool → `mirror` → `write_evidence`
-(atomico, + `kg_source`/`kg_chunk`) → `graph_outbox` → **worker in-process** →
-Neo4j; lettura via `gateway.graph_retrieve` (ibrido lessicale+vettoriale+RRF).
-Memoria episodica client-scoped. Backlog visibile, dead-letter ispezionabile,
-code potate da sole. Stato operativo su Postgres.
+Loop completo e non presidiato: evidence tool → `mirror` → **`kg_ingest_queue`**
+(P5) → `ingest_worker` → `write_evidence` (atomico, + `kg_source`/`kg_chunk`) →
+`graph_outbox` → `graph_worker` → Neo4j; lettura via `gateway.graph_retrieve`
+(ibrido lessicale+vettoriale+RRF). Il tool ritorna subito, il lavoro pesante è
+async. Memoria episodica client-scoped. Backlog visibile, dead-letter
+ispezionabile, code potate da sole. Stato operativo su Postgres.
 
 ## L2 — learning loop (memoria procedurale canonica) ✅
 
