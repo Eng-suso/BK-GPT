@@ -253,3 +253,46 @@ def test_hybrid_fuses_lexical_and_vector(scope, wait_projected):
 
     assert wait_projected(lambda: bool(_fused(_q())))
     assert _fused(_q()), "almeno un chunk deve avere entrambi i segnali (fusione RRF)"
+
+
+def test_rerank_reorders_context_chunks_when_enabled(scope, wait_projected, monkeypatch):
+    """P3.2: con `retrieval_rerank_enabled`, il giudice riordina i chunk di
+    contesto. Reranker fake (inverte l'ordine) per determinismo."""
+    from backend.memory import reranker
+
+    for i, body in enumerate((
+        "Lo sconfinamento del plafond blocca l'ordine: il rilascio richiede "
+        "l'ok della direzione amministrativa entro 24 ore.",
+        "In caso di sconfinamento ripetuto il rilascio della pratica passa dal "
+        "comitato rischi, che si riunisce ogni 48 ore.",
+    )):
+        canonical.write_evidence(
+            consultant_id=scope["consultant"], client_id=scope["client"],
+            project_id=scope["project"], process_id=scope["process"],
+            process_name="Order to Cash",
+            entities=["Direzione amministrativa"],
+            source_title=f"Manuale credito {i}",
+            source_text=body,
+        )
+
+    def _q() -> dict:
+        return gateway.graph_retrieve(
+            consultant_id=scope["consultant"], client_id=scope["client"],
+            query="chi autorizza il rilascio in caso di sconfinamento?",
+            process_id=scope["process"], limit=30,
+        )
+
+    assert wait_projected(lambda: len(_q()["chunks"]) >= 2)
+
+    baseline = [c["content"] for c in _q()["chunks"]]
+
+    class ReverseReranker:
+        def order(self, query, passages):
+            return list(range(len(passages) - 1, -1, -1))
+
+    monkeypatch.setattr(reranker, "build_reranker", lambda: ReverseReranker())
+    monkeypatch.setattr(gateway.settings, "retrieval_rerank_enabled", True)
+
+    reranked = _q()["chunks"]
+    assert [c["content"] for c in reranked] == list(reversed(baseline))
+    assert reranked[0]["rerank_position"] == 0
