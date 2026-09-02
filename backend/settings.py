@@ -52,8 +52,12 @@ class Settings(BaseSettings):
     # graph_retrieve per rilevanza alla query. Off di default: aggiunge una
     # chiamata LLM (~1-2s) sul path di grounding dell'agente.
     retrieval_rerank_enabled: bool = False
-    # l'app drena graph_outbox + mem0_projection_log in un task di background.
-    # Metti False se usi processi worker dedicati (`python -m backend.workers.*`).
+    # P5: il tool evidenza accoda su kg_ingest_queue e ritorna subito; il lavoro
+    # pesante (embedding + entity resolution + write) lo fa
+    # backend/workers/ingest_worker.py. False = write sincrono nel tool call.
+    kg_ingest_async: bool = True
+    # l'app drena graph_outbox + mem0_projection_log + kg_ingest_queue in task
+    # di background. False se usi processi worker dedicati (`python -m backend.workers.*`).
     workers_in_process: bool = True
 
     # --- Neo4j Community (projection grafo tipizzato, P0.5+) --------------

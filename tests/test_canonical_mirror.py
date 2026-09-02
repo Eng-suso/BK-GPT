@@ -6,7 +6,6 @@ Skip senza le tre DSN Postgres + NEO4J_PASSWORD in env.
 from __future__ import annotations
 
 import json
-import time
 import uuid
 
 import pytest
@@ -30,7 +29,6 @@ if not all(_NEEDED):
 from backend import workspace_database  # noqa: E402
 from backend.memory.knowledge_graph import neo4j_store  # noqa: E402
 from backend.toolsets.process_memory import manage_process_evidence  # noqa: E402
-from backend.workers.graph_worker import drain_once  # noqa: E402
 
 MIGRATOR = create_engine(settings.canonical_migrator_url, future=True)
 
@@ -65,7 +63,9 @@ def workspace_process(monkeypatch):
         neo4j_store.purge_client(client_id)
 
 
-def test_manage_process_evidence_mirrors_to_canonical(workspace_process):
+def test_manage_process_evidence_mirrors_to_canonical(workspace_process, wait_projected):
+    from backend.workers import ingest_worker
+
     project_id, process_id = workspace_process
 
     raw = manage_process_evidence.invoke(
@@ -100,28 +100,36 @@ def test_manage_process_evidence_mirrors_to_canonical(workspace_process):
     )
     payload = json.loads(raw.split("\n", 1)[1])["payload"]
     mirror = payload["canonical_write"]
+    # P5: il tool accoda e ritorna subito
     assert mirror["mirrored"] is True
-    assert mirror["counts"]["entities"] == 2
-    assert mirror["counts"]["relationships"] == 1
-    assert mirror["counts"]["claims"] == 1
+    assert mirror["queued"] is True
+    assert isinstance(mirror["job_id"], int)
+
+    # ingest_worker: coda -> write_evidence (embedding + entity resolution + write)
+    assert ingest_worker.drain_once() >= 1
 
     ids = _entity_ids(mirror)
+    assert set(ids) >= {"Finance", "Validazione ordine"}
+
+    # graph_worker: outbox -> Neo4j
     driver = neo4j_store.get_driver()
-    # best-effort: se l'app gira, il suo worker in-process puo' aver gia' drenato
-    edge = None
-    for _ in range(12):
-        drain_once()
+
+    def _edge() -> bool:
         with driver.session() as neo:
-            edge = neo.run(
+            return neo.run(
                 "MATCH (:Entity {entity_id:$s})-[r:PERFORMS]->(:Entity {entity_id:$t}) "
-                "RETURN r.confidence AS c",
+                "RETURN count(r) AS c",
                 s=ids["Finance"], t=ids["Validazione ordine"],
-            ).single()
-        if edge is not None:
-            break
-        time.sleep(0.5)
-    assert edge is not None
-    assert abs(edge["c"] - 0.8) < 1e-6
+            ).single()["c"] > 0
+
+    assert wait_projected(_edge)
+    with driver.session() as neo:
+        c = neo.run(
+            "MATCH (:Entity {entity_id:$s})-[r:PERFORMS]->(:Entity {entity_id:$t}) "
+            "RETURN r.confidence AS c",
+            s=ids["Finance"], t=ids["Validazione ordine"],
+        ).single()["c"]
+        assert abs(c - 0.8) < 1e-6
 
 
 def _entity_ids(mirror_result: dict) -> dict:

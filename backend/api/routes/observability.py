@@ -26,10 +26,14 @@ def get_queue_health():
 
     if not settings.canonical_worker_url:
         return {"status": "not_configured"}
-    from backend.workers import graph_worker, mem0_worker
+    from backend.workers import graph_worker, ingest_worker, mem0_worker
 
     out: dict = {"status": "ok"}
-    for name, worker in (("graph_outbox", graph_worker), ("mem0_projection_log", mem0_worker)):
+    for name, worker in (
+        ("kg_ingest_queue", ingest_worker),
+        ("graph_outbox", graph_worker),
+        ("mem0_projection_log", mem0_worker),
+    ):
         try:
             out[name] = worker.queue_stats()
         except Exception as exc:  # noqa: BLE001

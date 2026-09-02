@@ -151,26 +151,41 @@ def mirror_evidence(
         "process_id": base_scope.process_id,
     }
 
+    evidence = dict(
+        consultant_id=base_scope.consultant_id,
+        client_id=base_scope.client_id,
+        project_id=base_scope.project_id,
+        process_id=base_scope.process_id,
+        process_name=base_scope.process_name,
+        entities=entities,
+        relationships=rel_dicts,
+        claims=claim_dicts,
+        gaps=gap_dicts,
+        contradictions=contra_dicts,
+        impacts=impact_dicts,
+        source_text=raw_content,
+        source_title=source_title,
+    )
+
+    # P5: di default si accoda su kg_ingest_queue e il tool ritorna subito;
+    # `backend.workers.ingest_worker` fa embedding + entity resolution + write
+    # fuori dal giro dell'agente. `kg_ingest_async=False` -> write sincrono.
+    if settings.kg_ingest_async:
+        try:
+            job_id = canonical.enqueue_evidence(**evidence)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "canonical mirror: enqueue fallito per %s (%s)", workspace_project_id, exc
+            )
+            return {"mirrored": False, "reason": str(exc), "scope": scope_out}
+        return {"mirrored": True, "queued": True, "job_id": job_id, "scope": scope_out}
+
     try:
-        counts = canonical.write_evidence(
-            consultant_id=base_scope.consultant_id,
-            client_id=base_scope.client_id,
-            project_id=base_scope.project_id,
-            process_id=base_scope.process_id,
-            process_name=base_scope.process_name,
-            entities=entities,
-            relationships=rel_dicts,
-            claims=claim_dicts,
-            gaps=gap_dicts,
-            contradictions=contra_dicts,
-            impacts=impact_dicts,
-            source_text=raw_content,
-            source_title=source_title,
-        )
+        counts = canonical.write_evidence(**evidence)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "canonical mirror: write_evidence fallito per %s (%s)", workspace_project_id, exc
         )
         return {"mirrored": False, "reason": str(exc), "scope": scope_out}
 
-    return {"mirrored": True, "scope": scope_out, "counts": counts}
+    return {"mirrored": True, "queued": False, "scope": scope_out, "counts": counts}
