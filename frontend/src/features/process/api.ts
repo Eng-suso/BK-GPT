@@ -14,7 +14,7 @@ import {
   type BpmnModel,
   type BpmnVersion,
 } from "@/contracts/workspace";
-import { HttpError, http } from "@/lib/http";
+import { http } from "@/lib/http";
 
 /**
  * Query/mutation hooks for the process BPMN model. Components never call
@@ -37,6 +37,38 @@ export async function fetchBpmnModel(bpmnModelId: string): Promise<BpmnModel> {
   return toBpmnModel(apiBpmnModelSchema.parse(raw));
 }
 
+export async function fetchBpmnVersions(
+  bpmnModelId: string,
+): Promise<BpmnVersion[]> {
+  const raw = await http<unknown>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/versions`,
+    { cache: "no-store" },
+  );
+  return apiBpmnVersionsSchema.parse(raw).map(toBpmnVersion);
+}
+
+export async function saveBpmnModelXml(
+  bpmnModelId: string,
+  xml: string,
+): Promise<void> {
+  await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}`, {
+    method: "PUT",
+    body: { xml },
+  });
+}
+
+/** Restore a stored version; returns the model the backend rewound to. */
+export async function restoreBpmnVersion(
+  bpmnModelId: string,
+  versionId: number,
+): Promise<BpmnModel> {
+  const raw = await http<unknown>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/versions/${versionId}/restore`,
+    { method: "POST" },
+  );
+  return toBpmnModel(apiRestoreBpmnVersionSchema.parse(raw).bpmn_model);
+}
+
 export function useBpmnModelQuery(
   bpmnModelId: string,
   options: { enabled?: boolean } = {},
@@ -56,24 +88,14 @@ export function useBpmnVersionsQuery(
   return useQuery({
     queryKey: bpmnKeys.versions(bpmnModelId),
     enabled: options.enabled ?? true,
-    queryFn: async () => {
-      const raw = await http<unknown>(
-        `/v1/workspace/bpmn-models/${bpmnModelId}/versions`,
-        { cache: "no-store" },
-      );
-      return apiBpmnVersionsSchema.parse(raw).map(toBpmnVersion);
-    },
+    queryFn: () => fetchBpmnVersions(bpmnModelId),
   });
 }
 
 export function useSaveBpmnModelMutation(bpmnModelId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (xml: string) =>
-      http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}`, {
-        method: "PUT",
-        body: { xml },
-      }),
+    mutationFn: (xml: string) => saveBpmnModelXml(bpmnModelId, xml),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: bpmnKeys.scope(bpmnModelId),
@@ -85,35 +107,12 @@ export function useSaveBpmnModelMutation(bpmnModelId: string) {
 export function useRestoreBpmnVersionMutation(bpmnModelId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (versionId: number) => {
-      const raw = await http<unknown>(
-        `/v1/workspace/bpmn-models/${bpmnModelId}/versions/${versionId}/restore`,
-        { method: "POST" },
-      );
-      return apiRestoreBpmnVersionSchema.parse(raw);
-    },
+    mutationFn: (versionId: number) =>
+      restoreBpmnVersion(bpmnModelId, versionId),
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: bpmnKeys.scope(bpmnModelId),
       });
     },
   });
-}
-
-/** Human-readable message from a backend error (`{detail}` / `{error:{message}}`). */
-export function bpmnErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof HttpError) {
-    const body = error.body;
-    if (body && typeof body === "object") {
-      if ("detail" in body && typeof body.detail === "string") {
-        return body.detail;
-      }
-      const nested = (body as { error?: { message?: unknown } }).error;
-      if (nested && typeof nested.message === "string") {
-        return nested.message;
-      }
-    }
-    return error.message;
-  }
-  return error instanceof Error ? error.message : fallback;
 }

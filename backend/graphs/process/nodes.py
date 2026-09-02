@@ -1,3 +1,7 @@
+import logging
+
+from pydantic import ValidationError
+
 from backend import workspace_database
 from backend.bpmn_semantic import BPMNSemanticModel
 from backend.process_understanding import (
@@ -6,6 +10,8 @@ from backend.process_understanding import (
     process_understanding_diagnostics,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _validated_model(model_cls, value):
     if not value:
@@ -13,7 +19,12 @@ def _validated_model(model_cls, value):
 
     try:
         return model_cls.model_validate(value)
-    except Exception:
+    except ValidationError as exc:
+        logger.warning(
+            "process node: stored %s payload failed validation: %s",
+            model_cls.__name__,
+            exc,
+        )
         return None
 
 

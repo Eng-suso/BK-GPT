@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 import xml.etree.ElementTree as ET
 from collections import Counter
+
+from pydantic import ValidationError
 
 from backend.bpmn_semantic import BPMNSemanticModel
 from backend.process_understanding import ProcessUnderstanding
@@ -11,6 +14,8 @@ from backend.workspace_services.bpmn_canvas_edit import (
     list_bpmn_elements,
     validate_bpmn_xml,
 )
+
+logger = logging.getLogger(__name__)
 
 
 FLOW_NODE_TYPES = {
@@ -303,7 +308,8 @@ def _coerce_semantic_model(value: dict | BPMNSemanticModel | None) -> BPMNSemant
         return value
     try:
         return BPMNSemanticModel.model_validate(value)
-    except Exception:
+    except ValidationError as exc:
+        logger.warning("bpmn canvas validation: semantic model payload rejected: %s", exc)
         return None
 
 
@@ -314,7 +320,8 @@ def _coerce_understanding(value: dict | ProcessUnderstanding | None) -> ProcessU
         return value
     try:
         return ProcessUnderstanding.model_validate(value)
-    except Exception:
+    except ValidationError as exc:
+        logger.warning("bpmn canvas validation: process understanding payload rejected: %s", exc)
         return None
 
 
