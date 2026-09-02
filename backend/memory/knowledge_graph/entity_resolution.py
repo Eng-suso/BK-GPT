@@ -10,14 +10,14 @@ Tre livelli, dal piu' certo al piu' incerto:
   0. **esatto** — `canonical_name` o un `alias` coincide (whitespace normalizzato,
      case-insensitive). Deciso senza LLM.
   1. **candidati** — nomi lessicalmente simili (`pg_trgm`) o semanticamente
-     vicini (coseno sull'embedding del nome). Sono solo candidati: la
-     calibrazione (`docs`/commit P2.2) mostra che coseno e trigram sui nomi
-     nudi NON separano "stessa entita'" da "entita' diversa ma affine"
-     ("direttore finanziario" vs "direttore commerciale" = 0.75 coseno).
+     vicini (coseno sull'embedding del nome). Sono SOLO candidati: la
+     calibrazione (commit P2.2) mostra che coseno e trigram sui nomi nudi non
+     decidono l'identita' — "direttore finanziario" vs "direttore commerciale"
+     = 0.75 coseno, "Segreto A" vs "Segreto B" = 0.92.
   2. **giudizio** — un LLM decide se un candidato e' davvero la stessa entita'.
-     Senza LLM si accetta solo la fascia quasi-certa (`AUTO_ACCEPT_*`), tutto
-     il resto resta separato (un merge sbagliato corrompe il grafo, un merge
-     mancato si recupera).
+     Senza LLM il resolver si ferma al livello 0 (match esatto): niente merge
+     fuzzy automatico, un merge sbagliato corrompe il grafo mentre un merge
+     mancato si recupera con lo sweep periodico (P2.4).
 
 Tutto gira dentro la `canonical_session` del chiamante: la RLS limita la
 ricerca al cliente corrente, quindi non si fondono mai entita' di clienti
@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -39,18 +40,15 @@ from backend.settings import settings
 logger = logging.getLogger(__name__)
 
 # --- soglie -------------------------------------------------------------
-# Calibrate su embedding reali (text-embedding-3-small, 1536) di ~40 coppie
-# di entita' di consulenza IT/finance. Risultato netto: coseno e trigram sui
-# NOMI NUDI non separano "stessa entita'" da "entita' diversa ma affine"
-# (SAME 0.45-0.84, DIFF 0.45-0.78). Quindi queste soglie generano CANDIDATI e
-# la decisione la prende l'LLM; senza LLM si fonde solo il quasi-certo.
+# Calibrate su embedding reali (text-embedding-3-small, 1536) di ~40 coppie di
+# entita' di consulenza IT/finance. Risultato netto: coseno e trigram sui NOMI
+# NUDI NON decidono l'identita'. Non solo SAME (0.45-0.84) e DIFF (0.45-0.78)
+# si sovrappongono: coppie palesemente distinte che differiscono per un token
+# discriminante ("Segreto A" / "Segreto B") arrivano a 0.92 di coseno. Nessuna
+# soglia di auto-merge e' sicura -> ogni candidato fuzzy passa dall'LLM, e
+# senza LLM il resolver fa SOLO il match esatto (nome/alias).
 CANDIDATE_TRGM_MIN = 0.45
 CANDIDATE_COSINE_MIN = 0.58
-# Senza LLM: nella calibrazione nessuna coppia "entita' diverse" supera 0.78
-# di coseno / 0.78 di trigram (i refusi arrivano a 0.87). Sopra queste si
-# fonde direttamente.
-AUTO_ACCEPT_COSINE = 0.88
-AUTO_ACCEPT_TRGM = 0.82
 # Quanti candidati passare all'LLM (ordinati per rilevanza).
 MAX_CANDIDATES = 5
 
@@ -86,7 +84,7 @@ class Candidate:
 class Match:
     entity_id: str
     canonical_name: str
-    method: str  # exact_name | exact_alias | auto_cosine | auto_trgm | llm
+    method: str  # exact_name | exact_alias | llm
     reason: str = ""
 
 
@@ -264,6 +262,7 @@ def _adjudicate(
     )
 
 
+@lru_cache(maxsize=1)
 def _default_llm() -> Any | None:
     if not settings.openai_api_key:
         return None
@@ -312,17 +311,13 @@ def find_match(
     if exact:
         return exact
 
-    candidates = _candidates(session, str(client_id), norm_name, name_vec, entity_type)
-    if not candidates:
-        return None
-
-    top = candidates[0]
-    if (top.cosine or 0.0) >= AUTO_ACCEPT_COSINE:
-        return Match(top.entity_id, top.canonical_name, method="auto_cosine")
-    if (top.trgm or 0.0) >= AUTO_ACCEPT_TRGM:
-        return Match(top.entity_id, top.canonical_name, method="auto_trgm")
-
     model = llm if llm is not None else (_default_llm() if use_llm else None)
     if model is None:
+        # senza LLM nessun merge fuzzy: un merge sbagliato corrompe il grafo,
+        # un merge mancato si recupera (sweep periodico, P2.4).
+        return None
+
+    candidates = _candidates(session, str(client_id), norm_name, name_vec, entity_type)
+    if not candidates:
         return None
     return _adjudicate(model, name, entity_type, context, candidates)

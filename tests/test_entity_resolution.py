@@ -80,6 +80,7 @@ def _insert_entity(
 @pytest.fixture()
 def scope():
     consultant, client = uuid.uuid4(), uuid.uuid4()
+    project, process = uuid.uuid4(), uuid.uuid4()
     with MIGRATOR.begin() as conn:
         conn.execute(
             text("INSERT INTO consultant (id, email, display_name) VALUES (:i,:e,'t')"),
@@ -90,7 +91,10 @@ def scope():
             text("INSERT INTO client (id, consultant_id, name) VALUES (:i,:c,'AcmeER')"),
             {"i": client, "c": consultant},
         )
-    yield {"consultant": str(consultant), "client": str(client)}
+    yield {
+        "consultant": str(consultant), "client": str(client),
+        "project": str(project), "process": str(process),
+    }
     with MIGRATOR.begin() as conn:
         conn.execute(text("DELETE FROM consultant WHERE id = :i"), {"i": consultant})
 
@@ -170,17 +174,31 @@ def test_trgm_candidate_llm_rejects(scope):
     assert len(llm.calls) == 1
 
 
-def test_trgm_auto_accept_skips_llm(scope):
+def test_typo_variant_goes_through_llm(scope):
     with MIGRATOR.begin() as conn:
         _ctx(conn, scope["consultant"], scope["client"])
         eid = _insert_entity(
             conn, scope["consultant"], scope["client"], "Responsabile Magazzino"
         )
 
+    # refuso: trgm ~0.87 ma nessun auto-merge, decide l'LLM
+    llm = FakeLLM(1)
+    m = _find(scope, "responsabile magazino", llm=llm)
+    assert m is not None and m.entity_id == eid and m.method == "llm"
+    assert len(llm.calls) == 1
+
+
+def test_discriminating_suffix_not_merged(scope):
+    """'Segreto A' e 'Segreto B': coseno 0.92, trgm 0.67 -> candidato, ma
+    entita' distinte. Senza auto-merge, l'LLM (qui fake=0) le tiene separate."""
+    with MIGRATOR.begin() as conn:
+        _ctx(conn, scope["consultant"], scope["client"])
+        _insert_entity(conn, scope["consultant"], scope["client"], "Segreto A")
+
     llm = FakeLLM(0)
-    m = _find(scope, "responsabile magazino", llm=llm)  # refuso -> trgm ~0.87
-    assert m is not None and m.entity_id == eid and m.method == "auto_trgm"
-    assert llm.calls == []
+    m = _find(scope, "Segreto B", llm=llm)
+    assert m is None
+    assert len(llm.calls) == 1
 
 
 def test_no_candidate_returns_none(scope):
@@ -194,14 +212,22 @@ def test_no_candidate_returns_none(scope):
     assert llm.calls == []
 
 
-def test_no_llm_no_autoaccept_returns_none(scope):
+def test_no_llm_skips_fuzzy_but_keeps_exact(scope):
     with MIGRATOR.begin() as conn:
         _ctx(conn, scope["consultant"], scope["client"])
-        _insert_entity(conn, scope["consultant"], scope["client"], "Ufficio Gestione Crediti")
+        fuzzy = _insert_entity(
+            conn, scope["consultant"], scope["client"], "Ufficio Gestione Crediti"
+        )
+        exact = _insert_entity(
+            conn, scope["consultant"], scope["client"], "Direzione Vendite"
+        )
 
-    # use_llm=False e nessun llm iniettato: fascia incerta -> None (conservativo)
-    m = _find(scope, "ufficio crediti", use_llm=False)
-    assert m is None
+    # use_llm=False, nessun llm: il fuzzy resta separato...
+    assert _find(scope, "ufficio crediti", use_llm=False) is None
+    # ...ma il match esatto continua a funzionare
+    m = _find(scope, "  direzione   VENDITE ", use_llm=False)
+    assert m is not None and m.entity_id == exact and m.method == "exact_name"
+    assert fuzzy != exact
 
 
 def test_consultant_scope_has_no_resolution(scope):
@@ -236,7 +262,7 @@ class TestVectorPath:
             name_vec=embeddings.to_pgvector(vecs[1]), llm=llm,
         )
         assert m is not None and m.entity_id == eid
-        assert m.method in {"llm", "auto_cosine"}
+        assert m.method == "llm"
         assert len(llm.calls) == 1
 
     def test_unrelated_name_not_matched(self, scope):
@@ -256,3 +282,116 @@ class TestVectorPath:
         )
         assert m is None
         assert llm.calls == []  # sotto CANDIDATE_COSINE_MIN: nessun candidato
+
+
+# --- integrazione: write_evidence fonde davvero -------------------------
+
+_WEV_NEEDED = (
+    settings.canonical_worker_url,
+    settings.neo4j_password,
+    settings.openai_api_key,
+)
+
+
+@pytest.mark.skipif(
+    not all(_WEV_NEEDED), reason="serve CANONICAL_WORKER_URL + NEO4J_PASSWORD + OPENAI_API_KEY"
+)
+class TestWriteEvidenceResolution:
+    def test_second_interview_synonym_folds_into_first(self, scope):
+        from backend.memory.knowledge_graph import canonical, neo4j_store
+        from backend.workers.graph_worker import drain_once
+
+        with MIGRATOR.begin() as conn:
+            _ctx(conn, scope["consultant"])
+            conn.execute(
+                text(
+                    "INSERT INTO project (id, client_id, consultant_id, name) "
+                    "VALUES (:i,:cl,:c,'P')"
+                ),
+                {"i": scope["project"], "cl": scope["client"], "c": scope["consultant"]},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO process (id, project_id, client_id, consultant_id, name) "
+                    "VALUES (:i,:p,:cl,:c,'HR onboarding')"
+                ),
+                {
+                    "i": scope["process"], "p": scope["project"],
+                    "cl": scope["client"], "c": scope["consultant"],
+                },
+            )
+
+        common = dict(
+            consultant_id=scope["consultant"], client_id=scope["client"],
+            project_id=scope["project"], process_id=scope["process"],
+            process_name="HR onboarding",
+        )
+        resolver = FakeLLM(1)  # "e' lo stesso candidato"
+
+        canonical.write_evidence(
+            **common,
+            entities=["Ufficio del Personale"],
+            relationships=[{
+                "source": "Ufficio del Personale", "relation": "gestisce",
+                "target": "Assunzioni", "confidence": 0.7,
+            }],
+            source_title="Intervista 1",
+            source_text="L'ufficio del personale gestisce le assunzioni e i contratti.",
+            resolver_llm=resolver,
+        )
+        canonical.write_evidence(
+            **common,
+            entities=["ufficio risorse umane"],
+            relationships=[{
+                "source": "ufficio risorse umane", "relation": "cura",
+                "target": "Onboarding", "confidence": 0.8,
+            }],
+            source_title="Intervista 2",
+            source_text="Le risorse umane curano l'onboarding dei nuovi assunti.",
+            resolver_llm=resolver,
+        )
+
+        with canonical_session(scope["consultant"], scope["client"]) as s:
+            hr = s.execute(
+                text(
+                    "SELECT id, canonical_name, aliases FROM kg_entity "
+                    "WHERE client_id = :cl AND lower(canonical_name) LIKE '%personale%'"
+                ),
+                {"cl": scope["client"]},
+            ).all()
+            assert len(hr) == 1, "il sinonimo non deve creare una seconda entita'"
+            assert "ufficio risorse umane" in (hr[0].aliases or [])
+
+            # nessuna entita' 'ufficio risorse umane' separata
+            dup = s.execute(
+                text(
+                    "SELECT count(*) FROM kg_entity WHERE client_id = :cl "
+                    "AND lower(canonical_name) = 'ufficio risorse umane'"
+                ),
+                {"cl": scope["client"]},
+            ).scalar_one()
+            assert dup == 0
+
+            hr_id = str(hr[0].id)
+            rel_src = s.execute(
+                text(
+                    "SELECT relation FROM kg_relation "
+                    "WHERE client_id = :cl AND source_entity_id = :e ORDER BY relation"
+                ),
+                {"cl": scope["client"], "e": hr_id},
+            ).scalars().all()
+            assert rel_src == ["CURA", "GESTISCE"], "entrambe le relazioni sull'entita' fusa"
+
+        assert drain_once() >= 1
+
+        # il gateway trova l'entita' partendo dal nome-alias
+        from backend.memory import gateway
+
+        result = gateway.graph_retrieve(
+            consultant_id=scope["consultant"], client_id=scope["client"],
+            entity_names=["ufficio risorse umane"], process_id=scope["process"],
+        )
+        rels = {(m["source"], m["relation"], m["target"]) for m in result["matches"]}
+        assert ("Ufficio del Personale", "CURA", "Onboarding") in rels
+
+        neo4j_store.purge_client(scope["client"])

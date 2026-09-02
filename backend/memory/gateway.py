@@ -68,10 +68,11 @@ def _resolve_seed_entities(
     entity_names: list[str],
     query: str,
 ) -> list[str]:
-    terms = {" ".join(n.split()).lower() for n in entity_names if n and n.strip()}
-    terms |= {w.lower() for w in _WORD.findall(query or "")}
+    terms = {" ".join(n.split()).casefold() for n in entity_names if n and n.strip()}
+    terms |= {w.casefold() for w in _WORD.findall(query or "")}
     if not terms:
         return []
+    exact = list(terms)
     like_patterns = [f"%{t}%" for t in terms]
     with canonical_session(consultant_id, client_id) as session:
         rows = session.execute(
@@ -79,13 +80,16 @@ def _resolve_seed_entities(
                 "SELECT id FROM kg_entity "
                 "WHERE client_id = :cl AND status <> 'rejected' "
                 "  AND (lower(canonical_name) = ANY(:exact) "
+                "       OR aliases && CAST(:exact AS text[]) "  # P2: alias noti
                 "       OR lower(canonical_name) LIKE ANY(:like)) "
-                # match esatto prima, poi nome piu' corto (piu' probabilmente
-                # l'entita' precisa): da' un ranking vero alla RRF
-                "ORDER BY (lower(canonical_name) = ANY(:exact)) DESC, char_length(canonical_name) "
+                # match esatto (nome o alias) prima, poi nome piu' corto (piu'
+                # probabilmente l'entita' precisa): da' un ranking vero alla RRF
+                "ORDER BY (lower(canonical_name) = ANY(:exact) "
+                "          OR aliases && CAST(:exact AS text[])) DESC, "
+                "         char_length(canonical_name) "
                 "LIMIT 40"
             ),
-            {"cl": client_id, "exact": list(terms), "like": like_patterns},
+            {"cl": client_id, "exact": exact, "like": like_patterns},
         ).all()
     return [str(r.id) for r in rows]
 

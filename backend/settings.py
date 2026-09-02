@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # specchia i write dei toolset (project_memory/process_memory) sul canonical
     # oltre al vecchio store; no-op se canonical_database_url non e' configurata
     canonical_ingest_mirror: bool = True
+    # P2: prima di inserire una kg_entity, cerca un'entita' gia' nota che sia la
+    # stessa cosa (match esatto -> candidati fuzzy -> giudizio LLM). False =
+    # solo dedup per nome esatto (comportamento pre-P2).
+    canonical_entity_resolution: bool = True
     # l'app drena graph_outbox + mem0_projection_log in un task di background.
     # Metti False se usi processi worker dedicati (`python -m backend.workers.*`).
     workers_in_process: bool = True
