@@ -177,14 +177,21 @@ def _emit(session: Session, *, agg_type: str, agg_id: str, consultant: str,
 def merge_entities(
     session: Session, consultant: str, client: str, survivor: str, loser: str
 ) -> None:
-    # 1. nome + alias del loser dentro il survivor
+    # 1. nome + alias del loser dentro il survivor; e se il survivor non ha
+    #    embedding (riga pre-P2) eredita quello del loser, cosi' resta
+    #    raggiungibile dal candidato vettoriale.
     session.execute(
         text(
-            "UPDATE kg_entity sv SET aliases = COALESCE((("
-            "  SELECT array_agg(DISTINCT a) FROM unnest("
-            "    sv.aliases || ARRAY[lower(lo.canonical_name)] || lo.aliases) AS a "
-            "  WHERE a <> lower(sv.canonical_name) AND a <> ''"
-            ")), sv.aliases) "
+            "UPDATE kg_entity sv SET "
+            "  aliases = COALESCE((("
+            "    SELECT array_agg(DISTINCT a) FROM unnest("
+            "      sv.aliases || ARRAY[lower(lo.canonical_name)] || lo.aliases) AS a "
+            "    WHERE a <> lower(sv.canonical_name) AND a <> ''"
+            "  )), sv.aliases), "
+            "  embedding = COALESCE(sv.embedding, lo.embedding), "
+            "  embed_model = COALESCE(sv.embed_model, lo.embed_model), "
+            "  embed_dim = COALESCE(sv.embed_dim, lo.embed_dim), "
+            "  embed_version = COALESCE(sv.embed_version, lo.embed_version) "
             "FROM kg_entity lo WHERE sv.id = :sv AND lo.id = :lo"
         ),
         {"sv": survivor, "lo": loser},
@@ -258,16 +265,27 @@ def sweep_client(
         return 0
 
     born = {str(e.id): e.created_at for e in ents}
-    merged: set[str] = set()
+    name_of = {str(e.id): e.canonical_name for e in ents}
+    # loser_id -> survivor_id. In apply mode le righe fuse escono da
+    # `status='active'`; questa mappa tiene la catena anche in dry-run, cosi' il
+    # preview non nasconde i duplicati concatenati (A->B, poi C che matcha B).
+    absorbed_by: dict[str, str] = {}
+
+    def _survivor(entity_id: str) -> str:
+        seen: set[str] = set()
+        while entity_id in absorbed_by and entity_id not in seen:
+            seen.add(entity_id)
+            entity_id = absorbed_by[entity_id]
+        return entity_id
+
     n_merges = 0
     budget = limit
-
     for e in ents:
         if budget <= 0:
             logger.warning("  budget di %d giudizi LLM esaurito per questo cliente", limit)
             break
         eid = str(e.id)
-        if eid in merged:
+        if eid in absorbed_by:
             continue
         match = er.find_match(
             session,
@@ -279,22 +297,22 @@ def sweep_client(
             llm=llm,
         )
         budget -= 1
-        if match is None or match.entity_id in merged or match.entity_id not in born:
+        if match is None or match.entity_id not in born:
+            continue
+        target = _survivor(match.entity_id)
+        if target == eid:  # il match risale a `e` stessa lungo la catena
             continue
 
-        # survivor = la piu' vecchia delle due, sempre
-        survivor, loser = eid, match.entity_id
-        if born[match.entity_id] <= born[eid]:
-            survivor, loser = match.entity_id, eid
-        loser_name = e.canonical_name if loser == eid else match.canonical_name
-        surv_name = match.canonical_name if loser == eid else e.canonical_name
-
+        survivor, loser = (target, eid) if born[target] <= born[eid] else (eid, target)
         if apply:
             merge_entities(session, consultant, client, survivor, loser)
-            print(f"  MERGE {loser_name!r} -> {surv_name!r}")
+            print(f"  MERGE {name_of[loser]!r} -> {name_of[survivor]!r}")
         else:
-            print(f"  [dry-run] MERGE {loser_name!r} -> {surv_name!r}  ({match.reason[:80]})")
-        merged.add(loser)
+            print(
+                f"  [dry-run] MERGE {name_of[loser]!r} -> {name_of[survivor]!r}  "
+                f"({match.reason[:80]})"
+            )
+        absorbed_by[loser] = survivor
         n_merges += 1
 
     return n_merges

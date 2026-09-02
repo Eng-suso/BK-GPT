@@ -29,7 +29,6 @@ from backend.db import canonical_session
 from backend.memory import embeddings
 from backend.memory.knowledge_graph import catalog
 from backend.memory.knowledge_graph import entity_resolution
-from backend.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -157,25 +156,56 @@ def write_process_node(
 
 # --- Entity --------------------------------------------------------------
 
-def prepare_entities(names: list[str]) -> dict[str, str | None]:
-    """Embedding dei nomi entita' FUORI dalla transazione (chiamata di rete).
+# P2: applicare un match (UPDATE) e' deterministico. La DECISIONE ("questo nome
+# e' l'entita' X?") la prende entity_resolution.plan_resolution PRIMA e FUORI
+# da questa transazione: qui non si fanno ne' letture di resolution ne'
+# chiamate LLM sotto lock.
+_MERGE_ENTITY = text(
+    "UPDATE kg_entity SET "
+    "  aliases = CASE WHEN :alias = ANY(kg_entity.aliases) "
+    "                  OR :alias = lower(kg_entity.canonical_name) "
+    "             THEN kg_entity.aliases "
+    "             ELSE kg_entity.aliases || ARRAY[:alias] END, "
+    "  attributes = kg_entity.attributes || CAST(:attrs AS jsonb), "
+    "  confidence = GREATEST(kg_entity.confidence, :conf), "
+    "  source_ids = COALESCE((SELECT array_agg(DISTINCT x) FROM unnest("
+    "    kg_entity.source_ids || CAST(:src AS uuid[])) AS x), kg_entity.source_ids), "
+    "  embedding = COALESCE(kg_entity.embedding, CAST(:emb AS vector)), "
+    "  embed_model = COALESCE(kg_entity.embed_model, :em), "
+    "  embed_dim = COALESCE(kg_entity.embed_dim, :ed), "
+    "  embed_version = COALESCE(kg_entity.embed_version, :ev) "
+    "WHERE id = CAST(:mid AS uuid) AND status = 'active' "
+    "RETURNING id, entity_type, confidence"
+)
+_INSERT_ENTITY = text(
+    "INSERT INTO kg_entity "
+    "(consultant_id, client_id, project_id, process_id, scope, "
+    " entity_type, canonical_name, attributes, source_ids, confidence, "
+    " embedding, embed_model, embed_dim, embed_version, created_by) "
+    "VALUES (:c, :cl, :p, :pr, 'client', :et, :name, CAST(:attrs AS jsonb), "
+    "        CAST(:src AS uuid[]), :conf, CAST(:emb AS vector), :em, :ed, :ev, 'agent') "
+    "ON CONFLICT (consultant_id, client_id, entity_type, canonical_name) "
+    "WHERE client_id IS NOT NULL "
+    "DO UPDATE SET "
+    "  attributes = kg_entity.attributes || EXCLUDED.attributes, "
+    "  confidence = GREATEST(kg_entity.confidence, EXCLUDED.confidence), "
+    "  embedding = COALESCE(kg_entity.embedding, EXCLUDED.embedding), "
+    "  embed_model = COALESCE(kg_entity.embed_model, EXCLUDED.embed_model), "
+    "  embed_dim = COALESCE(kg_entity.embed_dim, EXCLUDED.embed_dim), "
+    "  embed_version = COALESCE(kg_entity.embed_version, EXCLUDED.embed_version), "
+    "  source_ids = COALESCE((SELECT array_agg(DISTINCT x) FROM unnest("
+    "    kg_entity.source_ids || EXCLUDED.source_ids) AS x), kg_entity.source_ids) "
+    "RETURNING id, entity_type, confidence"
+)
 
-    Ritorna una mappa `nome (whitespace normalizzato) -> literal pgvector`
-    (o `None` se l'embedder non e' disponibile). `write_evidence` la calcola
-    prima di aprire `canonical_session` e la passa a `write_entity`."""
-    keys: list[str] = []
-    seen: set[str] = set()
-    for raw in names or []:
-        key = " ".join(str(raw or "").split())
-        if key and key not in seen:
-            seen.add(key)
-            keys.append(key)
-    if not keys:
-        return {}
-    vectors = embeddings.embed_texts(keys)
-    if not vectors:
-        return dict.fromkeys(keys, None)
-    return {key: embeddings.to_pgvector(vectors[i]) for i, key in enumerate(keys)}
+
+def _embed_params(name_vec: str | None) -> dict[str, Any]:
+    return {
+        "emb": name_vec,
+        "em": embeddings.EMBED_MODEL if name_vec else None,
+        "ed": embeddings.EMBED_DIM if name_vec else None,
+        "ev": embeddings.EMBED_VERSION if name_vec else None,
+    }
 
 
 def write_entity(
@@ -190,88 +220,45 @@ def write_entity(
     source_ids: list[str] | None = None,
     confidence: float = 0.5,
     name_vec: str | None = None,
-    context: str | None = None,
-    resolve: bool | None = None,
-    resolver_llm: Any | None = None,
+    match: entity_resolution.ResolvedEntity | None = None,
     tx: Session | None = None,
 ) -> str:
-    attributes = attributes or {}
-    if resolve is None:
-        resolve = settings.canonical_entity_resolution
-    with _open(consultant_id, client_id, tx) as session:
-        # P2: l'entita' e' gia' nota per questo cliente con un altro nome?
-        # Se si', si aggiorna quella (alias + provenance) invece di duplicarla.
-        match = (
-            entity_resolution.find_match(
-                session,
-                client_id=client_id,
-                entity_type=entity_type,
-                name=canonical_name,
-                name_vec=name_vec,
-                context=context,
-                llm=resolver_llm,
-            )
-            if resolve
-            else None
-        )
+    """Scrive una `kg_entity` + il suo nodo outbox.
 
+    `match` (da `entity_resolution.plan_resolution`, gia' deciso fuori dalla
+    transazione): se presente, la riga esistente assorbe alias + provenance +
+    embedding e ne riusa id/tipo. Se il match e' sparito nel frattempo si
+    ricade sull'INSERT. Senza `match` e' l'upsert per nome esatto di sempre.
+    """
+    attributes = attributes or {}
+    with _open(consultant_id, client_id, tx) as session:
+        row = None
         if match is not None:
             row = session.execute(
-                text(
-                    "UPDATE kg_entity SET "
-                    "  aliases = CASE WHEN :alias = ANY(kg_entity.aliases) "
-                    "                  OR :alias = lower(kg_entity.canonical_name) "
-                    "             THEN kg_entity.aliases "
-                    "             ELSE kg_entity.aliases || ARRAY[:alias] END, "
-                    "  attributes = kg_entity.attributes || CAST(:attrs AS jsonb), "
-                    "  confidence = GREATEST(kg_entity.confidence, :conf), "
-                    "  source_ids = COALESCE((SELECT array_agg(DISTINCT x) FROM unnest("
-                    "    kg_entity.source_ids || CAST(:src AS uuid[])) AS x), kg_entity.source_ids), "
-                    "  embedding = COALESCE(kg_entity.embedding, CAST(:emb AS vector)), "
-                    "  embed_model = COALESCE(kg_entity.embed_model, :em), "
-                    "  embed_dim = COALESCE(kg_entity.embed_dim, :ed), "
-                    "  embed_version = COALESCE(kg_entity.embed_version, :ev) "
-                    "WHERE id = :mid "
-                    "RETURNING id, entity_type, confidence"
-                ),
+                _MERGE_ENTITY,
                 {
                     "alias": entity_resolution.normalize(canonical_name),
                     "attrs": _json(attributes),
                     "conf": confidence,
                     "src": _pg_uuid_array(source_ids),
-                    "emb": name_vec,
-                    "em": embeddings.EMBED_MODEL if name_vec else None,
-                    "ed": embeddings.EMBED_DIM if name_vec else None,
-                    "ev": embeddings.EMBED_VERSION if name_vec else None,
                     "mid": match.entity_id,
+                    **_embed_params(name_vec),
                 },
-            ).one()
-            logger.info(
-                "entity resolution: %r -> %r (%s)",
-                canonical_name, match.canonical_name, match.method,
-            )
-        else:
+            ).first()
+            if row is None:
+                logger.warning(
+                    "entity resolution: match %s non piu' attivo, inserisco %r",
+                    match.entity_id, canonical_name,
+                )
+            else:
+                logger.info(
+                    "entity resolution: %r -> %r (%s)",
+                    canonical_name, match.canonical_name, match.method,
+                )
+
+        if row is None:
             row = session.execute(
-                text(
-                    "INSERT INTO kg_entity "
-                    "(consultant_id, client_id, project_id, process_id, scope, "
-                    " entity_type, canonical_name, attributes, source_ids, confidence, "
-                    " embedding, embed_model, embed_dim, embed_version, created_by) "
-                    "VALUES (:c, :cl, :p, :pr, 'client', :et, :name, CAST(:attrs AS jsonb), "
-                    "        CAST(:src AS uuid[]), :conf, CAST(:emb AS vector), :em, :ed, :ev, 'agent') "
-                    "ON CONFLICT (consultant_id, client_id, entity_type, canonical_name) "
-                    "WHERE client_id IS NOT NULL "
-                    "DO UPDATE SET "
-                    "  attributes = kg_entity.attributes || EXCLUDED.attributes, "
-                    "  confidence = GREATEST(kg_entity.confidence, EXCLUDED.confidence), "
-                    "  embedding = COALESCE(kg_entity.embedding, EXCLUDED.embedding), "
-                    "  embed_model = COALESCE(kg_entity.embed_model, EXCLUDED.embed_model), "
-                    "  embed_dim = COALESCE(kg_entity.embed_dim, EXCLUDED.embed_dim), "
-                    "  embed_version = COALESCE(kg_entity.embed_version, EXCLUDED.embed_version), "
-                    "  source_ids = COALESCE((SELECT array_agg(DISTINCT x) FROM unnest("
-                    "    kg_entity.source_ids || EXCLUDED.source_ids) AS x), kg_entity.source_ids) "
-                    "RETURNING id, entity_type, confidence"
-                ),
+                _INSERT_ENTITY,
                 {
                     "c": str(consultant_id),
                     "cl": str(client_id),
@@ -282,10 +269,7 @@ def write_entity(
                     "attrs": _json(attributes),
                     "src": _pg_uuid_array(source_ids),
                     "conf": confidence,
-                    "emb": name_vec,
-                    "em": embeddings.EMBED_MODEL if name_vec else None,
-                    "ed": embeddings.EMBED_DIM if name_vec else None,
-                    "ev": embeddings.EMBED_VERSION if name_vec else None,
+                    **_embed_params(name_vec),
                 },
             ).one()
 
@@ -894,15 +878,21 @@ def write_evidence(
     has_source = bool(source_text and source_text.strip())
     prepared = prepare_source(source_text) if has_source else None
 
-    # P2: embedding dei nomi entita' (nomi propri + estremi delle relazioni)
-    # per l'entity resolution, anch'esso fuori dalla transazione.
-    _rel_names = [
+    # P2: entity resolution decisa FUORI dalla transazione. plan_resolution apre
+    # la sua sessione read-only, fa i lookup + le chiamate LLM, la chiude. Il
+    # write path qui sotto applica solo il piano (UPSERT deterministico).
+    rel_names = [
         n
         for rel in (relationships or [])
         for n in (rel.get("source"), rel.get("target"))
     ]
-    entity_vecs = prepare_entities(list(entities or []) + _rel_names)
-    resolve_context = (source_text or "").strip()[:500] or None
+    resolution = entity_resolution.plan_resolution(
+        consultant_id,
+        client_id,
+        [*(entities or []), *rel_names],
+        context=(source_text or "").strip()[:500] or None,
+        llm=resolver_llm,
+    )
 
     with canonical_session(consultant_id, client_id) as session:
         source_ids: list[str] | None = None
@@ -926,17 +916,16 @@ def write_evidence(
         entity_ids: dict[str, str] = {}
 
         def _ent(name: Any) -> str:
-            key = " ".join(str(name or "").split())
+            display = " ".join(str(name or "").split())
+            key = entity_resolution.normalize(display)
             if not key:
                 return ""
             if key not in entity_ids:
+                match, name_vec = resolution.lookup(display)
                 entity_ids[key] = write_entity(
-                    consultant_id, client_id, "other", key,
+                    consultant_id, client_id, "other", display,
                     project_id=project_id, process_id=process_id,
-                    source_ids=source_ids,
-                    name_vec=entity_vecs.get(key),
-                    context=resolve_context,
-                    resolver_llm=resolver_llm,
+                    source_ids=source_ids, name_vec=name_vec, match=match,
                     tx=session,
                 )
             return entity_ids[key]
@@ -948,6 +937,14 @@ def write_evidence(
         for rel in relationships or []:
             src, tgt = _ent(rel.get("source")), _ent(rel.get("target"))
             if not src or not tgt:
+                continue
+            if src == tgt:
+                # entity resolution ha mappato entrambi gli estremi sulla stessa
+                # entita': kg_relation ha CHECK source <> target, sarebbe un errore.
+                logger.info(
+                    "relazione %r saltata: estremi risolti alla stessa entita' %s",
+                    rel.get("relation"), src,
+                )
                 continue
             write_relation(
                 consultant_id, client_id, src, rel.get("relation", ""), tgt,

@@ -239,6 +239,36 @@ def test_consultant_scope_has_no_resolution(scope):
     assert m is None
 
 
+# --- plan_resolution: decisione FUORI dalla transazione di scrittura -----
+
+
+def test_plan_resolution_returns_match_without_write_tx(scope):
+    with MIGRATOR.begin() as conn:
+        _ctx(conn, scope["consultant"], scope["client"])
+        eid = _insert_entity(
+            conn, scope["consultant"], scope["client"], "Ufficio Gestione Crediti"
+        )
+
+    llm = FakeLLM(1)
+    plan = er.plan_resolution(
+        scope["consultant"], scope["client"],
+        ["ufficio crediti", "Sistema di produzione XYZ"], llm=llm,
+    )
+    match, _vec = plan.lookup("Ufficio Crediti")
+    assert match is not None and match.entity_id == eid and match.method == "llm"
+    # il nome senza candidati non entra nel piano
+    assert plan.lookup("sistema di produzione xyz")[0] is None
+    assert len(llm.calls) == 1
+
+
+def test_plan_resolution_empty_when_disabled(scope, monkeypatch):
+    monkeypatch.setattr(settings, "canonical_entity_resolution", False)
+    llm = FakeLLM(1)
+    plan = er.plan_resolution(scope["consultant"], scope["client"], ["qualsiasi"], llm=llm)
+    assert plan.matches == {} and plan.name_vectors == {}
+    assert llm.calls == []  # nessuna chiamata: feature spenta
+
+
 # --- livello vettoriale reale -------------------------------------------
 
 
@@ -398,6 +428,62 @@ class TestWriteEvidenceResolution:
         assert ("Ufficio del Personale", "CURA", "Onboarding") in rels
 
         neo4j_store.purge_client(scope["client"])
+
+
+# --- guardie deterministiche del write path ----------------------------
+
+
+def test_write_entity_stale_match_falls_back_to_insert(scope):
+    from backend.memory.knowledge_graph import canonical
+
+    ghost = er.ResolvedEntity(str(uuid.uuid4()), "entita' sparita", "llm")
+    new_id = canonical.write_entity(
+        scope["consultant"], scope["client"], "other", "Entita' Nuova", match=ghost,
+    )
+    with canonical_session(scope["consultant"], scope["client"]) as s:
+        row = s.execute(
+            text("SELECT canonical_name FROM kg_entity WHERE id = :i"), {"i": new_id}
+        ).one()
+    assert row.canonical_name == "Entita' Nuova"
+    assert new_id != ghost.entity_id
+
+
+def test_write_evidence_skips_self_loop_when_endpoints_resolve_together(scope):
+    from backend.memory.knowledge_graph import canonical
+
+    with MIGRATOR.begin() as conn:
+        _ctx(conn, scope["consultant"])
+        conn.execute(
+            text(
+                "INSERT INTO project (id, client_id, consultant_id, name) VALUES (:i,:cl,:c,'P')"
+            ),
+            {"i": scope["project"], "cl": scope["client"], "c": scope["consultant"]},
+        )
+        _ctx(conn, scope["consultant"], scope["client"])
+        _insert_entity(
+            conn, scope["consultant"], scope["client"], "Squadra Vendite",
+            aliases=["team sales"],
+        )
+
+    counts = canonical.write_evidence(
+        consultant_id=scope["consultant"], client_id=scope["client"],
+        project_id=scope["project"],
+        entities=["Team Sales"],
+        relationships=[{
+            "source": "Team Sales", "relation": "coincide_con", "target": "Squadra Vendite",
+        }],
+    )
+    assert counts["relationships"] == 0  # estremi -> stessa entita' -> saltata
+
+    with canonical_session(scope["consultant"], scope["client"]) as s:
+        assert s.execute(
+            text("SELECT count(*) FROM kg_relation WHERE client_id = :cl"),
+            {"cl": scope["client"]},
+        ).scalar_one() == 0
+        assert s.execute(
+            text("SELECT count(*) FROM kg_entity WHERE client_id = :cl AND status = 'active'"),
+            {"cl": scope["client"]},
+        ).scalar_one() == 1
 
 
 # --- sweep: dedup di un grafo gia' sporco (P2.4) -----------------------

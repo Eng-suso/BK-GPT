@@ -1,40 +1,47 @@
 """Entity resolution (P2): "questa entita' e' gia' nel grafo?".
 
-Prima di inserire una `kg_entity`, il writer (`canonical.write_entity`) chiede
-qui se il nome che sta per scrivere e' la stessa cosa del mondo reale di
-un'entita' gia' nota per quel cliente. Se si', il writer aggiorna l'entita'
-esistente (alias + provenance + confidence) invece di crearne una seconda.
+Prima di scrivere una `kg_entity`, il writer chiede qui se il nome che sta per
+inserire e' la stessa cosa del mondo reale di un'entita' gia' nota per quel
+cliente. Se si', il writer aggiorna l'entita' esistente (alias + provenance)
+invece di crearne una seconda.
 
 Tre livelli, dal piu' certo al piu' incerto:
 
-  0. **esatto** — `canonical_name` o un `alias` coincide (whitespace normalizzato,
-     case-insensitive). Deciso senza LLM.
+  0. **esatto** — `canonical_name` o un `alias` coincide (whitespace + `lower()`,
+     stessa normalizzazione di Postgres). Deciso senza LLM.
   1. **candidati** — nomi lessicalmente simili (`pg_trgm`) o semanticamente
-     vicini (coseno sull'embedding del nome). Sono SOLO candidati: la
-     calibrazione (commit P2.2) mostra che coseno e trigram sui nomi nudi non
-     decidono l'identita' — "direttore finanziario" vs "direttore commerciale"
-     = 0.75 coseno, "Segreto A" vs "Segreto B" = 0.92.
-  2. **giudizio** — un LLM decide se un candidato e' davvero la stessa entita'.
-     Senza LLM il resolver si ferma al livello 0 (match esatto): niente merge
-     fuzzy automatico, un merge sbagliato corrompe il grafo mentre un merge
-     mancato si recupera con lo sweep periodico (P2.4).
+     vicini (coseno su `kg_entity.embedding`). SOLO recall: la calibrazione su
+     embedding reali mostra che coseno e trigram sui nomi nudi non decidono
+     l'identita' — "direttore finanziario" vs "direttore commerciale" = 0.75
+     coseno, "Segreto A" vs "Segreto B" = 0.92.
+  2. **giudizio** — un LLM (`temperature=0`, `with_structured_output`) decide
+     l'identita'. Nessuna soglia fonde da sola. Senza LLM il resolver si ferma
+     al livello 0: un merge sbagliato corrompe il grafo, un merge mancato si
+     recupera con lo sweep periodico (`scripts/kg_resolve_entities.py`).
 
-Tutto gira dentro la `canonical_session` del chiamante: la RLS limita la
-ricerca al cliente corrente, quindi non si fondono mai entita' di clienti
-diversi (INV-6).
+**Confine LLM/runtime.** L'LLM propone (`plan_resolution` / `find_match` ->
+`Match`); il runtime dispone: applicare il piano e' UPSERT deterministico in
+`canonical.write_entity`. `plan_resolution` fa i read + le chiamate LLM in una
+sua `canonical_session` read-only e la chiude PRIMA che il write path apra la
+transazione del pacchetto di evidenza — nessuna chiamata di rete sotto lock.
+La RLS della sessione limita la ricerca al cliente corrente: mai merge
+cross-client (INV-6).
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from backend.db import canonical_session
+from backend.memory import embeddings
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -45,8 +52,7 @@ logger = logging.getLogger(__name__)
 # NUDI NON decidono l'identita'. Non solo SAME (0.45-0.84) e DIFF (0.45-0.78)
 # si sovrappongono: coppie palesemente distinte che differiscono per un token
 # discriminante ("Segreto A" / "Segreto B") arrivano a 0.92 di coseno. Nessuna
-# soglia di auto-merge e' sicura -> ogni candidato fuzzy passa dall'LLM, e
-# senza LLM il resolver fa SOLO il match esatto (nome/alias).
+# soglia di auto-merge e' sicura -> ogni candidato fuzzy passa dall'LLM.
 CANDIDATE_TRGM_MIN = 0.45
 CANDIDATE_COSINE_MIN = 0.58
 # Quanti candidati passare all'LLM (ordinati per rilevanza).
@@ -61,23 +67,30 @@ _OTHER = "other"
 # non tipizzato di `:x IS NULL` in psycopg).
 _NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
+MatchMethod = Literal["exact_name", "exact_alias", "llm"]
+
 
 def normalize(name: str | None) -> str:
-    """Chiave di confronto: whitespace collassato, casefold."""
-    return " ".join(str(name or "").split()).casefold()
+    """Chiave di confronto: whitespace collassato + `lower()`.
+
+    `lower()` (non `casefold()`) per coincidere esattamente con `lower(...)` di
+    Postgres usato nelle query di `_exact` / `_candidates`.
+    """
+    return " ".join(str(name or "").split()).lower()
 
 
-def types_compatible(a: str, b: str) -> bool:
+def types_compatible(a: str | None, b: str | None) -> bool:
     """Due tipi si possono fondere? Si' se uguali o se almeno uno e' 'other'."""
-    return a == b or a == _OTHER or b == _OTHER
+    a, b = (a or _OTHER).lower(), (b or _OTHER).lower()
+    return a == b or _OTHER in (a, b)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Candidate:
     entity_id: str
     canonical_name: str
     entity_type: str
-    aliases: list[str]
+    aliases: tuple[str, ...] = ()
     cosine: float | None = None
     trgm: float | None = None
 
@@ -85,16 +98,45 @@ class Candidate:
         return max(self.cosine or 0.0, self.trgm or 0.0)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Match:
+    """Decisione del resolver: `name` e' l'entita' `entity_id`."""
+
     entity_id: str
     canonical_name: str
-    method: str  # exact_name | exact_alias | llm
+    method: MatchMethod
     reason: str = ""
 
 
+@dataclass(frozen=True)
+class ResolvedEntity:
+    entity_id: str
+    canonical_name: str
+    method: MatchMethod
+
+
+@dataclass(frozen=True)
+class ResolutionPlan:
+    """Esito di `plan_resolution`, calcolato FUORI dalla transazione di scrittura.
+
+    `matches`: `normalize(name) -> ResolvedEntity` per i nomi gia' rappresentati
+    da una riga esistente. `name_vectors`: `normalize(name) -> literal pgvector`
+    dell'embedding del nome, per popolare `kg_entity.embedding` sui nuovi insert.
+    """
+
+    matches: Mapping[str, ResolvedEntity] = field(default_factory=dict)
+    name_vectors: Mapping[str, str | None] = field(default_factory=dict)
+
+    def lookup(self, raw_name: str) -> tuple[ResolvedEntity | None, str | None]:
+        key = normalize(raw_name)
+        return self.matches.get(key), self.name_vectors.get(key)
+
+
+EMPTY_PLAN = ResolutionPlan()
+
+
 class _Verdict(BaseModel):
-    """Schema del giudizio LLM (via with_structured_output)."""
+    """Schema del giudizio LLM (trust boundary -> Pydantic)."""
 
     match_index: int = Field(
         default=0,
@@ -104,7 +146,7 @@ class _Verdict(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# lookup Postgres
+# lookup Postgres (deterministico)
 # --------------------------------------------------------------------------- #
 
 
@@ -123,7 +165,7 @@ def _exact(
             "WHERE client_id = :cl AND status = 'active' "
             "  AND id <> CAST(:excl AS uuid) "
             "  AND (lower(canonical_name) = :n OR aliases @> ARRAY[:n]) "
-            # nome esatto prima dell'alias; poi tipo compatibile prima
+            # nome esatto prima dell'alias
             "ORDER BY name_hit DESC "
             "LIMIT 10"
         ),
@@ -149,7 +191,7 @@ def _candidates(
 ) -> list[Candidate]:
     by_id: dict[str, Candidate] = {}
     common = {"cl": client_id, "n": norm_name, "excl": exclude_id or _NIL_UUID}
-    _not_self = "AND id <> CAST(:excl AS uuid) "
+    not_self = "AND id <> CAST(:excl AS uuid) "
 
     trgm_rows = session.execute(
         text(
@@ -157,7 +199,7 @@ def _candidates(
             "       similarity(lower(canonical_name), :n) AS sim "
             "FROM kg_entity "
             "WHERE client_id = :cl AND status = 'active' "
-            f"  {_not_self}"
+            f"  {not_self}"
             "  AND lower(canonical_name) % :n "
             "ORDER BY sim DESC LIMIT 15"
         ),
@@ -172,7 +214,7 @@ def _candidates(
             entity_id=str(row.id),
             canonical_name=row.canonical_name,
             entity_type=row.entity_type,
-            aliases=list(row.aliases or []),
+            aliases=tuple(row.aliases or ()),
             trgm=float(row.sim),
         )
 
@@ -183,7 +225,7 @@ def _candidates(
                 "       1 - (embedding <=> CAST(:v AS vector)) AS cosine "
                 "FROM kg_entity "
                 "WHERE client_id = :cl AND status = 'active' "
-                f"  {_not_self}"
+                f"  {not_self}"
                 "  AND embedding IS NOT NULL "
                 "ORDER BY embedding <=> CAST(:v AS vector) LIMIT 15"
             ),
@@ -195,24 +237,30 @@ def _candidates(
                 continue
             if not types_compatible(entity_type, row.entity_type):
                 continue
-            existing = by_id.get(str(row.id))
-            if existing:
-                existing.cosine = cosine
+            prev = by_id.get(str(row.id))
+            if prev is not None:
+                by_id[str(row.id)] = Candidate(
+                    entity_id=prev.entity_id,
+                    canonical_name=prev.canonical_name,
+                    entity_type=prev.entity_type,
+                    aliases=prev.aliases,
+                    cosine=cosine,
+                    trgm=prev.trgm,
+                )
             else:
                 by_id[str(row.id)] = Candidate(
                     entity_id=str(row.id),
                     canonical_name=row.canonical_name,
                     entity_type=row.entity_type,
-                    aliases=list(row.aliases or []),
+                    aliases=tuple(row.aliases or ()),
                     cosine=cosine,
                 )
 
-    ranked = sorted(by_id.values(), key=lambda c: c.best_signal(), reverse=True)
-    return ranked[:MAX_CANDIDATES]
+    return sorted(by_id.values(), key=lambda c: c.best_signal(), reverse=True)[:MAX_CANDIDATES]
 
 
 # --------------------------------------------------------------------------- #
-# giudizio LLM
+# giudizio LLM (semantico)
 # --------------------------------------------------------------------------- #
 
 
@@ -252,28 +300,45 @@ def _build_prompt(
     ]
 
 
+def _coerce_verdict(raw: object) -> _Verdict | None:
+    """Output dell'LLM (untrusted) -> `_Verdict` validato, o `None` se non lo e'."""
+    if isinstance(raw, _Verdict):
+        return raw
+    if isinstance(raw, Mapping):
+        try:
+            return _Verdict.model_validate(dict(raw))
+        except Exception:  # noqa: BLE001 — forma inattesa: model-behavior error
+            pass
+    logger.warning(
+        "entity_resolution: verdetto LLM non validabile (%s)", type(raw).__name__
+    )
+    return None
+
+
 def adjudicate(
-    llm: Any, name: str, entity_type: str, context: str | None, candidates: list[Candidate]
+    llm: Any,
+    name: str,
+    entity_type: str,
+    context: str | None,
+    candidates: list[Candidate],
 ) -> Match | None:
+    if not candidates:
+        return None
     try:
-        verdict = llm.invoke(_build_prompt(name, entity_type, context, candidates))
-    except Exception:  # noqa: BLE001 — il resolver e' best-effort
-        logger.warning("entity_resolution: giudizio LLM fallito", exc_info=True)
+        raw = llm.invoke(_build_prompt(name, entity_type, context, candidates))
+    except Exception:  # noqa: BLE001 — il resolver e' best-effort, mai fatale
+        logger.warning("entity_resolution: invoke LLM fallito", exc_info=True)
         return None
 
-    idx = getattr(verdict, "match_index", 0)
-    try:
-        idx = int(idx)
-    except (TypeError, ValueError):
+    verdict = _coerce_verdict(raw)
+    if verdict is None or not 1 <= verdict.match_index <= len(candidates):
         return None
-    if not 1 <= idx <= len(candidates):
-        return None
-    chosen = candidates[idx - 1]
+    chosen = candidates[verdict.match_index - 1]
     return Match(
         entity_id=chosen.entity_id,
         canonical_name=chosen.canonical_name,
         method="llm",
-        reason=str(getattr(verdict, "reason", "") or "")[:300],
+        reason=verdict.reason[:300],
     )
 
 
@@ -309,14 +374,12 @@ def find_match(
     llm: Any | None = None,
     use_llm: bool = True,
 ) -> Match | None:
-    """L'entita' `name` esiste gia' per questo cliente? `Match` se si', `None` se no.
+    """Il nome `name` e' gia' rappresentato da una `kg_entity` di questo cliente?
 
-    `session` deve avere gia' il contesto RLS del cliente (la ricerca e' limitata
-    a `client_id`). `name_vec` = embedding del nome nel literal pgvector
-    (`embeddings.to_pgvector`), opzionale. `exclude_entity_id` esclude una riga
-    dal match (lo sweep P2.4 passa l'id dell'entita' che sta valutando). `llm`
-    iniettabile per i test; se `None` e `use_llm`, se ne costruisce uno dai
-    settings.
+    `session` deve avere gia' il contesto RLS del cliente. `name_vec` = literal
+    pgvector dell'embedding del nome (opzionale). `exclude_entity_id` esclude
+    una riga (lo sweep passa l'id in valutazione). `llm` iniettabile per i test;
+    `None` + `use_llm` -> costruito dai settings.
     """
     if not client_id:
         return None  # lo scope consultant non ha ancora una chiave di dedup (P7)
@@ -326,18 +389,78 @@ def find_match(
     entity_type = (entity_type or _OTHER).strip().lower() or _OTHER
 
     exact = _exact(session, str(client_id), norm_name, entity_type, exclude_entity_id)
-    if exact:
+    if exact is not None:
         return exact
 
     model = llm if llm is not None else (build_llm() if use_llm else None)
     if model is None:
-        # senza LLM nessun merge fuzzy: un merge sbagliato corrompe il grafo,
-        # un merge mancato si recupera (sweep periodico, P2.4).
         return None
 
     candidates = _candidates(
         session, str(client_id), norm_name, name_vec, entity_type, exclude_entity_id
     )
-    if not candidates:
-        return None
     return adjudicate(model, name, entity_type, context, candidates)
+
+
+def _embed_names(display_names: list[str]) -> dict[str, str]:
+    """`display_name -> literal pgvector`. Vuoto se l'embedder non e' disponibile."""
+    vectors = embeddings.embed_texts(display_names)
+    if not vectors:
+        return {}
+    out: dict[str, str] = {}
+    for name, vec in zip(display_names, vectors):
+        literal = embeddings.to_pgvector(vec)
+        if literal is not None:
+            out[name] = literal
+    return out
+
+
+def plan_resolution(
+    consultant_id: str,
+    client_id: str | None,
+    names: Iterable[str | None],
+    *,
+    context: str | None = None,
+    llm: Any | None = None,
+) -> ResolutionPlan:
+    """Risolve un insieme di nomi entita' PRIMA della transazione di scrittura.
+
+    Apre una `canonical_session` read-only per i lookup, fa le chiamate LLM, la
+    chiude. Il write path riceve il `ResolutionPlan` e lo applica senza altre
+    letture ne' chiamate di rete sotto lock. No-op (piano vuoto) se non c'e' un
+    cliente o se `settings.canonical_entity_resolution` e' False.
+    """
+    if not client_id or not settings.canonical_entity_resolution:
+        return EMPTY_PLAN
+
+    uniq: dict[str, str] = {}
+    for raw in names:
+        key = normalize(raw)
+        if key and key not in uniq:
+            uniq[key] = " ".join(str(raw).split())
+    if not uniq:
+        return EMPTY_PLAN
+
+    vec_by_display = _embed_names(list(uniq.values()))
+    name_vectors = {key: vec_by_display.get(display) for key, display in uniq.items()}
+
+    model = llm if llm is not None else build_llm()
+    matches: dict[str, ResolvedEntity] = {}
+    with canonical_session(consultant_id, client_id) as session:
+        for key, display in uniq.items():
+            hit = find_match(
+                session,
+                client_id=client_id,
+                entity_type=_OTHER,
+                name=display,
+                name_vec=name_vectors.get(key),
+                context=context,
+                llm=model,
+            )
+            if hit is not None:
+                matches[key] = ResolvedEntity(hit.entity_id, hit.canonical_name, hit.method)
+                logger.info(
+                    "entity resolution: %r -> %r (%s)", display, hit.canonical_name, hit.method
+                )
+
+    return ResolutionPlan(matches=matches, name_vectors=name_vectors)

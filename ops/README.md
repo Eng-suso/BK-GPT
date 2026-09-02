@@ -287,23 +287,31 @@ gia' `memory_kind='procedural'` se in futuro serve il recall semantico.
 
 ## Entity resolution — P2 ✅
 
-`backend/memory/knowledge_graph/entity_resolution.py`. Prima di inserire una
-`kg_entity`, `canonical.write_entity` chiede a `find_match` se il nome e' gia'
-rappresentato da un'altra riga per lo stesso cliente:
+`backend/memory/knowledge_graph/entity_resolution.py`. Prima di scrivere il
+pacchetto di evidenza, `canonical.write_evidence` chiama
+`entity_resolution.plan_resolution(...)` che, per ogni nome entita', decide se
+e' gia' rappresentato da una `kg_entity` dello stesso cliente:
 
-1. **esatto** — `canonical_name` o un `alias` coincide (whitespace + casefold).
-   Deciso senza LLM.
+1. **esatto** — `canonical_name` o un `alias` coincide (whitespace + `lower()`,
+   stessa normalizzazione di Postgres). Deciso senza LLM.
 2. **shortlist** — `pg_trgm` su `lower(canonical_name)` + coseno su
    `kg_entity.embedding`. Solo recall: la calibrazione su embedding reali mostra
    che coseno/trigram sui nomi nudi NON decidono l'identita' (coppie distinte
    con token discriminante, "Segreto A"/"Segreto B", arrivano a 0.92 coseno).
-3. **giudizio** — LLM `temperature=0` + `with_structured_output` decide
-   l'identita' su ogni candidato. Nessuna soglia fonde da sola. Senza LLM il
-   resolver si ferma al livello 1 (solo match esatto).
+3. **giudizio** — LLM `temperature=0` + `with_structured_output` (`_Verdict`
+   Pydantic, output untrusted validato) decide l'identita'. Nessuna soglia
+   fonde da sola. Senza LLM il resolver si ferma al livello 1 (match esatto).
 
-Su match: la riga esistente assorbe alias + `source_ids` + `confidence` +
-backfill `embedding`, e ne riusa id e tipo. Il seed lessicale del gateway ora
-matcha anche gli `aliases`. Flag `settings.canonical_entity_resolution`.
+**LLM propone, runtime dispone.** `plan_resolution` fa i read + le chiamate LLM
+in una sua `canonical_session` read-only e la CHIUDE prima che `write_evidence`
+apra la transazione del pacchetto: nessuna chiamata di rete sotto lock.
+`write_entity` riceve il `ResolutionPlan` (`Match | None` per nome) e lo applica
+in UPSERT deterministico — su match la riga esistente assorbe alias +
+`source_ids` + `confidence` + backfill `embedding` e ne riusa id/tipo; se il
+match e' sparito nel frattempo ricade sull'INSERT. Estremi di una relazione che
+risolvono alla stessa entita' -> relazione saltata (CHECK `source <> target`).
+Il seed lessicale del gateway matcha anche gli `aliases`. Flag
+`settings.canonical_entity_resolution`.
 
 `scripts/kg_resolve_entities.py` (come `delir_app`, `--apply`, default dry-run):
 backfill dell'`embedding` sulle righe pre-P2 + **sweep** che rifonde i doppioni

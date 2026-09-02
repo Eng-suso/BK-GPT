@@ -68,8 +68,10 @@ def _resolve_seed_entities(
     entity_names: list[str],
     query: str,
 ) -> list[str]:
-    terms = {" ".join(n.split()).casefold() for n in entity_names if n and n.strip()}
-    terms |= {w.casefold() for w in _WORD.findall(query or "")}
+    # lower() (non casefold) per coincidere con lower(canonical_name) di Postgres
+    # e con gli alias, che entity_resolution salva gia' lower()
+    terms = {" ".join(n.split()).lower() for n in entity_names if n and n.strip()}
+    terms |= {w.lower() for w in _WORD.findall(query or "")}
     if not terms:
         return []
     exact = list(terms)
