@@ -5,7 +5,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
 
 from backend import workspace_database
-from backend.bpmn_semantic import BPMNSemanticModel, semantic_model_to_bpmn_xml
+from backend.bpmn import BPMNSemanticModel, semantic_model_to_bpmn_xml
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,

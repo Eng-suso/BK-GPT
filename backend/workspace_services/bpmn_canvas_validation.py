@@ -7,7 +7,7 @@ from collections import Counter
 
 from pydantic import ValidationError
 
-from backend.bpmn_semantic import BPMNSemanticModel
+from backend.bpmn import BPMNSemanticModel
 from backend.process_understanding import ProcessUnderstanding
 from backend.workspace_services.bpmn_canvas_edit import (
     BPMN_NS,

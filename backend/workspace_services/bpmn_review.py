@@ -2,7 +2,7 @@ import json
 
 from pydantic import BaseModel
 
-from backend.bpmn_semantic import (
+from backend.bpmn import (
     BPMNSemanticModel,
     build_bpmn_semantic_model,
     semantic_model_to_bpmn_xml,

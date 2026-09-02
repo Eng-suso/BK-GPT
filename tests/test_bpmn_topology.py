@@ -1,4 +1,4 @@
-from backend.bpmn_topology import resolve_pool_topology
+from backend.bpmn import resolve_pool_topology
 from backend.process_understanding import (
     BpmnLaneCandidate,
     BpmnMessageFlowCandidate,

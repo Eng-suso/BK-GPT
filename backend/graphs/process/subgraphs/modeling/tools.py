@@ -2,7 +2,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
-from backend.bpmn_semantic import build_bpmn_semantic_model, validate_bpmn_semantic_model
+from backend.bpmn import build_bpmn_semantic_model, validate_bpmn_semantic_model
 from backend.graphs.process.tools import (
     bpmn_semantic_model_from_payload,
     prepare_canvas_handoff,

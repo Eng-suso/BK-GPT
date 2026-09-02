@@ -4,7 +4,7 @@
 (optional) BPMN review dict -> per-element structural provenance.
 """
 
-from backend.bpmn_semantic import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
+from backend.bpmn import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
 from backend.process_understanding import (
     ProcessActor,
     ProcessDecision,

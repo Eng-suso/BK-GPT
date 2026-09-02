@@ -17,7 +17,7 @@ from backend.graphs.canvas_edit.tools import (
     validation_tools,
 )
 from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
-from backend.bpmn_semantic import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
+from backend.bpmn import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
 from backend.process_understanding import (
     ProcessActor,
     ProcessExceptionPath,

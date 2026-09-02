@@ -1,6 +1,6 @@
 import json
 
-from backend.bpmn_semantic import (
+from backend.bpmn import (
     build_bpmn_semantic_model,
     semantic_model_to_bpmn_xml,
     validate_bpmn_semantic_model,
