@@ -157,9 +157,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # "firefox" resta fuori: playwright.config.ts lo esclude di proposito
+        # (il runner Windows locale crasha prima della navigazione su
+        # browser.newPage()) e non definisce nessun project "firefox" — averlo
+        # qui faceva fallire ogni run con "Project(s) \"firefox\" not found".
         project:
           - chromium
-          - firefox
           - webkit
           - mobile-chrome
           - mobile-safari
