@@ -311,6 +311,57 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
+def test_distinct_end_events_are_kept_separate():
+    process = ProcessUnderstanding(
+        title="Domanda con esiti distinti",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        events=[
+            ProcessEvent(id="End_OK", label="Domanda accolta", type="end"),
+            ProcessEvent(id="End_KO", label="Domanda respinta", type="end"),
+        ],
+        steps=[
+            ProcessStep(id="Task_Check", label="Valuta domanda", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Grant", label="Concedi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Reject", label="Rifiuta", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Check", "Task_Grant"],
+        sequence=["Task_Check", "Task_Grant"],
+        boundaries=ProcessBoundaries(success_end="Domanda accolta", failure_ends=["Domanda respinta"]),
+        decisions=[
+            ProcessDecision(
+                id="Gateway_Esito",
+                label="Requisiti ok?",
+                question="Requisiti soddisfatti?",
+                outcomes=["Si", "No"],
+                outcome_details=[
+                    ProcessDecisionOutcome(id="o_si", label="Si", target_ref="Task_Grant"),
+                    ProcessDecisionOutcome(id="o_no", label="No", target_path_id="Alt_Reject"),
+                ],
+            )
+        ],
+        alternative_paths=[
+            ProcessPath(
+                id="Alt_Reject",
+                label="Rifiuto domanda",
+                trigger_or_condition="No",
+                sequence=["Task_Reject"],
+                ends_at="End_KO",
+            )
+        ],
+        flow_edges=[
+            ProcessFlowEdge(id="e1", source_id="Task_Check", target_id="Gateway_Esito", label="valutazione fatta"),
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Esiti", process_name="Domanda con esiti distinti", process=process
+    )
+    end_nodes = [n for n in model.flowNodes if n.type == "endEvent"]
+    assert {n.name for n in end_nodes} == {"Domanda accolta", "Domanda respinta"}
+    reject_task = next(n.id for n in model.flowNodes if n.name == "Rifiuta")
+    ko_end = next(n.id for n in end_nodes if n.name == "Domanda respinta")
+    assert any(f.sourceRef == reject_task and f.targetRef == ko_end for f in model.sequenceFlows)
+
+
 def test_loop_compiles_through_an_exclusive_gateway_and_is_sound():
     from backend.bpmn.soundness import analyze_control_flow
 
@@ -355,6 +406,78 @@ def test_loop_compiles_through_an_exclusive_gateway_and_is_sound():
     assert not any(i.code == "implicit_parallel_split" for i in report.errors)
     assert report.is_sound
     assert validate_bpmn_xml(semantic_model_to_bpmn_xml(model))["valid"] is True
+
+
+def _canvas_xml(process_body: str) -> str:
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
+        'xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" '
+        'xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" '
+        'xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">\n'
+        f'  <bpmn:process id="Process_Test">\n{process_body}\n  </bpmn:process>\n'
+        '  <bpmndi:BPMNDiagram id="Diagram"><bpmndi:BPMNPlane id="Plane" bpmnElement="Process_Test" /></bpmndi:BPMNDiagram>\n'
+        '</bpmn:definitions>'
+    )
+
+
+def test_canvas_validation_rejects_single_branch_decision_gateway():
+    xml = _canvas_xml(
+        """    <bpmn:startEvent id="Start"><bpmn:outgoing>f1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gw"><bpmn:incoming>f1</bpmn:incoming><bpmn:outgoing>f2</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:task id="Task_Do" name="Esegui"><bpmn:incoming>f2</bpmn:incoming><bpmn:outgoing>f3</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End"><bpmn:incoming>f3</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="Start" targetRef="Gw" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Gw" targetRef="Task_Do" />
+    <bpmn:sequenceFlow id="f3" sourceRef="Task_Do" targetRef="End" />"""
+    )
+
+    result = validate_canvas_against_process(xml=xml)
+
+    assert result["semantic_valid"] is False
+    assert any("meno di due rami" in issue for issue in result["issues"])
+
+
+def test_canvas_validation_rejects_gateway_that_joins_and_splits():
+    xml = _canvas_xml(
+        """    <bpmn:startEvent id="Start"><bpmn:outgoing>f1</bpmn:outgoing><bpmn:outgoing>f2</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Task_A" name="A"><bpmn:incoming>f1</bpmn:incoming><bpmn:outgoing>f3</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Task_B" name="B"><bpmn:incoming>f2</bpmn:incoming><bpmn:outgoing>f4</bpmn:outgoing></bpmn:task>
+    <bpmn:exclusiveGateway id="Gw"><bpmn:incoming>f3</bpmn:incoming><bpmn:incoming>f4</bpmn:incoming><bpmn:outgoing>f5</bpmn:outgoing><bpmn:outgoing>f6</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:task id="Task_X" name="X"><bpmn:incoming>f5</bpmn:incoming><bpmn:outgoing>f7</bpmn:outgoing></bpmn:task>
+    <bpmn:task id="Task_Y" name="Y"><bpmn:incoming>f6</bpmn:incoming><bpmn:outgoing>f8</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End"><bpmn:incoming>f7</bpmn:incoming><bpmn:incoming>f8</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="Start" targetRef="Task_A" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Start" targetRef="Task_B" />
+    <bpmn:sequenceFlow id="f3" sourceRef="Task_A" targetRef="Gw" />
+    <bpmn:sequenceFlow id="f4" sourceRef="Task_B" targetRef="Gw" />
+    <bpmn:sequenceFlow id="f5" sourceRef="Gw" targetRef="Task_X" />
+    <bpmn:sequenceFlow id="f6" sourceRef="Gw" targetRef="Task_Y" />
+    <bpmn:sequenceFlow id="f7" sourceRef="Task_X" targetRef="End" />
+    <bpmn:sequenceFlow id="f8" sourceRef="Task_Y" targetRef="End" />"""
+    )
+
+    result = validate_canvas_against_process(xml=xml)
+
+    assert result["semantic_valid"] is False
+    assert any("unisce e divide" in issue for issue in result["issues"])
+
+
+def test_canvas_validation_rejects_gateway_wired_to_nothing():
+    xml = _canvas_xml(
+        """    <bpmn:startEvent id="Start"><bpmn:outgoing>f1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:task id="Task_Do" name="Esegui"><bpmn:incoming>f1</bpmn:incoming><bpmn:outgoing>f2</bpmn:outgoing><bpmn:outgoing>f3</bpmn:outgoing></bpmn:task>
+    <bpmn:endEvent id="End"><bpmn:incoming>f2</bpmn:incoming></bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gw"><bpmn:incoming>f3</bpmn:incoming></bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="f1" sourceRef="Start" targetRef="Task_Do" />
+    <bpmn:sequenceFlow id="f2" sourceRef="Task_Do" targetRef="End" />
+    <bpmn:sequenceFlow id="f3" sourceRef="Task_Do" targetRef="Gw" />"""
+    )
+
+    result = validate_canvas_against_process(xml=xml)
+
+    assert result["semantic_valid"] is False
+    assert any("non e' collegato al flusso" in issue for issue in result["issues"])
 
 
 def test_exceptions_compile_to_boundary_events_on_their_step():

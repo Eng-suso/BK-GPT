@@ -142,16 +142,16 @@ def build_bpmn_semantic_model(
             gateway_by_step_id=gateway_by_step_id,
         )
 
-    end = BPMNFlowNode(
-        id=xml_id("EndEvent_1", "EndEvent", used_ids),
-        type="endEvent",
-        name=_end_name(process),
-    )
-    nodes.append(end)
+    end, end_node_by_key = _build_end_events(process, used_ids)
+    for end_node in end_node_by_key.values():
+        if end_node not in nodes:
+            nodes.append(end_node)
+    if end not in nodes:
+        nodes.append(end)
     main_chain.append(end.id)
     for event in process.events:
-        if event.type == "end":
-            registry.map(event.id, end.id)
+        if event.type == "end" and event.id in end_node_by_key:
+            registry.map(event.id, end_node_by_key[event.id].id)
 
     registry.gateway_ids = {node.id for node in nodes if node.type.endswith("Gateway")}
     registry.connect_chain(main_chain)
@@ -165,6 +165,8 @@ def build_bpmn_semantic_model(
         step_node_by_original_id=step_node_by_original_id,
         gateway_by_decision_id=gateway_by_decision_id,
         gateway_by_step_id=gateway_by_step_id,
+        end_node_by_key=end_node_by_key,
+        primary_end=end,
         actors=process.actors,
         actor_lane_map=actor_lane_map,
         warnings=warnings,
@@ -397,6 +399,8 @@ def _add_alternative_paths(
     step_node_by_original_id: dict[str, str],
     gateway_by_decision_id: dict[str, BPMNFlowNode],
     gateway_by_step_id: dict[str, BPMNFlowNode],
+    end_node_by_key: dict[str, BPMNFlowNode],
+    primary_end: BPMNFlowNode,
     actors: list[ProcessActor],
     actor_lane_map: dict[str, str],
     warnings: list[str],
@@ -448,14 +452,10 @@ def _add_alternative_paths(
         elif path.ends_at and path.ends_at in step_node_by_original_id:
             registry.add(previous_id, step_node_by_original_id[path.ends_at], name=path.trigger_or_condition)
         else:
-            alt_end = BPMNFlowNode(
-                id=xml_id(f"End_{path.id}", "EndEvent", used_ids),
-                type="endEvent",
-                name=path.ends_at or path.label or outcome_name or "Fine percorso alternativo",
-                laneId=gateway.laneId,
+            end_target = _resolve_alt_path_end(
+                path, outcome_name, gateway.laneId, end_node_by_key, primary_end, nodes, used_ids
             )
-            nodes.append(alt_end)
-            registry.add(previous_id, alt_end.id, name=path.trigger_or_condition)
+            registry.add(previous_id, end_target, name=path.trigger_or_condition)
 
         if not path.is_confirmed:
             warnings.append(f"Alternative path '{path.label}' non confermato.")
@@ -465,6 +465,33 @@ def _add_alternative_paths(
     elif unassigned_paths:
         for path in unassigned_paths:
             warnings.append(f"Alternative path '{path.label}' non collegato a un outcome decisionale esplicito.")
+
+
+def _resolve_alt_path_end(
+    path,
+    outcome_name: str | None,
+    lane_id: str | None,
+    end_node_by_key: dict[str, BPMNFlowNode],
+    primary_end: BPMNFlowNode,
+    nodes: list[BPMNFlowNode],
+    used_ids: set[str],
+) -> str:
+    """Route an alternative path's terminal edge to an existing end event when
+    its `ends_at` names one, otherwise mint a distinct end for that outcome."""
+    target = path.ends_at
+    if target and (target in end_node_by_key or _norm_end_key(target) in end_node_by_key):
+        return _end_for(target, end_node_by_key, primary_end).id
+    if not target:
+        return primary_end.id
+    synth = BPMNFlowNode(
+        id=xml_id(f"End_{path.id}", "EndEvent", used_ids),
+        type="endEvent",
+        name=target or path.label or outcome_name or "Fine percorso alternativo",
+        laneId=lane_id,
+    )
+    nodes.append(synth)
+    end_node_by_key[_norm_end_key(target)] = synth
+    return synth.id
 
 
 def _take_alternative_path_for_decision(decision, paths: list):
@@ -835,6 +862,72 @@ def _end_name(process: ProcessUnderstanding) -> str:
         return process.boundaries.success_end
     event = next((item for item in process.events if item.type == "end"), None)
     return event.label if event else "End"
+
+
+def _norm_end_key(value: str | None) -> str:
+    return " ".join((value or "").casefold().split())
+
+
+def _build_end_events(
+    process: ProcessUnderstanding,
+    used_ids: set[str],
+) -> tuple[BPMNFlowNode, dict[str, BPMNFlowNode]]:
+    """One end event per distinct outcome: the `type=="end"` events plus any
+    `boundaries.failure_ends` not already covered. Keyed by event id and by
+    normalised label so alternative paths can route to the right one."""
+    by_key: dict[str, BPMNFlowNode] = {}
+    created: list[BPMNFlowNode] = []
+
+    for event in process.events:
+        if event.type != "end":
+            continue
+        node = BPMNFlowNode(
+            id=xml_id(event.id or "EndEvent", "EndEvent", used_ids),
+            type="endEvent",
+            name=event.label or "Fine",
+            sourceRefs=[source_ref_id("events", event.id)],
+        )
+        created.append(node)
+        by_key[event.id] = node
+        by_key.setdefault(_norm_end_key(event.label), node)
+
+    if process.boundaries:
+        for label in process.boundaries.failure_ends:
+            if _norm_end_key(label) in by_key:
+                continue
+            node = BPMNFlowNode(
+                id=xml_id(label or "EndEvent", "EndEvent", used_ids),
+                type="endEvent",
+                name=label or "Fine con esito negativo",
+                sourceRefs=[source_ref_id("boundaries", label)],
+            )
+            created.append(node)
+            by_key[_norm_end_key(label)] = node
+
+    if not created:
+        default = BPMNFlowNode(
+            id=xml_id("EndEvent_1", "EndEvent", used_ids), type="endEvent", name=_end_name(process)
+        )
+        return default, {"__default__": default}
+
+    primary: BPMNFlowNode | None = None
+    if process.boundaries and process.boundaries.success_end:
+        primary = by_key.get(_norm_end_key(process.boundaries.success_end))
+    return primary or created[0], by_key
+
+
+def _end_for(
+    target: str | None,
+    end_node_by_key: dict[str, BPMNFlowNode],
+    fallback: BPMNFlowNode,
+) -> BPMNFlowNode:
+    if not target:
+        return fallback
+    return (
+        end_node_by_key.get(target)
+        or end_node_by_key.get(_norm_end_key(target))
+        or fallback
+    )
 
 
 def _outcome_name_for_path(decision: ProcessDecision, path) -> str | None:
