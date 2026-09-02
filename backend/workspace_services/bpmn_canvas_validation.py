@@ -8,6 +8,7 @@ from collections import Counter
 from pydantic import ValidationError
 
 from backend.bpmn import BPMNSemanticModel
+from backend.bpmn.soundness import analyze_control_flow
 from backend.process_understanding import ProcessUnderstanding
 from backend.workspace_services.bpmn_canvas_edit import (
     BPMN_NS,
@@ -84,6 +85,10 @@ def validate_canvas_against_process(
             issues=issues,
             warnings=warnings,
         )
+        control_flow = analyze_control_flow(semantic_model)
+        coverage["control_flow_sound"] = control_flow.is_sound
+        warnings.extend(f"Soundness: {issue.message}" for issue in control_flow.errors)
+        warnings.extend(f"Soundness: {issue.message}" for issue in control_flow.warnings)
     else:
         warnings.append("BPMNSemanticModel non disponibile: validazione semantica limitata.")
 

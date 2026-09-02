@@ -8,6 +8,7 @@ dead-end nodes, boundary-event attachment). Control-flow soundness lives in
 from __future__ import annotations
 
 from backend.bpmn.models import ACTIVITY_NODE_TYPES, BPMNSemanticModel
+from backend.bpmn.soundness import analyze_control_flow
 
 
 def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
@@ -57,4 +58,6 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
             warnings.append(f"Evento finale {node.name} con una freccia in uscita.")
         if node.type != "endEvent" and not outgoing_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza uscita.")
+
+    warnings.extend(analyze_control_flow(model).messages())
     return warnings
