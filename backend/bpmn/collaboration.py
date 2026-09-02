@@ -11,6 +11,10 @@ from backend.bpmn.models import BPMNFlowNode, BPMNLane, BPMNMessageFlow, BPMNPar
 from backend.bpmn.topology import PoolTopology, ResolvedPool, resolve_pool_topology
 from backend.process_understanding import ProcessActor, ProcessStep, ProcessUnderstanding
 
+# Upper bound on lanes rendered in the primary pool. Kept identical across every
+# lane-building path so `actor_lane_map` never points at a lane that was dropped.
+_MAX_LANES = 8
+
 
 @dataclass
 class MessageFlowSpec:
@@ -133,10 +137,12 @@ def _lanes_for_primary_pool(
         label = actor_labels.get(actor_id, actor_id)
         if not label.strip():
             continue
+        if len(lanes) >= _MAX_LANES:
+            break
         lane_id = xml_id(actor_id or label, "Lane", used_ids)
         lanes.append(BPMNLane(id=lane_id, name=label, sourceRefs=[source_ref_id("actors", actor_id)]))
         actor_lane_map[actor_id] = lane_id
-    return lanes[:8], actor_lane_map
+    return lanes, actor_lane_map
 
 
 def build_lanes(actors: list[ProcessActor], used_ids: set[str]) -> list[BPMNLane]:
@@ -148,7 +154,7 @@ def build_lanes(actors: list[ProcessActor], used_ids: set[str]) -> list[BPMNLane
         )
         for actor in actors
         if actor.label.strip()
-    ][:8]
+    ][:_MAX_LANES]
 
 
 def lane_by_actor_id(actors: list[ProcessActor], lanes: list[BPMNLane]) -> dict[str, str]:

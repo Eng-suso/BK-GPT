@@ -9,7 +9,6 @@ from backend.bpmn._helpers import (
     source_ref,
     source_ref_from_id,
     source_ref_id,
-    xml_id_preview,
 )
 from backend.bpmn.models import (
     ActivitySpec,
@@ -92,7 +91,11 @@ def build_bpmn_compilation_plan(
                 id=lane.id,
                 name=lane.name,
                 actor_id=next(
-                    (actor.id for actor in process.actors if xml_id_preview(actor.id or actor.label) == lane.id),
+                    (
+                        ref.id
+                        for ref in (source_ref_from_id(value) for value in lane.sourceRefs)
+                        if ref.field == "actors" and ref.id
+                    ),
                     lane.id,
                 ),
                 source_refs=[source_ref_from_id(ref) for ref in lane.sourceRefs],

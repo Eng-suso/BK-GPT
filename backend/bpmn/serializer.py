@@ -109,14 +109,15 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
     for annotation in annotations:
         xml_parts.extend(
             [
-                f'    <bpmn:textAnnotation id="{annotation["id"]}">',
+                f'    <bpmn:textAnnotation id="{escape(annotation["id"])}">',
                 f'      <bpmn:text>{escape(annotation["text"])}</bpmn:text>',
                 "    </bpmn:textAnnotation>",
             ]
         )
     for association in associations:
         xml_parts.append(
-            f'    <bpmn:association id="{association["id"]}" sourceRef="{association["source"]}" targetRef="{association["target"]}" />'
+            f'    <bpmn:association id="{escape(association["id"])}" '
+            f'sourceRef="{escape(association["source"])}" targetRef="{escape(association["target"])}" />'
         )
 
     plane_element = (
@@ -132,26 +133,29 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
     positions, lane_shapes = _layout_model(model)
     pool_shapes, pool_positions = _collaboration_pool_shapes(model, positions, lane_shapes)
     for pool_shape in pool_shapes:
+        pool_id = escape(str(pool_shape["id"]))
         xml_parts.extend(
             [
-                f'      <bpmndi:BPMNShape id="{pool_shape["id"]}_di" bpmnElement="{pool_shape["id"]}" isHorizontal="true">',
+                f'      <bpmndi:BPMNShape id="{pool_id}_di" bpmnElement="{pool_id}" isHorizontal="true">',
                 f'        <dc:Bounds x="{pool_shape["x"]}" y="{pool_shape["y"]}" width="{pool_shape["width"]}" height="{pool_shape["height"]}" />',
                 "      </bpmndi:BPMNShape>",
             ]
         )
     for lane_shape in lane_shapes:
+        lane_shape_id = escape(str(lane_shape["id"]))
         xml_parts.extend(
             [
-                f'      <bpmndi:BPMNShape id="{lane_shape["id"]}_di" bpmnElement="{lane_shape["id"]}" isHorizontal="true">',
+                f'      <bpmndi:BPMNShape id="{lane_shape_id}_di" bpmnElement="{lane_shape_id}" isHorizontal="true">',
                 f'        <dc:Bounds x="{lane_shape["x"]}" y="{lane_shape["y"]}" width="{lane_shape["width"]}" height="{lane_shape["height"]}" />',
                 "      </bpmndi:BPMNShape>",
             ]
         )
     for node in model.flowNodes:
         pos = positions[node.id]
+        node_di_id = escape(node.id)
         xml_parts.extend(
             [
-                f'      <bpmndi:BPMNShape id="{node.id}_di" bpmnElement="{node.id}">',
+                f'      <bpmndi:BPMNShape id="{node_di_id}_di" bpmnElement="{node_di_id}">',
                 f'        <dc:Bounds x="{pos["x"]}" y="{pos["y"]}" width="{pos["width"]}" height="{pos["height"]}" />',
                 "      </bpmndi:BPMNShape>",
             ]
@@ -160,9 +164,10 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
     data_positions = _layout_data_objects(visual_data_objects, positions)
     for data_object in visual_data_objects:
         pos = data_positions[data_object.id]
+        data_di_id = escape(data_object.id)
         xml_parts.extend(
             [
-                f'      <bpmndi:BPMNShape id="{data_object.id}_di" bpmnElement="{data_object.id}">',
+                f'      <bpmndi:BPMNShape id="{data_di_id}_di" bpmnElement="{data_di_id}">',
                 f'        <dc:Bounds x="{pos["x"]}" y="{pos["y"]}" width="{pos["width"]}" height="{pos["height"]}" />',
                 "      </bpmndi:BPMNShape>",
             ]
@@ -171,9 +176,10 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
     annotation_positions = _layout_text_annotations(annotations)
     for annotation in annotations:
         pos = annotation_positions[annotation["id"]]
+        annotation_di_id = escape(annotation["id"])
         xml_parts.extend(
             [
-                f'      <bpmndi:BPMNShape id="{annotation["id"]}_di" bpmnElement="{annotation["id"]}">',
+                f'      <bpmndi:BPMNShape id="{annotation_di_id}_di" bpmnElement="{annotation_di_id}">',
                 f'        <dc:Bounds x="{pos["x"]}" y="{pos["y"]}" width="{pos["width"]}" height="{pos["height"]}" />',
                 "      </bpmndi:BPMNShape>",
             ]
@@ -252,7 +258,7 @@ def _semantic_annotations(model: BPMNSemanticModel) -> tuple[list[dict], list[di
         for association in model.associations
     ]
 
-    if not annotations and model.model_warnings:
+    if not annotations and model.model_warnings and model.flowNodes:
         source = next(
             (node.id for node in model.flowNodes if node.type not in {"startEvent", "endEvent"}),
             model.flowNodes[0].id,
@@ -460,8 +466,9 @@ def _association_edge_xml(
 ) -> list[str]:
     source = positions[association["source"]]
     target = positions[association["target"]]
+    association_id = escape(association["id"])
     return [
-        f'      <bpmndi:BPMNEdge id="{association["id"]}_di" bpmnElement="{association["id"]}">',
+        f'      <bpmndi:BPMNEdge id="{association_id}_di" bpmnElement="{association_id}">',
         f'        <di:waypoint x="{source["x"] + source["width"] / 2}" y="{source["y"]}" />',
         f'        <di:waypoint x="{target["x"] + target["width"] / 2}" y="{target["y"] + target["height"]}" />',
         "      </bpmndi:BPMNEdge>",

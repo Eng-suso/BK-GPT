@@ -26,11 +26,6 @@ def xml_id(value: str, prefix: str, used: set[str]) -> str:
     return candidate
 
 
-def xml_id_preview(value: str) -> str:
-    candidate = re.sub(r"[^A-Za-z0-9_]+", "_", value).strip("_")
-    return candidate[:70]
-
-
 def source_ref(field: str, item_id: str | None, label: str | None = None) -> ProcessUnderstandingRef:
     return ProcessUnderstandingRef(field=field, id=item_id, label=label)
 
