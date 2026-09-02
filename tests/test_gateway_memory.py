@@ -19,8 +19,9 @@ from backend.memory.semantic import semantic_store  # noqa: E402
 
 
 @pytest.fixture()
-def seeded_memory():
+def seeded_memory(monkeypatch):
     # nome proprio inventato: Mem0 estrae il fatto ma tiene i nomi propri
+    monkeypatch.setattr(settings, "mem0_user_id", f"test-{uuid.uuid4()}")
     token = "Zbrunk" + uuid.uuid4().hex[:6]
     statement = (
         f"Il consulente {token} valida gli SLA con una checklist prima di ogni intervista."

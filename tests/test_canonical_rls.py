@@ -127,6 +127,113 @@ def test_cross_tenant_rows_are_invisible(tenants):
     assert clients == ["A1"]
 
 
+def test_workspace_bridge_ids_are_scoped_by_consultant(tenants):
+    """Operational workspace ids are tenant-local, not globally unique."""
+    workspace_id = f"shared-workspace-{uuid.uuid4().hex[:8]}"
+    client_a = uuid.uuid4()
+    client_b = uuid.uuid4()
+    project_a = uuid.uuid4()
+    project_b = uuid.uuid4()
+    process_a = uuid.uuid4()
+    process_b = uuid.uuid4()
+
+    with APP.begin() as conn:
+        _set_ctx(conn, tenants["a"])
+        conn.execute(
+            text(
+                "INSERT INTO client (id, consultant_id, name, workspace_id) "
+                "VALUES (:id, :c, 'Shared A', :w)"
+            ),
+            {"id": client_a, "c": tenants["a"], "w": workspace_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO project (id, client_id, consultant_id, name, workspace_id) "
+                "VALUES (:id, :cl, :c, 'Project A', :w)"
+            ),
+            {"id": project_a, "cl": client_a, "c": tenants["a"], "w": workspace_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO process "
+                "(id, project_id, client_id, consultant_id, name, workspace_id) "
+                "VALUES (:id, :p, :cl, :c, 'Process A', :w)"
+            ),
+            {
+                "id": process_a,
+                "p": project_a,
+                "cl": client_a,
+                "c": tenants["a"],
+                "w": workspace_id,
+            },
+        )
+
+    with APP.begin() as conn:
+        _set_ctx(conn, tenants["b"])
+        conn.execute(
+            text(
+                "INSERT INTO client (id, consultant_id, name, workspace_id) "
+                "VALUES (:id, :c, 'Shared B', :w)"
+            ),
+            {"id": client_b, "c": tenants["b"], "w": workspace_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO project (id, client_id, consultant_id, name, workspace_id) "
+                "VALUES (:id, :cl, :c, 'Project B', :w)"
+            ),
+            {"id": project_b, "cl": client_b, "c": tenants["b"], "w": workspace_id},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO process "
+                "(id, project_id, client_id, consultant_id, name, workspace_id) "
+                "VALUES (:id, :p, :cl, :c, 'Process B', :w)"
+            ),
+            {
+                "id": process_b,
+                "p": project_b,
+                "cl": client_b,
+                "c": tenants["b"],
+                "w": workspace_id,
+            },
+        )
+
+
+def test_source_hash_dedup_is_scoped_by_client(tenants):
+    content_hash = uuid.uuid4().hex
+
+    with APP.begin() as conn:
+        _set_ctx(conn, tenants["a"], tenants["a_client"])
+        conn.execute(
+            text(
+                "INSERT INTO kg_source "
+                "(consultant_id, client_id, scope, kind, title, content_hash, byte_size) "
+                "VALUES (:c, :cl, 'client', 'note', 'Source A', :h, 10)"
+            ),
+            {"c": tenants["a"], "cl": tenants["a_client"], "h": content_hash},
+        )
+
+    other_client = uuid.uuid4()
+    with MIGRATOR.begin() as conn:
+        _set_ctx(conn, tenants["a"])
+        conn.execute(
+            text("INSERT INTO client (id, consultant_id, name) VALUES (:id, :c, 'A2')"),
+            {"id": other_client, "c": tenants["a"]},
+        )
+
+    with APP.begin() as conn:
+        _set_ctx(conn, tenants["a"], other_client)
+        conn.execute(
+            text(
+                "INSERT INTO kg_source "
+                "(consultant_id, client_id, scope, kind, title, content_hash, byte_size) "
+                "VALUES (:c, :cl, 'client', 'note', 'Source B', :h, 10)"
+            ),
+            {"c": tenants["a"], "cl": other_client, "h": content_hash},
+        )
+
+
 def test_with_check_blocks_write_into_another_client(tenants):
     with pytest.raises((DBAPIError, ProgrammingError)):
         with APP.begin() as conn:

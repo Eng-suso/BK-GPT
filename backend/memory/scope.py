@@ -44,7 +44,7 @@ def _upsert(session, table: str, workspace_id: str, name: str, extra_cols: dict)
     row = session.execute(
         text(
             f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) "
-            f"ON CONFLICT (workspace_id) WHERE workspace_id IS NOT NULL "
+            "ON CONFLICT (consultant_id, workspace_id) WHERE workspace_id IS NOT NULL "
             f"DO UPDATE SET name = EXCLUDED.name "
             f"RETURNING id"
         ),
@@ -69,8 +69,11 @@ def resolve_client_id(workspace_project_id: str) -> str | None:
         client_ws = f"client:{_slug(str(project.get('client') or 'Cliente'))}"
         with canonical_session(settings.default_consultant_id) as session:
             row = session.execute(
-                text("SELECT id FROM client WHERE workspace_id = :w"),
-                {"w": client_ws},
+                text(
+                    "SELECT id FROM client "
+                    "WHERE consultant_id = :c AND workspace_id = :w"
+                ),
+                {"c": settings.default_consultant_id, "w": client_ws},
             ).first()
         return str(row.id) if row else None
     except Exception:  # noqa: BLE001 — la lettura non deve far fallire il chiamante

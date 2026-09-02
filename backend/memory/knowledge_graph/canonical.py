@@ -795,9 +795,9 @@ def write_source_chunks(
         existing = session.execute(
             text(
                 "SELECT id FROM kg_source "
-                "WHERE consultant_id = :c AND content_hash = :h"
+                "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h"
             ),
-            {"c": str(consultant_id), "h": content_hash},
+            {"c": str(consultant_id), "cl": str(client_id), "h": content_hash},
         ).first()
         if existing:
             return str(existing.id), 0
@@ -808,7 +808,8 @@ def write_source_chunks(
                 "(consultant_id, client_id, project_id, process_id, scope, kind, "
                 " title, content_hash, byte_size) "
                 "VALUES (:c,:cl,:p,:pr,'client',:k,:t,:h,:bs) "
-                "ON CONFLICT (consultant_id, content_hash) DO NOTHING "
+                "ON CONFLICT (consultant_id, client_id, content_hash) "
+                "WHERE client_id IS NOT NULL DO NOTHING "
                 "RETURNING id"
             ),
             {
@@ -823,9 +824,9 @@ def write_source_chunks(
             row = session.execute(
                 text(
                     "SELECT id FROM kg_source "
-                    "WHERE consultant_id = :c AND content_hash = :h"
+                    "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h"
                 ),
-                {"c": str(consultant_id), "h": content_hash},
+                {"c": str(consultant_id), "cl": str(client_id), "h": content_hash},
             ).first()
             return (str(row.id), 0) if row else (None, 0)
         source_id = str(inserted.id)

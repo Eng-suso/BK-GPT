@@ -109,8 +109,9 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0009 | `delir_worker` può potare (DELETE) le righe processate delle due code |
 | 0010 | `procedural_memory`: contatori `used_count` / `outcome_*` / `last_used_at` / `last_outcome_at` (L2 P7.4) |
 | 0011 | entity resolution (P2): HNSW coseno parziale su `kg_entity.embedding`, GIN trigram su `lower(canonical_name)`, GIN su `aliases` |
+| 0012 | unique key canonical allineate allo scope: `workspace_id` per consultant, `kg_source.content_hash` per client |
 
-Test: `tests/test_canonical_rls.py` (6) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
+Test: `tests/test_canonical_rls.py` (8) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 
 ## Mem0 OSS ✅
 
@@ -322,4 +323,3 @@ sola), `TestSweep` (grafo sporco → rifuso + Neo4j).
 - **L3** — flusso di ingestione documenti KB cliente (`kg_source`/`kg_chunk`
   ci sono, manca l'upload → chunk → grafo dedicato)
 - reranker sul risultato ibrido (oggi RRF puro, nessun cross-encoder)
-- `workspace_id` UNIQUE è globale, non per-consultant (latente multi-tenant)

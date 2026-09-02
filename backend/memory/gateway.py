@@ -18,7 +18,7 @@ questo e' l'unico punto di enforcement in lettura.
   I chunk piu' vicini tornano anche come contesto testuale (`chunks`).
 
 `memory_search` (recall Mem0):
-  - `user_id` Mem0 = mappa dal `consultant_id` (oggi mono-consulente locale)
+  - `user_id` Mem0 = mappa dal `consultant_id`
   - post-filtro per `client_id` sui metadata: le memorie consultant-level
     (senza client_id) restano visibili ovunque, quelle client-scoped solo
     nel loro cliente
@@ -299,10 +299,14 @@ def graph_retrieve(
 def _mem0_user_id(consultant_id: str) -> str:
     """Mem0 non ha tenant ACL: lo scope consulente e' l'`user_id`.
 
-    Setup mono-consulente locale -> un solo `user_id` (`settings.mem0_user_id`).
-    La mappa `consultant_id -> user_id` vivra' qui quando ci saranno piu'
-    consulenti."""
-    return settings.mem0_user_id
+    Per compatibilita', il consulente MVP di default continua a leggere lo
+    storico salvato sotto `settings.mem0_user_id`. Gli altri consulenti usano il
+    proprio UUID come namespace, coerente con `canonical_memory`/worker.
+    """
+    normalized = str(consultant_id or "").strip()
+    if not normalized or normalized == str(settings.default_consultant_id):
+        return settings.mem0_user_id
+    return normalized
 
 
 def _mem0_items(raw: Any) -> list:
