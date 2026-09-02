@@ -139,6 +139,11 @@ def build_reranker() -> Reranker | None:
     return LLMReranker(llm)
 
 
+def _truncate(items: list[dict[str, Any]], top_n: int | None) -> list[dict[str, Any]]:
+    # top_n=None -> tutti; top_n=0 -> lista vuota (limite esplicito, non falsy)
+    return items if top_n is None else items[: max(top_n, 0)]
+
+
 def rerank_passages(
     query: str,
     items: list[dict[str, Any]],
@@ -154,16 +159,15 @@ def rerank_passages(
     `top_n` se dato). Ogni item riordinato prende `rerank_position` (0-based).
     """
     if not items or not (query or "").strip():
-        return items[: top_n or len(items)]
+        return _truncate(items, top_n)
 
     model = reranker if reranker is not None else build_reranker()
     if model is None:
-        return items[: top_n or len(items)]
+        return _truncate(items, top_n)
 
     head = items[:MAX_PASSAGES]
     tail = items[MAX_PASSAGES:]
     order = model.order(query, [str(it.get(key, "")) for it in head])
 
     ranked = [{**head[i], "rerank_position": pos} for pos, i in enumerate(order)]
-    result = ranked + tail
-    return result[: top_n or len(result)]
+    return _truncate(ranked + tail, top_n)

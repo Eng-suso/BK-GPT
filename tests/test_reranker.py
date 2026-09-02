@@ -112,6 +112,14 @@ def test_rerank_passages_top_n_truncates():
     assert [c["content"] for c in out] == ["d", "c"]
 
 
+@pytest.mark.parametrize("query, rr", [("q", FakeReranker([1, 0])), ("  ", None)])
+def test_rerank_passages_top_n_zero_is_empty(query, rr, monkeypatch):
+    # top_n=0 e' un limite esplicito, non "falsy -> tutti" (CodeRabbit #5)
+    if rr is None:
+        monkeypatch.setattr(reranker, "build_reranker", lambda: None)
+    assert rerank_passages(query, _items("a", "b", "c"), reranker=rr, top_n=0) == []
+
+
 def test_rerank_passages_preserves_tail_beyond_cap(monkeypatch):
     monkeypatch.setattr(reranker, "MAX_PASSAGES", 2)
     items = _items("a", "b", "c", "d")
