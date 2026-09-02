@@ -77,6 +77,26 @@ class FlowRegistry:
         for source, target in zip(chain, chain[1:]):
             self.add(source, target)
 
+    def reroute_source(self, from_id: str, to_id: str) -> list[BPMNSequenceFlow]:
+        """Move every flow currently leaving `from_id` so it leaves `to_id`.
+
+        Used to splice a gateway in front of a node's existing outgoing flows
+        (e.g. a loop back-edge decision) without recreating them.
+        """
+        moved: list[BPMNSequenceFlow] = []
+        for flow in self.flows:
+            if flow.sourceRef != from_id:
+                continue
+            old_pair = (from_id, flow.targetRef)
+            new_pair = (to_id, flow.targetRef)
+            flow.sourceRef = to_id
+            self._flow_by_pair.pop(old_pair, None)
+            self.seen_pairs.discard(old_pair)
+            self._flow_by_pair[new_pair] = flow
+            self.seen_pairs.add(new_pair)
+            moved.append(flow)
+        return moved
+
     def apply_edge_overlay(self) -> None:
         for (origin_source, origin_target), edge in self.edges_by_original.items():
             source = self._compiled_by_original.get(origin_source)

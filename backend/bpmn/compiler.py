@@ -172,7 +172,9 @@ def build_bpmn_semantic_model(
     _add_loop_flows(
         process=process,
         registry=registry,
+        nodes=nodes,
         step_node_by_original_id=step_node_by_original_id,
+        used_ids=used_ids,
         warnings=warnings,
     )
     _complete_flow_graph(process, registry, nodes, warnings)
@@ -482,37 +484,62 @@ def _add_loop_flows(
     *,
     process: ProcessUnderstanding,
     registry: FlowRegistry,
+    nodes: list[BPMNFlowNode],
     step_node_by_original_id: dict[str, str],
+    used_ids: set[str],
     warnings: list[str],
 ) -> None:
+    node_by_id = {node.id: node for node in nodes}
     for loop in process.loops:
         repeated = [step_id for step_id in loop.repeated_steps if step_id in step_node_by_original_id]
         if len(repeated) < 2:
             warnings.append(f"Loop '{loop.label}' presente ma non mappabile su almeno due step.")
             continue
-        source_id = step_node_by_original_id[repeated[-1]]
-        target_id = step_node_by_original_id[repeated[0]]
-        added = registry.add(
-            source_id,
-            target_id,
-            name=loop.condition or loop.label,
-            documentation=json_documentation(
-                "loop",
-                {
-                    "label": loop.label,
-                    "condition": loop.condition,
-                    "exit_condition": loop.exit_condition,
-                    "repeated_steps": loop.repeated_steps,
-                },
-            ),
-            source_refs=[source_ref_id("loops", loop.id)],
+        tail = step_node_by_original_id[repeated[-1]]
+        head = step_node_by_original_id[repeated[0]]
+        loop_doc = json_documentation(
+            "loop",
+            {
+                "label": loop.label,
+                "condition": loop.condition,
+                "exit_condition": loop.exit_condition,
+                "repeated_steps": loop.repeated_steps,
+            },
         )
-        if added is None:
-            warnings.append(
-                f"Loop '{loop.label}' degenere (rientro su se stesso): non reso come freccia."
-            )
-        if loop.exit_condition:
-            warnings.append(f"Loop '{loop.label}' con exit condition: {loop.exit_condition}")
+        loop_refs = [source_ref_id("loops", loop.id)]
+
+        forward = [flow for flow in registry.flows if flow.sourceRef == tail]
+        if not forward:
+            # tail already ends the branch: a plain back-edge is the best we can do
+            if registry.add(tail, head, name=loop.condition or loop.label, documentation=loop_doc, source_refs=loop_refs) is None:
+                warnings.append(f"Loop '{loop.label}' degenere (rientro su se stesso): non reso come freccia.")
+            continue
+
+        # Splice an exclusive gateway in front of `tail`'s exit: one branch repeats
+        # the loop body, the (default) branch leaves it.
+        gateway = BPMNFlowNode(
+            id=xml_id(f"{loop.id}_LoopGateway", "Gateway", used_ids),
+            type="exclusiveGateway",
+            name=loop.exit_condition or f"Ripetere: {loop.label}?",
+            laneId=node_by_id[tail].laneId if tail in node_by_id else None,
+            documentation=loop_doc,
+            sourceRefs=loop_refs,
+        )
+        insert_at = next((i for i, node in enumerate(nodes) if node.id == tail), len(nodes) - 1) + 1
+        nodes.insert(insert_at, gateway)
+        node_by_id[gateway.id] = gateway
+        registry.map(loop.id, gateway.id)
+        registry.gateway_ids.add(gateway.id)
+
+        exit_flows = registry.reroute_source(tail, gateway.id)
+        registry.add(tail, gateway.id)
+        loop_flow = registry.add(
+            gateway.id, head, name=loop.condition or f"Ripeti {loop.label}", documentation=loop_doc, source_refs=loop_refs
+        )
+        if loop_flow is not None and loop.condition:
+            loop_flow.conditionExpression = loop.condition
+        if exit_flows:
+            gateway.defaultFlowId = exit_flows[0].id
 
 
 def _add_boundary_events(

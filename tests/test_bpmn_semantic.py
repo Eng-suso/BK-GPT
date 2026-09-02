@@ -311,6 +311,52 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
+def test_loop_compiles_through_an_exclusive_gateway_and_is_sound():
+    from backend.bpmn.soundness import analyze_control_flow
+
+    process = ProcessUnderstanding(
+        title="Revisione ciclica",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[
+            ProcessStep(id="Task_Draft", label="Prepara bozza", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Review", label="Rivedi", actor_ids=["Actor_Ops"]),
+            ProcessStep(id="Task_Publish", label="Pubblica", actor_ids=["Actor_Ops"]),
+        ],
+        main_success_path=["Task_Draft", "Task_Review", "Task_Publish"],
+        sequence=["Task_Draft", "Task_Review", "Task_Publish"],
+        loops=[
+            ProcessLoop(
+                id="Loop_Rework",
+                label="Rilavorazione bozza",
+                repeated_steps=["Task_Draft", "Task_Review"],
+                condition="servono modifiche",
+                exit_condition="bozza approvata",
+            )
+        ],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Loop", process_name="Revisione ciclica", process=process
+    )
+
+    review_node = next(n for n in model.flowNodes if n.name == "Rivedi")
+    review_out = [f for f in model.sequenceFlows if f.sourceRef == review_node.id]
+    assert len(review_out) == 1  # no implicit split: the single exit goes to the loop gateway
+    gateway = next(n for n in model.flowNodes if n.id == review_out[0].targetRef)
+    assert gateway.type == "exclusiveGateway"
+    gateway_out = [f for f in model.sequenceFlows if f.sourceRef == gateway.id]
+    assert {f.targetRef for f in gateway_out} == {
+        next(n.id for n in model.flowNodes if n.name == "Prepara bozza"),
+        next(n.id for n in model.flowNodes if n.name == "Pubblica"),
+    }
+    loop_branch = next(f for f in gateway_out if f.conditionExpression == "servono modifiche")
+    assert gateway.defaultFlowId and gateway.defaultFlowId != loop_branch.id
+
+    report = analyze_control_flow(model)
+    assert not any(i.code == "implicit_parallel_split" for i in report.errors)
+    assert report.is_sound
+    assert validate_bpmn_xml(semantic_model_to_bpmn_xml(model))["valid"] is True
+
+
 def test_exceptions_compile_to_boundary_events_on_their_step():
     process = ProcessUnderstanding(
         title="Gestione eccezioni",
