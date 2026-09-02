@@ -9,7 +9,13 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from backend.bpmn_topology import PoolTopology, ResolvedPool, resolve_pool_topology
-from backend.process_understanding import ProcessActor, ProcessDecision, ProcessStep, ProcessUnderstanding
+from backend.process_understanding import (
+    ProcessActor,
+    ProcessDecision,
+    ProcessEvent,
+    ProcessStep,
+    ProcessUnderstanding,
+)
 
 
 class BPMNFlowNode(BaseModel):
@@ -29,7 +35,7 @@ class BPMNFlowNode(BaseModel):
     name: str
     laneId: str | None = None
     owner: str | None = None
-    eventDefinition: Literal["timer"] | None = None
+    eventDefinition: Literal["timer", "message", "conditional", "signal", "error"] | None = None
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
 
@@ -266,11 +272,7 @@ def build_bpmn_semantic_model(
     lanes = collaboration.lanes
     lane_by_actor_id = collaboration.lane_by_actor_id
     step_by_id = {step.id: step for step in process.steps}
-    ordered_steps = [
-        step_by_id[step_id]
-        for step_id in (process.main_success_path or process.sequence)
-        if step_id in step_by_id
-    ] or process.steps
+    ordered_chain = _ordered_chain_items(process, step_by_id)
 
     nodes: list[BPMNFlowNode] = [
         BPMNFlowNode(id=_xml_id("StartEvent_1", "StartEvent", used_ids), type="startEvent", name=_start_name(process)),
@@ -282,10 +284,18 @@ def build_bpmn_semantic_model(
     step_node_by_original_id: dict[str, str] = {}
     gateway_by_decision_id: dict[str, BPMNFlowNode] = {}
     gateway_by_step_id: dict[str, BPMNFlowNode] = {}
-    decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_steps)
+    decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_chain)
     warnings.extend(decision_anchor_warnings)
 
-    for index, step in enumerate(ordered_steps, start=1):
+    for index, item in enumerate(ordered_chain, start=1):
+        if isinstance(item, ProcessEvent):
+            event_node = _event_node(item, used_ids)
+            nodes.append(event_node)
+            main_chain.append(event_node.id)
+            step_node_by_original_id[item.id] = event_node.id
+            continue
+
+        step = item
         lane_id = _lane_for_step(step, process.actors, lane_by_actor_id)
         if _step_is_external_only(step, collaboration.external_actor_ids):
             warnings.append(
@@ -463,8 +473,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
             xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
-        if node.type == "intermediateCatchEvent" and node.eventDefinition == "timer":
-            xml_parts.append("      <bpmn:timerEventDefinition />")
+        if node.type == "intermediateCatchEvent" and node.eventDefinition:
+            xml_parts.append(f"      <bpmn:{node.eventDefinition}EventDefinition />")
         xml_parts.append(f"    </bpmn:{node.type}>")
 
     for flow in model.sequenceFlows:
@@ -941,11 +951,81 @@ def _task_type(step: ProcessStep) -> str:
     }.get(step.type, "userTask")
 
 
+_INTERMEDIATE_EVENT_DEFINITION: dict[str, Literal["timer", "message"]] = {
+    "timer": "timer",
+    "message": "message",
+}
+
+
+def _ordered_chain_items(
+    process: ProcessUnderstanding,
+    step_by_id: dict[str, ProcessStep],
+) -> list[ProcessStep | ProcessEvent]:
+    """Ordered list of flow nodes for the main path: steps plus the timer /
+    message intermediate events that sit between them.
+
+    Events are placed from `main_success_path` / `sequence` when listed there,
+    otherwise spliced in after the predecessor named by a `flow_edges` entry.
+    """
+    flow_event_by_id = {
+        event.id: event
+        for event in process.events
+        if event.id and event.type in _INTERMEDIATE_EVENT_DEFINITION
+    }
+    chain: list[ProcessStep | ProcessEvent] = []
+    for item_id in process.main_success_path or process.sequence:
+        if item_id in step_by_id:
+            chain.append(step_by_id[item_id])
+        elif item_id in flow_event_by_id:
+            chain.append(flow_event_by_id[item_id])
+    if not chain:
+        chain = list(process.steps)
+
+    placed = {item.id for item in chain}
+    for event in flow_event_by_id.values():
+        if event.id in placed:
+            continue
+        predecessor = next(
+            (
+                edge.source_id
+                for edge in process.flow_edges
+                if edge.target_id == event.id and edge.source_id in placed
+            ),
+            None,
+        )
+        if predecessor is None:
+            continue
+        insert_at = next(
+            index for index, item in enumerate(chain) if item.id == predecessor
+        ) + 1
+        chain.insert(insert_at, event)
+        placed.add(event.id)
+    return chain
+
+
+def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
+    return BPMNFlowNode(
+        id=_xml_id(event.id or "IntermediateEvent", "IntermediateEvent", used_ids),
+        type="intermediateCatchEvent",
+        name=event.label,
+        eventDefinition=_INTERMEDIATE_EVENT_DEFINITION.get(event.type),
+        documentation=_json_documentation(
+            "event",
+            {
+                "type": event.type,
+                "timing": event.timing,
+                "source_evidence": event.source_evidence,
+            },
+        ),
+        sourceRefs=[_source_ref_id("events", event.id)],
+    )
+
+
 def _decision_anchor_map(
     process: ProcessUnderstanding,
-    ordered_steps: list[ProcessStep],
+    ordered_chain: list[ProcessStep | ProcessEvent],
 ) -> tuple[dict[str, ProcessDecision], list[str]]:
-    ordered_step_ids = [step.id for step in ordered_steps if step.id]
+    ordered_step_ids = [item.id for item in ordered_chain if item.id]
     decision_by_anchor: dict[str, ProcessDecision] = {}
     warnings: list[str] = []
     unassigned = list(process.decisions)

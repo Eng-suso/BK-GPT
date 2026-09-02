@@ -304,6 +304,51 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
 
 
+def test_compiler_splices_timer_and_message_intermediate_events_into_the_flow():
+    process = ProcessUnderstanding(
+        title="Decorrenza pensione",
+        actors=[ProcessActor(id="Actor_Patronato", label="Patronato", kind="organization")],
+        events=[
+            ProcessEvent(id="Timer_Decorrenza", label="Primo del mese successivo", type="timer"),
+            ProcessEvent(id="Msg_Esito", label="Esito da INPS", type="message"),
+        ],
+        steps=[
+            ProcessStep(id="Task_Inoltra", label="Inoltra domanda", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_Verifica", label="Verifica ricezione", actor_ids=["Actor_Patronato"]),
+        ],
+        main_success_path=["Task_Inoltra", "Msg_Esito", "Task_Verifica"],
+        sequence=["Task_Inoltra", "Task_Verifica"],
+        flow_edges=[
+            ProcessFlowEdge(id="E1", source_id="Task_Inoltra", target_id="Timer_Decorrenza", label="Domanda presentata"),
+            ProcessFlowEdge(id="E2", source_id="Timer_Decorrenza", target_id="Msg_Esito", label="Alla data prevista"),
+        ],
+    )
+
+    model = build_bpmn_semantic_model(
+        process_id="Process_Decorrenza", process_name="Decorrenza pensione", process=process
+    )
+    events = [node for node in model.flowNodes if node.type == "intermediateCatchEvent"]
+    assert {event.name for event in events} == {"Primo del mese successivo", "Esito da INPS"}
+    timer = next(event for event in events if event.name == "Primo del mese successivo")
+    message = next(event for event in events if event.name == "Esito da INPS")
+    assert timer.eventDefinition == "timer"
+    assert message.eventDefinition == "message"
+
+    order = [node.id for node in model.flowNodes]
+    inoltra = next(n.id for n in model.flowNodes if n.name == "Inoltra domanda")
+    verifica = next(n.id for n in model.flowNodes if n.name == "Verifica ricezione")
+    assert order.index(inoltra) < order.index(timer.id) < order.index(message.id) < order.index(verifica)
+
+    xml = semantic_model_to_bpmn_xml(model)
+    assert "<bpmn:timerEventDefinition />" in xml
+    assert "<bpmn:messageEventDefinition />" in xml
+    assert validate_bpmn_xml(xml)["valid"] is True
+    assert not any(
+        "senza ingresso" in warning or "senza uscita" in warning
+        for warning in validate_bpmn_semantic_model(model)
+    )
+
+
 def test_compiler_keeps_single_process_when_no_collaboration_topology():
     process = ProcessUnderstanding(
         title="Processo interno",
