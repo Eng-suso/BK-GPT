@@ -199,6 +199,108 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     assert semantic_validation["semantic_valid"] is True
 
 
+def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
+    process = ProcessUnderstanding(
+        title="Domanda pensione",
+        actors=[
+            ProcessActor(id="Actor_Richiedente", label="Richiedente", kind="person"),
+            ProcessActor(id="Actor_Patronato", label="Patronato", kind="organization"),
+            ProcessActor(id="Actor_INPS", label="INPS", kind="organization"),
+        ],
+        participants=[
+            ProcessParticipant(
+                id="Participant_Patronato",
+                label="Patronato",
+                actor_id="Actor_Patronato",
+                kind="organization",
+                bpmn_container="lane",
+                parent_pool_id="Pool_Patronato",
+            ),
+            ProcessParticipant(
+                id="Participant_INPS",
+                label="INPS",
+                actor_id="Actor_INPS",
+                kind="public_authority",
+                bpmn_container="pool",
+            ),
+        ],
+        bpmn_topology=BpmnParticipantTopology(
+            pools=[
+                BpmnPoolCandidate(
+                    id="Pool_Patronato",
+                    label="Canale patronato",
+                    participant_id="Participant_Patronato",
+                    actor_ids=["Actor_Richiedente", "Actor_Patronato"],
+                ),
+                BpmnPoolCandidate(
+                    id="Pool_INPS",
+                    label="INPS",
+                    participant_id="Participant_INPS",
+                    actor_ids=["Actor_INPS"],
+                    is_external=True,
+                    rendering_intent="black_box",
+                ),
+            ],
+            lanes=[
+                BpmnLaneCandidate(id="Lane_Richiedente", label="Richiedente", pool_id="Pool_Patronato", actor_ids=["Actor_Richiedente"]),
+                BpmnLaneCandidate(id="Lane_Patronato", label="Patronato", pool_id="Pool_Patronato", actor_ids=["Actor_Patronato"]),
+            ],
+            message_flows=[
+                BpmnMessageFlowCandidate(
+                    id="MessageFlow_Domanda",
+                    label="Domanda trasmessa a INPS",
+                    from_participant_id="Participant_Patronato",
+                    to_participant_id="Participant_INPS",
+                    source_ref="Task_InoltraDomanda",
+                    artifact="Domanda pensione",
+                )
+            ],
+            black_box_participant_ids=["Participant_INPS"],
+        ),
+        steps=[
+            ProcessStep(id="Task_Consegna", label="Consegna documenti", actor_ids=["Actor_Richiedente"]),
+            ProcessStep(id="Task_Verifica", label="Verifica requisiti", actor_ids=["Actor_Patronato"]),
+            ProcessStep(id="Task_InoltraDomanda", label="Inoltra domanda a INPS", actor_ids=["Actor_Patronato"]),
+        ],
+        main_success_path=["Task_Consegna", "Task_Verifica", "Task_InoltraDomanda"],
+        sequence=["Task_Consegna", "Task_Verifica", "Task_InoltraDomanda"],
+    )
+
+    model = build_bpmn_semantic_model(
+        process_id="Process_Domanda_Pensione",
+        process_name="Domanda pensione",
+        process=process,
+    )
+
+    assert model.collaborationId is not None
+    primary = next(p for p in model.participants if p.processRef == model.id)
+    external = next(p for p in model.participants if p.processRef is None)
+    assert primary.name == "Canale patronato"
+    assert external.isExternal is True
+    assert external.rendering == "black_box"
+    assert {lane.name for lane in model.lanes} == {"Richiedente", "Patronato"}
+    assert len(model.messageFlows) == 1
+    flow = model.messageFlows[0]
+    inoltra_node = next(node for node in model.flowNodes if node.name == "Inoltra domanda a INPS")
+    assert flow.sourceRef == inoltra_node.id
+    assert flow.targetRef == external.id
+
+
+def test_compiler_keeps_single_process_when_no_collaboration_topology():
+    process = ProcessUnderstanding(
+        title="Processo interno",
+        actors=[ProcessActor(id="Actor_Ops", label="Operations", kind="team")],
+        steps=[ProcessStep(id="Task_A", label="Passo A", actor_ids=["Actor_Ops"])],
+        sequence=["Task_A"],
+    )
+    model = build_bpmn_semantic_model(
+        process_id="Process_Interno", process_name="Processo interno", process=process
+    )
+    assert model.collaborationId is None
+    assert model.participants == []
+    assert model.messageFlows == []
+
+
 def test_canvas_validation_requires_lossless_semantic_payload_when_process_context_exists():
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
