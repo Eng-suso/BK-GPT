@@ -10,6 +10,15 @@ from backend.process_understanding import (
 
 
 def _model(exception: ProcessExceptionPath):
+    """
+    Build a BPMN semantic model for a two-step process with the specified exception path.
+    
+    Parameters:
+        exception (ProcessExceptionPath): Exception path to include in the process model.
+    
+    Returns:
+        The generated BPMN semantic model.
+    """
     process = ProcessUnderstanding(
         title="Pratica",
         actors=[ProcessActor(id="A", label="Back office", kind="team")],
@@ -47,6 +56,17 @@ def test_escalation_exception_compiles_to_an_escalation_boundary_event():
 
 
 def _attr(xml: str, tag: str, name: str) -> str:
+    """
+    Extract the first occurrence of a named attribute from an XML tag.
+    
+    Parameters:
+    	xml (str): XML text to search.
+    	tag (str): Tag pattern to match.
+    	name (str): Attribute name to extract.
+    
+    Returns:
+    	str: Value of the first matching attribute.
+    """
     import re
 
     return re.search(tag + r'[^>]*\b' + name + r'="([^"]+)"', xml).group(1)

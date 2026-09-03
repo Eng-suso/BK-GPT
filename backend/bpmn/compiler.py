@@ -90,6 +90,25 @@ def build_bpmn_semantic_model(
     process_name: str,
     process: ProcessUnderstanding,
 ) -> BPMNSemanticModel:
+    """
+    Compile a process understanding into a lossless BPMN semantic model.
+    
+    The resulting model preserves source traceability, represents collaboration,
+    lanes, nodes, flows, data mappings, warnings, and a compilation plan. The
+    function performs no external side effects or persistence.
+    
+    Args:
+        process_id (str): Untrusted source identifier used to derive a safe BPMN
+            process identifier.
+        process_name (str): Untrusted display name for the BPMN process.
+        process (ProcessUnderstanding): Untrusted process definition to compile.
+    
+    Returns:
+        BPMNSemanticModel: The compiled BPMN semantic model with lossless coverage.
+    
+    Raises:
+        ValueError: If the compilation plan reports any coverage losses.
+    """
     used_ids: set[str] = set()
     safe_process_id = xml_id(process_id, "Process", used_ids)
     collaboration = build_collaboration_layer(process, safe_process_id, used_ids)
@@ -269,13 +288,14 @@ def build_bpmn_semantic_model(
 
 
 def _task_type(step: ProcessStep) -> str:
-    """Map a ProcessStep type to the corresponding BPMN task type.
-
+    """Map a process step to its corresponding BPMN task type.
+    
     Args:
-        step: The ProcessStep to classify.
-
+        step: The process step to classify.
+    
     Returns:
-        A BPMN task type string (e.g., "userTask", "serviceTask").
+        The mapped BPMN task type, or ``"userTask"`` when the step type is
+        unrecognized.
     """
     return {
         "user_task": "userTask",
@@ -298,8 +318,15 @@ _MULTI_INSTANCE_BY_MULTIPLICITY: dict[str, str] = {
 def _loop_characteristics(
     step: ProcessStep,
 ) -> Literal["none", "multiInstanceSequential", "multiInstanceParallel"]:
-    """Activity loop marker from the step's typed multiplicity. Standard-loop
-    markers come from single-step ProcessLoops, handled in _add_loop_flows.
+    """
+    Map a step's multiplicity to its BPMN multi-instance loop marker.
+    
+    Args:
+        step: Process-step input whose typed multiplicity determines the marker.
+    
+    Returns:
+        The multi-instance marker for sequential or parallel multiplicity, or
+        ``"none"`` when the step has no recognized multi-instance multiplicity.
     """
     return _MULTI_INSTANCE_BY_MULTIPLICITY.get(step.multiplicity, "none")  # type: ignore[return-value]
 
@@ -308,17 +335,21 @@ def _ordered_chain_items(
     process: ProcessUnderstanding,
     step_by_id: dict[str, ProcessStep],
 ) -> list[ProcessStep | ProcessEvent]:
-    """Build an ordered list of flow nodes for the main process path.
-
-    Combines steps with timer/message intermediate events, placing them from
-    main_success_path/sequence or splicing them after their flow_edges predecessor.
-
+    """Builds the ordered main-process chain from steps and intermediate flow events.
+    
+    The result preserves the declared main path or sequence when available, falls
+    back to all process steps when no chain items are found, and inserts eligible
+    intermediate events after their placed flow-edge predecessors. Unplaced events
+    without a placed predecessor are omitted.
+    
     Args:
-        process: The ProcessUnderstanding containing steps and events.
-        step_by_id: Dictionary mapping step IDs to ProcessStep instances.
-
+        process: Untrusted process data containing steps, events, paths, and flow
+            edges.
+        step_by_id: Mapping from step identifiers to their corresponding process
+            steps.
+    
     Returns:
-        An ordered list of ProcessStep and ProcessEvent items forming the main chain.
+        The ordered process steps and intermediate timer or message events.
     """
     flow_event_by_id = {
         event.id: event
@@ -512,22 +543,33 @@ def _add_alternative_paths(
     actor_lane_map: dict[str, str],
     warnings: list[str],
 ) -> None:
-    """Add alternative path branches to the BPMN model for each decision gateway.
-
+    """Add BPMN branches for decision-linked alternative paths.
+    
+    The function appends branch activities and sequence flows, resolves branch
+    rejoins or end events, and records warnings for missing, incomplete,
+    unconfirmed, or unlinked paths. Alternative path data in ``process`` is
+    treated as untrusted input; unresolved step references are skipped without
+    raising an exception.
+    
     Args:
-        process: The ProcessUnderstanding containing alternative paths and decisions.
-        nodes: List of BPMN flow nodes to add alternative path activities to.
-        registry: FlowRegistry for adding sequence flows.
-        used_ids: Set of already-allocated IDs.
-        step_by_id: Mapping of step IDs to ProcessStep instances.
-        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
-        gateway_by_decision_id: Mapping of decision IDs to their gateway nodes.
-        gateway_by_step_id: Mapping of step IDs to gateways anchored at them.
-        end_node_by_key: Dictionary of end event nodes keyed by ID or label.
-        primary_end: The primary/default end event node.
-        actors: List of process actors for lane assignment.
-        actor_lane_map: Mapping of actor IDs to lane IDs.
-        warnings: List to append warning messages to.
+        process: Untrusted process data containing decisions and alternative paths.
+        nodes: Node collection to mutate with generated branch activities.
+        registry: Flow registry to mutate with branch mappings and sequence flows.
+        used_ids: Allocated XML identifiers to update.
+        step_by_id: Mapping of source step identifiers to process steps.
+        step_node_by_original_id: Mapping of source step identifiers to compiled
+            node identifiers.
+        gateway_by_decision_id: Decision gateway mapping.
+        gateway_by_step_id: Gateways anchored to source steps.
+        end_node_by_key: End-event mapping used to resolve branch destinations.
+        primary_end: Default end event for unresolved branch destinations.
+        actors: Process actors used for branch ownership and lane assignment.
+        actor_lane_map: Mapping of actor identifiers to lane identifiers.
+        warnings: Warning collection to mutate.
+    
+    Side Effects:
+        Mutates ``nodes``, ``registry``, ``used_ids``, and ``warnings``. Does not
+        persist data or raise errors for malformed or unresolved alternative paths.
     """
     unassigned_paths = list(process.alternative_paths)
     gateways = list(gateway_by_decision_id.values())
@@ -673,18 +715,34 @@ def _add_loop_flows(
     used_ids: set[str],
     warnings: list[str],
 ) -> None:
-    """Add loop back-edges and loop decision gateways to the BPMN model.
-
-    For each loop in the process, creates a back-edge from the loop tail to head, optionally
-    splicing an exclusive gateway if the tail already has forward flows.
-
+    """Adds BPMN loop behavior for mapped process loops.
+    
+    Single-step loops are represented with standard loop characteristics. Multi-step
+    loops receive a direct back-edge when the tail has no outgoing flow; otherwise,
+    an exclusive gateway is inserted to select repetition or the default exit.
+    Unmappable loops are reported through ``warnings``.
+    
     Args:
-        process: The ProcessUnderstanding containing loop definitions.
-        registry: FlowRegistry for adding and rerouting sequence flows.
-        nodes: List of BPMN flow nodes to insert loop gateways into.
-        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
-        used_ids: Set of already-allocated IDs.
-        warnings: List to append warning messages to.
+        process (ProcessUnderstanding): Untrusted process input containing loop
+            definitions.
+        registry (FlowRegistry): Flow registry to update with loop sequence flows
+            and gateway mappings.
+        nodes (list[BPMNFlowNode]): Mutable BPMN node list in which synthesized loop
+            gateways are inserted.
+        step_node_by_original_id (dict[str, str]): Mapping from source step IDs to
+            compiled BPMN node IDs.
+        used_ids (set[str]): Mutable set of allocated IDs used to avoid collisions.
+        warnings (list[str]): Mutable collection receiving warnings for loops that
+            cannot be mapped or represented.
+    
+    Side Effects:
+        Mutates ``registry``, ``nodes``, ``used_ids`` indirectly through ID
+        allocation, and the affected BPMN nodes and ``warnings`` list. It does not
+        persist data.
+    
+    Raises:
+        No exceptions are raised explicitly; invalid or incomplete loop mappings
+        are reported through ``warnings``.
     """
     node_by_id = {node.id: node for node in nodes}
     for loop in process.loops:
@@ -921,21 +979,26 @@ def _exception_rejoin_node(
     exception_source_ref: str,
 ) -> str | None:
     """Find or create the node where an exception handler rejoins the main flow.
-
+    
     Args:
-        exception: The ProcessExceptionPath defining the exception.
-        process: The ProcessUnderstanding containing flow edges.
-        registry: FlowRegistry for resolving and registering node IDs.
-        step_by_id: Mapping of step IDs to ProcessStep instances.
-        actor_lane_map: Mapping of actor IDs to lane IDs.
-        actors: List of process actors.
-        nodes: List of BPMN flow nodes to append recovery tasks to.
-        used_ids: Set of already-allocated IDs.
-        end_id: The ID of the end event to use if no explicit rejoin is found.
-        exception_source_ref: Source reference for traceability.
-
+        exception (ProcessExceptionPath): Untrusted exception path defining the handler.
+        process (ProcessUnderstanding): Untrusted process definition containing sequence edges.
+        registry (FlowRegistry): Registry used to resolve and record compiled node IDs.
+        step_by_id (dict[str, ProcessStep]): Mapping of step IDs to process steps.
+        actor_lane_map (dict[str, str]): Mapping of actor IDs to lane IDs.
+        actors (list[ProcessActor]): Process actors used to assign recovery-task ownership and lanes.
+        nodes (list[BPMNFlowNode]): Mutable node collection to which created recovery tasks are appended.
+        used_ids (set[str]): Mutable set of allocated XML identifiers.
+        end_id (str): ID used as the recovery task's destination when no outgoing sequence edge exists.
+        exception_source_ref (str): Source reference attached to created recovery tasks for traceability.
+    
     Returns:
-        The ID of the rejoin node, or None if the handler should not rejoin.
+        str | None: The compiled rejoin node ID, or `None` when the exception has no resolvable
+        sequence rejoin target.
+    
+    Side effects:
+        May append a recovery task to `nodes`, allocate an identifier in `used_ids`, and update
+        `registry` with the recovery-step mapping and an end-flow connection.
     """
     for edge in process.flow_edges:
         if edge.kind != "sequence" or edge.source_id != exception.id:
@@ -970,10 +1033,17 @@ _INTERRUPTING_ONLY_EXCEPTION_KINDS = frozenset({"error"})
 def _exception_event_definition(
     exception: ProcessExceptionPath,
 ) -> tuple[Literal["timer", "message", "error", "conditional", "escalation", "signal"], bool]:
-    """Resolve the event definition type and interrupting flag for a boundary event.
-
-    `exception.kind` drives the type when set; `"auto"` falls back to a trigger-
-    text heuristic. Error boundary events are always interrupting per BPMN 2.0.
+    """Resolve the boundary event definition and interrupting behavior for an exception path.
+    
+    Args:
+        exception (ProcessExceptionPath): Untrusted exception-path data used to select
+            the event type and interrupting behavior.
+    
+    Returns:
+        tuple: The event definition type and whether the boundary event is interrupting.
+            Explicit interrupting-only kinds and inferred error events are always
+            interrupting.
+    
     """
     if exception.kind != "auto":
         forced = exception.kind in _INTERRUPTING_ONLY_EXCEPTION_KINDS
@@ -1214,7 +1284,16 @@ def _norm_end_key(value: str | None) -> str:
 
 
 def _terminating_end_keys(process: ProcessUnderstanding) -> set[str]:
-    """Normalized keys of ends the process marks as aborting all work."""
+    """Identify normalized keys for process boundaries that terminate all work.
+    
+    Args:
+        process (ProcessUnderstanding): Process data, potentially originating from
+            untrusted input.
+    
+    Returns:
+        set[str]: Non-empty normalized keys of terminating boundaries, or an empty
+            set when no boundaries are defined.
+    """
     if not process.boundaries:
         return set()
     return {_norm_end_key(item) for item in process.boundaries.terminating_ends if item}
@@ -1231,18 +1310,18 @@ def _build_end_events(
     process: ProcessUnderstanding,
     used_ids: set[str],
 ) -> tuple[BPMNFlowNode, dict[str, BPMNFlowNode]]:
-    """Build end events for all distinct process outcomes.
-
-    Creates one end event per distinct outcome: type=="end" events plus any
-    boundaries.failure_ends not already covered. Keyed by event id and normalized
-    label so alternative paths can route to the correct one.
-
+    """Create end-event nodes for the process's distinct outcomes.
+    
     Args:
-        process: The ProcessUnderstanding containing events and boundaries.
-        used_ids: Set of already-allocated IDs.
-
+        process: Untrusted process definition containing declared events and boundary outcomes.
+        used_ids: Set of allocated XML identifiers, updated with identifiers reserved for
+            newly created end events.
+    
     Returns:
-        A tuple of (primary_end_event, end_events_by_key_dict).
+        A tuple containing the primary end event and a mapping from event identifiers or
+        normalized outcome labels to their corresponding end events. The primary event
+        uses the configured success outcome when available; otherwise, it is the first
+        created end event. If no outcomes are declared, a default end event is returned.
     """
     by_key: dict[str, BPMNFlowNode] = {}
     created: list[BPMNFlowNode] = []

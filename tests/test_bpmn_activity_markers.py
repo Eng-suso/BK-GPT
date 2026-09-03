@@ -9,6 +9,15 @@ from backend.process_understanding import (
 
 
 def _model(steps, **kw):
+    """Build a BPMN semantic model from the supplied process steps and metadata.
+    
+    Parameters:
+    	steps: Process steps used to construct the model.
+    	**kw: Additional process attributes passed to `ProcessUnderstanding`.
+    
+    Returns:
+    	The resulting BPMN semantic model.
+    """
     process = ProcessUnderstanding(
         title="P",
         steps=steps,

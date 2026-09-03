@@ -13,6 +13,15 @@ from backend.process_understanding import (
 
 
 def _process(**kw) -> ProcessUnderstanding:
+    """
+    Construct a default request process model, applying any supplied field overrides.
+    
+    Parameters:
+    	**kw: Field values that override the default process configuration.
+    
+    Returns:
+    	ProcessUnderstanding: The configured request process model.
+    """
     base = dict(
         title="Richiesta",
         steps=[
