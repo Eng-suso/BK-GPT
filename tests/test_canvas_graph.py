@@ -440,6 +440,7 @@ def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(mo
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Review" />
     <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Review" targetRef="End" />
     <bpmn:dataObjectReference id="Data_Order" name="Ordine" />
+    <bpmn:association id="Association_Data" sourceRef="Task_Review" targetRef="Data_Order" associationDirection="One" />
     <bpmn:textAnnotation id="TextAnnotation_1"><bpmn:text>Regola business visiva</bpmn:text></bpmn:textAnnotation>
     <bpmn:association id="Association_1" sourceRef="Task_Review" targetRef="TextAnnotation_1" />
   </bpmn:process>
@@ -463,9 +464,12 @@ def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(mo
 
     assert result["canvas_layout_status"] == "completed"
     assert saved["source"] == "canvas_layout_agent"
+    # free-text annotation and the association docked to it are canvas-only noise
     assert "<bpmn:textAnnotation" not in saved["xml"]
-    assert "<bpmn:association" not in saved["xml"]
-    assert "<bpmn:dataObjectReference" not in saved["xml"]
+    assert 'id="Association_1"' not in saved["xml"]
+    # the data perspective stays on the canvas
+    assert "<bpmn:dataObjectReference" in saved["xml"]
+    assert 'id="Association_Data"' in saved["xml"]
     assert validate_bpmn_xml(saved["xml"])["valid"] is True
 
 

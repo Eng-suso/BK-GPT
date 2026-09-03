@@ -81,7 +81,11 @@ FLOW_NODE_TYPES = {
 
 DATA_ARTIFACT_TYPES = {"dataObjectReference", "dataStoreReference"}
 ANNOTATION_TYPES = {"textAnnotation"}
-CANVAS_METADATA_ARTIFACT_TYPES = DATA_ARTIFACT_TYPES | ANNOTATION_TYPES | {"association"}
+# Data objects / stores and their read-write associations are part of the
+# operating view and stay on the canvas. Only free-text annotations (and the
+# associations that dock to them) are canvas-only noise that belongs in the
+# semantic payload instead.
+CANVAS_METADATA_ARTIFACT_TYPES = ANNOTATION_TYPES
 
 LAYOUT_LEFT = 140
 LAYOUT_TOP = 190
@@ -288,16 +292,32 @@ def clear_bpmn_process(xml: str) -> tuple[str, dict]:
 
 
 def clean_bpmn_visual_metadata_artifacts(xml: str) -> tuple[str, dict]:
+    """Strip canvas-only annotation noise: free-text annotations and the
+    associations that dock to them. The data perspective (data objects, data
+    stores and their read/write associations) stays on the canvas.
+    """
     root = _parse_bpmn_xml(xml)
     process = _find_process(root)
     removed = []
+
+    annotation_ids = {
+        element.attrib["id"]
+        for element in process
+        if _namespace(element.tag) == BPMN_NS
+        and _local_name(element.tag) in ANNOTATION_TYPES
+        and element.attrib.get("id")
+    }
 
     for element in list(process):
         if _namespace(element.tag) != BPMN_NS:
             continue
 
         element_type = _local_name(element.tag)
-        if element_type not in CANVAS_METADATA_ARTIFACT_TYPES:
+        docks_to_annotation = element_type == "association" and (
+            element.attrib.get("sourceRef") in annotation_ids
+            or element.attrib.get("targetRef") in annotation_ids
+        )
+        if element_type not in CANVAS_METADATA_ARTIFACT_TYPES and not docks_to_annotation:
             continue
 
         element_id = element.attrib.get("id", "")
