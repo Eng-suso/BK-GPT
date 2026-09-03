@@ -7,6 +7,7 @@ from uuid import UUID
 
 from backend.agent import get_agent, normalize_model_name
 from backend.agents.primary_scope import agent_scope_state
+from backend.agents.scope_guard import bind_active_scope
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
 from backend.schemas.chat import ChatScope, chat_scope_key
 from backend.services.trace_recorder import elapsed_ms, new_trace_context, trace_event
@@ -53,6 +54,52 @@ STREAMABLE_AGENT_NODES = {
     "process_modeling_agent",
     "canvas_agent",
     "canvas_router",
+    "canvas_macro_agent",
+    "patch_edit_subgraph",
+    "canvas_patch_edit_agent",
+    "construction_subgraph",
+    "canvas_construction_agent",
+    "layout_subgraph",
+    "canvas_layout_consultant_agent",
+    "canvas_drawing_agent",
+    "validation_subgraph",
+    "canvas_validation_agent",
+    "canvas_completion_report",
+    "delegate_to_project_macro",
+    "delegate_to_process_macro",
+    "delegate_to_canvas_macro",
+    "ask_consulting_clarification",
+    "ask_project_clarification",
+    "ask_process_clarification",
+    "ask_canvas_clarification",
+}
+DELTA_STREAM_AGENT_NODES = {
+    "chatbot",
+    "consulting_subgraph",
+    "project_subgraph",
+    "process_subgraph",
+    "canvas_subgraph",
+    "home_subgraph",
+    "clients_subgraph",
+    "setup_subgraph",
+    "delivery_subgraph",
+    "process_coordination_subgraph",
+    "discovery_subgraph",
+    "evidence_subgraph",
+    "modeling_subgraph",
+    "project_macro_agent",
+    "project_delivery_agent",
+    "project_process_coordination_agent",
+    "consult_macro_agent",
+    "home_agent",
+    "clients_agent",
+    "setup_agent",
+    "process_agent",
+    "process_macro_agent",
+    "process_discovery_agent",
+    "process_evidence_agent",
+    "process_modeling_agent",
+    "canvas_agent",
     "canvas_macro_agent",
     "canvas_completion_report",
     "delegate_to_project_macro",
@@ -268,7 +315,7 @@ def stream_agent_events(
             else nullcontext()
         )
 
-        with tracing_context:
+        with tracing_context, bind_active_scope(scope):
             events = agent.stream(
                 {
                     "messages": messages,
@@ -321,6 +368,9 @@ def stream_agent_events(
                     merge_usage_metadata(usage_totals, dict(usage_metadata))
 
                 content = message_content_to_text(getattr(chunk, "content", ""))
+
+                if node_name and node_name not in DELTA_STREAM_AGENT_NODES:
+                    continue
 
                 if content and not first_token_recorded:
                     first_token_recorded = True

@@ -26,6 +26,7 @@ from sqlalchemy import text
 
 from backend.db import canonical_session
 from backend.memory.knowledge_graph import canonical
+from backend.services import degradation_counters
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -40,13 +41,23 @@ def _consultant() -> str | None:
 
 def _requeue_stuck(consultant: str) -> None:
     with canonical_session(consultant) as session:
-        session.execute(
+        requeued = session.execute(
             text(
                 "UPDATE kg_ingest_queue SET status = 'pending' "
                 "WHERE status = 'processing' "
-                "  AND updated_at < now() - make_interval(mins => :m)"
+                "  AND updated_at < now() - make_interval(mins => :m) "
+                "RETURNING id"
             ),
             {"m": _STUCK_MINUTES},
+        ).all()
+    if requeued:
+        # ATTENZIONE: un job 'processing' appeso PUO' aver gia' committato
+        # write_evidence (crash tra commit e mark 'done'). Riprocessarlo puo'
+        # duplicare claim/gap/impact (INSERT non idempotenti). Reso visibile;
+        # il fix strutturale e' una chiave di idempotenza a livello DB.
+        degradation_counters.bump(
+            "kg_ingest_worker", "requeued_stuck",
+            detail=f"job ids {[r.id for r in requeued]}",
         )
 
 
@@ -109,12 +120,36 @@ def drain_once(limit: int = 20) -> int:
         payload = {k: v for k, v in dict(row.payload).items() if k in canonical.EVIDENCE_KEYS}
         try:
             counts = canonical.write_evidence(**payload)
-            _finish(consultant, job_id, counts)
-            done += 1
         except Exception as exc:  # noqa: BLE001 — un job storto non ferma il worker
             logger.exception("kg_ingest_queue job %s fallito", job_id)
             _fail(consultant, job_id, str(exc))
+            continue
+
+        # write_evidence ha COMMITTATO. write_evidence NON e' idempotente a
+        # livello di pacchetto (claim/gap/impact sono INSERT puri): NON far
+        # ripassare questo job. Se il mark 'done' non riesce, ritenta qualche
+        # volta e poi lascia la riga 'processing' (verra' segnalata come stuck,
+        # non riprocessata alla cieca).
+        if not _mark_done(consultant, job_id, counts):
+            degradation_counters.bump(
+                "kg_ingest_worker", "finish_failed",
+                detail=f"job {job_id} scritto ma non marcato done",
+            )
+        done += 1
     return done
+
+
+def _mark_done(consultant: str, job_id: int, counts: dict, *, tries: int = 3) -> bool:
+    for attempt in range(tries):
+        try:
+            _finish(consultant, job_id, counts)
+            return True
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "kg_ingest_queue job %s: _finish tentativo %d/%d fallito",
+                job_id, attempt + 1, tries, exc_info=True,
+            )
+    return False
 
 
 def queue_stats() -> dict[str, int]:

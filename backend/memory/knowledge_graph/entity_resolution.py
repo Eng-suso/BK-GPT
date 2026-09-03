@@ -33,7 +33,6 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from functools import lru_cache
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -42,6 +41,7 @@ from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
 from backend.memory import embeddings
+from backend.services import degradation_counters
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -326,8 +326,11 @@ def adjudicate(
         return None
     try:
         raw = llm.invoke(_build_prompt(name, entity_type, context, candidates))
-    except Exception:  # noqa: BLE001 — il resolver e' best-effort, mai fatale
-        logger.warning("entity_resolution: invoke LLM fallito", exc_info=True)
+    except Exception as exc:  # noqa: BLE001 — il resolver e' best-effort, mai fatale
+        # merge fuzzy saltato: si crea una nuova entita', il merge mancato si
+        # recupera con lo sweep. Ma va reso visibile: un LLM giu' = il grafo
+        # accumula duplicati in silenzio.
+        degradation_counters.bump("entity_resolution", "llm_failed", detail=str(exc))
         return None
 
     verdict = _coerce_verdict(raw)
@@ -342,8 +345,19 @@ def adjudicate(
     )
 
 
-@lru_cache(maxsize=1)
+_llm_singleton: Any | None = None
+
+
 def build_llm() -> Any | None:
+    """Costruisce (una volta) il client LLM del resolver.
+
+    Non usa `lru_cache`: un fallimento *transitorio* di init non deve restare
+    inchiodato per tutta la vita del processo. Il successo e' memoizzato; il
+    caso "nessuna api key" e' economico da ricontrollare.
+    """
+    global _llm_singleton
+    if _llm_singleton is not None:
+        return _llm_singleton
     if not settings.openai_api_key:
         return None
     try:
@@ -351,9 +365,10 @@ def build_llm() -> Any | None:
 
         from backend.llm_config import chat_openai_kwargs
 
-        return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(_Verdict)
-    except Exception:  # noqa: BLE001
-        logger.warning("entity_resolution: LLM non inizializzabile", exc_info=True)
+        _llm_singleton = ChatOpenAI(**chat_openai_kwargs()).with_structured_output(_Verdict)
+        return _llm_singleton
+    except Exception as exc:  # noqa: BLE001
+        degradation_counters.bump("entity_resolution", "llm_init_failed", detail=str(exc))
         return None
 
 
@@ -502,28 +517,36 @@ def plan_resolution(
     vec_by_display = _embed_names(list(uniq.values()))
     name_vectors = {key: vec_by_display.get(display) for key, display in uniq.items()}
 
-    # (1) lookup — in sessione
-    with canonical_session(consultant_id, client_id) as session:
-        shortlisted = {
-            key: shortlist(
-                session,
-                client_id=client_id,
-                entity_type=_OTHER,
-                name=display,
-                name_vec=name_vectors.get(key),
-            )
-            for key, display in uniq.items()
-        }
+    try:
+        # (1) lookup — in sessione
+        with canonical_session(consultant_id, client_id) as session:
+            shortlisted = {
+                key: shortlist(
+                    session,
+                    client_id=client_id,
+                    entity_type=_OTHER,
+                    name=display,
+                    name_vec=name_vectors.get(key),
+                )
+                for key, display in uniq.items()
+            }
 
-    # (2) giudizio — nessuna connessione DB aperta
-    model = llm if llm is not None else build_llm()
-    matches: dict[str, ResolvedEntity] = {}
-    for key, sl in shortlisted.items():
-        hit = decide(sl, name=uniq[key], entity_type=_OTHER, context=context, llm=model)
-        if hit is not None:
-            matches[key] = ResolvedEntity(hit.entity_id, hit.canonical_name, hit.method)
-            logger.info(
-                "entity resolution: %r -> %r (%s)", uniq[key], hit.canonical_name, hit.method
-            )
+        # (2) giudizio — nessuna connessione DB aperta
+        model = llm if llm is not None else build_llm()
+        matches: dict[str, ResolvedEntity] = {}
+        for key, sl in shortlisted.items():
+            hit = decide(sl, name=uniq[key], entity_type=_OTHER, context=context, llm=model)
+            if hit is not None:
+                matches[key] = ResolvedEntity(hit.entity_id, hit.canonical_name, hit.method)
+                logger.info(
+                    "entity resolution: %r -> %r (%s)",
+                    uniq[key], hit.canonical_name, hit.method,
+                )
+    except Exception as exc:  # noqa: BLE001
+        # La resolution e' best-effort (INV: merge mancato -> sweep). Un suo
+        # errore (pg_trgm assente, DB, embedder) NON deve far perdere l'intero
+        # pacchetto di evidenza: si degrada a "nessun match", il write procede.
+        degradation_counters.bump("entity_resolution", "plan_failed", detail=str(exc))
+        return ResolutionPlan(matches={}, name_vectors=name_vectors)
 
     return ResolutionPlan(matches=matches, name_vectors=name_vectors)

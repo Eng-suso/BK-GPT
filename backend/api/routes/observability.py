@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 
+from backend.services import degradation_counters
 from backend.services.eval_runner import run_observability_smoke_eval
 from backend.services.trace_recorder import get_trace
 from backend.security import require_principal
@@ -16,6 +17,15 @@ def get_observability_trace(trace_id: str):
 @router.post("/evals/observability-smoke")
 def run_observability_eval():
     return run_observability_smoke_eval()
+
+
+@router.get("/observability/degradation")
+def get_degradation_counters():
+    """Contatori delle degradazioni silenziose del cervello (retrieval gateway,
+    mirror KG). Chiavi `component:outcome`; > 0 = fallback attivi da ispezionare
+    (dettaglio nei log a livello WARNING)."""
+    counts = degradation_counters.snapshot()
+    return {"status": "ok" if not counts else "degraded", "counters": counts}
 
 
 @router.get("/observability/queues")

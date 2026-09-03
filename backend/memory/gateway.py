@@ -49,6 +49,7 @@ from backend.db import canonical_session
 from backend.memory import embeddings, mem0_client
 from backend.memory.knowledge_graph import neo4j_store
 from backend.memory.mem0_client import Mem0Disabled
+from backend.services import degradation_counters
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -254,10 +255,15 @@ def _expand(
 ) -> list[dict]:
     driver = neo4j_store.get_driver()
     hops = max(1, min(3, max_hops))
+    # Fail closed sul tenant: Neo4j Community non ha subgraph ACL, quindi questo
+    # predicato E' il confine cliente. Un nodo senza `client_id` (legacy, o una
+    # scrittura fuori dal projector) NON deve entrare nel path — niente coalesce.
+    # Il write path (canonical.write_*) stampa sempre client_id; assert_projectable
+    # lo impone. Vedi anche neo4j_store.purge_client (INV-10).
     cypher = (
         f"MATCH p = (seed)-[*1..{hops}]-(other) "
         "WHERE (seed.entity_id IN $eids OR seed.process_id = $pid) "
-        "  AND all(n IN nodes(p) WHERE coalesce(n.client_id, $cid) = $cid) "
+        "  AND all(n IN nodes(p) WHERE n.client_id = $cid) "
         "UNWIND relationships(p) AS r "
         "WITH DISTINCT r, startNode(r) AS a, endNode(r) AS b "
         "RETURN type(r) AS rt, properties(r) AS rp, "
@@ -373,7 +379,7 @@ def graph_retrieve(
         triples = _expand(client_id, seeds, process_id, max_hops, limit)
         matches = _hydrate(consultant_id, client_id, triples) if triples else []
     except Exception as exc:  # noqa: BLE001 — la lettura non deve mai far fallire il tool
-        logger.warning("gateway.graph_retrieve fallito: %s", exc)
+        degradation_counters.bump("graph_retrieve", "error", detail=str(exc))
         return {"status": "error", "matches": [], "count": 0, "chunks": [], "reason": str(exc)}
 
     if relation_focus:
@@ -445,7 +451,7 @@ def memory_search(
             limit=max(limit * 4, 20),
         )
     except Exception as exc:  # noqa: BLE001 — la lettura non deve far fallire il tool
-        logger.warning("gateway.memory_search fallito: %s", exc)
+        degradation_counters.bump("memory_search", "error", detail=str(exc))
         return {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
 
     cid = str(client_id) if client_id else None
@@ -533,7 +539,7 @@ def procedural_retrieve(
                 {"kinds": wanted},
             ).all()
     except Exception as exc:  # noqa: BLE001 — la lettura non deve far fallire il tool
-        logger.warning("gateway.procedural_retrieve fallito: %s", exc)
+        degradation_counters.bump("procedural_retrieve", "error", detail=str(exc))
         return {"status": "error", "playbooks": [], "count": 0, "reason": str(exc)}
 
     ranked = _rank_playbooks(rows, task_text)[: max(1, limit)]
@@ -578,6 +584,11 @@ def workspace_read(
     status `not_found`, nessuna eccezione.
     """
     from backend import workspace_database
+    from backend.agents.scope_guard import assert_project_in_scope
+
+    # G3: dentro un agent run il project_id deve essere quello autorizzato per il
+    # thread, non uno scelto dall'LLM. No-op fuori da un run (worker/test).
+    assert_project_in_scope(project_id)
 
     project = workspace_database.get_project(project_id)
     if project is None:

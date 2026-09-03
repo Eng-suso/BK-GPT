@@ -21,8 +21,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from backend.agents.scope_guard import ScopeViolation
 from backend.memory import scope as scope_module
 from backend.memory.knowledge_graph import canonical
+from backend.services import degradation_counters
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -71,24 +73,40 @@ def mirror_evidence(
             process_scope[process_ids[0]] = base_scope
         for wpid in process_ids[1:]:
             process_scope[wpid] = scope_module.resolve(workspace_project_id, wpid)
+    except ScopeViolation:
+        # violazione di scope: NON degradare a best-effort, deve arrivare loud
+        raise
     except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "canonical mirror: scope non risolvibile per %s (%s)", workspace_project_id, exc
+        degradation_counters.bump(
+            "kg_mirror", "scope_unresolved",
+            detail=f"{workspace_project_id}: {exc}",
         )
         return {"mirrored": False, "reason": str(exc)}
 
     def _canon_processes(workspace_ids: list[str] | None) -> list[str]:
+        requested = [w for w in (workspace_ids or []) if w]
         resolved = []
-        for wpid in workspace_ids or []:
+        for wpid in requested:
             s = process_scope.get(wpid)
             if s is None:
                 try:
                     s = scope_module.resolve(workspace_project_id, wpid)
                     process_scope[wpid] = s
+                except ScopeViolation:
+                    raise
                 except Exception:  # noqa: BLE001
                     continue
             if s.process_id:
                 resolved.append(s.process_id)
+        if requested and not resolved:
+            # l'LLM ha indicato dei processi ma nessuno si risolve: meglio
+            # ricadere sul processo corrente che perdere l'evidenza, ma va
+            # tracciato — e' una misattribuzione.
+            logger.warning(
+                "canonical mirror: affected_process_ids %s non risolvibili per %s, "
+                "ricado sul processo corrente",
+                requested, workspace_project_id,
+            )
         return resolved or ([base_scope.process_id] if base_scope.process_id else [])
 
     rel_dicts = [
@@ -174,8 +192,9 @@ def mirror_evidence(
         try:
             job_id = canonical.enqueue_evidence(**evidence)
         except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "canonical mirror: enqueue fallito per %s (%s)", workspace_project_id, exc
+            degradation_counters.bump(
+                "kg_mirror", "enqueue_failed",
+                detail=f"{workspace_project_id}: {exc}",
             )
             return {"mirrored": False, "reason": str(exc), "scope": scope_out}
         return {"mirrored": True, "queued": True, "job_id": job_id, "scope": scope_out}
@@ -183,8 +202,9 @@ def mirror_evidence(
     try:
         counts = canonical.write_evidence(**evidence)
     except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "canonical mirror: write_evidence fallito per %s (%s)", workspace_project_id, exc
+        degradation_counters.bump(
+            "kg_mirror", "write_failed",
+            detail=f"{workspace_project_id}: {exc}",
         )
         return {"mirrored": False, "reason": str(exc), "scope": scope_out}
 

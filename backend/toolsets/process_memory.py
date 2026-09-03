@@ -2,6 +2,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.agents.scope_guard import ScopeViolation
 from backend.memory import gateway
 from backend.memory import scope as canonical_scope
 from backend.memory.episodic import episodic_store
@@ -769,6 +770,8 @@ def _canonical_graph_context(
         return None
     try:
         s = canonical_scope.resolve(project_id, process_id)
+    except ScopeViolation:
+        raise
     except Exception:  # noqa: BLE001
         return None
     return gateway.graph_retrieve(

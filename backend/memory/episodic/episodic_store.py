@@ -209,6 +209,13 @@ def save_episode_memory(
     if not normalized_raw_content:
         return "Non posso salvare l'episodio: raw_content mancante."
 
+    # G3: `project` arriva da un argomento del tool (LLM). Dentro un agent run
+    # vincolato deve combaciare con lo scope autorizzato del thread. No-op fuori.
+    if project:
+        from backend.agents.scope_guard import assert_project_in_scope
+
+        assert_project_in_scope(project)
+
     episode_id = str(uuid4())
     now = utc_now()
     episode = {
