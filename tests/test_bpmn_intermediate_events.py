@@ -10,6 +10,15 @@ from backend.process_understanding import (
 
 
 def _compile(events: list[ProcessEvent]) -> object:
+    """
+    Build a BPMN semantic model for a two-step process containing the supplied events.
+    
+    Parameters:
+    	events (list[ProcessEvent]): Events to include between the preparation and archival steps.
+    
+    Returns:
+    	object: The compiled BPMN semantic model.
+    """
     process = ProcessUnderstanding(
         title="Notifica",
         steps=[

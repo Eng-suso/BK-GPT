@@ -126,12 +126,15 @@ class FlowRegistry:
             self.add(source, target)
 
     def reroute_source(self, from_id: str, to_id: str) -> list[BPMNSequenceFlow]:
-        """Move every flow currently leaving `from_id` so it leaves `to_id`.
-
-        Used to splice a gateway in front of a node's existing outgoing flows
-        (e.g. a loop back-edge decision) without recreating them. The move is
-        recorded so `apply_edge_overlay` still matches a flow_edge that named the
-        original `from_id -> successor` transition.
+        """
+        Move all flows originating at one node so they originate at another node.
+        
+        Parameters:
+        	from_id (str): Identifier of the current source node.
+        	to_id (str): Identifier of the replacement source node.
+        
+        Returns:
+        	list[BPMNSequenceFlow]: The flows whose source was changed.
         """
         moved: list[BPMNSequenceFlow] = []
         for flow in self.flows:
@@ -166,10 +169,10 @@ class FlowRegistry:
         self.add(middle, target)
 
     def apply_edge_overlay(self) -> None:
-        """Apply flow_edges metadata (labels, conditions) to compiled flows.
-
-        Matches source model flow_edges to their compiled sequence flows and enriches
-        them with labels, conditions, and traceability references.
+        """
+        Apply source-model flow-edge metadata to the corresponding compiled flows.
+        
+        Adds labels and traceability references to matched flows. Applies a condition only when the flow originates at a registered gateway and has no existing condition. Unresolvable edges are skipped.
         """
         for (origin_source, origin_target), edge in self.edges_by_original.items():
             source = self._compiled_by_original.get(origin_source)

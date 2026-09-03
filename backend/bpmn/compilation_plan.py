@@ -47,16 +47,17 @@ def build_bpmn_compilation_plan(
     process: ProcessUnderstanding,
     model: BPMNSemanticModel,
 ) -> BpmnCompilationPlan:
-    """Build a complete traceability plan from source ProcessUnderstanding to BPMN.
-
-    Args:
-        process_id: The identifier for the compiled process.
-        process_name: The name of the process.
-        process: The source ProcessUnderstanding model.
-        model: The compiled BPMNSemanticModel.
-
+    """
+    Build a complete traceability and coverage plan from a source process model and its compiled BPMN model.
+    
+    Parameters:
+    	process_id (str): Identifier for the compiled process.
+    	process_name (str): Name of the process.
+    	process (ProcessUnderstanding): Source process model.
+    	model (BPMNSemanticModel): Compiled BPMN model.
+    
     Returns:
-        A BpmnCompilationPlan with full traceability and coverage reporting.
+    	BpmnCompilationPlan: Traceability links, BPMN specifications, semantic payloads, and coverage reporting.
     """
     target_by_source_ref = _target_by_source_ref(model)
     source_items = _process_source_items(process)

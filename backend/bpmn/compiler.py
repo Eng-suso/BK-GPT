@@ -62,6 +62,14 @@ _DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway"})
 
 
 def _gateway_bpmn_type(decision: ProcessDecision) -> str:
+    """Map a process decision's gateway type to its BPMN gateway type.
+    
+    Parameters:
+    	decision (ProcessDecision): The decision whose gateway type is mapped.
+    
+    Returns:
+    	str: The corresponding BPMN gateway type, defaulting to ``exclusiveGateway``.
+    """
     return _GATEWAY_BPMN_TYPE.get(decision.gateway_type, "exclusiveGateway")
 
 
@@ -82,6 +90,20 @@ def build_bpmn_semantic_model(
     process_name: str,
     process: ProcessUnderstanding,
 ) -> BPMNSemanticModel:
+    """
+    Compile a process understanding into a BPMN semantic model.
+    
+    Parameters:
+    	process_id (str): Identifier used to create the BPMN process ID.
+    	process_name (str): Name assigned to the BPMN process.
+    	process (ProcessUnderstanding): Process definition to compile.
+    
+    Returns:
+    	BPMNSemanticModel: The compiled BPMN semantic model.
+    
+    Raises:
+    	ValueError: If compilation would result in information loss.
+    """
     used_ids: set[str] = set()
     safe_process_id = xml_id(process_id, "Process", used_ids)
     collaboration = build_collaboration_layer(process, safe_process_id, used_ids)
@@ -337,6 +359,9 @@ def _attach_anchored_gateway(
     gateway_by_decision_id: dict[str, BPMNFlowNode],
     gateway_by_step_id: dict[str, BPMNFlowNode],
 ) -> None:
+    """
+    Create and register a BPMN gateway for the decision anchored to a main-chain step.
+    """
     decision = decision_by_anchor_step_id.get(anchor_id)
     if decision is None:
         return
@@ -811,6 +836,16 @@ def _exception_event_definition(
 
 
 def _matches_word(text: str, words: tuple[str, ...]) -> bool:
+    """
+    Determine whether text contains a case-insensitive word-prefix match.
+    
+    Parameters:
+        text (str): Text to search.
+        words (tuple[str, ...]): Word prefixes to match.
+    
+    Returns:
+        bool: `true` if text contains a matching word prefix, `false` otherwise.
+    """
     lowered = text.casefold()
     return any(re.search(rf"\b{re.escape(word)}", lowered) for word in words)
 
@@ -818,10 +853,10 @@ def _matches_word(text: str, words: tuple[str, ...]) -> bool:
 def _normalize_event_gateways(
     nodes: list[BPMNFlowNode], registry: FlowRegistry, used_ids: set[str]
 ) -> None:
-    """Every outgoing branch of an event-based gateway must begin with an element
-    that waits for a trigger (OMG BPMN 2.0, 10.5.5). Splice a synthetic catch
-    event onto any branch that currently jumps straight to an activity, gateway
-    or end event; the branch label moves onto the catch event.
+    """
+    Ensure every event-based gateway branch begins with an intermediate catch event.
+    
+    Branches that already begin with a catch event or receive task remain unchanged. Synthetic catch events inherit the branch label and relevant lane and source references.
     """
     node_by_id = {node.id: node for node in nodes}
     for gateway in list(nodes):
@@ -851,7 +886,11 @@ def _assign_gateway_defaults(
     flows: list,
     warnings: list[str],
 ) -> None:
-    """A data-based gateway with one bare branch marks it as the default flow."""
+    """
+    Assigns the sole unconditioned outgoing flow as the default for exclusive and inclusive gateways.
+    
+    Adds a warning when multiple outgoing flows lack conditions.
+    """
     outgoing: dict[str, list] = {}
     for flow in flows:
         outgoing.setdefault(flow.sourceRef, []).append(flow)
@@ -1057,6 +1096,16 @@ def _end_for(
 
 
 def _outcome_name_for_path(decision: ProcessDecision, path) -> str | None:
+    """
+    Determine the label for a decision path.
+    
+    Parameters:
+        decision (ProcessDecision): Decision containing outcome details.
+        path: Decision path whose outcome label is resolved.
+    
+    Returns:
+        str | None: The matching outcome label or condition, or the path trigger or label.
+    """
     for outcome in decision.outcome_details:
         if outcome.target_path_id == path.id:
             return outcome.label or outcome.condition

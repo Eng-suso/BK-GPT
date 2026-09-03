@@ -65,13 +65,14 @@ class ControlFlowReport:
 
 
 def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
-    """Perform a complete control-flow soundness analysis on a BPMN model.
-
-    Args:
-        model: The BPMNSemanticModel to analyze.
-
+    """
+    Perform a complete control-flow soundness analysis on a BPMN model.
+    
+    Parameters:
+    	model (BPMNSemanticModel): The BPMN model to analyze.
+    
     Returns:
-        A ControlFlowReport with errors, warnings, and reachability information.
+    	ControlFlowReport: A report containing detected errors, warnings, and node reachability information.
     """
     report = ControlFlowReport()
     nodes_by_id = {node.id: node for node in model.flowNodes}
