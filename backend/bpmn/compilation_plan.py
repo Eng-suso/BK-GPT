@@ -32,6 +32,13 @@ from backend.bpmn.models import (
 )
 from backend.process_understanding import ProcessUnderstanding
 
+_EVENT_NODE_TYPES = {
+    "startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent", "boundaryEvent"
+}
+_GATEWAY_NODE_TYPES = {
+    "exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"
+}
+
 
 def build_bpmn_compilation_plan(
     *,
@@ -122,7 +129,7 @@ def build_bpmn_compilation_plan(
                 source_refs=[source_ref_from_id(ref) for ref in node.sourceRefs],
             )
             for node in model.flowNodes
-            if node.type in {"startEvent", "endEvent", "intermediateCatchEvent", "boundaryEvent"}
+            if node.type in _EVENT_NODE_TYPES
         ],
         activities=[
             ActivitySpec(
@@ -135,26 +142,19 @@ def build_bpmn_compilation_plan(
             )
             for node in model.flowNodes
             if node.type
-            not in {
-                "startEvent",
-                "endEvent",
-                "intermediateCatchEvent",
-                "boundaryEvent",
-                "exclusiveGateway",
-                "parallelGateway",
-            }
+            not in _EVENT_NODE_TYPES | _GATEWAY_NODE_TYPES
         ],
         gateways=[
             GatewaySpec(
                 id=node.id,
                 name=node.name,
-                type="exclusiveGateway" if node.type == "exclusiveGateway" else "parallelGateway",
+                type=node.type,
                 anchor_step_id=_anchor_for_gateway(node.id, model),
                 documentation=node.documentation or "",
                 source_refs=[source_ref_from_id(ref) for ref in node.sourceRefs],
             )
             for node in model.flowNodes
-            if node.type in {"exclusiveGateway", "parallelGateway"}
+            if node.type in _GATEWAY_NODE_TYPES
         ],
         flows=[
             FlowSpec(
@@ -257,6 +257,9 @@ def _target_by_source_ref(model: BPMNSemanticModel) -> dict[str, tuple[str, str]
     for data_object in model.dataObjects:
         for ref in data_object.sourceRefs:
             targets[ref] = (data_object.id, "dataObjectReference")
+    for data_store in model.dataStores:
+        for ref in data_store.sourceRefs:
+            targets[ref] = (data_store.id, "dataStoreReference")
     return targets
 
 

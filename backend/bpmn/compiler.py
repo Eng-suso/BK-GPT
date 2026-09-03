@@ -17,7 +17,6 @@ from backend.bpmn._helpers import (
     json_documentation,
     source_ref_id,
     step_documentation,
-    unique_texts,
     xml_id,
 )
 from backend.bpmn.collaboration import (
@@ -29,15 +28,13 @@ from backend.bpmn.collaboration import (
     step_is_external_only,
 )
 from backend.bpmn.compilation_plan import build_bpmn_compilation_plan
+from backend.bpmn.data_flow import build_data_flow
 from backend.bpmn.flow_registry import FlowRegistry, sequence_flow_edges_by_endpoint
 from backend.bpmn.models import (
     ACTIVITY_NODE_TYPES,
-    BPMNAssociation,
-    BPMNDataObject,
     BPMNFlowNode,
     BPMNLane,
     BPMNSemanticModel,
-    BPMNTextAnnotation,
 )
 from backend.process_understanding import (
     ProcessActor,
@@ -52,6 +49,39 @@ _INTERMEDIATE_EVENT_DEFINITION: dict[str, Literal["timer", "message"]] = {
     "timer": "timer",
     "message": "message",
 }
+
+_GATEWAY_BPMN_TYPE: dict[str, str] = {
+    "exclusive": "exclusiveGateway",
+    "inclusive": "inclusiveGateway",
+    "event_based": "eventBasedGateway",
+}
+
+# Gateways whose outgoing flows carry data-based condition expressions. Parallel
+# and event-based gateways never do (they fork on tokens / on which event fires).
+_DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway"})
+
+
+def _gateway_bpmn_type(decision: ProcessDecision) -> str:
+    """Map a ProcessDecision's gateway_type to the corresponding BPMN gateway type.
+
+    Args:
+        decision: The ProcessDecision containing the gateway_type.
+
+    Returns:
+        A BPMN gateway type string (e.g., "exclusiveGateway", "inclusiveGateway").
+    """
+    return _GATEWAY_BPMN_TYPE.get(decision.gateway_type, "exclusiveGateway")
+
+
+def _branch_catch_event_definition(text: str) -> Literal["timer", "message", "signal", "conditional"]:
+    """Infer the catch-event trigger for an event-based gateway branch."""
+    if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
+        return "timer"
+    if _matches_word(text, ("segnale", "signal", "broadcast", "evento di sistema")):
+        return "signal"
+    if _matches_word(text, ("messaggio", "risposta", "notifica", "comunicazione", "riscontro", "email", "conferma")):
+        return "message"
+    return "conditional"
 
 
 def build_bpmn_semantic_model(
@@ -153,7 +183,7 @@ def build_bpmn_semantic_model(
         if event.type == "end" and event.id in end_node_by_key:
             registry.map(event.id, end_node_by_key[event.id].id)
 
-    registry.gateway_ids = {node.id for node in nodes if node.type.endswith("Gateway")}
+    registry.gateway_ids = {node.id for node in nodes if node.type in _DATA_BASED_GATEWAYS}
     registry.connect_chain(main_chain)
 
     _add_alternative_paths(
@@ -193,6 +223,7 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     registry.apply_edge_overlay()
+    _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
     _assign_gateway_defaults(nodes, flows, warnings)
     populate_lane_refs(lanes, nodes)
@@ -202,6 +233,9 @@ def build_bpmn_semantic_model(
         node_ids={node.id for node in nodes},
         used_ids=used_ids,
         warnings=warnings,
+    )
+    data_flow = build_data_flow(
+        process, step_node_by_original_id=step_node_by_original_id, used_ids=used_ids
     )
 
     model = BPMNSemanticModel(
@@ -213,9 +247,10 @@ def build_bpmn_semantic_model(
         flowNodes=nodes,
         sequenceFlows=flows,
         messageFlows=message_flows,
-        dataObjects=[],
+        dataObjects=data_flow.data_objects,
+        dataStores=data_flow.data_stores,
         textAnnotations=[],
-        associations=[],
+        associations=data_flow.associations,
         model_warnings=warnings,
         sourceProcessUnderstanding=process.model_dump(mode="json"),
     )
@@ -257,9 +292,18 @@ def _ordered_chain_items(
     process: ProcessUnderstanding,
     step_by_id: dict[str, ProcessStep],
 ) -> list[ProcessStep | ProcessEvent]:
-    """Ordered flow nodes for the main path: steps plus the timer / message
-    intermediate events that sit between them (placed from main_success_path /
-    sequence, or spliced after the flow_edges predecessor)."""
+    """Build an ordered list of flow nodes for the main process path.
+
+    Combines steps with timer/message intermediate events, placing them from
+    main_success_path/sequence or splicing them after their flow_edges predecessor.
+
+    Args:
+        process: The ProcessUnderstanding containing steps and events.
+        step_by_id: Dictionary mapping step IDs to ProcessStep instances.
+
+    Returns:
+        An ordered list of ProcessStep and ProcessEvent items forming the main chain.
+    """
     flow_event_by_id = {
         event.id: event
         for event in process.events
@@ -310,12 +354,25 @@ def _attach_anchored_gateway(
     gateway_by_decision_id: dict[str, BPMNFlowNode],
     gateway_by_step_id: dict[str, BPMNFlowNode],
 ) -> None:
+    """Attach a decision gateway immediately after its anchor step in the main chain.
+
+    Args:
+        anchor_id: The ID of the anchor step or event.
+        lane_id: The lane ID to assign to the gateway, if any.
+        decision_by_anchor_step_id: Mapping of anchor step IDs to their decisions.
+        used_ids: Set of already-allocated IDs.
+        nodes: List of BPMN flow nodes to append the gateway to.
+        main_chain: List of node IDs forming the main process chain.
+        registry: FlowRegistry for tracking node mappings.
+        gateway_by_decision_id: Dictionary to populate with decision ID to gateway mappings.
+        gateway_by_step_id: Dictionary to populate with step ID to gateway mappings.
+    """
     decision = decision_by_anchor_step_id.get(anchor_id)
     if decision is None:
         return
     gateway = BPMNFlowNode(
         id=xml_id(decision.id, "Gateway", used_ids),
-        type="exclusiveGateway",
+        type=_gateway_bpmn_type(decision),
         name=decision.label,
         laneId=lane_id,
         documentation=decision_documentation(decision),
@@ -329,18 +386,16 @@ def _attach_anchored_gateway(
 
 
 def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
-    """Create a BPMN intermediate catch event node from a ProcessEvent.
+    """Create a BPMN intermediate event node from a ProcessEvent.
 
-    Args:
-        event: The ProcessEvent to convert.
-        used_ids: Set of already-allocated IDs.
-
-    Returns:
-        A BPMNFlowNode representing an intermediate catch event.
+    A throwing event (the process emits a message/signal) becomes an
+    `intermediateThrowEvent`; everything else waits and becomes an
+    `intermediateCatchEvent`.
     """
+    node_type = "intermediateThrowEvent" if event.direction == "throw" else "intermediateCatchEvent"
     return BPMNFlowNode(
         id=xml_id(event.id or "IntermediateEvent", "IntermediateEvent", used_ids),
-        type="intermediateCatchEvent",
+        type=node_type,
         name=event.label,
         eventDefinition=_INTERMEDIATE_EVENT_DEFINITION.get(event.type),
         documentation=json_documentation(
@@ -441,6 +496,23 @@ def _add_alternative_paths(
     actor_lane_map: dict[str, str],
     warnings: list[str],
 ) -> None:
+    """Add alternative path branches to the BPMN model for each decision gateway.
+
+    Args:
+        process: The ProcessUnderstanding containing alternative paths and decisions.
+        nodes: List of BPMN flow nodes to add alternative path activities to.
+        registry: FlowRegistry for adding sequence flows.
+        used_ids: Set of already-allocated IDs.
+        step_by_id: Mapping of step IDs to ProcessStep instances.
+        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
+        gateway_by_decision_id: Mapping of decision IDs to their gateway nodes.
+        gateway_by_step_id: Mapping of step IDs to gateways anchored at them.
+        end_node_by_key: Dictionary of end event nodes keyed by ID or label.
+        primary_end: The primary/default end event node.
+        actors: List of process actors for lane assignment.
+        actor_lane_map: Mapping of actor IDs to lane IDs.
+        warnings: List to append warning messages to.
+    """
     unassigned_paths = list(process.alternative_paths)
     gateways = list(gateway_by_decision_id.values())
 
@@ -512,8 +584,22 @@ def _resolve_alt_path_end(
     nodes: list[BPMNFlowNode],
     used_ids: set[str],
 ) -> str:
-    """Route an alternative path's terminal edge to an existing end event when
-    its `ends_at` names one, otherwise mint a distinct end for that outcome."""
+    """Resolve the end node ID for an alternative path.
+
+    Routes to an existing end event if `ends_at` names one, otherwise creates a new end event.
+
+    Args:
+        path: The alternative path with an ends_at field.
+        outcome_name: The name of the decision outcome leading to this path.
+        lane_id: The lane ID for any synthesized end event.
+        end_node_by_key: Dictionary of existing end events keyed by ID or normalized label.
+        primary_end: The primary end event to use as default.
+        nodes: List of BPMN flow nodes to append any synthesized end to.
+        used_ids: Set of already-allocated IDs.
+
+    Returns:
+        The ID of the resolved or newly created end event.
+    """
     target = path.ends_at
     if target and (target in end_node_by_key or _norm_end_key(target) in end_node_by_key):
         return _end_for(target, end_node_by_key, primary_end).id
@@ -531,6 +617,15 @@ def _resolve_alt_path_end(
 
 
 def _take_alternative_path_for_decision(decision, paths: list):
+    """Find and remove the alternative path that matches a decision.
+
+    Args:
+        decision: The ProcessDecision to match against.
+        paths: List of alternative paths to search and modify.
+
+    Returns:
+        The matching alternative path (removed from the list), or None if not found.
+    """
     if not paths:
         return None
     for index, path in enumerate(paths):
@@ -540,6 +635,15 @@ def _take_alternative_path_for_decision(decision, paths: list):
 
 
 def _path_matches_decision(decision, path) -> bool:
+    """Check if an alternative path matches a decision's outcomes.
+
+    Args:
+        decision: The ProcessDecision with outcome_details.
+        path: The alternative path with an id to match.
+
+    Returns:
+        True if any outcome in the decision targets this path, False otherwise.
+    """
     return any(outcome.target_path_id == path.id for outcome in decision.outcome_details)
 
 
@@ -552,6 +656,19 @@ def _add_loop_flows(
     used_ids: set[str],
     warnings: list[str],
 ) -> None:
+    """Add loop back-edges and loop decision gateways to the BPMN model.
+
+    For each loop in the process, creates a back-edge from the loop tail to head, optionally
+    splicing an exclusive gateway if the tail already has forward flows.
+
+    Args:
+        process: The ProcessUnderstanding containing loop definitions.
+        registry: FlowRegistry for adding and rerouting sequence flows.
+        nodes: List of BPMN flow nodes to insert loop gateways into.
+        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
+        used_ids: Set of already-allocated IDs.
+        warnings: List to append warning messages to.
+    """
     node_by_id = {node.id: node for node in nodes}
     for loop in process.loops:
         repeated = [step_id for step_id in loop.repeated_steps if step_id in step_node_by_original_id]
@@ -618,6 +735,20 @@ def _add_boundary_events(
     end_id: str,
     warnings: list[str],
 ) -> None:
+    """Add boundary events (error, timer, message, conditional) attached to activities.
+
+    Args:
+        process: The ProcessUnderstanding containing exception definitions.
+        registry: FlowRegistry for adding exception handler flows.
+        nodes: List of BPMN flow nodes to append boundary events and handlers to.
+        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
+        step_by_id: Mapping of step IDs to ProcessStep instances.
+        actor_lane_map: Mapping of actor IDs to lane IDs.
+        actors: List of process actors.
+        used_ids: Set of already-allocated IDs.
+        end_id: The ID of the primary end event for unhandled exceptions.
+        warnings: List to append warning messages to.
+    """
     node_type_by_id = {node.id: node.type for node in nodes}
     node_lane_by_id = {node.id: node.laneId for node in nodes}
 
@@ -633,6 +764,13 @@ def _add_boundary_events(
             continue
 
         definition, interrupting = _exception_event_definition(exception)
+        condition_expression = (exception.trigger or "").strip() or None
+        if definition == "conditional" and condition_expression is None:
+            warnings.append(
+                f"Eccezione '{exception.label}' senza trigger esplicito: "
+                "boundary event condizionale non generato."
+            )
+            continue
         if interrupting != exception.interrupting:
             warnings.append(
                 f"Eccezione '{exception.label}': forzata a interrupting perche' un evento "
@@ -647,6 +785,9 @@ def _add_boundary_events(
             attachedToRef=attached,
             cancelActivity=interrupting,
             eventDefinition=definition,
+            eventConditionExpression=(
+                condition_expression if definition == "conditional" else None
+            ),
             documentation=json_documentation(
                 "exception",
                 {
@@ -710,6 +851,18 @@ def _exception_attached_node(
     step_node_by_original_id: dict[str, str],
     node_type_by_id: dict[str, str],
 ) -> str | None:
+    """Find the activity node to which a boundary event should be attached.
+
+    Args:
+        exception: The ProcessExceptionPath defining the boundary event.
+        process: The ProcessUnderstanding containing flow edges.
+        registry: FlowRegistry for resolving compiled node IDs.
+        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
+        node_type_by_id: Mapping of compiled node IDs to their types.
+
+    Returns:
+        The ID of the activity node to attach to, or None if no valid attachment found.
+    """
     def as_activity(node_id: str | None) -> str | None:
         if node_id and node_type_by_id.get(node_id) in ACTIVITY_NODE_TYPES:
             return node_id
@@ -739,6 +892,23 @@ def _exception_rejoin_node(
     end_id: str,
     exception_source_ref: str,
 ) -> str | None:
+    """Find or create the node where an exception handler rejoins the main flow.
+
+    Args:
+        exception: The ProcessExceptionPath defining the exception.
+        process: The ProcessUnderstanding containing flow edges.
+        registry: FlowRegistry for resolving and registering node IDs.
+        step_by_id: Mapping of step IDs to ProcessStep instances.
+        actor_lane_map: Mapping of actor IDs to lane IDs.
+        actors: List of process actors.
+        nodes: List of BPMN flow nodes to append recovery tasks to.
+        used_ids: Set of already-allocated IDs.
+        end_id: The ID of the end event to use if no explicit rejoin is found.
+        exception_source_ref: Source reference for traceability.
+
+    Returns:
+        The ID of the rejoin node, or None if the handler should not rejoin.
+    """
     for edge in process.flow_edges:
         if edge.kind != "sequence" or edge.source_id != exception.id:
             continue
@@ -769,11 +939,16 @@ def _exception_rejoin_node(
 def _exception_event_definition(
     exception: ProcessExceptionPath,
 ) -> tuple[Literal["timer", "message", "error", "conditional"], bool]:
-    """Resolve (eventDefinition, interrupting) for an exception boundary event.
+    """Resolve the event definition type and interrupting flag for a boundary event.
 
-    Error boundary events must be interrupting per BPMN 2.0; when the process
-    asked for non-interrupting handling of an otherwise-unclassified trigger we
-    fall back to a conditional boundary event, which may be non-interrupting.
+    Error boundary events must be interrupting per BPMN 2.0. For non-interrupting
+    handling of unclassified triggers, falls back to a conditional boundary event.
+
+    Args:
+        exception: The ProcessExceptionPath with trigger and interrupting properties.
+
+    Returns:
+        A tuple of (event_definition_type, is_interrupting).
     """
     text = f"{exception.trigger or ''} {exception.label or ''}"
     if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
@@ -786,8 +961,63 @@ def _exception_event_definition(
 
 
 def _matches_word(text: str, words: tuple[str, ...]) -> bool:
+    """Check if any word from a tuple appears as a whole word in the text.
+
+    Args:
+        text: The text to search in.
+        words: A tuple of words to search for.
+
+    Returns:
+        True if any word is found as a complete word in the text, False otherwise.
+    """
     lowered = text.casefold()
     return any(re.search(rf"\b{re.escape(word)}", lowered) for word in words)
+
+
+def _normalize_event_gateways(
+    nodes: list[BPMNFlowNode],
+    registry: FlowRegistry,
+    used_ids: set[str],
+    warnings: list[str],
+) -> None:
+    """Every outgoing branch of an event-based gateway must begin with an element
+    that waits for a trigger (OMG BPMN 2.0, 10.5.5). Splice a synthetic catch
+    event onto any branch that currently jumps straight to an activity, gateway
+    or end event; the branch label moves onto the catch event.
+    """
+    node_by_id = {node.id: node for node in nodes}
+    for gateway in [node for node in nodes if node.type == "eventBasedGateway"]:
+        insert_at = nodes.index(gateway) + 1
+        for flow in [f for f in registry.flows if f.sourceRef == gateway.id]:
+            target = node_by_id.get(flow.targetRef)
+            if target is None or target.type in {"intermediateCatchEvent", "receiveTask"}:
+                continue
+            label = flow.name
+            definition = _branch_catch_event_definition(f"{label or ''} {target.name}")
+            condition_expression = (label or "").strip() or None
+            if definition == "conditional" and condition_expression is None:
+                warnings.append(
+                    f"Ramo del gateway a eventi '{gateway.name}' verso '{target.name}' "
+                    "senza trigger esplicito: catch event condizionale non generato."
+                )
+                continue
+            catch = BPMNFlowNode(
+                id=xml_id(f"{gateway.id}_{target.id}", "CatchEvent", used_ids),
+                type="intermediateCatchEvent",
+                name=label or f"Attesa: {target.name}",
+                eventDefinition=definition,
+                eventConditionExpression=(
+                    condition_expression if definition == "conditional" else None
+                ),
+                laneId=gateway.laneId or target.laneId,
+            )
+            # Keep the synthetic catch next to its gateway so the serializer and
+            # layout column-rank it on the branch, not past the end event.
+            nodes.insert(insert_at, catch)
+            insert_at += 1
+            node_by_id[catch.id] = catch
+            registry.insert_node(gateway.id, target.id, catch.id)
+            flow.name = None
 
 
 def _assign_gateway_defaults(
@@ -795,7 +1025,15 @@ def _assign_gateway_defaults(
     flows: list,
     warnings: list[str],
 ) -> None:
-    """A data-based gateway with one bare branch marks it as the default flow."""
+    """Assign default flows to gateways with exactly one unconditioned branch.
+
+    A data-based gateway with one bare branch marks it as the default flow.
+
+    Args:
+        nodes: List of BPMN flow nodes including gateways.
+        flows: List of sequence flows.
+        warnings: List to append warning messages to.
+    """
     outgoing: dict[str, list] = {}
     for flow in flows:
         outgoing.setdefault(flow.sourceRef, []).append(flow)
@@ -822,9 +1060,17 @@ def _complete_flow_graph(
     nodes: list[BPMNFlowNode],
     warnings: list[str],
 ) -> None:
-    """Add flow_edges transitions the skeleton generators missed, only when the
-    addition cannot corrupt control flow (never into a start event, never a
-    second exit from an activity, never an uncontrolled merge)."""
+    """Add remaining flow_edges transitions that don't corrupt control flow.
+
+    Only adds edges when safe: never into a start event, never a second exit from
+    an activity, never an uncontrolled merge.
+
+    Args:
+        process: The ProcessUnderstanding containing flow_edges.
+        registry: FlowRegistry for adding sequence flows.
+        nodes: List of BPMN flow nodes for type checking.
+        warnings: List to append warning messages to.
+    """
     node_type_by_id = {node.id: node.type for node in nodes}
     mergeable = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "endEvent"}
 
@@ -942,9 +1188,19 @@ def _build_end_events(
     process: ProcessUnderstanding,
     used_ids: set[str],
 ) -> tuple[BPMNFlowNode, dict[str, BPMNFlowNode]]:
-    """One end event per distinct outcome: the `type=="end"` events plus any
-    `boundaries.failure_ends` not already covered. Keyed by event id and by
-    normalised label so alternative paths can route to the right one."""
+    """Build end events for all distinct process outcomes.
+
+    Creates one end event per distinct outcome: type=="end" events plus any
+    boundaries.failure_ends not already covered. Keyed by event id and normalized
+    label so alternative paths can route to the correct one.
+
+    Args:
+        process: The ProcessUnderstanding containing events and boundaries.
+        used_ids: Set of already-allocated IDs.
+
+    Returns:
+        A tuple of (primary_end_event, end_events_by_key_dict).
+    """
     by_key: dict[str, BPMNFlowNode] = {}
     created: list[BPMNFlowNode] = []
 
@@ -991,6 +1247,16 @@ def _end_for(
     end_node_by_key: dict[str, BPMNFlowNode],
     fallback: BPMNFlowNode,
 ) -> BPMNFlowNode:
+    """Resolve a target string to an end event node.
+
+    Args:
+        target: The target end event ID or label to look up.
+        end_node_by_key: Dictionary of end events keyed by ID or normalized label.
+        fallback: The default end event to return if target is not found.
+
+    Returns:
+        The matching end event node, or the fallback if not found.
+    """
     if not target:
         return fallback
     return (
@@ -1001,114 +1267,16 @@ def _end_for(
 
 
 def _outcome_name_for_path(decision: ProcessDecision, path) -> str | None:
+    """Find the outcome label for a decision that leads to a specific path.
+
+    Args:
+        decision: The ProcessDecision with outcome_details.
+        path: The alternative path to find the outcome for.
+
+    Returns:
+        The outcome label or condition, or the path's own label as fallback.
+    """
     for outcome in decision.outcome_details:
         if outcome.target_path_id == path.id:
             return outcome.label or outcome.condition
     return path.trigger_or_condition or path.label
-
-
-def _build_data_objects(
-    *,
-    process: ProcessUnderstanding,
-    used_ids: set[str],
-    step_node_by_original_id: dict[str, str],
-    ordered_steps: list[ProcessStep],
-) -> tuple[list[BPMNDataObject], list[BPMNAssociation]]:
-    data_objects: list[BPMNDataObject] = []
-    associations: list[BPMNAssociation] = []
-
-    for index, item in enumerate(process.data_objects, start=1):
-        source_node_id = _source_node_for_data_object(
-            label=item.label,
-            step_node_by_original_id=step_node_by_original_id,
-            ordered_steps=ordered_steps,
-        )
-        data_object = BPMNDataObject(
-            id=xml_id(item.id or f"DataObject_{index}", "DataObject", used_ids),
-            name=item.label,
-            kind=item.kind,
-            sourceNodeRef=source_node_id,
-            documentation=json_documentation(
-                "data_object", {"kind": item.kind, "source_evidence": item.source_evidence}
-            ),
-            sourceRefs=[source_ref_id("data_objects", item.id)],
-        )
-        data_objects.append(data_object)
-        if source_node_id:
-            associations.append(
-                BPMNAssociation(
-                    id=xml_id(f"Association_{source_node_id}_to_{data_object.id}", "Association", used_ids),
-                    sourceRef=source_node_id,
-                    targetRef=data_object.id,
-                )
-            )
-
-    return data_objects, associations
-
-
-def _source_node_for_data_object(
-    *,
-    label: str,
-    step_node_by_original_id: dict[str, str],
-    ordered_steps: list[ProcessStep],
-) -> str | None:
-    _ = (label, step_node_by_original_id, ordered_steps)
-    return None
-
-
-def _build_process_annotations(
-    *,
-    process: ProcessUnderstanding,
-    warnings: list[str],
-    used_ids: set[str],
-    source_node_id: str,
-) -> tuple[list[BPMNTextAnnotation], list[BPMNAssociation]]:
-    annotation_texts: list[str] = []
-    annotation_texts.extend(warnings[:4])
-    annotation_texts.extend(
-        f"Handoff: {item.artifact or item.trigger or item.id}"
-        for item in process.handoffs
-        if item.artifact or item.trigger or item.id
-    )
-    annotation_texts.extend(
-        f"Pool candidate esterno: {item.actor_id}"
-        for item in process.actor_relationships
-        if item.bpmn_pool_candidate
-    )
-    annotation_texts.extend(f"Regola business: {item}" for item in process.business_rules)
-    annotation_texts.extend(
-        f"Domanda aperta ({item.severity}): {item.question}" for item in process.unknowns
-    )
-    annotation_texts.extend(
-        f"Eccezione: {item.label}; trigger: {item.trigger or 'n/d'}; gestione: {item.handling or 'da definire'}"
-        for item in process.exceptions
-    )
-    annotation_texts.extend(
-        f"Hint BPMN: {item.element} - {item.hint} ({item.confidence})"
-        for item in process.bpmn_modeling_hints
-    )
-    annotation_texts.extend(
-        f"Evento {item.type}: {item.label}" for item in process.events if item.type not in {"start", "end"}
-    )
-    annotation_texts.extend(
-        f"Input/output {item.step}: input={', '.join(item.input) or 'n/d'}; output={', '.join(item.output) or 'n/d'}"
-        for item in process.input_outputs
-    )
-
-    annotations: list[BPMNTextAnnotation] = []
-    associations: list[BPMNAssociation] = []
-    for index, text in enumerate(unique_texts(annotation_texts)[:30], start=1):
-        annotation = BPMNTextAnnotation(
-            id=xml_id(f"TextAnnotation_{index}", "TextAnnotation", used_ids),
-            text=text[:240],
-            sourceNodeRef=source_node_id,
-        )
-        annotations.append(annotation)
-        associations.append(
-            BPMNAssociation(
-                id=xml_id(f"Association_{index}", "Association", used_ids),
-                sourceRef=source_node_id,
-                targetRef=annotation.id,
-            )
-        )
-    return annotations, associations

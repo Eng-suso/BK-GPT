@@ -27,7 +27,11 @@ IssueCode = Literal[
     "gateway_splits_and_joins",
     "idle_gateway",
     "parallel_split_without_join",
+    "event_gateway_bad_target",
 ]
+
+# An event-based gateway may only fork onto elements that consume a trigger.
+_EVENT_GATEWAY_TARGETS = {"intermediateCatchEvent", "receiveTask"}
 
 _GATEWAY_TYPES = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"}
 
@@ -159,6 +163,7 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
             )
 
     _check_parallel_balance(model, in_degree, out_degree, report)
+    _check_event_gateways(model, out_degree, report)
     return report
 
 
@@ -182,6 +187,38 @@ def _classify_gateway(node, in_deg: int, out_deg: int, report: ControlFlowReport
                 f"il gateway '{node.name}' unisce e divide allo stesso tempo: separare join e split.",
             )
         )
+
+
+def _check_event_gateways(model, out_degree, report: ControlFlowReport) -> None:
+    """Verify event-based gateway branches comply with BPMN 2.0 specification.
+
+    Every branch must land on a catch event or receive task, and none may carry a
+    data condition (OMG BPMN 2.0 10.5.5).
+
+    Args:
+        model: The BPMNSemanticModel to check.
+        out_degree: Mapping of node IDs to outgoing flow counts.
+        report: The ControlFlowReport to update with errors.
+    """
+    event_gateways = {
+        node.id: node for node in model.flowNodes if node.type == "eventBasedGateway"
+    }
+    if not event_gateways:
+        return
+    node_type_by_id = {node.id: node.type for node in model.flowNodes}
+    for flow in model.sequenceFlows:
+        gateway = event_gateways.get(flow.sourceRef)
+        if gateway is None or out_degree[gateway.id] <= 1:
+            continue
+        target_type = node_type_by_id.get(flow.targetRef)
+        if target_type not in _EVENT_GATEWAY_TARGETS or flow.conditionExpression:
+            report.errors.append(
+                ControlFlowIssue(
+                    "event_gateway_bad_target", gateway.id, gateway.name,
+                    f"il gateway a eventi '{gateway.name}' ha un ramo che non porta a un "
+                    "evento intermedio in attesa: ogni ramo deve iniziare con un catch event.",
+                )
+            )
 
 
 def _check_parallel_balance(model, in_degree, out_degree, report: ControlFlowReport) -> None:

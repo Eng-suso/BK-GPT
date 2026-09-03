@@ -9,13 +9,17 @@ LAYOUT_SUBGRAPH_CONTRACT = """
 Canvas Drawing/Layout subgraph contract.
 
 Own only the visual arrangement of the BPMN canvas: spacing, row wrapping,
-lane shape sizing and edge routing. Before layout, remove visible semantic
-metadata artifacts: text annotations, association edges and data object shapes.
-Those details belong to BPMNSemanticModel/sourceProcessUnderstanding/
-compilationPlan, not to the canvas view. Do not change process semantics,
-labels, ownership, sequence flow source/target or business meaning. A layout
-pass is successful only when the drawing has no overlapping flow nodes, visible
-positions for all flow nodes and a readable overall aspect ratio.
+lane shape sizing and edge routing. Before layout, remove canvas-only annotation
+noise: free-text annotations and the association edges that dock to them. Keep
+the data perspective (data objects, data stores and their read/write
+associations): it is part of the operating view and must be laid out readably,
+docked to the activities that produce or consume it, without overlapping flow
+nodes or lanes. Handoffs, business rules, unknowns, evidence and traceability
+stay in BPMNSemanticModel/sourceProcessUnderstanding/compilationPlan, not on the
+canvas. Do not change process semantics, labels, ownership, sequence flow
+source/target or business meaning. A layout pass is successful only when the
+drawing has no overlapping flow nodes or data artifacts, visible positions for
+all shapes and a readable overall aspect ratio.
 """.strip()
 
 

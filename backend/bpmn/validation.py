@@ -12,10 +12,21 @@ from backend.bpmn.soundness import analyze_control_flow
 
 
 def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
+    """Validate the structural integrity of a BPMN semantic model.
+
+    Performs well-formedness checks including duplicate IDs, dangling references,
+    gateway arity, boundary event attachment, and control-flow soundness.
+
+    Args:
+        model: The BPMNSemanticModel to validate.
+
+    Returns:
+        A list of warning messages describing structural issues found.
+    """
     warnings: list[str] = []
     node_ids = {node.id for node in model.flowNodes}
     flow_ids = {flow.id for flow in model.sequenceFlows}
-    data_ids = {item.id for item in model.dataObjects}
+    data_ids = {item.id for item in model.dataObjects} | {item.id for item in model.dataStores}
     annotation_ids = {item.id for item in model.textAnnotations}
     semantic_element_ids = node_ids | data_ids | annotation_ids
     if len(node_ids) != len(model.flowNodes) or len(flow_ids) != len(model.sequenceFlows):
@@ -37,7 +48,11 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
 
     node_type_by_id = {node.id: node.type for node in model.flowNodes}
     for node in model.flowNodes:
-        if node.type == "exclusiveGateway" and len(outgoing_by_node.get(node.id, [])) < 2:
+        if (
+            node.type in {"exclusiveGateway", "inclusiveGateway", "eventBasedGateway"}
+            and len(incoming_by_node.get(node.id, [])) <= 1
+            and len(outgoing_by_node.get(node.id, [])) < 2
+        ):
             warnings.append(f"Gateway {node.name} senza almeno due uscite.")
         if node.type == "boundaryEvent":
             if node_type_by_id.get(node.attachedToRef or "") not in ACTIVITY_NODE_TYPES:

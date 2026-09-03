@@ -1,4 +1,5 @@
 import json
+import re
 
 from backend.bpmn import (
     build_bpmn_semantic_model,
@@ -183,9 +184,12 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     assert len(outgoing_by_node[gateway.id]) >= 2
     assert any(flow.name == "No" for flow in outgoing_by_node[gateway.id])
     assert any(flow.name == "Serve nuova revisione" for flow in model.sequenceFlows)
+    # "Ordine" is kind=record -> a data store; no step lists it as input/output so
+    # it has no association edge.
+    assert [store.name for store in model.dataStores] == ["Ordine"]
     assert model.dataObjects == []
-    assert model.textAnnotations == []
     assert model.associations == []
+    assert model.textAnnotations == []
     assert model.sourceProcessUnderstanding is not None
     assert model.compilationPlan is not None
     assert model.compilationPlan.coverage.losses == []
@@ -198,9 +202,9 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     )
     assert "DeliR semantic payload" in xml
     assert "DeliR traceability" in xml
+    assert "<bpmn:dataStoreReference" in xml
     assert "dataObjectReference" not in xml
     assert "textAnnotation" not in xml
-    assert "bpmn:association" not in xml
     assert not any("senza almeno due uscite" in warning for warning in warnings)
     assert xml_validation["valid"] is True
     assert semantic_validation["semantic_valid"] is True
@@ -597,6 +601,7 @@ def test_exceptions_compile_to_boundary_events_on_their_step():
     # non-interrupting + no error keyword -> conditional boundary, may stay non-interrupting
     escalation = boundary["Reclamo aperto durante la lavorazione"]
     assert escalation.eventDefinition == "conditional"
+    assert escalation.eventConditionExpression == "segnalazione parallela dal cliente"
     assert escalation.cancelActivity is False
 
     # error keyword -> forced interrupting per BPMN 2.0, with a warning
@@ -615,7 +620,11 @@ def test_exceptions_compile_to_boundary_events_on_their_step():
     assert f'attachedToRef="{wait_task}"' in xml
     assert 'cancelActivity="false"' in xml
     assert "<bpmn:timerEventDefinition />" in xml
-    assert "<bpmn:conditionalEventDefinition />" in xml
+    assert "<bpmn:conditionalEventDefinition>" in xml
+    assert (
+        '<bpmn:condition xsi:type="bpmn:tFormalExpression">'
+        "segnalazione parallela dal cliente</bpmn:condition>"
+    ) in xml
     assert validate_bpmn_xml(xml)["valid"] is True
     assert not any(
         "senza ingresso" in w or "senza uscita" in w or "non agganciato" in w
@@ -892,7 +901,8 @@ def test_compiler_splices_timer_and_message_intermediate_events_into_the_flow():
 
     xml = semantic_model_to_bpmn_xml(model)
     assert "<bpmn:timerEventDefinition />" in xml
-    assert "<bpmn:messageEventDefinition />" in xml
+    message_decl_id = re.search(r'<bpmn:message id="([^"]+)" name="Esito da INPS" />', xml).group(1)
+    assert f'<bpmn:messageEventDefinition messageRef="{message_decl_id}" />' in xml
     assert validate_bpmn_xml(xml)["valid"] is True
     assert not any(
         "senza ingresso" in warning or "senza uscita" in warning

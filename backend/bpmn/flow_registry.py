@@ -149,6 +149,22 @@ class FlowRegistry:
             self._source_alias[from_id] = to_id
         return moved
 
+    def insert_node(self, source: str, target: str, middle: str) -> None:
+        """Splice `middle` onto the existing `source -> target` edge, turning it
+        into `source -> middle` and adding `middle -> target`. No-op if the edge
+        is not present.
+        """
+        pair = (source, target)
+        flow = self._flow_by_pair.pop(pair, None)
+        if flow is None:
+            return
+        self.seen_pairs.discard(pair)
+        flow.targetRef = middle
+        new_pair = (source, middle)
+        self._flow_by_pair[new_pair] = flow
+        self.seen_pairs.add(new_pair)
+        self.add(middle, target)
+
     def apply_edge_overlay(self) -> None:
         """Apply flow_edges metadata (labels, conditions) to compiled flows.
 
