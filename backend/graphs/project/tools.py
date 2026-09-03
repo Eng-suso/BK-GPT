@@ -86,6 +86,12 @@ class CrossProcessIssueInput(BaseModel):
 
 
 def _project_payload(project_id: str) -> dict:
+    # G3: il project_id qui e' un argomento del tool deciso dall'LLM. Dentro un
+    # agent run vincolato deve combaciare con lo scope autorizzato del thread.
+    from backend.agents.scope_guard import assert_project_in_scope
+
+    assert_project_in_scope(project_id)
+
     project = workspace_database.get_project(project_id)
     if project is None:
         raise ValueError(f"Progetto non trovato: {project_id}")

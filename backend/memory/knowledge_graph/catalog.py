@@ -170,10 +170,22 @@ OUTBOX_AGGREGATE_TYPES: tuple[str, ...] = (
 
 
 def assert_projectable(props: dict[str, object], *, context: str = "") -> None:
-    """Lint per il projector: solleva se una prop vietata sta per finire in Neo4j."""
+    """Lint per il projector: solleva se una prop vietata sta per finire in Neo4j,
+    o se manca lo scope cliente.
+
+    `client_id` obbligatorio e non vuoto su ogni nodo/arco proiettato: il
+    gateway (INV-9) e `purge_client` (INV-10) usano `n.client_id = $cid` come
+    confine tenant, senza fallback. Un payload senza client_id lo bucherebbe.
+    """
     leaked = PII_FORBIDDEN_IN_NEO4J & set(props)
     if leaked:
         raise ValueError(
             f"projection blocca {sorted(leaked)} verso Neo4j (INV-5 / B+)"
+            + (f" — {context}" if context else "")
+        )
+    client_id = props.get("client_id")
+    if not (isinstance(client_id, str) and client_id.strip()):
+        raise ValueError(
+            "projection richiede un client_id non vuoto (INV-9/INV-10)"
             + (f" — {context}" if context else "")
         )

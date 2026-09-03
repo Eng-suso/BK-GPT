@@ -29,14 +29,42 @@ def is_enabled() -> bool:
     return get_driver() is not None
 
 
-def purge_client(client_id: str) -> int:
-    """Rimuove da Neo4j tutti i nodi di un cliente (INV-10). Ritorna i nodi cancellati."""
+class Neo4jUnavailable(RuntimeError):
+    """Il driver Neo4j non e' configurato/raggiungibile: un'operazione che DEVE
+    completare (es. erasure INV-10) non puo' fingere successo."""
+
+
+def purge_client(client_id: str, *, batch_size: int = 10_000) -> int:
+    """Rimuove da Neo4j tutti i nodi di un cliente (INV-10). Ritorna i nodi cancellati.
+
+    Fail closed: se il driver non c'e' solleva `Neo4jUnavailable` invece di
+    ritornare 0 — un'erasure non deve essere segnalata completa senza esserlo.
+    La DETACH DELETE e' batchata per non aprire una transazione illimitata su
+    un cliente grande.
+    """
+    cid = str(client_id or "").strip()
+    if not cid:
+        raise ValueError("purge_client richiede un client_id non vuoto")
     driver = get_driver()
     if driver is None:
-        return 0
-    with driver.session() as session:
-        result = session.run(
-            "MATCH (n {client_id: $cid}) DETACH DELETE n RETURN count(n) AS n",
-            cid=str(client_id),
+        raise Neo4jUnavailable(
+            "Neo4j non configurato: purge_client non puo' garantire l'erasure"
         )
-        return int(result.single()["n"])
+    size = max(1, int(batch_size))
+    deleted = 0
+    with driver.session() as session:
+        while True:
+            removed = session.execute_write(_purge_batch, cid, size)
+            deleted += removed
+            if removed < size:
+                return deleted
+
+
+def _purge_batch(tx, client_id: str, size: int) -> int:
+    result = tx.run(
+        "MATCH (n {client_id: $cid}) WITH n LIMIT $lim "
+        "DETACH DELETE n RETURN count(n) AS n",
+        cid=client_id,
+        lim=size,
+    )
+    return int(result.single()["n"])

@@ -2,6 +2,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.agents.scope_guard import ScopeViolation
 from backend.memory import gateway
 from backend.memory import scope as canonical_scope
 from backend.memory.episodic import episodic_store
@@ -875,6 +876,8 @@ def retrieve_project_graph_context(
                 relation_focus=relation_focus,
                 limit=limit,
             )
+        except ScopeViolation:
+            raise
         except Exception as exc:  # noqa: BLE001
             knowledge_graph = {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
 

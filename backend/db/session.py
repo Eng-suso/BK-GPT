@@ -29,9 +29,16 @@ def canonical_engine() -> Engine:
                 "canonical_database_url non configurata: serve il DSN del ruolo "
                 "delir_app (postgresql+psycopg://delir_app:...@host:port/delir)."
             )
+        # Pool contenuto: un solo processo app, e il connection budget del
+        # Postgres self-hosted va diviso con l'engine operativo (local_store,
+        # 5+5), Mem0 e il checkpointer LangGraph. Web + graph_worker +
+        # ingest_worker aprono tutti sessioni canonical.
         _engine = create_engine(
             settings.canonical_database_url,
             pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=5,
+            pool_recycle=1800,
             future=True,
         )
     return _engine

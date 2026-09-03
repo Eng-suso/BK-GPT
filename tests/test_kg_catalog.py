@@ -25,6 +25,17 @@ def test_assert_projectable_blocks_pii():
     )
 
 
+def test_assert_projectable_requires_client_id():
+    """INV-9/INV-10: nessun nodo/arco senza client_id puo' raggiungere Neo4j —
+    il gateway e purge_client usano `n.client_id = $cid` senza fallback."""
+    for bad in ({"entity_id": "x", "entity_type": "person"},
+                {"entity_id": "x", "client_id": "", "entity_type": "person"},
+                {"entity_id": "x", "client_id": "   ", "entity_type": "person"},
+                {"entity_id": "x", "client_id": None, "entity_type": "person"}):
+        with pytest.raises(ValueError):
+            catalog.assert_projectable(bad, context="guard")
+
+
 def test_no_node_projects_a_forbidden_field():
     for node in catalog.NODES:
         projected = set(node.neo4j_props())

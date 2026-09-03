@@ -14,6 +14,7 @@ solleva: i chiamanti (best-effort mirror) la catturano.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
@@ -22,6 +23,8 @@ from sqlalchemy import text
 from backend import workspace_database
 from backend.db import canonical_session
 from backend.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -37,7 +40,12 @@ def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-") or "sconosciuto"
 
 
+_UPSERT_TABLES = frozenset({"client", "project", "process"})
+
+
 def _upsert(session, table: str, workspace_id: str, name: str, extra_cols: dict) -> str:
+    if table not in _UPSERT_TABLES:
+        raise ValueError(f"tabella non ammessa per _upsert: {table!r}")
     cols = ["workspace_id", "name", *extra_cols]
     placeholders = ", ".join(f":{c}" for c in cols)
     params = {"workspace_id": workspace_id, "name": name, **extra_cols}
@@ -66,7 +74,10 @@ def resolve_client_id(workspace_project_id: str) -> str | None:
         project = workspace_database.get_project(workspace_project_id)
         if project is None:
             return None
-        client_ws = f"client:{_slug(str(project.get('client') or 'Cliente'))}"
+        client_name = str(project.get("client") or "").strip()
+        if not client_name:
+            return None
+        client_ws = f"client:{_slug(client_name)}"
         with canonical_session(settings.default_consultant_id) as session:
             row = session.execute(
                 text(
@@ -77,6 +88,13 @@ def resolve_client_id(workspace_project_id: str) -> str | None:
             ).first()
         return str(row.id) if row else None
     except Exception:  # noqa: BLE001 — la lettura non deve far fallire il chiamante
+        # Distinta da "nessun cliente": qui il canonical e' configurato ma il
+        # lookup e' fallito (infra). Il chiamante degrada a recall consultant-only.
+        logger.warning(
+            "resolve_client_id: lookup fallito per %s (degrado a scope consultant)",
+            workspace_project_id,
+            exc_info=True,
+        )
         return None
 
 
@@ -84,12 +102,26 @@ def resolve(workspace_project_id: str, workspace_process_id: str | None = None) 
     if not settings.canonical_database_url:
         raise RuntimeError("canonical_database_url non configurata")
 
+    # G3: se c'e' un agent run vincolato, il project_id deve essere quello
+    # autorizzato per il thread (non uno scelto dall'LLM). No-op fuori da un run.
+    from backend.agents.scope_guard import assert_project_in_scope
+
+    assert_project_in_scope(workspace_project_id)
+
     project = workspace_database.get_project(workspace_project_id)
     if project is None:
         raise RuntimeError(f"progetto workspace sconosciuto: {workspace_project_id}")
 
     consultant_id = settings.default_consultant_id
-    client_name = str(project.get("client") or "Cliente")
+    client_name = str(project.get("client") or "").strip()
+    if not client_name:
+        # Fail loud: senza cliente ogni progetto finirebbe nello stesso bucket
+        # canonical `client:sconosciuto` e i loro KG/memoria si fonderebbero
+        # (tenant isolation). Il progetto deve avere un cliente assegnato.
+        raise RuntimeError(
+            f"progetto workspace {workspace_project_id} senza cliente: "
+            "impossibile risolvere lo scope canonical (tenant isolation)"
+        )
     client_ws = f"client:{_slug(client_name)}"
 
     process_name = None
