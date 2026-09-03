@@ -5,6 +5,7 @@ from backend.process_understanding import (
     ProcessBoundaries,
     ProcessDecision,
     ProcessDecisionOutcome,
+    ProcessEvent,
     ProcessFlowEdge,
     ProcessPath,
     ProcessStep,
@@ -95,3 +96,46 @@ def test_no_terminating_ends_means_no_terminate_definition():
     )
     assert all(n.eventDefinition is None for n in model.flowNodes if n.type == "endEvent")
     assert "terminateEventDefinition" not in semantic_model_to_bpmn_xml(model)
+
+
+def test_declared_end_event_can_be_marked_terminating_by_its_id():
+    model = build_bpmn_semantic_model(
+        process_id="P",
+        process_name="P",
+        process=_process(
+            events=[ProcessEvent(id="End_Abort", type="end", label="Pratica bloccata")],
+            boundaries=ProcessBoundaries(
+                success_end="Richiesta evasa",
+                terminating_ends=["  end_abort  "],
+            ),
+        ),
+    )
+
+    declared_end = next(
+        node for node in model.flowNodes if node.name == "Pratica bloccata"
+    )
+    assert declared_end.eventDefinition == "terminate"
+    assert "<bpmn:terminateEventDefinition />" in semantic_model_to_bpmn_xml(model)
+
+
+def test_failure_and_terminating_end_labels_are_deduplicated_case_insensitively():
+    model = build_bpmn_semantic_model(
+        process_id="P",
+        process_name="P",
+        process=_process(
+            boundaries=ProcessBoundaries(
+                success_end="Richiesta evasa",
+                failure_ends=[" Richiesta annullata "],
+                terminating_ends=["richiesta ANNULLATA"],
+            )
+        ),
+    )
+
+    matching_ends = [
+        node
+        for node in model.flowNodes
+        if " ".join(node.name.casefold().split()) == "richiesta annullata"
+    ]
+    assert len(matching_ends) == 1
+    assert matching_ends[0].eventDefinition == "terminate"
+    assert semantic_model_to_bpmn_xml(model).count("<bpmn:terminateEventDefinition />") == 1
