@@ -946,6 +946,13 @@ def write_evidence(
                     rel.get("relation"), src,
                 )
                 continue
+            try:
+                _normalize_relation(rel.get("relation", ""))
+            except ValueError:
+                # label di relazione non valida dall'LLM: salta QUESTA relazione,
+                # non abortire l'intero pacchetto di evidenza atomico.
+                logger.info("relazione saltata: label non valida %r", rel.get("relation"))
+                continue
             write_relation(
                 consultant_id, client_id, src, rel.get("relation", ""), tgt,
                 project_id=project_id, process_id=process_id,
