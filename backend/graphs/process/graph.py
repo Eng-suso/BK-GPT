@@ -76,6 +76,14 @@ process.evidence, process.modeling, process.canvas_handoff or process.clarificat
 Use workflow_scope=local_operation for narrow canvas/XML patch requests, single_step
 for one bounded capability, and full_workflow only when the user asks for an
 end-to-end engineering outcome.
+
+You are re-invoked after every specialist pass in a full_workflow run. Keep
+workflow_scope=full_workflow only while there is still epistemically necessary work
+before an end-to-end outcome is reached (e.g. more evidence to gather, contradictions
+to resolve, a semantic model still missing). Switch it to single_step, local_operation
+or direct as soon as the remaining request can be answered without another pass -
+you decide when the work is done, the runtime only enforces max_iterations as a hard
+budget ceiling and stops on repeated no-progress passes as a safety net.
 """.strip()
 
 
@@ -326,9 +334,17 @@ def ask_process_clarification(state: ProcessState) -> dict:
     }
 
 
+DEFAULT_MAX_ITERATIONS = 6
+# A single pass with no state change is not proof the loop is stuck (a discovery/
+# evidence pass can legitimately end in a question or an assessment without moving
+# canonical state); require this many consecutive no-progress passes before the
+# runtime treats it as a stall.
+NO_PROGRESS_STOP_THRESHOLD = 2
+
+
 def evaluate_process_iteration(state: ProcessState) -> dict:
     iteration = int(state.get("engineering_loop_iteration") or 0) + 1
-    max_iterations = int(state.get("engineering_loop_max_iterations") or 2)
+    max_iterations = int(state.get("engineering_loop_max_iterations") or DEFAULT_MAX_ITERATIONS)
     previous_signature = state.get("process_progress_signature")
     current_signature = process_state_signature(state)
     no_progress_count = int(state.get("process_no_progress_count") or 0)
@@ -339,18 +355,23 @@ def evaluate_process_iteration(state: ProcessState) -> dict:
         no_progress_count = 0
 
     workflow_scope = state.get("workflow_scope") or "single_step"
-    continue_loop = (
+    # The agent's own decision: it asked to keep working (full_workflow) and did not
+    # route into a terminal/handoff step. The runtime does not second-guess this -
+    # it only enforces the budget and no-progress safety net below.
+    agent_wants_to_continue = (
         workflow_scope == "full_workflow"
-        and iteration < max_iterations
-        and no_progress_count == 0
         and state.get("process_route") not in {"direct", "clarification", "delegate_canvas"}
     )
+    within_budget = iteration < max_iterations
+    making_progress = no_progress_count < NO_PROGRESS_STOP_THRESHOLD
+
+    continue_loop = agent_wants_to_continue and within_budget and making_progress
     termination_reason = state.get("termination_reason")
 
     if not continue_loop:
-        if iteration >= max_iterations and workflow_scope == "full_workflow":
+        if agent_wants_to_continue and not within_budget:
             termination_reason = "SAFE_LIMIT_REACHED"
-        elif no_progress_count > 0 and workflow_scope == "full_workflow":
+        elif agent_wants_to_continue and not making_progress:
             termination_reason = "BLOCKED_NO_PROGRESS"
         else:
             termination_reason = termination_reason or "DONE"

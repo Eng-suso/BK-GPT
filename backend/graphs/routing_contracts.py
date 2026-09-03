@@ -86,7 +86,17 @@ class ProcessRoutingDecision(RoutingDecisionBase):
     process_mode: Literal["discussion", "discovery", "evidence", "modeling", "delegation", "clarification"] | None = None
     process_objective: str | None = None
     workflow_scope: WorkflowScope = "single_step"
-    max_iterations: int = Field(default=2, ge=1, le=5)
+    max_iterations: int = Field(
+        default=6,
+        ge=1,
+        le=12,
+        description=(
+            "Hard safety ceiling on engineering-loop passes, not a target to fill or a way "
+            "to force early stopping. Size it to how many evidentiary/modeling steps this task "
+            "plausibly needs (discovery, evidence, modeling can each take several passes on a "
+            "real task). The loop still stops as soon as workflow_scope/route say the work is done."
+        ),
+    )
 
     @model_validator(mode="after")
     def normalize_route_clarification(self):

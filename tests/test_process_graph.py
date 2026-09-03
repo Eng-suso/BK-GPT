@@ -270,7 +270,9 @@ def test_process_registered_capability_not_allowed_by_state_is_not_executed():
     assert result["orchestration_status"] == "state_constrained_reroute"
 
 
-def test_process_no_progress_terminates_controlled_loop():
+def test_process_single_no_progress_pass_does_not_terminate_the_loop():
+    # One pass without a state change is not proof of a stall - a discovery/evidence
+    # pass can legitimately end in a question or an assessment without moving state.
     state = {
         "workflow_scope": "full_workflow",
         "process_route": "evidence",
@@ -290,8 +292,58 @@ def test_process_no_progress_terminates_controlled_loop():
 
     result = evaluate_process_iteration(state)
 
+    assert result["process_continue_loop"] is True
+    assert result["process_no_progress_count"] == 1
+
+
+def test_process_repeated_no_progress_terminates_controlled_loop():
+    state = {
+        "workflow_scope": "full_workflow",
+        "process_route": "evidence",
+        "engineering_loop_iteration": 1,
+        "engineering_loop_max_iterations": 5,
+        "process_no_progress_count": 1,
+        "process_progress_signature": "False|False|None|0|False|False|None|False|0|0|0",
+        "process_understanding": None,
+        "bpmn_semantic_model": None,
+        "readiness_score": None,
+        "missing_information": [],
+        "saved_bpmn_xml": None,
+        "contradictions": [],
+        "process_claims": [],
+        "process_gaps": [],
+    }
+
+    result = evaluate_process_iteration(state)
+
     assert result["process_continue_loop"] is False
     assert result["termination_reason"] == "BLOCKED_NO_PROGRESS"
+
+
+def test_process_engineering_loop_stops_at_safety_ceiling_not_low_default():
+    state = {
+        "workflow_scope": "full_workflow",
+        "process_route": "modeling",
+        "engineering_loop_iteration": 1,
+        "engineering_loop_max_iterations": 6,
+        "process_no_progress_count": 0,
+        "process_progress_signature": "sig-0",
+        "process_understanding": None,
+        "bpmn_semantic_model": None,
+        "readiness_score": 4,
+        "missing_information": [],
+        "saved_bpmn_xml": None,
+        "contradictions": [],
+        "process_claims": [],
+        "process_gaps": [{"title": "gap"}],
+    }
+
+    result = evaluate_process_iteration(state)
+
+    # Progress was made (signature changed via process_gaps) and the loop is well
+    # under the 6-pass default ceiling, so the agent's full_workflow request stands.
+    assert result["process_continue_loop"] is True
+    assert result["engineering_loop_iteration"] == 2
 
 
 def test_process_states_define_orchestration_fields():
@@ -523,17 +575,29 @@ def test_process_subagent_tools_prepare_gate_payloads():
     discovery = assess_discovery_readiness.invoke(
         {
             "process_id": "proc-1",
-            "scope_boundaries_clear": True,
-            "main_actors_identified": True,
-            "activities_supported": True,
-            "decisions_and_handoffs_known": True,
-            "exceptions_acknowledged": False,
-            "contradictions_documented": True,
-            "remaining_gaps_explicit": True,
+            "readiness": "ready_for_modeling",
+            "confidence": 0.8,
+            "rationale": "Scope, actors, activities and decisions are evidence-backed.",
+            "material_unknowns": ["exception path for rejected orders"],
         }
     )
     assert '"action": "assess_discovery_readiness"' in discovery
     assert '"status": "ready_for_modeling"' in discovery
+
+
+def test_discovery_readiness_cannot_claim_ready_with_open_blockers():
+    # The runtime verifies internal consistency of the judgment; it does not score it.
+    discovery = assess_discovery_readiness.invoke(
+        {
+            "process_id": "proc-1",
+            "readiness": "ready_for_modeling",
+            "confidence": 0.7,
+            "rationale": "Most of the process is known.",
+            "blockers": ["approval threshold for the second escalation tier is unknown"],
+        }
+    )
+    assert '"status": "partially_ready"' in discovery
+    assert "readiness_downgraded" in discovery
 
     claims = extract_process_claims.invoke(
         {
