@@ -50,6 +50,31 @@ _INTERMEDIATE_EVENT_DEFINITION: dict[str, Literal["timer", "message"]] = {
     "message": "message",
 }
 
+_GATEWAY_BPMN_TYPE: dict[str, str] = {
+    "exclusive": "exclusiveGateway",
+    "inclusive": "inclusiveGateway",
+    "event_based": "eventBasedGateway",
+}
+
+# Gateways whose outgoing flows carry data-based condition expressions. Parallel
+# and event-based gateways never do (they fork on tokens / on which event fires).
+_DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway"})
+
+
+def _gateway_bpmn_type(decision: ProcessDecision) -> str:
+    return _GATEWAY_BPMN_TYPE.get(decision.gateway_type, "exclusiveGateway")
+
+
+def _branch_catch_event_definition(text: str) -> Literal["timer", "message", "signal", "conditional"]:
+    """Infer the catch-event trigger for an event-based gateway branch."""
+    if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
+        return "timer"
+    if _matches_word(text, ("segnale", "signal", "broadcast", "evento di sistema")):
+        return "signal"
+    if _matches_word(text, ("messaggio", "risposta", "notifica", "comunicazione", "riscontro", "email", "conferma")):
+        return "message"
+    return "conditional"
+
 
 def build_bpmn_semantic_model(
     *,
@@ -150,7 +175,7 @@ def build_bpmn_semantic_model(
         if event.type == "end" and event.id in end_node_by_key:
             registry.map(event.id, end_node_by_key[event.id].id)
 
-    registry.gateway_ids = {node.id for node in nodes if node.type.endswith("Gateway")}
+    registry.gateway_ids = {node.id for node in nodes if node.type in _DATA_BASED_GATEWAYS}
     registry.connect_chain(main_chain)
 
     _add_alternative_paths(
@@ -190,6 +215,7 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     registry.apply_edge_overlay()
+    _normalize_event_gateways(nodes, registry, used_ids)
     flows = registry.flows
     _assign_gateway_defaults(nodes, flows, warnings)
     populate_lane_refs(lanes, nodes)
@@ -316,7 +342,7 @@ def _attach_anchored_gateway(
         return
     gateway = BPMNFlowNode(
         id=xml_id(decision.id, "Gateway", used_ids),
-        type="exclusiveGateway",
+        type=_gateway_bpmn_type(decision),
         name=decision.label,
         laneId=lane_id,
         documentation=decision_documentation(decision),
@@ -789,6 +815,37 @@ def _exception_event_definition(
 def _matches_word(text: str, words: tuple[str, ...]) -> bool:
     lowered = text.casefold()
     return any(re.search(rf"\b{re.escape(word)}", lowered) for word in words)
+
+
+def _normalize_event_gateways(
+    nodes: list[BPMNFlowNode], registry: FlowRegistry, used_ids: set[str]
+) -> None:
+    """Every outgoing branch of an event-based gateway must begin with an element
+    that waits for a trigger (OMG BPMN 2.0, 10.5.5). Splice a synthetic catch
+    event onto any branch that currently jumps straight to an activity, gateway
+    or end event; the branch label moves onto the catch event.
+    """
+    node_by_id = {node.id: node for node in nodes}
+    for gateway in list(nodes):
+        if gateway.type != "eventBasedGateway":
+            continue
+        for flow in [f for f in registry.flows if f.sourceRef == gateway.id]:
+            target = node_by_id.get(flow.targetRef)
+            if target is None or target.type in {"intermediateCatchEvent", "receiveTask"}:
+                continue
+            label = flow.name
+            catch = BPMNFlowNode(
+                id=xml_id(f"{gateway.id}_{target.id}", "CatchEvent", used_ids),
+                type="intermediateCatchEvent",
+                name=label or f"Attesa: {target.name}",
+                eventDefinition=_branch_catch_event_definition(f"{label or ''} {target.name}"),
+                laneId=gateway.laneId or target.laneId,
+                sourceRefs=list(gateway.sourceRefs),
+            )
+            nodes.append(catch)
+            node_by_id[catch.id] = catch
+            registry.insert_node(gateway.id, target.id, catch.id)
+            flow.name = None
 
 
 def _assign_gateway_defaults(

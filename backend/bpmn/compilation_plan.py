@@ -32,6 +32,11 @@ from backend.bpmn.models import (
 )
 from backend.process_understanding import ProcessUnderstanding
 
+_EVENT_NODE_TYPES = {"startEvent", "endEvent", "intermediateCatchEvent", "boundaryEvent"}
+_GATEWAY_NODE_TYPES = {
+    "exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"
+}
+
 
 def build_bpmn_compilation_plan(
     *,
@@ -135,26 +140,19 @@ def build_bpmn_compilation_plan(
             )
             for node in model.flowNodes
             if node.type
-            not in {
-                "startEvent",
-                "endEvent",
-                "intermediateCatchEvent",
-                "boundaryEvent",
-                "exclusiveGateway",
-                "parallelGateway",
-            }
+            not in _EVENT_NODE_TYPES | _GATEWAY_NODE_TYPES
         ],
         gateways=[
             GatewaySpec(
                 id=node.id,
                 name=node.name,
-                type="exclusiveGateway" if node.type == "exclusiveGateway" else "parallelGateway",
+                type=node.type,
                 anchor_step_id=_anchor_for_gateway(node.id, model),
                 documentation=node.documentation or "",
                 source_refs=[source_ref_from_id(ref) for ref in node.sourceRefs],
             )
             for node in model.flowNodes
-            if node.type in {"exclusiveGateway", "parallelGateway"}
+            if node.type in _GATEWAY_NODE_TYPES
         ],
         flows=[
             FlowSpec(

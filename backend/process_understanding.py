@@ -227,6 +227,7 @@ class ProcessDecision(BaseModel):
     id: str
     label: str
     question: str | None = None
+    gateway_type: Literal["exclusive", "inclusive", "event_based"] = "exclusive"
     outcomes: list[str] = Field(default_factory=list)
     outcome_details: list[ProcessDecisionOutcome] = Field(default_factory=list)
     source_evidence: list[str] = Field(default_factory=list)
@@ -829,6 +830,9 @@ Regole:
   out_of_scope_alternatives quando sono canali o opzioni non percorse.
 - Per ogni decisione inserisci question, outcomes leggibili e outcome_details
   con condizione, target_ref o target_path_id, eventuale rejoins_at o ends_process.
+- Imposta gateway_type: exclusive (un solo esito, XOR), inclusive (piu' esiti
+  possono valere insieme, OR) oppure event_based quando la diramazione dipende
+  da quale evento arriva prima (messaggio, timer, segnale).
 - Estrai controlli/verifiche in controls con owner, oggetto verificato,
   condizione di esito positivo e negativo.
 - Per ogni documento importante crea data_objects e, se possibile,

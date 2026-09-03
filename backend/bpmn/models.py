@@ -44,6 +44,8 @@ class BPMNFlowNode(BaseModel):
         "scriptTask",
         "exclusiveGateway",
         "parallelGateway",
+        "inclusiveGateway",
+        "eventBasedGateway",
         "intermediateCatchEvent",
         "boundaryEvent",
         "subProcess",
@@ -174,7 +176,9 @@ class ActivitySpec(BaseModel):
 class GatewaySpec(BaseModel):
     id: str
     name: str
-    type: Literal["exclusiveGateway", "parallelGateway", "inclusiveGateway"] = "exclusiveGateway"
+    type: Literal[
+        "exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"
+    ] = "exclusiveGateway"
     anchor_step_id: str | None = None
     outcomes: list[str] = Field(default_factory=list)
     documentation: str = ""

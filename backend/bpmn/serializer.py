@@ -276,7 +276,7 @@ def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
         return 44, 44
     if node.type == "boundaryEvent":
         return 36, 36
-    if node.type in {"exclusiveGateway", "parallelGateway"}:
+    if node.type in {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"}:
         return 68, 68
     return 188, 92
 

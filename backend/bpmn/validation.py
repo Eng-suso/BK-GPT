@@ -37,7 +37,11 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
 
     node_type_by_id = {node.id: node.type for node in model.flowNodes}
     for node in model.flowNodes:
-        if node.type == "exclusiveGateway" and len(outgoing_by_node.get(node.id, [])) < 2:
+        if (
+            node.type in {"exclusiveGateway", "inclusiveGateway", "eventBasedGateway"}
+            and len(incoming_by_node.get(node.id, [])) <= 1
+            and len(outgoing_by_node.get(node.id, [])) < 2
+        ):
             warnings.append(f"Gateway {node.name} senza almeno due uscite.")
         if node.type == "boundaryEvent":
             if node_type_by_id.get(node.attachedToRef or "") not in ACTIVITY_NODE_TYPES:
