@@ -23,6 +23,7 @@ class ProcessEvent(BaseModel):
     id: str
     label: str
     type: Literal["start", "end", "timer", "message", "exception"]
+    direction: Literal["catch", "throw"] = "catch"
     timing: str | None = None
     source_evidence: list[str] = Field(default_factory=list)
 
@@ -821,6 +822,8 @@ Regole:
 - Estrai attori/ruoli, partecipanti, eventi, step, decisioni/gateway, eccezioni,
   handoff, documenti, requisiti documentali, input/output, alternative path,
   loop, regole, assunzioni, findings e unknowns.
+- Per gli eventi intermedi imposta direction=throw quando il processo emette
+  qualcosa (invia notifica/segnale) e direction=catch quando resta in attesa.
 - Classifica participants.bpmn_container distinguendo pool, lane, black_box e
   out_of_scope. Non confondere persona/ente/sistema con lane.
 - Popola flow_edges con source_id, target_id e label comprensibile. Ogni freccia

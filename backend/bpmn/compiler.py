@@ -356,18 +356,16 @@ def _attach_anchored_gateway(
 
 
 def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
-    """Create a BPMN intermediate catch event node from a ProcessEvent.
+    """Create a BPMN intermediate event node from a ProcessEvent.
 
-    Args:
-        event: The ProcessEvent to convert.
-        used_ids: Set of already-allocated IDs.
-
-    Returns:
-        A BPMNFlowNode representing an intermediate catch event.
+    A throwing event (the process emits a message/signal) becomes an
+    `intermediateThrowEvent`; everything else waits and becomes an
+    `intermediateCatchEvent`.
     """
+    node_type = "intermediateThrowEvent" if event.direction == "throw" else "intermediateCatchEvent"
     return BPMNFlowNode(
         id=xml_id(event.id or "IntermediateEvent", "IntermediateEvent", used_ids),
-        type="intermediateCatchEvent",
+        type=node_type,
         name=event.label,
         eventDefinition=_INTERMEDIATE_EVENT_DEFINITION.get(event.type),
         documentation=json_documentation(
