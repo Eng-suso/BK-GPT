@@ -17,7 +17,7 @@ def _compile(events: list[ProcessEvent]) -> object:
     	events (list[ProcessEvent]): Events to include between the preparation and archival steps.
     
     Returns:
-    	object: The generated BPMN semantic model.
+    	BPMNSemanticModel: The generated BPMN semantic model.
     """
     process = ProcessUnderstanding(
         title="Notifica",
