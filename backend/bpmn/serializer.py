@@ -27,6 +27,27 @@ _REFERENCEABLE_EVENT_DEFINITIONS = {
 }
 
 
+def _serialized_semantic_ids(model: BPMNSemanticModel) -> set[str]:
+    """Return every ID emitted for a semantic BPMN element."""
+    ids = {
+        f"Definitions_{model.id}",
+        model.id,
+        *(lane.id for lane in model.lanes),
+        *(participant.id for participant in model.participants),
+        *(message_flow.id for message_flow in model.messageFlows),
+        *(node.id for node in model.flowNodes),
+        *(flow.id for flow in model.sequenceFlows),
+        *(artifact.id for artifact in (*model.dataObjects, *model.dataStores)),
+        *(annotation.id for annotation in model.textAnnotations),
+        *(association.id for association in model.associations),
+    }
+    if model.lanes:
+        ids.add(f"{model.id}_LaneSet")
+    if model.participants:
+        ids.add(model.collaborationId or f"Collaboration_{model.id}")
+    return ids
+
+
 def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, str]]:
     """Collect definitions-level <bpmn:message/signal/error> elements referenced
     by the model's events, plus a node-id -> declaration-id map for their refs.
@@ -35,7 +56,7 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
     declarations: dict[tuple[str, str], str] = {}
     lines: list[str] = []
     ref_by_node: dict[str, str] = {}
-    taken = {node.id for node in model.flowNodes} | {flow.id for flow in model.sequenceFlows}
+    taken = _serialized_semantic_ids(model)
     for node in model.flowNodes:
         spec = _REFERENCEABLE_EVENT_DEFINITIONS.get(node.eventDefinition or "")
         if spec is None or node.type not in _EVENT_DEFINITION_HOSTS:
@@ -56,7 +77,19 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
     return lines, ref_by_node
 
 
-def _event_definition_xml(kind: str, ref_id: str | None) -> str:
+def _event_definition_xml(
+    kind: str, ref_id: str | None, condition_expression: str | None
+) -> str:
+    if kind == "conditional":
+        condition = (condition_expression or "").strip()
+        if not condition:
+            raise ValueError("Conditional BPMN events require an explicit condition expression")
+        return (
+            "      <bpmn:conditionalEventDefinition>\n"
+            '        <bpmn:condition xsi:type="bpmn:tFormalExpression">'
+            f"{escape(condition)}</bpmn:condition>\n"
+            "      </bpmn:conditionalEventDefinition>"
+        )
     spec = _REFERENCEABLE_EVENT_DEFINITIONS.get(kind)
     if spec and ref_id:
         return f'      <bpmn:{kind}EventDefinition {spec[1]}="{escape(ref_id)}" />'
@@ -112,7 +145,13 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
-            xml_parts.append(_event_definition_xml(node.eventDefinition, event_ref_by_node.get(node.id)))
+            xml_parts.append(
+                _event_definition_xml(
+                    node.eventDefinition,
+                    event_ref_by_node.get(node.id),
+                    node.eventConditionExpression,
+                )
+            )
         xml_parts.append(f"    </bpmn:{node.type}>")
 
     for flow in model.sequenceFlows:

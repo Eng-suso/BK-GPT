@@ -1,6 +1,9 @@
 """Serializer: definitions-level message/signal/error declarations and refs."""
 
 import re
+from xml.etree import ElementTree
+
+import pytest
 
 from backend.bpmn import semantic_model_to_bpmn_xml
 from backend.bpmn.models import BPMNFlowNode, BPMNSemanticModel, BPMNSequenceFlow
@@ -84,3 +87,46 @@ def test_timer_and_conditional_events_stay_inline_without_a_declaration():
     assert "<bpmn:message " not in xml
     assert "<bpmn:signal " not in xml
     assert "<bpmn:timerEventDefinition />" in xml
+
+
+def test_message_declaration_avoids_every_serialized_semantic_id():
+    model = BPMNSemanticModel(
+        id="Message_1",
+        name="Collision",
+        flowNodes=[
+            BPMNFlowNode(
+                id="catch",
+                type="intermediateCatchEvent",
+                name="Incoming message",
+                eventDefinition="message",
+            ),
+        ],
+        sequenceFlows=[],
+    )
+
+    xml = semantic_model_to_bpmn_xml(model)
+    ids = [
+        element.attrib["id"]
+        for element in ElementTree.fromstring(xml).iter()
+        if "id" in element.attrib
+    ]
+
+    assert '<bpmn:message id="Message_2"' in xml
+    assert len(ids) == len(set(ids))
+
+
+def test_conditionless_conditional_event_is_rejected():
+    model = _model(
+        [
+            BPMNFlowNode(
+                id="conditional",
+                type="intermediateCatchEvent",
+                name="Unspecified condition",
+                eventDefinition="conditional",
+            ),
+        ],
+        [],
+    )
+
+    with pytest.raises(ValueError, match="require an explicit condition"):
+        semantic_model_to_bpmn_xml(model)

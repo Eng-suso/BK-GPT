@@ -109,10 +109,21 @@ def test_event_based_decision_forks_onto_catch_events():
         if node.type == "intermediateCatchEvent"
     }
     assert "timer" in catch_defs
+    conditional_catches = [
+        node
+        for node in model.flowNodes
+        if node.eventDefinition == "conditional"
+    ]
+    assert conditional_catches
+    assert all(node.eventConditionExpression for node in conditional_catches)
 
     report = analyze_control_flow(model)
     assert not any(issue.code == "event_gateway_bad_target" for issue in report.errors)
-    assert "<bpmn:eventBasedGateway" in semantic_model_to_bpmn_xml(model)
+    xml = semantic_model_to_bpmn_xml(model)
+    assert "<bpmn:eventBasedGateway" in xml
+    assert "<bpmn:conditionalEventDefinition>" in xml
+    assert '<bpmn:condition xsi:type="bpmn:tFormalExpression">' in xml
+    assert "<bpmn:conditionalEventDefinition />" not in xml
 
 
 def test_synthetic_catch_events_are_ordered_next_to_their_gateway():
@@ -127,6 +138,24 @@ def test_synthetic_catch_events_are_ordered_next_to_their_gateway():
     assert [order.index(cid) for cid in catch_ids] == [
         gateway_rank + 1 + offset for offset in range(len(catch_ids))
     ]
+
+
+def test_synthetic_conditional_catch_without_a_trigger_is_skipped_with_a_warning():
+    process = _process("event_based")
+    process.flow_edges = [edge for edge in process.flow_edges if edge.id != "E3"]
+
+    model = _compile(process)
+    gateway = next(node for node in model.flowNodes if node.type == "eventBasedGateway")
+    direct_targets = {
+        flow.targetRef for flow in model.sequenceFlows if flow.sourceRef == gateway.id
+    }
+
+    assert any(
+        node.id in direct_targets and node.name == "Spedisci ordine"
+        for node in model.flowNodes
+    )
+    assert any("senza trigger esplicito" in warning for warning in model.model_warnings)
+    assert "<bpmn:conditionalEventDefinition />" not in semantic_model_to_bpmn_xml(model)
 
 
 def test_soundness_flags_an_event_gateway_wired_straight_to_a_task():

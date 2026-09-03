@@ -601,6 +601,7 @@ def test_exceptions_compile_to_boundary_events_on_their_step():
     # non-interrupting + no error keyword -> conditional boundary, may stay non-interrupting
     escalation = boundary["Reclamo aperto durante la lavorazione"]
     assert escalation.eventDefinition == "conditional"
+    assert escalation.eventConditionExpression == "segnalazione parallela dal cliente"
     assert escalation.cancelActivity is False
 
     # error keyword -> forced interrupting per BPMN 2.0, with a warning
@@ -619,7 +620,11 @@ def test_exceptions_compile_to_boundary_events_on_their_step():
     assert f'attachedToRef="{wait_task}"' in xml
     assert 'cancelActivity="false"' in xml
     assert "<bpmn:timerEventDefinition />" in xml
-    assert "<bpmn:conditionalEventDefinition />" in xml
+    assert "<bpmn:conditionalEventDefinition>" in xml
+    assert (
+        '<bpmn:condition xsi:type="bpmn:tFormalExpression">'
+        "segnalazione parallela dal cliente</bpmn:condition>"
+    ) in xml
     assert validate_bpmn_xml(xml)["valid"] is True
     assert not any(
         "senza ingresso" in w or "senza uscita" in w or "non agganciato" in w

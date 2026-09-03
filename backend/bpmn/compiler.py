@@ -215,7 +215,7 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     registry.apply_edge_overlay()
-    _normalize_event_gateways(nodes, registry, used_ids)
+    _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
     _assign_gateway_defaults(nodes, flows, warnings)
     populate_lane_refs(lanes, nodes)
@@ -658,6 +658,13 @@ def _add_boundary_events(
             continue
 
         definition, interrupting = _exception_event_definition(exception)
+        condition_expression = (exception.trigger or "").strip() or None
+        if definition == "conditional" and condition_expression is None:
+            warnings.append(
+                f"Eccezione '{exception.label}' senza trigger esplicito: "
+                "boundary event condizionale non generato."
+            )
+            continue
         if interrupting != exception.interrupting:
             warnings.append(
                 f"Eccezione '{exception.label}': forzata a interrupting perche' un evento "
@@ -672,6 +679,9 @@ def _add_boundary_events(
             attachedToRef=attached,
             cancelActivity=interrupting,
             eventDefinition=definition,
+            eventConditionExpression=(
+                condition_expression if definition == "conditional" else None
+            ),
             documentation=json_documentation(
                 "exception",
                 {
@@ -816,7 +826,10 @@ def _matches_word(text: str, words: tuple[str, ...]) -> bool:
 
 
 def _normalize_event_gateways(
-    nodes: list[BPMNFlowNode], registry: FlowRegistry, used_ids: set[str]
+    nodes: list[BPMNFlowNode],
+    registry: FlowRegistry,
+    used_ids: set[str],
+    warnings: list[str],
 ) -> None:
     """Every outgoing branch of an event-based gateway must begin with an element
     that waits for a trigger (OMG BPMN 2.0, 10.5.5). Splice a synthetic catch
@@ -831,11 +844,22 @@ def _normalize_event_gateways(
             if target is None or target.type in {"intermediateCatchEvent", "receiveTask"}:
                 continue
             label = flow.name
+            definition = _branch_catch_event_definition(f"{label or ''} {target.name}")
+            condition_expression = (label or "").strip() or None
+            if definition == "conditional" and condition_expression is None:
+                warnings.append(
+                    f"Ramo del gateway a eventi '{gateway.name}' verso '{target.name}' "
+                    "senza trigger esplicito: catch event condizionale non generato."
+                )
+                continue
             catch = BPMNFlowNode(
                 id=xml_id(f"{gateway.id}_{target.id}", "CatchEvent", used_ids),
                 type="intermediateCatchEvent",
                 name=label or f"Attesa: {target.name}",
-                eventDefinition=_branch_catch_event_definition(f"{label or ''} {target.name}"),
+                eventDefinition=definition,
+                eventConditionExpression=(
+                    condition_expression if definition == "conditional" else None
+                ),
                 laneId=gateway.laneId or target.laneId,
             )
             # Keep the synthetic catch next to its gateway so the serializer and
@@ -1062,4 +1086,3 @@ def _outcome_name_for_path(decision: ProcessDecision, path) -> str | None:
         if outcome.target_path_id == path.id:
             return outcome.label or outcome.condition
     return path.trigger_or_condition or path.label
-
