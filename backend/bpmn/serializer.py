@@ -92,6 +92,13 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
     return lines, ref_by_node
 
 
+def _loop_characteristics_xml(kind: str) -> str:
+    if kind == "standardLoop":
+        return "      <bpmn:standardLoopCharacteristics />"
+    is_sequential = "true" if kind == "multiInstanceSequential" else "false"
+    return f'      <bpmn:multiInstanceLoopCharacteristics isSequential="{is_sequential}" />'
+
+
 def _event_definition_xml(
     kind: str, ref_id: str | None, condition_expression: str | None
 ) -> str:
@@ -180,6 +187,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
                 xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
+        if node.loopCharacteristics != "none":
+            xml_parts.append(_loop_characteristics_xml(node.loopCharacteristics))
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
             xml_parts.append(
                 _event_definition_xml(

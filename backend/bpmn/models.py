@@ -58,6 +58,10 @@ class BPMNFlowNode(BaseModel):
         "timer", "message", "conditional", "signal", "error", "escalation", "terminate"
     ] | None = None
     eventConditionExpression: str | None = None
+    # Activity loop marker (OMG BPMN 2.0 10.2.3). Ignored for non-activity nodes.
+    loopCharacteristics: Literal[
+        "none", "standardLoop", "multiInstanceSequential", "multiInstanceParallel"
+    ] = "none"
     attachedToRef: str | None = None
     cancelActivity: bool = True
     defaultFlowId: str | None = None

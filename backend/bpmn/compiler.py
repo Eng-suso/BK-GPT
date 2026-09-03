@@ -153,6 +153,7 @@ def build_bpmn_semantic_model(
             name=step.label,
             laneId=lane_id,
             owner=actor_label(process.actors, step.actor_ids),
+            loopCharacteristics=_loop_characteristics(step),
             documentation=step_documentation(step, process.actors),
             sourceRefs=[source_ref_id("steps", step.id)],
         )
@@ -286,6 +287,25 @@ def _task_type(step: ProcessStep) -> str:
         "script_task": "scriptTask",
         "subprocess": "subProcess",
     }.get(step.type, "userTask")
+
+
+def _loop_characteristics(
+    step: ProcessStep,
+) -> Literal["none", "standardLoop", "multiInstanceSequential", "multiInstanceParallel"]:
+    """Infer an activity loop marker from the step wording.
+
+    "per ogni / per ciascun / for each" -> multi-instance (parallel unless the
+    text says the items are handled one at a time); "ripeti finche' / fino a"
+    -> standard loop.
+    """
+    text = f"{step.label or ''} {step.description or ''}".casefold()
+    if _matches_word(text, ("per ogni", "per ciascun", "per ognun", "for each", "una per", "ciascuna")):
+        if _matches_word(text, ("in sequenza", "uno alla volta", "una alla volta", "sequenzial")):
+            return "multiInstanceSequential"
+        return "multiInstanceParallel"
+    if _matches_word(text, ("ripeti finche", "ripeti fino", "finche non", "fino a quando", "itera fino")):
+        return "standardLoop"
+    return "none"
 
 
 def _ordered_chain_items(
@@ -545,6 +565,7 @@ def _add_alternative_paths(
                 name=source_step.label,
                 laneId=lane_id,
                 owner=actor_label(actors, source_step.actor_ids),
+                loopCharacteristics=_loop_characteristics(source_step),
             )
             nodes.append(branch_node)
             registry.map(source_step.id, branch_node.id)
@@ -672,6 +693,16 @@ def _add_loop_flows(
     node_by_id = {node.id: node for node in nodes}
     for loop in process.loops:
         repeated = [step_id for step_id in loop.repeated_steps if step_id in step_node_by_original_id]
+        if len(repeated) == 1:
+            # A single repeated activity is a self-loop, not a back-edge through
+            # earlier steps: render it as a standard-loop activity marker.
+            node = node_by_id.get(step_node_by_original_id[repeated[0]])
+            if node is not None and node.loopCharacteristics == "none":
+                node.loopCharacteristics = "standardLoop"
+                ref = source_ref_id("loops", loop.id)
+                if ref not in node.sourceRefs:
+                    node.sourceRefs.append(ref)
+            continue
         if len(repeated) < 2:
             warnings.append(f"Loop '{loop.label}' presente ma non mappabile su almeno due step.")
             continue
