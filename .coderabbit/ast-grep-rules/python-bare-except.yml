@@ -1,0 +1,13 @@
+id: delir-py-bare-except
+language: python
+severity: warning
+message: >-
+  Bare `except:` also catches SystemExit / KeyboardInterrupt and erases the
+  failure class. Catch explicit exception categories.
+note: >-
+  CODE_QUALITY.md > Errors: define explicit categories for validation,
+  authorization, conflict, not-found, transient, permanent, model and invariant
+  errors. Do not swallow broad exceptions.
+rule:
+  kind: except_clause
+  regex: '^except\s*:'

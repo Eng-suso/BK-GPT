@@ -1,0 +1,19 @@
+id: delir-py-broad-except-fake-success
+language: python
+severity: warning
+message: >-
+  `except Exception` that returns None / [] / {} / False converts infrastructure
+  failure into valid domain absence. Raise a typed error or an explicit,
+  observable fallback.
+note: >-
+  CODE_QUALITY.md > Errors and > AI Flops: MUST NOT convert infrastructure
+  failure into valid domain absence; MUST NOT hide errors behind None, empty
+  lists, or generic fallbacks.
+rule:
+  all:
+    - kind: except_clause
+    - regex: '^except\s+\(?(Exception|BaseException)\b'
+    - has:
+        kind: return_statement
+        stopBy: end
+        regex: 'return\s*(None|False|\[\s*\]|\{\s*\})\s*$'
