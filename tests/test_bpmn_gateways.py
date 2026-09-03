@@ -115,6 +115,20 @@ def test_event_based_decision_forks_onto_catch_events():
     assert "<bpmn:eventBasedGateway" in semantic_model_to_bpmn_xml(model)
 
 
+def test_synthetic_catch_events_are_ordered_next_to_their_gateway():
+    model = _compile(_process("event_based"))
+    order = [node.id for node in model.flowNodes]
+    gateway = next(node for node in model.flowNodes if node.type == "eventBasedGateway")
+    catch_ids = [
+        node.id for node in model.flowNodes if node.type == "intermediateCatchEvent"
+    ]
+    gateway_rank = order.index(gateway.id)
+    # every synthetic catch sits immediately after the gateway, before the tail
+    assert [order.index(cid) for cid in catch_ids] == [
+        gateway_rank + 1 + offset for offset in range(len(catch_ids))
+    ]
+
+
 def test_soundness_flags_an_event_gateway_wired_straight_to_a_task():
     model = BPMNSemanticModel(
         id="P",

@@ -257,6 +257,9 @@ def _target_by_source_ref(model: BPMNSemanticModel) -> dict[str, tuple[str, str]
     for data_object in model.dataObjects:
         for ref in data_object.sourceRefs:
             targets[ref] = (data_object.id, "dataObjectReference")
+    for data_store in model.dataStores:
+        for ref in data_store.sourceRefs:
+            targets[ref] = (data_store.id, "dataStoreReference")
     return targets
 
 

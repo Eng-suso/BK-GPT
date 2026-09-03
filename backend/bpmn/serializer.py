@@ -35,6 +35,7 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
     declarations: dict[tuple[str, str], str] = {}
     lines: list[str] = []
     ref_by_node: dict[str, str] = {}
+    taken = {node.id for node in model.flowNodes} | {flow.id for flow in model.sequenceFlows}
     for node in model.flowNodes:
         spec = _REFERENCEABLE_EVENT_DEFINITIONS.get(node.eventDefinition or "")
         if spec is None or node.type not in _EVENT_DEFINITION_HOSTS:
@@ -43,7 +44,12 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
         key = (tag, " ".join((node.name or "").split()).casefold() or node.id)
         decl_id = declarations.get(key)
         if decl_id is None:
-            decl_id = f"{prefix}_{sum(1 for k in declarations if k[0] == tag) + 1}"
+            ordinal = sum(1 for k in declarations if k[0] == tag) + 1
+            decl_id = f"{prefix}_{ordinal}"
+            while decl_id in taken:
+                ordinal += 1
+                decl_id = f"{prefix}_{ordinal}"
+            taken.add(decl_id)
             declarations[key] = decl_id
             lines.append(f'  <bpmn:{tag} id="{escape(decl_id)}" name="{escape(node.name or decl_id)}" />')
         ref_by_node[node.id] = decl_id
@@ -143,8 +149,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
             element_documentation("", annotation.sourceRefs), indent="      "
         ) if annotation.sourceRefs else []
         xml_parts.append(f'    <bpmn:textAnnotation id="{escape(annotation.id)}">')
+        xml_parts.extend(body)  # <bpmn:documentation> must precede <bpmn:text> per XSD
         xml_parts.append(f"      <bpmn:text>{escape(annotation.text)}</bpmn:text>")
-        xml_parts.extend(body)
         xml_parts.append("    </bpmn:textAnnotation>")
     for association in model.associations:
         direction = (

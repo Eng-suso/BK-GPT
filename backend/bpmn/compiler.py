@@ -824,9 +824,8 @@ def _normalize_event_gateways(
     or end event; the branch label moves onto the catch event.
     """
     node_by_id = {node.id: node for node in nodes}
-    for gateway in list(nodes):
-        if gateway.type != "eventBasedGateway":
-            continue
+    for gateway in [node for node in nodes if node.type == "eventBasedGateway"]:
+        insert_at = nodes.index(gateway) + 1
         for flow in [f for f in registry.flows if f.sourceRef == gateway.id]:
             target = node_by_id.get(flow.targetRef)
             if target is None or target.type in {"intermediateCatchEvent", "receiveTask"}:
@@ -838,9 +837,11 @@ def _normalize_event_gateways(
                 name=label or f"Attesa: {target.name}",
                 eventDefinition=_branch_catch_event_definition(f"{label or ''} {target.name}"),
                 laneId=gateway.laneId or target.laneId,
-                sourceRefs=list(gateway.sourceRefs),
             )
-            nodes.append(catch)
+            # Keep the synthetic catch next to its gateway so the serializer and
+            # layout column-rank it on the branch, not past the end event.
+            nodes.insert(insert_at, catch)
+            insert_at += 1
             node_by_id[catch.id] = catch
             registry.insert_node(gateway.id, target.id, catch.id)
             flow.name = None

@@ -15,7 +15,7 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
     warnings: list[str] = []
     node_ids = {node.id for node in model.flowNodes}
     flow_ids = {flow.id for flow in model.sequenceFlows}
-    data_ids = {item.id for item in model.dataObjects}
+    data_ids = {item.id for item in model.dataObjects} | {item.id for item in model.dataStores}
     annotation_ids = {item.id for item in model.textAnnotations}
     semantic_element_ids = node_ids | data_ids | annotation_ids
     if len(node_ids) != len(model.flowNodes) or len(flow_ids) != len(model.sequenceFlows):
