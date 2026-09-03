@@ -56,7 +56,7 @@ export type ProjectDecision = {
   status: string;
 };
 
-const apiClientSchema = z.object({
+export const apiClientSchema = z.object({
   id: z.string(),
   name: z.string(),
   sector: z.string(),
@@ -83,7 +83,7 @@ function normalizeClientStatus(raw: string): Client["status"] {
   return CLIENT_STATUS[raw.trim().toLowerCase()] ?? "Prospect";
 }
 
-const apiProcessSchema = z.object({
+export const apiProcessSchema = z.object({
   id: z.string(),
   project_id: z.string(),
   bpmn_model_id: z.string(),
@@ -110,7 +110,7 @@ export const apiProjectSchema = z.object({
   process_items: z.array(apiProcessSchema),
 });
 
-const apiProjectSourceSchema = z.object({
+export const apiProjectSourceSchema = z.object({
   id: z.string(),
   project_id: z.string(),
   process_id: z.string().nullable(),
@@ -119,7 +119,7 @@ const apiProjectSourceSchema = z.object({
   meta: z.string(),
 });
 
-const apiProjectDecisionSchema = z.object({
+export const apiProjectDecisionSchema = z.object({
   id: z.string(),
   project_id: z.string(),
   process_id: z.string().nullable(),
