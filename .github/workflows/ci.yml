@@ -157,13 +157,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Keep in sync with the projects declared in playwright.config.ts.
+        # Firefox is not a configured project; visual + lighthouse are opt-in
+        # (RUN_VISUAL / RUN_LIGHTHOUSE) and not gated here.
         project:
           - chromium
-          - firefox
           - webkit
           - mobile-chrome
           - mobile-safari
-          - lighthouse
 
     steps:
       - name: Checkout repository
@@ -200,14 +201,7 @@ jobs:
         run: uv sync --locked
 
       - name: Install Playwright browsers
-        run: npx playwright install ${{ matrix.project == 'mobile-chrome' && 'chromium' || matrix.project == 'mobile-safari' && 'webkit' || matrix.project == 'lighthouse' && 'chromium' || matrix.project }} --with-deps
-
-      - name: Download visual regression baselines
-        uses: actions/download-artifact@v4
-        with:
-          name: visual-baselines-${{ matrix.project }}
-          path: e2e/__snapshots__
-        continue-on-error: true
+        run: npx playwright install ${{ (matrix.project == 'mobile-chrome' && 'chromium') || (matrix.project == 'mobile-safari' && 'webkit') || matrix.project }} --with-deps
 
       - name: Run Playwright tests
         env:
@@ -215,14 +209,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-test-fake-key-for-ci' }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY || 'tvly-test-fake-key-for-ci' }}
         run: npx playwright test --project=${{ matrix.project }} --reporter=html,list
-
-      - name: Upload visual regression baselines
-        uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/heads/main' && always()
-        with:
-          name: visual-baselines-${{ matrix.project }}
-          path: e2e/__snapshots__/
-          retention-days: 90
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

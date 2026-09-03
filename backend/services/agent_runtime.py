@@ -159,6 +159,78 @@ def build_trace_context(
     )
 
 
+def _latest_user_message(messages: list[dict]) -> str:
+    for message in reversed(messages or []):
+        role = message.get("role") or message.get("type")
+        if role in {"user", "human"}:
+            return str(message.get("content") or "").strip()
+    return ""
+
+
+def fake_agent_events(
+    *,
+    thread_id: str,
+    messages: list[dict],
+    scope: ChatScope | None,
+    context: TraceContext,
+) -> Iterator[AgentStreamEvent]:
+    """Deterministic agent stream for `DELIR_FAKE_LLM=1` — no OpenAI, no graph.
+
+    Emits the same event shape as the real runtime (`start` / `trace` / `node`
+    / `delta` / `trace`) so e2e and contract tests exercise the transport and
+    the frontend stream reader without a model call.
+    """
+    fields = scope_fields(scope)
+    user_text = _latest_user_message(messages)
+    reply = (
+        f"[fake-llm] Ricevuto in scope '{fields['scope_type']}'. "
+        f"Messaggio: {user_text or '(vuoto)'}"
+    )
+
+    yield AgentStreamEvent(
+        type="start",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        payload={
+            "scope_type": fields["scope_type"],
+            "scope_key": fields["scope_key"],
+            "fake_llm": True,
+        },
+    )
+    yield AgentStreamEvent(
+        type="trace",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        payload=trace_event(context, "request_start", message="Fake agent stream started.").model_dump(),
+    )
+    yield AgentStreamEvent(
+        type="node",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        node="fake_agent",
+        payload=trace_event(context, "node", node="fake_agent", message="Fake agent node.").model_dump(),
+    )
+    for token in reply.split(" "):
+        yield AgentStreamEvent(
+            type="delta",
+            request_id=context.request_id,
+            trace_id=context.trace_id,
+            thread_id=thread_id,
+            node="fake_agent",
+            content=token + " ",
+        )
+    yield AgentStreamEvent(
+        type="trace",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        payload=trace_event(context, "request_end", message="Fake agent stream completed.").model_dump(),
+    )
+
+
 def stream_agent_events(
     *,
     thread_id: str,
@@ -169,7 +241,6 @@ def stream_agent_events(
 ) -> Iterator[AgentStreamEvent]:
     fields = scope_fields(scope)
     selected_model = normalize_model_name(model_name)
-    agent = get_agent(selected_model, scope_type=fields["scope_type"])
     checkpoint_thread_id = agent_checkpoint_thread_id(thread_id, fields["scope_key"])
     context = trace_context or new_trace_context(
         thread_id=thread_id,
@@ -178,6 +249,17 @@ def stream_agent_events(
         scope_key=fields["scope_key"],
         model_name=model_name,
     )
+
+    if settings.delir_fake_llm:
+        yield from fake_agent_events(
+            thread_id=thread_id,
+            messages=messages,
+            scope=scope,
+            context=context,
+        )
+        return
+
+    agent = get_agent(selected_model, scope_type=fields["scope_type"])
     thread_lock = get_thread_lock(checkpoint_thread_id)
     last_node = None
     first_token_recorded = False
