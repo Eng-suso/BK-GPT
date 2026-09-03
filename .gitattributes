@@ -1,2 +1,5 @@
 # Gli script di shell girano in container Linux: sempre LF, anche su Windows.
 *.sh text eol=lf
+
+# `git apply` rifiuta i patch con CRLF: mantienili LF ovunque.
+*.patch -text
