@@ -43,6 +43,9 @@ class ProcessStep(BaseModel):
         "script_task",
         "subprocess",
     ] = "user_task"
+    # "per_item" = the activity runs once for every element of a collection
+    # (BPMN multi-instance); "_sequential" when the items are handled one at a time.
+    multiplicity: Literal["single", "per_item", "per_item_sequential"] = "single"
     inputs: list[str] = Field(default_factory=list)
     outputs: list[str] = Field(default_factory=list)
     source_evidence: list[str] = Field(default_factory=list)
@@ -245,6 +248,9 @@ class ProcessExceptionPath(BaseModel):
     label: str
     trigger: str | None = None
     handling: str | None = None
+    # BPMN boundary-event trigger. "auto" lets the compiler infer it from the
+    # trigger text; set it explicitly when the type is known.
+    kind: Literal["auto", "timer", "message", "error", "conditional", "escalation", "signal"] = "auto"
     attached_to_step_id: str | None = None
     interrupting: bool = True
     is_defined: bool = True
@@ -261,6 +267,9 @@ class ProcessBoundaries(BaseModel):
     start_event: str | None = None
     success_end: str | None = None
     failure_ends: list[str] = Field(default_factory=list)
+    # Ends that abort the whole process (kill any parallel/pending work) rather
+    # than just consuming their own token -> BPMN terminate end events.
+    terminating_ends: list[str] = Field(default_factory=list)
     in_scope: list[str] = Field(default_factory=list)
     out_of_scope: list[str] = Field(default_factory=list)
 
@@ -819,6 +828,8 @@ Regole:
   messaggio a un altro partecipante), receive_task (attesa di un messaggio in
   ingresso), business_rule_task (valutazione di regole/decision table),
   script_task (automazione interna), subprocess (attivita scomponibile).
+- Imposta step.multiplicity=per_item quando l'attivita si ripete per ogni
+  elemento di un insieme (per_item_sequential se uno alla volta), altrimenti single.
 - Estrai attori/ruoli, partecipanti, eventi, step, decisioni/gateway, eccezioni,
   handoff, documenti, requisiti documentali, input/output, alternative path,
   loop, regole, assunzioni, findings e unknowns.
@@ -836,6 +847,9 @@ Regole:
 - Imposta gateway_type: exclusive (un solo esito, XOR), inclusive (piu' esiti
   possono valere insieme, OR) oppure event_based quando la diramazione dipende
   da quale evento arriva prima (messaggio, timer, segnale).
+- In boundaries.terminating_ends metti le fini che interrompono l'intero
+  processo (annullamento, blocco, stop immediato che ferma anche il lavoro in
+  parallelo), non le semplici fini con esito negativo.
 - Estrai controlli/verifiche in controls con owner, oggetto verificato,
   condizione di esito positivo e negativo.
 - Per ogni documento importante crea data_objects e, se possibile,
@@ -851,6 +865,9 @@ Regole:
 - Se un'eccezione e citata ma la gestione manca, usa is_defined=false.
 - Per ogni eccezione collega attached_to_step_id allo step su cui puo scattare e
   imposta interrupting=false solo se lo step prosegue mentre parte la gestione.
+- Imposta exception.kind quando il tipo di trigger e chiaro (timer, message,
+  error, conditional, escalation quando il caso passa a un livello superiore,
+  signal); lascia auto se incerto.
 - Distingui ruoli interni da partecipanti esterni negli actor_relationships.
 - Non produrre XML e non rispondere in markdown: restituisci solo lo schema strutturato richiesto.
 """

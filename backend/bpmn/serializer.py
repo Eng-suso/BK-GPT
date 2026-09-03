@@ -12,7 +12,12 @@ import json
 from html import escape
 
 from backend.bpmn._helpers import documentation_xml, element_documentation
-from backend.bpmn.models import BPMNFlowNode, BPMNMessageFlow, BPMNSemanticModel
+from backend.bpmn.models import (
+    ACTIVITY_NODE_TYPES as _ACTIVITY_NODE_TYPES,
+    BPMNFlowNode,
+    BPMNMessageFlow,
+    BPMNSemanticModel,
+)
 
 # Event nodes that may carry an <bpmn:xxxEventDefinition> child.
 _EVENT_DEFINITION_HOSTS = frozenset(
@@ -24,6 +29,7 @@ _REFERENCEABLE_EVENT_DEFINITIONS = {
     "message": ("message", "messageRef", "Message"),
     "signal": ("signal", "signalRef", "Signal"),
     "error": ("error", "errorRef", "Error"),
+    "escalation": ("escalation", "escalationRef", "Escalation"),
 }
 
 
@@ -56,16 +62,18 @@ def _serialized_semantic_ids(model: BPMNSemanticModel) -> set[str]:
 
 
 def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, str]]:
-    """Collect definitions-level message/signal/error elements for events.
-
-    Builds <bpmn:message/signal/error> declarations referenced by the model's events,
-    plus a node-id to declaration-id map. Events sharing a name share one declaration.
-
+    """Build reusable BPMN event declarations and node references.
+    
+    Events with the same normalized name and definition type share a declaration.
+    Generated declaration IDs are unique within the serialized model.
+    
     Args:
-        model: The BPMNSemanticModel containing flow nodes with event definitions.
-
+        model: Input semantic model whose event definitions are treated as untrusted
+            serialization data.
+    
     Returns:
-        A tuple of (xml_lines_list, node_id_to_declaration_id_dict).
+        A tuple containing XML declaration lines and a mapping from event node IDs
+        to their declaration IDs.
     """
     declarations: dict[tuple[str, str], str] = {}
     lines: list[str] = []
@@ -91,21 +99,57 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
     return lines, ref_by_node
 
 
+def _loop_characteristics_xml(kind: str, condition: str | None = None) -> list[str]:
+    """Serialize loop characteristics as BPMN XML lines.
+    
+    Args:
+        kind: Loop characteristic kind. ``"standardLoop"`` produces a standard
+            loop; ``"multiInstanceSequential"`` produces sequential multi-instance
+            characteristics; all other values produce parallel multi-instance
+            characteristics.
+        condition: Untrusted optional formal loop condition for a standard loop.
+            Whitespace is removed and XML-sensitive characters are escaped.
+    
+    Returns:
+        XML lines representing the requested loop characteristics. No lines
+        contain unescaped condition content.
+    """
+    if kind == "standardLoop":
+        if condition and condition.strip():
+            return [
+                "      <bpmn:standardLoopCharacteristics>",
+                '        <bpmn:loopCondition xsi:type="bpmn:tFormalExpression">'
+                f"{escape(condition.strip())}</bpmn:loopCondition>",
+                "      </bpmn:standardLoopCharacteristics>",
+            ]
+        return ["      <bpmn:standardLoopCharacteristics />"]
+    is_sequential = "true" if kind == "multiInstanceSequential" else "false"
+    return [f'      <bpmn:multiInstanceLoopCharacteristics isSequential="{is_sequential}" />']
+
+
 def _event_definition_xml(
     kind: str, ref_id: str | None, condition_expression: str | None
 ) -> str:
-    """Generate XML for an event definition element.
-
+    """Generate an escaped BPMN event-definition XML fragment.
+    
     Args:
-        kind: The event definition type (e.g., "timer", "message", "conditional").
-        ref_id: The ID of the referenced declaration (for message/signal/error).
-        condition_expression: The condition expression (for conditional events).
-
+        kind: Event definition type, such as ``timer``, ``message``, or
+            ``conditional``. Treated as untrusted input.
+        ref_id: Optional declaration ID for referenceable event definitions.
+            Treated as untrusted input.
+        condition_expression: Condition text for conditional events. Surrounding
+            whitespace is removed, and the value is treated as untrusted input.
+    
     Returns:
-        An XML string for the event definition.
-
+        An XML fragment for the specified event definition. Referenceable
+        definitions include ``ref_id`` when provided; conditional definitions
+        include their required formal condition.
+    
     Raises:
-        ValueError: If a conditional event lacks a condition expression.
+        ValueError: If ``kind`` is ``"conditional"`` and the condition is empty
+            or contains only whitespace.
+    
+    The function does not perform persistence or other external side effects.
     """
     if kind == "conditional":
         condition = (condition_expression or "").strip()
@@ -124,13 +168,17 @@ def _event_definition_xml(
 
 
 def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
-    """Serialize a BPMNSemanticModel to BPMN 2.0 XML with diagram interchange.
-
+    """
+    Serialize a semantic BPMN model into a BPMN 2.0 XML document with deterministic diagram interchange layout.
+    
     Args:
-        model: The BPMNSemanticModel to serialize.
-
+        model (BPMNSemanticModel): Untrusted semantic model to serialize. Its identifiers, names, and textual content are XML-escaped, and the resulting document preserves BPMN references and supported event and loop declarations.
+    
     Returns:
-        A complete BPMN 2.0 XML document as a string.
+        str: Complete BPMN 2.0 XML document, including semantic elements and diagram interchange data.
+    
+    Side Effects:
+        None. The function does not persist or modify external state.
     """
     incoming, outgoing = _flow_refs(model)
     xml_parts = [
@@ -179,6 +227,10 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
                 xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
+        if node.loopCharacteristics != "none" and node.type in _ACTIVITY_NODE_TYPES:
+            xml_parts.extend(
+                _loop_characteristics_xml(node.loopCharacteristics, node.loopConditionExpression)
+            )
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
             xml_parts.append(
                 _event_definition_xml(

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 MappingStatus = Literal["direct", "encoded", "visual_annotation", "semantic_payload", "blocked"]
 
@@ -54,13 +54,37 @@ class BPMNFlowNode(BaseModel):
     name: str
     laneId: str | None = None
     owner: str | None = None
-    eventDefinition: Literal["timer", "message", "conditional", "signal", "error"] | None = None
+    eventDefinition: Literal[
+        "timer", "message", "conditional", "signal", "error", "escalation", "terminate"
+    ] | None = None
     eventConditionExpression: str | None = None
+    # Activity loop marker (OMG BPMN 2.0 10.2.3). Only valid on activity nodes.
+    loopCharacteristics: Literal[
+        "none", "standardLoop", "multiInstanceSequential", "multiInstanceParallel"
+    ] = "none"
+    # Boolean expression that keeps a standardLoop iterating.
+    loopConditionExpression: str | None = None
     attachedToRef: str | None = None
     cancelActivity: bool = True
     defaultFlowId: str | None = None
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _loop_markers_only_on_activities(self) -> "BPMNFlowNode":
+        """Validate that loop characteristics are used only on activity nodes.
+        
+        Raises:
+            ValueError: If loop characteristics are set on a non-activity node.
+        
+        Returns:
+            BPMNFlowNode: This validated flow node.
+        """
+        if self.loopCharacteristics != "none" and self.type not in ACTIVITY_NODE_TYPES:
+            raise ValueError(
+                f"loopCharacteristics is only valid on an activity, not {self.type!r}"
+            )
+        return self
 
 
 class BPMNSequenceFlow(BaseModel):
