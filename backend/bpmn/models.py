@@ -71,19 +71,18 @@ class BPMNFlowNode(BaseModel):
     sourceRefs: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _loop_markers_only_on_activities(self) -> "BPMNFlowNode":
-        """Validate that loop characteristics are used only on activity nodes.
-        
+    def _markers_match_node_type(self) -> "BPMNFlowNode":
+        """Loop markers are activity-only; a terminate definition is endEvent-only.
+
         Raises:
-            ValueError: If loop characteristics are set on a non-activity node.
-        
-        Returns:
-            BPMNFlowNode: This validated flow node.
+            ValueError: if a marker is set on an incompatible node type.
         """
         if self.loopCharacteristics != "none" and self.type not in ACTIVITY_NODE_TYPES:
             raise ValueError(
                 f"loopCharacteristics is only valid on an activity, not {self.type!r}"
             )
+        if self.eventDefinition == "terminate" and self.type != "endEvent":
+            raise ValueError("a terminate event definition is only valid on an endEvent")
         return self
 
 

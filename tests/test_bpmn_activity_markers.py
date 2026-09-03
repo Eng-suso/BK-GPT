@@ -79,7 +79,7 @@ def test_single_step_loop_becomes_a_standard_loop_marker():
     assert not any("non mappabile su almeno due step" in w for w in model.model_warnings)
 
 
-def test_standard_loop_uses_exit_condition_and_escapes_it_in_xml():
+def test_standard_loop_condition_is_escaped_in_xml():
     model = _model(
         [ProcessStep(id="T1", label="Riprova elaborazione")],
         loops=[
@@ -87,7 +87,7 @@ def test_standard_loop_uses_exit_condition_and_escapes_it_in_xml():
                 id="L1",
                 label="Riprova entro il limite",
                 repeated_steps=["T1"],
-                exit_condition="  tentativi < 3 & richiesta aperta  ",
+                condition="  tentativi < 3 & richiesta aperta  ",
             )
         ],
     )
@@ -191,3 +191,29 @@ def test_loop_marker_rejected_on_a_non_activity_node():
 def test_unknown_step_multiplicity_is_rejected():
     with pytest.raises(ValidationError, match="multiplicity"):
         ProcessStep(id="T1", label="Lavora pratica", multiplicity="per_batch")
+
+
+def test_single_step_loop_on_a_multi_instance_activity_warns_and_is_skipped():
+    model = _model(
+        [
+            ProcessStep(id="T1", label="Prepara batch"),
+            ProcessStep(id="T2", label="Elabora elemento", multiplicity="per_item"),
+        ],
+        loops=[ProcessLoop(id="L1", label="Ripeti elemento", repeated_steps=["T2"], condition="errore")],
+    )
+    node = next(n for n in model.flowNodes if n.name == "Elabora elemento")
+    assert node.loopCharacteristics == "multiInstanceParallel"  # unchanged
+    assert node.loopConditionExpression is None
+    assert any("gia' un'attivita" in w or "multi-instance" in w for w in model.model_warnings)
+
+
+def test_exit_only_loop_condition_warns_and_renders_bare_standard_loop():
+    model = _model(
+        [ProcessStep(id="T1", label="Apri"), ProcessStep(id="T2", label="Ritenta"), ProcessStep(id="T3", label="Chiudi")],
+        loops=[ProcessLoop(id="L1", label="Ritenta", repeated_steps=["T2"], exit_condition="pratica chiusa")],
+    )
+    node = next(n for n in model.flowNodes if n.name == "Ritenta")
+    assert node.loopCharacteristics == "standardLoop"
+    assert node.loopConditionExpression is None
+    assert "<bpmn:standardLoopCharacteristics />" in semantic_model_to_bpmn_xml(model)
+    assert any("condizione di continuazione" in w for w in model.model_warnings)

@@ -89,6 +89,22 @@ def test_terminating_end_compiles_to_a_terminate_end_event():
     assert "<bpmn:terminateEventDefinition />" in xml
 
 
+def test_boundaries_reject_a_success_end_that_is_also_terminating():
+    import pytest
+
+    with pytest.raises(ValueError, match="cannot also be a terminating end"):
+        ProcessBoundaries(success_end="Fine", terminating_ends=["Fine"])
+
+
+def test_terminate_event_definition_rejected_on_a_non_end_node():
+    import pytest
+
+    from backend.bpmn.models import BPMNFlowNode
+
+    with pytest.raises(ValueError, match="only valid on an endEvent"):
+        BPMNFlowNode(id="s", type="startEvent", name="s", eventDefinition="terminate")
+
+
 def test_no_terminating_ends_means_no_terminate_definition():
     model = build_bpmn_semantic_model(
         process_id="P", process_name="P",

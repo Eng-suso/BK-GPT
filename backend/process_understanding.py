@@ -6,7 +6,7 @@ from typing import Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from backend.llm_config import chat_openai_kwargs
 from backend.settings import settings
@@ -272,6 +272,14 @@ class ProcessBoundaries(BaseModel):
     terminating_ends: list[str] = Field(default_factory=list)
     in_scope: list[str] = Field(default_factory=list)
     out_of_scope: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _success_end_is_not_terminating(self) -> "ProcessBoundaries":
+        if self.success_end and self.success_end in self.terminating_ends:
+            raise ValueError(
+                f"success_end {self.success_end!r} cannot also be a terminating end"
+            )
+        return self
 
 
 class ProcessPath(BaseModel):

@@ -309,12 +309,6 @@ def _task_type(step: ProcessStep) -> str:
     }.get(step.type, "userTask")
 
 
-_MULTI_INSTANCE_BY_MULTIPLICITY: dict[str, str] = {
-    "per_item": "multiInstanceParallel",
-    "per_item_sequential": "multiInstanceSequential",
-}
-
-
 def _loop_characteristics(
     step: ProcessStep,
 ) -> Literal["none", "multiInstanceSequential", "multiInstanceParallel"]:
@@ -328,7 +322,11 @@ def _loop_characteristics(
         The multi-instance marker for sequential or parallel multiplicity, or
         ``"none"`` when the step has no recognized multi-instance multiplicity.
     """
-    return _MULTI_INSTANCE_BY_MULTIPLICITY.get(step.multiplicity, "none")  # type: ignore[return-value]
+    if step.multiplicity == "per_item":
+        return "multiInstanceParallel"
+    if step.multiplicity == "per_item_sequential":
+        return "multiInstanceSequential"
+    return "none"
 
 
 def _ordered_chain_items(
@@ -751,12 +749,26 @@ def _add_loop_flows(
             # A single repeated activity is a self-loop, not a back-edge through
             # earlier steps: render it as a standard-loop activity marker.
             node = node_by_id.get(step_node_by_original_id[repeated[0]])
-            if node is not None and node.loopCharacteristics == "none":
-                node.loopCharacteristics = "standardLoop"
-                node.loopConditionExpression = loop.condition or loop.exit_condition
-                ref = source_ref_id("loops", loop.id)
-                if ref not in node.sourceRefs:
-                    node.sourceRefs.append(ref)
+            if node is None:
+                continue
+            if node.loopCharacteristics != "none":
+                warnings.append(
+                    f"Loop '{loop.label}' sullo step '{node.name}' che e' gia' un'attivita "
+                    "multi-instance: marker standardLoop non applicato."
+                )
+                continue
+            node.loopCharacteristics = "standardLoop"
+            # loopCondition is "keep iterating while true"; exit_condition is its
+            # negation, so it is kept as metadata only, never used as the condition.
+            node.loopConditionExpression = loop.condition
+            if not loop.condition and loop.exit_condition:
+                warnings.append(
+                    f"Loop '{loop.label}': manca una condizione di continuazione esplicita "
+                    "(solo exit_condition), standardLoop reso senza loopCondition."
+                )
+            ref = source_ref_id("loops", loop.id)
+            if ref not in node.sourceRefs:
+                node.sourceRefs.append(ref)
             continue
         if len(repeated) < 2:
             warnings.append(f"Loop '{loop.label}' presente ma non mappabile su almeno due step.")
