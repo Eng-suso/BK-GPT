@@ -32,7 +32,9 @@ from backend.bpmn.models import (
 )
 from backend.process_understanding import ProcessUnderstanding
 
-_EVENT_NODE_TYPES = {"startEvent", "endEvent", "intermediateCatchEvent", "boundaryEvent"}
+_EVENT_NODE_TYPES = {
+    "startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent", "boundaryEvent"
+}
 _GATEWAY_NODE_TYPES = {
     "exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"
 }
@@ -127,7 +129,7 @@ def build_bpmn_compilation_plan(
                 source_refs=[source_ref_from_id(ref) for ref in node.sourceRefs],
             )
             for node in model.flowNodes
-            if node.type in {"startEvent", "endEvent", "intermediateCatchEvent", "boundaryEvent"}
+            if node.type in _EVENT_NODE_TYPES
         ],
         activities=[
             ActivitySpec(

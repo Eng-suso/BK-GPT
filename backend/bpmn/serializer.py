@@ -14,6 +14,48 @@ from html import escape
 from backend.bpmn._helpers import documentation_xml, element_documentation
 from backend.bpmn.models import BPMNFlowNode, BPMNMessageFlow, BPMNSemanticModel
 
+# Event nodes that may carry an <bpmn:xxxEventDefinition> child.
+_EVENT_DEFINITION_HOSTS = frozenset(
+    {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent", "boundaryEvent"}
+)
+# Event definitions that resolve to a reusable definitions-level root element.
+# (kind -> (root tag, ref attribute, id prefix))
+_REFERENCEABLE_EVENT_DEFINITIONS = {
+    "message": ("message", "messageRef", "Message"),
+    "signal": ("signal", "signalRef", "Signal"),
+    "error": ("error", "errorRef", "Error"),
+}
+
+
+def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, str]]:
+    """Collect definitions-level <bpmn:message/signal/error> elements referenced
+    by the model's events, plus a node-id -> declaration-id map for their refs.
+    Message/signal/error events sharing a name share one declaration.
+    """
+    declarations: dict[tuple[str, str], str] = {}
+    lines: list[str] = []
+    ref_by_node: dict[str, str] = {}
+    for node in model.flowNodes:
+        spec = _REFERENCEABLE_EVENT_DEFINITIONS.get(node.eventDefinition or "")
+        if spec is None or node.type not in _EVENT_DEFINITION_HOSTS:
+            continue
+        tag, _attr, prefix = spec
+        key = (tag, " ".join((node.name or "").split()).casefold() or node.id)
+        decl_id = declarations.get(key)
+        if decl_id is None:
+            decl_id = f"{prefix}_{sum(1 for k in declarations if k[0] == tag) + 1}"
+            declarations[key] = decl_id
+            lines.append(f'  <bpmn:{tag} id="{escape(decl_id)}" name="{escape(node.name or decl_id)}" />')
+        ref_by_node[node.id] = decl_id
+    return lines, ref_by_node
+
+
+def _event_definition_xml(kind: str, ref_id: str | None) -> str:
+    spec = _REFERENCEABLE_EVENT_DEFINITIONS.get(kind)
+    if spec and ref_id:
+        return f'      <bpmn:{kind}EventDefinition {spec[1]}="{escape(ref_id)}" />'
+    return f"      <bpmn:{kind}EventDefinition />"
+
 
 def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
     incoming, outgoing = _flow_refs(model)
@@ -26,6 +68,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
         'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
         f'id="Definitions_{escape(model.id)}" targetNamespace="https://workspace.local/bpmn">',
     ]
+    root_event_decls, event_ref_by_node = _event_declarations(model)
+    xml_parts.extend(root_event_decls)
     xml_parts.extend(_collaboration_semantic_xml(model))
     xml_parts.append(
         f'  <bpmn:process id="{escape(model.id)}" name="{escape(model.name)}" isExecutable="false">'
@@ -61,8 +105,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
                 xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
-        if node.type in {"intermediateCatchEvent", "boundaryEvent"} and node.eventDefinition:
-            xml_parts.append(f"      <bpmn:{node.eventDefinition}EventDefinition />")
+        if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
+            xml_parts.append(_event_definition_xml(node.eventDefinition, event_ref_by_node.get(node.id)))
         xml_parts.append(f"    </bpmn:{node.type}>")
 
     for flow in model.sequenceFlows:
@@ -272,7 +316,7 @@ def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str
 
 
 def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
-    if node.type in {"startEvent", "endEvent", "intermediateCatchEvent"}:
+    if node.type in {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent"}:
         return 44, 44
     if node.type == "boundaryEvent":
         return 36, 36

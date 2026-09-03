@@ -1,4 +1,5 @@
 import json
+import re
 
 from backend.bpmn import (
     build_bpmn_semantic_model,
@@ -895,7 +896,8 @@ def test_compiler_splices_timer_and_message_intermediate_events_into_the_flow():
 
     xml = semantic_model_to_bpmn_xml(model)
     assert "<bpmn:timerEventDefinition />" in xml
-    assert "<bpmn:messageEventDefinition />" in xml
+    message_decl_id = re.search(r'<bpmn:message id="([^"]+)" name="Esito da INPS" />', xml).group(1)
+    assert f'<bpmn:messageEventDefinition messageRef="{message_decl_id}" />' in xml
     assert validate_bpmn_xml(xml)["valid"] is True
     assert not any(
         "senza ingresso" in warning or "senza uscita" in warning

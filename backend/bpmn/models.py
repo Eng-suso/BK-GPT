@@ -47,6 +47,7 @@ class BPMNFlowNode(BaseModel):
         "inclusiveGateway",
         "eventBasedGateway",
         "intermediateCatchEvent",
+        "intermediateThrowEvent",
         "boundaryEvent",
         "subProcess",
     ]
