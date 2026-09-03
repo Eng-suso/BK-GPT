@@ -1,0 +1,98 @@
+diff --git a/Dockerfile.api b/Dockerfile.api
+index 4e4e709..3087857 100644
+--- a/Dockerfile.api
++++ b/Dockerfile.api
+@@ -2,7 +2,7 @@
+ # `python-base` stage
+ #  contains all shared environment variables
+ #
+-FROM python:3.9-slim-buster as python-base
++FROM python:3.9-slim-bookworm as python-base
+ 
+ ENV \
+     POETRY_VERSION=1.4.2 \
+@@ -44,5 +44,19 @@ RUN poetry install --only main
+ 
+ ENV FLASK_DEBUG=0
+ 
++# Simulations run in-process (sync mode) and are CPU-bound + single-threaded.
++# One gunicorn worker == one concurrent simulation. 6 covers ~3-5 consultants
++# running at once plus headroom for /health and list endpoints.
++ENV GUNICORN_WORKERS=6 \
++    GUNICORN_TIMEOUT=1800
++
+ EXPOSE 5000
+-CMD ["gunicorn", "--workers=3", "--threads=3", "-b", ":5000", "app:app", "--timeout 1000"]
++CMD gunicorn \
++    --workers=${GUNICORN_WORKERS} \
++    --timeout=${GUNICORN_TIMEOUT} \
++    --graceful-timeout=30 \
++    --access-logfile=- \
++    --capture-output \
++    --enable-stdio-inheritance \
++    -b :5000 \
++    app:app
+diff --git a/src/api/SimulationApiHandler.py b/src/api/SimulationApiHandler.py
+index 8f0a588..efe2ff8 100644
+--- a/src/api/SimulationApiHandler.py
++++ b/src/api/SimulationApiHandler.py
+@@ -1,4 +1,4 @@
+-from flask import request, make_response
++from flask import request
+ from flask_restful import Resource
+ import tempfile
+ from flasgger import swag_from
+@@ -32,21 +32,40 @@ class SimulationApiHandler(Resource):
+       json_file = self.__saveFile(parameters_data, "params_", celery_data_path)
+       bpmn_file = self.__saveFile(xml_data, "bpmn_model_", celery_data_path)
+ 
+-      task = simulation_task.delay(bpmn_file, json_file, num_processes, start_date)
+-      task_id = task.id
++      # Async path (original behaviour): requires a running Celery worker + broker.
++      # Enable with form field `async=true` or header `X-Prosimos-Async: 1`.
++      wants_async = (
++        str(form_date.get('async', '')).lower() in ('1', 'true', 'yes')
++        or request.headers.get('X-Prosimos-Async', '').lower() in ('1', 'true', 'yes')
++      )
+ 
+-      task_response = f"""{{
+-        "TaskId": "{task_id}"
+-}}"""
++      if wants_async:
++        task = simulation_task.delay(bpmn_file, json_file, num_processes, start_date)
++        return {"TaskId": task.id}
+ 
+-      response = make_response(task_response)
+-      response.headers['content-type'] = 'application/json'
+-      return response
++      # Sync path (default): run the task in-process, no broker needed.
++      outcome = simulation_task.apply(
++        args=[bpmn_file, json_file, num_processes, start_date]
++      )
++
++      if outcome.failed():
++        return {
++          "displayMessage": "Simulation failed",
++          "error": str(outcome.result),
++        }, 400
++
++      result = outcome.result
++      if isinstance(result, dict) and result.get("success") is False:
++        return {
++          "displayMessage": "Simulation rejected",
++          "error": result.get("errorMessage"),
++        }, 400
++
++      return result
+ 
+     except Exception as e:
+       print(e)
+-      response = {
+-        "displayMessage": "Something went wrong"
+-      }
+-
+-      return response, 500
++      return {
++        "displayMessage": "Something went wrong",
++        "error": str(e),
++      }, 500

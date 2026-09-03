@@ -19,6 +19,10 @@ const getAvailablePort = async () =>
   });
 
 test.describe('Lighthouse Performance & Quality Audits', () => {
+  // Opt-in: Lighthouse scores swing with runner hardware and make a poor gate.
+  // Set RUN_LIGHTHOUSE=1 to run it (kept for local perf checks).
+  test.skip(!process.env.RUN_LIGHTHOUSE, 'set RUN_LIGHTHOUSE=1 to run Lighthouse');
+
   test('HomePage Lighthouse metrics audit', async () => {
     test.setTimeout(90_000);
     const port = await getAvailablePort();

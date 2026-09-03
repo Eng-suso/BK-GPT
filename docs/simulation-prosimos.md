@@ -36,15 +36,22 @@ Use `Simod` later for event-log based discovery.
 
 ## Local Prosimos Service
 
-From the cloned `prosimos-microservice` repository:
+The sync-mode changes DeliR needs (see below) are versioned as a patch:
+[`ops/prosimos/`](../ops/prosimos/) — patch file, pinned upstream commit
+(`81a5297a163011a8adf0b4110e0802bc6d713e51`), and build steps.
 
 ```powershell
+git clone https://github.com/AutomatedProcessImprovement/prosimos-microservice.git
+cd prosimos-microservice
+git checkout 81a5297a163011a8adf0b4110e0802bc6d713e51
+git apply --3way ..\DeliR-MVP\ops\prosimos\sync-mode.patch
 docker build --progress=plain -f Dockerfile.api -t prosimos-api .
 docker run --rm -p 5000:5000 prosimos-api
 ```
 
-`scripts/dev.ps1` does this automatically (build cache on; set `PROSIMOS_NO_CACHE=1`
-to force a clean rebuild, `SKIP_PROSIMOS=1` to skip it).
+`scripts/dev.ps1` does clone + checkout + patch + build automatically (build
+cache on; set `PROSIMOS_NO_CACHE=1` to force a clean rebuild, `SKIP_PROSIMOS=1`
+to skip it).
 
 Prosimos Swagger should be available at:
 

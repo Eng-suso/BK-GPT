@@ -1,0 +1,291 @@
+{
+  "_generated_by": "uv run python -m scripts.dump_openapi",
+  "components": {
+    "ClientResponse": {
+      "required": [
+        "contact",
+        "documents",
+        "id",
+        "name",
+        "next_activity",
+        "owner",
+        "processes",
+        "projects",
+        "sector",
+        "status"
+      ],
+      "properties": {
+        "contact": "string",
+        "documents": "string[]",
+        "id": "string",
+        "name": "string",
+        "next_activity": "string",
+        "owner": "string",
+        "processes": "string[]",
+        "projects": "integer",
+        "sector": "string",
+        "status": "string"
+      }
+    },
+    "ProjectResponse": {
+      "required": [
+        "client",
+        "client_id",
+        "deliverables",
+        "id",
+        "milestones",
+        "name",
+        "next_step",
+        "open_issues",
+        "phase",
+        "processes",
+        "progress",
+        "status"
+      ],
+      "properties": {
+        "client": "string",
+        "client_id": "string",
+        "deliverables": "string[]",
+        "id": "string",
+        "milestones": "string[]",
+        "name": "string",
+        "next_step": "string",
+        "open_issues": "string[]",
+        "phase": "string",
+        "process_items": "ProjectProcessResponse[]",
+        "processes": "integer",
+        "progress": "integer",
+        "status": "string"
+      }
+    },
+    "ProjectProcessResponse": {
+      "required": [
+        "bpmn_model_id",
+        "id",
+        "name",
+        "owner",
+        "project_id",
+        "readiness",
+        "stage",
+        "status"
+      ],
+      "properties": {
+        "bpmn_model_id": "string",
+        "id": "string",
+        "name": "string",
+        "owner": "string",
+        "project_id": "string",
+        "readiness": "integer",
+        "stage": "string",
+        "status": "string"
+      }
+    },
+    "ProjectSourceResponse": {
+      "required": [
+        "id",
+        "meta",
+        "name",
+        "project_id",
+        "type"
+      ],
+      "properties": {
+        "id": "string",
+        "meta": "string",
+        "name": "string",
+        "process_id": "string?",
+        "project_id": "string",
+        "type": "string"
+      }
+    },
+    "ProjectDecisionResponse": {
+      "required": [
+        "id",
+        "owner",
+        "project_id",
+        "status",
+        "title"
+      ],
+      "properties": {
+        "id": "string",
+        "owner": "string",
+        "process_id": "string?",
+        "project_id": "string",
+        "status": "string",
+        "title": "string"
+      }
+    },
+    "BpmnModelResponse": {
+      "required": [
+        "id",
+        "name",
+        "process_id"
+      ],
+      "properties": {
+        "id": "string",
+        "name": "string",
+        "process_id": "string",
+        "xml": "string?"
+      }
+    },
+    "BpmnVersionResponse": {
+      "required": [
+        "bpmn_model_id",
+        "change_summary",
+        "created_at",
+        "id",
+        "process_id",
+        "source",
+        "xml"
+      ],
+      "properties": {
+        "bpmn_model_id": "string",
+        "change_summary": "string",
+        "created_at": "string",
+        "id": "integer",
+        "process_id": "string",
+        "source": "string",
+        "xml": "string"
+      }
+    },
+    "RestoreBpmnVersionResponse": {
+      "required": [
+        "bpmn_model",
+        "created_version",
+        "restored_from"
+      ],
+      "properties": {
+        "bpmn_model": "BpmnModelResponse",
+        "created_version": "BpmnVersionResponse",
+        "restored_from": "BpmnVersionResponse"
+      }
+    },
+    "BpmnReviewResponse": {
+      "required": [
+        "bpmn_brief",
+        "bpmn_model_id",
+        "created_at",
+        "missing_information",
+        "process_id",
+        "readiness_score",
+        "source_text",
+        "updated_at"
+      ],
+      "properties": {
+        "bpmn_brief": "string",
+        "bpmn_model_id": "string",
+        "bpmn_semantic_model": "object",
+        "created_at": "string",
+        "missing_information": "string[]",
+        "process_id": "string",
+        "process_understanding": "object",
+        "quality_report": "object",
+        "readiness_score": "integer",
+        "source_text": "string",
+        "status": "string",
+        "updated_at": "string"
+      }
+    },
+    "ApproveBpmnReviewResponse": {
+      "required": [
+        "bpmn_model",
+        "review"
+      ],
+      "properties": {
+        "bpmn_model": "BpmnModelResponse",
+        "review": "BpmnReviewResponse"
+      }
+    },
+    "CreateSessionResponse": {
+      "required": [
+        "thread_id"
+      ],
+      "properties": {
+        "bpmn_model_id": "string?",
+        "model_name": "string?",
+        "process_id": "string?",
+        "project_id": "string?",
+        "scope_key": "string?",
+        "scope_type": "string?",
+        "thread_id": "string",
+        "title": "string"
+      }
+    },
+    "ChatSessionSummary": {
+      "required": [
+        "created_at",
+        "thread_id",
+        "title",
+        "updated_at"
+      ],
+      "properties": {
+        "bpmn_model_id": "string?",
+        "created_at": "string",
+        "message_count": "integer",
+        "model_name": "string?",
+        "process_id": "string?",
+        "project_id": "string?",
+        "scope_key": "string?",
+        "scope_type": "string?",
+        "thread_id": "string",
+        "title": "string",
+        "updated_at": "string"
+      }
+    },
+    "ChatSessionDetail": {
+      "required": [
+        "created_at",
+        "messages",
+        "thread_id",
+        "title",
+        "updated_at"
+      ],
+      "properties": {
+        "bpmn_model_id": "string?",
+        "created_at": "string",
+        "messages": "ChatMessageRecord[]",
+        "model_name": "string?",
+        "process_id": "string?",
+        "project_id": "string?",
+        "scope_key": "string?",
+        "scope_type": "string?",
+        "thread_id": "string",
+        "title": "string",
+        "updated_at": "string"
+      }
+    },
+    "ChatMessageRecord": {
+      "required": [
+        "content",
+        "role"
+      ],
+      "properties": {
+        "content": "string",
+        "created_at": "string?",
+        "id": "integer?",
+        "role": "string"
+      }
+    },
+    "ChatResponse": {
+      "required": [
+        "message",
+        "thread_id"
+      ],
+      "properties": {
+        "message": "string",
+        "thread_id": "string"
+      }
+    },
+    "TranscriptionResponse": {
+      "required": [
+        "model",
+        "text"
+      ],
+      "properties": {
+        "duration": "number?",
+        "model": "string",
+        "segments": "object[]",
+        "text": "string"
+      }
+    }
+  }
+}

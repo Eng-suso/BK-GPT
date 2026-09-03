@@ -195,6 +195,18 @@ def build_trace_context(
     model_name: str | None,
     scope: ChatScope | None,
 ) -> TraceContext:
+    """Build trace metadata for a request and its scoped checkpoint thread.
+    
+    Args:
+        thread_id (str): Untrusted request thread identifier.
+        model_name (str | None): Model name to associate with the trace.
+        scope (ChatScope | None): Optional scope used to derive scope type, scope key,
+            and checkpoint thread identity.
+    
+    Returns:
+        TraceContext: Trace context containing the request thread, scoped checkpoint
+            thread, scope metadata, and model name.
+    """
     fields = scope_fields(scope)
     checkpoint_thread_id = agent_checkpoint_thread_id(thread_id, fields["scope_key"])
     return new_trace_context(
@@ -206,6 +218,98 @@ def build_trace_context(
     )
 
 
+def _latest_user_message(messages: list[dict]) -> str:
+    """Extract the most recent user message content.
+    
+    Args:
+        messages (list[dict]): Untrusted message records to search in reverse order.
+    
+    Returns:
+        str: The stripped content of the most recent user or human message, or an
+            empty string when no such message exists.
+    """
+    for message in reversed(messages or []):
+        role = message.get("role") or message.get("type")
+        if role in {"user", "human"}:
+            return str(message.get("content") or "").strip()
+    return ""
+
+
+def fake_agent_events(
+    *,
+    thread_id: str,
+    messages: list[dict],
+    scope: ChatScope | None,
+    context: TraceContext,
+) -> Iterator[AgentStreamEvent]:
+    """Emits a deterministic fake agent stream without invoking an agent graph or language model.
+    
+    The stream preserves the standard event sequence: start, request-start trace,
+    node, token deltas, and request-end trace. It uses the supplied scope and trace
+    context consistently across all events and performs no external side effects or
+    persistence.
+    
+    Args:
+        thread_id (str): Untrusted thread identifier included in each emitted event.
+        messages (list[dict]): Untrusted input messages used to identify the latest
+            user message.
+        scope (ChatScope | None): Optional scope associated with the request.
+        context (TraceContext): Request and trace identifiers attached to each event.
+    
+    Returns:
+        Iterator[AgentStreamEvent]: Deterministic fake agent stream events.
+    """
+    fields = scope_fields(scope)
+    user_text = _latest_user_message(messages)
+    reply = (
+        f"[fake-llm] Ricevuto in scope '{fields['scope_type']}'. "
+        f"Messaggio: {user_text or '(vuoto)'}"
+    )
+
+    yield AgentStreamEvent(
+        type="start",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        payload={
+            "scope_type": fields["scope_type"],
+            "scope_key": fields["scope_key"],
+            "fake_llm": True,
+        },
+    )
+    yield AgentStreamEvent(
+        type="trace",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        payload=trace_event(context, "request_start", message="Fake agent stream started.").model_dump(),
+    )
+    yield AgentStreamEvent(
+        type="node",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        node="fake_agent",
+        payload=trace_event(context, "node", node="fake_agent", message="Fake agent node.").model_dump(),
+    )
+    for token in reply.split(" "):
+        yield AgentStreamEvent(
+            type="delta",
+            request_id=context.request_id,
+            trace_id=context.trace_id,
+            thread_id=thread_id,
+            node="fake_agent",
+            content=token + " ",
+        )
+    yield AgentStreamEvent(
+        type="trace",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        payload=trace_event(context, "request_end", message="Fake agent stream completed.").model_dump(),
+    )
+
+
 def stream_agent_events(
     *,
     thread_id: str,
@@ -214,9 +318,28 @@ def stream_agent_events(
     scope: ChatScope | None = None,
     trace_context: TraceContext | None = None,
 ) -> Iterator[AgentStreamEvent]:
+    """
+    Stream scoped agent responses as structured events.
+    
+    The stream derives a scope-specific checkpoint thread, preserves a single active
+    request per checkpoint thread, and emits lifecycle, node, text, usage, and trace
+    events. Agent execution may update checkpoint state. A busy checkpoint produces a
+    retryable error event; execution failures produce a non-retryable error event.
+    
+    Args:
+        thread_id: (Untrusted input.) Request conversation identifier.
+        model_name: (Untrusted input.) Requested model name, or None for the default
+            model.
+        messages: (Untrusted input.) Conversation messages supplied to the agent.
+        scope: Optional scope used to select the agent and checkpoint namespace.
+        trace_context: Optional trace context to use for emitted events.
+    
+    Yields:
+        AgentStreamEvent: Stream lifecycle, node, text-delta, usage, trace, or error
+            events.
+    """
     fields = scope_fields(scope)
     selected_model = normalize_model_name(model_name)
-    agent = get_agent(selected_model, scope_type=fields["scope_type"])
     checkpoint_thread_id = agent_checkpoint_thread_id(thread_id, fields["scope_key"])
     context = trace_context or new_trace_context(
         thread_id=thread_id,
@@ -225,6 +348,17 @@ def stream_agent_events(
         scope_key=fields["scope_key"],
         model_name=model_name,
     )
+
+    if settings.delir_fake_llm:
+        yield from fake_agent_events(
+            thread_id=thread_id,
+            messages=messages,
+            scope=scope,
+            context=context,
+        )
+        return
+
+    agent = get_agent(selected_model, scope_type=fields["scope_type"])
     thread_lock = get_thread_lock(checkpoint_thread_id)
     last_node = None
     first_token_recorded = False

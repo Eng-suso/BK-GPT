@@ -80,6 +80,12 @@ class Settings(BaseSettings):
 
     tavily_max_results: int = 5
 
+    # e2e / CI / dev offline: sostituisce la runtime dell'agente con uno stub
+    # deterministico (zero chiamate OpenAI). Solo il seam chat/agente e'
+    # interessato; i builder task-scoped restano gia' no-op senza `openai_api_key`.
+    # Vedi backend/services/agent_runtime.py::fake_agent_events.
+    delir_fake_llm: bool = False
+
     delir_auth_enabled: bool = False
     delir_api_token: str | None = None
     delir_admin_token: str | None = None
