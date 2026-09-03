@@ -190,8 +190,15 @@ def _classify_gateway(node, in_deg: int, out_deg: int, report: ControlFlowReport
 
 
 def _check_event_gateways(model, out_degree, report: ControlFlowReport) -> None:
-    """Every branch of a forking event-based gateway must land on a catch event
-    or a receive task, and none may carry a data condition (OMG BPMN 2.0 10.5.5).
+    """Verify event-based gateway branches comply with BPMN 2.0 specification.
+
+    Every branch must land on a catch event or receive task, and none may carry a
+    data condition (OMG BPMN 2.0 10.5.5).
+
+    Args:
+        model: The BPMNSemanticModel to check.
+        out_degree: Mapping of node IDs to outgoing flow counts.
+        report: The ControlFlowReport to update with errors.
     """
     event_gateways = {
         node.id: node for node in model.flowNodes if node.type == "eventBasedGateway"

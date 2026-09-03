@@ -10,6 +10,14 @@ from backend.process_understanding import (
 
 
 def _compile(events: list[ProcessEvent]) -> object:
+    """Compile a test process with intermediate events to a BPMNSemanticModel.
+
+    Args:
+        events: List of ProcessEvent instances to include in the flow.
+
+    Returns:
+        A compiled BPMNSemanticModel.
+    """
     process = ProcessUnderstanding(
         title="Notifica",
         steps=[

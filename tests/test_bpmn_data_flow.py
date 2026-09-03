@@ -15,6 +15,14 @@ from backend.process_understanding import (
 
 
 def _process(**kw) -> ProcessUnderstanding:
+    """Build a test ProcessUnderstanding with custom attributes.
+
+    Args:
+        **kw: Keyword arguments to pass to ProcessUnderstanding constructor.
+
+    Returns:
+        A ProcessUnderstanding instance with the given attributes.
+    """
     base = {"title": "P"}
     base.update(kw)
     return ProcessUnderstanding(**base)

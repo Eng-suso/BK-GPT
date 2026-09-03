@@ -28,7 +28,14 @@ _REFERENCEABLE_EVENT_DEFINITIONS = {
 
 
 def _serialized_semantic_ids(model: BPMNSemanticModel) -> set[str]:
-    """Return every ID emitted for a semantic BPMN element."""
+    """Return every ID emitted for a semantic BPMN element.
+
+    Args:
+        model: The BPMNSemanticModel to extract IDs from.
+
+    Returns:
+        A set of all semantic element IDs in the model.
+    """
     ids = {
         f"Definitions_{model.id}",
         model.id,
@@ -49,9 +56,16 @@ def _serialized_semantic_ids(model: BPMNSemanticModel) -> set[str]:
 
 
 def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, str]]:
-    """Collect definitions-level <bpmn:message/signal/error> elements referenced
-    by the model's events, plus a node-id -> declaration-id map for their refs.
-    Message/signal/error events sharing a name share one declaration.
+    """Collect definitions-level message/signal/error elements for events.
+
+    Builds <bpmn:message/signal/error> declarations referenced by the model's events,
+    plus a node-id to declaration-id map. Events sharing a name share one declaration.
+
+    Args:
+        model: The BPMNSemanticModel containing flow nodes with event definitions.
+
+    Returns:
+        A tuple of (xml_lines_list, node_id_to_declaration_id_dict).
     """
     declarations: dict[tuple[str, str], str] = {}
     lines: list[str] = []
@@ -80,6 +94,19 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
 def _event_definition_xml(
     kind: str, ref_id: str | None, condition_expression: str | None
 ) -> str:
+    """Generate XML for an event definition element.
+
+    Args:
+        kind: The event definition type (e.g., "timer", "message", "conditional").
+        ref_id: The ID of the referenced declaration (for message/signal/error).
+        condition_expression: The condition expression (for conditional events).
+
+    Returns:
+        An XML string for the event definition.
+
+    Raises:
+        ValueError: If a conditional event lacks a condition expression.
+    """
     if kind == "conditional":
         condition = (condition_expression or "").strip()
         if not condition:
@@ -97,6 +124,14 @@ def _event_definition_xml(
 
 
 def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
+    """Serialize a BPMNSemanticModel to BPMN 2.0 XML with diagram interchange.
+
+    Args:
+        model: The BPMNSemanticModel to serialize.
+
+    Returns:
+        A complete BPMN 2.0 XML document as a string.
+    """
     incoming, outgoing = _flow_refs(model)
     xml_parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -291,6 +326,14 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
 
 
 def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
+    """Generate the <bpmn:collaboration> semantic XML for participants and message flows.
+
+    Args:
+        model: The BPMNSemanticModel with participants and message flows.
+
+    Returns:
+        A list of XML lines for the collaboration element, or empty list if no participants.
+    """
     if not model.participants:
         return []
 
@@ -327,6 +370,14 @@ def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
 
 
 def _process_documentation(model: BPMNSemanticModel) -> str:
+    """Build the process-level documentation embedding the semantic payload.
+
+    Args:
+        model: The BPMNSemanticModel with source ProcessUnderstanding and compilation plan.
+
+    Returns:
+        A JSON-encoded documentation string with the full semantic payload.
+    """
     payload = {
         "schema": "delir.semantic_payload.v1",
         "process_understanding": model.sourceProcessUnderstanding,
@@ -341,6 +392,18 @@ _ASSOCIATION_DIRECTION = {"none": "None", "one": "One", "both": "Both"}
 def _artifact_xml(
     tag: str, artifact_id: str, name: str, documentation: str | None, source_refs: list[str]
 ) -> list[str]:
+    """Generate XML lines for a data artifact (dataObjectReference or dataStoreReference).
+
+    Args:
+        tag: The BPMN tag name (e.g., "dataObjectReference", "dataStoreReference").
+        artifact_id: The ID of the artifact.
+        name: The name of the artifact.
+        documentation: Optional documentation string.
+        source_refs: List of source reference IDs for traceability.
+
+    Returns:
+        A list of XML lines for the artifact element.
+    """
     open_tag = f'    <bpmn:{tag} id="{escape(artifact_id)}" name="{escape(name)}"'
     if documentation or source_refs:
         return [
@@ -352,6 +415,14 @@ def _artifact_xml(
 
 
 def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """Build incoming and outgoing flow reference maps for each node.
+
+    Args:
+        model: The BPMNSemanticModel with flow nodes and sequence flows.
+
+    Returns:
+        A tuple of (incoming_flows_by_node_id, outgoing_flows_by_node_id) dictionaries.
+    """
     incoming: dict[str, list[str]] = {node.id: [] for node in model.flowNodes}
     outgoing: dict[str, list[str]] = {node.id: [] for node in model.flowNodes}
     for flow in model.sequenceFlows:
@@ -361,6 +432,14 @@ def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str
 
 
 def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
+    """Determine the (width, height) dimensions for a BPMN node in the diagram.
+
+    Args:
+        node: The BPMNFlowNode to size.
+
+    Returns:
+        A tuple of (width, height) in diagram units.
+    """
     if node.type in {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent"}:
         return 44, 44
     if node.type == "boundaryEvent":
@@ -373,6 +452,14 @@ def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
 def _layout_model(
     model: BPMNSemanticModel,
 ) -> tuple[dict[str, dict[str, float]], list[dict[str, float | str]]]:
+    """Compute deterministic layout positions for all flow nodes and lanes.
+
+    Args:
+        model: The BPMNSemanticModel to lay out.
+
+    Returns:
+        A tuple of (node_positions_dict, lane_shapes_list).
+    """
     lane_index_by_id = {lane.id: index for index, lane in enumerate(model.lanes)}
     lane_height = 180
     top = 150
@@ -427,6 +514,16 @@ def _collaboration_pool_shapes(
     node_positions: dict[str, dict[str, float]],
     lane_shapes: list[dict[str, float | str]],
 ) -> tuple[list[dict[str, float | str]], dict[str, dict[str, float]]]:
+    """Compute pool shapes for collaboration diagrams with participants.
+
+    Args:
+        model: The BPMNSemanticModel with participants.
+        node_positions: Dictionary of node positions.
+        lane_shapes: List of lane shape dictionaries.
+
+    Returns:
+        A tuple of (pool_shapes_list, pool_positions_dict).
+    """
     if not model.participants:
         return [], {}
 
@@ -469,6 +566,14 @@ def _collaboration_pool_shapes(
 
 
 def _layout_text_annotations(annotations: list) -> dict[str, dict[str, float]]:
+    """Compute layout positions for text annotations.
+
+    Args:
+        annotations: List of text annotation objects.
+
+    Returns:
+        A dictionary mapping annotation IDs to position dictionaries.
+    """
     return {
         annotation.id: {"x": 180 + ((index - 1) * 230), "y": 40, "width": 190, "height": 70}
         for index, annotation in enumerate(annotations, start=1)
@@ -479,6 +584,15 @@ def _layout_data_objects(
     data_objects: list,
     positions: dict[str, dict[str, float]],
 ) -> dict[str, dict[str, float]]:
+    """Compute layout positions for data objects and data stores.
+
+    Args:
+        data_objects: List of data object/store artifacts.
+        positions: Dictionary of node positions to position artifacts relative to.
+
+    Returns:
+        A dictionary mapping data artifact IDs to position dictionaries.
+    """
     layout: dict[str, dict[str, float]] = {}
     per_source_count: dict[str, int] = {}
 
@@ -505,6 +619,18 @@ def _edge_xml(
     positions: dict[str, dict[str, float]],
     name: str | None,
 ) -> list[str]:
+    """Generate BPMNDi edge XML with waypoints for a sequence flow.
+
+    Args:
+        flow_id: The ID of the sequence flow.
+        source_ref: The source node ID.
+        target_ref: The target node ID.
+        positions: Dictionary of node positions.
+        name: Optional flow name for label rendering.
+
+    Returns:
+        A list of XML lines for the edge, or empty list if endpoints are missing.
+    """
     source = positions.get(source_ref)
     target = positions.get(target_ref)
     if source is None or target is None:
@@ -545,6 +671,16 @@ def _association_edge_xml(
     source: dict[str, float],
     target: dict[str, float],
 ) -> list[str]:
+    """Generate BPMNDi edge XML for an association.
+
+    Args:
+        association_id: The ID of the association.
+        source: Position dictionary for the source element.
+        target: Position dictionary for the target element.
+
+    Returns:
+        A list of XML lines for the association edge.
+    """
     escaped = escape(association_id)
     return [
         f'      <bpmndi:BPMNEdge id="{escaped}_di" bpmnElement="{escaped}">',
@@ -559,6 +695,16 @@ def _message_flow_edge_xml(
     source: dict[str, float],
     target: dict[str, float],
 ) -> list[str]:
+    """Generate BPMNDi edge XML for a message flow.
+
+    Args:
+        message_flow: The BPMNMessageFlow with id and optional name.
+        source: Position dictionary for the source pool or node.
+        target: Position dictionary for the target pool or node.
+
+    Returns:
+        A list of XML lines for the message flow edge.
+    """
     start_x = source["x"] + source["width"] / 2
     end_x = target["x"] + target["width"] / 2
     if source["y"] <= target["y"]:

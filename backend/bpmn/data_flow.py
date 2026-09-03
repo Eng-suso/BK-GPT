@@ -32,6 +32,14 @@ class DataFlowResult:
 
 
 def _norm(value: str | None) -> str:
+    """Normalize a string by converting to lowercase and collapsing whitespace.
+
+    Args:
+        value: The string to normalize, or None.
+
+    Returns:
+        A normalized string with single spaces and lowercase characters.
+    """
     return " ".join((value or "").casefold().split())
 
 
@@ -41,6 +49,19 @@ def build_data_flow(
     step_node_by_original_id: dict[str, str],
     used_ids: set[str],
 ) -> DataFlowResult:
+    """Build data objects, data stores, and their associations from ProcessUnderstanding.
+
+    Reconciles data_objects, document_requirements, and input_outputs into BPMN data
+    artifacts with associations to activities that read or write them.
+
+    Args:
+        process: The ProcessUnderstanding containing data artifacts and requirements.
+        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
+        used_ids: Set of already-allocated IDs.
+
+    Returns:
+        A DataFlowResult with data objects, data stores, and associations.
+    """
     usage = _artifact_usage(process, step_node_by_original_id)
     result = DataFlowResult()
     seen: set[str] = set()
@@ -125,7 +146,15 @@ def _artifact_usage(
     process: ProcessUnderstanding,
     step_node_by_original_id: dict[str, str],
 ) -> dict[str, dict[str, set[str]]]:
-    """Map normalised artifact label -> {"in": producing/consuming activity node ids}."""
+    """Build a usage map of which activities produce or consume each artifact.
+
+    Args:
+        process: The ProcessUnderstanding with steps and input_outputs.
+        step_node_by_original_id: Mapping of source step IDs to compiled node IDs.
+
+    Returns:
+        A dict mapping normalized artifact labels to {"in": set[node_ids], "out": set[node_ids]}.
+    """
     usage: dict[str, dict[str, set[str]]] = defaultdict(lambda: {"in": set(), "out": set()})
 
     node_by_step_key: dict[str, str] = {}
@@ -158,6 +187,14 @@ def _wire(
     use: dict[str, set[str]] | None,
     used_ids: set[str],
 ) -> None:
+    """Create associations from data artifacts to their producing/consuming activities.
+
+    Args:
+        associations: List to append new BPMNAssociation instances to.
+        data_id: The ID of the data object or data store.
+        use: Usage dict with "in" (consumers) and "out" (producers) sets of node IDs.
+        used_ids: Set of already-allocated IDs.
+    """
     if not use:
         return
     for producer in sorted(use["out"]):

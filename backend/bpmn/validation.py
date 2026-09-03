@@ -12,6 +12,17 @@ from backend.bpmn.soundness import analyze_control_flow
 
 
 def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
+    """Validate the structural integrity of a BPMN semantic model.
+
+    Performs well-formedness checks including duplicate IDs, dangling references,
+    gateway arity, boundary event attachment, and control-flow soundness.
+
+    Args:
+        model: The BPMNSemanticModel to validate.
+
+    Returns:
+        A list of warning messages describing structural issues found.
+    """
     warnings: list[str] = []
     node_ids = {node.id for node in model.flowNodes}
     flow_ids = {flow.id for flow in model.sequenceFlows}
