@@ -12,13 +12,11 @@ import json
 from html import escape
 
 from backend.bpmn._helpers import documentation_xml, element_documentation
-from backend.bpmn.models import BPMNDataObject, BPMNFlowNode, BPMNMessageFlow, BPMNSemanticModel
+from backend.bpmn.models import BPMNFlowNode, BPMNMessageFlow, BPMNSemanticModel
 
 
-def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bool = False) -> str:
+def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
     incoming, outgoing = _flow_refs(model)
-    visual_data_objects = model.dataObjects if visual_artifacts else []
-    annotations, associations = _semantic_annotations(model) if visual_artifacts else ([], [])
     xml_parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
@@ -90,34 +88,29 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
         else:
             xml_parts.append(open_tag + " />")
 
-    for data_object in visual_data_objects:
-        if data_object.documentation or data_object.sourceRefs:
-            xml_parts.append(
-                f'    <bpmn:dataObjectReference id="{escape(data_object.id)}" name="{escape(data_object.name)}">'
-            )
-            xml_parts.extend(
-                documentation_xml(
-                    element_documentation(data_object.documentation, data_object.sourceRefs),
-                    indent="      ",
-                )
-            )
-            xml_parts.append("    </bpmn:dataObjectReference>")
-        else:
-            xml_parts.append(
-                f'    <bpmn:dataObjectReference id="{escape(data_object.id)}" name="{escape(data_object.name)}" />'
-            )
-    for annotation in annotations:
-        xml_parts.extend(
-            [
-                f'    <bpmn:textAnnotation id="{escape(annotation["id"])}">',
-                f'      <bpmn:text>{escape(annotation["text"])}</bpmn:text>',
-                "    </bpmn:textAnnotation>",
-            ]
+    for data_object in model.dataObjects:
+        xml_parts.extend(_artifact_xml("dataObjectReference", data_object.id, data_object.name,
+                                       data_object.documentation, data_object.sourceRefs))
+    for data_store in model.dataStores:
+        xml_parts.extend(_artifact_xml("dataStoreReference", data_store.id, data_store.name,
+                                       data_store.documentation, data_store.sourceRefs))
+    for annotation in model.textAnnotations:
+        body = documentation_xml(
+            element_documentation("", annotation.sourceRefs), indent="      "
+        ) if annotation.sourceRefs else []
+        xml_parts.append(f'    <bpmn:textAnnotation id="{escape(annotation.id)}">')
+        xml_parts.append(f"      <bpmn:text>{escape(annotation.text)}</bpmn:text>")
+        xml_parts.extend(body)
+        xml_parts.append("    </bpmn:textAnnotation>")
+    for association in model.associations:
+        direction = (
+            f' associationDirection="{_ASSOCIATION_DIRECTION[association.direction]}"'
+            if association.direction != "none"
+            else ""
         )
-    for association in associations:
         xml_parts.append(
-            f'    <bpmn:association id="{escape(association["id"])}" '
-            f'sourceRef="{escape(association["source"])}" targetRef="{escape(association["target"])}" />'
+            f'    <bpmn:association id="{escape(association.id)}" '
+            f'sourceRef="{escape(association.sourceRef)}" targetRef="{escape(association.targetRef)}"{direction} />'
         )
 
     plane_element = (
@@ -161,22 +154,23 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
             ]
         )
 
-    data_positions = _layout_data_objects(visual_data_objects, positions)
-    for data_object in visual_data_objects:
-        pos = data_positions[data_object.id]
-        data_di_id = escape(data_object.id)
+    artifacts = [*model.dataObjects, *model.dataStores]
+    data_positions = _layout_data_objects(artifacts, positions)
+    for artifact in artifacts:
+        pos = data_positions[artifact.id]
+        artifact_di_id = escape(artifact.id)
         xml_parts.extend(
             [
-                f'      <bpmndi:BPMNShape id="{data_di_id}_di" bpmnElement="{data_di_id}">',
+                f'      <bpmndi:BPMNShape id="{artifact_di_id}_di" bpmnElement="{artifact_di_id}">',
                 f'        <dc:Bounds x="{pos["x"]}" y="{pos["y"]}" width="{pos["width"]}" height="{pos["height"]}" />',
                 "      </bpmndi:BPMNShape>",
             ]
         )
 
-    annotation_positions = _layout_text_annotations(annotations)
-    for annotation in annotations:
-        pos = annotation_positions[annotation["id"]]
-        annotation_di_id = escape(annotation["id"])
+    annotation_positions = _layout_text_annotations(model.textAnnotations)
+    for annotation in model.textAnnotations:
+        pos = annotation_positions[annotation.id]
+        annotation_di_id = escape(annotation.id)
         xml_parts.extend(
             [
                 f'      <bpmndi:BPMNShape id="{annotation_di_id}_di" bpmnElement="{annotation_di_id}">',
@@ -189,10 +183,11 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, visual_artifacts: bo
         for line in _edge_xml(flow.id, flow.sourceRef, flow.targetRef, positions, flow.name):
             xml_parts.append(line)
     connectable_positions = {**positions, **data_positions, **annotation_positions}
-    for association in associations:
-        if association["source"] in connectable_positions and association["target"] in connectable_positions:
-            for line in _association_edge_xml(association, connectable_positions):
-                xml_parts.append(line)
+    for association in model.associations:
+        source = connectable_positions.get(association.sourceRef)
+        target = connectable_positions.get(association.targetRef)
+        if source and target:
+            xml_parts.extend(_association_edge_xml(association.id, source, target))
 
     message_flow_positions = {**positions, **pool_positions}
     for message_flow in model.messageFlows:
@@ -251,27 +246,20 @@ def _process_documentation(model: BPMNSemanticModel) -> str:
     return "DeliR semantic payload:\n" + json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
-def _semantic_annotations(model: BPMNSemanticModel) -> tuple[list[dict], list[dict]]:
-    annotations = [{"id": annotation.id, "text": annotation.text} for annotation in model.textAnnotations]
-    associations = [
-        {"id": association.id, "source": association.sourceRef, "target": association.targetRef}
-        for association in model.associations
-    ]
+_ASSOCIATION_DIRECTION = {"none": "None", "one": "One", "both": "Both"}
 
-    if not annotations and model.model_warnings and model.flowNodes:
-        source = next(
-            (node.id for node in model.flowNodes if node.type not in {"startEvent", "endEvent"}),
-            model.flowNodes[0].id,
-        )
-        annotations = [
-            {"id": f"TextAnnotation_{index}", "text": warning[:240]}
-            for index, warning in enumerate(model.model_warnings[:4], start=1)
+
+def _artifact_xml(
+    tag: str, artifact_id: str, name: str, documentation: str | None, source_refs: list[str]
+) -> list[str]:
+    open_tag = f'    <bpmn:{tag} id="{escape(artifact_id)}" name="{escape(name)}"'
+    if documentation or source_refs:
+        return [
+            open_tag + ">",
+            *documentation_xml(element_documentation(documentation, source_refs), indent="      "),
+            f"    </bpmn:{tag}>",
         ]
-        associations = [
-            {"id": f"Association_{index}", "source": source, "target": annotation["id"]}
-            for index, annotation in enumerate(annotations, start=1)
-        ]
-    return annotations, associations
+    return [open_tag + " />"]
 
 
 def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
@@ -391,15 +379,15 @@ def _collaboration_pool_shapes(
     return shapes, pool_positions
 
 
-def _layout_text_annotations(annotations: list[dict]) -> dict[str, dict[str, float]]:
+def _layout_text_annotations(annotations: list) -> dict[str, dict[str, float]]:
     return {
-        annotation["id"]: {"x": 180 + ((index - 1) * 230), "y": 40, "width": 190, "height": 70}
+        annotation.id: {"x": 180 + ((index - 1) * 230), "y": 40, "width": 190, "height": 70}
         for index, annotation in enumerate(annotations, start=1)
     }
 
 
 def _layout_data_objects(
-    data_objects: list[BPMNDataObject],
+    data_objects: list,
     positions: dict[str, dict[str, float]],
 ) -> dict[str, dict[str, float]]:
     layout: dict[str, dict[str, float]] = {}
@@ -464,16 +452,15 @@ def _edge_xml(
 
 
 def _association_edge_xml(
-    association: dict,
-    positions: dict[str, dict[str, float]],
+    association_id: str,
+    source: dict[str, float],
+    target: dict[str, float],
 ) -> list[str]:
-    source = positions[association["source"]]
-    target = positions[association["target"]]
-    association_id = escape(association["id"])
+    escaped = escape(association_id)
     return [
-        f'      <bpmndi:BPMNEdge id="{association_id}_di" bpmnElement="{association_id}">',
-        f'        <di:waypoint x="{source["x"] + source["width"] / 2}" y="{source["y"]}" />',
-        f'        <di:waypoint x="{target["x"] + target["width"] / 2}" y="{target["y"] + target["height"]}" />',
+        f'      <bpmndi:BPMNEdge id="{escaped}_di" bpmnElement="{escaped}">',
+        f'        <di:waypoint x="{source["x"] + source["width"] / 2}" y="{source["y"] + source["height"] / 2}" />',
+        f'        <di:waypoint x="{target["x"] + target["width"] / 2}" y="{target["y"] + target["height"] / 2}" />',
         "      </bpmndi:BPMNEdge>",
     ]
 

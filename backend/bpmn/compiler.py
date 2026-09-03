@@ -17,7 +17,6 @@ from backend.bpmn._helpers import (
     json_documentation,
     source_ref_id,
     step_documentation,
-    unique_texts,
     xml_id,
 )
 from backend.bpmn.collaboration import (
@@ -29,15 +28,13 @@ from backend.bpmn.collaboration import (
     step_is_external_only,
 )
 from backend.bpmn.compilation_plan import build_bpmn_compilation_plan
+from backend.bpmn.data_flow import build_data_flow
 from backend.bpmn.flow_registry import FlowRegistry, sequence_flow_edges_by_endpoint
 from backend.bpmn.models import (
     ACTIVITY_NODE_TYPES,
-    BPMNAssociation,
-    BPMNDataObject,
     BPMNFlowNode,
     BPMNLane,
     BPMNSemanticModel,
-    BPMNTextAnnotation,
 )
 from backend.process_understanding import (
     ProcessActor,
@@ -203,6 +200,9 @@ def build_bpmn_semantic_model(
         used_ids=used_ids,
         warnings=warnings,
     )
+    data_flow = build_data_flow(
+        process, step_node_by_original_id=step_node_by_original_id, used_ids=used_ids
+    )
 
     model = BPMNSemanticModel(
         id=safe_process_id,
@@ -213,9 +213,10 @@ def build_bpmn_semantic_model(
         flowNodes=nodes,
         sequenceFlows=flows,
         messageFlows=message_flows,
-        dataObjects=[],
+        dataObjects=data_flow.data_objects,
+        dataStores=data_flow.data_stores,
         textAnnotations=[],
-        associations=[],
+        associations=data_flow.associations,
         model_warnings=warnings,
         sourceProcessUnderstanding=process.model_dump(mode="json"),
     )
@@ -1006,109 +1007,3 @@ def _outcome_name_for_path(decision: ProcessDecision, path) -> str | None:
             return outcome.label or outcome.condition
     return path.trigger_or_condition or path.label
 
-
-def _build_data_objects(
-    *,
-    process: ProcessUnderstanding,
-    used_ids: set[str],
-    step_node_by_original_id: dict[str, str],
-    ordered_steps: list[ProcessStep],
-) -> tuple[list[BPMNDataObject], list[BPMNAssociation]]:
-    data_objects: list[BPMNDataObject] = []
-    associations: list[BPMNAssociation] = []
-
-    for index, item in enumerate(process.data_objects, start=1):
-        source_node_id = _source_node_for_data_object(
-            label=item.label,
-            step_node_by_original_id=step_node_by_original_id,
-            ordered_steps=ordered_steps,
-        )
-        data_object = BPMNDataObject(
-            id=xml_id(item.id or f"DataObject_{index}", "DataObject", used_ids),
-            name=item.label,
-            kind=item.kind,
-            sourceNodeRef=source_node_id,
-            documentation=json_documentation(
-                "data_object", {"kind": item.kind, "source_evidence": item.source_evidence}
-            ),
-            sourceRefs=[source_ref_id("data_objects", item.id)],
-        )
-        data_objects.append(data_object)
-        if source_node_id:
-            associations.append(
-                BPMNAssociation(
-                    id=xml_id(f"Association_{source_node_id}_to_{data_object.id}", "Association", used_ids),
-                    sourceRef=source_node_id,
-                    targetRef=data_object.id,
-                )
-            )
-
-    return data_objects, associations
-
-
-def _source_node_for_data_object(
-    *,
-    label: str,
-    step_node_by_original_id: dict[str, str],
-    ordered_steps: list[ProcessStep],
-) -> str | None:
-    _ = (label, step_node_by_original_id, ordered_steps)
-    return None
-
-
-def _build_process_annotations(
-    *,
-    process: ProcessUnderstanding,
-    warnings: list[str],
-    used_ids: set[str],
-    source_node_id: str,
-) -> tuple[list[BPMNTextAnnotation], list[BPMNAssociation]]:
-    annotation_texts: list[str] = []
-    annotation_texts.extend(warnings[:4])
-    annotation_texts.extend(
-        f"Handoff: {item.artifact or item.trigger or item.id}"
-        for item in process.handoffs
-        if item.artifact or item.trigger or item.id
-    )
-    annotation_texts.extend(
-        f"Pool candidate esterno: {item.actor_id}"
-        for item in process.actor_relationships
-        if item.bpmn_pool_candidate
-    )
-    annotation_texts.extend(f"Regola business: {item}" for item in process.business_rules)
-    annotation_texts.extend(
-        f"Domanda aperta ({item.severity}): {item.question}" for item in process.unknowns
-    )
-    annotation_texts.extend(
-        f"Eccezione: {item.label}; trigger: {item.trigger or 'n/d'}; gestione: {item.handling or 'da definire'}"
-        for item in process.exceptions
-    )
-    annotation_texts.extend(
-        f"Hint BPMN: {item.element} - {item.hint} ({item.confidence})"
-        for item in process.bpmn_modeling_hints
-    )
-    annotation_texts.extend(
-        f"Evento {item.type}: {item.label}" for item in process.events if item.type not in {"start", "end"}
-    )
-    annotation_texts.extend(
-        f"Input/output {item.step}: input={', '.join(item.input) or 'n/d'}; output={', '.join(item.output) or 'n/d'}"
-        for item in process.input_outputs
-    )
-
-    annotations: list[BPMNTextAnnotation] = []
-    associations: list[BPMNAssociation] = []
-    for index, text in enumerate(unique_texts(annotation_texts)[:30], start=1):
-        annotation = BPMNTextAnnotation(
-            id=xml_id(f"TextAnnotation_{index}", "TextAnnotation", used_ids),
-            text=text[:240],
-            sourceNodeRef=source_node_id,
-        )
-        annotations.append(annotation)
-        associations.append(
-            BPMNAssociation(
-                id=xml_id(f"Association_{index}", "Association", used_ids),
-                sourceRef=source_node_id,
-                targetRef=annotation.id,
-            )
-        )
-    return annotations, associations

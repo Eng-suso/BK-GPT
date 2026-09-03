@@ -85,16 +85,26 @@ class BPMNDataObject(BaseModel):
     sourceRefs: list[str] = Field(default_factory=list)
 
 
+class BPMNDataStore(BaseModel):
+    id: str
+    name: str
+    sourceNodeRef: str | None = None
+    documentation: str | None = None
+    sourceRefs: list[str] = Field(default_factory=list)
+
+
 class BPMNTextAnnotation(BaseModel):
     id: str
     text: str
     sourceNodeRef: str | None = None
+    sourceRefs: list[str] = Field(default_factory=list)
 
 
 class BPMNAssociation(BaseModel):
     id: str
     sourceRef: str
     targetRef: str
+    direction: Literal["none", "one", "both"] = "none"
 
 
 class BPMNParticipant(BaseModel):
@@ -270,6 +280,7 @@ class BPMNSemanticModel(BaseModel):
     sequenceFlows: list[BPMNSequenceFlow]
     messageFlows: list[BPMNMessageFlow] = Field(default_factory=list)
     dataObjects: list[BPMNDataObject] = Field(default_factory=list)
+    dataStores: list[BPMNDataStore] = Field(default_factory=list)
     textAnnotations: list[BPMNTextAnnotation] = Field(default_factory=list)
     associations: list[BPMNAssociation] = Field(default_factory=list)
     model_warnings: list[str] = Field(default_factory=list)

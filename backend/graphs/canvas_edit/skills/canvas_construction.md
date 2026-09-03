@@ -14,6 +14,7 @@ Construction handles significant build or rebuild work.
 - Retrieve evidence/traceability context when available.
 - Preserve unresolved gaps in the semantic payload, compilation plan and business report, not as visible canvas annotations.
 - Keep the visible canvas focused on operational BPMN: lanes, events, activities, gateways and sequence flows.
-- Do not render data objects, handoffs, business rules, unknowns, evidence or traceability as visible text annotations or association edges unless the user explicitly asks for that visual layer.
+- Data objects, data stores and their read/write associations ARE part of the operating view and are rendered by the compiler; keep them.
+- Do not render handoffs, business rules, unknowns, evidence or traceability as visible text annotations or association edges unless the user explicitly asks for that visual layer.
 - Produce a preview before applying broad changes.
 - Save only after validation and explicit approval.

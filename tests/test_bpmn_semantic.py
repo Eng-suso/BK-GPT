@@ -183,9 +183,12 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     assert len(outgoing_by_node[gateway.id]) >= 2
     assert any(flow.name == "No" for flow in outgoing_by_node[gateway.id])
     assert any(flow.name == "Serve nuova revisione" for flow in model.sequenceFlows)
+    # "Ordine" is kind=record -> a data store; no step lists it as input/output so
+    # it has no association edge.
+    assert [store.name for store in model.dataStores] == ["Ordine"]
     assert model.dataObjects == []
-    assert model.textAnnotations == []
     assert model.associations == []
+    assert model.textAnnotations == []
     assert model.sourceProcessUnderstanding is not None
     assert model.compilationPlan is not None
     assert model.compilationPlan.coverage.losses == []
@@ -198,9 +201,9 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     )
     assert "DeliR semantic payload" in xml
     assert "DeliR traceability" in xml
+    assert "<bpmn:dataStoreReference" in xml
     assert "dataObjectReference" not in xml
     assert "textAnnotation" not in xml
-    assert "bpmn:association" not in xml
     assert not any("senza almeno due uscite" in warning for warning in warnings)
     assert xml_validation["valid"] is True
     assert semantic_validation["semantic_valid"] is True
