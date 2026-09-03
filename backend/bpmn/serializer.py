@@ -12,7 +12,12 @@ import json
 from html import escape
 
 from backend.bpmn._helpers import documentation_xml, element_documentation
-from backend.bpmn.models import BPMNFlowNode, BPMNMessageFlow, BPMNSemanticModel
+from backend.bpmn.models import (
+    ACTIVITY_NODE_TYPES as _ACTIVITY_NODE_TYPES,
+    BPMNFlowNode,
+    BPMNMessageFlow,
+    BPMNSemanticModel,
+)
 
 # Event nodes that may carry an <bpmn:xxxEventDefinition> child.
 _EVENT_DEFINITION_HOSTS = frozenset(
@@ -92,11 +97,18 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
     return lines, ref_by_node
 
 
-def _loop_characteristics_xml(kind: str) -> str:
+def _loop_characteristics_xml(kind: str, condition: str | None = None) -> list[str]:
     if kind == "standardLoop":
-        return "      <bpmn:standardLoopCharacteristics />"
+        if condition and condition.strip():
+            return [
+                "      <bpmn:standardLoopCharacteristics>",
+                '        <bpmn:loopCondition xsi:type="bpmn:tFormalExpression">'
+                f"{escape(condition.strip())}</bpmn:loopCondition>",
+                "      </bpmn:standardLoopCharacteristics>",
+            ]
+        return ["      <bpmn:standardLoopCharacteristics />"]
     is_sequential = "true" if kind == "multiInstanceSequential" else "false"
-    return f'      <bpmn:multiInstanceLoopCharacteristics isSequential="{is_sequential}" />'
+    return [f'      <bpmn:multiInstanceLoopCharacteristics isSequential="{is_sequential}" />']
 
 
 def _event_definition_xml(
@@ -187,8 +199,10 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
                 xml_parts.append(f"      <bpmn:incoming>{escape(flow_id)}</bpmn:incoming>")
         for flow_id in outgoing[node.id]:
             xml_parts.append(f"      <bpmn:outgoing>{escape(flow_id)}</bpmn:outgoing>")
-        if node.loopCharacteristics != "none":
-            xml_parts.append(_loop_characteristics_xml(node.loopCharacteristics))
+        if node.loopCharacteristics != "none" and node.type in _ACTIVITY_NODE_TYPES:
+            xml_parts.extend(
+                _loop_characteristics_xml(node.loopCharacteristics, node.loopConditionExpression)
+            )
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
             xml_parts.append(
                 _event_definition_xml(

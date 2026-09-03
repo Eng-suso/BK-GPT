@@ -30,8 +30,9 @@ def test_escalation_exception_compiles_to_an_escalation_boundary_event():
         ProcessExceptionPath(
             id="Exc",
             label="Caso passato al responsabile",
-            trigger="escalation al responsabile di sede",
+            trigger="il responsabile di sede prende in carico",
             handling="Il responsabile prende in carico",
+            kind="escalation",
             attached_to_step_id="T1",
             interrupting=False,
         )

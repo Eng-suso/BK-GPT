@@ -66,8 +66,14 @@ def test_terminating_end_compiles_to_a_terminate_end_event():
     ends = {node.name: node for node in model.flowNodes if node.type == "endEvent"}
     assert "Richiesta annullata" in ends
     assert ends["Richiesta annullata"].eventDefinition == "terminate"
-    # the normal success end stays a plain end
-    assert all(n.eventDefinition is None for n in model.flowNodes if n.type == "endEvent" and n.name != "Richiesta annullata")
+    # the configured success end is materialised and stays a plain end
+    assert "Richiesta evasa" in ends
+    assert ends["Richiesta evasa"].eventDefinition is None
+    assert all(
+        n.eventDefinition is None
+        for n in model.flowNodes
+        if n.type == "endEvent" and n.name != "Richiesta annullata"
+    )
 
     xml = semantic_model_to_bpmn_xml(model)
     assert "<bpmn:terminateEventDefinition />" in xml

@@ -289,23 +289,19 @@ def _task_type(step: ProcessStep) -> str:
     }.get(step.type, "userTask")
 
 
+_MULTI_INSTANCE_BY_MULTIPLICITY: dict[str, str] = {
+    "per_item": "multiInstanceParallel",
+    "per_item_sequential": "multiInstanceSequential",
+}
+
+
 def _loop_characteristics(
     step: ProcessStep,
-) -> Literal["none", "standardLoop", "multiInstanceSequential", "multiInstanceParallel"]:
-    """Infer an activity loop marker from the step wording.
-
-    "per ogni / per ciascun / for each" -> multi-instance (parallel unless the
-    text says the items are handled one at a time); "ripeti finche' / fino a"
-    -> standard loop.
+) -> Literal["none", "multiInstanceSequential", "multiInstanceParallel"]:
+    """Activity loop marker from the step's typed multiplicity. Standard-loop
+    markers come from single-step ProcessLoops, handled in _add_loop_flows.
     """
-    text = f"{step.label or ''} {step.description or ''}".casefold()
-    if _matches_word(text, ("per ogni", "per ciascun", "per ognun", "for each", "una per", "ciascuna")):
-        if _matches_word(text, ("in sequenza", "uno alla volta", "una alla volta", "sequenzial")):
-            return "multiInstanceSequential"
-        return "multiInstanceParallel"
-    if _matches_word(text, ("ripeti finche", "ripeti fino", "finche non", "fino a quando", "itera fino")):
-        return "standardLoop"
-    return "none"
+    return _MULTI_INSTANCE_BY_MULTIPLICITY.get(step.multiplicity, "none")  # type: ignore[return-value]
 
 
 def _ordered_chain_items(
@@ -699,6 +695,7 @@ def _add_loop_flows(
             node = node_by_id.get(step_node_by_original_id[repeated[0]])
             if node is not None and node.loopCharacteristics == "none":
                 node.loopCharacteristics = "standardLoop"
+                node.loopConditionExpression = loop.condition or loop.exit_condition
                 ref = source_ref_id("loops", loop.id)
                 if ref not in node.sourceRefs:
                     node.sourceRefs.append(ref)
@@ -967,26 +964,24 @@ def _exception_rejoin_node(
     return None
 
 
+_INTERRUPTING_ONLY_EXCEPTION_KINDS = frozenset({"error"})
+
+
 def _exception_event_definition(
     exception: ProcessExceptionPath,
-) -> tuple[Literal["timer", "message", "error", "conditional", "escalation"], bool]:
+) -> tuple[Literal["timer", "message", "error", "conditional", "escalation", "signal"], bool]:
     """Resolve the event definition type and interrupting flag for a boundary event.
 
-    Error boundary events must be interrupting per BPMN 2.0. Escalation is used
-    when the handler passes the case up a hierarchy (typically non-interrupting).
-    Unclassified non-interrupting triggers fall back to a conditional event.
-
-    Args:
-        exception: The ProcessExceptionPath with trigger and interrupting properties.
-
-    Returns:
-        A tuple of (event_definition_type, is_interrupting).
+    `exception.kind` drives the type when set; `"auto"` falls back to a trigger-
+    text heuristic. Error boundary events are always interrupting per BPMN 2.0.
     """
+    if exception.kind != "auto":
+        forced = exception.kind in _INTERRUPTING_ONLY_EXCEPTION_KINDS
+        return exception.kind, True if forced else exception.interrupting
+
     text = f"{exception.trigger or ''} {exception.label or ''}"
     if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
         return "timer", exception.interrupting
-    if _matches_word(text, ("escalation", "escalat", "escala", "responsabile", "supervisore", "manager", "livello superiore")):
-        return "escalation", exception.interrupting
     if _matches_word(text, ("messaggio", "risposta", "notifica", "comunicazione", "riscontro")):
         return "message", exception.interrupting
     if exception.interrupting or _matches_word(text, ("errore", "guasto", "eccezione", "fault", "blocco", "anomalia")):
@@ -1270,12 +1265,15 @@ def _build_end_events(
         by_key.setdefault(_norm_end_key(event.label), node)
 
     if process.boundaries:
+        # success_end first so the configured happy-path end is created and,
+        # below, selected as the primary plain end (never a terminate end).
         extra_ends = [
-            ("boundaries", label, "Fine con esito negativo")
-            for label in process.boundaries.failure_ends
-        ] + [
-            ("boundaries", label, "Fine con interruzione")
-            for label in process.boundaries.terminating_ends
+            ("boundaries", label, name)
+            for label, name in (
+                *([(process.boundaries.success_end, "Fine")] if process.boundaries.success_end else []),
+                *((label, "Fine con esito negativo") for label in process.boundaries.failure_ends),
+                *((label, "Fine con interruzione") for label in process.boundaries.terminating_ends),
+            )
         ]
         for field, label, default_name in extra_ends:
             if _norm_end_key(label) in by_key:
