@@ -49,9 +49,14 @@ def _serialized_semantic_ids(model: BPMNSemanticModel) -> set[str]:
 
 
 def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, str]]:
-    """Collect definitions-level <bpmn:message/signal/error> elements referenced
-    by the model's events, plus a node-id -> declaration-id map for their refs.
-    Message/signal/error events sharing a name share one declaration.
+    """
+    Collect reusable BPMN message, signal, and error declarations for the model's event nodes.
+    
+    Parameters:
+    	model (BPMNSemanticModel): Semantic model containing the event nodes to process.
+    
+    Returns:
+    	tuple[list[str], dict[str, str]]: Serialized declaration elements and a mapping from event node IDs to their declaration IDs.
     """
     declarations: dict[tuple[str, str], str] = {}
     lines: list[str] = []
@@ -80,6 +85,20 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
 def _event_definition_xml(
     kind: str, ref_id: str | None, condition_expression: str | None
 ) -> str:
+    """
+    Serialize an event definition as BPMN XML.
+    
+    Parameters:
+        kind (str): Event definition kind.
+        ref_id (str | None): Referenced definition ID for referenceable event kinds.
+        condition_expression (str | None): Condition required for conditional events.
+    
+    Returns:
+        str: BPMN XML for the event definition.
+    
+    Raises:
+        ValueError: If a conditional event has no nonempty condition expression.
+    """
     if kind == "conditional":
         condition = (condition_expression or "").strip()
         if not condition:
@@ -97,6 +116,15 @@ def _event_definition_xml(
 
 
 def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
+    """
+    Serialize a BPMN semantic model as BPMN 2.0 XML with deterministic diagram interchange layout.
+    
+    Parameters:
+        model (BPMNSemanticModel): Semantic model containing BPMN elements, documentation, and diagram data.
+    
+    Returns:
+        str: Complete BPMN 2.0 XML document.
+    """
     incoming, outgoing = _flow_refs(model)
     xml_parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -327,6 +355,15 @@ def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
 
 
 def _process_documentation(model: BPMNSemanticModel) -> str:
+    """
+    Serialize the model's process understanding and BPMN compilation plan as a JSON documentation payload.
+    
+    Parameters:
+        model (BPMNSemanticModel): Semantic model containing the source process understanding and optional compilation plan.
+    
+    Returns:
+        str: Documentation text containing the versioned semantic payload as JSON.
+    """
     payload = {
         "schema": "delir.semantic_payload.v1",
         "process_understanding": model.sourceProcessUnderstanding,
@@ -341,6 +378,19 @@ _ASSOCIATION_DIRECTION = {"none": "None", "one": "One", "both": "Both"}
 def _artifact_xml(
     tag: str, artifact_id: str, name: str, documentation: str | None, source_refs: list[str]
 ) -> list[str]:
+    """
+    Serialize a BPMN data artifact to XML lines.
+    
+    Parameters:
+        tag (str): BPMN artifact element name.
+        artifact_id (str): Unique identifier for the artifact.
+        name (str): Artifact name.
+        documentation (str | None): Optional artifact documentation.
+        source_refs (list[str]): Source references included in the artifact documentation.
+    
+    Returns:
+        list[str]: XML lines representing the artifact.
+    """
     open_tag = f'    <bpmn:{tag} id="{escape(artifact_id)}" name="{escape(name)}"'
     if documentation or source_refs:
         return [
@@ -352,6 +402,15 @@ def _artifact_xml(
 
 
 def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """
+    Build mappings of flow-node IDs to their incoming and outgoing sequence-flow IDs.
+    
+    Parameters:
+    	model (BPMNSemanticModel): The semantic model containing flow nodes and sequence flows.
+    
+    Returns:
+    	tuple[dict[str, list[str]], dict[str, list[str]]]: Incoming and outgoing sequence-flow mappings, respectively.
+    """
     incoming: dict[str, list[str]] = {node.id: [] for node in model.flowNodes}
     outgoing: dict[str, list[str]] = {node.id: [] for node in model.flowNodes}
     for flow in model.sequenceFlows:
@@ -361,6 +420,15 @@ def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str
 
 
 def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
+    """
+    Determine the diagram dimensions for a BPMN flow node.
+    
+    Parameters:
+    	node (BPMNFlowNode): The flow node whose type determines its dimensions.
+    
+    Returns:
+    	tuple[int, int]: The node width and height in diagram units.
+    """
     if node.type in {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent"}:
         return 44, 44
     if node.type == "boundaryEvent":
@@ -427,6 +495,17 @@ def _collaboration_pool_shapes(
     node_positions: dict[str, dict[str, float]],
     lane_shapes: list[dict[str, float | str]],
 ) -> tuple[list[dict[str, float | str]], dict[str, dict[str, float]]]:
+    """
+    Create diagram shapes and positions for collaboration participants.
+    
+    Parameters:
+    	model (BPMNSemanticModel): The semantic model containing collaboration participants.
+    	node_positions (dict[str, dict[str, float]]): Positions and dimensions of flow nodes.
+    	lane_shapes (list[dict[str, float | str]]): Positions and dimensions of lane shapes.
+    
+    Returns:
+    	tuple[list[dict[str, float | str]], dict[str, dict[str, float]]]: Participant pool shapes and their positions, respectively.
+    """
     if not model.participants:
         return [], {}
 
@@ -469,6 +548,15 @@ def _collaboration_pool_shapes(
 
 
 def _layout_text_annotations(annotations: list) -> dict[str, dict[str, float]]:
+    """
+    Position text annotations along a fixed top row in deterministic order.
+    
+    Parameters:
+    	annotations (list): Text annotations to position.
+    
+    Returns:
+    	dict[str, dict[str, float]]: Mapping of annotation IDs to their layout coordinates and dimensions.
+    """
     return {
         annotation.id: {"x": 180 + ((index - 1) * 230), "y": 40, "width": 190, "height": 70}
         for index, annotation in enumerate(annotations, start=1)
@@ -479,6 +567,16 @@ def _layout_data_objects(
     data_objects: list,
     positions: dict[str, dict[str, float]],
 ) -> dict[str, dict[str, float]]:
+    """
+    Position data objects beneath their source nodes or in a fallback row when no source position is available.
+    
+    Parameters:
+    	data_objects (list): Data objects to position.
+    	positions (dict[str, dict[str, float]]): Positions of serialized model elements keyed by element ID.
+    
+    Returns:
+    	dict[str, dict[str, float]]: Positions and fixed dimensions keyed by data object ID.
+    """
     layout: dict[str, dict[str, float]] = {}
     per_source_count: dict[str, int] = {}
 
@@ -545,6 +643,17 @@ def _association_edge_xml(
     source: dict[str, float],
     target: dict[str, float],
 ) -> list[str]:
+    """
+    Create BPMN DI XML for an association between two positioned elements.
+    
+    Parameters:
+        association_id (str): Identifier of the association.
+        source (dict[str, float]): Position and dimensions of the source element.
+        target (dict[str, float]): Position and dimensions of the target element.
+    
+    Returns:
+        list[str]: XML lines defining the association edge and its center-to-center waypoints.
+    """
     escaped = escape(association_id)
     return [
         f'      <bpmndi:BPMNEdge id="{escaped}_di" bpmnElement="{escaped}">',

@@ -126,12 +126,15 @@ class FlowRegistry:
             self.add(source, target)
 
     def reroute_source(self, from_id: str, to_id: str) -> list[BPMNSequenceFlow]:
-        """Move every flow currently leaving `from_id` so it leaves `to_id`.
-
-        Used to splice a gateway in front of a node's existing outgoing flows
-        (e.g. a loop back-edge decision) without recreating them. The move is
-        recorded so `apply_edge_overlay` still matches a flow_edge that named the
-        original `from_id -> successor` transition.
+        """
+        Move all flows from one source node to another.
+        
+        Parameters:
+            from_id (str): Identifier of the current source node.
+            to_id (str): Identifier of the replacement source node.
+        
+        Returns:
+            list[BPMNSequenceFlow]: Flows reassigned to the replacement source node.
         """
         moved: list[BPMNSequenceFlow] = []
         for flow in self.flows:

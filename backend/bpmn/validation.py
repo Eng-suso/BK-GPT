@@ -12,6 +12,15 @@ from backend.bpmn.soundness import analyze_control_flow
 
 
 def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
+    """
+    Validate the semantic structure of a BPMN model and collect warning messages.
+    
+    Parameters:
+    	model (BPMNSemanticModel): The BPMN semantic model to validate.
+    
+    Returns:
+    	list[str]: Warning messages describing detected structural or control-flow issues.
+    """
     warnings: list[str] = []
     node_ids = {node.id for node in model.flowNodes}
     flow_ids = {flow.id for flow in model.sequenceFlows}

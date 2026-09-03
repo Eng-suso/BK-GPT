@@ -15,6 +15,14 @@ from backend.process_understanding import (
 
 
 def _process(**kw) -> ProcessUnderstanding:
+    """Create a process understanding with a default title that can be overridden.
+    
+    Parameters:
+        **kw: Attributes passed to the process understanding, overriding defaults.
+    
+    Returns:
+        ProcessUnderstanding: The configured process understanding.
+    """
     base = {"title": "P"}
     base.update(kw)
     return ProcessUnderstanding(**base)

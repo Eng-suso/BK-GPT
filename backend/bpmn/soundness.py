@@ -190,8 +190,16 @@ def _classify_gateway(node, in_deg: int, out_deg: int, report: ControlFlowReport
 
 
 def _check_event_gateways(model, out_degree, report: ControlFlowReport) -> None:
-    """Every branch of a forking event-based gateway must land on a catch event
-    or a receive task, and none may carry a data condition (OMG BPMN 2.0 10.5.5).
+    """
+    Validate branches of forking event-based gateways.
+    
+    Each outgoing branch must target an intermediate catch event or receive task
+    and must not define a condition expression.
+    
+    Parameters:
+        model: BPMN model containing flow nodes and sequence flows.
+        out_degree: Mapping of node IDs to outgoing-flow counts.
+        report (ControlFlowReport): Report to which validation errors are added.
     """
     event_gateways = {
         node.id: node for node in model.flowNodes if node.type == "eventBasedGateway"
@@ -215,13 +223,14 @@ def _check_event_gateways(model, out_degree, report: ControlFlowReport) -> None:
 
 
 def _check_parallel_balance(model, in_degree, out_degree, report: ControlFlowReport) -> None:
-    """Check that parallel splits and joins are balanced.
-
-    Args:
-        model: The BPMNSemanticModel being analyzed.
+    """
+    Assess whether parallel gateway splits are balanced by corresponding joins.
+    
+    Parameters:
+        model: BPMN semantic model containing the flow nodes.
         in_degree: Mapping of node IDs to incoming flow counts.
         out_degree: Mapping of node IDs to outgoing flow counts.
-        report: The ControlFlowReport to update with warnings.
+        report: Control-flow report to update when splits outnumber joins.
     """
     parallel_splits = 0
     parallel_joins = 0

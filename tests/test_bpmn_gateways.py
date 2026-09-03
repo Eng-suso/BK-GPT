@@ -14,6 +14,16 @@ from backend.process_understanding import (
 
 
 def _process(gateway_type: str, *, outcome_label: str = "Serve una correzione") -> ProcessUnderstanding:
+    """
+    Build an order-review process model with the specified gateway type and correction outcome.
+    
+    Parameters:
+        gateway_type (str): Gateway type used for the review decision.
+        outcome_label (str): Label for the correction outcome and alternative path.
+    
+    Returns:
+        ProcessUnderstanding: The configured order-review process model.
+    """
     return ProcessUnderstanding(
         title="Order Review",
         steps=[
@@ -62,6 +72,14 @@ def _process(gateway_type: str, *, outcome_label: str = "Serve una correzione") 
 
 
 def _compile(process: ProcessUnderstanding) -> BPMNSemanticModel:
+    """Compile the order review process into a BPMN semantic model.
+    
+    Parameters:
+    	process (ProcessUnderstanding): Process understanding to compile.
+    
+    Returns:
+    	BPMNSemanticModel: BPMN semantic model for the order review process.
+    """
     return build_bpmn_semantic_model(
         process_id="Process_Order", process_name="Order Review", process=process
     )

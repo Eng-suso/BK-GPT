@@ -62,6 +62,15 @@ _DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway"})
 
 
 def _gateway_bpmn_type(decision: ProcessDecision) -> str:
+    """
+    Determine the BPMN gateway type for a process decision.
+    
+    Parameters:
+    	decision (ProcessDecision): Decision whose configured gateway type is mapped.
+    
+    Returns:
+    	str: The corresponding BPMN gateway type, or "exclusiveGateway" when the configured type is unavailable.
+    """
     return _GATEWAY_BPMN_TYPE.get(decision.gateway_type, "exclusiveGateway")
 
 
@@ -82,6 +91,20 @@ def build_bpmn_semantic_model(
     process_name: str,
     process: ProcessUnderstanding,
 ) -> BPMNSemanticModel:
+    """
+    Compile a process understanding into a deterministic BPMN semantic model.
+    
+    Parameters:
+    	process_id (str): Identifier used to construct the BPMN process ID.
+    	process_name (str): Name assigned to the compiled BPMN model.
+    	process (ProcessUnderstanding): Process description to compile.
+    
+    Returns:
+    	BPMNSemanticModel: Compiled BPMN model with flow nodes, sequence flows, message flows, data-flow artifacts, source references, warnings, and a compilation plan.
+    
+    Raises:
+    	ValueError: If the compilation plan reports coverage losses.
+    """
     used_ids: set[str] = set()
     safe_process_id = xml_id(process_id, "Process", used_ids)
     collaboration = build_collaboration_layer(process, safe_process_id, used_ids)
@@ -337,6 +360,19 @@ def _attach_anchored_gateway(
     gateway_by_decision_id: dict[str, BPMNFlowNode],
     gateway_by_step_id: dict[str, BPMNFlowNode],
 ) -> None:
+    """Create and register a BPMN gateway anchored to a main-chain item.
+    
+    Parameters:
+    	anchor_id (str): Identifier of the main-chain item where the gateway is inserted.
+    	lane_id (str | None): Identifier of the lane containing the gateway.
+    	decision_by_anchor_step_id (dict[str, ProcessDecision]): Decisions keyed by their anchor identifiers.
+    	used_ids (set[str]): IDs already assigned to BPMN elements.
+    	nodes (list[BPMNFlowNode]): Collection receiving the created gateway.
+    	main_chain (list[str]): Primary chain receiving the gateway ID.
+    	registry (FlowRegistry): Registry for source-to-BPMN mappings.
+    	gateway_by_decision_id (dict[str, BPMNFlowNode]): Mapping updated with the gateway keyed by decision ID.
+    	gateway_by_step_id (dict[str, BPMNFlowNode]): Mapping updated with the gateway keyed by anchor ID.
+    """
     decision = decision_by_anchor_step_id.get(anchor_id)
     if decision is None:
         return
@@ -643,6 +679,21 @@ def _add_boundary_events(
     end_id: str,
     warnings: list[str],
 ) -> None:
+    """
+    Adds BPMN boundary events for process exceptions and connects each event to its handler, recovery path, or terminal flow.
+    
+    Parameters:
+        process (ProcessUnderstanding): Process definition containing the exceptions to compile.
+        registry (FlowRegistry): Registry for source mappings and sequence-flow connections.
+        nodes (list[BPMNFlowNode]): BPMN nodes to extend with boundary events and handlers.
+        step_node_by_original_id (dict[str, str]): Mapping from process step IDs to compiled BPMN node IDs.
+        step_by_id (dict[str, ProcessStep]): Process steps indexed by ID for resolving recovery targets.
+        actor_lane_map (dict[str, str]): Mapping from actor IDs to BPMN lane IDs.
+        actors (list[ProcessActor]): Process actors available for recovery-task lane assignment.
+        used_ids (set[str]): IDs already allocated in the BPMN model.
+        end_id (str): BPMN end-event ID used when an exception has no defined handling.
+        warnings (list[str]): Collection to which compilation warnings are appended.
+    """
     node_type_by_id = {node.id: node.type for node in nodes}
     node_lane_by_id = {node.id: node.laneId for node in nodes}
 
@@ -821,6 +872,16 @@ def _exception_event_definition(
 
 
 def _matches_word(text: str, words: tuple[str, ...]) -> bool:
+    """
+    Determine whether text contains a case-insensitive word-prefix match.
+    
+    Parameters:
+    	text (str): Text to search.
+    	words (tuple[str, ...]): Word prefixes to match.
+    
+    Returns:
+    	bool: `true` if text contains a word beginning with any supplied prefix, `false` otherwise.
+    """
     lowered = text.casefold()
     return any(re.search(rf"\b{re.escape(word)}", lowered) for word in words)
 
@@ -831,10 +892,14 @@ def _normalize_event_gateways(
     used_ids: set[str],
     warnings: list[str],
 ) -> None:
-    """Every outgoing branch of an event-based gateway must begin with an element
-    that waits for a trigger (OMG BPMN 2.0, 10.5.5). Splice a synthetic catch
-    event onto any branch that currently jumps straight to an activity, gateway
-    or end event; the branch label moves onto the catch event.
+    """
+    Ensure each event-based gateway branch begins with a catch event.
+    
+    Parameters:
+        nodes (list[BPMNFlowNode]): Flow nodes to update with inserted catch events.
+        registry (FlowRegistry): Flow registry containing the gateway branches.
+        used_ids (set[str]): IDs already in use for generating unique event IDs.
+        warnings (list[str]): Collection to receive warnings for branches without an explicit trigger.
     """
     node_by_id = {node.id: node for node in nodes}
     for gateway in [node for node in nodes if node.type == "eventBasedGateway"]:
@@ -876,7 +941,14 @@ def _assign_gateway_defaults(
     flows: list,
     warnings: list[str],
 ) -> None:
-    """A data-based gateway with one bare branch marks it as the default flow."""
+    """
+    Assigns default flows for exclusive and inclusive gateways with unconditioned branches.
+    
+    Parameters:
+    	nodes (list[BPMNFlowNode]): Flow nodes whose gateway defaults should be assigned.
+    	flows (list): Sequence flows to evaluate for each gateway.
+    	warnings (list[str]): Collection to which warnings are added when multiple branches lack conditions.
+    """
     outgoing: dict[str, list] = {}
     for flow in flows:
         outgoing.setdefault(flow.sourceRef, []).append(flow)
@@ -1082,6 +1154,16 @@ def _end_for(
 
 
 def _outcome_name_for_path(decision: ProcessDecision, path) -> str | None:
+    """
+    Determine the display name associated with a decision path.
+    
+    Parameters:
+        decision (ProcessDecision): Decision containing outcome details.
+        path: Path whose outcome name is being resolved.
+    
+    Returns:
+        str | None: The matching outcome label or condition, or a fallback derived from the path.
+    """
     for outcome in decision.outcome_details:
         if outcome.target_path_id == path.id:
             return outcome.label or outcome.condition

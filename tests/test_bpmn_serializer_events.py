@@ -10,6 +10,16 @@ from backend.bpmn.models import BPMNFlowNode, BPMNSemanticModel, BPMNSequenceFlo
 
 
 def _model(nodes: list[BPMNFlowNode], flows: list[tuple[str, str]]) -> BPMNSemanticModel:
+    """
+    Build a semantic BPMN model with the supplied flow nodes and sequence flows.
+    
+    Parameters:
+    	nodes (list[BPMNFlowNode]): Flow nodes to include in the model.
+    	flows (list[tuple[str, str]]): Source and target node ID pairs for the sequence flows.
+    
+    Returns:
+    	BPMNSemanticModel: A model with fixed ID and name values and sequence flows generated from the supplied pairs.
+    """
     return BPMNSemanticModel(
         id="P",
         name="P",

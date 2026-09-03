@@ -32,6 +32,7 @@ class DataFlowResult:
 
 
 def _norm(value: str | None) -> str:
+    """Normalize a label by case-folding it and collapsing surrounding and repeated whitespace."""
     return " ".join((value or "").casefold().split())
 
 
@@ -41,6 +42,17 @@ def build_data_flow(
     step_node_by_original_id: dict[str, str],
     used_ids: set[str],
 ) -> DataFlowResult:
+    """
+    Compile process data declarations and artifact usage into BPMN data objects, data stores, and associations.
+    
+    Parameters:
+    	process (ProcessUnderstanding): Process definition containing data declarations, document requirements, and artifact usage.
+    	step_node_by_original_id (dict[str, str]): Mapping from process step identifiers to generated BPMN activity node IDs.
+    	used_ids (set[str]): Existing XML IDs reserved for collision-free generated identifiers.
+    
+    Returns:
+    	DataFlowResult: Generated BPMN data objects, data stores, and associations.
+    """
     usage = _artifact_usage(process, step_node_by_original_id)
     result = DataFlowResult()
     seen: set[str] = set()
@@ -125,7 +137,16 @@ def _artifact_usage(
     process: ProcessUnderstanding,
     step_node_by_original_id: dict[str, str],
 ) -> dict[str, dict[str, set[str]]]:
-    """Map normalised artifact label -> {"in": producing/consuming activity node ids}."""
+    """
+    Map normalized artifact labels to their consuming and producing activity node IDs.
+    
+    Parameters:
+        process (ProcessUnderstanding): Process definition containing steps and input/output declarations.
+        step_node_by_original_id (dict[str, str]): Mapping from original step IDs to activity node IDs.
+    
+    Returns:
+        dict[str, dict[str, set[str]]]: Artifact usage keyed by normalized label, with ``"in"`` for consumers and ``"out"`` for producers.
+    """
     usage: dict[str, dict[str, set[str]]] = defaultdict(lambda: {"in": set(), "out": set()})
 
     node_by_step_key: dict[str, str] = {}
@@ -158,6 +179,14 @@ def _wire(
     use: dict[str, set[str]] | None,
     used_ids: set[str],
 ) -> None:
+    """Connect a data element to its producing and consuming activities.
+    
+    Parameters:
+    	associations (list[BPMNAssociation]): Collection to which the generated associations are appended.
+    	data_id (str): Identifier of the data element.
+    	use (dict[str, set[str]] | None): Producer and consumer activity identifiers.
+    	used_ids (set[str]): Identifiers reserved for generated BPMN elements.
+    """
     if not use:
         return
     for producer in sorted(use["out"]):
