@@ -1,0 +1,338 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+# CodeRabbit configuration — DeliR MVP
+# Schema: https://docs.coderabbit.ai/reference/yaml-template
+# Goal: make every PR review converge on the same standard.
+#   - Deterministic layer  -> tools (ruff, gitleaks, semgrep, ast-grep) + pre_merge_checks.custom_checks
+#   - Semantic layer        -> path_instructions + knowledge_base.code_guidelines (backend/CODE_QUALITY.md)
+#   - Constant strictness   -> profile: assertive + request_changes_workflow: true
+
+language: en-US
+
+tone_instructions: >-
+  Enterprise reviewer: terse, direct, technical. No praise or emoji. State the
+  defect, the risk, and the concrete fix. Cite CODE_QUALITY.md rules by name.
+  Prioritise correctness, invariants and security over style.
+
+early_access: false
+enable_free_tier: true
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  abort_on_close: true
+
+  high_level_summary: true
+  high_level_summary_instructions: >-
+    Group changes by area (bpmn, kg, simulation, chat, projects, api, db, infra,
+    frontend). Lead with behaviour/contract changes and DB migrations. Explicitly
+    call out new invariants, changed state transitions, new external calls, and
+    new dependencies. No filler.
+  changed_files_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  poem: false
+  in_progress_fortune: false
+
+  suggested_labels: true
+  auto_apply_labels: false
+  suggested_reviewers: true
+  mutually_exclusive_groups:
+    risk:
+      - risk:critical
+      - risk:high
+      - risk:medium
+      - risk:low
+  labeling_instructions:
+    - label: area:backend
+      instructions: Apply when files under backend/ change.
+    - label: area:frontend
+      instructions: Apply when files under frontend/src/ change.
+    - label: area:bpmn
+      instructions: Apply for BPMN compilation, canvas, nodes, flow graph, boundary events, simulation layer.
+    - label: area:kg
+      instructions: Apply for knowledge-graph, memory, retrieval, ingestion, entity resolution code.
+    - label: area:migrations
+      instructions: Apply when files under migrations/ or migrations_workspace/ change.
+    - label: area:infra
+      instructions: Apply for ops/, docker-compose, CI workflows, alembic config.
+    - label: risk:critical
+      instructions: Auth, tenant isolation, data loss, irreversible actions, security policy, money.
+    - label: risk:high
+      instructions: State-machine changes, migrations, LLM output reaching persistence, new external calls.
+    - label: risk:medium
+      instructions: New endpoints, non-trivial logic, dependency additions.
+    - label: risk:low
+      instructions: Docs, tests-only, comments, formatting, isolated UI copy.
+    - label: needs-tests
+      instructions: Backend runtime behaviour changed without matching tests under tests/.
+    - label: breaking-change
+      instructions: Public API, schema, event contract, or stored-data shape changes incompatibly.
+
+  auto_title_instructions: >-
+    Conventional Commits: `type(scope): imperative summary`. type in
+    feat|fix|refactor|perf|test|docs|chore|build|ci. scope = dominant area.
+    No trailing period. Max 72 chars.
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 8
+    drafts: false
+    base_branches:
+      - develop
+    ignore_title_keywords:
+      - wip
+      - "[skip review]"
+
+  path_filters:
+    - "!**/*.lock"
+    - "!uv.lock"
+    - "!**/package-lock.json"
+    - "!**/__pycache__/**"
+    - "!**/*_cache/**"
+    - "!**/.venv/**"
+    - "!frontend/dist/**"
+    - "!frontend/storybook-static/**"
+    - "!e2e/__snapshots__/**"
+    - "!test-results/**"
+    - "!playwright-report/**"
+    - "!data/**"
+    - "!logs/**"
+
+  path_instructions:
+    - path: "backend/**/*.py"
+      instructions: >-
+        Review against backend/CODE_QUALITY.md as a hard checklist. Every MUST /
+        MUST NOT violation is a blocking issue; SHOULD deviations are suggestions.
+        Priority gates:
+        (1) No parallel implementation of an existing capability — name the canonical one.
+        (2) Deterministic code owns auth, tenant isolation, state transitions, arithmetic,
+        limits, deadlines, budgets, retries, idempotency, invariants. Flag any of these
+        driven by LLM output.
+        (3) LLM output is untrusted: it must cross a Pydantic boundary before use,
+        branching, or persistence.
+        (4) No keyword/regex/token-lookup routers standing in for semantic intent classification.
+        (5) No broad `except` returning fake success; no infrastructure failure mapped to
+        domain absence (None / [] / {}).
+        (6) Public functions fully typed; no `Any` propagated through domain/core; no new
+        `dict[str, Any]` domain models.
+        (7) Agent loops bounded (max turns + timeout/deadline), ending in explicit terminal states.
+        (8) Discriminated unions with stable discriminators for agent actions/commands.
+        (9) No type-check suppressions or linter disables added to make code pass.
+    - path: "backend/graphs/**/*.py"
+      instructions: >-
+        LangGraph code. Node functions must be pure where possible and return typed
+        state deltas. Routing decisions belong in typed contracts, not string matching.
+        Every graph must have terminal nodes and a bounded recursion/turn limit.
+        Checkpointer writes must not be the only source of truth for domain state.
+    - path: "backend/{tools.py,toolsets/**/*.py,**/tools*.py}"
+      instructions: >-
+        Tool design: tools must be narrow and capability-specific, inputs and outputs
+        typed and validated. Separate read from write. Side-effecting tools support
+        idempotency. Irreversible tools enforce authorization outside the LLM. Never
+        expose raw DB/SQL execution as a general agent tool.
+    - path: "backend/schemas/**/*.py"
+      instructions: >-
+        This is the runtime trust boundary. Models for HTTP payloads, LLM outputs,
+        tool I/O, config, and external data must be strict Pydantic with explicit
+        types, Literal/Enum for finite states, and discriminated unions for variant
+        payloads. Flag optional-everything models and `extra = "allow"`.
+    - path: "{migrations,migrations_workspace}/**/*.py"
+      instructions: >-
+        Alembic migration. Require a real `upgrade()` and a real `downgrade()`
+        (not `pass`) unless the module docstring explicitly documents it as
+        irreversible data-only. Flag destructive DDL (DROP COLUMN/TABLE, type
+        narrowing) without a stated backfill/rollback plan. Migrations must not
+        contain business logic.
+    - path: "tests/**/*.py"
+      instructions: >-
+        Do not mock the subject under test. Require integration/contract tests
+        across real architectural boundaries (DB, repositories, adapters). Flag
+        tests that assert only the happy path — failure categories, permission /
+        tenant boundaries, state-transition validity, and idempotency must be
+        covered for changed invariants.
+    - path: "{ops/**,.github/workflows/**,alembic*.ini,pyproject.toml}"
+      instructions: >-
+        Infra/config. Flag pinned-then-drifted versions, secrets that are not
+        placeholders, missing `--wait` on service startup, and CI steps that would
+        pass on partial failure. Keep ruff/mypy scope in CI aligned with the code
+        that actually ships.
+    - path: "frontend/src/**"
+      instructions: >-
+        DeliR is an enterprise process-automation PWA: operational, dense, stable.
+        Prefer workflow-first layouts over landing-page composition; no marketing
+        hero sections inside the product. Server state via TanStack Query, global
+        UI state via Zustand stores, forms via react-hook-form + zod. Use existing
+        design tokens and shared components before introducing new styles — flag
+        one-off styling that bypasses tokens. User-facing copy goes through i18next
+        (`t()` / `<Trans>`), never hardcoded. Interactive controls must be
+        keyboard-safe with visible focus states and correct semantics/ARIA.
+    - path: "frontend/src/**/{*Bpmn*,*bpmn*,*Canvas*,*canvas*,*Node*,*Diagram*}"
+      instructions: >-
+        BPMN canvas / node UI. Require stable, explicit dimensions for toolbars,
+        node shells, handles, canvas controls, inspectors and repeated diagram
+        elements — no content-driven sizing that jitters the diagram surface.
+        Zoom/pan clamps must not crop content. Keep label typography overrides off
+        bpmn-js internals.
+    - path: "frontend/src/**/*.css"
+      instructions: >-
+        Tailwind v4. The bare `border` utility resolves to currentColor under v4
+        preflight — always pair it with a colour (`border border-border`). Prefer
+        token-backed values over raw hex/px. Flag large one-off stylesheets that
+        duplicate token or component patterns.
+
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+    simplify:
+      enabled: false
+    autofix:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
+
+  pre_merge_checks:
+    title:
+      mode: error
+      requirements: >-
+        Conventional Commits `type(scope): summary`, imperative mood, no trailing
+        period, max 72 chars. type in feat|fix|refactor|perf|test|docs|chore|build|ci.
+    description:
+      mode: warning
+    issue_assessment:
+      mode: warning
+    docstrings:
+      mode: warning
+      threshold: 75
+    custom_checks:
+      - name: Backend behaviour change ships tests
+        mode: error
+        instructions: >-
+          If the diff changes runtime behaviour in backend/**/*.py (new or edited
+          functions, branching, state transitions, tool logic, graph nodes, error
+          handling) and no test file under tests/ is added or modified, fail.
+          Pure refactors with provably unchanged public behaviour, comment-only,
+          type-only, and docstring-only changes are exempt.
+      - name: No new type or lint suppressions
+        mode: error
+        instructions: >-
+          Fail if the diff adds any of `# type: ignore`, `# mypy: ignore`,
+          `# pyright: ignore`, `# noqa`, `@ts-ignore`, `@ts-nocheck`,
+          `eslint-disable`, or `# ruff: noqa` in backend/** or frontend/src/**,
+          or widens an existing typed signature to `Any`. Removing suppressions,
+          or moving a pre-existing one verbatim, is allowed.
+      - name: LLM output validated before persistence
+        mode: warning
+        instructions: >-
+          Flag if the diff takes a raw model response, `.content`, or
+          `choices[0].message` and persists it, returns it as a domain object, or
+          branches on its free-text value without first parsing it through a
+          Pydantic model or a typed validator. Direct chat passthrough to the end
+          user is exempt.
+      - name: Alembic migration is reversible
+        mode: error
+        instructions: >-
+          If the diff adds or edits a file under migrations/ or
+          migrations_workspace/, fail unless both upgrade() and downgrade()
+          contain real operations, or the module docstring explicitly states the
+          migration is irreversible and why.
+      - name: No secrets in diff
+        mode: error
+        instructions: >-
+          Fail if the diff introduces concrete values for API keys, tokens,
+          passwords, credentialed connection strings, or private keys, or writes
+          non-placeholder secrets into .env / ops/.env. Placeholders matching
+          ci-*, test-*, fake-*, changeme, xxx are allowed.
+      - name: Frontend user copy is localized
+        mode: warning
+        instructions: >-
+          Flag hardcoded user-facing copy in frontend/src/**/*.tsx (JSX text,
+          button labels, aria-label, placeholder, title, toast/sonner messages)
+          that does not pass through i18next. Test files, Storybook stories, and
+          dev-only console output are exempt.
+
+  tools:
+    ruff:
+      enabled: true
+    gitleaks:
+      enabled: true
+    semgrep:
+      enabled: true
+    ast-grep:
+      enabled: true
+      essential_rules: true
+      rule_dirs:
+        - ".coderabbit/ast-grep-rules"
+    actionlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    sqlfluff:
+      enabled: true
+    checkov:
+      enabled: true
+    eslint:
+      enabled: true
+    biome:
+      enabled: false
+    flake8:
+      enabled: false
+    pylint:
+      enabled: false
+
+chat:
+  art: false
+  auto_reply: true
+  allow_non_org_members: false
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CLAUDE.md"
+      - "AGENTS.md"
+      - "backend/CODE_QUALITY.md"
+      - ".claude/skills/**/SKILL.md"
+      - "docs/**/*.md"
+      - "**/REVIEW.md"
+  learnings:
+    scope: local
+    approval_delay: 0
+  issues:
+    scope: local
+  pull_requests:
+    scope: local
+  mcp:
+    usage: auto
+
+code_generation:
+  docstrings:
+    language: en-US
+    path_instructions:
+      - path: "backend/**/*.py"
+        instructions: >-
+          Google-style docstrings. Document the invariants the function enforces,
+          the error categories it raises, and whether it performs side effects or
+          persistence. Mark any parameter that is treated as untrusted input.
+  unit_tests:
+    path_instructions:
+      - path: "backend/**/*.py"
+        instructions: >-
+          pytest. Do not mock the subject under test. Cover the happy path, each
+          error category, permission / tenant boundary, state-transition validity,
+          and idempotency for side-effecting functions. Prefer integration tests
+          across real repository/DB boundaries over mocks.

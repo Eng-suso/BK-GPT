@@ -1,0 +1,21 @@
+id: delir-py-unbounded-while-true
+language: python
+severity: warning
+message: >-
+  `while True:` with no `break` / `return` / `raise` in the body is an unbounded
+  loop. Agent and model loops MUST have max-turn and timeout/deadline limits and
+  explicit terminal states.
+note: >-
+  CODE_QUALITY.md > Agent Output. Acceptable only for a genuine long-lived
+  consumer/server loop — in that case add an explicit shutdown condition.
+rule:
+  all:
+    - kind: while_statement
+    - regex: '^while\s+True\s*:'
+    - not:
+        has:
+          any:
+            - kind: break_statement
+            - kind: return_statement
+            - kind: raise_statement
+          stopBy: end
