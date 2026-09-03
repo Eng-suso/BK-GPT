@@ -261,6 +261,9 @@ class ProcessBoundaries(BaseModel):
     start_event: str | None = None
     success_end: str | None = None
     failure_ends: list[str] = Field(default_factory=list)
+    # Ends that abort the whole process (kill any parallel/pending work) rather
+    # than just consuming their own token -> BPMN terminate end events.
+    terminating_ends: list[str] = Field(default_factory=list)
     in_scope: list[str] = Field(default_factory=list)
     out_of_scope: list[str] = Field(default_factory=list)
 
@@ -836,6 +839,9 @@ Regole:
 - Imposta gateway_type: exclusive (un solo esito, XOR), inclusive (piu' esiti
   possono valere insieme, OR) oppure event_based quando la diramazione dipende
   da quale evento arriva prima (messaggio, timer, segnale).
+- In boundaries.terminating_ends metti le fini che interrompono l'intero
+  processo (annullamento, blocco, stop immediato che ferma anche il lavoro in
+  parallelo), non le semplici fini con esito negativo.
 - Estrai controlli/verifiche in controls con owner, oggetto verificato,
   condizione di esito positivo e negativo.
 - Per ogni documento importante crea data_objects e, se possibile,

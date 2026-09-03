@@ -1184,6 +1184,20 @@ def _norm_end_key(value: str | None) -> str:
     return " ".join((value or "").casefold().split())
 
 
+def _terminating_end_keys(process: ProcessUnderstanding) -> set[str]:
+    """Normalized keys of ends the process marks as aborting all work."""
+    if not process.boundaries:
+        return set()
+    return {_norm_end_key(item) for item in process.boundaries.terminating_ends if item}
+
+
+def _end_event_definition(
+    keys: set[str], terminating: set[str]
+) -> Literal["terminate"] | None:
+    """A terminate end definition when any of the node's keys is a terminating end."""
+    return "terminate" if keys & terminating else None
+
+
 def _build_end_events(
     process: ProcessUnderstanding,
     used_ids: set[str],
@@ -1203,6 +1217,7 @@ def _build_end_events(
     """
     by_key: dict[str, BPMNFlowNode] = {}
     created: list[BPMNFlowNode] = []
+    terminating = _terminating_end_keys(process)
 
     for event in process.events:
         if event.type != "end":
@@ -1211,6 +1226,9 @@ def _build_end_events(
             id=xml_id(event.id or "EndEvent", "EndEvent", used_ids),
             type="endEvent",
             name=event.label or "Fine",
+            eventDefinition=_end_event_definition(
+                {_norm_end_key(event.id), _norm_end_key(event.label)}, terminating
+            ),
             sourceRefs=[source_ref_id("events", event.id)],
         )
         created.append(node)
@@ -1218,14 +1236,22 @@ def _build_end_events(
         by_key.setdefault(_norm_end_key(event.label), node)
 
     if process.boundaries:
-        for label in process.boundaries.failure_ends:
+        extra_ends = [
+            ("boundaries", label, "Fine con esito negativo")
+            for label in process.boundaries.failure_ends
+        ] + [
+            ("boundaries", label, "Fine con interruzione")
+            for label in process.boundaries.terminating_ends
+        ]
+        for field, label, default_name in extra_ends:
             if _norm_end_key(label) in by_key:
                 continue
             node = BPMNFlowNode(
                 id=xml_id(label or "EndEvent", "EndEvent", used_ids),
                 type="endEvent",
-                name=label or "Fine con esito negativo",
-                sourceRefs=[source_ref_id("boundaries", label)],
+                name=label or default_name,
+                eventDefinition=_end_event_definition({_norm_end_key(label)}, terminating),
+                sourceRefs=[source_ref_id(field, label)],
             )
             created.append(node)
             by_key[_norm_end_key(label)] = node

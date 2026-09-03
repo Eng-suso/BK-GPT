@@ -54,7 +54,9 @@ class BPMNFlowNode(BaseModel):
     name: str
     laneId: str | None = None
     owner: str | None = None
-    eventDefinition: Literal["timer", "message", "conditional", "signal", "error"] | None = None
+    eventDefinition: Literal[
+        "timer", "message", "conditional", "signal", "error", "escalation", "terminate"
+    ] | None = None
     eventConditionExpression: str | None = None
     attachedToRef: str | None = None
     cancelActivity: bool = True
