@@ -79,6 +79,12 @@ const CLIENT_STATUS: Record<string, Client["status"]> = {
   prospect: "Prospect",
 };
 
+/**
+ * Converts a raw client status into a supported client status.
+ *
+ * @param raw - The raw client status value.
+ * @returns The corresponding supported client status, or `"Prospect"` for unrecognized values.
+ */
 function normalizeClientStatus(raw: string): Client["status"] {
   return CLIENT_STATUS[raw.trim().toLowerCase()] ?? "Prospect";
 }

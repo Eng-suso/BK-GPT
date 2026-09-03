@@ -46,11 +46,27 @@ OUTPUT_PATH = (
 
 
 def _ref_name(ref: str) -> str:
+    """Extract the component name from an OpenAPI reference string.
+    
+    Parameters:
+    	ref (str): An OpenAPI reference containing a component path.
+    
+    Returns:
+    	str: The final path segment of the reference.
+    """
     return ref.rsplit("/", 1)[-1]
 
 
 def type_token(schema: dict[str, Any]) -> str:
-    """Collapse an OpenAPI property schema to a single comparable token."""
+    """
+    Convert an OpenAPI property schema into a compact comparable type token.
+    
+    Parameters:
+        schema (dict[str, Any]): OpenAPI property schema to convert.
+    
+    Returns:
+        str: Component name, nullable token, array token, primitive type, or ``"unknown"`` for unsupported schemas.
+    """
     if "$ref" in schema:
         return _ref_name(schema["$ref"])
 
@@ -70,6 +86,16 @@ def type_token(schema: dict[str, Any]) -> str:
 
 
 def distil_component(component: dict[str, Any]) -> dict[str, Any]:
+    """
+    Create a deterministic reduced representation of an OpenAPI component.
+    
+    Parameters:
+    	component (dict[str, Any]): The OpenAPI component schema to reduce.
+    
+    Returns:
+    	dict[str, Any]: A mapping containing sorted required field names and sorted
+    		property names with their compact type tokens.
+    """
     properties = component.get("properties", {})
     return {
         "required": sorted(component.get("required", [])),
@@ -80,6 +106,15 @@ def distil_component(component: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_contract() -> dict[str, Any]:
+    """
+    Build the reduced frontend contract from the application's OpenAPI schemas.
+    
+    Returns:
+    	dict[str, Any]: The generated contract containing the generator marker and tracked component definitions.
+    
+    Raises:
+    	SystemExit: If any tracked component is missing from the OpenAPI schema.
+    """
     from backend.app import app
 
     schemas = app.openapi()["components"]["schemas"]
@@ -96,10 +131,22 @@ def build_contract() -> dict[str, Any]:
 
 
 def render(contract: dict[str, Any]) -> str:
+    """
+    Serialize a contract as indented JSON with a trailing newline.
+    
+    Parameters:
+    	contract (dict[str, Any]): The contract to serialize.
+    
+    Returns:
+    	str: The UTF-8-compatible JSON representation of the contract.
+    """
     return json.dumps(contract, indent=2, ensure_ascii=False) + "\n"
 
 
 def main() -> None:
+    """
+    Generate the frontend contract file from the FastAPI OpenAPI schema and report its path.
+    """
     OUTPUT_PATH.write_text(render(build_contract()), encoding="utf-8")
     print(f"wrote {OUTPUT_PATH.relative_to(Path.cwd())}")
 

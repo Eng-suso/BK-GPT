@@ -14,6 +14,7 @@ from backend.settings import settings
 
 @pytest.fixture(autouse=True)
 def _fake_llm(monkeypatch):
+    """Enable deterministic fake-LLM mode and clear the OpenAI API key for a test."""
     monkeypatch.setattr(settings, "delir_fake_llm", True)
     monkeypatch.setattr(settings, "openai_api_key", None)
 
