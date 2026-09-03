@@ -24,6 +24,7 @@ _REFERENCEABLE_EVENT_DEFINITIONS = {
     "message": ("message", "messageRef", "Message"),
     "signal": ("signal", "signalRef", "Signal"),
     "error": ("error", "errorRef", "Error"),
+    "escalation": ("escalation", "escalationRef", "Escalation"),
 }
 
 

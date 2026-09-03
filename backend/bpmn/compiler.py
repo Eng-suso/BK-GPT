@@ -938,11 +938,12 @@ def _exception_rejoin_node(
 
 def _exception_event_definition(
     exception: ProcessExceptionPath,
-) -> tuple[Literal["timer", "message", "error", "conditional"], bool]:
+) -> tuple[Literal["timer", "message", "error", "conditional", "escalation"], bool]:
     """Resolve the event definition type and interrupting flag for a boundary event.
 
-    Error boundary events must be interrupting per BPMN 2.0. For non-interrupting
-    handling of unclassified triggers, falls back to a conditional boundary event.
+    Error boundary events must be interrupting per BPMN 2.0. Escalation is used
+    when the handler passes the case up a hierarchy (typically non-interrupting).
+    Unclassified non-interrupting triggers fall back to a conditional event.
 
     Args:
         exception: The ProcessExceptionPath with trigger and interrupting properties.
@@ -953,6 +954,8 @@ def _exception_event_definition(
     text = f"{exception.trigger or ''} {exception.label or ''}"
     if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
         return "timer", exception.interrupting
+    if _matches_word(text, ("escalation", "escalat", "escala", "responsabile", "supervisore", "manager", "livello superiore")):
+        return "escalation", exception.interrupting
     if _matches_word(text, ("messaggio", "risposta", "notifica", "comunicazione", "riscontro")):
         return "message", exception.interrupting
     if exception.interrupting or _matches_word(text, ("errore", "guasto", "eccezione", "fault", "blocco", "anomalia")):
