@@ -275,7 +275,15 @@ class ProcessBoundaries(BaseModel):
 
     @model_validator(mode="after")
     def _success_end_is_not_terminating(self) -> "ProcessBoundaries":
-        if self.success_end and self.success_end in self.terminating_ends:
+        if not self.success_end:
+            return self
+        # The compiler keys end events case- and whitespace-insensitively; match
+        # that here so a cosmetic variant can't slip a terminate end onto the
+        # happy path.
+        def _key(value: str) -> str:
+            return " ".join(value.casefold().split())
+
+        if _key(self.success_end) in {_key(end) for end in self.terminating_ends}:
             raise ValueError(
                 f"success_end {self.success_end!r} cannot also be a terminating end"
             )

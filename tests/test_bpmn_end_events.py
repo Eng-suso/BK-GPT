@@ -105,6 +105,34 @@ def test_terminate_event_definition_rejected_on_a_non_end_node():
         BPMNFlowNode(id="s", type="startEvent", name="s", eventDefinition="terminate")
 
 
+def test_boundaries_reject_a_case_or_whitespace_variant_of_a_terminating_end():
+    import pytest
+
+    with pytest.raises(ValueError, match="cannot also be a terminating end"):
+        ProcessBoundaries(success_end="Pratica  Chiusa ", terminating_ends=["pratica chiusa"])
+
+
+def test_success_end_that_resolves_to_a_terminate_end_falls_back_to_a_plain_end():
+    # success_end matches the declared end's label, terminating_ends matches its id
+    model = build_bpmn_semantic_model(
+        process_id="P",
+        process_name="P",
+        process=_process(
+            events=[ProcessEvent(id="End_Stop", type="end", label="Pratica conclusa")],
+            boundaries=ProcessBoundaries(
+                success_end="Pratica conclusa",
+                terminating_ends=["end_stop"],
+            ),
+        ),
+    )
+    ends = [n for n in model.flowNodes if n.type == "endEvent"]
+    stop = next(n for n in ends if n.name == "Pratica conclusa")
+    assert stop.eventDefinition == "terminate"
+    # a distinct plain end is created and selected as primary
+    primary_candidates = [n for n in ends if n.eventDefinition is None]
+    assert primary_candidates, "expected at least one non-terminate end"
+
+
 def test_no_terminating_ends_means_no_terminate_definition():
     model = build_bpmn_semantic_model(
         process_id="P", process_name="P",

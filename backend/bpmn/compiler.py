@@ -1388,7 +1388,23 @@ def _build_end_events(
     primary: BPMNFlowNode | None = None
     if process.boundaries and process.boundaries.success_end:
         primary = by_key.get(_norm_end_key(process.boundaries.success_end))
-    return primary or created[0], by_key
+    # The happy-path end must consume its own token, never abort the process. If
+    # the configured success_end resolves (by label or event id) to a terminate
+    # end, or no plain end exists at all, mint a distinct plain success end.
+    if primary is None or primary.eventDefinition == "terminate":
+        primary = next((node for node in created if node.eventDefinition != "terminate"), None)
+    if primary is None:
+        success_name = (
+            process.boundaries.success_end
+            if process.boundaries and process.boundaries.success_end
+            else _end_name(process)
+        )
+        primary = BPMNFlowNode(
+            id=xml_id("EndEvent_Success", "EndEvent", used_ids), type="endEvent", name=success_name
+        )
+        created.append(primary)
+        by_key.setdefault(_norm_end_key(success_name), primary)
+    return primary, by_key
 
 
 def _end_for(

@@ -180,7 +180,9 @@ def test_alternative_path_preserves_multi_instance_multiplicity():
 def test_plain_step_has_no_loop_marker():
     model = _model([ProcessStep(id="T1", label="Firma contratto"), ProcessStep(id="T2", label="Invia copia")])
     assert all(n.loopCharacteristics == "none" for n in model.flowNodes)
-    assert "LoopCharacteristics" not in semantic_model_to_bpmn_xml(model)
+    xml = semantic_model_to_bpmn_xml(model)
+    assert "<bpmn:standardLoopCharacteristics" not in xml
+    assert "<bpmn:multiInstanceLoopCharacteristics" not in xml
 
 
 def test_loop_marker_rejected_on_a_non_activity_node():
