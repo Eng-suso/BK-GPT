@@ -24,7 +24,7 @@ from backend.process_understanding import (
     ProcessStep,
     ProcessUnderstanding,
 )
-from backend.services.agent_runtime import STREAMABLE_AGENT_NODES
+from backend.services.agent_runtime import DELTA_STREAM_AGENT_NODES, STREAMABLE_AGENT_NODES
 from backend.toolsets.bpmn import bpmn_review_tools, manage_canvas_bpmn_model
 from backend.workspace_services.bpmn_canvas_edit import (
     clear_bpmn_process,
@@ -290,10 +290,23 @@ def test_clear_canvas_intent_skips_semantic_validation_subgraph():
 
 
 def test_canvas_subagent_intermediate_messages_are_not_streamed():
+    # Two gates, not one: STREAMABLE_AGENT_NODES decides which nodes emit progress
+    # ("node") events, DELTA_STREAM_AGENT_NODES decides whose message content is
+    # streamed to the user as text. A canvas sub-agent is visible as progress but
+    # its intermediate chatter must never reach the user - only the completion
+    # report speaks.
     assert "canvas_completion_report" in STREAMABLE_AGENT_NODES
-    assert "canvas_patch_edit_agent" not in STREAMABLE_AGENT_NODES
-    assert "canvas_construction_agent" not in STREAMABLE_AGENT_NODES
-    assert "canvas_validation_agent" not in STREAMABLE_AGENT_NODES
+    assert "canvas_completion_report" in DELTA_STREAM_AGENT_NODES
+
+    for subagent in (
+        "canvas_patch_edit_agent",
+        "canvas_construction_agent",
+        "canvas_validation_agent",
+        "canvas_layout_consultant_agent",
+        "canvas_drawing_agent",
+    ):
+        assert subagent in STREAMABLE_AGENT_NODES, f"{subagent} should still report progress"
+        assert subagent not in DELTA_STREAM_AGENT_NODES, f"{subagent} content must not stream"
 
 
 def test_standalone_canvas_validation_does_not_enter_completion_loop():
