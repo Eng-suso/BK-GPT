@@ -21,7 +21,12 @@
   --color-text-primary: var(--slate-900);
   --color-text-secondary: var(--slate-600);
   --color-text-tertiary: var(--slate-500);
-  --color-text-muted: var(--slate-500);
+  /* slate-600, not slate-500: muted text is small text (11-13px), and
+     slate-500 misses WCAG AA 4.5:1 on every surface from #f6f8fb down
+     (4.47 there, 4.34 on slate-100, 3.86 on slate-200). An intermediate
+     step still failed on slate-200, so this is the lightest value that
+     is readable on all of them. */
+  --color-text-muted: var(--slate-600);
   --color-text-disabled: var(--slate-400);
   --color-text-inverse: var(--white);
   --color-text-link: var(--blue-700);
