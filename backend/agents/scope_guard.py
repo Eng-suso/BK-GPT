@@ -48,7 +48,12 @@ def bind_active_scope(scope: ChatScope | None) -> Iterator[None]:
     try:
         yield
     finally:
-        _active_scope.reset(token)
+        try:
+            _active_scope.reset(token)
+        except ValueError:
+            logger.warning(
+                "active scope reset skipped because LangGraph resumed in a different context"
+            )
 
 
 def active_scope() -> ChatScope | None:

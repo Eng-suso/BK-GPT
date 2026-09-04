@@ -1,5 +1,20 @@
 import React from "react";
-import { Check, Copy, RefreshCw, TriangleAlert } from "lucide-react";
+import {
+  BrainCircuit,
+  Check,
+  CheckCircle2,
+  CircleHelp,
+  Copy,
+  DraftingCompass,
+  Hammer,
+  Map,
+  PencilRuler,
+  RefreshCw,
+  Route,
+  SearchCheck,
+  TriangleAlert,
+  Wrench,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/ui/button";
@@ -26,6 +41,30 @@ function formatClock(iso: string | undefined, locale: string): string {
 
 const META_LABEL_CLASS =
   "text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground";
+
+function ActivityIcon({ icon, running }: { icon?: string; running: boolean }) {
+  const className = cn("size-3.5 flex-none", running ? "text-primary" : "text-muted-foreground");
+  switch (icon) {
+    case "layout":
+      return <Map className={className} aria-hidden="true" />;
+    case "route":
+      return <Route className={className} aria-hidden="true" />;
+    case "edit":
+      return <Wrench className={className} aria-hidden="true" />;
+    case "build":
+      return <Hammer className={className} aria-hidden="true" />;
+    case "compass":
+      return <DraftingCompass className={className} aria-hidden="true" />;
+    case "draw":
+      return <PencilRuler className={className} aria-hidden="true" />;
+    case "check":
+      return <SearchCheck className={className} aria-hidden="true" />;
+    case "help":
+      return <CircleHelp className={className} aria-hidden="true" />;
+    default:
+      return <BrainCircuit className={className} aria-hidden="true" />;
+  }
+}
 
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
@@ -126,15 +165,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                     : "text-muted-foreground",
                 )}
               >
-                <span
-                  className={cn(
-                    "size-1.5 flex-none rounded-full",
-                    item.status === "running"
-                      ? "animate-pulse bg-primary"
-                      : "bg-muted-foreground/50",
-                  )}
-                  aria-hidden="true"
-                />
+                {item.status === "completed" ? (
+                  <CheckCircle2 className="size-3.5 flex-none text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <span className="flex size-4 flex-none items-center justify-center rounded-full bg-primary/10">
+                    <ActivityIcon icon={item.icon} running />
+                  </span>
+                )}
                 <span>{item.label}</span>
               </div>
             ))}

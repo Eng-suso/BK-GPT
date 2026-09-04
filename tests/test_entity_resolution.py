@@ -36,9 +36,9 @@ class FakeLLM:
         self.match_index = match_index
         self.calls: list = []
 
-    def invoke(self, messages):
+    def stream(self, messages, config=None):
         self.calls.append(messages)
-        return er._Verdict(match_index=self.match_index, reason="fake")
+        yield er._Verdict(match_index=self.match_index, reason="fake")
 
 
 def _ctx(conn, consultant, client=None):

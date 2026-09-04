@@ -132,7 +132,7 @@ backend/
     prosimos_adapter.py   # HTTP adapter to prosimos-microservice
     result_parser.py      # Extract generated file names from Prosimos response
     service.py            # Application orchestration
-    storage.py            # SQLite run persistence
+    storage.py            # run persistence (Postgres `workspace` via workspace_connection)
 
   api/routes/
     simulation.py         # /v1/workspace simulation endpoints

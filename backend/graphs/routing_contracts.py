@@ -7,6 +7,8 @@ from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from backend.llm_streaming import stream_to_final
+
 
 Owner = Literal["consultant", "project", "process", "canvas"]
 WorkflowScope = Literal["direct", "local_operation", "single_step", "full_workflow", "clarification"]
@@ -393,7 +395,7 @@ def invoke_structured_router(
 ) -> tuple[RoutingDecisionBase, str, str | None]:
     try:
         structured_llm = llm.with_structured_output(model, method="function_calling")
-        response = structured_llm.invoke(messages, config=config)
+        response = stream_to_final(structured_llm, messages, config=config)
         if response is None:
             json_response = _invoke_json_mode_router(llm, model, messages, config)
             if json_response is not None:
@@ -432,7 +434,7 @@ def _invoke_json_mode_router(
         )
     )
     structured_llm = llm.with_structured_output(model, method="json_mode")
-    return structured_llm.invoke([instruction, *messages], config=config)
+    return stream_to_final(structured_llm, [instruction, *messages], config=config)
 
 
 BLOCKING_CONTRADICTION_SEVERITIES = frozenset({"critical", "blocking", "high"})

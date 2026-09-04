@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
+from backend.llm_streaming import stream_to_final
 from backend.llm_config import chat_openai_kwargs
 from backend.settings import settings
 
@@ -420,30 +421,128 @@ class ProcessUnderstanding(BaseModel):
     confidence: ProcessConfidence | None = None
 
 
-def build_process_understanding(title: str, source_text: str) -> ProcessUnderstanding:
-    if settings.openai_api_key:
-        try:
-            process = _understanding_llm().invoke(
-                [
-                    SystemMessage(content=_PROCESS_UNDERSTANDING_PROMPT),
-                    HumanMessage(
-                        content=json.dumps(
-                            {
-                                "process_title": title,
-                                "raw_notes": source_text,
-                            },
-                            ensure_ascii=False,
-                        )
-                    ),
-                ]
-            )
-            return _with_quality_report(process, source_text=source_text)
-        except Exception as exc:
-            fallback = build_fallback_understanding(title, source_text)
-            fallback.assumptions.append(f"Estrazione LLM non riuscita: {exc}")
-            return _with_quality_report(fallback, source_text=source_text)
+class ExtractionFailure(BaseModel):
+    kind: Literal[
+        "timeout",
+        "rate_limit",
+        "connection_error",
+        "provider_error",
+        "invalid_structured_output",
+        "configuration_error",
+    ]
+    message: str
+    retryable: bool
+    attempt: int = 1
 
-    return _with_quality_report(build_fallback_understanding(title, source_text), source_text=source_text)
+
+class ProcessUnderstandingResult(BaseModel):
+    status: Literal["success", "failed"]
+    process: ProcessUnderstanding | None = None
+    failure: ExtractionFailure | None = None
+
+    @model_validator(mode="after")
+    def validate_state(self) -> "ProcessUnderstandingResult":
+        if self.status == "success" and self.process is None:
+            raise ValueError("Successful extraction requires process.")
+        if self.status == "failed" and self.failure is None:
+            raise ValueError("Failed extraction requires failure.")
+        return self
+
+
+class ProcessUnderstandingExtractionError(RuntimeError):
+    """Technical extraction failure, distinct from business unknowns."""
+
+    def __init__(self, failure: ExtractionFailure):
+        self.failure = failure
+        super().__init__(format_extraction_failure(failure))
+
+
+def build_process_understanding(title: str, source_text: str) -> ProcessUnderstandingResult:
+    if not settings.openai_api_key:
+        return ProcessUnderstandingResult(
+            status="failed",
+            failure=ExtractionFailure(
+                kind="configuration_error",
+                message="OPENAI_API_KEY non configurata: extractor LLM non eseguibile.",
+                retryable=False,
+                attempt=1,
+            ),
+        )
+
+    try:
+        raw_process = stream_to_final(
+            _understanding_llm(),
+            [
+                SystemMessage(content=_PROCESS_UNDERSTANDING_PROMPT),
+                HumanMessage(
+                    content=json.dumps(
+                        {
+                            "process_title": title,
+                            "raw_notes": source_text,
+                        },
+                        ensure_ascii=False,
+                    )
+                ),
+            ],
+        )
+        process = _coerce_process_understanding(raw_process)
+        return ProcessUnderstandingResult(
+            status="success",
+            process=_with_quality_report(process, source_text=source_text),
+        )
+    except Exception as exc:
+        failure = classify_extraction_failure(exc)
+        if failure is None:
+            raise
+        return ProcessUnderstandingResult(status="failed", failure=failure)
+
+
+def _coerce_process_understanding(value: Any) -> ProcessUnderstanding:
+    if isinstance(value, ProcessUnderstanding):
+        return value
+    if isinstance(value, BaseModel):
+        return ProcessUnderstanding.model_validate(value.model_dump(mode="json"))
+    if isinstance(value, dict):
+        return ProcessUnderstanding.model_validate(value)
+    return ProcessUnderstanding.model_validate_json(str(value or ""))
+
+
+def classify_extraction_failure(exc: Exception, *, attempt: int = 1) -> ExtractionFailure | None:
+    name = type(exc).__name__.lower()
+    module = type(exc).__module__.lower()
+    message = str(exc) or type(exc).__name__
+
+    if isinstance(exc, TimeoutError) or "timeout" in name:
+        return ExtractionFailure(kind="timeout", message=message, retryable=True, attempt=attempt)
+    if "ratelimit" in name or "rate_limit" in name or "429" in message:
+        return ExtractionFailure(kind="rate_limit", message=message, retryable=True, attempt=attempt)
+    if "connection" in name or "connect" in name or "network" in name:
+        return ExtractionFailure(kind="connection_error", message=message, retryable=True, attempt=attempt)
+    if isinstance(exc, ValidationError) or "outputparser" in name or "parsing" in name:
+        return ExtractionFailure(
+            kind="invalid_structured_output",
+            message=message,
+            retryable=False,
+            attempt=attempt,
+        )
+    if module.startswith(("openai", "httpx", "httpcore", "langchain")):
+        retryable = "badrequest" not in name and "authentication" not in name and "permission" not in name
+        return ExtractionFailure(kind="provider_error", message=message, retryable=retryable, attempt=attempt)
+
+    return None
+
+
+def format_extraction_failure(failure: ExtractionFailure) -> str:
+    retry = "retryable" if failure.retryable else "not_retryable"
+    return f"Estrazione ProcessUnderstanding fallita ({failure.kind}, {retry}): {failure.message}"
+
+
+def raise_for_failed_understanding(result: ProcessUnderstandingResult) -> ProcessUnderstanding:
+    if result.status == "success" and result.process is not None:
+        return result.process
+    if result.failure is not None:
+        raise ProcessUnderstandingExtractionError(result.failure)
+    raise ValueError("Estrazione ProcessUnderstanding fallita senza dettaglio tecnico.")
 
 
 def _with_quality_report(process: ProcessUnderstanding, source_text: str = "") -> ProcessUnderstanding:
@@ -451,29 +550,9 @@ def _with_quality_report(process: ProcessUnderstanding, source_text: str = "") -
     return process
 
 
-def build_fallback_understanding(title: str, source_text: str) -> ProcessUnderstanding:
-    return ProcessUnderstanding(
-        title=title,
-        scope="ProcessUnderstanding non generato: serve esecuzione dell'extractor LLM strutturato.",
-        unknowns=[
-            ProcessUnknown(
-                question="L'extractor LLM strutturato non ha prodotto un ProcessUnderstanding validabile.",
-                affects="ProcessUnderstanding, BPMNSemanticModel e canvas BPMN",
-                severity="blocking",
-            )
-        ],
-        assumptions=[
-            "Nessuna estrazione locale viene usata per inventare attori, task, gateway o documenti.",
-            f"Testo sorgente disponibile ma non interpretato automaticamente ({len(source_text.strip())} caratteri).",
-        ],
-        confidence=ProcessConfidence(
-            overall="low",
-            weak_points=["Extractor LLM strutturato non disponibile o non riuscito."],
-        ),
-    )
-
-
 def render_process_review(process: ProcessUnderstanding) -> str:
+    if _is_extraction_failure_placeholder(process):
+        raise ValueError("render_process_review richiede un ProcessUnderstanding estratto con successo.")
     quality = quality_report_from_understanding(process)
     lines = [
         f"## {process.title}",
@@ -510,7 +589,7 @@ def render_process_review(process: ProcessUnderstanding) -> str:
     if process.participants:
         lines.extend(["", "Partecipanti e contenitori BPMN suggeriti:"])
         for participant in process.participants:
-            detail = participant.bpmn_container
+            detail: str = participant.bpmn_container
             if participant.parent_pool_id:
                 detail = f"{detail} in {participant.parent_pool_id}"
             lines.append(f"- {participant.label}: {detail}")
@@ -575,10 +654,14 @@ def process_open_questions(process: ProcessUnderstanding) -> list[str]:
 
 
 def readiness_from_understanding(process: ProcessUnderstanding) -> int:
+    if _is_extraction_failure_placeholder(process):
+        raise ValueError("readiness non applicabile: estrazione ProcessUnderstanding fallita.")
     return quality_report_from_understanding(process).overall_score
 
 
 def quality_report_from_understanding(process: ProcessUnderstanding) -> ProcessUnderstandingQualityReport:
+    if _is_extraction_failure_placeholder(process):
+        raise ValueError("quality report non applicabile: estrazione ProcessUnderstanding fallita.")
     return process.quality_report or conservative_process_quality_report(
         process,
         reason="Quality report assente nello stato; usato fallback conservativo.",
@@ -596,7 +679,8 @@ def evaluate_process_understanding_quality(
         try:
             payload = process.model_dump(mode="json")
             payload.pop("quality_report", None)
-            return _quality_evaluator_llm().invoke(
+            raw_report = stream_to_final(
+                _quality_evaluator_llm(),
                 [
                     SystemMessage(content=_PROCESS_UNDERSTANDING_QUALITY_PROMPT),
                     HumanMessage(
@@ -613,6 +697,11 @@ def evaluate_process_understanding_quality(
                         )
                     ),
                 ]
+            )
+            return (
+                raw_report
+                if isinstance(raw_report, ProcessUnderstandingQualityReport)
+                else ProcessUnderstandingQualityReport.model_validate(raw_report)
             )
         except Exception as exc:
             return conservative_process_quality_report(
@@ -686,6 +775,15 @@ def conservative_process_quality_report(
         warnings=warnings,
         improvement_actions=improvement_actions,
         approval_recommendation="needs_user_clarification" if blocking_issues else "needs_auto_revision",
+    )
+
+
+def _is_extraction_failure_placeholder(process: ProcessUnderstanding) -> bool:
+    return bool(
+        process.scope
+        and "ProcessUnderstanding non generato" in process.scope
+        and not process.steps
+        and not process.actors
     )
 
 

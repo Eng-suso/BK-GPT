@@ -291,6 +291,9 @@ def stream_consultant_chat_message(
 
                 yield event.model_dump_json() + "\n"
 
+                if event.type == "error":
+                    return
+
             response_message = "".join(response_parts)
             append_chat_message(
                 thread_id=thread_id,

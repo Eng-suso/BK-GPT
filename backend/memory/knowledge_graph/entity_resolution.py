@@ -40,6 +40,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
+from backend.llm_streaming import stream_to_final
 from backend.memory import embeddings
 from backend.services import degradation_counters
 from backend.settings import settings
@@ -325,7 +326,7 @@ def adjudicate(
     if not candidates:
         return None
     try:
-        raw = llm.invoke(_build_prompt(name, entity_type, context, candidates))
+        raw = stream_to_final(llm, _build_prompt(name, entity_type, context, candidates))
     except Exception as exc:  # noqa: BLE001 — il resolver e' best-effort, mai fatale
         # merge fuzzy saltato: si crea una nuova entita', il merge mancato si
         # recupera con lo sweep. Ma va reso visibile: un LLM giu' = il grafo

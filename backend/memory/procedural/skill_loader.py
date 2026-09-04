@@ -2,9 +2,12 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
+
+from backend.llm_streaming import stream_to_text
 
 
 PROCEDURAL_DIR = Path(__file__).resolve().parent
@@ -14,7 +17,7 @@ MAX_SKILLS_PER_TURN = 4
 
 
 class SkillSelector(Protocol):
-    def invoke(self, messages: list):
+    def stream(self, input: Any, config: RunnableConfig | None = None, **kwargs: Any):
         ...
 
 
@@ -81,7 +84,7 @@ def normalize_skill_name(name: str) -> str:
 
 
 def load_skill_registry() -> list[ProceduralSkill]:
-    skills = []
+    skills: list[ProceduralSkill] = []
 
     if not SKILLS_DIR.exists():
         return skills
@@ -191,11 +194,11 @@ def select_procedural_skills(messages: list, selector_llm: SkillSelector | None)
     valid_names = {skill.name for skill in registry}
 
     try:
-        response = selector_llm.invoke(build_selection_prompt(user_text, registry))
+        response = stream_to_text(selector_llm, build_selection_prompt(user_text, registry))
     except Exception:
         return []
 
-    return parse_selector_response(getattr(response, "content", response), valid_names)
+    return parse_selector_response(response, valid_names)
 
 
 def load_skill_markdown(skill_name: str) -> str:

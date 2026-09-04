@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Protocol
+from typing import Any, Protocol
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
@@ -12,6 +12,7 @@ from backend.memory.procedural.skill_loader import (
     normalize_selected_skill_names,
     recent_user_text,
 )
+from backend.llm_streaming import stream_to_text
 
 
 CONSULTANT_CONTEXT_CATEGORIES = {
@@ -50,7 +51,7 @@ MEMORY_TYPES = {"semantic", "episodic", "procedural", "none"}
 
 
 class ContextClassifier(Protocol):
-    def invoke(self, messages: list):
+    def stream(self, input: Any, config: RunnableConfig | None = None, **kwargs: Any):
         ...
 
 
@@ -212,11 +213,15 @@ def classify_and_select_context(
         return empty_classification()
 
     try:
-        response = classifier_llm.invoke(build_classification_prompt(user_text), config=config)
+        response = stream_to_text(
+            classifier_llm,
+            build_classification_prompt(user_text),
+            config=config,
+        )
     except Exception:
         return empty_classification()
 
-    return parse_classifier_response(getattr(response, "content", response))
+    return parse_classifier_response(response)
 
 
 def classify_consultant_context(

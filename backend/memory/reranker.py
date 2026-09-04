@@ -27,6 +27,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
+from backend.llm_streaming import stream_to_final
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -87,9 +88,9 @@ class LLMReranker:
         if n <= 1:
             return list(range(n))
         try:
-            verdict = self._llm.invoke(_build_prompt(query, passages))
+            verdict = stream_to_final(self._llm, _build_prompt(query, passages))
         except Exception:  # noqa: BLE001 — il rerank e' best-effort, mai fatale
-            logger.warning("reranker: invoke LLM fallito", exc_info=True)
+            logger.warning("reranker: stream LLM fallito", exc_info=True)
             return list(range(n))
         raw_order = getattr(verdict, "order", None)
         if raw_order is None and isinstance(verdict, dict):

@@ -13,6 +13,7 @@ from backend.process_understanding import (
     BpmnParticipantTopology,
     BpmnPoolCandidate,
     ConsultantFinding,
+    ExtractionFailure,
     ProcessActor,
     ProcessBoundaries,
     ProcessBusinessRule,
@@ -30,10 +31,13 @@ from backend.process_understanding import (
     ProcessPath,
     ProcessStep,
     ProcessUnderstanding,
+    ProcessUnderstandingExtractionError,
     ProcessUnderstandingQualityReport,
+    ProcessUnderstandingResult,
     QualityDimensionScore,
     QualityImprovementAction,
     QualityIssue,
+    build_process_understanding,
     conservative_process_quality_report,
     process_understanding_diagnostics,
 )
@@ -1120,6 +1124,68 @@ def test_conservative_quality_fallback_never_auto_approves_flat_summary():
     assert quality.approval_recommendation != "ready_to_generate"
     assert any(issue.category == "quality_evaluator" for issue in quality.warnings)
     assert any(item.dimension == "bpmn_compilability" for item in quality.dimension_scores)
+
+
+def test_process_understanding_extraction_failure_is_not_reviewable(monkeypatch):
+    called = {"quality": False}
+
+    failure = ProcessUnderstandingResult(
+        status="failed",
+        failure=ExtractionFailure(
+            kind="timeout",
+            message="request timed out",
+            retryable=True,
+            attempt=1,
+        ),
+    )
+
+    def quality_stub(*_args, **_kwargs):
+        called["quality"] = True
+        raise AssertionError("quality evaluator must not run after extraction failure")
+
+    monkeypatch.setattr(bpmn_review_service, "evaluate_process_understanding_quality", quality_stub)
+
+    try:
+        build_bpmn_review_draft(
+            bpmn_process_id="Process_Test",
+            process_name="Processo Test",
+            source_text="descrizione processo",
+            process_understanding=failure,
+        )
+    except ProcessUnderstandingExtractionError as exc:
+        assert exc.failure.kind == "timeout"
+        assert exc.failure.retryable is True
+    else:
+        raise AssertionError("Extraction failure must block BPMN review generation")
+
+    assert called["quality"] is False
+
+
+def test_process_understanding_builder_reports_missing_llm_without_fallback(monkeypatch):
+    monkeypatch.setattr("backend.process_understanding.settings.openai_api_key", None)
+
+    result = build_process_understanding("Processo Test", "utente descrive un processo")
+
+    assert result.status == "failed"
+    assert result.process is None
+    assert result.failure is not None
+    assert result.failure.kind == "configuration_error"
+
+
+def test_process_understanding_builder_does_not_mask_programmer_bug(monkeypatch):
+    class BrokenLLM:
+        def stream(self, *_args, **_kwargs):
+            raise TypeError("bug interno")
+
+    monkeypatch.setattr("backend.process_understanding.settings.openai_api_key", "sk-test")
+    monkeypatch.setattr("backend.process_understanding._understanding_llm", lambda: BrokenLLM())
+
+    try:
+        build_process_understanding("Processo Test", "descrizione")
+    except TypeError as exc:
+        assert "bug interno" in str(exc)
+    else:
+        raise AssertionError("Unexpected programmer bugs must not become ProcessUnderstanding fallback")
 
 
 def test_quality_report_from_evaluator_drives_structured_review_readiness(monkeypatch):

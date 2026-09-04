@@ -21,6 +21,8 @@ import logging
 import re
 from typing import Any
 
+from backend.llm_streaming import stream_to_text
+
 logger = logging.getLogger(__name__)
 
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]{2,}\b")
@@ -81,7 +83,8 @@ def _llm_findings(blob: str, llm: Any) -> list[dict[str, str]]:
     try:
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        response = llm.invoke(
+        content = stream_to_text(
+            llm,
             [
                 SystemMessage(
                     content=(
@@ -94,7 +97,6 @@ def _llm_findings(blob: str, llm: Any) -> list[dict[str, str]]:
                 HumanMessage(content=blob[:4000]),
             ]
         )
-        content = str(getattr(response, "content", response) or "")
         match = re.search(r"\{.*\}", content, re.DOTALL)
         if not match:
             return []
