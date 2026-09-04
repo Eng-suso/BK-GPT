@@ -151,7 +151,13 @@ jobs:
   playwright:
     name: Playwright (${{ matrix.project }})
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality]
+    # Deliberately not gated on the quality jobs. This job is self-contained -
+    # it installs its own deps and serves the app itself (webServer in
+    # playwright.config.ts) - so it consumed nothing from them, and gating on
+    # them only hid its result: while backend-quality was red, every PR
+    # reported Playwright as "skipped", and a WCAG contrast regression on the
+    # HomePage sat unnoticed behind a failing Python test. Merges stay gated:
+    # "All CI checks passed" below still requires this job to succeed.
     timeout-minutes: 30
 
     strategy:
