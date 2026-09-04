@@ -1,4 +1,9 @@
+import json
+
+from langchain_core.messages import AIMessage, ToolMessage
+
 from backend.graphs.process.graph import evaluate_process_iteration, parse_process_router_json
+from backend.graphs.process.projection import project_specialist_results
 from backend.graphs.process.skills_manifest import required_skills_for
 from backend.graphs.process.state import ProcessState
 from backend.graphs.process.subgraphs.discovery.state import ProcessDiscoveryState
@@ -6,7 +11,13 @@ from backend.graphs.process.subgraphs.discovery.tools import assess_discovery_re
 from backend.graphs.process.subgraphs.evidence.tools import (
     extract_process_claims,
     evidence_tools,
+    manage_process_contradiction,
     prepare_evidence_coverage_matrix,
+)
+from backend.graphs.routing_contracts import (
+    CAPABILITY_REGISTRY,
+    minimum_readiness_score,
+    missing_prerequisites,
 )
 from backend.graphs.process.subgraphs.modeling.tools import (
     modeling_tools,
@@ -737,3 +748,246 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
 
     assert '"status": "review_required"' in result
     assert "No valid ProcessUnderstanding review exists." in result
+
+
+def tool_result_message(action: str, entity_type: str, payload: dict) -> ToolMessage:
+    body = {
+        "status": "prepared",
+        "action": action,
+        "entity_type": entity_type,
+        "entity_id": "proc-1",
+        "summary": "s",
+        "payload": payload,
+        "warnings": [],
+        "next_actions": [],
+    }
+    return ToolMessage(
+        content=f"{action}\n{json.dumps(body, ensure_ascii=False, indent=2)}",
+        tool_call_id="call-1",
+    )
+
+
+def test_specialist_tool_results_reach_typed_state():
+    # Before the projection node existed, every one of these fields stayed empty
+    # for the whole run: ToolNode only appends ToolMessages and no other node
+    # wrote them, so the gates reading them could never fire.
+    messages = [
+        AIMessage(content="working"),
+        tool_result_message(
+            "manage_process_contradiction",
+            "process_contradiction",
+            {"title": "Chi approva oltre 10k", "severity": "high"},
+        ),
+        tool_result_message("record_process_gap", "process_gap", {"title": "Soglia", "severity": "non_blocking"}),
+        tool_result_message(
+            "extract_process_claims",
+            "process_claims",
+            {"claims": [{"claim": "Ops valida"}, {"claim": "Finance fattura"}]},
+        ),
+        tool_result_message(
+            "assess_discovery_readiness",
+            "process_discovery_readiness",
+            {"readiness": "partially_ready"},
+        ),
+        tool_result_message(
+            "validate_process_understanding_readiness",
+            "process_understanding_readiness",
+            {"minimum_readiness_score": 5},
+        ),
+    ]
+
+    update = project_specialist_results({"messages": messages})
+
+    assert [item["title"] for item in update["contradictions"]] == ["Chi approva oltre 10k"]
+    assert [item["title"] for item in update["process_gaps"]] == ["Soglia"]
+    assert len(update["process_claims"]) == 2
+    assert update["discovery_readiness"]["readiness"] == "partially_ready"
+    assert update["minimum_readiness_score"] == 5
+    assert update["projected_message_count"] == len(messages)
+
+
+def test_projection_ignores_unparseable_and_unknown_tool_results():
+    messages = [
+        ToolMessage(content="this is not a tool result", tool_call_id="call-1"),
+        tool_result_message("whatever", "unknown_entity_type", {"x": 1}),
+    ]
+
+    update = project_specialist_results({"messages": messages})
+
+    assert update == {"projected_message_count": 2}
+
+
+def test_projection_does_not_recollect_results_on_loop_re_entry():
+    # contradictions/process_gaps/process_claims use an append reducer, so
+    # re-projecting the same messages on the next engineering-loop pass would
+    # duplicate every record.
+    messages = [
+        tool_result_message(
+            "manage_process_contradiction",
+            "process_contradiction",
+            {"title": "A", "severity": "high"},
+        )
+    ]
+
+    first = project_specialist_results({"messages": messages})
+    second = project_specialist_results(
+        {"messages": messages, "projected_message_count": first["projected_message_count"]}
+    )
+
+    assert len(first["contradictions"]) == 1
+    assert "contradictions" not in second
+    assert second["projected_message_count"] == 1
+
+
+def modeling_prerequisites(state: dict) -> list[str]:
+    return missing_prerequisites(CAPABILITY_REGISTRY["process.modeling"], state)
+
+
+def test_open_critical_contradiction_blocks_modeling():
+    state = {
+        "process_id": "proc-1",
+        "bpmn_semantic_model": canonical_semantic_model_fixture(),
+        "contradictions": [{"title": "Chi approva", "severity": "high"}],
+    }
+
+    assert "no_critical_contradictions" in modeling_prerequisites(state)
+
+
+def test_resolved_contradiction_stops_blocking_modeling():
+    # The gate used to have no exit at all: contradictions are appended and never
+    # removed, so anything recorded at high severity would have closed modeling
+    # for the rest of the run once the state was actually populated.
+    state = {
+        "process_id": "proc-1",
+        "bpmn_semantic_model": canonical_semantic_model_fixture(),
+        "contradictions": [
+            {"title": "Chi approva", "severity": "high"},
+            {"title": "Chi approva", "resolution": "resolved"},
+        ],
+    }
+
+    assert modeling_prerequisites(state) == []
+
+
+def test_contradiction_judged_immaterial_stops_blocking_modeling():
+    state = {
+        "process_id": "proc-1",
+        "bpmn_semantic_model": canonical_semantic_model_fixture(),
+        "contradictions": [
+            {"title": "Chi approva", "severity": "blocking"},
+            {"title": "Chi approva", "resolution": "not_material"},
+        ],
+    }
+
+    assert modeling_prerequisites(state) == []
+
+
+def test_reraised_contradiction_blocks_modeling_again():
+    state = {
+        "process_id": "proc-1",
+        "bpmn_semantic_model": canonical_semantic_model_fixture(),
+        "contradictions": [
+            {"title": "Chi approva", "severity": "high"},
+            {"title": "Chi approva", "resolution": "resolved"},
+            {"title": "Chi approva", "severity": "high"},
+        ],
+    }
+
+    assert "no_critical_contradictions" in modeling_prerequisites(state)
+
+
+def test_untitled_contradiction_cannot_be_cleared_by_another_resolution():
+    state = {
+        "process_id": "proc-1",
+        "bpmn_semantic_model": canonical_semantic_model_fixture(),
+        "contradictions": [{"severity": "high"}, {"title": "Altro", "resolution": "resolved"}],
+    }
+
+    assert "no_critical_contradictions" in modeling_prerequisites(state)
+
+
+def test_contradiction_resolution_requires_a_supporting_source():
+    resolution = manage_process_contradiction.invoke(
+        {
+            "process_id": "proc-1",
+            "operation": "resolve",
+            "title": "Chi approva oltre 10k",
+            "resolution": "resolved",
+            "rationale": "Il responsabile ha confermato la soglia.",
+        }
+    )
+
+    # Clearing on no cited evidence falls back to the safe reading rather than
+    # silently unblocking modeling.
+    assert '"resolution": "still_blocking"' in resolution
+    assert "unsupported_resolution" in resolution
+
+
+def test_contradiction_resolution_with_evidence_stands():
+    resolution = manage_process_contradiction.invoke(
+        {
+            "process_id": "proc-1",
+            "operation": "resolve",
+            "title": "Chi approva oltre 10k",
+            "resolution": "resolved",
+            "rationale": "La procedura firmata indica il CFO sopra 10k.",
+            "supporting_sources": ["Procedura acquisti v4"],
+        }
+    )
+
+    assert '"resolution": "resolved"' in resolution
+    assert '"invariant_violations": []' in resolution
+
+
+def canvas_prerequisites(state: dict) -> list[str]:
+    return missing_prerequisites(CAPABILITY_REGISTRY["process.canvas_handoff"], state)
+
+
+def canvas_ready_state(**overrides) -> dict:
+    state = {
+        "process_id": "proc-1",
+        "bpmn_semantic_model": canonical_semantic_model_fixture(),
+        "readiness_score": 8,
+        "missing_information": [],
+        "process_gaps": [],
+    }
+    state.update(overrides)
+    return state
+
+
+def test_gaps_the_agent_called_non_blocking_do_not_hold_the_canvas():
+    # missing_information is a flat list of strings with no severity: any single
+    # entry used to block, including one the agent had already classified as an
+    # optional extension in process_gaps.
+    state = canvas_ready_state(
+        missing_information=["naming del report"],
+        process_gaps=[
+            {"title": "naming", "severity": "non_blocking"},
+            {"title": "extra", "severity": "optional_extension"},
+        ],
+    )
+
+    assert canvas_prerequisites(state) == []
+
+
+def test_gap_the_agent_called_blocking_blocks_the_canvas():
+    state = canvas_ready_state(process_gaps=[{"title": "chi approva", "severity": "blocking"}])
+
+    assert "readiness_for_canvas" in canvas_prerequisites(state)
+
+
+def test_unclassified_open_item_still_blocks_the_canvas():
+    state = canvas_ready_state(missing_information=["chi approva sopra soglia"])
+
+    assert "readiness_for_canvas" in canvas_prerequisites(state)
+
+
+def test_readiness_bar_set_by_the_agent_is_honoured():
+    assert "readiness_for_canvas" in canvas_prerequisites(canvas_ready_state(readiness_score=6))
+    assert canvas_prerequisites(canvas_ready_state(readiness_score=6, minimum_readiness_score=5)) == []
+
+
+def test_minimum_readiness_score_falls_back_to_the_documented_default():
+    assert minimum_readiness_score({}) == 7
+    assert minimum_readiness_score({"minimum_readiness_score": 5}) == 5
+    assert minimum_readiness_score({"minimum_readiness_score": 99}) == 7

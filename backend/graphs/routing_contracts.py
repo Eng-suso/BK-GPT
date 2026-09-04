@@ -439,14 +439,72 @@ def _invoke_json_mode_router(
     return structured_llm.invoke([instruction, *messages], config=config)
 
 
+BLOCKING_CONTRADICTION_SEVERITIES = frozenset({"critical", "blocking", "high"})
+CLEARING_CONTRADICTION_RESOLUTIONS = frozenset({"resolved", "not_material"})
+DEFAULT_MINIMUM_READINESS_SCORE = 7
+
+
 def _has_critical_contradiction(state: dict[str, Any]) -> bool:
-    for contradiction in state.get("contradictions") or []:
-        if not isinstance(contradiction, dict):
+    """Is some contradiction still open at a severity that should stop modeling?
+
+    Contradictions and the conclusions drawn about them are appended to the same
+    list, so they are folded by title with the last record winning: a resolution
+    clears an earlier contradiction, and re-raising the same title reopens it.
+    Whether a contradiction is settled or immaterial is the agent's call, made
+    through the contradiction tool; the runtime only reads the conclusion it
+    recorded, and treats "never concluded" as still open.
+    """
+    latest: dict[str, dict[str, Any]] = {}
+
+    for index, record in enumerate(state.get("contradictions") or []):
+        if not isinstance(record, dict):
             continue
-        severity = str(contradiction.get("severity") or contradiction.get("impact") or "").lower()
-        if severity in {"critical", "blocking", "high"}:
-            return True
-    return False
+
+        # An untitled contradiction cannot be matched to a resolution, so it gets
+        # its own key and stays open - it can never be silently cleared.
+        key = str(record.get("title") or record.get("id") or "").strip().casefold() or f"__untitled__{index}"
+        entry = latest.setdefault(key, {})
+
+        if record.get("resolution"):
+            entry["resolution"] = str(record["resolution"]).strip().casefold()
+        else:
+            entry["severity"] = str(record.get("severity") or record.get("impact") or "").strip().casefold()
+            entry.pop("resolution", None)
+
+    return any(
+        entry.get("resolution") not in CLEARING_CONTRADICTION_RESOLUTIONS
+        and entry.get("severity") in BLOCKING_CONTRADICTION_SEVERITIES
+        for entry in latest.values()
+    )
+
+
+def _classified_gaps(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        gap
+        for gap in state.get("process_gaps") or []
+        if isinstance(gap, dict) and gap.get("severity")
+    ]
+
+
+def _has_blocking_gap(state: dict[str, Any]) -> bool:
+    return any(
+        str(gap.get("severity") or "").strip().casefold() == "blocking"
+        for gap in _classified_gaps(state)
+    )
+
+
+def minimum_readiness_score(state: dict[str, Any]) -> int:
+    """The readiness bar to clear before canvas handoff.
+
+    The modeling agent sets this per process through the readiness tool, which is
+    projected into state; the fixed default only applies when it has not judged
+    one. A process where a first-pass draft is useful and one where the missing
+    points are the approval threshold do not deserve the same bar.
+    """
+    value = state.get("minimum_readiness_score")
+    if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 10:
+        return value
+    return DEFAULT_MINIMUM_READINESS_SCORE
 
 
 def _state_value_as_dict(value: Any) -> dict[str, Any]:
@@ -490,7 +548,16 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
             if state.get("workflow_scope") == "local_operation" and state.get("saved_bpmn_xml"):
                 continue
             readiness = state.get("readiness_score")
-            if readiness is None or readiness < 7 or state.get("missing_information"):
+            if readiness is None or readiness < minimum_readiness_score(state):
+                missing.append(prerequisite)
+            elif _classified_gaps(state):
+                # The agent has classified what is still open; a gap it called
+                # non-blocking or an optional extension does not hold the canvas.
+                if _has_blocking_gap(state):
+                    missing.append(prerequisite)
+            elif state.get("missing_information"):
+                # Nothing classified yet: fall back to treating any open item as
+                # blocking rather than guessing on the agent's behalf.
                 missing.append(prerequisite)
         elif prerequisite == "no_critical_contradictions" and _has_critical_contradiction(state):
             missing.append(prerequisite)

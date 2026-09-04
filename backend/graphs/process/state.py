@@ -42,6 +42,8 @@ class ProcessState(ConversationState):
     workflow_scope: str | None
     engineering_loop_iteration: int
     engineering_loop_max_iterations: int
+    projected_message_count: int
+    minimum_readiness_score: int | None
     process_no_progress_count: int
     process_progress_signature: str | None
     process_continue_loop: bool

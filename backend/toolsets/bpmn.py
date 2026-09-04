@@ -6,6 +6,7 @@ from langgraph.prebuilt import InjectedState
 
 from backend import workspace_database
 from backend.bpmn import BPMNSemanticModel, semantic_model_to_bpmn_xml
+from backend.graphs.routing_contracts import minimum_readiness_score
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
@@ -658,11 +659,24 @@ def manage_canvas_validation(
         if readiness_score is None and review:
             readiness_score = review.get("readiness_score")
         missing_information = state.get("missing_information") or (review.get("missing_information") if review else [])
+        minimum = minimum_readiness_score(state)
+        classified_gaps = [
+            gap for gap in state.get("process_gaps") or [] if isinstance(gap, dict) and gap.get("severity")
+        ]
+        blocking_gaps = [
+            gap for gap in classified_gaps if str(gap.get("severity") or "").strip().casefold() == "blocking"
+        ]
+        # Same rule as the routing gate: the agent's own severity call decides
+        # when it has made one, the flat list only when it has not.
+        open_blockers = bool(blocking_gaps) if classified_gaps else bool(missing_information)
+        meets_bar = bool(readiness_score and readiness_score >= minimum)
         result = {
-            "valid": bool(readiness_score and readiness_score >= 7 and not missing_information),
+            "valid": meets_bar and not open_blockers,
             "readiness_score": readiness_score,
+            "minimum_readiness_score": minimum,
             "missing_information": missing_information or [],
-            "warnings": [] if readiness_score and readiness_score >= 7 else ["Readiness sotto la soglia consigliata."],
+            "blocking_gaps": blocking_gaps,
+            "warnings": [] if meets_bar else [f"Readiness sotto la soglia richiesta ({minimum}/10)."],
         }
     elif operation == "traceability_validation":
         result = {
