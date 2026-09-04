@@ -346,6 +346,44 @@ def test_process_engineering_loop_stops_at_safety_ceiling_not_low_default():
     assert result["engineering_loop_iteration"] == 2
 
 
+def test_process_engineering_loop_actually_stops_at_iteration_six():
+    state = {
+        "workflow_scope": "full_workflow",
+        "process_route": "modeling",
+        "engineering_loop_iteration": 5,
+        "engineering_loop_max_iterations": 6,
+        "process_no_progress_count": 0,
+        "process_progress_signature": "sig-4",
+        "process_gaps": [{"title": "gap-5"}],
+    }
+
+    result = evaluate_process_iteration(state)
+
+    assert result["engineering_loop_iteration"] == 6
+    assert result["process_continue_loop"] is False
+    assert result["termination_reason"] == "SAFE_LIMIT_REACHED"
+
+
+def test_process_engineering_loop_defaults_to_six_when_unset():
+    # engineering_loop_max_iterations is omitted entirely - the router hasn't run
+    # yet, or returned no explicit budget - so the loop must fall back to the
+    # documented default of 6, not stop earlier or run unbounded.
+    state = {
+        "workflow_scope": "full_workflow",
+        "process_route": "modeling",
+        "engineering_loop_iteration": 5,
+        "process_no_progress_count": 0,
+        "process_progress_signature": "sig-4",
+        "process_gaps": [{"title": "gap-5"}],
+    }
+
+    result = evaluate_process_iteration(state)
+
+    assert result["engineering_loop_iteration"] == 6
+    assert result["process_continue_loop"] is False
+    assert result["termination_reason"] == "SAFE_LIMIT_REACHED"
+
+
 def test_process_states_define_orchestration_fields():
     assert "process_route" in ProcessState.__annotations__
     assert "routing_trace" in ProcessState.__annotations__
@@ -599,6 +637,35 @@ def test_discovery_readiness_cannot_claim_ready_with_open_blockers():
     assert '"status": "partially_ready"' in discovery
     assert "readiness_downgraded" in discovery
 
+
+def test_discovery_readiness_rejects_whitespace_only_rationale():
+    # A claim of ready_for_modeling with nothing to check it against must not
+    # stand just because no blockers were listed either.
+    discovery = assess_discovery_readiness.invoke(
+        {
+            "process_id": "proc-1",
+            "readiness": "ready_for_modeling",
+            "confidence": 0.6,
+            "rationale": "   ",
+        }
+    )
+    assert '"status": "partially_ready"' in discovery
+    assert "rationale_missing" in discovery
+
+
+def test_discovery_readiness_with_rationale_and_no_blockers_stands():
+    discovery = assess_discovery_readiness.invoke(
+        {
+            "process_id": "proc-1",
+            "readiness": "ready_for_modeling",
+            "confidence": 0.8,
+            "rationale": "Scope, actors and activities are evidence-backed.",
+        }
+    )
+    assert '"status": "ready_for_modeling"' in discovery
+
+
+def test_evidence_claim_and_coverage_tools_prepare_gate_payloads():
     claims = extract_process_claims.invoke(
         {
             "process_id": "proc-1",

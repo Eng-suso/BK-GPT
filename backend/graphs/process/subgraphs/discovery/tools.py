@@ -203,17 +203,20 @@ def assess_discovery_readiness(
     unsupported_regions = unsupported_regions or []
     contradictions_open = contradictions_open or []
     invariant_violations: list[str] = []
-
-    status = readiness
     if readiness == "ready_for_modeling" and blockers:
         # A judgment cannot claim readiness while naming blockers - that is an internal
         # inconsistency in the judgment, not a semantic call the runtime is entitled to make.
-        status = "partially_ready"
         invariant_violations.append(
             "readiness_downgraded: blockers were listed alongside ready_for_modeling"
         )
     if not rationale.strip():
+        # An empty rationale means there is nothing for the runtime to check the judgment
+        # against - a claim of ready_for_modeling on no stated basis cannot stand either.
         invariant_violations.append("rationale_missing: a readiness judgment requires a rationale")
+
+    status = readiness
+    if status == "ready_for_modeling" and invariant_violations:
+        status = "partially_ready"
 
     return enterprise_tool_result(
         status=status,
