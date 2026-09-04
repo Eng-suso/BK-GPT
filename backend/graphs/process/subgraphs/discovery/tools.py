@@ -30,14 +30,40 @@ class DiscoveryFactsInput(BaseModel):
 
 class DiscoveryReadinessInput(BaseModel):
     process_id: str = Field(description="Current process id.")
-    scope_boundaries_clear: bool = Field(description="Trigger, start, end and outcome are clear enough.")
-    main_actors_identified: bool = Field(description="Main roles, teams or systems are identified.")
-    activities_supported: bool = Field(description="Major activities are supported by evidence.")
-    decisions_and_handoffs_known: bool = Field(description="Important decisions and handoffs are known.")
-    exceptions_acknowledged: bool = Field(description="Major exceptions are represented or listed as gaps.")
-    contradictions_documented: bool = Field(description="Known contradictions are documented.")
-    remaining_gaps_explicit: bool = Field(description="Remaining gaps are visible and actionable.")
-    blocker_notes: list[str] = Field(default_factory=list, description="Blocking gaps that prevent modeling.")
+    readiness: Literal["ready_for_modeling", "partially_ready", "not_ready"] = Field(
+        description=(
+            "Semantic judgment: is there enough evidence-backed understanding of this "
+            "process to build a useful AS-IS model? Weigh what is missing against how much "
+            "it would distort or block a first-pass model. Do not derive this from a checklist "
+            "count - a single missing core decision/handoff can make a process not ready even "
+            "if everything else is known, and a process can be ready with minor gaps left open."
+        )
+    )
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confidence in this readiness judgment.")
+    rationale: str = Field(description="Why: what evidence supports readiness, what remains thin or unresolved.")
+    blockers: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Concrete gaps that make modeling unsafe or materially wrong if skipped now "
+            "(e.g. a core decision or handoff with no evidence). Empty when readiness is "
+            "ready_for_modeling."
+        ),
+    )
+    material_unknowns: list[str] = Field(
+        default_factory=list,
+        description="Gaps that matter but do not block a first useful model; can be closed later.",
+    )
+    unsupported_regions: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Process areas with no evidence backing at all, e.g. scope, actors, activities, "
+            "decisions, handoffs, exceptions."
+        ),
+    )
+    contradictions_open: list[str] = Field(
+        default_factory=list,
+        description="Known contradictions not yet resolved or explicitly accepted as open ambiguity.",
+    )
 
 
 class FollowupQuestionsInput(BaseModel):
@@ -157,41 +183,60 @@ def extract_discovery_facts(
 @tool(args_schema=DiscoveryReadinessInput)
 def assess_discovery_readiness(
     process_id: str,
-    scope_boundaries_clear: bool,
-    main_actors_identified: bool,
-    activities_supported: bool,
-    decisions_and_handoffs_known: bool,
-    exceptions_acknowledged: bool,
-    contradictions_documented: bool,
-    remaining_gaps_explicit: bool,
-    blocker_notes: list[str] | None = None,
+    readiness: str,
+    rationale: str,
+    confidence: float = 0.5,
+    blockers: list[str] | None = None,
+    material_unknowns: list[str] | None = None,
+    unsupported_regions: list[str] | None = None,
+    contradictions_open: list[str] | None = None,
 ) -> str:
     """
-    Assess whether discovery is ready to move into ProcessUnderstanding modeling.
-    Use before routing from discovery/evidence to modeling.
+    Record a semantic discovery-readiness judgment: is there enough evidence-backed
+    understanding to move into ProcessUnderstanding modeling? This is a judgment call,
+    not a checklist score - weigh what is missing against how much it would distort a
+    first-pass model. Use before routing from discovery/evidence to modeling. The runtime
+    only verifies the judgment is internally consistent; it does not compute it.
     """
-    checks = {
-        "scope_boundaries_clear": scope_boundaries_clear,
-        "main_actors_identified": main_actors_identified,
-        "activities_supported": activities_supported,
-        "decisions_and_handoffs_known": decisions_and_handoffs_known,
-        "exceptions_acknowledged": exceptions_acknowledged,
-        "contradictions_documented": contradictions_documented,
-        "remaining_gaps_explicit": remaining_gaps_explicit,
-    }
-    passed = sum(1 for value in checks.values() if value)
-    score = round((passed / len(checks)) * 10)
-    blockers = blocker_notes or []
-    status = "ready_for_modeling" if score >= 7 and not blockers else "discovery_required"
+    blockers = blockers or []
+    material_unknowns = material_unknowns or []
+    unsupported_regions = unsupported_regions or []
+    contradictions_open = contradictions_open or []
+    invariant_violations: list[str] = []
+    if readiness == "ready_for_modeling" and blockers:
+        # A judgment cannot claim readiness while naming blockers - that is an internal
+        # inconsistency in the judgment, not a semantic call the runtime is entitled to make.
+        invariant_violations.append(
+            "readiness_downgraded: blockers were listed alongside ready_for_modeling"
+        )
+    if not rationale.strip():
+        # An empty rationale means there is nothing for the runtime to check the judgment
+        # against - a claim of ready_for_modeling on no stated basis cannot stand either.
+        invariant_violations.append("rationale_missing: a readiness judgment requires a rationale")
+
+    status = readiness
+    if status == "ready_for_modeling" and invariant_violations:
+        status = "partially_ready"
 
     return enterprise_tool_result(
         status=status,
         action="assess_discovery_readiness",
         entity_type="process_discovery_readiness",
         entity_id=process_id,
-        summary=f"Discovery readiness score {score}/10.",
-        payload={"process_id": process_id, "score": score, "checks": checks, "blockers": blockers},
-        warnings=blockers,
+        summary=f"Discovery readiness: {status} (confidence {confidence:.2f}).",
+        payload={
+            "process_id": process_id,
+            "readiness": status,
+            "proposed_readiness": readiness,
+            "confidence": confidence,
+            "rationale": rationale,
+            "blockers": blockers,
+            "material_unknowns": material_unknowns,
+            "unsupported_regions": unsupported_regions,
+            "contradictions_open": contradictions_open,
+            "invariant_violations": invariant_violations,
+        },
+        warnings=blockers + invariant_violations,
     )
 
 

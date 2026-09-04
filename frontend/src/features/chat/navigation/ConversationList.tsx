@@ -71,7 +71,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
                       {session.title}
                     </span>
                     {when ? (
-                      <span className="text-[11px] tabular-nums text-muted-foreground/80">
+                      <span className="text-[11px] tabular-nums text-muted-foreground">
                         {when}
                       </span>
                     ) : null}

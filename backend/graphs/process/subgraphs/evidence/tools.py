@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 
 from langchain_core.tools import tool
@@ -66,12 +67,46 @@ class EvidenceSynthesisInput(BaseModel):
 
 class ContradictionInput(BaseModel):
     process_id: str = Field(description="Current process id.")
-    title: str = Field(description="Short contradiction title.")
-    conflicting_claims: list[str] = Field(description="Claims that cannot all be true.")
-    affected_process_area: ProcessArea = Field(description="Process area affected by the contradiction.")
+    operation: Literal["identify", "resolve"] = Field(
+        description=(
+            "identify: record a newly found contradiction. resolve: record what you "
+            "concluded about a contradiction you already recorded."
+        )
+    )
+    title: str = Field(description="Short contradiction title, for people to read.")
+    contradiction_id: str | None = Field(
+        default=None,
+        description=(
+            "resolve: the contradiction_id that identify returned. Pass it - it is how "
+            "the runtime matches a resolution to its contradiction. Without it the id is "
+            "re-derived from the title, so a reworded title will not match and the "
+            "contradiction stays open."
+        ),
+    )
+    conflicting_claims: list[str] = Field(
+        default_factory=list, description="identify: claims that cannot all be true."
+    )
+    affected_process_area: ProcessArea | None = Field(
+        default=None, description="identify: process area affected by the contradiction."
+    )
     source_names: list[str] = Field(default_factory=list, description="Sources involved in the contradiction.")
-    resolution_needed: str = Field(description="What must be checked to resolve it.")
+    resolution_needed: str = Field(default="", description="identify: what must be checked to resolve it.")
     severity: Literal["low", "medium", "high", "blocking"] = "medium"
+    resolution: Literal["resolved", "not_material", "still_blocking"] | None = Field(
+        default=None,
+        description=(
+            "resolve: your judgment. resolved = the conflict is settled by evidence. "
+            "not_material = it stands but does not change the model you are building. "
+            "still_blocking = it must be closed before modeling can proceed."
+        ),
+    )
+    rationale: str = Field(
+        default="", description="resolve: why this conclusion - what settled it, or why it still blocks."
+    )
+    supporting_sources: list[str] = Field(
+        default_factory=list,
+        description="resolve: sources that support clearing the contradiction. Required to clear one.",
+    )
 
 
 class CoverageItem(BaseModel):
@@ -169,35 +204,109 @@ def synthesize_process_evidence(
     )
 
 
+def contradiction_key(title: str) -> str:
+    """Stable id for a contradiction, derived from its title.
+
+    identify returns it and resolve should pass it back, so a resolution still
+    matches when the agent rewords the human-readable title.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", " ".join(str(title or "").split()).casefold()).strip("-")[:60]
+
+
 @tool(args_schema=ContradictionInput)
-def identify_process_contradictions(
+def manage_process_contradiction(
     process_id: str,
+    operation: str,
     title: str,
-    conflicting_claims: list[str],
-    affected_process_area: str,
+    contradiction_id: str | None = None,
+    conflicting_claims: list[str] | None = None,
+    affected_process_area: str | None = None,
     source_names: list[str] | None = None,
     resolution_needed: str = "",
     severity: str = "medium",
+    resolution: str | None = None,
+    rationale: str = "",
+    supporting_sources: list[str] | None = None,
 ) -> str:
     """
-    Prepare a process contradiction record for review. Use when sources disagree
-    about actors, activities, decisions, handoffs, exceptions or controls.
+    Record a process contradiction, or record what you concluded about one.
+
+    Use operation=identify when sources disagree about actors, activities,
+    decisions, handoffs, exceptions or controls. Use operation=resolve once you
+    have settled it, or decided it does not affect the model you are building -
+    a contradiction you leave unresolved at high or blocking severity keeps
+    modeling closed, so say what you concluded rather than leaving it open.
+    The runtime does not judge the contradiction; it only checks that a
+    conclusion carries a reason, and that clearing one cites a source.
     """
+    conflicting_claims = conflicting_claims or []
+    source_names = source_names or []
+    supporting_sources = supporting_sources or []
+
+    if operation == "identify":
+        return enterprise_tool_result(
+            status="prepared",
+            action="manage_process_contradiction",
+            entity_type="process_contradiction",
+            entity_id=process_id,
+            summary=title,
+            payload={
+                "process_id": process_id,
+                "contradiction_id": contradiction_key(title),
+                "title": title,
+                "conflicting_claims": conflicting_claims,
+                "affected_process_area": affected_process_area,
+                "source_names": source_names,
+                "resolution_needed": resolution_needed,
+                "severity": severity,
+            },
+        )
+
+    if operation != "resolve":
+        raise ValueError(f"Operazione contraddizione non supportata: {operation}")
+
+    invariant_violations: list[str] = []
+    if resolution is None:
+        invariant_violations.append("resolution_missing: operation=resolve requires a resolution")
+    if not rationale.strip():
+        invariant_violations.append("rationale_missing: a resolution requires a rationale")
+    if resolution in {"resolved", "not_material"} and not supporting_sources:
+        invariant_violations.append(
+            "unsupported_resolution: clearing a contradiction requires at least one supporting source"
+        )
+
+    resolved_id = contradiction_id or contradiction_key(title)
+    warnings = list(invariant_violations)
+    if not contradiction_id:
+        # Still matches when the title is unchanged, but say so rather than
+        # reporting a clean resolution the gate may not be able to pair up.
+        warnings.append(
+            "contradiction_id_derived: no contradiction_id supplied, matched on the title instead"
+        )
+
+    # A contradiction cannot be cleared on no stated basis: an inconsistent
+    # conclusion falls back to the safe reading, it does not silently unblock.
+    effective_resolution = resolution or "still_blocking"
+    if invariant_violations:
+        effective_resolution = "still_blocking"
+
     return enterprise_tool_result(
-        status="prepared",
-        action="identify_process_contradictions",
-        entity_type="process_contradiction",
+        status=effective_resolution,
+        action="manage_process_contradiction",
+        entity_type="process_contradiction_resolution",
         entity_id=process_id,
-        summary=title,
+        summary=f"Contradiction '{title}': {effective_resolution}.",
         payload={
             "process_id": process_id,
+            "contradiction_id": resolved_id,
             "title": title,
-            "conflicting_claims": conflicting_claims,
-            "affected_process_area": affected_process_area,
-            "source_names": source_names or [],
-            "resolution_needed": resolution_needed,
-            "severity": severity,
+            "resolution": effective_resolution,
+            "proposed_resolution": resolution,
+            "rationale": rationale,
+            "supporting_sources": supporting_sources,
+            "invariant_violations": invariant_violations,
         },
+        warnings=warnings,
     )
 
 
@@ -250,6 +359,7 @@ evidence_tools = [
     manage_process_evidence,
     extract_process_claims,
     synthesize_process_evidence,
+    manage_process_contradiction,
     prepare_evidence_coverage_matrix,
     extract_process_graph_from_evidence,
     index_process_evidence_graph,

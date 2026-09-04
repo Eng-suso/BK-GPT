@@ -6,6 +6,7 @@ from langgraph.prebuilt import InjectedState
 
 from backend import workspace_database
 from backend.bpmn import BPMNSemanticModel, semantic_model_to_bpmn_xml
+from backend.graphs.routing_contracts import minimum_readiness_score, uncovered_missing_information
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
@@ -658,11 +659,25 @@ def manage_canvas_validation(
         if readiness_score is None and review:
             readiness_score = review.get("readiness_score")
         missing_information = state.get("missing_information") or (review.get("missing_information") if review else [])
+        minimum = minimum_readiness_score(state)
+        gap_state = {"process_gaps": state.get("process_gaps"), "missing_information": missing_information}
+        blocking_gaps = [
+            gap
+            for gap in state.get("process_gaps") or []
+            if isinstance(gap, dict) and str(gap.get("severity") or "").strip().casefold() == "blocking"
+        ]
+        # Same identity-based rule as the routing gate: a non-blocking gap
+        # excuses only the open item it names, never the whole list.
+        uncovered = uncovered_missing_information(gap_state)
+        meets_bar = bool(readiness_score and readiness_score >= minimum)
         result = {
-            "valid": bool(readiness_score and readiness_score >= 7 and not missing_information),
+            "valid": meets_bar and not blocking_gaps and not uncovered,
             "readiness_score": readiness_score,
+            "minimum_readiness_score": minimum,
             "missing_information": missing_information or [],
-            "warnings": [] if readiness_score and readiness_score >= 7 else ["Readiness sotto la soglia consigliata."],
+            "uncovered_missing_information": uncovered,
+            "blocking_gaps": blocking_gaps,
+            "warnings": [] if meets_bar else [f"Readiness sotto la soglia richiesta ({minimum}/10)."],
         }
     elif operation == "traceability_validation":
         result = {

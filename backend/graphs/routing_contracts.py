@@ -86,7 +86,13 @@ class ProcessRoutingDecision(RoutingDecisionBase):
     process_mode: Literal["discussion", "discovery", "evidence", "modeling", "delegation", "clarification"] | None = None
     process_objective: str | None = None
     workflow_scope: WorkflowScope = "single_step"
-    max_iterations: int = Field(default=2, ge=1, le=5)
+    # The engineering-loop budget is deliberately NOT a field here. CODE_QUALITY.md
+    # ("Runtime MUST own arithmetic, limits, deadlines, budgets") puts limits on the
+    # runtime side of the boundary, and a model-set ceiling broke that both ways: a
+    # value of 1 could truncate a full_workflow after one pass, and the router
+    # rewrote the budget on every re-entry. The runtime owns it now
+    # (ENGINEERING_LOOP_MAX_ITERATIONS); the agent still decides when to stop, by
+    # setting workflow_scope and route.
 
     @model_validator(mode="after")
     def normalize_route_clarification(self):
@@ -429,14 +435,110 @@ def _invoke_json_mode_router(
     return structured_llm.invoke([instruction, *messages], config=config)
 
 
+BLOCKING_CONTRADICTION_SEVERITIES = frozenset({"critical", "blocking", "high"})
+CLEARING_CONTRADICTION_RESOLUTIONS = frozenset({"resolved", "not_material"})
+DEFAULT_MINIMUM_READINESS_SCORE = 7
+
+# Runtime-owned engineering-loop budget. Server policy, not a model field: the
+# agent decides when the work is done, the runtime decides how long it may take.
+ENGINEERING_LOOP_MAX_ITERATIONS = 6
+
+
 def _has_critical_contradiction(state: dict[str, Any]) -> bool:
-    for contradiction in state.get("contradictions") or []:
-        if not isinstance(contradiction, dict):
+    """Is some contradiction still open at a severity that should stop modeling?
+
+    Contradictions and the conclusions drawn about them are appended to the same
+    list, so they are folded by title with the last record winning: a resolution
+    clears an earlier contradiction, and re-raising the same title reopens it.
+    Whether a contradiction is settled or immaterial is the agent's call, made
+    through the contradiction tool; the runtime only reads the conclusion it
+    recorded, and treats "never concluded" as still open.
+    """
+    latest: dict[str, dict[str, Any]] = {}
+
+    for index, record in enumerate(state.get("contradictions") or []):
+        if not isinstance(record, dict):
             continue
-        severity = str(contradiction.get("severity") or contradiction.get("impact") or "").lower()
-        if severity in {"critical", "blocking", "high"}:
-            return True
-    return False
+
+        # Fold on the stable contradiction_id the tool emits; title is only a
+        # fallback for older records. An unidentifiable contradiction gets its own
+        # key and stays open - it can never be silently cleared.
+        key = (
+            _normalized(record.get("contradiction_id"))
+            or _normalized(record.get("title") or record.get("id"))
+            or f"__unidentified__{index}"
+        )
+        entry = latest.setdefault(key, {})
+
+        if record.get("resolution"):
+            entry["resolution"] = str(record["resolution"]).strip().casefold()
+        else:
+            entry["severity"] = str(record.get("severity") or record.get("impact") or "").strip().casefold()
+            entry.pop("resolution", None)
+
+    return any(
+        entry.get("resolution") not in CLEARING_CONTRADICTION_RESOLUTIONS
+        and entry.get("severity") in BLOCKING_CONTRADICTION_SEVERITIES
+        for entry in latest.values()
+    )
+
+
+def _normalized(value: Any) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
+def _classified_gaps(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        gap
+        for gap in state.get("process_gaps") or []
+        if isinstance(gap, dict) and gap.get("severity")
+    ]
+
+
+def _has_blocking_gap(state: dict[str, Any]) -> bool:
+    return any(
+        _normalized(gap.get("severity")) == "blocking" for gap in _classified_gaps(state)
+    )
+
+
+def uncovered_missing_information(state: dict[str, Any]) -> list[str]:
+    """Open items that no classified gap accounts for.
+
+    A non-blocking gap covers only the entry it actually names - matched on the
+    gap's own `missing_information` text or its title. Anything left unmatched
+    keeps blocking: one gap the agent called non-blocking must not vouch for
+    open items nobody has classified, which is how "any classification at all
+    suppresses the whole list" would have let an unresolved approval authority
+    through behind a cosmetic naming gap.
+    """
+    covered: set[str] = set()
+    for gap in _classified_gaps(state):
+        if _normalized(gap.get("severity")) == "blocking":
+            continue
+        for field in ("missing_information", "title"):
+            key = _normalized(gap.get(field))
+            if key:
+                covered.add(key)
+
+    return [
+        item
+        for item in state.get("missing_information") or []
+        if _normalized(item) not in covered
+    ]
+
+
+def minimum_readiness_score(state: dict[str, Any]) -> int:
+    """The readiness bar to clear before canvas handoff.
+
+    The modeling agent sets this per process through the readiness tool, which is
+    projected into state; the fixed default only applies when it has not judged
+    one. A process where a first-pass draft is useful and one where the missing
+    points are the approval threshold do not deserve the same bar.
+    """
+    value = state.get("minimum_readiness_score")
+    if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 10:
+        return value
+    return DEFAULT_MINIMUM_READINESS_SCORE
 
 
 def _state_value_as_dict(value: Any) -> dict[str, Any]:
@@ -480,7 +582,12 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
             if state.get("workflow_scope") == "local_operation" and state.get("saved_bpmn_xml"):
                 continue
             readiness = state.get("readiness_score")
-            if readiness is None or readiness < 7 or state.get("missing_information"):
+            if readiness is None or readiness < minimum_readiness_score(state):
+                missing.append(prerequisite)
+            elif _has_blocking_gap(state) or uncovered_missing_information(state):
+                # A gap the agent called non-blocking excuses the item it names,
+                # and nothing else: a blocking gap always blocks, and any open
+                # item still unaccounted for keeps the canvas closed.
                 missing.append(prerequisite)
         elif prerequisite == "no_critical_contradictions" and _has_critical_contradiction(state):
             missing.append(prerequisite)

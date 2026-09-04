@@ -8,12 +8,14 @@ from pydantic import BaseModel
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
+from backend.graphs.process.projection import project_specialist_results
 from backend.graphs.process.state import ProcessState
 from backend.graphs.process.subgraphs.discovery import build_discovery_subgraph, discovery_tools
 from backend.graphs.process.subgraphs.evidence import build_evidence_subgraph, evidence_tools
 from backend.graphs.process.subgraphs.modeling import build_modeling_subgraph, modeling_tools
 from backend.graphs.process.tools import PROCESS_TOOL_POLICY
 from backend.graphs.routing_contracts import (
+    ENGINEERING_LOOP_MAX_ITERATIONS,
     ProcessRoutingDecision,
     authorize_routing_decision,
     invalid_process_decision,
@@ -76,6 +78,14 @@ process.evidence, process.modeling, process.canvas_handoff or process.clarificat
 Use workflow_scope=local_operation for narrow canvas/XML patch requests, single_step
 for one bounded capability, and full_workflow only when the user asks for an
 end-to-end engineering outcome.
+
+You are re-invoked after every specialist pass in a full_workflow run. Keep
+workflow_scope=full_workflow only while there is still epistemically necessary work
+before an end-to-end outcome is reached (e.g. more evidence to gather, contradictions
+to resolve, a semantic model still missing). Switch it to single_step, local_operation
+or direct as soon as the remaining request can be answered without another pass -
+you decide when the work is done. The runtime owns the pass budget and stops on
+repeated no-progress passes; you do not set or negotiate that limit.
 """.strip()
 
 
@@ -237,7 +247,12 @@ def process_routing_state(
         "reasoning_summary": decision.reasoning_summary,
         "workflow_scope": decision.workflow_scope,
         "engineering_loop_iteration": state.get("engineering_loop_iteration", 0),
-        "engineering_loop_max_iterations": decision.max_iterations,
+        # Set once from server policy and preserved across router re-entry: the
+        # router runs again after every specialist pass, so rewriting the budget
+        # here would let it drift mid-run.
+        "engineering_loop_max_iterations": (
+            state.get("engineering_loop_max_iterations") or ENGINEERING_LOOP_MAX_ITERATIONS
+        ),
         "process_progress_signature": process_state_signature(state),
         "process_continue_loop": False,
     }
@@ -326,9 +341,16 @@ def ask_process_clarification(state: ProcessState) -> dict:
     }
 
 
+# A single pass with no state change is not proof the loop is stuck (a discovery/
+# evidence pass can legitimately end in a question or an assessment without moving
+# canonical state); require this many consecutive no-progress passes before the
+# runtime treats it as a stall.
+NO_PROGRESS_STOP_THRESHOLD = 2
+
+
 def evaluate_process_iteration(state: ProcessState) -> dict:
     iteration = int(state.get("engineering_loop_iteration") or 0) + 1
-    max_iterations = int(state.get("engineering_loop_max_iterations") or 2)
+    max_iterations = int(state.get("engineering_loop_max_iterations") or ENGINEERING_LOOP_MAX_ITERATIONS)
     previous_signature = state.get("process_progress_signature")
     current_signature = process_state_signature(state)
     no_progress_count = int(state.get("process_no_progress_count") or 0)
@@ -339,18 +361,23 @@ def evaluate_process_iteration(state: ProcessState) -> dict:
         no_progress_count = 0
 
     workflow_scope = state.get("workflow_scope") or "single_step"
-    continue_loop = (
+    # The agent's own decision: it asked to keep working (full_workflow) and did not
+    # route into a terminal/handoff step. The runtime does not second-guess this -
+    # it only enforces the budget and no-progress safety net below.
+    agent_wants_to_continue = (
         workflow_scope == "full_workflow"
-        and iteration < max_iterations
-        and no_progress_count == 0
         and state.get("process_route") not in {"direct", "clarification", "delegate_canvas"}
     )
+    within_budget = iteration < max_iterations
+    making_progress = no_progress_count < NO_PROGRESS_STOP_THRESHOLD
+
+    continue_loop = agent_wants_to_continue and within_budget and making_progress
     termination_reason = state.get("termination_reason")
 
     if not continue_loop:
-        if iteration >= max_iterations and workflow_scope == "full_workflow":
+        if agent_wants_to_continue and not within_budget:
             termination_reason = "SAFE_LIMIT_REACHED"
-        elif no_progress_count > 0 and workflow_scope == "full_workflow":
+        elif agent_wants_to_continue and not making_progress:
             termination_reason = "BLOCKED_NO_PROGRESS"
         else:
             termination_reason = termination_reason or "DONE"
@@ -431,6 +458,7 @@ def build_process_subgraph(tools: list, llm, llm_with_tools, build_context_messa
     )
     workflow.add_node("delegate_to_canvas_macro", delegate_to_canvas_macro)
     workflow.add_node("ask_process_clarification", ask_process_clarification)
+    workflow.add_node("project_specialist_results", project_specialist_results)
     workflow.add_node("evaluate_process_iteration", evaluate_process_iteration)
 
     workflow.add_edge(START, "load_process_context")
@@ -448,9 +476,12 @@ def build_process_subgraph(tools: list, llm, llm_with_tools, build_context_messa
         },
     )
     workflow.add_edge("process_macro_agent", END)
-    workflow.add_edge("discovery_subgraph", "evaluate_process_iteration")
-    workflow.add_edge("evidence_subgraph", "evaluate_process_iteration")
-    workflow.add_edge("modeling_subgraph", "evaluate_process_iteration")
+    # Specialist results are projected into typed state before the loop is
+    # evaluated, so the progress signature sees what the pass actually produced.
+    workflow.add_edge("discovery_subgraph", "project_specialist_results")
+    workflow.add_edge("evidence_subgraph", "project_specialist_results")
+    workflow.add_edge("modeling_subgraph", "project_specialist_results")
+    workflow.add_edge("project_specialist_results", "evaluate_process_iteration")
     workflow.add_conditional_edges(
         "evaluate_process_iteration",
         selected_process_loop_transition,

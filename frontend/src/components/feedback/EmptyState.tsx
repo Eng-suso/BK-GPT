@@ -27,7 +27,7 @@ export function EmptyState({
       <div className={cn("flex flex-col items-start gap-1.5 py-3.5", className)}>
         <h4 className="text-xs font-semibold text-muted-foreground">{title}</h4>
         {description && (
-          <p className="max-w-[300px] text-xs leading-relaxed text-muted-foreground/80">
+          <p className="max-w-[300px] text-xs leading-relaxed text-muted-foreground">
             {description}
           </p>
         )}
