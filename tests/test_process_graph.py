@@ -1,5 +1,3 @@
-import json
-
 from langchain_core.messages import AIMessage, ToolMessage
 
 from backend.graphs.process.graph import evaluate_process_iteration, parse_process_router_json
@@ -32,6 +30,7 @@ from backend.graphs.process.tools import (
 from backend.bpmn import build_bpmn_semantic_model
 from backend.process_understanding import ProcessUnderstanding
 import backend.graphs.process.tools as process_tools_module
+from backend.toolsets.workspace import enterprise_tool_result
 from backend.toolsets.process_memory import (
     index_process_evidence_graph,
     manage_process_evidence,
@@ -751,18 +750,17 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
 
 
 def tool_result_message(action: str, entity_type: str, payload: dict) -> ToolMessage:
-    body = {
-        "status": "prepared",
-        "action": action,
-        "entity_type": entity_type,
-        "entity_id": "proc-1",
-        "summary": "s",
-        "payload": payload,
-        "warnings": [],
-        "next_actions": [],
-    }
+    # Built through the canonical producer so these tests cannot keep passing
+    # against a wire format production has moved away from.
     return ToolMessage(
-        content=f"{action}\n{json.dumps(body, ensure_ascii=False, indent=2)}",
+        content=enterprise_tool_result(
+            status="prepared",
+            action=action,
+            entity_type=entity_type,
+            entity_id="proc-1",
+            summary="s",
+            payload=payload,
+        ),
         tool_call_id="call-1",
     )
 
@@ -896,6 +894,21 @@ def test_reraised_contradiction_blocks_modeling_again():
     assert "no_critical_contradictions" in modeling_prerequisites(state)
 
 
+def test_resolution_matches_on_contradiction_id_not_wording():
+    # The agent reworded the human-readable title but passed the id identify
+    # returned, so the resolution still pairs with its contradiction.
+    state = {
+        "process_id": "proc-1",
+        "bpmn_semantic_model": canonical_semantic_model_fixture(),
+        "contradictions": [
+            {"contradiction_id": "chi-approva", "title": "Chi approva oltre 10k", "severity": "high"},
+            {"contradiction_id": "chi-approva", "title": "Approvazione sopra soglia", "resolution": "resolved"},
+        ],
+    }
+
+    assert modeling_prerequisites(state) == []
+
+
 def test_untitled_contradiction_cannot_be_cleared_by_another_resolution():
     state = {
         "process_id": "proc-1",
@@ -962,12 +975,28 @@ def test_gaps_the_agent_called_non_blocking_do_not_hold_the_canvas():
     state = canvas_ready_state(
         missing_information=["naming del report"],
         process_gaps=[
-            {"title": "naming", "severity": "non_blocking"},
-            {"title": "extra", "severity": "optional_extension"},
+            {
+                "title": "naming del report",
+                "missing_information": "naming del report",
+                "severity": "non_blocking",
+            }
         ],
     )
 
     assert canvas_prerequisites(state) == []
+
+
+def test_unrelated_non_blocking_gap_does_not_excuse_an_open_item():
+    # A cosmetic gap must not vouch for an unresolved approval authority nobody
+    # classified: coverage is per item, not "any classification at all".
+    state = canvas_ready_state(
+        missing_information=["chi approva sopra soglia"],
+        process_gaps=[
+            {"title": "naming del report", "missing_information": "naming del report", "severity": "non_blocking"}
+        ],
+    )
+
+    assert "readiness_for_canvas" in canvas_prerequisites(state)
 
 
 def test_gap_the_agent_called_blocking_blocks_the_canvas():

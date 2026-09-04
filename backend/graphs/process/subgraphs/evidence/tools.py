@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 
 from langchain_core.tools import tool
@@ -72,11 +73,15 @@ class ContradictionInput(BaseModel):
             "concluded about a contradiction you already recorded."
         )
     )
-    title: str = Field(
+    title: str = Field(description="Short contradiction title, for people to read.")
+    contradiction_id: str | None = Field(
+        default=None,
         description=(
-            "Short contradiction title. For resolve, use the same title you recorded "
-            "with identify - it is how the runtime matches the two."
-        )
+            "resolve: the contradiction_id that identify returned. Pass it - it is how "
+            "the runtime matches a resolution to its contradiction. Without it the id is "
+            "re-derived from the title, so a reworded title will not match and the "
+            "contradiction stays open."
+        ),
     )
     conflicting_claims: list[str] = Field(
         default_factory=list, description="identify: claims that cannot all be true."
@@ -199,11 +204,21 @@ def synthesize_process_evidence(
     )
 
 
+def contradiction_key(title: str) -> str:
+    """Stable id for a contradiction, derived from its title.
+
+    identify returns it and resolve should pass it back, so a resolution still
+    matches when the agent rewords the human-readable title.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", " ".join(str(title or "").split()).casefold()).strip("-")[:60]
+
+
 @tool(args_schema=ContradictionInput)
 def manage_process_contradiction(
     process_id: str,
     operation: str,
     title: str,
+    contradiction_id: str | None = None,
     conflicting_claims: list[str] | None = None,
     affected_process_area: str | None = None,
     source_names: list[str] | None = None,
@@ -237,6 +252,7 @@ def manage_process_contradiction(
             summary=title,
             payload={
                 "process_id": process_id,
+                "contradiction_id": contradiction_key(title),
                 "title": title,
                 "conflicting_claims": conflicting_claims,
                 "affected_process_area": affected_process_area,
@@ -259,6 +275,15 @@ def manage_process_contradiction(
             "unsupported_resolution: clearing a contradiction requires at least one supporting source"
         )
 
+    resolved_id = contradiction_id or contradiction_key(title)
+    warnings = list(invariant_violations)
+    if not contradiction_id:
+        # Still matches when the title is unchanged, but say so rather than
+        # reporting a clean resolution the gate may not be able to pair up.
+        warnings.append(
+            "contradiction_id_derived: no contradiction_id supplied, matched on the title instead"
+        )
+
     # A contradiction cannot be cleared on no stated basis: an inconsistent
     # conclusion falls back to the safe reading, it does not silently unblock.
     effective_resolution = resolution or "still_blocking"
@@ -273,6 +298,7 @@ def manage_process_contradiction(
         summary=f"Contradiction '{title}': {effective_resolution}.",
         payload={
             "process_id": process_id,
+            "contradiction_id": resolved_id,
             "title": title,
             "resolution": effective_resolution,
             "proposed_resolution": resolution,
@@ -280,7 +306,7 @@ def manage_process_contradiction(
             "supporting_sources": supporting_sources,
             "invariant_violations": invariant_violations,
         },
-        warnings=invariant_violations,
+        warnings=warnings,
     )
 
 

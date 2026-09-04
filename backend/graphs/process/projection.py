@@ -77,6 +77,7 @@ def project_specialist_results(state: dict) -> dict:
     messages = state.get("messages") or []
     already_projected = int(state.get("projected_message_count") or 0)
 
+    projection_failures: list[dict] = []
     contradictions: list[dict] = []
     process_gaps: list[dict] = []
     process_claims: list[dict] = []
@@ -88,8 +89,11 @@ def project_specialist_results(state: dict) -> dict:
         if not _is_tool_message(message):
             continue
 
-        result = parse_tool_result(_message_field(message, "content"))
+        content = _message_field(message, "content")
+        result = parse_tool_result(content)
         if not result:
+            # Not a tool result envelope at all (a plain string reply, an error
+            # message). Nothing to project and nothing to report.
             continue
 
         entity_type = result.get("entity_type")
@@ -98,6 +102,12 @@ def project_specialist_results(state: dict) -> dict:
 
         payload = result.get("payload")
         if not isinstance(payload, dict):
+            # A recognised state-writing result whose payload is unusable. These
+            # feed the gates, so losing one silently would let the runtime judge
+            # readiness as if the pass never happened - record it instead.
+            projection_failures.append(
+                {"entity_type": entity_type, "reason": "payload_not_an_object"}
+            )
             continue
 
         if entity_type in {"process_contradiction", "process_contradiction_resolution"}:
@@ -120,8 +130,13 @@ def project_specialist_results(state: dict) -> dict:
             if isinstance(score, int) and not isinstance(score, bool) and 1 <= score <= 10:
                 minimum_readiness_score = score
 
-    # The high-water mark is what keeps the append-reducer fields from
-    # re-collecting the same tool results on every pass of the engineering loop.
+    # The high-water mark advances even when a result failed to project. Holding
+    # it back would re-read the same message on every pass without ever making
+    # progress, which the no-progress detector would then stop as a stall - a
+    # worse failure mode than a recorded, visible projection failure. The tool
+    # payloads themselves already crossed a Pydantic boundary when the agent
+    # called the tool (args_schema); this only re-reads what the runtime itself
+    # serialised.
     update: dict[str, Any] = {"projected_message_count": len(messages)}
 
     if contradictions:
@@ -136,5 +151,7 @@ def project_specialist_results(state: dict) -> dict:
         update["evidence_coverage"] = evidence_coverage
     if minimum_readiness_score is not None:
         update["minimum_readiness_score"] = minimum_readiness_score
+    if projection_failures:
+        update["projection_failures"] = projection_failures
 
     return update

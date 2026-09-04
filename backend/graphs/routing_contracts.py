@@ -86,17 +86,13 @@ class ProcessRoutingDecision(RoutingDecisionBase):
     process_mode: Literal["discussion", "discovery", "evidence", "modeling", "delegation", "clarification"] | None = None
     process_objective: str | None = None
     workflow_scope: WorkflowScope = "single_step"
-    max_iterations: int = Field(
-        default=6,
-        ge=1,
-        le=12,
-        description=(
-            "Hard safety ceiling on engineering-loop passes, not a target to fill or a way "
-            "to force early stopping. Size it to how many evidentiary/modeling steps this task "
-            "plausibly needs (discovery, evidence, modeling can each take several passes on a "
-            "real task). The loop still stops as soon as workflow_scope/route say the work is done."
-        ),
-    )
+    # The engineering-loop budget is deliberately NOT a field here. CODE_QUALITY.md
+    # ("Runtime MUST own arithmetic, limits, deadlines, budgets") puts limits on the
+    # runtime side of the boundary, and a model-set ceiling broke that both ways: a
+    # value of 1 could truncate a full_workflow after one pass, and the router
+    # rewrote the budget on every re-entry. The runtime owns it now
+    # (ENGINEERING_LOOP_MAX_ITERATIONS); the agent still decides when to stop, by
+    # setting workflow_scope and route.
 
     @model_validator(mode="after")
     def normalize_route_clarification(self):
@@ -443,6 +439,10 @@ BLOCKING_CONTRADICTION_SEVERITIES = frozenset({"critical", "blocking", "high"})
 CLEARING_CONTRADICTION_RESOLUTIONS = frozenset({"resolved", "not_material"})
 DEFAULT_MINIMUM_READINESS_SCORE = 7
 
+# Runtime-owned engineering-loop budget. Server policy, not a model field: the
+# agent decides when the work is done, the runtime decides how long it may take.
+ENGINEERING_LOOP_MAX_ITERATIONS = 6
+
 
 def _has_critical_contradiction(state: dict[str, Any]) -> bool:
     """Is some contradiction still open at a severity that should stop modeling?
@@ -460,9 +460,14 @@ def _has_critical_contradiction(state: dict[str, Any]) -> bool:
         if not isinstance(record, dict):
             continue
 
-        # An untitled contradiction cannot be matched to a resolution, so it gets
-        # its own key and stays open - it can never be silently cleared.
-        key = str(record.get("title") or record.get("id") or "").strip().casefold() or f"__untitled__{index}"
+        # Fold on the stable contradiction_id the tool emits; title is only a
+        # fallback for older records. An unidentifiable contradiction gets its own
+        # key and stays open - it can never be silently cleared.
+        key = (
+            _normalized(record.get("contradiction_id"))
+            or _normalized(record.get("title") or record.get("id"))
+            or f"__unidentified__{index}"
+        )
         entry = latest.setdefault(key, {})
 
         if record.get("resolution"):
@@ -478,6 +483,10 @@ def _has_critical_contradiction(state: dict[str, Any]) -> bool:
     )
 
 
+def _normalized(value: Any) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
 def _classified_gaps(state: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         gap
@@ -488,9 +497,34 @@ def _classified_gaps(state: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _has_blocking_gap(state: dict[str, Any]) -> bool:
     return any(
-        str(gap.get("severity") or "").strip().casefold() == "blocking"
-        for gap in _classified_gaps(state)
+        _normalized(gap.get("severity")) == "blocking" for gap in _classified_gaps(state)
     )
+
+
+def uncovered_missing_information(state: dict[str, Any]) -> list[str]:
+    """Open items that no classified gap accounts for.
+
+    A non-blocking gap covers only the entry it actually names - matched on the
+    gap's own `missing_information` text or its title. Anything left unmatched
+    keeps blocking: one gap the agent called non-blocking must not vouch for
+    open items nobody has classified, which is how "any classification at all
+    suppresses the whole list" would have let an unresolved approval authority
+    through behind a cosmetic naming gap.
+    """
+    covered: set[str] = set()
+    for gap in _classified_gaps(state):
+        if _normalized(gap.get("severity")) == "blocking":
+            continue
+        for field in ("missing_information", "title"):
+            key = _normalized(gap.get(field))
+            if key:
+                covered.add(key)
+
+    return [
+        item
+        for item in state.get("missing_information") or []
+        if _normalized(item) not in covered
+    ]
 
 
 def minimum_readiness_score(state: dict[str, Any]) -> int:
@@ -550,14 +584,10 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
             readiness = state.get("readiness_score")
             if readiness is None or readiness < minimum_readiness_score(state):
                 missing.append(prerequisite)
-            elif _classified_gaps(state):
-                # The agent has classified what is still open; a gap it called
-                # non-blocking or an optional extension does not hold the canvas.
-                if _has_blocking_gap(state):
-                    missing.append(prerequisite)
-            elif state.get("missing_information"):
-                # Nothing classified yet: fall back to treating any open item as
-                # blocking rather than guessing on the agent's behalf.
+            elif _has_blocking_gap(state) or uncovered_missing_information(state):
+                # A gap the agent called non-blocking excuses the item it names,
+                # and nothing else: a blocking gap always blocks, and any open
+                # item still unaccounted for keeps the canvas closed.
                 missing.append(prerequisite)
         elif prerequisite == "no_critical_contradictions" and _has_critical_contradiction(state):
             missing.append(prerequisite)

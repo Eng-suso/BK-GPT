@@ -15,6 +15,7 @@ from backend.graphs.process.subgraphs.evidence import build_evidence_subgraph, e
 from backend.graphs.process.subgraphs.modeling import build_modeling_subgraph, modeling_tools
 from backend.graphs.process.tools import PROCESS_TOOL_POLICY
 from backend.graphs.routing_contracts import (
+    ENGINEERING_LOOP_MAX_ITERATIONS,
     ProcessRoutingDecision,
     authorize_routing_decision,
     invalid_process_decision,
@@ -83,8 +84,8 @@ workflow_scope=full_workflow only while there is still epistemically necessary w
 before an end-to-end outcome is reached (e.g. more evidence to gather, contradictions
 to resolve, a semantic model still missing). Switch it to single_step, local_operation
 or direct as soon as the remaining request can be answered without another pass -
-you decide when the work is done, the runtime only enforces max_iterations as a hard
-budget ceiling and stops on repeated no-progress passes as a safety net.
+you decide when the work is done. The runtime owns the pass budget and stops on
+repeated no-progress passes; you do not set or negotiate that limit.
 """.strip()
 
 
@@ -246,7 +247,12 @@ def process_routing_state(
         "reasoning_summary": decision.reasoning_summary,
         "workflow_scope": decision.workflow_scope,
         "engineering_loop_iteration": state.get("engineering_loop_iteration", 0),
-        "engineering_loop_max_iterations": decision.max_iterations,
+        # Set once from server policy and preserved across router re-entry: the
+        # router runs again after every specialist pass, so rewriting the budget
+        # here would let it drift mid-run.
+        "engineering_loop_max_iterations": (
+            state.get("engineering_loop_max_iterations") or ENGINEERING_LOOP_MAX_ITERATIONS
+        ),
         "process_progress_signature": process_state_signature(state),
         "process_continue_loop": False,
     }
@@ -335,7 +341,6 @@ def ask_process_clarification(state: ProcessState) -> dict:
     }
 
 
-DEFAULT_MAX_ITERATIONS = 6
 # A single pass with no state change is not proof the loop is stuck (a discovery/
 # evidence pass can legitimately end in a question or an assessment without moving
 # canonical state); require this many consecutive no-progress passes before the
@@ -345,7 +350,7 @@ NO_PROGRESS_STOP_THRESHOLD = 2
 
 def evaluate_process_iteration(state: ProcessState) -> dict:
     iteration = int(state.get("engineering_loop_iteration") or 0) + 1
-    max_iterations = int(state.get("engineering_loop_max_iterations") or DEFAULT_MAX_ITERATIONS)
+    max_iterations = int(state.get("engineering_loop_max_iterations") or ENGINEERING_LOOP_MAX_ITERATIONS)
     previous_signature = state.get("process_progress_signature")
     current_signature = process_state_signature(state)
     no_progress_count = int(state.get("process_no_progress_count") or 0)
