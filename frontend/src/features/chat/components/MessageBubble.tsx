@@ -79,7 +79,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         <div className="mb-1.5 flex items-center gap-2 leading-none">
           <span className={META_LABEL_CLASS}>{t("message.assistant")}</span>
           {time ? (
-            <span className="text-[11px] tabular-nums text-muted-foreground/70">
+            <span className="text-[11px] tabular-nums text-muted-foreground">
               {time}
             </span>
           ) : null}
@@ -151,7 +151,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <div className="mb-1 flex items-center gap-2 pr-0.5 leading-none">
         <span className={META_LABEL_CLASS}>{t("message.you")}</span>
         {time ? (
-          <span className="text-[11px] tabular-nums text-muted-foreground/70">
+          <span className="text-[11px] tabular-nums text-muted-foreground">
             {time}
           </span>
         ) : null}
