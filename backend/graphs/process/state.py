@@ -65,6 +65,3 @@ class ProcessState(ConversationState):
     process_claims: Annotated[list[dict], add]
     process_gaps: Annotated[list[dict], add]
     contradictions: Annotated[list[dict], add]
-    assumptions: Annotated[list[str], add]
-    modeling_warnings: Annotated[list[str], add]
-    process_next_actions: Annotated[list[dict], add]

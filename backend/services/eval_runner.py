@@ -1,7 +1,15 @@
-from backend.graphs.consulting.graph import VALID_CONSULTING_ROUTES, parse_router_json
+from backend.graphs.consulting.graph import parse_router_json
 from backend.graphs.consulting.tools import consultant_tools
+from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
 from backend.schemas.api import EvalCheckResult, EvalRunResponse
 from backend.services.trace_recorder import new_trace_context
+
+
+# The registry is the only list of what a router may return; a second hand-kept
+# set of route names would just drift away from it.
+VALID_CONSULTING_ROUTES = {
+    spec.route for spec in CAPABILITY_REGISTRY.values() if spec.owner == "consultant"
+}
 
 
 def run_observability_smoke_eval() -> EvalRunResponse:

@@ -1,39 +1,9 @@
 from backend import workspace_database
-from backend.bpmn import BPMNSemanticModel
+from backend.graphs.common import canonical_semantic_context, validated_model
 from backend.process_understanding import (
-    ProcessUnderstanding,
     ProcessUnderstandingQualityReport,
     process_understanding_diagnostics,
 )
-
-
-def _validated_model(model_cls, value):
-    if not value:
-        return None
-
-    try:
-        return model_cls.model_validate(value)
-    except Exception:
-        return None
-
-
-def _canonical_semantic_context(
-    review: dict | None,
-) -> tuple[ProcessUnderstanding | None, BPMNSemanticModel | None]:
-    if not review:
-        return None, None
-
-    semantic_model = _validated_model(BPMNSemanticModel, review.get("bpmn_semantic_model"))
-    if not semantic_model:
-        return None, None
-    if not semantic_model.compilationPlan or not semantic_model.sourceProcessUnderstanding:
-        return None, None
-
-    understanding = _validated_model(
-        ProcessUnderstanding,
-        semantic_model.sourceProcessUnderstanding,
-    )
-    return understanding, semantic_model
 
 
 def load_canvas_context(state: dict) -> dict:
@@ -60,7 +30,9 @@ def load_canvas_context(state: dict) -> dict:
             "effective_bpmn_xml_source": "live_canvas" if live_xml else "saved_backend",
         }
 
-    process_understanding, bpmn_semantic_model = _canonical_semantic_context(review)
+    process_understanding, bpmn_semantic_model = canonical_semantic_context(
+        review.get("bpmn_semantic_model")
+    )
 
     return {
         "process_name": process["name"] if process else None,
@@ -70,7 +42,7 @@ def load_canvas_context(state: dict) -> dict:
         )
         if process_understanding
         else None,
-        "process_quality_report": _validated_model(
+        "process_quality_report": validated_model(
             ProcessUnderstandingQualityReport,
             review.get("quality_report"),
         ),

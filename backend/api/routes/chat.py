@@ -14,7 +14,6 @@ from backend.database import (
     list_chat_sessions,
 )
 from backend.schemas.api import AgentStreamEvent
-from backend.schemas.chat import ChatScope
 from backend.schemas.chat_api import (
     ChatRequest,
     ChatResponse,
@@ -31,7 +30,6 @@ from backend.services.agent_runtime import (
     stream_agent_events,
     stream_agent_text,
 )
-from backend.workspace_database import approve_bpmn_review, get_bpmn_review
 
 
 router = APIRouter(tags=["chat"], dependencies=[Depends(require_principal)])
@@ -39,46 +37,6 @@ router = APIRouter(tags=["chat"], dependencies=[Depends(require_principal)])
 
 def ndjson_event(event_type: str, **payload) -> str:
     return json.dumps({"type": event_type, **payload}, ensure_ascii=False) + "\n"
-
-
-def is_bpmn_review_approval_text(message: str) -> bool:
-    normalized = " ".join(message.lower().strip().replace("\u00ec", "i").split())
-    approval_phrases = {
-        "ok",
-        "okay",
-        "si",
-        "approva",
-        "approvo",
-        "procedi",
-        "va bene",
-        "genera",
-        "genera bpmn",
-        "approva e genera",
-    }
-
-    return normalized in approval_phrases
-
-
-def approve_pending_bpmn_review_message(scope: ChatScope | None, message: str) -> str | None:
-    if scope is None or scope.type != "canvas" or not scope.bpmn_model_id:
-        return None
-
-    if not is_bpmn_review_approval_text(message):
-        return None
-
-    review = get_bpmn_review(scope.bpmn_model_id)
-    if review is None:
-        return (
-            "Non c'e una review BPMN pendente per questo canvas. "
-            "Prima chiedimi di preparare una review BPMN, poi potrai approvarla."
-        )
-
-    result = approve_bpmn_review(scope.bpmn_model_id)
-    return (
-        "Review BPMN approvata. Ho generato e salvato il BPMN nel canvas.\n\n"
-        f"Readiness: {result['review']['readiness_score']}/10\n"
-        "Il canvas puo ricaricare il modello salvato dal backend."
-    )
 
 
 @router.post("/chat")
@@ -178,16 +136,6 @@ def send_consultant_chat_message(
         **fields,
     )
 
-    direct_response = approve_pending_bpmn_review_message(request.scope, request.message)
-    if direct_response is not None:
-        append_chat_message(
-            thread_id=thread_id,
-            role="assistant",
-            content=direct_response,
-            model_name=request.model_name,
-        )
-        return ChatResponse(thread_id=thread_id, message=direct_response)
-
     try:
         response_message = stream_agent_text(
             thread_id=thread_id,
@@ -232,8 +180,6 @@ def stream_consultant_chat_message(
         **fields,
     )
 
-    direct_response = approve_pending_bpmn_review_message(request.scope, request.message)
-
     def generate():
         response_parts = []
         trace_context = build_trace_context(
@@ -252,29 +198,6 @@ def stream_consultant_chat_message(
                     "scope": fields,
                 },
             ).model_dump_json() + "\n"
-
-            if direct_response is not None:
-                append_chat_message(
-                    thread_id=thread_id,
-                    role="assistant",
-                    content=direct_response,
-                    model_name=request.model_name,
-                )
-                yield AgentStreamEvent(
-                    type="delta",
-                    request_id=trace_context.request_id,
-                    trace_id=trace_context.trace_id,
-                    thread_id=thread_id,
-                    content=direct_response,
-                ).model_dump_json() + "\n"
-                yield AgentStreamEvent(
-                    type="done",
-                    request_id=trace_context.request_id,
-                    trace_id=trace_context.trace_id,
-                    thread_id=thread_id,
-                    message=direct_response,
-                ).model_dump_json() + "\n"
-                return
 
             for event in stream_agent_events(
                 thread_id=thread_id,

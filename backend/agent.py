@@ -401,6 +401,12 @@ def build_agent(model_name: str | None = None):
             build_context_messages=build_context_messages,
         ),
     )
+    canvas_subgraph = build_canvas_subgraph(
+        tools=tools_by_scope["canvas"],
+        llm=llm,
+        llm_with_tools=llm.bind_tools(tools_by_scope["canvas"]),
+        build_context_messages=build_context_messages,
+    )
     workflow.add_node(
         "process_subgraph",
         build_process_subgraph(
@@ -408,17 +414,12 @@ def build_agent(model_name: str | None = None):
             llm=llm,
             llm_with_tools=llm.bind_tools(tools_by_scope["process"]),
             build_context_messages=build_context_messages,
+            # An authorized canvas handoff runs the Canvas Macro Agent for real
+            # instead of telling the user to reopen the request elsewhere.
+            canvas_subgraph=canvas_subgraph,
         ),
     )
-    workflow.add_node(
-        "canvas_subgraph",
-        build_canvas_subgraph(
-            tools=tools_by_scope["canvas"],
-            llm=llm,
-            llm_with_tools=llm.bind_tools(tools_by_scope["canvas"]),
-            build_context_messages=build_context_messages,
-        ),
-    )
+    workflow.add_node("canvas_subgraph", canvas_subgraph)
 
     workflow.add_edge(START, "summarize")
     workflow.add_edge("summarize", "classify_and_select_context")

@@ -7,7 +7,7 @@ from langgraph.graph import START, END, StateGraph
 from pydantic import BaseModel, ConfigDict, Field
 
 from backend import workspace_database
-from backend.graphs.canvas_edit.subgraphs.layout.state import CanvasLayoutState
+from backend.graphs.canvas_edit.state import CanvasState
 from backend.llm_streaming import stream_to_text
 from backend.workspace_services.bpmn_canvas_edit import (
     BpmnLayoutConfig,
@@ -76,7 +76,7 @@ Principles:
 """.strip()
 
 
-def _layout_xml_from_state(state: CanvasLayoutState) -> tuple[dict | None, str]:
+def _layout_xml_from_state(state: CanvasState) -> tuple[dict | None, str]:
     bpmn_model_id = state.get("bpmn_model_id")
     model = workspace_database.get_bpmn_model(bpmn_model_id) if bpmn_model_id else None
     xml = (state.get("effective_bpmn_xml") or state.get("current_bpmn_xml") or (model or {}).get("xml") or "").strip()
@@ -128,7 +128,7 @@ def _planned_rows_from_plan(plan: dict | None) -> list[list[str]] | None:
 
 
 def build_canvas_layout_consultant_agent(llm):
-    def plan_canvas_layout(state: CanvasLayoutState, config: RunnableConfig) -> dict:
+    def plan_canvas_layout(state: CanvasState, config: RunnableConfig) -> dict:
         _model, xml = _layout_xml_from_state(state)
         if not xml:
             return {"canvas_layout_plan": None}
@@ -179,14 +179,9 @@ def build_canvas_layout_consultant_agent(llm):
             config=config,
         )
         plan = CanvasLayoutPlan.model_validate(_extract_json_object(raw_plan)).model_dump(mode="json")
-        if not plan["tasks"]:
-            plan["tasks"] = [
-                "identifica percorso principale",
-                "separa rami e ritorni",
-                "posiziona start a sinistra",
-                "mantieni end a destra",
-                "verifica leggibilita",
-            ]
+        # No canned task list stands in for a plan the consultant agent did not
+        # produce: a fabricated task split would make an empty plan look deliberate
+        # in the task log while the rows below are what actually gets drawn.
         if not plan["rows"]:
             return {
                 "canvas_layout_plan": plan,
@@ -219,7 +214,7 @@ def build_canvas_layout_consultant_agent(llm):
     return plan_canvas_layout
 
 
-def run_canvas_drawing_agent(state: CanvasLayoutState) -> dict:
+def run_canvas_drawing_agent(state: CanvasState) -> dict:
     if state.get("canvas_layout_status") == "blocked":
         return {
             "canvas_layout_status": "blocked",
@@ -284,14 +279,6 @@ def run_canvas_drawing_agent(state: CanvasLayoutState) -> dict:
                     "summary": "Disegno non eseguito: manca un piano layout esplicito del consultant agent.",
                 }
             ],
-            "layout_steps": [
-                {
-                    "status": "blocked",
-                    "attempts": 0,
-                    "plan": layout_plan,
-                    "clean_report": clean_report,
-                }
-            ],
         }
     try:
         updated_xml, optimization = optimize_bpmn_layout(
@@ -311,14 +298,6 @@ def run_canvas_drawing_agent(state: CanvasLayoutState) -> dict:
                     "status": "blocked",
                     "owner": "canvas_drawing_agent",
                     "summary": "Disegno non eseguito: il piano layout non e' applicabile.",
-                    "plan": layout_plan,
-                    "clean_report": clean_report,
-                }
-            ],
-            "layout_steps": [
-                {
-                    "status": "blocked",
-                    "attempts": 0,
                     "plan": layout_plan,
                     "clean_report": clean_report,
                 }
@@ -359,20 +338,11 @@ def run_canvas_drawing_agent(state: CanvasLayoutState) -> dict:
                 "plan": layout_plan,
             }
         ],
-        "layout_steps": [
-            {
-                "status": status,
-                "attempts": len(attempts),
-                "optimization": optimization,
-                "report": report,
-                "plan": state.get("canvas_layout_plan"),
-            }
-        ],
     }
 
 
 def build_layout_subgraph(llm=None):
-    workflow = StateGraph(CanvasLayoutState)
+    workflow = StateGraph(CanvasState)
     if llm is not None:
         workflow.add_node("canvas_layout_consultant_agent", build_canvas_layout_consultant_agent(llm))
     workflow.add_node("canvas_drawing_agent", run_canvas_drawing_agent)

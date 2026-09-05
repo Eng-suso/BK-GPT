@@ -1,8 +1,91 @@
+import logging
+
 from langchain_core.messages import AIMessage
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
+from pydantic import BaseModel, ValidationError
+
+logger = logging.getLogger(__name__)
+
+
+def latest_user_text(state: dict) -> str:
+    """The text of the most recent human turn, or "" when there is none."""
+    for message in reversed(state.get("messages", [])):
+        role = getattr(message, "type", None) or getattr(message, "role", "")
+        if role in {"human", "user"}:
+            return str(getattr(message, "content", "") or "")
+
+    return ""
+
+
+def validated_model(model_cls, value):
+    """Re-validate a stored payload, returning None when it no longer fits.
+
+    Stored artifacts outlive the schema that wrote them; a turn must not fail
+    because an old row is now invalid, but the drop is worth a log line.
+    """
+    if not value:
+        return None
+
+    try:
+        return model_cls.model_validate(value)
+    except ValidationError as exc:
+        logger.warning(
+            "stored %s payload failed validation: %s",
+            model_cls.__name__,
+            exc,
+        )
+        return None
+
+
+def artifact_is_present(value) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, BaseModel):
+        return True
+    return bool(value)
+
+
+def artifact_field(value, field: str):
+    if value is None:
+        return None
+    if isinstance(value, BaseModel):
+        return getattr(value, field, None)
+    if isinstance(value, dict):
+        return value.get(field)
+    return None
+
+
+def artifact_for_prompt(value):
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    return value or {}
+
+
+def canonical_semantic_context(semantic_model_payload):
+    """Split a stored BPMNSemanticModel into (ProcessUnderstanding, model).
+
+    Only a canonical model counts: one carrying both its compilation plan and the
+    ProcessUnderstanding it was derived from. A legacy or partial payload yields
+    (None, None) so downstream gates see "no semantic context" rather than a
+    half-built one.
+    """
+    from backend.bpmn import BPMNSemanticModel
+    from backend.process_understanding import ProcessUnderstanding
+
+    semantic_model = validated_model(BPMNSemanticModel, semantic_model_payload)
+    if not semantic_model:
+        return None, None
+    if not semantic_model.compilationPlan or not semantic_model.sourceProcessUnderstanding:
+        return None, None
+
+    understanding = validated_model(
+        ProcessUnderstanding,
+        semantic_model.sourceProcessUnderstanding,
+    )
+    return understanding, semantic_model
 
 
 class ConversationState(MessagesState):

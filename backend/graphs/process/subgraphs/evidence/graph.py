@@ -2,7 +2,7 @@ from pathlib import Path
 
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
-from backend.graphs.process.subgraphs.evidence.state import ProcessEvidenceState
+from backend.graphs.process.state import ProcessState
 from backend.graphs.process.subgraphs.evidence.tools import EVIDENCE_TOOL_POLICY, evidence_tools
 
 
@@ -28,7 +28,7 @@ ProcessUnderstanding. Keep facts, hypotheses, contradictions and gaps separate.
 
 def build_evidence_subgraph(llm_with_tools, build_context_messages):
     return build_tool_chat_subgraph(
-        state_schema=ProcessEvidenceState,
+        state_schema=ProcessState,
         tools=evidence_tools,
         llm_with_tools=llm_with_tools,
         build_context_messages=build_context_messages,

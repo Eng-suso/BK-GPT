@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
-from backend.graphs.common import build_tool_chat_subgraph
+from backend.graphs.common import build_tool_chat_subgraph, latest_user_text
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.consulting.subgraphs.clients import build_clients_subgraph, clients_tools
 from backend.graphs.consulting.subgraphs.home import build_home_subgraph, home_tools
@@ -14,9 +14,10 @@ from backend.graphs.consulting.state import ConsultingState
 from backend.graphs.routing_contracts import (
     ConsultingRoutingDecision,
     authorize_routing_decision,
+    capability_menu,
     invalid_consulting_decision,
-    invoke_structured_router,
     parse_routing_decision,
+    resolve_routing_decision,
 )
 
 
@@ -39,61 +40,19 @@ to Home, Clients, Setup, Project, Process or Canvas owners.
 ).strip()
 
 
-def latest_user_text(state: dict) -> str:
-    for message in reversed(state.get("messages", [])):
-        role = getattr(message, "type", None) or getattr(message, "role", "")
-        if role in {"human", "user"}:
-            return str(getattr(message, "content", "") or "")
-
-    return ""
-
-
 CONSULTING_ROUTER_PROMPT = """
 You are the Consulting graph router for DeliR.
 You are the reasoning layer, not the execution controller.
 Propose exactly one route for the latest user request using intent, context and ownership.
 
-Routes:
-- direct: consultant-level strategy, memory, planning, positioning, offers, cross-project synthesis, or general advice.
-- home: Home dashboard overview, priorities, risks, recent activity, or next actions.
-- clients: client-level record work such as listing, creating, checking, or maintaining clients.
-- setup: explicit initial workspace setup involving a client plus a project, process stub, source, or decision.
-- delegate_project: project execution, project status, sources, decisions, deliverables, phase, progress, or next step.
-- delegate_process: AS-IS/TO-BE discovery, process analysis, evidence synthesis, readiness, or BPMN semantic review.
-- delegate_canvas: BPMN XML, canvas inspection, canvas edits, validation, layout, versions, or approval.
-- clarification: context, owner or entity reference is ambiguous.
+Capabilities you may propose:
+{capability_menu}
 
 Return structured output matching the ConsultingRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
-Suggested capability must be one registered capability such as consultant.home,
-consultant.clients, consultant.setup, consultant.project_delegation,
-consultant.process_delegation, consultant.canvas_delegation or consultant.direct.
 If clarification is required, route must be clarification and no delegation should be proposed.
-""".strip()
+""".strip().format(capability_menu=capability_menu("consultant"))
 
-
-VALID_CONSULTING_ROUTES = {
-    "direct",
-    "home",
-    "clients",
-    "setup",
-    "delegate_project",
-    "delegate_process",
-    "delegate_canvas",
-    "clarification",
-}
-
-
-ROUTE_TARGETS = {
-    "direct": None,
-    "home": "home_subgraph",
-    "clients": "clients_subgraph",
-    "setup": "setup_subgraph",
-    "delegate_project": "project_macro",
-    "delegate_process": "process_macro",
-    "delegate_canvas": "canvas_macro",
-    "clarification": None,
-}
 
 
 def consulting_routing_state(
@@ -213,10 +172,11 @@ def build_consulting_router(llm):
             }
 
         try:
-            decision, parse_source, parse_error = invoke_structured_router(
-                llm,
-                ConsultingRoutingDecision,
-                [
+            decision, parse_source, parse_error = resolve_routing_decision(
+                owner="consultant",
+                llm=llm,
+                model=ConsultingRoutingDecision,
+                messages=[
                     SystemMessage(content=CONSULTING_ROUTER_PROMPT),
                     HumanMessage(
                         content=(
@@ -228,6 +188,7 @@ def build_consulting_router(llm):
                 ],
                 config=config,
                 invalid_factory=invalid_consulting_decision,
+                state=state,
             )
         except Exception:
             decision = invalid_consulting_decision("Structured router failed unexpectedly.")

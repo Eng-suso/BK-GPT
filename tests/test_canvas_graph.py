@@ -27,7 +27,7 @@ from backend.process_understanding import (
     ProcessStep,
     ProcessUnderstanding,
 )
-from backend.services.agent_runtime import DELTA_STREAM_AGENT_NODES, STREAMABLE_AGENT_NODES
+from backend.services.agent_runtime import NON_DELTA_AGENT_NODES, is_internal_agent_node
 from backend.toolsets.bpmn import bpmn_review_tools, manage_canvas_bpmn_model
 from backend.workspace_services.bpmn_canvas_edit import (
     clear_bpmn_process,
@@ -262,8 +262,8 @@ def test_canvas_completion_treats_intentional_clear_as_completed(monkeypatch):
         {
             "bpmn_model_id": "proc-bpmn",
             "bpmn_semantic_model": canonical_semantic_model,
-            "canvas_objective": "elimina quello che c'e nel canvas",
-            "intent": "clear_canvas",
+            "canvas_objective": "svuota il canvas",
+            "canvas_expected_outcome": "empty_canvas",
             "canvas_loop_attempt": 0,
             "canvas_loop_max_attempts": 2,
         }
@@ -281,11 +281,11 @@ def test_canvas_completion_treats_intentional_clear_as_completed(monkeypatch):
     assert "gateway" not in content.casefold()
 
 
-def test_clear_canvas_intent_skips_semantic_validation_subgraph():
+def test_declared_empty_canvas_outcome_skips_semantic_validation_subgraph():
     state = {
         "canvas_route": "patch_edit",
         "canvas_loop_status": "running",
-        "canvas_objective": "elimina quello che c'e nel canvas",
+        "canvas_expected_outcome": "empty_canvas",
     }
 
     assert route_after_canvas_work(state) == "evaluate_canvas_completion"
@@ -293,8 +293,10 @@ def test_clear_canvas_intent_skips_semantic_validation_subgraph():
 
 
 def test_canvas_subagent_intermediate_messages_stream_in_realtime():
-    assert "canvas_completion_report" in STREAMABLE_AGENT_NODES
-    assert "canvas_completion_report" in DELTA_STREAM_AGENT_NODES
+    # Agent nodes are visible unless explicitly held back, so a new subagent
+    # streams without being registered anywhere.
+    assert not is_internal_agent_node("canvas_completion_report")
+    assert "canvas_completion_report" not in NON_DELTA_AGENT_NODES
 
     for subagent in (
         "canvas_patch_edit_agent",
@@ -303,8 +305,14 @@ def test_canvas_subagent_intermediate_messages_stream_in_realtime():
         "canvas_layout_consultant_agent",
         "canvas_drawing_agent",
     ):
-        assert subagent in STREAMABLE_AGENT_NODES, f"{subagent} should still report progress"
-        assert subagent in DELTA_STREAM_AGENT_NODES, f"{subagent} content should stream live"
+        assert not is_internal_agent_node(subagent), f"{subagent} should still report progress"
+        assert subagent not in NON_DELTA_AGENT_NODES, f"{subagent} content should stream live"
+
+
+def test_plumbing_nodes_stay_out_of_the_user_stream():
+    for node in ("canvas_router", "load_canvas_context", "evaluate_canvas_completion"):
+        assert is_internal_agent_node(node) or node in NON_DELTA_AGENT_NODES
+    assert is_internal_agent_node("canvas_patch_edit_tools")
 
 
 def test_standalone_canvas_validation_does_not_enter_completion_loop():
@@ -517,7 +525,7 @@ def test_canvas_drawing_agent_blocks_without_layout_plan(monkeypatch):
     result = run_canvas_drawing_agent({"bpmn_model_id": "proc-bpmn"})
 
     assert result["canvas_layout_status"] == "blocked"
-    assert result["layout_steps"][0]["attempts"] == 0
+    assert result["canvas_task_log"][0]["status"] == "blocked"
     assert result["blocking_conditions"] == ["Missing prerequisite: canvas_layout_plan"]
 
 
@@ -554,7 +562,7 @@ def test_canvas_drawing_agent_blocks_when_layout_plan_misses_flow_node(monkeypat
     )
 
     assert result["canvas_layout_status"] == "blocked"
-    assert result["layout_steps"][0]["attempts"] == 0
+    assert result["canvas_task_log"][0]["status"] == "blocked"
     assert "Task_Review" in result["blocking_conditions"][0]
 
 
@@ -643,8 +651,8 @@ def test_canvas_drawing_agent_uses_layout_plan_without_hidden_retries(monkeypatc
     )
 
     assert result["canvas_layout_status"] == "completed"
-    assert result["layout_steps"][0]["attempts"] == 1
-    assert result["layout_steps"][0]["plan"]["rows"] == [["Start", "Task_A"], ["Task_B", "End"]]
+    assert result["canvas_task_log"][0]["status"] == "completed"
+    assert result["canvas_task_log"][0]["plan"]["rows"] == [["Start", "Task_A"], ["Task_B", "End"]]
     assert validate_bpmn_layout(saved["xml"])["valid"] is True
 
 

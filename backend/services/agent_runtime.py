@@ -39,95 +39,46 @@ except ImportError:  # pragma: no cover - langsmith is provided by LangChain dep
 
 THREAD_LOCK_TIMEOUT_SECONDS = 30
 ACTIVITY_HEARTBEAT_SECONDS = 4.0
-STREAMABLE_AGENT_NODES = {
-    "chatbot",
-    "consulting_subgraph",
-    "project_subgraph",
-    "process_subgraph",
-    "canvas_subgraph",
-    "home_subgraph",
-    "clients_subgraph",
-    "setup_subgraph",
-    "delivery_subgraph",
-    "process_coordination_subgraph",
-    "discovery_subgraph",
-    "evidence_subgraph",
-    "modeling_subgraph",
-    "project_macro_agent",
-    "project_delivery_agent",
-    "project_process_coordination_agent",
-    "consult_macro_agent",
-    "home_agent",
-    "clients_agent",
-    "setup_agent",
-    "process_agent",
-    "process_macro_agent",
-    "process_discovery_agent",
-    "process_evidence_agent",
-    "process_modeling_agent",
-    "canvas_agent",
+# Agent work is visible by default. These two sets are the exceptions, so a node
+# added to a graph reports progress without anyone remembering to register it -
+# the previous allow-list of 44 node names silently swallowed every new node.
+#
+# Nodes whose work is plumbing, not the agent's answer: context loaders, routers,
+# state projections, loop evaluators. They emit nothing.
+INTERNAL_AGENT_NODES = {
+    "summarize",
+    "classify_and_select_context",
+    "load_process_context",
+    "load_canvas_context",
+    "load_context",
+    "consulting_router",
+    "project_router",
+    "process_router",
+    "project_specialist_results",
+    "evaluate_process_iteration",
+    "evaluate_canvas_completion",
+    "refresh_canvas_context_after_work",
+}
+
+# Nodes that report progress but whose token stream is not an answer to the user:
+# a router's structured decision, a subgraph wrapper replaying its child's tokens.
+NON_DELTA_AGENT_NODES = {
     "canvas_router",
-    "canvas_macro_agent",
     "patch_edit_subgraph",
-    "canvas_patch_edit_agent",
     "construction_subgraph",
-    "canvas_construction_agent",
     "layout_subgraph",
-    "canvas_layout_consultant_agent",
-    "canvas_drawing_agent",
     "validation_subgraph",
-    "canvas_validation_agent",
-    "canvas_completion_report",
-    "delegate_to_project_macro",
-    "delegate_to_process_macro",
-    "delegate_to_canvas_macro",
-    "ask_consulting_clarification",
-    "ask_project_clarification",
-    "ask_process_clarification",
-    "ask_canvas_clarification",
 }
-DELTA_STREAM_AGENT_NODES = {
-    "chatbot",
-    "consulting_subgraph",
-    "project_subgraph",
-    "process_subgraph",
-    "canvas_subgraph",
-    "home_subgraph",
-    "clients_subgraph",
-    "setup_subgraph",
-    "delivery_subgraph",
-    "process_coordination_subgraph",
-    "discovery_subgraph",
-    "evidence_subgraph",
-    "modeling_subgraph",
-    "project_macro_agent",
-    "project_delivery_agent",
-    "project_process_coordination_agent",
-    "consult_macro_agent",
-    "home_agent",
-    "clients_agent",
-    "setup_agent",
-    "process_agent",
-    "process_macro_agent",
-    "process_discovery_agent",
-    "process_evidence_agent",
-    "process_modeling_agent",
-    "canvas_agent",
-    "canvas_macro_agent",
-    "canvas_patch_edit_agent",
-    "canvas_construction_agent",
-    "canvas_layout_consultant_agent",
-    "canvas_drawing_agent",
-    "canvas_validation_agent",
-    "canvas_completion_report",
-    "delegate_to_project_macro",
-    "delegate_to_process_macro",
-    "delegate_to_canvas_macro",
-    "ask_consulting_clarification",
-    "ask_project_clarification",
-    "ask_process_clarification",
-    "ask_canvas_clarification",
-}
+
+
+def is_internal_agent_node(node_name: str) -> bool:
+    """Should this node stay out of the user-visible stream entirely?
+
+    ToolNode results are matched by the `_tools` suffix that `build_tool_chat_subgraph`
+    gives every tool node, so a new subagent's tool node is silent without being listed.
+    """
+    return node_name in INTERNAL_AGENT_NODES or node_name.endswith("_tools")
+
 
 _THREAD_LOCKS: dict[str, Lock] = {}
 _THREAD_LOCKS_GUARD = Lock()
@@ -645,7 +596,7 @@ def stream_agent_events(
                         chunk, metadata = event, {}
 
                     node_name = metadata.get("langgraph_node")
-                    if node_name and node_name not in STREAMABLE_AGENT_NODES:
+                    if node_name and is_internal_agent_node(node_name):
                         continue
 
                     if node_name and node_name != last_node:
@@ -680,7 +631,7 @@ def stream_agent_events(
                     if is_internal_stream_metadata(metadata):
                         continue
 
-                    if node_name and node_name not in DELTA_STREAM_AGENT_NODES:
+                    if node_name and node_name in NON_DELTA_AGENT_NODES:
                         continue
 
                     if content and not first_token_recorded:

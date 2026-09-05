@@ -1,6 +1,6 @@
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import tool_prompt_block
-from backend.graphs.canvas_edit.subgraphs.construction.state import CanvasConstructionState
+from backend.graphs.canvas_edit.state import CanvasState
 from backend.graphs.canvas_edit.subgraphs.construction.tools import (
     CONSTRUCTION_TOOL_POLICY,
     construction_tools,
@@ -39,7 +39,7 @@ node, gateway or sequenceFlow unless explicitly requested.
 
 def build_construction_subgraph(llm_with_tools, build_context_messages):
     return build_tool_chat_subgraph(
-        state_schema=CanvasConstructionState,
+        state_schema=CanvasState,
         tools=construction_tools,
         llm_with_tools=llm_with_tools,
         build_context_messages=build_context_messages,

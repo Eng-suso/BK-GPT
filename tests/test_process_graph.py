@@ -1,10 +1,14 @@
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from backend.graphs.process.graph import evaluate_process_iteration, parse_process_router_json
+from backend.graphs.process.graph import (
+    build_canvas_delegation_node,
+    evaluate_process_iteration,
+    parse_process_router_json,
+)
 from backend.graphs.process.projection import project_specialist_results
+from backend.graphs.process.subgraphs.discovery import graph as discovery_graph_module
 from backend.graphs.process.skills_manifest import required_skills_for
 from backend.graphs.process.state import ProcessState
-from backend.graphs.process.subgraphs.discovery.state import ProcessDiscoveryState
 from backend.graphs.process.subgraphs.discovery.tools import assess_discovery_readiness, discovery_tools
 from backend.graphs.process.subgraphs.evidence.tools import (
     extract_process_claims,
@@ -12,10 +16,14 @@ from backend.graphs.process.subgraphs.evidence.tools import (
     manage_process_contradiction,
     prepare_evidence_coverage_matrix,
 )
+from backend.graphs import routing_contracts
 from backend.graphs.routing_contracts import (
     CAPABILITY_REGISTRY,
+    ProcessRoutingDecision,
+    invalid_process_decision,
     minimum_readiness_score,
     missing_prerequisites,
+    resolve_routing_decision,
 )
 from backend.graphs.process.subgraphs.modeling.tools import (
     modeling_tools,
@@ -91,7 +99,7 @@ def test_parse_process_router_json_falls_back_to_direct_for_invalid_route():
     assert result["orchestration_status"] == "invalid_structured_decision"
 
 
-def test_process_goal_model_as_is_with_insufficient_understanding_routes_to_evidence():
+def test_process_modeling_without_understanding_is_refused_with_its_reason():
     result = parse_process_router_json(
         """
         {
@@ -113,10 +121,13 @@ def test_process_goal_model_as_is_with_insufficient_understanding_routes_to_evid
         },
     )
 
+    # The runtime refuses what state cannot support and says which prerequisite is
+    # missing. It does not pick the replacement work: `resolve_routing_decision`
+    # hands the refusal back to the router, which decides what to do instead.
     assert result["goal"] == "MODEL_AS_IS"
-    assert result["process_route"] == "evidence"
-    assert result["authorized_capability"] == "process.evidence"
-    assert result["orchestration_status"] == "state_constrained_reroute"
+    assert result["process_route"] != "modeling"
+    assert result["orchestration_status"] == "missing_prerequisite"
+    assert "Missing prerequisite: process_understanding" in result["blocking_conditions"]
 
 
 def test_process_modeling_allowed_when_understanding_is_available():
@@ -199,8 +210,8 @@ def test_process_critical_contradiction_blocks_modeling():
         },
     )
 
-    assert result["process_route"] == "evidence"
-    assert result["authorized_capability"] == "process.evidence"
+    assert result["process_route"] != "modeling"
+    assert result["orchestration_status"] == "missing_prerequisite"
     assert "Missing prerequisite: no_critical_contradictions" in result["blocking_conditions"]
 
 
@@ -277,7 +288,8 @@ def test_process_registered_capability_not_allowed_by_state_is_not_executed():
 
     assert result["process_route"] != "delegate_canvas"
     assert result["delegation_target"] != "canvas_macro"
-    assert result["orchestration_status"] == "state_constrained_reroute"
+    assert result["orchestration_status"] == "missing_prerequisite"
+    assert "Missing prerequisite: bpmn_semantic_model" in result["blocking_conditions"]
 
 
 def test_process_single_no_progress_pass_does_not_terminate_the_loop():
@@ -404,7 +416,10 @@ def test_process_states_define_orchestration_fields():
     assert "bpmn_semantic_model_json" not in ProcessState.__annotations__
     assert "process_understanding_diagnostics" in ProcessState.__annotations__
     assert "process_quality_report" in ProcessState.__annotations__
-    assert "discovery_facts" in ProcessDiscoveryState.__annotations__
+    # Specialist subgraphs run on the parent state: what a pass produces has to
+    # reach the gates, and a private per-subgraph schema only ever held fields
+    # nothing wrote or read.
+    assert discovery_graph_module.ProcessState is ProcessState
 
 
 def test_process_toolsets_are_small_and_owned():
@@ -1020,3 +1035,132 @@ def test_minimum_readiness_score_falls_back_to_the_documented_default():
     assert minimum_readiness_score({}) == 7
     assert minimum_readiness_score({"minimum_readiness_score": 5}) == 5
     assert minimum_readiness_score({"minimum_readiness_score": 99}) == 7
+
+
+def test_refused_route_is_handed_back_to_the_router_not_replaced_by_a_fallback(monkeypatch):
+    """A blocked capability re-enters the model with the reason it was blocked.
+
+    The runtime used to substitute its own recovery route (modeling -> evidence,
+    and so on), which is a judgment call the agent is better placed to make with
+    the process in front of it. Here the runtime only reports the refusal.
+    """
+    proposals = [
+        ProcessRoutingDecision(
+            route="modeling",
+            confidence=0.9,
+            suggested_capability="process.modeling",
+            reason="User asked for the AS-IS.",
+        ),
+        ProcessRoutingDecision(
+            route="discovery",
+            confidence=0.8,
+            suggested_capability="process.discovery",
+            reason="No understanding yet: run discovery first.",
+        ),
+    ]
+    seen_messages = []
+
+    def fake_invoke(llm, model, messages, config, invalid_factory):
+        seen_messages.append(messages)
+        return proposals[len(seen_messages) - 1], "structured", None
+
+    monkeypatch.setattr(routing_contracts, "invoke_structured_router", fake_invoke)
+
+    decision, parse_source, parse_error = resolve_routing_decision(
+        owner="process",
+        llm=object(),
+        model=ProcessRoutingDecision,
+        messages=[],
+        config={},
+        invalid_factory=invalid_process_decision,
+        state={"process_id": "proc-1", "process_understanding": None},
+    )
+
+    assert len(seen_messages) == 2, "the router should be asked again after a refusal"
+    refusal = seen_messages[1][-1].content
+    assert "process_understanding" in refusal
+    assert "process.modeling" in refusal
+    assert decision.route == "discovery"
+    assert parse_source == "structured"
+    assert parse_error is None
+
+
+def test_authorized_route_is_not_re_asked(monkeypatch):
+    calls = []
+
+    def fake_invoke(llm, model, messages, config, invalid_factory):
+        calls.append(messages)
+        return (
+            ProcessRoutingDecision(
+                route="discovery",
+                confidence=0.9,
+                suggested_capability="process.discovery",
+                reason="Discovery is the next step.",
+            ),
+            "structured",
+            None,
+        )
+
+    monkeypatch.setattr(routing_contracts, "invoke_structured_router", fake_invoke)
+
+    resolve_routing_decision(
+        owner="process",
+        llm=object(),
+        model=ProcessRoutingDecision,
+        messages=[],
+        config={},
+        invalid_factory=invalid_process_decision,
+        state={"process_id": "proc-1"},
+    )
+
+    assert len(calls) == 1
+
+
+def test_canvas_handoff_runs_the_canvas_agent_instead_of_redirecting_the_user():
+    """An authorized handoff is work, not advice.
+
+    The process graph used to answer "this belongs to the Canvas Macro Agent, open
+    the canvas chat", which threw away a decision the router had just authorized
+    against the readiness prerequisites.
+    """
+    captured = {}
+
+    class FakeCanvasGraph:
+        def invoke(self, state, config=None):
+            captured["state"] = state
+            return {
+                "messages": [AIMessage(content="Canvas aggiornato.")],
+                "saved_bpmn_xml": "<bpmn />",
+                "canvas_loop_status": "completed",
+                "canvas_route": "construction",
+                "routing_trace": [{"owner": "canvas", "route": "construction"}],
+            }
+
+    node = build_canvas_delegation_node(FakeCanvasGraph())
+    result = node(
+        {
+            "messages": [HumanMessage(content="disegna il processo")],
+            "scope_key": "process:proj-1:proc-1",
+            "project_id": "proj-1",
+            "process_id": "proc-1",
+            "bpmn_model_id": "bpmn-1",
+            "process_name": "Ordini",
+            "delegation_payload": {"goal": "BUILD_CANVAS", "workflow_scope": "single_step"},
+        },
+        config={},
+    )
+
+    assert captured["state"]["scope_type"] == "canvas"
+    assert captured["state"]["bpmn_model_id"] == "bpmn-1"
+    assert captured["state"]["goal"] == "BUILD_CANVAS"
+    assert result["messages"][0].content == "Canvas aggiornato."
+    assert result["saved_bpmn_xml"] == "<bpmn />"
+    assert result["delegation_events"][0]["status"] == "completed"
+
+
+def test_canvas_handoff_without_a_bpmn_model_reports_the_block():
+    node = build_canvas_delegation_node(object())
+    result = node({"messages": [], "process_id": "proc-1"}, config={})
+
+    assert result["delegation_events"][0]["status"] == "blocked"
+    assert "modello BPMN" in result["messages"][0].content

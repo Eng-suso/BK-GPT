@@ -111,6 +111,11 @@ class CanvasRoutingDecision(RoutingDecisionBase):
     canvas_mode: Literal["inspection", "patch_edit", "construction", "layout", "validation", "clarification"] | None = None
     canvas_objective: str | None = None
     workflow_scope: WorkflowScope = "single_step"
+    # What the canvas should look like once the request is satisfied. The agent
+    # declares the target end state; the runtime only verifies it deterministically.
+    # An emptied canvas cannot be checked against the semantic model - there is
+    # nothing left to compare - so it needs its own completion check.
+    expected_canvas_outcome: Literal["updated_model", "empty_canvas"] = "updated_model"
 
     @model_validator(mode="after")
     def normalize_route_clarification(self):
@@ -131,27 +136,101 @@ class CapabilitySpec(BaseModel):
 
 
 CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
-    "consultant.direct": CapabilitySpec(id="consultant.direct", owner="consultant", route="direct"),
-    "consultant.home": CapabilitySpec(id="consultant.home", owner="consultant", route="home", target="home_subgraph"),
-    "consultant.clients": CapabilitySpec(id="consultant.clients", owner="consultant", route="clients", target="clients_subgraph"),
-    "consultant.setup": CapabilitySpec(id="consultant.setup", owner="consultant", route="setup", target="setup_subgraph"),
+    "consultant.direct": CapabilitySpec(
+        id="consultant.direct",
+        owner="consultant",
+        route="direct",
+        description=(
+            "Consultant-level strategy, memory, planning, positioning, offers, "
+            "cross-project synthesis or general advice."
+        ),
+    ),
+    "consultant.home": CapabilitySpec(
+        id="consultant.home",
+        owner="consultant",
+        route="home",
+        target="home_subgraph",
+        description="Home dashboard overview, priorities, risks, recent activity or next actions.",
+    ),
+    "consultant.clients": CapabilitySpec(
+        id="consultant.clients",
+        owner="consultant",
+        route="clients",
+        target="clients_subgraph",
+        description="Client record work: listing, creating, checking or maintaining clients.",
+    ),
+    "consultant.setup": CapabilitySpec(
+        id="consultant.setup",
+        owner="consultant",
+        route="setup",
+        target="setup_subgraph",
+        description=(
+            "Explicit initial workspace setup involving a client plus a project, "
+            "process stub, source or decision."
+        ),
+    ),
     "consultant.project_delegation": CapabilitySpec(
-        id="consultant.project_delegation", owner="consultant", route="delegate_project", target="project_macro"
+        id="consultant.project_delegation",
+        owner="consultant",
+        route="delegate_project",
+        target="project_macro",
+        description=(
+            "Project execution, status, sources, decisions, deliverables, phase, "
+            "progress or next step."
+        ),
     ),
     "consultant.process_delegation": CapabilitySpec(
-        id="consultant.process_delegation", owner="consultant", route="delegate_process", target="process_macro"
+        id="consultant.process_delegation",
+        owner="consultant",
+        route="delegate_process",
+        target="process_macro",
+        description=(
+            "AS-IS/TO-BE discovery, process analysis, evidence synthesis, readiness "
+            "or BPMN semantic review."
+        ),
     ),
     "consultant.canvas_delegation": CapabilitySpec(
-        id="consultant.canvas_delegation", owner="consultant", route="delegate_canvas", target="canvas_macro"
+        id="consultant.canvas_delegation",
+        owner="consultant",
+        route="delegate_canvas",
+        target="canvas_macro",
+        description="BPMN XML, canvas inspection, canvas edits, validation, layout, versions or approval.",
     ),
-    "consultant.clarification": CapabilitySpec(id="consultant.clarification", owner="consultant", route="clarification"),
-    "project.direct": CapabilitySpec(id="project.direct", owner="project", route="direct"),
-    "project.delivery": CapabilitySpec(id="project.delivery", owner="project", route="delivery", target="delivery_subgraph"),
+    "consultant.clarification": CapabilitySpec(
+        id="consultant.clarification",
+        owner="consultant",
+        route="clarification",
+        description="Context, owner or entity reference is ambiguous.",
+    ),
+    "project.direct": CapabilitySpec(
+        id="project.direct",
+        owner="project",
+        route="direct",
+        description=(
+            "Project-level discussion, project context retrieval, project evidence or "
+            "interview saving and retrieval, project-scoped GraphRAG, light synthesis, "
+            "scope clarification, source/decision awareness or general project coordination."
+        ),
+    ),
+    "project.delivery": CapabilitySpec(
+        id="project.delivery",
+        owner="project",
+        route="delivery",
+        target="delivery_subgraph",
+        description=(
+            "Phase, progress, milestones, deliverables, risks, blockers, next step, "
+            "weekly plan or project status update."
+        ),
+    ),
     "project.process_coordination": CapabilitySpec(
         id="project.process_coordination",
         owner="project",
         route="process_coordination",
         target="process_coordination_subgraph",
+        description=(
+            "Multiple processes in one project: sequencing, readiness matrix, "
+            "cross-process dependencies, interview needs by process or handoff planning."
+        ),
     ),
     "project.process_delegation": CapabilitySpec(
         id="project.process_delegation",
@@ -159,6 +238,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="delegate_process",
         target="process_macro",
         prerequisites=["unambiguous_process_target"],
+        description=(
+            "Deep work on one process: AS-IS/TO-BE discovery, evidence synthesis, "
+            "readiness or BPMN semantic review. Needs one unambiguous target process."
+        ),
     ),
     "project.canvas_delegation": CapabilitySpec(
         id="project.canvas_delegation",
@@ -166,14 +249,44 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="delegate_canvas",
         target="canvas_macro",
         prerequisites=["unambiguous_process_target"],
+        description="Hand the canvas of one unambiguous process over to the Canvas Macro Agent.",
     ),
-    "project.clarification": CapabilitySpec(id="project.clarification", owner="project", route="clarification"),
-    "process.direct": CapabilitySpec(id="process.direct", owner="process", route="direct"),
+    "project.clarification": CapabilitySpec(
+        id="project.clarification",
+        owner="project",
+        route="clarification",
+        description="The project or the target process is ambiguous.",
+    ),
+    "process.direct": CapabilitySpec(
+        id="process.direct",
+        owner="process",
+        route="direct",
+        description=(
+            "Process-level discussion, retrieval of existing context, light explanation "
+            "or scope clarification the Process Macro Agent can answer itself."
+        ),
+    ),
     "process.discovery": CapabilitySpec(
-        id="process.discovery", owner="process", route="discovery", target="discovery_subgraph", prerequisites=["process_id"]
+        id="process.discovery",
+        owner="process",
+        route="discovery",
+        target="discovery_subgraph",
+        prerequisites=["process_id"],
+        description=(
+            "Process boundaries, trigger, start/end, stakeholders, official vs actual "
+            "process, missing knowledge, interview planning or discovery readiness."
+        ),
     ),
     "process.evidence": CapabilitySpec(
-        id="process.evidence", owner="process", route="evidence", target="evidence_subgraph", prerequisites=["process_id"]
+        id="process.evidence",
+        owner="process",
+        route="evidence",
+        target="evidence_subgraph",
+        prerequisites=["process_id"],
+        description=(
+            "Source saving and custody, claim extraction, confidence, contradictions, "
+            "evidence coverage, hypotheses or open questions."
+        ),
     ),
     "process.modeling": CapabilitySpec(
         id="process.modeling",
@@ -181,6 +294,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="modeling",
         target="modeling_subgraph",
         prerequisites=["process_id", "process_understanding", "no_critical_contradictions"],
+        description=(
+            "ProcessUnderstanding, AS-IS review, BPMNSemanticModel, modeling readiness, "
+            "semantic BPMN structure or review before canvas."
+        ),
     ),
     "process.canvas_handoff": CapabilitySpec(
         id="process.canvas_handoff",
@@ -188,16 +305,34 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="delegate_canvas",
         target="canvas_macro",
         prerequisites=["process_id", "bpmn_semantic_model", "readiness_for_canvas"],
+        description=(
+            "BPMN XML, canvas inspection, canvas edits, layout, validation, versions, "
+            "approval or saved XML changes. Runs the Canvas Macro Agent on this process."
+        ),
     ),
-    "process.clarification": CapabilitySpec(id="process.clarification", owner="process", route="clarification"),
-    "canvas.direct": CapabilitySpec(id="canvas.direct", owner="canvas", route="direct"),
+    "process.clarification": CapabilitySpec(
+        id="process.clarification",
+        owner="process",
+        route="clarification",
+        description="Process intent is unclear or required ids/context are missing.",
+    ),
+    "canvas.direct": CapabilitySpec(
+        id="canvas.direct",
+        owner="canvas",
+        route="direct",
+        description="Read-only canvas explanation, scope/context check or very light discussion.",
+    ),
     "canvas.patch_edit": CapabilitySpec(
         id="canvas.patch_edit",
         owner="canvas",
         route="patch_edit",
         target="patch_edit_subgraph",
         prerequisites=["bpmn_model_id", "effective_bpmn_xml"],
-        description="Local deterministic BPMN XML/canvas patch with semantic and memory context available.",
+        description=(
+            "Local deterministic canvas edits with semantic and memory context available: "
+            "label/documentation/owner/lane, add or remove one element, connect or "
+            "reconnect a few elements, empty the canvas."
+        ),
     ),
     "canvas.construction": CapabilitySpec(
         id="canvas.construction",
@@ -206,8 +341,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         target="construction_subgraph",
         prerequisites=["bpmn_model_id"],
         description=(
-            "Build or rebuild canvas sections from existing semantic context, "
-            "or prepare that semantic context from a raw process description."
+            "Generate, build, rebuild, redesign or substantially revise a canvas section "
+            "from ProcessUnderstanding/BPMNSemanticModel/evidence, or prepare that semantic "
+            "context from a substantive raw process description supplied by the user. "
+            "Available even when no semantic context is loaded yet."
         ),
     ),
     "canvas.layout": CapabilitySpec(
@@ -216,7 +353,11 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="layout",
         target="layout_subgraph",
         prerequisites=["bpmn_model_id", "effective_bpmn_xml"],
-        description="Repair BPMN diagram layout for readability, spacing, labels and viewport-friendly structure.",
+        description=(
+            "Make the current canvas readable and ordered without changing business "
+            "semantics: spacing, row wrapping, lane sizing, labels, annotations, data "
+            "objects and edge routing."
+        ),
     ),
     "canvas.validation": CapabilitySpec(
         id="canvas.validation",
@@ -224,10 +365,38 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="validation",
         target="validation_subgraph",
         prerequisites=["bpmn_model_id", "effective_bpmn_xml"],
-        description="Validate the current canvas against BPMN XML, semantic context and traceability memory.",
+        description=(
+            "Validate XML, semantic coverage, traceability, layout quality and "
+            "gateway/lane/path correctness without mutating the model."
+        ),
     ),
-    "canvas.clarification": CapabilitySpec(id="canvas.clarification", owner="canvas", route="clarification"),
+    "canvas.clarification": CapabilitySpec(
+        id="canvas.clarification",
+        owner="canvas",
+        route="clarification",
+        description="Required ids/context or the scope of the requested change is unclear.",
+    ),
 }
+
+
+def capability_menu(owner: Owner) -> str:
+    """The routes one owner may propose, rendered from the registry itself.
+
+    The router prompts used to restate this list in prose, which drifted from the
+    registry that actually authorizes the decision - the agent was choosing from a
+    menu the runtime did not agree with. One source now feeds both.
+    """
+    lines = []
+    for spec in CAPABILITY_REGISTRY.values():
+        if spec.owner != owner:
+            continue
+        line = f"- {spec.route} (capability: {spec.id})"
+        if spec.prerequisites:
+            line += f" [requires: {', '.join(spec.prerequisites)}]"
+        if spec.description:
+            line += f"\n  {spec.description}"
+        lines.append(line)
+    return "\n".join(lines)
 
 
 DEFAULT_CAPABILITY_BY_OWNER_ROUTE: dict[tuple[str, str], str] = {
@@ -609,18 +778,6 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
     return missing
 
 
-def _process_recovery_route(route: str, state: dict[str, Any]) -> tuple[str, str]:
-    if route == "modeling":
-        if state.get("missing_information"):
-            return "discovery", "process.discovery"
-        return "evidence", "process.evidence"
-    if route == "delegate_canvas":
-        if _has_canonical_semantic_model(state) and not state.get("missing_information"):
-            return "modeling", "process.modeling"
-        return "evidence", "process.evidence"
-    return "clarification", "process.clarification"
-
-
 def authorize_routing_decision(
     *,
     owner: Owner,
@@ -636,6 +793,7 @@ def authorize_routing_decision(
     blocking_conditions = [*decision.blocking_conditions]
     route = proposed_route
     termination_reason = None
+    missing_prerequisites_for = None
 
     if parse_error and parse_source != "router_recovery_direct":
         status = "invalid_structured_decision"
@@ -677,18 +835,19 @@ def authorize_routing_decision(
         },
     )
     if missing:
+        # The runtime refuses the capability and says why; it does not pick the
+        # replacement work. Which alternative is right - gather evidence, run
+        # discovery, ask the user - depends on the process, and that judgment
+        # belongs to the agent. `resolve_routing_decision` hands these conditions
+        # back to the router for one re-decision; clarification is only where the
+        # turn lands if the agent cannot find an authorized route.
         blocking_conditions.extend(f"Missing prerequisite: {item}" for item in missing)
-        if owner == "process":
-            route, capability_id = _process_recovery_route(proposed_route, state)
-            spec = CAPABILITY_REGISTRY[capability_id]
-            status = "state_constrained_reroute"
-            termination_reason = None
-        else:
-            route = "clarification"
-            capability_id = f"{owner}.clarification"
-            spec = CAPABILITY_REGISTRY[capability_id]
-            status = "missing_prerequisite"
-            termination_reason = "WAITING_FOR_USER"
+        route = "clarification"
+        capability_id = f"{owner}.clarification"
+        spec = CAPABILITY_REGISTRY[capability_id]
+        status = "missing_prerequisite"
+        termination_reason = "WAITING_FOR_USER"
+        missing_prerequisites_for = proposed_route
 
     target = spec.target
     return {
@@ -699,7 +858,77 @@ def authorize_routing_decision(
         "proposed_capability": decision.suggested_capability,
         "authorized_capability": capability_id,
         "blocking_conditions": blocking_conditions,
+        "missing_prerequisites": missing,
+        "refused_route": missing_prerequisites_for,
         "termination_reason": termination_reason,
         "parse_source": parse_source,
         "parse_error": parse_error,
     }
+
+
+# One re-decision after a refusal. The budget is runtime policy: without a bound
+# a router that keeps proposing a blocked capability would loop on the model's
+# account, and one informed retry is what "you were refused, here is why" buys.
+ROUTER_REPLAN_ATTEMPTS = 1
+
+
+def resolve_routing_decision(
+    *,
+    owner: Owner,
+    llm,
+    model: type[RoutingDecisionBase],
+    messages: list[BaseMessage],
+    config: RunnableConfig,
+    invalid_factory,
+    state: dict[str, Any] | None = None,
+) -> tuple[RoutingDecisionBase, str, str | None]:
+    """Route, and let the agent re-decide once if the runtime refused its choice.
+
+    The prerequisite gate is a fact check the runtime owns: it can see whether a
+    semantic model or an id is actually in state. What to do instead is a judgment
+    call, so a refusal is fed back to the router as context rather than resolved
+    by a hard-coded fallback table.
+    """
+    decision, parse_source, parse_error = invoke_structured_router(
+        llm,
+        model,
+        messages,
+        config=config,
+        invalid_factory=invalid_factory,
+    )
+
+    for _ in range(ROUTER_REPLAN_ATTEMPTS):
+        authorization = authorize_routing_decision(
+            owner=owner,
+            decision=decision,
+            state=state,
+            parse_source=parse_source,
+            parse_error=parse_error,
+        )
+        if authorization["status"] != "missing_prerequisite":
+            break
+
+        refusal = SystemMessage(
+            content=(
+                "The runtime refused your previous routing decision.\n"
+                f"Refused route: {authorization['refused_route']}\n"
+                f"Refused capability: {authorization['proposed_capability']}\n"
+                "Unsatisfied prerequisites (verified against current state, not opinion): "
+                f"{', '.join(authorization['missing_prerequisites'])}\n\n"
+                "Decide again. Either propose a capability whose prerequisites the "
+                "current state already satisfies - typically the work that would "
+                "produce the missing prerequisite - or route to clarification if only "
+                "the user can unblock this. Do not repeat the refused capability.\n\n"
+                "Capabilities available to you:\n"
+                f"{capability_menu(owner)}"
+            )
+        )
+        decision, parse_source, parse_error = invoke_structured_router(
+            llm,
+            model,
+            [*messages, refusal],
+            config=config,
+            invalid_factory=invalid_factory,
+        )
+
+    return decision, parse_source, parse_error

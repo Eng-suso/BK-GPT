@@ -3,9 +3,14 @@ from pathlib import Path
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
-from pydantic import BaseModel
 
-from backend.graphs.common import build_tool_chat_subgraph
+from backend.graphs.common import (
+    artifact_field,
+    artifact_for_prompt,
+    artifact_is_present,
+    build_tool_chat_subgraph,
+    latest_user_text,
+)
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
 from backend.graphs.process.projection import project_specialist_results
@@ -18,9 +23,10 @@ from backend.graphs.routing_contracts import (
     ENGINEERING_LOOP_MAX_ITERATIONS,
     ProcessRoutingDecision,
     authorize_routing_decision,
+    capability_menu,
     invalid_process_decision,
-    invoke_structured_router,
     parse_routing_decision,
+    resolve_routing_decision,
 )
 
 
@@ -63,18 +69,11 @@ You are the reasoning layer, not the execution controller.
 Propose the next best engineering action using user goal and current process state.
 Do not equate the user's goal with the next executable action.
 
-Routes:
-- direct: process-level discussion, existing context retrieval, light explanation, or scope clarification that Process Macro can answer.
-- discovery: process boundaries, trigger, start/end, stakeholders, official vs actual process, missing knowledge, interview planning, or discovery readiness.
-- evidence: source saving, source custody, claim extraction, confidence, contradictions, evidence coverage, hypotheses, or open questions.
-- modeling: ProcessUnderstanding, AS-IS review, BPMNSemanticModel, modeling readiness, semantic BPMN structure, or review before canvas.
-- delegate_canvas: BPMN XML, canvas inspection, canvas edits, layout, validation, versions, approval, or saved XML changes.
-- clarification: process intent is unclear or required ids/context are missing.
+Capabilities you may propose:
+{capability_menu}
 
 Return structured output matching the ProcessRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
-Suggested capability must be registered: process.direct, process.discovery,
-process.evidence, process.modeling, process.canvas_handoff or process.clarification.
 Use workflow_scope=local_operation for narrow canvas/XML patch requests, single_step
 for one bounded capability, and full_workflow only when the user asks for an
 end-to-end engineering outcome.
@@ -86,60 +85,7 @@ to resolve, a semantic model still missing). Switch it to single_step, local_ope
 or direct as soon as the remaining request can be answered without another pass -
 you decide when the work is done. The runtime owns the pass budget and stops on
 repeated no-progress passes; you do not set or negotiate that limit.
-""".strip()
-
-
-VALID_PROCESS_ROUTES = {
-    "direct",
-    "discovery",
-    "evidence",
-    "modeling",
-    "delegate_canvas",
-    "clarification",
-}
-
-
-ROUTE_TARGETS = {
-    "direct": None,
-    "discovery": "discovery_subgraph",
-    "evidence": "evidence_subgraph",
-    "modeling": "modeling_subgraph",
-    "delegate_canvas": "canvas_macro",
-    "clarification": None,
-}
-
-
-def latest_user_text(state: dict) -> str:
-    for message in reversed(state.get("messages", [])):
-        role = getattr(message, "type", None) or getattr(message, "role", "")
-        if role in {"human", "user"}:
-            return str(getattr(message, "content", "") or "")
-
-    return ""
-
-
-def _artifact_is_present(value) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, BaseModel):
-        return True
-    return bool(value)
-
-
-def _artifact_field(value, field: str):
-    if value is None:
-        return None
-    if isinstance(value, BaseModel):
-        return getattr(value, field, None)
-    if isinstance(value, dict):
-        return value.get(field)
-    return None
-
-
-def _artifact_for_prompt(value):
-    if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
-    return value or {}
+""".strip().format(capability_menu=capability_menu("process"))
 
 
 def process_state_signature(state: dict) -> str:
@@ -147,13 +93,13 @@ def process_state_signature(state: dict) -> str:
     quality_report = state.get("process_quality_report")
     return "|".join(
         [
-            str(_artifact_is_present(state.get("process_understanding"))),
-            str(_artifact_is_present(state.get("bpmn_semantic_model"))),
+            str(artifact_is_present(state.get("process_understanding"))),
+            str(artifact_is_present(state.get("bpmn_semantic_model"))),
             str(state.get("readiness_score")),
             str(len(state.get("missing_information") or [])),
-            str(bool(_artifact_field(diagnostics, "blocking"))),
-            str(bool(_artifact_field(diagnostics, "warnings"))),
-            str(_artifact_field(quality_report, "overall_score")),
+            str(bool(artifact_field(diagnostics, "blocking"))),
+            str(bool(artifact_field(diagnostics, "warnings"))),
+            str(artifact_field(quality_report, "overall_score")),
             str(bool(state.get("saved_bpmn_xml"))),
             str(len(state.get("contradictions") or [])),
             str(len(state.get("process_claims") or [])),
@@ -282,10 +228,11 @@ def build_process_router(llm):
             )
 
         try:
-            decision, parse_source, parse_error = invoke_structured_router(
-                llm,
-                ProcessRoutingDecision,
-                [
+            decision, parse_source, parse_error = resolve_routing_decision(
+                owner="process",
+                llm=llm,
+                model=ProcessRoutingDecision,
+                messages=[
                     SystemMessage(content=PROCESS_ROUTER_PROMPT),
                     HumanMessage(
                         content=(
@@ -295,12 +242,12 @@ def build_process_router(llm):
                             f"process_name: {state.get('process_name')}\n"
                             f"readiness_score: {state.get('readiness_score')}\n"
                             f"missing_information: {state.get('missing_information') or []}\n"
-                            f"has_process_understanding: {_artifact_is_present(state.get('process_understanding'))}\n"
+                            f"has_process_understanding: {artifact_is_present(state.get('process_understanding'))}\n"
                             "process_understanding_diagnostics: "
-                            f"{_artifact_for_prompt(state.get('process_understanding_diagnostics'))}\n"
+                            f"{artifact_for_prompt(state.get('process_understanding_diagnostics'))}\n"
                             "process_quality_report: "
-                            f"{_artifact_for_prompt(state.get('process_quality_report'))}\n"
-                            f"has_bpmn_semantic_model: {_artifact_is_present(state.get('bpmn_semantic_model'))}\n"
+                            f"{artifact_for_prompt(state.get('process_quality_report'))}\n"
+                            f"has_bpmn_semantic_model: {artifact_is_present(state.get('bpmn_semantic_model'))}\n"
                             f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
@@ -309,6 +256,7 @@ def build_process_router(llm):
                 ],
                 config=config,
                 invalid_factory=invalid_process_decision,
+                state=state,
             )
         except Exception:
             decision = invalid_process_decision("Structured router failed unexpectedly.")
@@ -406,21 +354,80 @@ def selected_process_loop_transition(state: ProcessState) -> str:
     return "continue" if state.get("process_continue_loop") else "end"
 
 
-def delegate_to_canvas_macro(state: ProcessState) -> dict:
-    return {
-        "messages": [
-            AIMessage(
-                content=(
-                    "Questo lavoro appartiene al Canvas Macro Agent. "
-                    "Prepara un handoff canvas dalla chat processo, poi usa la "
-                    "chat canvas per XML BPMN, layout, validazione, versioni o approvazione."
-                )
-            )
-        ]
-    }
+def build_canvas_delegation_node(canvas_subgraph):
+    """Run the Canvas Macro Agent on this process instead of describing it.
+
+    The router already authorized `process.canvas_handoff` against the readiness
+    prerequisites, so the handoff is real work, not advice: telling the user to
+    reopen the request in another chat was a dead end that lost the whole
+    authorized decision. The canvas graph runs with its own state schema and only
+    its messages are merged back - `add_messages` folds them by id, so replaying
+    the transcript adds no duplicates.
+    """
+
+    def delegate_to_canvas_macro(state: ProcessState, config: RunnableConfig) -> dict:
+        if canvas_subgraph is None or not state.get("bpmn_model_id"):
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            "Non riesco ad aprire il canvas di questo processo: manca il modello BPMN "
+                            "collegato. Creiamolo prima di lavorare sul disegno."
+                        )
+                    )
+                ],
+                "delegation_events": [
+                    {
+                        "target": "canvas_macro",
+                        "status": "blocked",
+                        "reason": "missing bpmn_model_id or canvas graph",
+                    }
+                ],
+            }
+
+        payload = state.get("delegation_payload") or {}
+        result = canvas_subgraph.invoke(
+            {
+                "messages": state.get("messages") or [],
+                "scope_type": "canvas",
+                "scope_key": state.get("scope_key"),
+                "project_id": state.get("project_id"),
+                "process_id": state.get("process_id"),
+                "bpmn_model_id": state.get("bpmn_model_id"),
+                "process_name": state.get("process_name"),
+                "current_bpmn_xml": None,
+                "goal": payload.get("goal") or state.get("goal"),
+                "intent": payload.get("intent") or state.get("intent"),
+                "next_action": payload.get("next_action") or state.get("next_action"),
+                "workflow_scope": payload.get("workflow_scope") or state.get("workflow_scope"),
+            },
+            config=config,
+        )
+
+        return {
+            "messages": result.get("messages") or [],
+            "saved_bpmn_xml": result.get("saved_bpmn_xml") or state.get("saved_bpmn_xml"),
+            "routing_trace": result.get("routing_trace") or [],
+            "delegation_events": [
+                {
+                    "target": "canvas_macro",
+                    "status": result.get("canvas_loop_status") or "completed",
+                    "canvas_route": result.get("canvas_route"),
+                    "reason": state.get("delegation_reason"),
+                }
+            ],
+        }
+
+    return delegate_to_canvas_macro
 
 
-def build_process_subgraph(tools: list, llm, llm_with_tools, build_context_messages):
+def build_process_subgraph(
+    tools: list,
+    llm,
+    llm_with_tools,
+    build_context_messages,
+    canvas_subgraph=None,
+):
     process_macro_agent = build_tool_chat_subgraph(
         state_schema=ProcessState,
         tools=tools,
@@ -456,7 +463,7 @@ def build_process_subgraph(tools: list, llm, llm_with_tools, build_context_messa
             build_context_messages=build_context_messages,
         ),
     )
-    workflow.add_node("delegate_to_canvas_macro", delegate_to_canvas_macro)
+    workflow.add_node("delegate_to_canvas_macro", build_canvas_delegation_node(canvas_subgraph))
     workflow.add_node("ask_process_clarification", ask_process_clarification)
     workflow.add_node("project_specialist_results", project_specialist_results)
     workflow.add_node("evaluate_process_iteration", evaluate_process_iteration)

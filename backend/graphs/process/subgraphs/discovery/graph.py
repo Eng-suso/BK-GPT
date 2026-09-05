@@ -2,7 +2,7 @@ from pathlib import Path
 
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
-from backend.graphs.process.subgraphs.discovery.state import ProcessDiscoveryState
+from backend.graphs.process.state import ProcessState
 from backend.graphs.process.subgraphs.discovery.tools import DISCOVERY_TOOL_POLICY, discovery_tools
 
 
@@ -29,7 +29,7 @@ next sources and readiness.
 
 def build_discovery_subgraph(llm_with_tools, build_context_messages):
     return build_tool_chat_subgraph(
-        state_schema=ProcessDiscoveryState,
+        state_schema=ProcessState,
         tools=discovery_tools,
         llm_with_tools=llm_with_tools,
         build_context_messages=build_context_messages,
