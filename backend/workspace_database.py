@@ -5,7 +5,11 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 
 from backend.agents.chat_mode import assert_write_allowed
-from backend.process_understanding import ProcessUnderstanding, quality_report_from_understanding
+from backend.process_understanding import (
+    ProcessUnderstanding,
+    quality_report_from_understanding,
+    unknown_question_id,
+)
 from backend.security import get_current_tenant_id
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
@@ -435,6 +439,104 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
         }
 
 
+def decode_answers(review) -> list[dict]:
+    parsed = json.loads(getattr(review, "answers_json", "[]") or "[]")
+    return parsed if isinstance(parsed, list) else []
+
+
+def open_questions_with_answers(review) -> list[dict]:
+    """The plan's open questions, each with its alternatives and its answer.
+
+    `missing_information` is a flat list of strings: readable, but nothing a
+    consultant can act on. These are the same gaps as objects - the alternatives
+    the agent proposed, and what was chosen - so a question can actually be
+    closed instead of only reported.
+    """
+    semantic_model = json.loads(review.bpmn_semantic_model_json or "{}")
+    understanding = semantic_model.get("sourceProcessUnderstanding") or {}
+    answers = {item.get("question_id"): item for item in decode_answers(review)}
+
+    questions = []
+    for unknown in understanding.get("unknowns") or []:
+        if not isinstance(unknown, dict):
+            continue
+        question = str(unknown.get("question") or "").strip()
+        if not question:
+            continue
+        question_id = unknown_question_id(question)
+        questions.append(
+            {
+                "question_id": question_id,
+                "question": question,
+                "affects": unknown.get("affects") or "",
+                "severity": unknown.get("severity") or "non_blocking",
+                "options": [
+                    {
+                        "label": str(option.get("label") or ""),
+                        "implication": str(option.get("implication") or ""),
+                    }
+                    for option in unknown.get("options") or []
+                    if isinstance(option, dict) and option.get("label")
+                ],
+                "answer": answers.get(question_id, {}).get("answer"),
+                "answered_at": answers.get(question_id, {}).get("answered_at"),
+            }
+        )
+    return questions
+
+
+def answer_bpmn_review_question(
+    bpmn_model_id: str,
+    question: str,
+    answer: str,
+) -> dict:
+    """Record what the consultant decided about one open question.
+
+    The answer is stored, not interpreted: turning "the admin office approves it"
+    into a changed process model is the agent's work, through
+    `revise_bpmn_review`. Keeping the two apart means the human decision survives
+    whatever the model does with it next, and stays visible in the history.
+    """
+    clean_question = " ".join(str(question or "").split())
+    clean_answer = str(answer or "").strip()
+    if not clean_question:
+        raise ValueError("Domanda obbligatoria.")
+    if not clean_answer:
+        raise ValueError("La risposta non può essere vuota.")
+
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None:
+            raise ValueError("Nessuna review BPMN da aggiornare per questo canvas.")
+
+        question_id = unknown_question_id(clean_question)
+        recorded = [
+            item
+            for item in decode_answers(review)
+            if item.get("question_id") != question_id
+        ]
+        recorded.append(
+            {
+                "question_id": question_id,
+                "question": clean_question,
+                "answer": clean_answer,
+                "answered_at": now_iso(),
+            }
+        )
+
+        review.version = int(getattr(review, "version", 1) or 1) + 1
+        review.answers_json = json.dumps(recorded, ensure_ascii=False)
+        review.updated_at = now_iso()
+        _record_review_version(
+            session,
+            review,
+            change_summary=f"Risposta a: {clean_question}",
+            source="answer",
+        )
+        session.flush()
+        return review_to_dict(review)
+
+
 def _review_artifacts(review) -> tuple[dict, dict]:
     """(semantic model, quality report) from a stored review row.
 
@@ -468,6 +570,8 @@ def review_version_to_dict(version: WorkspaceBpmnReviewVersion) -> dict:
         "bpmn_brief": version.bpmn_brief,
         "readiness_score": version.readiness_score,
         "missing_information": decode_list(version.missing_information_json),
+        "open_questions": open_questions_with_answers(version),
+        "answers": decode_answers(version),
         "created_at": version.created_at,
     }
 
@@ -491,6 +595,7 @@ def _record_review_version(
         bpmn_brief=review.bpmn_brief,
         readiness_score=review.readiness_score,
         missing_information_json=review.missing_information_json,
+        answers_json=getattr(review, "answers_json", "[]") or "[]",
         status=review.status,
         change_summary=change_summary,
         source=source,
@@ -575,6 +680,8 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
         "bpmn_brief": review.bpmn_brief,
         "readiness_score": review.readiness_score,
         "missing_information": decode_list(review.missing_information_json),
+        "open_questions": open_questions_with_answers(review),
+        "answers": decode_answers(review),
         "status": getattr(review, "status", "pending"),
         "created_at": review.created_at,
         "updated_at": review.updated_at,

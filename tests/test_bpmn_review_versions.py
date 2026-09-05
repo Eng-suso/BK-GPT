@@ -24,6 +24,8 @@ from backend.process_understanding import (  # noqa: E402
     ProcessDecision,
     ProcessStep,
     ProcessUnderstanding,
+    ProcessUnknown,
+    ProcessUnknownOption,
 )
 from backend.security import reset_current_tenant_id, set_current_tenant_id  # noqa: E402
 
@@ -202,3 +204,128 @@ def test_versions_are_scoped_to_their_tenant(review_model):
         assert wd.get_bpmn_review_version(review_model, 1) is None
     finally:
         reset_current_tenant_id(other)
+
+
+def _understanding_with_open_question() -> dict:
+    """A plan that knows what it does not know, and what the answers could be."""
+    understanding = ProcessUnderstanding.model_validate(_understanding())
+    understanding.unknowns = [
+        ProcessUnknown(
+            question="Chi approva un ordine oltre 10k?",
+            affects="decision",
+            severity="blocking",
+            options=[
+                ProcessUnknownOption(
+                    label="Direzione amministrativa",
+                    implication="Aggiunge un passaggio di approvazione dopo la verifica credito",
+                ),
+                ProcessUnknownOption(
+                    label="Il responsabile commerciale",
+                    implication="L'approvazione resta dentro Sales, senza nuovo attore",
+                ),
+            ],
+        )
+    ]
+    return understanding.model_dump(mode="json")
+
+
+def test_open_questions_carry_the_alternatives_the_agent_proposed(review_model):
+    review = wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding_with_open_question(),
+    )
+
+    # `missing_information` resta la lista piatta leggibile; `open_questions` e'
+    # la stessa lacuna in una forma su cui si puo' agire.
+    assert any("10k" in item for item in review["missing_information"])
+
+    question = next(q for q in review["open_questions"] if "10k" in q["question"])
+    assert question["severity"] == "blocking"
+    assert [option["label"] for option in question["options"]] == [
+        "Direzione amministrativa",
+        "Il responsabile commerciale",
+    ]
+    assert question["options"][0]["implication"]
+    assert question["answer"] is None
+
+
+def test_answering_a_question_records_the_decision_as_a_new_version(review_model):
+    review = wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding_with_open_question(),
+    )
+    question = review["open_questions"][0]
+
+    answered = wd.answer_bpmn_review_question(
+        review_model,
+        question=question["question"],
+        answer="Direzione amministrativa",
+    )
+
+    assert answered["version"] == review["version"] + 1
+    stored = next(q for q in answered["open_questions"] if q["question_id"] == question["question_id"])
+    assert stored["answer"] == "Direzione amministrativa"
+    assert stored["answered_at"]
+    assert wd.get_bpmn_review_version(review_model, answered["version"])["source"] == "answer"
+
+
+def test_an_answer_can_be_someone_elses_words_not_only_a_proposed_option(review_model):
+    review = wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding_with_open_question(),
+    )
+    question = review["open_questions"][0]
+
+    answered = wd.answer_bpmn_review_question(
+        review_model,
+        question=question["question"],
+        answer="Dipende dal cliente: sopra 10k decide il CFO, sotto il commerciale.",
+    )
+
+    assert answered["open_questions"][0]["answer"].startswith("Dipende dal cliente")
+
+
+def test_answering_twice_replaces_the_earlier_answer(review_model):
+    review = wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding_with_open_question(),
+    )
+    question = review["open_questions"][0]["question"]
+
+    wd.answer_bpmn_review_question(review_model, question=question, answer="Direzione amministrativa")
+    answered = wd.answer_bpmn_review_question(
+        review_model, question=question, answer="Il responsabile commerciale"
+    )
+
+    # Una domanda ha una risposta corrente, non una pila di risposte; lo storico
+    # conserva comunque il passaggio.
+    assert len(answered["answers"]) == 1
+    assert answered["answers"][0]["answer"] == "Il responsabile commerciale"
+    assert len(wd.list_bpmn_review_versions(review_model)) == 3
+
+
+def test_an_answer_survives_the_agent_rewriting_the_plan(review_model):
+    wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding_with_open_question(),
+    )
+    wd.answer_bpmn_review_question(
+        review_model,
+        question="Chi approva un ordine oltre 10k?",
+        answer="Direzione amministrativa",
+    )
+
+    revised = wd.revise_bpmn_review(
+        review_model, process_understanding=_understanding_with_open_question()
+    )
+
+    # La decisione umana e' registrata a parte da cio' che il modello estrae:
+    # una riscrittura del piano non la cancella. L'id della domanda deriva dal
+    # testo, quindi la risposta si riaggancia alla stessa domanda.
+    assert revised["answers"][0]["answer"] == "Direzione amministrativa"
+    assert revised["open_questions"][0]["answer"] == "Direzione amministrativa"

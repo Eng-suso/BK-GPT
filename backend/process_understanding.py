@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -257,10 +258,46 @@ class ProcessExceptionPath(BaseModel):
     is_defined: bool = True
 
 
+class ProcessUnknownOption(BaseModel):
+    """One plausible answer to an open question, with what it would change.
+
+    The alternatives are the agent's: it has the process in front of it and knows
+    which readings are actually possible. The runtime only carries them to the
+    user and records what was picked.
+    """
+
+    label: str = Field(description="Short, pickable answer - a few words, not a sentence.")
+    implication: str = Field(
+        default="",
+        description="What changes in the process model if this answer is the right one.",
+    )
+
+
 class ProcessUnknown(BaseModel):
     question: str
     affects: str
     severity: Literal["blocking", "non_blocking", "optional_extension"] = "non_blocking"
+    options: list[ProcessUnknownOption] = Field(
+        default_factory=list,
+        description=(
+            "Two to four alternatives that would close this gap, when the plausible "
+            "answers are knowable. Leave empty for a genuinely open question."
+        ),
+    )
+
+    @property
+    def question_id(self) -> str:
+        return unknown_question_id(self.question)
+
+
+def unknown_question_id(question: str) -> str:
+    """Stable id for an open question, derived from its text.
+
+    Same approach as contradiction_key: an answer has to keep matching its
+    question across a re-extraction that rewords nothing but reorders the list.
+    """
+    normalized = " ".join(str(question or "").split()).casefold()
+    return re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")[:60]
 
 
 class ProcessBoundaries(BaseModel):
@@ -645,6 +682,9 @@ def render_process_review(process: ProcessUnderstanding) -> str:
         lines.extend(["", "Domande aperte:"])
         for item in process.unknowns:
             lines.append(f"- {item.question}")
+            for option in item.options:
+                suffix = f" - {option.implication}" if option.implication else ""
+                lines.append(f"  - {option.label}{suffix}")
 
     return "\n".join(lines)
 
@@ -976,6 +1016,10 @@ Regole:
 - Lascia quality_report vuoto: sara prodotto da un evaluator separato.
 - Usa id XML-safe con lettere, numeri e underscore.
 - Metti in unknowns cio che manca; usa blocking solo se impedisce una bozza BPMN minima.
+- Per ogni unknown, quando le risposte plausibili sono conoscibili, proponi da 2 a 4
+  options: label breve e selezionabile + implication (cosa cambierebbe nel modello
+  se quella fosse la risposta). Lascia options vuoto solo per una domanda davvero
+  aperta, dove elencare alternative sarebbe indovinare.
 - Se un'eccezione e citata ma la gestione manca, usa is_defined=false.
 - Per ogni eccezione collega attached_to_step_id allo step su cui puo scattare e
   imposta interrupting=false solo se lo step prosegue mentre parte la gestione.

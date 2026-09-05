@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.schemas.workspace import (
+    AnswerBpmnReviewQuestionRequest,
     ApproveBpmnReviewResponse,
     BpmnModelResponse,
     BpmnReviewResponse,
@@ -23,6 +24,7 @@ from backend.schemas.workspace import (
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_database import (
+    answer_bpmn_review_question,
     approve_bpmn_review,
     create_client,
     create_process,
@@ -233,6 +235,23 @@ def get_workspace_bpmn_review_version(
         raise HTTPException(status_code=404, detail="Versione review non trovata.")
 
     return BpmnReviewVersionResponse(**stored)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/review/answers")
+def answer_workspace_bpmn_review_question(
+    bpmn_model_id: str,
+    payload: AnswerBpmnReviewQuestionRequest,
+) -> BpmnReviewResponse:
+    try:
+        review = answer_bpmn_review_question(
+            bpmn_model_id,
+            question=payload.question,
+            answer=payload.answer,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return BpmnReviewResponse(**review)
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/review/revise")

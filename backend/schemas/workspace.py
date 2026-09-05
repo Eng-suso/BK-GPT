@@ -111,9 +111,44 @@ class BpmnReviewResponse(BaseModel):
     bpmn_brief: str
     readiness_score: int
     missing_information: list[str]
+    open_questions: list[ReviewOpenQuestionResponse] = Field(default_factory=list)
+    answers: list[ReviewAnswerResponse] = Field(default_factory=list)
     status: str = "pending"
     created_at: str
     updated_at: str
+
+
+class ReviewOptionResponse(BaseModel):
+    """One alternative the agent proposed for an open question."""
+
+    label: str
+    implication: str = ""
+
+
+class ReviewOpenQuestionResponse(BaseModel):
+    """A gap in the plan the consultant can actually close."""
+
+    question_id: str
+    question: str
+    affects: str = ""
+    severity: str = "non_blocking"
+    options: list[ReviewOptionResponse] = Field(default_factory=list)
+    answer: str | None = None
+    answered_at: str | None = None
+
+
+class ReviewAnswerResponse(BaseModel):
+    question_id: str
+    question: str
+    answer: str
+    answered_at: str
+
+
+class AnswerBpmnReviewQuestionRequest(BaseModel):
+    """The consultant's answer: a proposed option, or their own words."""
+
+    question: str
+    answer: str
 
 
 class BpmnReviewVersionResponse(BaseModel):
@@ -132,6 +167,8 @@ class BpmnReviewVersionResponse(BaseModel):
     bpmn_brief: str
     readiness_score: int
     missing_information: list[str]
+    open_questions: list[ReviewOpenQuestionResponse] = Field(default_factory=list)
+    answers: list[ReviewAnswerResponse] = Field(default_factory=list)
     created_at: str
 
 

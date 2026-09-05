@@ -171,11 +171,13 @@
         "updated_at"
       ],
       "properties": {
+        "answers": "ReviewAnswerResponse[]",
         "bpmn_brief": "string",
         "bpmn_model_id": "string",
         "bpmn_semantic_model": "object",
         "created_at": "string",
         "missing_information": "string[]",
+        "open_questions": "ReviewOpenQuestionResponse[]",
         "process_id": "string",
         "process_understanding": "object",
         "quality_report": "object",

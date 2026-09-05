@@ -23,6 +23,8 @@ class ProcessState(ConversationState):
     bpmn_semantic_model: BPMNSemanticModel | None
     readiness_score: int | None
     missing_information: list[str]
+    # Lacune del piano con le alternative proposte e cio' che e' gia' stato deciso.
+    review_open_questions: list[dict]
     saved_bpmn_xml: str | None
 
     process_route: str | None

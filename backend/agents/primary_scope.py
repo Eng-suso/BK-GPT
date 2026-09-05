@@ -116,6 +116,30 @@ def build_scope_system_prompt(state: dict) -> str:
             + _state_value_to_text(state["missing_information"], MAX_STATE_ARTIFACT_CHARS)
         )
 
+    open_questions = state.get("review_open_questions") or []
+    if open_questions:
+        answered = [item for item in open_questions if item.get("answer")]
+        unanswered = [item for item in open_questions if not item.get("answer")]
+        lines.append("")
+        if answered:
+            lines.append(
+                "Domande del piano gia' decise dal consulente. Sono decisioni sue: "
+                "non riproporle e tienine conto quando rivedi il piano."
+            )
+            for item in answered:
+                lines.append(f"- {item.get('question')} -> {item.get('answer')}")
+        if unanswered:
+            lines.append(
+                "Domande del piano ancora aperte. Quando le riproponi, dai da 2 a 4 "
+                "alternative concrete fra cui scegliere, non una domanda a campo libero."
+            )
+            for item in unanswered:
+                options = ", ".join(
+                    str(option.get("label")) for option in item.get("options") or []
+                )
+                suffix = f" [alternative gia' proposte: {options}]" if options else ""
+                lines.append(f"- ({item.get('severity')}) {item.get('question')}{suffix}")
+
     if state.get("process_understanding"):
         lines.extend(
             [

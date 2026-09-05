@@ -22,6 +22,7 @@ def load_process_context(state: dict) -> dict:
             "bpmn_semantic_model": None,
             "readiness_score": None,
             "missing_information": [],
+            "review_open_questions": [],
             "saved_bpmn_xml": None,
         }
 
@@ -38,6 +39,7 @@ def load_process_context(state: dict) -> dict:
             "bpmn_semantic_model": None,
             "readiness_score": None,
             "missing_information": [],
+            "review_open_questions": [],
             "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,
         }
 
@@ -61,5 +63,6 @@ def load_process_context(state: dict) -> dict:
         "bpmn_semantic_model": bpmn_semantic_model,
         "readiness_score": review.get("readiness_score"),
         "missing_information": review.get("missing_information") or [],
+        "review_open_questions": review.get("open_questions") or [],
         "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,
     }

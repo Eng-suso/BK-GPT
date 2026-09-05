@@ -119,6 +119,9 @@ class WorkspaceBpmnReview(WorkspaceBase):
     bpmn_brief: Mapped[str] = mapped_column(Text, nullable=False)
     readiness_score: Mapped[int] = mapped_column(Integer, nullable=False)
     missing_information_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # Risposte del consulente alle domande aperte del piano: cio' che l'umano ha
+    # deciso, tenuto separato da cio' che il modello ha estratto.
+    answers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
@@ -143,6 +146,7 @@ class WorkspaceBpmnReviewVersion(WorkspaceBase):
     bpmn_brief: Mapped[str] = mapped_column(Text, nullable=False)
     readiness_score: Mapped[int] = mapped_column(Integer, nullable=False)
     missing_information_json: Mapped[str] = mapped_column(Text, nullable=False)
+    answers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     # Why this version exists: prepared from a description, revised by the
     # consultant, approved. Reader-facing, so the history is legible.
