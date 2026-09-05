@@ -49,6 +49,10 @@ class UpdateBpmnModelRequest(BaseModel):
     xml: str
 
 
+class UpdateBpmnReviewRequest(BaseModel):
+    bpmn_brief: str
+
+
 class ClientResponse(BaseModel):
     id: str
     name: str

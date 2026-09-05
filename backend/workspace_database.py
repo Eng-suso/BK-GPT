@@ -469,6 +469,22 @@ def get_bpmn_review(bpmn_model_id: str, include_approved: bool = False) -> dict 
         return review_to_dict(review)
 
 
+def update_bpmn_review_brief(bpmn_model_id: str, bpmn_brief: str) -> dict:
+    clean_brief = bpmn_brief.strip()
+    if not clean_brief:
+        raise ValueError("Il piano Markdown non può essere vuoto.")
+
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None or getattr(review, "status", "pending") != "pending":
+            raise ValueError("Nessuna review BPMN pendente da salvare.")
+
+        review.bpmn_brief = clean_brief
+        review.updated_at = now_iso()
+        session.flush()
+        return review_to_dict(review)
+
+
 def _is_canonical_semantic_model_payload(value: dict) -> bool:
     return bool(
         value.get("flowNodes")
