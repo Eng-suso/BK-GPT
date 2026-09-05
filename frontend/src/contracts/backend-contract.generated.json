@@ -182,7 +182,8 @@
         "readiness_score": "integer",
         "source_text": "string",
         "status": "string",
-        "updated_at": "string"
+        "updated_at": "string",
+        "version": "integer"
       }
     },
     "ApproveBpmnReviewResponse": {

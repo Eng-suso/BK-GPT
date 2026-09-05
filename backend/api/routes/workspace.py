@@ -4,6 +4,7 @@ from backend.schemas.workspace import (
     ApproveBpmnReviewResponse,
     BpmnModelResponse,
     BpmnReviewResponse,
+    BpmnReviewVersionResponse,
     BpmnVersionResponse,
     ClientResponse,
     CreateClientRequest,
@@ -16,6 +17,7 @@ from backend.schemas.workspace import (
     ProjectResponse,
     ProjectSourceResponse,
     RestoreBpmnVersionResponse,
+    ReviseBpmnReviewRequest,
     UpdateBpmnModelRequest,
     UpdateBpmnReviewRequest,
 )
@@ -29,6 +31,8 @@ from backend.workspace_database import (
     create_project_source,
     get_bpmn_model,
     get_bpmn_review,
+    get_bpmn_review_version,
+    list_bpmn_review_versions,
     get_process,
     get_project,
     list_bpmn_versions,
@@ -40,6 +44,7 @@ from backend.workspace_database import (
     reset_workspace,
     restore_bpmn_version,
     update_bpmn_model,
+    revise_bpmn_review,
     update_bpmn_review_brief,
 )
 
@@ -202,6 +207,45 @@ def update_workspace_bpmn_review(
 ) -> BpmnReviewResponse:
     try:
         review = update_bpmn_review_brief(bpmn_model_id, payload.bpmn_brief)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return BpmnReviewResponse(**review)
+
+
+@router.get("/bpmn-models/{bpmn_model_id}/review/versions")
+def list_workspace_bpmn_review_versions(
+    bpmn_model_id: str,
+) -> list[BpmnReviewVersionResponse]:
+    return [
+        BpmnReviewVersionResponse(**version)
+        for version in list_bpmn_review_versions(bpmn_model_id)
+    ]
+
+
+@router.get("/bpmn-models/{bpmn_model_id}/review/versions/{version}")
+def get_workspace_bpmn_review_version(
+    bpmn_model_id: str,
+    version: int,
+) -> BpmnReviewVersionResponse:
+    stored = get_bpmn_review_version(bpmn_model_id, version)
+    if stored is None:
+        raise HTTPException(status_code=404, detail="Versione review non trovata.")
+
+    return BpmnReviewVersionResponse(**stored)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/review/revise")
+def revise_workspace_bpmn_review(
+    bpmn_model_id: str,
+    payload: ReviseBpmnReviewRequest,
+) -> BpmnReviewResponse:
+    try:
+        review = revise_bpmn_review(
+            bpmn_model_id,
+            process_understanding=payload.process_understanding,
+            change_summary=payload.change_summary,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

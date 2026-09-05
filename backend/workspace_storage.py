@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.local_store import local_engine
@@ -98,11 +98,21 @@ class WorkspaceBpmnVersion(WorkspaceBase):
 
 
 class WorkspaceBpmnReview(WorkspaceBase):
+    """The current review for one BPMN model - the head of its version history.
+
+    Same shape as WorkspaceBpmnModel / WorkspaceBpmnVersion: this row is what the
+    canvas and the agent read, and every state it has ever been in is kept in
+    WorkspaceBpmnReviewVersion. A review used to be a single slot that each new
+    `prepare` overwrote, so a plan could not be iterated and nothing could be
+    compared against what it replaced.
+    """
+
     __tablename__ = "workspace_bpmn_reviews"
 
     bpmn_model_id: Mapped[str] = mapped_column(String, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     process_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     source_text: Mapped[str] = mapped_column(Text, nullable=False)
     process_understanding_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     bpmn_semantic_model_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
@@ -112,6 +122,33 @@ class WorkspaceBpmnReview(WorkspaceBase):
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkspaceBpmnReviewVersion(WorkspaceBase):
+    """One recorded state of a review: what it said, and why it was written."""
+
+    __tablename__ = "workspace_bpmn_review_versions"
+    __table_args__ = (
+        UniqueConstraint("bpmn_model_id", "version", name="uq_bpmn_review_version"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    bpmn_model_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    process_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    process_understanding_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    bpmn_semantic_model_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    bpmn_brief: Mapped[str] = mapped_column(Text, nullable=False)
+    readiness_score: Mapped[int] = mapped_column(Integer, nullable=False)
+    missing_information_json: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    # Why this version exists: prepared from a description, revised by the
+    # consultant, approved. Reader-facing, so the history is legible.
+    change_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source: Mapped[str] = mapped_column(String, nullable=False, default="prepare")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class WorkspaceSimulationRun(WorkspaceBase):

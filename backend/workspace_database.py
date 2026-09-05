@@ -12,6 +12,7 @@ from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
     WorkspaceBpmnModel,
     WorkspaceBpmnReview,
+    WorkspaceBpmnReviewVersion,
     WorkspaceBpmnVersion,
     WorkspaceClient,
     WorkspaceDecision,
@@ -434,7 +435,13 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
         }
 
 
-def review_to_dict(review: WorkspaceBpmnReview) -> dict:
+def _review_artifacts(review) -> tuple[dict, dict]:
+    """(semantic model, quality report) from a stored review row.
+
+    Raises when the stored payload is not canonical: a review whose semantic model
+    lost its compilation plan or its source understanding cannot be reasoned about,
+    and must not be silently reported as a usable plan.
+    """
     bpmn_semantic_model = json.loads(review.bpmn_semantic_model_json or "{}")
     if not _is_canonical_semantic_model_payload(bpmn_semantic_model):
         raise ValueError("Review BPMN legacy rifiutata: semantic model non canonicale.")
@@ -442,9 +449,125 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
     quality_report = quality_report_from_understanding(
         ProcessUnderstanding.model_validate(process_understanding)
     ).model_dump(mode="json")
+    return bpmn_semantic_model, quality_report
+
+
+def review_version_to_dict(version: WorkspaceBpmnReviewVersion) -> dict:
+    bpmn_semantic_model, quality_report = _review_artifacts(version)
+    return {
+        "bpmn_model_id": version.bpmn_model_id,
+        "process_id": version.process_id,
+        "version": version.version,
+        "status": version.status,
+        "change_summary": version.change_summary,
+        "source": version.source,
+        "source_text": version.source_text,
+        "process_understanding": bpmn_semantic_model.get("sourceProcessUnderstanding") or {},
+        "bpmn_semantic_model": bpmn_semantic_model,
+        "quality_report": quality_report,
+        "bpmn_brief": version.bpmn_brief,
+        "readiness_score": version.readiness_score,
+        "missing_information": decode_list(version.missing_information_json),
+        "created_at": version.created_at,
+    }
+
+
+def _record_review_version(
+    session,
+    review: WorkspaceBpmnReview,
+    *,
+    change_summary: str,
+    source: str,
+) -> WorkspaceBpmnReviewVersion:
+    """Snapshot the review as it stands now, under its current version number."""
+    version = WorkspaceBpmnReviewVersion(
+        tenant_id=getattr(review, "tenant_id", tenant_id()),
+        bpmn_model_id=review.bpmn_model_id,
+        process_id=review.process_id,
+        version=review.version,
+        source_text=review.source_text,
+        process_understanding_json=review.process_understanding_json,
+        bpmn_semantic_model_json=review.bpmn_semantic_model_json,
+        bpmn_brief=review.bpmn_brief,
+        readiness_score=review.readiness_score,
+        missing_information_json=review.missing_information_json,
+        status=review.status,
+        change_summary=change_summary,
+        source=source,
+        created_at=now_iso(),
+    )
+    session.add(version)
+    return version
+
+
+def _mark_review_version_approved(session, review: WorkspaceBpmnReview) -> None:
+    row = (
+        session.execute(
+            select(WorkspaceBpmnReviewVersion).where(
+                WorkspaceBpmnReviewVersion.bpmn_model_id == review.bpmn_model_id,
+                WorkspaceBpmnReviewVersion.version == review.version,
+                WorkspaceBpmnReviewVersion.tenant_id == getattr(review, "tenant_id", tenant_id()),
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if row is None:
+        # A review stored before versioning existed has no snapshot to mark; record
+        # one now so its approval is not the only state missing from the history.
+        _record_review_version(
+            session,
+            review,
+            change_summary="Piano approvato: canvas generato",
+            source="approval",
+        )
+        return
+
+    row.status = "approved"
+    row.change_summary = "Piano approvato: canvas generato"
+
+
+def list_bpmn_review_versions(bpmn_model_id: str) -> list[dict]:
+    """Every recorded state of this review, newest first."""
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspaceBpmnReviewVersion)
+                .where(
+                    WorkspaceBpmnReviewVersion.bpmn_model_id == bpmn_model_id,
+                    WorkspaceBpmnReviewVersion.tenant_id == tenant_id(),
+                )
+                .order_by(WorkspaceBpmnReviewVersion.version.desc())
+            )
+            .scalars()
+            .all()
+        )
+        return [review_version_to_dict(row) for row in rows]
+
+
+def get_bpmn_review_version(bpmn_model_id: str, version: int) -> dict | None:
+    with workspace_connection() as session:
+        row = (
+            session.execute(
+                select(WorkspaceBpmnReviewVersion).where(
+                    WorkspaceBpmnReviewVersion.bpmn_model_id == bpmn_model_id,
+                    WorkspaceBpmnReviewVersion.version == version,
+                    WorkspaceBpmnReviewVersion.tenant_id == tenant_id(),
+                )
+            )
+            .scalars()
+            .first()
+        )
+        return review_version_to_dict(row) if row else None
+
+
+def review_to_dict(review: WorkspaceBpmnReview) -> dict:
+    bpmn_semantic_model, quality_report = _review_artifacts(review)
+    process_understanding = bpmn_semantic_model.get("sourceProcessUnderstanding") or {}
     return {
         "bpmn_model_id": review.bpmn_model_id,
         "process_id": review.process_id,
+        "version": getattr(review, "version", 1),
         "source_text": review.source_text,
         "process_understanding": process_understanding,
         "bpmn_semantic_model": bpmn_semantic_model,
@@ -474,6 +597,13 @@ def get_bpmn_review(bpmn_model_id: str, include_approved: bool = False) -> dict 
 
 
 def update_bpmn_review_brief(bpmn_model_id: str, bpmn_brief: str) -> dict:
+    """Edit the narrative of the plan only.
+
+    This is the reader-facing rendering: it does not change what the canvas would
+    be generated from. To correct the *content* of the plan, revise the
+    ProcessUnderstanding through `revise_bpmn_review`, which regenerates this text
+    along with everything derived from it.
+    """
     clean_brief = bpmn_brief.strip()
     if not clean_brief:
         raise ValueError("Il piano Markdown non può essere vuoto.")
@@ -483,8 +613,15 @@ def update_bpmn_review_brief(bpmn_model_id: str, bpmn_brief: str) -> dict:
         if review is None or getattr(review, "status", "pending") != "pending":
             raise ValueError("Nessuna review BPMN pendente da salvare.")
 
+        review.version = int(getattr(review, "version", 1) or 1) + 1
         review.bpmn_brief = clean_brief
         review.updated_at = now_iso()
+        _record_review_version(
+            session,
+            review,
+            change_summary="Testo del piano modificato",
+            source="brief_edit",
+        )
         session.flush()
         return review_to_dict(review)
 
@@ -532,6 +669,7 @@ def prepare_bpmn_review(
                 tenant_id=current_tenant_id,
                 bpmn_model_id=bpmn_model_id,
                 process_id=model.process_id,
+                version=1,
                 source_text=review_draft.source_text,
                 process_understanding_json=review_draft.process_understanding_json(),
                 bpmn_semantic_model_json=review_draft.bpmn_semantic_model_json(),
@@ -544,6 +682,9 @@ def prepare_bpmn_review(
             )
             session.add(review)
         else:
+            # A new preparation does not erase the previous plan: it becomes the
+            # next version, and what it replaced stays readable and comparable.
+            review.version = int(getattr(review, "version", 1) or 1) + 1
             review.source_text = review_draft.source_text
             review.process_understanding_json = review_draft.process_understanding_json()
             review.bpmn_semantic_model_json = review_draft.bpmn_semantic_model_json()
@@ -553,6 +694,63 @@ def prepare_bpmn_review(
             review.status = "pending"
             review.updated_at = timestamp
 
+        _record_review_version(
+            session,
+            review,
+            change_summary="Piano preparato dalla descrizione del processo",
+            source="prepare",
+        )
+        session.flush()
+        return review_to_dict(review)
+
+
+def revise_bpmn_review(
+    bpmn_model_id: str,
+    process_understanding: dict,
+    change_summary: str = "",
+) -> dict:
+    """Rebuild the plan from a corrected ProcessUnderstanding, as a new version.
+
+    The only editable thing used to be `bpmn_brief`, which is *rendered from* the
+    understanding - correcting it changed the text the consultant reads and nothing
+    the canvas is generated from, so the next approval quietly ignored the
+    correction. Revising the understanding regenerates brief, semantic model,
+    readiness and quality together, which is what "edit the plan" has to mean.
+    """
+    with workspace_connection() as session:
+        model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
+        if model is None:
+            raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None:
+            raise ValueError("Nessuna review BPMN da rivedere per questo canvas.")
+
+        bpmn_process_id = f"Process_{slugify(model.process.name, 'process').replace('-', '_')}"
+        review_draft = build_bpmn_review_draft(
+            bpmn_process_id=bpmn_process_id,
+            process_name=model.process.name,
+            source_text=review.source_text,
+            process_understanding=process_understanding,
+        )
+
+        review.version = int(getattr(review, "version", 1) or 1) + 1
+        review.process_understanding_json = review_draft.process_understanding_json()
+        review.bpmn_semantic_model_json = review_draft.bpmn_semantic_model_json()
+        review.bpmn_brief = review_draft.bpmn_brief
+        review.readiness_score = review_draft.readiness_score
+        review.missing_information_json = encode_list(review_draft.missing_information)
+        # A revision reopens the plan: an approved review that gets corrected is a
+        # new proposal, not a still-approved one.
+        review.status = "pending"
+        review.updated_at = now_iso()
+
+        _record_review_version(
+            session,
+            review,
+            change_summary=change_summary.strip() or "Piano rivisto dal consulente",
+            source="revision",
+        )
         session.flush()
         return review_to_dict(review)
 
@@ -575,15 +773,21 @@ def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
             bpmn_semantic_model_json=review.bpmn_semantic_model_json,
         ))
         model.xml = xml
+        approved_version = int(getattr(review, "version", 1) or 1)
         create_bpmn_version(
             session=session,
             model=model,
             xml=xml,
-            change_summary="Generazione da review BPMN approvata",
+            # Which plan produced this drawing, so a canvas version can be traced
+            # back to the review it came from.
+            change_summary=f"Generazione da review BPMN approvata (v{approved_version})",
             source="review_approval",
         )
         review.status = "approved"
         review.updated_at = now_iso()
+        # Approving does not change what the plan says, only its standing, so the
+        # recorded version is marked rather than duplicated.
+        _mark_review_version_approved(session, review)
         review_payload = review_to_dict(review)
         session.flush()
         return {

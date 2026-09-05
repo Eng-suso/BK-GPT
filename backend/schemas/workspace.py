@@ -103,6 +103,7 @@ class RestoreBpmnVersionResponse(BaseModel):
 class BpmnReviewResponse(BaseModel):
     bpmn_model_id: str
     process_id: str
+    version: int = 1
     source_text: str
     process_understanding: dict[str, Any] = Field(default_factory=dict)
     bpmn_semantic_model: dict[str, Any] = Field(default_factory=dict)
@@ -113,6 +114,32 @@ class BpmnReviewResponse(BaseModel):
     status: str = "pending"
     created_at: str
     updated_at: str
+
+
+class BpmnReviewVersionResponse(BaseModel):
+    """One recorded state of a review, with why it was written."""
+
+    bpmn_model_id: str
+    process_id: str
+    version: int
+    status: str
+    change_summary: str
+    source: str
+    source_text: str
+    process_understanding: dict[str, Any] = Field(default_factory=dict)
+    bpmn_semantic_model: dict[str, Any] = Field(default_factory=dict)
+    quality_report: dict[str, Any] = Field(default_factory=dict)
+    bpmn_brief: str
+    readiness_score: int
+    missing_information: list[str]
+    created_at: str
+
+
+class ReviseBpmnReviewRequest(BaseModel):
+    """A corrected ProcessUnderstanding: the plan is rebuilt from it."""
+
+    process_understanding: dict[str, Any]
+    change_summary: str = ""
 
 
 class ApproveBpmnReviewResponse(BaseModel):
