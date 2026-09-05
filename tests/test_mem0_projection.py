@@ -12,6 +12,8 @@ from sqlalchemy import create_engine, text
 
 from backend.settings import settings
 
+from backend.memory import mem0_client  # noqa: E402
+
 _NEEDED = (
     settings.canonical_migrator_url,
     settings.canonical_database_url,
@@ -25,7 +27,16 @@ if not all(_NEEDED):
         allow_module_level=True,
     )
 
-from backend.memory import canonical_memory, mem0_client  # noqa: E402
+# La DSN da sola non basta: senza un client Mem0 utilizzabile il worker non
+# applica nulla e ritorna 0, e il test fallisce per una dipendenza mancante
+# invece di skippare. La guardia deve chiedere cio' che il test usa davvero.
+if not mem0_client.is_enabled():
+    pytest.skip(
+        f"Mem0 non utilizzabile: {mem0_client.get_memory().reason}",
+        allow_module_level=True,
+    )
+
+from backend.memory import canonical_memory  # noqa: E402
 from backend.workers.mem0_worker import drain_once  # noqa: E402
 
 MIGRATOR = create_engine(settings.canonical_migrator_url, future=True)
