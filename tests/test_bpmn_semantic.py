@@ -316,7 +316,8 @@ def test_compiler_builds_collaboration_pools_and_message_flows_from_topology():
     laid_out, report = optimize_bpmn_layout(xml)
     assert "<bpmn:collaboration " in laid_out
     assert f'bpmnElement="{external.id}"' in laid_out
-    assert report.get("skipped") == "collaboration_layout_owned_by_semantic_serializer"
+    assert report["valid"] is True
+    assert len(report["attempts"]) == 1
 
 
 def test_loop_gateway_splice_preserves_flow_edge_label_and_condition():
