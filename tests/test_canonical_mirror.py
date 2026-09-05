@@ -63,8 +63,9 @@ def workspace_process(monkeypatch):
         neo4j_store.purge_client(client_id)
 
 
-def test_manage_process_evidence_mirrors_to_canonical(workspace_process, wait_projected):
-    from backend.workers import ingest_worker
+def test_manage_process_evidence_mirrors_to_canonical(
+    workspace_process, wait_projected, wait_ingested
+):
 
     project_id, process_id = workspace_process
 
@@ -105,11 +106,14 @@ def test_manage_process_evidence_mirrors_to_canonical(workspace_process, wait_pr
     assert mirror["queued"] is True
     assert isinstance(mirror["job_id"], int)
 
-    # ingest_worker: coda -> write_evidence (embedding + entity resolution + write)
-    assert ingest_worker.drain_once() >= 1
+    # ingest_worker: coda -> write_evidence (embedding + entity resolution + write).
+    # Si aspetta il risultato, non il conteggio del drain: contare le righe
+    # reclamate dice chi ha fatto il lavoro, non se e' stato fatto.
+    assert wait_ingested(
+        lambda: set(_entity_ids(mirror)) >= {"Finance", "Validazione ordine"}
+    ), "l'ingest non ha prodotto le entita' attese"
 
     ids = _entity_ids(mirror)
-    assert set(ids) >= {"Finance", "Validazione ordine"}
 
     # graph_worker: outbox -> Neo4j
     driver = neo4j_store.get_driver()
