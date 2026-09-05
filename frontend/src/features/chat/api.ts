@@ -103,3 +103,16 @@ export function approveBpmnReview(bpmnModelId: string): Promise<void> {
     { method: "POST" },
   );
 }
+
+export function saveBpmnReview(
+  bpmnModelId: string,
+  bpmnBrief: string,
+): Promise<BpmnReview> {
+  return http<BpmnReview>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/review`,
+    {
+      method: "PUT",
+      body: { bpmn_brief: bpmnBrief },
+    },
+  );
+}
