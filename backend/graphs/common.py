@@ -89,6 +89,10 @@ def canonical_semantic_context(semantic_model_payload):
 
 
 class ConversationState(MessagesState):
+    # The user's chat mode for this turn (plan / edit / agent). It arrives from the
+    # UI with the request, never from the model, and narrows which capabilities the
+    # router may propose.
+    chat_mode: str
     running_summary: str
     consultant_context_category: str
     consultant_context_confidence: float

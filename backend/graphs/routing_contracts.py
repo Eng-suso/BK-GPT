@@ -126,6 +126,9 @@ class CanvasRoutingDecision(RoutingDecisionBase):
         return self
 
 
+ALL_CHAT_MODES: frozenset[str] = frozenset({"plan", "edit", "agent"})
+
+
 class CapabilitySpec(BaseModel):
     id: str
     owner: Owner
@@ -133,6 +136,10 @@ class CapabilitySpec(BaseModel):
     target: str | None = None
     prerequisites: list[str] = Field(default_factory=list)
     description: str = ""
+    # Chat modes this capability is available in. `agent` is the full loop and is
+    # in every set; `plan` understands and proposes without changing the process
+    # model; `edit` applies the change asked for without re-planning it.
+    modes: frozenset[str] = ALL_CHAT_MODES
 
 
 CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
@@ -276,6 +283,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "Process boundaries, trigger, start/end, stakeholders, official vs actual "
             "process, missing knowledge, interview planning or discovery readiness."
         ),
+        modes=frozenset({"plan", "agent"}),
     ),
     "process.evidence": CapabilitySpec(
         id="process.evidence",
@@ -287,6 +295,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "Source saving and custody, claim extraction, confidence, contradictions, "
             "evidence coverage, hypotheses or open questions."
         ),
+        modes=frozenset({"plan", "agent"}),
     ),
     "process.modeling": CapabilitySpec(
         id="process.modeling",
@@ -298,6 +307,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "ProcessUnderstanding, AS-IS review, BPMNSemanticModel, modeling readiness, "
             "semantic BPMN structure or review before canvas."
         ),
+        modes=frozenset({"plan", "agent"}),
     ),
     "process.canvas_handoff": CapabilitySpec(
         id="process.canvas_handoff",
@@ -309,6 +319,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "BPMN XML, canvas inspection, canvas edits, layout, validation, versions, "
             "approval or saved XML changes. Runs the Canvas Macro Agent on this process."
         ),
+        modes=frozenset({"edit", "agent"}),
     ),
     "process.clarification": CapabilitySpec(
         id="process.clarification",
@@ -333,6 +344,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "label/documentation/owner/lane, add or remove one element, connect or "
             "reconnect a few elements, empty the canvas."
         ),
+        modes=frozenset({"edit", "agent"}),
     ),
     "canvas.construction": CapabilitySpec(
         id="canvas.construction",
@@ -346,6 +358,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "context from a substantive raw process description supplied by the user. "
             "Available even when no semantic context is loaded yet."
         ),
+        modes=frozenset({"plan", "agent"}),
     ),
     "canvas.layout": CapabilitySpec(
         id="canvas.layout",
@@ -358,6 +371,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "semantics: spacing, row wrapping, lane sizing, labels, annotations, data "
             "objects and edge routing."
         ),
+        modes=frozenset({"edit", "agent"}),
     ),
     "canvas.validation": CapabilitySpec(
         id="canvas.validation",
@@ -379,17 +393,26 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
 }
 
 
-def capability_menu(owner: Owner) -> str:
+def capabilities_for(owner: Owner, mode: str | None = None) -> list[CapabilitySpec]:
+    """The capabilities one owner may use, narrowed to the user's chat mode."""
+    return [
+        spec
+        for spec in CAPABILITY_REGISTRY.values()
+        if spec.owner == owner and (mode is None or mode in spec.modes)
+    ]
+
+
+def capability_menu(owner: Owner, mode: str | None = None) -> str:
     """The routes one owner may propose, rendered from the registry itself.
 
     The router prompts used to restate this list in prose, which drifted from the
     registry that actually authorizes the decision - the agent was choosing from a
-    menu the runtime did not agree with. One source now feeds both.
+    menu the runtime did not agree with. One source now feeds both, and the menu
+    shrinks to what the user's chat mode allows rather than listing routes the gate
+    would refuse.
     """
     lines = []
-    for spec in CAPABILITY_REGISTRY.values():
-        if spec.owner != owner:
-            continue
+    for spec in capabilities_for(owner, mode):
         line = f"- {spec.route} (capability: {spec.id})"
         if spec.prerequisites:
             line += f" [requires: {', '.join(spec.prerequisites)}]"
@@ -793,7 +816,7 @@ def authorize_routing_decision(
     blocking_conditions = [*decision.blocking_conditions]
     route = proposed_route
     termination_reason = None
-    missing_prerequisites_for = None
+    refused_route = None
 
     if parse_error and parse_source != "router_recovery_direct":
         status = "invalid_structured_decision"
@@ -826,6 +849,24 @@ def authorize_routing_decision(
         blocking_conditions.append("Suggested capability does not match the authorized owner/route.")
         termination_reason = "WAITING_FOR_USER"
 
+    chat_mode = state.get("chat_mode")
+    if chat_mode and chat_mode not in spec.modes:
+        # The user chose how much of the workflow to hand over this turn. Like a
+        # missing prerequisite this is a refusal with a reason, not a substitution:
+        # `resolve_routing_decision` lets the agent pick something the mode allows.
+        blocking_conditions.append(
+            f"Capability {spec.id} is not available in {chat_mode} mode "
+            f"(available in: {', '.join(sorted(spec.modes))})"
+        )
+        route = "clarification"
+        capability_id = f"{owner}.clarification"
+        spec = CAPABILITY_REGISTRY[capability_id]
+        status = "capability_not_in_mode"
+        termination_reason = "WAITING_FOR_USER"
+        refused_route = proposed_route
+    else:
+        refused_route = None
+
     missing = missing_prerequisites(
         spec,
         {
@@ -847,7 +888,7 @@ def authorize_routing_decision(
         spec = CAPABILITY_REGISTRY[capability_id]
         status = "missing_prerequisite"
         termination_reason = "WAITING_FOR_USER"
-        missing_prerequisites_for = proposed_route
+        refused_route = proposed_route
 
     target = spec.target
     return {
@@ -859,7 +900,7 @@ def authorize_routing_decision(
         "authorized_capability": capability_id,
         "blocking_conditions": blocking_conditions,
         "missing_prerequisites": missing,
-        "refused_route": missing_prerequisites_for,
+        "refused_route": refused_route,
         "termination_reason": termination_reason,
         "parse_source": parse_source,
         "parse_error": parse_error,
@@ -884,11 +925,13 @@ def resolve_routing_decision(
 ) -> tuple[RoutingDecisionBase, str, str | None]:
     """Route, and let the agent re-decide once if the runtime refused its choice.
 
-    The prerequisite gate is a fact check the runtime owns: it can see whether a
-    semantic model or an id is actually in state. What to do instead is a judgment
-    call, so a refusal is fed back to the router as context rather than resolved
-    by a hard-coded fallback table.
+    Two refusals are handled here, and both are facts the runtime can check rather
+    than opinions: a prerequisite that state does not satisfy, and a capability the
+    user's chat mode does not include. What to do instead is a judgment call, so the
+    refusal is fed back to the router as context rather than resolved by a
+    hard-coded fallback table.
     """
+    chat_mode = (state or {}).get("chat_mode")
     decision, parse_source, parse_error = invoke_structured_router(
         llm,
         model,
@@ -905,22 +948,39 @@ def resolve_routing_decision(
             parse_source=parse_source,
             parse_error=parse_error,
         )
-        if authorization["status"] != "missing_prerequisite":
+        if authorization["status"] not in {"missing_prerequisite", "capability_not_in_mode"}:
             break
+
+        if authorization["status"] == "missing_prerequisite":
+            refused_because = (
+                "Unsatisfied prerequisites (verified against current state, not opinion): "
+                f"{', '.join(authorization['missing_prerequisites'])}"
+            )
+            what_to_do = (
+                "Either propose a capability whose prerequisites the current state "
+                "already satisfies - typically the work that would produce the missing "
+                "prerequisite - or route to clarification if only the user can unblock this."
+            )
+        else:
+            refused_because = (
+                f"The user put this chat in {chat_mode} mode, and that capability is not "
+                "part of it. The mode is the user's choice about how much of the workflow "
+                "to hand over; it is not yours to widen."
+            )
+            what_to_do = (
+                "Propose a capability the mode does allow, or route to clarification and "
+                "tell the user which mode would let you do what they asked."
+            )
 
         refusal = SystemMessage(
             content=(
                 "The runtime refused your previous routing decision.\n"
                 f"Refused route: {authorization['refused_route']}\n"
                 f"Refused capability: {authorization['proposed_capability']}\n"
-                "Unsatisfied prerequisites (verified against current state, not opinion): "
-                f"{', '.join(authorization['missing_prerequisites'])}\n\n"
-                "Decide again. Either propose a capability whose prerequisites the "
-                "current state already satisfies - typically the work that would "
-                "produce the missing prerequisite - or route to clarification if only "
-                "the user can unblock this. Do not repeat the refused capability.\n\n"
+                f"{refused_because}\n\n"
+                f"Decide again. {what_to_do} Do not repeat the refused capability.\n\n"
                 "Capabilities available to you:\n"
-                f"{capability_menu(owner)}"
+                f"{capability_menu(owner, chat_mode)}"
             )
         )
         decision, parse_source, parse_error = invoke_structured_router(

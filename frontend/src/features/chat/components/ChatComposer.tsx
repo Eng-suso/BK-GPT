@@ -7,10 +7,14 @@ import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "../../../lib/api";
 import { appendAuthQueryParams } from "../../../lib/security";
+import type { ChatMode } from "../../../contracts/chat";
+import { ChatModeSelector } from "./ChatModeSelector";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatComposerProps {
   selectedModel?: string;
+  chatMode: ChatMode;
+  onChatModeChange: (mode: ChatMode) => void;
   isBusy?: boolean;
   onSubmit?: (message: string) => void;
   onTranscribeAudio?: (file: File) => Promise<string>;
@@ -88,6 +92,8 @@ function formatDuration(totalSeconds: number): string {
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   selectedModel = "gpt-5.6-luna",
+  chatMode,
+  onChatModeChange,
   isBusy = false,
   onSubmit,
   onTranscribeAudio,
@@ -516,7 +522,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         )}
         <div className="composer-bottom-bar">
-          <ModelSelector selectedModel={selectedModel} onChange={onModelChange} />
+          <div className="composer-bottom-left">
+            <ChatModeSelector
+              value={chatMode}
+              onChange={onChatModeChange}
+              disabled={isBusy}
+            />
+            <ModelSelector selectedModel={selectedModel} onChange={onModelChange} />
+          </div>
 
           <div className="composer-actions">
             <Button

@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from backend.schemas.chat import ChatScope
+from backend.schemas.chat import DEFAULT_CHAT_MODE, ChatMode, ChatScope
 
 
 class ChatRequest(BaseModel):
@@ -10,6 +10,9 @@ class ChatRequest(BaseModel):
     messages: list[dict]
     thread_id: str
     scope: ChatScope | None = None
+    # How much of the workflow the user is handing over this turn. Per-request, not
+    # per-thread: switching mode must not fork the conversation.
+    mode: ChatMode = DEFAULT_CHAT_MODE
 
 
 class CreateSessionRequest(BaseModel):
@@ -68,6 +71,7 @@ class SendMessageRequest(BaseModel):
     message: str
     model_name: str | None = None
     scope: ChatScope | None = None
+    mode: ChatMode = DEFAULT_CHAT_MODE
 
 
 class ChatResponse(BaseModel):

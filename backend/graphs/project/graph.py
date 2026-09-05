@@ -65,7 +65,7 @@ the evidence should become project memory.
 ).strip()
 
 
-PROJECT_ROUTER_PROMPT = """
+PROJECT_ROUTER_PROMPT_TEMPLATE = """
 You are the Project graph router for DeliR.
 You are the reasoning layer, not the execution controller.
 Propose exactly one route for the latest user request using project state, intent and ownership.
@@ -76,7 +76,13 @@ Capabilities you may propose:
 Return structured output matching the ProjectRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
 If process/canvas delegation has an ambiguous target, route to clarification.
-""".strip().format(capability_menu=capability_menu("project"))
+""".strip()
+
+
+def project_router_prompt(chat_mode: str | None = None) -> str:
+    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    return PROJECT_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("project", chat_mode))
+
 
 
 
@@ -202,7 +208,7 @@ def build_project_router(llm):
                 llm=llm,
                 model=ProjectRoutingDecision,
                 messages=[
-                    SystemMessage(content=PROJECT_ROUTER_PROMPT),
+                    SystemMessage(content=project_router_prompt(state.get("chat_mode"))),
                     HumanMessage(
                         content=(
                             "Active scope: project\n\n"

@@ -1,6 +1,6 @@
 import { http, httpStream } from "@/lib/http";
 
-import type { ApiChatScope } from "../../contracts/chat";
+import type { ApiChatScope, ChatMode } from "../../contracts/chat";
 import type { BpmnReview, ChatSession } from "./types";
 import { normalizeSession, type RawSession } from "./lib/normalizeSession";
 
@@ -71,7 +71,12 @@ export async function transcribeAudio(file: File): Promise<string> {
 /** Opens the NDJSON stream; the caller reads `response.body`. */
 export function streamChatMessage(
   threadId: string,
-  input: { message: string; modelName: string; scope: ApiChatScope },
+  input: {
+    message: string;
+    modelName: string;
+    scope: ApiChatScope;
+    mode: ChatMode;
+  },
 ): Promise<Response> {
   return httpStream(`${SESSIONS_BASE}/${threadId}/messages/stream`, {
     method: "POST",
@@ -79,6 +84,7 @@ export function streamChatMessage(
       message: input.message,
       model_name: input.modelName,
       scope: input.scope,
+      mode: input.mode,
     },
   });
 }

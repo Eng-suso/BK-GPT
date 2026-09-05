@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
+import type { ChatMode } from "../../contracts/chat";
 import type { ChatMessage, ChatSession } from "./types";
 import type { ChatScope } from "./chatScope";
 import { subjectForScope } from "./chatScope";
@@ -30,6 +31,8 @@ interface ChatShellProps {
   activeTitle?: string;
   isBusy?: boolean;
   selectedModel?: string;
+  chatMode: ChatMode;
+  onChatModeChange: (mode: ChatMode) => void;
   onNewChat?: () => void;
   onSelectSession?: (threadId: string) => void;
   onDeleteSession?: (threadId: string) => void;
@@ -57,6 +60,8 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   activeTitle = "Chat consulente",
   isBusy = false,
   selectedModel = "gpt-5.6-luna",
+  chatMode,
+  onChatModeChange,
   onNewChat,
   onSelectSession,
   onDeleteSession,
@@ -199,6 +204,8 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
         <ChatComposer
           selectedModel={selectedModel}
+          chatMode={chatMode}
+          onChatModeChange={onChatModeChange}
           isBusy={isBusy}
           onSubmit={onSendMessage}
           onTranscribeAudio={onTranscribeAudio}
@@ -259,6 +266,8 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
           <ChatComposer
             selectedModel={selectedModel}
+            chatMode={chatMode}
+            onChatModeChange={onChatModeChange}
             isBusy={isBusy}
             onSubmit={onSendMessage}
             onTranscribeAudio={onTranscribeAudio}

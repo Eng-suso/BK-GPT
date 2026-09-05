@@ -5,10 +5,32 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from backend.schemas.chat import ChatScope, chat_scope_key
+from backend.schemas.chat import DEFAULT_CHAT_MODE, ChatMode, ChatScope, chat_scope_key
 
 
 AgentScopeType = Literal["consultant", "project", "process", "canvas"]
+
+# Cosa significa la modalita' scelta dall'utente, detto all'agente. Il runtime la
+# fa comunque rispettare (capability filtrate nel router, scritture rifiutate in
+# `agents/chat_mode.py`): questo testo serve a far spiegare bene il limite,
+# non a imporlo.
+CHAT_MODE_CONTRACTS: dict[str, str] = {
+    "plan": (
+        "Modalita' Piano: l'utente vuole capire e decidere, non applicare. Puoi "
+        "esplorare, raccogliere evidenze, preparare e correggere il piano di "
+        "processo. Non puoi modificare il canvas ne' approvare una review: se "
+        "servisse, dillo e proponi il passaggio a Modifica o Agente."
+    ),
+    "edit": (
+        "Modalita' Modifica: l'utente ha gia' deciso cosa cambiare. Applica la "
+        "modifica richiesta in modo puntuale e verificala. Non rifare il piano e "
+        "non ricostruire il modello da zero."
+    ),
+    "agent": (
+        "Modalita' Agente: l'utente ti affida il ciclo completo. Pianifica, "
+        "applica e verifica fino a chiudere la richiesta."
+    ),
+}
 VALID_AGENT_SCOPE_TYPES: set[str] = {"consultant", "project", "process", "canvas"}
 MAX_CURRENT_BPMN_XML_CHARS = 80_000
 MAX_STATE_ARTIFACT_CHARS = 40_000
@@ -20,10 +42,14 @@ def agent_scope_type(scope: ChatScope | None) -> AgentScopeType:
     return scope.type
 
 
-def agent_scope_state(scope: ChatScope | None) -> dict[str, str | None]:
+def agent_scope_state(
+    scope: ChatScope | None,
+    chat_mode: ChatMode | None = None,
+) -> dict[str, str | None]:
     scope_type = agent_scope_type(scope)
     return {
         "scope_type": scope_type,
+        "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
         "scope_key": chat_scope_key(scope),
         "project_id": getattr(scope, "project_id", None),
         "process_id": getattr(scope, "process_id", None),
@@ -34,11 +60,15 @@ def agent_scope_state(scope: ChatScope | None) -> dict[str, str | None]:
 
 def build_scope_system_prompt(state: dict) -> str:
     scope_type = str(state.get("scope_type") or "consultant")
+    chat_mode = str(state.get("chat_mode") or "agent")
     lines = [
         "Contesto operativo del thread.",
         "Lo scope arriva dalla UI/backend: non dedurlo dal testo utente.",
         f"chat_scope: {scope_type}",
         f"scope_key: {state.get('scope_key') or 'consultant'}",
+        "",
+        f"chat_mode: {chat_mode}",
+        CHAT_MODE_CONTRACTS[chat_mode],
     ]
 
     if state.get("project_id"):

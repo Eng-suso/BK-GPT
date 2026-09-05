@@ -62,7 +62,7 @@ projected to Neo4j; all reads go through the scoped gateway.
 ).strip()
 
 
-PROCESS_ROUTER_PROMPT = """
+PROCESS_ROUTER_PROMPT_TEMPLATE = """
 You are the Process graph router for DeliR.
 You are the reasoning layer, not the execution controller.
 Propose the next best engineering action using user goal and current process state.
@@ -84,7 +84,13 @@ to resolve, a semantic model still missing). Switch it to single_step, local_ope
 or direct as soon as the remaining request can be answered without another pass -
 you decide when the work is done. The runtime owns the pass budget and stops on
 repeated no-progress passes; you do not set or negotiate that limit.
-""".strip().format(capability_menu=capability_menu("process"))
+""".strip()
+
+
+def process_router_prompt(chat_mode: str | None = None) -> str:
+    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    return PROCESS_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("process", chat_mode))
+
 
 
 def process_state_signature(state: dict) -> str:
@@ -232,7 +238,7 @@ def build_process_router(llm):
                 llm=llm,
                 model=ProcessRoutingDecision,
                 messages=[
-                    SystemMessage(content=PROCESS_ROUTER_PROMPT),
+                    SystemMessage(content=process_router_prompt(state.get("chat_mode"))),
                     HumanMessage(
                         content=(
                             "Active scope: process\n\n"

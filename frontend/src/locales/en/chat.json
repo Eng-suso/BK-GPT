@@ -93,5 +93,20 @@
         "Validate the coverage of roles and exceptions"
       ]
     }
+  },
+  "mode": {
+    "label": "Working mode",
+    "plan": {
+      "label": "Plan",
+      "hint": "Understands and proposes: prepares and reworks the process plan without touching the canvas."
+    },
+    "edit": {
+      "label": "Edit",
+      "hint": "Applies the change you asked for, narrowly, without re-planning."
+    },
+    "agent": {
+      "label": "Agent",
+      "hint": "Full loop: plans, applies and verifies until the request is closed."
+    }
   }
 }

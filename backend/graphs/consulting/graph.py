@@ -40,7 +40,7 @@ to Home, Clients, Setup, Project, Process or Canvas owners.
 ).strip()
 
 
-CONSULTING_ROUTER_PROMPT = """
+CONSULTING_ROUTER_PROMPT_TEMPLATE = """
 You are the Consulting graph router for DeliR.
 You are the reasoning layer, not the execution controller.
 Propose exactly one route for the latest user request using intent, context and ownership.
@@ -51,7 +51,13 @@ Capabilities you may propose:
 Return structured output matching the ConsultingRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
 If clarification is required, route must be clarification and no delegation should be proposed.
-""".strip().format(capability_menu=capability_menu("consultant"))
+""".strip()
+
+
+def consulting_router_prompt(chat_mode: str | None = None) -> str:
+    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    return CONSULTING_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("consultant", chat_mode))
+
 
 
 
@@ -177,7 +183,7 @@ def build_consulting_router(llm):
                 llm=llm,
                 model=ConsultingRoutingDecision,
                 messages=[
-                    SystemMessage(content=CONSULTING_ROUTER_PROMPT),
+                    SystemMessage(content=consulting_router_prompt(state.get("chat_mode"))),
                     HumanMessage(
                         content=(
                             "Active scope: consultant\n\n"

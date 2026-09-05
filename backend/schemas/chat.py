@@ -3,6 +3,13 @@ from typing import Annotated, Literal, TypeAlias
 from pydantic import BaseModel, Field
 
 
+# How much of the workflow the user is handing to the agent this turn. The user
+# picks it in the UI; it is not inferred from the message and not chosen by the
+# model. `agent` is the default and the full loop.
+ChatMode: TypeAlias = Literal["plan", "edit", "agent"]
+DEFAULT_CHAT_MODE: ChatMode = "agent"
+
+
 class ConsultantChatScope(BaseModel):
     type: Literal["consultant"]
 

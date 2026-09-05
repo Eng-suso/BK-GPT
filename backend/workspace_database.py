@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
+from backend.agents.chat_mode import assert_write_allowed
 from backend.process_understanding import ProcessUnderstanding, quality_report_from_understanding
 from backend.security import get_current_tenant_id
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
@@ -334,6 +335,7 @@ def create_bpmn_version(
     change_summary: str,
     source: str,
 ) -> WorkspaceBpmnVersion:
+    assert_write_allowed("create_bpmn_version")
     version = WorkspaceBpmnVersion(
         tenant_id=getattr(model, "tenant_id", tenant_id()),
         bpmn_model_id=model.id,
@@ -353,6 +355,7 @@ def update_bpmn_model(
     change_summary: str = "Salvataggio canvas",
     source: str = "manual_save",
 ) -> dict | None:
+    assert_write_allowed("update_bpmn_model")
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
 
@@ -396,6 +399,7 @@ def list_bpmn_versions(bpmn_model_id: str) -> list[dict]:
 
 
 def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
+    assert_write_allowed("restore_bpmn_version")
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
         version = session.get(WorkspaceBpmnVersion, version_id)
@@ -554,6 +558,7 @@ def prepare_bpmn_review(
 
 
 def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
+    assert_write_allowed("approve_bpmn_review")
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
         review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)

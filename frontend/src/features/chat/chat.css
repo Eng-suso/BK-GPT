@@ -292,6 +292,84 @@
   margin-left: auto;
 }
 
+.composer-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  min-width: 0;
+}
+
+/* Working mode: which one is active has to be readable at a glance, since it
+   changes what the next message is allowed to do. */
+.chat-mode-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--border-width-100);
+  padding: var(--border-width-100);
+  border: var(--border-width-100) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-app);
+}
+
+.chat-mode-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-100);
+  /* WCAG 2.2 SC 2.5.8: a pointer target is at least 24x24 CSS px. The dense
+     padding alone left these at 22x22 once the labels collapsed to icons. */
+  min-block-size: 24px;
+  padding: var(--space-100) var(--space-200);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-200);
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.chat-mode-option svg {
+  width: 14px;
+  height: 14px;
+}
+
+.chat-mode-option:hover:not(:disabled) {
+  color: var(--color-text-primary);
+}
+
+.chat-mode-option:focus-visible {
+  outline: var(--border-width-200) solid var(--color-border-selected);
+  outline-offset: -1px;
+}
+
+.chat-mode-option.is-active {
+  background: var(--color-surface-primary);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-card);
+}
+
+.chat-mode-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* The mode labels are the first thing to fold away on a narrow composer: the
+   icons still say which mode is active, and the tooltip still explains it. */
+@container composer-wrap (max-width: 540px) {
+  .chat-mode-option span {
+    display: none;
+  }
+  .chat-mode-option {
+    min-inline-size: 24px;
+    padding: var(--space-100);
+  }
+}
+
 @container composer-wrap (max-width: 540px) {
   .composer-actions .btn-pill-light span {
     display: none;

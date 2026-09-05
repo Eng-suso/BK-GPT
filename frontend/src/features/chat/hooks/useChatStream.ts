@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { httpErrorMessage } from "@/lib/http";
 import { notifyWorkspaceChanged } from "@/lib/workspaceEvents";
-import { toApiChatScope, type ChatScope } from "../../../contracts/chat";
+import {
+  toApiChatScope,
+  type ChatMode,
+  type ChatScope,
+} from "../../../contracts/chat";
 import type { ChatMessage, ChatSession } from "../types";
 import {
   completeAgentActivity,
@@ -16,6 +20,7 @@ type LiveTranscript = { threadId: string; messages: ChatMessage[] };
 type UseChatStreamArgs = {
   scope: ChatScope;
   selectedModel: string;
+  chatMode: ChatMode;
   activeSession: ChatSession | null;
   ensureThread: (firstMessage: string) => Promise<ChatSession>;
   selectThread: (threadId: string) => void;
@@ -64,6 +69,7 @@ function notifyChatWorkspaceChanged(scope: ChatScope) {
 export function useChatStream({
   scope,
   selectedModel,
+  chatMode,
   activeSession,
   ensureThread,
   selectThread,
@@ -80,10 +86,12 @@ export function useChatStream({
   // Latest values for the async send flow without re-memoising `sendMessage`.
   const scopeRef = useRef(scope);
   const modelRef = useRef(selectedModel);
+  const modeRef = useRef(chatMode);
   const activeSessionRef = useRef(activeSession);
   useEffect(() => {
     scopeRef.current = scope;
     modelRef.current = selectedModel;
+    modeRef.current = chatMode;
     activeSessionRef.current = activeSession;
   });
 
@@ -151,6 +159,7 @@ export function useChatStream({
           message: content,
           modelName: modelRef.current,
           scope: toApiChatScope(scopeRef.current),
+          mode: modeRef.current,
         });
         if (!res.body) throw new Error("Streaming fallito");
 

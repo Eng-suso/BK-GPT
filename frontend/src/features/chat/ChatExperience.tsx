@@ -1,6 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { API_BASE } from "@/lib/api";
+import {
+  DEFAULT_CHAT_MODE,
+  type ChatMode,
+} from "../../contracts/chat";
 import type { ChatScope } from "./chatScope";
 import { titleForScope } from "./chatScope";
 import { ChatShell } from "./ChatShell";
@@ -29,6 +33,9 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   scope = DEFAULT_SCOPE,
 }) => {
   const [selectedModel, setSelectedModel] = useState("gpt-5.6-luna");
+  // The working mode is per-conversation, not per-thread: switching it changes what
+  // the next message is allowed to do, and must not fork the session.
+  const [chatMode, setChatMode] = useState<ChatMode>(DEFAULT_CHAT_MODE);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const lastReviewTimestamp = useRef<string | null>(null);
@@ -57,6 +64,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const stream = useChatStream({
     scope,
     selectedModel,
+    chatMode,
     activeSession: sessions.activeSession,
     ensureThread: sessions.ensureThread,
     selectThread: sessions.selectThread,
@@ -89,6 +97,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         activeTitle={activeTitle}
         isBusy={stream.isBusy}
         selectedModel={selectedModel}
+        chatMode={chatMode}
+        onChatModeChange={setChatMode}
         onNewChat={sessions.startNewThread}
         onSelectSession={sessions.selectThread}
         onDeleteSession={async (id) => {

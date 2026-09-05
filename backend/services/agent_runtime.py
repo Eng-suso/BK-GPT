@@ -12,6 +12,7 @@ from typing import Any, Iterator
 from uuid import UUID
 
 from backend.agent import get_agent, normalize_model_name
+from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
 from backend.agents.scope_guard import bind_active_scope
 from backend.llm_config import chat_openai_kwargs
@@ -21,7 +22,7 @@ from backend.llm_streaming import (
     stream_to_text,
 )
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
-from backend.schemas.chat import ChatScope, chat_scope_key
+from backend.schemas.chat import DEFAULT_CHAT_MODE, ChatMode, ChatScope, chat_scope_key
 from backend.services.trace_recorder import elapsed_ms, new_trace_context, trace_event
 from backend.settings import (
     effective_langsmith_model_name,
@@ -423,6 +424,7 @@ def stream_agent_events(
     model_name: str | None,
     messages: list[dict],
     scope: ChatScope | None = None,
+    chat_mode: ChatMode | None = None,
     trace_context: TraceContext | None = None,
     emit_activity: bool = True,
 ) -> Iterator[AgentStreamEvent]:
@@ -507,6 +509,7 @@ def stream_agent_events(
         payload={
             "scope_type": fields["scope_type"],
             "scope_key": fields["scope_key"],
+            "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
             "checkpoint_thread_id": checkpoint_thread_id,
         },
     )
@@ -570,11 +573,11 @@ def stream_agent_events(
         )
 
         try:
-            with tracing_context, bind_active_scope(scope):
+            with tracing_context, bind_active_scope(scope), bind_active_mode(chat_mode):
                 events = agent.stream(
                     {
                         "messages": messages,
-                        **agent_scope_state(scope),
+                        **agent_scope_state(scope, chat_mode),
                     },
                     config={
                         "configurable": {
@@ -783,12 +786,14 @@ def stream_agent_deltas(
     model_name: str | None,
     messages: list[dict],
     scope: ChatScope | None = None,
+    chat_mode: ChatMode | None = None,
 ) -> Iterator[str]:
     for event in stream_agent_events(
         thread_id=thread_id,
         model_name=model_name,
         messages=messages,
         scope=scope,
+        chat_mode=chat_mode,
         emit_activity=False,
     ):
         if event.type == "delta" and event.content:
@@ -803,6 +808,7 @@ def stream_agent_text(
     model_name: str | None,
     messages: list[dict],
     scope: ChatScope | None = None,
+    chat_mode: ChatMode | None = None,
 ) -> str:
     return "".join(
         stream_agent_deltas(
@@ -810,5 +816,6 @@ def stream_agent_text(
             model_name=model_name,
             messages=messages,
             scope=scope,
+            chat_mode=chat_mode,
         )
     )

@@ -93,5 +93,20 @@
         "Valida la copertura di ruoli ed eccezioni"
       ]
     }
+  },
+  "mode": {
+    "label": "Modalità di lavoro",
+    "plan": {
+      "label": "Piano",
+      "hint": "Capisce e propone: prepara e corregge il piano di processo, senza toccare il canvas."
+    },
+    "edit": {
+      "label": "Modifica",
+      "hint": "Applica la modifica che chiedi, in modo puntuale, senza rifare il piano."
+    },
+    "agent": {
+      "label": "Agente",
+      "hint": "Ciclo completo: pianifica, applica e verifica fino a chiudere la richiesta."
+    }
   }
 }

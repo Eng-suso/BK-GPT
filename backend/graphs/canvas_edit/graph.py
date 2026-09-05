@@ -100,7 +100,7 @@ details.
 ).strip()
 
 
-CANVAS_ROUTER_PROMPT = """
+CANVAS_ROUTER_PROMPT_TEMPLATE = """
 You are the Canvas graph router for DeliR.
 You are the reasoning layer, not the execution controller.
 Propose exactly one route for the latest user request using canvas state, process
@@ -117,7 +117,13 @@ other case. The runtime verifies that outcome deterministically once the work is
 done, so declare the end state you actually intend.
 For small changes, still consider semantic context and traceability memory before
 proposing patch_edit; do not treat local as context-free.
-""".strip().format(capability_menu=capability_menu("canvas"))
+""".strip()
+
+
+def canvas_router_prompt(chat_mode: str | None = None) -> str:
+    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    return CANVAS_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("canvas", chat_mode))
+
 
 
 def canvas_routing_state(
@@ -248,7 +254,7 @@ def build_canvas_router(llm):
                 llm=llm,
                 model=CanvasRoutingDecision,
                 messages=[
-                    SystemMessage(content=CANVAS_ROUTER_PROMPT),
+                    SystemMessage(content=canvas_router_prompt(state.get("chat_mode"))),
                     HumanMessage(
                         content=(
                             "Active scope: canvas\n\n"

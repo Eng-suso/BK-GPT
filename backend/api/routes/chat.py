@@ -47,6 +47,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             model_name=request.model_name,
             messages=request.messages,
             scope=request.scope,
+            chat_mode=request.mode,
         )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -142,6 +143,7 @@ def send_consultant_chat_message(
             model_name=request.model_name,
             messages=[{"role": "user", "content": request.message}],
             scope=request.scope,
+            chat_mode=request.mode,
         )
     except TimeoutError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -204,6 +206,7 @@ def stream_consultant_chat_message(
                 model_name=request.model_name,
                 messages=[{"role": "user", "content": request.message}],
                 scope=request.scope,
+                chat_mode=request.mode,
                 trace_context=trace_context,
             ):
                 if event.type == "start":

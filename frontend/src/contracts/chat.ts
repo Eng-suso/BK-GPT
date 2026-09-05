@@ -22,6 +22,15 @@ export const apiChatScopeSchema = z.discriminatedUnion("type", [
 
 export type ApiChatScope = z.infer<typeof apiChatScopeSchema>;
 
+/**
+ * How much of the workflow the user hands to the agent for one turn. It is the
+ * user's choice, sent with the request; the backend narrows which capabilities
+ * the router may propose and refuses the writes the mode excludes.
+ */
+export const CHAT_MODES = ["plan", "edit", "agent"] as const;
+export type ChatMode = (typeof CHAT_MODES)[number];
+export const DEFAULT_CHAT_MODE: ChatMode = "agent";
+
 export type ChatScope =
   | { type: "consultant" }
   | { type: "project"; projectId: string; projectName: string }
