@@ -667,7 +667,7 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
     workflow.add_node("refresh_canvas_context_after_work", refresh_canvas_context_after_work)
     workflow.add_node("evaluate_canvas_completion", evaluate_canvas_completion)
     workflow.add_node("canvas_completion_report", canvas_completion_report)
-    workflow.add_node("layout_subgraph", build_layout_subgraph())
+    workflow.add_node("layout_subgraph", build_layout_subgraph(llm=llm))
     workflow.add_node(
         "patch_edit_subgraph",
         build_patch_edit_subgraph(

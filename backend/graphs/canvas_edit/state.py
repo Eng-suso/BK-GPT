@@ -58,6 +58,7 @@ class CanvasState(ConversationState):
     patch_plan: CanvasPatchPlan | dict | None
     construction_plan: CanvasConstructionPlan | dict | None
     validation_report: CanvasValidationReport | dict | None
+    canvas_layout_plan: dict | None
     canvas_layout_report: dict | None
     canvas_layout_status: str | None
     preview_diff: dict | None

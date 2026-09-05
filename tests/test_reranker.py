@@ -17,13 +17,14 @@ class FakeLLM:
         self._as_dict = as_dict
         self.calls: list = []
 
-    def invoke(self, messages):
+    def stream(self, messages, config=None):
         self.calls.append(messages)
         if self._raises:
             raise RuntimeError("boom")
         if self._as_dict:
-            return {"order": self._order}
-        return _RerankVerdict(order=list(self._order or []))
+            yield {"order": self._order}
+            return
+        yield _RerankVerdict(order=list(self._order or []))
 
 
 class FakeReranker:

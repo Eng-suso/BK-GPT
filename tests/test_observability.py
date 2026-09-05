@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 import pytest
+import time
 
 from backend.schemas.api import AgentStreamEvent, ApiError
 from backend.agent import DeliRChatOpenAI
@@ -30,6 +31,15 @@ def test_agent_stream_event_contract_serializes_error():
 
     assert payload["type"] == "error"
     assert payload["error"]["code"] == "agent_stream_failed"
+
+
+def test_agent_stream_event_contract_serializes_activity():
+    event = AgentStreamEvent(type="activity", message="Leggo il contesto")
+
+    payload = event.model_dump()
+
+    assert payload["type"] == "activity"
+    assert payload["message"] == "Leggo il contesto"
 
 
 def test_trace_recorder_stores_events():
@@ -122,6 +132,7 @@ def test_stream_agent_events_records_first_token_usage_and_langsmith_config(monk
 
     monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: FakeAgent())
     monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
+    monkeypatch.setattr(agent_runtime, "build_activity_event", lambda **_kwargs: None)
     monkeypatch.setattr(settings, "langsmith_model_name", "gpt-5.4-mini")
 
     events = list(
@@ -147,6 +158,84 @@ def test_stream_agent_events_records_first_token_usage_and_langsmith_config(monk
     assert captured_config["metadata"]["ls_provider"] == "openai"
     assert captured_config["metadata"]["ls_model_name"] == "gpt-5.4-mini"
     assert "consultant-chat" in captured_config["tags"]
+
+
+def test_stream_agent_events_emits_llm_activity_while_agent_is_busy(monkeypatch):
+    class FakeChunk:
+        type = "AIMessageChunk"
+
+        def __init__(self, content=""):
+            self.content = content
+            self.usage_metadata = None
+
+    class SlowAgent:
+        def stream(self, _input, *, config, stream_mode):
+            assert stream_mode == "messages"
+            time.sleep(0.04)
+            yield FakeChunk("Fatto"), {"langgraph_node": "consult_macro_agent"}
+
+    def fake_activity(**kwargs):
+        return AgentStreamEvent(
+            type="activity",
+            request_id=kwargs["context"].request_id,
+            trace_id=kwargs["context"].trace_id,
+            thread_id=kwargs["thread_id"],
+            node=kwargs["node_name"],
+            message="Analizzo richiesta",
+            payload={"activity_id": f"activity-{kwargs['sequence']}", "icon": "brain"},
+        )
+
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: SlowAgent())
+    monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
+    monkeypatch.setattr(agent_runtime, "ACTIVITY_HEARTBEAT_SECONDS", 0.01)
+    monkeypatch.setattr(agent_runtime, "build_activity_event", fake_activity)
+
+    events = list(
+        agent_runtime.stream_agent_events(
+            thread_id="thread-activity",
+            model_name="gpt-5.6-luna",
+            messages=[{"role": "user", "content": "lavora sul canvas"}],
+            scope=None,
+        )
+    )
+
+    assert [event.type for event in events].count("activity") >= 2
+    assert any(event.type == "delta" and event.content == "Fatto" for event in events)
+
+
+def test_stream_agent_events_streams_canvas_subagent_text_but_hides_internal_chunks(monkeypatch):
+    class FakeChunk:
+        type = "AIMessageChunk"
+
+        def __init__(self, content=""):
+            self.content = content
+            self.usage_metadata = None
+
+    class FakeAgent:
+        def stream(self, _input, *, config, stream_mode):
+            assert stream_mode == "messages"
+            yield FakeChunk('{"rows":[["Start","Task"]]}'), {
+                "langgraph_node": "canvas_layout_consultant_agent",
+                "delir_stream_visibility": "internal",
+            }
+            yield FakeChunk("Sto aggiornando il canvas"), {"langgraph_node": "canvas_patch_edit_agent"}
+
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: FakeAgent())
+    monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
+    monkeypatch.setattr(agent_runtime, "build_activity_event", lambda **_kwargs: None)
+
+    events = list(
+        agent_runtime.stream_agent_events(
+            thread_id="thread-canvas-stream",
+            model_name="gpt-5.6-luna",
+            messages=[{"role": "user", "content": "aggiorna il canvas"}],
+            scope=None,
+        )
+    )
+
+    assert any(event.type == "node" and event.node == "canvas_layout_consultant_agent" for event in events)
+    assert not any(event.type == "delta" and "rows" in (event.content or "") for event in events)
+    assert any(event.type == "delta" and event.content == "Sto aggiornando il canvas" for event in events)
 
 
 def test_observability_smoke_eval_contract():

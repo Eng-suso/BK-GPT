@@ -6,6 +6,7 @@ export interface AgentActivity {
   key: string;
   label: string;
   status: AgentActivityStatus;
+  icon?: string;
 }
 
 export interface ChatMessage {

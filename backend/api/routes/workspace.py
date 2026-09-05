@@ -17,6 +17,7 @@ from backend.schemas.workspace import (
     ProjectSourceResponse,
     RestoreBpmnVersionResponse,
     UpdateBpmnModelRequest,
+    UpdateBpmnReviewRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_database import (
@@ -39,6 +40,7 @@ from backend.workspace_database import (
     reset_workspace,
     restore_bpmn_version,
     update_bpmn_model,
+    update_bpmn_review_brief,
 )
 
 
@@ -189,6 +191,19 @@ def get_workspace_bpmn_review(bpmn_model_id: str) -> BpmnReviewResponse | None:
 
     if review is None:
         return None
+
+    return BpmnReviewResponse(**review)
+
+
+@router.put("/bpmn-models/{bpmn_model_id}/review")
+def update_workspace_bpmn_review(
+    bpmn_model_id: str,
+    payload: UpdateBpmnReviewRequest,
+) -> BpmnReviewResponse:
+    try:
+        review = update_bpmn_review_brief(bpmn_model_id, payload.bpmn_brief)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return BpmnReviewResponse(**review)
 

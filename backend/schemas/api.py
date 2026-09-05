@@ -20,6 +20,7 @@ StreamEventType = Literal[
     "start",
     "trace",
     "node",
+    "activity",
     "tool_start",
     "tool_result",
     "delta",

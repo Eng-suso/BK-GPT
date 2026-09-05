@@ -1,8 +1,8 @@
 """Copia lo stato operativo dai file SQLite locali al database `workspace` Postgres.
 
-One-shot. Legge `data/workspace.db`, `data/chat_history.db`,
-`data/episodic/episodic_memory.db` e inserisce le righe nel Postgres puntato da
-`WORKSPACE_DATABASE_URL` (che deve essere configurata).
+One-shot. Legge i file SQLite legacy in `data/_legacy_sqlite/` (`workspace.db`,
+`chat_history.db`, `episodic_memory.db`) e inserisce le righe nel Postgres
+puntato da `WORKSPACE_DATABASE_URL` (che deve essere configurata).
 
 Le tabelle di destinazione le crea l'app all'import (`create_all`); questo
 script assume che esistano gia' e siano vuote (o passa `--truncate`).
@@ -29,7 +29,7 @@ from sqlalchemy.engine import Engine
 
 from backend.settings import settings
 
-DATA = Path("data")
+DATA = Path("data") / "_legacy_sqlite"
 
 # (file sqlite, tabelle in ordine di dipendenza FK, colonne id autoincrement)
 PLAN = [
@@ -55,7 +55,7 @@ PLAN = [
         {"chat_messages": "id"},
     ),
     (
-        DATA / "episodic" / "episodic_memory.db",
+        DATA / "episodic_memory.db",
         ["episodes", "sources"],
         {},
     ),

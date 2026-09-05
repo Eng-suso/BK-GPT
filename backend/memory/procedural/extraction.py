@@ -20,6 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from backend.llm_streaming import stream_to_final
 from backend.llm_config import chat_openai_kwargs
 from backend.settings import settings
 
@@ -108,9 +109,9 @@ def extract_playbook_from_episodes(
         return None
 
     try:
-        result = model.invoke(_build_prompt(episodes))
+        result = stream_to_final(model, _build_prompt(episodes))
     except Exception:  # noqa: BLE001 — l'estrazione e' best-effort
-        logger.warning("extraction: invoke LLM fallito", exc_info=True)
+        logger.warning("extraction: stream LLM fallito", exc_info=True)
         return None
 
     if not isinstance(result, ExtractedPlaybook):
@@ -182,9 +183,9 @@ def generalize_playbook_body(
         return None
 
     try:
-        result = model.invoke(_build_generalize_prompt(playbook, client_names))
+        result = stream_to_final(model, _build_generalize_prompt(playbook, client_names))
     except Exception:  # noqa: BLE001
-        logger.warning("generalize: invoke LLM fallito", exc_info=True)
+        logger.warning("generalize: stream LLM fallito", exc_info=True)
         return None
 
     if not isinstance(result, GeneralizedPlaybook):

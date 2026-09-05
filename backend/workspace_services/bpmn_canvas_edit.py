@@ -564,59 +564,40 @@ def preview_bpmn_xml_change(current_xml: str, proposed_xml: str) -> dict:
     }
 
 
-def optimize_bpmn_layout(xml: str) -> tuple[str, dict]:
-    if _has_collaboration(_parse_bpmn_xml(xml)):
-        report = validate_bpmn_layout(xml)
-        return xml, {
-            "valid": bool(report.get("valid")),
-            "selected_score": _layout_score(report),
-            "selected_report": report,
-            "attempts": [],
-            "skipped": "collaboration_layout_owned_by_semantic_serializer",
-        }
+def optimize_bpmn_layout(
+    xml: str,
+    config: BpmnLayoutConfig | None = None,
+    planned_rows: list[list[str]] | None = None,
+    require_planned_rows: bool = False,
+) -> tuple[str, dict]:
+    if require_planned_rows and planned_rows is None:
+        raise ValueError("Il layout BPMN richiede planned_rows esplicite dal layout consultant agent.")
+    layout_config = config or BpmnLayoutConfig()
+    updated_xml = layout_bpmn_di(xml, config=layout_config, planned_rows=planned_rows)
+    report = validate_bpmn_layout(updated_xml)
+    score = _layout_score(report)
 
-    strategies = [
-        BpmnLayoutConfig(max_nodes_per_row=5, column_gap=320, row_gap=190, lane_row_height=190),
-        BpmnLayoutConfig(max_nodes_per_row=4, column_gap=330, row_gap=205, lane_row_height=200),
-        BpmnLayoutConfig(max_nodes_per_row=3, column_gap=340, row_gap=220, lane_row_height=210),
-        BpmnLayoutConfig(max_nodes_per_row=4, column_gap=360, row_gap=230, lane_row_height=220, annotation_columns=3),
-    ]
-    attempts = []
-    best_xml = ""
-    best_report: dict | None = None
-    best_score: float | None = None
-
-    for index, config in enumerate(strategies, start=1):
-        candidate_xml = layout_bpmn_di(xml, config=config)
-        report = validate_bpmn_layout(candidate_xml)
-        score = _layout_score(report)
-        attempts.append(
+    return updated_xml, {
+        "valid": bool(report.get("valid")),
+        "selected_score": score,
+        "selected_report": report,
+        "attempts": [
             {
-                "attempt": index,
-                "config": asdict(config),
+                "attempt": 1,
+                "config": asdict(layout_config),
                 "valid": report.get("valid"),
                 "score": score,
                 "report": report,
             }
-        )
-
-        if best_score is None or score < best_score:
-            best_xml = candidate_xml
-            best_report = report
-            best_score = score
-
-        if report.get("valid") and not report.get("warnings"):
-            break
-
-    return best_xml, {
-        "valid": bool(best_report and best_report.get("valid")),
-        "selected_score": best_score,
-        "selected_report": best_report or {},
-        "attempts": attempts,
+        ],
     }
 
 
-def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
+def layout_bpmn_di(
+    xml: str,
+    config: BpmnLayoutConfig | None = None,
+    planned_rows: list[list[str]] | None = None,
+) -> str:
     """
     Generate BPMN diagram interchange metadata for the process.
     
@@ -658,14 +639,15 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
     ]
     flow_nodes = [e for e in all_flow_nodes if _local_name(e.tag) != "boundaryEvent"]
     boundary_nodes = [e for e in all_flow_nodes if _local_name(e.tag) == "boundaryEvent"]
-    lane_shapes = _layout_lane_shapes(process, flow_nodes, config)
+    lane_shapes = _layout_lane_shapes(process, flow_nodes, config, planned_rows=planned_rows)
     for lane_shape in lane_shapes:
+        lane_id = str(lane_shape["id"])
         shape = ET.SubElement(
             plane,
             _bpmndi_tag("BPMNShape"),
             {
-                "id": f"{lane_shape['id']}_di",
-                "bpmnElement": lane_shape["id"],
+                "id": f"{lane_id}_di",
+                "bpmnElement": lane_id,
                 "isHorizontal": "true",
             },
         )
@@ -680,7 +662,7 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
             },
         )
 
-    node_positions = _layout_flow_nodes(process, flow_nodes, config)
+    node_positions = _layout_flow_nodes(process, flow_nodes, config, planned_rows=planned_rows)
     for element in flow_nodes:
         element_type = _local_name(element.tag)
         element_id = element.attrib.get("id")
@@ -706,7 +688,8 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
 
     for element in boundary_nodes:
         element_id = element.attrib["id"]
-        host = node_positions.get(element.attrib.get("attachedToRef"))
+        attached_to_ref = element.attrib.get("attachedToRef")
+        host = node_positions.get(attached_to_ref) if attached_to_ref else None
         if host is not None:
             position = {
                 "x": host["x"] + host["width"] * 0.62,
@@ -753,9 +736,11 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
 
     for flow in _sequence_flows(root):
         flow_id = flow.attrib.get("id")
-        source = node_positions.get(flow.attrib.get("sourceRef"))
-        target = node_positions.get(flow.attrib.get("targetRef"))
-        if not flow_id or not source or not target:
+        source_ref = flow.attrib.get("sourceRef")
+        target_ref = flow.attrib.get("targetRef")
+        source = node_positions.get(source_ref) if source_ref else None
+        target = node_positions.get(target_ref) if target_ref else None
+        if not flow_id or source is None or target is None:
             continue
 
         edge = ET.SubElement(
@@ -774,9 +759,11 @@ def layout_bpmn_di(xml: str, config: BpmnLayoutConfig | None = None) -> str:
     connectable_positions = {**node_positions, **artifact_positions}
     for association in _associations(root):
         association_id = association.attrib.get("id")
-        source = connectable_positions.get(association.attrib.get("sourceRef"))
-        target = connectable_positions.get(association.attrib.get("targetRef"))
-        if not association_id or not source or not target:
+        source_ref = association.attrib.get("sourceRef")
+        target_ref = association.attrib.get("targetRef")
+        source = connectable_positions.get(source_ref) if source_ref else None
+        target = connectable_positions.get(target_ref) if target_ref else None
+        if not association_id or source is None or target is None:
             continue
 
         edge = ET.SubElement(
@@ -808,16 +795,23 @@ def _layout_flow_nodes(
     process: ET.Element,
     flow_nodes: list[ET.Element],
     config: BpmnLayoutConfig,
+    planned_rows: list[list[str]] | None = None,
 ) -> dict[str, dict[str, float]]:
-    lane_y_by_id = _lane_y_by_id(process, flow_nodes, config)
+    lane_y_by_id = _lane_y_by_id(process, flow_nodes, config, planned_rows)
     positions: dict[str, dict[str, float]] = {}
+    grid = _layout_grid(flow_nodes, config, planned_rows)
+    last_row = max((cell["row"] for cell in grid.values()), default=0)
 
-    for rank, element in enumerate(flow_nodes):
+    for element in flow_nodes:
         element_id = element.attrib["id"]
         element_type = _local_name(element.tag)
         width, height = _shape_size(element_type)
-        row = rank // config.max_nodes_per_row
-        column = rank % config.max_nodes_per_row
+        cell = grid[element_id]
+        row = cell["row"]
+        column = cell["column"]
+        row_count = cell["row_count"]
+        if row_count < config.max_nodes_per_row and (row == last_row or element_type == "endEvent"):
+            column += config.max_nodes_per_row - row_count
         lane_id = _lane_id_for_node(process, element_id)
         lane_base_y = lane_y_by_id.get(lane_id or "", LAYOUT_TOP)
         x = LAYOUT_LEFT + LAYOUT_LANE_LABEL_WIDTH + 70 + column * config.column_gap
@@ -831,12 +825,13 @@ def _layout_lane_shapes(
     process: ET.Element,
     flow_nodes: list[ET.Element],
     config: BpmnLayoutConfig,
+    planned_rows: list[list[str]] | None = None,
 ) -> list[dict[str, float | str]]:
     lanes = _lanes(process)
     if not lanes:
         return []
 
-    rows = max(1, (len(flow_nodes) + config.max_nodes_per_row - 1) // config.max_nodes_per_row)
+    rows = _layout_row_count(flow_nodes, config, planned_rows)
     lane_height = 80 + rows * config.row_gap
     lane_width = LAYOUT_LANE_LABEL_WIDTH + 120 + min(len(flow_nodes), config.max_nodes_per_row) * config.column_gap
     lane_width = max(980, min(LAYOUT_MAX_READABLE_WIDTH, lane_width))
@@ -944,16 +939,67 @@ def _layout_score(report: dict) -> float:
     return score
 
 
+def _layout_grid(
+    flow_nodes: list[ET.Element],
+    config: BpmnLayoutConfig,
+    planned_rows: list[list[str]] | None,
+) -> dict[str, dict[str, int]]:
+    element_ids = [element.attrib["id"] for element in flow_nodes if element.attrib.get("id")]
+    known_ids = set(element_ids)
+    rows: list[list[str]] = []
+    used: set[str] = set()
+
+    for planned_row in planned_rows or []:
+        clean_row = []
+        for element_id in planned_row:
+            if element_id in known_ids and element_id not in used:
+                clean_row.append(element_id)
+                used.add(element_id)
+        for index in range(0, len(clean_row), config.max_nodes_per_row):
+            rows.append(clean_row[index : index + config.max_nodes_per_row])
+
+    missing = [element_id for element_id in element_ids if element_id not in used]
+    if planned_rows and missing:
+        raise ValueError(
+            "Il piano layout non copre tutti i flow node BPMN visibili: " + ", ".join(sorted(missing))
+        )
+    for index in range(0, len(missing), config.max_nodes_per_row):
+        rows.append(missing[index : index + config.max_nodes_per_row])
+
+    if not rows:
+        rows = [element_ids]
+
+    grid: dict[str, dict[str, int]] = {}
+    for row_index, row in enumerate(rows):
+        for column_index, element_id in enumerate(row):
+            grid[element_id] = {
+                "row": row_index,
+                "column": column_index,
+                "row_count": len(row),
+            }
+    return grid
+
+
+def _layout_row_count(
+    flow_nodes: list[ET.Element],
+    config: BpmnLayoutConfig,
+    planned_rows: list[list[str]] | None,
+) -> int:
+    grid = _layout_grid(flow_nodes, config, planned_rows)
+    return max((cell["row"] + 1 for cell in grid.values()), default=1)
+
+
 def _lane_y_by_id(
     process: ET.Element,
     flow_nodes: list[ET.Element],
     config: BpmnLayoutConfig,
+    planned_rows: list[list[str]] | None = None,
 ) -> dict[str, float]:
     lanes = _lanes(process)
     if not lanes:
         return {}
 
-    rows = max(1, (len(flow_nodes) + config.max_nodes_per_row - 1) // config.max_nodes_per_row)
+    rows = _layout_row_count(flow_nodes, config, planned_rows)
     lane_height = 80 + rows * config.row_gap
     return {
         lane.attrib["id"]: LAYOUT_TOP + index * lane_height
@@ -1211,9 +1257,11 @@ def _layout_message_flow_edges(
 ) -> None:
     for message_flow in _message_flows(collaboration):
         flow_id = message_flow.attrib.get("id")
-        source = endpoint_positions.get(message_flow.attrib.get("sourceRef"))
-        target = endpoint_positions.get(message_flow.attrib.get("targetRef"))
-        if not flow_id or not source or not target:
+        source_ref = message_flow.attrib.get("sourceRef")
+        target_ref = message_flow.attrib.get("targetRef")
+        source = endpoint_positions.get(source_ref) if source_ref else None
+        target = endpoint_positions.get(target_ref) if target_ref else None
+        if not flow_id or source is None or target is None:
             continue
 
         start_x = source["x"] + source["width"] / 2

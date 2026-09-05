@@ -123,7 +123,7 @@ Consulting semantic memory uses Mem0 through `backend/memory/semantic/semantic_s
 Semantic memories should be written with structured fields: category, entity names, statement, confidence, source, and durability.
 This improves Mem0 Graph Memory/entity linking without adding a separate custom graph database.
 
-Episodic memory uses local SQLite plus raw source custody through `backend/memory/episodic/episodic_store.py`, then indexes structured episode metadata into Mem0.
+Episodic memory uses the operational Postgres database (`workspace`, shared `local_engine`) plus best-effort raw source custody on disk through `backend/memory/episodic/episodic_store.py`, then indexes structured episode metadata into Mem0.
 
 Mem0 is retrieval and graph-memory support, not the source of truth for workspace records or raw source custody.
 

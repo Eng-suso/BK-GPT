@@ -42,10 +42,11 @@ function replaceThinkingWithError(
   thinkingLabel: string,
   errorText: string,
 ): ChatMessage[] {
-  const trimmed =
-    messages.at(-1)?.content === thinkingLabel
-      ? messages.slice(0, -1)
-      : messages;
+  const last = messages.at(-1);
+  const isPendingAssistant =
+    last?.role === "assistant" &&
+    (last.content === thinkingLabel || !last.content?.trim());
+  const trimmed = isPendingAssistant ? messages.slice(0, -1) : messages;
   return [...trimmed, { role: "error", content: errorText }];
 }
 
@@ -98,7 +99,7 @@ export function useChatStream({
       const userMessage: ChatMessage = { role: "user", content };
       const thinkingMessage: ChatMessage = {
         role: "assistant",
-        content: thinkingLabel,
+        content: "",
         activity: [],
       };
 
@@ -170,14 +171,26 @@ export function useChatStream({
             if (!line.trim()) continue;
             const event = JSON.parse(line);
 
-            if (event.type === "node" && event.node) {
+            if (event.type === "activity") {
+              const label = String(event.message || event.content || "").trim();
+              const key = String(
+                event.payload?.activity_id ||
+                  `${event.node || "agent"}:${label || Date.now()}`,
+              );
               updateLive((messages) => {
                 const next = [...messages];
                 const last = next[next.length - 1];
                 if (!last || last.role !== "assistant") return messages;
                 next[next.length - 1] = {
                   ...last,
-                  activity: nextAgentActivity(last.activity, String(event.node)),
+                  activity: nextAgentActivity(
+                    last.activity,
+                    key,
+                    label,
+                    typeof event.payload?.icon === "string"
+                      ? event.payload.icon
+                      : undefined,
+                  ),
                 };
                 return next;
               });
@@ -199,25 +212,24 @@ export function useChatStream({
 
             if (event.type === "done") {
               accumulatedText = event.message || accumulatedText;
-              if (accumulatedText) {
-                updateLive((messages) => {
-                  const next = [...messages];
-                  const last = next[next.length - 1];
-                  next[next.length - 1] = {
-                    ...(last || { role: "assistant" as const }),
-                    role: "assistant",
-                    content: accumulatedText,
-                    activity: completeAgentActivity(last?.activity),
-                  };
-                  return next;
-                });
-              }
+              updateLive((messages) => {
+                const next = [...messages];
+                const last = next[next.length - 1];
+                if (!last || last.role !== "assistant") return messages;
+                next[next.length - 1] = {
+                  ...last,
+                  role: "assistant",
+                  content: accumulatedText,
+                  activity: completeAgentActivity(last.activity),
+                };
+                return next;
+              });
             }
 
             if (event.type === "error") {
               throw new Error(
-                event.error?.message ||
-                  event.error?.detail ||
+                event.error?.detail ||
+                  event.error?.message ||
                   event.detail ||
                   "Errore backend",
               );

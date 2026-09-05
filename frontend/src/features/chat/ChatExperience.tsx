@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { API_BASE } from "@/lib/api";
 import type { ChatScope } from "./chatScope";
@@ -8,7 +8,7 @@ import { transcribeAudio } from "./api";
 import { useBpmnReview } from "./hooks/useBpmnReview";
 import { useChatSessions } from "./hooks/useChatSessions";
 import { useChatStream } from "./hooks/useChatStream";
-import { BpmnReviewCard } from "./review/BpmnReviewCard";
+import { BpmnReviewCard, BpmnReviewSheet } from "./review/BpmnReviewCard";
 
 type ChatExperienceProps = {
   chrome?: "full" | "panel";
@@ -30,6 +30,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 }) => {
   const [selectedModel, setSelectedModel] = useState("gpt-5.6-luna");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const lastReviewTimestamp = useRef<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -43,6 +45,15 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
 
   const sessions = useChatSessions(scope, selectedModel);
   const review = useBpmnReview(scope, showToast);
+
+  useEffect(() => {
+    if (!review.review) return;
+
+    if (review.review.updated_at !== lastReviewTimestamp.current) {
+      lastReviewTimestamp.current = review.review.updated_at;
+      setIsReviewOpen(true);
+    }
+  }, [review.review]);
   const stream = useChatStream({
     scope,
     selectedModel,
@@ -126,13 +137,26 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
             {review.review ? (
               <BpmnReviewCard
                 review={review.review}
-                isApproving={review.isApproving}
-                onApprove={review.approve}
+                onOpen={() => setIsReviewOpen(true)}
               />
             ) : null}
           </>
         }
       />
+
+      {review.review ? (
+        <BpmnReviewSheet
+          key={review.review.updated_at}
+          review={review.review}
+          open={isReviewOpen}
+          isApproving={review.isApproving}
+          isSaving={review.isSaving}
+          onOpenChange={setIsReviewOpen}
+          onApprove={review.approve}
+          onSave={review.save}
+          onToast={showToast}
+        />
+      ) : null}
 
       {toastMessage && (
         <div className="toast show" role="status">

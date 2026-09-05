@@ -7,7 +7,10 @@ from backend.graphs.canvas_edit.graph import (
     route_after_canvas_work,
     route_after_validation_subgraph,
 )
-from backend.graphs.canvas_edit.subgraphs.layout.graph import run_canvas_drawing_agent
+from backend.graphs.canvas_edit.subgraphs.layout.graph import (
+    build_canvas_layout_consultant_agent,
+    run_canvas_drawing_agent,
+)
 import backend.graphs.canvas_edit.subgraphs.layout.graph as layout_graph_module
 from backend.graphs.canvas_edit.skills_manifest import required_skills_for
 from backend.graphs.canvas_edit.tools import (
@@ -289,12 +292,7 @@ def test_clear_canvas_intent_skips_semantic_validation_subgraph():
     assert route_after_canvas_layout({**state, "canvas_layout_status": "completed"}) == "evaluate_canvas_completion"
 
 
-def test_canvas_subagent_intermediate_messages_are_not_streamed():
-    # Two gates, not one: STREAMABLE_AGENT_NODES decides which nodes emit progress
-    # ("node") events, DELTA_STREAM_AGENT_NODES decides whose message content is
-    # streamed to the user as text. A canvas sub-agent is visible as progress but
-    # its intermediate chatter must never reach the user - only the completion
-    # report speaks.
+def test_canvas_subagent_intermediate_messages_stream_in_realtime():
     assert "canvas_completion_report" in STREAMABLE_AGENT_NODES
     assert "canvas_completion_report" in DELTA_STREAM_AGENT_NODES
 
@@ -306,7 +304,7 @@ def test_canvas_subagent_intermediate_messages_are_not_streamed():
         "canvas_drawing_agent",
     ):
         assert subagent in STREAMABLE_AGENT_NODES, f"{subagent} should still report progress"
-        assert subagent not in DELTA_STREAM_AGENT_NODES, f"{subagent} content must not stream"
+        assert subagent in DELTA_STREAM_AGENT_NODES, f"{subagent} content should stream live"
 
 
 def test_standalone_canvas_validation_does_not_enter_completion_loop():
@@ -453,7 +451,7 @@ def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(mo
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Review" />
     <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Review" targetRef="End" />
     <bpmn:dataObjectReference id="Data_Order" name="Ordine" />
-    <bpmn:association id="Association_Data" sourceRef="Task_Review" targetRef="Data_Order" associationDirection="One" />
+    <bpmn:association id="Association_Data" sourceRef="Task_Review" targetRef="Data_Order" />
     <bpmn:textAnnotation id="TextAnnotation_1"><bpmn:text>Regola business visiva</bpmn:text></bpmn:textAnnotation>
     <bpmn:association id="Association_1" sourceRef="Task_Review" targetRef="TextAnnotation_1" />
   </bpmn:process>
@@ -473,7 +471,21 @@ def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(mo
 
     monkeypatch.setattr(layout_graph_module.workspace_database, "update_bpmn_model", fake_update_bpmn_model)
 
-    result = run_canvas_drawing_agent({"bpmn_model_id": "proc-bpmn"})
+    result = run_canvas_drawing_agent(
+        {
+            "bpmn_model_id": "proc-bpmn",
+            "canvas_layout_plan": {
+                "strategy": "paper_main_path",
+                "tasks": ["pulisci metadati visivi", "ridisegna percorso principale"],
+                "rows": [["Start", "Task_Review", "End"]],
+                "max_nodes_per_row": 4,
+                "column_gap": 320,
+                "row_gap": 210,
+                "lane_row_height": 210,
+                "annotation_columns": 3,
+            },
+        }
+    )
 
     assert result["canvas_layout_status"] == "completed"
     assert saved["source"] == "canvas_layout_agent"
@@ -484,6 +496,156 @@ def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(mo
     assert "<bpmn:dataObjectReference" in saved["xml"]
     assert 'id="Association_Data"' in saved["xml"]
     assert validate_bpmn_xml(saved["xml"])["valid"] is True
+
+
+def test_canvas_drawing_agent_blocks_without_layout_plan(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start" />
+    <bpmn:userTask id="Task_Review" name="Rivedi ordine" />
+    <bpmn:endEvent id="End" name="End" />
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    monkeypatch.setattr(
+        layout_graph_module.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+
+    result = run_canvas_drawing_agent({"bpmn_model_id": "proc-bpmn"})
+
+    assert result["canvas_layout_status"] == "blocked"
+    assert result["layout_steps"][0]["attempts"] == 0
+    assert result["blocking_conditions"] == ["Missing prerequisite: canvas_layout_plan"]
+
+
+def test_canvas_drawing_agent_blocks_when_layout_plan_misses_flow_node(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start" />
+    <bpmn:userTask id="Task_Review" name="Rivedi ordine" />
+    <bpmn:endEvent id="End" name="End" />
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    monkeypatch.setattr(
+        layout_graph_module.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+
+    result = run_canvas_drawing_agent(
+        {
+            "bpmn_model_id": "proc-bpmn",
+            "canvas_layout_plan": {
+                "strategy": "paper_main_path",
+                "tasks": ["posiziona solo start"],
+                "rows": [["Start"]],
+                "max_nodes_per_row": 4,
+                "column_gap": 320,
+                "row_gap": 210,
+                "lane_row_height": 210,
+                "annotation_columns": 3,
+            },
+        }
+    )
+
+    assert result["canvas_layout_status"] == "blocked"
+    assert result["layout_steps"][0]["attempts"] == 0
+    assert "Task_Review" in result["blocking_conditions"][0]
+
+
+def test_canvas_layout_consultant_agent_splits_goal_into_layout_tasks():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start" />
+    <bpmn:userTask id="Task_A" name="Raccogli" />
+    <bpmn:userTask id="Task_B" name="Verifica" />
+    <bpmn:endEvent id="End" name="End" />
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    class FakeChunk:
+        def __init__(self, content):
+            self.content = content
+
+    class FakeLLM:
+        def stream(self, messages, config=None):
+            assert any("senior process consultant" in message.content for message in messages)
+            assert config["thread_id"] == "layout-test"
+            assert config["metadata"]["delir_stream_visibility"] == "internal"
+            yield FakeChunk(
+                '{"strategy":"paper_main_path","tasks":["leggi il percorso","separa i ritorni"],'
+                '"rows":[["Start","Task_A","Task_B","End"]],"max_nodes_per_row":4,'
+                '"column_gap":340,"row_gap":220,"lane_row_height":220,"annotation_columns":3,'
+                '"rationale":"Percorso principale da sinistra a destra."}'
+            )
+
+    planner = build_canvas_layout_consultant_agent(FakeLLM())
+    result = planner(
+        {
+            "effective_bpmn_xml": xml,
+            "canvas_objective": "Rendi leggibile il canvas",
+        },
+        {"thread_id": "layout-test"},
+    )
+
+    assert result["canvas_layout_plan"]["tasks"] == ["leggi il percorso", "separa i ritorni"]
+    assert result["canvas_layout_plan"]["rows"] == [["Start", "Task_A", "Task_B", "End"]]
+    assert result["canvas_task_log"][0]["owner"] == "canvas_layout_consultant_agent"
+
+
+def test_canvas_drawing_agent_uses_layout_plan_without_hidden_retries(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_A" name="Raccogli"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:userTask id="Task_B" name="Verifica"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_3</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_A" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_A" targetRef="Task_B" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_B" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>"""
+    saved = {}
+
+    monkeypatch.setattr(
+        layout_graph_module.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+
+    def fake_update_bpmn_model(bpmn_model_id, updated_xml, change_summary, source):
+        saved["xml"] = updated_xml
+        return {"id": bpmn_model_id, "process_id": "proc-1", "xml": updated_xml}
+
+    monkeypatch.setattr(layout_graph_module.workspace_database, "update_bpmn_model", fake_update_bpmn_model)
+
+    result = run_canvas_drawing_agent(
+        {
+            "bpmn_model_id": "proc-bpmn",
+            "canvas_layout_plan": {
+                "strategy": "paper_main_path",
+                "tasks": ["leggi percorso", "disegna da sinistra a destra"],
+                "rows": [["Start", "Task_A"], ["Task_B", "End"]],
+                "max_nodes_per_row": 4,
+                "column_gap": 340,
+                "row_gap": 220,
+                "lane_row_height": 220,
+                "annotation_columns": 3,
+            },
+        }
+    )
+
+    assert result["canvas_layout_status"] == "completed"
+    assert result["layout_steps"][0]["attempts"] == 1
+    assert result["layout_steps"][0]["plan"]["rows"] == [["Start", "Task_A"], ["Task_B", "End"]]
+    assert validate_bpmn_layout(saved["xml"])["valid"] is True
 
 
 def test_layout_bpmn_di_wraps_long_process_into_readable_rows():
@@ -520,7 +682,7 @@ def test_layout_bpmn_di_wraps_long_process_into_readable_rows():
     assert bounds["height"] > 400
 
 
-def test_optimize_bpmn_layout_retries_until_canvas_is_readable():
+def test_optimize_bpmn_layout_executes_one_layout_plan():
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
   <bpmn:process id="Process_Test">
@@ -539,11 +701,54 @@ def test_optimize_bpmn_layout_retries_until_canvas_is_readable():
     updated_xml, optimization = optimize_bpmn_layout(xml)
     report = validate_bpmn_layout(updated_xml)
 
-    assert len(optimization["attempts"]) > 1
-    assert optimization["attempts"][0]["report"]["warnings"]
+    assert len(optimization["attempts"]) == 1
     assert optimization["valid"] is True
     assert report["valid"] is True
-    assert not report["warnings"]
+
+
+def test_optimize_bpmn_layout_repairs_overlapped_collaboration_di():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
+  <bpmn:collaboration id="Collaboration_Test">
+    <bpmn:participant id="Participant_Internal" name="Azienda" processRef="Process_Test" />
+    <bpmn:participant id="Participant_External" name="Cliente" />
+    <bpmn:messageFlow id="MessageFlow_Request" sourceRef="Participant_External" targetRef="Task_Review" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="Task_Review" name="Rivedi richiesta"><bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing></bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Decide" name="Completa?"><bpmn:incoming>Flow_2</bpmn:incoming><bpmn:outgoing>Flow_3</bpmn:outgoing><bpmn:outgoing>Flow_4</bpmn:outgoing></bpmn:exclusiveGateway>
+    <bpmn:userTask id="Task_Fix" name="Integra dati"><bpmn:incoming>Flow_4</bpmn:incoming><bpmn:outgoing>Flow_5</bpmn:outgoing></bpmn:userTask>
+    <bpmn:endEvent id="End" name="End"><bpmn:incoming>Flow_3</bpmn:incoming><bpmn:incoming>Flow_5</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start" targetRef="Task_Review" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_Review" targetRef="Gateway_Decide" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Gateway_Decide" targetRef="End" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Gateway_Decide" targetRef="Task_Fix" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="Task_Fix" targetRef="End" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram">
+    <bpmndi:BPMNPlane id="Plane" bpmnElement="Collaboration_Test">
+      <bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="0" y="0" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Review_di" bpmnElement="Task_Review"><dc:Bounds x="0" y="0" width="110" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Decide_di" bpmnElement="Gateway_Decide"><dc:Bounds x="0" y="0" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Fix_di" bpmnElement="Task_Fix"><dc:Bounds x="0" y="0" width="110" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_di" bpmnElement="End"><dc:Bounds x="0" y="0" width="36" height="36" /></bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>"""
+
+    before = validate_bpmn_layout(xml)
+    updated_xml, optimization = optimize_bpmn_layout(xml)
+    after = validate_bpmn_layout(updated_xml)
+
+    assert before["metrics"]["overlap_count"] > 0
+    assert optimization["valid"] is True
+    assert optimization.get("skipped") is None
+    assert after["valid"] is True
+    assert after["metrics"]["overlap_count"] == 0
+    assert 'bpmnElement="Collaboration_Test"' in updated_xml
+    assert 'bpmnElement="Participant_Internal"' in updated_xml
+    assert 'bpmnElement="MessageFlow_Request"' in updated_xml
 
 
 def test_semantic_canvas_validation_flags_missing_gateway_for_decision():

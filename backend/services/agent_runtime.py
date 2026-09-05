@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import json
+import re
+from functools import lru_cache
+from queue import Empty, Queue
 from threading import Lock
+from threading import Thread
+import time
 from typing import Any, Iterator
 from uuid import UUID
 
 from backend.agent import get_agent, normalize_model_name
 from backend.agents.primary_scope import agent_scope_state
 from backend.agents.scope_guard import bind_active_scope
+from backend.llm_config import chat_openai_kwargs
+from backend.llm_streaming import (
+    INTERNAL_STREAM_METADATA_KEY,
+    INTERNAL_STREAM_METADATA_VALUE,
+    stream_to_text,
+)
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
 from backend.schemas.chat import ChatScope, chat_scope_key
 from backend.services.trace_recorder import elapsed_ms, new_trace_context, trace_event
@@ -26,6 +38,7 @@ except ImportError:  # pragma: no cover - langsmith is provided by LangChain dep
 
 
 THREAD_LOCK_TIMEOUT_SECONDS = 30
+ACTIVITY_HEARTBEAT_SECONDS = 4.0
 STREAMABLE_AGENT_NODES = {
     "chatbot",
     "consulting_subgraph",
@@ -101,6 +114,11 @@ DELTA_STREAM_AGENT_NODES = {
     "process_modeling_agent",
     "canvas_agent",
     "canvas_macro_agent",
+    "canvas_patch_edit_agent",
+    "canvas_construction_agent",
+    "canvas_layout_consultant_agent",
+    "canvas_drawing_agent",
+    "canvas_validation_agent",
     "canvas_completion_report",
     "delegate_to_project_macro",
     "delegate_to_process_macro",
@@ -113,6 +131,7 @@ DELTA_STREAM_AGENT_NODES = {
 
 _THREAD_LOCKS: dict[str, Lock] = {}
 _THREAD_LOCKS_GUARD = Lock()
+_ACTIVITY_WORD_RE = re.compile(r"[\w']+")
 
 
 def merge_usage_metadata(
@@ -162,6 +181,144 @@ def message_content_to_text(content) -> str:
         return "".join(parts)
 
     return str(content or "")
+
+
+def sanitize_activity_label(value: str) -> str:
+    """Visible agent status: no JSON, no hidden reasoning, max five words."""
+    text = " ".join(str(value or "").strip().split())
+    if not text or "{" in text or "}" in text:
+        return ""
+    words = _ACTIVITY_WORD_RE.findall(text)
+    return " ".join(words[:5])
+
+
+def activity_icon_for_node(node_name: str | None) -> str:
+    node = node_name or ""
+    if "layout" in node:
+        return "compass"
+    if "draw" in node or "canvas" in node:
+        return "draw"
+    if "validation" in node or "review" in node or "completion" in node:
+        return "check"
+    if "route" in node or "router" in node:
+        return "route"
+    if "construction" in node or "modeling" in node:
+        return "build"
+    if "edit" in node or "patch" in node:
+        return "edit"
+    return "brain"
+
+
+def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
+    if metadata.get(INTERNAL_STREAM_METADATA_KEY) == INTERNAL_STREAM_METADATA_VALUE:
+        return True
+
+    nested = metadata.get("metadata")
+    if isinstance(nested, dict) and nested.get(INTERNAL_STREAM_METADATA_KEY) == INTERNAL_STREAM_METADATA_VALUE:
+        return True
+
+    tags = metadata.get("tags")
+    return isinstance(tags, list) and INTERNAL_STREAM_METADATA_VALUE in tags
+
+
+@lru_cache(maxsize=1)
+def _activity_narrator_llm() -> Any | None:
+    if not settings.openai_api_key:
+        return None
+    try:
+        from langchain_openai import ChatOpenAI
+
+        kwargs = chat_openai_kwargs(
+            max_tokens=18,
+            temperature=settings.model_temperature,
+            reasoning_effort="low",
+            verbosity="low",
+        )
+        kwargs["timeout"] = min(float(settings.model_timeout_seconds), 6.0)
+        kwargs["max_retries"] = 0
+        kwargs["streaming"] = True
+        kwargs["disable_streaming"] = False
+        return ChatOpenAI(**kwargs)
+    except Exception:
+        return None
+
+
+def _activity_prompt(
+    *,
+    user_text: str,
+    scope_type: str | None,
+    node_name: str | None,
+    elapsed_seconds: int,
+) -> list:
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    return [
+        SystemMessage(
+            content=(
+                "Scrivi solo una micro-frase italiana di massimo 5 parole che dica "
+                "cosa sta facendo ora un agente enterprise. Niente JSON, niente "
+                "spiegazioni, niente punteggiatura finale, niente dettagli interni. "
+                "Non rispondere mai alla richiesta utente: descrivi solo l'azione "
+                "in corso. Non salutare. Esempi validi: Analizzo il contesto, "
+                "Verifico i passaggi, Coordino i tool."
+            )
+        ),
+        HumanMessage(
+            content=json.dumps(
+                {
+                    "scope": scope_type or "consultant",
+                    "current_node": node_name or "agent",
+                    "elapsed_seconds": elapsed_seconds,
+                    "user_request": user_text[:500],
+                },
+                ensure_ascii=False,
+            )
+        ),
+    ]
+
+
+def build_activity_event(
+    *,
+    context: TraceContext,
+    thread_id: str,
+    user_text: str,
+    node_name: str | None,
+    elapsed_seconds: int,
+    sequence: int,
+) -> AgentStreamEvent | None:
+    llm = _activity_narrator_llm()
+    if llm is None:
+        return None
+    try:
+        label = sanitize_activity_label(
+            stream_to_text(
+                llm,
+                _activity_prompt(
+                    user_text=user_text,
+                    scope_type=context.scope_type,
+                    node_name=node_name,
+                    elapsed_seconds=elapsed_seconds,
+                ),
+            )
+        )
+    except Exception:
+        return None
+    if not label:
+        return None
+    return AgentStreamEvent(
+        type="activity",
+        request_id=context.request_id,
+        trace_id=context.trace_id,
+        thread_id=thread_id,
+        node=node_name,
+        message=label,
+        payload={
+            "activity_id": f"activity-{sequence}",
+            "icon": activity_icon_for_node(node_name),
+            "source": "llm",
+            "max_words": 5,
+        },
+    )
 
 
 def agent_checkpoint_thread_id(thread_id: str, scope_key: str | None) -> str:
@@ -317,6 +474,7 @@ def stream_agent_events(
     messages: list[dict],
     scope: ChatScope | None = None,
     trace_context: TraceContext | None = None,
+    emit_activity: bool = True,
 ) -> Iterator[AgentStreamEvent]:
     """
     Stream scoped agent responses as structured events.
@@ -363,6 +521,12 @@ def stream_agent_events(
     last_node = None
     first_token_recorded = False
     usage_totals: dict[str, Any] = {}
+    latest_state: dict[str, Any] = {
+        "node": None,
+        "activity_sequence": 0,
+        "started_at": time.monotonic(),
+        "user_text": _latest_user_message(messages),
+    }
     run_tags = langsmith_tags(
         "consultant-chat",
         f"scope:{fields['scope_type']}",
@@ -437,7 +601,13 @@ def stream_agent_events(
         )
         return
 
-    try:
+    output_queue: Queue[AgentStreamEvent | None] = Queue()
+
+    def enqueue(event: AgentStreamEvent) -> None:
+        output_queue.put(event)
+
+    def run_agent_stream() -> None:
+        nonlocal last_node, first_token_recorded, usage_totals
         tracing_context = (
             ls.tracing_context(
                 enabled=True,
@@ -449,143 +619,212 @@ def stream_agent_events(
             else nullcontext()
         )
 
-        with tracing_context, bind_active_scope(scope):
-            events = agent.stream(
-                {
-                    "messages": messages,
-                    **agent_scope_state(scope),
-                },
-                config={
-                    "configurable": {
-                        "thread_id": checkpoint_thread_id,
+        try:
+            with tracing_context, bind_active_scope(scope):
+                events = agent.stream(
+                    {
+                        "messages": messages,
+                        **agent_scope_state(scope),
                     },
-                    "run_id": UUID(context.trace_id),
-                    "run_name": "DeliR scoped agent",
-                    "tags": run_tags,
-                    "metadata": run_metadata,
-                },
-                stream_mode="messages",
-            )
+                    config={
+                        "configurable": {
+                            "thread_id": checkpoint_thread_id,
+                        },
+                        "run_id": UUID(context.trace_id),
+                        "run_name": "DeliR scoped agent",
+                        "tags": run_tags,
+                        "metadata": run_metadata,
+                    },
+                    stream_mode="messages",
+                )
 
-            for event in events:
-                if isinstance(event, tuple):
-                    chunk, metadata = event
-                else:
-                    chunk, metadata = event, {}
+                for event in events:
+                    if isinstance(event, tuple):
+                        chunk, metadata = event
+                    else:
+                        chunk, metadata = event, {}
 
-                node_name = metadata.get("langgraph_node")
-                if node_name and node_name not in STREAMABLE_AGENT_NODES:
-                    continue
+                    node_name = metadata.get("langgraph_node")
+                    if node_name and node_name not in STREAMABLE_AGENT_NODES:
+                        continue
 
-                if node_name and node_name != last_node:
-                    last_node = node_name
-                    node_trace = trace_event(
-                        context,
-                        "node",
-                        node=node_name,
-                        message=f"Agent entered node: {node_name}",
-                    )
-                    yield AgentStreamEvent(
-                        type="node",
-                        request_id=context.request_id,
-                        trace_id=context.trace_id,
-                        thread_id=thread_id,
-                        node=node_name,
-                        payload=node_trace.model_dump(),
-                    )
+                    if node_name and node_name != last_node:
+                        last_node = node_name
+                        latest_state["node"] = node_name
+                        node_trace = trace_event(
+                            context,
+                            "node",
+                            node=node_name,
+                            message=f"Agent entered node: {node_name}",
+                        )
+                        enqueue(
+                            AgentStreamEvent(
+                                type="node",
+                                request_id=context.request_id,
+                                trace_id=context.trace_id,
+                                thread_id=thread_id,
+                                node=node_name,
+                                payload=node_trace.model_dump(),
+                            )
+                        )
 
-                if getattr(chunk, "type", None) not in {"AIMessageChunk", "ai"}:
-                    continue
+                    if getattr(chunk, "type", None) not in {"AIMessageChunk", "ai"}:
+                        continue
 
-                usage_metadata = getattr(chunk, "usage_metadata", None)
-                if usage_metadata:
-                    merge_usage_metadata(usage_totals, dict(usage_metadata))
+                    usage_metadata = getattr(chunk, "usage_metadata", None)
+                    if usage_metadata:
+                        merge_usage_metadata(usage_totals, dict(usage_metadata))
 
-                content = message_content_to_text(getattr(chunk, "content", ""))
+                    content = message_content_to_text(getattr(chunk, "content", ""))
 
-                if node_name and node_name not in DELTA_STREAM_AGENT_NODES:
-                    continue
+                    if is_internal_stream_metadata(metadata):
+                        continue
 
-                if content and not first_token_recorded:
-                    first_token_recorded = True
-                    first_token_trace = trace_event(
-                        context,
-                        "first_token",
-                        node=node_name,
-                        message="First streamed model token received.",
-                        payload={"ttft_ms": elapsed_ms(context.trace_id)},
-                    )
-                    yield AgentStreamEvent(
+                    if node_name and node_name not in DELTA_STREAM_AGENT_NODES:
+                        continue
+
+                    if content and not first_token_recorded:
+                        first_token_recorded = True
+                        first_token_trace = trace_event(
+                            context,
+                            "first_token",
+                            node=node_name,
+                            message="First streamed model token received.",
+                            payload={"ttft_ms": elapsed_ms(context.trace_id)},
+                        )
+                        enqueue(
+                            AgentStreamEvent(
+                                type="trace",
+                                request_id=context.request_id,
+                                trace_id=context.trace_id,
+                                thread_id=thread_id,
+                                payload=first_token_trace.model_dump(),
+                            )
+                        )
+
+                    if content:
+                        enqueue(
+                            AgentStreamEvent(
+                                type="delta",
+                                request_id=context.request_id,
+                                trace_id=context.trace_id,
+                                thread_id=thread_id,
+                                node=node_name,
+                                content=content,
+                            )
+                        )
+
+            if usage_totals:
+                enqueue(
+                    AgentStreamEvent(
                         type="trace",
                         request_id=context.request_id,
                         trace_id=context.trace_id,
                         thread_id=thread_id,
-                        payload=first_token_trace.model_dump(),
+                        payload=trace_event(
+                            context,
+                            "usage",
+                            message="Aggregated streamed model usage received.",
+                            payload={"usage_metadata": usage_totals},
+                        ).model_dump(),
                     )
+                )
 
-                if content:
-                    yield AgentStreamEvent(
-                        type="delta",
-                        request_id=context.request_id,
-                        trace_id=context.trace_id,
-                        thread_id=thread_id,
-                        node=node_name,
-                        content=content,
-                    )
-
-        if usage_totals:
-            yield AgentStreamEvent(
-                type="trace",
+            enqueue(
+                AgentStreamEvent(
+                    type="trace",
+                    request_id=context.request_id,
+                    trace_id=context.trace_id,
+                    thread_id=thread_id,
+                    payload=trace_event(context, "request_end", message="Agent stream completed.").model_dump(),
+                )
+            )
+        except Exception as exc:
+            error = ApiError(
+                code="agent_stream_failed",
+                message="Errore durante l'esecuzione dell'agente.",
+                detail=str(exc),
                 request_id=context.request_id,
                 trace_id=context.trace_id,
-                thread_id=thread_id,
-                payload=trace_event(
-                    context,
-                    "usage",
-                    message="Aggregated streamed model usage received.",
-                    payload={"usage_metadata": usage_totals},
-                ).model_dump(),
+                origin="agent",
+                retryable=False,
             )
+            enqueue(
+                AgentStreamEvent(
+                    type="error",
+                    request_id=context.request_id,
+                    trace_id=context.trace_id,
+                    thread_id=thread_id,
+                    error=error,
+                )
+            )
+            enqueue(
+                AgentStreamEvent(
+                    type="trace",
+                    request_id=context.request_id,
+                    trace_id=context.trace_id,
+                    thread_id=thread_id,
+                    payload=trace_event(
+                        context,
+                        "error",
+                        status="error",
+                        message=error.message,
+                        payload=error.model_dump(),
+                    ).model_dump(),
+                )
+            )
+        finally:
+            thread_lock.release()
+            output_queue.put(None)
 
+    worker = Thread(target=run_agent_stream, name=f"delir-agent-stream-{context.request_id}", daemon=True)
+    worker.start()
+
+    if emit_activity:
+        latest_state["activity_sequence"] += 1
+        initial_activity = build_activity_event(
+            context=context,
+            thread_id=thread_id,
+            user_text=str(latest_state["user_text"] or ""),
+            node_name=None,
+            elapsed_seconds=0,
+            sequence=int(latest_state["activity_sequence"]),
+        )
+        if initial_activity is not None:
+            yield initial_activity
+
+    while True:
+        try:
+            queued = output_queue.get(timeout=ACTIVITY_HEARTBEAT_SECONDS)
+        except Empty:
+            if emit_activity:
+                latest_state["activity_sequence"] += 1
+                activity = build_activity_event(
+                    context=context,
+                    thread_id=thread_id,
+                    user_text=str(latest_state["user_text"] or ""),
+                    node_name=str(latest_state["node"] or "") or None,
+                    elapsed_seconds=int(time.monotonic() - float(latest_state["started_at"])),
+                    sequence=int(latest_state["activity_sequence"]),
+                )
+                if activity is not None:
+                    yield activity
+            continue
+
+        if queued is None:
+            break
+        yield queued
+
+    worker.join(timeout=1)
+
+    if worker.is_alive():
         yield AgentStreamEvent(
-            type="trace",
+            type="warning",
             request_id=context.request_id,
             trace_id=context.trace_id,
             thread_id=thread_id,
-            payload=trace_event(context, "request_end", message="Agent stream completed.").model_dump(),
+            message="Agent stream worker still shutting down.",
         )
-    except Exception as exc:
-        error = ApiError(
-            code="agent_stream_failed",
-            message="Errore durante l'esecuzione dell'agente.",
-            detail=str(exc),
-            request_id=context.request_id,
-            trace_id=context.trace_id,
-            origin="agent",
-            retryable=False,
-        )
-        yield AgentStreamEvent(
-            type="error",
-            request_id=context.request_id,
-            trace_id=context.trace_id,
-            thread_id=thread_id,
-            error=error,
-        )
-        yield AgentStreamEvent(
-            type="trace",
-            request_id=context.request_id,
-            trace_id=context.trace_id,
-            thread_id=thread_id,
-            payload=trace_event(
-                context,
-                "error",
-                status="error",
-                message=error.message,
-                payload=error.model_dump(),
-            ).model_dump(),
-        )
-    finally:
-        thread_lock.release()
 
 
 def stream_agent_deltas(
@@ -600,6 +839,7 @@ def stream_agent_deltas(
         model_name=model_name,
         messages=messages,
         scope=scope,
+        emit_activity=False,
     ):
         if event.type == "delta" and event.content:
             yield event.content

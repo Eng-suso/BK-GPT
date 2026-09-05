@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Any
+
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
@@ -33,6 +35,7 @@ from backend.memory.consultant_context_classifier import (
 )
 from backend.memory.procedural.playbook_context import build_playbook_context
 from backend.memory.procedural.skill_loader import recent_user_text
+from backend.llm_streaming import stream_to_text
 
 
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
@@ -126,7 +129,7 @@ def recent_context_messages(messages: list, limit: int = RECENT_MESSAGE_LIMIT) -
     immediately before the group; naive tail slicing can create orphan tool messages.
     """
     candidates = messages[-RECENT_MESSAGE_SCAN_LIMIT:]
-    groups = []
+    groups: list[list[Any]] = []
     index = 0
 
     while index < len(candidates):
@@ -145,7 +148,7 @@ def recent_context_messages(messages: list, limit: int = RECENT_MESSAGE_LIMIT) -
             continue
 
         group = [message]
-        matched_tool_ids = set()
+        matched_tool_ids: set[str] = set()
         scan = index + 1
 
         while scan < len(candidates) and message_role(candidates[scan]) == "tool":
@@ -160,7 +163,7 @@ def recent_context_messages(messages: list, limit: int = RECENT_MESSAGE_LIMIT) -
 
         index = scan
 
-    selected_groups = []
+    selected_groups: list[list[Any]] = []
     selected_count = 0
 
     for group in reversed(groups):
@@ -327,7 +330,8 @@ def build_agent(model_name: str | None = None):
         if not messages_to_summarize:
             return {}
 
-        summary_response = llm.invoke(
+        summary_text = stream_to_text(
+            llm,
             build_summary_prompt(
                 existing_summary=state.get("running_summary", ""),
                 messages_to_summarize=messages_to_summarize,
@@ -345,7 +349,7 @@ def build_agent(model_name: str | None = None):
         ]
 
         return {
-            "running_summary": str(summary_response.content).strip(),
+            "running_summary": summary_text.strip(),
             "summarized_message_count": 0,
             **({
                 "messages": remove_ops,
@@ -436,7 +440,7 @@ def build_agent(model_name: str | None = None):
     return workflow.compile(checkpointer=get_checkpointer())
 
 
-_AGENT_CACHE = {}
+_AGENT_CACHE: dict[str, Any] = {}
 
 
 def get_agent(model_name: str | None = None, scope_type: str | None = None):

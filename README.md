@@ -24,6 +24,9 @@ npm run typecheck
 
 Architecture note: [docs/ui-architecture.md](docs/ui-architecture.md)
 
+Deployment & multi-tenancy (living handoff doc, always carries the next step):
+[docs/deployment-and-tenancy.md](docs/deployment-and-tenancy.md)
+
 Current source roles:
 
 - `frontend/src`: canonical active frontend and original chat UI.
