@@ -1,7 +1,8 @@
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
-from langchain_core.tools import tool
+from langchain_core.tools import InjectedToolCallId, tool
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend.graphs.process.tools import process_workspace_payload
@@ -10,7 +11,7 @@ from backend.toolsets.process_memory import (
     index_process_evidence_graph,
     manage_process_evidence,
 )
-from backend.toolsets.workspace import enterprise_tool_result
+from backend.toolsets.workspace import enterprise_state_write, enterprise_tool_result
 
 
 ProcessArea = Literal[
@@ -150,13 +151,17 @@ def extract_process_claims(
     source_name: str,
     claims: list[dict],
     extraction_notes: list[str] | None = None,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Structure atomic process claims from one source. Use before synthesis or
     future GraphRAG indexing. Each claim must keep source, confidence and status.
     """
     claim_payload = _jsonable_items(claims)
-    return enterprise_tool_result(
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        state={"process_claims": claim_payload},
         status="prepared",
         action="extract_process_claims",
         entity_type="process_claims",
@@ -227,7 +232,9 @@ def manage_process_contradiction(
     resolution: str | None = None,
     rationale: str = "",
     supporting_sources: list[str] | None = None,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Record a process contradiction, or record what you concluded about one.
 
@@ -244,22 +251,27 @@ def manage_process_contradiction(
     supporting_sources = supporting_sources or []
 
     if operation == "identify":
-        return enterprise_tool_result(
+        identified = {
+            "process_id": process_id,
+            "contradiction_id": contradiction_key(title),
+            "title": title,
+            "conflicting_claims": conflicting_claims,
+            "affected_process_area": affected_process_area,
+            "source_names": source_names,
+            "resolution_needed": resolution_needed,
+            "severity": severity,
+        }
+        return enterprise_state_write(
+            tool_call_id=tool_call_id,
+            # The gate folds identifications and resolutions by contradiction_id,
+            # so both land in the same accumulator.
+            state={"contradictions": [identified]},
             status="prepared",
             action="manage_process_contradiction",
             entity_type="process_contradiction",
             entity_id=process_id,
             summary=title,
-            payload={
-                "process_id": process_id,
-                "contradiction_id": contradiction_key(title),
-                "title": title,
-                "conflicting_claims": conflicting_claims,
-                "affected_process_area": affected_process_area,
-                "source_names": source_names,
-                "resolution_needed": resolution_needed,
-                "severity": severity,
-            },
+            payload=identified,
         )
 
     if operation != "resolve":
@@ -290,22 +302,25 @@ def manage_process_contradiction(
     if invariant_violations:
         effective_resolution = "still_blocking"
 
-    return enterprise_tool_result(
+    resolved = {
+        "process_id": process_id,
+        "contradiction_id": resolved_id,
+        "title": title,
+        "resolution": effective_resolution,
+        "proposed_resolution": resolution,
+        "rationale": rationale,
+        "supporting_sources": supporting_sources,
+        "invariant_violations": invariant_violations,
+    }
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        state={"contradictions": [resolved]},
         status=effective_resolution,
         action="manage_process_contradiction",
         entity_type="process_contradiction_resolution",
         entity_id=process_id,
         summary=f"Contradiction '{title}': {effective_resolution}.",
-        payload={
-            "process_id": process_id,
-            "contradiction_id": resolved_id,
-            "title": title,
-            "resolution": effective_resolution,
-            "proposed_resolution": resolution,
-            "rationale": rationale,
-            "supporting_sources": supporting_sources,
-            "invariant_violations": invariant_violations,
-        },
+        payload=resolved,
         warnings=warnings,
     )
 
@@ -315,7 +330,9 @@ def prepare_evidence_coverage_matrix(
     process_id: str,
     coverage_items: list[dict],
     modeling_blockers: list[str] | None = None,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Prepare an evidence coverage matrix by process area. Use as the gate between
     evidence synthesis and ProcessUnderstanding modeling.
@@ -328,19 +345,24 @@ def prepare_evidence_coverage_matrix(
     ]
     blockers = modeling_blockers or []
     status = "ready_for_modeling" if not blockers and len(weak_areas) <= 2 else "evidence_required"
+    coverage = {
+        "process_id": process_id,
+        "status": status,
+        "coverage_items": coverage_payload,
+        "weak_areas": weak_areas,
+        "modeling_blockers": blockers,
+    }
 
-    return enterprise_tool_result(
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        # One coverage matrix per process: the latest assessment replaces the previous.
+        state={"evidence_coverage": coverage},
         status=status,
         action="prepare_evidence_coverage_matrix",
         entity_type="process_evidence_coverage",
         entity_id=process_id,
         summary=f"Evidence coverage assessed across {len(coverage_items)} process areas.",
-        payload={
-            "process_id": process_id,
-            "coverage_items": coverage_payload,
-            "weak_areas": weak_areas,
-            "modeling_blockers": blockers,
-        },
+        payload=coverage,
         warnings=blockers,
     )
 

@@ -1,13 +1,15 @@
 from typing_extensions import Annotated
 from typing import Literal
 
-from langchain_core.tools import tool
+from langchain_core.tools import InjectedToolCallId, tool
 from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
 
 from backend import workspace_database
 from backend.bpmn import BPMNSemanticModel, semantic_model_to_bpmn_xml
 from backend.graphs.routing_contracts import minimum_readiness_score, uncovered_missing_information
 from backend.toolsets.common import format_workspace_result
+from backend.toolsets.workspace import tool_state_write
 from backend.workspace_services.bpmn_canvas_edit import (
     add_bpmn_element,
     clean_bpmn_visual_metadata_artifacts,
@@ -136,6 +138,42 @@ def _semantic_model_to_xml_from_context(bpmn_model_id: str, state: dict) -> tupl
     }
 
 
+def _canvas_facade_result(
+    tool_call_id: str,
+    payload: dict,
+    *,
+    updated_xml: str | None = None,
+) -> Command:
+    """One canvas facade step, with the XML it saved published into state.
+
+    Two edits in the same subagent turn both read the canvas through
+    `_state_or_saved_canvas_xml`, which prefers what state holds. Without this the
+    second edit re-derived from the pre-edit XML and silently overwrote the first.
+    """
+    state: dict = {}
+    if updated_xml is not None:
+        state = {
+            "saved_bpmn_xml": updated_xml,
+            "effective_bpmn_xml": updated_xml,
+            "effective_bpmn_xml_source": "canvas_facade_edit",
+            "current_bpmn_xml": None,
+            "canvas_task_log": [
+                {
+                    "step": f"patch:{payload.get('operation')}",
+                    "status": "completed",
+                    "owner": "canvas_patch_edit_agent",
+                    "summary": payload.get("change") or payload.get("operation") or "",
+                }
+            ],
+        }
+
+    return tool_state_write(
+        tool_call_id=tool_call_id,
+        state=state,
+        content=format_workspace_result("Canvas BPMN gestito", payload),
+    )
+
+
 @tool
 def manage_canvas_bpmn_model(
     bpmn_model_id: str,
@@ -152,7 +190,9 @@ def manage_canvas_bpmn_model(
     version_id: int | None = None,
     change_summary: str | None = None,
     confirm_structural_change: bool = False,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Unified BPMN canvas CRUD facade.
 
@@ -167,8 +207,8 @@ def manage_canvas_bpmn_model(
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "id": model["id"],
@@ -182,8 +222,8 @@ def manage_canvas_bpmn_model(
 
     if operation == "list_elements":
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -210,8 +250,8 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -219,6 +259,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
+            updated_xml=updated_xml,
         )
 
     if operation == "add_element":
@@ -240,8 +281,8 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -249,6 +290,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
+            updated_xml=updated_xml,
         )
 
     if operation == "delete_element":
@@ -264,8 +306,8 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -273,6 +315,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
+            updated_xml=updated_xml,
         )
 
     if operation == "clear_canvas":
@@ -286,8 +329,8 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -296,6 +339,7 @@ def manage_canvas_bpmn_model(
                 "validation": validate_bpmn_xml(updated_xml),
                 "xml_saved": True,
             },
+            updated_xml=updated_xml,
         )
 
     if operation == "connect_elements":
@@ -317,8 +361,8 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -326,6 +370,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
+            updated_xml=updated_xml,
         )
 
     if operation == "reconnect_flow":
@@ -346,8 +391,8 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -355,6 +400,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
+            updated_xml=updated_xml,
         )
 
     if operation == "layout":
@@ -369,8 +415,8 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -380,12 +426,13 @@ def manage_canvas_bpmn_model(
                 "layout_optimization": layout_optimization,
                 "xml_saved": True,
             },
+            updated_xml=updated_xml,
         )
 
     if operation == "validate_layout":
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -396,8 +443,8 @@ def manage_canvas_bpmn_model(
 
     if operation == "validate":
         xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -411,8 +458,8 @@ def manage_canvas_bpmn_model(
             raise ValueError("proposed_xml obbligatorio per preview_change.")
         current_xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
         clean_proposed_xml = replace_bpmn_xml(proposed_xml)
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -435,19 +482,20 @@ def manage_canvas_bpmn_model(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
                 "change_summary": change_summary or "Sostituzione strutturale canvas",
                 "xml_saved": True,
             },
+            updated_xml=clean_xml,
         )
 
     if operation == "list_versions":
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -458,8 +506,8 @@ def manage_canvas_bpmn_model(
     if operation == "restore_version":
         if version_id is None:
             raise ValueError("version_id obbligatorio per restore_version.")
-        return format_workspace_result(
-            "Canvas BPMN gestito",
+        return _canvas_facade_result(
+            tool_call_id,
             {
                 "operation": operation,
                 **workspace_database.restore_bpmn_version(
@@ -470,6 +518,36 @@ def manage_canvas_bpmn_model(
         )
 
     raise ValueError(f"Operazione canvas non supportata: {operation}")
+
+
+def _construction_result(
+    tool_call_id: str,
+    payload: dict,
+    *,
+    state: dict | None = None,
+    status: str = "completed",
+) -> Command:
+    """One construction step: its reader-facing result plus what it left in state.
+
+    Every construction operation produces something the next node needs - a plan, a
+    diff, a validation, an applied XML - and none of it used to survive the tool
+    call. The task log entry makes the step itself visible in the loop's trace.
+    """
+    return tool_state_write(
+        tool_call_id=tool_call_id,
+        state={
+            **(state or {}),
+            "canvas_task_log": [
+                {
+                    "step": f"construction:{payload['operation']}",
+                    "status": status,
+                    "owner": "canvas_construction_agent",
+                    "summary": payload.get("objective") or "",
+                }
+            ],
+        },
+        content=format_workspace_result("Costruzione canvas BPMN", payload),
+    )
 
 
 @tool
@@ -483,7 +561,9 @@ def manage_canvas_construction(
     proposed_xml: str | None = None,
     change_summary: str | None = None,
     confirm_apply: bool = False,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Structural canvas construction facade.
 
@@ -518,9 +598,11 @@ def manage_canvas_construction(
             "warnings": [] if semantic_model else ["BPMNSemanticModel non disponibile."],
         }
         payload["business_report"] = construction_business_report(payload)
-        return format_workspace_result(
-            "Costruzione canvas BPMN",
+        return _construction_result(
+            tool_call_id,
             payload,
+            state={"construction_plan": payload},
+            status="completed" if semantic_model else "needs_context",
         )
 
     if operation == "generate_preview":
@@ -538,9 +620,11 @@ def manage_canvas_construction(
             "constraints": constraints,
         }
         payload["business_report"] = construction_business_report(payload)
-        return format_workspace_result(
-            "Costruzione canvas BPMN",
+        return _construction_result(
+            tool_call_id,
             payload,
+            state={"canvas_last_validation": validation},
+            status="completed" if validation.get("valid") else "needs_fix",
         )
 
     if operation == "validate_preview":
@@ -563,9 +647,14 @@ def manage_canvas_construction(
             "clean_report": clean_report,
         }
         payload["business_report"] = construction_business_report(payload)
-        return format_workspace_result(
-            "Costruzione canvas BPMN",
+        return _construction_result(
+            tool_call_id,
             payload,
+            state={
+                "canvas_last_validation": validation,
+                "canvas_warnings": validation.get("warnings") or [],
+            },
+            status="completed" if not (validation.get("issues") or []) else "needs_fix",
         )
 
     if operation == "compare_with_current":
@@ -586,10 +675,7 @@ def manage_canvas_construction(
             "clean_report": clean_report,
         }
         payload["business_report"] = construction_business_report(payload)
-        return format_workspace_result(
-            "Costruzione canvas BPMN",
-            payload,
-        )
+        return _construction_result(tool_call_id, payload, state={"preview_diff": payload})
 
     if operation == "apply_approved_preview":
         if not proposed_xml:
@@ -613,8 +699,8 @@ def manage_canvas_construction(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
-        return format_workspace_result(
-            "Costruzione canvas BPMN",
+        return _construction_result(
+            tool_call_id,
             {
                 "operation": operation,
                 "bpmn_model_id": bpmn_model_id,
@@ -625,6 +711,12 @@ def manage_canvas_construction(
                     {"operation": operation, "validation": validation}
                 ),
                 "xml_saved": True,
+            },
+            state={
+                "saved_bpmn_xml": clean_xml,
+                "effective_bpmn_xml": clean_xml,
+                "effective_bpmn_xml_source": "canvas_construction_apply",
+                "canvas_last_validation": validation,
             },
         )
 
@@ -637,7 +729,9 @@ def manage_canvas_validation(
     operation: CanvasValidationOperation,
     state: Annotated[dict, InjectedState()],
     objective: str,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Canvas validation facade for technical and semantic BPMN quality checks.
     Use full_report before applying broad construction work or when the user asks
@@ -691,16 +785,51 @@ def manage_canvas_validation(
     else:
         raise ValueError(f"Operazione validation non supportata: {operation}")
 
-    return format_workspace_result(
-        "Validazione canvas BPMN",
-        {
-            "operation": operation,
-            "bpmn_model_id": bpmn_model_id,
-            "source": source,
-            "objective": objective,
-            "result": result,
-            "business_report": canvas_business_report(result),
+    issues = result.get("issues") or []
+    warnings = result.get("warnings") or []
+    report = {
+        "objective": objective,
+        "operation": operation,
+        "xml_valid": bool(result.get("technical", {}).get("valid", result.get("valid"))),
+        "semantic_valid": result.get("semantic_valid", result.get("valid")),
+        "issues": issues,
+        "warnings": warnings,
+        "next_actions": issues,
+    }
+    return tool_state_write(
+        tool_call_id=tool_call_id,
+        # The completion loop and the scope prompt both read the last validation;
+        # before this they only ever saw the one the runtime ran itself, never the
+        # one the validation subagent had just produced.
+        state={
+            "validation_report": report,
+            "canvas_last_validation": result,
+            "canvas_warnings": warnings,
+            "canvas_next_actions": [
+                {"owner": "canvas_validation_agent", "action": "resolve_validation_issue", "issue": issue}
+                for issue in issues
+            ],
+            "canvas_task_log": [
+                {
+                    "step": "validation",
+                    "status": "completed" if not issues else "needs_fix",
+                    "owner": "canvas_validation_agent",
+                    "summary": objective,
+                    "issues": issues,
+                }
+            ],
         },
+        content=format_workspace_result(
+            "Validazione canvas BPMN",
+            {
+                "operation": operation,
+                "bpmn_model_id": bpmn_model_id,
+                "source": source,
+                "objective": objective,
+                "result": result,
+                "business_report": canvas_business_report(result),
+            },
+        ),
     )
 
 
@@ -969,7 +1098,9 @@ def preview_canvas_bpmn_change(
     bpmn_model_id: str,
     proposed_xml: str,
     state: Annotated[dict, InjectedState()],
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Preview a large BPMN XML change before applying it.
     Use before replace_canvas_bpmn_xml when the change is broad, risky or generated
@@ -977,13 +1108,16 @@ def preview_canvas_bpmn_change(
     """
     current_xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
     clean_proposed_xml = replace_bpmn_xml(proposed_xml)
-    return format_workspace_result(
-        "Anteprima modifica BPMN",
-        {
-            "bpmn_model_id": bpmn_model_id,
-            "source": source,
-            **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
-        },
+    diff = {
+        "bpmn_model_id": bpmn_model_id,
+        "source": source,
+        **preview_bpmn_xml_change(current_xml, clean_proposed_xml),
+    }
+    return tool_state_write(
+        tool_call_id=tool_call_id,
+        # A preview the next node cannot see is a preview nobody can act on.
+        state={"preview_diff": diff},
+        content=format_workspace_result("Anteprima modifica BPMN", diff),
     )
 
 

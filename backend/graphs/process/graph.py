@@ -13,7 +13,6 @@ from backend.graphs.common import (
 )
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
-from backend.graphs.process.projection import project_specialist_results
 from backend.graphs.process.state import ProcessState
 from backend.graphs.process.subgraphs.discovery import build_discovery_subgraph, discovery_tools
 from backend.graphs.process.subgraphs.evidence import build_evidence_subgraph, evidence_tools
@@ -465,7 +464,6 @@ def build_process_subgraph(
     )
     workflow.add_node("delegate_to_canvas_macro", build_canvas_delegation_node(canvas_subgraph))
     workflow.add_node("ask_process_clarification", ask_process_clarification)
-    workflow.add_node("project_specialist_results", project_specialist_results)
     workflow.add_node("evaluate_process_iteration", evaluate_process_iteration)
 
     workflow.add_edge(START, "load_process_context")
@@ -483,12 +481,11 @@ def build_process_subgraph(
         },
     )
     workflow.add_edge("process_macro_agent", END)
-    # Specialist results are projected into typed state before the loop is
-    # evaluated, so the progress signature sees what the pass actually produced.
-    workflow.add_edge("discovery_subgraph", "project_specialist_results")
-    workflow.add_edge("evidence_subgraph", "project_specialist_results")
-    workflow.add_edge("modeling_subgraph", "project_specialist_results")
-    workflow.add_edge("project_specialist_results", "evaluate_process_iteration")
+    # Specialist tools write their judgments into typed state as they run, so the
+    # loop evaluation below already sees what the pass produced.
+    workflow.add_edge("discovery_subgraph", "evaluate_process_iteration")
+    workflow.add_edge("evidence_subgraph", "evaluate_process_iteration")
+    workflow.add_edge("modeling_subgraph", "evaluate_process_iteration")
     workflow.add_conditional_edges(
         "evaluate_process_iteration",
         selected_process_loop_transition,

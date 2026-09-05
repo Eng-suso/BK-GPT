@@ -1,11 +1,12 @@
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.graph import START, END, StateGraph
+from langgraph.prebuilt import ToolNode
 
 from backend.graphs.process.graph import (
     build_canvas_delegation_node,
     evaluate_process_iteration,
     parse_process_router_json,
 )
-from backend.graphs.process.projection import project_specialist_results
 from backend.graphs.process.subgraphs.discovery import graph as discovery_graph_module
 from backend.graphs.process.skills_manifest import required_skills_for
 from backend.graphs.process.state import ProcessState
@@ -635,7 +636,8 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
 
 
 def test_process_subagent_tools_prepare_gate_payloads():
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -650,7 +652,8 @@ def test_process_subagent_tools_prepare_gate_payloads():
 
 def test_discovery_readiness_cannot_claim_ready_with_open_blockers():
     # The runtime verifies internal consistency of the judgment; it does not score it.
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -666,7 +669,8 @@ def test_discovery_readiness_cannot_claim_ready_with_open_blockers():
 def test_discovery_readiness_rejects_whitespace_only_rationale():
     # A claim of ready_for_modeling with nothing to check it against must not
     # stand just because no blockers were listed either.
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -679,7 +683,8 @@ def test_discovery_readiness_rejects_whitespace_only_rationale():
 
 
 def test_discovery_readiness_with_rationale_and_no_blockers_stands():
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -691,7 +696,8 @@ def test_discovery_readiness_with_rationale_and_no_blockers_stands():
 
 
 def test_evidence_claim_and_coverage_tools_prepare_gate_payloads():
-    claims = extract_process_claims.invoke(
+    claims = tool_result_text(
+        extract_process_claims,
         {
             "process_id": "proc-1",
             "source_name": "Interview Ops",
@@ -710,7 +716,8 @@ def test_evidence_claim_and_coverage_tools_prepare_gate_payloads():
     assert '"entity_type": "process_claims"' in claims
     assert '"graph_rag_ready": true' in claims
 
-    coverage = prepare_evidence_coverage_matrix.invoke(
+    coverage = tool_result_text(
+        prepare_evidence_coverage_matrix,
         {
             "process_id": "proc-1",
             "coverage_items": [
@@ -753,7 +760,8 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
     monkeypatch.setattr(process_tools_module.workspace_database, "list_project_sources", lambda project_id: [])
     monkeypatch.setattr(process_tools_module.workspace_database, "list_project_decisions", lambda project_id: [])
 
-    result = validate_process_understanding_readiness.invoke(
+    result = tool_result_text(
+        validate_process_understanding_readiness,
         {
             "process_id": "proc-1",
             "objective": "Check if canvas handoff is possible.",
@@ -764,92 +772,139 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
     assert "No valid ProcessUnderstanding review exists." in result
 
 
-def tool_result_message(action: str, entity_type: str, payload: dict) -> ToolMessage:
-    # Built through the canonical producer so these tests cannot keep passing
-    # against a wire format production has moved away from.
-    return ToolMessage(
-        content=enterprise_tool_result(
-            status="prepared",
-            action=action,
-            entity_type=entity_type,
-            entity_id="proc-1",
-            summary="s",
-            payload=payload,
-        ),
-        tool_call_id="call-1",
+def tool_result_text(state_writing_tool, args: dict) -> str:
+    """The reader-facing result of a tool that also writes state.
+
+    These tools return a Command carrying both the state update and the ToolMessage,
+    so they must be invoked with a full tool call; this unwraps the message content
+    the agent would read.
+    """
+    command = state_writing_tool.invoke(
+        {"name": state_writing_tool.name, "args": args, "id": "call-1", "type": "tool_call"}
     )
+    return command.update["messages"][0].content
+
+
+def run_tool_call(tools, name: str, args: dict, state: dict | None = None) -> dict:
+    """Run one tool call the way the graph does, and return the resulting state.
+
+    Specialist tools write their judgments through Command(update=...), which only
+    happens inside a ToolNode. Calling `.invoke()` on the tool directly would test
+    a path production never takes.
+    """
+    call = AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": "call-1"}])
+
+    workflow = StateGraph(ProcessState)
+    workflow.add_node("emit", lambda _state: {"messages": [call]})
+    workflow.add_node("tools", ToolNode(tools))
+    workflow.add_edge(START, "emit")
+    workflow.add_edge("emit", "tools")
+    workflow.add_edge("tools", END)
+
+    return workflow.compile().invoke({"messages": [], **(state or {})})
 
 
 def test_specialist_tool_results_reach_typed_state():
-    # Before the projection node existed, every one of these fields stayed empty
-    # for the whole run: ToolNode only appends ToolMessages and no other node
-    # wrote them, so the gates reading them could never fire.
-    messages = [
-        AIMessage(content="working"),
-        tool_result_message(
-            "manage_process_contradiction",
-            "process_contradiction",
-            {"title": "Chi approva oltre 10k", "severity": "high"},
-        ),
-        tool_result_message("record_process_gap", "process_gap", {"title": "Soglia", "severity": "non_blocking"}),
-        tool_result_message(
-            "extract_process_claims",
-            "process_claims",
-            {"claims": [{"claim": "Ops valida"}, {"claim": "Finance fattura"}]},
-        ),
-        tool_result_message(
-            "assess_discovery_readiness",
-            "process_discovery_readiness",
-            {"readiness": "partially_ready"},
-        ),
-        tool_result_message(
-            "validate_process_understanding_readiness",
-            "process_understanding_readiness",
-            {"minimum_readiness_score": 5},
-        ),
-    ]
+    # ToolNode appends a ToolMessage and nothing else, so these fields used to stay
+    # empty for the whole run and the gates reading them could never fire. The tools
+    # now write the judgment they carry directly into typed state.
+    result = run_tool_call(
+        evidence_tools,
+        "manage_process_contradiction",
+        {
+            "process_id": "proc-1",
+            "operation": "identify",
+            "title": "Chi approva oltre 10k",
+            "severity": "high",
+        },
+    )
+    assert [item["title"] for item in result["contradictions"]] == ["Chi approva oltre 10k"]
 
-    update = project_specialist_results({"messages": messages})
+    result = run_tool_call(
+        discovery_tools,
+        "record_process_gap",
+        {
+            "process_id": "proc-1",
+            "title": "Soglia",
+            "missing_information": "Soglia di approvazione",
+            "affects": "decision",
+            "severity": "non_blocking",
+        },
+    )
+    assert [item["title"] for item in result["process_gaps"]] == ["Soglia"]
 
-    assert [item["title"] for item in update["contradictions"]] == ["Chi approva oltre 10k"]
-    assert [item["title"] for item in update["process_gaps"]] == ["Soglia"]
-    assert len(update["process_claims"]) == 2
-    assert update["discovery_readiness"]["readiness"] == "partially_ready"
-    assert update["minimum_readiness_score"] == 5
-    assert update["projected_message_count"] == len(messages)
+    result = run_tool_call(
+        evidence_tools,
+        "extract_process_claims",
+        {
+            "process_id": "proc-1",
+            "source_name": "Intervista Ops",
+            "claims": [
+                {
+                    "claim": "Ops valida",
+                    "process_area": "activity",
+                    "source_name": "Intervista Ops",
+                    "confidence": "high",
+                    "status": "confirmed",
+                },
+                {
+                    "claim": "Finance fattura",
+                    "process_area": "activity",
+                    "source_name": "Intervista Ops",
+                    "confidence": "medium",
+                    "status": "partial",
+                },
+            ],
+        },
+    )
+    assert len(result["process_claims"]) == 2
+
+    result = run_tool_call(
+        discovery_tools,
+        "assess_discovery_readiness",
+        {
+            "process_id": "proc-1",
+            "readiness": "partially_ready",
+            "rationale": "Manca la soglia di approvazione.",
+            "confidence": 0.6,
+        },
+    )
+    assert result["discovery_readiness"]["readiness"] == "partially_ready"
 
 
-def test_projection_ignores_unparseable_and_unknown_tool_results():
-    messages = [
-        ToolMessage(content="this is not a tool result", tool_call_id="call-1"),
-        tool_result_message("whatever", "unknown_entity_type", {"x": 1}),
-    ]
-
-    update = project_specialist_results({"messages": messages})
-
-    assert update == {"projected_message_count": 2}
-
-
-def test_projection_does_not_recollect_results_on_loop_re_entry():
-    # contradictions/process_gaps/process_claims use an append reducer, so
-    # re-projecting the same messages on the next engineering-loop pass would
-    # duplicate every record.
-    messages = [
-        tool_result_message(
-            "manage_process_contradiction",
-            "process_contradiction",
-            {"title": "A", "severity": "high"},
-        )
-    ]
-
-    first = project_specialist_results({"messages": messages})
-    second = project_specialist_results(
-        {"messages": messages, "projected_message_count": first["projected_message_count"]}
+def test_tool_state_writes_carry_the_reader_facing_result_too():
+    # The typed write must not cost the agent its own tool result: the transcript
+    # still carries the enterprise result envelope, paired to its tool call.
+    result = run_tool_call(
+        evidence_tools,
+        "manage_process_contradiction",
+        {
+            "process_id": "proc-1",
+            "operation": "identify",
+            "title": "Chi approva oltre 10k",
+            "severity": "high",
+        },
     )
 
-    assert len(first["contradictions"]) == 1
-    assert "contradictions" not in second
-    assert second["projected_message_count"] == 1
+    tool_message = result["messages"][-1]
+    assert tool_message.tool_call_id == "call-1"
+    assert '"entity_type": "process_contradiction"' in tool_message.content
+
+
+def test_state_writing_tools_do_not_expose_tool_call_id_to_the_model():
+    for tools, name in (
+        (evidence_tools, "manage_process_contradiction"),
+        (evidence_tools, "extract_process_claims"),
+        (evidence_tools, "prepare_evidence_coverage_matrix"),
+        (discovery_tools, "assess_discovery_readiness"),
+        (discovery_tools, "record_process_gap"),
+        (modeling_tools, "validate_process_understanding_readiness"),
+    ):
+        tool_obj = next(item for item in tools if item.name == name)
+        # tool_call_schema is the model-facing view: injected arguments are filtered
+        # out of it, which is exactly what must stay true.
+        properties = tool_obj.tool_call_schema.model_json_schema()["properties"]
+        assert "tool_call_id" not in properties, f"{name} leaks the injected id into its schema"
 
 
 def modeling_prerequisites(state: dict) -> list[str]:
@@ -935,7 +990,8 @@ def test_untitled_contradiction_cannot_be_cleared_by_another_resolution():
 
 
 def test_contradiction_resolution_requires_a_supporting_source():
-    resolution = manage_process_contradiction.invoke(
+    resolution = tool_result_text(
+        manage_process_contradiction,
         {
             "process_id": "proc-1",
             "operation": "resolve",
@@ -952,7 +1008,8 @@ def test_contradiction_resolution_requires_a_supporting_source():
 
 
 def test_contradiction_resolution_with_evidence_stands():
-    resolution = manage_process_contradiction.invoke(
+    resolution = tool_result_text(
+        manage_process_contradiction,
         {
             "process_id": "proc-1",
             "operation": "resolve",

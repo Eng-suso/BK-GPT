@@ -1,8 +1,46 @@
+from typing import Any
+
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
 from backend.toolsets.common import format_workspace_result
+
+
+def tool_state_write(*, tool_call_id: str, state: dict[str, Any], content: str) -> Command:
+    """A tool result that also writes what it produced into graph state.
+
+    `ToolNode` appends a ToolMessage and nothing else, so a tool whose result the
+    runtime later has to reason about - a contradiction, a readiness call, a
+    validation report - could reach state only by re-parsing its own serialized
+    output back out of the transcript. Returning a Command writes the typed value
+    directly, alongside the same reader-facing result the agent sees.
+
+    `state` follows the reducers declared on the graph state: accumulator fields
+    (contradictions, claims, gaps, task log) append, plain fields replace.
+    """
+    return Command(
+        update={
+            **state,
+            "messages": [ToolMessage(content=content, tool_call_id=tool_call_id)],
+        }
+    )
+
+
+def enterprise_state_write(
+    *,
+    tool_call_id: str,
+    state: dict[str, Any],
+    **result_fields,
+) -> Command:
+    """`tool_state_write` for tools that answer with an enterprise result envelope."""
+    return tool_state_write(
+        tool_call_id=tool_call_id,
+        state=state,
+        content=enterprise_tool_result(**result_fields),
+    )
 
 
 def enterprise_tool_result(

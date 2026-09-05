@@ -44,7 +44,7 @@ ACTIVITY_HEARTBEAT_SECONDS = 4.0
 # the previous allow-list of 44 node names silently swallowed every new node.
 #
 # Nodes whose work is plumbing, not the agent's answer: context loaders, routers,
-# state projections, loop evaluators. They emit nothing.
+# loop evaluators. They emit nothing.
 INTERNAL_AGENT_NODES = {
     "summarize",
     "classify_and_select_context",
@@ -54,7 +54,6 @@ INTERNAL_AGENT_NODES = {
     "consulting_router",
     "project_router",
     "process_router",
-    "project_specialist_results",
     "evaluate_process_iteration",
     "evaluate_canvas_completion",
     "refresh_canvas_context_after_work",

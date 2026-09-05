@@ -52,6 +52,8 @@ class CanvasState(ConversationState):
     entity_hints: dict
 
     validation_report: dict | None
+    construction_plan: dict | None
+    preview_diff: dict | None
     canvas_layout_plan: dict | None
     canvas_layout_report: dict | None
     canvas_layout_status: str | None

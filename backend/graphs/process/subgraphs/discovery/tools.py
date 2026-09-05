@@ -1,10 +1,11 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from langchain_core.tools import tool
+from langchain_core.tools import InjectedToolCallId, tool
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend.graphs.process.tools import process_workspace_payload
-from backend.toolsets.workspace import enterprise_tool_result
+from backend.toolsets.workspace import enterprise_state_write, enterprise_tool_result
 
 
 class DiscoveryPlanInput(BaseModel):
@@ -190,7 +191,9 @@ def assess_discovery_readiness(
     material_unknowns: list[str] | None = None,
     unsupported_regions: list[str] | None = None,
     contradictions_open: list[str] | None = None,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Record a semantic discovery-readiness judgment: is there enough evidence-backed
     understanding to move into ProcessUnderstanding modeling? This is a judgment call,
@@ -218,24 +221,28 @@ def assess_discovery_readiness(
     if status == "ready_for_modeling" and invariant_violations:
         status = "partially_ready"
 
-    return enterprise_tool_result(
+    judgment = {
+        "process_id": process_id,
+        "readiness": status,
+        "proposed_readiness": readiness,
+        "confidence": confidence,
+        "rationale": rationale,
+        "blockers": blockers,
+        "material_unknowns": material_unknowns,
+        "unsupported_regions": unsupported_regions,
+        "contradictions_open": contradictions_open,
+        "invariant_violations": invariant_violations,
+    }
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        # One standing readiness judgment per process: a later call replaces it.
+        state={"discovery_readiness": judgment},
         status=status,
         action="assess_discovery_readiness",
         entity_type="process_discovery_readiness",
         entity_id=process_id,
         summary=f"Discovery readiness: {status} (confidence {confidence:.2f}).",
-        payload={
-            "process_id": process_id,
-            "readiness": status,
-            "proposed_readiness": readiness,
-            "confidence": confidence,
-            "rationale": rationale,
-            "blockers": blockers,
-            "material_unknowns": material_unknowns,
-            "unsupported_regions": unsupported_regions,
-            "contradictions_open": contradictions_open,
-            "invariant_violations": invariant_violations,
-        },
+        payload=judgment,
         warnings=blockers + invariant_violations,
     )
 
@@ -274,25 +281,30 @@ def record_process_gap(
     affects: str,
     severity: str = "non_blocking",
     recommended_source: str = "",
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
     Prepare one process gap for state/UI handoff. This does not persist a gap
     table yet; save it as evidence or decision only when explicitly requested.
     """
-    return enterprise_tool_result(
+    gap = {
+        "process_id": process_id,
+        "title": title,
+        "missing_information": missing_information,
+        "affects": affects,
+        "severity": severity,
+        "recommended_source": recommended_source,
+    }
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        state={"process_gaps": [gap]},
         status="prepared",
         action="record_process_gap",
         entity_type="process_gap",
         entity_id=process_id,
         summary=title,
-        payload={
-            "process_id": process_id,
-            "title": title,
-            "missing_information": missing_information,
-            "affects": affects,
-            "severity": severity,
-            "recommended_source": recommended_source,
-        },
+        payload=gap,
     )
 
 
