@@ -1,22 +1,42 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Check, Mic, Paperclip, Square } from "lucide-react";
+import { ArrowUp, Check, FileText, GitBranch, Mic, Paperclip, Plus, Square, Workflow, X } from "lucide-react";
 
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "../../../lib/api";
 import { appendAuthQueryParams } from "../../../lib/security";
-import type { ChatMode } from "../../../contracts/chat";
+import {
+  MAX_CHAT_ATTACHMENTS,
+  chatAttachmentKey,
+  type ChatAttachment,
+  type ChatAttachmentKind,
+  type ChatMode,
+  type ReasoningEffort,
+} from "../../../contracts/chat";
+import type { ChatScope } from "../chatScope";
+import { AttachmentPicker } from "./AttachmentPicker";
 import { ChatModeSelector } from "./ChatModeSelector";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatComposerProps {
+  scope: ChatScope;
   selectedModel?: string;
   chatMode: ChatMode;
   onChatModeChange: (mode: ChatMode) => void;
+  reasoningEffort: ReasoningEffort;
+  onReasoningEffortChange: (effort: ReasoningEffort) => void;
   isBusy?: boolean;
-  onSubmit?: (message: string) => void;
+  onSubmit?: (message: string, attachments: ChatAttachment[]) => void;
   onTranscribeAudio?: (file: File) => Promise<string>;
   onAttach?: () => void;
   onVoice?: () => void;
@@ -131,10 +151,27 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes}:${seconds}`;
 }
 
+const ATTACHMENT_ICONS: Record<ChatAttachmentKind, React.ReactNode> = {
+  source: <FileText aria-hidden="true" />,
+  process: <Workflow aria-hidden="true" />,
+  simulation_run: <GitBranch aria-hidden="true" />,
+  note: <Paperclip aria-hidden="true" />,
+};
+
+const ATTACHMENT_MENU: ChatAttachmentKind[] = [
+  "source",
+  "process",
+  "simulation_run",
+  "note",
+];
+
 export const ChatComposer: React.FC<ChatComposerProps> = ({
+  scope,
   selectedModel = "gpt-5.6-luna",
   chatMode,
   onChatModeChange,
+  reasoningEffort,
+  onReasoningEffortChange,
   isBusy = false,
   onSubmit,
   onTranscribeAudio,
@@ -151,6 +188,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const [liveTranscript, setLiveTranscript] = useState("");
   const [finalTranscript, setFinalTranscript] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [pickerKind, setPickerKind] = useState<ChatAttachmentKind | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -244,7 +283,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-    onSubmit?.(content);
+    const sent = attachments;
+    setAttachments([]);
+    onSubmit?.(content, sent);
   };
 
   const appendTranscription = (text: string) => {
@@ -522,14 +563,21 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   return (
     <div className="composer-wrap">
       {hasInterviewPanel && (
-        <section
-          className="interview-panel mx-auto mb-3 w-full max-w-[var(--chat-measure)] rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-100)]"
-          aria-label="Trascrizione intervista"
-        >
-          <div className="mb-3 flex items-center justify-between gap-4 @[540px]/composer-wrap:items-center @max-[540px]/composer-wrap:flex-col @max-[540px]/composer-wrap:items-stretch">
+        <Dialog>
+          <div className="mx-auto mb-2 flex w-full max-w-[var(--chat-measure)] flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground" role="status">
+              {isRecording ? `${t("composer.recording")} · ${formatDuration(elapsedSeconds)}` : isTranscribing ? t("composer.transcribing") : t("composer.transcriptReady")}
+            </span>
+            <DialogTrigger asChild>
+              <Button type="button" size="sm" variant="outline">{t("composer.viewTranscript")}</Button>
+            </DialogTrigger>
+          </div>
+          <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto border-border sm:max-w-2xl">
+            <DialogTitle>{t("composer.transcriptTitle")}</DialogTitle>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-foreground">
-                Intervista live
+                {isRecording ? t("composer.recording") : t("composer.transcriptReady")}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge
@@ -540,11 +588,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                       "border-success-border bg-success-surface text-[var(--color-status-success)]",
                   )}
                 >
-                  {isLiveConnected ? "Live WebSocket" : "Connessione"}
+                  {isRecording ? (isLiveConnected ? t("composer.recording") : t("composer.connecting")) : t("composer.transcriptReady")}
                 </Badge>
                 <span>{formatDuration(elapsedSeconds)}</span>
                 <span>
-                  {isTranscribing ? "Diarizzazione finale" : "Draft realtime"}
+                  {isTranscribing ? t("composer.transcribing") : ""}
                 </span>
               </div>
             </div>
@@ -564,7 +612,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 @[540px]/composer-wrap:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/40">
               <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
                 Live draft
@@ -584,7 +632,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </div>
             </div>
           </div>
-        </section>
+          </DialogContent>
+        </Dialog>
       )}
 
       <form className="composer-box" onSubmit={handleSubmit}>
@@ -599,6 +648,38 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             event.target.value = "";
           }}
         />
+        {/* Sopra il testo, non dentro un menu: quello che stai per mandare deve
+            restare a vista finche' non parte, e si deve poter togliere. */}
+        {attachments.length > 0 && (
+          <ul className="composer-chips" aria-label={t("attach.listLabel")}>
+            {attachments.map((attachment) => (
+              <li key={chatAttachmentKey(attachment)} className="composer-chip">
+                <span className="composer-chip-icon">
+                  {ATTACHMENT_ICONS[attachment.kind]}
+                </span>
+                <span className="composer-chip-label" title={attachment.label}>
+                  {attachment.label}
+                </span>
+                <button
+                  type="button"
+                  className="composer-chip-remove"
+                  aria-label={t("attach.remove", { label: attachment.label })}
+                  onClick={() =>
+                    setAttachments((prev) =>
+                      prev.filter(
+                        (item) =>
+                          chatAttachmentKey(item) !== chatAttachmentKey(attachment),
+                      ),
+                    )
+                  }
+                >
+                  <X aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <textarea
           ref={textareaRef}
           rows={1}
@@ -606,6 +687,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={t("composer.placeholder")}
+          aria-label={t("composer.placeholder")}
           disabled={isLocked}
           autoComplete="off"
           className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
@@ -617,55 +699,98 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         )}
         <div className="composer-bottom-bar">
           <div className="composer-bottom-left">
+            {/* "+" apre cosa alleghi; la modalita' dice come lavora l'agente.
+                Il microfono sta a destra, accanto a Invia: e' un modo di
+                mandare il messaggio, non un'impostazione della riga. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="composer-add"
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={isLocked || isRecording}
+                  aria-label={t("composer.addLabel")}
+                  title={t("composer.addLabel")}
+                >
+                  <Plus />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top">
+                {ATTACHMENT_MENU.map((attachmentKind) => (
+                  <DropdownMenuItem
+                    key={attachmentKind}
+                    disabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
+                    onSelect={() => setPickerKind(attachmentKind)}
+                  >
+                    {ATTACHMENT_ICONS[attachmentKind]}
+                    {t(`attach.${attachmentKind}.menu`)}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    if (onTranscribeAudio) {
+                      fileInputRef.current?.click();
+                    } else {
+                      onAttach?.();
+                    }
+                  }}
+                >
+                  <Paperclip />
+                  {t("composer.audioUpload")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <ChatModeSelector
               value={chatMode}
               onChange={onChatModeChange}
+              effort={reasoningEffort}
+              onEffortChange={onReasoningEffortChange}
               disabled={isBusy}
             />
             <ModelSelector selectedModel={selectedModel} onChange={onModelChange} />
           </div>
 
           <div className="composer-actions">
-            <Button
-              className="btn-pill-light"
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (onTranscribeAudio) {
-                  fileInputRef.current?.click();
-                } else {
-                  onAttach?.();
-                }
-              }}
-              disabled={isLocked || isRecording}
-              title="Carica audio da trascrivere"
-            >
-              <Paperclip />
-              <span>{t("composer.audio")}</span>
-            </Button>
-            <Button
-              className={cn(
-                "btn-pill-light",
-                isRecording &&
-                  "border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10",
-              )}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleVoiceClick}
-              disabled={isBusy || isTranscribing}
-              title={isRecording ? "Ferma intervista" : "Avvia intervista live"}
-            >
-              {isRecording ? <Square /> : <Mic />}
-              <span>{isRecording ? t("composer.stop") : t("composer.interview")}</span>
-            </Button>
+            {/* In registrazione il microfono diventa Stop con il tempo a vista:
+                uno stato attivo deve essere fermabile in un click. */}
+            {isRecording ? (
+              <Button
+                className="composer-stop"
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleVoiceClick}
+                disabled={isTranscribing}
+                title={t("composer.stopHint")}
+              >
+                <Square />
+                <span>{t("composer.stop")}</span>
+                <span className="composer-stop-time">{formatDuration(elapsedSeconds)}</span>
+              </Button>
+            ) : (
+              <Button
+                className="composer-mic"
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleVoiceClick}
+                disabled={isBusy || isTranscribing}
+                aria-label={t("composer.interviewStart")}
+                title={t("composer.interviewStart")}
+              >
+                <Mic />
+              </Button>
+            )}
             <Button
               className="btn-send"
               type="submit"
               size="sm"
               disabled={isLocked || isRecording || !value.trim()}
-              title="Invia messaggio"
+              aria-label={t("composer.send")}
+              title={t("composer.sendHint")}
             >
               <span>{t("composer.send")}</span>
               <ArrowUp />
@@ -673,6 +798,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         </div>
       </form>
+      <AttachmentPicker
+        kind={pickerKind}
+        scope={scope}
+        onClose={() => setPickerKind(null)}
+        onPick={(attachment) => {
+          setPickerKind(null);
+          setAttachments((prev) =>
+            prev.some((item) => chatAttachmentKey(item) === chatAttachmentKey(attachment))
+              ? prev
+              : [...prev, attachment].slice(0, MAX_CHAT_ATTACHMENTS),
+          );
+        }}
+      />
+
       <div className="footnote mt-2 text-center text-[11px] text-muted-foreground">
         {t("composer.disclaimer")}
       </div>

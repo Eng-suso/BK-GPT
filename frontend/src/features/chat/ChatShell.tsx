@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { MoreHorizontal, Share2, Trash2 } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import type { ChatMode } from "../../contracts/chat";
+import type { ChatAttachment, ChatMode, ReasoningEffort } from "../../contracts/chat";
 import type { ChatMessage, ChatSession } from "./types";
 import type { ChatScope } from "./chatScope";
 import { subjectForScope } from "./chatScope";
@@ -33,6 +35,8 @@ interface ChatShellProps {
   selectedModel?: string;
   chatMode: ChatMode;
   onChatModeChange: (mode: ChatMode) => void;
+  reasoningEffort: ReasoningEffort;
+  onReasoningEffortChange: (effort: ReasoningEffort) => void;
   onNewChat?: () => void;
   onSelectSession?: (threadId: string) => void;
   onDeleteSession?: (threadId: string) => void;
@@ -41,7 +45,7 @@ interface ChatShellProps {
   onConfig?: () => void;
   onShare?: () => void;
   onSelectPrompt?: (prompt: string) => void;
-  onSendMessage?: (content: string) => void;
+  onSendMessage?: (content: string, attachments: ChatAttachment[]) => void;
   onTranscribeAudio?: (file: File) => Promise<string>;
   onRetry?: () => void;
   onAttach?: () => void;
@@ -62,6 +66,8 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   selectedModel = "gpt-5.6-luna",
   chatMode,
   onChatModeChange,
+  reasoningEffort,
+  onReasoningEffortChange,
   onNewChat,
   onSelectSession,
   onDeleteSession,
@@ -80,7 +86,9 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 }) => {
   const { t, i18n } = useTranslation("chat");
   const locale = i18n.language || "it";
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(() => window.innerWidth >= 1440);
+  const compactHistory = useMediaQuery("(max-width: 1099px)");
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const prevMessageCount = useRef(0);
@@ -98,17 +106,9 @@ export const ChatShell: React.FC<ChatShellProps> = ({
       if (e.key === "Escape") setIsDrawerOpen(false);
     };
 
-    const handleResize = () => {
-      if (window.innerWidth >= 1100) {
-        setIsDrawerOpen(false);
-      }
-    };
-
     window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
@@ -128,9 +128,9 @@ export const ChatShell: React.FC<ChatShellProps> = ({
     const reduce = window.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
     ).matches;
-    messagesEndRef.current?.scrollIntoView({
+    area?.scrollTo({
+      top: area.scrollHeight,
       behavior: reduce ? "auto" : "smooth",
-      block: "end",
     });
   }, [messages]);
 
@@ -139,7 +139,6 @@ export const ChatShell: React.FC<ChatShellProps> = ({
       <section className="embedded-chat-panel" aria-label="Chat contestuale">
         <header className="embedded-chat-header flex min-h-[var(--inspector-header-height)] items-center justify-between gap-3 border-b border-border px-4 py-2.5">
           <div className="flex min-w-0 flex-col gap-1">
-            <p className="eyebrow">{t("header.eyebrow")}</p>
             <ThreadSwitcher
               sessions={sessions}
               currentThreadId={currentThreadId}
@@ -203,9 +202,12 @@ export const ChatShell: React.FC<ChatShellProps> = ({
         </div>
 
         <ChatComposer
+          scope={scope ?? { type: "consultant" }}
           selectedModel={selectedModel}
           chatMode={chatMode}
           onChatModeChange={onChatModeChange}
+          reasoningEffort={reasoningEffort}
+          onReasoningEffortChange={onReasoningEffortChange}
           isBusy={isBusy}
           onSubmit={onSendMessage}
           onTranscribeAudio={onTranscribeAudio}
@@ -219,35 +221,35 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
   return (
     <div className={`viewport ${isEmbedded ? "viewport-embedded" : ""}`}>
-      <main className={`shell ${isEmbedded ? "chat-shell-embedded" : ""}`} aria-label="Chat consulente">
-        <Sidebar
+      <section className={`shell ${isEmbedded ? "chat-shell-embedded" : ""} ${isDrawerOpen && !compactHistory ? "history-open" : "history-closed"}`} aria-label="Chat consulente">
+        {isDrawerOpen && !compactHistory && <Sidebar
           sessions={sessions}
           currentThreadId={currentThreadId}
           locale={locale}
           isOpen={isDrawerOpen}
           onNewChat={() => {
-            setIsDrawerOpen(false);
             onNewChat?.();
           }}
           onSelectSession={(id) => {
-            setIsDrawerOpen(false);
             onSelectSession?.(id);
           }}
           onDeleteSession={onDeleteSession}
           onClearHistory={onClearHistory}
           onSearch={onSearch}
-        />
-
-        <div
-          className={`sidebar-backdrop ${isDrawerOpen ? "open" : ""}`}
-          onClick={() => setIsDrawerOpen(false)}
-        />
+        />}
+        <Dialog open={isDrawerOpen && compactHistory} onOpenChange={setIsDrawerOpen}>
+          <DialogContent aria-describedby={undefined} onCloseAutoFocus={(event) => { event.preventDefault(); historyButtonRef.current?.focus(); }} className="chat-history-dialog flex h-[85dvh] flex-col overflow-hidden border-border p-4 sm:max-w-md">
+            <DialogTitle>{t("sidebar.recent")}</DialogTitle>
+            <Sidebar sessions={sessions} currentThreadId={currentThreadId} locale={locale} isOpen onNewChat={() => { setIsDrawerOpen(false); onNewChat?.(); }} onSelectSession={(id) => { setIsDrawerOpen(false); onSelectSession?.(id); }} onDeleteSession={onDeleteSession} onClearHistory={onClearHistory} onSearch={onSearch} />
+          </DialogContent>
+        </Dialog>
 
         <section className="main">
           <ChatHeader
             title={headerTitle}
             isDrawerOpen={isDrawerOpen}
             onMenuToggle={() => setIsDrawerOpen((prev) => !prev)}
+            historyButtonRef={historyButtonRef}
             onConfig={onConfig}
             onShare={onShare}
           />
@@ -265,9 +267,12 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           </div>
 
           <ChatComposer
+            scope={scope ?? { type: "consultant" }}
             selectedModel={selectedModel}
             chatMode={chatMode}
             onChatModeChange={onChatModeChange}
+            reasoningEffort={reasoningEffort}
+            onReasoningEffortChange={onReasoningEffortChange}
             isBusy={isBusy}
             onSubmit={onSendMessage}
             onTranscribeAudio={onTranscribeAudio}
@@ -276,7 +281,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
             onModelChange={onModelChange}
           />
         </section>
-      </main>
+      </section>
     </div>
   );
 };

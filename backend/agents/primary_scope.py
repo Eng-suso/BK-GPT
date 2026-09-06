@@ -5,7 +5,14 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from backend.schemas.chat import DEFAULT_CHAT_MODE, ChatMode, ChatScope, chat_scope_key
+from backend.agents.attachments import build_attachments_prompt, resolve_attachments
+from backend.schemas.chat import (
+    DEFAULT_CHAT_MODE,
+    ChatAttachment,
+    ChatMode,
+    ChatScope,
+    chat_scope_key,
+)
 
 
 AgentScopeType = Literal["consultant", "project", "process", "canvas"]
@@ -45,11 +52,15 @@ def agent_scope_type(scope: ChatScope | None) -> AgentScopeType:
 def agent_scope_state(
     scope: ChatScope | None,
     chat_mode: ChatMode | None = None,
-) -> dict[str, str | None]:
+    attachments: list[ChatAttachment] | None = None,
+) -> dict:
     scope_type = agent_scope_type(scope)
     return {
         "scope_type": scope_type,
         "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
+        # Risolti qui, una volta per turno: i nodi a valle leggono contenuto,
+        # non id da andare a cercare.
+        "attachments": resolve_attachments(attachments),
         "scope_key": chat_scope_key(scope),
         "project_id": getattr(scope, "project_id", None),
         "process_id": getattr(scope, "process_id", None),
@@ -139,6 +150,8 @@ def build_scope_system_prompt(state: dict) -> str:
                 )
                 suffix = f" [alternative gia' proposte: {options}]" if options else ""
                 lines.append(f"- ({item.get('severity')}) {item.get('question')}{suffix}")
+
+    lines.extend(build_attachments_prompt(state.get("attachments")))
 
     if state.get("process_understanding"):
         lines.extend(

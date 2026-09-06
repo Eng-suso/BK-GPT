@@ -22,7 +22,13 @@ from backend.llm_streaming import (
     stream_to_text,
 )
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
-from backend.schemas.chat import DEFAULT_CHAT_MODE, ChatMode, ChatScope, chat_scope_key
+from backend.schemas.chat import (
+    DEFAULT_CHAT_MODE,
+    ChatAttachment,
+    ChatMode,
+    ChatScope,
+    chat_scope_key,
+)
 from backend.services.trace_recorder import elapsed_ms, new_trace_context, trace_event
 from backend.settings import (
     effective_langsmith_model_name,
@@ -425,6 +431,7 @@ def stream_agent_events(
     messages: list[dict],
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
+    attachments: list[ChatAttachment] | None = None,
     trace_context: TraceContext | None = None,
     emit_activity: bool = True,
 ) -> Iterator[AgentStreamEvent]:
@@ -577,7 +584,7 @@ def stream_agent_events(
                 events = agent.stream(
                     {
                         "messages": messages,
-                        **agent_scope_state(scope, chat_mode),
+                        **agent_scope_state(scope, chat_mode, attachments),
                     },
                     config={
                         "configurable": {
@@ -787,6 +794,7 @@ def stream_agent_deltas(
     messages: list[dict],
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
+    attachments: list[ChatAttachment] | None = None,
 ) -> Iterator[str]:
     for event in stream_agent_events(
         thread_id=thread_id,
@@ -794,6 +802,7 @@ def stream_agent_deltas(
         messages=messages,
         scope=scope,
         chat_mode=chat_mode,
+        attachments=attachments,
         emit_activity=False,
     ):
         if event.type == "delta" and event.content:
@@ -809,6 +818,7 @@ def stream_agent_text(
     messages: list[dict],
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
+    attachments: list[ChatAttachment] | None = None,
 ) -> str:
     return "".join(
         stream_agent_deltas(
@@ -817,5 +827,6 @@ def stream_agent_text(
             messages=messages,
             scope=scope,
             chat_mode=chat_mode,
+            attachments=attachments,
         )
     )

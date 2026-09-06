@@ -1,8 +1,14 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from backend.schemas.chat import DEFAULT_CHAT_MODE, ChatMode, ChatScope
+from backend.schemas.chat import (
+    DEFAULT_CHAT_MODE,
+    MAX_CHAT_ATTACHMENTS,
+    ChatAttachment,
+    ChatMode,
+    ChatScope,
+)
 
 
 class ChatRequest(BaseModel):
@@ -13,6 +19,9 @@ class ChatRequest(BaseModel):
     # How much of the workflow the user is handing over this turn. Per-request, not
     # per-thread: switching mode must not fork the conversation.
     mode: ChatMode = DEFAULT_CHAT_MODE
+    attachments: list[ChatAttachment] = Field(
+        default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
+    )
 
 
 class CreateSessionRequest(BaseModel):
@@ -72,6 +81,11 @@ class SendMessageRequest(BaseModel):
     model_name: str | None = None
     scope: ChatScope | None = None
     mode: ChatMode = DEFAULT_CHAT_MODE
+    # Il cap non e' difesa dal client: oltre un pugno di allegati il turno
+    # diventa un dump e il modello smette di leggerli.
+    attachments: list[ChatAttachment] = Field(
+        default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
+    )
 
 
 class ChatResponse(BaseModel):

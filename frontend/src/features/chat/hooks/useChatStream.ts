@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import { httpErrorMessage } from "@/lib/http";
 import { notifyWorkspaceChanged } from "@/lib/workspaceEvents";
 import {
+  toApiChatAttachment,
   toApiChatScope,
+  type ChatAttachment,
   type ChatMode,
   type ChatScope,
 } from "../../../contracts/chat";
@@ -35,10 +37,14 @@ type UseChatStreamArgs = {
 export type UseChatStream = {
   isBusy: boolean;
   lastUserPrompt: string;
+  lastUserAttachments: ChatAttachment[];
   liveThreadId: string | null;
   liveMessages: ChatMessage[] | null;
   streamError: string | null;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (
+    content: string,
+    attachments?: ChatAttachment[],
+  ) => Promise<void>;
   clearStreamError: () => void;
 };
 
@@ -80,6 +86,9 @@ export function useChatStream({
 
   const [isBusy, setIsBusy] = useState(false);
   const [lastUserPrompt, setLastUserPrompt] = useState("");
+  // Il retry rimanda lo stesso turno: senza questo gli allegati che il
+  // consulente aveva scelto sparirebbero senza dirlo.
+  const [lastUserAttachments, setLastUserAttachments] = useState<ChatAttachment[]>([]);
   const [live, setLive] = useState<LiveTranscript | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
 
@@ -98,9 +107,10 @@ export function useChatStream({
   const clearStreamError = useCallback(() => setStreamError(null), []);
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, attachments: ChatAttachment[] = []) => {
       const thinkingLabel = t("status.thinking");
       setLastUserPrompt(content);
+      setLastUserAttachments(attachments);
       setStreamError(null);
       setIsBusy(true);
 
@@ -160,6 +170,7 @@ export function useChatStream({
           modelName: modelRef.current,
           scope: toApiChatScope(scopeRef.current),
           mode: modeRef.current,
+          attachments: attachments.map(toApiChatAttachment),
         });
         if (!res.body) throw new Error("Streaming fallito");
 
@@ -273,6 +284,7 @@ export function useChatStream({
   return {
     isBusy,
     lastUserPrompt,
+    lastUserAttachments,
     liveThreadId: live?.threadId ?? null,
     liveMessages: live?.messages ?? null,
     streamError,

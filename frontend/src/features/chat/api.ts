@@ -1,6 +1,6 @@
 import { http, httpStream } from "@/lib/http";
 
-import type { ApiChatScope, ChatMode } from "../../contracts/chat";
+import type { ApiChatAttachment, ApiChatScope, ChatMode } from "../../contracts/chat";
 import type { BpmnReview, BpmnReviewVersion, ChatSession } from "./types";
 import { normalizeSession, type RawSession } from "./lib/normalizeSession";
 
@@ -79,6 +79,7 @@ export function streamChatMessage(
     modelName: string;
     scope: ApiChatScope;
     mode: ChatMode;
+    attachments?: ApiChatAttachment[];
   },
 ): Promise<Response> {
   return httpStream(`${SESSIONS_BASE}/${threadId}/messages/stream`, {
@@ -88,6 +89,7 @@ export function streamChatMessage(
       model_name: input.modelName,
       scope: input.scope,
       mode: input.mode,
+      attachments: input.attachments ?? [],
     },
   });
 }

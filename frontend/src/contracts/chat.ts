@@ -31,6 +31,104 @@ export const CHAT_MODES = ["plan", "edit", "agent"] as const;
 export type ChatMode = (typeof CHAT_MODES)[number];
 export const DEFAULT_CHAT_MODE: ChatMode = "agent";
 
+/**
+ * Quanto il modello deve ragionare prima di rispondere. Ortogonale alla
+ * modalita': la modalita' dice *cosa* l'agente puo' toccare, l'effort dice
+ * quanto tempo puo' spenderci. Ordinati dal piu' rapido al piu' profondo.
+ */
+export const REASONING_EFFORTS = ["low", "medium", "high"] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+export const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
+
+/**
+ * Cosa il consulente mette sul tavolo insieme al messaggio.
+ *
+ * Non sono file: sono oggetti che il workspace gia' conosce (una fonte, un
+ * processo, una run di simulazione) piu' il testo che il consulente incolla.
+ * Viaggiano come riferimenti — id piu' etichetta per la UI — e il backend li
+ * risolve in contenuto vero al momento del turno, cosi' l'allegato non
+ * invecchia dentro il thread.
+ */
+export const CHAT_ATTACHMENT_KINDS = [
+  "source",
+  "process",
+  "simulation_run",
+  "note",
+] as const;
+export type ChatAttachmentKind = (typeof CHAT_ATTACHMENT_KINDS)[number];
+
+/** Il testo incollato non e' un riferimento: se e' enorme, e' un file mascherato. */
+export const MAX_NOTE_ATTACHMENT_CHARS = 20_000;
+/** Oltre questo, il turno diventa un dump e il modello smette di leggere. */
+export const MAX_CHAT_ATTACHMENTS = 8;
+
+export const apiChatAttachmentSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("source"),
+    id: z.string().min(1),
+    label: z.string().min(1),
+    project_id: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal("process"),
+    id: z.string().min(1),
+    label: z.string().min(1),
+    project_id: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal("simulation_run"),
+    id: z.string().min(1),
+    label: z.string().min(1),
+    bpmn_model_id: z.string().min(1),
+  }),
+  z.object({
+    kind: z.literal("note"),
+    id: z.string().min(1),
+    label: z.string().min(1),
+    text: z.string().min(1).max(MAX_NOTE_ATTACHMENT_CHARS),
+  }),
+]);
+
+export type ApiChatAttachment = z.infer<typeof apiChatAttachmentSchema>;
+
+export type ChatAttachment =
+  | { kind: "source"; id: string; label: string; projectId: string }
+  | { kind: "process"; id: string; label: string; projectId: string }
+  | { kind: "simulation_run"; id: string; label: string; bpmnModelId: string }
+  | { kind: "note"; id: string; label: string; text: string };
+
+export function toApiChatAttachment(attachment: ChatAttachment): ApiChatAttachment {
+  if (attachment.kind === "simulation_run") {
+    return {
+      kind: "simulation_run",
+      id: attachment.id,
+      label: attachment.label,
+      bpmn_model_id: attachment.bpmnModelId,
+    };
+  }
+
+  if (attachment.kind === "note") {
+    return {
+      kind: "note",
+      id: attachment.id,
+      label: attachment.label,
+      text: attachment.text.slice(0, MAX_NOTE_ATTACHMENT_CHARS),
+    };
+  }
+
+  return {
+    kind: attachment.kind,
+    id: attachment.id,
+    label: attachment.label,
+    project_id: attachment.projectId,
+  };
+}
+
+/** Chiave di identita' di un allegato: stesso oggetto, una volta sola. */
+export function chatAttachmentKey(attachment: ChatAttachment): string {
+  return `${attachment.kind}:${attachment.id}`;
+}
+
 export type ChatScope =
   | { type: "consultant" }
   | { type: "project"; projectId: string; projectName: string }
