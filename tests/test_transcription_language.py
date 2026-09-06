@@ -6,8 +6,13 @@ fixes are per-model, because the API rejects `prompt` on the diarize model and
 reads `keywords` on only some models --- so the assertions below are as much
 about what we do NOT send as about what we do.
 """
+import asyncio
+import json
+
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from backend.services.transcription import (
     DEFAULT_KEYWORDS,
@@ -224,7 +229,6 @@ def transcription_client(monkeypatch):
         tuple: The test client and a list populated with transcription request options.
     """
     from backend.api.routes import audio
-    from backend.app import app
     from backend.settings import settings
 
     calls: list[dict] = []
@@ -249,7 +253,10 @@ def transcription_client(monkeypatch):
     monkeypatch.setattr(settings, "openai_transcription_model", "gpt-4o-transcribe-diarize")
     monkeypatch.setattr(settings, "openai_transcription_language", "it")
 
-    with TestClient(app) as client:
+    test_app = FastAPI()
+    test_app.include_router(audio.router)
+
+    with TestClient(test_app) as client:
         yield client, calls
 
 
@@ -296,6 +303,32 @@ def test_route_rejects_a_malformed_language_before_calling_the_api(transcription
     assert calls == []
 
 
+def test_route_honors_a_normalized_language_override(transcription_client):
+    client, calls = transcription_client
+
+    response = _post_audio(client, language=" EN ")
+
+    assert response.status_code == 200
+    assert calls[0]["language"] == "en"
+    assert response.json()["language"] == "en"
+
+
+def test_route_authentication_failure_never_reaches_transcription_service(
+    monkeypatch,
+    transcription_client,
+):
+    from backend.settings import settings
+
+    client, calls = transcription_client
+    monkeypatch.setattr(settings, "delir_auth_enabled", True)
+    monkeypatch.setattr(settings, "delir_api_token", "expected-token")
+
+    response = _post_audio(client)
+
+    assert response.status_code == 401
+    assert calls == []
+
+
 def test_route_does_not_leak_the_upstream_error_to_the_caller(monkeypatch, transcription_client):
     """Upstream messages carry request and organization identifiers."""
     from backend.api.routes import audio
@@ -320,7 +353,45 @@ def test_route_does_not_leak_the_upstream_error_to_the_caller(monkeypatch, trans
 
     assert response.status_code == 502
     assert "SECRET123" not in response.text
-    assert response.json()["error"]["message"] == "Trascrizione non riuscita."
+    assert response.json()["detail"] == "Trascrizione non riuscita."
+
+
+def test_async_transcription_client_is_reused_until_the_api_key_changes(monkeypatch):
+    """Client reuse preserves the connection pool; key rotation rebuilds it."""
+    from backend.api.routes import audio
+    from backend.settings import settings
+
+    created = []
+
+    class RecordingAsyncOpenAI:
+        def __init__(self, **options):
+            self.options = options
+            created.append(self)
+
+    monkeypatch.setattr(audio, "AsyncOpenAI", RecordingAsyncOpenAI)
+    monkeypatch.setattr(audio, "_transcription_client", None)
+    monkeypatch.setattr(audio, "_transcription_client_key", None)
+    monkeypatch.setattr(settings, "openai_api_key", "first-key")
+    monkeypatch.setattr(settings, "openai_transcription_timeout_seconds", 123.0)
+    monkeypatch.setattr(settings, "model_max_retries", 4)
+
+    first = audio.transcription_client()
+    reused = audio.transcription_client()
+
+    assert reused is first
+    assert len(created) == 1
+    assert first.options == {
+        "api_key": "first-key",
+        "timeout": 123.0,
+        "max_retries": 4,
+    }
+
+    monkeypatch.setattr(settings, "openai_api_key", "rotated-key")
+    rotated = audio.transcription_client()
+
+    assert rotated is not first
+    assert len(created) == 2
+    assert rotated.options["api_key"] == "rotated-key"
 
 
 # --- live turn detection ---------------------------------------------------
@@ -338,3 +409,161 @@ def test_server_vad_replaces_the_wall_clock_commit():
     assert turn_detection["silence_duration_ms"] == 800
     assert turn_detection["prefix_padding_ms"] == 300
     assert turn_detection["threshold"] == 0.5
+
+
+class _FakeOpenAIWebSocket:
+    """A deterministic boundary double for the external Realtime socket."""
+
+    def __init__(self, events=(), *, hold_open: bool = False):
+        self.events = list(events)
+        self.hold_open = hold_open
+        self.sent: list[dict] = []
+        self.closed = False
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, _exc_type, _exc, _traceback):
+        return False
+
+    async def send(self, message: str):
+        self.sent.append(json.loads(message))
+
+    async def close(self):
+        self.closed = True
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.events:
+            return json.dumps(self.events.pop(0))
+        if self.hold_open:
+            await asyncio.Event().wait()
+        raise StopAsyncIteration
+
+
+def _live_client(monkeypatch, openai_ws: _FakeOpenAIWebSocket):
+    from backend.api.routes import audio
+    from backend.settings import settings
+
+    connect_calls = []
+
+    def connect(*args, **kwargs):
+        connect_calls.append((args, kwargs))
+        return openai_ws
+
+    monkeypatch.setattr(audio.websockets, "connect", connect)
+    monkeypatch.setattr(settings, "delir_auth_enabled", False)
+    monkeypatch.setattr(settings, "openai_api_key", "test-key")
+    monkeypatch.setattr(settings, "openai_transcription_language", "it")
+    monkeypatch.setattr(settings, "openai_live_transcription_model", "gpt-realtime-whisper")
+    monkeypatch.setattr(settings, "openai_live_vad_silence_ms", 875)
+    monkeypatch.setattr(settings, "openai_live_vad_prefix_padding_ms", 325)
+    monkeypatch.setattr(settings, "openai_live_vad_threshold", 0.65)
+
+    test_app = FastAPI()
+    test_app.include_router(audio.router)
+    return TestClient(test_app), connect_calls
+
+
+def test_live_session_wires_language_vad_and_filtered_completion(monkeypatch):
+    openai_ws = _FakeOpenAIWebSocket(
+        [
+            {
+                "type": "conversation.item.input_audio_transcription.completed",
+                "item_id": "item-7",
+                "transcript": "আলো আমি বলছি এখন কিছু",
+            }
+        ]
+    )
+    client, connect_calls = _live_client(monkeypatch, openai_ws)
+
+    with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        ready = websocket.receive_json()
+        completed = websocket.receive_json()
+
+    assert ready == {
+        "type": "ready",
+        "model": "gpt-realtime-whisper",
+        "language": "it",
+        "sample_rate": 24000,
+    }
+    assert completed == {
+        "type": "completed",
+        "transcript": "",
+        "filtered": True,
+        "item_id": "item-7",
+    }
+
+    assert len(connect_calls) == 1
+    _args, kwargs = connect_calls[0]
+    assert kwargs["additional_headers"] == {"Authorization": "Bearer test-key"}
+    session_input = openai_ws.sent[0]["session"]["audio"]["input"]
+    assert session_input["transcription"] == {
+        "model": "gpt-realtime-whisper",
+        "language": "it",
+    }
+    assert session_input["turn_detection"] == {
+        "type": "server_vad",
+        "silence_duration_ms": 875,
+        "prefix_padding_ms": 325,
+        "threshold": 0.65,
+    }
+
+
+@pytest.mark.parametrize(
+    "upstream_event_type",
+    ["conversation.item.input_audio_transcription.failed", "error"],
+)
+def test_live_upstream_failures_are_sanitized(monkeypatch, upstream_event_type: str):
+    openai_ws = _FakeOpenAIWebSocket(
+        [
+            {
+                "type": upstream_event_type,
+                "error": {"message": "failure for org-SECRET123 request req-abc"},
+            }
+        ]
+    )
+    client, _connect_calls = _live_client(monkeypatch, openai_ws)
+
+    with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        assert websocket.receive_json()["type"] == "ready"
+        error = websocket.receive_json()
+
+    assert error == {"type": "error", "detail": "Trascrizione live non riuscita."}
+    assert "SECRET123" not in json.dumps(error)
+
+
+def test_live_server_vad_ignores_manual_commit_and_closes_cleanly(monkeypatch):
+    openai_ws = _FakeOpenAIWebSocket(hold_open=True)
+    client, _connect_calls = _live_client(monkeypatch, openai_ws)
+
+    with client.websocket_connect("/v1/audio/live-transcription") as websocket:
+        assert websocket.receive_json()["type"] == "ready"
+        websocket.send_json({"type": "audio", "audio": "cGNt"})
+        websocket.send_json({"type": "commit"})
+        websocket.send_json({"type": "close"})
+
+    assert [event["type"] for event in openai_ws.sent] == [
+        "session.update",
+        "input_audio_buffer.append",
+    ]
+    assert openai_ws.sent[1]["audio"] == "cGNt"
+    assert openai_ws.closed is True
+
+
+def test_live_websocket_requires_authentication_before_connecting_upstream(monkeypatch):
+    from backend.settings import settings
+
+    openai_ws = _FakeOpenAIWebSocket()
+    client, connect_calls = _live_client(monkeypatch, openai_ws)
+    monkeypatch.setattr(settings, "delir_auth_enabled", True)
+    monkeypatch.setattr(settings, "delir_api_token", "expected-token")
+
+    with pytest.raises(WebSocketDisconnect) as exc_info:
+        with client.websocket_connect("/v1/audio/live-transcription"):
+            pass
+
+    assert exc_info.value.code == 1008
+    assert connect_calls == []
