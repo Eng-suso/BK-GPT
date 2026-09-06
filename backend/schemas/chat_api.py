@@ -92,5 +92,10 @@ class SearchMemoryRequest(BaseModel):
 class TranscriptionResponse(BaseModel):
     text: str
     model: str
+    # Lingua effettivamente richiesta all'API (ISO-639-1), e quanti segmenti il
+    # guard ha scartato perche' tornati in un altro alfabeto: senza questo, un
+    # transcript accorciato dal guard e' indistinguibile da uno corto.
+    language: str = ""
     segments: list[dict[str, Any]] = []
+    dropped_segments: int = 0
     duration: float | None = None

@@ -61,7 +61,8 @@ export function clearChatSessions(scopeKey: string): Promise<void> {
 export async function transcribeAudio(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("language", "it");
+  // No `language` field on purpose: the expected interview language is a
+  // deployment setting (`openai_transcription_language`), not a UI constant.
 
   const data = await http<{ text?: string }>("/v1/audio/transcriptions", {
     method: "POST",

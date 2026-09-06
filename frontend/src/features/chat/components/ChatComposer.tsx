@@ -348,11 +348,16 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           setLiveTranscript(liveDraft);
         }
 
-        if (message.type === "completed" && message.transcript) {
+        if (message.type === "completed") {
+          // A completed item with an empty transcript was dropped by the backend
+          // language guard. Its provisional deltas must still go, or they stay
+          // on screen forever as text nobody said.
           const itemId = message.item_id || "current";
           const transcript = String(message.transcript || "").trim();
           liveDeltaByItemRef.current.delete(itemId);
-          liveCommittedTranscriptRef.current = `${liveCommittedTranscriptRef.current.trim()}\n${transcript}`.trim();
+          if (transcript) {
+            liveCommittedTranscriptRef.current = `${liveCommittedTranscriptRef.current.trim()}\n${transcript}`.trim();
+          }
           const liveDraft = [
             liveCommittedTranscriptRef.current,
             ...Array.from(liveDeltaByItemRef.current.values()),

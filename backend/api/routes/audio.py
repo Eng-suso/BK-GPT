@@ -9,6 +9,14 @@ from openai import OpenAI
 
 from backend.schemas.chat_api import TranscriptionResponse
 from backend.security import AuthPrincipal, authenticate_websocket, require_principal
+from backend.services.transcription import (
+    build_live_transcription_options,
+    build_transcription_options,
+    enforce_language,
+    filter_live_transcript,
+    normalize_language,
+    resolve_keywords,
+)
 from backend.settings import settings
 
 
@@ -58,11 +66,16 @@ async def send_ws_event(websocket: WebSocket, event_type: str, **payload) -> Non
 @router.post("/transcriptions")
 async def transcribe_audio(
     file: UploadFile = File(...),
-    language: str | None = Form(default="it"),
+    language: str | None = Form(default=None),
     _principal: AuthPrincipal = Depends(require_principal),
 ) -> TranscriptionResponse:
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY non configurata.")
+
+    try:
+        target_language = normalize_language(language, settings.openai_transcription_language)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     audio_bytes = await file.read()
 
@@ -77,28 +90,36 @@ async def transcribe_audio(
     audio_file = BytesIO(audio_bytes)
     audio_file.name = filename
 
+    transcription_options = build_transcription_options(
+        model=settings.openai_transcription_model,
+        language=target_language,
+        keywords=resolve_keywords(settings.openai_transcription_keywords),
+        temperature=settings.openai_transcription_temperature,
+    )
+
     try:
         client = OpenAI(api_key=settings.openai_api_key)
-        transcription_options = {
-            "file": (filename, audio_file, content_type),
-            "model": settings.openai_transcription_model,
-            "language": language or None,
-        }
-
-        if settings.openai_transcription_model == "gpt-4o-transcribe-diarize":
-            transcription_options["response_format"] = "diarized_json"
-            transcription_options["chunking_strategy"] = "auto"
-
-        transcription = client.audio.transcriptions.create(**transcription_options)
+        transcription = client.audio.transcriptions.create(
+            file=(filename, audio_file, content_type),
+            **transcription_options,
+        )
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     payload = openai_object_to_dict(transcription)
+    raw_segments = payload.get("segments") if isinstance(payload.get("segments"), list) else []
+    guarded = enforce_language(
+        language=target_language,
+        segments=raw_segments,
+        text=str(payload.get("text") or ""),
+    )
 
     return TranscriptionResponse(
-        text=format_diarized_transcript(payload),
+        text=format_diarized_transcript({"segments": guarded.segments, "text": guarded.text}),
         model=settings.openai_transcription_model,
-        segments=payload.get("segments") if isinstance(payload.get("segments"), list) else [],
+        language=target_language,
+        segments=guarded.segments,
+        dropped_segments=guarded.dropped_segments,
         duration=payload.get("duration") if isinstance(payload.get("duration"), (float, int)) else None,
     )
 
@@ -120,6 +141,12 @@ async def live_audio_transcription(websocket: WebSocket):
     headers = {
         "Authorization": f"Bearer {settings.openai_api_key}",
     }
+    target_language = normalize_language(None, settings.openai_transcription_language)
+    live_transcription_options = build_live_transcription_options(
+        model=settings.openai_live_transcription_model,
+        language=target_language,
+        keywords=resolve_keywords(settings.openai_transcription_keywords),
+    )
 
     try:
         async with websockets.connect(
@@ -156,9 +183,7 @@ async def live_audio_transcription(websocket: WebSocket):
                                         "type": "audio/pcm",
                                         "rate": 24000,
                                     },
-                                    "transcription": {
-                                        "model": settings.openai_live_transcription_model,
-                                    },
+                                    "transcription": live_transcription_options,
                                     "turn_detection": None,
                                 }
                             },
@@ -170,6 +195,7 @@ async def live_audio_transcription(websocket: WebSocket):
                 websocket,
                 "ready",
                 model=settings.openai_live_transcription_model,
+                language=target_language,
                 sample_rate=24000,
             )
 
@@ -218,10 +244,16 @@ async def live_audio_transcription(websocket: WebSocket):
                             item_id=event.get("item_id"),
                         )
                     elif event_type == "conversation.item.input_audio_transcription.completed":
+                        # An item that came back in the wrong script is forwarded
+                        # empty rather than swallowed, so the client still drops
+                        # the provisional deltas it accumulated for that item.
+                        transcript = str(event.get("transcript") or "")
+                        kept = filter_live_transcript(transcript, target_language)
                         await send_ws_event(
                             websocket,
                             "completed",
-                            transcript=event.get("transcript", ""),
+                            transcript=kept,
+                            filtered=bool(transcript) and not kept,
                             item_id=event.get("item_id"),
                         )
                     elif event_type == "conversation.item.input_audio_transcription.failed":

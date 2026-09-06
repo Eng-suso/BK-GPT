@@ -284,7 +284,9 @@
         "text"
       ],
       "properties": {
+        "dropped_segments": "integer",
         "duration": "number?",
+        "language": "string",
         "model": "string",
         "segments": "object[]",
         "text": "string"

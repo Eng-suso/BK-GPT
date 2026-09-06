@@ -9,6 +9,15 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.6-luna"
     openai_transcription_model: str = "gpt-4o-transcribe-diarize"
     openai_live_transcription_model: str = "gpt-realtime-whisper"
+    # Lingua attesa dell'audio (ISO-639-1). Passata all'API su entrambi i path e
+    # usata dal guard in backend/services/transcription.py per scartare i pezzi
+    # che tornano comunque in un altro alfabeto.
+    openai_transcription_language: str = "it"
+    # Termini di dominio aggiuntivi, separati da virgola, in coda a
+    # DEFAULT_KEYWORDS. Li legge solo un modello che supporta keywords/prompt.
+    openai_transcription_keywords: str = ""
+    # 0 = decoding deterministico: meno parlato inventato sui silenzi.
+    openai_transcription_temperature: float = 0.0
 
     tavily_api_key: str | None = None
 
