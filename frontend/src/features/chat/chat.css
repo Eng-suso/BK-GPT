@@ -1802,3 +1802,370 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
     flex: 1;
   }
 }
+
+/* ── Domande aperte del piano ───────────────────────────────────
+   Le lacune del piano come decisioni che il consulente puo' chiudere.
+   Stessa famiglia visiva della review card, tono piu' sobrio: qui non si
+   annuncia un risultato, si chiede una scelta. */
+.review-questions-card {
+  margin: var(--space-300) 0;
+  padding: var(--space-400);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-300);
+  background: var(--color-surface-primary);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.review-questions-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-300);
+}
+
+.review-questions-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-300);
+  background: var(--color-surface-app);
+  color: var(--color-text-secondary);
+}
+
+.review-questions-header h4 {
+  margin: 3px 0 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.review-questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-400);
+  margin-top: var(--space-400);
+}
+
+.review-question + .review-question {
+  padding-top: var(--space-400);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.review-question-text {
+  margin: 0 0 var(--space-300);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-200);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.review-question-badge {
+  display: inline-block;
+  margin-right: var(--space-200);
+  padding: 1px var(--space-200);
+  border-radius: var(--radius-200);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+
+.review-question-options {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.review-question-option {
+  display: block;
+  width: 100%;
+  padding: var(--space-200) var(--space-300);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-300);
+  background: var(--color-surface-app);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-200);
+  text-align: left;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.review-question-option:hover:not(:disabled) {
+  border-color: var(--color-border-selected);
+  background: var(--color-surface-primary);
+}
+
+.review-question-option:focus-visible {
+  outline: var(--border-width-200) solid var(--color-border-selected);
+  outline-offset: 1px;
+}
+
+.review-question-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.review-question-option.is-pending {
+  border-color: var(--color-border-selected);
+}
+
+.review-question-option-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.review-question-option small {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* La via d'uscita: un'alternativa proposta che non calza non deve mai
+   essere l'unico modo di rispondere. */
+.review-question-escape {
+  display: inline-flex;
+  align-items: center;
+  margin-top: var(--space-100);
+  /* WCAG 2.2 SC 2.5.8: 24x24 minimo. Da link inline era alto 20px. */
+  min-block-size: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-action-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-200);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.review-question-escape:focus-visible {
+  outline: var(--border-width-200) solid var(--color-border-selected);
+  outline-offset: 2px;
+  border-radius: var(--radius-200);
+}
+
+.review-question-own {
+  display: flex;
+  gap: var(--space-200);
+  margin-top: var(--space-200);
+}
+
+.review-question-own input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-200) var(--space-300);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-300);
+  background: var(--color-surface-app);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-200);
+}
+
+.review-question-own input:focus-visible {
+  outline: none;
+  border-color: var(--color-border-selected);
+  box-shadow: 0 0 0 var(--border-width-200)
+    color-mix(in srgb, var(--color-border-selected) 28%, transparent);
+}
+
+/* Conversation workspace: readable messages and controls at every panel width. */
+.viewport, .embedded-chat-panel {
+  --chat-gutter: clamp(12px, 2vw, 24px);
+  --chat-measure: 56rem;
+}
+.viewport .welcome, .embedded-chat-panel .welcome {
+  width: min(100%, 720px);
+  max-width: 720px;
+  height: auto;
+  min-height: 0;
+  justify-content: flex-start;
+  padding: 24px 0;
+}
+.viewport .messages { padding-block: 20px; }
+.embedded-chat-panel .message-list { max-width: var(--chat-measure); }
+.embedded-chat-panel .composer-box { width: min(100%, var(--chat-measure)); }
+.composer-wrap textarea { max-height: min(180px, 24dvh); }
+.chat-mode-option { min-height: 32px; }
+.chat-history-dialog .sidebar {
+  position: static;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  transform: none;
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  overflow-y: auto;
+  box-shadow: none;
+}
+@container composer-wrap (max-width: 640px) {
+  .composer-bottom-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .composer-bottom-left { width: 100%; }
+  .chat-mode-selector { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .chat-mode-option { min-width: 0; min-height: 36px; padding: 6px; gap: 4px; }
+  .chat-mode-option span { display: inline; }
+  .composer-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; gap: 6px; margin: 0; }
+  .composer-actions button { width: 100%; min-width: 0; padding-inline: 6px; gap: 4px; font-size: 12px; }
+  .composer-actions .btn-pill-light { min-height: 36px; min-width: 36px; }
+  .composer-actions .btn-pill-light span { display: inline; }
+  .composer-wrap textarea { font-size: 16px; }
+}
+@container composer-wrap (max-width: 280px) {
+  .composer-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .composer-actions .btn-send { grid-column: 1 / -1; }
+  .chat-mode-option svg { display: none; }
+}
+@media (max-width: 540px) {
+  .viewport .welcome, .embedded-chat-panel .welcome { padding-block: 12px; }
+}
+
+/* ── Decisioni prese e storico del piano ────────────────────── */
+.bpmn-review-answered {
+  margin-top: var(--space-400);
+  padding: var(--space-300);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-300);
+  background: var(--color-surface-app);
+}
+
+.bpmn-review-answered h4 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  margin: 0 0 var(--space-300);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+}
+
+.bpmn-review-answered h4 svg {
+  width: 15px;
+  height: 15px;
+}
+
+.bpmn-review-answered > div {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-200) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.bpmn-review-answered > div:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.bpmn-review-answered strong {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-regular);
+  overflow-wrap: anywhere;
+}
+
+.bpmn-review-answered span {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.bpmn-review-versions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-300);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bpmn-review-version {
+  padding: var(--space-300);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-300);
+  background: var(--color-surface-primary);
+  min-width: 0;
+}
+
+.bpmn-review-version-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+}
+
+.bpmn-review-version-head strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+}
+
+.bpmn-review-version p {
+  margin: var(--space-100) 0 var(--space-300);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-200);
+  overflow-wrap: anywhere;
+}
+
+.bpmn-review-version-diff {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-400);
+}
+
+.bpmn-review-delta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-100);
+}
+
+.bpmn-review-delta small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+}
+
+.bpmn-review-delta strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-200);
+  font-weight: var(--font-weight-semibold);
+}
+
+.bpmn-review-delta em {
+  font-size: var(--font-size-100);
+  font-style: normal;
+  font-weight: var(--font-weight-semibold);
+}
+
+.bpmn-review-delta em.is-up {
+  color: var(--color-action-primary);
+}
+
+.bpmn-review-delta em.is-down {
+  color: var(--color-text-secondary);
+}
+
+/* Dentro il pannello review la card domande è già in un contenitore: niente
+   doppio bordo, niente doppia ombra. */
+.bpmn-review-tab-section .review-questions-card {
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}

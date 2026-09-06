@@ -7,6 +7,7 @@ import {
   Copy,
   Gauge,
   GitBranch,
+  History,
   HelpCircle,
   FileText,
   ListChecks,
@@ -26,7 +27,8 @@ import {
 } from "@/ui/dialog";
 import { cn } from "@/lib/utils";
 import { renderMarkdown } from "../lib/markdown";
-import type { BpmnReview } from "../types";
+import { ReviewQuestionsCard } from "./ReviewQuestionsCard";
+import type { BpmnReview, BpmnReviewVersion, ReviewOpenQuestion } from "../types";
 
 type BpmnReviewCardProps = {
   review: BpmnReview;
@@ -35,12 +37,15 @@ type BpmnReviewCardProps = {
 
 type BpmnReviewSheetProps = {
   review: BpmnReview;
+  versions: BpmnReviewVersion[];
   open: boolean;
   isApproving: boolean;
   isSaving: boolean;
+  isAnswering: boolean;
   onOpenChange: (open: boolean) => void;
   onApprove: () => void;
   onSave: (bpmnBrief: string) => Promise<void>;
+  onAnswer: (question: string, answer: string) => Promise<void>;
   onToast: (message: string) => void;
 };
 
@@ -88,12 +93,15 @@ export function BpmnReviewCard({
 
 export function BpmnReviewSheet({
   review,
+  versions,
   open,
   isApproving,
   isSaving,
+  isAnswering,
   onOpenChange,
   onApprove,
   onSave,
+  onAnswer,
   onToast,
 }: BpmnReviewSheetProps) {
   const [copied, setCopied] = useState(false);
@@ -120,6 +128,8 @@ export function BpmnReviewSheet({
     })),
   ];
   const hasUnsavedPlan = draftMarkdown !== review.bpmn_brief;
+  const openQuestions = review.open_questions ?? [];
+  const unansweredCount = openQuestions.filter((item) => !item.answer).length;
 
   const copyMarkdown = async () => {
     try {
@@ -189,9 +199,10 @@ export function BpmnReviewSheet({
         </div>
 
         <nav className="bpmn-review-sheet-nav" aria-label="Sezioni della review BPMN">
-          <ReviewNavButton active={activeSection === "overview"} icon={<FileText />} label="Panoramica" onClick={() => setActiveSection("overview")} />
-          <ReviewNavButton active={activeSection === "structure"} icon={<GitBranch />} label="Struttura" onClick={() => setActiveSection("structure")} />
-          <ReviewNavButton active={activeSection === "validation"} icon={<HelpCircle />} label="Da validare" count={missingInformation.length + unknowns.length + warnings.length} onClick={() => setActiveSection("validation")} />
+          <ReviewNavButton active={activeSection === "overview"} icon={<FileText />} label="Cosa ho capito" onClick={() => setActiveSection("overview")} />
+          <ReviewNavButton active={activeSection === "structure"} icon={<GitBranch />} label="Come lo disegno" onClick={() => setActiveSection("structure")} />
+          <ReviewNavButton active={activeSection === "validation"} icon={<HelpCircle />} label="Da decidere" count={unansweredCount + warnings.length} onClick={() => setActiveSection("validation")} />
+          <ReviewNavButton active={activeSection === "versions"} icon={<History />} label="Versioni" count={versions.length} onClick={() => setActiveSection("versions")} />
           <ReviewNavButton active={activeSection === "quality"} icon={<Gauge />} label="Qualità" onClick={() => setActiveSection("quality")} />
         </nav>
 
@@ -211,8 +222,16 @@ export function BpmnReviewSheet({
           ) : null}
           {activeSection === "structure" ? <StructureSection understanding={understanding} semanticModel={semanticModel} /> : null}
           {activeSection === "validation" ? (
-            <ValidationSection missingInformation={missingInformation} unknowns={unknowns} warnings={warnings} />
+            <ValidationSection
+              openQuestions={openQuestions}
+              missingInformation={missingInformation}
+              unknowns={unknowns}
+              warnings={warnings}
+              isAnswering={isAnswering}
+              onAnswer={onAnswer}
+            />
           ) : null}
+          {activeSection === "versions" ? <VersionsSection versions={versions} /> : null}
           {activeSection === "quality" ? <QualitySection qualityReport={qualityReport} /> : null}
         </div>
 
@@ -236,7 +255,7 @@ export function BpmnReviewSheet({
   );
 }
 
-type ReviewSection = "overview" | "structure" | "validation" | "quality";
+type ReviewSection = "overview" | "structure" | "validation" | "versions" | "quality";
 
 function ReviewNavButton({
   active,
@@ -347,25 +366,137 @@ function StructureSection({
 }
 
 function ValidationSection({
+  openQuestions,
   missingInformation,
   unknowns,
   warnings,
+  isAnswering,
+  onAnswer,
 }: {
+  openQuestions: ReviewOpenQuestion[];
   missingInformation: string[];
   unknowns: Array<{ question: string; severity: string }>;
   warnings: Array<{ label: string; severity: string }>;
+  isAnswering: boolean;
+  onAnswer: (question: string, answer: string) => Promise<void>;
 }) {
+  const answered = openQuestions.filter((item) => item.answer);
+  // Le lacune che il piano espone come domande si chiudono qui; il resto
+  // (warning di qualità, informazioni mancanti senza una domanda) resta da leggere.
+  const questionTexts = new Set(openQuestions.map((item) => item.question));
+  const otherGaps = [
+    ...missingInformation
+      .filter((item) => !questionTexts.has(item))
+      .map((item) => ({ label: item, severity: "Informazione mancante" })),
+    ...unknowns
+      .filter((item) => !questionTexts.has(item.question))
+      .map((item) => ({ label: item.question, severity: item.severity })),
+    ...warnings,
+  ];
+
   return (
     <section className="bpmn-review-tab-section">
-      <SectionIntro icon={<HelpCircle />} eyebrow="Conversazione necessaria" title="Cosa devi confermare" description="Questi punti sono esplicitamente separati dal flusso: rispondendo qui evitiamo di disegnare assunzioni nel processo." />
-      {missingInformation.length || unknowns.length || warnings.length ? (
-        <div className="bpmn-review-issues">
-          {missingInformation.map((item, index) => <ReviewIssue key={`missing-${index}`} label={item} severity="Informazione mancante" />)}
-          {unknowns.map((item, index) => <ReviewIssue key={`unknown-${index}`} label={item.question} severity={item.severity} />)}
-          {warnings.map((item, index) => <ReviewIssue key={`warning-${index}`} label={item.label} severity={item.severity} />)}
+      <SectionIntro icon={<HelpCircle />} eyebrow="Conversazione necessaria" title="Cosa devi decidere" description="Questi punti sono esplicitamente separati dal flusso: decidendo qui evitiamo di disegnare assunzioni nel processo." />
+
+      <ReviewQuestionsCard
+        questions={openQuestions}
+        isAnswering={isAnswering}
+        onAnswer={onAnswer}
+      />
+
+      {answered.length ? (
+        <div className="bpmn-review-answered">
+          <h4><ListChecks aria-hidden="true" />Decisioni prese</h4>
+          {answered.map((item) => (
+            <div key={item.question_id}>
+              <strong>{item.question}</strong>
+              <span>{item.answer}</span>
+            </div>
+          ))}
         </div>
-      ) : <div className="bpmn-review-empty-state">Non risultano criticità o informazioni mancanti.</div>}
+      ) : null}
+
+      {otherGaps.length ? (
+        <div className="bpmn-review-issues">
+          {otherGaps.map((item, index) => (
+            <ReviewIssue key={`gap-${index}`} label={item.label} severity={item.severity} />
+          ))}
+        </div>
+      ) : null}
+
+      {!openQuestions.length && !otherGaps.length ? (
+        <div className="bpmn-review-empty-state">Non risultano criticità o informazioni mancanti.</div>
+      ) : null}
     </section>
+  );
+}
+
+
+function VersionsSection({ versions }: { versions: BpmnReviewVersion[] }) {
+  return (
+    <section className="bpmn-review-tab-section">
+      <SectionIntro icon={<History />} eyebrow="Storico del piano" title="Come è cambiato" description="Ogni stato del piano resta leggibile: cosa è cambiato, perché, e quanto è cambiata la struttura rispetto alla versione precedente." />
+      {versions.length ? (
+        <ol className="bpmn-review-versions">
+          {versions.map((version, index) => (
+            <VersionRow key={version.version} version={version} previous={versions[index + 1]} />
+          ))}
+        </ol>
+      ) : (
+        <div className="bpmn-review-empty-state">Nessuna versione registrata.</div>
+      )}
+    </section>
+  );
+}
+
+
+function VersionRow({
+  version,
+  previous,
+}: {
+  version: BpmnReviewVersion;
+  previous?: BpmnReviewVersion;
+}) {
+  const nodes = version.bpmn_semantic_model?.flowNodes?.length ?? 0;
+  const flows = version.bpmn_semantic_model?.sequenceFlows?.length ?? 0;
+
+  return (
+    <li className="bpmn-review-version">
+      <div className="bpmn-review-version-head">
+        <strong>v{version.version}</strong>
+        <span className={cn("bpmn-review-status", version.status === "approved" ? "is-ready" : "is-attention")}>
+          {version.status === "approved" ? "Approvata" : "Bozza"}
+        </span>
+      </div>
+      <p>{version.change_summary || humanize(version.source)}</p>
+      <div className="bpmn-review-version-diff">
+        <ReviewDelta label="Elementi" value={nodes} previous={previous ? (previous.bpmn_semantic_model?.flowNodes?.length ?? 0) : undefined} />
+        <ReviewDelta label="Collegamenti" value={flows} previous={previous ? (previous.bpmn_semantic_model?.sequenceFlows?.length ?? 0) : undefined} />
+        <ReviewDelta label="Readiness" value={version.readiness_score} previous={previous?.readiness_score} />
+      </div>
+    </li>
+  );
+}
+
+
+function ReviewDelta({
+  label,
+  value,
+  previous,
+}: {
+  label: string;
+  value: number;
+  previous?: number;
+}) {
+  // Il delta si mostra solo quando c'è un "prima" con cui confrontare: la prima
+  // versione non è cresciuta di nulla, è semplicemente la prima.
+  const delta = previous === undefined ? null : value - previous;
+  return (
+    <span className="bpmn-review-delta">
+      <small>{label}</small>
+      <strong>{value}</strong>
+      {delta ? <em className={delta > 0 ? "is-up" : "is-down"}>{delta > 0 ? `+${delta}` : delta}</em> : null}
+    </span>
   );
 }
 

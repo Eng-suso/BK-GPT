@@ -13,6 +13,7 @@ import { useBpmnReview } from "./hooks/useBpmnReview";
 import { useChatSessions } from "./hooks/useChatSessions";
 import { useChatStream } from "./hooks/useChatStream";
 import { BpmnReviewCard, BpmnReviewSheet } from "./review/BpmnReviewCard";
+import { ReviewQuestionsCard } from "./review/ReviewQuestionsCard";
 
 type ChatExperienceProps = {
   chrome?: "full" | "panel";
@@ -150,6 +151,13 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
                 onOpen={() => setIsReviewOpen(true)}
               />
             ) : null}
+            {review.review?.open_questions?.length ? (
+              <ReviewQuestionsCard
+                questions={review.review.open_questions}
+                isAnswering={review.isAnswering}
+                onAnswer={review.answerQuestion}
+              />
+            ) : null}
           </>
         }
       />
@@ -159,11 +167,14 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
           key={review.review.updated_at}
           review={review.review}
           open={isReviewOpen}
+          versions={review.versions}
           isApproving={review.isApproving}
           isSaving={review.isSaving}
+          isAnswering={review.isAnswering}
           onOpenChange={setIsReviewOpen}
           onApprove={review.approve}
           onSave={review.save}
+          onAnswer={review.answerQuestion}
           onToast={showToast}
         />
       ) : null}

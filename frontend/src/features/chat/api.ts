@@ -1,7 +1,7 @@
 import { http, httpStream } from "@/lib/http";
 
 import type { ApiChatScope, ChatMode } from "../../contracts/chat";
-import type { BpmnReview, ChatSession } from "./types";
+import type { BpmnReview, BpmnReviewVersion, ChatSession } from "./types";
 import { normalizeSession, type RawSession } from "./lib/normalizeSession";
 
 /**
@@ -15,6 +15,8 @@ export const chatKeys = {
   sessions: (scopeKey: string) => [...chatKeys.all, "sessions", scopeKey] as const,
   session: (threadId: string) => [...chatKeys.all, "session", threadId] as const,
   review: (bpmnModelId: string) => [...chatKeys.all, "review", bpmnModelId] as const,
+  reviewVersions: (bpmnModelId: string) =>
+    [...chatKeys.all, "review-versions", bpmnModelId] as const,
 };
 
 const SESSIONS_BASE = "/v1/consultant-chat/sessions";
@@ -107,6 +109,27 @@ export function approveBpmnReview(bpmnModelId: string): Promise<void> {
   return http<void>(
     `/v1/workspace/bpmn-models/${bpmnModelId}/review/approve`,
     { method: "POST" },
+  );
+}
+
+/** Every recorded state of the plan, newest first. */
+export function fetchBpmnReviewVersions(
+  bpmnModelId: string,
+): Promise<BpmnReviewVersion[]> {
+  return http<BpmnReviewVersion[]>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/review/versions`,
+    { cache: "no-store" },
+  );
+}
+
+/** Record what the consultant decided about one open question. */
+export function answerBpmnReviewQuestion(
+  bpmnModelId: string,
+  input: { question: string; answer: string },
+): Promise<BpmnReview> {
+  return http<BpmnReview>(
+    `/v1/workspace/bpmn-models/${bpmnModelId}/review/answers`,
+    { method: "POST", body: input },
   );
 }
 
