@@ -18,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
 import { StatusIndicator, type StatusTone } from "@/components/status";
@@ -36,6 +37,7 @@ type BpmnCanvasToolbarProps = {
   isHistoryOpen: boolean;
   versionCount: number;
   fileInputRef: RefObject<HTMLInputElement | null>;
+  menuButtonRef?: RefObject<HTMLButtonElement | null>;
   canvasChat: PanelToggle;
   properties: PanelToggle;
   onSave: () => void;
@@ -57,6 +59,7 @@ export function BpmnCanvasToolbar({
   isHistoryOpen,
   versionCount,
   fileInputRef,
+  menuButtonRef,
   canvasChat,
   properties,
   onSave,
@@ -107,7 +110,7 @@ export function BpmnCanvasToolbar({
       </div>
 
       <div className="process-bpmn-toolbar-actions">
-        <StatusIndicator tone={saveTone} label={saveLabel} className="mr-1" />
+        <StatusIndicator tone={saveTone} label={saveLabel} className="bpmn-save-status mr-1 shrink-0" />
 
         <div className="bpmn-zoom-group" aria-label="Controlli zoom">
           <Button
@@ -157,12 +160,23 @@ export function BpmnCanvasToolbar({
               variant={isHistoryOpen ? "secondary" : "outline"}
               size="icon-sm"
               aria-label="Importa, esporta, cronologia"
+              ref={menuButtonRef}
               title="Importa, esporta, cronologia"
             >
               <MoreHorizontal className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem disabled={!isReady} onClick={onZoomFit}>
+              <Maximize2 /> Centra e adatta diagramma
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!isReady} onClick={onZoomIn}>
+              <Plus /> Ingrandisci
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={!isReady} onClick={onZoomOut}>
+              <Minus /> Riduci
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!isReady} onClick={onImportClick}>
               <Upload />
               Importa BPMN

@@ -101,6 +101,7 @@ export function ReplayInsightRail({
               <li key={id} className="grid grid-cols-[minmax(0,1fr)_88px] items-center gap-2">
                 <span className="truncate text-xs text-foreground">{id}</span>
                 <Meter
+                  label={id}
                   value={Math.round(res.busy * 100)}
                   tone={res.busy >= 0.95 ? "danger" : res.busy >= 0.8 ? "warning" : "ok"}
                 />

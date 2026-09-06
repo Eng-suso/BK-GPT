@@ -11,7 +11,8 @@
     "backToProject": "Back to project",
     "toggleChat": "Canvas chat",
     "toggleProperties": "Properties",
-    "closeOverlays": "Close panels"
+    "closeOverlays": "Close panels",
+    "views": "Process views"
   },
   "state": {
     "processNotFound": "Process not found in this project.",
@@ -25,7 +26,7 @@
       "runSwitcher": "Pick a run",
       "comingSoon": "This screen ships in a later phase.",
       "nav": {
-        "overview": "Overview",
+        "overview": "Results",
         "scenario": "Scenario",
         "replay": "Replay",
         "dashboard": "Dashboard",
@@ -43,7 +44,11 @@
       "speed": "Speed",
       "granularity": "Granularity",
       "counters": "Live counters",
-      "grain": { "case": "Case", "sample": "Sample", "system": "System" },
+      "grain": {
+        "case": "Case",
+        "sample": "Sample",
+        "system": "System"
+      },
       "active": "Active",
       "queued": "Queued",
       "completed": "Completed",
@@ -63,7 +68,7 @@
         "legendQueued": "Case queued"
       },
       "noRun": "No simulation to replay",
-      "noRunHint": "Run a simulation from Overview, then come back here.",
+      "noRunHint": "Run a simulation from Scenario, then return here.",
       "noArtifact": "No replay for this run",
       "noArtifactHint": "Runs from before the new pipeline have no event log. Run a new simulation.",
       "casePicker": "Case to follow",
@@ -85,7 +90,7 @@
       "systemLegend": "Line weight = case volume on that path"
     },
     "overview": {
-      "noRunHint": "Configure the scenario below and launch the first simulation."
+      "noRunHint": "Set resources, timing and rules in the scenario, then run the simulation."
     },
     "dashboard": {
       "throughput": "Throughput",
@@ -148,7 +153,7 @@
       "resources": "Quantity",
       "resourcePool": "Role"
     },
-    "run": "Run Prosimos",
+    "run": "Run simulation",
     "running": "Simulation running…",
     "refresh": "Refresh",
     "loading": "Loading simulations…",
@@ -324,6 +329,17 @@
       "estimateNote": "Estimate — the real answer is to simulate",
       "createScenario": "Create scenario",
       "scenarioName": "{{base}} · +1 {{pool}}"
+    },
+    "workspace": {
+      "overviewTitle": "Model and results",
+      "startHint": "Set resources, timing and rules in the scenario, then run the simulation.",
+      "resultsHint": "Review the model and results, or prepare a new scenario.",
+      "configure": "Configure scenario",
+      "showModel": "Show model",
+      "assumptions": "Assumptions and readiness",
+      "viewResults": "View results",
+      "sections": "Scenario sections",
+      "analysis": "Analysis"
     }
   },
   "side": {

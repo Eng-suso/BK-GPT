@@ -11,6 +11,7 @@ import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
 import { BpmnCanvasToolbar } from "./components/BpmnCanvasToolbar";
 import { BpmnNodeInspector } from "./components/BpmnNodeInspector";
 import { BpmnVersionHistory } from "./components/BpmnVersionHistory";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/ui/dialog";
 
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
@@ -40,6 +41,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   isPropertiesOpen,
   onTogglePropertiesPanel,
 }) => {
+  const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   const {
     containerRef,
     fileInputRef,
@@ -95,6 +97,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         isHistoryOpen={isHistoryOpen}
         versionCount={versions.length}
         fileInputRef={fileInputRef}
+        menuButtonRef={menuButtonRef}
         canvasChat={{ isOpen: isCanvasChatOpen, onToggle: onToggleCanvasChat }}
         properties={{
           isOpen: isPropertiesOpen,
@@ -110,11 +113,9 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         onToggleHistory={() => setIsHistoryOpen((prev) => !prev)}
       />
 
-      <div
-        className={`process-bpmn-body ${isHistoryOpen ? "with-history" : ""}`}
-      >
+      <div className="process-bpmn-body">
         <div className="process-bpmn-canvas" ref={containerRef}>
-          {selectedElement && (
+          {selectedElement && !isPropertiesOpen && (
             <BpmnNodeInspector
               element={selectedElement}
               onNameChange={updateSelectedNodeName}
@@ -124,7 +125,11 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           )}
         </div>
 
-        {isHistoryOpen && (
+      </div>
+      <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+        <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); menuButtonRef.current?.focus(); }} className="flex max-h-[85dvh] flex-col overflow-hidden border-border sm:max-w-xl">
+          <DialogTitle>Cronologia versioni</DialogTitle>
+          <DialogDescription>Consulta le modifiche e ripristina una versione del processo.</DialogDescription>
           <BpmnVersionHistory
             versions={versions}
             restoringVersionId={restoringVersionId}
@@ -132,8 +137,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             hasUnsavedChanges={hasUnsavedChanges}
             onRestore={restoreVersion}
           />
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
       {error && <p className="process-bpmn-error">{error}</p>}
     </section>
   );

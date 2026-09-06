@@ -2,13 +2,13 @@ import React from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChartNoAxesCombined } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
 import { ErrorState } from "@/components/feedback";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -36,6 +36,8 @@ const TABS = [
 type Tab = (typeof TABS)[number];
 
 const RUN_SCOPED = new Set<Tab>(["replay", "dashboard", "heatmap", "insights"]);
+const PRIMARY_TABS: Tab[] = ["scenario", "overview", "compare"];
+const ANALYSIS_TABS: Tab[] = ["dashboard", "replay", "heatmap", "insights"];
 
 /** Pull `<sub>` and optional numeric `<runId>` out of `.../simulation/<sub>/<runId>`. */
 function readPath(pathname: string): { sub: Tab; runId: number | null } {
@@ -147,8 +149,9 @@ export function SimulationLayout(): React.JSX.Element {
   return (
     <SimulationSectionContext.Provider value={contextValue}>
       <div className="flex h-full min-h-0 flex-col">
-        <div className="flex flex-col gap-3 px-7 pb-2 pt-6">
+        <div className="flex shrink-0 flex-col gap-2 px-4 pb-2 pt-3">
           <PageHeader
+            compact
             breadcrumbs={[
               { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
               { label: project.name, to: ROUTES.projects.detail(project.id) },
@@ -165,13 +168,13 @@ export function SimulationLayout(): React.JSX.Element {
               </span>
             }
             actions={
-              <div className="flex items-center gap-2">
+              <div className="flex max-w-full flex-wrap items-center gap-2">
                 {runs.length > 0 && (
                   <Select
                     value={activeRunId != null ? String(activeRunId) : undefined}
                     onValueChange={switchRun}
                   >
-                    <SelectTrigger size="sm" className="w-[248px]">
+                    <SelectTrigger size="sm" className="w-[200px] max-w-full" aria-label={t("simulation.section.runSwitcher")}>
                       <SelectValue
                         placeholder={t("simulation.section.runSwitcher")}
                       />
@@ -199,18 +202,28 @@ export function SimulationLayout(): React.JSX.Element {
             }
           />
 
-          <Tabs value={sub} onValueChange={goToTab}>
-            <TabsList variant="line" className="max-w-full overflow-x-auto">
-              {TABS.map((tab) => (
-                <TabsTrigger key={tab} value={tab}>
+          <nav aria-label={t("simulation.section.navLabel")} className="flex min-w-0 gap-1 border-b border-border">
+              {PRIMARY_TABS.map((tab) => (
+                <button type="button" key={tab} onClick={() => goToTab(tab)} aria-current={sub === tab ? "page" : undefined} className={`shrink-0 whitespace-nowrap px-2 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring sm:px-3 ${sub === tab ? "border-b-2 border-primary font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   {t(`simulation.section.nav.${tab}`)}
-                </TabsTrigger>
+                </button>
               ))}
-            </TabsList>
-          </Tabs>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label={t("simulation.workspace.analysis")} aria-current={ANALYSIS_TABS.includes(sub) ? "page" : undefined} className={`flex min-w-0 items-center gap-1 px-2 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring sm:px-3 ${ANALYSIS_TABS.includes(sub) ? "border-b-2 border-primary font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                  <ChartNoAxesCombined className="size-4 shrink-0 sm:hidden" />
+                  <span className="hidden truncate sm:inline">{t(ANALYSIS_TABS.includes(sub) ? `simulation.section.nav.${sub}` : "simulation.workspace.analysis")}</span>
+                  <ChevronDown className="size-3 shrink-0" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {ANALYSIS_TABS.map((tab) => <DropdownMenuItem key={tab} onClick={() => goToTab(tab)}>{t(`simulation.section.nav.${tab}`)}</DropdownMenuItem>)}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </nav>
         </div>
 
-        <div className="min-h-0 flex-1 px-7 pb-7">
+        <div className="min-h-0 flex-1 px-4 pb-4">
           <Outlet />
         </div>
       </div>

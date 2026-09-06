@@ -11,8 +11,6 @@ import { cn } from "@/lib/utils";
 import { ROUTES } from "@/app/routes";
 
 import type { SimulationRun, SimulationSummary } from "./simulationTypes";
-import { SimulationConfigRail } from "./SimulationConfigRail";
-import { ReadinessSummary } from "./ReadinessSummary";
 import { useScenarioLab } from "./useScenarioLab";
 import { SimulationBpmnView, type SimulationNodeOverlay } from "./SimulationBpmnView";
 import { SimulationResults } from "./SimulationResultsView";
@@ -34,9 +32,8 @@ const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
 };
 
 /**
- * Panoramica — one scrolling page: the active run's KPI snapshot, then the
- * scenario you'll run next (left, with its input-confidence roll-up) beside the
- * model + results (right).
+ * Results workspace: run summary, full-width model and expandable details.
+ * Scenario inputs live in their own workspace so neither surface is squeezed.
  */
 export function SimulationWorkspace(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
@@ -45,20 +42,7 @@ export function SimulationWorkspace(): React.JSX.Element {
 
   const { projectId, processId } = useSimulationSection();
   const lab = useScenarioLab();
-  const {
-    bpmnXml,
-    template,
-    templateLoading,
-    draft,
-    updateDraft,
-    provenance,
-    confidence,
-    activeRun,
-    isRunning,
-    isPending,
-    error,
-    handleRun,
-  } = lab;
+  const { bpmnXml, activeRun, isPending } = lab;
 
   const [selectedElementId, setSelectedElementId] = React.useState<string | null>(null);
 
@@ -88,111 +72,38 @@ export function SimulationWorkspace(): React.JSX.Element {
   }, [insights, lang]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto pb-4">
-      <RunSnapshot
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">{t("simulation.workspace.overviewTitle")}</h2>
+          <p className="mt-1 text-xs text-muted-foreground">{t(activeRun ? "simulation.workspace.resultsHint" : "simulation.workspace.startHint")}</p>
+        </div>
+        <Button size="sm" onClick={() => navigate(ROUTES.projects.simulation(projectId, processId, "scenario"))}>
+          {t("simulation.workspace.configure")}
+        </Button>
+      </div>
+      {activeRun && <RunSnapshot
         run={activeRun}
         insights={insights}
         isPending={isPending}
         lang={lang}
-        onOpenReplay={() =>
-          activeRun &&
-          navigate(
-            ROUTES.projects.simulation(projectId, processId, `replay/${activeRun.id}`),
-          )
-        }
-        onOpenDashboard={() =>
-          activeRun &&
-          navigate(
-            ROUTES.projects.simulation(projectId, processId, `dashboard/${activeRun.id}`),
-          )
-        }
-      />
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(320px,0.82fr)_minmax(0,1.18fr)]">
-        <div className="flex flex-col gap-4 self-start">
-          <ReadinessSummary
-            dense
-            confidence={confidence}
-            provenance={provenance}
-            onReview={() =>
-              navigate(ROUTES.projects.simulation(projectId, processId, "scenario"))
-            }
-          />
-          <SimulationConfigRail
-            embedded
-            template={template}
-            templateLoading={templateLoading}
-            draft={draft}
-            onDraftChange={updateDraft}
-            isRunning={isRunning}
-            error={error}
-            onRun={() => void handleRun()}
-            focusElementId={selectedElementId}
-            provenance={confidence}
-          />
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-4">
-          <section
-            aria-label={t("simulation.diagram.title")}
-            className="flex min-h-[460px] flex-col overflow-hidden rounded-lg border border-border bg-card"
-          >
-            <header className="border-b border-border px-4 py-2.5">
-              <p className="eyebrow">{t("simulation.diagram.title")}</p>
-            </header>
-            {bpmnXml ? (
-              <SimulationBpmnView
-                className="min-h-0 flex-1"
-                bpmnXml={bpmnXml}
-                overlays={overlays}
-                selectedElementId={selectedElementId}
-                onSelectElement={setSelectedElementId}
-              />
-            ) : (
-              <div className="p-4">
-                <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />
-              </div>
-            )}
-          </section>
-
-          <section
-            aria-label={t("simulation.output.eyebrow")}
-            className="rounded-lg border border-border bg-card"
-          >
-            <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-              <p className="eyebrow">{t("simulation.results.summary")}</p>
-              {activeRun && (
-                <StatusIndicator
-                  tone={RUN_TONE[activeRun.status]}
-                  label={t(`simulation.status.${activeRun.status}`, {
-                    defaultValue: activeRun.status,
-                  })}
-                />
-              )}
-            </header>
-            <div className="p-4">
-              {!activeRun ? (
-                <EmptyState variant="inline" title={t("simulation.empty")} />
-              ) : activeRun.error ? (
-                <p
-                  role="alert"
-                  className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium leading-relaxed text-destructive"
-                >
-                  {activeRun.error}
-                </p>
-              ) : isPending ? (
-                <EmptyState variant="inline" title={t("simulation.running")} />
-              ) : (
-                <SimulationResults
-                  insights={insights}
-                  selectedElementId={selectedElementId}
-                  onSelectElement={setSelectedElementId}
-                />
-              )}
-            </div>
-          </section>
-        </div>
-      </div>
+        onOpenReplay={() => navigate(ROUTES.projects.simulation(projectId, processId, `replay/${activeRun.id}`))}
+        onOpenDashboard={() => navigate(ROUTES.projects.simulation(projectId, processId, `dashboard/${activeRun.id}`))}
+      />}
+      <section aria-label={t("simulation.diagram.title")} className="flex min-h-[440px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <header className="shrink-0 border-b border-border px-4 py-2">
+          <h2 className="text-sm font-medium">{t("simulation.diagram.title")}</h2>
+        </header>
+        {bpmnXml ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} overlays={overlays} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /> : <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />}
+      </section>
+      {activeRun && <section aria-label={t("simulation.output.eyebrow")} className="shrink-0 rounded-lg border border-border bg-card">
+        <details open={Boolean(selectedElementId)}>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{t("simulation.results.summary")}</summary>
+          <div className="border-t border-border p-4">
+            {activeRun.error ? <p role="alert" className="text-sm text-destructive">{activeRun.error}</p> : isPending ? <EmptyState variant="inline" title={t("simulation.running")} /> : <SimulationResults insights={insights} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} />}
+          </div>
+        </details>
+      </section>}
     </div>
   );
 }

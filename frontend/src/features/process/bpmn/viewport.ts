@@ -22,7 +22,12 @@ export function fitCanvas(modeler: BpmnModeler): void {
   const bounds = getDiagramBounds(elements);
   const outer = canvasService.viewbox?.().outer;
 
-  if (!bounds || !outer?.width || !outer.height || !canvasService.viewbox) {
+  // A mobile support pane can temporarily hide the mounted model. Fitting a
+  // zero-size SVG produces a non-finite transform; its ResizeObserver refits
+  // once the canvas is visible again.
+  if (outer && (!outer.width || !outer.height)) return;
+
+  if (!bounds || !outer || !canvasService.viewbox) {
     canvasService.zoom("fit-viewport");
     return;
   }

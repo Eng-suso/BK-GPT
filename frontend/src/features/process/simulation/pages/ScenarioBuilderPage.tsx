@@ -3,6 +3,12 @@ import React from "react";
 import { EmptyState } from "@/components/feedback";
 import { Skeleton } from "@/ui/skeleton";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
+import { ROUTES } from "@/app/routes";
+import { SimulationBpmnView } from "../SimulationBpmnView";
+import { useSimulationSection } from "../useSimulationSection";
 
 import { SimulationConfigRail } from "../SimulationConfigRail";
 import { ReadinessSummary } from "../ReadinessSummary";
@@ -15,6 +21,15 @@ import { useScenarioLab } from "../useScenarioLab";
  */
 export function ScenarioBuilderPage(): React.JSX.Element {
   const { t } = useTranslation("process");
+  const navigate = useNavigate();
+  const { projectId, processId } = useSimulationSection();
+  const [reference, setReference] = React.useState<"model" | "readiness" | null>(null);
+  const referenceTrigger = React.useRef<HTMLElement | null>(null);
+  const pendingField = React.useRef<string | null>(null);
+  const openReference = (next: "model" | "readiness") => {
+    referenceTrigger.current = document.activeElement as HTMLElement | null;
+    setReference(next);
+  };
   const lab = useScenarioLab();
   const {
     bpmnXml,
@@ -27,6 +42,7 @@ export function ScenarioBuilderPage(): React.JSX.Element {
     isRunning,
     error,
     handleRun,
+    activeRun,
   } = lab;
 
   const [focusEl, setFocusEl] = React.useState<string | null>(null);
@@ -38,6 +54,8 @@ export function ScenarioBuilderPage(): React.JSX.Element {
     const next = ids[lowCursor.current % ids.length];
     lowCursor.current += 1;
     setFocusEl(next);
+    pendingField.current = next;
+    setReference(null);
   }, [confidence.readiness.lowConfidenceElementIds]);
 
   if (bpmnXml === null && !templateLoading) {
@@ -49,17 +67,23 @@ export function ScenarioBuilderPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 lg:flex-row">
-      <div className="min-w-0 flex-1 overflow-y-auto pb-4">
-        <header className="mb-4">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
           <h2 className="text-lg font-semibold tracking-[-0.01em] text-foreground">
             {t("simulation.scenario.pageTitle")}
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
             {t("simulation.scenario.pageSubtitle")}
           </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => openReference("model")}>{t("simulation.workspace.showModel")}</Button>
+            <Button size="sm" variant="outline" onClick={() => openReference("readiness")}>{t("simulation.workspace.assumptions")}</Button>
+            {activeRun?.status === "completed" && <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.projects.simulation(projectId, processId, "overview"))}>{t("simulation.workspace.viewResults")}</Button>}
+          </div>
         </header>
-
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card">
         {templateLoading ? (
           <div className="grid gap-3">
             <Skeleton className="h-24 w-full" />
@@ -69,6 +93,7 @@ export function ScenarioBuilderPage(): React.JSX.Element {
         ) : (
           <SimulationConfigRail
             embedded
+            workspace
             template={template}
             templateLoading={templateLoading}
             draft={draft}
@@ -82,8 +107,15 @@ export function ScenarioBuilderPage(): React.JSX.Element {
         )}
       </div>
 
-      <aside className="w-full shrink-0 lg:w-[320px]">
-        <div className="lg:sticky lg:top-0">
+      <Dialog open={reference !== null} onOpenChange={(open) => { if (!open) setReference(null); }}>
+        <DialogContent aria-describedby={undefined} onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          const field = pendingField.current ? document.querySelector<HTMLElement>(`[data-sim-el="${CSS.escape(pendingField.current)}"] input, [data-sim-el="${CSS.escape(pendingField.current)}"] button`) : null;
+          (field ?? referenceTrigger.current)?.focus({ preventScroll: true });
+          pendingField.current = null;
+        }} className={reference === "model" ? "flex h-[85dvh] flex-col border-border sm:max-w-[calc(100vw-4rem)]" : "max-h-[85dvh] overflow-y-auto border-border sm:max-w-lg"}>
+          <DialogTitle>{t(reference === "model" ? "simulation.diagram.title" : "simulation.workspace.assumptions")}</DialogTitle>
+          {reference === "model" ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} selectedElementId={focusEl} onSelectElement={(id) => { if (id && (draft.tasks[id] || draft.gateways[id])) { setFocusEl(id); pendingField.current = id; setReference(null); } }} /> :
           <ReadinessSummary
             confidence={confidence}
             provenance={provenance}
@@ -93,8 +125,9 @@ export function ScenarioBuilderPage(): React.JSX.Element {
                 : undefined
             }
           />
-        </div>
-      </aside>
+          }
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

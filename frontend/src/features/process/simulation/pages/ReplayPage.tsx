@@ -111,12 +111,12 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   const poolBusy = pool && frame ? frame.resources[pool]?.busy ?? 0 : 0;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
       <div className="shrink-0 overflow-hidden rounded-lg border border-border bg-card">
         <TransportBar engine={engine} />
       </div>
 
-      <div className="flex min-h-0 flex-1 gap-3">
+      <div className="flex min-h-[360px] shrink-0 flex-1 gap-3">
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
           <SimulationCanvas
             className="min-h-0 flex-1"
@@ -130,7 +130,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
 
           {selectedId && (
             <aside
-              className="absolute right-3 top-14 z-10 w-[236px] rounded-lg border border-border bg-card p-3 shadow-lg"
+              className="absolute right-3 top-14 z-10 max-h-[calc(100%-4.25rem)] w-[280px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-lg"
               aria-label={t("simulation.replay.nodeInspector")}
             >
               <div className="mb-2 flex items-start justify-between gap-2 border-b border-border pb-2">
@@ -176,6 +176,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
                     </span>
                   </div>
                   <Meter
+                    label={pool}
                     value={Math.round(poolBusy * 100)}
                     tone={poolBusy >= 0.95 ? "danger" : poolBusy >= 0.8 ? "warning" : "ok"}
                     height={5}

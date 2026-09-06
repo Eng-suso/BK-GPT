@@ -21,7 +21,7 @@ export function BpmnNodeInspector({
 }: BpmnNodeInspectorProps) {
   return (
     <aside
-      className="absolute right-[18px] bottom-[18px] z-50 w-[290px] rounded-[9px] border border-border bg-card p-3 shadow-lg"
+      className="absolute right-3 bottom-3 z-20 max-h-[calc(100%-5rem)] w-[320px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-lg"
       aria-label="Ispettore nodo selezionato"
     >
       <div className="mb-2.5 flex items-start justify-between gap-2 border-b border-border pb-2">

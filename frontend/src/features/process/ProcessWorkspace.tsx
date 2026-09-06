@@ -6,212 +6,92 @@ import { PanelShellHeader } from "@/components/panel";
 import { ResizeHandle } from "@/components/layout";
 import { Button } from "@/ui/button";
 import { usePanelSize } from "@/lib/usePanelSize";
-import { useMediaQuery } from "@/lib/useMediaQuery";
-import { cn } from "@/lib/utils";
-import type { Project, ProjectProcess } from "../../contracts/workspace";
+import { useElementWidth } from "@/lib/useElementWidth";
+import type { Project, ProjectProcess } from "@/contracts/workspace";
 import { ChatExperience } from "../chat/ChatExperience";
 import { ProcessBpmnCanvas } from "./ProcessBpmnCanvas";
 
 export type ProcessView = "chat" | "canvas";
-
 type ProcessWorkspaceProps = {
   project: Project;
   process: ProjectProcess;
-  /** Active view — owned by the route (URL `?view=`). */
   view: ProcessView;
-  /** BPMN properties dock — owned by the route (URL `?panel=properties`). */
   propertiesOpen: boolean;
   onTogglePropertiesPanel: () => void;
 };
 
-/**
- * Body of the process studio. The page shell (breadcrumb, title, meta, tab bar)
- * lives in ProcessStudioPage; this component only renders the panels for the
- * active view. bpmn-js lifecycle and the inner ChatExperience are untouched.
- *
- * Below 1280px the model view has no room for three side-by-side columns, so
- * the chat rail and the properties dock become overlay drawers over a
- * full-bleed canvas.
- */
-export const ProcessWorkspace: React.FC<ProcessWorkspaceProps> = ({
-  project,
-  process,
-  view,
-  propertiesOpen,
-  onTogglePropertiesPanel,
-}) => {
+/** Keep the model mounted and protect its working area when tools are opened. */
+export function ProcessWorkspace({ project, process, view, propertiesOpen, onTogglePropertiesPanel }: ProcessWorkspaceProps): React.JSX.Element {
   const { t } = useTranslation("process");
-  const CHAT_MIN = 300;
-  const CHAT_MAX = 600;
-  const compact = useMediaQuery("(max-width: 1280px)");
-  // The model view's chat rail is inline on wide screens and an overlay drawer
-  // below 1280px — where it starts closed so the canvas is usable straight away.
-  // One remembered width, not one per model.
-  const [isCanvasChatOpen, setIsCanvasChatOpen] = React.useState(!compact);
-  const [chatWidth, setChatWidth] = usePanelSize(
-    "process-chat",
-    380,
-    CHAT_MIN,
-    CHAT_MAX,
-  );
+  const { ref, width } = useElementWidth<HTMLElement>();
+  const [chatOpen, setChatOpen] = React.useState(false);
+  const [chatWidth, setChatWidth] = usePanelSize("process-chat", 360, 320, 480);
   const dragStart = React.useRef(0);
-  const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(
-    null,
-  );
+  const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(null);
   const propertiesPanelRef = React.useRef<HTMLDivElement | null>(null);
+  // A support pane is inline only when at least 720 px remain for the model.
+  const inline = width >= 1090;
+  const availableChatWidth = Math.min(chatWidth, Math.max(320, width - 730));
+  const bothFit = width >= availableChatWidth + 360 + 740;
+  const showChat = chatOpen && (!propertiesOpen || bothFit);
+  const supportReplacesCanvas = !inline && (showChat || propertiesOpen);
+  const lastTrigger = React.useRef<HTMLElement | null>(null);
+  const closeRef = React.useRef<HTMLButtonElement | null>(null);
 
-  const wasCompact = React.useRef(compact);
   React.useEffect(() => {
-    if (compact !== wasCompact.current) {
-      setIsCanvasChatOpen(!compact);
-      wasCompact.current = compact;
-    }
-  }, [compact]);
+    if (supportReplacesCanvas) closeRef.current?.focus();
+  }, [supportReplacesCanvas]);
 
-  const dismissOverlays = React.useCallback(() => {
-    setIsCanvasChatOpen(false);
+  const closeSupport = () => {
+    setChatOpen(false);
     if (propertiesOpen) onTogglePropertiesPanel();
-  }, [propertiesOpen, onTogglePropertiesPanel]);
-
-  const overlayOpen = compact && (isCanvasChatOpen || propertiesOpen);
+    requestAnimationFrame(() => lastTrigger.current?.focus());
+  };
+  const toggleChat = () => {
+    lastTrigger.current = document.activeElement as HTMLElement | null;
+    if (!showChat && propertiesOpen && !bothFit) onTogglePropertiesPanel();
+    setChatOpen(!showChat);
+  };
+  const toggleProperties = () => {
+    lastTrigger.current = document.activeElement as HTMLElement | null;
+    if (!propertiesOpen && !bothFit) setChatOpen(false);
+    onTogglePropertiesPanel();
+  };
 
   return (
-    <section className="process-workspace process-workspace--embedded">
+    <section ref={ref} className="process-workspace process-workspace--embedded" onKeyDown={(event) => {
+      if (event.key === "Escape" && supportReplacesCanvas) { event.preventDefault(); closeSupport(); }
+    }}>
       <div className={`process-workspace-grid process-view-${view}`}>
-        {view === "canvas" && (
-          <div
-            className={cn(
-              "process-studio-flex",
-              compact && "process-studio-flex--compact",
-            )}
-            aria-label="Studio BPMN"
-          >
-            {overlayOpen && (
-              <>
-                <button
-                  type="button"
-                  className="process-studio-scrim"
-                  aria-label={t("actions.closeOverlays")}
-                  onClick={dismissOverlays}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  className="absolute left-1/2 top-16 z-[31] -translate-x-1/2 border border-border shadow-md"
-                  onClick={dismissOverlays}
-                >
-                  <X className="size-3.5" />
-                  {t("actions.closeOverlays")}
-                </Button>
-              </>
-            )}
-
-            {isCanvasChatOpen && (
-              <>
-                <section
-                  className={cn(
-                    "process-studio-chat",
-                    compact && "process-studio-chat--overlay",
-                  )}
-                  style={
-                    compact
-                      ? undefined
-                      : { width: chatWidth, flex: `0 0 ${chatWidth}px` }
-                  }
-                  aria-label={t("actions.toggleChat")}
-                >
-                  <ChatExperience
-                    chrome="panel"
-                    layout="embedded"
-                    scope={{
-                      type: "canvas",
-                      projectId: project.id,
-                      processId: process.id,
-                      bpmnModelId: process.bpmnModelId,
-                      processName: process.name,
-                      currentBpmnXml: currentCanvasXml,
-                    }}
-                  />
-                </section>
-                {!compact && (
-                  <ResizeHandle
-                    ariaLabel={t("actions.toggleChat")}
-                    onResizeStart={() => (dragStart.current = chatWidth)}
-                    onDelta={(dx) => setChatWidth(dragStart.current + dx)}
-                    onStep={(dx) => setChatWidth(chatWidth + dx)}
-                    valueNow={chatWidth}
-                    valueMin={CHAT_MIN}
-                    valueMax={CHAT_MAX}
-                  />
-                )}
-              </>
-            )}
-
-            <section
-              className="process-studio-canvas"
-              style={{ flex: 1, minWidth: 0 }}
-              aria-label="Canvas BPMN"
-            >
-              <ProcessBpmnCanvas
-                bpmnModelId={process.bpmnModelId}
-                processName={process.name}
-                propertiesPanelRef={propertiesPanelRef}
-                onCurrentXmlChange={setCurrentCanvasXml}
-                isCanvasChatOpen={isCanvasChatOpen}
-                onToggleCanvasChat={() => setIsCanvasChatOpen((prev) => !prev)}
-                isPropertiesOpen={propertiesOpen}
-                onTogglePropertiesPanel={onTogglePropertiesPanel}
-              />
+        {view === "canvas" ? (
+          <div className="process-studio-flex" aria-label="Studio BPMN">
+            {showChat && <>
+              <section className="process-studio-chat flex flex-col" style={{ width: inline ? availableChatWidth : "100%", flex: inline ? `0 0 ${availableChatWidth}px` : "1" }} aria-label={t("actions.toggleChat")}>
+                <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
+                  <span className="text-xs font-medium">{t("actions.toggleChat")}</span>
+                  <Button ref={!propertiesOpen ? closeRef : undefined} variant="ghost" size="icon-sm" aria-label={t("actions.closeOverlays")} onClick={closeSupport}><X className="size-4" /></Button>
+                </div>
+                <div className="min-h-0 flex-1">
+                  <ChatExperience chrome="panel" layout="embedded" scope={{ type: "canvas", projectId: project.id, processId: process.id, bpmnModelId: process.bpmnModelId, processName: process.name, currentBpmnXml: currentCanvasXml }} />
+                </div>
+              </section>
+              {inline && <ResizeHandle ariaLabel={t("actions.toggleChat")} onResizeStart={() => (dragStart.current = availableChatWidth)} onDelta={(dx) => setChatWidth(Math.min(dragStart.current + dx, width - 730))} onStep={(dx) => setChatWidth(Math.min(availableChatWidth + dx, width - 730))} valueNow={availableChatWidth} valueMin={320} valueMax={Math.min(480, width - 730)} />}
+            </>}
+            <section className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas} aria-label="Canvas BPMN">
+              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processName={process.name} propertiesPanelRef={propertiesPanelRef} onCurrentXmlChange={setCurrentCanvasXml} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
             </section>
-
-            {/*
-              The properties host stays mounted so bpmn-js keeps its panel
-              attached; `hidden` toggles only its visibility / layout.
-            */}
-            <aside
-              className={cn(
-                "process-studio-properties",
-                compact && "process-studio-properties--overlay",
-              )}
-              style={
-                compact ? undefined : { width: 340, flex: "0 0 340px", marginLeft: 8 }
-              }
-              aria-label={t("properties.title")}
-              hidden={!propertiesOpen}
-            >
-              <PanelShellHeader
-                eyebrow={t("properties.eyebrow")}
-                title={t("properties.title")}
-                actions={
-                  <span className="text-xs text-muted-foreground">
-                    {t("properties.hint")}
-                  </span>
-                }
-              />
-              <div
-                className="process-bpmn-properties-host"
-                ref={propertiesPanelRef}
-              />
+            <aside className="process-studio-properties" style={{ width: inline ? 360 : "100%", flex: inline ? "0 0 360px" : "1", marginLeft: inline ? 12 : 0 }} aria-label={t("properties.title")} hidden={!propertiesOpen}>
+              <PanelShellHeader title={t("properties.title")} actions={<Button ref={propertiesOpen ? closeRef : undefined} variant="ghost" size="icon-sm" aria-label={t("actions.closeOverlays")} onClick={closeSupport}><X className="size-4" /></Button>} />
+              {/* The host must remain mounted for the modeler's properties provider. */}
+              <div className="process-bpmn-properties-host" ref={propertiesPanelRef} />
             </aside>
           </div>
-        )}
-
-        {view === "chat" && (
+        ) : (
           <section className="process-primary-panel" aria-label="Chat processo">
-            <ChatExperience
-              chrome="panel"
-              layout="embedded"
-              scope={{
-                type: "process",
-                projectId: project.id,
-                processId: process.id,
-                processName: process.name,
-              }}
-            />
+            <ChatExperience chrome="panel" layout="embedded" scope={{ type: "process", projectId: project.id, processId: process.id, processName: process.name }} />
           </section>
         )}
       </div>
     </section>
   );
-};
+}
