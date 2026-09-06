@@ -13,6 +13,7 @@ from backend.services.transcription import (
     DEFAULT_KEYWORDS,
     MIN_LETTERS_FOR_SCRIPT_CHECK,
     build_live_transcription_options,
+    build_live_turn_detection,
     build_transcription_options,
     capabilities_for,
     enforce_language,
@@ -225,7 +226,7 @@ def transcription_client(monkeypatch):
     calls: list[dict] = []
 
     class StubTranscriptions:
-        def create(self, **options):
+        async def create(self, **options):
             calls.append(options)
             return {
                 "text": "",
@@ -236,11 +237,10 @@ def transcription_client(monkeypatch):
                 ],
             }
 
-    class StubOpenAI:
-        def __init__(self, **_kwargs):
-            self.audio = type("Audio", (), {"transcriptions": StubTranscriptions()})()
+    class StubClient:
+        audio = type("Audio", (), {"transcriptions": StubTranscriptions()})()
 
-    monkeypatch.setattr(audio, "OpenAI", StubOpenAI)
+    monkeypatch.setattr(audio, "transcription_client", lambda: StubClient())
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     monkeypatch.setattr(settings, "openai_transcription_model", "gpt-4o-transcribe-diarize")
     monkeypatch.setattr(settings, "openai_transcription_language", "it")
@@ -281,3 +281,41 @@ def test_route_rejects_a_malformed_language_before_calling_the_api(transcription
 
     assert response.status_code == 422
     assert calls == []
+
+
+def test_route_does_not_leak_the_upstream_error_to_the_caller(monkeypatch, transcription_client):
+    """Upstream messages carry request and organization identifiers."""
+    from backend.api.routes import audio
+
+    class FailingClient:
+        class audio:  # noqa: N801 - mirrors the SDK's attribute layout
+            class transcriptions:
+                @staticmethod
+                async def create(**_options):
+                    raise RuntimeError("rate limit for org-SECRET123 request req-abc")
+
+    client, _calls = transcription_client
+    monkeypatch.setattr(audio, "transcription_client", lambda: FailingClient())
+
+    response = _post_audio(client)
+
+    assert response.status_code == 502
+    assert "SECRET123" not in response.text
+    assert response.json()["error"]["message"] == "Trascrizione non riuscita."
+
+
+# --- live turn detection ---------------------------------------------------
+
+
+def test_server_vad_replaces_the_wall_clock_commit():
+    turn_detection = build_live_turn_detection(
+        silence_duration_ms=800,
+        prefix_padding_ms=300,
+        threshold=0.5,
+    )
+
+    assert turn_detection["type"] == "server_vad"
+    # Above the API's own 500ms default: an interview pause is not a turn end.
+    assert turn_detection["silence_duration_ms"] == 800
+    assert turn_detection["prefix_padding_ms"] == 300
+    assert turn_detection["threshold"] == 0.5

@@ -25,6 +25,47 @@ interface ChatComposerProps {
 
 const LIVE_TRANSCRIPTION_SAMPLE_RATE = 24000;
 
+/**
+ * Capture runs on the audio thread, not the main one.
+ *
+ * `ScriptProcessorNode` --- what this replaced --- fires on the main thread, so
+ * a busy render drops whole blocks and the interview comes back with words
+ * chewed in half. The worklet keeps capturing regardless and hands finished
+ * chunks over the port.
+ *
+ * It is inlined as a Blob rather than a separate asset because it has to load
+ * from the same origin as the page, and a bundled worklet URL is one more build
+ * step to keep correct for the sake of twenty lines.
+ */
+const LIVE_CAPTURE_WORKLET = `
+class LiveCaptureProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.chunk = new Float32Array(2048);
+    this.offset = 0;
+  }
+
+  process(inputs) {
+    const input = inputs[0] && inputs[0][0];
+    if (!input) return true;
+
+    for (let i = 0; i < input.length; i += 1) {
+      this.chunk[this.offset] = input[i];
+      this.offset += 1;
+
+      if (this.offset === this.chunk.length) {
+        this.port.postMessage(this.chunk.slice(0));
+        this.offset = 0;
+      }
+    }
+
+    return true;
+  }
+}
+
+registerProcessor("live-capture", LiveCaptureProcessor);
+`;
+
 function buildLiveTranscriptionUrl(): string {
   const baseUrl = API_BASE || window.location.origin;
   const url = new URL(baseUrl, window.location.origin);
@@ -115,7 +156,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const processorRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+  const workletUrlRef = useRef<string | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -137,6 +179,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     processorRef.current?.disconnect();
     sourceRef.current?.disconnect();
     void audioContextRef.current?.close();
+    if (workletUrlRef.current) {
+      URL.revokeObjectURL(workletUrlRef.current);
+      workletUrlRef.current = null;
+    }
     processorRef.current = null;
     sourceRef.current = null;
     audioContextRef.current = null;
@@ -158,7 +204,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     const ws = websocketRef.current;
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "commit" }));
+      // No explicit commit: server VAD owns the buffer now and the API rejects
+      // a manual one. The trailing utterance closes on its own silence.
       ws.send(JSON.stringify({ type: "close" }));
     }
 
@@ -224,7 +271,18 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       setAudioStatus(text ? "Transcript finale pronto." : "Nessun parlato rilevato.");
     } catch (err) {
       console.error(err);
-      setAudioStatus("Trascrizione finale non riuscita.");
+      // The diarized pass is the transcript of record, but losing an interview
+      // because it failed is worse than keeping the live draft without speaker
+      // labels. The consultant is told which one they are holding.
+      const draft = liveTranscriptRef.current.trim();
+
+      if (draft) {
+        setFinalTranscript(draft);
+        appendTranscription(draft);
+        setAudioStatus("Diarizzazione non riuscita: recuperato il draft live, senza speaker.");
+      } else {
+        setAudioStatus("Trascrizione finale non riuscita.");
+      }
     } finally {
       setIsTranscribing(false);
     }
@@ -241,32 +299,57 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }, 500);
   };
 
-  const startLivePcmStreaming = (stream: MediaStream, ws: WebSocket) => {
+  const startLivePcmStreaming = async (stream: MediaStream, ws: WebSocket) => {
     const win = window as unknown as { webkitAudioContext?: typeof AudioContext };
     const AudioContextCtor = window.AudioContext || win.webkitAudioContext;
-    const audioContext = new AudioContextCtor();
+    // Asking for the target rate lets the browser resample natively; where the
+    // hint is ignored, `downsampleBuffer` below still corrects the difference.
+    const audioContext = new AudioContextCtor({ sampleRate: LIVE_TRANSCRIPTION_SAMPLE_RATE });
     const source = audioContext.createMediaStreamSource(stream);
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-    processor.onaudioprocess = (event) => {
+    audioContextRef.current = audioContext;
+    sourceRef.current = source;
+
+    const sendFrames = (input: Float32Array) => {
       if (ws.readyState !== WebSocket.OPEN) return;
 
-      const input = event.inputBuffer.getChannelData(0);
       const downsampled = downsampleBuffer(input, audioContext.sampleRate, LIVE_TRANSCRIPTION_SAMPLE_RATE);
       const pcm16 = floatTo16BitPcm(downsampled);
 
-      ws.send(
-        JSON.stringify({
-          type: "audio",
-          audio: bytesToBase64(pcm16),
-        })
-      );
+      ws.send(JSON.stringify({ type: "audio", audio: bytesToBase64(pcm16) }));
     };
 
+    if (audioContext.audioWorklet) {
+      const workletUrl = URL.createObjectURL(
+        new Blob([LIVE_CAPTURE_WORKLET], { type: "application/javascript" }),
+      );
+      workletUrlRef.current = workletUrl;
+
+      await audioContext.audioWorklet.addModule(workletUrl);
+
+      const node = new AudioWorkletNode(audioContext, "live-capture");
+      node.port.onmessage = (event: MessageEvent<Float32Array>) => sendFrames(event.data);
+
+      // The graph only renders what reaches the destination, so the node has to
+      // be connected --- through a silent gain, because routing a microphone to
+      // the speakers is how you get feedback howl on a laptop with no headset.
+      const silence = audioContext.createGain();
+      silence.gain.value = 0;
+
+      source.connect(node);
+      node.connect(silence);
+      silence.connect(audioContext.destination);
+
+      processorRef.current = node;
+      return;
+    }
+
+    // Safari without AudioWorklet. Same capture, on the main thread, with the
+    // block drops that come with it.
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    processor.onaudioprocess = (event) => sendFrames(event.inputBuffer.getChannelData(0));
     source.connect(processor);
     processor.connect(audioContext.destination);
-    audioContextRef.current = audioContext;
-    sourceRef.current = source;
     processorRef.current = processor;
   };
 
@@ -323,7 +406,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         setIsRecording(true);
         setAudioStatus("Live transcript attivo.");
         startElapsedTimer();
-        startLivePcmStreaming(stream, ws);
+        startLivePcmStreaming(stream, ws).catch((err) => {
+          // Capture failed to start. The recording itself keeps going, so the
+          // interview still gets its diarized pass on stop --- only the live
+          // draft is missing.
+          console.error(err);
+          setAudioStatus("Draft live non disponibile; la registrazione continua.");
+        });
       };
 
       ws.onmessage = (event) => {

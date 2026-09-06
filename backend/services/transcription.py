@@ -226,6 +226,32 @@ def build_live_transcription_options(
     return options
 
 
+def build_live_turn_detection(
+    *,
+    silence_duration_ms: int,
+    prefix_padding_ms: int,
+    threshold: float,
+) -> dict[str, Any]:
+    """Server-side VAD config for the realtime session.
+
+    The alternative --- what this replaced --- was committing the audio buffer
+    every 1.5 seconds on a wall clock. That cuts on elapsed time rather than on
+    speech, so words get split mid-syllable and each fragment is then language-
+    detected on its own, which is one of the ways an Italian interview ends up
+    with a Korean line in it. Server VAD cuts on silence instead.
+
+    `silence_duration_ms` defaults higher than the API's own 500ms because a
+    consulting interview is full of thinking pauses, and a turn that closes
+    inside one splits a single sentence into two independently decoded chunks.
+    """
+    return {
+        "type": "server_vad",
+        "silence_duration_ms": silence_duration_ms,
+        "prefix_padding_ms": prefix_padding_ms,
+        "threshold": threshold,
+    }
+
+
 # --- language guard --------------------------------------------------------
 
 # Expected Unicode script per language we transcribe. A language absent here is

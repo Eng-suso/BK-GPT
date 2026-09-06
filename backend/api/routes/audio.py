@@ -1,16 +1,18 @@
 import asyncio
 import json
+import logging
 from io import BytesIO
 from typing import Any
 
 import websockets
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from backend.schemas.chat_api import TranscriptionResponse
 from backend.security import AuthPrincipal, authenticate_websocket, require_principal
 from backend.services.transcription import (
     build_live_transcription_options,
+    build_live_turn_detection,
     build_transcription_options,
     enforce_language,
     filter_live_transcript,
@@ -20,9 +22,38 @@ from backend.services.transcription import (
 from backend.settings import settings
 
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/v1/audio", tags=["audio"])
 
 MAX_AUDIO_UPLOAD_BYTES = 25 * 1024 * 1024
+
+_transcription_client: AsyncOpenAI | None = None
+_transcription_client_key: str | None = None
+
+
+def transcription_client() -> AsyncOpenAI:
+    """One async client for the whole process.
+
+    Two reasons this is not built per request. The sync `OpenAI` client blocks
+    the event loop for the entire upload and decode --- minutes, on a 25 MB
+    interview --- which stalls every other request the app is serving. And a
+    fresh client per request throws away the connection pool and carries no
+    timeout, so a hung call hangs until the socket gives up.
+    """
+    global _transcription_client, _transcription_client_key
+
+    api_key = settings.openai_api_key or ""
+
+    if _transcription_client is None or _transcription_client_key != api_key:
+        _transcription_client = AsyncOpenAI(
+            api_key=api_key,
+            timeout=settings.openai_transcription_timeout_seconds,
+            max_retries=settings.model_max_retries,
+        )
+        _transcription_client_key = api_key
+
+    return _transcription_client
 
 
 def openai_object_to_dict(value: Any) -> dict[str, Any]:
@@ -98,13 +129,15 @@ async def transcribe_audio(
     )
 
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
-        transcription = client.audio.transcriptions.create(
+        transcription = await transcription_client().audio.transcriptions.create(
             file=(filename, audio_file, content_type),
             **transcription_options,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        # The upstream message can carry request and organization identifiers.
+        # It belongs in the log, not in a response body.
+        logger.exception("transcription request failed (model=%s)", settings.openai_transcription_model)
+        raise HTTPException(status_code=502, detail="Trascrizione non riuscita.") from exc
 
     payload = openai_object_to_dict(transcription)
     raw_segments = payload.get("segments") if isinstance(payload.get("segments"), list) else []
@@ -147,6 +180,11 @@ async def live_audio_transcription(websocket: WebSocket):
         language=target_language,
         keywords=resolve_keywords(settings.openai_transcription_keywords),
     )
+    turn_detection = build_live_turn_detection(
+        silence_duration_ms=settings.openai_live_vad_silence_ms,
+        prefix_padding_ms=settings.openai_live_vad_prefix_padding_ms,
+        threshold=settings.openai_live_vad_threshold,
+    )
 
     try:
         async with websockets.connect(
@@ -154,23 +192,6 @@ async def live_audio_transcription(websocket: WebSocket):
             additional_headers=headers,
             max_size=8 * 1024 * 1024,
         ) as openai_ws:
-            commit_lock = asyncio.Lock()
-            has_uncommitted_audio = False
-
-            async def commit_audio_buffer() -> None:
-                nonlocal has_uncommitted_audio
-
-                async with commit_lock:
-                    if not has_uncommitted_audio:
-                        return
-
-                    try:
-                        await openai_ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
-                    except websockets.exceptions.ConnectionClosed:
-                        return
-
-                    has_uncommitted_audio = False
-
             await openai_ws.send(
                 json.dumps(
                     {
@@ -184,7 +205,7 @@ async def live_audio_transcription(websocket: WebSocket):
                                         "rate": 24000,
                                     },
                                     "transcription": live_transcription_options,
-                                    "turn_detection": None,
+                                    "turn_detection": turn_detection,
                                 }
                             },
                         },
@@ -200,8 +221,6 @@ async def live_audio_transcription(websocket: WebSocket):
             )
 
             async def forward_client_audio():
-                nonlocal has_uncommitted_audio
-
                 while True:
                     message = await websocket.receive_text()
                     event = json.loads(message)
@@ -218,18 +237,13 @@ async def live_audio_transcription(websocket: WebSocket):
                                     }
                                 )
                             )
-                            has_uncommitted_audio = True
-                    elif event_type == "commit":
-                        await commit_audio_buffer()
                     elif event_type == "close":
-                        await commit_audio_buffer()
+                        # No manual commit: the API rejects one while server VAD
+                        # owns the buffer. The last utterance is closed by the
+                        # silence that follows it, and the diarized REST pass is
+                        # the transcript of record either way.
                         await openai_ws.close()
                         break
-
-            async def commit_live_audio_periodically():
-                while True:
-                    await asyncio.sleep(1.5)
-                    await commit_audio_buffer()
 
             async def forward_openai_events():
                 async for raw_message in openai_ws:
@@ -256,26 +270,24 @@ async def live_audio_transcription(websocket: WebSocket):
                             filtered=bool(transcript) and not kept,
                             item_id=event.get("item_id"),
                         )
-                    elif event_type == "conversation.item.input_audio_transcription.failed":
-                        error = event.get("error") or {}
+                    elif event_type in {
+                        "conversation.item.input_audio_transcription.failed",
+                        "error",
+                    }:
+                        # Upstream messages can carry request and organization
+                        # identifiers, so they go to the log and the consultant
+                        # gets a message they can act on.
+                        logger.warning("live transcription upstream error: %s", event.get("error"))
                         await send_ws_event(
                             websocket,
                             "error",
-                            detail=error.get("message") or "Trascrizione live non riuscita.",
-                        )
-                    elif event_type == "error":
-                        error = event.get("error") or {}
-                        await send_ws_event(
-                            websocket,
-                            "error",
-                            detail=error.get("message") or "Errore OpenAI Realtime.",
+                            detail="Trascrizione live non riuscita.",
                         )
 
             client_task = asyncio.create_task(forward_client_audio())
             openai_task = asyncio.create_task(forward_openai_events())
-            commit_task = asyncio.create_task(commit_live_audio_periodically())
             done, pending = await asyncio.wait(
-                {client_task, openai_task, commit_task},
+                {client_task, openai_task},
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
@@ -288,19 +300,21 @@ async def live_audio_transcription(websocket: WebSocket):
                 exception = task.exception()
                 if exception and not isinstance(exception, WebSocketDisconnect):
                     raise exception
-    except websockets.exceptions.ConnectionClosed as exc:
+    except websockets.exceptions.ConnectionClosed:
+        logger.warning("live transcription: OpenAI Realtime closed the connection", exc_info=True)
         try:
             await send_ws_event(
                 websocket,
                 "error",
-                detail=f"OpenAI Realtime ha chiuso la connessione: {exc}",
+                detail="Connessione a OpenAI Realtime interrotta.",
             )
         except Exception:
             pass
     except WebSocketDisconnect:
         return
-    except Exception as exc:
+    except Exception:
+        logger.exception("live transcription session failed")
         try:
-            await send_ws_event(websocket, "error", detail=str(exc))
+            await send_ws_event(websocket, "error", detail="Trascrizione live non riuscita.")
         except Exception:
             pass

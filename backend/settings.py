@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     openai_transcription_keywords: str = ""
     # 0 = decoding deterministico: meno parlato inventato sui silenzi.
     openai_transcription_temperature: float = 0.0
+    # Timeout della singola chiamata di trascrizione REST. Un file da 25 MB con
+    # diarizzazione ci mette minuti: sotto questo valore si tronca il lavoro,
+    # non la latenza.
+    openai_transcription_timeout_seconds: float = 300.0
+    # VAD server-side sul path live. Il default API per il silenzio e' 500 ms:
+    # in un'intervista chiude il turno dentro una pausa di riflessione e spezza
+    # la frase in due chunk decodificati separatamente.
+    openai_live_vad_silence_ms: int = 800
+    openai_live_vad_prefix_padding_ms: int = 300
+    openai_live_vad_threshold: float = 0.5
 
     tavily_api_key: str | None = None
 
