@@ -11,6 +11,7 @@ const FILL: Record<MeterTone, string> = {
 export type MeterProps = {
   /** 0–100 */
   value: number;
+  label?: string;
   tone?: MeterTone;
   /** Show the "%" value on the right. */
   showValue?: boolean;
@@ -26,6 +27,7 @@ export type MeterProps = {
  */
 export function Meter({
   value,
+  label,
   tone = "ok",
   showValue = true,
   height = 6,
@@ -36,6 +38,7 @@ export function Meter({
     <span className={cn("flex items-center gap-2", className)}>
       <span
         role="progressbar"
+        aria-label={label}
         aria-valuenow={Math.round(pct)}
         aria-valuemin={0}
         aria-valuemax={100}
