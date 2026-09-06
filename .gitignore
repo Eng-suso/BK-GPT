@@ -100,6 +100,13 @@ Open-source-DeliR/
 # Local simulation scratch
 .tmpsim/
 
+# Output degli audit UI (screenshot + report generati) e patch di lavoro buttate
+# nella root: si rigenerano, pesano, e non sono lo stato del repo.
+# Ancorato alla root apposta: `ops/prosimos/sync-mode.patch` e' versionata e deve
+# restare committabile.
+artifacts/
+/*.patch
+
 
 
 AGENTS.md
