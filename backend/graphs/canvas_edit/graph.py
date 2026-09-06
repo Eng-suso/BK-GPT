@@ -117,6 +117,10 @@ other case. The runtime verifies that outcome deterministically once the work is
 done, so declare the end state you actually intend.
 For small changes, still consider semantic context and traceability memory before
 proposing patch_edit; do not treat local as context-free.
+When has_prepared_preview_ready_to_apply is true and the user asks to apply, insert,
+save or draw it ("inseriscila nel canvas", "salvala", "vai"), that is not an
+ambiguous request: route to construction and apply the prepared preview. Asking
+what to insert when a preview is already waiting is the wrong answer.
 """.strip()
 
 
@@ -267,7 +271,8 @@ def build_canvas_router(llm):
                             f"has_process_understanding: {bool(state.get('process_understanding'))}\n"
                             f"has_bpmn_semantic_model: {bool(state.get('bpmn_semantic_model'))}\n"
                             f"has_effective_bpmn_xml: {bool(state.get('effective_bpmn_xml'))}\n"
-                            f"effective_bpmn_xml_source: {state.get('effective_bpmn_xml_source')}\n\n"
+                            f"effective_bpmn_xml_source: {state.get('effective_bpmn_xml_source')}\n"
+                            f"has_prepared_preview_ready_to_apply: {bool(state.get('canvas_preview_xml'))}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )

@@ -54,21 +54,49 @@ def test_plan_mode_cannot_route_to_a_canvas_edit():
     assert any("not available in plan mode" in item for item in result["blocking_conditions"])
 
 
-def test_edit_mode_cannot_route_to_construction():
+def test_edit_mode_can_apply_a_plan_it_did_not_write():
+    """Applying a prepared preview is executing a decision, not re-planning it.
+
+    Construction used to be blocked outside plan/agent, which left a preview the
+    user had just approved impossible to apply: "inseriscila nel canvas" came back
+    as "what should I insert?". The mode governs the *write*, and the write guard
+    in `agents/chat_mode.py` enforces that - plan mode still cannot save.
+    """
     result = parse_canvas_router_json(
         """
         {
           "route": "construction",
           "confidence": 0.9,
           "suggested_capability": "canvas.construction",
-          "reason": "Rebuild the whole canvas."
+          "reason": "Apply the prepared preview."
         }
         """,
         state={"chat_mode": "edit", "bpmn_model_id": "bpmn-1"},
     )
 
-    assert result["canvas_route"] != "construction"
-    assert result["orchestration_status"] == "capability_not_in_mode"
+    assert result["canvas_route"] == "construction"
+    assert result["orchestration_status"] == "authorized"
+
+
+def test_plan_mode_can_prepare_a_canvas_but_not_save_it():
+    # The route is open in plan mode - preparing and previewing is exactly what
+    # plan mode is for - and the write is what stays shut.
+    result = parse_canvas_router_json(
+        """
+        {
+          "route": "construction",
+          "confidence": 0.9,
+          "suggested_capability": "canvas.construction",
+          "reason": "Prepare the plan."
+        }
+        """,
+        state={"chat_mode": "plan", "bpmn_model_id": "bpmn-1"},
+    )
+    assert result["canvas_route"] == "construction"
+
+    with bind_active_mode("plan"):
+        with pytest.raises(WriteNotAllowedInMode):
+            assert_write_allowed("update_bpmn_model")
 
 
 def test_edit_mode_still_allows_the_edit_it_exists_for():
@@ -131,10 +159,14 @@ def test_the_router_menu_only_lists_what_the_mode_allows():
     plan_menu = canvas_router_prompt("plan")
     edit_menu = canvas_router_prompt("edit")
 
-    assert "canvas.construction" in plan_menu
+    # Local canvas edits are the one thing plan mode does not offer.
     assert "canvas.patch_edit" not in plan_menu
+    assert "canvas.layout" not in plan_menu
     assert "canvas.patch_edit" in edit_menu
-    assert "canvas.construction" not in edit_menu
+    # Construction is in both: what changes between the modes is whether the
+    # result can be written, not whether a plan can be drawn up.
+    assert "canvas.construction" in plan_menu
+    assert "canvas.construction" in edit_menu
 
 
 def test_capabilities_for_narrows_by_mode():

@@ -439,9 +439,32 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
         }
 
 
+def _open_missing_information(review) -> list[str]:
+    """`missing_information` minus the points the consultant has already settled.
+
+    Leaving an answered question in the list is not just noise: the list feeds the
+    canvas-handoff prerequisite, so a decision the user already made would keep
+    the canvas closed forever.
+    """
+    answered = {
+        unknown_question_id(item.get("question") or "")
+        for item in decode_answers(review)
+    }
+    return [
+        item
+        for item in decode_list(review.missing_information_json)
+        if unknown_question_id(item) not in answered
+    ]
+
+
 def decode_answers(review) -> list[dict]:
     parsed = json.loads(getattr(review, "answers_json", "[]") or "[]")
     return parsed if isinstance(parsed, list) else []
+
+
+def unanswered_questions(review) -> list[dict]:
+    """The gaps still waiting on a human decision."""
+    return [item for item in open_questions_with_answers(review) if not item.get("answer")]
 
 
 def open_questions_with_answers(review) -> list[dict]:
@@ -569,7 +592,7 @@ def review_version_to_dict(version: WorkspaceBpmnReviewVersion) -> dict:
         "quality_report": quality_report,
         "bpmn_brief": version.bpmn_brief,
         "readiness_score": version.readiness_score,
-        "missing_information": decode_list(version.missing_information_json),
+        "missing_information": _open_missing_information(version),
         "open_questions": open_questions_with_answers(version),
         "answers": decode_answers(version),
         "created_at": version.created_at,
@@ -679,7 +702,7 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
         "quality_report": quality_report,
         "bpmn_brief": review.bpmn_brief,
         "readiness_score": review.readiness_score,
-        "missing_information": decode_list(review.missing_information_json),
+        "missing_information": _open_missing_information(review),
         "open_questions": open_questions_with_answers(review),
         "answers": decode_answers(review),
         "status": getattr(review, "status", "pending"),
@@ -908,15 +931,35 @@ def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
         }
 
 
-def review_approval_blockers(quality_report: dict | None, semantic_model: dict | None) -> list[str]:
+# Il valutatore chiede all'utente di chiarire; una volta che l'utente ha
+# chiarito, l'attesa non ha piu' oggetto. Le altre raccomandazioni riguardano il
+# modello, non l'utente, e continuano a bloccare.
+_RECOMMENDATION_WAITING_ON_THE_USER = "needs_user_clarification"
+
+
+def review_approval_blockers(
+    quality_report: dict | None,
+    semantic_model: dict | None,
+    *,
+    open_questions_pending: bool = True,
+) -> list[str]:
     """Reasons a BPMN review must not be auto-approved: the quality evaluator did
-    not clear it, or the compiled model has a control-flow soundness error."""
+    not clear it, or the compiled model has a control-flow soundness error.
+
+    `open_questions_pending=False` says every question the plan raised has been
+    answered. A `needs_user_clarification` verdict then has nothing left to wait
+    for: keeping it as a blocker is how a plan stayed unapprovable no matter how
+    many questions the consultant closed.
+    """
     from backend.bpmn import BPMNSemanticModel
     from backend.bpmn.soundness import analyze_control_flow
 
     blockers: list[str] = []
     recommendation = (quality_report or {}).get("approval_recommendation")
-    if recommendation and recommendation != "ready_to_generate":
+    waiting_on_answered_questions = (
+        recommendation == _RECOMMENDATION_WAITING_ON_THE_USER and not open_questions_pending
+    )
+    if recommendation and recommendation != "ready_to_generate" and not waiting_on_answered_questions:
         blockers.append(f"la valutazione qualita' e' '{recommendation}', non 'ready_to_generate'.")
 
     try:
@@ -931,7 +974,9 @@ def review_approval_blockers(quality_report: dict | None, semantic_model: dict |
 def _assert_review_ready_for_approval(review: WorkspaceBpmnReview) -> None:
     payload = review_to_dict(review)
     blockers = review_approval_blockers(
-        payload.get("quality_report"), payload.get("bpmn_semantic_model")
+        payload.get("quality_report"),
+        payload.get("bpmn_semantic_model"),
+        open_questions_pending=bool(unanswered_questions(review)),
     )
     if blockers:
         raise ValueError(

@@ -587,6 +587,16 @@ def _with_quality_report(process: ProcessUnderstanding, source_text: str = "") -
     return process
 
 
+# Il piano lo legge un consulente: il contenitore BPMN si dice in italiano, o non
+# si dice affatto. "pool"/"black_box" sono dettagli del disegno, non del processo.
+_PARTICIPANT_ROLE_IN_THE_MAP = {
+    "pool": "",
+    "lane": "",
+    "black_box": "interlocutore esterno, di cui non mappiamo il funzionamento interno",
+    "out_of_scope": "fuori dal perimetro",
+}
+
+
 def render_process_review(process: ProcessUnderstanding) -> str:
     if _is_extraction_failure_placeholder(process):
         raise ValueError("render_process_review richiede un ProcessUnderstanding estratto con successo.")
@@ -594,11 +604,9 @@ def render_process_review(process: ProcessUnderstanding) -> str:
     lines = [
         f"## {process.title}",
         "",
-        process.scope or "Review AS-IS prima della generazione BPMN.",
+        process.scope or "Come ho capito il processo, prima di disegnarlo.",
         "",
-        f"Qualita semantica: {quality.overall_score}/10 ({quality.approval_recommendation}).",
-        "",
-        "Flusso principale:",
+        "Come si svolge il processo:",
     ]
 
     step_by_id = {step.id: step for step in process.steps}
@@ -624,26 +632,24 @@ def render_process_review(process: ProcessUnderstanding) -> str:
             lines.append(f"- {control.label}: {control.checked_item} ({owner})")
 
     if process.participants:
-        lines.extend(["", "Partecipanti e contenitori BPMN suggeriti:"])
+        lines.extend(["", "Chi partecipa:"])
         for participant in process.participants:
-            detail: str = participant.bpmn_container
-            if participant.parent_pool_id:
-                detail = f"{detail} in {participant.parent_pool_id}"
-            lines.append(f"- {participant.label}: {detail}")
-
-    if process.bpmn_topology:
-        lines.extend(["", "Topologia BPMN proposta:"])
-        for pool in process.bpmn_topology.pools[:6]:
-            intent = "black box" if pool.rendering_intent == "black_box" else pool.rendering_intent
-            lines.append(f"- Pool {pool.label}: {intent}")
-        for lane in process.bpmn_topology.lanes[:8]:
-            lines.append(f"- Lane {lane.label}: pool {lane.pool_id}")
+            detail = _PARTICIPANT_ROLE_IN_THE_MAP.get(participant.bpmn_container, "")
+            suffix = f" - {detail}" if detail else ""
+            lines.append(f"- {participant.label}{suffix}")
 
     if process.flow_edges:
-        lines.extend(["", "Collegamenti semantici da preservare:"])
+        # Le etichette dei passaggi, non gli id: il piano lo legge un consulente,
+        # e "evento_avvio -> raccogliere_richiesta" non dice nulla al cliente.
+        step_labels = {step.id: step.label for step in process.steps}
+        step_labels.update({event.id: event.label for event in process.events})
+        step_labels.update({decision.id: decision.label for decision in process.decisions})
+        lines.extend(["", "Passaggi da preservare:"])
         for edge in process.flow_edges[:12]:
-            condition = f" [{edge.condition}]" if edge.condition else ""
-            lines.append(f"- {edge.source_id} -> {edge.target_id}: {edge.label}{condition}")
+            source = step_labels.get(edge.source_id, edge.source_id)
+            target = step_labels.get(edge.target_id, edge.target_id)
+            condition = f" (se {edge.condition})" if edge.condition else ""
+            lines.append(f"- Da \"{source}\" a \"{target}\"{condition}: {edge.label}")
 
     if process.exceptions or process.alternative_paths:
         lines.extend(["", "Eccezioni e percorsi alternativi:"])
@@ -674,12 +680,12 @@ def render_process_review(process: ProcessUnderstanding) -> str:
             lines.append(f"- {finding.finding}")
 
     if quality.blocking_issues or quality.warnings:
-        lines.extend(["", "Qualita e azioni correttive:"])
+        lines.extend(["", "Punti da verificare prima di disegnare:"])
         for issue in [*quality.blocking_issues, *quality.warnings][:8]:
             lines.append(f"- {issue.message}")
 
     if process.unknowns:
-        lines.extend(["", "Domande aperte:"])
+        lines.extend(["", "Cosa mi serve sapere da te:"])
         for item in process.unknowns:
             lines.append(f"- {item.question}")
             for option in item.options:

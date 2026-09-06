@@ -24,6 +24,7 @@ from backend.process_understanding import (  # noqa: E402
     ProcessDecision,
     ProcessStep,
     ProcessUnderstanding,
+    ProcessUnderstandingQualityReport,
     ProcessUnknown,
     ProcessUnknownOption,
 )
@@ -329,3 +330,50 @@ def test_an_answer_survives_the_agent_rewriting_the_plan(review_model):
     # testo, quindi la risposta si riaggancia alla stessa domanda.
     assert revised["answers"][0]["answer"] == "Direzione amministrativa"
     assert revised["open_questions"][0]["answer"] == "Direzione amministrativa"
+
+
+def test_the_gate_stops_waiting_once_every_question_has_been_answered():
+    """The verdict that waits on the user is released once the user has answered.
+
+    The quality verdict is stored with the plan, so answering questions could not
+    change it: `needs_user_clarification` kept blocking approval no matter how many
+    gaps the consultant closed. Reported from real use - "ogni volta che devo
+    generare mi dice needs_user_clarification e si blocca".
+    """
+    verdict = {"approval_recommendation": "needs_user_clarification"}
+
+    still_waiting = wd.review_approval_blockers(verdict, None, open_questions_pending=True)
+    assert any("needs_user_clarification" in item for item in still_waiting)
+
+    nothing_left_to_wait_for = wd.review_approval_blockers(
+        verdict, None, open_questions_pending=False
+    )
+    assert nothing_left_to_wait_for == []
+
+
+def test_a_structural_verdict_still_blocks_after_the_questions_are_answered():
+    # Only the verdict that was waiting on the user is released. A verdict about
+    # the model itself is not the user's to clear by answering something else.
+    blockers = wd.review_approval_blockers(
+        {"approval_recommendation": "needs_auto_revision"}, None, open_questions_pending=False
+    )
+    assert any("needs_auto_revision" in item for item in blockers)
+
+
+def test_an_answered_gap_leaves_the_open_information_list(review_model):
+    review = wd.prepare_bpmn_review(
+        bpmn_model_id=review_model,
+        process_description="Sales riceve l'ordine, Finance verifica il credito.",
+        process_understanding=_understanding_with_open_question(),
+    )
+    assert any("10k" in item for item in review["missing_information"])
+
+    answered = wd.answer_bpmn_review_question(
+        review_model,
+        question="Chi approva un ordine oltre 10k?",
+        answer="Direzione amministrativa",
+    )
+
+    # `missing_information` feeds the canvas-handoff prerequisite: leaving a
+    # settled point in it would keep the canvas closed for good.
+    assert not any("10k" in item for item in answered["missing_information"])

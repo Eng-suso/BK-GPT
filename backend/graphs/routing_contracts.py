@@ -358,7 +358,12 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "context from a substantive raw process description supplied by the user. "
             "Available even when no semantic context is loaded yet."
         ),
-        modes=frozenset({"plan", "agent"}),
+        # In every mode, because the *write* is what the mode governs and the write
+        # guard already enforces it: plan mode can prepare and preview but not
+        # apply, edit mode can apply a preview the user just approved. Blocking the
+        # route in edit mode instead left a prepared preview impossible to apply -
+        # "inseriscila nel canvas" came back as "what should I insert?".
+        modes=ALL_CHAT_MODES,
     ),
     "canvas.layout": CapabilitySpec(
         id="canvas.layout",

@@ -1092,8 +1092,10 @@ def test_process_understanding_supports_consultant_grade_discovery_contract():
     assert review.process_understanding.title == process.title
     assert review.bpmn_semantic_model.sourceProcessUnderstanding is not None
     assert review.bpmn_semantic_model_json().find("document_requirements") > 0
-    assert "Partecipanti e contenitori BPMN suggeriti" in review.bpmn_brief
-    assert "Collegamenti semantici da preservare" in review.bpmn_brief
+    # Il piano lo legge un consulente: partecipanti e passaggi si dicono in
+    # italiano, senza contenitori BPMN ne' id.
+    assert "Chi partecipa:" in review.bpmn_brief
+    assert "Passaggi da preservare:" in review.bpmn_brief
 
 
 def test_conservative_quality_fallback_never_auto_approves_flat_summary():
@@ -1545,4 +1547,4 @@ def test_quality_report_from_evaluator_drives_structured_review_readiness(monkey
     assert review.quality_report.approval_recommendation == "ready_to_generate"
     assert json.loads(review.process_understanding_json())["quality_report"]["overall_score"] == 9
     assert "Controlli e verifiche" in review.bpmn_brief
-    assert "Topologia BPMN proposta" in review.bpmn_brief
+    assert "Chi partecipa:" in review.bpmn_brief
