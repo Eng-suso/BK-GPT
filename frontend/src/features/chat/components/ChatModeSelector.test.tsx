@@ -10,50 +10,82 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+function renderSelector(overrides: Partial<React.ComponentProps<typeof ChatModeSelector>> = {}) {
+  const props = {
+    value: "plan" as const,
+    onChange: vi.fn(),
+    effort: "medium" as const,
+    onEffortChange: vi.fn(),
+    ...overrides,
+  };
+  render(<ChatModeSelector {...props} />);
+  return props;
+}
+
 describe("ChatModeSelector", () => {
-  it("exposes the modes as a radiogroup with the active one checked", () => {
-    render(<ChatModeSelector value="plan" onChange={() => {}} />);
+  it("names the active mode on the closed trigger", () => {
+    renderSelector({ value: "agent" });
 
-    const options = screen.getAllByRole("radio");
+    // Chi non apre il menu — occhio o screen reader — deve comunque sapere in
+    // che modalita' sta scrivendo.
+    expect(
+      screen.getByRole("button", { name: /mode\.label: mode\.agent\.label/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers the three modes as a single-choice menu", async () => {
+    const user = userEvent.setup();
+    renderSelector({ value: "plan" });
+
+    await user.click(screen.getByRole("button"));
+
+    const options = await screen.findAllByRole("menuitemradio");
     expect(options).toHaveLength(3);
-    expect(screen.getByRole("radio", { name: /plan/ })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /agent/ })).not.toBeChecked();
+    expect(
+      screen.getByRole("menuitemradio", { name: /mode\.plan\.label/ }),
+    ).toHaveAttribute("aria-checked", "true");
   });
 
-  it("keeps one tab stop and moves between modes with the arrow keys", async () => {
+  it("reports the mode the user picked", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<ChatModeSelector value="plan" onChange={onChange} />);
+    const { onChange } = renderSelector({ value: "agent" });
 
-    // Roving tabindex: only the active option is reachable with Tab.
-    await user.tab();
-    expect(screen.getByRole("radio", { name: /plan/ })).toHaveFocus();
+    await user.click(screen.getByRole("button"));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: /mode\.edit\.label/ }),
+    );
 
-    await user.keyboard("{ArrowRight}");
     expect(onChange).toHaveBeenCalledWith("edit");
-
-    await user.keyboard("{ArrowLeft}");
-    // Wraps around to the last mode rather than dead-ending on the first.
-    expect(onChange).toHaveBeenCalledWith("agent");
   });
 
-  it("reports the mode the user clicked", async () => {
+  it("carries the reasoning effort in the same menu", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<ChatModeSelector value="agent" onChange={onChange} />);
+    const { onEffortChange } = renderSelector({ effort: "medium" });
 
-    await user.click(screen.getByRole("radio", { name: /edit/ }));
+    await user.click(screen.getByRole("button"));
 
-    expect(onChange).toHaveBeenCalledWith("edit");
+    const levels = await screen.findAllByRole("radio");
+    expect(levels).toHaveLength(3);
+    expect(
+      screen.getByRole("radio", { name: "effort.medium.label" }),
+    ).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "effort.high.label" }));
+    expect(onEffortChange).toHaveBeenCalledWith("high");
   });
 
   it("cannot switch mode while the agent is answering", async () => {
     const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<ChatModeSelector value="agent" onChange={onChange} disabled />);
+    const { onChange } = renderSelector({ disabled: true });
 
-    await user.click(screen.getByRole("radio", { name: /plan/ }));
+    // Il trigger disabilitato e' il contratto: in un browser non riceve
+    // pointer events, quindi il menu non si apre. jsdom li consegna comunque,
+    // percio' qui si verifica lo stato del bottone e che nulla arrivi al
+    // chiamante, non l'assenza del menu.
+    const trigger = screen.getByRole("button");
+    expect(trigger).toBeDisabled();
 
+    await user.click(trigger);
     expect(onChange).not.toHaveBeenCalled();
   });
 });

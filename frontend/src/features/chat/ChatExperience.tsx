@@ -3,7 +3,9 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { API_BASE } from "@/lib/api";
 import {
   DEFAULT_CHAT_MODE,
+  DEFAULT_REASONING_EFFORT,
   type ChatMode,
+  type ReasoningEffort,
 } from "../../contracts/chat";
 import type { ChatScope } from "./chatScope";
 import { titleForScope } from "./chatScope";
@@ -37,6 +39,10 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   // The working mode is per-conversation, not per-thread: switching it changes what
   // the next message is allowed to do, and must not fork the session.
   const [chatMode, setChatMode] = useState<ChatMode>(DEFAULT_CHAT_MODE);
+  // Stessa vita della modalita': e' una preferenza di come lavorare, non una
+  // proprieta' del thread.
+  const [reasoningEffort, setReasoningEffort] =
+    useState<ReasoningEffort>(DEFAULT_REASONING_EFFORT);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const lastReviewTimestamp = useRef<string | null>(null);
@@ -100,6 +106,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         selectedModel={selectedModel}
         chatMode={chatMode}
         onChatModeChange={setChatMode}
+        reasoningEffort={reasoningEffort}
+        onReasoningEffortChange={setReasoningEffort}
         onNewChat={sessions.startNewThread}
         onSelectSession={sessions.selectThread}
         onDeleteSession={async (id) => {
@@ -123,7 +131,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         onSendMessage={stream.sendMessage}
         onTranscribeAudio={transcribeAudio}
         onRetry={() => {
-          if (stream.lastUserPrompt) void stream.sendMessage(stream.lastUserPrompt);
+          if (stream.lastUserPrompt)
+            void stream.sendMessage(stream.lastUserPrompt, stream.lastUserAttachments);
         }}
         onAttach={() => showToast("Carica un file audio da trascrivere.")}
         onVoice={() => showToast("Registrazione vocale pronta.")}

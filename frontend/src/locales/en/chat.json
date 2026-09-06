@@ -41,10 +41,19 @@
   "composer": {
     "placeholder": "Write a message…",
     "send": "Send",
-    "audio": "Audio",
-    "interview": "Interview",
     "stop": "Stop",
-    "disclaimer": "The assistant can make mistakes. Verify important information."
+    "disclaimer": "The assistant can make mistakes. Verify important information.",
+    "recording": "Recording",
+    "connecting": "Connecting",
+    "transcribing": "Transcribing",
+    "transcriptReady": "Transcript ready",
+    "viewTranscript": "Open transcript",
+    "transcriptTitle": "Audio transcript",
+    "addLabel": "Add",
+    "audioUpload": "Upload audio",
+    "interviewStart": "Start interview",
+    "stopHint": "Stop the interview and build the transcript",
+    "sendHint": "Send message (Enter)"
   },
   "status": {
     "thinking": "Working on it…"
@@ -107,6 +116,55 @@
     "agent": {
       "label": "Agent",
       "hint": "Full loop: plans, applies and verifies until the request is closed."
+    }
+  },
+  "effort": {
+    "label": "Reasoning",
+    "low": {
+      "label": "Fast",
+      "hint": "Quick answer. For direct questions and small corrections."
+    },
+    "medium": {
+      "label": "Balanced",
+      "hint": "Trades time against depth. Fits most turns."
+    },
+    "high": {
+      "label": "Deep",
+      "hint": "Thinks longer before answering. For analysis and complex plans."
+    }
+  },
+  "attach": {
+    "listLabel": "Message attachments",
+    "remove": "Remove {{label}}",
+    "search": "Search",
+    "empty": "Nothing to attach here.",
+    "error": "Could not load the list.",
+    "step": {
+      "project": "Pick the project.",
+      "process": "Pick the process.",
+      "source": "Pick the source to attach.",
+      "run": "Pick the simulation run.",
+      "note": "Paste the text to attach."
+    },
+    "source": {
+      "menu": "Project source",
+      "title": "Attach a source"
+    },
+    "process": {
+      "menu": "Process",
+      "title": "Attach a process"
+    },
+    "simulation_run": {
+      "menu": "Simulation run",
+      "title": "Attach a simulation run"
+    },
+    "note": {
+      "menu": "Paste text",
+      "title": "Attach text",
+      "placeholder": "Paste the minutes, email or note here.",
+      "confirm": "Attach",
+      "count": "{{count}} / {{max}} characters",
+      "fallbackLabel": "Pasted text"
     }
   }
 }
