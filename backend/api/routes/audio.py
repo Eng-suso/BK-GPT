@@ -33,13 +33,13 @@ _transcription_client_key: str | None = None
 
 
 def transcription_client() -> AsyncOpenAI:
-    """One async client for the whole process.
-
-    Two reasons this is not built per request. The sync `OpenAI` client blocks
-    the event loop for the entire upload and decode --- minutes, on a 25 MB
-    interview --- which stalls every other request the app is serving. And a
-    fresh client per request throws away the connection pool and carries no
-    timeout, so a hung call hangs until the socket gives up.
+    """Create or reuse the process-wide asynchronous transcription client.
+    
+    The client is recreated when the configured API key changes and is configured
+    with the transcription timeout and retry settings.
+    
+    Returns:
+        AsyncOpenAI: The shared asynchronous transcription client.
     """
     global _transcription_client, _transcription_client_key
 
@@ -57,6 +57,15 @@ def transcription_client() -> AsyncOpenAI:
 
 
 def openai_object_to_dict(value: Any) -> dict[str, Any]:
+    """Convert a supported response object or mapping to a dictionary.
+    
+    Args:
+        value (Any): Untrusted value to convert.
+    
+    Returns:
+        dict[str, Any]: The converted dictionary, or an empty dictionary when the
+            value cannot be converted.
+    """
     if hasattr(value, "model_dump"):
         return value.model_dump()
 
@@ -100,6 +109,28 @@ async def transcribe_audio(
     language: str | None = Form(default=None),
     _principal: AuthPrincipal = Depends(require_principal),
 ) -> TranscriptionResponse:
+    """
+    Transcribe an uploaded audio file and return a language-filtered transcript.
+    
+    The audio upload and requested language are treated as untrusted input. The function
+    rejects missing API configuration, invalid language values, empty files, oversized
+    files, and upstream transcription failures. It does not persist the uploaded audio
+    or transcription.
+    
+    Args:
+        file (UploadFile): Untrusted audio file to transcribe.
+        language (str | None): Untrusted requested language, or the configured default
+            when omitted.
+    
+    Returns:
+        TranscriptionResponse: The formatted transcript, language, model, accepted
+            segments, dropped segments, and optional duration.
+    
+    Raises:
+        HTTPException: With status 503 when the OpenAI API key is unavailable, 422 for
+            an invalid language, 400 for an empty file, 413 for an oversized file, or
+            502 when the upstream transcription service fails.
+    """
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY non configurata.")
 
@@ -159,6 +190,24 @@ async def transcribe_audio(
 
 @router.websocket("/live-transcription")
 async def live_audio_transcription(websocket: WebSocket):
+    """Manage an authenticated live audio transcription session over a WebSocket.
+    
+    The session forwards client audio as 24 kHz PCM to OpenAI Realtime using
+    server-side voice activity detection, relays transcription events, and filters
+    completed transcripts to the configured language. Authentication, missing API
+    configuration, upstream connection failures, malformed client messages, and
+    client disconnections are handled through safe WebSocket responses or session
+    termination. Client messages are treated as untrusted input.
+    
+    Args:
+        websocket (WebSocket): Untrusted client WebSocket used for authentication,
+            audio events, and transcription responses.
+    
+    Side Effects:
+        Accepts and communicates over the client WebSocket, opens an upstream
+        OpenAI Realtime connection, and logs upstream or session failures. Does not
+        persist audio or transcripts.
+    """
     principal = await authenticate_websocket(websocket)
     if principal is None:
         return
@@ -221,6 +270,15 @@ async def live_audio_transcription(websocket: WebSocket):
             )
 
             async def forward_client_audio():
+                """Forward client audio events to the upstream transcription connection.
+                
+                Treats received WebSocket messages as untrusted input. Audio payloads are forwarded
+                to the upstream service, and a close event closes that connection. This function
+                does not persist audio or transcripts.
+                
+                Side Effects:
+                    Sends audio events to and closes the upstream WebSocket connection.
+                """
                 while True:
                     message = await websocket.receive_text()
                     event = json.loads(message)
@@ -246,6 +304,13 @@ async def live_audio_transcription(websocket: WebSocket):
                         break
 
             async def forward_openai_events():
+                """Relay transcription events from the upstream WebSocket to the client.
+                
+                Filters completed transcripts to the target language and preserves item completion
+                events with an empty transcript when all text is filtered. Sends transcription
+                deltas, completion notifications, and generic error events to the client while
+                logging upstream error details. Performs WebSocket I/O and does not persist data.
+                """
                 async for raw_message in openai_ws:
                     event = json.loads(raw_message)
                     event_type = event.get("type")

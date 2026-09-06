@@ -21,9 +21,14 @@ export type MeterProps = {
 };
 
 /**
- * A full-width proportion bar with a semantic fill. Unlike `ProgressBar` this
- * stretches to its container and carries a tone — use it for utilisation /
- * load readouts.
+ * Displays a full-width semantic meter for utilization or load values.
+ *
+ * Values are clamped to the range 0–100. An optional label provides an accessible
+ * name, and the rounded percentage can be displayed alongside the meter.
+ *
+ * @param value - The meter value as a percentage
+ * @param label - The accessible label for the meter
+ * @returns The rendered meter element
  */
 export function Meter({
   value,

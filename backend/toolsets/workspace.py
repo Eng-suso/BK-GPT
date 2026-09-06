@@ -19,16 +19,20 @@ from backend.workspace_defaults import (
 
 
 def tool_state_write(*, tool_call_id: str, state: dict[str, Any], content: str) -> Command:
-    """A tool result that also writes what it produced into graph state.
-
-    `ToolNode` appends a ToolMessage and nothing else, so a tool whose result the
-    runtime later has to reason about - a contradiction, a readiness call, a
-    validation report - could reach state only by re-parsing its own serialized
-    output back out of the transcript. Returning a Command writes the typed value
-    directly, alongside the same reader-facing result the agent sees.
-
-    `state` follows the reducers declared on the graph state: accumulator fields
-    (contradictions, claims, gaps, task log) append, plain fields replace.
+    """Build a graph-state update containing typed fields and a reader-facing tool message.
+    
+    Args:
+        tool_call_id (str): Untrusted identifier associated with the tool call.
+        state (dict[str, Any]): Untrusted state fields to update according to the
+            graph's reducers.
+        content (str): Untrusted reader-facing result content.
+    
+    Returns:
+        Command: A state update that includes the supplied fields and a
+        ``ToolMessage`` associated with ``tool_call_id``.
+    
+    The function does not persist state or raise errors explicitly; the graph
+    runtime applies the update and its configured reducer semantics.
     """
     return Command(
         update={
@@ -44,7 +48,20 @@ def enterprise_state_write(
     state: dict[str, Any],
     **result_fields,
 ) -> Command:
-    """`tool_state_write` for tools that answer with an enterprise result envelope."""
+    """
+    Create a state update containing a standardized enterprise result envelope.
+    
+    Args:
+        tool_call_id (str): Untrusted tool-call identifier used to associate the result
+            with the calling tool.
+        state (dict[str, Any]): Untrusted graph state fields to update.
+        **result_fields: Untrusted fields used to construct the enterprise result
+            envelope.
+    
+    Returns:
+        Command: A graph state update that includes the supplied fields and a
+            reader-facing tool message containing the enterprise result.
+    """
     return tool_state_write(
         tool_call_id=tool_call_id,
         state=state,
@@ -63,6 +80,27 @@ def enterprise_tool_result(
     warnings: list[str] | None = None,
     next_actions: list[dict] | None = None,
 ) -> str:
+    """
+    Builds a standardized workspace result payload for presentation to the reader.
+    
+    All supplied values are treated as untrusted result data. Missing optional collections
+    are represented as empty collections, and the resulting payload always includes status,
+    action, entity type, entity identifier, summary, payload, warnings, and next actions.
+    This function does not persist data or mutate workspace state.
+    
+    Args:
+        status (str): Untrusted result status.
+        action (str): Untrusted action identifier.
+        entity_type (str): Untrusted entity type.
+        summary (str): Untrusted reader-facing result summary.
+        entity_id (str | None): Untrusted identifier of the affected entity.
+        payload (dict | list | None): Untrusted result data.
+        warnings (list[str] | None): Untrusted warnings associated with the result.
+        next_actions (list[dict] | None): Untrusted recommended follow-up actions.
+    
+    Returns:
+        str: Formatted workspace result containing the supplied result fields.
+    """
     return format_workspace_result(
         action,
         {
@@ -410,13 +448,17 @@ def create_workspace_client(
     owner: str | None = None,
     contact: str | None = None,
 ) -> str:
-    """
-    Create a client in the workspace database.
-    Use only when the user asks to create or set up a real client record.
-    Do not use for hypothetical examples.
-    Set `status` from the user's own words whenever they make it evident: a client
-    they say they acquired or already work with is "Attivo", not "Prospect".
-    Leave a field unset when the user did not state it.
+    """Create and persist a client record in the workspace database.
+    
+    Args:
+        name: [Untrusted input] Client name.
+        sector: [Untrusted input] Client sector, if provided.
+        status: [Untrusted input] Client status, if provided.
+        owner: [Untrusted input] Client owner, if provided.
+        contact: [Untrusted input] Client contact information, if provided.
+    
+    Returns:
+        A formatted result describing the created client.
     """
     client = workspace_database.create_client(
         name=name,
@@ -438,14 +480,27 @@ def manage_client_record(
     contact: str | None = None,
 ) -> str:
     """
-    Purpose: manage a client record through one LLM-friendly facade.
-    Use for explicit real client work from the Clients subgraph.
-    Supported operations: create, inspect, summarize.
-    It checks existing clients before creating to avoid duplicates.
-    Set `status` from the user's own words whenever they make it evident: a client
-    they say they acquired or already work with is "Attivo", not "Prospect".
-    Leave a field unset when the user did not state it.
-    Do not use for project execution, process discovery, canvas work, or hypothetical examples.
+    Manage a persisted client record through create, inspect, or summarize operations.
+    
+    The create operation is idempotent by normalized client name: it returns an
+    existing record instead of creating a duplicate and may fill its placeholder
+    fields with values supplied by the request. Inspect and summarize return a
+    not-found result when no matching record exists. Unsupported operations produce
+    a structured error result. This function persists records when creating or
+    updating client information.
+    
+    Args:
+        operation (str): Untrusted operation name; supported values are ``create``,
+            ``inspect``, and ``summarize``.
+        name (str): Untrusted client name used for matching and creation.
+        sector (str | None): Untrusted sector information for the client.
+        status (ClientStatus | None): Untrusted client status.
+        owner (str | None): Untrusted client owner.
+        contact (str | None): Untrusted client contact information.
+    
+    Returns:
+        str: A structured result describing the created, existing, found, not-found,
+        or unsupported-operation outcome.
     """
     normalized_operation = operation.strip().lower()
     clients = workspace_database.list_clients()
@@ -543,11 +598,30 @@ def create_workspace_project(
     deliverables: list[str] | None = None,
 ) -> str:
     """
-    Create a project for an existing client in the workspace database.
-    Use after you know the client_id. If the client does not exist, create the client first.
-    Always record `objective` when the user described the assignment: the project
-    record, not the conversation, is what a later Project Chat reads back.
-    Leave phase and status unset when the user did not state them.
+    Create and persist a project for an existing workspace client.
+    
+    Args:
+        client_id (str): Untrusted identifier of the existing client.
+        name (str): Untrusted project name.
+        objective (str | None): Untrusted project objective, when provided.
+        phase (ProjectPhase | None): Project phase, when specified.
+        status (ProjectStatus | None): Project status, when specified.
+        progress (int): Project progress percentage.
+        next_step (str | None): Untrusted description of the next step.
+        milestones (list[str] | None): Untrusted project milestones.
+        open_issues (list[str] | None): Untrusted open issues.
+        deliverables (list[str] | None): Untrusted project deliverables.
+    
+    Returns:
+        str: A standardized result containing the created project and any warning
+            when no objective was stored.
+    
+    Raises:
+        ValueError: If the client does not exist or the project data violates
+            database constraints.
+    
+    The project is persisted in the workspace database. The client must already
+    exist, and unspecified phase and status values remain unset.
     """
     project = workspace_database.create_project(
         client_id=client_id,
@@ -591,12 +665,27 @@ def update_workspace_project(
     deliverables: list[str] | None = None,
 ) -> str:
     """
-    Update an existing project record: objective, phase, status, progress, next step,
-    milestones, open issues, deliverables. Declare only the fields that change.
-    Use when the engagement actually moved - a validated AS-IS moves the phase, a
-    blocked client moves the status - or when the user corrects a recorded value.
-    The consultant can edit the same fields by hand in the UI: this tool writes to
-    the same record, so read it first if you are unsure of the current value.
+    Update selected fields of an existing project record and persist the changes.
+    
+    Args:
+        project_id (str): [Untrusted input] Identifier of the project to update.
+        name (str | None): [Untrusted input] Replacement project name, if provided.
+        objective (str | None): [Untrusted input] Replacement project objective, if provided.
+        phase (ProjectPhase | None): [Untrusted input] Replacement project phase, if provided.
+        status (ProjectStatus | None): [Untrusted input] Replacement project status, if provided.
+        progress (int | None): [Untrusted input] Replacement project progress, if provided.
+        next_step (str | None): [Untrusted input] Replacement next step, if provided.
+        milestones (list[str] | None): [Untrusted input] Replacement milestone list, if provided.
+        open_issues (list[str] | None): [Untrusted input] Replacement open-issue list, if provided.
+        deliverables (list[str] | None): [Untrusted input] Replacement deliverable list, if provided.
+    
+    Returns:
+        str: A standardized result describing the updated project, or an error result when
+            the project cannot be updated.
+    
+    Side Effects:
+        Persists the supplied project-field changes. Database validation or missing-record
+        errors are returned as structured error results.
     """
     try:
         project = workspace_database.update_project(
@@ -738,10 +827,28 @@ def validate_initial_workspace_setup(
     client_owner: str | None = None,
 ) -> str:
     """
-    Purpose: validate an explicit initial workspace setup before creating records.
-    Use in Setup subgraph before create_initial_workspace_setup.
-    It checks missing required setup pieces and duplicate client/project candidates.
-    This tool is read-only.
+    Validate proposed initial workspace setup data without persisting records.
+    
+    The validation checks that the client name and setup reason are present, identifies
+    existing clients and projects with matching normalized names, and flags a missing
+    project objective when a project is requested. This function performs read-only
+    workspace queries and does not create or modify records.
+    
+    Args:
+        client_name: Untrusted client name to validate and compare against existing records.
+        project_name: Untrusted optional project name to validate and compare.
+        project_objective: Untrusted optional objective required when a project name is provided.
+        process_name: Untrusted optional process name included in the validation payload.
+        source_name: Untrusted optional source name included in the validation payload.
+        decision_title: Untrusted optional decision title included in the validation payload.
+        reason: Untrusted explanation for creating the workspace.
+        client_sector: Untrusted optional client sector included for setup context.
+        client_status: Optional client status included for setup context.
+        client_owner: Untrusted optional client owner included for setup context.
+    
+    Returns:
+        A structured result string with status ``"valid"`` when no warnings are found,
+        or ``"review_required"`` with the applicable warnings otherwise.
     """
     warnings = []
     clients = workspace_database.list_clients()
@@ -815,12 +922,29 @@ def create_initial_workspace_setup(
     client_owner: str | None = None,
 ) -> str:
     """
-    Purpose: create a minimal initial workspace setup in one controlled operation.
-    Set `client_status` from the user's own words whenever they make it evident:
-    a client they say they acquired or already work with is "Attivo", not "Prospect".
-    Use only when the user explicitly asks to register real setup records.
-    Creates or reuses the client, then optionally creates project, process stub, source and decision.
-    Stop after setup; ongoing execution belongs to Project, Process or Canvas macro agents.
+    Create or reuse a client and optionally persist related project setup records.
+    
+    The operation may create a project, process stub, source, and decision when the
+    corresponding names are provided. Related records are skipped with warnings when
+    no project is available. Missing project objectives are also reported as warnings.
+    This function performs persistent workspace mutations and returns a structured
+    result serialized as a string.
+    
+    Args:
+        client_name: [Untrusted input] Client name used for creation and matching.
+        project_name: [Untrusted input] Optional project name used for creation or reuse.
+        project_objective: [Untrusted input] Optional objective stored with a new project.
+        process_name: [Untrusted input] Optional process name for a project process stub.
+        source_name: [Untrusted input] Optional source name to record for the project.
+        decision_title: [Untrusted input] Optional decision title to record.
+        reason: [Untrusted input] Context stored with the source and included in the result.
+        client_sector: [Untrusted input] Optional client sector.
+        client_status: [Untrusted input] Optional client status.
+        client_owner: [Untrusted input] Optional client owner.
+    
+    Returns:
+        A serialized enterprise result containing the client, any related records,
+        created and reused entities, warnings, and the next suggested action.
     """
     warnings = []
     created_records = []

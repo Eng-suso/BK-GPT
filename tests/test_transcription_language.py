@@ -218,7 +218,11 @@ def test_deployment_keywords_extend_the_built_in_glossary_without_duplicates():
 
 @pytest.fixture()
 def transcription_client(monkeypatch):
-    """The REST route with a recording stub in place of the OpenAI client."""
+    """Provide a test client and recorded transcription options for REST route tests.
+    
+    Yields:
+        tuple: The test client and a list populated with transcription request options.
+    """
     from backend.api.routes import audio
     from backend.app import app
     from backend.settings import settings
@@ -250,6 +254,15 @@ def transcription_client(monkeypatch):
 
 
 def _post_audio(client: TestClient, **data):
+    """Submit fake audio data to the transcription endpoint for testing.
+    
+    Parameters:
+    	client (TestClient): Client used to make the HTTP request
+    	**data: Form fields included in the request
+    
+    Returns:
+    	The endpoint response.
+    """
     return client.post(
         "/v1/audio/transcriptions",
         files={"file": ("intervista.webm", b"fake-audio-bytes", "audio/webm")},
@@ -292,6 +305,12 @@ def test_route_does_not_leak_the_upstream_error_to_the_caller(monkeypatch, trans
             class transcriptions:
                 @staticmethod
                 async def create(**_options):
+                    """
+                    Simulate an upstream rate-limit failure.
+                    
+                    Raises:
+                    	RuntimeError: Always raised with a rate-limit error message.
+                    """
                     raise RuntimeError("rate limit for org-SECRET123 request req-abc")
 
     client, _calls = transcription_client

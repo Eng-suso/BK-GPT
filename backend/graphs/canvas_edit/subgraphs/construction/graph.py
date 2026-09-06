@@ -38,6 +38,17 @@ node, gateway or sequenceFlow unless explicitly requested.
 
 
 def build_construction_subgraph(llm_with_tools, build_context_messages):
+    """Build the tool-enabled subgraph for drafting and revising canvas process diagrams.
+    
+    Args:
+        llm_with_tools: Language model configured to invoke the construction tools.
+        build_context_messages: Callable that builds messages from the current canvas context.
+    
+    Returns:
+        A construction subgraph using `CanvasState`, the construction tools, and the
+        construction subgraph contract. Building the subgraph does not execute tools
+        or persist canvas changes.
+    """
     return build_tool_chat_subgraph(
         state_schema=CanvasState,
         tools=construction_tools,

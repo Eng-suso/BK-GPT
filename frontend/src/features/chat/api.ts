@@ -58,6 +58,11 @@ export function clearChatSessions(scopeKey: string): Promise<void> {
   });
 }
 
+/**
+ * Transcribes an audio file.
+ *
+ * @returns The trimmed transcription text, or an empty string when no text is provided.
+ */
 export async function transcribeAudio(file: File): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -71,7 +76,13 @@ export async function transcribeAudio(file: File): Promise<string> {
   return String(data.text || "").trim();
 }
 
-/** Opens the NDJSON stream; the caller reads `response.body`. */
+/**
+ * Starts streaming a chat response for a thread.
+ *
+ * @param threadId - The thread receiving the message
+ * @param input - The message, model, scope, mode, and optional attachments
+ * @returns The response containing the NDJSON stream
+ */
 export function streamChatMessage(
   threadId: string,
   input: {
@@ -108,6 +119,11 @@ export function fetchBpmnReview(
   );
 }
 
+/**
+ * Approves the pending review for a BPMN model.
+ *
+ * @param bpmnModelId - The identifier of the BPMN model to approve
+ */
 export function approveBpmnReview(bpmnModelId: string): Promise<void> {
   return http<void>(
     `/v1/workspace/bpmn-models/${bpmnModelId}/review/approve`,
@@ -115,7 +131,12 @@ export function approveBpmnReview(bpmnModelId: string): Promise<void> {
   );
 }
 
-/** Every recorded state of the plan, newest first. */
+/**
+ * Retrieves the recorded review versions for a BPMN model in newest-first order.
+ *
+ * @param bpmnModelId - The BPMN model identifier
+ * @returns The recorded review versions, ordered from newest to oldest
+ */
 export function fetchBpmnReviewVersions(
   bpmnModelId: string,
 ): Promise<BpmnReviewVersion[]> {
@@ -125,7 +146,13 @@ export function fetchBpmnReviewVersions(
   );
 }
 
-/** Record what the consultant decided about one open question. */
+/**
+ * Records an answer to an open BPMN review question.
+ *
+ * @param bpmnModelId - The BPMN model identifier
+ * @param input - The question and its answer
+ * @returns The updated BPMN review
+ */
 export function answerBpmnReviewQuestion(
   bpmnModelId: string,
   input: { question: string; answer: string },
@@ -136,6 +163,13 @@ export function answerBpmnReviewQuestion(
   );
 }
 
+/**
+ * Saves the BPMN brief for a model.
+ *
+ * @param bpmnModelId - The ID of the BPMN model
+ * @param bpmnBrief - The BPMN brief to save
+ * @returns The resulting BPMN review
+ */
 export function saveBpmnReview(
   bpmnModelId: string,
   bpmnBrief: string,

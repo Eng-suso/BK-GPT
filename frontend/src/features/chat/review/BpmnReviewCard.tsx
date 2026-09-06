@@ -91,6 +91,21 @@ export function BpmnReviewCard({
   );
 }
 
+/**
+ * Renders the BPMN process review dialog with overview, validation, version, and quality sections.
+ *
+ * @param review - The process review data displayed in the dialog
+ * @param versions - The review versions shown in the version history
+ * @param open - Whether the dialog is open
+ * @param isApproving - Whether BPMN generation is in progress
+ * @param isSaving - Whether the edited process plan is being saved
+ * @param isAnswering - Whether an open question is being answered
+ * @param onOpenChange - Handles changes to the dialog's open state
+ * @param onApprove - Approves the review and generates the BPMN canvas
+ * @param onSave - Saves the edited process plan
+ * @param onAnswer - Submits an answer to an open question
+ * @param onToast - Displays feedback for copy and other user actions
+ */
 export function BpmnReviewSheet({
   review,
   versions,
@@ -257,6 +272,15 @@ export function BpmnReviewSheet({
 
 type ReviewSection = "overview" | "structure" | "validation" | "versions" | "quality";
 
+/**
+ * Renders a navigation button with an active state and optional count badge.
+ *
+ * @param active - Whether the button represents the current section
+ * @param icon - Icon displayed beside the label
+ * @param label - Text displayed for the navigation item
+ * @param count - Optional count shown in the badge
+ * @param onClick - Called when the button is clicked
+ */
 function ReviewNavButton({
   active,
   icon,
@@ -340,6 +364,13 @@ function OverviewSection({
   );
 }
 
+/**
+ * Displays the detected BPMN lanes and process understanding categories.
+ *
+ * @param understanding - Process actors, decisions, handoffs, exceptions, data objects, and alternative paths
+ * @param semanticModel - Semantic BPMN model containing the detected lanes and flow elements
+ * @returns The rendered structure review section
+ */
 function StructureSection({
   understanding,
   semanticModel,
@@ -365,6 +396,16 @@ function StructureSection({
   );
 }
 
+/**
+ * Displays open questions, answered decisions, missing information, unknowns, and quality warnings for the BPMN review.
+ *
+ * @param openQuestions - Questions requiring decisions, including any recorded answers.
+ * @param missingInformation - Information gaps not already represented by an open question.
+ * @param unknowns - Unresolved items with their severity.
+ * @param warnings - Quality warnings to display.
+ * @param isAnswering - Whether an answer submission is in progress.
+ * @param onAnswer - Handles an answer submitted for an open question.
+ */
 function ValidationSection({
   openQuestions,
   missingInformation,
@@ -432,6 +473,11 @@ function ValidationSection({
 }
 
 
+/**
+ * Displays the plan's version history and structural changes.
+ *
+ * @param versions - The plan versions to display in reverse chronological order
+ */
 function VersionsSection({ versions }: { versions: BpmnReviewVersion[] }) {
   return (
     <section className="bpmn-review-tab-section">
@@ -450,6 +496,13 @@ function VersionsSection({ versions }: { versions: BpmnReviewVersion[] }) {
 }
 
 
+/**
+ * Renders a version history row with its status, change summary, and review metrics.
+ *
+ * @param version - The version to display
+ * @param previous - The preceding version used for metric comparisons
+ * @returns The rendered version history row
+ */
 function VersionRow({
   version,
   previous,
@@ -479,6 +532,14 @@ function VersionRow({
 }
 
 
+/**
+ * Displays a metric and its change from a previous value when the change is nonzero.
+ *
+ * @param label - The metric label
+ * @param value - The current metric value
+ * @param previous - The preceding metric value used for comparison
+ * @returns The rendered metric and optional change indicator
+ */
 function ReviewDelta({
   label,
   value,
@@ -500,6 +561,11 @@ function ReviewDelta({
   );
 }
 
+/**
+ * Displays quality dimension scores, findings, and suggested improvement actions for a BPMN review.
+ *
+ * @param qualityReport - The quality assessment data to display.
+ */
 function QualitySection({ qualityReport }: { qualityReport: NonNullable<BpmnReview["quality_report"]> }) {
   return (
     <section className="bpmn-review-tab-section">

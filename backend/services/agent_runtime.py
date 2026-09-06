@@ -79,10 +79,14 @@ NON_DELTA_AGENT_NODES = {
 
 
 def is_internal_agent_node(node_name: str) -> bool:
-    """Should this node stay out of the user-visible stream entirely?
-
-    ToolNode results are matched by the `_tools` suffix that `build_tool_chat_subgraph`
-    gives every tool node, so a new subagent's tool node is silent without being listed.
+    """Determine whether an agent node should be excluded from the user-visible stream.
+    
+    Args:
+        node_name (str): Untrusted node name to classify.
+    
+    Returns:
+        bool: `True` if the node is an internal node or ends with ``"_tools"``,
+            `False` otherwise.
     """
     return node_name in INTERNAL_AGENT_NODES or node_name.endswith("_tools")
 
@@ -439,22 +443,26 @@ def stream_agent_events(
     """
     Stream scoped agent responses as structured events.
     
-    The stream derives a scope-specific checkpoint thread, preserves a single active
-    request per checkpoint thread, and emits lifecycle, node, text, usage, and trace
-    events. Agent execution may update checkpoint state. A busy checkpoint produces a
-    retryable error event; execution failures produce a non-retryable error event.
+    The stream enforces one active request per scoped checkpoint thread and may persist
+    agent checkpoint state. Busy sessions produce retryable error events; agent
+    execution failures produce non-retryable error events.
     
     Args:
-        thread_id: (Untrusted input.) Request conversation identifier.
-        model_name: (Untrusted input.) Requested model name, or None for the default
-            model.
+        thread_id: (Untrusted input.) Conversation identifier.
+        model_name: (Untrusted input.) Requested model name, or ``None`` for the
+            default model.
         messages: (Untrusted input.) Conversation messages supplied to the agent.
-        scope: Optional scope used to select the agent and checkpoint namespace.
-        trace_context: Optional trace context to use for emitted events.
+        scope: (Untrusted input.) Optional scope used to select the agent and
+            checkpoint namespace.
+        chat_mode: (Untrusted input.) Optional chat mode for the agent execution.
+        attachments: (Untrusted input.) Optional attachments associated with the
+            request.
+        trace_context: Optional context used for emitted trace and lifecycle events.
+        emit_activity: Whether to emit activity progress events while the agent runs.
     
     Yields:
-        AgentStreamEvent: Stream lifecycle, node, text-delta, usage, trace, or error
-            events.
+        AgentStreamEvent: Lifecycle, node, text-delta, usage, trace, activity,
+            warning, or error events.
     """
     fields = scope_fields(scope)
     selected_model = normalize_model_name(model_name)
@@ -568,6 +576,18 @@ def stream_agent_events(
         output_queue.put(event)
 
     def run_agent_stream() -> None:
+        """Run the agent stream and enqueue node, content, usage, completion, or error events.
+        
+        The active scope, mode, and checkpoint thread remain bound for the duration of
+        agent execution. Internal nodes and metadata, as well as non-delta nodes, are
+        excluded from content events, while usage is aggregated across streamed
+        chunks.
+        
+        Agent execution failures are converted into non-retryable error and trace
+        events rather than propagated. The per-thread lock is always released, and a
+        queue sentinel is always emitted to signal stream termination. This function
+        does not persist results.
+        """
         nonlocal last_node, first_token_recorded, usage_totals
         tracing_context = (
             ls.tracing_context(
@@ -807,6 +827,26 @@ def stream_agent_deltas(
     chat_mode: ChatMode | None = None,
     attachments: list[ChatAttachment] | None = None,
 ) -> Iterator[str]:
+    """
+    Stream text deltas from an agent execution.
+    
+    Args:
+        thread_id: Untrusted thread identifier used for checkpoint isolation.
+        model_name: Untrusted model name, or `None` to use the default model.
+        messages: Untrusted chat messages supplied to the agent.
+        scope: Optional scope used to identify the execution context.
+        chat_mode: Optional chat mode for the execution.
+        attachments: Untrusted attachments associated with the chat request.
+    
+    Yields:
+        Text content from each streamed agent delta.
+    
+    Raises:
+        RuntimeError: If the agent emits an execution error.
+    
+    Side Effects:
+        Runs the agent and may update its checkpoint state.
+    """
     for event in stream_agent_events(
         thread_id=thread_id,
         model_name=model_name,
@@ -831,6 +871,25 @@ def stream_agent_text(
     chat_mode: ChatMode | None = None,
     attachments: list[ChatAttachment] | None = None,
 ) -> str:
+    """Collect the agent's streamed text deltas into a complete response.
+    
+    Args:
+        thread_id: (Untrusted input.) Identifier for the conversation thread.
+        model_name: (Untrusted input.) Optional model name used for agent execution.
+        messages: (Untrusted input.) Messages supplied to the agent.
+        scope: Optional scope used for checkpoint isolation and execution context.
+        chat_mode: Optional chat mode for the agent request.
+        attachments: (Untrusted input.) Optional attachments associated with the request.
+    
+    Returns:
+        The concatenated text emitted by the agent.
+    
+    Raises:
+        RuntimeError: If the agent emits a streamed execution error.
+    
+    Side Effects:
+        Executes the agent and may update its checkpoint state.
+    """
     return "".join(
         stream_agent_deltas(
             thread_id=thread_id,

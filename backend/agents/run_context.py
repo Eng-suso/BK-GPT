@@ -27,6 +27,20 @@ _active_thread: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 
 @contextmanager
 def bind_active_thread(thread_id: str | None) -> Iterator[None]:
+    """
+    Temporarily bind the active agent thread ID for the current execution context.
+    
+    Args:
+        thread_id (str | None): Untrusted thread identifier. Falsy values are normalized to
+            None.
+    
+    Yields:
+        None: Control while the thread ID is bound.
+    
+    The previous thread ID is restored when the context exits. The binding is scoped to the
+    current context and is not persisted. If restoration occurs in a different execution
+    context, the reset is skipped and a warning is logged.
+    """
     token = _active_thread.set(str(thread_id) if thread_id else None)
     try:
         yield
@@ -40,4 +54,9 @@ def bind_active_thread(thread_id: str | None) -> Iterator[None]:
 
 
 def active_thread_id() -> str | None:
+    """Get the active agent conversation/thread ID.
+    
+    Returns:
+        str | None: The active thread ID, or `None` when no thread is active.
+    """
     return _active_thread.get()

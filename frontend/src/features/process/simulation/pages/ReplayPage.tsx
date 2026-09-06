@@ -40,6 +40,14 @@ type ReplayStageProps = {
   run: SimulationRun;
 };
 
+/**
+ * Renders the replay stage with simulation controls, BPMN visualization, node details, and contextual insights.
+ *
+ * @param engine - Replay engine providing simulation state and controls
+ * @param bpmnXml - BPMN diagram XML used to render the simulation canvas
+ * @param run - Simulation run data used for summaries and replay insights
+ * @returns The replay stage element
+ */
 function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";

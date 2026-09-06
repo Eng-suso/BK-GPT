@@ -97,6 +97,14 @@ export type ChatAttachment =
   | { kind: "simulation_run"; id: string; label: string; bpmnModelId: string }
   | { kind: "note"; id: string; label: string; text: string };
 
+/**
+ * Converts a chat attachment to its API representation.
+ *
+ * Note text is truncated to the maximum allowed attachment length.
+ *
+ * @param attachment - The attachment to convert
+ * @returns The API-formatted attachment
+ */
 export function toApiChatAttachment(attachment: ChatAttachment): ApiChatAttachment {
   if (attachment.kind === "simulation_run") {
     return {
@@ -124,7 +132,12 @@ export function toApiChatAttachment(attachment: ChatAttachment): ApiChatAttachme
   };
 }
 
-/** Chiave di identita' di un allegato: stesso oggetto, una volta sola. */
+/**
+ * Creates a stable identity key for a chat attachment.
+ *
+ * @param attachment - The attachment whose kind and identifier form the key
+ * @returns A key combining the attachment kind and identifier
+ */
 export function chatAttachmentKey(attachment: ChatAttachment): string {
   return `${attachment.kind}:${attachment.id}`;
 }

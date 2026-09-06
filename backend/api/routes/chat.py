@@ -36,11 +36,36 @@ router = APIRouter(tags=["chat"], dependencies=[Depends(require_principal)])
 
 
 def ndjson_event(event_type: str, **payload) -> str:
+    """Serialize an event and its payload as a newline-delimited JSON record.
+    
+    Args:
+        event_type (str): Untrusted event type included under the ``type`` key.
+        **payload: Untrusted event fields included in the serialized record.
+    
+    Returns:
+        str: A JSON object followed by a newline character.
+    
+    Raises:
+        TypeError: If the event type or payload contains a value that cannot be
+            serialized as JSON.
+    """
     return json.dumps({"type": event_type, **payload}, ensure_ascii=False) + "\n"
 
 
 @router.post("/chat")
 def chat(request: ChatRequest) -> ChatResponse:
+    """Generate a chat response for the requested thread and conversation context.
+    
+    Args:
+        request (ChatRequest): Untrusted chat request containing the thread, model,
+            messages, scope, mode, and attachments.
+    
+    Returns:
+        ChatResponse: The generated message associated with the requested thread.
+    
+    Raises:
+        HTTPException: A 502 error if agent execution fails.
+    """
     try:
         response_message = stream_agent_text(
             thread_id=request.thread_id,
@@ -124,6 +149,23 @@ def send_consultant_chat_message(
     thread_id: str,
     request: SendMessageRequest,
 ) -> ChatResponse:
+    """Send a message to a consultant chat session and generate the assistant response.
+    
+    The chat session and user message are persisted before invoking the agent. A
+    successful response is also persisted as an assistant message.
+    
+    Args:
+        thread_id (str): Untrusted chat session identifier.
+        request (SendMessageRequest): Untrusted message, model, scope, mode, and
+            attachment data.
+    
+    Returns:
+        ChatResponse: The generated assistant message and its thread identifier.
+    
+    Raises:
+        HTTPException: With status 503 if agent processing times out, or status 502
+            for other agent-processing failures.
+    """
     fields = scope_fields(request.scope)
     create_chat_session(
         thread_id=thread_id,
@@ -170,6 +212,19 @@ def stream_consultant_chat_message(
     thread_id: str,
     request: SendMessageRequest,
 ):
+    """Stream a consultant chat response as newline-delimited JSON events.
+    
+    The chat session and user message are persisted before streaming begins. The
+    response is persisted after successful agent streaming, and the stream emits
+    an error event if agent processing or response assembly fails.
+    
+    Args:
+        thread_id: Untrusted session identifier.
+        request: Untrusted message, model, scope, mode, and attachment data.
+    
+    Returns:
+        A streaming response containing start, agent, completion, or error events.
+    """
     fields = scope_fields(request.scope)
     create_chat_session(
         thread_id=thread_id,
@@ -185,6 +240,17 @@ def stream_consultant_chat_message(
     )
 
     def generate():
+        """
+        Stream newline-delimited agent events for the chat request.
+        
+        The stream emits a start event, forwards agent events, and emits a done event
+        after persisting the assembled assistant response. Duplicate start events are
+        omitted, and an agent error event ends the stream without persisting a
+        response. Exceptions are converted into streamed error events.
+        
+        Yields:
+            str: A newline-delimited JSON event.
+        """
         response_parts = []
         trace_context = build_trace_context(
             thread_id=thread_id,

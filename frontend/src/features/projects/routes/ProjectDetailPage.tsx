@@ -38,6 +38,9 @@ import {
   type ProjectProcess,
 } from "../types";
 
+/**
+ * Displays the project detail workspace with project information, tabbed content, actions, and summary details.
+ */
 export function ProjectDetailPage(): React.JSX.Element {
   const { projectId = "" } = useParams();
   const { t } = useTranslation("projects");
@@ -305,6 +308,12 @@ function OverviewTab({
   );
 }
 
+/**
+ * Renders the embedded chat experience for a project.
+ *
+ * @param project - Project whose chat context is displayed
+ * @returns The project chat panel
+ */
 function ProjectChatTab({
   project,
 }: {

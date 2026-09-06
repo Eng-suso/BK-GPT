@@ -28,6 +28,20 @@ BPMNSemanticModel or ProcessUnderstanding unless explicitly requested.
 
 
 def build_validation_subgraph(llm_with_tools, build_context_messages):
+    """
+    Constructs the tool-enabled subgraph used to validate the current BPMN canvas.
+    
+    The subgraph uses `CanvasState`, the validation tools, and the validation contract
+    to preserve validation semantics and produce the configured user-facing report.
+    Construction does not persist changes or modify the canvas.
+    
+    Args:
+        llm_with_tools: Language model configured to invoke the validation tools.
+        build_context_messages: Callable that builds context messages for the agent.
+    
+    Returns:
+        The configured validation subgraph.
+    """
     return build_tool_chat_subgraph(
         state_schema=CanvasState,
         tools=validation_tools,

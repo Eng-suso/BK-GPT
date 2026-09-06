@@ -55,10 +55,18 @@ _CLIENT_STATUS_ALIASES: dict[str, str] = {
 
 
 def normalize_client_status(raw: str | None) -> str | None:
-    """Lo stato in forma canonica, o `None` se non e' stato dichiarato.
-
-    Un valore fuori vocabolario viene restituito ripulito, non scartato: il
-    backend tiene lo stato free-form e il frontend lo normalizza comunque.
+    """
+    Normalize a client status while preserving unrecognized free-form values.
+    
+    Args:
+        raw (str | None): Untrusted client status input. Whitespace is
+            normalized, and recognized aliases are mapped to canonical values.
+    
+    Returns:
+        str | None: The canonical or cleaned status, or `None` when the input is
+            missing or contains only whitespace.
+    
+    This function has no side effects and does not persist the normalized value.
     """
     if raw is None:
         return None
@@ -71,12 +79,29 @@ def normalize_client_status(raw: str | None) -> str | None:
 
 
 def resolve_client_status(raw: str | None) -> str:
-    """Lo stato da scrivere a database: quello dichiarato, o il placeholder."""
+    """Resolve a client status, using the configured placeholder when no status is provided.
+    
+    Args:
+        raw (str | None): Untrusted client-status value to normalize.
+    
+    Returns:
+        str: The normalized status, or ``"Prospect"`` when the input is null or empty.
+    
+    This function has no side effects and does not persist the result.
+    """
     return normalize_client_status(raw) or UNKNOWN_CLIENT_STATUS
 
 
 def is_unknown_client_status(value: str | None) -> bool:
-    """Vero quando il campo porta ancora il placeholder, non una decisione."""
+    """Determines whether a client status is unresolved.
+    
+    Args:
+        value: Untrusted raw client status value to evaluate.
+    
+    Returns:
+        True if the normalized value is unset or equals the ``Prospect`` placeholder;
+        False otherwise.
+    """
     return normalize_client_status(value) in (None, UNKNOWN_CLIENT_STATUS)
 
 
@@ -199,10 +224,18 @@ _PROJECT_STATUS_ALIASES: dict[str, str] = {
 
 
 def _normalize_vocabulary(raw: str | None, aliases: dict[str, str]) -> str | None:
-    """La voce in forma canonica, o `None` se non e' stata dichiarata.
-
-    Un valore fuori vocabolario viene restituito ripulito, non scartato: i campi
-    restano free-form nel database e il frontend normalizza comunque.
+    """Normalize a vocabulary value while preserving unrecognized entries.
+    
+    Args:
+        raw: Untrusted value to normalize.
+        aliases: Case-insensitive mapping from recognized values to canonical values.
+    
+    Returns:
+        The canonical alias or cleaned input value, or `None` when `raw` is
+        missing or contains only whitespace.
+    
+    Side Effects:
+        None; this function does not persist or modify external state.
     """
     if raw is None:
         return None
@@ -215,18 +248,62 @@ def _normalize_vocabulary(raw: str | None, aliases: dict[str, str]) -> str | Non
 
 
 def normalize_project_phase(raw: str | None) -> str | None:
+    """Normalize a project phase value to its canonical vocabulary.
+    
+    Args:
+        raw: Untrusted phase input. Empty or whitespace-only values produce
+            ``None``; recognized aliases are mapped to canonical phase names,
+            while unrecognized values are returned with normalized whitespace.
+    
+    Returns:
+        The canonical or cleaned project phase, or ``None`` when the input is
+        unset.
+    
+    This function raises no errors, has no side effects, and does not persist data.
+    """
     return _normalize_vocabulary(raw, _PROJECT_PHASE_ALIASES)
 
 
 def normalize_project_status(raw: str | None) -> str | None:
+    """Normalize a project status value to its canonical form.
+    
+    Args:
+        raw: Untrusted project status input. Whitespace is trimmed, aliases are
+            mapped case-insensitively, and unrecognized values are preserved.
+    
+    Returns:
+        The normalized project status, or ``None`` when the input is null or empty.
+    """
     return _normalize_vocabulary(raw, _PROJECT_STATUS_ALIASES)
 
 
 def resolve_project_phase(raw: str | None) -> str:
-    """La fase da scrivere a database: quella dichiarata, o il placeholder."""
+    """Resolve a project phase, applying the default when the input is unset.
+    
+    Args:
+        raw: Untrusted phase value to normalize.
+    
+    Returns:
+        The normalized phase, or ``"Discovery"`` when the input is empty or
+        ``None``. Unknown non-empty values are returned after whitespace
+        normalization.
+    
+    This function has no side effects and does not persist data.
+    """
     return normalize_project_phase(raw) or DEFAULT_PROJECT_PHASE
 
 
 def resolve_project_status(raw: str | None) -> str:
-    """Lo stato da scrivere a database: quello dichiarato, o il placeholder."""
+    """Resolves a project status for storage.
+    
+    Args:
+        raw: Untrusted status input, which may be unset or contain aliases and
+            extra whitespace.
+    
+    Returns:
+        The normalized status, or ``"Bozza"`` when the input is unset. Unknown
+        non-empty values are preserved after normalization.
+    
+    This function has no side effects and does not persist data.
+    """
     return normalize_project_status(raw) or DEFAULT_PROJECT_STATUS

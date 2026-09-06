@@ -82,6 +82,14 @@ ChatAttachment: TypeAlias = Annotated[
 
 
 def chat_scope_key(scope: ChatScope | None) -> str:
+    """Build a stable key for a chat scope.
+    
+    Args:
+        scope: Untrusted chat scope input, or None for the consultant-wide scope.
+    
+    Returns:
+        The canonical scope key.
+    """
     if scope is None or scope.type == "consultant":
         return "consultant"
     if scope.type == "project":

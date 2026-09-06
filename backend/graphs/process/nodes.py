@@ -7,6 +7,28 @@ from backend.process_understanding import (
 
 
 def load_process_context(state: dict) -> dict:
+    """Load process metadata, review results, and saved BPMN content for the requested process.
+    
+    Args:
+        state (dict): Untrusted state containing the optional ``process_id`` used to
+            identify the process.
+    
+    Returns:
+        dict: A normalized process context. Returns an empty dictionary when no
+        process ID is provided. For an unknown process, returns a context with
+        null process data, empty review lists, and no saved BPMN XML. Existing
+        contexts include process metadata, saved BPMN XML, semantic-model data,
+        diagnostics, quality data, readiness, and review findings, with missing
+        list values normalized to empty lists.
+    
+    Raises:
+        KeyError: If a retrieved process lacks a required process field.
+        TypeError: If stored review data cannot be processed by the semantic-model
+            or quality-report validators.
+    
+    Side Effects:
+        Performs read-only database lookups and does not persist changes.
+    """
     process_id = state.get("process_id")
     if not process_id:
         return {}

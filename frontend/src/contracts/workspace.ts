@@ -214,11 +214,24 @@ const VALID_PROCESS_STAGES = new Set(["Discovery", "AS-IS", "TO-BE", "Validazion
 const VALID_PROCESS_STATUSES = new Set(["In corso", "Da validare", "Bozza"]);
 const VALID_PROJECT_STATUSES = new Set<string>(PROJECT_STATUSES);
 
-/** `true` per una fase del vocabolario corrente: le altre si mostrano com'e'. */
+/**
+ * Determines whether a project phase belongs to the current phase vocabulary.
+ *
+ * @param phase - The project phase to validate
+ * @returns `true` if the phase is recognized, `false` otherwise.
+ */
 export function isKnownProjectPhase(phase: string): phase is ProjectPhase {
   return (PROJECT_PHASES as readonly string[]).includes(phase);
 }
 
+/**
+ * Converts an API process record into a project process.
+ *
+ * Unknown stages default to `"Discovery"` and unknown statuses default to `"Bozza"`.
+ *
+ * @param process - The API process record to convert
+ * @returns The normalized project process
+ */
 function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectProcess {
   return {
     id: process.id,
@@ -235,6 +248,12 @@ function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectProcess {
   };
 }
 
+/**
+ * Converts an API project record into the client-side project structure.
+ *
+ * @param project - The validated API project record
+ * @returns The normalized project
+ */
 export function toProject(project: z.infer<typeof apiProjectSchema>): Project {
   return {
     id: project.id,
@@ -256,8 +275,12 @@ export function toProject(project: z.infer<typeof apiProjectSchema>): Project {
   };
 }
 
-/* Verso il backend. Le liste viaggiano intere: chi le manda ha appena visto
- * quelle correnti nel form, quindi una lista vuota vuol dire "svuotala". */
+/**
+ * Builds a backend-compatible payload from a client draft, trimming editable text fields.
+ *
+ * @param draft - The client draft to serialize
+ * @returns An object containing the client fields expected by the backend
+ */
 
 export function toApiClientPayload(draft: ClientDraft): Record<string, unknown> {
   return {
@@ -269,6 +292,12 @@ export function toApiClientPayload(draft: ClientDraft): Record<string, unknown> 
   };
 }
 
+/**
+ * Converts a project draft into the backend request payload format.
+ *
+ * @param draft - The project data to serialize
+ * @returns A backend-compatible project payload with editable text fields trimmed
+ */
 export function toApiProjectPayload(draft: ProjectDraft): Record<string, unknown> {
   return {
     client_id: draft.clientId,
@@ -284,6 +313,12 @@ export function toApiProjectPayload(draft: ProjectDraft): Record<string, unknown
   };
 }
 
+/**
+ * Converts an API project source record to the client-side project source model.
+ *
+ * @param source - The validated API project source record
+ * @returns The project source with client-side field names
+ */
 export function toProjectSource(source: z.infer<typeof apiProjectSourceSchema>): ProjectSource {
   return {
     id: source.id,

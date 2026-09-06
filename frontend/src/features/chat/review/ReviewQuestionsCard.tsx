@@ -18,6 +18,12 @@ const SEVERITY_ORDER: Record<string, number> = {
   optional_extension: 2,
 };
 
+/**
+ * Sorts review questions by severity without modifying the input array.
+ *
+ * @param questions - The review questions to sort
+ * @returns A new array ordered from blocking to optional
+ */
 function sortQuestions(questions: ReviewOpenQuestion[]): ReviewOpenQuestion[] {
   return [...questions].sort(
     (a, b) =>
@@ -27,11 +33,10 @@ function sortQuestions(questions: ReviewOpenQuestion[]): ReviewOpenQuestion[] {
 }
 
 /**
- * The plan's open gaps, as questions the consultant can actually close.
+ * Displays unanswered plan questions that require the consultant's decisions.
  *
- * The alternatives come from the agent - it has the process in front of it -
- * and there is always a way out to your own words: a proposed option that does
- * not fit must never be the only way to answer.
+ * @param questions - Plan questions to review.
+ * @returns The review questions card, or `null` when all questions have been answered.
  */
 export function ReviewQuestionsCard({
   questions,
@@ -71,6 +76,13 @@ export function ReviewQuestionsCard({
   );
 }
 
+/**
+ * Presents an unanswered review question and collects a response.
+ *
+ * @param question - The question, proposed answers, and severity to display.
+ * @param isAnswering - Whether answer submission is currently in progress.
+ * @param onAnswer - Handles the submitted question answer.
+ */
 function OpenQuestion({
   question,
   isAnswering,

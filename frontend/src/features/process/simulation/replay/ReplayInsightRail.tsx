@@ -26,7 +26,9 @@ type ReplayInsightRailProps = {
   run: SimulationRun;
 };
 
-/** The "what am I watching" rail — clock, legend, live bottleneck, resources. */
+/**
+ * Renders replay timing, bottleneck, resource, counter, and legend information.
+ */
 export function ReplayInsightRail({
   engine,
   run,

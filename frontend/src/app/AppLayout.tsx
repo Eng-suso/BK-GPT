@@ -6,6 +6,9 @@ import { TopBar } from "@/components/shell/TopBar";
 import { SECTION_PATH, sectionFromPath } from "@/app/routes";
 import { cn } from "@/lib/utils";
 
+/**
+ * Renders the application shell with route-aware navigation and routed content.
+ */
 export function AppLayout(): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();

@@ -96,6 +96,17 @@ def process_to_dict(process: WorkspaceProcess) -> dict:
 
 
 def project_to_dict(project: WorkspaceProject, include_processes: bool = True) -> dict:
+    """Serialize a workspace project into a dictionary.
+    
+    Args:
+        project: The workspace project to serialize.
+        include_processes: Whether to include serialized process items in the
+            result.
+    
+    Returns:
+        A dictionary containing the project's tenant-scoped identifiers, client
+        name, metadata, progress, list fields, and optionally its processes.
+    """
     return {
         "id": project.id,
         "client_id": project.client_id,
@@ -141,6 +152,11 @@ def client_to_dict(client: WorkspaceClient) -> dict:
 
 
 def list_clients() -> list[dict]:
+    """List clients belonging to the current tenant in name order.
+    
+    Returns:
+        list[dict]: Tenant-scoped client records sorted by name.
+    """
     with workspace_connection() as session:
         clients = session.execute(
             select(WorkspaceClient)
@@ -158,14 +174,20 @@ def fill_client_placeholders(
     owner: str | None,
     contact: str | None,
 ) -> None:
-    """Riempie i soli campi rimasti al placeholder, senza toccare i dati curati.
-
-    `create_client` e' idempotente per nome: chiamarla due volte non crea un
-    duplicato. Ma "non creo un duplicato" non deve voler dire "butto via quello
-    che l'utente ha appena detto": se il record esiste con `status` ancora al
-    placeholder e ora l'utente dichiara un cliente acquisito, quel campo si
-    riempie. Un valore gia' deciso non viene mai sovrascritto da una create
-    successiva - cambiarlo e' un update, e questa non lo e'.
+    """Fills only placeholder fields on a client without overwriting curated data.
+    
+    Args:
+        client: Client record to update in memory.
+        sector: Potentially untrusted sector value used when the current sector is
+            empty or unknown.
+        status: Potentially untrusted status value used when the current status is
+            unknown.
+        owner: Potentially untrusted owner value used when the current owner is
+            empty or unknown.
+        contact: Potentially untrusted contact value used when no contact exists.
+    
+    The function mutates the client object but does not commit or persist the
+    changes.
     """
     if sector and client.sector in ("", UNKNOWN_SECTOR):
         client.sector = sector
@@ -184,12 +206,24 @@ def create_client(
     owner: str | None = None,
     contact: str | None = None,
 ) -> dict:
-    """Crea il cliente, o restituisce quello esistente arricchito coi campi noti.
-
-    Ogni campo diverso dal nome e' opzionale davvero: `None` significa "non
-    dichiarato" e diventa placeholder qui, in un punto solo. Nessun chiamante
-    deve piu' inventare un default - era cosi' che un cliente appena acquisito
-    finiva registrato come "Prospect".
+    """Create or enrich a tenant-scoped client by normalized name.
+    
+    Args:
+        name (str): Untrusted client name; must contain non-whitespace characters.
+        sector (str | None): Untrusted sector value, when known.
+        status (str | None): Untrusted client status, when known.
+        owner (str | None): Untrusted owner value, when known.
+        contact (str | None): Untrusted contact value, when known.
+    
+    Returns:
+        dict: The newly created or existing client, including its persisted fields.
+    
+    Raises:
+        ValueError: If ``name`` is empty or contains only whitespace.
+    
+    Side effects:
+        Persists a new client, or enriches placeholder fields on an existing
+        tenant-scoped client.
     """
     clean_name = name.strip()
 
@@ -263,12 +297,28 @@ def create_project(
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> dict:
-    """Crea il progetto. Ogni campo oltre a cliente e nome e' opzionale davvero.
-
-    `None` significa "non dichiarato" e diventa placeholder qui, in un punto
-    solo: fase e stato non hanno piu' un default nella firma di ogni chiamante.
-    `objective` e' il perche' dell'incarico e non ha placeholder - una frase
-    inventata al posto del consulente sarebbe peggio di un campo vuoto.
+    """Create and persist a tenant-scoped project for an existing client.
+    
+    Args:
+        client_id (str): Untrusted client identifier that must belong to the current tenant.
+        name (str): Untrusted project name; must contain non-whitespace characters.
+        objective (str | None): Untrusted project objective.
+        phase (str | None): Untrusted project phase, resolved to the configured placeholder when omitted.
+        status (str | None): Untrusted project status, resolved to the configured placeholder when omitted.
+        progress (int): Untrusted progress value, constrained to the range 0 through 100.
+        next_step (str | None): Untrusted next step, replaced with the configured placeholder when empty.
+        milestones (list[str] | None): Untrusted milestone entries to store with the project.
+        open_issues (list[str] | None): Untrusted open-issue entries to store with the project.
+        deliverables (list[str] | None): Untrusted deliverable entries to store with the project.
+    
+    Returns:
+        dict: The persisted project serialized as a dictionary.
+    
+    Raises:
+        ValueError: If the name is empty, the client does not exist in the current tenant, or progress cannot be converted to an integer.
+    
+    Side Effects:
+        Persists the project in the workspace database.
     """
     clean_name = name.strip()
 
@@ -311,11 +361,30 @@ def update_client(
     owner: str | None = None,
     contact: str | None = None,
 ) -> dict:
-    """Aggiorna i campi dichiarati di un cliente. `None` = "non toccare".
-
-    Diverso da `create_client`, che riempie solo i placeholder: qui il chiamante
-    (il consulente dalla UI, o l'agente su sua richiesta) sta correggendo un
-    valore gia' deciso, e la correzione deve passare.
+    """Update the specified fields of a tenant-owned client.
+    
+    Args:
+        client_id (str): Untrusted client identifier.
+        name (str | None): Untrusted replacement name; must contain non-whitespace
+            text when provided.
+        sector (str | None): Untrusted replacement sector. Blank values use the
+            unknown-sector placeholder.
+        status (str | None): Untrusted replacement status.
+        owner (str | None): Untrusted replacement owner. Blank values use the
+            unassigned-owner placeholder.
+        contact (str | None): Untrusted replacement contact value. Blank values are
+            stored as an empty string.
+    
+    Returns:
+        dict: The updated client serialized as a dictionary.
+    
+    Raises:
+        ValueError: If the client does not belong to the current tenant, does not
+            exist, or a provided name is empty after trimming.
+    
+    Side Effects:
+        Persists the supplied changes to the tenant's client record. Fields
+        whose values are None remain unchanged.
     """
     with workspace_connection() as session:
         client = tenant_row(session, WorkspaceClient, client_id)
@@ -354,10 +423,32 @@ def update_project(
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> dict:
-    """Aggiorna i campi dichiarati di un progetto. `None` = "non toccare".
-
-    Le liste arrivano intere: chi le manda ha appena visto quelle correnti nella
-    UI, quindi una lista vuota e' "svuotala", non "non dichiarata".
+    """Update the specified fields of a tenant-owned project and persist the changes.
+    
+    A value of ``None`` leaves its field unchanged. List arguments replace the
+    corresponding stored lists, including when an empty list is supplied. Project
+    names must be non-empty after trimming, client references must belong to the
+    current tenant, and progress is constrained to the range 0–100.
+    
+    Args:
+        project_id: Untrusted project identifier.
+        name: Untrusted replacement project name.
+        client_id: Untrusted replacement client identifier.
+        objective: Untrusted replacement project objective.
+        phase: Untrusted replacement project phase.
+        status: Untrusted replacement project status.
+        progress: Untrusted replacement progress value.
+        next_step: Untrusted replacement next step.
+        milestones: Untrusted replacement milestone list.
+        open_issues: Untrusted replacement open-issue list.
+        deliverables: Untrusted replacement deliverable list.
+    
+    Returns:
+        A dictionary containing the updated project.
+    
+    Raises:
+        ValueError: If the project or replacement client does not exist, or if the
+            replacement name is empty after trimming.
     """
     with workspace_connection() as session:
         project = tenant_row(session, WorkspaceProject, project_id)
@@ -397,11 +488,28 @@ def update_project(
 
 
 def _clean_list(values: list[str]) -> list[str]:
-    """Voci ripulite, senza vuoti: una riga bianca nella UI non e' una voce."""
+    """
+    Clean list entries by removing blank values and normalizing whitespace.
+    
+    Args:
+        values: Untrusted string values to clean.
+    
+    Returns:
+        A list containing non-blank entries with consecutive whitespace collapsed.
+    """
     return [" ".join(str(value).split()) for value in values if str(value).strip()]
 
 
 def get_project(project_id: str) -> dict | None:
+    """Retrieve a project belonging to the current tenant.
+    
+    Args:
+        project_id (str): Untrusted project identifier to look up within the current tenant.
+    
+    Returns:
+        dict | None: A dictionary representation of the project, or None when no matching
+            tenant-owned project exists.
+    """
     with workspace_connection() as session:
         project = tenant_row(session, WorkspaceProject, project_id)
         return project_to_dict(project) if project else None
@@ -510,6 +618,24 @@ def create_bpmn_version(
     change_summary: str,
     source: str,
 ) -> WorkspaceBpmnVersion:
+    """Create and stage a BPMN version snapshot for a model.
+    
+    Args:
+        session: SQLAlchemy session used to stage the new version.
+        model (WorkspaceBpmnModel): Model associated with the version.
+        xml (str): Untrusted BPMN XML content to store.
+        change_summary (str): Untrusted description of the change; blank values use a default.
+        source (str): Untrusted version source; blank values use ``"manual"``.
+    
+    Returns:
+        WorkspaceBpmnVersion: The newly created, unsaved version entity.
+    
+    Raises:
+        AuthorizationError: If the current user is not permitted to write BPMN data.
+    
+    The version inherits the model's tenant, model, and process identifiers. The entity is added to
+    the session but is not committed.
+    """
     assert_write_allowed("create_bpmn_version")
     version = WorkspaceBpmnVersion(
         tenant_id=getattr(model, "tenant_id", tenant_id()),
@@ -530,6 +656,27 @@ def update_bpmn_model(
     change_summary: str = "Salvataggio canvas",
     source: str = "manual_save",
 ) -> dict | None:
+    """
+    Persist an authorized BPMN model update and create a version snapshot.
+    
+    Args:
+        bpmn_model_id (str): Tenant-scoped model identifier.
+        xml (str): Untrusted BPMN XML content; it must contain non-whitespace
+            characters.
+        change_summary (str): Untrusted description of the change.
+        source (str): Untrusted origin label for the version snapshot.
+    
+    Returns:
+        dict | None: The updated model data, or `None` when the model does not
+        belong to the current tenant or does not exist.
+    
+    Raises:
+        PermissionError: If the caller is not authorized to write BPMN models.
+        ValueError: If `xml` is empty or contains only whitespace.
+    
+    Side Effects:
+        Updates the tenant-owned BPMN model and persists a version snapshot.
+    """
     assert_write_allowed("update_bpmn_model")
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
@@ -574,6 +721,25 @@ def list_bpmn_versions(bpmn_model_id: str) -> list[dict]:
 
 
 def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
+    """Restore a tenant-owned BPMN model to a prior version and record the restoration.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        version_id (int): Untrusted version identifier to restore.
+    
+    Returns:
+        dict: The restored BPMN model, the source version, and the newly created
+            restoration version.
+    
+    Raises:
+        ValueError: If the model or version does not exist, or the version does
+            not belong to the specified model and current tenant.
+        PermissionError: If the caller is not authorized to modify BPMN data.
+    
+    Side Effects:
+        Persists the restored XML and creates a new BPMN version recording the
+        restoration.
+    """
     assert_write_allowed("restore_bpmn_version")
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
@@ -610,11 +776,17 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
 
 
 def _open_missing_information(review) -> list[str]:
-    """`missing_information` minus the points the consultant has already settled.
-
-    Leaving an answered question in the list is not just noise: the list feeds the
-    canvas-handoff prerequisite, so a decision the user already made would keep
-    the canvas closed forever.
+    """Filter unresolved review information to exclude questions already answered.
+    
+    Args:
+        review (object): Untrusted review record containing stored missing-information
+            and answer data.
+    
+    Returns:
+        list[str]: Missing-information items whose question identifiers have not been
+        answered.
+    
+    The function does not modify or persist the review.
     """
     answered = {
         unknown_question_id(item.get("question") or "")
@@ -628,22 +800,50 @@ def _open_missing_information(review) -> list[str]:
 
 
 def decode_answers(review) -> list[dict]:
+    """Decode a review's stored answers into a list.
+    
+    Args:
+        review: An object whose ``answers_json`` attribute contains JSON data.
+            The stored value is treated as untrusted input.
+    
+    Returns:
+        The decoded list of answer dictionaries, or an empty list when the
+        attribute is missing, empty, or contains a JSON value of another type.
+    
+    Raises:
+        json.JSONDecodeError: If ``answers_json`` contains malformed JSON.
+    """
     parsed = json.loads(getattr(review, "answers_json", "[]") or "[]")
     return parsed if isinstance(parsed, list) else []
 
 
 def unanswered_questions(review) -> list[dict]:
-    """The gaps still waiting on a human decision."""
+    """Identify review questions that still require an answer.
+    
+    Args:
+        review: Untrusted review data from which to derive open questions.
+    
+    Returns:
+        A list of question dictionaries whose answers are empty or absent.
+    """
     return [item for item in open_questions_with_answers(review) if not item.get("answer")]
 
 
 def open_questions_with_answers(review) -> list[dict]:
-    """The plan's open questions, each with its alternatives and its answer.
-
-    `missing_information` is a flat list of strings: readable, but nothing a
-    consultant can act on. These are the same gaps as objects - the alternatives
-    the agent proposed, and what was chosen - so a question can actually be
-    closed instead of only reported.
+    """
+    Builds actionable review questions from the stored process understanding and recorded answers.
+    
+    Args:
+        review: [Untrusted] Review record containing the serialized semantic model and answers.
+    
+    Returns:
+        A list of question dictionaries with stable IDs, alternatives, severity,
+        impact, and any recorded answer metadata.
+    
+    Raises:
+        json.JSONDecodeError: If the stored semantic model is not valid JSON.
+    
+    This function does not modify or persist data.
     """
     semantic_model = json.loads(review.bpmn_semantic_model_json or "{}")
     understanding = semantic_model.get("sourceProcessUnderstanding") or {}
@@ -683,12 +883,21 @@ def answer_bpmn_review_question(
     question: str,
     answer: str,
 ) -> dict:
-    """Record what the consultant decided about one open question.
-
-    The answer is stored, not interpreted: turning "the admin office approves it"
-    into a changed process model is the agent's work, through
-    `revise_bpmn_review`. Keeping the two apart means the human decision survives
-    whatever the model does with it next, and stays visible in the history.
+    """Record or replace an answer to a BPMN review question and persist a review-version snapshot.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        question (str): Untrusted question text; must contain non-whitespace content.
+        answer (str): Untrusted answer text; must contain non-whitespace content.
+    
+    Returns:
+        dict: The updated BPMN review, including the recorded answer and incremented version.
+    
+    Raises:
+        ValueError: If the question or answer is empty, or if no tenant-owned review
+            exists for the specified BPMN model.
+    
+    The answer is stored for later review revision and does not modify the process model.
     """
     clean_question = " ".join(str(question or "").split())
     clean_answer = str(answer or "").strip()
@@ -731,11 +940,22 @@ def answer_bpmn_review_question(
 
 
 def _review_artifacts(review) -> tuple[dict, dict]:
-    """(semantic model, quality report) from a stored review row.
-
-    Raises when the stored payload is not canonical: a review whose semantic model
-    lost its compilation plan or its source understanding cannot be reasoned about,
-    and must not be silently reported as a usable plan.
+    """Validate and derive artifacts from a stored BPMN review.
+    
+    Args:
+        review: Untrusted stored review row containing serialized semantic-model data.
+    
+    Returns:
+        A tuple containing the canonical semantic model and its recomputed quality
+        report.
+    
+    Raises:
+        ValueError: If the stored semantic model is invalid or lacks the required
+            compilation plan or source understanding.
+        (json.JSONDecodeError, pydantic.ValidationError): If the stored payload or
+            process understanding cannot be decoded or validated.
+    
+    The function does not persist changes or otherwise modify the review.
     """
     bpmn_semantic_model = json.loads(review.bpmn_semantic_model_json or "{}")
     if not _is_canonical_semantic_model_payload(bpmn_semantic_model):
@@ -748,6 +968,20 @@ def _review_artifacts(review) -> tuple[dict, dict]:
 
 
 def review_version_to_dict(version: WorkspaceBpmnReviewVersion) -> dict:
+    """
+    Serialize a BPMN review version with its semantic model, quality report, questions, answers, and metadata.
+    
+    Args:
+        version (WorkspaceBpmnReviewVersion): Review version to serialize.
+    
+    Returns:
+        dict: Serialized review version data, including open questions and decoded answers.
+    
+    Raises:
+        ValueError: If the stored review artifacts are invalid.
+    
+    The function does not modify or persist the review version.
+    """
     bpmn_semantic_model, quality_report = _review_artifacts(version)
     return {
         "bpmn_model_id": version.bpmn_model_id,
@@ -776,7 +1010,19 @@ def _record_review_version(
     change_summary: str,
     source: str,
 ) -> WorkspaceBpmnReviewVersion:
-    """Snapshot the review as it stands now, under its current version number."""
+    """Create a persistent snapshot of the review at its current version.
+    
+    Args:
+        change_summary (str): Untrusted description of the change represented by
+            the snapshot.
+        source (str): Untrusted identifier for the snapshot's origin.
+    
+    Returns:
+        WorkspaceBpmnReviewVersion: The newly created, unsaved snapshot object.
+    
+    Side effects:
+        Adds the snapshot to the provided database session.
+    """
     version = WorkspaceBpmnReviewVersion(
         tenant_id=getattr(review, "tenant_id", tenant_id()),
         bpmn_model_id=review.bpmn_model_id,
@@ -799,6 +1045,16 @@ def _record_review_version(
 
 
 def _mark_review_version_approved(session, review: WorkspaceBpmnReview) -> None:
+    """Mark the current review version as approved in the review history.
+    
+    If no matching historical snapshot exists, records one before marking approval.
+    Persists the approval status and summary through the supplied database session.
+    
+    Args:
+        session: Database session used to update or create the review version.
+        review: Review whose tenant, BPMN model, and version identify the snapshot.
+    
+    """
     row = (
         session.execute(
             select(WorkspaceBpmnReviewVersion).where(
@@ -826,7 +1082,16 @@ def _mark_review_version_approved(session, review: WorkspaceBpmnReview) -> None:
 
 
 def list_bpmn_review_versions(bpmn_model_id: str) -> list[dict]:
-    """Every recorded state of this review, newest first."""
+    """List tenant-scoped review snapshots for a BPMN model, newest first.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier used to select review
+            snapshots within the current tenant.
+    
+    Returns:
+        list[dict]: Review snapshots ordered from newest to oldest. Returns an
+            empty list when no snapshots match.
+    """
     with workspace_connection() as session:
         rows = (
             session.execute(
@@ -844,6 +1109,16 @@ def list_bpmn_review_versions(bpmn_model_id: str) -> list[dict]:
 
 
 def get_bpmn_review_version(bpmn_model_id: str, version: int) -> dict | None:
+    """Retrieve a tenant-scoped BPMN review version.
+    
+    Args:
+        bpmn_model_id: Untrusted BPMN model identifier.
+        version: Untrusted review version number.
+    
+    Returns:
+        A serialized review version for the current tenant, or `None` if no matching
+        version exists.
+    """
     with workspace_connection() as session:
         row = (
             session.execute(
@@ -860,6 +1135,17 @@ def get_bpmn_review_version(bpmn_model_id: str, version: int) -> dict | None:
 
 
 def review_to_dict(review: WorkspaceBpmnReview) -> dict:
+    """Serialize a BPMN review and its derived artifacts for API responses.
+    
+    Args:
+        review (WorkspaceBpmnReview): Review record to serialize.
+    
+    Returns:
+        dict: Review data including semantic model, quality report, readiness,
+            missing information, questions, answers, status, and timestamps.
+    
+    This function does not modify or persist the review.
+    """
     bpmn_semantic_model, quality_report = _review_artifacts(review)
     process_understanding = bpmn_semantic_model.get("sourceProcessUnderstanding") or {}
     return {
@@ -897,12 +1183,25 @@ def get_bpmn_review(bpmn_model_id: str, include_approved: bool = False) -> dict 
 
 
 def update_bpmn_review_brief(bpmn_model_id: str, bpmn_brief: str) -> dict:
-    """Edit the narrative of the plan only.
-
-    This is the reader-facing rendering: it does not change what the canvas would
-    be generated from. To correct the *content* of the plan, revise the
-    ProcessUnderstanding through `revise_bpmn_review`, which regenerates this text
-    along with everything derived from it.
+    """Update the reader-facing narrative of a pending BPMN review.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier used to locate the
+            tenant-owned review.
+        bpmn_brief (str): Untrusted Markdown brief. It is trimmed and must contain
+            non-whitespace content.
+    
+    Returns:
+        dict: The updated serialized BPMN review.
+    
+    Raises:
+        ValueError: If the brief is empty, or if no pending tenant-owned review
+            exists for the specified model.
+    
+    Side Effects:
+        Persists the trimmed brief, increments the review version, updates its
+        timestamp, and records a new review-version snapshot. The semantic model
+        and canvas-generation content remain unchanged.
     """
     clean_brief = bpmn_brief.strip()
     if not clean_brief:
@@ -940,6 +1239,27 @@ def prepare_bpmn_review(
     process_description: str,
     process_understanding: dict | None = None,
 ) -> dict:
+    """Prepare and persist a pending BPMN review for a model.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier. The model must belong to
+            the current tenant.
+        process_description (str): Untrusted process description. It must contain
+            non-whitespace text.
+        process_understanding (dict | None): Untrusted optional process understanding
+            used to generate the review draft.
+    
+    Returns:
+        dict: The serialized, pending BPMN review.
+    
+    Raises:
+        ValueError: If the process description is empty or the BPMN model cannot be
+            found for the current tenant.
+    
+    The review is persisted in the workspace. A new review starts at version 1;
+    preparing an existing review creates its next version while preserving the
+    previous snapshot.
+    """
     clean_text = process_description.strip()
     if not clean_text:
         raise ValueError("Descrizione processo obbligatoria.")
@@ -1009,13 +1329,24 @@ def revise_bpmn_review(
     process_understanding: dict,
     change_summary: str = "",
 ) -> dict:
-    """Rebuild the plan from a corrected ProcessUnderstanding, as a new version.
-
-    The only editable thing used to be `bpmn_brief`, which is *rendered from* the
-    understanding - correcting it changed the text the consultant reads and nothing
-    the canvas is generated from, so the next approval quietly ignored the
-    correction. Revising the understanding regenerates brief, semantic model,
-    readiness and quality together, which is what "edit the plan" has to mean.
+    """Rebuild a pending BPMN review from corrected process understanding.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier scoped to the current tenant.
+        process_understanding (dict): Untrusted corrected process understanding used to
+            regenerate the review artifacts.
+        change_summary (str): Untrusted description recorded with the revision snapshot.
+    
+    Raises:
+        ValueError: If the BPMN model is not found for the current tenant or no review
+            exists for the model.
+    
+    Returns:
+        dict: The revised review, including its regenerated brief, semantic model,
+            readiness data, missing information, status, and version.
+    
+    The revision persists the updated review, records a historical version, increments
+    the review version, and reopens the review with pending status.
     """
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
@@ -1056,6 +1387,24 @@ def revise_bpmn_review(
 
 
 def approve_bpmn_review(bpmn_model_id: str, *, override: bool = False) -> dict:
+    """
+    Approve a BPMN review and persist the generated BPMN model.
+    
+    Args:
+        bpmn_model_id (str): Untrusted identifier of the tenant-scoped BPMN model.
+        override (bool): Whether to bypass review-readiness checks.
+    
+    Returns:
+        dict: A payload containing the approved BPMN model and review data.
+    
+    Raises:
+        ValueError: If the BPMN model or review does not exist, or the review is
+            not ready for approval.
+        PermissionError: If the caller is not authorized to perform writes.
+    
+    The function persists the generated BPMN XML, records a BPMN version linked to
+    the approved review version, and marks the review as approved.
+    """
     assert_write_allowed("approve_bpmn_review")
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
@@ -1113,13 +1462,22 @@ def review_approval_blockers(
     *,
     open_questions_pending: bool = True,
 ) -> list[str]:
-    """Reasons a BPMN review must not be auto-approved: the quality evaluator did
-    not clear it, or the compiled model has a control-flow soundness error.
-
-    `open_questions_pending=False` says every question the plan raised has been
-    answered. A `needs_user_clarification` verdict then has nothing left to wait
-    for: keeping it as a blocker is how a plan stayed unapprovable no matter how
-    many questions the consultant closed.
+    """Identifies reasons a BPMN review cannot be automatically approved.
+    
+    Args:
+        quality_report (dict | None): Untrusted quality-evaluation data. A
+            recommendation other than ``"ready_to_generate"`` is a blocker, except
+            ``"needs_user_clarification"`` when ``open_questions_pending`` is
+            ``False``.
+        semantic_model (dict | None): Untrusted semantic-model data checked for
+            control-flow soundness.
+        open_questions_pending (bool): Whether unanswered review questions remain.
+    
+    Returns:
+        list[str]: Approval-blocker descriptions. Invalid semantic-model data
+        contributes no control-flow blockers.
+    
+    The function performs no persistence or other side effects.
     """
     from backend.bpmn import BPMNSemanticModel
     from backend.bpmn.soundness import analyze_control_flow
@@ -1142,6 +1500,16 @@ def review_approval_blockers(
 
 
 def _assert_review_ready_for_approval(review: WorkspaceBpmnReview) -> None:
+    """Validate that a BPMN review satisfies all approval requirements.
+    
+    Args:
+        review (WorkspaceBpmnReview): Review to validate.
+    
+    Raises:
+        ValueError: If the review has one or more approval blockers.
+    
+    The function does not modify or persist the review.
+    """
     payload = review_to_dict(review)
     blockers = review_approval_blockers(
         payload.get("quality_report"),

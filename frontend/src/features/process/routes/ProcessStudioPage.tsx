@@ -34,6 +34,11 @@ function parseView(raw: string | null): ProcessView {
   return VIEWS.includes(raw as ProcessView) ? (raw as ProcessView) : "canvas";
 }
 
+/**
+ * Renders the process studio with chat and canvas views.
+ *
+ * @returns The process studio page element.
+ */
 export function ProcessStudioPage(): React.JSX.Element {
   const { projectId = "", processId = "" } = useParams();
   const { t } = useTranslation("process");

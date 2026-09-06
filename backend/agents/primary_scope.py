@@ -44,17 +44,35 @@ MAX_STATE_ARTIFACT_CHARS = 40_000
 
 
 def agent_scope_type(scope: ChatScope | None) -> AgentScopeType:
+    """Determine the agent scope type, defaulting to ``"consultant"`` when no scope is provided.
+    
+    Args:
+        scope: Untrusted scope data whose type is used when available.
+    
+    Returns:
+        The scope type, or ``"consultant"`` when ``scope`` is ``None``.
+    
+    This function performs no side effects or persistence and does not raise errors explicitly.
+    """
     if scope is None:
         return "consultant"
     return scope.type
 
 
 def _open_pending_action(thread_id: str | None) -> dict | None:
-    """L'azione distruttiva che questo thread ha lasciato in sospeso.
-
-    Entra nello state *prima* del turno, quindi quando l'utente scrive "si',
-    confermo" l'agente ha davanti l'azione esatta invece di doverla dedurre dal
-    testo. Best-effort: se lo store non e' raggiungibile il turno prosegue senza.
+    """Loads the pending destructive action associated with a conversation thread.
+    
+    Args:
+        thread_id (str | None): Untrusted thread identifier used to locate the pending
+            action.
+    
+    Returns:
+        dict | None: The pending action, or `None` when the identifier is missing or
+            the action store cannot be accessed.
+    
+    The lookup is best effort and has no persistence side effects. Errors from the
+    action store and its dependencies are suppressed so the calling turn can
+    continue.
     """
     if not thread_id:
         return None
@@ -75,6 +93,21 @@ def agent_scope_state(
     attachments: list[ChatAttachment] | None = None,
     thread_id: str | None = None,
 ) -> dict:
+    """Build the per-turn state used by scoped agent processing.
+    
+    Args:
+        scope: Untrusted scope context used to determine identifiers and scope type.
+        chat_mode: Untrusted requested chat mode; defaults to the configured mode when absent.
+        attachments: Untrusted attachment references to resolve for the current turn.
+        thread_id: Untrusted thread identifier used to load any pending action.
+    
+    Returns:
+        A state dictionary containing the resolved scope type, chat mode, attachments,
+        pending action, scope identifiers, and current BPMN XML.
+    
+    The function does not persist changes. Missing scope, chat mode, attachments, or
+    thread identifiers are represented by defaults or `None` values.
+    """
     scope_type = agent_scope_type(scope)
     return {
         "scope_type": scope_type,
@@ -92,6 +125,25 @@ def agent_scope_state(
 
 
 def build_scope_system_prompt(state: dict) -> str:
+    """
+    Builds the localized system prompt for the active conversation scope.
+    
+    Args:
+        state (dict): Untrusted per-turn state containing scope identifiers, chat
+            mode, project metadata, attachments, pending actions, and process or
+            canvas artifacts.
+    
+    Returns:
+        str: A newline-delimited system prompt containing the scoped context and
+            operational constraints. Oversized state artifacts and BPMN XML are
+            truncated according to the configured limits.
+    
+    Raises:
+        KeyError: If the chat mode is missing from ``CHAT_MODE_CONTRACTS``.
+    
+    The generated prompt preserves scope boundaries, uses available identifiers
+    without inventing missing ones, and performs no side effects or persistence.
+    """
     scope_type = str(state.get("scope_type") or "consultant")
     chat_mode = str(state.get("chat_mode") or "agent")
     lines = [

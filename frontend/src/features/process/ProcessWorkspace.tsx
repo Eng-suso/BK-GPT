@@ -20,7 +20,16 @@ type ProcessWorkspaceProps = {
   onTogglePropertiesPanel: () => void;
 };
 
-/** Keep the model mounted and protect its working area when tools are opened. */
+/**
+ * Renders the process workspace with the BPMN canvas, chat panel, or properties panel for the selected view.
+ *
+ * @param project - The project containing the process.
+ * @param process - The process displayed in the workspace.
+ * @param view - The active workspace view.
+ * @param propertiesOpen - Whether the properties panel is open.
+ * @param onTogglePropertiesPanel - Toggles the properties panel.
+ * @returns The process workspace element.
+ */
 export function ProcessWorkspace({ project, process, view, propertiesOpen, onTogglePropertiesPanel }: ProcessWorkspaceProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const { ref, width } = useElementWidth<HTMLElement>();

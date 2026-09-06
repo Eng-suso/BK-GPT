@@ -287,14 +287,22 @@ class ProcessUnknown(BaseModel):
 
     @property
     def question_id(self) -> str:
+        """Provide a stable identifier for the unknown question.
+        
+        Returns:
+            str: The normalized identifier derived from the question text.
+        """
         return unknown_question_id(self.question)
 
 
 def unknown_question_id(question: str) -> str:
-    """Stable id for an open question, derived from its text.
-
-    Same approach as contradiction_key: an answer has to keep matching its
-    question across a re-extraction that rewords nothing but reorders the list.
+    """Create a stable identifier from an open question's text.
+    
+    Args:
+        question (str): Untrusted question text used to derive the identifier.
+    
+    Returns:
+        str: A lowercase, hyphen-separated identifier truncated to 60 characters.
     """
     normalized = " ".join(str(question or "").split()).casefold()
     return re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")[:60]
@@ -583,6 +591,17 @@ def raise_for_failed_understanding(result: ProcessUnderstandingResult) -> Proces
 
 
 def _with_quality_report(process: ProcessUnderstanding, source_text: str = "") -> ProcessUnderstanding:
+    """Attach a quality report to a process-understanding result.
+    
+    Args:
+        process: The process-understanding result to update.
+        source_text: Untrusted source material used to evaluate quality.
+    
+    Returns:
+        The same process-understanding instance with its quality report attached.
+    
+    The function mutates the provided instance and does not persist it.
+    """
     process.quality_report = evaluate_process_understanding_quality(process, source_text=source_text)
     return process
 
@@ -598,6 +617,22 @@ _PARTICIPANT_ROLE_IN_THE_MAP = {
 
 
 def render_process_review(process: ProcessUnderstanding) -> str:
+    """
+    Render a consultant-oriented Italian summary of a successfully extracted process.
+    
+    Args:
+        process (ProcessUnderstanding): Process data to render. Treat as untrusted
+            extracted input; it must represent a successful extraction rather than
+            an extraction-failure placeholder.
+    
+    Returns:
+        str: Markdown-formatted Italian process review.
+    
+    Raises:
+        ValueError: If `process` is an extraction-failure placeholder.
+    
+    The function does not persist data or perform other external side effects.
+    """
     if _is_extraction_failure_placeholder(process):
         raise ValueError("render_process_review richiede un ProcessUnderstanding estratto con successo.")
     quality = quality_report_from_understanding(process)

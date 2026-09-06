@@ -27,16 +27,32 @@ depends_on = None
 
 
 def _review_version_table():
+    """Return the database table definition for BPMN review versions."""
     from backend.workspace_storage import WorkspaceBpmnReviewVersion
 
     return WorkspaceBpmnReviewVersion.__table__
 
 
 def _has_column(bind, table: str, column: str) -> bool:
+    """
+    Determine whether a table contains a specified column.
+    
+    Parameters:
+    	table (str): Name of the table to inspect.
+    	column (str): Name of the column to find.
+    
+    Returns:
+    	bool: `true` if the table contains the column, `false` otherwise.
+    """
     return column in {col["name"] for col in sa.inspect(bind).get_columns(table)}
 
 
 def upgrade() -> None:
+    """
+    Create the BPMN review version history table and add the review version column.
+    
+    The existing review rows are initialized with version 1, after which the database default is removed so future versions are assigned by the application.
+    """
     bind = op.get_bind()
     _review_version_table().create(bind, checkfirst=True)
 
@@ -51,6 +67,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove BPMN review versioning schema changes.
+    
+    Drops the review version column when present and removes the BPMN review history table if it exists.
+    """
     bind = op.get_bind()
     if _has_column(bind, "workspace_bpmn_reviews", "version"):
         op.drop_column("workspace_bpmn_reviews", "version")

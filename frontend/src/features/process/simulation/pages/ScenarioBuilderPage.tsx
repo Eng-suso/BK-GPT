@@ -15,9 +15,9 @@ import { ReadinessSummary } from "../ReadinessSummary";
 import { useScenarioLab } from "../useScenarioLab";
 
 /**
- * Scenario builder — the assumptions-review surface. Every simulable element
- * shows where its structure came from (discovery vs. inference) and how far to
- * trust the parameter set for it, rolled up into a Simulation Readiness score.
+ * Provides the scenario configuration workspace for reviewing and editing simulation assumptions.
+ *
+ * @returns The scenario builder page.
  */
 export function ScenarioBuilderPage(): React.JSX.Element {
   const { t } = useTranslation("process");

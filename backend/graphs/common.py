@@ -11,7 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 def latest_user_text(state: dict) -> str:
-    """The text of the most recent human turn, or "" when there is none."""
+    """Finds the text of the most recent human or user message.
+    
+    Args:
+        state (dict): Untrusted conversation state containing an optional ``messages`` sequence.
+    
+    Returns:
+        str: The message content, or an empty string when no human or user message is present.
+    """
     for message in reversed(state.get("messages", [])):
         role = getattr(message, "type", None) or getattr(message, "role", "")
         if role in {"human", "user"}:
@@ -21,10 +28,17 @@ def latest_user_text(state: dict) -> str:
 
 
 def validated_model(model_cls, value):
-    """Re-validate a stored payload, returning None when it no longer fits.
-
-    Stored artifacts outlive the schema that wrote them; a turn must not fail
-    because an old row is now invalid, but the drop is worth a log line.
+    """Re-validate a stored payload against a Pydantic model.
+    
+    Args:
+        model_cls: Pydantic model class used for validation.
+        value: Untrusted stored payload to validate.
+    
+    Returns:
+        A validated model instance, or ``None`` for empty or invalid payloads.
+    
+    The function catches Pydantic validation errors, logs a warning, and does not
+    persist or modify the payload.
     """
     if not value:
         return None
@@ -41,6 +55,15 @@ def validated_model(model_cls, value):
 
 
 def artifact_is_present(value) -> bool:
+    """Determine whether an artifact contains usable data.
+    
+    Args:
+        value: Untrusted artifact value to evaluate. Pydantic model instances are
+            considered present; other values follow their boolean truth value.
+    
+    Returns:
+        `True` if the artifact is present, `False` otherwise.
+    """
     if value is None:
         return False
     if isinstance(value, BaseModel):
@@ -49,6 +72,15 @@ def artifact_is_present(value) -> bool:
 
 
 def artifact_field(value, field: str):
+    """Retrieve a named field from a validated artifact value.
+    
+    Args:
+        value: Untrusted artifact value, either a Pydantic model or dictionary.
+        field: Name of the field to retrieve.
+    
+    Returns:
+        The field value, or `None` when the artifact is absent, unsupported, or does not contain the field.
+    """
     if value is None:
         return None
     if isinstance(value, BaseModel):
@@ -59,18 +91,37 @@ def artifact_field(value, field: str):
 
 
 def artifact_for_prompt(value):
+    """
+    Convert an artifact into a value suitable for inclusion in a prompt.
+    
+    Args:
+        value: Untrusted artifact value to normalize.
+    
+    Returns:
+        A JSON-compatible dictionary for a Pydantic model, the original truthy
+        value otherwise, or an empty dictionary for falsy values.
+    """
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json")
     return value or {}
 
 
 def canonical_semantic_context(semantic_model_payload):
-    """Split a stored BPMNSemanticModel into (ProcessUnderstanding, model).
-
-    Only a canonical model counts: one carrying both its compilation plan and the
-    ProcessUnderstanding it was derived from. A legacy or partial payload yields
-    (None, None) so downstream gates see "no semantic context" rather than a
-    half-built one.
+    """
+    Extract the validated process understanding and semantic model from a canonical BPMN payload.
+    
+    A payload is canonical only when it contains both a compilation plan and source process
+    understanding. Invalid, legacy, or incomplete semantic-model payloads produce no context.
+    An invalid embedded process understanding produces a `None` understanding alongside the
+    validated semantic model.
+    
+    Args:
+        semantic_model_payload: Untrusted stored payload to validate as a BPMN semantic model.
+    
+    Returns:
+        A tuple containing the validated process understanding, or `None` if invalid, and the
+        validated semantic model. Returns `(None, None)` when the semantic-model payload is
+        invalid, legacy, or incomplete. No persistence is performed.
     """
     from backend.bpmn import BPMNSemanticModel
     from backend.process_understanding import ProcessUnderstanding

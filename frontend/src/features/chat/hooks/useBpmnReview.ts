@@ -26,6 +26,13 @@ export type UseBpmnReview = {
   reload: () => Promise<void>;
 };
 
+/**
+ * Manages loading and updating the BPMN review for a chat scope.
+ *
+ * @param scope - The chat scope used to identify the BPMN model.
+ * @param onToast - Callback for displaying operation status messages.
+ * @returns The current review, its version history, mutation states, and review actions.
+ */
 export function useBpmnReview(
   scope: ChatScope,
   onToast: (message: string) => void,

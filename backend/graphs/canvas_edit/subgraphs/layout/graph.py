@@ -77,6 +77,20 @@ Principles:
 
 
 def _layout_xml_from_state(state: CanvasState) -> tuple[dict | None, str]:
+    """Retrieve the BPMN model and the XML available in the canvas state.
+    
+    Args:
+        state (CanvasState): Untrusted canvas state containing a BPMN model ID and
+            possible XML representations.
+    
+    Returns:
+        tuple[dict | None, str]: The stored BPMN model, if found, and the selected
+        XML content. The XML is an empty string when no usable representation exists.
+    
+    Side Effects:
+        Reads the BPMN model from the workspace database when the state contains a
+        model ID.
+    """
     bpmn_model_id = state.get("bpmn_model_id")
     model = workspace_database.get_bpmn_model(bpmn_model_id) if bpmn_model_id else None
     xml = (state.get("effective_bpmn_xml") or state.get("current_bpmn_xml") or (model or {}).get("xml") or "").strip()
@@ -128,6 +142,21 @@ def _planned_rows_from_plan(plan: dict | None) -> list[list[str]] | None:
 
 
 def build_canvas_layout_consultant_agent(llm):
+    """
+    Build a consultant agent that generates a validated BPMN canvas layout plan.
+    
+    The returned agent removes visual metadata before analysis, evaluates the current
+    layout, and requests a plan from the language model. It blocks the workflow when
+    the model or XML is unavailable or when the generated plan contains no explicit
+    drawing rows. It does not persist changes or modify the BPMN XML.
+    
+    Args:
+        llm: Untrusted language-model client used to generate the layout plan.
+    
+    Returns:
+        A callable that accepts canvas state and runtime configuration and returns
+        state updates containing the layout plan and task-log status.
+    """
     def plan_canvas_layout(state: CanvasState, config: RunnableConfig) -> dict:
         _model, xml = _layout_xml_from_state(state)
         if not xml:
@@ -215,6 +244,29 @@ def build_canvas_layout_consultant_agent(llm):
 
 
 def run_canvas_drawing_agent(state: CanvasState) -> dict:
+    """
+    Apply the planned BPMN canvas layout and persist the resulting model.
+    
+    Args:
+        state (CanvasState): Untrusted workflow state containing the model identifier,
+            effective BPMN XML, and validated consultant layout plan.
+    
+    Returns:
+        dict: Layout status, validation reports, task-log entry, blocking conditions,
+            and updated BPMN XML when drawing is attempted. The result is blocked
+            when prerequisites, planned rows, geometric validation, or persistence
+            fail.
+    
+    Raises:
+        ValueError: Not raised; layout optimization errors of this category are
+            converted into a blocked result.
+    
+    Side effects:
+        Removes visual annotation artifacts, runs layout optimization, and persists
+        the updated BPMN XML when a model identifier and effective XML are available.
+        The operation preserves the requirement that the consultant's planned rows
+        are explicitly provided and used.
+    """
     if state.get("canvas_layout_status") == "blocked":
         return {
             "canvas_layout_status": "blocked",
@@ -342,6 +394,17 @@ def run_canvas_drawing_agent(state: CanvasState) -> dict:
 
 
 def build_layout_subgraph(llm=None):
+    """
+    Build the canvas layout workflow with optional consultant planning.
+    
+    Args:
+        llm: Untrusted language model used to generate the consultant planning node.
+            When omitted, the workflow runs the drawing agent directly.
+    
+    Returns:
+        The compiled workflow that always executes the canvas drawing agent and
+        terminates after drawing.
+    """
     workflow = StateGraph(CanvasState)
     if llm is not None:
         workflow.add_node("canvas_layout_consultant_agent", build_canvas_layout_consultant_agent(llm))

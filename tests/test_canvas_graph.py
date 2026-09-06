@@ -966,6 +966,16 @@ def test_two_edits_in_one_turn_do_not_overwrite_each_other(monkeypatch):
     saved = {"xml": xml}
 
     def fake_update(bpmn_model_id, updated_xml, **kwargs):
+        """
+        Updates the stored BPMN XML and returns the updated model representation.
+        
+        Parameters:
+        	bpmn_model_id: Identifier of the BPMN model to update.
+        	updated_xml: Updated BPMN XML content.
+        
+        Returns:
+        	dict: The model identifier, process identifier, and updated XML.
+        """
         saved["xml"] = updated_xml
         return {"id": bpmn_model_id, "process_id": "proc-1", "xml": updated_xml}
 
@@ -977,6 +987,16 @@ def test_two_edits_in_one_turn_do_not_overwrite_each_other(monkeypatch):
     )
 
     def delete_call(element_id: str, call_id: str) -> AIMessage:
+        """
+        Create a tool call that deletes a BPMN element from the canvas.
+        
+        Parameters:
+        	element_id (str): Identifier of the BPMN element to delete.
+        	call_id (str): Identifier for the generated tool call.
+        
+        Returns:
+        	AIMessage: A message containing the canvas deletion tool call.
+        """
         return AIMessage(
             content="",
             tool_calls=[
@@ -1056,6 +1076,15 @@ def test_apply_uses_the_preview_the_runtime_already_holds(monkeypatch):
     )
 
     def call(args: dict) -> AIMessage:
+        """
+        Create an AI message containing a canvas construction tool call.
+        
+        Parameters:
+        	args (dict): Arguments passed to the canvas construction tool.
+        
+        Returns:
+        	AIMessage: A message containing the tool call.
+        """
         return AIMessage(
             content="",
             tool_calls=[{"name": "manage_canvas_construction", "args": args, "id": "call-1"}],

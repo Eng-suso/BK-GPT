@@ -32,8 +32,9 @@ const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
 };
 
 /**
- * Results workspace: run summary, full-width model and expandable details.
- * Scenario inputs live in their own workspace so neither surface is squeezed.
+ * Displays the simulation overview, active run snapshot, BPMN model, and expandable results.
+ *
+ * @returns The simulation workspace element
  */
 export function SimulationWorkspace(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");

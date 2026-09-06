@@ -37,6 +37,13 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """
+    Create the memory lifecycle tables and enforce tenant-scoped access controls.
+    
+    The migration creates tables for memory tombstones and pending destructive
+    actions, including ownership, lifecycle metadata, indexes, row-level security
+    policies, and privileges for the application role.
+    """
     op.execute(
         """
         CREATE TABLE memory_tombstone (
@@ -115,5 +122,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """
+    Remove the memory lifecycle tables and their dependent objects.
+    """
     for table in ("pending_action", "memory_tombstone"):
         op.execute(f"DROP TABLE IF EXISTS {table} CASCADE;")

@@ -284,6 +284,19 @@ def normalize_model_name(model_name: str | None = None) -> str:
 
 
 def build_agent(model_name: str | None = None):
+    """
+    Build and compile the consultant workflow for a selected language model.
+    
+    Args:
+        model_name (str | None): Untrusted requested model identifier. It is normalized
+            against the configured allowed models before use; omitted values use the
+            configured or default model.
+    
+    Returns:
+        A compiled workflow that summarizes conversations, selects context, routes
+        requests by scope, and executes the corresponding subgraph. The workflow is
+        configured with the application's checkpointer for state persistence.
+    """
     selected_model = normalize_model_name(model_name)
     model_metadata = langsmith_metadata(
         selected_model,

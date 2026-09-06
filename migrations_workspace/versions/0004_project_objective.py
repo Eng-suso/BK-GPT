@@ -27,10 +27,22 @@ _COLUMN = "objective"
 
 
 def _has_column(bind, table: str, column: str) -> bool:
+    """
+    Determine whether a table contains a specified column.
+    
+    Parameters:
+    	bind: Database connection or engine used for schema inspection.
+    	table (str): Name of the table to inspect.
+    	column (str): Name of the column to find.
+    
+    Returns:
+    	bool: `true` if the column exists in the table, `false` otherwise.
+    """
     return column in {col["name"] for col in sa.inspect(bind).get_columns(table)}
 
 
 def upgrade() -> None:
+    """Add the non-nullable project objective column to the workspace projects table if needed."""
     bind = op.get_bind()
     if not _has_column(bind, _TABLE, _COLUMN):
         op.add_column(
@@ -41,6 +53,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove the project objective column if it exists."""
     bind = op.get_bind()
     if _has_column(bind, _TABLE, _COLUMN):
         op.drop_column(_TABLE, _COLUMN)

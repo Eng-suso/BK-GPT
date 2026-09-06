@@ -265,6 +265,15 @@ def test_a_request_without_a_mode_runs_as_agent(monkeypatch):
 
     class FakeAgent:
         def stream(self, state, config=None, stream_mode=None):
+            """
+            Record the requested chat mode and produce an empty event stream.
+            
+            Parameters:
+                state (dict): Runtime state containing the optional ``chat_mode`` value.
+            
+            Returns:
+                iterator: An empty iterator.
+            """
             seen["chat_mode"] = state.get("chat_mode")
             return iter(())
 

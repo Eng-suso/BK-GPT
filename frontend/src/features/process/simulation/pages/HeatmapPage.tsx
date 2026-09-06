@@ -45,6 +45,11 @@ const FACTOR_ORDER = [
   "persistence",
 ] as const;
 
+/**
+ * Renders a heatmap view of activity metrics for the active simulation run, including activity rankings, bottleneck indicators, and detailed statistics.
+ *
+ * @returns The heatmap page element.
+ */
 export function HeatmapPage(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";

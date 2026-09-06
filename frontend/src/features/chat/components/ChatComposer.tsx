@@ -86,6 +86,11 @@ class LiveCaptureProcessor extends AudioWorkletProcessor {
 registerProcessor("live-capture", LiveCaptureProcessor);
 `;
 
+/**
+ * Builds the authenticated WebSocket URL for live audio transcription.
+ *
+ * @returns The WebSocket URL for the live transcription endpoint.
+ */
 function buildLiveTranscriptionUrl(): string {
   const baseUrl = API_BASE || window.location.origin;
   const url = new URL(baseUrl, window.location.origin);
@@ -145,6 +150,12 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/**
+ * Formats a duration as minutes and seconds.
+ *
+ * @param totalSeconds - The duration in seconds
+ * @returns The duration formatted as `MM:SS`
+ */
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const seconds = Math.floor(totalSeconds % 60).toString().padStart(2, "0");

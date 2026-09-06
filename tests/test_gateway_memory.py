@@ -20,13 +20,15 @@ from backend.memory.semantic import semantic_store  # noqa: E402
 
 @pytest.fixture()
 def seeded_memory(monkeypatch):
-    """Un fatto finto in uno user_id Mem0 usa e getta.
-
-    Il teardown cancella **tutte** le memorie di quello user_id, non solo l'id
-    restituito dalla add: con l'inferenza attiva Mem0 spezza una frase in piu'
-    memorie, e cancellare solo la prima lasciava i fratelli nello store
-    condiviso. E' cosi' che un fatto inventato per un test ("valida gli SLA con
-    una checklist") e' finito nel recall di una chat vera.
+    """
+    Provide a temporary Mem0 memory for integration tests and remove all memories
+    created for its temporary user during teardown.
+    
+    Parameters:
+    	monkeypatch: Pytest fixture used to assign the temporary Mem0 user ID.
+    
+    Yields:
+    	tuple[str, str]: The generated token and the ID of the seeded memory.
     """
     test_user_id = f"test-{uuid.uuid4()}"
     monkeypatch.setattr(settings, "mem0_user_id", test_user_id)

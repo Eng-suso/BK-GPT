@@ -32,6 +32,23 @@ the future canvas arrows. Preserve assumptions, gaps and model warnings.
 
 
 def build_modeling_subgraph(llm_with_tools, build_context_messages):
+    """
+    Construct a tool-enabled subgraph for process modeling.
+    
+    The subgraph uses ``ProcessState`` and enforces the modeling contract, including
+    ``ProcessUnderstanding`` as the canonical context and preservation of AS-IS
+    modeling details such as actors, participants, documents, rules, paths,
+    assumptions, gaps, and warnings. Construction does not persist data or perform
+    other external side effects.
+    
+    Args:
+        llm_with_tools: Language model configured with the modeling tools.
+        build_context_messages: Callable that builds context messages from process
+            state.
+    
+    Returns:
+        A configured tool-enabled process-modeling subgraph.
+    """
     return build_tool_chat_subgraph(
         state_schema=ProcessState,
         tools=modeling_tools,

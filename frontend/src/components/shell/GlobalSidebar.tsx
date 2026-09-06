@@ -11,6 +11,14 @@ export type GlobalSidebarProps = {
   onSectionChange: (section: ShellSection) => void;
 };
 
+/**
+ * Renders the primary navigation sidebar with responsive compact and expanded layouts.
+ *
+ * @param compact - Whether to keep the sidebar icon-focused across all viewport sizes
+ * @param activeSection - The currently selected navigation section
+ * @param onSectionChange - Called with the selected section when a navigation item is clicked
+ * @returns The rendered primary navigation sidebar
+ */
 export function GlobalSidebar({
   compact = false,
   activeSection,

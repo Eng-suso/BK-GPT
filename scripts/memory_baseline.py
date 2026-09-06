@@ -33,12 +33,31 @@ from backend.settings import settings
 
 
 def _mem0_items(raw) -> list:
+    """
+    Normalize a Mem0 response into a list of memory items.
+    
+    Parameters:
+    	raw: A Mem0 response, either as a mapping containing memory items or as an iterable of items.
+    
+    Returns:
+    	list: The memory items extracted from the response, or an empty list when none are present.
+    """
     if isinstance(raw, dict):
         return raw.get("results") or raw.get("memories") or []
     return raw or []
 
 
 def _list_mem0(user_id: str, limit: int = 200) -> list[dict]:
+    """
+    List Mem0 memories for a user.
+    
+    Parameters:
+    	user_id (str): Identifier of the user whose memories are retrieved.
+    	limit (int): Maximum number of memories to retrieve.
+    
+    Returns:
+    	list[dict]: Retrieved memory records, or an empty list when Mem0 is disabled.
+    """
     memory = mem0_client.get_memory()
     if isinstance(memory, Mem0Disabled):
         print(f"Mem0 disattivato: {memory.reason}")
@@ -48,6 +67,14 @@ def _list_mem0(user_id: str, limit: int = 200) -> list[dict]:
 
 
 def _canonical_counts(consultant_id: str) -> dict[str, int]:
+    """Count rows in the canonical memory tables for a consultant.
+    
+    Parameters:
+        consultant_id (str): Identifier of the consultant whose memory rows are counted.
+    
+    Returns:
+        dict[str, int]: Row counts keyed by table name, or an empty dictionary when the canonical database is not configured. A value of -1 indicates that a table could not be queried.
+    """
     if not settings.canonical_database_url:
         return {}
     from backend.db import canonical_session
@@ -71,6 +98,16 @@ def _canonical_counts(consultant_id: str) -> dict[str, int]:
 
 
 def inspect(user_id: str, consultant_id: str) -> int:
+    """
+    Display Mem0 memories and canonical memory counts for a consultant.
+    
+    Parameters:
+    	user_id (str): Identifier of the Mem0 user whose memories are displayed.
+    	consultant_id (str): Identifier used to count consultant-scoped canonical records.
+    
+    Returns:
+    	int: Exit status `0`.
+    """
     print(f"Mem0 user_id: {user_id}")
     items = _list_mem0(user_id)
     print(f"memorie Mem0: {len(items)}")
@@ -86,6 +123,16 @@ def inspect(user_id: str, consultant_id: str) -> int:
 
 
 def reset(user_id: str, consultant_id: str) -> int:
+    """
+    Reset a consultant's Mem0 and canonical memory state.
+    
+    Parameters:
+    	user_id (str): User whose Mem0 memories are removed.
+    	consultant_id (str): Consultant whose canonical memory records are removed.
+    
+    Returns:
+    	int: Zero after the reset operation completes.
+    """
     memory = mem0_client.get_memory()
     deleted = 0
     if isinstance(memory, Mem0Disabled):
@@ -124,6 +171,17 @@ def reset(user_id: str, consultant_id: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    Run the requested memory inspection or reset command.
+    
+    Args:
+        argv: Optional command-line arguments. When omitted, arguments are read
+            from the process command line.
+    
+    Returns:
+        The command's exit status. Returns 2 when a reset is requested without
+        explicit confirmation.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("inspect", "reset"))
     parser.add_argument(

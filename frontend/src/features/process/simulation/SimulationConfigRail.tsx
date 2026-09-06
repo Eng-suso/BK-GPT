@@ -55,6 +55,26 @@ type SimulationConfigRailProps = {
   provenance?: InputConfidence | null;
 };
 
+/**
+ * Renders an editable simulation configuration panel for scenario settings, resources, activities, and gateways.
+ *
+ * @param template - The scenario template that defines available activities and gateways.
+ * @param templateLoading - Whether the scenario template is still loading.
+ * @param draft - The current editable simulation configuration.
+ * @param onDraftChange - Called when the configuration changes.
+ * @param isRunning - Whether a simulation run is in progress.
+ * @param error - An error message to display.
+ * @param runs - Previously completed or attempted simulation runs.
+ * @param activeRunId - The identifier of the selected previous run.
+ * @param onRun - Called to start a simulation run.
+ * @param onSelectRun - Called when a previous run is selected.
+ * @param focusElementId - The identifier of an activity or gateway to scroll into view and highlight.
+ * @param onCollapse - Called when the panel collapse control is activated.
+ * @param embedded - Whether to render the panel in an embedded layout.
+ * @param workspace - Whether to render workspace navigation and layout.
+ * @param provenance - Optional metadata describing the source of configuration values.
+ * @returns The simulation configuration panel.
+ */
 export function SimulationConfigRail({
   template,
   templateLoading,
@@ -601,6 +621,12 @@ function NumberField({
   );
 }
 
+/**
+ * Renders a label with its associated input-confidence provenance chip.
+ *
+ * @param label - The text displayed alongside the provenance chip
+ * @param field - The global input-confidence data represented by the chip
+ */
 function ChipRow({
   label,
   field,
@@ -618,6 +644,12 @@ function ChipRow({
   );
 }
 
+/**
+ * Wraps a form control with a styled label.
+ *
+ * @param label - The text displayed above the control
+ * @param children - The form control or content associated with the label
+ */
 function FieldLabel({
   label,
   children,

@@ -59,10 +59,16 @@ router = APIRouter(prefix="/v1/workspace", tags=["workspace"], dependencies=[Dep
 
 
 def _edit_error(exc: ValueError) -> HTTPException:
-    """404 quando il record non esiste, 400 quando la modifica non e' valida.
-
-    Le due cose arrivano dallo stesso `ValueError` del layer database, ma per
-    chi chiama sono errori diversi: uno e' un id sbagliato, l'altro un campo.
+    """Maps database edit errors to HTTP responses.
+    
+    Args:
+        exc (ValueError): Untrusted error input used to determine the response status
+            and detail message.
+    
+    Returns:
+        HTTPException: A 404 exception when the error indicates a missing record;
+            otherwise, a 400 exception for an invalid modification.
+    
     """
     missing = "non trovato" in str(exc).lower()
     return HTTPException(status_code=404 if missing else 400, detail=str(exc))
@@ -70,11 +76,27 @@ def _edit_error(exc: ValueError) -> HTTPException:
 
 @router.get("/clients")
 def get_workspace_clients() -> list[ClientResponse]:
+    """Retrieve all workspace clients as API response objects.
+    
+    Returns:
+        list[ClientResponse]: The workspace clients.
+    """
     return [ClientResponse(**client) for client in list_clients()]
 
 
 @router.post("/clients")
 def create_workspace_client(request: CreateClientRequest) -> ClientResponse:
+    """Create and persist a workspace client from the request data.
+    
+    Args:
+        request (CreateClientRequest): Untrusted client data to validate and persist.
+    
+    Returns:
+        ClientResponse: The newly created client.
+    
+    Raises:
+        HTTPException: With status code 400 when the client data is invalid.
+    """
     try:
         return ClientResponse(**create_client(**request.model_dump()))
     except ValueError as exc:
@@ -83,7 +105,22 @@ def create_workspace_client(request: CreateClientRequest) -> ClientResponse:
 
 @router.patch("/clients/{client_id}")
 def update_workspace_client(client_id: str, request: UpdateClientRequest) -> ClientResponse:
-    """Modifica manuale dell'anagrafica: il consulente non dipende dall'agente."""
+    """
+    Partially updates a workspace client's editable fields and persists the changes.
+    
+    Args:
+        client_id (str): Untrusted client identifier.
+        request (UpdateClientRequest): Untrusted update payload; omitted fields remain unchanged.
+    
+    Returns:
+        ClientResponse: The updated client.
+    
+    Raises:
+        HTTPException: With status 404 when the client does not exist, or 400 when the update is invalid.
+    
+    Side Effects:
+        Persists the client update.
+    """
     try:
         return ClientResponse(**update_client(client_id, **request.model_dump(exclude_unset=True)))
     except ValueError as exc:
@@ -92,6 +129,11 @@ def update_workspace_client(client_id: str, request: UpdateClientRequest) -> Cli
 
 @router.get("/projects")
 def get_workspace_projects() -> list[ProjectResponse]:
+    """List all workspace projects as typed response objects.
+    
+    Returns:
+        list[ProjectResponse]: The workspace projects.
+    """
     return [ProjectResponse(**project) for project in list_projects()]
 
 
@@ -105,6 +147,19 @@ def create_workspace_project(request: CreateProjectRequest) -> ProjectResponse:
 
 @router.get("/projects/{project_id}")
 def get_workspace_project(project_id: str) -> ProjectResponse:
+    """Retrieve a workspace project by its identifier.
+    
+    Args:
+        project_id: Untrusted project identifier used to locate the project.
+    
+    Returns:
+        The project response.
+    
+    Raises:
+        HTTPException: With status code 404 when the project does not exist.
+    
+    This function does not modify or persist data.
+    """
     project = get_project(project_id)
 
     if project is None:
@@ -115,7 +170,23 @@ def get_workspace_project(project_id: str) -> ProjectResponse:
 
 @router.patch("/projects/{project_id}")
 def update_workspace_project(project_id: str, request: UpdateProjectRequest) -> ProjectResponse:
-    """Modifica manuale del progetto: obiettivo, fase, stato, avanzamento, liste."""
+    """Partially update a workspace project and persist the changes.
+    
+    Args:
+        project_id: Untrusted project identifier.
+        request: Untrusted update payload containing fields to modify. Unset fields
+            remain unchanged.
+    
+    Returns:
+        The updated project.
+    
+    Raises:
+        HTTPException: With status 404 when the project does not exist, or 400
+            when the requested update is invalid.
+    
+    Side effects:
+        Persists the project changes.
+    """
     try:
         return ProjectResponse(**update_project(project_id, **request.model_dump(exclude_unset=True)))
     except ValueError as exc:
@@ -124,6 +195,14 @@ def update_workspace_project(project_id: str, request: UpdateProjectRequest) -> 
 
 @router.get("/projects/{project_id}/processes")
 def get_workspace_project_processes(project_id: str) -> list[ProjectProcessResponse]:
+    """List the processes associated with a project.
+    
+    Args:
+        project_id: Untrusted identifier of the project whose processes are requested.
+    
+    Returns:
+        The project's processes as response models.
+    """
     return [ProjectProcessResponse(**process) for process in list_project_processes(project_id)]
 
 
@@ -239,6 +318,20 @@ def update_workspace_bpmn_review(
     bpmn_model_id: str,
     payload: UpdateBpmnReviewRequest,
 ) -> BpmnReviewResponse:
+    """Update the BPMN review brief for a model.
+    
+    Args:
+        bpmn_model_id: Untrusted model identifier.
+        payload: Untrusted request containing the replacement review brief.
+    
+    Returns:
+        The updated BPMN review.
+    
+    Raises:
+        HTTPException: With status 400 when the review update is invalid.
+    
+    The update is persisted before the response is returned.
+    """
     try:
         review = update_bpmn_review_brief(bpmn_model_id, payload.bpmn_brief)
     except ValueError as exc:
@@ -251,6 +344,15 @@ def update_workspace_bpmn_review(
 def list_workspace_bpmn_review_versions(
     bpmn_model_id: str,
 ) -> list[BpmnReviewVersionResponse]:
+    """List stored review versions for a BPMN model.
+    
+    Args:
+        bpmn_model_id: Untrusted identifier of the BPMN model.
+    
+    Returns:
+        A list of BPMN review version responses. The function performs a
+        read-only lookup and does not modify persisted data.
+    """
     return [
         BpmnReviewVersionResponse(**version)
         for version in list_bpmn_review_versions(bpmn_model_id)
@@ -262,6 +364,21 @@ def get_workspace_bpmn_review_version(
     bpmn_model_id: str,
     version: int,
 ) -> BpmnReviewVersionResponse:
+    """
+    Retrieve a specific BPMN review version.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        version (int): Untrusted review version number.
+    
+    Returns:
+        BpmnReviewVersionResponse: The requested review version.
+    
+    Raises:
+        HTTPException: With status 404 when the review version does not exist.
+    
+    This function performs no persistence or other side effects.
+    """
     stored = get_bpmn_review_version(bpmn_model_id, version)
     if stored is None:
         raise HTTPException(status_code=404, detail="Versione review non trovata.")
@@ -274,6 +391,20 @@ def answer_workspace_bpmn_review_question(
     bpmn_model_id: str,
     payload: AnswerBpmnReviewQuestionRequest,
 ) -> BpmnReviewResponse:
+    """Record an answer to a question in a BPMN model review.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        payload (AnswerBpmnReviewQuestionRequest): Untrusted question and answer data.
+    
+    Returns:
+        BpmnReviewResponse: The updated review.
+    
+    Raises:
+        HTTPException: With status code 400 when the answer cannot be recorded.
+    
+    The operation persists the submitted answer and returns the resulting review.
+    """
     try:
         review = answer_bpmn_review_question(
             bpmn_model_id,
@@ -291,6 +422,21 @@ def revise_workspace_bpmn_review(
     bpmn_model_id: str,
     payload: ReviseBpmnReviewRequest,
 ) -> BpmnReviewResponse:
+    """Revise the BPMN review's process understanding and change summary.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        payload (ReviseBpmnReviewRequest): Untrusted revision data to persist.
+    
+    Returns:
+        BpmnReviewResponse: The updated BPMN review.
+    
+    Raises:
+        HTTPException: With status code 400 when the revision is invalid.
+    
+    Side Effects:
+        Persists the revised review data.
+    """
     try:
         review = revise_bpmn_review(
             bpmn_model_id,
@@ -308,6 +454,18 @@ def approve_workspace_bpmn_review(
     bpmn_model_id: str,
     override: bool = False,
 ) -> ApproveBpmnReviewResponse:
+    """Approve a BPMN review and persist its approved state.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        override (bool): Whether to allow approval despite review constraints.
+    
+    Returns:
+        ApproveBpmnReviewResponse: The approved review details.
+    
+    Raises:
+        HTTPException: With status code 400 when the review cannot be approved.
+    """
     try:
         result = approve_bpmn_review(bpmn_model_id, override=override)
     except ValueError as exc:

@@ -433,19 +433,34 @@ def memory_search(
     category: str | None = None,
     limit: int = 5,
 ) -> dict[str, Any]:
-    """Recall dalla memoria Mem0 con lo scope iniettato (INV-9).
-
-    Le memorie consultant-level (senza `client_id` nei metadata) restano
-    visibili in ogni contesto; quelle client-scoped solo nel loro cliente.
-    Ritorna `{"status": ok|empty|not_configured|error, "count", "matches"}`.
-
-    Tre filtri, in quest'ordine: cliente (scope), lapidi (cio' che il consulente
-    ha chiesto di dimenticare, per id **e** per testo — vedi memory.forget), e
-    soglia di similarita'. Mem0 2.x accetta `top_k`, non `limit`: passare
-    `limit` lo faceva finire in **kwargs e sparire, quindi il recall tornava
-    sempre il massimo di default con la soglia piu' permissiva possibile —
-    memorie vagamente simili entravano nel contesto come se fossero il profilo
-    del consulente.
+    """Searches Mem0 memories within the consultant and client scope.
+    
+    Consultant-level memories remain visible across client contexts, while
+    client-scoped memories are returned only for the requested client. Forgotten
+    memories are excluded by both identifier and content, and results are limited
+    to the configured recall threshold.
+    
+    Args:
+        consultant_id (str): Consultant namespace identifier; treated as untrusted
+            input.
+        client_id (str | None): Optional client scope; treated as untrusted input.
+        query (str): Search text; treated as untrusted input.
+        category (str | None): Optional category prefix for the search; treated as
+            untrusted input.
+        limit (int): Maximum number of matches to return; treated as untrusted
+            input.
+    
+    Returns:
+        dict[str, Any]: A result containing ``status``, ``count``, and ``matches``.
+            The status is ``"ok"`` when matches are found, ``"empty"`` when none
+            qualify, ``"not_configured"`` when Mem0 is unavailable, or ``"error"``
+            when the search fails. Error results also include ``reason``.
+    
+    Raises:
+        No exceptions are raised; Mem0 search failures are returned with
+        ``status="error"``.
+    
+    This function performs read-only operations and does not persist memories.
     """
     memory = mem0_client.get_memory()
     if isinstance(memory, Mem0Disabled):

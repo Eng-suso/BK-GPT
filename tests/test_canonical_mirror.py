@@ -35,6 +35,12 @@ MIGRATOR = create_engine(settings.canonical_migrator_url, future=True)
 
 @pytest.fixture()
 def workspace_process(monkeypatch):
+    """
+    Provide isolated project and process identifiers for the process evidence integration test.
+    
+    Yields:
+        tuple[str, str]: The generated project ID and process ID.
+    """
     project_id = f"proj-mirror-{uuid.uuid4().hex[:8]}"
     process_id = f"proc-mirror-{uuid.uuid4().hex[:8]}"
     client_name = f"Acme Mirror {uuid.uuid4().hex[:6]}"

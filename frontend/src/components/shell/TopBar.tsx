@@ -5,8 +5,12 @@ import { LanguageMenu } from "./LanguageMenu";
 import { cn } from "@/lib/utils";
 
 /**
- * Product top bar. Tenant / global search / date-range / notifications / user.
- * Controls are presentational for now — wired in a later step.
+ * Renders the product header with tenant, search, date-range, notification, language, and user controls.
+ *
+ * @param compact - Whether to use the compact layout.
+ * @param navigationExpanded - Whether the navigation is expanded.
+ * @param onToggleNavigation - Callback invoked when the navigation toggle is activated.
+ * @returns The product header element.
  */
 export function TopBar({ compact = false, navigationExpanded, onToggleNavigation }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void } = {}): React.JSX.Element {
   const { t } = useTranslation("common");

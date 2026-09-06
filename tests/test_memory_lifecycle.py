@@ -42,6 +42,7 @@ class FakeMem0:
     """
 
     def __init__(self) -> None:
+        """Initialize an empty fake memory store and its operation tracking state."""
         self.items: dict[str, dict] = {}
         self.add_calls: list[dict] = []
         self.search_calls: list[dict] = []
@@ -49,6 +50,19 @@ class FakeMem0:
 
     # -- scrittura ------------------------------------------------------
     def add(self, messages, *, user_id=None, metadata=None, infer=True, **kwargs):
+        """
+        Add a memory for a user and record the operation.
+        
+        Parameters:
+        	messages: Memory content to store.
+        	user_id: Identifier of the user associated with the memory.
+        	metadata: Optional metadata associated with the memory.
+        	infer: Whether memory inference is enabled for the operation.
+        
+        Returns:
+        	dict: A result containing the generated memory ID, stored content, and
+        	the ``ADD`` event.
+        """
         self.add_calls.append(
             {"text": messages, "user_id": user_id, "metadata": metadata, "infer": infer}
         )
@@ -63,10 +77,24 @@ class FakeMem0:
 
     # -- lettura --------------------------------------------------------
     def _scoped(self, filters):
+        """Return stored items associated with the user specified by the filters."""
         user_id = (filters or {}).get("user_id")
         return [i for i in self.items.values() if i["user_id"] == user_id]
 
     def search(self, query="", *, filters=None, top_k=20, threshold=0.1, **kwargs):
+        """
+        Search scoped memories using substring term matching and a minimum score threshold.
+        
+        Parameters:
+            query (str): Text whose terms are matched against stored memories.
+            filters (dict, optional): Criteria used to restrict the memories searched.
+            top_k (int): Maximum number of results to return.
+            threshold (float): Minimum score required for a result to be included.
+        
+        Returns:
+            dict: A mapping containing the matching memories and their scores under the
+                "results" key.
+        """
         self.search_calls.append(
             {"query": query, "filters": filters, "top_k": top_k, "threshold": threshold}
         )
@@ -83,13 +111,40 @@ class FakeMem0:
         return {"results": results[:top_k]}
 
     def get_all(self, *, filters=None, top_k=20, **kwargs):
+        """
+        Retrieve memories matching the provided filters.
+        
+        Parameters:
+        	filters: Optional criteria used to scope the memories.
+        	top_k (int): Maximum number of memories to return.
+        
+        Returns:
+        	dict: A mapping containing the selected memories under the ``results`` key.
+        """
         return {"results": self._scoped(filters)[:top_k]}
 
     def get(self, memory_id):
+        """Retrieve a stored memory by its identifier.
+        
+        Parameters:
+        	memory_id: Identifier of the memory to retrieve.
+        
+        Returns:
+        	The matching memory, or None if no memory has that identifier.
+        """
         return self.items.get(str(memory_id))
 
     # -- cancellazione --------------------------------------------------
     def delete(self, memory_id=None):
+        """
+        Delete a memory by ID.
+        
+        Parameters:
+            memory_id: Identifier of the memory to delete.
+        
+        Returns:
+            dict: A status message indicating whether deletion was reported as successful.
+        """
         key = str(memory_id)
         if key in self.undeletable:
             return {"message": "ok"}  # bugia deliberata: la memoria resta
@@ -99,6 +154,15 @@ class FakeMem0:
 
 @pytest.fixture()
 def fake_mem0(monkeypatch):
+    """
+    Provide an isolated fake memory client for tests.
+    
+    Parameters:
+    	monkeypatch: Pytest fixture used to replace the memory client and user identifier.
+    
+    Returns:
+    	FakeMem0: The configured fake memory client.
+    """
     fake = FakeMem0()
     monkeypatch.setattr(mem0_client, "get_memory", lambda: fake)
     monkeypatch.setattr(settings, "mem0_user_id", f"test-{uuid.uuid4()}")
@@ -107,8 +171,9 @@ def fake_mem0(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def clean_state():
-    """Stato del consulente di default riportato com'era: questi test scrivono
-    lapidi e azioni in attesa su righe condivise."""
+    """
+    Reset pending memory actions and clean canonical tombstones and pending actions for the test consultant.
+    """
     pending_actions.reset_memory_store()
     yield
     pending_actions.reset_memory_store()
@@ -123,6 +188,9 @@ def clean_state():
 
 @pytest.fixture()
 def thread(monkeypatch):
+    """
+    Provide an isolated active thread identifier for a test.
+    """
     thread_id = f"test-thread-{uuid.uuid4()}"
     from backend.agents import run_context
 
@@ -131,11 +199,26 @@ def thread(monkeypatch):
 
 
 def _result(tool_result: str) -> dict:
-    """I tool ritornano il nome dell'azione e poi un JSON: qui serve il JSON."""
+    """Extract the JSON object embedded in a tool result string.
+    
+    Parameters:
+    	tool_result (str): The tool output containing an action name followed by a JSON object.
+    
+    Returns:
+    	dict: The decoded JSON object.
+    """
     return json.loads(tool_result[tool_result.index("{") :])
 
 
 def _seed(fake: FakeMem0, statement: str) -> str:
+    """Seed a memory with the given statement.
+    
+    Parameters:
+    	statement (str): Memory content to store.
+    
+    Returns:
+    	str: The assigned memory ID.
+    """
     _, memory_id = semantic_store.add_mem0_memory_with_id(statement)
     assert memory_id, "il fake deve restituire un id"
     return memory_id
@@ -434,8 +517,13 @@ def test_pending_action_is_visible_to_the_next_turn(thread):
 
 
 def test_expired_pending_action_is_not_confirmable(thread, monkeypatch):
-    """Sul fallback in-process, dove il tempo lo decide `_now`. Sul path
-    Postgres la stessa regola sta nella query (`expires_at > now()`)."""
+    """
+    Verifies that an expired pending memory-deletion action cannot be confirmed.
+    
+    Parameters:
+    	thread (str): Identifier of the isolated thread.
+    	monkeypatch: Pytest fixture used to override the current-time function.
+    """
     import datetime as dt
 
     from backend.memory import pending_actions as pa

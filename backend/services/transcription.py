@@ -91,6 +91,15 @@ MODEL_CAPABILITIES: dict[str, TranscriptionCapabilities] = {
 
 
 def capabilities_for(model: str) -> TranscriptionCapabilities:
+    """Selects transcription capabilities for a model identifier.
+    
+    Args:
+        model (str): Untrusted model identifier. Surrounding whitespace is ignored.
+    
+    Returns:
+        TranscriptionCapabilities: The model-specific capabilities, or conservative
+            fallback capabilities when the model is unknown.
+    """
     return MODEL_CAPABILITIES.get(model.strip(), UNKNOWN_MODEL_CAPABILITIES)
 
 
@@ -133,7 +142,15 @@ _PROMPT_BY_LANGUAGE: dict[str, str] = {
 
 
 def resolve_keywords(extra: str | None = None) -> list[str]:
-    """Domain vocabulary: the built-in list plus deployment-specific terms."""
+    """Combine built-in vocabulary with comma-separated deployment-specific terms.
+    
+    Args:
+        extra: Untrusted, optional comma-separated vocabulary terms.
+    
+    Returns:
+        A list containing the built-in keywords followed by unique, trimmed terms
+        from ``extra``.
+    """
     keywords = list(DEFAULT_KEYWORDS)
 
     for term in (extra or "").split(","):
@@ -145,6 +162,15 @@ def resolve_keywords(extra: str | None = None) -> list[str]:
 
 
 def build_prompt(language: str, keywords: list[str]) -> str | None:
+    """Builds a language-specific transcription prompt containing the supplied keywords.
+    
+    Args:
+        language (str): Language code used to select the prompt template.
+        keywords (list[str]): Terms to include in the prompt.
+    
+    Returns:
+        str | None: The formatted prompt, or `None` when no template exists for the language.
+    """
     template = _PROMPT_BY_LANGUAGE.get(language)
     if not template:
         return None
@@ -153,10 +179,20 @@ def build_prompt(language: str, keywords: list[str]) -> str | None:
 
 
 def normalize_language(language: str | None, fallback: str) -> str:
-    """ISO-639-1 or nothing.
-
-    A malformed code is worse than no code: the API ignores it and we lose the
-    lock silently, which is exactly the failure this module exists to stop.
+    """Normalize and validate a language code.
+    
+    Args:
+        language (str | None): Untrusted language code to trim, lowercase, and
+            validate.
+        fallback (str): Language code to use when ``language`` is empty or absent.
+    
+    Returns:
+        str: A normalized ISO 639-1 language code, or ``fallback`` when no code is
+        provided.
+    
+    Raises:
+        ValueError: If ``language`` is provided but is not a valid two-letter
+            ISO 639-1 code.
     """
     normalized = (language or "").strip().lower()
 
@@ -179,7 +215,23 @@ def build_transcription_options(
     keywords: list[str] | None = None,
     temperature: float | None = None,
 ) -> dict[str, Any]:
-    """Request options for REST `/v1/audio/transcriptions`, minus `file`."""
+    """Build REST transcription options supported by the selected model.
+    
+    Unsupported options are omitted, while diarized models always receive the
+    required response format and automatic chunking strategy.
+    
+    Args:
+        model: Model identifier supplied as untrusted input.
+        language: Transcription language code supplied as untrusted input.
+        keywords: Optional vocabulary terms supplied as untrusted input.
+        temperature: Optional sampling temperature supplied as untrusted input.
+    
+    Returns:
+        A mapping of transcription options, excluding the audio file.
+    
+    Side effects:
+        None; this function does not persist data.
+    """
     capabilities = capabilities_for(model)
     keywords = keywords or []
     options: dict[str, Any] = {"model": model, "language": language}
@@ -210,7 +262,20 @@ def build_live_transcription_options(
     language: str,
     keywords: list[str] | None = None,
 ) -> dict[str, Any]:
-    """The `audio.input.transcription` block of a realtime `session.update`."""
+    """Build realtime session transcription options supported by the selected model.
+    
+    Args:
+        model: Untrusted model identifier used to select supported transcription
+            capabilities.
+        language: Untrusted language code included in the options.
+        keywords: Optional untrusted vocabulary terms to include when supported.
+    
+    Returns:
+        A transcription options dictionary containing the model and language, with
+        supported keyword and prompt settings when applicable.
+    
+    This function performs no side effects or persistence.
+    """
     capabilities = capabilities_for(model)
     keywords = keywords or []
     options: dict[str, Any] = {"model": model, "language": language}
@@ -232,17 +297,19 @@ def build_live_turn_detection(
     prefix_padding_ms: int,
     threshold: float,
 ) -> dict[str, Any]:
-    """Server-side VAD config for the realtime session.
-
-    The alternative --- what this replaced --- was committing the audio buffer
-    every 1.5 seconds on a wall clock. That cuts on elapsed time rather than on
-    speech, so words get split mid-syllable and each fragment is then language-
-    detected on its own, which is one of the ways an Italian interview ends up
-    with a Korean line in it. Server VAD cuts on silence instead.
-
-    `silence_duration_ms` defaults higher than the API's own 500ms because a
-    consulting interview is full of thinking pauses, and a turn that closes
-    inside one splits a single sentence into two independently decoded chunks.
+    """Build server-side voice activity detection settings for a realtime session.
+    
+    The returned configuration preserves all supplied detection parameters and sets the
+    detection type to ``server_vad``. This function performs no validation, persistence,
+    or other side effects.
+    
+    Args:
+        silence_duration_ms: Silence duration that ends a detected speech turn.
+        prefix_padding_ms: Audio duration retained before the detected speech start.
+        threshold: Voice activity detection threshold.
+    
+    Returns:
+        A realtime server-side VAD configuration dictionary.
     """
     return {
         "type": "server_vad",
@@ -277,6 +344,15 @@ MIN_EXPECTED_SCRIPT_RATIO = 0.7
 
 
 def _script_of(character: str) -> str | None:
+    """
+    Identify the Unicode script prefix for a character.
+    
+    Args:
+        character: A character whose Unicode name is inspected.
+    
+    Returns:
+        The first word of the character's Unicode name, or `None` when no name exists.
+    """
     try:
         return unicodedata.name(character).split(" ", 1)[0]
     except ValueError:
@@ -284,7 +360,17 @@ def _script_of(character: str) -> str | None:
 
 
 def is_off_script(text: str, expected_script: str) -> bool:
-    """True when `text` is written in a script the target language does not use."""
+    """
+    Determine whether text contains too few letters in the expected Unicode script.
+    
+    Args:
+        text (str): Untrusted text to inspect.
+        expected_script (str): Unicode script expected for the text.
+    
+    Returns:
+        bool: `True` if the text has fewer than 70% matching letters after the
+            minimum letter threshold is met, otherwise `False`.
+    """
     letters = [character for character in text if character.isalpha()]
 
     if len(letters) < MIN_LETTERS_FOR_SCRIPT_CHECK:
@@ -308,10 +394,24 @@ def enforce_language(
     segments: list[dict[str, Any]] | None,
     text: str,
 ) -> LanguageGuardResult:
-    """Drop the parts of a transcript that came back in the wrong script.
-
-    Applied per segment when the model diarized, per line otherwise, so one bad
-    chunk costs that chunk and not the whole interview.
+    """
+    Filter transcript content that uses a script inconsistent with the requested language.
+    
+    Unsupported languages pass through unchanged. For supported languages, segment or
+    line filtering preserves the remaining content and counts dropped parts without
+    persisting changes. Emits a warning when content is dropped.
+    
+    Args:
+        language (str): The requested language code.
+        segments (list[dict[str, Any]] | None): Untrusted diarized transcript segments,
+            when available.
+        text (str): Untrusted plain-text transcript used when diarized segments are
+            unavailable.
+    
+    Returns:
+        LanguageGuardResult: The retained segments and text, plus the number of
+        dropped off-script parts.
+    
     """
     expected_script = _EXPECTED_SCRIPT_BY_LANGUAGE.get(language)
 
@@ -351,7 +451,15 @@ def enforce_language(
 
 
 def filter_live_transcript(text: str, language: str) -> str:
-    """Same guard for a single realtime item; empty string means it was dropped."""
+    """Filter a realtime transcript item against the expected script for its language.
+    
+    Args:
+        text (str): Untrusted transcript text to evaluate.
+        language (str): Untrusted language code used to select the expected script.
+    
+    Returns:
+        str: The original text for supported-script content or unsupported languages;
+            an empty string when the content is sufficiently off-script."""
     expected_script = _EXPECTED_SCRIPT_BY_LANGUAGE.get(language)
 
     if not expected_script:

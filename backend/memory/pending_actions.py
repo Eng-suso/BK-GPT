@@ -43,14 +43,42 @@ _MEMORY_LOCK = threading.Lock()
 
 
 def _now() -> datetime:
+    """Get the current time as a timezone-aware UTC datetime.
+    
+    Returns:
+        datetime: The current UTC time with timezone information.
+    """
     return datetime.now(timezone.utc)
 
 
 def _durable() -> bool:
+    """Determine whether durable database persistence is configured.
+    
+    Returns:
+        bool: `True` if a canonical database URL is configured, `False` otherwise.
+    """
     return bool(settings.canonical_database_url)
 
 
 def _row_to_action(row: Any) -> dict[str, Any]:
+    """
+    Convert a persistence-layer row into the public action representation.
+    
+    Args:
+        row (Any): Untrusted persistence-layer row containing action fields. Its
+            serialized parameters, when provided as a string, must contain valid
+            JSON.
+    
+    Returns:
+        dict[str, Any]: Action data with a string identifier, normalized parameters,
+            and ISO 8601 timestamps. Missing parameters become an empty dictionary,
+            and missing timestamps become None.
+    
+    Raises:
+        ValueError: If string-valued parameters contain invalid JSON.
+    
+    This function does not modify the row or perform persistence.
+    """
     params = row.params
     if isinstance(params, str):
         params = json.loads(params)
@@ -76,8 +104,30 @@ def propose(
     client_id: str | None = None,
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
 ) -> dict[str, Any]:
-    """Registra un'azione in attesa. Supersede quella eventualmente aperta sul
-    thread: l'ultima proposta e' l'unica confermabile."""
+    """Register a pending action for a thread and persist its confirmation state.
+    
+    A newer proposal supersedes any existing pending action for the same thread, leaving
+    only the new proposal confirmable. The action receives a pending status and an
+    expiration time of at least 60 seconds. Persistence uses the configured durable
+    store or the thread-safe in-memory fallback.
+    
+    Args:
+        consultant_id: Untrusted consultant identifier used to scope the action.
+        thread_id: Untrusted thread identifier associated with the action.
+        action: Untrusted action type or name.
+        params: Untrusted parameters captured for the proposed action.
+        preview: Untrusted human-readable preview of the proposed action.
+        client_id: Untrusted optional client identifier for persistence scoping.
+        ttl_seconds: Requested lifetime in seconds; values below 60 are raised to 60.
+    
+    Returns:
+        A dictionary containing the created action, including its identifier, pending
+        status, timestamps, parameters, and preview.
+    
+    Side Effects:
+        Persists the action and marks previously pending actions for the thread as
+        superseded.
+    """
     expires_at = _now() + timedelta(seconds=max(60, ttl_seconds))
 
     if not _durable():
@@ -133,9 +183,27 @@ def open_action(
     client_id: str | None = None,
     action: str | None = None,
 ) -> dict[str, Any] | None:
-    """L'azione ancora in attesa su questo thread, o None. Una scaduta viene
-    chiusa come `expired` e non ritorna: meglio ripetere la proposta che
-    eseguire una conferma vecchia di ore."""
+    """Find the current pending action for a thread.
+    
+    Expired pending actions are marked as ``expired`` and are not returned. The
+    result is limited to pending actions belonging to the specified thread and,
+    when provided, matching the requested action type. Access is evaluated for
+    the specified consultant and client, and the action record is persisted when
+    the durable store is configured.
+    
+    Args:
+        consultant_id (str): Untrusted consultant identifier used for access
+            evaluation.
+        thread_id (str): Untrusted thread identifier used to scope the action.
+        client_id (str | None): Untrusted client identifier used for access
+            evaluation.
+        action (str | None): Untrusted optional action type used to filter the
+            result.
+    
+    Returns:
+        dict[str, Any] | None: The latest matching pending action, or ``None`` if
+        no matching action is available.
+    """
     if not _durable():
         with _MEMORY_LOCK:
             record = _MEMORY_STORE.get((str(consultant_id), str(thread_id)))
@@ -183,8 +251,24 @@ def _close(
     result: dict[str, Any] | None,
     action_id: str | None,
 ) -> dict[str, Any] | None:
-    """Transizione condizionata pending -> status. None se non c'era nulla da
-    chiudere (gia' eseguita, annullata, scaduta o mai proposta)."""
+    """Atomically close a pending action with a terminal status.
+    
+    The transition succeeds only for an unexpired pending action and, when provided,
+    the specified action identifier. On success, it records the status and result and
+    persists the change when durable storage is configured. Expired, already closed,
+    missing, or mismatched actions remain unchanged.
+    
+    Args:
+        consultant_id: Untrusted consultant identifier used for storage access.
+        thread_id: Untrusted thread identifier that scopes the action.
+        status: Terminal status to assign to the action.
+        client_id: Untrusted client identifier used for storage access.
+        result: Execution result to associate with the action.
+        action_id: Untrusted optional action identifier used to select the action.
+    
+    Returns:
+        The closed action record, or `None` when no eligible pending action exists.
+    """
     if not _durable():
         with _MEMORY_LOCK:
             record = _MEMORY_STORE.get((str(consultant_id), str(thread_id)))
@@ -228,9 +312,25 @@ def claim(
     client_id: str | None = None,
     action_id: str | None = None,
 ) -> dict[str, Any] | None:
-    """Prende in carico l'azione in attesa (pending -> confirmed) e la ritorna.
-
-    Atomica: il chiamante che riceve la riga e' l'unico autorizzato a eseguirla.
+    """Atomically claims a pending action for execution.
+    
+    Transitions the matching action from ``pending`` to ``confirmed`` and
+    persists the transition. Only the caller that successfully claims the action
+    receives it; unavailable, expired, or already transitioned actions yield
+    ``None``.
+    
+    Args:
+        consultant_id (str): Untrusted consultant identifier used to scope the
+            action.
+        thread_id (str): Untrusted thread identifier used to scope the action.
+        client_id (str | None): Untrusted optional client identifier used to
+            restrict the action.
+        action_id (str | None): Untrusted optional action identifier used to select
+            a specific pending action.
+    
+    Returns:
+        dict[str, Any] | None: The claimed action, or ``None`` when no matching
+        unexpired pending action is available.
     """
     return _close(
         consultant_id=consultant_id,
@@ -249,6 +349,21 @@ def cancel(
     client_id: str | None = None,
     action_id: str | None = None,
 ) -> dict[str, Any] | None:
+    """Cancel the pending action associated with a thread.
+    
+    The transition succeeds only for an available pending action belonging to the
+    specified consultant and thread. The action is persisted with a ``cancelled``
+    status when storage is configured.
+    
+    Args:
+        consultant_id: Untrusted consultant identifier.
+        thread_id: Untrusted thread identifier.
+        client_id: Untrusted client identifier used to scope the action, if provided.
+        action_id: Untrusted action identifier used to select a specific action, if provided.
+    
+    Returns:
+        The cancelled action, or ``None`` if no matching pending action is available.
+    """
     return _close(
         consultant_id=consultant_id,
         thread_id=thread_id,
@@ -267,7 +382,23 @@ def record_result(
     result: dict[str, Any],
     client_id: str | None = None,
 ) -> None:
-    """Esito dell'esecuzione, per audit. Best-effort: l'azione e' gia' avvenuta."""
+    """Record an execution result for audit without affecting the completed action.
+    
+    Persistence is best-effort: database errors are logged and suppressed. In-memory
+    storage is updated only when the action identifier matches the current action for
+    the specified thread.
+    
+    Args:
+        consultant_id (str): Untrusted consultant identifier.
+        thread_id (str): Untrusted thread identifier.
+        action_id (str): Untrusted action identifier.
+        result (dict[str, Any]): Untrusted execution result to persist.
+        client_id (str | None): Untrusted client identifier, if applicable.
+    
+    Side Effects:
+        Persists the result for the specified action when durable storage is
+        configured.
+    """
     if not _durable():
         with _MEMORY_LOCK:
             record = _MEMORY_STORE.get((str(consultant_id), str(thread_id)))
@@ -291,6 +422,10 @@ def record_result(
 
 
 def reset_memory_store() -> None:
-    """Solo per i test del fallback in-process."""
+    """Clear all actions from the in-process fallback store.
+    
+    This test-only helper removes every stored action and does not affect
+    PostgreSQL persistence.
+    """
     with _MEMORY_LOCK:
         _MEMORY_STORE.clear()

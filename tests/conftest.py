@@ -8,6 +8,18 @@ from backend.settings import settings
 
 
 def _drain_until(drains: list[Callable[[], int]], check: Callable[[], bool], tries: int, delay: float) -> bool:
+    """
+    Drain the supplied queues repeatedly until a condition succeeds or retries are exhausted.
+    
+    Parameters:
+        drains (list[Callable[[], int]]): Queue-draining callables to invoke on each attempt.
+        check (Callable[[], bool]): Condition evaluated after each draining attempt.
+        tries (int): Maximum number of attempts.
+        delay (float): Number of seconds to wait between unsuccessful attempts.
+    
+    Returns:
+        bool: `True` if the condition succeeds, `False` otherwise.
+    """
     for _ in range(tries):
         for drain in drains:
             drain()
@@ -19,15 +31,25 @@ def _drain_until(drains: list[Callable[[], int]], check: Callable[[], bool], tri
 
 @pytest.fixture()
 def wait_projected():
-    """drain di `graph_outbox` best-effort + retry finche' `check()` e' vero.
-
-    Robusto a un worker in-process dell'app (uvicorn locale) che drena la stessa
-    coda: in quel caso il `drain_once()` esplicito del test vede 0 righe ma la
-    proiezione e' comunque avvenuta. Non asserire mai sul valore di ritorno di
-    `drain_once()` in un test di integrazione — usare questo.
+    """
+    Provide a helper that drains the graph outbox and retries until a condition succeeds.
+    
+    Returns:
+        Callable: A function that accepts a condition and returns `True` when it succeeds
+        within the configured retry limit, or `False` otherwise.
     """
 
     def _wait(check: Callable[[], bool], *, tries: int = 15, delay: float = 0.4) -> bool:
+        """Drain the graph queue until a condition is met or the retry limit is reached.
+        
+        Parameters:
+        	check (Callable[[], bool]): Condition to evaluate after draining.
+        	tries (int): Maximum number of attempts.
+        	delay (float): Seconds to wait between attempts.
+        
+        Returns:
+        	bool: `True` if the condition succeeds, `False` otherwise.
+        """
         from backend.workers.graph_worker import drain_once
 
         return _drain_until([drain_once], check, tries, delay)
@@ -37,34 +59,32 @@ def wait_projected():
 
 @pytest.fixture(autouse=True)
 def _no_background_queue_workers(monkeypatch):
-    """Nessun worker in-process durante i test: le code le drena il test.
-
-    `TestClient(app)` fa partire il lifespan, che avvia i drain loop di
-    ingest/graph/mem0 su un executor di modulo mai chiuso. Il loop viene
-    cancellato all'uscita del context manager, ma una passata gia' partita
-    finisce comunque - e puo' reclamare (`FOR UPDATE SKIP LOCKED`) il job che
-    un test *successivo* ha appena accodato. Quel test vede `drain_once() == 0`
-    e fallisce anche se il lavoro e' stato fatto: e' la flakiness che rendeva
-    rossi `test_canonical_mirror` e `test_kg_ingest_queue` solo nella suite
-    completa, e solo qualche volta.
-
-    I test del supervisore restano validi: verificano il loop con callable
-    finti e l'endpoint di stato, non il drain reale in background.
-    """
+    """Disable in-process queue workers so tests can control queue draining explicitly."""
     monkeypatch.setattr(settings, "workers_in_process", False)
 
 
 @pytest.fixture()
 def wait_ingested():
-    """drain di `kg_ingest_queue` best-effort + retry finche' `check()` e' vero.
-
-    Stessa regola di `wait_projected`, per l'altra coda: mai asserire sul valore
-    di ritorno di `drain_once()` in un test di integrazione. Il conteggio dice
-    *chi* ha fatto il lavoro, non *se* e' stato fatto, e con piu' consumatori
-    sulla stessa coda quella e' una domanda a cui il test non deve tenere.
+    """
+    Provide a helper that drains the ingestion queue until a condition succeeds.
+    
+    Returns:
+        A function that accepts a condition and optional retry settings, returning
+        `True` when the condition succeeds and `False` after all attempts fail.
     """
 
     def _wait(check: Callable[[], bool], *, tries: int = 15, delay: float = 0.4) -> bool:
+        """
+        Retry a condition while draining the ingestion queue.
+        
+        Parameters:
+            check (Callable[[], bool]): Condition to evaluate after each drain attempt.
+            tries (int): Maximum number of attempts.
+            delay (float): Seconds to wait between attempts.
+        
+        Returns:
+            bool: `True` if the condition succeeds within the attempts, `False` otherwise.
+        """
         from backend.workers.ingest_worker import drain_once
 
         return _drain_until([drain_once], check, tries, delay)
@@ -74,14 +94,25 @@ def wait_ingested():
 
 @pytest.fixture()
 def wait_pipeline():
-    """Come sopra, ma per la catena intera: `kg_ingest_queue` -> `graph_outbox`.
-
-    Un test che parte dal tool e arriva a una retrieval attraversa due code in
-    sequenza. Drenarne una sola e sperare che l'altra sia gia' passata e' il modo
-    in cui questi test diventavano flaky.
+    """
+    Provide a helper for waiting until the ingestion and graph-processing pipeline completes.
+    
+    Returns:
+    	Callable: A helper that drains both queues in sequence and returns `true` when the supplied condition succeeds, or `false` after the configured retries are exhausted.
     """
 
     def _wait(check: Callable[[], bool], *, tries: int = 15, delay: float = 0.4) -> bool:
+        """
+        Drain the ingestion and graph queues until a condition succeeds.
+        
+        Parameters:
+        	check (Callable[[], bool]): Condition to evaluate after draining the queues
+        	tries (int): Maximum number of attempts
+        	delay (float): Seconds to wait between attempts
+        
+        Returns:
+        	bool: `True` if the condition succeeds, `False` otherwise
+        """
         from backend.workers.graph_worker import drain_once as drain_graph
         from backend.workers.ingest_worker import drain_once as drain_ingest
 

@@ -72,6 +72,19 @@ function notifyChatWorkspaceChanged(scope: ChatScope) {
   });
 }
 
+/**
+ * Manages chat message submission, streamed responses, transcript state, and retry data.
+ *
+ * @param scope - Workspace scope associated with the conversation
+ * @param selectedModel - Model used to generate the response
+ * @param chatMode - Chat mode used for the request
+ * @param activeSession - Currently active chat session
+ * @param ensureThread - Creates or retrieves the thread for the message
+ * @param selectThread - Selects a chat thread
+ * @param commitTranscript - Persists the completed transcript
+ * @param onSettled - Optional callback invoked after a successful request
+ * @returns Chat streaming state and callbacks for sending messages and clearing errors
+ */
 export function useChatStream({
   scope,
   selectedModel,

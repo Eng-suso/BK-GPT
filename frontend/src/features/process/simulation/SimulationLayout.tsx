@@ -39,7 +39,12 @@ const RUN_SCOPED = new Set<Tab>(["replay", "dashboard", "heatmap", "insights"]);
 const PRIMARY_TABS: Tab[] = ["scenario", "overview", "compare"];
 const ANALYSIS_TABS: Tab[] = ["dashboard", "replay", "heatmap", "insights"];
 
-/** Pull `<sub>` and optional numeric `<runId>` out of `.../simulation/<sub>/<runId>`. */
+/**
+ * Parses the simulation sub-route and optional run identifier from a pathname.
+ *
+ * @param pathname - The URL pathname containing the simulation route
+ * @returns The recognized tab and numeric run ID, or `null` when the run ID is missing or invalid
+ */
 function readPath(pathname: string): { sub: Tab; runId: number | null } {
   const parts = pathname.split("/").filter(Boolean);
   const idx = parts.indexOf("simulation");
@@ -49,6 +54,11 @@ function readPath(pathname: string): { sub: Tab; runId: number | null } {
   return { sub, runId: rid && /^\d+$/.test(rid) ? Number(rid) : null };
 }
 
+/**
+ * Renders the simulation workspace layout with process navigation, run selection, and nested route content.
+ *
+ * @returns The simulation workspace layout.
+ */
 export function SimulationLayout(): React.JSX.Element {
   const { projectId = "", processId = "" } = useParams();
   const { t, i18n } = useTranslation("process");

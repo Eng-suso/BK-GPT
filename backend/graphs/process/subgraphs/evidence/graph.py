@@ -27,6 +27,14 @@ ProcessUnderstanding. Keep facts, hypotheses, contradictions and gaps separate.
 
 
 def build_evidence_subgraph(llm_with_tools, build_context_messages):
+    """
+    Create the evidence-processing chat subgraph with the project's evidence tools and contract.
+    
+    The subgraph uses `ProcessState` for state and fixed agent and tool node names. It does not persist data or perform external side effects during construction.
+    
+    Returns:
+        The configured evidence-processing chat subgraph.
+    """
     return build_tool_chat_subgraph(
         state_schema=ProcessState,
         tools=evidence_tools,

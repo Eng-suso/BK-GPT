@@ -80,7 +80,15 @@ If process/canvas delegation has an ambiguous target, route to clarification.
 
 
 def project_router_prompt(chat_mode: str | None = None) -> str:
-    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    """Build the project router prompt for the specified chat mode.
+    
+    Args:
+        chat_mode: Untrusted chat-mode value used to determine the available project
+            capabilities. If omitted, the default capability menu is used.
+    
+    Returns:
+        The router prompt containing the capability menu for the selected chat mode.
+    """
     return PROJECT_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("project", chat_mode))
 
 
@@ -94,6 +102,31 @@ def project_routing_state(
     parse_source: str = "structured",
     parse_error: str | None = None,
 ) -> dict:
+    """Authorize a project routing decision and convert it into normalized project state.
+    
+    The resulting state preserves the proposed and authorized routing metadata, records
+    the authorization outcome in a routing trace, and includes delegation details when
+    a target is authorized. The route and clarification flag remain consistent with the
+    authorized decision.
+    
+    Args:
+        decision: The proposed project routing decision.
+        user_request: Untrusted user request associated with the decision.
+        state: Existing graph state used during authorization.
+        parse_source: Source classification for the parsed routing decision.
+        parse_error: Parsing error detail, if the decision was produced after a
+            parsing failure.
+    
+    Returns:
+        A project state update containing the authorized route, routing metadata,
+        delegation payload, clarification details, and authorization status.
+    
+    Raises:
+        Authorization-related errors raised while validating the routing decision.
+    
+    Side Effects:
+        Does not perform persistence or external side effects.
+    """
     authorization = authorize_routing_decision(
         owner="project",
         decision=decision,
@@ -184,6 +217,17 @@ def parse_project_router_json(content: str, user_request: str = "", state: dict 
 
 
 def build_project_router(llm):
+    """
+    Create a project-intent routing node backed by the configured language model.
+    
+    The generated node routes the latest user request into normalized project state. It uses a direct route when no user message is available and falls back to an invalid decision when structured routing fails unexpectedly.
+    
+    Args:
+        llm: Language model used to classify project requests.
+    
+    Returns:
+        A routing callable that accepts project state and runtime configuration and returns routing-state updates.
+    """
     def route_project_intent(state: ProjectState, config: RunnableConfig) -> dict:
         user_text = latest_user_text(state)
         if not user_text:

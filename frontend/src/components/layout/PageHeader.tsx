@@ -25,6 +25,12 @@ export type PageHeaderProps = {
   className?: string;
 };
 
+/**
+ * Renders a page header with optional breadcrumbs, description, metadata, count, and actions.
+ *
+ * @param compact - Whether to use reduced spacing and a smaller title.
+ * @returns The rendered page header.
+ */
 export function PageHeader({
   compact = false,
   breadcrumbs,

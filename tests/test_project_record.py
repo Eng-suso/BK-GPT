@@ -145,7 +145,15 @@ def tenant():
 
 
 def _tool_payload(result: str) -> dict:
-    """Il risultato enterprise e' `action\\n{json}`."""
+    """
+    Extract the JSON payload from a tool result.
+    
+    Parameters:
+        result (str): Tool result containing an action line followed by a JSON payload.
+    
+    Returns:
+        dict: Parsed JSON payload.
+    """
     return json.loads(result.split("\n", 1)[1])
 
 

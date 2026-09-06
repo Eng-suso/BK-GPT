@@ -88,12 +88,33 @@ repeated no-progress passes; you do not set or negotiate that limit.
 
 
 def process_router_prompt(chat_mode: str | None = None) -> str:
-    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    """Build the process router prompt for the specified chat mode.
+    
+    Args:
+        chat_mode (str | None): Untrusted chat-mode value used to select the
+            capabilities presented to the router.
+    
+    Returns:
+        str: A router prompt containing the capability menu for the selected chat
+            mode.
+    """
     return PROCESS_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("process", chat_mode))
 
 
 
 def process_state_signature(state: dict) -> str:
+    """Build a compact progress signature from the current process state.
+    
+    Args:
+        state (dict): Untrusted process state containing artifact, readiness,
+            diagnostic, quality, persistence, contradiction, claim, and gap data.
+    
+    Returns:
+        str: A pipe-delimited signature representing the presence and counts of
+            tracked process artifacts and issues.
+    
+    The function performs no side effects and does not persist state.
+    """
     diagnostics = state.get("process_understanding_diagnostics")
     quality_report = state.get("process_quality_report")
     return "|".join(
@@ -225,6 +246,18 @@ def parse_process_router_json(content: str, user_request: str = "", state: dict 
 
 
 def build_process_router(llm):
+    """
+    Build a process-intent routing node for the process workflow.
+    
+    Args:
+        llm: Language model used to produce structured routing decisions.
+    
+    Returns:
+        A routing function that accepts process state and runtime configuration, preserves
+        a direct route when no user message is available, and converts valid or invalid
+        model output into authorized process routing state. Unexpected routing failures
+        are converted into an invalid routing decision rather than raised.
+    """
     def route_process_intent(state: ProcessState, config: RunnableConfig) -> dict:
         user_text = latest_user_text(state)
         if not user_text:
@@ -356,21 +389,53 @@ def evaluate_process_iteration(state: ProcessState) -> dict:
 
 
 def selected_process_loop_transition(state: ProcessState) -> str:
+    """Selects the next process-graph transition from the loop continuation flag.
+    
+    Args:
+        state: Process state containing the loop continuation decision.
+    
+    Returns:
+        ``"continue"`` when ``process_continue_loop`` is truthy; otherwise,
+        ``"end"``.
+    """
     return "continue" if state.get("process_continue_loop") else "end"
 
 
 def build_canvas_delegation_node(canvas_subgraph):
-    """Run the Canvas Macro Agent on this process instead of describing it.
-
-    The router already authorized `process.canvas_handoff` against the readiness
-    prerequisites, so the handoff is real work, not advice: telling the user to
-    reopen the request in another chat was a dead end that lost the whole
-    authorized decision. The canvas graph runs with its own state schema and only
-    its messages are merged back - `add_messages` folds them by id, so replaying
-    the transcript adds no duplicates.
+    """Create a process node that delegates authorized Canvas work.
+    
+    Args:
+        canvas_subgraph: Optional Canvas graph used to process the delegation.
+    
+    Returns:
+        A process-state handler that blocks delegation when the Canvas graph or BPMN
+        model ID is unavailable; otherwise, it invokes the Canvas graph and merges
+        its messages, BPMN XML, routing trace, and delegation status into the
+        process state.
+    
+    The handler preserves existing BPMN XML when the Canvas graph provides none.
+    It may trigger side effects performed by the delegated Canvas graph, including
+    persistence of BPMN changes.
     """
 
     def delegate_to_canvas_macro(state: ProcessState, config: RunnableConfig) -> dict:
+        """
+        Delegate process work to the Canvas subgraph when the required BPMN model is available.
+        
+        Args:
+            state (ProcessState): Untrusted process state containing the BPMN model identifier,
+                process context, messages, and delegation intent.
+            config (RunnableConfig): Runtime configuration passed to the Canvas subgraph.
+        
+        Returns:
+            dict: Routing state containing Canvas messages, BPMN XML, routing traces, and a
+                delegation event. The delegation is marked as blocked when the Canvas
+                subgraph or BPMN model identifier is unavailable.
+        
+        Side Effects:
+            Invokes the Canvas subgraph, which may update or persist Canvas-related process
+            artifacts.
+        """
         if canvas_subgraph is None or not state.get("bpmn_model_id"):
             return {
                 "messages": [
@@ -433,6 +498,28 @@ def build_process_subgraph(
     build_context_messages,
     canvas_subgraph=None,
 ):
+    """
+    Builds and compiles the process orchestration graph.
+    
+    The graph routes requests through context loading, process assistance, specialist
+    subgraphs, clarification, or Canvas delegation, and enforces iteration and
+    termination transitions for specialist workflows.
+    
+    Args:
+        tools (list): Tools available to the process macro-agent.
+        llm: Language model used for routing and process assistance.
+        llm_with_tools: Language model configured for tool-enabled process assistance.
+        build_context_messages: Callback that builds context messages for agent
+            invocations.
+        canvas_subgraph: Optional compiled Canvas graph used for delegation.
+    
+    Returns:
+        A compiled process workflow graph.
+    
+    Side Effects:
+        Constructs subgraphs and binds language-model tools during graph
+        construction. Does not execute the workflow or persist process artifacts.
+    """
     process_macro_agent = build_tool_chat_subgraph(
         state_schema=ProcessState,
         tools=tools,

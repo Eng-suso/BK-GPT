@@ -129,6 +129,7 @@ def test_simulation_run_of_another_model_does_not_resolve(monkeypatch):
 
 def test_a_non_numeric_run_id_never_reaches_the_database(monkeypatch):
     def _explode(run_id):
+        """Rejects simulation run identifiers that are not numeric before database access."""
         raise AssertionError("un id non numerico non deve arrivare al database")
 
     monkeypatch.setattr(attachments_module, "_read_simulation_run", _explode)

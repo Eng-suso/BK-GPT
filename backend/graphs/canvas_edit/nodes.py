@@ -7,6 +7,24 @@ from backend.process_understanding import (
 
 
 def load_canvas_context(state: dict) -> dict:
+    """
+    Load BPMN canvas data and review context from workspace storage.
+    
+    Args:
+        state (dict): Untrusted runtime state containing the BPMN model identifier and
+            optional live canvas XML.
+    
+    Returns:
+        dict: A normalized context containing process metadata, semantic models,
+            quality and diagnostic data, review information, saved XML, effective XML,
+            and its source. Returns an empty dictionary when no BPMN model identifier
+            is present. Missing review data is represented by null values or empty
+            lists, and effective XML prefers live canvas content over saved backend
+            content.
+    
+    Side Effects:
+        Reads from workspace storage but does not modify or persist data.
+    """
     bpmn_model_id = state.get("bpmn_model_id")
     if not bpmn_model_id:
         return {}

@@ -35,16 +35,32 @@ CANVAS_LOOP_MAX_ATTEMPTS = 2
 
 
 def expects_empty_canvas(state: dict) -> bool:
-    """Did the agent declare an emptied canvas as the target end state?
-
-    This used to be guessed from Italian substrings in the user's text, which both
-    fired on unrelated sentences and missed every other phrasing. The router now
-    declares the outcome as a typed field and the runtime only reads it back.
+    """Determine whether the requested end state is an empty canvas.
+    
+    Args:
+        state (dict): Untrusted workflow state containing the expected canvas outcome.
+    
+    Returns:
+        bool: `True` if the expected outcome is exactly ``"empty_canvas"``, `False`
+            otherwise.
     """
     return state.get("canvas_expected_outcome") == "empty_canvas"
 
 
 def _empty_canvas_completion_report(xml: str) -> dict:
+    """
+    Validate whether BPMN XML represents an empty canvas.
+    
+    Args:
+        xml (str): Untrusted BPMN XML to validate.
+    
+    Returns:
+        dict: A completion report containing validation status, technical validation
+            details, flow-node and sequence-flow counts, issues, and warnings.
+            The report is valid only when the XML is technically valid and contains
+            no flow nodes or sequence flows.
+    
+    """
     validation = validate_bpmn_xml(xml)
     counts = validation.get("counts") or {}
     flow_nodes = int(counts.get("flow_nodes") or 0)
@@ -125,7 +141,14 @@ what to insert when a preview is already waiting is the wrong answer.
 
 
 def canvas_router_prompt(chat_mode: str | None = None) -> str:
-    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    """Build the canvas routing prompt for the specified chat mode.
+    
+    Args:
+        chat_mode: Optional chat mode used to restrict the available canvas capabilities.
+    
+    Returns:
+        The routing prompt with the capability menu for the selected chat mode.
+    """
     return CANVAS_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("canvas", chat_mode))
 
 
@@ -138,6 +161,25 @@ def canvas_routing_state(
     parse_source: str = "structured",
     parse_error: str | None = None,
 ) -> dict:
+    """Build the authorized canvas routing state for a workflow run.
+    
+    The resulting state preserves the proposed and authorized routing decision, initializes
+    loop tracking, records routing and delegation traces, and carries forward the saved
+    BPMN XML when available. It enforces the canvas owner and initializes an active loop
+    only for patch editing, construction, or layout routes. This function does not persist
+    state or perform external side effects.
+    
+    Args:
+        decision: The router decision, treated as untrusted input before authorization.
+        user_request: The original user request, treated as untrusted input.
+        state: Existing workflow state used to preserve the saved BPMN XML.
+        parse_source: Source category for the parsed routing decision.
+        parse_error: Parsing error details associated with the decision, if any.
+    
+    Returns:
+        A dictionary containing authorized routing metadata, workflow control fields,
+        delegation information, trace events, and an initialized canvas task log.
+    """
     authorization = authorize_routing_decision(
         owner="canvas",
         decision=decision,
@@ -245,6 +287,17 @@ def parse_canvas_router_json(content: str, user_request: str = "", state: dict |
 
 
 def build_canvas_router(llm):
+    """Create a canvas-intent routing function backed by the supplied language model.
+    
+    Args:
+        llm: Language model used to classify the latest user request.
+    
+    Returns:
+        A routing function that converts the current canvas state and request into
+        authorized workflow routing state. Missing requests use direct handling,
+        and router failures produce an invalid routing decision without raising
+        the underlying exception.
+    """
     def route_canvas_intent(state: CanvasState, config: RunnableConfig) -> dict:
         user_text = latest_user_text(state)
         if not user_text:
@@ -343,6 +396,20 @@ def refresh_canvas_context_after_work(state: CanvasState) -> dict:
 
 
 def route_after_canvas_work(state: CanvasState) -> str:
+    """Select the next workflow stage after canvas work.
+    
+    Args:
+        state (CanvasState): Untrusted workflow state containing routing, loop, model,
+            review, and saved-XML information.
+    
+    Returns:
+        str: The next stage identifier: ``"completion_report"`` for blocked,
+            unchanged, or incomplete work; ``"evaluate_canvas_completion"`` for
+            empty-canvas outcomes; or ``"layout_subgraph"`` when layout is needed.
+    
+    This function reads BPMN review data from the workspace database and does not
+    persist changes or raise errors explicitly.
+    """
     if state.get("canvas_loop_status") == "blocked":
         return "completion_report"
 
@@ -369,6 +436,16 @@ def route_after_canvas_work(state: CanvasState) -> str:
 
 
 def route_after_canvas_layout(state: CanvasState) -> str:
+    """Route the workflow after canvas layout processing.
+    
+    Args:
+        state: Workflow state containing layout, loop, and expected canvas outcome data.
+    
+    Returns:
+        The next workflow node: ``"completion_report"`` for blocked work,
+        ``"evaluate_canvas_completion"`` for an intended empty canvas, or
+        ``"validation_subgraph"`` otherwise.
+    """
     if state.get("canvas_layout_status") == "blocked" or state.get("canvas_loop_status") == "blocked":
         return "completion_report"
 
@@ -379,6 +456,26 @@ def route_after_canvas_layout(state: CanvasState) -> str:
 
 
 def evaluate_canvas_completion(state: CanvasState) -> dict:
+    """
+    Evaluate whether the saved BPMN canvas satisfies the requested outcome.
+    
+    The function requires a BPMN model identifier and saved BPMN XML. It verifies
+    empty-canvas requests by checking that no BPMN elements remain; other requests
+    are validated against the canonical semantic context. It records validation
+    results and returns a completed, fixable, or blocked workflow state according
+    to the validation issues and remaining attempts. This function reads the BPMN
+    model from persistence but does not modify it.
+    
+    Args:
+        state (CanvasState): Untrusted workflow state containing the BPMN model
+            identifier, expected canvas outcome, semantic context, objective, and
+            validation-attempt counters.
+    
+    Returns:
+        dict: Workflow-state updates containing validation results, warnings,
+            follow-up actions, task-log entries, and a loop status of
+            ``"completed"``, ``"needs_fix"``, or ``"blocked"``.
+    """
     bpmn_model_id = state.get("bpmn_model_id")
     if not bpmn_model_id:
         return {

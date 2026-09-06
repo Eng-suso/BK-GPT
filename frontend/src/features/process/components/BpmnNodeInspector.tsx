@@ -13,6 +13,12 @@ type BpmnNodeInspectorProps = {
   onClose: () => void;
 };
 
+/**
+ * Renders an inspector panel for editing a selected BPMN element.
+ *
+ * @param element - The selected BPMN element and its editable content.
+ * @returns The inspector panel.
+ */
 export function BpmnNodeInspector({
   element,
   onNameChange,

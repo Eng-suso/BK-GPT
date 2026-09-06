@@ -195,11 +195,27 @@ def assess_discovery_readiness(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Record a semantic discovery-readiness judgment: is there enough evidence-backed
-    understanding to move into ProcessUnderstanding modeling? This is a judgment call,
-    not a checklist score - weigh what is missing against how much it would distort a
-    first-pass model. Use before routing from discovery/evidence to modeling. The runtime
-    only verifies the judgment is internally consistent; it does not compute it.
+    Assess whether process discovery is ready to proceed to modeling.
+    
+    The judgment is downgraded to ``partially_ready`` when ``ready_for_modeling``
+    is accompanied by blockers or a missing rationale. The resulting judgment is
+    persisted as the process's current discovery-readiness state; later judgments
+    replace the existing one. No exceptions are explicitly raised.
+    
+    Args:
+        process_id: Untrusted process identifier.
+        readiness: Untrusted proposed readiness status.
+        rationale: Untrusted explanation supporting the judgment.
+        confidence: Untrusted confidence value for the judgment.
+        blockers: Untrusted conditions preventing or limiting readiness.
+        material_unknowns: Untrusted material gaps in current knowledge.
+        unsupported_regions: Untrusted process areas lacking evidence.
+        contradictions_open: Untrusted unresolved contradictions.
+        tool_call_id: Injected identifier for the tool call.
+    
+    Returns:
+        A command describing the persisted readiness judgment, including any
+        invariant violations and blocker warnings.
     """
     blockers = blockers or []
     material_unknowns = material_unknowns or []
@@ -285,8 +301,22 @@ def record_process_gap(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Prepare one process gap for state/UI handoff. This does not persist a gap
-    table yet; save it as evidence or decision only when explicitly requested.
+    Prepare a structured process gap and write it to enterprise state for state/UI handoff.
+    
+    Args:
+        process_id (str): Untrusted identifier of the affected process.
+        title (str): Untrusted short title for the gap.
+        missing_information (str): Untrusted description of the missing process information.
+        affects (str): Untrusted description of the process area affected.
+        severity (str): Untrusted severity classification. Defaults to "non_blocking".
+        recommended_source (str): Untrusted suggested source for resolving the gap. Defaults to "".
+    
+    Returns:
+        Command: A state-update command containing the prepared process-gap payload and
+        tool-result metadata.
+    
+    This function does not persist a dedicated gap table. Explicit later handling is
+    required to save the gap as evidence or a decision.
     """
     gap = {
         "process_id": process_id,

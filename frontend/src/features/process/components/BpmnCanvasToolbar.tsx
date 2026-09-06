@@ -50,6 +50,11 @@ type BpmnCanvasToolbarProps = {
   onToggleHistory: () => void;
 };
 
+/**
+ * Renders the BPMN process canvas toolbar with status, zoom, file, history, and save controls.
+ *
+ * @param menuButtonRef - Optional ref assigned to the overflow-menu trigger button
+ */
 export function BpmnCanvasToolbar({
   saveTone,
   saveLabel,

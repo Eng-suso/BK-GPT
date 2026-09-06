@@ -55,7 +55,14 @@ If clarification is required, route must be clarification and no delegation shou
 
 
 def consulting_router_prompt(chat_mode: str | None = None) -> str:
-    """The router prompt for one turn: the menu shrinks to the user's chat mode."""
+    """Build the consulting router prompt for the requested chat mode.
+    
+    Args:
+        chat_mode: Untrusted chat-mode value used to filter the available capabilities.
+    
+    Returns:
+        The router prompt containing the capability menu for the specified chat mode.
+    """
     return CONSULTING_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("consultant", chat_mode))
 
 
@@ -69,6 +76,27 @@ def consulting_routing_state(
     parse_source: str = "structured",
     parse_error: str | None = None,
 ) -> dict:
+    """
+    Build the consulting routing state from an authorized routing decision.
+    
+    The resulting state always includes an authorized route, routing metadata, delegation
+    details, authorization status, blocking conditions, and termination information.
+    It also records a routing trace and adds a delegation event when a target is
+    authorized. This function does not persist data or perform external side effects.
+    
+    Args:
+        decision (ConsultingRoutingDecision): Routing decision to authorize and
+            normalize.
+        user_request (str): Untrusted user request associated with the decision.
+        state (dict | None): Existing graph state used during authorization.
+        parse_source (str): Source used to obtain the routing decision.
+        parse_error (str | None): Parsing error information associated with the
+            decision, if applicable.
+    
+    Returns:
+        dict: Normalized consulting routing state containing route, target,
+            delegation, clarification, authorization, and trace information.
+    """
     authorization = authorize_routing_decision(
         owner="consultant",
         decision=decision,
@@ -159,6 +187,24 @@ def parse_router_json(content: str, user_request: str = "", state: dict | None =
 
 
 def build_consulting_router(llm):
+    """
+    Build a consulting-intent routing node backed by a language model.
+    
+    The returned node routes the latest user request into normalized consulting
+    routing state. Requests without user text use the direct route with empty
+    delegation and clarification data. Unexpected routing failures are converted
+    to an invalid routing decision rather than propagated.
+    
+    The node invokes the language model and performs no persistence.
+    
+    Args:
+        llm: Language model used to resolve the routing decision.
+    
+    Returns:
+        A routing callable that accepts consulting state and runtime configuration
+        and returns normalized routing state.
+    
+    """
     def route_consulting_intent(state: ConsultingState, config: RunnableConfig) -> dict:
         user_text = latest_user_text(state)
         if not user_text:

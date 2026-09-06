@@ -36,6 +36,12 @@ type Selection = { projectId?: string; bpmnModelId?: string };
 
 type Row = { id: string; label: string; meta?: string };
 
+/**
+ * Derives the initial attachment selection from the current chat scope.
+ *
+ * @param scope - The chat scope used to initialize project and process selections
+ * @returns The corresponding project and BPMN model identifiers
+ */
 function scopeSelection(scope: ChatScope): Selection {
   if (scope.type === "canvas") {
     return { projectId: scope.projectId, bpmnModelId: scope.bpmnModelId };
@@ -46,6 +52,13 @@ function scopeSelection(scope: ChatScope): Selection {
   return {};
 }
 
+/**
+ * Determines whether a row matches a search query using its label and metadata.
+ *
+ * @param row - The row to search
+ * @param query - The search text
+ * @returns `true` if the query is empty or appears in the row's label or metadata, `false` otherwise.
+ */
 function matches(row: Row, query: string): boolean {
   if (!query.trim()) return true;
   const needle = query.trim().toLowerCase();

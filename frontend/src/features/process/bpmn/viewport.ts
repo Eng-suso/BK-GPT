@@ -13,6 +13,12 @@ export function canvas(modeler: BpmnModeler): BpmnCanvasService {
   return modeler.get("canvas") as BpmnCanvasService;
 }
 
+/**
+ * Fits the complete diagram within the modeler's viewport with balanced padding.
+ *
+ * Skips fitting while the viewport has zero dimensions and falls back to viewport
+ * fitting when diagram bounds or viewbox data are unavailable.
+ */
 export function fitCanvas(modeler: BpmnModeler): void {
   const canvasService = canvas(modeler);
   canvasService.resized?.();

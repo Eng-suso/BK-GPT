@@ -123,6 +123,22 @@ def _review_or_state_semantic_context(
 
 
 def _semantic_model_to_xml_from_context(bpmn_model_id: str, state: dict) -> tuple[str, dict]:
+    """Generate BPMN XML and metadata from the semantic model in the current context.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier used to resolve review
+            and semantic-model context.
+        state (dict): Runtime state containing review and semantic-model context.
+    
+    Returns:
+        tuple[str, dict]: Generated BPMN XML and metadata describing the semantic
+            model, review status, element counts, and model warnings.
+    
+    Raises:
+        ValueError: If the model context or canonical semantic model is unavailable.
+    
+    The function does not persist changes or modify runtime state.
+    """
     review, _process_understanding, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
     if not bpmn_semantic_model:
         raise ValueError("BPMNSemanticModel non disponibile per generare la preview canvas.")
@@ -144,11 +160,21 @@ def _canvas_facade_result(
     *,
     updated_xml: str | None = None,
 ) -> Command:
-    """One canvas facade step, with the XML it saved published into state.
-
-    Two edits in the same subagent turn both read the canvas through
-    `_state_or_saved_canvas_xml`, which prefers what state holds. Without this the
-    second edit re-derived from the pre-edit XML and silently overwrote the first.
+    """Publishes a canvas facade result and, when provided, the updated BPMN XML.
+    
+    Args:
+        tool_call_id: Identifier used to associate the state update with the tool call.
+        payload: Result payload to format as workspace content. Treat as untrusted input.
+        updated_xml: Optional updated BPMN XML to persist in state and publish as the
+            effective canvas XML. Treat as untrusted input.
+    
+    Returns:
+        A state-writing command containing the formatted canvas result.
+    
+    Side Effects:
+        When `updated_xml` is provided, persists it in state as the saved and effective
+        BPMN XML and records a completed canvas-edit task log. Otherwise, leaves state
+        unchanged.
     """
     state: dict = {}
     if updated_xml is not None:
@@ -194,13 +220,38 @@ def manage_canvas_bpmn_model(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Unified BPMN canvas CRUD facade.
-
-    Use this as the primary canvas operation tool instead of selecting many
-    low-level BPMN edit tools directly. Patch/Edit agents should use local
-    operations only: inspect, list_elements, update_element, add_element,
-    delete_element, connect_elements, reconnect_flow, layout and validate.
-    Structural replacement requires preview/approval and confirm_structural_change.
+    Manage, inspect, validate, modify, and version a BPMN canvas.
+    
+    The operation must be supported by the canvas facade. Editing, layout, clearing,
+    replacement, and version restoration persist changes to the BPMN model and
+    record the resulting operation in state. Structural replacement requires
+    explicit confirmation; preview operations do not persist XML.
+    
+    Args:
+        bpmn_model_id: Untrusted BPMN model identifier.
+        operation: Untrusted canvas operation to perform.
+        state: Injected runtime state used to resolve current XML and store results.
+        element_id: Untrusted BPMN element identifier used by element operations.
+        element_type: Untrusted BPMN element type for additions.
+        name: Untrusted element or flow name.
+        documentation: Untrusted BPMN element documentation.
+        source_id: Untrusted source element identifier for sequence-flow operations.
+        target_id: Untrusted target element identifier for sequence-flow operations.
+        flow_id: Untrusted sequence-flow identifier.
+        proposed_xml: Untrusted BPMN XML used for preview or replacement.
+        version_id: Untrusted saved-version identifier to restore.
+        change_summary: Untrusted description recorded with a structural change.
+        confirm_structural_change: Confirms an approved structural XML replacement.
+        tool_call_id: Injected identifier used to associate the result with the
+            originating tool call.
+    
+    Returns:
+        A state-writing command containing the formatted operation result.
+    
+    Raises:
+        ValueError: If the operation is unsupported, required input is missing,
+            the BPMN model or XML cannot be found, the requested BPMN operation
+            fails, or structural replacement lacks confirmation.
     """
     if operation == "inspect":
         model = workspace_database.get_bpmn_model(bpmn_model_id)
@@ -527,11 +578,21 @@ def _construction_result(
     state: dict | None = None,
     status: str = "completed",
 ) -> Command:
-    """One construction step: its reader-facing result plus what it left in state.
-
-    Every construction operation produces something the next node needs - a plan, a
-    diff, a validation, an applied XML - and none of it used to survive the tool
-    call. The task log entry makes the step itself visible in the loop's trace.
+    """Record a construction operation's result and task status for the next workflow step.
+    
+    Args:
+        tool_call_id: Identifier used to associate the state update with the tool call.
+        payload: Untrusted construction result containing an ``operation`` key and
+            optional ``objective`` summary.
+        state: Existing state values to preserve in the resulting state update.
+        status: Task status recorded for the construction operation.
+    
+    Returns:
+        A command containing the reader-facing result and state update.
+    
+    The payload must include ``operation``. The command persists the supplied state
+    values and records a construction task-log entry; it does not modify the
+    database directly.
     """
     return tool_state_write(
         tool_call_id=tool_call_id,
@@ -565,11 +626,35 @@ def manage_canvas_construction(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Structural canvas construction facade.
-
-    Use for significant BPMN build/rebuild work. It starts from the loaded
-    ProcessUnderstanding/BPMNSemanticModel or pending review, produces previews,
-    compares with the current canvas and applies only after explicit approval.
+    Constructs, previews, validates, compares, or applies significant BPMN canvas changes.
+    
+    The operation requires semantic process context for construction workflows. Applying a
+    preview requires explicit confirmation and succeeds only when validation reports no
+    blocking issues. Construction results, previews, validation data, and task metadata
+    are persisted in state; approved applications also persist the cleaned BPMN XML to
+    the database.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        operation (CanvasConstructionOperation): Untrusted construction operation to
+            perform.
+        state (dict): Injected runtime state used for semantic context and persisted
+            workflow data.
+        objective (str): Untrusted objective describing the intended construction work.
+        process_id (str | None): Untrusted process identifier associated with the model.
+        constraints (list[str] | None): Untrusted construction constraints.
+        proposed_xml (str | None): Untrusted BPMN XML to validate, compare, or apply.
+        change_summary (str | None): Untrusted description recorded when applying XML.
+        confirm_apply (bool): Explicit approval required to apply a preview.
+        tool_call_id (str): Injected tool-call identifier used when updating state.
+    
+    Returns:
+        Command: A state update containing the construction result and task status.
+    
+    Raises:
+        ValueError: If the operation is unsupported, required semantic context or
+            preview XML is missing, application is not confirmed, validation reports
+            blocking issues, or the BPMN model cannot be found.
     """
     review, process_understanding, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
     constraints = constraints or []
@@ -751,9 +836,25 @@ def manage_canvas_validation(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Canvas validation facade for technical and semantic BPMN quality checks.
-    Use full_report before applying broad construction work or when the user asks
-    whether the current canvas correctly represents the process.
+    Run technical, semantic, readiness, or traceability validation for a BPMN canvas.
+    
+    Args:
+        bpmn_model_id: [Untrusted input] Identifier of the BPMN model to validate.
+        operation: [Untrusted input] Validation operation to perform.
+        state: Runtime state containing canvas and review context.
+        objective: [Untrusted input] Purpose of the validation request.
+        tool_call_id: Injected identifier for the tool call.
+    
+    Returns:
+        A command containing the validation result and state updates.
+    
+    Raises:
+        ValueError: If the model or canvas XML is unavailable, required semantic
+            context is missing, or the requested operation is unsupported.
+    
+    Side effects:
+        Persists the validation report, result, warnings, next actions, and task
+        status in runtime state.
     """
     xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
     review, process_understanding, bpmn_semantic_model = _review_or_state_semantic_context(bpmn_model_id, state)
@@ -1120,9 +1221,24 @@ def preview_canvas_bpmn_change(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Preview a large BPMN XML change before applying it.
-    Use before replace_canvas_bpmn_xml when the change is broad, risky or generated
-    from a semantic model. This tool does not save XML.
+    Preview a proposed BPMN XML change without saving it to the model.
+    
+    Args:
+        bpmn_model_id (str): Untrusted BPMN model identifier.
+        proposed_xml (str): Untrusted proposed BPMN XML to clean and compare.
+        state (dict): Injected runtime state containing the current canvas context.
+        tool_call_id (str): Injected identifier used when writing the preview result.
+    
+    Returns:
+        Command: A state-update command containing the preview diff and formatted result.
+    
+    Raises:
+        ValueError: If the BPMN model or current XML cannot be found, or if the
+            proposed XML cannot be processed.
+        Exception: If BPMN comparison or state-update processing fails.
+    
+    The preview diff is written to runtime state for subsequent approval or review.
+    The proposed XML is not persisted to the BPMN model.
     """
     current_xml, source = _state_or_saved_canvas_xml(bpmn_model_id, state)
     clean_proposed_xml = replace_bpmn_xml(proposed_xml)

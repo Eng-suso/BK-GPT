@@ -96,14 +96,18 @@ def mirror_episodic_to_canonical(
 
 
 def format_memory_results(response, limit: int = 5) -> str:
-    """Il contesto di recall, senza id.
-
-    Gli id Mem0 stavano inline nel testo ("[memory_id: ...] ...") dentro un
-    blocco che diceva al modello di non citarlo: finivano comunque nelle
-    risposte, come "identificativi incoerenti" in mezzo al profilo del
-    consulente. Chi deve gestire il ciclo di vita di una memoria usa
-    `list_consultant_memories`, che gli id li ritorna in chiaro; il recall
-    conversazionale non ne ha bisogno.
+    """Formats recalled memories as conversational context without exposing memory identifiers.
+    
+    Args:
+        response (Any): Untrusted recall response containing memory entries or a
+            response mapping with ``results`` or ``memories``.
+        limit (int): Maximum number of memory entries to include.
+    
+    Returns:
+        str: Formatted memory context, or a message indicating that no relevant
+            context was found.
+    
+    The function performs no persistence or other side effects.
     """
     if not response:
         return "MEMORIA INTERNA: nessun contesto rilevante recuperato."
@@ -143,19 +147,27 @@ def format_memory_results(response, limit: int = 5) -> str:
 def add_mem0_memory_with_id(
     content: str, *, client_id: str | None = None, infer: bool | None = None
 ) -> tuple[str, str | None]:
-    """Come add_mem0_memory, ma ritorna anche il memory_id di Mem0 (se noto) —
-    serve al mirror canonical per registrare la riga gia' applicata.
-
-    `client_id` (canonical uuid) finisce nei metadata: il gateway lo usa per
-    scoprare la memoria per cliente in ricerca (INV-13). Assente = memoria
-    consultant-level, visibile in ogni contesto.
-
-    `infer=False` (default per i fatti durevoli, vedi
-    `settings.memory_verbatim_facts`) salva la frase cosi' com'e'. Con
-    l'inferenza attiva Mem0 chiama un LLM che riscrive il testo, lo spezza in
-    piu' memorie e puo' emettere DELETE su memorie che ritiene in conflitto:
-    e' il motivo per cui un profilo confermato poteva tornare deformato, o
-    sparire del tutto."""
+    """
+    Save content to Mem0 and expose the resulting memory identifier when available.
+    
+    The content is persisted with the ``delir`` source metadata. When provided,
+    ``client_id`` is stored as a string metadata value; when omitted, the memory
+    remains consultant-level. The function preserves the configured verbatim-facts
+    policy unless ``infer`` is explicitly provided. Mem0-disabled and Mem0
+    persistence failures are returned as status messages rather than raised.
+    
+    Args:
+        content (str): Untrusted content to save in Mem0.
+        client_id (str | None): Untrusted optional canonical client identifier used
+            to scope the memory.
+        infer (bool | None): Whether Mem0 may infer, split, or rewrite memories.
+            If ``None``, uses the configured verbatim-facts policy.
+    
+    Returns:
+        tuple[str, str | None]: A status message and the first Mem0 memory
+        identifier when available. The identifier is ``None`` when Mem0 is
+        disabled, saving fails, or the response contains no identifier.
+    """
     memory = mem0_client.get_memory()
 
     if isinstance(memory, Mem0Disabled):
@@ -205,12 +217,22 @@ def save_consultant_memory(content: str, category: str) -> str:
 def search_consultant_memory(
     query: str, category: str | None = None, client_id: str | None = None
 ) -> str:
-    """Recall semantico. Passa dal gateway (INV-9), che inietta lo scope e
-    interroga Mem0 — nessuna query diretta da qui.
-
-    `client_id` (canonical uuid, opzionale): in un contesto cliente il
-    recall include le memorie consultant-level + quelle di quel cliente, mai
-    di altri clienti."""
+    """Retrieve consultant semantic memories within the applicable scope.
+    
+    The gateway includes consultant-level memories and, when ``client_id`` is
+    provided, memories for that client only. Configuration and retrieval failures
+    are returned as user-facing messages; this function does not persist data or
+    raise errors for those conditions.
+    
+    Args:
+        query (str): Untrusted search text.
+        category (str | None): Untrusted optional memory category filter.
+        client_id (str | None): Untrusted optional canonical client identifier.
+    
+    Returns:
+        str: Formatted memory context, or a message describing unavailable
+        configuration or a retrieval failure.
+    """
     from backend.memory import gateway
 
     result = gateway.memory_search(
@@ -231,11 +253,20 @@ def search_consultant_memory(
 def list_consultant_memories(
     query: str = "", limit: int = 20, client_id: str | None = None
 ) -> dict:
-    """Le memorie del consulente **con i loro id**, per la gestione del ciclo di
-    vita (ispezione, cancellazione). Lapidi escluse: quello che e' stato
-    dimenticato non e' piu' gestibile, e' andato.
-
-    Ritorna `{"status", "memories": [{"memory_id", "memory"}], "reason"}`.
+    """List durable consultant memories with their Mem0 identifiers.
+    
+    Args:
+        query (str): Untrusted search text. An empty value lists available memories.
+        limit (int): Untrusted maximum number of memories to return.
+        client_id (str | None): Untrusted client scope used to exclude forgotten
+            memories.
+    
+    Returns:
+        dict: A result containing `status`, `memories`, and `reason`. The status is
+        `ok` when memories are found, `empty` when none remain after filtering,
+        `not_configured` when Mem0 is disabled, or `error` when retrieval fails.
+        Each returned memory contains `memory_id` and `memory`. Forgotten memories
+        are never included.
     """
     from backend.memory import forget
 
@@ -285,11 +316,21 @@ def list_consultant_memories(
 def delete_consultant_memory(
     memory_id: str, delete_linked: bool = False, client_id: str | None = None
 ) -> str:
-    """Cancellazione definitiva di una memoria: Mem0 + lapide + riga canonical.
-
-    Non e' piu' una `mem0.delete` secca (vedi backend/memory/forget.py): quella
-    lasciava viva la riga canonical, i fratelli estratti dalla stessa frase, e
-    non verificava nulla."""
+    """Permanently forget a consultant memory across Mem0 and canonical storage.
+    
+    Args:
+        memory_id (str): Untrusted memory identifier to remove.
+        delete_linked (bool): Whether linked memories should also be removed.
+        client_id (str | None): Untrusted optional client scope for the deletion.
+    
+    Returns:
+        str: A status message indicating successful deletion, unavailable
+            configuration, invalid input, or incomplete deletion. Incomplete
+            deletions remain excluded from recall through a recorded tombstone.
+    
+    Side Effects:
+        Updates Mem0, canonical memory records, and deletion tombstones.
+    """
     from backend.memory import forget
 
     normalized_memory_id = memory_id.strip()
@@ -321,6 +362,18 @@ def delete_consultant_memory(
 
 
 def save_bpmn_preference(rule: str, area: str) -> str:
+    """Save a BPMN preference for the specified area.
+    
+    Args:
+        rule (str): Preference rule to persist; treated as untrusted input.
+        area (str): BPMN area associated with the preference; treated as untrusted input.
+    
+    Returns:
+        str: Status message from the memory persistence operation.
+    
+    Side Effects:
+        Persists the preference in consultant memory.
+    """
     return save_consultant_memory(content=rule, category=f"bpmn:{area}")
 
 

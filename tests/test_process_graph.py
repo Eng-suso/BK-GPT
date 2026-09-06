@@ -773,11 +773,14 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
 
 
 def tool_result_text(state_writing_tool, args: dict) -> str:
-    """The reader-facing result of a tool that also writes state.
-
-    These tools return a Command carrying both the state update and the ToolMessage,
-    so they must be invoked with a full tool call; this unwraps the message content
-    the agent would read.
+    """
+    Extract the reader-facing message content from a state-writing tool invocation.
+    
+    Parameters:
+    	args (dict): Arguments passed to the tool.
+    
+    Returns:
+    	str: The content of the tool's reader-facing message.
     """
     command = state_writing_tool.invoke(
         {"name": state_writing_tool.name, "args": args, "id": "call-1", "type": "tool_call"}
@@ -786,11 +789,17 @@ def tool_result_text(state_writing_tool, args: dict) -> str:
 
 
 def run_tool_call(tools, name: str, args: dict, state: dict | None = None) -> dict:
-    """Run one tool call the way the graph does, and return the resulting state.
-
-    Specialist tools write their judgments through Command(update=...), which only
-    happens inside a ToolNode. Calling `.invoke()` on the tool directly would test
-    a path production never takes.
+    """
+    Execute a tool call through a state graph and return the resulting process state.
+    
+    Parameters:
+    	tools: Tools available to the graph.
+    	name (str): Name of the tool to invoke.
+    	args (dict): Arguments passed to the tool.
+    	state (dict | None): Initial process state, if any.
+    
+    Returns:
+    	dict: Process state after the tool call completes.
     """
     call = AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": "call-1"}])
 
@@ -908,6 +917,14 @@ def test_state_writing_tools_do_not_expose_tool_call_id_to_the_model():
 
 
 def modeling_prerequisites(state: dict) -> list[str]:
+    """Return the missing prerequisites for process modeling.
+    
+    Parameters:
+    	state (dict): Process state used to evaluate modeling readiness.
+    
+    Returns:
+    	list[str]: Names of prerequisites that are not satisfied.
+    """
     return missing_prerequisites(CAPABILITY_REGISTRY["process.modeling"], state)
 
 
@@ -1118,6 +1135,12 @@ def test_refused_route_is_handed_back_to_the_router_not_replaced_by_a_fallback(m
     seen_messages = []
 
     def fake_invoke(llm, model, messages, config, invalid_factory):
+        """
+        Simulate a structured language-model invocation for tests.
+        
+        Returns:
+            tuple: The next proposal, the string "structured", and None.
+        """
         seen_messages.append(messages)
         return proposals[len(seen_messages) - 1], "structured", None
 
@@ -1184,6 +1207,15 @@ def test_canvas_handoff_runs_the_canvas_agent_instead_of_redirecting_the_user():
 
     class FakeCanvasGraph:
         def invoke(self, state, config=None):
+            """
+            Simulate a completed Canvas construction handoff.
+            
+            Parameters:
+                state: Process state supplied to the Canvas graph.
+            
+            Returns:
+                dict: Canvas completion messages, BPMN XML, routing status, and trace.
+            """
             captured["state"] = state
             return {
                 "messages": [AIMessage(content="Canvas aggiornato.")],

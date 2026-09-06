@@ -69,6 +69,21 @@ MODE_REFUSALS: dict[str, str] = {
 
 @contextmanager
 def bind_active_mode(mode: ChatMode | None) -> Iterator[None]:
+    """
+    Temporarily binds a chat mode to the current execution context.
+    
+    Args:
+        mode (ChatMode | None): Untrusted mode value to bind; `None` uses the
+            default chat mode.
+    
+    Yields:
+        None: Control while the mode is active.
+    
+    The previous mode is restored when the context exits. This function changes
+    context-local state only and performs no persistence. If restoration cannot
+    occur because execution resumed in a different context, the failure is
+    logged and not raised.
+    """
     token = _active_mode.set(mode or DEFAULT_CHAT_MODE)
     try:
         yield
@@ -82,14 +97,25 @@ def bind_active_mode(mode: ChatMode | None) -> Iterator[None]:
 
 
 def active_mode() -> ChatMode | None:
+    """Get the chat mode active in the current execution context.
+    
+    Returns:
+        ChatMode | None: The active chat mode, or `None` when no mode is bound.
+    """
     return _active_mode.get()
 
 
 def assert_write_allowed(operation: str) -> None:
-    """Solleva se `operation` e' vietata dalla modalita' del run corrente.
-
-    No-op fuori da un agent run: worker, cutover, test e le azioni diverse che
-    l'utente compie dalla UI non passano per una modalita' di chat.
+    """
+    Ensure the requested write operation is permitted in the active chat mode.
+    
+    Args:
+        operation (str): Untrusted operation identifier to check against the active mode's restrictions.
+    
+    Raises:
+        WriteNotAllowedInMode: If the operation is forbidden in the active chat mode.
+    
+    This function has no effect outside an active agent run and does not persist changes.
     """
     mode = _active_mode.get()
     if mode is None:

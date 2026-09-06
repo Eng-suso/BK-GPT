@@ -119,6 +119,15 @@ class CanvasRoutingDecision(RoutingDecisionBase):
 
     @model_validator(mode="after")
     def normalize_route_clarification(self):
+        """Synchronize clarification state when the route is ``"clarification"``.
+        
+        When applicable, enables clarification mode and sets the workflow scope to
+        ``"clarification"``. Mutates and returns the current routing decision without
+        performing persistence.
+        
+        Returns:
+            The current routing decision.
+        """
         if self.route == "clarification":
             self.needs_clarification = True
             self.canvas_mode = "clarification"
@@ -399,7 +408,17 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
 
 
 def capabilities_for(owner: Owner, mode: str | None = None) -> list[CapabilitySpec]:
-    """The capabilities one owner may use, narrowed to the user's chat mode."""
+    """Lists capabilities available to an owner, optionally filtered by chat mode.
+    
+    Args:
+        owner: The capability owner.
+        mode: Untrusted chat-mode value used to filter capabilities. When omitted,
+            capabilities for all chat modes are included.
+    
+    Returns:
+        The matching capability specifications, or an empty list when none are
+        available.
+    """
     return [
         spec
         for spec in CAPABILITY_REGISTRY.values()
@@ -408,13 +427,18 @@ def capabilities_for(owner: Owner, mode: str | None = None) -> list[CapabilitySp
 
 
 def capability_menu(owner: Owner, mode: str | None = None) -> str:
-    """The routes one owner may propose, rendered from the registry itself.
-
-    The router prompts used to restate this list in prose, which drifted from the
-    registry that actually authorizes the decision - the agent was choosing from a
-    menu the runtime did not agree with. One source now feeds both, and the menu
-    shrinks to what the user's chat mode allows rather than listing routes the gate
-    would refuse.
+    """Render the registry-authorized capabilities available to an owner and chat mode.
+    
+    Args:
+        owner (Owner): Untrusted owner value used to select capabilities.
+        mode (str | None): Untrusted chat-mode value used to filter capabilities. If
+            omitted, capabilities are not filtered by mode.
+    
+    Returns:
+        str: A newline-separated capability menu, including routes, identifiers,
+            prerequisites, and descriptions where available.
+    
+    The function has no side effects or persistence behavior.
     """
     lines = []
     for spec in capabilities_for(owner, mode):
@@ -767,6 +791,18 @@ def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
 
 
 def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[str]:
+    """
+    Identify prerequisites declared by a capability that are not satisfied by the current routing state.
+    
+    Args:
+        spec (CapabilitySpec): Capability whose prerequisite requirements are evaluated.
+        state (dict[str, Any]): Untrusted routing and workflow state used to assess prerequisite satisfaction.
+    
+    Returns:
+        list[str]: Names of unmet prerequisites, preserving the order declared by the capability.
+    
+    This function is read-only and performs no persistence or other side effects.
+    """
     missing = []
     for prerequisite in spec.prerequisites:
         if prerequisite == "process_id" and not (state.get("process_id") or (state.get("entity_hints") or {}).get("process")):
@@ -814,6 +850,25 @@ def authorize_routing_decision(
     parse_source: str,
     parse_error: str | None,
 ) -> dict[str, Any]:
+    """
+    Authorize a proposed routing decision against the capability registry and current workflow state.
+    
+    Args:
+        owner: Expected owner of the proposed route.
+        decision: Untrusted routing decision to validate and authorize.
+        state: Untrusted workflow state used to evaluate chat-mode availability and prerequisites.
+        parse_source: Source of the parsed routing decision.
+        parse_error: Parsing or validation error associated with the decision, if any.
+    
+    Returns:
+        A dictionary containing the authorized or clarification route, capability, status,
+        blocking conditions, missing prerequisites, refused route, termination reason, and
+        parsing metadata.
+    
+    The function performs no persistence or other external side effects. It converts
+    invalid, unavailable, mismatched, or prerequisite-blocked decisions into clarification
+    results rather than raising exceptions.
+    """
     state = state or {}
     proposed_route = str(getattr(decision, "route"))
     capability_id = decision.suggested_capability or DEFAULT_CAPABILITY_BY_OWNER_ROUTE.get((owner, proposed_route))
@@ -928,13 +983,26 @@ def resolve_routing_decision(
     invalid_factory,
     state: dict[str, Any] | None = None,
 ) -> tuple[RoutingDecisionBase, str, str | None]:
-    """Route, and let the agent re-decide once if the runtime refused its choice.
-
-    Two refusals are handled here, and both are facts the runtime can check rather
-    than opinions: a prerequisite that state does not satisfy, and a capability the
-    user's chat mode does not include. What to do instead is a judgment call, so the
-    refusal is fed back to the router as context rather than resolved by a
-    hard-coded fallback table.
+    """Resolve and authorize a routing decision, retrying once when runtime checks reject it.
+    
+    The retry is limited to missing prerequisites or chat-mode-incompatible capabilities.
+    Other authorization outcomes, including clarification decisions, are returned without
+    additional replanning. The function invokes the language model and does not persist
+    state.
+    
+    Args:
+        owner: Routing owner whose capabilities are authorized.
+        llm: Language model used to produce routing decisions.
+        model: Routing decision model to parse and validate.
+        messages: Untrusted input messages supplied to the router.
+        config: Invocation configuration for the language model.
+        invalid_factory: Factory for invalid decisions produced during parsing.
+        state: Untrusted runtime state used to determine chat mode and prerequisites.
+    
+    Returns:
+        A tuple containing the final routing decision, its parse source, and any parse
+        error. The decision may be a clarification decision when routing fails or remains
+        unauthorized.
     """
     chat_mode = (state or {}).get("chat_mode")
     decision, parse_source, parse_error = invoke_structured_router(

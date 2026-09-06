@@ -2,6 +2,22 @@ from backend import workspace_database
 
 
 def load_project_context(state: dict) -> dict:
+    """
+    Build a normalized context dictionary for the project identified in the input state.
+    
+    Args:
+        state (dict): Untrusted state containing an optional ``project_id``.
+    
+    Returns:
+        dict: An empty dictionary when no project ID is provided; otherwise, a
+            context containing all expected project fields. Missing project data
+            is represented by ``None`` and missing collection data by empty lists.
+    
+    Notes:
+        This function performs read-only database lookups and does not persist
+        changes. The returned context preserves a consistent set of project and
+        collection keys when a project ID is supplied.
+    """
     project_id = state.get("project_id")
     if not project_id:
         return {}

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-/** Available panel width, including changes to adjacent navigation. */
+/**
+ * Tracks the content width of an HTML element.
+ *
+ * @returns An object containing the element ref and its current content width in pixels.
+ */
 export function useElementWidth<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
   const [width, setWidth] = useState(0);

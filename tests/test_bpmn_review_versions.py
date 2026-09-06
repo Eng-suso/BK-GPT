@@ -32,6 +32,16 @@ from backend.security import reset_current_tenant_id, set_current_tenant_id  # n
 
 
 def _understanding(title: str = "Order to Cash", extra_step: bool = False) -> dict:
+    """
+    Build a serialized order-to-cash process understanding plan.
+    
+    Parameters:
+    	title (str): Process title.
+    	extra_step (bool): Whether to include the shipping step.
+    
+    Returns:
+    	dict: JSON-compatible process understanding data.
+    """
     steps = [
         ProcessStep(id="Task_Receive", label="Ricevi ordine", actor_ids=["Sales"]),
         ProcessStep(id="Task_Check", label="Verifica credito", actor_ids=["Finance"]),
@@ -58,20 +68,20 @@ def _understanding(title: str = "Order to Cash", extra_step: bool = False) -> di
 
 @pytest.fixture(autouse=True)
 def _deterministic_quality_report(monkeypatch):
-    """Niente valutatore LLM: qui si testa la versionatura, non la qualita'.
-
-    `build_bpmn_review_draft` chiama l'LLM per il quality report quando una
-    chiave OpenAI e' configurata. Su CI la chiave e' vuota e il codice prende il
-    ramo deterministico: senza questo, questi test girerebbero su due percorsi
-    diversi in locale e su GitHub - e in locale ci mettevano oltre due minuti
-    per sei casi che non hanno nulla a che vedere con la valutazione.
+    """
+    Disable LLM quality evaluation to keep review-versioning tests deterministic.
     """
     monkeypatch.setattr(settings, "openai_api_key", None)
 
 
 @pytest.fixture()
 def review_model():
-    """A real workspace process with its BPMN model, on an isolated tenant."""
+    """
+    Provide a BPMN model identifier for a process in an isolated tenant workspace.
+    
+    Yields:
+        str: The BPMN model identifier associated with the created process.
+    """
     token = set_current_tenant_id(f"t-review-{uuid.uuid4().hex[:8]}")
     try:
         client = wd.create_client(name=f"Acme Review {uuid.uuid4().hex[:6]}")

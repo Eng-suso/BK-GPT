@@ -28,6 +28,15 @@ next sources and readiness.
 
 
 def build_discovery_subgraph(llm_with_tools, build_context_messages):
+    """Build the process-discovery chat subgraph with its configured state, tools, and contract.
+    
+    Args:
+        llm_with_tools: Language model configured for tool use.
+        build_context_messages: Callable that builds context messages for the subgraph.
+    
+    Returns:
+        The configured process-discovery chat subgraph.
+    """
     return build_tool_chat_subgraph(
         state_schema=ProcessState,
         tools=discovery_tools,

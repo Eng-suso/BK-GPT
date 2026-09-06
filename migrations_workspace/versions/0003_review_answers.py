@@ -24,10 +24,22 @@ _TABLES = ("workspace_bpmn_reviews", "workspace_bpmn_review_versions")
 
 
 def _has_column(bind, table: str, column: str) -> bool:
+    """
+    Determine whether a table contains a specified column.
+    
+    Parameters:
+    	bind: Database connection or engine used for schema inspection.
+    	table (str): Name of the table to inspect.
+    	column (str): Name of the column to find.
+    
+    Returns:
+    	bool: `true` if the column exists in the table, `false` otherwise.
+    """
     return column in {col["name"] for col in sa.inspect(bind).get_columns(table)}
 
 
 def upgrade() -> None:
+    """Add the answers JSON column to each review table when absent."""
     bind = op.get_bind()
     for table in _TABLES:
         if not _has_column(bind, table, "answers_json"):
@@ -39,6 +51,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove the answers column from review tables when present."""
     bind = op.get_bind()
     for table in _TABLES:
         if _has_column(bind, table, "answers_json"):

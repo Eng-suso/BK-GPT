@@ -60,8 +60,24 @@ def validate_process_understanding_readiness(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Validate whether the current ProcessUnderstanding is ready for BPMN semantic
-    modeling or canvas handoff. Use before deriving BPMN or delegating to Canvas.
+    Determine whether process understanding satisfies the readiness requirements for
+    BPMN semantic modeling or canvas handoff.
+    
+    The function requires an available review and structured understanding, enforces
+    the requested readiness-score threshold, and reports blocking unknowns as
+    warnings. It persists the threshold and readiness result through the enterprise
+    state write operation.
+    
+    Args:
+        process_id (str): Untrusted process identifier to evaluate.
+        objective (str): Untrusted objective recorded with the readiness result.
+        minimum_readiness_score (int): Untrusted minimum score required for
+            readiness.
+        tool_call_id (str): Injected tool-call identifier used for state writing.
+    
+    Returns:
+        Command: State-write command containing the readiness status, score,
+        threshold, missing information, and warnings.
     """
     payload = process_workspace_payload(process_id)
     review = payload["review"]
