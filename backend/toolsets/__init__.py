@@ -22,7 +22,7 @@ from backend.toolsets.bpmn import (
     validate_canvas_bpmn,
 )
 from backend.toolsets.memory import (
-    forget_consultant_memory,
+    manage_consultant_memory,
     manage_consulting_evidence,
     memory_tools,
     remember_bpmn_preference,
@@ -44,6 +44,7 @@ from backend.toolsets.workspace import (
     create_initial_workspace_setup,
     create_workspace_process,
     create_workspace_project,
+    update_workspace_project,
     get_workspace_overview,
     get_workspace_bpmn_model,
     get_workspace_bpmn_review,

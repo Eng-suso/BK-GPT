@@ -93,6 +93,10 @@ class ConversationState(MessagesState):
     # UI with the request, never from the model, and narrows which capabilities the
     # router may propose.
     chat_mode: str
+    # L'azione distruttiva in attesa di conferma su questo thread (o None).
+    # Precaricata dal runtime: il subgrafo la vede prima di leggere il "si'"
+    # dell'utente, invece di dover indovinare a cosa si riferisse.
+    pending_action: dict | None
     running_summary: str
     consultant_context_category: str
     consultant_context_confidence: float

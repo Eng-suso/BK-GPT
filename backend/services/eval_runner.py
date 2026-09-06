@@ -29,11 +29,13 @@ def run_observability_smoke_eval() -> EvalRunResponse:
         )
     )
 
+    # 9: la gestione del ciclo di vita della memoria e' entrata come un solo
+    # facade (`manage_consultant_memory`), non come tre tool separati.
     checks.append(
         EvalCheckResult(
             name="consult_macro_tool_budget",
-            status="pass" if len(consultant_tools) <= 8 else "fail",
-            summary="Consult Macro direct toolset stays within the 8-tool budget.",
+            status="pass" if len(consultant_tools) <= 9 else "fail",
+            summary="Consult Macro direct toolset stays within the 9-tool budget.",
             details={"tool_count": len(consultant_tools), "tools": [tool.name for tool in consultant_tools]},
         )
     )

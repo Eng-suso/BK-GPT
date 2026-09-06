@@ -60,6 +60,14 @@ class DeliRChatOpenAI(ChatOpenAI):
 class ConsultantState(MessagesState):
     scope_type: str
     scope_key: str
+    # Arrivano dal runtime con la richiesta, non dal modello. Dichiarati qui
+    # perche' lo schema dello state e' il contratto di cio' che un nodo puo'
+    # leggere: `pending_action` in particolare e' l'azione distruttiva che il
+    # thread ha lasciato in sospeso, ed e' il motivo per cui una conferma non
+    # va piu' ricostruita dal testo del turno.
+    chat_mode: str
+    attachments: list
+    pending_action: dict | None
     project_id: str | None
     process_id: str | None
     bpmn_model_id: str | None

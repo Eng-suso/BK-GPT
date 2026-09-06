@@ -14,6 +14,7 @@ from uuid import UUID
 from backend.agent import get_agent, normalize_model_name
 from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
+from backend.agents.run_context import bind_active_thread
 from backend.agents.scope_guard import bind_active_scope
 from backend.llm_config import chat_openai_kwargs
 from backend.llm_streaming import (
@@ -580,11 +581,21 @@ def stream_agent_events(
         )
 
         try:
-            with tracing_context, bind_active_scope(scope), bind_active_mode(chat_mode):
+            with (
+                tracing_context,
+                bind_active_scope(scope),
+                bind_active_mode(chat_mode),
+                bind_active_thread(checkpoint_thread_id),
+            ):
                 events = agent.stream(
                     {
                         "messages": messages,
-                        **agent_scope_state(scope, chat_mode, attachments),
+                        **agent_scope_state(
+                            scope,
+                            chat_mode,
+                            attachments,
+                            thread_id=checkpoint_thread_id,
+                        ),
                     },
                     config={
                         "configurable": {

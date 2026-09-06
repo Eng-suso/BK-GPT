@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     # tuo account non ha gpt-4o-mini.
     mem0_llm_model: str = "gpt-4o-mini"
     mem0_embedder_model: str = "text-embedding-3-small"
+    # Soglia di similarita' del recall (Mem0 `search(threshold=...)`). Il default
+    # della libreria e' 0.1: con quella, qualunque memoria vagamente vicina entra
+    # nel contesto e viene riferita al consulente come un suo fatto. Alzarla e' il
+    # confine fra "ricordo" e "somiglianza".
+    memory_recall_threshold: float = 0.35
+    # Un fatto durevole confermato dal consulente si salva verbatim (`infer=False`):
+    # con l'inferenza attiva Mem0 riscrive la frase, la spezza in piu' memorie e
+    # puo' cancellarne di vecchie che ritiene in conflitto. Per un profilo che il
+    # consulente si aspetta di rileggere identico e' esattamente cio' che non deve
+    # succedere. False solo per tornare al comportamento pre-fix.
+    memory_verbatim_facts: bool = True
 
     # --- stato operativo su Postgres (workspace / chat / checkpoint / episodic) --
     # DSN come ruolo delir_workspace (owner del database `workspace`).

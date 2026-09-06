@@ -49,14 +49,36 @@ def agent_scope_type(scope: ChatScope | None) -> AgentScopeType:
     return scope.type
 
 
+def _open_pending_action(thread_id: str | None) -> dict | None:
+    """L'azione distruttiva che questo thread ha lasciato in sospeso.
+
+    Entra nello state *prima* del turno, quindi quando l'utente scrive "si',
+    confermo" l'agente ha davanti l'azione esatta invece di doverla dedurre dal
+    testo. Best-effort: se lo store non e' raggiungibile il turno prosegue senza.
+    """
+    if not thread_id:
+        return None
+    try:
+        from backend.memory import pending_actions
+        from backend.settings import settings
+
+        return pending_actions.open_action(
+            consultant_id=settings.default_consultant_id, thread_id=thread_id
+        )
+    except Exception:  # noqa: BLE001 — mai bloccare un turno per l'anteprima
+        return None
+
+
 def agent_scope_state(
     scope: ChatScope | None,
     chat_mode: ChatMode | None = None,
     attachments: list[ChatAttachment] | None = None,
+    thread_id: str | None = None,
 ) -> dict:
     scope_type = agent_scope_type(scope)
     return {
         "scope_type": scope_type,
+        "pending_action": _open_pending_action(thread_id),
         "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
         # Risolti qui, una volta per turno: i nodi a valle leggono contenuto,
         # non id da andare a cercare.
@@ -81,6 +103,22 @@ def build_scope_system_prompt(state: dict) -> str:
         f"chat_mode: {chat_mode}",
         CHAT_MODE_CONTRACTS[chat_mode],
     ]
+
+    pending = state.get("pending_action")
+    if pending:
+        lines.extend(
+            [
+                "",
+                "AZIONE IN ATTESA DI CONFERMA su questa conversazione.",
+                f"tipo: {pending.get('action')}",
+                "oggetto:",
+                str(pending.get("preview") or ""),
+                "Se il consulente conferma o rifiuta, chiama subito "
+                "manage_consultant_memory(operation='confirm'|'cancel'). "
+                "L'oggetto e' gia' congelato: non richiederlo, non ricostruirlo dal "
+                "testo e non ripetere la domanda.",
+            ]
+        )
 
     if state.get("project_id"):
         lines.append(f"project_id: {state['project_id']}")

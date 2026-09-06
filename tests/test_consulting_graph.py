@@ -102,7 +102,9 @@ def test_consulting_subgraph_states_define_operational_fields():
 
 
 def test_consulting_toolsets_are_small_and_owned():
-    assert len(consultant_tools) <= 8
+    # 9 e non 8: il ciclo di vita della memoria (vedere / dimenticare / confermare)
+    # e' entrato come UN facade, `manage_consultant_memory`, non come tre tool.
+    assert len(consultant_tools) <= 9
     assert len(home_tools) <= 8
     assert len(clients_tools) <= 8
     assert len(setup_tools) <= 8
@@ -198,7 +200,7 @@ def test_graph_retrieval_tool_is_explicit_and_consulting_owned():
     tool_names = {tool.name for tool in consultant_tools}
 
     assert "retrieve_consulting_graph_context" in tool_names
-    assert len(consultant_tools) <= 8
+    assert len(consultant_tools) <= 9
 
     request = ConsultingGraphRetrievalRequest(
         query="Quali progetti sono collegati alle decisioni di delivery?",

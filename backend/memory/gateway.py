@@ -46,7 +46,7 @@ from typing import Any
 from sqlalchemy import text
 
 from backend.db import canonical_session
-from backend.memory import embeddings, mem0_client
+from backend.memory import embeddings, forget, mem0_client
 from backend.memory.knowledge_graph import neo4j_store
 from backend.memory.mem0_client import Mem0Disabled
 from backend.services import degradation_counters
@@ -438,6 +438,14 @@ def memory_search(
     Le memorie consultant-level (senza `client_id` nei metadata) restano
     visibili in ogni contesto; quelle client-scoped solo nel loro cliente.
     Ritorna `{"status": ok|empty|not_configured|error, "count", "matches"}`.
+
+    Tre filtri, in quest'ordine: cliente (scope), lapidi (cio' che il consulente
+    ha chiesto di dimenticare, per id **e** per testo — vedi memory.forget), e
+    soglia di similarita'. Mem0 2.x accetta `top_k`, non `limit`: passare
+    `limit` lo faceva finire in **kwargs e sparire, quindi il recall tornava
+    sempre il massimo di default con la soglia piu' permissiva possibile —
+    memorie vagamente simili entravano nel contesto come se fossero il profilo
+    del consulente.
     """
     memory = mem0_client.get_memory()
     if isinstance(memory, Mem0Disabled):
@@ -448,12 +456,14 @@ def memory_search(
         raw = memory.search(
             query=search_query,
             filters={"user_id": _mem0_user_id(consultant_id)},
-            limit=max(limit * 4, 20),
+            top_k=max(limit * 4, 20),
+            threshold=settings.memory_recall_threshold,
         )
     except Exception as exc:  # noqa: BLE001 — la lettura non deve far fallire il tool
         degradation_counters.bump("memory_search", "error", detail=str(exc))
         return {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
 
+    forgotten_ids, forgotten_hashes = forget.tombstones(consultant_id, client_id)
     cid = str(client_id) if client_id else None
     matches: list[dict[str, Any]] = []
     for item in _mem0_items(raw):
@@ -465,13 +475,19 @@ def memory_search(
             mem_client = (item.get("metadata") or {}).get("client_id")
             if mem_client and mem_client != cid:
                 continue  # memoria di un altro cliente: fuori scope
+            memory_id = item.get("id") or item.get("memory_id") or item.get("uuid")
+            statement = (
+                item.get("memory")
+                or item.get("text")
+                or item.get("content")
+                or str(item)
+            )
+            if forget.is_forgotten(memory_id, statement, forgotten_ids, forgotten_hashes):
+                continue  # dimenticata su richiesta: non torna, con nessun id
             matches.append(
                 {
-                    "memory_id": item.get("id") or item.get("memory_id") or item.get("uuid"),
-                    "memory": item.get("memory")
-                    or item.get("text")
-                    or item.get("content")
-                    or str(item),
+                    "memory_id": memory_id,
+                    "memory": statement,
                     "score": item.get("score"),
                     "client_scoped": bool(mem_client),
                 }
