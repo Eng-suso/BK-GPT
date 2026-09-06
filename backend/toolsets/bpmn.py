@@ -613,7 +613,13 @@ def manage_canvas_construction(
             "operation": operation,
             "bpmn_model_id": bpmn_model_id,
             "objective": objective,
-            "proposed_xml": xml,
+            # The XML itself stays in state, not in the transcript: apply reads it
+            # back from there. Echoing a whole BPMN document through the model to
+            # hand it back one call later is how apply_approved_preview kept
+            # failing with "proposed_xml obbligatorio" - and it burned thousands
+            # of tokens per preview to do it.
+            "preview_ready": True,
+            "preview_size_chars": len(xml),
             "validation": validation,
             "context": context,
             "clean_report": clean_report,
@@ -623,12 +629,15 @@ def manage_canvas_construction(
         return _construction_result(
             tool_call_id,
             payload,
-            state={"canvas_last_validation": validation},
+            state={
+                "canvas_preview_xml": xml,
+                "canvas_last_validation": validation,
+            },
             status="completed" if validation.get("valid") else "needs_fix",
         )
 
     if operation == "validate_preview":
-        xml = proposed_xml
+        xml = proposed_xml or state.get("canvas_preview_xml")
         context = {}
         if not xml:
             xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
@@ -658,7 +667,7 @@ def manage_canvas_construction(
         )
 
     if operation == "compare_with_current":
-        xml = proposed_xml
+        xml = proposed_xml or state.get("canvas_preview_xml")
         context = {}
         if not xml:
             xml, context = _semantic_model_to_xml_from_context(bpmn_model_id, state)
@@ -678,11 +687,18 @@ def manage_canvas_construction(
         return _construction_result(tool_call_id, payload, state={"preview_diff": payload})
 
     if operation == "apply_approved_preview":
-        if not proposed_xml:
-            raise ValueError("proposed_xml obbligatorio per apply_approved_preview.")
+        # The agent decides *whether* to apply; carrying the document is the
+        # runtime's job. It only has to pass proposed_xml when applying something
+        # other than the preview it just generated.
+        approved_xml = proposed_xml or state.get("canvas_preview_xml")
+        if not approved_xml:
+            raise ValueError(
+                "Nessuna anteprima da applicare: esegui prima generate_preview, "
+                "oppure passa proposed_xml esplicitamente."
+            )
         if not confirm_apply:
             raise ValueError("apply_approved_preview richiede confirm_apply=True dopo preview e approvazione.")
-        proposed_xml, clean_report = clean_bpmn_visual_metadata_artifacts(proposed_xml)
+        proposed_xml, clean_report = clean_bpmn_visual_metadata_artifacts(approved_xml)
         validation = validate_canvas_against_process(
             xml=proposed_xml,
             process_understanding=process_understanding,
@@ -717,6 +733,8 @@ def manage_canvas_construction(
                 "effective_bpmn_xml": clean_xml,
                 "effective_bpmn_xml_source": "canvas_construction_apply",
                 "canvas_last_validation": validation,
+                # Spent: a later apply must not silently re-apply a stale preview.
+                "canvas_preview_xml": None,
             },
         )
 

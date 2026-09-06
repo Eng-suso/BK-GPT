@@ -1011,3 +1011,144 @@ def test_two_edits_in_one_turn_do_not_overwrite_each_other(monkeypatch):
     assert "Task_A" not in element_ids, "the first edit was overwritten by the second"
     assert "Task_B" not in element_ids
     assert result["effective_bpmn_xml"] == saved["xml"]
+
+
+def test_apply_uses_the_preview_the_runtime_already_holds(monkeypatch):
+    """generate_preview -> apply_approved_preview without echoing the XML back.
+
+    Apply used to demand `proposed_xml`, which meant the model had to carry a whole
+    BPMN document out of one tool result and back into the next call. It kept
+    failing with "proposed_xml obbligatorio per apply_approved_preview" - in edit
+    and in agent mode alike - and cost thousands of tokens per preview when it
+    did work. The runtime holds the preview it generated; the agent only decides
+    whether to apply it.
+    """
+    process = ProcessUnderstanding(
+        title="Order to Cash",
+        actors=[ProcessActor(id="Sales", label="Sales", kind="team")],
+        steps=[ProcessStep(id="Task_Receive", label="Ricevi ordine", actor_ids=["Sales"])],
+        sequence=["Task_Receive"],
+    )
+    semantic_model = build_bpmn_semantic_model(
+        process_id="Process_Test", process_name="Order to Cash", process=process
+    ).model_dump(mode="json")
+    saved: dict = {"xml": semantic_model_to_bpmn_xml(
+        build_bpmn_semantic_model(
+            process_id="Process_Test", process_name="Order to Cash", process=process
+        )
+    )}
+
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": saved["xml"]},
+    )
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "update_bpmn_model",
+        lambda bpmn_model_id, xml, **kwargs: saved.update(xml=xml)
+        or {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_review",
+        lambda bpmn_model_id, include_approved=False: None,
+    )
+
+    def call(args: dict) -> AIMessage:
+        return AIMessage(
+            content="",
+            tool_calls=[{"name": "manage_canvas_construction", "args": args, "id": "call-1"}],
+        )
+
+    base_state = {
+        "bpmn_model_id": "bpmn-1",
+        "process_id": "proc-1",
+        "bpmn_semantic_model": semantic_model,
+    }
+
+    workflow = StateGraph(CanvasState)
+    workflow.add_node(
+        "preview",
+        lambda _s: {
+            "messages": [
+                call(
+                    {
+                        "bpmn_model_id": "bpmn-1",
+                        "operation": "generate_preview",
+                        "objective": "Genera la bozza",
+                    }
+                )
+            ]
+        },
+    )
+    workflow.add_node("preview_tools", ToolNode(construction_tools))
+    workflow.add_node(
+        "apply",
+        lambda _s: {
+            "messages": [
+                call(
+                    {
+                        "bpmn_model_id": "bpmn-1",
+                        "operation": "apply_approved_preview",
+                        "objective": "Applica la bozza approvata",
+                        "confirm_apply": True,
+                    }
+                )
+            ]
+        },
+    )
+    workflow.add_node("apply_tools", ToolNode(construction_tools))
+    workflow.add_edge(START, "preview")
+    workflow.add_edge("preview", "preview_tools")
+    workflow.add_edge("preview_tools", "apply")
+    workflow.add_edge("apply", "apply_tools")
+    workflow.add_edge("apply_tools", END)
+
+    result = workflow.compile().invoke({"messages": [], **base_state})
+
+    applied = result["messages"][-1].content
+    assert "xml_saved" in applied, applied
+    assert "obbligatorio" not in applied
+    assert result["saved_bpmn_xml"], "l'XML applicato deve finire in stato"
+    # L'anteprima e' consumata: un apply successivo non la riapplica di nascosto.
+    assert result["canvas_preview_xml"] is None
+
+
+def test_the_preview_xml_does_not_travel_through_the_transcript(monkeypatch):
+    process = ProcessUnderstanding(
+        title="Order to Cash",
+        actors=[ProcessActor(id="Sales", label="Sales", kind="team")],
+        steps=[ProcessStep(id="Task_Receive", label="Ricevi ordine", actor_ids=["Sales"])],
+        sequence=["Task_Receive"],
+    )
+    semantic_model = build_bpmn_semantic_model(
+        process_id="Process_Test", process_name="Order to Cash", process=process
+    ).model_dump(mode="json")
+
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": None},
+    )
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_review",
+        lambda bpmn_model_id, include_approved=False: None,
+    )
+
+    result = run_canvas_tool_call(
+        construction_tools,
+        "manage_canvas_construction",
+        {
+            "bpmn_model_id": "bpmn-1",
+            "operation": "generate_preview",
+            "objective": "Genera la bozza",
+        },
+        {"bpmn_model_id": "bpmn-1", "process_id": "proc-1", "bpmn_semantic_model": semantic_model},
+    )
+
+    tool_message = result["messages"][-1].content
+    assert "<bpmn:definitions" not in tool_message, "l'XML non deve passare per il transcript"
+    assert '"preview_ready": true' in tool_message
+    assert "<bpmn:definitions" in result["canvas_preview_xml"]

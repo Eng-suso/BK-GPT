@@ -55,6 +55,9 @@ class CanvasState(ConversationState):
 
     validation_report: dict | None
     construction_plan: dict | None
+    # XML dell'anteprima appena generata: l'apply la rilegge da qui invece di
+    # farsela rispedire dal modello.
+    canvas_preview_xml: str | None
     preview_diff: dict | None
     canvas_layout_plan: dict | None
     canvas_layout_report: dict | None
