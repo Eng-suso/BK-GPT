@@ -130,6 +130,16 @@ def build_scope_system_prompt(state: dict) -> str:
         lines.append(f"project_name: {state['project_name']}")
     if state.get("client_name"):
         lines.append(f"client_name: {state['client_name']}")
+    # L'obiettivo dell'incarico prima dei campi di stato: e' il perche' del
+    # progetto, e senza di lui la chat conosce il contenitore ma non il mandato.
+    if state.get("engagement_objective"):
+        lines.append(f"project_objective: {state['engagement_objective']}")
+    elif state.get("project_id"):
+        lines.append(
+            "project_objective: non registrato. Se il consulente enuncia "
+            "l'obiettivo dell'incarico, salvalo con update_workspace_project "
+            "invece di lasciarlo nella sola conversazione."
+        )
     if state.get("project_phase"):
         lines.append(f"project_phase: {state['project_phase']}")
     if state.get("project_status"):

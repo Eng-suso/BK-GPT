@@ -7,6 +7,15 @@ from pydantic import BaseModel, Field
 
 from backend import workspace_database
 from backend.toolsets.common import format_workspace_result
+from backend.workspace_defaults import (
+    CLIENT_STATUS_DESCRIPTION,
+    PROJECT_OBJECTIVE_DESCRIPTION,
+    PROJECT_PHASE_DESCRIPTION,
+    PROJECT_STATUS_DESCRIPTION,
+    ClientStatus,
+    ProjectPhase,
+    ProjectStatus,
+)
 
 
 def tool_state_write(*, tool_call_id: str, state: dict[str, Any], content: str) -> Command:
@@ -86,22 +95,67 @@ class HomeItemInput(BaseModel):
 class ClientRecordInput(BaseModel):
     operation: str = Field(description="Use create, inspect, or summarize. Do not use for hypothetical examples.")
     name: str = Field(description="Client name.")
-    sector: str = Field(default="Non specificato", description="Client sector when known.")
-    status: str = Field(default="Prospect", description="Client status.")
-    owner: str = Field(default="Da assegnare", description="Client owner.")
-    contact: str = Field(default="", description="Non-sensitive contact note when provided.")
+    sector: str | None = Field(default=None, description="Client sector when the user stated it.")
+    status: ClientStatus | None = Field(default=None, description=CLIENT_STATUS_DESCRIPTION)
+    owner: str | None = Field(default=None, description="Client owner when the user stated it.")
+    contact: str | None = Field(default=None, description="Non-sensitive contact note when provided.")
+
+
+class ProjectRecordInput(BaseModel):
+    """I campi di un progetto, con la stessa definizione che legge il consulente.
+
+    Fase e stato non sono testo libero inventato al volo: il vocabolario e le sue
+    definizioni stanno in `workspace_defaults`, e sono gli stessi che la UI mostra
+    nel form di modifica.
+    """
+
+    client_id: str = Field(description="Id of the client this project belongs to.")
+    name: str = Field(description="Project name.")
+    objective: str | None = Field(default=None, description=PROJECT_OBJECTIVE_DESCRIPTION)
+    phase: ProjectPhase | None = Field(default=None, description=PROJECT_PHASE_DESCRIPTION)
+    status: ProjectStatus | None = Field(default=None, description=PROJECT_STATUS_DESCRIPTION)
+    progress: int = Field(default=0, description="Completion percentage, 0-100.")
+    next_step: str | None = Field(default=None, description="The next concrete step, when the user stated it.")
+    milestones: list[str] = Field(default_factory=list, description="Planned milestones, when stated.")
+    open_issues: list[str] = Field(default_factory=list, description="Open issues or blockers, when stated.")
+    deliverables: list[str] = Field(default_factory=list, description="Expected deliverables, when stated.")
+
+
+class ProjectUpdateInput(BaseModel):
+    """Una modifica parziale: si dichiarano solo i campi che cambiano."""
+
+    project_id: str = Field(description="Id of the project to update.")
+    name: str | None = Field(default=None, description="New project name, only when it changes.")
+    objective: str | None = Field(default=None, description=PROJECT_OBJECTIVE_DESCRIPTION)
+    phase: ProjectPhase | None = Field(default=None, description=PROJECT_PHASE_DESCRIPTION)
+    status: ProjectStatus | None = Field(default=None, description=PROJECT_STATUS_DESCRIPTION)
+    progress: int | None = Field(default=None, description="Completion percentage, 0-100.")
+    next_step: str | None = Field(default=None, description="The next concrete step.")
+    milestones: list[str] | None = Field(
+        default=None,
+        description="Full replacement list of milestones. Send every entry you want kept, not only the new ones.",
+    )
+    open_issues: list[str] | None = Field(
+        default=None,
+        description="Full replacement list of open issues. Send every entry you want kept.",
+    )
+    deliverables: list[str] | None = Field(
+        default=None,
+        description="Full replacement list of deliverables. Send every entry you want kept.",
+    )
 
 
 class InitialWorkspaceSetupInput(BaseModel):
     client_name: str = Field(description="Client name for setup.")
     project_name: str | None = Field(default=None, description="Initial project name, if requested.")
+    project_objective: str | None = Field(default=None, description=PROJECT_OBJECTIVE_DESCRIPTION)
     process_name: str | None = Field(default=None, description="Initial process stub name, if requested.")
     source_name: str | None = Field(default=None, description="Initial source/evidence name, if requested.")
     decision_title: str | None = Field(default=None, description="Initial open decision title, if requested.")
     reason: str = Field(description="Why this setup should be created now.")
-    client_sector: str = Field(default="Non specificato", description="Client sector when known.")
-    client_status: str = Field(default="Prospect", description="Client status.")
-    client_owner: str = Field(default="Da assegnare", description="Client owner.")
+    client_sector: str | None = Field(default=None, description="Client sector when the user stated it.")
+    client_status: ClientStatus | None = Field(default=None, description=CLIENT_STATUS_DESCRIPTION)
+    client_owner: str | None = Field(default=None, description="Client owner when the user stated it.")
 
 
 @tool
@@ -351,15 +405,18 @@ def get_workspace_bpmn_review(bpmn_model_id: str) -> str:
 @tool
 def create_workspace_client(
     name: str,
-    sector: str = "Non specificato",
-    status: str = "Prospect",
-    owner: str = "Da assegnare",
-    contact: str = "",
+    sector: str | None = None,
+    status: ClientStatus | None = None,
+    owner: str | None = None,
+    contact: str | None = None,
 ) -> str:
     """
     Create a client in the workspace database.
     Use only when the user asks to create or set up a real client record.
     Do not use for hypothetical examples.
+    Set `status` from the user's own words whenever they make it evident: a client
+    they say they acquired or already work with is "Attivo", not "Prospect".
+    Leave a field unset when the user did not state it.
     """
     client = workspace_database.create_client(
         name=name,
@@ -375,16 +432,19 @@ def create_workspace_client(
 def manage_client_record(
     operation: str,
     name: str,
-    sector: str = "Non specificato",
-    status: str = "Prospect",
-    owner: str = "Da assegnare",
-    contact: str = "",
+    sector: str | None = None,
+    status: ClientStatus | None = None,
+    owner: str | None = None,
+    contact: str | None = None,
 ) -> str:
     """
     Purpose: manage a client record through one LLM-friendly facade.
     Use for explicit real client work from the Clients subgraph.
     Supported operations: create, inspect, summarize.
     It checks existing clients before creating to avoid duplicates.
+    Set `status` from the user's own words whenever they make it evident: a client
+    they say they acquired or already work with is "Attivo", not "Prospect".
+    Leave a field unset when the user did not state it.
     Do not use for project execution, process discovery, canvas work, or hypothetical examples.
     """
     normalized_operation = operation.strip().lower()
@@ -427,14 +487,29 @@ def manage_client_record(
         )
 
     if existing is not None:
+        # Stessa chiamata del ramo create: e' idempotente per nome e riempie i
+        # soli campi rimasti al placeholder, cosi' una seconda create che porta
+        # informazione nuova non la butta via insieme al duplicato.
+        client = workspace_database.create_client(
+            name=name,
+            sector=sector,
+            status=status,
+            owner=owner,
+            contact=contact,
+        )
+        filled = sorted(field for field, value in client.items() if existing.get(field) != value)
+        warnings = ["Existing client returned instead of creating a duplicate."]
+        if filled:
+            warnings.append(f"Placeholder fields filled from this request: {', '.join(filled)}.")
+
         return enterprise_tool_result(
             status="exists",
             action="manage_client_record",
             entity_type="client",
-            entity_id=existing["id"],
-            summary=f"Cliente gia presente: {existing['name']}",
-            payload=existing,
-            warnings=["Existing client returned instead of creating a duplicate."],
+            entity_id=client["id"],
+            summary=f"Cliente gia presente: {client['name']}",
+            payload=client,
+            warnings=warnings,
         )
 
     client = workspace_database.create_client(
@@ -454,14 +529,15 @@ def manage_client_record(
     )
 
 
-@tool
+@tool(args_schema=ProjectRecordInput)
 def create_workspace_project(
     client_id: str,
     name: str,
-    phase: str = "Discovery",
-    status: str = "Bozza",
+    objective: str | None = None,
+    phase: ProjectPhase | None = None,
+    status: ProjectStatus | None = None,
     progress: int = 0,
-    next_step: str = "Definire perimetro e fonti iniziali",
+    next_step: str | None = None,
     milestones: list[str] | None = None,
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
@@ -469,10 +545,14 @@ def create_workspace_project(
     """
     Create a project for an existing client in the workspace database.
     Use after you know the client_id. If the client does not exist, create the client first.
+    Always record `objective` when the user described the assignment: the project
+    record, not the conversation, is what a later Project Chat reads back.
+    Leave phase and status unset when the user did not state them.
     """
     project = workspace_database.create_project(
         client_id=client_id,
         name=name,
+        objective=objective,
         phase=phase,
         status=status,
         progress=progress,
@@ -481,7 +561,74 @@ def create_workspace_project(
         open_issues=open_issues,
         deliverables=deliverables,
     )
-    return format_workspace_result("Progetto creato", project)
+    warnings = (
+        []
+        if project["objective"]
+        else ["Project created without an objective: the engagement brief is not stored anywhere."]
+    )
+    return enterprise_tool_result(
+        status="created",
+        action="create_workspace_project",
+        entity_type="project",
+        entity_id=project["id"],
+        summary=f"Progetto creato: {project['name']}",
+        payload=project,
+        warnings=warnings,
+    )
+
+
+@tool(args_schema=ProjectUpdateInput)
+def update_workspace_project(
+    project_id: str,
+    name: str | None = None,
+    objective: str | None = None,
+    phase: ProjectPhase | None = None,
+    status: ProjectStatus | None = None,
+    progress: int | None = None,
+    next_step: str | None = None,
+    milestones: list[str] | None = None,
+    open_issues: list[str] | None = None,
+    deliverables: list[str] | None = None,
+) -> str:
+    """
+    Update an existing project record: objective, phase, status, progress, next step,
+    milestones, open issues, deliverables. Declare only the fields that change.
+    Use when the engagement actually moved - a validated AS-IS moves the phase, a
+    blocked client moves the status - or when the user corrects a recorded value.
+    The consultant can edit the same fields by hand in the UI: this tool writes to
+    the same record, so read it first if you are unsure of the current value.
+    """
+    try:
+        project = workspace_database.update_project(
+            project_id=project_id,
+            name=name,
+            objective=objective,
+            phase=phase,
+            status=status,
+            progress=progress,
+            next_step=next_step,
+            milestones=milestones,
+            open_issues=open_issues,
+            deliverables=deliverables,
+        )
+    except ValueError as exc:
+        return enterprise_tool_result(
+            status="error",
+            action="update_workspace_project",
+            entity_type="project",
+            entity_id=project_id,
+            summary=str(exc),
+            warnings=[str(exc)],
+        )
+
+    return enterprise_tool_result(
+        status="updated",
+        action="update_workspace_project",
+        entity_type="project",
+        entity_id=project["id"],
+        summary=f"Progetto aggiornato: {project['name']}",
+        payload=project,
+    )
 
 
 @tool
@@ -581,13 +728,14 @@ def add_workspace_decision(
 def validate_initial_workspace_setup(
     client_name: str,
     project_name: str | None = None,
+    project_objective: str | None = None,
     process_name: str | None = None,
     source_name: str | None = None,
     decision_title: str | None = None,
     reason: str = "",
-    client_sector: str = "Non specificato",
-    client_status: str = "Prospect",
-    client_owner: str = "Da assegnare",
+    client_sector: str | None = None,
+    client_status: ClientStatus | None = None,
+    client_owner: str | None = None,
 ) -> str:
     """
     Purpose: validate an explicit initial workspace setup before creating records.
@@ -626,6 +774,11 @@ def validate_initial_workspace_setup(
         warnings.append(f"Client already exists: {existing_client['id']}.")
     if existing_project is not None:
         warnings.append(f"Project already exists: {existing_project['id']}.")
+    if project_name and not (project_objective or "").strip():
+        warnings.append(
+            "Project objective is missing: record why the engagement exists, "
+            "otherwise the brief lives only in this conversation."
+        )
 
     return enterprise_tool_result(
         status="valid" if not warnings else "review_required",
@@ -636,6 +789,7 @@ def validate_initial_workspace_setup(
         payload={
             "client_name": client_name,
             "project_name": project_name,
+            "project_objective": project_objective,
             "process_name": process_name,
             "source_name": source_name,
             "decision_title": decision_title,
@@ -651,16 +805,19 @@ def validate_initial_workspace_setup(
 def create_initial_workspace_setup(
     client_name: str,
     project_name: str | None = None,
+    project_objective: str | None = None,
     process_name: str | None = None,
     source_name: str | None = None,
     decision_title: str | None = None,
     reason: str = "",
-    client_sector: str = "Non specificato",
-    client_status: str = "Prospect",
-    client_owner: str = "Da assegnare",
+    client_sector: str | None = None,
+    client_status: ClientStatus | None = None,
+    client_owner: str | None = None,
 ) -> str:
     """
     Purpose: create a minimal initial workspace setup in one controlled operation.
+    Set `client_status` from the user's own words whenever they make it evident:
+    a client they say they acquired or already work with is "Attivo", not "Prospect".
     Use only when the user explicitly asks to register real setup records.
     Creates or reuses the client, then optionally creates project, process stub, source and decision.
     Stop after setup; ongoing execution belongs to Project, Process or Canvas macro agents.
@@ -701,9 +858,14 @@ def create_initial_workspace_setup(
             project = workspace_database.create_project(
                 client_id=client["id"],
                 name=project_name,
-                next_step="Definire perimetro e fonti iniziali",
+                objective=project_objective,
             )
             created_records.append({"entity_type": "project", "entity_id": project["id"], "name": project["name"]})
+            if not project["objective"]:
+                warnings.append(
+                    "Project created without an objective: the engagement brief is "
+                    "not stored anywhere. Record it with update_workspace_project."
+                )
         else:
             reused_records.append({"entity_type": "project", "entity_id": project["id"], "name": project["name"]})
 
@@ -785,6 +947,7 @@ workspace_read_tools = [
 workspace_mutation_tools = [
     create_workspace_client,
     create_workspace_project,
+    update_workspace_project,
     create_workspace_process,
     add_workspace_source,
     add_workspace_decision,

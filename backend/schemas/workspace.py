@@ -4,23 +4,54 @@ from pydantic import BaseModel, Field
 
 
 class CreateClientRequest(BaseModel):
+    # Ogni campo oltre al nome e' opzionale davvero: `None` significa "non
+    # dichiarato" e il placeholder lo mette `workspace_database.create_client`,
+    # in un punto solo. Vedi `backend/workspace_defaults.py`.
     name: str
-    sector: str = "Non specificato"
-    status: str = "Prospect"
-    owner: str = "Da assegnare"
-    contact: str = ""
+    sector: str | None = None
+    status: str | None = None
+    owner: str | None = None
+    contact: str | None = None
+
+
+class UpdateClientRequest(BaseModel):
+    # Patch parziale: `None` significa "non toccare questo campo". Il consulente
+    # modifica un campo alla volta dalla UI e non deve rimandare tutto il record.
+    name: str | None = None
+    sector: str | None = None
+    status: str | None = None
+    owner: str | None = None
+    contact: str | None = None
 
 
 class CreateProjectRequest(BaseModel):
+    # Come per il cliente: `None` e' "non dichiarato", e il placeholder lo mette
+    # `workspace_database.create_project`. Vedi `backend/workspace_defaults.py`.
     client_id: str
     name: str
-    phase: str = "Discovery"
-    status: str = "Bozza"
+    objective: str | None = None
+    phase: str | None = None
+    status: str | None = None
     progress: int = 0
-    next_step: str = "Definire perimetro e fonti iniziali"
+    next_step: str | None = None
     milestones: list[str] = Field(default_factory=list)
     open_issues: list[str] = Field(default_factory=list)
     deliverables: list[str] = Field(default_factory=list)
+
+
+class UpdateProjectRequest(BaseModel):
+    # Patch parziale. Le liste arrivano intere quando arrivano: `[]` svuota,
+    # `None` lascia com'e'.
+    name: str | None = None
+    client_id: str | None = None
+    objective: str | None = None
+    phase: str | None = None
+    status: str | None = None
+    progress: int | None = None
+    next_step: str | None = None
+    milestones: list[str] | None = None
+    open_issues: list[str] | None = None
+    deliverables: list[str] | None = None
 
 
 class CreateProcessRequest(BaseModel):
@@ -207,6 +238,7 @@ class ProjectResponse(BaseModel):
     client_id: str
     client: str
     name: str
+    objective: str = ""
     phase: str
     status: str
     progress: int

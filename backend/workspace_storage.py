@@ -34,6 +34,11 @@ class WorkspaceProject(WorkspaceBase):
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     client_id: Mapped[str] = mapped_column(ForeignKey("workspace_clients.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    # Perche' il progetto esiste, e cosa lo chiude. Senza questo campo il record
+    # conservava il contenitore (fase, stato, avanzamento) ma perdeva l'incarico:
+    # la Project Chat sapeva come si chiamava il progetto e non cosa doveva farci
+    # (bug PROJECT-01).
+    objective: Mapped[str] = mapped_column(Text, nullable=False, default="")
     phase: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     progress: Mapped[int] = mapped_column(Integer, nullable=False)

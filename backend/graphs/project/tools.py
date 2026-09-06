@@ -196,6 +196,7 @@ def get_project_delivery_brief(project_id: str) -> str:
             "project_id": project_id,
             "client": project["client"],
             "name": project["name"],
+            "objective": project.get("objective") or "",
             "phase": project["phase"],
             "status": project["status"],
             "progress": project["progress"],

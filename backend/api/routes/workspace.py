@@ -21,6 +21,8 @@ from backend.schemas.workspace import (
     ReviseBpmnReviewRequest,
     UpdateBpmnModelRequest,
     UpdateBpmnReviewRequest,
+    UpdateClientRequest,
+    UpdateProjectRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_database import (
@@ -48,10 +50,22 @@ from backend.workspace_database import (
     update_bpmn_model,
     revise_bpmn_review,
     update_bpmn_review_brief,
+    update_client,
+    update_project,
 )
 
 
 router = APIRouter(prefix="/v1/workspace", tags=["workspace"], dependencies=[Depends(require_principal)])
+
+
+def _edit_error(exc: ValueError) -> HTTPException:
+    """404 quando il record non esiste, 400 quando la modifica non e' valida.
+
+    Le due cose arrivano dallo stesso `ValueError` del layer database, ma per
+    chi chiama sono errori diversi: uno e' un id sbagliato, l'altro un campo.
+    """
+    missing = "non trovato" in str(exc).lower()
+    return HTTPException(status_code=404 if missing else 400, detail=str(exc))
 
 
 @router.get("/clients")
@@ -65,6 +79,15 @@ def create_workspace_client(request: CreateClientRequest) -> ClientResponse:
         return ClientResponse(**create_client(**request.model_dump()))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch("/clients/{client_id}")
+def update_workspace_client(client_id: str, request: UpdateClientRequest) -> ClientResponse:
+    """Modifica manuale dell'anagrafica: il consulente non dipende dall'agente."""
+    try:
+        return ClientResponse(**update_client(client_id, **request.model_dump(exclude_unset=True)))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
 
 
 @router.get("/projects")
@@ -88,6 +111,15 @@ def get_workspace_project(project_id: str) -> ProjectResponse:
         raise HTTPException(status_code=404, detail="Progetto non trovato.")
 
     return ProjectResponse(**project)
+
+
+@router.patch("/projects/{project_id}")
+def update_workspace_project(project_id: str, request: UpdateProjectRequest) -> ProjectResponse:
+    """Modifica manuale del progetto: obiettivo, fase, stato, avanzamento, liste."""
+    try:
+        return ProjectResponse(**update_project(project_id, **request.model_dump(exclude_unset=True)))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
 
 
 @router.get("/projects/{project_id}/processes")

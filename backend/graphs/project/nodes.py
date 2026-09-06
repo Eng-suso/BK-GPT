@@ -12,6 +12,7 @@ def load_project_context(state: dict) -> dict:
             "project_name": None,
             "client_id": None,
             "client_name": None,
+            "engagement_objective": None,
             "project_phase": None,
             "project_status": None,
             "progress": None,
@@ -27,6 +28,9 @@ def load_project_context(state: dict) -> dict:
         "project_name": project["name"],
         "client_id": project["client_id"],
         "client_name": project["client"],
+        # L'incarico, non solo il contenitore: senza questo la Project Chat sa
+        # come si chiama il progetto e non perche' esiste (PROJECT-01).
+        "engagement_objective": project.get("objective") or None,
         "project_phase": project["phase"],
         "project_status": project["status"],
         "progress": project["progress"],

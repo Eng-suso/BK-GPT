@@ -50,6 +50,7 @@
         "milestones": "string[]",
         "name": "string",
         "next_step": "string",
+        "objective": "string",
         "open_issues": "string[]",
         "phase": "string",
         "process_items": "ProjectProcessResponse[]",

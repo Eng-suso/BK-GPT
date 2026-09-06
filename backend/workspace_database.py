@@ -11,6 +11,16 @@ from backend.process_understanding import (
     unknown_question_id,
 )
 from backend.security import get_current_tenant_id
+from backend.workspace_defaults import (
+    UNKNOWN_NEXT_STEP,
+    UNKNOWN_OWNER,
+    UNKNOWN_SECTOR,
+    is_unknown_client_status,
+    normalize_client_status,
+    resolve_client_status,
+    resolve_project_phase,
+    resolve_project_status,
+)
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
@@ -91,6 +101,7 @@ def project_to_dict(project: WorkspaceProject, include_processes: bool = True) -
         "client_id": project.client_id,
         "client": project.client.name,
         "name": project.name,
+        "objective": project.objective or "",
         "phase": project.phase,
         "status": project.status,
         "progress": project.progress,
@@ -139,17 +150,56 @@ def list_clients() -> list[dict]:
         return [client_to_dict(client) for client in clients]
 
 
+def fill_client_placeholders(
+    client: WorkspaceClient,
+    *,
+    sector: str | None,
+    status: str | None,
+    owner: str | None,
+    contact: str | None,
+) -> None:
+    """Riempie i soli campi rimasti al placeholder, senza toccare i dati curati.
+
+    `create_client` e' idempotente per nome: chiamarla due volte non crea un
+    duplicato. Ma "non creo un duplicato" non deve voler dire "butto via quello
+    che l'utente ha appena detto": se il record esiste con `status` ancora al
+    placeholder e ora l'utente dichiara un cliente acquisito, quel campo si
+    riempie. Un valore gia' deciso non viene mai sovrascritto da una create
+    successiva - cambiarlo e' un update, e questa non lo e'.
+    """
+    if sector and client.sector in ("", UNKNOWN_SECTOR):
+        client.sector = sector
+    if status and is_unknown_client_status(client.status):
+        client.status = status
+    if owner and client.owner in ("", UNKNOWN_OWNER):
+        client.owner = owner
+    if contact and not client.contact:
+        client.contact = contact
+
+
 def create_client(
     name: str,
-    sector: str = "Non specificato",
-    status: str = "Prospect",
-    owner: str = "Da assegnare",
-    contact: str = "",
+    sector: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
+    contact: str | None = None,
 ) -> dict:
+    """Crea il cliente, o restituisce quello esistente arricchito coi campi noti.
+
+    Ogni campo diverso dal nome e' opzionale davvero: `None` significa "non
+    dichiarato" e diventa placeholder qui, in un punto solo. Nessun chiamante
+    deve piu' inventare un default - era cosi' che un cliente appena acquisito
+    finiva registrato come "Prospect".
+    """
     clean_name = name.strip()
 
     if not clean_name:
         raise ValueError("Il nome cliente è obbligatorio.")
+
+    stated_sector = (sector or "").strip() or None
+    stated_status = normalize_client_status(status)
+    stated_owner = (owner or "").strip() or None
+    stated_contact = (contact or "").strip() or None
 
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
@@ -166,6 +216,14 @@ def create_client(
         )
 
         if existing_client is not None:
+            fill_client_placeholders(
+                existing_client,
+                sector=stated_sector,
+                status=stated_status,
+                owner=stated_owner,
+                contact=stated_contact,
+            )
+            session.flush()
             return client_to_dict(existing_client)
 
         client_id = unique_id(session, WorkspaceClient, slugify(clean_name, "client"))
@@ -173,10 +231,10 @@ def create_client(
             id=client_id,
             tenant_id=current_tenant_id,
             name=clean_name,
-            sector=sector.strip() or "Non specificato",
-            status=status.strip() or "Prospect",
-            owner=owner.strip() or "Da assegnare",
-            contact=contact.strip(),
+            sector=stated_sector or UNKNOWN_SECTOR,
+            status=resolve_client_status(stated_status),
+            owner=stated_owner or UNKNOWN_OWNER,
+            contact=stated_contact or "",
         )
         session.add(client)
         session.flush()
@@ -196,14 +254,27 @@ def list_projects() -> list[dict]:
 def create_project(
     client_id: str,
     name: str,
-    phase: str = "Discovery",
-    status: str = "Bozza",
+    objective: str | None = None,
+    phase: str | None = None,
+    status: str | None = None,
     progress: int = 0,
-    next_step: str = "Definire perimetro e fonti iniziali",
+    next_step: str | None = None,
     milestones: list[str] | None = None,
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> dict:
+    """Crea il progetto. Ogni campo oltre a cliente e nome e' opzionale davvero.
+
+    `None` significa "non dichiarato" e diventa placeholder qui, in un punto
+    solo: fase e stato non hanno piu' un default nella firma di ogni chiamante.
+    `objective` e' il perche' dell'incarico e non ha placeholder - una frase
+    inventata al posto del consulente sarebbe peggio di un campo vuoto.
+    """
+    clean_name = name.strip()
+
+    if not clean_name:
+        raise ValueError("Il nome progetto è obbligatorio.")
+
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
         client = tenant_row(session, WorkspaceClient, client_id)
@@ -211,17 +282,18 @@ def create_project(
         if client is None:
             raise ValueError(f"Cliente non trovato: {client_id}")
 
-        project_id = unique_id(session, WorkspaceProject, slugify(name, "project"))
+        project_id = unique_id(session, WorkspaceProject, slugify(clean_name, "project"))
         project = WorkspaceProject(
             id=project_id,
             tenant_id=current_tenant_id,
             client_id=client_id,
-            name=name.strip(),
-            phase=phase.strip() or "Discovery",
-            status=status.strip() or "Bozza",
+            name=clean_name,
+            objective=(objective or "").strip(),
+            phase=resolve_project_phase(phase),
+            status=resolve_project_status(status),
             progress=max(0, min(int(progress), 100)),
             process_count=0,
-            next_step=next_step.strip() or "Definire prossimo step",
+            next_step=(next_step or "").strip() or UNKNOWN_NEXT_STEP,
             milestones_json=encode_list(milestones or []),
             open_issues_json=encode_list(open_issues or []),
             deliverables_json=encode_list(deliverables or []),
@@ -229,6 +301,104 @@ def create_project(
         session.add(project)
         session.flush()
         return project_to_dict(project)
+
+
+def update_client(
+    client_id: str,
+    name: str | None = None,
+    sector: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
+    contact: str | None = None,
+) -> dict:
+    """Aggiorna i campi dichiarati di un cliente. `None` = "non toccare".
+
+    Diverso da `create_client`, che riempie solo i placeholder: qui il chiamante
+    (il consulente dalla UI, o l'agente su sua richiesta) sta correggendo un
+    valore gia' deciso, e la correzione deve passare.
+    """
+    with workspace_connection() as session:
+        client = tenant_row(session, WorkspaceClient, client_id)
+
+        if client is None:
+            raise ValueError(f"Cliente non trovato: {client_id}")
+
+        if name is not None:
+            clean_name = name.strip()
+            if not clean_name:
+                raise ValueError("Il nome cliente è obbligatorio.")
+            client.name = clean_name
+        if sector is not None:
+            client.sector = sector.strip() or UNKNOWN_SECTOR
+        if status is not None:
+            client.status = resolve_client_status(status)
+        if owner is not None:
+            client.owner = owner.strip() or UNKNOWN_OWNER
+        if contact is not None:
+            client.contact = contact.strip()
+
+        session.flush()
+        return client_to_dict(client)
+
+
+def update_project(
+    project_id: str,
+    name: str | None = None,
+    client_id: str | None = None,
+    objective: str | None = None,
+    phase: str | None = None,
+    status: str | None = None,
+    progress: int | None = None,
+    next_step: str | None = None,
+    milestones: list[str] | None = None,
+    open_issues: list[str] | None = None,
+    deliverables: list[str] | None = None,
+) -> dict:
+    """Aggiorna i campi dichiarati di un progetto. `None` = "non toccare".
+
+    Le liste arrivano intere: chi le manda ha appena visto quelle correnti nella
+    UI, quindi una lista vuota e' "svuotala", non "non dichiarata".
+    """
+    with workspace_connection() as session:
+        project = tenant_row(session, WorkspaceProject, project_id)
+
+        if project is None:
+            raise ValueError(f"Progetto non trovato: {project_id}")
+
+        if name is not None:
+            clean_name = name.strip()
+            if not clean_name:
+                raise ValueError("Il nome progetto è obbligatorio.")
+            project.name = clean_name
+        if client_id is not None and client_id != project.client_id:
+            client = tenant_row(session, WorkspaceClient, client_id)
+            if client is None:
+                raise ValueError(f"Cliente non trovato: {client_id}")
+            project.client_id = client_id
+        if objective is not None:
+            project.objective = objective.strip()
+        if phase is not None:
+            project.phase = resolve_project_phase(phase)
+        if status is not None:
+            project.status = resolve_project_status(status)
+        if progress is not None:
+            project.progress = max(0, min(int(progress), 100))
+        if next_step is not None:
+            project.next_step = next_step.strip() or UNKNOWN_NEXT_STEP
+        if milestones is not None:
+            project.milestones_json = encode_list(_clean_list(milestones))
+        if open_issues is not None:
+            project.open_issues_json = encode_list(_clean_list(open_issues))
+        if deliverables is not None:
+            project.deliverables_json = encode_list(_clean_list(deliverables))
+
+        session.flush()
+        return project_to_dict(project)
+
+
+def _clean_list(values: list[str]) -> list[str]:
+    """Voci ripulite, senza vuoti: una riga bianca nella UI non e' una voce."""
+    return [" ".join(str(value).split()) for value in values if str(value).strip()]
 
 
 def get_project(project_id: str) -> dict | None:
