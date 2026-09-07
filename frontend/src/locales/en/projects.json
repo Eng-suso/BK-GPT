@@ -48,8 +48,7 @@
     "actions": {
       "openChat": "Open chat",
       "openProcess": "Open process",
-      "edit": "Edit project",
-      "editProcess": "Edit process"
+      "edit": "Edit project"
     },
     "tabs": {
       "overview": "Overview",

@@ -48,8 +48,7 @@
     "actions": {
       "openChat": "Apri chat",
       "openProcess": "Apri processo",
-      "edit": "Modifica progetto",
-      "editProcess": "Modifica processo"
+      "edit": "Modifica progetto"
     },
     "tabs": {
       "overview": "Panoramica",
