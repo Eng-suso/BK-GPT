@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { httpErrorMessage } from "@/lib/http";
 import { notifyWorkspaceChanged } from "@/lib/workspaceEvents";
@@ -102,7 +102,18 @@ export function useChatStream({
   const modelRef = useRef(selectedModel);
   const modeRef = useRef(chatMode);
   const activeSessionRef = useRef(activeSession);
+  // Il thread appena aperto, prima che `activeSession` lo rispecchi. Vive in due
+  // posti perche' serve a due tempi diversi: lo stato fa ridisegnare il turno
+  // appena parte, il ref lo rende leggibile dentro il flusso async di invio
+  // senza rimemoizzare `sendMessage`. Il solo ref non bastava: scriverlo non
+  // ridisegna, quindi il turno restava invisibile fino al render successivo.
+  const [liveThreadId, setLiveThreadId] = useState<string | null>(null);
   const liveThreadRef = useRef<string | null>(null);
+
+  const trackLiveThread = useCallback((threadId: string) => {
+    liveThreadRef.current = threadId;
+    setLiveThreadId(threadId);
+  }, []);
   useEffect(() => {
     scopeRef.current = scope;
     modelRef.current = selectedModel;
@@ -112,7 +123,7 @@ export function useChatStream({
 
   useSyncExternalStore(subscribeToRuns, getRunsVersion, getRunsVersion);
 
-  const activeThreadId = activeSession?.threadId ?? liveThreadRef.current;
+  const activeThreadId = activeSession?.threadId ?? liveThreadId;
   const run = getRun(activeThreadId);
 
   const clearStreamError = useCallback(() => {
@@ -138,7 +149,7 @@ export function useChatStream({
         console.error("[chat] could not open a session", err);
         const detail = httpErrorMessage(err, "Errore sconosciuto");
         const fallbackId = `local-error-${Date.now()}`;
-        liveThreadRef.current = fallbackId;
+        trackLiveThread(fallbackId);
         selectThread(fallbackId);
         await startRun({
           threadId: fallbackId,
@@ -152,7 +163,7 @@ export function useChatStream({
       }
 
       const threadId = session.threadId;
-      liveThreadRef.current = threadId;
+      trackLiveThread(threadId);
       const existingRun = getRun(threadId);
       const base = (
         existingRun && existingRun.status !== "streaming"
@@ -190,7 +201,7 @@ export function useChatStream({
         },
       });
     },
-    [ensureThread, selectThread, commitTranscript, onSettled],
+    [ensureThread, selectThread, commitTranscript, onSettled, trackLiveThread],
   );
 
   const stopStreaming = useCallback(() => {
