@@ -3,7 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import { httpErrorMessage } from "@/lib/http";
 import { notifyWorkspaceChanged } from "@/lib/workspaceEvents";
-import { toApiChatScope, type ChatScope } from "../../../contracts/chat";
+import {
+  toApiChatAttachment,
+  toApiChatScope,
+  type ChatAttachment,
+  type ChatMode,
+  type ChatScope,
+} from "../../../contracts/chat";
 import type { ChatMessage, ChatSession } from "../types";
 import {
   completeAgentActivity,
@@ -16,6 +22,7 @@ type LiveTranscript = { threadId: string; messages: ChatMessage[] };
 type UseChatStreamArgs = {
   scope: ChatScope;
   selectedModel: string;
+  chatMode: ChatMode;
   activeSession: ChatSession | null;
   ensureThread: (firstMessage: string) => Promise<ChatSession>;
   selectThread: (threadId: string) => void;
@@ -30,10 +37,14 @@ type UseChatStreamArgs = {
 export type UseChatStream = {
   isBusy: boolean;
   lastUserPrompt: string;
+  lastUserAttachments: ChatAttachment[];
   liveThreadId: string | null;
   liveMessages: ChatMessage[] | null;
   streamError: string | null;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (
+    content: string,
+    attachments?: ChatAttachment[],
+  ) => Promise<void>;
   clearStreamError: () => void;
 };
 
@@ -61,9 +72,23 @@ function notifyChatWorkspaceChanged(scope: ChatScope) {
   });
 }
 
+/**
+ * Manages chat message submission, streamed responses, transcript state, and retry data.
+ *
+ * @param scope - Workspace scope associated with the conversation
+ * @param selectedModel - Model used to generate the response
+ * @param chatMode - Chat mode used for the request
+ * @param activeSession - Currently active chat session
+ * @param ensureThread - Creates or retrieves the thread for the message
+ * @param selectThread - Selects a chat thread
+ * @param commitTranscript - Persists the completed transcript
+ * @param onSettled - Optional callback invoked after a successful request
+ * @returns Chat streaming state and callbacks for sending messages and clearing errors
+ */
 export function useChatStream({
   scope,
   selectedModel,
+  chatMode,
   activeSession,
   ensureThread,
   selectThread,
@@ -74,25 +99,31 @@ export function useChatStream({
 
   const [isBusy, setIsBusy] = useState(false);
   const [lastUserPrompt, setLastUserPrompt] = useState("");
+  // Il retry rimanda lo stesso turno: senza questo gli allegati che il
+  // consulente aveva scelto sparirebbero senza dirlo.
+  const [lastUserAttachments, setLastUserAttachments] = useState<ChatAttachment[]>([]);
   const [live, setLive] = useState<LiveTranscript | null>(null);
   const [streamError, setStreamError] = useState<string | null>(null);
 
   // Latest values for the async send flow without re-memoising `sendMessage`.
   const scopeRef = useRef(scope);
   const modelRef = useRef(selectedModel);
+  const modeRef = useRef(chatMode);
   const activeSessionRef = useRef(activeSession);
   useEffect(() => {
     scopeRef.current = scope;
     modelRef.current = selectedModel;
+    modeRef.current = chatMode;
     activeSessionRef.current = activeSession;
   });
 
   const clearStreamError = useCallback(() => setStreamError(null), []);
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, attachments: ChatAttachment[] = []) => {
       const thinkingLabel = t("status.thinking");
       setLastUserPrompt(content);
+      setLastUserAttachments(attachments);
       setStreamError(null);
       setIsBusy(true);
 
@@ -151,6 +182,8 @@ export function useChatStream({
           message: content,
           modelName: modelRef.current,
           scope: toApiChatScope(scopeRef.current),
+          mode: modeRef.current,
+          attachments: attachments.map(toApiChatAttachment),
         });
         if (!res.body) throw new Error("Streaming fallito");
 
@@ -264,6 +297,7 @@ export function useChatStream({
   return {
     isBusy,
     lastUserPrompt,
+    lastUserAttachments,
     liveThreadId: live?.threadId ?? null,
     liveMessages: live?.messages ?? null,
     streamError,

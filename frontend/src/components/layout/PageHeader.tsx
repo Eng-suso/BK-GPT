@@ -11,6 +11,7 @@ export type Crumb = {
 };
 
 export type PageHeaderProps = {
+  compact?: boolean;
   breadcrumbs?: Crumb[];
   title: string;
   /** Optional short lead paragraph under the title. */
@@ -24,7 +25,14 @@ export type PageHeaderProps = {
   className?: string;
 };
 
+/**
+ * Renders a page header with optional breadcrumbs, description, metadata, count, and actions.
+ *
+ * @param compact - Whether to use reduced spacing and a smaller title.
+ * @returns The rendered page header.
+ */
 export function PageHeader({
+  compact = false,
   breadcrumbs,
   title,
   description,
@@ -34,14 +42,14 @@ export function PageHeader({
   className,
 }: PageHeaderProps): React.JSX.Element {
   return (
-    <header className={cn("flex flex-col gap-4", className)}>
+    <header className={cn("flex min-w-0 flex-col", compact ? "gap-2" : "gap-4", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav aria-label="Breadcrumb">
-          <ol className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <ol className="flex min-w-0 items-center gap-1.5 overflow-hidden text-xs text-muted-foreground">
             {breadcrumbs.map((crumb, i) => {
               const isLast = i === breadcrumbs.length - 1;
               return (
-                <li key={crumb.label} className="flex items-center gap-1.5">
+                <li key={crumb.label} className="flex min-w-0 items-center gap-1.5 [&>a]:truncate [&>span]:truncate [&>svg]:shrink-0">
                   {crumb.to && !isLast ? (
                     <Link to={crumb.to} className="hover:text-foreground">
                       {crumb.label}
@@ -61,10 +69,10 @@ export function PageHeader({
         </nav>
       )}
 
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row">
+        <div className="min-w-0">
           <div className="flex items-baseline gap-2.5">
-            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-foreground">
+            <h1 className={cn("font-semibold tracking-[-0.03em] text-foreground", compact ? "text-lg leading-6" : "text-2xl")}>
               {title}
             </h1>
             {count !== undefined && (
@@ -85,7 +93,7 @@ export function PageHeader({
           )}
         </div>
         {actions && (
-          <div className="flex flex-shrink-0 items-center gap-2">{actions}</div>
+          <div className="flex max-w-full flex-shrink-0 flex-wrap items-center gap-2">{actions}</div>
         )}
       </div>
     </header>

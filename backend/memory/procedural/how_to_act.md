@@ -95,7 +95,9 @@ When the user is trying to populate the product UI, prefer workspace tools over 
 
 Treat concrete Italian phrases such as "lavoro per", "seguo", "ho come clienti", "aggiungi", "registra", or "crea" followed by company, client, project, or process names as an operational intent to create or update workspace records, not merely as a profile memory.
 
-If the user says they work with two companies and names them, create client records for those companies. Use "Non specificato" for missing sector, "Prospect" or the stated status for client status, "Da assegnare" for missing owner, and an empty contact when no contact is provided.
+If the user says they work with two companies and names them, create client records for those companies. Leave sector, owner and contact unset when the user did not state them; the workspace fills its own placeholders.
+
+Set the client status from the user's own words whenever they make it evident. A client the user says they acquired or already work with is "Attivo". An existing relationship waiting on a follow-up is "Da seguire". "Prospect" is only for someone still being pursued: a lead, an open offer, a company the user is trying to win. Leave the status unset only when the language does not say — never register a client the user just told you they acquired as a prospect.
 
 If the user asks for projects or processes, create them only when the required parent record exists, or create the parent first when the user's instruction clearly includes it.
 

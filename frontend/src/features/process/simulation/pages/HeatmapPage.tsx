@@ -45,6 +45,11 @@ const FACTOR_ORDER = [
   "persistence",
 ] as const;
 
+/**
+ * Renders a heatmap view of activity metrics for the active simulation run, including activity rankings, bottleneck indicators, and detailed statistics.
+ *
+ * @returns The heatmap page element.
+ */
 export function HeatmapPage(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
@@ -125,10 +130,10 @@ export function HeatmapPage(): React.JSX.Element {
   const metricName = t(`simulation.heatmap.metric.${metric}`);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 lg:flex-row">
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:flex-row">
+      <section className="flex min-h-[440px] shrink-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <label className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {t("simulation.heatmap.metricLabel")}
             <Select value={metric} onValueChange={(v) => setMetric(v as HeatMetric)}>
               <SelectTrigger size="sm" className="w-[190px]">
@@ -217,6 +222,7 @@ export function HeatmapPage(): React.JSX.Element {
                         </span>
                       </span>
                       <Meter
+                        label={t(`simulation.heatmap.factor.${k}`)}
                         value={Math.round((bottleneckFactors[k] ?? 0) * 100)}
                         tone="warning"
                         showValue={false}
@@ -262,6 +268,7 @@ export function HeatmapPage(): React.JSX.Element {
                     </span>
                     <span className="mt-1 block pr-2">
                       <Meter
+                        label={`${s.name}: ${metricName}`}
                         value={(cfg.value(s) / maxValue) * 100}
                         tone={s.el === bottleneckEl ? "warning" : "ok"}
                         showValue={false}

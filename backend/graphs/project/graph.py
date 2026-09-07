@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
-from backend.graphs.common import build_tool_chat_subgraph
+from backend.graphs.common import build_tool_chat_subgraph, latest_user_text
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.project.nodes import load_project_context
 from backend.graphs.project.state import ProjectState
@@ -17,9 +17,10 @@ from backend.graphs.project.tools import PROJECT_TOOL_POLICY
 from backend.graphs.routing_contracts import (
     ProjectRoutingDecision,
     authorize_routing_decision,
+    capability_menu,
     invalid_project_decision,
-    invoke_structured_router,
     parse_routing_decision,
+    resolve_routing_decision,
 )
 
 
@@ -64,55 +65,33 @@ the evidence should become project memory.
 ).strip()
 
 
-PROJECT_ROUTER_PROMPT = """
+PROJECT_ROUTER_PROMPT_TEMPLATE = """
 You are the Project graph router for DeliR.
 You are the reasoning layer, not the execution controller.
 Propose exactly one route for the latest user request using project state, intent and ownership.
 
-Routes:
-- direct: project-level discussion, project context retrieval, project evidence/interview saving or retrieval, project-scoped GraphRAG, light synthesis, scope clarification, source/decision awareness, or general project coordination.
-- delivery: phase, progress, milestones, deliverables, risks, blockers, next step, weekly plan, or project status update.
-- process_coordination: multiple processes in one project, process sequencing, readiness matrix, cross-process dependencies, interview needs by process, or handoff planning.
-- delegate_process: deep work on one process, AS-IS/TO-BE discovery, evidence synthesis for one process, readiness, or BPMN semantic review.
-- delegate_canvas: BPMN XML, canvas inspection, canvas edits, validation, layout, versions, or approval.
-- clarification: project intent is unclear or required ids/context are missing.
+Capabilities you may propose:
+{capability_menu}
 
 Return structured output matching the ProjectRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
-Suggested capability must be registered, for example project.direct,
-project.delivery, project.process_coordination, project.process_delegation or
-project.canvas_delegation. If process/canvas delegation has an ambiguous target,
-route to clarification.
+If process/canvas delegation has an ambiguous target, route to clarification.
 """.strip()
 
 
-VALID_PROJECT_ROUTES = {
-    "direct",
-    "delivery",
-    "process_coordination",
-    "delegate_process",
-    "delegate_canvas",
-    "clarification",
-}
+def project_router_prompt(chat_mode: str | None = None) -> str:
+    """Build the project router prompt for the specified chat mode.
+    
+    Args:
+        chat_mode: Untrusted chat-mode value used to determine the available project
+            capabilities. If omitted, the default capability menu is used.
+    
+    Returns:
+        The router prompt containing the capability menu for the selected chat mode.
+    """
+    return PROJECT_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("project", chat_mode))
 
 
-ROUTE_TARGETS = {
-    "direct": None,
-    "delivery": "delivery_subgraph",
-    "process_coordination": "process_coordination_subgraph",
-    "delegate_process": "process_macro",
-    "delegate_canvas": "canvas_macro",
-    "clarification": None,
-}
-
-
-def latest_user_text(state: dict) -> str:
-    for message in reversed(state.get("messages", [])):
-        role = getattr(message, "type", None) or getattr(message, "role", "")
-        if role in {"human", "user"}:
-            return str(getattr(message, "content", "") or "")
-
-    return ""
 
 
 def project_routing_state(
@@ -123,6 +102,31 @@ def project_routing_state(
     parse_source: str = "structured",
     parse_error: str | None = None,
 ) -> dict:
+    """Authorize a project routing decision and convert it into normalized project state.
+    
+    The resulting state preserves the proposed and authorized routing metadata, records
+    the authorization outcome in a routing trace, and includes delegation details when
+    a target is authorized. The route and clarification flag remain consistent with the
+    authorized decision.
+    
+    Args:
+        decision: The proposed project routing decision.
+        user_request: Untrusted user request associated with the decision.
+        state: Existing graph state used during authorization.
+        parse_source: Source classification for the parsed routing decision.
+        parse_error: Parsing error detail, if the decision was produced after a
+            parsing failure.
+    
+    Returns:
+        A project state update containing the authorized route, routing metadata,
+        delegation payload, clarification details, and authorization status.
+    
+    Raises:
+        Authorization-related errors raised while validating the routing decision.
+    
+    Side Effects:
+        Does not perform persistence or external side effects.
+    """
     authorization = authorize_routing_decision(
         owner="project",
         decision=decision,
@@ -213,6 +217,17 @@ def parse_project_router_json(content: str, user_request: str = "", state: dict 
 
 
 def build_project_router(llm):
+    """
+    Create a project-intent routing node backed by the configured language model.
+    
+    The generated node routes the latest user request into normalized project state. It uses a direct route when no user message is available and falls back to an invalid decision when structured routing fails unexpectedly.
+    
+    Args:
+        llm: Language model used to classify project requests.
+    
+    Returns:
+        A routing callable that accepts project state and runtime configuration and returns routing-state updates.
+    """
     def route_project_intent(state: ProjectState, config: RunnableConfig) -> dict:
         user_text = latest_user_text(state)
         if not user_text:
@@ -232,11 +247,12 @@ def build_project_router(llm):
             }
 
         try:
-            decision, parse_source, parse_error = invoke_structured_router(
-                llm,
-                ProjectRoutingDecision,
-                [
-                    SystemMessage(content=PROJECT_ROUTER_PROMPT),
+            decision, parse_source, parse_error = resolve_routing_decision(
+                owner="project",
+                llm=llm,
+                model=ProjectRoutingDecision,
+                messages=[
+                    SystemMessage(content=project_router_prompt(state.get("chat_mode"))),
                     HumanMessage(
                         content=(
                             "Active scope: project\n\n"
@@ -250,6 +266,7 @@ def build_project_router(llm):
                 ],
                 config=config,
                 invalid_factory=invalid_project_decision,
+                state=state,
             )
         except Exception:
             decision = invalid_project_decision("Structured router failed unexpectedly.")

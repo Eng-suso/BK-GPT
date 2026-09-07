@@ -46,7 +46,7 @@ from typing import Any
 from sqlalchemy import text
 
 from backend.db import canonical_session
-from backend.memory import embeddings, mem0_client
+from backend.memory import embeddings, forget, mem0_client
 from backend.memory.knowledge_graph import neo4j_store
 from backend.memory.mem0_client import Mem0Disabled
 from backend.services import degradation_counters
@@ -433,11 +433,34 @@ def memory_search(
     category: str | None = None,
     limit: int = 5,
 ) -> dict[str, Any]:
-    """Recall dalla memoria Mem0 con lo scope iniettato (INV-9).
-
-    Le memorie consultant-level (senza `client_id` nei metadata) restano
-    visibili in ogni contesto; quelle client-scoped solo nel loro cliente.
-    Ritorna `{"status": ok|empty|not_configured|error, "count", "matches"}`.
+    """Searches Mem0 memories within the consultant and client scope.
+    
+    Consultant-level memories remain visible across client contexts, while
+    client-scoped memories are returned only for the requested client. Forgotten
+    memories are excluded by both identifier and content, and results are limited
+    to the configured recall threshold.
+    
+    Args:
+        consultant_id (str): Consultant namespace identifier; treated as untrusted
+            input.
+        client_id (str | None): Optional client scope; treated as untrusted input.
+        query (str): Search text; treated as untrusted input.
+        category (str | None): Optional category prefix for the search; treated as
+            untrusted input.
+        limit (int): Maximum number of matches to return; treated as untrusted
+            input.
+    
+    Returns:
+        dict[str, Any]: A result containing ``status``, ``count``, and ``matches``.
+            The status is ``"ok"`` when matches are found, ``"empty"`` when none
+            qualify, ``"not_configured"`` when Mem0 is unavailable, or ``"error"``
+            when the search fails. Error results also include ``reason``.
+    
+    Raises:
+        No exceptions are raised; Mem0 search failures are returned with
+        ``status="error"``.
+    
+    This function performs read-only operations and does not persist memories.
     """
     memory = mem0_client.get_memory()
     if isinstance(memory, Mem0Disabled):
@@ -448,12 +471,14 @@ def memory_search(
         raw = memory.search(
             query=search_query,
             filters={"user_id": _mem0_user_id(consultant_id)},
-            limit=max(limit * 4, 20),
+            top_k=max(limit * 4, 20),
+            threshold=settings.memory_recall_threshold,
         )
     except Exception as exc:  # noqa: BLE001 — la lettura non deve far fallire il tool
         degradation_counters.bump("memory_search", "error", detail=str(exc))
         return {"status": "error", "matches": [], "count": 0, "reason": str(exc)}
 
+    forgotten_ids, forgotten_hashes = forget.tombstones(consultant_id, client_id)
     cid = str(client_id) if client_id else None
     matches: list[dict[str, Any]] = []
     for item in _mem0_items(raw):
@@ -465,13 +490,19 @@ def memory_search(
             mem_client = (item.get("metadata") or {}).get("client_id")
             if mem_client and mem_client != cid:
                 continue  # memoria di un altro cliente: fuori scope
+            memory_id = item.get("id") or item.get("memory_id") or item.get("uuid")
+            statement = (
+                item.get("memory")
+                or item.get("text")
+                or item.get("content")
+                or str(item)
+            )
+            if forget.is_forgotten(memory_id, statement, forgotten_ids, forgotten_hashes):
+                continue  # dimenticata su richiesta: non torna, con nessun id
             matches.append(
                 {
-                    "memory_id": item.get("id") or item.get("memory_id") or item.get("uuid"),
-                    "memory": item.get("memory")
-                    or item.get("text")
-                    or item.get("content")
-                    or str(item),
+                    "memory_id": memory_id,
+                    "memory": statement,
                     "score": item.get("score"),
                     "client_scoped": bool(mem_client),
                 }

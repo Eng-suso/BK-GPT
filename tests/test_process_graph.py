@@ -1,10 +1,15 @@
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.graph import START, END, StateGraph
+from langgraph.prebuilt import ToolNode
 
-from backend.graphs.process.graph import evaluate_process_iteration, parse_process_router_json
-from backend.graphs.process.projection import project_specialist_results
+from backend.graphs.process.graph import (
+    build_canvas_delegation_node,
+    evaluate_process_iteration,
+    parse_process_router_json,
+)
+from backend.graphs.process.subgraphs.discovery import graph as discovery_graph_module
 from backend.graphs.process.skills_manifest import required_skills_for
 from backend.graphs.process.state import ProcessState
-from backend.graphs.process.subgraphs.discovery.state import ProcessDiscoveryState
 from backend.graphs.process.subgraphs.discovery.tools import assess_discovery_readiness, discovery_tools
 from backend.graphs.process.subgraphs.evidence.tools import (
     extract_process_claims,
@@ -12,10 +17,14 @@ from backend.graphs.process.subgraphs.evidence.tools import (
     manage_process_contradiction,
     prepare_evidence_coverage_matrix,
 )
+from backend.graphs import routing_contracts
 from backend.graphs.routing_contracts import (
     CAPABILITY_REGISTRY,
+    ProcessRoutingDecision,
+    invalid_process_decision,
     minimum_readiness_score,
     missing_prerequisites,
+    resolve_routing_decision,
 )
 from backend.graphs.process.subgraphs.modeling.tools import (
     modeling_tools,
@@ -91,7 +100,7 @@ def test_parse_process_router_json_falls_back_to_direct_for_invalid_route():
     assert result["orchestration_status"] == "invalid_structured_decision"
 
 
-def test_process_goal_model_as_is_with_insufficient_understanding_routes_to_evidence():
+def test_process_modeling_without_understanding_is_refused_with_its_reason():
     result = parse_process_router_json(
         """
         {
@@ -113,10 +122,13 @@ def test_process_goal_model_as_is_with_insufficient_understanding_routes_to_evid
         },
     )
 
+    # The runtime refuses what state cannot support and says which prerequisite is
+    # missing. It does not pick the replacement work: `resolve_routing_decision`
+    # hands the refusal back to the router, which decides what to do instead.
     assert result["goal"] == "MODEL_AS_IS"
-    assert result["process_route"] == "evidence"
-    assert result["authorized_capability"] == "process.evidence"
-    assert result["orchestration_status"] == "state_constrained_reroute"
+    assert result["process_route"] != "modeling"
+    assert result["orchestration_status"] == "missing_prerequisite"
+    assert "Missing prerequisite: process_understanding" in result["blocking_conditions"]
 
 
 def test_process_modeling_allowed_when_understanding_is_available():
@@ -199,8 +211,8 @@ def test_process_critical_contradiction_blocks_modeling():
         },
     )
 
-    assert result["process_route"] == "evidence"
-    assert result["authorized_capability"] == "process.evidence"
+    assert result["process_route"] != "modeling"
+    assert result["orchestration_status"] == "missing_prerequisite"
     assert "Missing prerequisite: no_critical_contradictions" in result["blocking_conditions"]
 
 
@@ -277,7 +289,8 @@ def test_process_registered_capability_not_allowed_by_state_is_not_executed():
 
     assert result["process_route"] != "delegate_canvas"
     assert result["delegation_target"] != "canvas_macro"
-    assert result["orchestration_status"] == "state_constrained_reroute"
+    assert result["orchestration_status"] == "missing_prerequisite"
+    assert "Missing prerequisite: bpmn_semantic_model" in result["blocking_conditions"]
 
 
 def test_process_single_no_progress_pass_does_not_terminate_the_loop():
@@ -404,7 +417,10 @@ def test_process_states_define_orchestration_fields():
     assert "bpmn_semantic_model_json" not in ProcessState.__annotations__
     assert "process_understanding_diagnostics" in ProcessState.__annotations__
     assert "process_quality_report" in ProcessState.__annotations__
-    assert "discovery_facts" in ProcessDiscoveryState.__annotations__
+    # Specialist subgraphs run on the parent state: what a pass produces has to
+    # reach the gates, and a private per-subgraph schema only ever held fields
+    # nothing wrote or read.
+    assert discovery_graph_module.ProcessState is ProcessState
 
 
 def test_process_toolsets_are_small_and_owned():
@@ -620,7 +636,8 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
 
 
 def test_process_subagent_tools_prepare_gate_payloads():
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -635,7 +652,8 @@ def test_process_subagent_tools_prepare_gate_payloads():
 
 def test_discovery_readiness_cannot_claim_ready_with_open_blockers():
     # The runtime verifies internal consistency of the judgment; it does not score it.
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -651,7 +669,8 @@ def test_discovery_readiness_cannot_claim_ready_with_open_blockers():
 def test_discovery_readiness_rejects_whitespace_only_rationale():
     # A claim of ready_for_modeling with nothing to check it against must not
     # stand just because no blockers were listed either.
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -664,7 +683,8 @@ def test_discovery_readiness_rejects_whitespace_only_rationale():
 
 
 def test_discovery_readiness_with_rationale_and_no_blockers_stands():
-    discovery = assess_discovery_readiness.invoke(
+    discovery = tool_result_text(
+        assess_discovery_readiness,
         {
             "process_id": "proc-1",
             "readiness": "ready_for_modeling",
@@ -676,7 +696,8 @@ def test_discovery_readiness_with_rationale_and_no_blockers_stands():
 
 
 def test_evidence_claim_and_coverage_tools_prepare_gate_payloads():
-    claims = extract_process_claims.invoke(
+    claims = tool_result_text(
+        extract_process_claims,
         {
             "process_id": "proc-1",
             "source_name": "Interview Ops",
@@ -695,7 +716,8 @@ def test_evidence_claim_and_coverage_tools_prepare_gate_payloads():
     assert '"entity_type": "process_claims"' in claims
     assert '"graph_rag_ready": true' in claims
 
-    coverage = prepare_evidence_coverage_matrix.invoke(
+    coverage = tool_result_text(
+        prepare_evidence_coverage_matrix,
         {
             "process_id": "proc-1",
             "coverage_items": [
@@ -738,7 +760,8 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
     monkeypatch.setattr(process_tools_module.workspace_database, "list_project_sources", lambda project_id: [])
     monkeypatch.setattr(process_tools_module.workspace_database, "list_project_decisions", lambda project_id: [])
 
-    result = validate_process_understanding_readiness.invoke(
+    result = tool_result_text(
+        validate_process_understanding_readiness,
         {
             "process_id": "proc-1",
             "objective": "Check if canvas handoff is possible.",
@@ -749,95 +772,159 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
     assert "No valid ProcessUnderstanding review exists." in result
 
 
-def tool_result_message(action: str, entity_type: str, payload: dict) -> ToolMessage:
-    # Built through the canonical producer so these tests cannot keep passing
-    # against a wire format production has moved away from.
-    return ToolMessage(
-        content=enterprise_tool_result(
-            status="prepared",
-            action=action,
-            entity_type=entity_type,
-            entity_id="proc-1",
-            summary="s",
-            payload=payload,
-        ),
-        tool_call_id="call-1",
+def tool_result_text(state_writing_tool, args: dict) -> str:
+    """
+    Extract the reader-facing message content from a state-writing tool invocation.
+    
+    Parameters:
+    	args (dict): Arguments passed to the tool.
+    
+    Returns:
+    	str: The content of the tool's reader-facing message.
+    """
+    command = state_writing_tool.invoke(
+        {"name": state_writing_tool.name, "args": args, "id": "call-1", "type": "tool_call"}
     )
+    return command.update["messages"][0].content
+
+
+def run_tool_call(tools, name: str, args: dict, state: dict | None = None) -> dict:
+    """
+    Execute a tool call through a state graph and return the resulting process state.
+    
+    Parameters:
+    	tools: Tools available to the graph.
+    	name (str): Name of the tool to invoke.
+    	args (dict): Arguments passed to the tool.
+    	state (dict | None): Initial process state, if any.
+    
+    Returns:
+    	dict: Process state after the tool call completes.
+    """
+    call = AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": "call-1"}])
+
+    workflow = StateGraph(ProcessState)
+    workflow.add_node("emit", lambda _state: {"messages": [call]})
+    workflow.add_node("tools", ToolNode(tools))
+    workflow.add_edge(START, "emit")
+    workflow.add_edge("emit", "tools")
+    workflow.add_edge("tools", END)
+
+    return workflow.compile().invoke({"messages": [], **(state or {})})
 
 
 def test_specialist_tool_results_reach_typed_state():
-    # Before the projection node existed, every one of these fields stayed empty
-    # for the whole run: ToolNode only appends ToolMessages and no other node
-    # wrote them, so the gates reading them could never fire.
-    messages = [
-        AIMessage(content="working"),
-        tool_result_message(
-            "manage_process_contradiction",
-            "process_contradiction",
-            {"title": "Chi approva oltre 10k", "severity": "high"},
-        ),
-        tool_result_message("record_process_gap", "process_gap", {"title": "Soglia", "severity": "non_blocking"}),
-        tool_result_message(
-            "extract_process_claims",
-            "process_claims",
-            {"claims": [{"claim": "Ops valida"}, {"claim": "Finance fattura"}]},
-        ),
-        tool_result_message(
-            "assess_discovery_readiness",
-            "process_discovery_readiness",
-            {"readiness": "partially_ready"},
-        ),
-        tool_result_message(
-            "validate_process_understanding_readiness",
-            "process_understanding_readiness",
-            {"minimum_readiness_score": 5},
-        ),
-    ]
+    # ToolNode appends a ToolMessage and nothing else, so these fields used to stay
+    # empty for the whole run and the gates reading them could never fire. The tools
+    # now write the judgment they carry directly into typed state.
+    result = run_tool_call(
+        evidence_tools,
+        "manage_process_contradiction",
+        {
+            "process_id": "proc-1",
+            "operation": "identify",
+            "title": "Chi approva oltre 10k",
+            "severity": "high",
+        },
+    )
+    assert [item["title"] for item in result["contradictions"]] == ["Chi approva oltre 10k"]
 
-    update = project_specialist_results({"messages": messages})
+    result = run_tool_call(
+        discovery_tools,
+        "record_process_gap",
+        {
+            "process_id": "proc-1",
+            "title": "Soglia",
+            "missing_information": "Soglia di approvazione",
+            "affects": "decision",
+            "severity": "non_blocking",
+        },
+    )
+    assert [item["title"] for item in result["process_gaps"]] == ["Soglia"]
 
-    assert [item["title"] for item in update["contradictions"]] == ["Chi approva oltre 10k"]
-    assert [item["title"] for item in update["process_gaps"]] == ["Soglia"]
-    assert len(update["process_claims"]) == 2
-    assert update["discovery_readiness"]["readiness"] == "partially_ready"
-    assert update["minimum_readiness_score"] == 5
-    assert update["projected_message_count"] == len(messages)
+    result = run_tool_call(
+        evidence_tools,
+        "extract_process_claims",
+        {
+            "process_id": "proc-1",
+            "source_name": "Intervista Ops",
+            "claims": [
+                {
+                    "claim": "Ops valida",
+                    "process_area": "activity",
+                    "source_name": "Intervista Ops",
+                    "confidence": "high",
+                    "status": "confirmed",
+                },
+                {
+                    "claim": "Finance fattura",
+                    "process_area": "activity",
+                    "source_name": "Intervista Ops",
+                    "confidence": "medium",
+                    "status": "partial",
+                },
+            ],
+        },
+    )
+    assert len(result["process_claims"]) == 2
+
+    result = run_tool_call(
+        discovery_tools,
+        "assess_discovery_readiness",
+        {
+            "process_id": "proc-1",
+            "readiness": "partially_ready",
+            "rationale": "Manca la soglia di approvazione.",
+            "confidence": 0.6,
+        },
+    )
+    assert result["discovery_readiness"]["readiness"] == "partially_ready"
 
 
-def test_projection_ignores_unparseable_and_unknown_tool_results():
-    messages = [
-        ToolMessage(content="this is not a tool result", tool_call_id="call-1"),
-        tool_result_message("whatever", "unknown_entity_type", {"x": 1}),
-    ]
-
-    update = project_specialist_results({"messages": messages})
-
-    assert update == {"projected_message_count": 2}
-
-
-def test_projection_does_not_recollect_results_on_loop_re_entry():
-    # contradictions/process_gaps/process_claims use an append reducer, so
-    # re-projecting the same messages on the next engineering-loop pass would
-    # duplicate every record.
-    messages = [
-        tool_result_message(
-            "manage_process_contradiction",
-            "process_contradiction",
-            {"title": "A", "severity": "high"},
-        )
-    ]
-
-    first = project_specialist_results({"messages": messages})
-    second = project_specialist_results(
-        {"messages": messages, "projected_message_count": first["projected_message_count"]}
+def test_tool_state_writes_carry_the_reader_facing_result_too():
+    # The typed write must not cost the agent its own tool result: the transcript
+    # still carries the enterprise result envelope, paired to its tool call.
+    result = run_tool_call(
+        evidence_tools,
+        "manage_process_contradiction",
+        {
+            "process_id": "proc-1",
+            "operation": "identify",
+            "title": "Chi approva oltre 10k",
+            "severity": "high",
+        },
     )
 
-    assert len(first["contradictions"]) == 1
-    assert "contradictions" not in second
-    assert second["projected_message_count"] == 1
+    tool_message = result["messages"][-1]
+    assert tool_message.tool_call_id == "call-1"
+    assert '"entity_type": "process_contradiction"' in tool_message.content
+
+
+def test_state_writing_tools_do_not_expose_tool_call_id_to_the_model():
+    for tools, name in (
+        (evidence_tools, "manage_process_contradiction"),
+        (evidence_tools, "extract_process_claims"),
+        (evidence_tools, "prepare_evidence_coverage_matrix"),
+        (discovery_tools, "assess_discovery_readiness"),
+        (discovery_tools, "record_process_gap"),
+        (modeling_tools, "validate_process_understanding_readiness"),
+    ):
+        tool_obj = next(item for item in tools if item.name == name)
+        # tool_call_schema is the model-facing view: injected arguments are filtered
+        # out of it, which is exactly what must stay true.
+        properties = tool_obj.tool_call_schema.model_json_schema()["properties"]
+        assert "tool_call_id" not in properties, f"{name} leaks the injected id into its schema"
 
 
 def modeling_prerequisites(state: dict) -> list[str]:
+    """Return the missing prerequisites for process modeling.
+    
+    Parameters:
+    	state (dict): Process state used to evaluate modeling readiness.
+    
+    Returns:
+    	list[str]: Names of prerequisites that are not satisfied.
+    """
     return missing_prerequisites(CAPABILITY_REGISTRY["process.modeling"], state)
 
 
@@ -920,7 +1007,8 @@ def test_untitled_contradiction_cannot_be_cleared_by_another_resolution():
 
 
 def test_contradiction_resolution_requires_a_supporting_source():
-    resolution = manage_process_contradiction.invoke(
+    resolution = tool_result_text(
+        manage_process_contradiction,
         {
             "process_id": "proc-1",
             "operation": "resolve",
@@ -937,7 +1025,8 @@ def test_contradiction_resolution_requires_a_supporting_source():
 
 
 def test_contradiction_resolution_with_evidence_stands():
-    resolution = manage_process_contradiction.invoke(
+    resolution = tool_result_text(
+        manage_process_contradiction,
         {
             "process_id": "proc-1",
             "operation": "resolve",
@@ -1020,3 +1109,147 @@ def test_minimum_readiness_score_falls_back_to_the_documented_default():
     assert minimum_readiness_score({}) == 7
     assert minimum_readiness_score({"minimum_readiness_score": 5}) == 5
     assert minimum_readiness_score({"minimum_readiness_score": 99}) == 7
+
+
+def test_refused_route_is_handed_back_to_the_router_not_replaced_by_a_fallback(monkeypatch):
+    """A blocked capability re-enters the model with the reason it was blocked.
+
+    The runtime used to substitute its own recovery route (modeling -> evidence,
+    and so on), which is a judgment call the agent is better placed to make with
+    the process in front of it. Here the runtime only reports the refusal.
+    """
+    proposals = [
+        ProcessRoutingDecision(
+            route="modeling",
+            confidence=0.9,
+            suggested_capability="process.modeling",
+            reason="User asked for the AS-IS.",
+        ),
+        ProcessRoutingDecision(
+            route="discovery",
+            confidence=0.8,
+            suggested_capability="process.discovery",
+            reason="No understanding yet: run discovery first.",
+        ),
+    ]
+    seen_messages = []
+
+    def fake_invoke(llm, model, messages, config, invalid_factory):
+        """
+        Simulate a structured language-model invocation for tests.
+        
+        Returns:
+            tuple: The next proposal, the string "structured", and None.
+        """
+        seen_messages.append(messages)
+        return proposals[len(seen_messages) - 1], "structured", None
+
+    monkeypatch.setattr(routing_contracts, "invoke_structured_router", fake_invoke)
+
+    decision, parse_source, parse_error = resolve_routing_decision(
+        owner="process",
+        llm=object(),
+        model=ProcessRoutingDecision,
+        messages=[],
+        config={},
+        invalid_factory=invalid_process_decision,
+        state={"process_id": "proc-1", "process_understanding": None},
+    )
+
+    assert len(seen_messages) == 2, "the router should be asked again after a refusal"
+    refusal = seen_messages[1][-1].content
+    assert "process_understanding" in refusal
+    assert "process.modeling" in refusal
+    assert decision.route == "discovery"
+    assert parse_source == "structured"
+    assert parse_error is None
+
+
+def test_authorized_route_is_not_re_asked(monkeypatch):
+    calls = []
+
+    def fake_invoke(llm, model, messages, config, invalid_factory):
+        calls.append(messages)
+        return (
+            ProcessRoutingDecision(
+                route="discovery",
+                confidence=0.9,
+                suggested_capability="process.discovery",
+                reason="Discovery is the next step.",
+            ),
+            "structured",
+            None,
+        )
+
+    monkeypatch.setattr(routing_contracts, "invoke_structured_router", fake_invoke)
+
+    resolve_routing_decision(
+        owner="process",
+        llm=object(),
+        model=ProcessRoutingDecision,
+        messages=[],
+        config={},
+        invalid_factory=invalid_process_decision,
+        state={"process_id": "proc-1"},
+    )
+
+    assert len(calls) == 1
+
+
+def test_canvas_handoff_runs_the_canvas_agent_instead_of_redirecting_the_user():
+    """An authorized handoff is work, not advice.
+
+    The process graph used to answer "this belongs to the Canvas Macro Agent, open
+    the canvas chat", which threw away a decision the router had just authorized
+    against the readiness prerequisites.
+    """
+    captured = {}
+
+    class FakeCanvasGraph:
+        def invoke(self, state, config=None):
+            """
+            Simulate a completed Canvas construction handoff.
+            
+            Parameters:
+                state: Process state supplied to the Canvas graph.
+            
+            Returns:
+                dict: Canvas completion messages, BPMN XML, routing status, and trace.
+            """
+            captured["state"] = state
+            return {
+                "messages": [AIMessage(content="Canvas aggiornato.")],
+                "saved_bpmn_xml": "<bpmn />",
+                "canvas_loop_status": "completed",
+                "canvas_route": "construction",
+                "routing_trace": [{"owner": "canvas", "route": "construction"}],
+            }
+
+    node = build_canvas_delegation_node(FakeCanvasGraph())
+    result = node(
+        {
+            "messages": [HumanMessage(content="disegna il processo")],
+            "scope_key": "process:proj-1:proc-1",
+            "project_id": "proj-1",
+            "process_id": "proc-1",
+            "bpmn_model_id": "bpmn-1",
+            "process_name": "Ordini",
+            "delegation_payload": {"goal": "BUILD_CANVAS", "workflow_scope": "single_step"},
+        },
+        config={},
+    )
+
+    assert captured["state"]["scope_type"] == "canvas"
+    assert captured["state"]["bpmn_model_id"] == "bpmn-1"
+    assert captured["state"]["goal"] == "BUILD_CANVAS"
+    assert result["messages"][0].content == "Canvas aggiornato."
+    assert result["saved_bpmn_xml"] == "<bpmn />"
+    assert result["delegation_events"][0]["status"] == "completed"
+
+
+def test_canvas_handoff_without_a_bpmn_model_reports_the_block():
+    node = build_canvas_delegation_node(object())
+    result = node({"messages": [], "process_id": "proc-1"}, config={})
+
+    assert result["delegation_events"][0]["status"] == "blocked"
+    assert "modello BPMN" in result["messages"][0].content

@@ -14,6 +14,7 @@ interface ChatHeaderProps {
   title?: string;
   isDrawerOpen?: boolean;
   onMenuToggle?: () => void;
+  historyButtonRef?: React.Ref<HTMLButtonElement>;
   onConfig?: () => void;
   onShare?: () => void;
 }
@@ -22,6 +23,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   title = "Chat consulente",
   isDrawerOpen = false,
   onMenuToggle,
+  historyButtonRef,
   onConfig,
   onShare,
 }) => {
@@ -35,6 +37,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           variant="ghost"
           size="icon"
           className="menu-toggle"
+          ref={historyButtonRef}
           onClick={() => onMenuToggle?.()}
           title={t("actions.history")}
           aria-label={t("actions.history")}

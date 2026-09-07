@@ -8,7 +8,8 @@
     "models": "Modelli",
     "archive": "Archivio",
     "help": "Aiuto",
-    "profile": "Impostazioni"
+    "profile": "Impostazioni",
+    "toggle": "Espandi o riduci navigazione"
   },
   "actions": {
     "new": "Nuovo",

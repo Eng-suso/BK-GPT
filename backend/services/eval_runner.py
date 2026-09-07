@@ -1,10 +1,30 @@
-from backend.graphs.consulting.graph import VALID_CONSULTING_ROUTES, parse_router_json
+from backend.graphs.consulting.graph import parse_router_json
 from backend.graphs.consulting.tools import consultant_tools
+from backend.graphs.routing_contracts import CAPABILITY_REGISTRY
 from backend.schemas.api import EvalCheckResult, EvalRunResponse
 from backend.services.trace_recorder import new_trace_context
 
 
+# The registry is the only list of what a router may return; a second hand-kept
+# set of route names would just drift away from it.
+VALID_CONSULTING_ROUTES = {
+    spec.route for spec in CAPABILITY_REGISTRY.values() if spec.owner == "consultant"
+}
+
+
 def run_observability_smoke_eval() -> EvalRunResponse:
+    """
+    Run the observability smoke evaluation for the consulting router and tool budget.
+    
+    The evaluation verifies that the parsed consulting route is registered and that
+    the consultant toolset contains at most nine tools. The overall result is
+    successful only when all checks pass. This creates an evaluation trace context
+    but does not persist evaluation results.
+    
+    Returns:
+        EvalRunResponse: The evaluation outcome, individual check results, suite
+            name, and trace identifier.
+    """
     trace = new_trace_context(scope_type="eval", scope_key="eval:observability")
     checks = []
 
@@ -21,11 +41,13 @@ def run_observability_smoke_eval() -> EvalRunResponse:
         )
     )
 
+    # 9: la gestione del ciclo di vita della memoria e' entrata come un solo
+    # facade (`manage_consultant_memory`), non come tre tool separati.
     checks.append(
         EvalCheckResult(
             name="consult_macro_tool_budget",
-            status="pass" if len(consultant_tools) <= 8 else "fail",
-            summary="Consult Macro direct toolset stays within the 8-tool budget.",
+            status="pass" if len(consultant_tools) <= 9 else "fail",
+            summary="Consult Macro direct toolset stays within the 9-tool budget.",
             details={"tool_count": len(consultant_tools), "tools": [tool.name for tool in consultant_tools]},
         )
     )

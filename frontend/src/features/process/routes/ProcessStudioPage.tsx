@@ -13,7 +13,6 @@ import { ErrorState } from "@/components/feedback";
 import { StatusIndicator, type StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
 import { useProjectQuery } from "@/features/projects/api";
 import type { ProjectProcess } from "@/contracts/workspace";
@@ -35,6 +34,11 @@ function parseView(raw: string | null): ProcessView {
   return VIEWS.includes(raw as ProcessView) ? (raw as ProcessView) : "canvas";
 }
 
+/**
+ * Renders the process studio with chat and canvas views.
+ *
+ * @returns The process studio page element.
+ */
 export function ProcessStudioPage(): React.JSX.Element {
   const { projectId = "", processId = "" } = useParams();
   const { t } = useTranslation("process");
@@ -127,8 +131,9 @@ export function ProcessStudioPage(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-col gap-3 px-7 pb-2 pt-6">
+      <div className="flex shrink-0 flex-col gap-2 px-4 pb-2 pt-3">
         <PageHeader
+          compact
           breadcrumbs={[
             { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
             { label: project.name, to: ROUTES.projects.detail(project.id) },
@@ -171,17 +176,13 @@ export function ProcessStudioPage(): React.JSX.Element {
             </>
           }
         />
-        <Tabs value={view} onValueChange={setView}>
-          <div className="-mx-7 overflow-x-auto px-7 pb-0.5">
-            <TabsList variant="line" className="min-w-max">
+        <nav aria-label={t("actions.views")} className="flex gap-1 border-b border-border">
               {VIEWS.map((v) => (
-                <TabsTrigger key={v} value={v}>
+                <button type="button" key={v} onClick={() => setView(v)} aria-current={view === v ? "page" : undefined} className={`px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring ${view === v ? "border-b-2 border-primary font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   {t(`tabs.${v}`)}
-                </TabsTrigger>
+                </button>
               ))}
-            </TabsList>
-          </div>
-        </Tabs>
+        </nav>
       </div>
 
       <div className="min-h-0 flex-1">

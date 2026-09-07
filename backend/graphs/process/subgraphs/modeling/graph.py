@@ -2,7 +2,7 @@ from pathlib import Path
 
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
-from backend.graphs.process.subgraphs.modeling.state import ProcessModelingState
+from backend.graphs.process.state import ProcessState
 from backend.graphs.process.subgraphs.modeling.tools import MODELING_TOOL_POLICY, modeling_tools
 
 
@@ -32,8 +32,25 @@ the future canvas arrows. Preserve assumptions, gaps and model warnings.
 
 
 def build_modeling_subgraph(llm_with_tools, build_context_messages):
+    """
+    Construct a tool-enabled subgraph for process modeling.
+    
+    The subgraph uses ``ProcessState`` and enforces the modeling contract, including
+    ``ProcessUnderstanding`` as the canonical context and preservation of AS-IS
+    modeling details such as actors, participants, documents, rules, paths,
+    assumptions, gaps, and warnings. Construction does not persist data or perform
+    other external side effects.
+    
+    Args:
+        llm_with_tools: Language model configured with the modeling tools.
+        build_context_messages: Callable that builds context messages from process
+            state.
+    
+    Returns:
+        A configured tool-enabled process-modeling subgraph.
+    """
     return build_tool_chat_subgraph(
-        state_schema=ProcessModelingState,
+        state_schema=ProcessState,
         tools=modeling_tools,
         llm_with_tools=llm_with_tools,
         build_context_messages=build_context_messages,

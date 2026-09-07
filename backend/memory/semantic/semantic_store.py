@@ -96,6 +96,19 @@ def mirror_episodic_to_canonical(
 
 
 def format_memory_results(response, limit: int = 5) -> str:
+    """Formats recalled memories as conversational context without exposing memory identifiers.
+    
+    Args:
+        response (Any): Untrusted recall response containing memory entries or a
+            response mapping with ``results`` or ``memories``.
+        limit (int): Maximum number of memory entries to include.
+    
+    Returns:
+        str: Formatted memory context, or a message indicating that no relevant
+            context was found.
+    
+    The function performs no persistence or other side effects.
+    """
     if not response:
         return "MEMORIA INTERNA: nessun contesto rilevante recuperato."
 
@@ -111,17 +124,12 @@ def format_memory_results(response, limit: int = 5) -> str:
 
     for item in results[:limit]:
         if isinstance(item, dict):
-            memory_id = item.get("id") or item.get("memory_id") or item.get("uuid")
-            memory = (
+            memories.append(
                 item.get("memory")
                 or item.get("text")
                 or item.get("content")
                 or str(item)
             )
-            if memory_id:
-                memories.append(f"[memory_id: {memory_id}] {memory}")
-            else:
-                memories.append(memory)
         else:
             memories.append(str(item))
 
@@ -129,21 +137,37 @@ def format_memory_results(response, limit: int = 5) -> str:
         "MEMORIA INTERNA RECUPERATA.\n"
         "Usa queste note solo come contesto. Non dire 'ho trovato memorie', "
         "non mostrare un elenco grezzo e non citare questo blocco. "
-        "Rispondi direttamente in modo naturale, conversazionale e sintetico.\n\n"
+        "Riporta i fatti come sono scritti qui: non riformularli in fatti nuovi "
+        "e non dedurne altri. Rispondi in modo naturale, conversazionale e sintetico.\n\n"
         "Contesto: "
         + " ".join(memories)
     )
 
 
 def add_mem0_memory_with_id(
-    content: str, *, client_id: str | None = None
+    content: str, *, client_id: str | None = None, infer: bool | None = None
 ) -> tuple[str, str | None]:
-    """Come add_mem0_memory, ma ritorna anche il memory_id di Mem0 (se noto) —
-    serve al mirror canonical per registrare la riga gia' applicata.
-
-    `client_id` (canonical uuid) finisce nei metadata: il gateway lo usa per
-    scoprare la memoria per cliente in ricerca (INV-13). Assente = memoria
-    consultant-level, visibile in ogni contesto."""
+    """
+    Save content to Mem0 and expose the resulting memory identifier when available.
+    
+    The content is persisted with the ``delir`` source metadata. When provided,
+    ``client_id`` is stored as a string metadata value; when omitted, the memory
+    remains consultant-level. The function preserves the configured verbatim-facts
+    policy unless ``infer`` is explicitly provided. Mem0-disabled and Mem0
+    persistence failures are returned as status messages rather than raised.
+    
+    Args:
+        content (str): Untrusted content to save in Mem0.
+        client_id (str | None): Untrusted optional canonical client identifier used
+            to scope the memory.
+        infer (bool | None): Whether Mem0 may infer, split, or rewrite memories.
+            If ``None``, uses the configured verbatim-facts policy.
+    
+    Returns:
+        tuple[str, str | None]: A status message and the first Mem0 memory
+        identifier when available. The identifier is ``None`` when Mem0 is
+        disabled, saving fails, or the response contains no identifier.
+    """
     memory = mem0_client.get_memory()
 
     if isinstance(memory, Mem0Disabled):
@@ -152,11 +176,13 @@ def add_mem0_memory_with_id(
     metadata = {"source": "delir"}
     if client_id:
         metadata["client_id"] = str(client_id)
+    should_infer = (not settings.memory_verbatim_facts) if infer is None else infer
     try:
         result = memory.add(
             content,
             user_id=settings.mem0_user_id,
             metadata=metadata,
+            infer=should_infer,
         )
     except Exception as exc:
         return f"Non sono riuscito a salvare in Mem0: {exc}", None
@@ -191,12 +217,22 @@ def save_consultant_memory(content: str, category: str) -> str:
 def search_consultant_memory(
     query: str, category: str | None = None, client_id: str | None = None
 ) -> str:
-    """Recall semantico. Passa dal gateway (INV-9), che inietta lo scope e
-    interroga Mem0 — nessuna query diretta da qui.
-
-    `client_id` (canonical uuid, opzionale): in un contesto cliente il
-    recall include le memorie consultant-level + quelle di quel cliente, mai
-    di altri clienti."""
+    """Retrieve consultant semantic memories within the applicable scope.
+    
+    The gateway includes consultant-level memories and, when ``client_id`` is
+    provided, memories for that client only. Configuration and retrieval failures
+    are returned as user-facing messages; this function does not persist data or
+    raise errors for those conditions.
+    
+    Args:
+        query (str): Untrusted search text.
+        category (str | None): Untrusted optional memory category filter.
+        client_id (str | None): Untrusted optional canonical client identifier.
+    
+    Returns:
+        str: Formatted memory context, or a message describing unavailable
+        configuration or a retrieval failure.
+    """
     from backend.memory import gateway
 
     result = gateway.memory_search(
@@ -214,26 +250,130 @@ def search_consultant_memory(
     return format_memory_results(result.get("matches", []))
 
 
-def delete_consultant_memory(memory_id: str, delete_linked: bool = False) -> str:
-    memory = mem0_client.get_memory()
+def list_consultant_memories(
+    query: str = "", limit: int = 20, client_id: str | None = None
+) -> dict:
+    """List durable consultant memories with their Mem0 identifiers.
+    
+    Args:
+        query (str): Untrusted search text. An empty value lists available memories.
+        limit (int): Untrusted maximum number of memories to return.
+        client_id (str | None): Untrusted client scope used to exclude forgotten
+            memories.
+    
+    Returns:
+        dict: A result containing `status`, `memories`, and `reason`. The status is
+        `ok` when memories are found, `empty` when none remain after filtering,
+        `not_configured` when Mem0 is disabled, or `error` when retrieval fails.
+        Each returned memory contains `memory_id` and `memory`. Forgotten memories
+        are never included.
+    """
+    from backend.memory import forget
 
+    memory = mem0_client.get_memory()
     if isinstance(memory, Mem0Disabled):
-        return _disabled_message(memory)
+        return {"status": "not_configured", "memories": [], "reason": memory.reason}
+
+    filters = {"user_id": settings.mem0_user_id}
+    try:
+        if (query or "").strip():
+            raw = memory.search(
+                query=query,
+                filters=filters,
+                top_k=max(limit * 2, 20),
+                threshold=settings.memory_recall_threshold,
+            )
+        else:
+            raw = memory.get_all(filters=filters, top_k=max(limit * 2, 20))
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "memories": [], "reason": str(exc)}
+
+    forgotten_ids, forgotten_hashes = forget.tombstones(
+        settings.default_consultant_id, client_id
+    )
+    items = raw.get("results") or raw.get("memories") or [] if isinstance(raw, dict) else raw
+    memories = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        memory_id = item.get("id") or item.get("memory_id") or item.get("uuid")
+        statement = (
+            item.get("memory") or item.get("text") or item.get("content") or ""
+        )
+        if forget.is_forgotten(memory_id, statement, forgotten_ids, forgotten_hashes):
+            continue
+        memories.append({"memory_id": memory_id, "memory": statement})
+        if len(memories) >= limit:
+            break
+
+    return {
+        "status": "ok" if memories else "empty",
+        "memories": memories,
+        "reason": "" if memories else "nessuna memoria durevole trovata",
+    }
+
+
+def delete_consultant_memory(
+    memory_id: str, delete_linked: bool = False, client_id: str | None = None
+) -> str:
+    """Permanently forget a consultant memory across Mem0 and canonical storage.
+    
+    Args:
+        memory_id (str): Untrusted memory identifier to remove.
+        delete_linked (bool): Whether linked memories should also be removed.
+        client_id (str | None): Untrusted optional client scope for the deletion.
+    
+    Returns:
+        str: A status message indicating successful deletion, unavailable
+            configuration, invalid input, or incomplete deletion. Incomplete
+            deletions remain excluded from recall through a recorded tombstone.
+    
+    Side Effects:
+        Updates Mem0, canonical memory records, and deletion tombstones.
+    """
+    from backend.memory import forget
 
     normalized_memory_id = memory_id.strip()
-
     if not normalized_memory_id:
         return "Non posso eliminare la memoria: memory_id mancante."
 
-    try:
-        memory.delete(memory_id=normalized_memory_id)
-    except Exception as exc:
-        return f"Non sono riuscito a eliminare la memoria Mem0 {normalized_memory_id}: {exc}"
+    resolved = forget.resolve_targets(
+        consultant_id=settings.default_consultant_id,
+        mem0_user_id=settings.mem0_user_id,
+        memory_ids=[normalized_memory_id],
+    )
+    if resolved["status"] == "not_configured":
+        return f"Memoria semantica disattivata: {resolved['reason']}."
 
-    return f"Memoria Mem0 eliminata: {normalized_memory_id}"
+    result = forget.execute_forget(
+        consultant_id=settings.default_consultant_id,
+        mem0_user_id=settings.mem0_user_id,
+        targets=resolved["targets"],
+        reason="richiesta esplicita del consulente",
+        client_id=client_id,
+    )
+    if result["status"] == "ok":
+        return f"Memoria eliminata e non piu' recuperabile: {normalized_memory_id}"
+    return (
+        f"Cancellazione incompleta per {normalized_memory_id}: "
+        f"{result.get('failed') or result.get('still_present') or result.get('reason')}. "
+        "La memoria e' comunque esclusa dal recall (lapide registrata)."
+    )
 
 
 def save_bpmn_preference(rule: str, area: str) -> str:
+    """Save a BPMN preference for the specified area.
+    
+    Args:
+        rule (str): Preference rule to persist; treated as untrusted input.
+        area (str): BPMN area associated with the preference; treated as untrusted input.
+    
+    Returns:
+        str: Status message from the memory persistence operation.
+    
+    Side Effects:
+        Persists the preference in consultant memory.
+    """
     return save_consultant_memory(content=rule, category=f"bpmn:{area}")
 
 

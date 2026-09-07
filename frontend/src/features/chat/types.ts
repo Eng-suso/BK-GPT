@@ -95,9 +95,34 @@ export type BpmnSemanticModelSummary = {
   model_warnings?: string[];
 };
 
+/** One alternative the agent proposed for an open question. */
+export type ReviewOption = {
+  label: string;
+  implication?: string;
+};
+
+/** A gap in the plan the consultant can close, rather than only read. */
+export type ReviewOpenQuestion = {
+  question_id: string;
+  question: string;
+  affects?: string;
+  severity?: string;
+  options?: ReviewOption[];
+  answer?: string | null;
+  answered_at?: string | null;
+};
+
+export type ReviewAnswer = {
+  question_id: string;
+  question: string;
+  answer: string;
+  answered_at: string;
+};
+
 export type BpmnReview = {
   bpmn_model_id: string;
   process_id: string;
+  version?: number;
   source_text: string;
   process_understanding?: ProcessUnderstandingSummary;
   bpmn_semantic_model?: BpmnSemanticModelSummary;
@@ -105,6 +130,17 @@ export type BpmnReview = {
   bpmn_brief: string;
   readiness_score: number;
   missing_information: string[];
+  open_questions?: ReviewOpenQuestion[];
+  answers?: ReviewAnswer[];
+  status?: string;
   created_at: string;
   updated_at: string;
+};
+
+/** One recorded state of a review, with why it was written. */
+export type BpmnReviewVersion = BpmnReview & {
+  version: number;
+  status: string;
+  change_summary: string;
+  source: string;
 };

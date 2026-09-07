@@ -13,6 +13,12 @@ export function canvas(modeler: BpmnModeler): BpmnCanvasService {
   return modeler.get("canvas") as BpmnCanvasService;
 }
 
+/**
+ * Fits the complete diagram within the modeler's viewport with balanced padding.
+ *
+ * Skips fitting while the viewport has zero dimensions and falls back to viewport
+ * fitting when diagram bounds or viewbox data are unavailable.
+ */
 export function fitCanvas(modeler: BpmnModeler): void {
   const canvasService = canvas(modeler);
   canvasService.resized?.();
@@ -22,7 +28,12 @@ export function fitCanvas(modeler: BpmnModeler): void {
   const bounds = getDiagramBounds(elements);
   const outer = canvasService.viewbox?.().outer;
 
-  if (!bounds || !outer?.width || !outer.height || !canvasService.viewbox) {
+  // A mobile support pane can temporarily hide the mounted model. Fitting a
+  // zero-size SVG produces a non-finite transform; its ResizeObserver refits
+  // once the canvas is visible again.
+  if (outer && (!outer.width || !outer.height)) return;
+
+  if (!bounds || !outer || !canvasService.viewbox) {
     canvasService.zoom("fit-viewport");
     return;
   }

@@ -8,7 +8,8 @@
     "models": "Models",
     "archive": "Archive",
     "help": "Help",
-    "profile": "Settings"
+    "profile": "Settings",
+    "toggle": "Expand or collapse navigation"
   },
   "actions": {
     "new": "New",

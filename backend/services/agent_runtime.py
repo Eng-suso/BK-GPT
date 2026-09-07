@@ -12,7 +12,9 @@ from typing import Any, Iterator
 from uuid import UUID
 
 from backend.agent import get_agent, normalize_model_name
+from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
+from backend.agents.run_context import bind_active_thread
 from backend.agents.scope_guard import bind_active_scope
 from backend.llm_config import chat_openai_kwargs
 from backend.llm_streaming import (
@@ -21,7 +23,13 @@ from backend.llm_streaming import (
     stream_to_text,
 )
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
-from backend.schemas.chat import ChatScope, chat_scope_key
+from backend.schemas.chat import (
+    DEFAULT_CHAT_MODE,
+    ChatAttachment,
+    ChatMode,
+    ChatScope,
+    chat_scope_key,
+)
 from backend.services.trace_recorder import elapsed_ms, new_trace_context, trace_event
 from backend.settings import (
     effective_langsmith_model_name,
@@ -39,95 +47,49 @@ except ImportError:  # pragma: no cover - langsmith is provided by LangChain dep
 
 THREAD_LOCK_TIMEOUT_SECONDS = 30
 ACTIVITY_HEARTBEAT_SECONDS = 4.0
-STREAMABLE_AGENT_NODES = {
-    "chatbot",
-    "consulting_subgraph",
-    "project_subgraph",
-    "process_subgraph",
-    "canvas_subgraph",
-    "home_subgraph",
-    "clients_subgraph",
-    "setup_subgraph",
-    "delivery_subgraph",
-    "process_coordination_subgraph",
-    "discovery_subgraph",
-    "evidence_subgraph",
-    "modeling_subgraph",
-    "project_macro_agent",
-    "project_delivery_agent",
-    "project_process_coordination_agent",
-    "consult_macro_agent",
-    "home_agent",
-    "clients_agent",
-    "setup_agent",
-    "process_agent",
-    "process_macro_agent",
-    "process_discovery_agent",
-    "process_evidence_agent",
-    "process_modeling_agent",
-    "canvas_agent",
+# Agent work is visible by default. These two sets are the exceptions, so a node
+# added to a graph reports progress without anyone remembering to register it -
+# the previous allow-list of 44 node names silently swallowed every new node.
+#
+# Nodes whose work is plumbing, not the agent's answer: context loaders, routers,
+# loop evaluators. They emit nothing.
+INTERNAL_AGENT_NODES = {
+    "summarize",
+    "classify_and_select_context",
+    "load_process_context",
+    "load_canvas_context",
+    "load_context",
+    "consulting_router",
+    "project_router",
+    "process_router",
+    "evaluate_process_iteration",
+    "evaluate_canvas_completion",
+    "refresh_canvas_context_after_work",
+}
+
+# Nodes that report progress but whose token stream is not an answer to the user:
+# a router's structured decision, a subgraph wrapper replaying its child's tokens.
+NON_DELTA_AGENT_NODES = {
     "canvas_router",
-    "canvas_macro_agent",
     "patch_edit_subgraph",
-    "canvas_patch_edit_agent",
     "construction_subgraph",
-    "canvas_construction_agent",
     "layout_subgraph",
-    "canvas_layout_consultant_agent",
-    "canvas_drawing_agent",
     "validation_subgraph",
-    "canvas_validation_agent",
-    "canvas_completion_report",
-    "delegate_to_project_macro",
-    "delegate_to_process_macro",
-    "delegate_to_canvas_macro",
-    "ask_consulting_clarification",
-    "ask_project_clarification",
-    "ask_process_clarification",
-    "ask_canvas_clarification",
 }
-DELTA_STREAM_AGENT_NODES = {
-    "chatbot",
-    "consulting_subgraph",
-    "project_subgraph",
-    "process_subgraph",
-    "canvas_subgraph",
-    "home_subgraph",
-    "clients_subgraph",
-    "setup_subgraph",
-    "delivery_subgraph",
-    "process_coordination_subgraph",
-    "discovery_subgraph",
-    "evidence_subgraph",
-    "modeling_subgraph",
-    "project_macro_agent",
-    "project_delivery_agent",
-    "project_process_coordination_agent",
-    "consult_macro_agent",
-    "home_agent",
-    "clients_agent",
-    "setup_agent",
-    "process_agent",
-    "process_macro_agent",
-    "process_discovery_agent",
-    "process_evidence_agent",
-    "process_modeling_agent",
-    "canvas_agent",
-    "canvas_macro_agent",
-    "canvas_patch_edit_agent",
-    "canvas_construction_agent",
-    "canvas_layout_consultant_agent",
-    "canvas_drawing_agent",
-    "canvas_validation_agent",
-    "canvas_completion_report",
-    "delegate_to_project_macro",
-    "delegate_to_process_macro",
-    "delegate_to_canvas_macro",
-    "ask_consulting_clarification",
-    "ask_project_clarification",
-    "ask_process_clarification",
-    "ask_canvas_clarification",
-}
+
+
+def is_internal_agent_node(node_name: str) -> bool:
+    """Determine whether an agent node should be excluded from the user-visible stream.
+    
+    Args:
+        node_name (str): Untrusted node name to classify.
+    
+    Returns:
+        bool: `True` if the node is an internal node or ends with ``"_tools"``,
+            `False` otherwise.
+    """
+    return node_name in INTERNAL_AGENT_NODES or node_name.endswith("_tools")
+
 
 _THREAD_LOCKS: dict[str, Lock] = {}
 _THREAD_LOCKS_GUARD = Lock()
@@ -473,28 +435,34 @@ def stream_agent_events(
     model_name: str | None,
     messages: list[dict],
     scope: ChatScope | None = None,
+    chat_mode: ChatMode | None = None,
+    attachments: list[ChatAttachment] | None = None,
     trace_context: TraceContext | None = None,
     emit_activity: bool = True,
 ) -> Iterator[AgentStreamEvent]:
     """
     Stream scoped agent responses as structured events.
     
-    The stream derives a scope-specific checkpoint thread, preserves a single active
-    request per checkpoint thread, and emits lifecycle, node, text, usage, and trace
-    events. Agent execution may update checkpoint state. A busy checkpoint produces a
-    retryable error event; execution failures produce a non-retryable error event.
+    The stream enforces one active request per scoped checkpoint thread and may persist
+    agent checkpoint state. Busy sessions produce retryable error events; agent
+    execution failures produce non-retryable error events.
     
     Args:
-        thread_id: (Untrusted input.) Request conversation identifier.
-        model_name: (Untrusted input.) Requested model name, or None for the default
-            model.
+        thread_id: (Untrusted input.) Conversation identifier.
+        model_name: (Untrusted input.) Requested model name, or ``None`` for the
+            default model.
         messages: (Untrusted input.) Conversation messages supplied to the agent.
-        scope: Optional scope used to select the agent and checkpoint namespace.
-        trace_context: Optional trace context to use for emitted events.
+        scope: (Untrusted input.) Optional scope used to select the agent and
+            checkpoint namespace.
+        chat_mode: (Untrusted input.) Optional chat mode for the agent execution.
+        attachments: (Untrusted input.) Optional attachments associated with the
+            request.
+        trace_context: Optional context used for emitted trace and lifecycle events.
+        emit_activity: Whether to emit activity progress events while the agent runs.
     
     Yields:
-        AgentStreamEvent: Stream lifecycle, node, text-delta, usage, trace, or error
-            events.
+        AgentStreamEvent: Lifecycle, node, text-delta, usage, trace, activity,
+            warning, or error events.
     """
     fields = scope_fields(scope)
     selected_model = normalize_model_name(model_name)
@@ -557,6 +525,7 @@ def stream_agent_events(
         payload={
             "scope_type": fields["scope_type"],
             "scope_key": fields["scope_key"],
+            "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
             "checkpoint_thread_id": checkpoint_thread_id,
         },
     )
@@ -607,6 +576,18 @@ def stream_agent_events(
         output_queue.put(event)
 
     def run_agent_stream() -> None:
+        """Run the agent stream and enqueue node, content, usage, completion, or error events.
+        
+        The active scope, mode, and checkpoint thread remain bound for the duration of
+        agent execution. Internal nodes and metadata, as well as non-delta nodes, are
+        excluded from content events, while usage is aggregated across streamed
+        chunks.
+        
+        Agent execution failures are converted into non-retryable error and trace
+        events rather than propagated. The per-thread lock is always released, and a
+        queue sentinel is always emitted to signal stream termination. This function
+        does not persist results.
+        """
         nonlocal last_node, first_token_recorded, usage_totals
         tracing_context = (
             ls.tracing_context(
@@ -620,11 +601,21 @@ def stream_agent_events(
         )
 
         try:
-            with tracing_context, bind_active_scope(scope):
+            with (
+                tracing_context,
+                bind_active_scope(scope),
+                bind_active_mode(chat_mode),
+                bind_active_thread(checkpoint_thread_id),
+            ):
                 events = agent.stream(
                     {
                         "messages": messages,
-                        **agent_scope_state(scope),
+                        **agent_scope_state(
+                            scope,
+                            chat_mode,
+                            attachments,
+                            thread_id=checkpoint_thread_id,
+                        ),
                     },
                     config={
                         "configurable": {
@@ -645,7 +636,7 @@ def stream_agent_events(
                         chunk, metadata = event, {}
 
                     node_name = metadata.get("langgraph_node")
-                    if node_name and node_name not in STREAMABLE_AGENT_NODES:
+                    if node_name and is_internal_agent_node(node_name):
                         continue
 
                     if node_name and node_name != last_node:
@@ -680,7 +671,7 @@ def stream_agent_events(
                     if is_internal_stream_metadata(metadata):
                         continue
 
-                    if node_name and node_name not in DELTA_STREAM_AGENT_NODES:
+                    if node_name and node_name in NON_DELTA_AGENT_NODES:
                         continue
 
                     if content and not first_token_recorded:
@@ -833,12 +824,36 @@ def stream_agent_deltas(
     model_name: str | None,
     messages: list[dict],
     scope: ChatScope | None = None,
+    chat_mode: ChatMode | None = None,
+    attachments: list[ChatAttachment] | None = None,
 ) -> Iterator[str]:
+    """
+    Stream text deltas from an agent execution.
+    
+    Args:
+        thread_id: Untrusted thread identifier used for checkpoint isolation.
+        model_name: Untrusted model name, or `None` to use the default model.
+        messages: Untrusted chat messages supplied to the agent.
+        scope: Optional scope used to identify the execution context.
+        chat_mode: Optional chat mode for the execution.
+        attachments: Untrusted attachments associated with the chat request.
+    
+    Yields:
+        Text content from each streamed agent delta.
+    
+    Raises:
+        RuntimeError: If the agent emits an execution error.
+    
+    Side Effects:
+        Runs the agent and may update its checkpoint state.
+    """
     for event in stream_agent_events(
         thread_id=thread_id,
         model_name=model_name,
         messages=messages,
         scope=scope,
+        chat_mode=chat_mode,
+        attachments=attachments,
         emit_activity=False,
     ):
         if event.type == "delta" and event.content:
@@ -853,12 +868,35 @@ def stream_agent_text(
     model_name: str | None,
     messages: list[dict],
     scope: ChatScope | None = None,
+    chat_mode: ChatMode | None = None,
+    attachments: list[ChatAttachment] | None = None,
 ) -> str:
+    """Collect the agent's streamed text deltas into a complete response.
+    
+    Args:
+        thread_id: (Untrusted input.) Identifier for the conversation thread.
+        model_name: (Untrusted input.) Optional model name used for agent execution.
+        messages: (Untrusted input.) Messages supplied to the agent.
+        scope: Optional scope used for checkpoint isolation and execution context.
+        chat_mode: Optional chat mode for the agent request.
+        attachments: (Untrusted input.) Optional attachments associated with the request.
+    
+    Returns:
+        The concatenated text emitted by the agent.
+    
+    Raises:
+        RuntimeError: If the agent emits a streamed execution error.
+    
+    Side Effects:
+        Executes the agent and may update its checkpoint state.
+    """
     return "".join(
         stream_agent_deltas(
             thread_id=thread_id,
             model_name=model_name,
             messages=messages,
             scope=scope,
+            chat_mode=chat_mode,
+            attachments=attachments,
         )
     )

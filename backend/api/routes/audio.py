@@ -1,23 +1,71 @@
 import asyncio
 import json
+import logging
 from io import BytesIO
 from typing import Any
 
 import websockets
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from backend.schemas.chat_api import TranscriptionResponse
 from backend.security import AuthPrincipal, authenticate_websocket, require_principal
+from backend.services.transcription import (
+    build_live_transcription_options,
+    build_live_turn_detection,
+    build_transcription_options,
+    enforce_language,
+    filter_live_transcript,
+    normalize_language,
+    resolve_keywords,
+)
 from backend.settings import settings
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/audio", tags=["audio"])
 
 MAX_AUDIO_UPLOAD_BYTES = 25 * 1024 * 1024
 
+_transcription_client: AsyncOpenAI | None = None
+_transcription_client_key: str | None = None
+
+
+def transcription_client() -> AsyncOpenAI:
+    """Create or reuse the process-wide asynchronous transcription client.
+    
+    The client is recreated when the configured API key changes and is configured
+    with the transcription timeout and retry settings.
+    
+    Returns:
+        AsyncOpenAI: The shared asynchronous transcription client.
+    """
+    global _transcription_client, _transcription_client_key
+
+    api_key = settings.openai_api_key or ""
+
+    if _transcription_client is None or _transcription_client_key != api_key:
+        _transcription_client = AsyncOpenAI(
+            api_key=api_key,
+            timeout=settings.openai_transcription_timeout_seconds,
+            max_retries=settings.model_max_retries,
+        )
+        _transcription_client_key = api_key
+
+    return _transcription_client
+
 
 def openai_object_to_dict(value: Any) -> dict[str, Any]:
+    """Convert a supported response object or mapping to a dictionary.
+    
+    Args:
+        value (Any): Untrusted value to convert.
+    
+    Returns:
+        dict[str, Any]: The converted dictionary, or an empty dictionary when the
+            value cannot be converted.
+    """
     if hasattr(value, "model_dump"):
         return value.model_dump()
 
@@ -58,11 +106,38 @@ async def send_ws_event(websocket: WebSocket, event_type: str, **payload) -> Non
 @router.post("/transcriptions")
 async def transcribe_audio(
     file: UploadFile = File(...),
-    language: str | None = Form(default="it"),
+    language: str | None = Form(default=None),
     _principal: AuthPrincipal = Depends(require_principal),
 ) -> TranscriptionResponse:
+    """
+    Transcribe an uploaded audio file and return a language-filtered transcript.
+    
+    The audio upload and requested language are treated as untrusted input. The function
+    rejects missing API configuration, invalid language values, empty files, oversized
+    files, and upstream transcription failures. It does not persist the uploaded audio
+    or transcription.
+    
+    Args:
+        file (UploadFile): Untrusted audio file to transcribe.
+        language (str | None): Untrusted requested language, or the configured default
+            when omitted.
+    
+    Returns:
+        TranscriptionResponse: The formatted transcript, language, model, accepted
+            segments, dropped segments, and optional duration.
+    
+    Raises:
+        HTTPException: With status 503 when the OpenAI API key is unavailable, 422 for
+            an invalid language, 400 for an empty file, 413 for an oversized file, or
+            502 when the upstream transcription service fails.
+    """
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY non configurata.")
+
+    try:
+        target_language = normalize_language(language, settings.openai_transcription_language)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     audio_bytes = await file.read()
 
@@ -77,34 +152,62 @@ async def transcribe_audio(
     audio_file = BytesIO(audio_bytes)
     audio_file.name = filename
 
+    transcription_options = build_transcription_options(
+        model=settings.openai_transcription_model,
+        language=target_language,
+        keywords=resolve_keywords(settings.openai_transcription_keywords),
+        temperature=settings.openai_transcription_temperature,
+    )
+
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
-        transcription_options = {
-            "file": (filename, audio_file, content_type),
-            "model": settings.openai_transcription_model,
-            "language": language or None,
-        }
-
-        if settings.openai_transcription_model == "gpt-4o-transcribe-diarize":
-            transcription_options["response_format"] = "diarized_json"
-            transcription_options["chunking_strategy"] = "auto"
-
-        transcription = client.audio.transcriptions.create(**transcription_options)
+        transcription = await transcription_client().audio.transcriptions.create(
+            file=(filename, audio_file, content_type),
+            **transcription_options,
+        )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        # The upstream message can carry request and organization identifiers.
+        # It belongs in the log, not in a response body.
+        logger.exception("transcription request failed (model=%s)", settings.openai_transcription_model)
+        raise HTTPException(status_code=502, detail="Trascrizione non riuscita.") from exc
 
     payload = openai_object_to_dict(transcription)
+    raw_segments = payload.get("segments") if isinstance(payload.get("segments"), list) else []
+    guarded = enforce_language(
+        language=target_language,
+        segments=raw_segments,
+        text=str(payload.get("text") or ""),
+    )
 
     return TranscriptionResponse(
-        text=format_diarized_transcript(payload),
+        text=format_diarized_transcript({"segments": guarded.segments, "text": guarded.text}),
         model=settings.openai_transcription_model,
-        segments=payload.get("segments") if isinstance(payload.get("segments"), list) else [],
+        language=target_language,
+        segments=guarded.segments,
+        dropped_segments=guarded.dropped_segments,
         duration=payload.get("duration") if isinstance(payload.get("duration"), (float, int)) else None,
     )
 
 
 @router.websocket("/live-transcription")
 async def live_audio_transcription(websocket: WebSocket):
+    """Manage an authenticated live audio transcription session over a WebSocket.
+    
+    The session forwards client audio as 24 kHz PCM to OpenAI Realtime using
+    server-side voice activity detection, relays transcription events, and filters
+    completed transcripts to the configured language. Authentication, missing API
+    configuration, upstream connection failures, malformed client messages, and
+    client disconnections are handled through safe WebSocket responses or session
+    termination. Client messages are treated as untrusted input.
+    
+    Args:
+        websocket (WebSocket): Untrusted client WebSocket used for authentication,
+            audio events, and transcription responses.
+    
+    Side Effects:
+        Accepts and communicates over the client WebSocket, opens an upstream
+        OpenAI Realtime connection, and logs upstream or session failures. Does not
+        persist audio or transcripts.
+    """
     principal = await authenticate_websocket(websocket)
     if principal is None:
         return
@@ -120,6 +223,17 @@ async def live_audio_transcription(websocket: WebSocket):
     headers = {
         "Authorization": f"Bearer {settings.openai_api_key}",
     }
+    target_language = normalize_language(None, settings.openai_transcription_language)
+    live_transcription_options = build_live_transcription_options(
+        model=settings.openai_live_transcription_model,
+        language=target_language,
+        keywords=resolve_keywords(settings.openai_transcription_keywords),
+    )
+    turn_detection = build_live_turn_detection(
+        silence_duration_ms=settings.openai_live_vad_silence_ms,
+        prefix_padding_ms=settings.openai_live_vad_prefix_padding_ms,
+        threshold=settings.openai_live_vad_threshold,
+    )
 
     try:
         async with websockets.connect(
@@ -127,23 +241,6 @@ async def live_audio_transcription(websocket: WebSocket):
             additional_headers=headers,
             max_size=8 * 1024 * 1024,
         ) as openai_ws:
-            commit_lock = asyncio.Lock()
-            has_uncommitted_audio = False
-
-            async def commit_audio_buffer() -> None:
-                nonlocal has_uncommitted_audio
-
-                async with commit_lock:
-                    if not has_uncommitted_audio:
-                        return
-
-                    try:
-                        await openai_ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
-                    except websockets.exceptions.ConnectionClosed:
-                        return
-
-                    has_uncommitted_audio = False
-
             await openai_ws.send(
                 json.dumps(
                     {
@@ -156,10 +253,8 @@ async def live_audio_transcription(websocket: WebSocket):
                                         "type": "audio/pcm",
                                         "rate": 24000,
                                     },
-                                    "transcription": {
-                                        "model": settings.openai_live_transcription_model,
-                                    },
-                                    "turn_detection": None,
+                                    "transcription": live_transcription_options,
+                                    "turn_detection": turn_detection,
                                 }
                             },
                         },
@@ -170,12 +265,20 @@ async def live_audio_transcription(websocket: WebSocket):
                 websocket,
                 "ready",
                 model=settings.openai_live_transcription_model,
+                language=target_language,
                 sample_rate=24000,
             )
 
             async def forward_client_audio():
-                nonlocal has_uncommitted_audio
-
+                """Forward client audio events to the upstream transcription connection.
+                
+                Treats received WebSocket messages as untrusted input. Audio payloads are forwarded
+                to the upstream service, and a close event closes that connection. This function
+                does not persist audio or transcripts.
+                
+                Side Effects:
+                    Sends audio events to and closes the upstream WebSocket connection.
+                """
                 while True:
                     message = await websocket.receive_text()
                     event = json.loads(message)
@@ -192,20 +295,22 @@ async def live_audio_transcription(websocket: WebSocket):
                                     }
                                 )
                             )
-                            has_uncommitted_audio = True
-                    elif event_type == "commit":
-                        await commit_audio_buffer()
                     elif event_type == "close":
-                        await commit_audio_buffer()
+                        # No manual commit: the API rejects one while server VAD
+                        # owns the buffer. The last utterance is closed by the
+                        # silence that follows it, and the diarized REST pass is
+                        # the transcript of record either way.
                         await openai_ws.close()
                         break
 
-            async def commit_live_audio_periodically():
-                while True:
-                    await asyncio.sleep(1.5)
-                    await commit_audio_buffer()
-
             async def forward_openai_events():
+                """Relay transcription events from the upstream WebSocket to the client.
+                
+                Filters completed transcripts to the target language and preserves item completion
+                events with an empty transcript when all text is filtered. Sends transcription
+                deltas, completion notifications, and generic error events to the client while
+                logging upstream error details. Performs WebSocket I/O and does not persist data.
+                """
                 async for raw_message in openai_ws:
                     event = json.loads(raw_message)
                     event_type = event.get("type")
@@ -218,32 +323,36 @@ async def live_audio_transcription(websocket: WebSocket):
                             item_id=event.get("item_id"),
                         )
                     elif event_type == "conversation.item.input_audio_transcription.completed":
+                        # An item that came back in the wrong script is forwarded
+                        # empty rather than swallowed, so the client still drops
+                        # the provisional deltas it accumulated for that item.
+                        transcript = str(event.get("transcript") or "")
+                        kept = filter_live_transcript(transcript, target_language)
                         await send_ws_event(
                             websocket,
                             "completed",
-                            transcript=event.get("transcript", ""),
+                            transcript=kept,
+                            filtered=bool(transcript) and not kept,
                             item_id=event.get("item_id"),
                         )
-                    elif event_type == "conversation.item.input_audio_transcription.failed":
-                        error = event.get("error") or {}
+                    elif event_type in {
+                        "conversation.item.input_audio_transcription.failed",
+                        "error",
+                    }:
+                        # Upstream messages can carry request and organization
+                        # identifiers, so they go to the log and the consultant
+                        # gets a message they can act on.
+                        logger.warning("live transcription upstream error: %s", event.get("error"))
                         await send_ws_event(
                             websocket,
                             "error",
-                            detail=error.get("message") or "Trascrizione live non riuscita.",
-                        )
-                    elif event_type == "error":
-                        error = event.get("error") or {}
-                        await send_ws_event(
-                            websocket,
-                            "error",
-                            detail=error.get("message") or "Errore OpenAI Realtime.",
+                            detail="Trascrizione live non riuscita.",
                         )
 
             client_task = asyncio.create_task(forward_client_audio())
             openai_task = asyncio.create_task(forward_openai_events())
-            commit_task = asyncio.create_task(commit_live_audio_periodically())
             done, pending = await asyncio.wait(
-                {client_task, openai_task, commit_task},
+                {client_task, openai_task},
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
@@ -256,19 +365,21 @@ async def live_audio_transcription(websocket: WebSocket):
                 exception = task.exception()
                 if exception and not isinstance(exception, WebSocketDisconnect):
                     raise exception
-    except websockets.exceptions.ConnectionClosed as exc:
+    except websockets.exceptions.ConnectionClosed:
+        logger.warning("live transcription: OpenAI Realtime closed the connection", exc_info=True)
         try:
             await send_ws_event(
                 websocket,
                 "error",
-                detail=f"OpenAI Realtime ha chiuso la connessione: {exc}",
+                detail="Connessione a OpenAI Realtime interrotta.",
             )
         except Exception:
             pass
     except WebSocketDisconnect:
         return
-    except Exception as exc:
+    except Exception:
+        logger.exception("live transcription session failed")
         try:
-            await send_ws_event(websocket, "error", detail=str(exc))
+            await send_ws_event(websocket, "error", detail="Trascrizione live non riuscita.")
         except Exception:
             pass

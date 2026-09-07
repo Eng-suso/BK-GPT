@@ -1,3 +1,9 @@
+from langchain_core.messages import AIMessage
+from langgraph.graph import START, END, StateGraph
+from langgraph.prebuilt import ToolNode
+
+import backend.toolsets.bpmn as bpmn_toolset
+from backend.graphs.canvas_edit.state import CanvasState
 from backend.graphs.canvas_edit.graph import (
     canvas_completion_report,
     evaluate_canvas_completion,
@@ -27,7 +33,7 @@ from backend.process_understanding import (
     ProcessStep,
     ProcessUnderstanding,
 )
-from backend.services.agent_runtime import DELTA_STREAM_AGENT_NODES, STREAMABLE_AGENT_NODES
+from backend.services.agent_runtime import NON_DELTA_AGENT_NODES, is_internal_agent_node
 from backend.toolsets.bpmn import bpmn_review_tools, manage_canvas_bpmn_model
 from backend.workspace_services.bpmn_canvas_edit import (
     clear_bpmn_process,
@@ -262,8 +268,8 @@ def test_canvas_completion_treats_intentional_clear_as_completed(monkeypatch):
         {
             "bpmn_model_id": "proc-bpmn",
             "bpmn_semantic_model": canonical_semantic_model,
-            "canvas_objective": "elimina quello che c'e nel canvas",
-            "intent": "clear_canvas",
+            "canvas_objective": "svuota il canvas",
+            "canvas_expected_outcome": "empty_canvas",
             "canvas_loop_attempt": 0,
             "canvas_loop_max_attempts": 2,
         }
@@ -281,11 +287,11 @@ def test_canvas_completion_treats_intentional_clear_as_completed(monkeypatch):
     assert "gateway" not in content.casefold()
 
 
-def test_clear_canvas_intent_skips_semantic_validation_subgraph():
+def test_declared_empty_canvas_outcome_skips_semantic_validation_subgraph():
     state = {
         "canvas_route": "patch_edit",
         "canvas_loop_status": "running",
-        "canvas_objective": "elimina quello che c'e nel canvas",
+        "canvas_expected_outcome": "empty_canvas",
     }
 
     assert route_after_canvas_work(state) == "evaluate_canvas_completion"
@@ -293,8 +299,10 @@ def test_clear_canvas_intent_skips_semantic_validation_subgraph():
 
 
 def test_canvas_subagent_intermediate_messages_stream_in_realtime():
-    assert "canvas_completion_report" in STREAMABLE_AGENT_NODES
-    assert "canvas_completion_report" in DELTA_STREAM_AGENT_NODES
+    # Agent nodes are visible unless explicitly held back, so a new subagent
+    # streams without being registered anywhere.
+    assert not is_internal_agent_node("canvas_completion_report")
+    assert "canvas_completion_report" not in NON_DELTA_AGENT_NODES
 
     for subagent in (
         "canvas_patch_edit_agent",
@@ -303,8 +311,14 @@ def test_canvas_subagent_intermediate_messages_stream_in_realtime():
         "canvas_layout_consultant_agent",
         "canvas_drawing_agent",
     ):
-        assert subagent in STREAMABLE_AGENT_NODES, f"{subagent} should still report progress"
-        assert subagent in DELTA_STREAM_AGENT_NODES, f"{subagent} content should stream live"
+        assert not is_internal_agent_node(subagent), f"{subagent} should still report progress"
+        assert subagent not in NON_DELTA_AGENT_NODES, f"{subagent} content should stream live"
+
+
+def test_plumbing_nodes_stay_out_of_the_user_stream():
+    for node in ("canvas_router", "load_canvas_context", "evaluate_canvas_completion"):
+        assert is_internal_agent_node(node) or node in NON_DELTA_AGENT_NODES
+    assert is_internal_agent_node("canvas_patch_edit_tools")
 
 
 def test_standalone_canvas_validation_does_not_enter_completion_loop():
@@ -517,7 +531,7 @@ def test_canvas_drawing_agent_blocks_without_layout_plan(monkeypatch):
     result = run_canvas_drawing_agent({"bpmn_model_id": "proc-bpmn"})
 
     assert result["canvas_layout_status"] == "blocked"
-    assert result["layout_steps"][0]["attempts"] == 0
+    assert result["canvas_task_log"][0]["status"] == "blocked"
     assert result["blocking_conditions"] == ["Missing prerequisite: canvas_layout_plan"]
 
 
@@ -554,7 +568,7 @@ def test_canvas_drawing_agent_blocks_when_layout_plan_misses_flow_node(monkeypat
     )
 
     assert result["canvas_layout_status"] == "blocked"
-    assert result["layout_steps"][0]["attempts"] == 0
+    assert result["canvas_task_log"][0]["status"] == "blocked"
     assert "Task_Review" in result["blocking_conditions"][0]
 
 
@@ -643,8 +657,8 @@ def test_canvas_drawing_agent_uses_layout_plan_without_hidden_retries(monkeypatc
     )
 
     assert result["canvas_layout_status"] == "completed"
-    assert result["layout_steps"][0]["attempts"] == 1
-    assert result["layout_steps"][0]["plan"]["rows"] == [["Start", "Task_A"], ["Task_B", "End"]]
+    assert result["canvas_task_log"][0]["status"] == "completed"
+    assert result["canvas_task_log"][0]["plan"]["rows"] == [["Start", "Task_A"], ["Task_B", "End"]]
     assert validate_bpmn_layout(saved["xml"])["valid"] is True
 
 
@@ -842,3 +856,328 @@ def test_canvas_business_report_hides_developer_language():
     assert "xml" not in normalized
     assert "gateway_check" not in normalized
     assert "missing_node" not in normalized
+
+
+def run_canvas_tool_call(tools, name: str, args: dict, state: dict) -> dict:
+    """Run one canvas tool call the way the graph does, and return the state it left.
+
+    Canvas tools read InjectedState and write through Command(update=...); both only
+    happen inside a ToolNode, so invoking the tool directly would test a path the
+    canvas graph never takes.
+    """
+    call = AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": "call-1"}])
+
+    workflow = StateGraph(CanvasState)
+    workflow.add_node("emit", lambda _state: {"messages": [call]})
+    workflow.add_node("tools", ToolNode(tools))
+    workflow.add_edge(START, "emit")
+    workflow.add_edge("emit", "tools")
+    workflow.add_edge("tools", END)
+
+    return workflow.compile().invoke({"messages": [], **state})
+
+
+def test_validation_subagent_writes_its_report_into_canvas_state(monkeypatch):
+    # The completion loop and the scope prompt both read the last validation. Before
+    # this, they only ever saw the one the runtime ran itself: whatever the validation
+    # subagent found died with its tool call.
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start" />
+  </bpmn:process>
+</bpmn:definitions>"""
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+
+    result = run_canvas_tool_call(
+        validation_tools,
+        "manage_canvas_validation",
+        {
+            "bpmn_model_id": "bpmn-1",
+            "operation": "xml_validation",
+            "objective": "Verifica tecnica del canvas",
+        },
+        {"bpmn_model_id": "bpmn-1", "current_bpmn_xml": xml},
+    )
+
+    assert result["validation_report"]["objective"] == "Verifica tecnica del canvas"
+    assert result["canvas_last_validation"] is not None
+    assert result["canvas_task_log"][-1]["owner"] == "canvas_validation_agent"
+    assert result["messages"][-1].tool_call_id == "call-1"
+
+
+def test_preview_writes_the_diff_the_next_node_has_to_act_on(monkeypatch):
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start" />
+  </bpmn:process>
+</bpmn:definitions>"""
+    proposed = xml.replace('<bpmn:startEvent id="Start" name="Start" />',
+                           '<bpmn:startEvent id="Start" name="Avvio" />')
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+
+    result = run_canvas_tool_call(
+        canvas_macro_tools + [bpmn_toolset.preview_canvas_bpmn_change],
+        "preview_canvas_bpmn_change",
+        {"bpmn_model_id": "bpmn-1", "proposed_xml": proposed},
+        {"bpmn_model_id": "bpmn-1", "current_bpmn_xml": xml},
+    )
+
+    assert result["preview_diff"]["bpmn_model_id"] == "bpmn-1"
+
+
+def test_canvas_state_writing_tools_do_not_expose_injected_arguments_to_the_model():
+    for tools, name in (
+        (validation_tools, "manage_canvas_validation"),
+        (construction_tools, "manage_canvas_construction"),
+    ):
+        tool_obj = next(item for item in tools if item.name == name)
+        # tool_call_schema is the model-facing view: injected arguments are filtered
+        # out of it, which is exactly what must stay true.
+        properties = tool_obj.tool_call_schema.model_json_schema()["properties"]
+        assert "tool_call_id" not in properties, f"{name} leaks the injected id into its schema"
+        assert "state" not in properties, f"{name} leaks injected state into its schema"
+
+
+def test_two_edits_in_one_turn_do_not_overwrite_each_other(monkeypatch):
+    """The second edit must build on the first, not on the pre-edit canvas.
+
+    Canvas tools read the canvas through `_state_or_saved_canvas_xml`, which prefers
+    what state holds. While the facade published nothing, both edits in a turn read
+    the same pre-edit XML and the second silently discarded the first.
+    """
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Test">
+  <bpmn:process id="Process_Test">
+    <bpmn:startEvent id="Start" name="Start" />
+    <bpmn:userTask id="Task_A" name="Task A" />
+    <bpmn:userTask id="Task_B" name="Task B" />
+  </bpmn:process>
+</bpmn:definitions>"""
+    saved = {"xml": xml}
+
+    def fake_update(bpmn_model_id, updated_xml, **kwargs):
+        """
+        Updates the stored BPMN XML and returns the updated model representation.
+        
+        Parameters:
+        	bpmn_model_id: Identifier of the BPMN model to update.
+        	updated_xml: Updated BPMN XML content.
+        
+        Returns:
+        	dict: The model identifier, process identifier, and updated XML.
+        """
+        saved["xml"] = updated_xml
+        return {"id": bpmn_model_id, "process_id": "proc-1", "xml": updated_xml}
+
+    monkeypatch.setattr(bpmn_toolset.workspace_database, "update_bpmn_model", fake_update)
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": saved["xml"]},
+    )
+
+    def delete_call(element_id: str, call_id: str) -> AIMessage:
+        """
+        Create a tool call that deletes a BPMN element from the canvas.
+        
+        Parameters:
+        	element_id (str): Identifier of the BPMN element to delete.
+        	call_id (str): Identifier for the generated tool call.
+        
+        Returns:
+        	AIMessage: A message containing the canvas deletion tool call.
+        """
+        return AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "name": "manage_canvas_bpmn_model",
+                    "args": {
+                        "bpmn_model_id": "bpmn-1",
+                        "operation": "delete_element",
+                        "element_id": element_id,
+                    },
+                    "id": call_id,
+                }
+            ],
+        )
+
+    workflow = StateGraph(CanvasState)
+    workflow.add_node("first_call", lambda _s: {"messages": [delete_call("Task_A", "call-1")]})
+    workflow.add_node("first_tools", ToolNode(patch_edit_tools))
+    workflow.add_node("second_call", lambda _s: {"messages": [delete_call("Task_B", "call-2")]})
+    workflow.add_node("second_tools", ToolNode(patch_edit_tools))
+    workflow.add_edge(START, "first_call")
+    workflow.add_edge("first_call", "first_tools")
+    workflow.add_edge("first_tools", "second_call")
+    workflow.add_edge("second_call", "second_tools")
+    workflow.add_edge("second_tools", END)
+
+    result = workflow.compile().invoke(
+        {"messages": [], "bpmn_model_id": "bpmn-1", "current_bpmn_xml": xml}
+    )
+
+    element_ids = {item["id"] for item in list_bpmn_elements(saved["xml"])}
+    assert "Task_A" not in element_ids, "the first edit was overwritten by the second"
+    assert "Task_B" not in element_ids
+    assert result["effective_bpmn_xml"] == saved["xml"]
+
+
+def test_apply_uses_the_preview_the_runtime_already_holds(monkeypatch):
+    """generate_preview -> apply_approved_preview without echoing the XML back.
+
+    Apply used to demand `proposed_xml`, which meant the model had to carry a whole
+    BPMN document out of one tool result and back into the next call. It kept
+    failing with "proposed_xml obbligatorio per apply_approved_preview" - in edit
+    and in agent mode alike - and cost thousands of tokens per preview when it
+    did work. The runtime holds the preview it generated; the agent only decides
+    whether to apply it.
+    """
+    process = ProcessUnderstanding(
+        title="Order to Cash",
+        actors=[ProcessActor(id="Sales", label="Sales", kind="team")],
+        steps=[ProcessStep(id="Task_Receive", label="Ricevi ordine", actor_ids=["Sales"])],
+        sequence=["Task_Receive"],
+    )
+    semantic_model = build_bpmn_semantic_model(
+        process_id="Process_Test", process_name="Order to Cash", process=process
+    ).model_dump(mode="json")
+    saved: dict = {"xml": semantic_model_to_bpmn_xml(
+        build_bpmn_semantic_model(
+            process_id="Process_Test", process_name="Order to Cash", process=process
+        )
+    )}
+
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": saved["xml"]},
+    )
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "update_bpmn_model",
+        lambda bpmn_model_id, xml, **kwargs: saved.update(xml=xml)
+        or {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
+    )
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_review",
+        lambda bpmn_model_id, include_approved=False: None,
+    )
+
+    def call(args: dict) -> AIMessage:
+        """
+        Create an AI message containing a canvas construction tool call.
+        
+        Parameters:
+        	args (dict): Arguments passed to the canvas construction tool.
+        
+        Returns:
+        	AIMessage: A message containing the tool call.
+        """
+        return AIMessage(
+            content="",
+            tool_calls=[{"name": "manage_canvas_construction", "args": args, "id": "call-1"}],
+        )
+
+    base_state = {
+        "bpmn_model_id": "bpmn-1",
+        "process_id": "proc-1",
+        "bpmn_semantic_model": semantic_model,
+    }
+
+    workflow = StateGraph(CanvasState)
+    workflow.add_node(
+        "preview",
+        lambda _s: {
+            "messages": [
+                call(
+                    {
+                        "bpmn_model_id": "bpmn-1",
+                        "operation": "generate_preview",
+                        "objective": "Genera la bozza",
+                    }
+                )
+            ]
+        },
+    )
+    workflow.add_node("preview_tools", ToolNode(construction_tools))
+    workflow.add_node(
+        "apply",
+        lambda _s: {
+            "messages": [
+                call(
+                    {
+                        "bpmn_model_id": "bpmn-1",
+                        "operation": "apply_approved_preview",
+                        "objective": "Applica la bozza approvata",
+                        "confirm_apply": True,
+                    }
+                )
+            ]
+        },
+    )
+    workflow.add_node("apply_tools", ToolNode(construction_tools))
+    workflow.add_edge(START, "preview")
+    workflow.add_edge("preview", "preview_tools")
+    workflow.add_edge("preview_tools", "apply")
+    workflow.add_edge("apply", "apply_tools")
+    workflow.add_edge("apply_tools", END)
+
+    result = workflow.compile().invoke({"messages": [], **base_state})
+
+    applied = result["messages"][-1].content
+    assert "xml_saved" in applied, applied
+    assert "obbligatorio" not in applied
+    assert result["saved_bpmn_xml"], "l'XML applicato deve finire in stato"
+    # L'anteprima e' consumata: un apply successivo non la riapplica di nascosto.
+    assert result["canvas_preview_xml"] is None
+
+
+def test_the_preview_xml_does_not_travel_through_the_transcript(monkeypatch):
+    process = ProcessUnderstanding(
+        title="Order to Cash",
+        actors=[ProcessActor(id="Sales", label="Sales", kind="team")],
+        steps=[ProcessStep(id="Task_Receive", label="Ricevi ordine", actor_ids=["Sales"])],
+        sequence=["Task_Receive"],
+    )
+    semantic_model = build_bpmn_semantic_model(
+        process_id="Process_Test", process_name="Order to Cash", process=process
+    ).model_dump(mode="json")
+
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": None},
+    )
+    monkeypatch.setattr(
+        bpmn_toolset.workspace_database,
+        "get_bpmn_review",
+        lambda bpmn_model_id, include_approved=False: None,
+    )
+
+    result = run_canvas_tool_call(
+        construction_tools,
+        "manage_canvas_construction",
+        {
+            "bpmn_model_id": "bpmn-1",
+            "operation": "generate_preview",
+            "objective": "Genera la bozza",
+        },
+        {"bpmn_model_id": "bpmn-1", "process_id": "proc-1", "bpmn_semantic_model": semantic_model},
+    )
+
+    tool_message = result["messages"][-1].content
+    assert "<bpmn:definitions" not in tool_message, "l'XML non deve passare per il transcript"
+    assert '"preview_ready": true' in tool_message
+    assert "<bpmn:definitions" in result["canvas_preview_xml"]

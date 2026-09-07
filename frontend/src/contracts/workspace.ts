@@ -10,12 +10,44 @@ export type ProjectProcess = {
   readiness: number;
 };
 
+/* ── Vocabolari condivisi col backend ──────────────────────────────
+ * Le stesse voci di `backend/workspace_defaults.py`, nello stesso ordine: la
+ * fase e' il ciclo di vita dell'incarico, dallo scoping alla consegna. Il
+ * campo resta free-form sul filo (un record vecchio puo' portare altro), ma
+ * questi sono i valori che la UI propone e che l'agente sceglie.
+ */
+
+export const PROJECT_PHASES = [
+  "Discovery",
+  "AS-IS",
+  "Validazione",
+  "TO-BE",
+  "Simulazione",
+  "Delivery",
+] as const;
+export type ProjectPhase = (typeof PROJECT_PHASES)[number];
+
+export const PROJECT_STATUSES = [
+  "Bozza",
+  "In corso",
+  "A rischio",
+  "In pausa",
+  "Completato",
+] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
+export const CLIENT_STATUSES = ["Attivo", "Da seguire", "Prospect"] as const;
+export type ClientStatus = (typeof CLIENT_STATUSES)[number];
+
 export type Project = {
   id: string;
+  clientId: string;
   name: string;
   client: string;
+  /** Perche' l'incarico esiste e cosa lo chiude. Vuoto = mai dichiarato. */
+  objective: string;
   phase: string;
-  status: "In corso" | "A rischio" | "Bozza";
+  status: ProjectStatus;
   progress: number;
   processes: number;
   nextStep: string;
@@ -29,13 +61,35 @@ export type Client = {
   id: string;
   name: string;
   sector: string;
-  status: "Attivo" | "Da seguire" | "Prospect";
+  status: ClientStatus;
   projects: number;
   nextActivity: string;
   owner: string;
   contact: string;
   processes: string[];
   documents: string[];
+};
+
+/** Campi modificabili a mano dal consulente, o dall'agente per suo conto. */
+export type ClientDraft = {
+  name: string;
+  sector: string;
+  status: ClientStatus;
+  owner: string;
+  contact: string;
+};
+
+export type ProjectDraft = {
+  clientId: string;
+  name: string;
+  objective: string;
+  phase: string;
+  status: ProjectStatus;
+  progress: number;
+  nextStep: string;
+  milestones: string[];
+  openIssues: string[];
+  deliverables: string[];
 };
 
 export type ProjectSource = {
@@ -105,6 +159,8 @@ export const apiProjectSchema = z.object({
   client_id: z.string(),
   client: z.string(),
   name: z.string(),
+  // Aggiunto con PROJECT-01: un record creato prima non lo porta.
+  objective: z.string().default(""),
   phase: z.string(),
   status: z.string(),
   progress: z.number(),
@@ -156,8 +212,26 @@ export function toClient(client: z.infer<typeof apiClientSchema>): Client {
 
 const VALID_PROCESS_STAGES = new Set(["Discovery", "AS-IS", "TO-BE", "Validazione"]);
 const VALID_PROCESS_STATUSES = new Set(["In corso", "Da validare", "Bozza"]);
-const VALID_PROJECT_STATUSES = new Set(["In corso", "A rischio", "Bozza"]);
+const VALID_PROJECT_STATUSES = new Set<string>(PROJECT_STATUSES);
 
+/**
+ * Determines whether a project phase belongs to the current phase vocabulary.
+ *
+ * @param phase - The project phase to validate
+ * @returns `true` if the phase is recognized, `false` otherwise.
+ */
+export function isKnownProjectPhase(phase: string): phase is ProjectPhase {
+  return (PROJECT_PHASES as readonly string[]).includes(phase);
+}
+
+/**
+ * Converts an API process record into a project process.
+ *
+ * Unknown stages default to `"Discovery"` and unknown statuses default to `"Bozza"`.
+ *
+ * @param process - The API process record to convert
+ * @returns The normalized project process
+ */
 function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectProcess {
   return {
     id: process.id,
@@ -174,11 +248,19 @@ function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectProcess {
   };
 }
 
+/**
+ * Converts an API project record into the client-side project structure.
+ *
+ * @param project - The validated API project record
+ * @returns The normalized project
+ */
 export function toProject(project: z.infer<typeof apiProjectSchema>): Project {
   return {
     id: project.id,
+    clientId: project.client_id,
     name: project.name,
     client: project.client,
+    objective: project.objective,
     phase: project.phase,
     status: (VALID_PROJECT_STATUSES.has(project.status)
       ? project.status
@@ -193,6 +275,50 @@ export function toProject(project: z.infer<typeof apiProjectSchema>): Project {
   };
 }
 
+/**
+ * Builds a backend-compatible payload from a client draft, trimming editable text fields.
+ *
+ * @param draft - The client draft to serialize
+ * @returns An object containing the client fields expected by the backend
+ */
+
+export function toApiClientPayload(draft: ClientDraft): Record<string, unknown> {
+  return {
+    name: draft.name.trim(),
+    sector: draft.sector.trim(),
+    status: draft.status,
+    owner: draft.owner.trim(),
+    contact: draft.contact.trim(),
+  };
+}
+
+/**
+ * Converts a project draft into the backend request payload format.
+ *
+ * @param draft - The project data to serialize
+ * @returns A backend-compatible project payload with editable text fields trimmed
+ */
+export function toApiProjectPayload(draft: ProjectDraft): Record<string, unknown> {
+  return {
+    client_id: draft.clientId,
+    name: draft.name.trim(),
+    objective: draft.objective.trim(),
+    phase: draft.phase,
+    status: draft.status,
+    progress: draft.progress,
+    next_step: draft.nextStep.trim(),
+    milestones: draft.milestones,
+    open_issues: draft.openIssues,
+    deliverables: draft.deliverables,
+  };
+}
+
+/**
+ * Converts an API project source record to the client-side project source model.
+ *
+ * @param source - The validated API project source record
+ * @returns The project source with client-side field names
+ */
 export function toProjectSource(source: z.infer<typeof apiProjectSourceSchema>): ProjectSource {
   return {
     id: source.id,

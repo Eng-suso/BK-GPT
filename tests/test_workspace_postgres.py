@@ -72,11 +72,23 @@ def test_langgraph_checkpointer_is_postgres():
 
 
 def test_workspace_schema_is_at_head():
+    """Il DB e' alla head di `migrations_workspace`, qualunque essa sia.
+
+    La revision era scritta a mano nel test, quindi ogni migrazione nuova lo
+    faceva fallire per costruzione: rossa la CI, e il test non diceva piu' nulla
+    sullo schema. La proprieta' da verificare e' "il DB e' aggiornato", non
+    "la head si chiama cosi'".
+    """
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
     from sqlalchemy import text
 
+    expected = ScriptDirectory.from_config(Config("alembic_workspace.ini")).get_current_head()
+
     with workspace_storage.workspace_engine.connect() as conn:
-        v = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert v == "0001_workspace_schema"
+        applied = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+
+    assert applied == expected
 
 
 def test_episode_raw_text_lives_in_the_db(tmp_path, monkeypatch):

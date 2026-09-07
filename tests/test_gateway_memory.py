@@ -20,8 +20,19 @@ from backend.memory.semantic import semantic_store  # noqa: E402
 
 @pytest.fixture()
 def seeded_memory(monkeypatch):
+    """
+    Provide a temporary Mem0 memory for integration tests and remove all memories
+    created for its temporary user during teardown.
+    
+    Parameters:
+    	monkeypatch: Pytest fixture used to assign the temporary Mem0 user ID.
+    
+    Yields:
+    	tuple[str, str]: The generated token and the ID of the seeded memory.
+    """
+    test_user_id = f"test-{uuid.uuid4()}"
+    monkeypatch.setattr(settings, "mem0_user_id", test_user_id)
     # nome proprio inventato: Mem0 estrae il fatto ma tiene i nomi propri
-    monkeypatch.setattr(settings, "mem0_user_id", f"test-{uuid.uuid4()}")
     token = "Zbrunk" + uuid.uuid4().hex[:6]
     statement = (
         f"Il consulente {token} valida gli SLA con una checklist prima di ogni intervista."
@@ -30,10 +41,18 @@ def seeded_memory(monkeypatch):
     if not mem0_id:
         pytest.skip("Mem0 non ha estratto nessuna memoria dal fatto seminato")
     yield token, mem0_id
+    memory = mem0_client.get_memory()
     try:
-        mem0_client.get_memory().delete(memory_id=mem0_id)
+        raw = memory.get_all(filters={"user_id": test_user_id}, top_k=100)
+        items = raw.get("results") or raw.get("memories") or [] if isinstance(raw, dict) else raw
     except Exception:
-        pass
+        items = [{"id": mem0_id}]
+    for item in items or []:
+        item_id = item.get("id") if isinstance(item, dict) else None
+        try:
+            memory.delete(memory_id=item_id or mem0_id)
+        except Exception:
+            pass
 
 
 def test_memory_search_returns_scoped_matches(seeded_memory):

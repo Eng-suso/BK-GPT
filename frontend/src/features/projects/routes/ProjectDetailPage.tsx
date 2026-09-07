@@ -23,6 +23,7 @@ import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
+import { cn } from "@/lib/utils";
 import { ChatExperience } from "@/features/chat/ChatExperience";
 import {
   useProjectQuery,
@@ -37,6 +38,9 @@ import {
   type ProjectProcess,
 } from "../types";
 
+/**
+ * Displays the project detail workspace with project information, tabbed content, actions, and summary details.
+ */
 export function ProjectDetailPage(): React.JSX.Element {
   const { projectId = "" } = useParams();
   const { t } = useTranslation("projects");
@@ -106,9 +110,10 @@ export function ProjectDetailPage(): React.JSX.Element {
   const firstProcess = project.processItems[0];
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 panel:grid-cols-[minmax(0,1fr)_var(--workspace-detail-panel)]">
-      <div className="flex min-w-0 flex-col gap-4 overflow-auto bg-card px-7 py-6">
+    <div className={cn("grid h-full min-h-0 grid-cols-1", tab !== "chat" && "panel:grid-cols-[minmax(0,1fr)_var(--workspace-detail-panel)]")}>
+      <div className={cn("flex min-h-0 min-w-0 flex-col bg-card", tab === "chat" ? "gap-2 overflow-hidden px-4 py-3" : "gap-4 overflow-auto px-7 py-6")}>
         <PageHeader
+          compact={tab === "chat"}
           breadcrumbs={[
             { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
             { label: project.name },
@@ -130,13 +135,13 @@ export function ProjectDetailPage(): React.JSX.Element {
           }
           actions={
             <>
-              <Button
+              {tab !== "chat" && <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setTab("chat")}
               >
                 <MessageSquare /> {t("detail.actions.openChat")}
-              </Button>
+              </Button>}
               {firstProcess && (
                 <Button size="sm" onClick={() => openProcess(firstProcess)}>
                   <ArrowRight /> {t("detail.actions.openProcess")}
@@ -149,9 +154,9 @@ export function ProjectDetailPage(): React.JSX.Element {
         <Tabs
           value={tab}
           onValueChange={setTab}
-          className="flex min-w-0 flex-col gap-4"
+          className={cn("flex min-w-0 flex-col gap-4", tab === "chat" && "min-h-0 flex-1")}
         >
-          <div className="-mx-7 min-w-0 overflow-x-auto px-7 pb-1">
+          <div className={cn("min-w-0 shrink-0 overflow-x-auto pb-1", tab !== "chat" && "-mx-7 px-7")}>
             <TabsList variant="line" className="min-w-max">
               {PROJECT_TABS.map((tabDef) => (
                 <TabsTrigger key={tabDef.id} value={tabDef.id}>
@@ -168,7 +173,7 @@ export function ProjectDetailPage(): React.JSX.Element {
               onOpenProcess={openProcess}
             />
           </TabsContent>
-          <TabsContent value="chat" className="min-h-0">
+          <TabsContent value="chat" className="min-h-0 flex-1">
             <ProjectChatTab project={project} />
           </TabsContent>
           <TabsContent value="processes">
@@ -194,7 +199,7 @@ export function ProjectDetailPage(): React.JSX.Element {
         </Tabs>
       </div>
 
-      <DetailPanel className="hidden bg-card panel:flex">
+      <DetailPanel className={cn("hidden bg-card", tab !== "chat" && "panel:flex")}>
         <DetailPanelSection title={t("detail.panel.summary")}>
           <DetailPanelKeyValue
             rows={[
@@ -303,6 +308,12 @@ function OverviewTab({
   );
 }
 
+/**
+ * Renders the embedded chat experience for a project.
+ *
+ * @param project - Project whose chat context is displayed
+ * @returns The project chat panel
+ */
 function ProjectChatTab({
   project,
 }: {
@@ -313,7 +324,7 @@ function ProjectChatTab({
     // header + tab bar). A quiet slate hairline bounds it — the bare `<Card>`
     // `border` utility resolved to currentColor (near-black) under Tailwind v4
     // preflight; `border-border` pins it back to the subtle token.
-    <div className="flex h-[calc(100dvh-16rem)] min-h-[32rem] w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
       <ChatExperience
         chrome="panel"
         layout="embedded"

@@ -1,8 +1,14 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from backend.schemas.chat import ChatScope
+from backend.schemas.chat import (
+    DEFAULT_CHAT_MODE,
+    MAX_CHAT_ATTACHMENTS,
+    ChatAttachment,
+    ChatMode,
+    ChatScope,
+)
 
 
 class ChatRequest(BaseModel):
@@ -10,6 +16,12 @@ class ChatRequest(BaseModel):
     messages: list[dict]
     thread_id: str
     scope: ChatScope | None = None
+    # How much of the workflow the user is handing over this turn. Per-request, not
+    # per-thread: switching mode must not fork the conversation.
+    mode: ChatMode = DEFAULT_CHAT_MODE
+    attachments: list[ChatAttachment] = Field(
+        default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
+    )
 
 
 class CreateSessionRequest(BaseModel):
@@ -68,6 +80,12 @@ class SendMessageRequest(BaseModel):
     message: str
     model_name: str | None = None
     scope: ChatScope | None = None
+    mode: ChatMode = DEFAULT_CHAT_MODE
+    # Il cap non e' difesa dal client: oltre un pugno di allegati il turno
+    # diventa un dump e il modello smette di leggerli.
+    attachments: list[ChatAttachment] = Field(
+        default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
+    )
 
 
 class ChatResponse(BaseModel):
@@ -88,5 +106,10 @@ class SearchMemoryRequest(BaseModel):
 class TranscriptionResponse(BaseModel):
     text: str
     model: str
+    # Lingua effettivamente richiesta all'API (ISO-639-1), e quanti segmenti il
+    # guard ha scartato perche' tornati in un altro alfabeto: senza questo, un
+    # transcript accorciato dal guard e' indistinguibile da uno corto.
+    language: str = ""
     segments: list[dict[str, Any]] = []
+    dropped_segments: int = 0
     duration: float | None = None

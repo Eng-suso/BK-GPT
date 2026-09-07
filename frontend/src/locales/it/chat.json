@@ -41,10 +41,19 @@
   "composer": {
     "placeholder": "Scrivi un messaggio…",
     "send": "Invia",
-    "audio": "Audio",
-    "interview": "Intervista",
     "stop": "Stop",
-    "disclaimer": "L'assistente può commettere errori. Verifica le informazioni importanti."
+    "disclaimer": "L'assistente può commettere errori. Verifica le informazioni importanti.",
+    "recording": "Registrazione in corso",
+    "connecting": "Connessione in corso",
+    "transcribing": "Trascrizione in corso",
+    "transcriptReady": "Trascrizione pronta",
+    "viewTranscript": "Apri trascrizione",
+    "transcriptTitle": "Trascrizione audio",
+    "addLabel": "Aggiungi",
+    "audioUpload": "Carica audio",
+    "interviewStart": "Avvia intervista",
+    "stopHint": "Ferma l’intervista e genera il transcript",
+    "sendHint": "Invia messaggio (Invio)"
   },
   "status": {
     "thinking": "Sto elaborando…"
@@ -92,6 +101,70 @@
         "Assegna un ruolo owner a ogni attività",
         "Valida la copertura di ruoli ed eccezioni"
       ]
+    }
+  },
+  "mode": {
+    "label": "Modalità di lavoro",
+    "plan": {
+      "label": "Piano",
+      "hint": "Capisce e propone: prepara e corregge il piano di processo, senza toccare il canvas."
+    },
+    "edit": {
+      "label": "Modifica",
+      "hint": "Applica la modifica che chiedi, in modo puntuale, senza rifare il piano."
+    },
+    "agent": {
+      "label": "Agente",
+      "hint": "Ciclo completo: pianifica, applica e verifica fino a chiudere la richiesta."
+    }
+  },
+  "effort": {
+    "label": "Ragionamento",
+    "low": {
+      "label": "Rapido",
+      "hint": "Risposta veloce. Per domande dirette e correzioni piccole."
+    },
+    "medium": {
+      "label": "Medio",
+      "hint": "Equilibrio tra tempo e profondità. Va bene per la maggior parte dei turni."
+    },
+    "high": {
+      "label": "Profondo",
+      "hint": "Ragiona di più prima di rispondere. Per analisi e piani complessi."
+    }
+  },
+  "attach": {
+    "listLabel": "Allegati del messaggio",
+    "remove": "Togli {{label}}",
+    "search": "Cerca",
+    "empty": "Niente da allegare qui.",
+    "error": "Non sono riuscito a caricare la lista.",
+    "step": {
+      "project": "Scegli il progetto.",
+      "process": "Scegli il processo.",
+      "source": "Scegli la fonte da allegare.",
+      "run": "Scegli la run di simulazione.",
+      "note": "Incolla il testo da allegare."
+    },
+    "source": {
+      "menu": "Fonte del progetto",
+      "title": "Allega una fonte"
+    },
+    "process": {
+      "menu": "Processo",
+      "title": "Allega un processo"
+    },
+    "simulation_run": {
+      "menu": "Run di simulazione",
+      "title": "Allega una run di simulazione"
+    },
+    "note": {
+      "menu": "Incolla testo",
+      "title": "Allega un testo",
+      "placeholder": "Incolla qui il verbale, la mail o la nota.",
+      "confirm": "Allega",
+      "count": "{{count}} / {{max}} caratteri",
+      "fallbackLabel": "Testo incollato"
     }
   }
 }

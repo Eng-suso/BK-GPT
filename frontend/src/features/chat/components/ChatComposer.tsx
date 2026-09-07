@@ -1,18 +1,42 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Check, Mic, Paperclip, Square } from "lucide-react";
+import { ArrowUp, Check, FileText, GitBranch, Mic, Paperclip, Plus, Square, Workflow, X } from "lucide-react";
 
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "../../../lib/api";
 import { appendAuthQueryParams } from "../../../lib/security";
+import {
+  MAX_CHAT_ATTACHMENTS,
+  chatAttachmentKey,
+  type ChatAttachment,
+  type ChatAttachmentKind,
+  type ChatMode,
+  type ReasoningEffort,
+} from "../../../contracts/chat";
+import type { ChatScope } from "../chatScope";
+import { AttachmentPicker } from "./AttachmentPicker";
+import { ChatModeSelector } from "./ChatModeSelector";
 import { ModelSelector } from "./ModelSelector";
 
 interface ChatComposerProps {
+  scope: ChatScope;
   selectedModel?: string;
+  chatMode: ChatMode;
+  onChatModeChange: (mode: ChatMode) => void;
+  reasoningEffort: ReasoningEffort;
+  onReasoningEffortChange: (effort: ReasoningEffort) => void;
   isBusy?: boolean;
-  onSubmit?: (message: string) => void;
+  onSubmit?: (message: string, attachments: ChatAttachment[]) => void;
   onTranscribeAudio?: (file: File) => Promise<string>;
   onAttach?: () => void;
   onVoice?: () => void;
@@ -21,6 +45,52 @@ interface ChatComposerProps {
 
 const LIVE_TRANSCRIPTION_SAMPLE_RATE = 24000;
 
+/**
+ * Capture runs on the audio thread, not the main one.
+ *
+ * `ScriptProcessorNode` --- what this replaced --- fires on the main thread, so
+ * a busy render drops whole blocks and the interview comes back with words
+ * chewed in half. The worklet keeps capturing regardless and hands finished
+ * chunks over the port.
+ *
+ * It is inlined as a Blob rather than a separate asset because it has to load
+ * from the same origin as the page, and a bundled worklet URL is one more build
+ * step to keep correct for the sake of twenty lines.
+ */
+const LIVE_CAPTURE_WORKLET = `
+class LiveCaptureProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.chunk = new Float32Array(2048);
+    this.offset = 0;
+  }
+
+  process(inputs) {
+    const input = inputs[0] && inputs[0][0];
+    if (!input) return true;
+
+    for (let i = 0; i < input.length; i += 1) {
+      this.chunk[this.offset] = input[i];
+      this.offset += 1;
+
+      if (this.offset === this.chunk.length) {
+        this.port.postMessage(this.chunk.slice(0));
+        this.offset = 0;
+      }
+    }
+
+    return true;
+  }
+}
+
+registerProcessor("live-capture", LiveCaptureProcessor);
+`;
+
+/**
+ * Builds the authenticated WebSocket URL for live audio transcription.
+ *
+ * @returns The WebSocket URL for the live transcription endpoint.
+ */
 function buildLiveTranscriptionUrl(): string {
   const baseUrl = API_BASE || window.location.origin;
   const url = new URL(baseUrl, window.location.origin);
@@ -80,14 +150,39 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+/**
+ * Formats a duration as minutes and seconds.
+ *
+ * @param totalSeconds - The duration in seconds
+ * @returns The duration formatted as `MM:SS`
+ */
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const seconds = Math.floor(totalSeconds % 60).toString().padStart(2, "0");
   return `${minutes}:${seconds}`;
 }
 
+const ATTACHMENT_ICONS: Record<ChatAttachmentKind, React.ReactNode> = {
+  source: <FileText aria-hidden="true" />,
+  process: <Workflow aria-hidden="true" />,
+  simulation_run: <GitBranch aria-hidden="true" />,
+  note: <Paperclip aria-hidden="true" />,
+};
+
+const ATTACHMENT_MENU: ChatAttachmentKind[] = [
+  "source",
+  "process",
+  "simulation_run",
+  "note",
+];
+
 export const ChatComposer: React.FC<ChatComposerProps> = ({
+  scope,
   selectedModel = "gpt-5.6-luna",
+  chatMode,
+  onChatModeChange,
+  reasoningEffort,
+  onReasoningEffortChange,
   isBusy = false,
   onSubmit,
   onTranscribeAudio,
@@ -104,12 +199,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const [liveTranscript, setLiveTranscript] = useState("");
   const [finalTranscript, setFinalTranscript] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [pickerKind, setPickerKind] = useState<ChatAttachmentKind | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const processorRef = useRef<AudioWorkletNode | ScriptProcessorNode | null>(null);
+  const workletUrlRef = useRef<string | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const websocketRef = useRef<WebSocket | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -131,6 +229,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     processorRef.current?.disconnect();
     sourceRef.current?.disconnect();
     void audioContextRef.current?.close();
+    if (workletUrlRef.current) {
+      URL.revokeObjectURL(workletUrlRef.current);
+      workletUrlRef.current = null;
+    }
     processorRef.current = null;
     sourceRef.current = null;
     audioContextRef.current = null;
@@ -152,7 +254,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     const ws = websocketRef.current;
 
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "commit" }));
+      // No explicit commit: server VAD owns the buffer now and the API rejects
+      // a manual one. The trailing utterance closes on its own silence.
       ws.send(JSON.stringify({ type: "close" }));
     }
 
@@ -191,7 +294,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
-    onSubmit?.(content);
+    const sent = attachments;
+    setAttachments([]);
+    onSubmit?.(content, sent);
   };
 
   const appendTranscription = (text: string) => {
@@ -218,7 +323,18 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       setAudioStatus(text ? "Transcript finale pronto." : "Nessun parlato rilevato.");
     } catch (err) {
       console.error(err);
-      setAudioStatus("Trascrizione finale non riuscita.");
+      // The diarized pass is the transcript of record, but losing an interview
+      // because it failed is worse than keeping the live draft without speaker
+      // labels. The consultant is told which one they are holding.
+      const draft = liveTranscriptRef.current.trim();
+
+      if (draft) {
+        setFinalTranscript(draft);
+        appendTranscription(draft);
+        setAudioStatus("Diarizzazione non riuscita: recuperato il draft live, senza speaker.");
+      } else {
+        setAudioStatus("Trascrizione finale non riuscita.");
+      }
     } finally {
       setIsTranscribing(false);
     }
@@ -235,32 +351,57 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }, 500);
   };
 
-  const startLivePcmStreaming = (stream: MediaStream, ws: WebSocket) => {
+  const startLivePcmStreaming = async (stream: MediaStream, ws: WebSocket) => {
     const win = window as unknown as { webkitAudioContext?: typeof AudioContext };
     const AudioContextCtor = window.AudioContext || win.webkitAudioContext;
-    const audioContext = new AudioContextCtor();
+    // Asking for the target rate lets the browser resample natively; where the
+    // hint is ignored, `downsampleBuffer` below still corrects the difference.
+    const audioContext = new AudioContextCtor({ sampleRate: LIVE_TRANSCRIPTION_SAMPLE_RATE });
     const source = audioContext.createMediaStreamSource(stream);
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-    processor.onaudioprocess = (event) => {
+    audioContextRef.current = audioContext;
+    sourceRef.current = source;
+
+    const sendFrames = (input: Float32Array) => {
       if (ws.readyState !== WebSocket.OPEN) return;
 
-      const input = event.inputBuffer.getChannelData(0);
       const downsampled = downsampleBuffer(input, audioContext.sampleRate, LIVE_TRANSCRIPTION_SAMPLE_RATE);
       const pcm16 = floatTo16BitPcm(downsampled);
 
-      ws.send(
-        JSON.stringify({
-          type: "audio",
-          audio: bytesToBase64(pcm16),
-        })
-      );
+      ws.send(JSON.stringify({ type: "audio", audio: bytesToBase64(pcm16) }));
     };
 
+    if (audioContext.audioWorklet) {
+      const workletUrl = URL.createObjectURL(
+        new Blob([LIVE_CAPTURE_WORKLET], { type: "application/javascript" }),
+      );
+      workletUrlRef.current = workletUrl;
+
+      await audioContext.audioWorklet.addModule(workletUrl);
+
+      const node = new AudioWorkletNode(audioContext, "live-capture");
+      node.port.onmessage = (event: MessageEvent<Float32Array>) => sendFrames(event.data);
+
+      // The graph only renders what reaches the destination, so the node has to
+      // be connected --- through a silent gain, because routing a microphone to
+      // the speakers is how you get feedback howl on a laptop with no headset.
+      const silence = audioContext.createGain();
+      silence.gain.value = 0;
+
+      source.connect(node);
+      node.connect(silence);
+      silence.connect(audioContext.destination);
+
+      processorRef.current = node;
+      return;
+    }
+
+    // Safari without AudioWorklet. Same capture, on the main thread, with the
+    // block drops that come with it.
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    processor.onaudioprocess = (event) => sendFrames(event.inputBuffer.getChannelData(0));
     source.connect(processor);
     processor.connect(audioContext.destination);
-    audioContextRef.current = audioContext;
-    sourceRef.current = source;
     processorRef.current = processor;
   };
 
@@ -317,7 +458,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         setIsRecording(true);
         setAudioStatus("Live transcript attivo.");
         startElapsedTimer();
-        startLivePcmStreaming(stream, ws);
+        startLivePcmStreaming(stream, ws).catch((err) => {
+          // Capture failed to start. The recording itself keeps going, so the
+          // interview still gets its diarized pass on stop --- only the live
+          // draft is missing.
+          console.error(err);
+          setAudioStatus("Draft live non disponibile; la registrazione continua.");
+        });
       };
 
       ws.onmessage = (event) => {
@@ -342,11 +489,16 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           setLiveTranscript(liveDraft);
         }
 
-        if (message.type === "completed" && message.transcript) {
+        if (message.type === "completed") {
+          // A completed item with an empty transcript was dropped by the backend
+          // language guard. Its provisional deltas must still go, or they stay
+          // on screen forever as text nobody said.
           const itemId = message.item_id || "current";
           const transcript = String(message.transcript || "").trim();
           liveDeltaByItemRef.current.delete(itemId);
-          liveCommittedTranscriptRef.current = `${liveCommittedTranscriptRef.current.trim()}\n${transcript}`.trim();
+          if (transcript) {
+            liveCommittedTranscriptRef.current = `${liveCommittedTranscriptRef.current.trim()}\n${transcript}`.trim();
+          }
           const liveDraft = [
             liveCommittedTranscriptRef.current,
             ...Array.from(liveDeltaByItemRef.current.values()),
@@ -422,14 +574,21 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   return (
     <div className="composer-wrap">
       {hasInterviewPanel && (
-        <section
-          className="interview-panel mx-auto mb-3 w-full max-w-[var(--chat-measure)] rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-100)]"
-          aria-label="Trascrizione intervista"
-        >
-          <div className="mb-3 flex items-center justify-between gap-4 @[540px]/composer-wrap:items-center @max-[540px]/composer-wrap:flex-col @max-[540px]/composer-wrap:items-stretch">
+        <Dialog>
+          <div className="mx-auto mb-2 flex w-full max-w-[var(--chat-measure)] flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground" role="status">
+              {isRecording ? `${t("composer.recording")} · ${formatDuration(elapsedSeconds)}` : isTranscribing ? t("composer.transcribing") : t("composer.transcriptReady")}
+            </span>
+            <DialogTrigger asChild>
+              <Button type="button" size="sm" variant="outline">{t("composer.viewTranscript")}</Button>
+            </DialogTrigger>
+          </div>
+          <DialogContent aria-describedby={undefined} className="max-h-[85dvh] overflow-y-auto border-border sm:max-w-2xl">
+            <DialogTitle>{t("composer.transcriptTitle")}</DialogTitle>
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-foreground">
-                Intervista live
+                {isRecording ? t("composer.recording") : t("composer.transcriptReady")}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <Badge
@@ -440,11 +599,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                       "border-success-border bg-success-surface text-[var(--color-status-success)]",
                   )}
                 >
-                  {isLiveConnected ? "Live WebSocket" : "Connessione"}
+                  {isRecording ? (isLiveConnected ? t("composer.recording") : t("composer.connecting")) : t("composer.transcriptReady")}
                 </Badge>
                 <span>{formatDuration(elapsedSeconds)}</span>
                 <span>
-                  {isTranscribing ? "Diarizzazione finale" : "Draft realtime"}
+                  {isTranscribing ? t("composer.transcribing") : ""}
                 </span>
               </div>
             </div>
@@ -464,7 +623,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 @[540px]/composer-wrap:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/40">
               <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
                 Live draft
@@ -484,7 +643,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </div>
             </div>
           </div>
-        </section>
+          </DialogContent>
+        </Dialog>
       )}
 
       <form className="composer-box" onSubmit={handleSubmit}>
@@ -499,6 +659,38 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             event.target.value = "";
           }}
         />
+        {/* Sopra il testo, non dentro un menu: quello che stai per mandare deve
+            restare a vista finche' non parte, e si deve poter togliere. */}
+        {attachments.length > 0 && (
+          <ul className="composer-chips" aria-label={t("attach.listLabel")}>
+            {attachments.map((attachment) => (
+              <li key={chatAttachmentKey(attachment)} className="composer-chip">
+                <span className="composer-chip-icon">
+                  {ATTACHMENT_ICONS[attachment.kind]}
+                </span>
+                <span className="composer-chip-label" title={attachment.label}>
+                  {attachment.label}
+                </span>
+                <button
+                  type="button"
+                  className="composer-chip-remove"
+                  aria-label={t("attach.remove", { label: attachment.label })}
+                  onClick={() =>
+                    setAttachments((prev) =>
+                      prev.filter(
+                        (item) =>
+                          chatAttachmentKey(item) !== chatAttachmentKey(attachment),
+                      ),
+                    )
+                  }
+                >
+                  <X aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <textarea
           ref={textareaRef}
           rows={1}
@@ -506,6 +698,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={t("composer.placeholder")}
+          aria-label={t("composer.placeholder")}
           disabled={isLocked}
           autoComplete="off"
           className="max-h-[180px] min-h-[42px] w-full resize-none border-none bg-transparent px-0.5 py-1 text-sm leading-normal text-foreground outline-none placeholder:text-muted-foreground/90 disabled:opacity-60"
@@ -516,49 +709,99 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         )}
         <div className="composer-bottom-bar">
-          <ModelSelector selectedModel={selectedModel} onChange={onModelChange} />
+          <div className="composer-bottom-left">
+            {/* "+" apre cosa alleghi; la modalita' dice come lavora l'agente.
+                Il microfono sta a destra, accanto a Invia: e' un modo di
+                mandare il messaggio, non un'impostazione della riga. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="composer-add"
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  disabled={isLocked || isRecording}
+                  aria-label={t("composer.addLabel")}
+                  title={t("composer.addLabel")}
+                >
+                  <Plus />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top">
+                {ATTACHMENT_MENU.map((attachmentKind) => (
+                  <DropdownMenuItem
+                    key={attachmentKind}
+                    disabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
+                    onSelect={() => setPickerKind(attachmentKind)}
+                  >
+                    {ATTACHMENT_ICONS[attachmentKind]}
+                    {t(`attach.${attachmentKind}.menu`)}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => {
+                    if (onTranscribeAudio) {
+                      fileInputRef.current?.click();
+                    } else {
+                      onAttach?.();
+                    }
+                  }}
+                >
+                  <Paperclip />
+                  {t("composer.audioUpload")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <ChatModeSelector
+              value={chatMode}
+              onChange={onChatModeChange}
+              effort={reasoningEffort}
+              onEffortChange={onReasoningEffortChange}
+              disabled={isBusy}
+            />
+            <ModelSelector selectedModel={selectedModel} onChange={onModelChange} />
+          </div>
 
           <div className="composer-actions">
-            <Button
-              className="btn-pill-light"
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (onTranscribeAudio) {
-                  fileInputRef.current?.click();
-                } else {
-                  onAttach?.();
-                }
-              }}
-              disabled={isLocked || isRecording}
-              title="Carica audio da trascrivere"
-            >
-              <Paperclip />
-              <span>{t("composer.audio")}</span>
-            </Button>
-            <Button
-              className={cn(
-                "btn-pill-light",
-                isRecording &&
-                  "border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10",
-              )}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleVoiceClick}
-              disabled={isBusy || isTranscribing}
-              title={isRecording ? "Ferma intervista" : "Avvia intervista live"}
-            >
-              {isRecording ? <Square /> : <Mic />}
-              <span>{isRecording ? t("composer.stop") : t("composer.interview")}</span>
-            </Button>
+            {/* In registrazione il microfono diventa Stop con il tempo a vista:
+                uno stato attivo deve essere fermabile in un click. */}
+            {isRecording ? (
+              <Button
+                className="composer-stop"
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleVoiceClick}
+                disabled={isTranscribing}
+                title={t("composer.stopHint")}
+              >
+                <Square />
+                <span>{t("composer.stop")}</span>
+                <span className="composer-stop-time">{formatDuration(elapsedSeconds)}</span>
+              </Button>
+            ) : (
+              <Button
+                className="composer-mic"
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleVoiceClick}
+                disabled={isBusy || isTranscribing}
+                aria-label={t("composer.interviewStart")}
+                title={t("composer.interviewStart")}
+              >
+                <Mic />
+              </Button>
+            )}
             <Button
               className="btn-send"
               type="submit"
               size="sm"
               disabled={isLocked || isRecording || !value.trim()}
-              title="Invia messaggio"
+              aria-label={t("composer.send")}
+              title={t("composer.sendHint")}
             >
               <span>{t("composer.send")}</span>
               <ArrowUp />
@@ -566,6 +809,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         </div>
       </form>
+      <AttachmentPicker
+        kind={pickerKind}
+        scope={scope}
+        onClose={() => setPickerKind(null)}
+        onPick={(attachment) => {
+          setPickerKind(null);
+          setAttachments((prev) =>
+            prev.some((item) => chatAttachmentKey(item) === chatAttachmentKey(attachment))
+              ? prev
+              : [...prev, attachment].slice(0, MAX_CHAT_ATTACHMENTS),
+          );
+        }}
+      />
+
       <div className="footnote mt-2 text-center text-[11px] text-muted-foreground">
         {t("composer.disclaimer")}
       </div>

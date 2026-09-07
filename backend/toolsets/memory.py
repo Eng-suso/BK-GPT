@@ -191,16 +191,25 @@ def retrieve_consulting_graph_context(
     limit: int = 5,
 ) -> str:
     """
-    Retrieve relational consulting context through Mem0 Graph Memory-style retrieval plus optional workspace grounding.
-
-    Use this tool when the user asks a relation-heavy question or when routing/synthesis depends on relationships, for example:
-    - which clients, projects, processes, sources, decisions, risks, offers, or insights are connected;
-    - which evidence supports an insight or decision;
-    - which projects share a recurring pain, risk, objection, or delivery pattern;
-    - how Sohay's preferences, positioning, offers, ICP, or delivery method connect to current workspace work.
-
-    Do not use this tool for simple factual lookup, simple workspace CRUD, BPMN editing, or external/current web information.
-    Do not treat Mem0 as the operational source of truth: use workspace tools for authoritative clients/projects/processes.
+    Retrieve relationship-oriented consulting context from semantic memory, episodic evidence, and optionally workspace records.
+    
+    Args:
+        query (str): Untrusted question or retrieval query.
+        relation_focus (str): Untrusted description of the relationships to prioritize.
+        reason (str): Untrusted explanation for the retrieval request.
+        entities (list[str] | None): Untrusted entities to use when linking related memories and evidence.
+        include_workspace_overview (bool): Whether to include the workspace overview for operational grounding.
+        limit (int): Maximum number of episodic results to retrieve.
+    
+    Returns:
+        str: Formatted relational context containing semantic memory, episodic evidence, workspace grounding, and source-authority guidance.
+    
+    Raises:
+        ValidationError: If the request parameters violate the retrieval request schema.
+        Exception: If semantic-memory, episodic-memory, or workspace retrieval fails.
+    
+    Side Effects:
+        Performs read-only retrieval from semantic memory, episodic memory, and optionally workspace data. It does not persist changes.
     """
     request = ConsultingGraphRetrievalRequest(
         query=query,
@@ -255,16 +264,213 @@ def retrieve_consulting_graph_context(
     )
 
 
-@tool
-def forget_consultant_memory(memory_id: str, delete_linked: bool = False) -> str:
+class ManageConsultantMemoryInput(BaseModel):
+    operation: str = Field(
+        description=(
+            "list to see the consultant's durable memories with their ids; "
+            "forget to PROPOSE deleting some of them (never deletes on its own); "
+            "confirm to execute the deletion the consultant just approved; "
+            "cancel to drop it. forget->confirm is a two-step flow on purpose."
+        )
+    )
+    query: str = Field(
+        default="",
+        description=(
+            "For list: narrows the listing. For forget: what the consultant asked to "
+            "forget, in their own words."
+        ),
+    )
+    memory_ids: list[str] = Field(
+        default_factory=list,
+        description="For forget: exact memory_ids from operation=list. Preferred when known.",
+    )
+    reason: str = Field(default="", description="For forget: why the consultant wants this forgotten.")
+    limit: int = Field(default=20, ge=1, le=50, description="Max memories to list, or to touch with forget.")
+
+
+@tool(args_schema=ManageConsultantMemoryInput)
+def manage_consultant_memory(
+    operation: str,
+    query: str = "",
+    memory_ids: list[str] | None = None,
+    reason: str = "",
+    limit: int = 20,
+) -> str:
     """
-    Delete one specific semantic memory by its Mem0 memory_id.
-    Use only when the user explicitly asks to remove a specific durable memory.
-    If the user did not provide a memory_id, search memory first and ask which memory to delete.
-    Do not use for ordinary corrections, edits, or forgetting a whole category.
-    Returns a deletion confirmation, or a clear disabled/error message.
+    Manage listing and two-step deletion of the consultant's durable memories.
+    
+    Deletion requests resolve and freeze exact targets as a pending action; they do not
+    delete memories until explicit confirmation. Confirmation uses the frozen targets,
+    records the execution result, and reports complete or partial deletion. Cancellation
+    leaves the memories unchanged. Results identify blocked operations, unresolved or
+    missing targets, absent or already-resolved pending actions, cancellations, and
+    persistence outcomes through enterprise status values.
+    
+    Args:
+        operation (str): Untrusted lifecycle operation: ``list``, ``search``,
+            ``forget``, ``confirm``, or ``cancel``.
+        query (str): Untrusted search text used to list memories or resolve deletion
+            targets.
+        memory_ids (list[str] | None): Untrusted memory identifiers used to resolve
+            deletion targets.
+        reason (str): Untrusted reason recorded with a deletion request.
+        limit (int): Untrusted maximum number of memories to list or targets to
+            resolve.
+    
+    Returns:
+        str: An enterprise tool result containing the operation status, memory or
+        pending-action details, and any deletion results.
+    
+    Side Effects:
+        Listing and deletion workflows may persist pending actions and execution
+        results. Confirmed deletion updates durable-memory state and records the
+        outcome; partial deletion excludes affected memories from recall even when
+        index removal is incomplete.
     """
-    return semantic_store.delete_consultant_memory(memory_id=memory_id, delete_linked=delete_linked)
+    from backend.agents.run_context import active_thread_id
+    from backend.memory import forget, pending_actions
+    from backend.settings import settings
+
+    normalized_operation = (operation or "").strip().lower()
+    consultant_id = settings.default_consultant_id
+    thread_id = active_thread_id() or "unbound"
+
+    if normalized_operation in {"list", "search"}:
+        result = semantic_store.list_consultant_memories(query=query, limit=limit)
+        return enterprise_tool_result(
+            status=result["status"],
+            action="manage_consultant_memory",
+            entity_type="consultant_memory_collection",
+            summary=f"Memorie durevoli: {len(result['memories'])}.",
+            payload={"operation": normalized_operation, **result},
+        )
+
+    if normalized_operation == "forget":
+        resolved = forget.resolve_targets(
+            consultant_id=consultant_id,
+            mem0_user_id=settings.mem0_user_id,
+            memory_ids=memory_ids or [],
+            query=query,
+            limit=min(limit, 25),
+        )
+        if resolved["status"] != "ok":
+            return enterprise_tool_result(
+                status=resolved["status"],
+                action="manage_consultant_memory",
+                entity_type="consultant_memory",
+                summary=(
+                    "Nessuna memoria corrisponde: niente da eliminare."
+                    if resolved["status"] == "empty"
+                    else f"Bersaglio non risolto: {resolved['reason']}"
+                ),
+                payload={"operation": normalized_operation, **resolved},
+            )
+
+        targets = resolved["targets"]
+        preview = "\n".join(f"- {t['statement'] or t['memory_id']}" for t in targets)
+        action = pending_actions.propose(
+            consultant_id=consultant_id,
+            thread_id=thread_id,
+            action="forget_memory",
+            params={"targets": targets, "reason": reason},
+            preview=preview,
+        )
+        return enterprise_tool_result(
+            status="awaiting_confirmation",
+            action="manage_consultant_memory",
+            entity_type="consultant_memory",
+            entity_id=action["id"],
+            summary=(
+                f"{len(targets)} memoria/e pronte da eliminare. Mostrale al consulente e "
+                "chiedi conferma esplicita: non sono ancora eliminate."
+            ),
+            payload={
+                "operation": normalized_operation,
+                "pending_action_id": action["id"],
+                "targets": targets,
+                "preview": preview,
+                "next_step": "manage_consultant_memory(operation='confirm'|'cancel')",
+            },
+        )
+
+    if normalized_operation not in {"confirm", "cancel"}:
+        return enterprise_tool_result(
+            status="blocked",
+            action="manage_consultant_memory",
+            entity_type="consultant_memory",
+            summary=f"Operazione non supportata: {operation}.",
+            payload={"operation": normalized_operation},
+        )
+
+    pending = pending_actions.open_action(
+        consultant_id=consultant_id, thread_id=thread_id, action="forget_memory"
+    )
+    if pending is None:
+        return enterprise_tool_result(
+            status="not_found",
+            action="manage_consultant_memory",
+            entity_type="consultant_memory",
+            summary=(
+                "Nessuna azione in attesa su questa conversazione: niente da confermare. "
+                "Se il consulente vuole eliminare qualcosa, riparti da operation='forget'."
+            ),
+            payload={"operation": normalized_operation},
+        )
+
+    if normalized_operation == "cancel":
+        pending_actions.cancel(consultant_id=consultant_id, thread_id=thread_id)
+        return enterprise_tool_result(
+            status="cancelled",
+            action="manage_consultant_memory",
+            entity_type="consultant_memory",
+            entity_id=pending["id"],
+            summary="Cancellazione annullata: le memorie restano.",
+            payload={"operation": normalized_operation, "preview": pending["preview"]},
+        )
+
+    claimed = pending_actions.claim(
+        consultant_id=consultant_id, thread_id=thread_id, action_id=pending["id"]
+    )
+    if claimed is None:
+        return enterprise_tool_result(
+            status="noop",
+            action="manage_consultant_memory",
+            entity_type="consultant_memory",
+            entity_id=pending["id"],
+            summary="Azione gia' risolta (eseguita, annullata o scaduta): non la rieseguo.",
+            payload={"operation": normalized_operation},
+        )
+
+    params = claimed["params"] or {}
+    result = forget.execute_forget(
+        consultant_id=consultant_id,
+        mem0_user_id=settings.mem0_user_id,
+        targets=params.get("targets") or [],
+        reason=params.get("reason") or "",
+    )
+    pending_actions.record_result(
+        consultant_id=consultant_id,
+        thread_id=thread_id,
+        action_id=claimed["id"],
+        result=result,
+    )
+    summary = (
+        f"Eliminate {len(result['deleted'])} memoria/e: non torneranno nel recall."
+        if result["status"] == "ok"
+        else (
+            "Cancellazione parziale: le memorie sono comunque escluse dal recall "
+            "(lapide registrata), ma la rimozione dall'indice non e' completa. "
+            "Dillo al consulente invece di dichiarare successo."
+        )
+    )
+    return enterprise_tool_result(
+        status="deleted" if result["status"] == "ok" else "partial",
+        action="manage_consultant_memory",
+        entity_type="consultant_memory",
+        entity_id=claimed["id"],
+        summary=summary,
+        payload={"operation": normalized_operation, "preview": claimed["preview"], **result},
+    )
 
 
 @tool(args_schema=ManageConsultingEvidenceInput)
@@ -830,12 +1036,16 @@ def extract_playbook_from_episodes(project: str, limit: int = 8) -> str:
 @tool
 def remember_bpmn_preference(rule: str, area: str) -> str:
     """
-    Save a durable BPMN/process modeling preference for this consultant.
-    Use when the user states a stable preference or rule about BPMN style, gateways,
-    events, lanes, pools, handoffs, exceptions, assumptions, readiness, validation,
-    evidence policy, or process-discovery method.
-    Do not use for a one-off process detail or raw interview/call evidence.
-    Returns a confirmation message, or a clear disabled/error message if Mem0 is unavailable.
+    Persist a durable BPMN or process-modeling preference explicitly stated by the consultant.
+    
+    Args:
+        rule (str): Untrusted preference statement to store.
+        area (str): Untrusted BPMN or process-modeling area associated with the preference.
+    
+    Returns:
+        str: Confirmation of persistence, or a clear disabled/error message when the semantic memory store is unavailable.
+    
+    The preference must represent a stable consultant rule rather than a one-off process detail or raw evidence. Absence of a preference is treated as valid and does not require creating a record.
     """
     return semantic_store.save_bpmn_preference(rule=rule, area=area)
 
@@ -973,7 +1183,7 @@ memory_tools = [
     search_consultant_memory,
     retrieve_consulting_context,
     retrieve_consulting_graph_context,
-    forget_consultant_memory,
+    manage_consultant_memory,
     manage_consulting_evidence,
     manage_consultant_playbook,
     extract_playbook_from_episodes,

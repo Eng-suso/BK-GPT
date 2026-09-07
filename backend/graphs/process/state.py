@@ -23,6 +23,8 @@ class ProcessState(ConversationState):
     bpmn_semantic_model: BPMNSemanticModel | None
     readiness_score: int | None
     missing_information: list[str]
+    # Lacune del piano con le alternative proposte e cio' che e' gia' stato deciso.
+    review_open_questions: list[dict]
     saved_bpmn_xml: str | None
 
     process_route: str | None
@@ -42,8 +44,6 @@ class ProcessState(ConversationState):
     workflow_scope: str | None
     engineering_loop_iteration: int
     engineering_loop_max_iterations: int
-    projected_message_count: int
-    projection_failures: Annotated[list[dict], add]
     minimum_readiness_score: int | None
     process_no_progress_count: int
     process_progress_signature: str | None
@@ -65,6 +65,3 @@ class ProcessState(ConversationState):
     process_claims: Annotated[list[dict], add]
     process_gaps: Annotated[list[dict], add]
     contradictions: Annotated[list[dict], add]
-    assumptions: Annotated[list[str], add]
-    modeling_warnings: Annotated[list[str], add]
-    process_next_actions: Annotated[list[dict], add]

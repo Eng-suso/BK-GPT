@@ -103,6 +103,11 @@ semantics from raw canvas XML alone. The visible canvas must stay operational:
 show BPMN flow nodes, gateways, lanes and sequence flows; keep rules, unknowns,
 data objects, handoffs and traceability in the semantic payload, not as visible
 text annotations or data artifacts.
+
+The runtime keeps the XML that generate_preview produced. Do not carry it back:
+apply_approved_preview reads that preview itself, so it only needs
+confirm_apply=True. Pass proposed_xml only when applying something other than the
+preview you just generated.
 """.strip()
 
 VALIDATION_TOOL_POLICY = """

@@ -1,7 +1,8 @@
 import re
-from typing import Literal
+from typing import Annotated, Literal
 
-from langchain_core.tools import tool
+from langchain_core.tools import InjectedToolCallId, tool
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend.graphs.process.tools import process_workspace_payload
@@ -10,7 +11,7 @@ from backend.toolsets.process_memory import (
     index_process_evidence_graph,
     manage_process_evidence,
 )
-from backend.toolsets.workspace import enterprise_tool_result
+from backend.toolsets.workspace import enterprise_state_write, enterprise_tool_result
 
 
 ProcessArea = Literal[
@@ -150,13 +151,29 @@ def extract_process_claims(
     source_name: str,
     claims: list[dict],
     extraction_notes: list[str] | None = None,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
-    Structure atomic process claims from one source. Use before synthesis or
-    future GraphRAG indexing. Each claim must keep source, confidence and status.
+    Prepare atomic process claims from a source for evidence synthesis and GraphRAG indexing.
+    
+    Args:
+        process_id (str): Untrusted process identifier used to scope persisted state.
+        source_name (str): Untrusted name of the evidence source associated with the claims.
+        claims (list[dict]): Untrusted atomic claim records to serialize and persist.
+        extraction_notes (list[str] | None): Optional notes describing the extraction.
+    
+    Returns:
+        Command: A command containing the prepared claims and persistence state.
+    
+    Side Effects:
+        Persists the claims, source metadata, extraction notes, and GraphRAG readiness
+        flag in enterprise state for the specified process.
     """
     claim_payload = _jsonable_items(claims)
-    return enterprise_tool_result(
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        state={"process_claims": claim_payload},
         status="prepared",
         action="extract_process_claims",
         entity_type="process_claims",
@@ -227,39 +244,77 @@ def manage_process_contradiction(
     resolution: str | None = None,
     rationale: str = "",
     supporting_sources: list[str] | None = None,
-) -> str:
-    """
-    Record a process contradiction, or record what you concluded about one.
-
-    Use operation=identify when sources disagree about actors, activities,
-    decisions, handoffs, exceptions or controls. Use operation=resolve once you
-    have settled it, or decided it does not affect the model you are building -
-    a contradiction you leave unresolved at high or blocking severity keeps
-    modeling closed, so say what you concluded rather than leaving it open.
-    The runtime does not judge the contradiction; it only checks that a
-    conclusion carries a reason, and that clearing one cites a source.
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
+    """Record or resolve a process contradiction and persist the resulting state update.
+    
+    For ``identify``, derives a contradiction identifier from ``title`` and records
+    the conflicting claims and affected process area. For ``resolve``, requires a
+    resolution and rationale; resolutions of ``resolved`` or ``not_material`` also
+    require supporting sources. Invalid resolution inputs remain ``still_blocking``
+    and include invariant violations rather than clearing the contradiction.
+    
+    Args:
+        process_id (str): Process whose contradiction state is being updated.
+        operation (str): Untrusted operation name; must be ``"identify"`` or
+            ``"resolve"``.
+        title (str): Untrusted contradiction title used for identification and
+            identifier derivation.
+        contradiction_id (str | None): Existing contradiction identifier for
+            resolution. If omitted, derives one from ``title``.
+        conflicting_claims (list[str] | None): Untrusted claims involved in the
+            contradiction.
+        affected_process_area (str | None): Untrusted process area affected by the
+            contradiction.
+        source_names (list[str] | None): Untrusted sources containing the
+            conflicting claims.
+        resolution_needed (str): Untrusted explanation of the resolution required.
+        severity (str): Untrusted contradiction severity.
+        resolution (str | None): Untrusted resolution outcome. Values
+            ``"resolved"`` and ``"not_material"`` require supporting sources.
+        rationale (str): Untrusted explanation supporting the resolution.
+        supporting_sources (list[str] | None): Untrusted sources supporting a
+            clearing resolution.
+    
+    Raises:
+        ValueError: If ``operation`` is neither ``"identify"`` nor ``"resolve"``.
+    
+    Returns:
+        Command: State update containing the contradiction identification or
+            resolution, including warnings and invariant violations when
+            applicable.
+    
+    Side Effects:
+        Persists the contradiction identification or resolution in shared
+        enterprise state.
     """
     conflicting_claims = conflicting_claims or []
     source_names = source_names or []
     supporting_sources = supporting_sources or []
 
     if operation == "identify":
-        return enterprise_tool_result(
+        identified = {
+            "process_id": process_id,
+            "contradiction_id": contradiction_key(title),
+            "title": title,
+            "conflicting_claims": conflicting_claims,
+            "affected_process_area": affected_process_area,
+            "source_names": source_names,
+            "resolution_needed": resolution_needed,
+            "severity": severity,
+        }
+        return enterprise_state_write(
+            tool_call_id=tool_call_id,
+            # The gate folds identifications and resolutions by contradiction_id,
+            # so both land in the same accumulator.
+            state={"contradictions": [identified]},
             status="prepared",
             action="manage_process_contradiction",
             entity_type="process_contradiction",
             entity_id=process_id,
             summary=title,
-            payload={
-                "process_id": process_id,
-                "contradiction_id": contradiction_key(title),
-                "title": title,
-                "conflicting_claims": conflicting_claims,
-                "affected_process_area": affected_process_area,
-                "source_names": source_names,
-                "resolution_needed": resolution_needed,
-                "severity": severity,
-            },
+            payload=identified,
         )
 
     if operation != "resolve":
@@ -290,22 +345,25 @@ def manage_process_contradiction(
     if invariant_violations:
         effective_resolution = "still_blocking"
 
-    return enterprise_tool_result(
+    resolved = {
+        "process_id": process_id,
+        "contradiction_id": resolved_id,
+        "title": title,
+        "resolution": effective_resolution,
+        "proposed_resolution": resolution,
+        "rationale": rationale,
+        "supporting_sources": supporting_sources,
+        "invariant_violations": invariant_violations,
+    }
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        state={"contradictions": [resolved]},
         status=effective_resolution,
         action="manage_process_contradiction",
         entity_type="process_contradiction_resolution",
         entity_id=process_id,
         summary=f"Contradiction '{title}': {effective_resolution}.",
-        payload={
-            "process_id": process_id,
-            "contradiction_id": resolved_id,
-            "title": title,
-            "resolution": effective_resolution,
-            "proposed_resolution": resolution,
-            "rationale": rationale,
-            "supporting_sources": supporting_sources,
-            "invariant_violations": invariant_violations,
-        },
+        payload=resolved,
         warnings=warnings,
     )
 
@@ -315,10 +373,25 @@ def prepare_evidence_coverage_matrix(
     process_id: str,
     coverage_items: list[dict],
     modeling_blockers: list[str] | None = None,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
-    Prepare an evidence coverage matrix by process area. Use as the gate between
-    evidence synthesis and ProcessUnderstanding modeling.
+    Assess evidence coverage for each process area and determine whether modeling can proceed.
+    
+    Args:
+        process_id (str): Process identifier.
+        coverage_items (list[dict]): Untrusted coverage assessments by process area.
+        modeling_blockers (list[str] | None): Untrusted issues that prevent modeling.
+        tool_call_id (str): Injected tool-call identifier.
+    
+    Returns:
+        Command: A state-write command containing the coverage matrix and its status.
+    
+    The matrix is marked ``ready_for_modeling`` only when there are no modeling
+    blockers and at most two areas have ``none`` or ``weak`` coverage. The latest
+    matrix replaces the previous assessment for the process. The command persists
+    the matrix in enterprise state.
     """
     coverage_payload = _jsonable_items(coverage_items)
     weak_areas = [
@@ -328,19 +401,24 @@ def prepare_evidence_coverage_matrix(
     ]
     blockers = modeling_blockers or []
     status = "ready_for_modeling" if not blockers and len(weak_areas) <= 2 else "evidence_required"
+    coverage = {
+        "process_id": process_id,
+        "status": status,
+        "coverage_items": coverage_payload,
+        "weak_areas": weak_areas,
+        "modeling_blockers": blockers,
+    }
 
-    return enterprise_tool_result(
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        # One coverage matrix per process: the latest assessment replaces the previous.
+        state={"evidence_coverage": coverage},
         status=status,
         action="prepare_evidence_coverage_matrix",
         entity_type="process_evidence_coverage",
         entity_id=process_id,
         summary=f"Evidence coverage assessed across {len(coverage_items)} process areas.",
-        payload={
-            "process_id": process_id,
-            "coverage_items": coverage_payload,
-            "weak_areas": weak_areas,
-            "modeling_blockers": blockers,
-        },
+        payload=coverage,
         warnings=blockers,
     )
 

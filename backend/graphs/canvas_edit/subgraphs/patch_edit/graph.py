@@ -1,6 +1,6 @@
 from backend.graphs.common import build_tool_chat_subgraph
 from backend.graphs.consulting.skill_context import tool_prompt_block
-from backend.graphs.canvas_edit.subgraphs.patch_edit.state import CanvasPatchEditState
+from backend.graphs.canvas_edit.state import CanvasState
 from backend.graphs.canvas_edit.subgraphs.patch_edit.tools import PATCH_EDIT_TOOL_POLICY, patch_edit_tools
 
 
@@ -31,8 +31,25 @@ sourceRef, targetRef, node, gateway or sequenceFlow unless explicitly requested.
 
 
 def build_patch_edit_subgraph(llm_with_tools, build_context_messages):
+    """
+    Build the tool-enabled subgraph for localized canvas patch and edit operations.
+    
+    The subgraph uses ``CanvasState`` and enforces the patch-edit contract, including
+    live BPMN inspection, local mutations, validation when available, deterministic
+    deletion handling, and delegation of major remodelling.
+    
+    Args:
+        llm_with_tools: Language model configured with the patch-edit tools.
+        build_context_messages: Callable that builds the context messages supplied
+            to the subgraph.
+    
+    Returns:
+        The configured patch-edit tool chat subgraph.
+    
+    This function configures the subgraph but does not persist canvas changes.
+    """
     return build_tool_chat_subgraph(
-        state_schema=CanvasPatchEditState,
+        state_schema=CanvasState,
         tools=patch_edit_tools,
         llm_with_tools=llm_with_tools,
         build_context_messages=build_context_messages,

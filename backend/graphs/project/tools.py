@@ -180,8 +180,22 @@ def prepare_project_delegation_payload(
 @tool
 def get_project_delivery_brief(project_id: str) -> str:
     """
-    Read project delivery context: phase, status, progress, next step, milestones,
-    deliverables, open issues and open decisions. Use for delivery planning/status.
+    Builds a delivery-focused brief for an authorized project.
+    
+    The project must be within the authorized scope and must exist. This function
+    only reads project context and does not modify or persist data.
+    
+    Args:
+        project_id (str): Untrusted project identifier used to locate the project.
+    
+    Returns:
+        str: Serialized project delivery context, including objective, phase, status,
+            progress, next step, milestones, deliverables, open issues, and
+            decisions.
+    
+    Raises:
+        PermissionError: If the project is outside the authorized scope.
+        ValueError: If the project does not exist.
     """
     payload = _project_payload(project_id)
     project = payload["project"]
@@ -196,6 +210,7 @@ def get_project_delivery_brief(project_id: str) -> str:
             "project_id": project_id,
             "client": project["client"],
             "name": project["name"],
+            "objective": project.get("objective") or "",
             "phase": project["phase"],
             "status": project["status"],
             "progress": project["progress"],

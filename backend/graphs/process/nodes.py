@@ -1,53 +1,34 @@
-import logging
-
-from pydantic import ValidationError
-
 from backend import workspace_database
-from backend.bpmn import BPMNSemanticModel
+from backend.graphs.common import canonical_semantic_context, validated_model
 from backend.process_understanding import (
-    ProcessUnderstanding,
     ProcessUnderstandingQualityReport,
     process_understanding_diagnostics,
 )
 
-logger = logging.getLogger(__name__)
-
-
-def _validated_model(model_cls, value):
-    if not value:
-        return None
-
-    try:
-        return model_cls.model_validate(value)
-    except ValidationError as exc:
-        logger.warning(
-            "process node: stored %s payload failed validation: %s",
-            model_cls.__name__,
-            exc,
-        )
-        return None
-
-
-def _canonical_semantic_context(
-    review: dict | None,
-) -> tuple[ProcessUnderstanding | None, BPMNSemanticModel | None]:
-    if not review:
-        return None, None
-
-    semantic_model = _validated_model(BPMNSemanticModel, review.get("bpmn_semantic_model"))
-    if not semantic_model:
-        return None, None
-    if not semantic_model.compilationPlan or not semantic_model.sourceProcessUnderstanding:
-        return None, None
-
-    understanding = _validated_model(
-        ProcessUnderstanding,
-        semantic_model.sourceProcessUnderstanding,
-    )
-    return understanding, semantic_model
-
 
 def load_process_context(state: dict) -> dict:
+    """Load process metadata, review results, and saved BPMN content for the requested process.
+    
+    Args:
+        state (dict): Untrusted state containing the optional ``process_id`` used to
+            identify the process.
+    
+    Returns:
+        dict: A normalized process context. Returns an empty dictionary when no
+        process ID is provided. For an unknown process, returns a context with
+        null process data, empty review lists, and no saved BPMN XML. Existing
+        contexts include process metadata, saved BPMN XML, semantic-model data,
+        diagnostics, quality data, readiness, and review findings, with missing
+        list values normalized to empty lists.
+    
+    Raises:
+        KeyError: If a retrieved process lacks a required process field.
+        TypeError: If stored review data cannot be processed by the semantic-model
+            or quality-report validators.
+    
+    Side Effects:
+        Performs read-only database lookups and does not persist changes.
+    """
     process_id = state.get("process_id")
     if not process_id:
         return {}
@@ -63,6 +44,7 @@ def load_process_context(state: dict) -> dict:
             "bpmn_semantic_model": None,
             "readiness_score": None,
             "missing_information": [],
+            "review_open_questions": [],
             "saved_bpmn_xml": None,
         }
 
@@ -79,10 +61,13 @@ def load_process_context(state: dict) -> dict:
             "bpmn_semantic_model": None,
             "readiness_score": None,
             "missing_information": [],
+            "review_open_questions": [],
             "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,
         }
 
-    process_understanding, bpmn_semantic_model = _canonical_semantic_context(review)
+    process_understanding, bpmn_semantic_model = canonical_semantic_context(
+        review.get("bpmn_semantic_model")
+    )
 
     return {
         "process_name": process["name"],
@@ -93,12 +78,13 @@ def load_process_context(state: dict) -> dict:
         )
         if process_understanding
         else None,
-        "process_quality_report": _validated_model(
+        "process_quality_report": validated_model(
             ProcessUnderstandingQualityReport,
             review.get("quality_report"),
         ),
         "bpmn_semantic_model": bpmn_semantic_model,
         "readiness_score": review.get("readiness_score"),
         "missing_information": review.get("missing_information") or [],
+        "review_open_questions": review.get("open_questions") or [],
         "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,
     }

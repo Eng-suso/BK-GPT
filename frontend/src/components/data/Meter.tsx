@@ -11,6 +11,7 @@ const FILL: Record<MeterTone, string> = {
 export type MeterProps = {
   /** 0–100 */
   value: number;
+  label?: string;
   tone?: MeterTone;
   /** Show the "%" value on the right. */
   showValue?: boolean;
@@ -20,12 +21,18 @@ export type MeterProps = {
 };
 
 /**
- * A full-width proportion bar with a semantic fill. Unlike `ProgressBar` this
- * stretches to its container and carries a tone — use it for utilisation /
- * load readouts.
+ * Displays a full-width semantic meter for utilization or load values.
+ *
+ * Values are clamped to the range 0–100. An optional label provides an accessible
+ * name, and the rounded percentage can be displayed alongside the meter.
+ *
+ * @param value - The meter value as a percentage
+ * @param label - The accessible label for the meter
+ * @returns The rendered meter element
  */
 export function Meter({
   value,
+  label,
   tone = "ok",
   showValue = true,
   height = 6,
@@ -36,6 +43,7 @@ export function Meter({
     <span className={cn("flex items-center gap-2", className)}>
       <span
         role="progressbar"
+        aria-label={label}
         aria-valuenow={Math.round(pct)}
         aria-valuemin={0}
         aria-valuemax={100}

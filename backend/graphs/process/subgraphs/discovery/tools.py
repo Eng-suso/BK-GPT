@@ -1,10 +1,11 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from langchain_core.tools import tool
+from langchain_core.tools import InjectedToolCallId, tool
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend.graphs.process.tools import process_workspace_payload
-from backend.toolsets.workspace import enterprise_tool_result
+from backend.toolsets.workspace import enterprise_state_write, enterprise_tool_result
 
 
 class DiscoveryPlanInput(BaseModel):
@@ -190,13 +191,31 @@ def assess_discovery_readiness(
     material_unknowns: list[str] | None = None,
     unsupported_regions: list[str] | None = None,
     contradictions_open: list[str] | None = None,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
-    Record a semantic discovery-readiness judgment: is there enough evidence-backed
-    understanding to move into ProcessUnderstanding modeling? This is a judgment call,
-    not a checklist score - weigh what is missing against how much it would distort a
-    first-pass model. Use before routing from discovery/evidence to modeling. The runtime
-    only verifies the judgment is internally consistent; it does not compute it.
+    Assess whether process discovery is ready to proceed to modeling.
+    
+    The judgment is downgraded to ``partially_ready`` when ``ready_for_modeling``
+    is accompanied by blockers or a missing rationale. The resulting judgment is
+    persisted as the process's current discovery-readiness state; later judgments
+    replace the existing one. No exceptions are explicitly raised.
+    
+    Args:
+        process_id: Untrusted process identifier.
+        readiness: Untrusted proposed readiness status.
+        rationale: Untrusted explanation supporting the judgment.
+        confidence: Untrusted confidence value for the judgment.
+        blockers: Untrusted conditions preventing or limiting readiness.
+        material_unknowns: Untrusted material gaps in current knowledge.
+        unsupported_regions: Untrusted process areas lacking evidence.
+        contradictions_open: Untrusted unresolved contradictions.
+        tool_call_id: Injected identifier for the tool call.
+    
+    Returns:
+        A command describing the persisted readiness judgment, including any
+        invariant violations and blocker warnings.
     """
     blockers = blockers or []
     material_unknowns = material_unknowns or []
@@ -218,24 +237,28 @@ def assess_discovery_readiness(
     if status == "ready_for_modeling" and invariant_violations:
         status = "partially_ready"
 
-    return enterprise_tool_result(
+    judgment = {
+        "process_id": process_id,
+        "readiness": status,
+        "proposed_readiness": readiness,
+        "confidence": confidence,
+        "rationale": rationale,
+        "blockers": blockers,
+        "material_unknowns": material_unknowns,
+        "unsupported_regions": unsupported_regions,
+        "contradictions_open": contradictions_open,
+        "invariant_violations": invariant_violations,
+    }
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        # One standing readiness judgment per process: a later call replaces it.
+        state={"discovery_readiness": judgment},
         status=status,
         action="assess_discovery_readiness",
         entity_type="process_discovery_readiness",
         entity_id=process_id,
         summary=f"Discovery readiness: {status} (confidence {confidence:.2f}).",
-        payload={
-            "process_id": process_id,
-            "readiness": status,
-            "proposed_readiness": readiness,
-            "confidence": confidence,
-            "rationale": rationale,
-            "blockers": blockers,
-            "material_unknowns": material_unknowns,
-            "unsupported_regions": unsupported_regions,
-            "contradictions_open": contradictions_open,
-            "invariant_violations": invariant_violations,
-        },
+        payload=judgment,
         warnings=blockers + invariant_violations,
     )
 
@@ -274,25 +297,44 @@ def record_process_gap(
     affects: str,
     severity: str = "non_blocking",
     recommended_source: str = "",
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
-    Prepare one process gap for state/UI handoff. This does not persist a gap
-    table yet; save it as evidence or decision only when explicitly requested.
+    Prepare a structured process gap and write it to enterprise state for state/UI handoff.
+    
+    Args:
+        process_id (str): Untrusted identifier of the affected process.
+        title (str): Untrusted short title for the gap.
+        missing_information (str): Untrusted description of the missing process information.
+        affects (str): Untrusted description of the process area affected.
+        severity (str): Untrusted severity classification. Defaults to "non_blocking".
+        recommended_source (str): Untrusted suggested source for resolving the gap. Defaults to "".
+    
+    Returns:
+        Command: A state-update command containing the prepared process-gap payload and
+        tool-result metadata.
+    
+    This function does not persist a dedicated gap table. Explicit later handling is
+    required to save the gap as evidence or a decision.
     """
-    return enterprise_tool_result(
+    gap = {
+        "process_id": process_id,
+        "title": title,
+        "missing_information": missing_information,
+        "affects": affects,
+        "severity": severity,
+        "recommended_source": recommended_source,
+    }
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        state={"process_gaps": [gap]},
         status="prepared",
         action="record_process_gap",
         entity_type="process_gap",
         entity_id=process_id,
         summary=title,
-        payload={
-            "process_id": process_id,
-            "title": title,
-            "missing_information": missing_information,
-            "affects": affects,
-            "severity": severity,
-            "recommended_source": recommended_source,
-        },
+        payload=gap,
     )
 
 

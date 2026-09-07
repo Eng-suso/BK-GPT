@@ -19,11 +19,11 @@
 /*
  * Route-shell variant: the page owns breadcrumb + title + tab bar, so the
  * workspace is just the single grid row. Horizontal padding matches the page
- * gutter (px-7 = 28px) so the panels line up with the page title.
+ * gutter so the panels line up with the page title.
  */
 .process-workspace--embedded {
   grid-template-rows: minmax(0, 1fr);
-  padding: 0 28px 16px;
+  padding: 0 16px 16px;
 }
 
 .process-workspace--embedded > .process-workspace-grid {
@@ -223,7 +223,9 @@
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--color-border-subtle);
+  overflow: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius);
   background: var(--color-surface-muted);
 }
 
@@ -415,6 +417,7 @@
 
 .embedded-chat-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: 100%;
   height: 100%;
@@ -459,6 +462,7 @@
 }
 
 .embedded-chat-body {
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -528,9 +532,8 @@
 @media (max-width: 980px) {
 
   /*
-   * Below 980px the simulation stack (it manages its own column layout) and the
-   * discussion panel need a definite height so they scroll inside instead of the
-   * whole page. The model view keeps its overlay-drawer layout at every width.
+   * Panels fill the available workspace below the page header. A viewport-based
+   * height here would push the discussion composer below the visible area.
    */
   .process-workspace,
   .process-workspace--embedded {
@@ -539,7 +542,7 @@
 
   .process-primary-panel,
   .process-simulation-panel {
-    height: 78dvh;
+    height: 100%;
   }
 
   .workspace-splitter {
@@ -548,3 +551,21 @@
 }
 
 /* Simulation styles now live in features/process/simulation/simulation.css */
+
+/* The editor keeps a stable toolbar; its tools never wrap into the model. */
+.process-bpmn-toolbar {
+  container-type: inline-size;
+  flex-wrap: nowrap;
+  min-height: 52px;
+  padding: 8px 12px;
+}
+.process-bpmn-toolbar-actions { flex-wrap: nowrap; gap: 6px; }
+.process-studio-canvas[hidden], .process-studio-properties[hidden] { display: none; }
+.process-studio-canvas { container: process-canvas / inline-size; }
+@container process-canvas (max-width: 680px) {
+  .process-bpmn-toolbar h3 { display: none; }
+  .process-bpmn-toolbar > div:first-child { gap: 0; }
+  .process-bpmn-toolbar > div:first-child > div { border: 0; padding: 0; }
+  .process-bpmn-toolbar-actions > .bpmn-save-status { display: none; }
+  .bpmn-zoom-group { display: none; }
+}

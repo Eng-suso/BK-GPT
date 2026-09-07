@@ -11,7 +11,8 @@
     "backToProject": "Torna al progetto",
     "toggleChat": "Chat canvas",
     "toggleProperties": "Proprietà",
-    "closeOverlays": "Chiudi i pannelli"
+    "closeOverlays": "Chiudi i pannelli",
+    "views": "Viste processo"
   },
   "state": {
     "processNotFound": "Processo non trovato in questo progetto.",
@@ -25,7 +26,7 @@
       "runSwitcher": "Scegli una run",
       "comingSoon": "Questa schermata arriva in una fase successiva.",
       "nav": {
-        "overview": "Panoramica",
+        "overview": "Risultati",
         "scenario": "Scenario",
         "replay": "Replay",
         "dashboard": "Cruscotto",
@@ -43,7 +44,11 @@
       "speed": "Velocità",
       "granularity": "Granularità",
       "counters": "Contatori live",
-      "grain": { "case": "Caso", "sample": "Campione", "system": "Sistema" },
+      "grain": {
+        "case": "Caso",
+        "sample": "Campione",
+        "system": "Sistema"
+      },
       "active": "Attivi",
       "queued": "In coda",
       "completed": "Completati",
@@ -63,7 +68,7 @@
         "legendQueued": "Caso in coda"
       },
       "noRun": "Nessuna simulazione da riprodurre",
-      "noRunHint": "Avvia una simulazione dalla Panoramica, poi torna qui.",
+      "noRunHint": "Avvia una simulazione dalla sezione Scenario, poi torna qui.",
       "noArtifact": "Replay non disponibile per questa run",
       "noArtifactHint": "Le run precedenti alla nuova pipeline non hanno l'event log. Esegui una nuova simulazione.",
       "casePicker": "Caso da seguire",
@@ -85,7 +90,7 @@
       "systemLegend": "Spessore linea = volume di casi sul percorso"
     },
     "overview": {
-      "noRunHint": "Configura lo scenario qui sotto e avvia la prima simulazione."
+      "noRunHint": "Prepara risorse, tempi e regole nello scenario, poi avvia la simulazione."
     },
     "dashboard": {
       "throughput": "Throughput",
@@ -148,7 +153,7 @@
       "resources": "Quantità",
       "resourcePool": "Ruolo"
     },
-    "run": "Avvia Prosimos",
+    "run": "Avvia simulazione",
     "running": "Simulazione in corso…",
     "refresh": "Aggiorna",
     "loading": "Caricamento simulazioni…",
@@ -324,6 +329,17 @@
       "estimateNote": "Stima — la risposta reale è simulare",
       "createScenario": "Crea scenario",
       "scenarioName": "{{base}} · +1 {{pool}}"
+    },
+    "workspace": {
+      "overviewTitle": "Modello e risultati",
+      "startHint": "Prepara risorse, tempi e regole nello scenario, poi avvia la simulazione.",
+      "resultsHint": "Esamina il modello e i risultati oppure prepara un nuovo scenario.",
+      "configure": "Configura scenario",
+      "showModel": "Mostra modello",
+      "assumptions": "Ipotesi e prontezza",
+      "viewResults": "Vedi risultati",
+      "sections": "Sezioni dello scenario",
+      "analysis": "Analisi"
     }
   },
   "side": {

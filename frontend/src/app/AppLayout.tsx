@@ -1,22 +1,31 @@
+import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { SECTION_PATH, sectionFromPath } from "@/app/routes";
+import { cn } from "@/lib/utils";
 
+/**
+ * Renders the application shell with route-aware navigation and routed content.
+ */
 export function AppLayout(): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const activeSection = sectionFromPath(location.pathname);
+  const isStudio = location.pathname.includes("/processes/");
+  const [expandedStudioNav, setExpandedStudioNav] = useState(false);
+  const compactNav = isStudio && !expandedStudioNav;
 
   return (
-    <div className="grid h-dvh grid-cols-[60px_minmax(0,1fr)] overflow-hidden bg-background text-foreground lg:grid-cols-[212px_minmax(0,1fr)]">
+    <div className={cn("grid h-dvh grid-cols-[60px_minmax(0,1fr)] overflow-hidden bg-background text-foreground", !compactNav && "lg:grid-cols-[212px_minmax(0,1fr)]")}>
       <GlobalSidebar
+        compact={compactNav}
         activeSection={activeSection}
         onSectionChange={(section) => navigate(SECTION_PATH[section])}
       />
-      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] grid-rows-[60px_minmax(0,1fr)] overflow-hidden">
-        <TopBar />
+      <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
+        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} />
         <main className="min-h-0 overflow-hidden">
           <Outlet />
         </main>

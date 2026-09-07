@@ -1,4 +1,7 @@
-from langchain_core.tools import tool
+from typing import Annotated
+
+from langchain_core.tools import InjectedToolCallId, tool
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
@@ -11,7 +14,7 @@ from backend.graphs.process.tools import (
 )
 from backend.process_understanding import evaluate_process_understanding_quality, render_process_review
 from backend.process_understanding import ProcessUnderstanding, process_understanding_diagnostics
-from backend.toolsets.workspace import enterprise_tool_result
+from backend.toolsets.workspace import enterprise_state_write, enterprise_tool_result
 
 
 class ProcessUnderstandingReviewInput(BaseModel):
@@ -53,10 +56,28 @@ def validate_process_understanding_readiness(
     process_id: str,
     objective: str,
     minimum_readiness_score: int = 7,
-) -> str:
+    *,
+    tool_call_id: Annotated[str, InjectedToolCallId] = "",
+) -> Command:
     """
-    Validate whether the current ProcessUnderstanding is ready for BPMN semantic
-    modeling or canvas handoff. Use before deriving BPMN or delegating to Canvas.
+    Determine whether process understanding satisfies the readiness requirements for
+    BPMN semantic modeling or canvas handoff.
+    
+    The function requires an available review and structured understanding, enforces
+    the requested readiness-score threshold, and reports blocking unknowns as
+    warnings. It persists the threshold and readiness result through the enterprise
+    state write operation.
+    
+    Args:
+        process_id (str): Untrusted process identifier to evaluate.
+        objective (str): Untrusted objective recorded with the readiness result.
+        minimum_readiness_score (int): Untrusted minimum score required for
+            readiness.
+        tool_call_id (str): Injected tool-call identifier used for state writing.
+    
+    Returns:
+        Command: State-write command containing the readiness status, score,
+        threshold, missing information, and warnings.
     """
     payload = process_workspace_payload(process_id)
     review = payload["review"]
@@ -78,7 +99,11 @@ def validate_process_understanding_readiness(
             warnings.append("Readiness score is below the requested threshold.")
 
     status = "ready_for_modeling" if not warnings else "review_required"
-    return enterprise_tool_result(
+    return enterprise_state_write(
+        tool_call_id=tool_call_id,
+        # The bar this process has to clear before canvas handoff. The agent sets
+        # it here; `minimum_readiness_score()` reads it back at the gate.
+        state={"minimum_readiness_score": minimum_readiness_score},
         status=status,
         action="validate_process_understanding_readiness",
         entity_type="process_understanding_readiness",

@@ -50,6 +50,7 @@
         "milestones": "string[]",
         "name": "string",
         "next_step": "string",
+        "objective": "string",
         "open_issues": "string[]",
         "phase": "string",
         "process_items": "ProjectProcessResponse[]",
@@ -171,18 +172,21 @@
         "updated_at"
       ],
       "properties": {
+        "answers": "ReviewAnswerResponse[]",
         "bpmn_brief": "string",
         "bpmn_model_id": "string",
         "bpmn_semantic_model": "object",
         "created_at": "string",
         "missing_information": "string[]",
+        "open_questions": "ReviewOpenQuestionResponse[]",
         "process_id": "string",
         "process_understanding": "object",
         "quality_report": "object",
         "readiness_score": "integer",
         "source_text": "string",
         "status": "string",
-        "updated_at": "string"
+        "updated_at": "string",
+        "version": "integer"
       }
     },
     "ApproveBpmnReviewResponse": {
@@ -281,7 +285,9 @@
         "text"
       ],
       "properties": {
+        "dropped_segments": "integer",
         "duration": "number?",
+        "language": "string",
         "model": "string",
         "segments": "object[]",
         "text": "string"

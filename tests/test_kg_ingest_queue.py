@@ -233,9 +233,14 @@ _E2E_NEEDED = (settings.workspace_database_url, settings.openai_api_key)
 @pytest.mark.skipif(
     not all(_E2E_NEEDED), reason="serve WORKSPACE_DATABASE_URL + OPENAI_API_KEY"
 )
-def test_evidence_tool_end_to_end(monkeypatch, wait_projected):
-    """Il tool reale accoda; ingest_worker + graph_worker completano la catena;
-    gateway.graph_retrieve ritrova l'evidenza."""
+def test_evidence_tool_end_to_end(monkeypatch, wait_pipeline):
+    """
+    Verifies that process evidence is queued and becomes retrievable through the graph after the ingestion pipeline completes.
+    
+    Parameters:
+    	monkeypatch: Fixture used to provide project and process metadata for the test.
+    	wait_pipeline: Helper that drains the processing queues and waits for the expected graph projection.
+    """
     from backend import workspace_database
     from backend.memory import gateway
     from backend.toolsets.process_memory import manage_process_evidence
@@ -279,9 +284,11 @@ def test_evidence_tool_end_to_end(monkeypatch, wait_projected):
     consultant_id = cw["scope"]["consultant_id"]
 
     try:
-        assert ingest_worker.drain_once() >= 1
-
+        # Il drain lo fa `wait_pipeline` insieme all'attesa: quante righe abbia
+        # reclamato una singola passata non e' una proprieta' del sistema sotto
+        # test, e qui le code da attraversare sono due.
         def _found() -> bool:
+            """Determine whether the expected authorization relationship is present in the graph."""
             r = gateway.graph_retrieve(
                 consultant_id=consultant_id, client_id=client_id,
                 query="chi autorizza il rilascio della pratica bloccata per il fido?",
@@ -289,7 +296,7 @@ def test_evidence_tool_end_to_end(monkeypatch, wait_projected):
             rels = {(m["source"], m["relation"], m["target"]) for m in r["matches"]}
             return ("Direzione amministrativa", "AUTORIZZA", "Pratica fido") in rels
 
-        assert wait_projected(_found)
+        assert wait_pipeline(_found)
     finally:
         with MIGRATOR.begin() as conn:
             conn.execute(text("DELETE FROM client WHERE id = :i"), {"i": client_id})

@@ -2,11 +2,6 @@ from operator import add
 from typing import Annotated
 
 from backend.graphs.common import ConversationState
-from backend.graphs.canvas_edit.models import (
-    CanvasConstructionPlan,
-    CanvasPatchPlan,
-    CanvasValidationReport,
-)
 from backend.bpmn import BPMNSemanticModel
 from backend.process_understanding import (
     ProcessUnderstanding,
@@ -29,6 +24,8 @@ class CanvasState(ConversationState):
     bpmn_semantic_model: BPMNSemanticModel | None
     readiness_score: int | None
     missing_information: list[str]
+    # Lacune del piano con le alternative proposte e cio' che e' gia' stato deciso.
+    review_open_questions: list[dict]
     saved_bpmn_xml: str | None
     effective_bpmn_xml: str | None
     effective_bpmn_xml_source: str | None
@@ -36,6 +33,7 @@ class CanvasState(ConversationState):
     canvas_route: str | None
     canvas_mode: str | None
     canvas_objective: str | None
+    canvas_expected_outcome: str | None
     goal: str | None
     intent: str | None
     next_action: str | None
@@ -55,13 +53,15 @@ class CanvasState(ConversationState):
     clarification_question: str | None
     entity_hints: dict
 
-    patch_plan: CanvasPatchPlan | dict | None
-    construction_plan: CanvasConstructionPlan | dict | None
-    validation_report: CanvasValidationReport | dict | None
+    validation_report: dict | None
+    construction_plan: dict | None
+    # XML dell'anteprima appena generata: l'apply la rilegge da qui invece di
+    # farsela rispedire dal modello.
+    canvas_preview_xml: str | None
+    preview_diff: dict | None
     canvas_layout_plan: dict | None
     canvas_layout_report: dict | None
     canvas_layout_status: str | None
-    preview_diff: dict | None
     canvas_warnings: list[str]
     canvas_next_actions: list[dict]
     canvas_loop_status: str | None

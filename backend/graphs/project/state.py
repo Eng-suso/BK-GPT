@@ -12,6 +12,9 @@ class ProjectState(ConversationState):
     project_name: str | None
     client_id: str | None
     client_name: str | None
+    # L'obiettivo dell'incarico registrato sul progetto - da non confondere
+    # con `project_objective`, che e' l'obiettivo del turno deciso dal router.
+    engagement_objective: str | None
     project_phase: str | None
     project_status: str | None
     progress: int | None

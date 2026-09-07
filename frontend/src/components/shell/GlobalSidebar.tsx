@@ -6,11 +6,21 @@ import { shellSections } from "./sections";
 import type { ShellSection } from "./types";
 
 export type GlobalSidebarProps = {
+  compact?: boolean;
   activeSection: ShellSection;
   onSectionChange: (section: ShellSection) => void;
 };
 
+/**
+ * Renders the primary navigation sidebar with responsive compact and expanded layouts.
+ *
+ * @param compact - Whether to keep the sidebar icon-focused across all viewport sizes
+ * @param activeSection - The currently selected navigation section
+ * @param onSectionChange - Called with the selected section when a navigation item is clicked
+ * @returns The rendered primary navigation sidebar
+ */
 export function GlobalSidebar({
+  compact = false,
   activeSection,
   onSectionChange,
 }: GlobalSidebarProps): React.JSX.Element {
@@ -19,11 +29,11 @@ export function GlobalSidebar({
   return (
     <aside
       aria-label={t("nav.primary")}
-      className="flex flex-col items-center border-r border-border bg-card px-2 py-4 lg:items-stretch lg:px-3"
+      className={cn("flex flex-col items-center border-r border-border bg-card px-2 py-4", !compact && "lg:items-stretch lg:px-3")}
     >
       <div className="pb-[18px] pt-1 text-[19px] font-bold tracking-[-0.03em] text-primary lg:px-2">
-        <span className="lg:hidden">D</span>
-        <span className="hidden lg:inline">DeliR</span>
+        <span className={compact ? "" : "lg:hidden"}>D</span>
+        <span className={compact ? "hidden" : "hidden lg:inline"}>DeliR</span>
       </div>
 
       <nav className="flex w-full flex-col gap-0.5">
@@ -38,7 +48,8 @@ export function GlobalSidebar({
               title={t(item.labelKey)}
               onClick={() => onSectionChange(item.id)}
               className={cn(
-                "relative flex h-9 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] font-normal text-muted-foreground lg:justify-start lg:px-2.5",
+                "relative flex h-10 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] font-normal text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring",
+                !compact && "lg:justify-start lg:px-2.5",
                 "hover:bg-muted/60 hover:text-foreground",
                 isActive &&
                   "bg-[var(--color-surface-selected)] font-medium text-primary lg:before:absolute lg:before:-left-3 lg:before:inset-y-2 lg:before:w-[3px] lg:before:rounded-r-[3px] lg:before:bg-primary lg:before:content-['']",
@@ -51,7 +62,7 @@ export function GlobalSidebar({
                 )}
                 strokeWidth={1.6}
               />
-              <span className="hidden lg:inline">{t(item.labelKey)}</span>
+              <span className={compact ? "hidden" : "hidden lg:inline"}>{t(item.labelKey)}</span>
             </button>
           );
         })}
@@ -61,18 +72,18 @@ export function GlobalSidebar({
         <button
           type="button"
           title={t("nav.help")}
-          className="flex h-9 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground lg:justify-start lg:px-2.5"
+          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground", !compact && "lg:justify-start lg:px-2.5")}
         >
           <HelpCircle className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
-          <span className="hidden lg:inline">{t("nav.help")}</span>
+          <span className={compact ? "hidden" : "hidden lg:inline"}>{t("nav.help")}</span>
         </button>
         <button
           type="button"
           title={t("nav.profile")}
-          className="flex h-9 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground lg:justify-start lg:px-2.5"
+          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground", !compact && "lg:justify-start lg:px-2.5")}
         >
           <Settings className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
-          <span className="hidden lg:inline">{t("nav.profile")}</span>
+          <span className={compact ? "hidden" : "hidden lg:inline"}>{t("nav.profile")}</span>
         </button>
       </div>
     </aside>

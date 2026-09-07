@@ -7,7 +7,6 @@ import { StatusIndicator, type StatusTone } from "@/components/status";
 import { EmptyState } from "@/components/feedback";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
-import { Label } from "@/ui/label";
 import {
   Select,
   SelectContent,
@@ -51,10 +50,31 @@ type SimulationConfigRailProps = {
   onCollapse?: () => void;
   /** Drop the card border / internal scroll when the parent page already scrolls. */
   embedded?: boolean;
+  workspace?: boolean;
   /** Per-field input-confidence badges (phase 5). */
   provenance?: InputConfidence | null;
 };
 
+/**
+ * Renders an editable simulation configuration panel for scenario settings, resources, activities, and gateways.
+ *
+ * @param template - The scenario template that defines available activities and gateways.
+ * @param templateLoading - Whether the scenario template is still loading.
+ * @param draft - The current editable simulation configuration.
+ * @param onDraftChange - Called when the configuration changes.
+ * @param isRunning - Whether a simulation run is in progress.
+ * @param error - An error message to display.
+ * @param runs - Previously completed or attempted simulation runs.
+ * @param activeRunId - The identifier of the selected previous run.
+ * @param onRun - Called to start a simulation run.
+ * @param onSelectRun - Called when a previous run is selected.
+ * @param focusElementId - The identifier of an activity or gateway to scroll into view and highlight.
+ * @param onCollapse - Called when the panel collapse control is activated.
+ * @param embedded - Whether to render the panel in an embedded layout.
+ * @param workspace - Whether to render workspace navigation and layout.
+ * @param provenance - Optional metadata describing the source of configuration values.
+ * @returns The simulation configuration panel.
+ */
 export function SimulationConfigRail({
   template,
   templateLoading,
@@ -69,6 +89,7 @@ export function SimulationConfigRail({
   focusElementId,
   onCollapse,
   embedded = false,
+  workspace = false,
   provenance,
 }: SimulationConfigRailProps): React.JSX.Element {
   const { t } = useTranslation("process");
@@ -79,7 +100,7 @@ export function SimulationConfigRail({
     const node = scrollRef.current.querySelector<HTMLElement>(
       `[data-sim-el="${CSS.escape(focusElementId)}"]`,
     );
-    node?.scrollIntoView({ block: "center", behavior: "smooth" });
+    node?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
     node?.classList.add("sim-el-flash");
     const timer = window.setTimeout(() => node?.classList.remove("sim-el-flash"), 1200);
     return () => window.clearTimeout(timer);
@@ -93,15 +114,23 @@ export function SimulationConfigRail({
     <div
       className={cn(
         "flex min-h-0 flex-col rounded-lg border border-border bg-card",
+        workspace && "sim-config-workspace",
         embedded ? "" : "overflow-hidden shadow-sm",
       )}
     >
-      <header className="flex min-h-[52px] items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <header className={cn("flex min-h-[52px] items-center justify-between gap-3 border-b border-border bg-card px-4 py-3", workspace && "sticky top-0 z-10 flex-wrap")}>
         <div className="min-w-0">
-          <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>
+          {!workspace && <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>}
+          {workspace ? <nav aria-label={t("simulation.workspace.sections")} className="flex flex-wrap gap-1">
+            {["globals", "resources", "activities", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
+              const sections = scrollRef.current?.querySelectorAll("section");
+              const target = Array.from(sections ?? []).find((section) => section.querySelector("h4")?.textContent?.startsWith(t(`simulation.config.${key}`)));
+              target?.scrollIntoView({ block: "start" });
+            }}>{t(`simulation.config.${key}`)}</button>)}
+          </nav> :
           <h3 className="mt-0.5 truncate text-sm font-semibold text-foreground">
             {t("simulation.scenario.title")}
-          </h3>
+          </h3>}
         </div>
         {embedded ? (
           <Button
@@ -127,24 +156,25 @@ export function SimulationConfigRail({
             </Button>
           )
         )}
+        {workspace && error && <p role="alert" className="basis-full text-sm text-destructive">{error}</p>}
       </header>
 
       <div
         ref={scrollRef}
-        className={cn("px-4", embedded ? "" : "min-h-0 flex-1 overflow-auto")}
+        className={cn("px-4", workspace && "sim-config-body", embedded ? "" : "min-h-0 flex-1 overflow-auto")}
       >
         <DetailPanelSection title={t("simulation.config.globals")}>
-          <div className="grid gap-2.5">
+          <div className="sim-general-fields grid gap-2.5">
             <label className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {t("simulation.fields.scenarioName")}
-              </Label>
+              </span>
               <Input
                 value={draft.scenarioName}
                 onChange={(e) => patch({ scenarioName: e.target.value })}
               />
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <NumberField
                 label={t("simulation.fields.cases")}
                 value={draft.totalCases}
@@ -212,7 +242,7 @@ export function SimulationConfigRail({
               <ProvenanceChip field={provenance.resources} />
             </div>
           )}
-          <div className="grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5 px-0.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="sim-resource-head grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5 px-0.5 pb-1 text-xs font-medium text-muted-foreground">
             <span>{t("simulation.config.role")}</span>
             <span>€/h</span>
             <span>{t("simulation.config.qty")}</span>
@@ -222,7 +252,7 @@ export function SimulationConfigRail({
             {draft.resources.map((resource, index) => (
               <li
                 key={resource.id}
-                className="grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5"
+                className="sim-resource-row grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5"
               >
                 <Input
                   aria-label={t("simulation.config.role")}
@@ -314,11 +344,11 @@ export function SimulationConfigRail({
                   <li
                     key={task.element_id}
                     data-sim-el={task.element_id}
-                    className="rounded-md border border-border bg-muted/30 p-2.5"
+                    className="sim-task-row rounded-md border border-border bg-muted/30 p-2.5"
                   >
-                    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                    <div className="sim-task-name mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                       <p
-                        className="truncate text-xs font-medium text-foreground"
+                        className="break-words text-sm font-medium text-foreground"
                         title={task.name}
                       >
                         {task.name}
@@ -327,7 +357,7 @@ export function SimulationConfigRail({
                         <ProvenanceChip field={provenance.activities[task.element_id]} />
                       )}
                     </div>
-                    <div className="grid grid-cols-[68px_minmax(0,1fr)] gap-1.5">
+                    <div className="sim-task-timing grid grid-cols-[minmax(90px,0.7fr)_minmax(0,1fr)] gap-3">
                       <FieldLabel label={t("simulation.config.durationMin")}>
                         <Input
                           className="h-8"
@@ -375,7 +405,7 @@ export function SimulationConfigRail({
                         </Select>
                       </FieldLabel>
                     </div>
-                    <div className="mt-1.5">
+                    <div className="sim-task-role mt-1.5">
                       <FieldLabel label={t("simulation.config.role")}>
                         <Select
                           value={cfg.resourceId}
@@ -512,7 +542,7 @@ export function SimulationConfigRail({
         )}
       </div>
 
-      {(!embedded || error) && (
+      {(!embedded || (error && !workspace)) && (
       <div className="border-t border-border p-3">
         {!embedded && (
           <Button type="button" className="w-full" disabled={isRunning} onClick={onRun}>
@@ -591,6 +621,12 @@ function NumberField({
   );
 }
 
+/**
+ * Renders a label with its associated input-confidence provenance chip.
+ *
+ * @param label - The text displayed alongside the provenance chip
+ * @param field - The global input-confidence data represented by the chip
+ */
 function ChipRow({
   label,
   field,
@@ -600,7 +636,7 @@ function ChipRow({
 }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-medium text-muted-foreground">
         {label}
       </span>
       <ProvenanceChip field={field} hideNote />
@@ -608,6 +644,12 @@ function ChipRow({
   );
 }
 
+/**
+ * Wraps a form control with a styled label.
+ *
+ * @param label - The text displayed above the control
+ * @param children - The form control or content associated with the label
+ */
 function FieldLabel({
   label,
   children,
@@ -617,7 +659,7 @@ function FieldLabel({
 }) {
   return (
     <label className="grid gap-1">
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <span className="text-xs font-medium text-muted-foreground">
         {label}
       </span>
       {children}

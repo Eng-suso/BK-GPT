@@ -9,6 +9,25 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.6-luna"
     openai_transcription_model: str = "gpt-4o-transcribe-diarize"
     openai_live_transcription_model: str = "gpt-realtime-whisper"
+    # Lingua attesa dell'audio (ISO-639-1). Passata all'API su entrambi i path e
+    # usata dal guard in backend/services/transcription.py per scartare i pezzi
+    # che tornano comunque in un altro alfabeto.
+    openai_transcription_language: str = "it"
+    # Termini di dominio aggiuntivi, separati da virgola, in coda a
+    # DEFAULT_KEYWORDS. Li legge solo un modello che supporta keywords/prompt.
+    openai_transcription_keywords: str = ""
+    # 0 = decoding deterministico: meno parlato inventato sui silenzi.
+    openai_transcription_temperature: float = 0.0
+    # Timeout della singola chiamata di trascrizione REST. Un file da 25 MB con
+    # diarizzazione ci mette minuti: sotto questo valore si tronca il lavoro,
+    # non la latenza.
+    openai_transcription_timeout_seconds: float = 300.0
+    # VAD server-side sul path live. Il default API per il silenzio e' 500 ms:
+    # in un'intervista chiude il turno dentro una pausa di riflessione e spezza
+    # la frase in due chunk decodificati separatamente.
+    openai_live_vad_silence_ms: int = 800
+    openai_live_vad_prefix_padding_ms: int = 300
+    openai_live_vad_threshold: float = 0.5
 
     tavily_api_key: str | None = None
 
@@ -26,6 +45,17 @@ class Settings(BaseSettings):
     # tuo account non ha gpt-4o-mini.
     mem0_llm_model: str = "gpt-4o-mini"
     mem0_embedder_model: str = "text-embedding-3-small"
+    # Soglia di similarita' del recall (Mem0 `search(threshold=...)`). Il default
+    # della libreria e' 0.1: con quella, qualunque memoria vagamente vicina entra
+    # nel contesto e viene riferita al consulente come un suo fatto. Alzarla e' il
+    # confine fra "ricordo" e "somiglianza".
+    memory_recall_threshold: float = 0.35
+    # Un fatto durevole confermato dal consulente si salva verbatim (`infer=False`):
+    # con l'inferenza attiva Mem0 riscrive la frase, la spezza in piu' memorie e
+    # puo' cancellarne di vecchie che ritiene in conflitto. Per un profilo che il
+    # consulente si aspetta di rileggere identico e' esattamente cio' che non deve
+    # succedere. False solo per tornare al comportamento pre-fix.
+    memory_verbatim_facts: bool = True
 
     # --- stato operativo su Postgres (workspace / chat / checkpoint / episodic) --
     # DSN come ruolo delir_workspace (owner del database `workspace`).

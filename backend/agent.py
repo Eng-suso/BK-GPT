@@ -60,6 +60,14 @@ class DeliRChatOpenAI(ChatOpenAI):
 class ConsultantState(MessagesState):
     scope_type: str
     scope_key: str
+    # Arrivano dal runtime con la richiesta, non dal modello. Dichiarati qui
+    # perche' lo schema dello state e' il contratto di cio' che un nodo puo'
+    # leggere: `pending_action` in particolare e' l'azione distruttiva che il
+    # thread ha lasciato in sospeso, ed e' il motivo per cui una conferma non
+    # va piu' ricostruita dal testo del turno.
+    chat_mode: str
+    attachments: list
+    pending_action: dict | None
     project_id: str | None
     process_id: str | None
     bpmn_model_id: str | None
@@ -276,6 +284,19 @@ def normalize_model_name(model_name: str | None = None) -> str:
 
 
 def build_agent(model_name: str | None = None):
+    """
+    Build and compile the consultant workflow for a selected language model.
+    
+    Args:
+        model_name (str | None): Untrusted requested model identifier. It is normalized
+            against the configured allowed models before use; omitted values use the
+            configured or default model.
+    
+    Returns:
+        A compiled workflow that summarizes conversations, selects context, routes
+        requests by scope, and executes the corresponding subgraph. The workflow is
+        configured with the application's checkpointer for state persistence.
+    """
     selected_model = normalize_model_name(model_name)
     model_metadata = langsmith_metadata(
         selected_model,
@@ -401,6 +422,12 @@ def build_agent(model_name: str | None = None):
             build_context_messages=build_context_messages,
         ),
     )
+    canvas_subgraph = build_canvas_subgraph(
+        tools=tools_by_scope["canvas"],
+        llm=llm,
+        llm_with_tools=llm.bind_tools(tools_by_scope["canvas"]),
+        build_context_messages=build_context_messages,
+    )
     workflow.add_node(
         "process_subgraph",
         build_process_subgraph(
@@ -408,17 +435,12 @@ def build_agent(model_name: str | None = None):
             llm=llm,
             llm_with_tools=llm.bind_tools(tools_by_scope["process"]),
             build_context_messages=build_context_messages,
+            # An authorized canvas handoff runs the Canvas Macro Agent for real
+            # instead of telling the user to reopen the request elsewhere.
+            canvas_subgraph=canvas_subgraph,
         ),
     )
-    workflow.add_node(
-        "canvas_subgraph",
-        build_canvas_subgraph(
-            tools=tools_by_scope["canvas"],
-            llm=llm,
-            llm_with_tools=llm.bind_tools(tools_by_scope["canvas"]),
-            build_context_messages=build_context_messages,
-        ),
-    )
+    workflow.add_node("canvas_subgraph", canvas_subgraph)
 
     workflow.add_edge(START, "summarize")
     workflow.add_edge("summarize", "classify_and_select_context")
