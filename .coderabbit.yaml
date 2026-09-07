@@ -82,7 +82,7 @@ reviews:
     auto_pause_after_reviewed_commits: 8
     drafts: false
     base_branches:
-      - develop
+      - main
     ignore_title_keywords:
       - wip
       - "[skip review]"
@@ -134,6 +134,16 @@ reviews:
         typed and validated. Separate read from write. Side-effecting tools support
         idempotency. Irreversible tools enforce authorization outside the LLM. Never
         expose raw DB/SQL execution as a general agent tool.
+    - path: "backend/{agents/**/*.py,graphs/**/*.md,memory/procedural/**/*.md}"
+      instructions: >-
+        Consultant-facing language (PROCESS-V2-01). Prompt text and any prose the
+        chat returns must read as consulting, not as system state. Flag new
+        instructions that invite the agent to name internal artifacts
+        (ProcessUnderstanding, BPMNSemanticModel), raw scores (readiness,
+        confidence), record ids, XML, diagnostics, tool or node names. State
+        blocks added to a prompt must be announced as internal working material.
+        New vocabulary that the consultant should never read belongs in
+        `backend/agents/product_language.py`, with a test, not in an ad-hoc string.
     - path: "backend/schemas/**/*.py"
       instructions: >-
         This is the runtime trust boundary. Models for HTTP payloads, LLM outputs,
@@ -184,11 +194,17 @@ reviews:
         token-backed values over raw hex/px. Flag large one-off stylesheets that
         duplicate token or component patterns.
 
+  # Le "finishing touches" generano codice da sole, fuori dalla revisione. Sono
+  # spente tutte: la docstring generata a tappeto ha gia' riempito il backend di
+  # blocchi che ripetono la firma senza dire un invariante, e il test generato
+  # tende a mockare il soggetto - esattamente cio' che `tests/**` vieta qui.
+  # Quello che deve cambiare il codice e' la revisione: commento con la
+  # correzione, applicata con la skill `autofix` una modifica alla volta.
   finishing_touches:
     docstrings:
-      enabled: true
+      enabled: false
     unit_tests:
-      enabled: true
+      enabled: false
     simplify:
       enabled: false
     autofix:
@@ -208,9 +224,12 @@ reviews:
       mode: warning
     issue_assessment:
       mode: warning
+    # Spento di proposito: la copertura di docstring come cancelletto di merge
+    # premia il blocco messo per far salire la percentuale. Cosa deve dire una
+    # docstring sta in `code_generation.docstrings` piu' sotto, e a giudicarlo
+    # e' la revisione.
     docstrings:
-      mode: warning
-      threshold: 75
+      mode: "off"
     custom_checks:
       - name: Backend behaviour change ships tests
         mode: error
@@ -250,6 +269,16 @@ reviews:
           passwords, credentialed connection strings, or private keys, or writes
           non-placeholder secrets into .env / ops/.env. Placeholders matching
           ci-*, test-*, fake-*, changeme, xxx are allowed.
+      - name: Consultant-facing prose stays in product language
+        mode: warning
+        instructions: >-
+          Flag when the diff makes the chat likelier to answer in internal
+          vocabulary: a prompt string, skill markdown, or tool result summary that
+          names an internal artifact, a raw readiness/confidence score, a record
+          id, XML, diagnostics, or a tool/node name as something to tell the
+          consultant. Internal state carried into a prompt is fine when it is
+          labelled as working material. Debug endpoints, traces, logs, and the
+          Evidence/Audit surfaces are exempt.
       - name: Frontend user copy is localized
         mode: warning
         instructions: >-
@@ -325,9 +354,15 @@ code_generation:
     path_instructions:
       - path: "backend/**/*.py"
         instructions: >-
-          Google-style docstrings. Document the invariants the function enforces,
-          the error categories it raises, and whether it performs side effects or
-          persistence. Mark any parameter that is treated as untrusted input.
+          Google-style docstrings, written only where they add what the signature
+          cannot say: the invariant the function enforces, the error categories it
+          raises, whether it persists or performs side effects, and which
+          parameters carry untrusted input. Do not restate parameter types,
+          do not paraphrase the function name, and do not document trivial
+          accessors, private helpers, or single-expression functions — an empty
+          docstring is better than a paraphrase. Never pad a summary to reach a
+          coverage threshold. Match the surrounding file: this codebase explains
+          why a rule exists, in the language the file already uses.
   unit_tests:
     path_instructions:
       - path: "backend/**/*.py"
