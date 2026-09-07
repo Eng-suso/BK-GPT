@@ -54,12 +54,70 @@
     "empty": "La libreria modelli si attiverà quando l'endpoint dedicato sarà pronto."
   },
   "archive": {
-    "description": "Documenti, versioni, esportazioni e deliverable di progetto.",
-    "empty": "L'archivio documenti si attiverà quando l'endpoint dedicato sarà pronto."
+    "description": "Clienti, progetti e processi chiusi. Restano leggibili e si possono riaprire.",
+    "empty": "Niente in archivio: tutto quello che hai aperto è ancora lavoro in corso.",
+    "tabs": {
+      "clients": "Clienti",
+      "projects": "Progetti",
+      "processes": "Processi"
+    },
+    "closedOn": "Chiuso il",
+    "reason": "Motivo",
+    "noReason": "Nessun motivo registrato"
   },
   "language": {
     "label": "Lingua",
     "it": "Italiano",
     "en": "Inglese"
+  },
+  "lifecycle": {
+    "kind": {
+      "client": "cliente",
+      "project": "progetto",
+      "process": "processo"
+    },
+    "error": "Operazione non riuscita.",
+    "actions": {
+      "archive": "Archivia",
+      "restore": "Ripristina",
+      "delete": "Elimina",
+      "edit": "Modifica",
+      "more": "Altre azioni"
+    },
+    "archive": {
+      "title": "Archivia {{kind}}",
+      "description": "{{name}} esce dagli elenchi di lavoro e resta consultabile in Archivio. Puoi riaprirlo quando vuoi.",
+      "submit": "Archivia",
+      "reason": "Motivo della chiusura",
+      "reasonHint": "Facoltativo, ma è quello che distingue “concluso” da “non se n’è fatto niente” quando lo rileggi fra un anno.",
+      "reasonPlaceholder": "Incarico concluso, consegnato il report finale…"
+    },
+    "restore": {
+      "title": "Riapri {{kind}}",
+      "description": "{{name}} torna negli elenchi di lavoro, insieme a ciò che era stato chiuso con lui.",
+      "submit": "Ripristina"
+    },
+    "delete": {
+      "title": "Elimina {{kind}}",
+      "description": "{{name}} viene eliminato definitivamente, con tutto ciò che dipende da lui.",
+      "submit": "Elimina definitivamente",
+      "confirmLabel": "Scrivi “{{name}}” per confermare",
+      "confirmHint": "Serve a evitare l’eliminazione per errore del record sbagliato.",
+      "nameMismatch": "Il nome non corrisponde: niente è stato eliminato.",
+      "warning": "Questa operazione non si può annullare. Se ti serve solo togliere il record dal lavoro corrente, archivialo."
+    },
+    "impact": {
+      "title": "Cosa coinvolge",
+      "projects": "Progetti",
+      "processes": "Processi",
+      "sources": "Fonti",
+      "decisions": "Decisioni",
+      "none": "Nessun record collegato."
+    },
+    "toast": {
+      "archived": "{{name}} archiviato.",
+      "restored": "{{name}} ripristinato.",
+      "deleted": "{{name}} eliminato."
+    }
   }
 }

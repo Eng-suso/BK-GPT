@@ -27,9 +27,11 @@ const PROJECT: Project = {
   progress: 40,
   processes: 1,
   nextStep: "Interviste reparto ordini",
-  milestones: ["Kickoff"],
+  milestones: [{ title: "Kickoff", status: "planned", completedAt: null }],
   openIssues: [],
   deliverables: ["Report AS-IS"],
+  archivedAt: null,
+  archiveReason: null,
   processItems: [],
 };
 
@@ -44,7 +46,11 @@ const API_PROJECT = {
   progress: PROJECT.progress,
   processes: PROJECT.processes,
   next_step: PROJECT.nextStep,
-  milestones: PROJECT.milestones,
+  milestones: PROJECT.milestones.map((milestone) => ({
+    title: milestone.title,
+    status: milestone.status,
+    completed_at: milestone.completedAt,
+  })),
   open_issues: PROJECT.openIssues,
   deliverables: PROJECT.deliverables,
   process_items: [],

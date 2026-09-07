@@ -20,6 +20,7 @@ from typing import Any
 TRACKED_COMPONENTS = [
     "ClientResponse",
     "ProjectResponse",
+    "MilestoneModel",
     "ProjectProcessResponse",
     "ProjectSourceResponse",
     "ProjectDecisionResponse",

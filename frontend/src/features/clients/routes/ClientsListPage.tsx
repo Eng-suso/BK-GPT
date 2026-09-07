@@ -17,6 +17,11 @@ import { Button } from "@/ui/button";
 import { ROUTES } from "@/app/routes";
 import { usePagedList } from "@/lib/hooks/usePagedList";
 import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
+import {
+  RecordLifecycleDialog,
+  type LifecycleAction,
+  type LifecycleTarget,
+} from "@/features/archive/RecordLifecycleDialog";
 import { buildClientColumns } from "../columns";
 import { useClientsQuery } from "../api";
 import { ClientFormDialog } from "../components/ClientFormDialog";
@@ -40,6 +45,7 @@ function matchClient(c: Client, q: string): boolean {
  */
 export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation("clients");
+  const { t: tCommon } = useTranslation("common");
 
   const { data: clients = [], isLoading, isError, refetch } = useClientsQuery();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -69,7 +75,6 @@ export function ClientsListPage(): React.JSX.Element {
   const selected =
     clients.find((c) => c.id === selectedId) ?? list.pageRows[0] ?? null;
 
-  const columns = useMemo(() => buildClientColumns(t), [t]);
   const handleRowClick = useCallback((c: Client) => setSelectedId(c.id), []);
 
   const openCreate = useCallback(() => {
@@ -83,6 +88,32 @@ export function ClientsListPage(): React.JSX.Element {
     setFormSession((session) => session + 1);
     setFormOpen(true);
   }, []);
+
+  // Chiudere ed eliminare un cliente passano dallo stesso dialog, che conta
+  // sui dati cosa si porta dietro l'operazione.
+  const [lifecycle, setLifecycle] = useState<{
+    target: LifecycleTarget;
+    action: LifecycleAction;
+  } | null>(null);
+  const openLifecycle = useCallback(
+    (client: Client, action: LifecycleAction) =>
+      setLifecycle({
+        target: { kind: "client", id: client.id, name: client.name },
+        action,
+      }),
+    [],
+  );
+
+  const columns = useMemo(
+    () =>
+      buildClientColumns(t, {
+        tCommon,
+        onEdit: openEdit,
+        onArchive: (client) => openLifecycle(client, "archive"),
+        onDelete: (client) => openLifecycle(client, "delete"),
+      }),
+    [t, tCommon, openEdit, openLifecycle],
+  );
 
   return (
     <WorkspaceListView
@@ -189,6 +220,14 @@ export function ClientsListPage(): React.JSX.Element {
         open={formOpen}
         onOpenChange={setFormOpen}
         client={editing}
+      />
+      <RecordLifecycleDialog
+        target={lifecycle?.target ?? null}
+        action={lifecycle?.action ?? "archive"}
+        onOpenChange={(open) => {
+          if (!open) setLifecycle(null);
+        }}
+        onDone={() => setSelectedId(null)}
       />
       {isError ? (
         <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">

@@ -308,6 +308,9 @@ def get_project_delivery_brief(project_id: str) -> str:
     Read project delivery context: phase, status, progress, next step, milestones,
     deliverables, open issues and open decisions. Use for delivery planning/status.
 
+    Each milestone carries its own state: `done` means reached, with the date it
+    was reached; `planned` means still ahead. Read that state before saying where
+    the engagement stands.
     """
     payload = _project_payload(project_id)
     project = payload["project"]

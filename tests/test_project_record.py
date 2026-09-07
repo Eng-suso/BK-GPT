@@ -255,7 +255,7 @@ def test_update_project_touches_only_the_declared_fields(tenant):
     assert updated["phase"] == "Validazione"
     assert updated["progress"] == 100  # clamp, non errore
     assert updated["objective"] == OBJECTIVE
-    assert updated["milestones"] == ["Kickoff"]
+    assert [m["title"] for m in updated["milestones"]] == ["Kickoff"]
     assert updated["name"] == project["name"]
 
 
@@ -278,8 +278,53 @@ def test_update_project_replaces_lists_whole(tenant):
         deliverables=[],
     )
 
-    assert updated["milestones"] == ["Kickoff", "Simulazione"]  # righe vuote scartate
+    # righe vuote scartate
+    assert [m["title"] for m in updated["milestones"]] == ["Kickoff", "Simulazione"]
     assert updated["deliverables"] == []
+
+
+@pytestmark_db
+def test_milestones_carry_whether_they_were_reached(tenant):
+    """La milestone dice anche *se* è stata raggiunta, e quando."""
+    from backend import workspace_database as wd
+
+    client = wd.create_client(name=f"Esaote {uuid.uuid4().hex[:6]}")
+    project = wd.create_project(
+        client_id=client["id"],
+        name=f"Ciclo ordini {uuid.uuid4().hex[:6]}",
+        milestones=["Kickoff", "Validazione AS-IS"],
+    )
+
+    assert [m["status"] for m in project["milestones"]] == ["planned", "planned"]
+
+    reached = wd.update_project(
+        project["id"],
+        milestones=[{"title": "Kickoff", "status": "done"}, "Validazione AS-IS"],
+    )
+
+    assert reached["milestones"][0]["status"] == "done"
+    assert reached["milestones"][0]["completed_at"]  # la data la scrive il backend
+    assert reached["milestones"][1]["status"] == "planned"
+
+    # La lista rimandata per soli titoli — quello che fa il form — non riapre
+    # cio' che e' gia' stato raggiunto.
+    renamed = wd.update_project(
+        project["id"],
+        milestones=["Kickoff", "Validazione AS-IS", "Simulazione"],
+    )
+
+    assert renamed["milestones"][0]["status"] == "done"
+    assert renamed["milestones"][0]["completed_at"] == reached["milestones"][0]["completed_at"]
+    assert [m["status"] for m in renamed["milestones"][1:]] == ["planned", "planned"]
+
+    reopened = wd.update_project(
+        project["id"],
+        milestones=[{"title": "Kickoff", "status": "planned"}],
+    )
+
+    assert reopened["milestones"] == [
+        {"title": "Kickoff", "status": "planned", "completed_at": None}
+    ]
 
 
 @pytestmark_db

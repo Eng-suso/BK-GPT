@@ -25,6 +25,8 @@ const PROCESS: ProjectProcess = {
   status: "In corso",
   owner: "Logistica",
   readiness: 40,
+  archivedAt: null,
+  archiveReason: null,
 };
 
 const API_PROCESS = {

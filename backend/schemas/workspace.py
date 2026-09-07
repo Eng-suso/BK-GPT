@@ -24,6 +24,15 @@ class UpdateClientRequest(BaseModel):
     contact: str | None = None
 
 
+class MilestoneModel(BaseModel):
+    # Il traguardo e se e' stato raggiunto. `completed_at` lo scrive il backend
+    # quando lo stato passa a `done`: una data su una milestone non raggiunta
+    # sarebbe la traccia di uno stato che non esiste.
+    title: str
+    status: str = "planned"
+    completed_at: str | None = None
+
+
 class CreateProjectRequest(BaseModel):
     # Come per il cliente: `None` e' "non dichiarato", e il placeholder lo mette
     # `workspace_database.create_project`. Vedi `backend/workspace_defaults.py`.
@@ -34,7 +43,7 @@ class CreateProjectRequest(BaseModel):
     status: str | None = None
     progress: int = 0
     next_step: str | None = None
-    milestones: list[str] = Field(default_factory=list)
+    milestones: list[MilestoneModel | str] = Field(default_factory=list)
     open_issues: list[str] = Field(default_factory=list)
     deliverables: list[str] = Field(default_factory=list)
 
@@ -49,7 +58,9 @@ class UpdateProjectRequest(BaseModel):
     status: str | None = None
     progress: int | None = None
     next_step: str | None = None
-    milestones: list[str] | None = None
+    # Una voce inviata come solo titolo conserva lo stato che aveva: la lista
+    # dice *cosa* promette il progetto, non annulla cio' che e' gia' successo.
+    milestones: list[MilestoneModel | str] | None = None
     open_issues: list[str] | None = None
     deliverables: list[str] | None = None
 
@@ -95,6 +106,23 @@ class UpdateBpmnReviewRequest(BaseModel):
     bpmn_brief: str
 
 
+class ArchiveRequest(BaseModel):
+    # Perche' e' stato chiuso. Facoltativo, ma e' l'unica cosa che distingue
+    # "finito bene" da "non se n'e' fatto niente" quando lo si rilegge fra un anno.
+    reason: str | None = None
+
+
+class ArchiveImpactResponse(BaseModel):
+    """Cosa si porta dietro chiudere o eliminare un record."""
+
+    id: str
+    name: str
+    projects: int
+    processes: int
+    sources: int
+    decisions: int
+
+
 class ClientResponse(BaseModel):
     id: str
     name: str
@@ -106,6 +134,8 @@ class ClientResponse(BaseModel):
     contact: str
     processes: list[str]
     documents: list[str]
+    archived_at: str | None = None
+    archive_reason: str | None = None
 
 
 class ProjectProcessResponse(BaseModel):
@@ -117,6 +147,8 @@ class ProjectProcessResponse(BaseModel):
     status: str
     owner: str
     readiness: int
+    archived_at: str | None = None
+    archive_reason: str | None = None
 
 
 class BpmnModelResponse(BaseModel):
@@ -255,7 +287,17 @@ class ProjectResponse(BaseModel):
     progress: int
     processes: int
     next_step: str
-    milestones: list[str]
+    milestones: list[MilestoneModel]
     open_issues: list[str]
     deliverables: list[str]
+    archived_at: str | None = None
+    archive_reason: str | None = None
     process_items: list[ProjectProcessResponse] = Field(default_factory=list)
+
+
+class ArchiveResponse(BaseModel):
+    """La sezione Archivio: cio' che e' stato chiuso, non cio' che e' sparito."""
+
+    clients: list[ClientResponse] = Field(default_factory=list)
+    projects: list[ProjectResponse] = Field(default_factory=list)
+    processes: list[ProjectProcessResponse] = Field(default_factory=list)

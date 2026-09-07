@@ -2,12 +2,11 @@ import { useCallback, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  AlertTriangle,
   ArrowRight,
-  CheckCircle2,
-  Circle,
-  Clock,
   FileText,
   MessageSquare,
+  Package,
   Pencil,
   Plus,
   Target,
@@ -28,11 +27,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
 import { cn } from "@/lib/utils";
 import { ChatExperience } from "@/features/chat/ChatExperience";
+import type { ProjectDecision, ProjectSource } from "@/contracts/workspace";
 import {
   useProjectQuery,
   useProjectSourcesQuery,
   useProjectDecisionsQuery,
 } from "../api";
+import { MilestoneTracker } from "../components/MilestoneTracker";
+import { SourcesPanel } from "../components/SourcesPanel";
 import { ProcessFormDialog } from "../components/ProcessFormDialog";
 import { ProjectFormDialog } from "../components/ProjectFormDialog";
 import {
@@ -198,7 +200,9 @@ export function ProjectDetailPage(): React.JSX.Element {
             <OverviewTab
               project={project}
               decisions={decisionsQ.data ?? []}
+              sources={sourcesQ.data ?? []}
               onOpenProcess={openProcess}
+              onOpenSources={() => setTab("sources")}
               onEdit={openForm}
             />
           </TabsContent>
@@ -214,9 +218,10 @@ export function ProjectDetailPage(): React.JSX.Element {
             />
           </TabsContent>
           <TabsContent value="sources">
-            <SimpleList
-              items={(sourcesQ.data ?? []).map((s) => `${s.name} · ${s.type}`)}
-              emptyTitle={t("detail.sources.empty")}
+            <SourcesPanel
+              sources={sourcesQ.data ?? []}
+              processes={project.processItems}
+              onOpenProcess={openProcess}
             />
           </TabsContent>
           <TabsContent value="decisions">
@@ -230,12 +235,44 @@ export function ProjectDetailPage(): React.JSX.Element {
         </Tabs>
       </div>
 
-      <DetailPanel className={cn("hidden bg-card", tab !== "chat" && "panel:flex")}>
+      <DetailPanel
+        className={cn(
+          "hidden bg-card",
+          tab !== "chat" && "panel:flex panel:overflow-y-auto",
+        )}
+      >
+        {/* Riepilogo: solo cio' che il record dice davvero. Le milestone si
+            contano, non si colorano a caso: segnarle sta nella panoramica, dove
+            c'e' spazio per la riga intera e per la data. */}
         <DetailPanelSection title={t("detail.panel.summary")}>
           <DetailPanelKeyValue
             rows={[
               { label: t("list.columns.phase"), value: project.phase },
-              { label: t("detail.panel.nextStep"), value: project.nextStep },
+              {
+                label: t("list.columns.status"),
+                value: (
+                  <StatusIndicator
+                    tone={projectStatusTone(project.status)}
+                    label={project.status}
+                  />
+                ),
+              },
+              {
+                label: t("list.columns.progress"),
+                value: <ProgressBar value={project.progress} width={72} />,
+              },
+              {
+                label: t("detail.panel.milestones"),
+                value:
+                  project.milestones.length === 0
+                    ? "—"
+                    : t("detail.milestones.reached", {
+                        done: project.milestones.filter(
+                          (milestone) => milestone.status === "done",
+                        ).length,
+                        total: project.milestones.length,
+                      }),
+              },
               {
                 label: t("list.columns.processes"),
                 value: String(
@@ -243,31 +280,32 @@ export function ProjectDetailPage(): React.JSX.Element {
                 ),
               },
               {
-                label: t("list.columns.progress"),
-                value: <ProgressBar value={project.progress} width={72} />,
+                label: t("detail.tabs.sources"),
+                value: String(sourcesQ.data?.length ?? 0),
               },
             ]}
           />
         </DetailPanelSection>
-        {project.milestones.length > 0 && (
-          <DetailPanelSection title={t("detail.panel.milestones")}>
-            <ul className="flex flex-col">
-              {project.milestones.slice(0, 5).map((m, i) => (
-                <li
-                  key={m}
-                  className="flex items-center gap-2 border-b border-border/60 py-2 text-xs text-foreground last:border-b-0"
-                >
-                  {i === 0 ? (
-                    <CheckCircle2 className="size-4 flex-none text-[var(--color-status-success)]" />
-                  ) : i === 1 ? (
-                    <Clock className="size-4 flex-none text-[var(--color-status-warning)]" />
-                  ) : (
-                    <Circle className="size-4 flex-none text-muted-foreground" />
-                  )}
-                  {m}
-                </li>
-              ))}
-            </ul>
+
+        <DetailPanelSection title={t("detail.panel.nextStep")}>
+          <p className="text-xs leading-relaxed text-foreground">
+            {project.nextStep}
+          </p>
+        </DetailPanelSection>
+
+        {project.openIssues.length > 0 && (
+          <DetailPanelSection title={t("detail.panel.openIssues")}>
+            <BulletList
+              items={project.openIssues}
+              icon={AlertTriangle}
+              iconClassName="text-[var(--color-status-warning)]"
+            />
+          </DetailPanelSection>
+        )}
+
+        {project.deliverables.length > 0 && (
+          <DetailPanelSection title={t("detail.panel.deliverables")}>
+            <BulletList items={project.deliverables} icon={Package} />
           </DetailPanelSection>
         )}
       </DetailPanel>
@@ -302,67 +340,174 @@ export function ProjectDetailPage(): React.JSX.Element {
 function OverviewTab({
   project,
   decisions,
+  sources,
   onOpenProcess,
+  onOpenSources,
   onEdit,
 }: {
   project: Project;
-  decisions: { title: string; status: string }[];
+  decisions: ProjectDecision[];
+  sources: ProjectSource[];
   onOpenProcess: (p: ProjectProcess) => void;
+  onOpenSources: () => void;
   onEdit: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation("projects");
   return (
     <div className="flex flex-col gap-6">
       <ObjectiveBlock objective={project.objective} onEdit={onEdit} />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <Block title={t("detail.overview.processes")}>
-        {project.processItems.length === 0 ? (
-          <EmptyState variant="inline" title={t("detail.processes.empty")} />
-        ) : (
-          project.processItems.slice(0, 5).map((p) => (
-            <NavRow
-              key={p.id}
-              onClick={() => onOpenProcess(p)}
-              className="px-0"
-              title={p.name}
-              meta={`${p.stage} · ${p.owner}`}
-              trailing={
-                <>
-                  <Meter
-                    value={p.readiness}
-                    showValue={false}
-                    height={4}
-                    className="w-16"
-                  />
-                  <b className="text-xs tabular-nums text-foreground">
-                    {Math.round(p.readiness / 10)}/10
-                  </b>
-                </>
-              }
-            />
-          ))
-        )}
+
+      {/* Le milestone stanno in alto e a tutta larghezza: sono la risposta a
+          "a che punto siamo", e da qui si segna quando una viene raggiunta. */}
+      <Block title={t("detail.overview.milestones")}>
+        <MilestoneTracker
+          projectId={project.id}
+          milestones={project.milestones}
+        />
       </Block>
 
-      <Block title={t("detail.overview.decisions")}>
-        {decisions.length === 0 ? (
-          <EmptyState variant="inline" title={t("detail.decisions.empty")} />
-        ) : (
-          decisions.slice(0, 5).map((d) => (
-            <div
-              key={d.title}
-              className="flex items-center gap-2 border-b border-border/60 py-2 text-xs text-foreground last:border-b-0"
-            >
-              {d.title}
-              <span className="ml-auto text-micro text-muted-foreground">
-                {d.status}
-              </span>
-            </div>
-          ))
-        )}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Block title={t("detail.overview.processes")}>
+          {project.processItems.length === 0 ? (
+            <EmptyState variant="inline" title={t("detail.processes.empty")} />
+          ) : (
+            project.processItems.slice(0, 5).map((p) => (
+              <NavRow
+                key={p.id}
+                onClick={() => onOpenProcess(p)}
+                className="px-0"
+                title={p.name}
+                meta={`${p.stage} · ${p.owner}`}
+                trailing={
+                  <>
+                    <Meter
+                      value={p.readiness}
+                      showValue={false}
+                      height={4}
+                      className="w-16"
+                    />
+                    <b className="text-xs tabular-nums text-foreground">
+                      {Math.round(p.readiness / 10)}/10
+                    </b>
+                  </>
+                }
+              />
+            ))
+          )}
+        </Block>
+
+        <Block title={t("detail.overview.decisions")}>
+          {decisions.length === 0 ? (
+            <EmptyState variant="inline" title={t("detail.decisions.empty")} />
+          ) : (
+            decisions.slice(0, 5).map((d) => (
+              <div
+                key={d.id}
+                className="flex items-center gap-2 border-b border-border/60 py-2 text-xs text-foreground last:border-b-0"
+              >
+                {d.title}
+                <span className="ml-auto text-micro text-muted-foreground">
+                  {d.status}
+                </span>
+              </div>
+            ))
+          )}
+        </Block>
+
+        {/* Le fonti si vedevano solo nella loro scheda. Su cosa poggia il
+            lavoro e' contesto di panoramica, non un archivio separato. */}
+        <Block
+          title={t("detail.overview.sources")}
+          action={
+            sources.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="-mt-1 h-7 px-2 text-xs"
+                onClick={onOpenSources}
+              >
+                {t("detail.sources.seeAll", { count: sources.length })}
+              </Button>
+            )
+          }
+        >
+          {sources.length === 0 ? (
+            <EmptyState
+              variant="inline"
+              title={t("detail.sources.empty")}
+              description={t("detail.sources.emptyDescription")}
+            />
+          ) : (
+            sources.slice(0, 5).map((source) => (
+              <div
+                key={source.id}
+                className="flex items-center gap-2 border-b border-border/60 py-2 text-xs last:border-b-0"
+              >
+                <FileText
+                  aria-hidden
+                  className="size-3.5 flex-none text-muted-foreground"
+                />
+                <span className="min-w-0 truncate text-foreground">
+                  {source.name}
+                </span>
+                <span className="ml-auto flex-none text-micro text-muted-foreground">
+                  {source.type}
+                </span>
+              </div>
+            ))
+          )}
+        </Block>
+
+        <Block title={t("detail.overview.deliverables")}>
+          {project.deliverables.length === 0 ? (
+            <EmptyState
+              variant="inline"
+              title={t("detail.deliverables.empty")}
+            />
+          ) : (
+            <BulletList items={project.deliverables} icon={Package} />
+          )}
         </Block>
       </div>
     </div>
+  );
+}
+
+/**
+ * Renders a short list of record entries, one line each.
+ *
+ * @param items - The entries to list
+ * @param icon - The icon standing for this kind of entry
+ * @param iconClassName - Extra classes for the icon, to tone it
+ * @returns The list element
+ */
+function BulletList({
+  items,
+  icon: Icon,
+  iconClassName,
+}: {
+  items: string[];
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  iconClassName?: string;
+}): React.JSX.Element {
+  return (
+    <ul className="flex flex-col">
+      {items.map((item, index) => (
+        <li
+          key={`${item}-${index}`}
+          className="flex items-start gap-2 border-b border-border/60 py-2 text-xs leading-relaxed text-foreground last:border-b-0"
+        >
+          <Icon
+            aria-hidden
+            className={cn(
+              "mt-0.5 size-3.5 flex-none text-muted-foreground",
+              iconClassName,
+            )}
+          />
+          {item}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -555,14 +700,19 @@ function SimpleList({
 
 function Block({
   title,
+  action,
   children,
 }: {
   title: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
     <section className="flex flex-col">
-      <h3 className="eyebrow border-b border-border pb-2">{title}</h3>
+      <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
+        <h3 className="eyebrow">{title}</h3>
+        {action}
+      </div>
       {children}
     </section>
   );

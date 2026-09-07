@@ -27,6 +27,11 @@ import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
 import { useListQueryState } from "@/lib/hooks/useListQueryState";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { toCsv, downloadCsv } from "@/lib/csv";
+import {
+  RecordLifecycleDialog,
+  type LifecycleAction,
+  type LifecycleTarget,
+} from "@/features/archive/RecordLifecycleDialog";
 import { buildProjectColumns } from "../columns";
 import { useProjectsQuery } from "../api";
 import { ProjectFormDialog } from "../components/ProjectFormDialog";
@@ -68,6 +73,7 @@ function processCount(p: Project): number {
  */
 export function ProjectsListPage(): React.JSX.Element {
   const { t } = useTranslation("projects");
+  const { t: tCommon } = useTranslation("common");
   const navigate = useNavigate();
 
   const { data: projects = [], isLoading, isError, refetch } = useProjectsQuery();
@@ -119,7 +125,6 @@ export function ProjectsListPage(): React.JSX.Element {
     ? (projects.find((p) => p.id === selectedId) ?? list.pageRows[0] ?? null)
     : null;
 
-  const columns = useMemo(() => buildProjectColumns(t), [t]);
   const openDetail = useCallback(
     (id: string, tab?: string) =>
       navigate(
@@ -145,6 +150,32 @@ export function ProjectsListPage(): React.JSX.Element {
     setFormSession((session) => session + 1);
     setFormOpen(true);
   }, []);
+
+  // Chiudere ed eliminare un progetto passano dallo stesso dialog, che conta sui
+  // dati cosa si porta dietro l'operazione.
+  const [lifecycle, setLifecycle] = useState<{
+    target: LifecycleTarget;
+    action: LifecycleAction;
+  } | null>(null);
+  const openLifecycle = useCallback(
+    (project: Project, action: LifecycleAction) =>
+      setLifecycle({
+        target: { kind: "project", id: project.id, name: project.name },
+        action,
+      }),
+    [],
+  );
+
+  const columns = useMemo(
+    () =>
+      buildProjectColumns(t, {
+        tCommon,
+        onEdit: openEdit,
+        onArchive: (project) => openLifecycle(project, "archive"),
+        onDelete: (project) => openLifecycle(project, "delete"),
+      }),
+    [t, tCommon, openEdit, openLifecycle],
+  );
 
   const { filters: activeFilters, setFilters } = qs;
   const summary = useMemo<ListSummaryItem[]>(() => {
@@ -321,6 +352,14 @@ export function ProjectsListPage(): React.JSX.Element {
         open={formOpen}
         onOpenChange={setFormOpen}
         project={editing}
+      />
+      <RecordLifecycleDialog
+        target={lifecycle?.target ?? null}
+        action={lifecycle?.action ?? "archive"}
+        onOpenChange={(open) => {
+          if (!open) setLifecycle(null);
+        }}
+        onDone={() => setSelectedId(null)}
       />
       {isError ? (
         <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
