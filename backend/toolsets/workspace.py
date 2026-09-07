@@ -6,6 +6,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.agents.scope_guard import assert_project_in_scope
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_defaults import (
     CLIENT_STATUS_DESCRIPTION,
@@ -693,29 +694,27 @@ def update_workspace_project(
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> str:
+    # NB: docstring = prompt. LangChain lo manda al modello come `description`
+    # del tool, quindi dice quando usarlo, non che tipo hanno gli argomenti.
     """
-    Update selected fields of an existing project record and persist the changes.
-    
-    Args:
-        project_id (str): [Untrusted input] Identifier of the project to update.
-        name (str | None): [Untrusted input] Replacement project name, if provided.
-        objective (str | None): [Untrusted input] Replacement project objective, if provided.
-        phase (ProjectPhase | None): [Untrusted input] Replacement project phase, if provided.
-        status (ProjectStatus | None): [Untrusted input] Replacement project status, if provided.
-        progress (int | None): [Untrusted input] Replacement project progress, if provided.
-        next_step (str | None): [Untrusted input] Replacement next step, if provided.
-        milestones (list[str] | None): [Untrusted input] Replacement milestone list, if provided.
-        open_issues (list[str] | None): [Untrusted input] Replacement open-issue list, if provided.
-        deliverables (list[str] | None): [Untrusted input] Replacement deliverable list, if provided.
-    
-    Returns:
-        str: A standardized result describing the updated project, or an error result when
-            the project cannot be updated.
-    
-    Side Effects:
-        Persists the supplied project-field changes. Database validation or missing-record
-        errors are returned as structured error results.
+    Write the project record: objective, phase, status, progress, next step and
+    the milestone / open issue / deliverable lists. Declare only the fields that
+    change; an undeclared field keeps its value.
+
+    Use it the moment the consultant states the engagement objective - why this
+    project exists and what closes it. Left in the conversation it is gone
+    tomorrow, and the next Project Chat opens on a container with no mandate.
+    Announcing a change without writing it is worse than not making it.
+
+    A declared list replaces the current one whole, so send the full list, not
+    the delta. This never touches processes or BPMN.
     """
+    # G3: `project_id` e' un argomento deciso dall'LLM. Dentro un agent run
+    # vincolato deve combaciare con lo scope autorizzato del thread, altrimenti
+    # un'injection in un documento caricato sposta la scrittura su un altro
+    # progetto dello stesso tenant.
+    assert_project_in_scope(project_id)
+
     try:
         project = workspace_database.update_project(
             project_id=project_id,
@@ -792,6 +791,14 @@ def update_workspace_process(
     consultant edits the same fields by hand in the UI, on the same record.
     This never touches the BPMN model content.
     """
+    # G3, come per il progetto: il `process_id` lo sceglie il modello. Il
+    # processo non porta lo scope con se', quindi si risale al progetto che lo
+    # possiede e si verifica quello. Un id di un altro tenant qui e' gia' None,
+    # e la update lo riporta come "non trovato".
+    existing = workspace_database.get_process(process_id)
+    if existing is not None:
+        assert_project_in_scope(existing.get("project_id"))
+
     try:
         process = workspace_database.update_process(
             process_id=process_id,

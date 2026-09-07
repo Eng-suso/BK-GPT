@@ -64,3 +64,76 @@ def test_nested_bind_restores_outer():
         with bind_active_scope(inner):
             assert_project_in_scope("inner")
         assert_project_in_scope("outer")
+
+
+# --- i tool di scrittura appena bindati agli scope -------------------------
+#
+# Bindare `update_workspace_project` e `update_workspace_process` ha dato agli
+# agenti la scrittura sul record. Il `project_id` / `process_id` resta pero' un
+# argomento scelto dal modello, quindi un'injection in un documento caricato
+# potrebbe puntarlo a un altro progetto dello stesso tenant: il filtro tenant
+# del database non se ne accorgerebbe. I due tool passano dal guard prima di
+# scrivere.
+
+
+def test_update_workspace_project_refuses_a_project_outside_the_scope():
+    from backend.toolsets.workspace import update_workspace_project
+
+    with bind_active_scope(ProjectChatScope(type="project", project_id="proj-1")):
+        with pytest.raises(ScopeViolation):
+            update_workspace_project.invoke(
+                {"project_id": "proj-di-un-altro-cliente", "objective": "irrilevante"}
+            )
+
+
+def test_update_workspace_process_refuses_a_process_of_another_project(monkeypatch):
+    """Il processo non porta lo scope con se': si risale al progetto che lo possiede."""
+    from backend.toolsets import workspace as workspace_tools
+
+    monkeypatch.setattr(
+        workspace_tools.workspace_database,
+        "get_process",
+        lambda process_id: {"id": process_id, "project_id": "proj-2", "name": "Acquisti"},
+    )
+
+    def _must_not_run(**kwargs):
+        raise AssertionError("update_process non deve essere raggiunta fuori scope")
+
+    monkeypatch.setattr(workspace_tools.workspace_database, "update_process", _must_not_run)
+
+    with bind_active_scope(ProjectChatScope(type="project", project_id="proj-1")):
+        with pytest.raises(ScopeViolation):
+            workspace_tools.update_workspace_process.invoke(
+                {"process_id": "pr-99", "status": "Validato"}
+            )
+
+
+def test_update_workspace_process_allows_a_process_of_the_active_project(monkeypatch):
+    from backend.toolsets import workspace as workspace_tools
+
+    monkeypatch.setattr(
+        workspace_tools.workspace_database,
+        "get_process",
+        lambda process_id: {"id": process_id, "project_id": "proj-1", "name": "Acquisti"},
+    )
+    monkeypatch.setattr(
+        workspace_tools.workspace_database,
+        "update_process",
+        lambda **kwargs: {
+            "id": kwargs["process_id"],
+            "project_id": "proj-1",
+            "bpmn_model_id": "m-1",
+            "name": "Acquisti",
+            "stage": "AS-IS",
+            "status": "Validato",
+            "owner": "Da assegnare",
+            "readiness": 40,
+        },
+    )
+
+    with bind_active_scope(ProjectChatScope(type="project", project_id="proj-1")):
+        result = workspace_tools.update_workspace_process.invoke(
+            {"process_id": "pr-1", "status": "Validato"}
+        )
+
+    assert "Validato" in result

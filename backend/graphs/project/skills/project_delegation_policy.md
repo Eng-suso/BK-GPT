@@ -15,7 +15,8 @@ description: Decide Project Chat ownership and handoffs to subgraphs or macro ag
 | Save or retrieve project interview/evidence from Project Chat | Project Macro |
 | Extract graph relationships/gaps/ROI from project evidence | Project Macro |
 | Relation-heavy project retrieval, evidence links, project GraphRAG | Project Macro |
-| Phase, progress, milestone, deliverable, risk, next step | Delivery subgraph |
+| Phase, progress, milestone, deliverable, risk, next step: planning and framing | Delivery subgraph |
+| Phase, progress, milestone, deliverable, next step: recording the decision | Project Macro (`update_workspace_project`) |
 | Several processes, sequencing, readiness matrix, dependencies | Process Coordination subgraph |
 | One process AS-IS/TO-BE discovery or BPMN semantic review | Process Macro |
 | BPMN XML, canvas edits, layout, versions, validation | Canvas Macro |

@@ -47,12 +47,20 @@ def _every_tool_name_the_project_defines() -> set[str]:
 
     Serve come vocabolario per la ricerca nei prompt: cercare "una parola che
     sembra un tool" darebbe falsi positivi, cercare i nomi veri no.
+
+    Un modulo che non importa non viene ignorato. Ingoiare l'errore
+    rimpicciolirebbe il vocabolario in silenzio, e l'assert dello scope
+    passerebbe perche' il nome che avrebbe dovuto trovare non c'e' piu': un test
+    verde che non ha guardato niente. Se un modulo si rompe, questo test lo dice.
     """
     names: set[str] = set()
+    broken: list[str] = []
+
     for module_info in pkgutil.walk_packages(backend.__path__, "backend."):
         try:
             module = importlib.import_module(module_info.name)
-        except Exception:  # moduli opzionali o con dipendenze non installate
+        except Exception as error:
+            broken.append(f"{module_info.name}: {type(error).__name__}: {error}")
             continue
         for attribute in dir(module):
             if not attribute.endswith("_tools"):
@@ -60,6 +68,12 @@ def _every_tool_name_the_project_defines() -> set[str]:
             value = getattr(module, attribute)
             if isinstance(value, list) and value and hasattr(value[0], "name"):
                 names |= {tool.name for tool in value}
+
+    assert not broken, (
+        "Moduli backend non importabili: il vocabolario dei tool sarebbe "
+        "incompleto e il contratto verrebbe verificato contro un elenco "
+        "monco.\n  " + "\n  ".join(broken)
+    )
     return names
 
 
