@@ -1,9 +1,14 @@
 {
-  "breadcrumb": { "clients": "Clients", "directory": "Client directory" },
+  "breadcrumb": {
+    "clients": "Clients",
+    "directory": "Client directory"
+  },
   "list": {
     "title": "Clients",
     "description": "Clients, contacts, linked processes and upcoming operational activities.",
-    "actions": { "new": "New client" },
+    "actions": {
+      "new": "New client"
+    },
     "filter": {
       "placeholder": "Search clients…",
       "status": "Status",
@@ -19,9 +24,11 @@
     },
     "empty": {
       "title": "No clients",
-      "description": "Create the first client from the agent chat."
+      "description": "Create the first client here, or ask the agent in chat."
     },
-    "pagination": { "total": "Showing {{from}}–{{to}} of {{count}} clients" }
+    "pagination": {
+      "total": "Showing {{from}}–{{to}} of {{count}} clients"
+    }
   },
   "detail": {
     "summary": "Summary",
@@ -31,9 +38,49 @@
     "nextActivity": "Next activity",
     "processes": "Active processes",
     "documents": "Recent documents",
-    "selectPrompt": "Select a client to see its details."
+    "selectPrompt": "Select a client to see its details.",
+    "actions": {
+      "edit": "Edit"
+    }
   },
   "state": {
     "loadError": "Could not load clients. Check that the backend is running."
+  },
+  "form": {
+    "createTitle": "New client",
+    "editTitle": "Edit client",
+    "description": "The same fields the agent writes, on the same record.",
+    "create": "Create client",
+    "save": "Save changes",
+    "fields": {
+      "name": "Company name",
+      "sector": "Sector",
+      "status": "Status",
+      "owner": "Owner",
+      "contact": "Contact"
+    },
+    "hint": {
+      "status": "Where the commercial relationship stands, not project activity.",
+      "contact": "Contact name and role. No sensitive data."
+    },
+    "placeholder": {
+      "sector": "E.g. Manufacturing",
+      "owner": "Who looks after this client"
+    },
+    "error": {
+      "nameRequired": "Company name is required.",
+      "save": "Could not save the client."
+    },
+    "toast": {
+      "created": "Client “{{name}}” created.",
+      "updated": "Client “{{name}}” updated."
+    }
+  },
+  "vocab": {
+    "clientStatus": {
+      "Attivo": "Already acquired, or actively worked with.",
+      "Da seguire": "Existing relationship waiting on a follow-up.",
+      "Prospect": "Still being pursued: lead, offer sent, open negotiation."
+    }
   }
 }

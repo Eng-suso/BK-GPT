@@ -307,3 +307,138 @@ def resolve_project_status(raw: str | None) -> str:
     This function has no side effects and does not persist data.
     """
     return normalize_project_status(raw) or DEFAULT_PROJECT_STATUS
+
+
+# --- processo ---------------------------------------------------------------
+#
+# Stesso trattamento del progetto, un livello sotto. Lo stadio dice *quale*
+# processo si sta descrivendo (quello di oggi o quello che si vuole), lo stato
+# dice a che punto e' quella descrizione: due domande diverse che il campo
+# libero lasciava confondere.
+
+DEFAULT_PROCESS_STAGE = "AS-IS"
+DEFAULT_PROCESS_STATUS = "Bozza"
+
+ProcessStage = Literal["Discovery", "AS-IS", "TO-BE", "Validazione"]
+ProcessStatus = Literal["Bozza", "In corso", "Da validare", "Validato"]
+
+PROCESS_STAGES: tuple[str, ...] = ("Discovery", "AS-IS", "TO-BE", "Validazione")
+
+PROCESS_STAGE_MEANINGS: dict[str, str] = {
+    "Discovery": "Perimetro del processo: chi lo esegue, dove inizia e dove finisce.",
+    "AS-IS": "Il processo come viene eseguito oggi, ricostruito dalle evidenze.",
+    "TO-BE": "Il processo come si vuole che diventi.",
+    "Validazione": "Il modello e' sotto conferma da parte di chi esegue il processo.",
+}
+
+PROCESS_STATUSES: tuple[str, ...] = ("Bozza", "In corso", "Da validare", "Validato")
+
+PROCESS_STATUS_MEANINGS: dict[str, str] = {
+    "Bozza": "Registrato: c'e' il nome, non ancora il contenuto.",
+    "In corso": "Ricostruzione attiva: interviste, evidenze, modello che cresce.",
+    "Da validare": "Il modello e' completo abbastanza da essere portato agli stakeholder.",
+    "Validato": "Confermato da chi esegue il processo: si puo' costruirci sopra.",
+}
+
+PROCESS_STAGE_DESCRIPTION = (
+    "Which process is being described, one of: "
+    + "; ".join(f"{stage} = {meaning}" for stage, meaning in PROCESS_STAGE_MEANINGS.items())
+    + f". Leave unset when unknown: unset is recorded as \"{DEFAULT_PROCESS_STAGE}\"."
+)
+
+PROCESS_STATUS_DESCRIPTION = (
+    "How far that description has got, one of: "
+    + "; ".join(f"{status} = {meaning}" for status, meaning in PROCESS_STATUS_MEANINGS.items())
+    + f". Leave unset when unknown: unset is recorded as \"{DEFAULT_PROCESS_STATUS}\"."
+)
+
+_PROCESS_STAGE_ALIASES: dict[str, str] = {
+    "discovery": "Discovery",
+    "perimetro": "Discovery",
+    "as-is": "AS-IS",
+    "as is": "AS-IS",
+    "asis": "AS-IS",
+    "attuale": "AS-IS",
+    "to-be": "TO-BE",
+    "to be": "TO-BE",
+    "tobe": "TO-BE",
+    "target": "TO-BE",
+    "validazione": "Validazione",
+    "validation": "Validazione",
+}
+
+_PROCESS_STATUS_ALIASES: dict[str, str] = {
+    "bozza": "Bozza",
+    "draft": "Bozza",
+    "in corso": "In corso",
+    "in progress": "In corso",
+    "da validare": "Da validare",
+    "to validate": "Da validare",
+    "in review": "Da validare",
+    "validato": "Validato",
+    "validated": "Validato",
+    "confermato": "Validato",
+}
+
+
+def normalize_process_stage(raw: str | None) -> str | None:
+    """
+    Normalize a process stage value to its canonical representation.
+    
+    Args:
+        raw (str | None): Untrusted stage value to normalize. Empty values produce
+            `None`; unrecognized non-empty values are preserved after whitespace
+            normalization.
+    
+    Returns:
+        str | None: The canonical process stage, the cleaned unrecognized value, or
+            `None` for an absent or empty value.
+    """
+    return _normalize_vocabulary(raw, _PROCESS_STAGE_ALIASES)
+
+
+def normalize_process_status(raw: str | None) -> str | None:
+    """Normalize a process status value to its canonical form.
+    
+    Args:
+        raw: Untrusted status input, which may be an alias, an unknown value,
+            empty, or ``None``.
+    
+    Returns:
+        The canonical process status for a recognized alias, the trimmed
+        unrecognized value, or ``None`` for empty or absent input.
+    
+    This function has no side effects and does not persist data.
+    """
+    return _normalize_vocabulary(raw, _PROCESS_STATUS_ALIASES)
+
+
+def resolve_process_stage(raw: str | None) -> str:
+    """Resolve a process stage to its canonical value or the default stage.
+    
+    Args:
+        raw: Untrusted stage value to normalize. Empty or missing values use the
+            default stage; unrecognized non-empty values are preserved after
+            whitespace normalization.
+    
+    Returns:
+        The normalized process stage, or ``DEFAULT_PROCESS_STAGE`` when ``raw`` is
+        empty or missing.
+    
+    This function has no side effects and does not persist data.
+    """
+    return normalize_process_stage(raw) or DEFAULT_PROCESS_STAGE
+
+
+def resolve_process_status(raw: str | None) -> str:
+    """Resolve a process status to its canonical value.
+    
+    Args:
+        raw: Untrusted status input to normalize.
+    
+    Returns:
+        The normalized status, or ``Bozza`` when the input is absent or empty.
+    
+    The function has no side effects and does not persist data.
+    """
+    return normalize_process_status(raw) or DEFAULT_PROCESS_STATUS

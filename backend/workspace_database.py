@@ -18,6 +18,8 @@ from backend.workspace_defaults import (
     is_unknown_client_status,
     normalize_client_status,
     resolve_client_status,
+    resolve_process_stage,
+    resolve_process_status,
     resolve_project_phase,
     resolve_project_status,
 )
@@ -533,11 +535,40 @@ def list_project_processes(project_id: str) -> list[dict]:
 def create_process(
     project_id: str,
     name: str,
-    stage: str = "AS-IS",
-    status: str = "Bozza",
-    owner: str = "Da assegnare",
+    stage: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
     readiness: int = 0,
 ) -> dict:
+    """Create a tenant-scoped process and its associated empty BPMN model.
+    
+    The process name is trimmed and must be non-empty. Stage, status, and owner
+    use configured placeholders when unspecified, and readiness is constrained to
+    the range 0–100. The project must belong to the current tenant. This function
+    persists both records and updates the project's process count.
+    
+    Args:
+        project_id (str): Untrusted project identifier.
+        name (str): Untrusted process name.
+        stage (str | None): Untrusted process stage, or None to use its placeholder.
+        status (str | None): Untrusted process status, or None to use its placeholder.
+        owner (str | None): Untrusted process owner, or None to use its placeholder.
+        readiness (int): Untrusted readiness value, constrained to 0–100.
+    
+    Returns:
+        dict: The serialized newly created process.
+    
+    Raises:
+        ValueError: If the name is blank, the project does not exist in the current
+            tenant, or readiness cannot be converted to an integer.
+        TypeError: If readiness cannot be converted to an integer because of its
+            type.
+    """
+    clean_name = name.strip()
+
+    if not clean_name:
+        raise ValueError("Il nome processo è obbligatorio.")
+
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
         project = tenant_row(session, WorkspaceProject, project_id)
@@ -545,17 +576,17 @@ def create_process(
         if project is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
-        process_id = unique_id(session, WorkspaceProcess, slugify(name, "process"))
+        process_id = unique_id(session, WorkspaceProcess, slugify(clean_name, "process"))
         bpmn_model_id = unique_id(session, WorkspaceBpmnModel, f"{process_id}-bpmn")
         process = WorkspaceProcess(
             id=process_id,
             tenant_id=current_tenant_id,
             project_id=project_id,
             bpmn_model_id=bpmn_model_id,
-            name=name.strip(),
-            stage=stage.strip() or "AS-IS",
-            status=status.strip() or "Bozza",
-            owner=owner.strip() or "Da assegnare",
+            name=clean_name,
+            stage=resolve_process_stage(stage),
+            status=resolve_process_status(status),
+            owner=(owner or "").strip() or UNKNOWN_OWNER,
             readiness=max(0, min(int(readiness), 100)),
         )
         session.add(process)
@@ -578,7 +609,74 @@ def create_process(
         return process_to_dict(process)
 
 
+def update_process(
+    process_id: str,
+    name: str | None = None,
+    stage: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
+    readiness: int | None = None,
+) -> dict:
+    """Update selected fields of a tenant-owned process and persist the changes.
+    
+    A process rename also updates the associated BPMN model name. Readiness is
+    constrained to the range 0–100, and omitted fields retain their existing
+    values.
+    
+    Args:
+        process_id (str): Untrusted process identifier.
+        name (str | None): Untrusted replacement name; must contain non-whitespace
+            text when provided.
+        stage (str | None): Untrusted replacement process stage.
+        status (str | None): Untrusted replacement process status.
+        owner (str | None): Untrusted replacement owner; blank values use the
+            configured unknown-owner placeholder.
+        readiness (int | None): Untrusted replacement readiness value, constrained
+            to 0–100.
+    
+    Returns:
+        dict: The updated process serialized as a dictionary.
+    
+    Raises:
+        ValueError: If the process does not exist for the current tenant, the
+            provided name is blank, or readiness cannot be converted to an integer.
+    """
+    with workspace_connection() as session:
+        process = tenant_row(session, WorkspaceProcess, process_id)
+
+        if process is None:
+            raise ValueError(f"Processo non trovato: {process_id}")
+
+        if name is not None:
+            clean_name = name.strip()
+            if not clean_name:
+                raise ValueError("Il nome processo è obbligatorio.")
+            process.name = clean_name
+            model = tenant_row(session, WorkspaceBpmnModel, process.bpmn_model_id)
+            if model is not None:
+                model.name = f"{clean_name} BPMN"
+        if stage is not None:
+            process.stage = resolve_process_stage(stage)
+        if status is not None:
+            process.status = resolve_process_status(status)
+        if owner is not None:
+            process.owner = owner.strip() or UNKNOWN_OWNER
+        if readiness is not None:
+            process.readiness = max(0, min(int(readiness), 100))
+
+        session.flush()
+        return process_to_dict(process)
+
+
 def get_process(process_id: str) -> dict | None:
+    """Retrieve a process belonging to the current tenant.
+    
+    Args:
+        process_id (str): Untrusted process identifier to look up within the current tenant.
+    
+    Returns:
+        dict | None: The serialized process, or None if no matching tenant-owned process exists.
+    """
     with workspace_connection() as session:
         process = tenant_row(session, WorkspaceProcess, process_id)
         return process_to_dict(process) if process else None

@@ -1,6 +1,19 @@
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 
 import {
+  toApiProcessPayload,
+  toApiProjectPayload,
+  toProcess,
+  apiProcessSchema,
+  type ProcessDraft,
+  type ProjectDraft,
+  type ProjectProcess,
   apiProjectSchema,
   apiProjectsSchema,
   apiProjectSourcesSchema,
@@ -32,6 +45,12 @@ export function useProjectsQuery(): UseQueryResult<Project[]> {
   });
 }
 
+/**
+ * Fetches a project by ID.
+ *
+ * @param id - The project identifier
+ * @returns The project query result
+ */
 export function useProjectQuery(id: string): UseQueryResult<Project> {
   return useQuery({
     queryKey: projectKeys.detail(id),
@@ -42,6 +61,119 @@ export function useProjectQuery(id: string): UseQueryResult<Project> {
   });
 }
 
+/**
+ * Creates a project from a project draft.
+ *
+ * @param draft - The project details to submit
+ * @returns The created project
+ */
+export function useCreateProjectMutation(): UseMutationResult<
+  Project,
+  Error,
+  ProjectDraft
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (draft: ProjectDraft) => {
+      const raw = await http<unknown>("/v1/workspace/projects", {
+        method: "POST",
+        body: toApiProjectPayload(draft),
+      });
+      return toProject(apiProjectSchema.parse(raw));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      // Il conteggio progetti vive sulla riga cliente.
+      void queryClient.invalidateQueries({ queryKey: ["clients"] });
+    },
+  });
+}
+
+/**
+ * Provides a mutation for updating an existing project from a draft.
+ *
+ * @returns The mutation result for updating a project.
+ */
+export function useUpdateProjectMutation(): UseMutationResult<
+  Project,
+  Error,
+  { id: string; draft: ProjectDraft }
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, draft }) => {
+      const raw = await http<unknown>(`/v1/workspace/projects/${id}`, {
+        method: "PATCH",
+        body: toApiProjectPayload(draft),
+      });
+      return toProject(apiProjectSchema.parse(raw));
+    },
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectKeys.detail(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ["clients"] });
+    },
+  });
+}
+
+/**
+ * Creates a process within a project.
+ *
+ * @param projectId - The ID of the project that will contain the process
+ * @returns The created project process
+ */
+export function useCreateProcessMutation(
+  projectId: string,
+): UseMutationResult<ProjectProcess, Error, ProcessDraft> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (draft: ProcessDraft) => {
+      const raw = await http<unknown>(
+        `/v1/workspace/projects/${projectId}/processes`,
+        { method: "POST", body: toApiProcessPayload(draft) },
+      );
+      return toProcess(apiProcessSchema.parse(raw));
+    },
+    onSuccess: () => {
+      // Il progetto porta i suoi processi e il loro conteggio.
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+  });
+}
+
+/**
+ * Updates an existing project process from a draft.
+ *
+ * @param id - The process identifier and update payload.
+ * @param draft - The process fields to update.
+ * @returns The updated project process.
+ */
+export function useUpdateProcessMutation(): UseMutationResult<
+  ProjectProcess,
+  Error,
+  { id: string; draft: ProcessDraft }
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, draft }) => {
+      const raw = await http<unknown>(`/v1/workspace/processes/${id}`, {
+        method: "PATCH",
+        body: toApiProcessPayload(draft),
+      });
+      return toProcess(apiProcessSchema.parse(raw));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+  });
+}
+
+/**
+ * Fetches the sources associated with a project.
+ *
+ * @param id - The project identifier
+ * @returns The project's sources
+ */
 export function useProjectSourcesQuery(
   id: string,
 ): UseQueryResult<ProjectSource[]> {

@@ -4,7 +4,11 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
-from backend.graphs.common import build_tool_chat_subgraph, latest_user_text
+from backend.graphs.common import (
+    build_tool_chat_subgraph,
+    latest_user_text,
+    recent_conversation_digest,
+)
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.project.nodes import load_project_context
 from backend.graphs.project.state import ProjectState
@@ -73,9 +77,25 @@ Propose exactly one route for the latest user request using project state, inten
 Capabilities you may propose:
 {capability_menu}
 
+Resolve references before you route. "il processo", "quello", "aggiungilo",
+"approvalo", "il secondo" point at an entity already named in the recent
+conversation - often by you, in the previous turn. Read the conversation,
+resolve the referent and put it in entity_hints. Route to clarification only
+when the referent is still ambiguous after reading the conversation, never
+because the latest message on its own is short.
+
+The project owns the process records inside it. Registering, creating or adding
+a process to this project is project workspace setup, so route it direct: the
+Project Macro Agent has the tool. Delegation to Process Macro is for work on a
+process that already exists, and never a way to get one created.
+
+When process_count is 0 the project has no processes at all. Process readiness,
+cross-process dependencies and process knowledge gaps are not evaluable, and
+nothing about a process that does not exist may be inferred. Route direct and
+stay on portfolio and scope setup.
+
 Return structured output matching the ProjectRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
-If process/canvas delegation has an ambiguous target, route to clarification.
 """.strip()
 
 
@@ -202,6 +222,18 @@ def project_routing_state(
 
 
 def parse_project_router_json(content: str, user_request: str = "", state: dict | None = None) -> dict:
+    """
+    Parse router output and normalize it into project routing state.
+    
+    Args:
+        content (str): Untrusted structured router output to parse.
+        user_request (str): Untrusted user request associated with the routing decision.
+        state (dict | None): Existing project state to incorporate into the normalized result.
+    
+    Returns:
+        dict: Normalized project routing state containing the parsed decision, parsing metadata,
+            and routing information.
+    """
     decision, parse_source, parse_error = parse_routing_decision(
         content,
         ProjectRoutingDecision,
@@ -216,19 +248,59 @@ def parse_project_router_json(content: str, user_request: str = "", state: dict 
     )
 
 
+def _registered_process_names(state: dict) -> str:
+    """Formats the names of processes registered in the project state for routing context.
+    
+    Args:
+        state (dict): Untrusted project state containing the optional
+            ``project_processes`` collection.
+    
+    Returns:
+        str: A comma-separated list of registered process names, or ``"nessuno"``
+            when no named processes are registered.
+    """
+    names = [
+        str(process.get("name") or "")
+        for process in state.get("project_processes") or []
+        if isinstance(process, dict) and process.get("name")
+    ]
+    return ", ".join(names) if names else "nessuno"
+
+
 def build_project_router(llm):
     """
-    Create a project-intent routing node backed by the configured language model.
+    Create a project-intent routing callable backed by the configured language model.
     
-    The generated node routes the latest user request into normalized project state. It uses a direct route when no user message is available and falls back to an invalid decision when structured routing fails unexpectedly.
+    The callable converts each project request into normalized routing-state updates. It
+    uses a direct route when no user message is available and an invalid decision when
+    structured routing fails unexpectedly. Routing is performed in memory and does not
+    persist state.
     
     Args:
         llm: Language model used to classify project requests.
     
     Returns:
-        A routing callable that accepts project state and runtime configuration and returns routing-state updates.
+        A callable that accepts project state and runtime configuration and returns
+        normalized routing-state updates.
     """
     def route_project_intent(state: ProjectState, config: RunnableConfig) -> dict:
+        """
+        Route the latest project request to the appropriate project workflow.
+        
+        Args:
+            state (ProjectState): Untrusted project and conversation state used to resolve
+                and normalize the routing decision.
+            config (RunnableConfig): Runtime configuration for the routing operation.
+        
+        Returns:
+            dict: Normalized project routing state with route, confidence, clarification,
+                delegation, and routing-trace metadata. When no user request is available,
+                returns a direct route with empty routing metadata.
+        
+        The function does not persist state. Routing failures are converted into an
+        invalid decision and recorded in the returned routing metadata; no exceptions
+        are propagated.
+        """
         user_text = latest_user_text(state)
         if not user_text:
             return {
@@ -258,7 +330,10 @@ def build_project_router(llm):
                             "Active scope: project\n\n"
                             f"project_id: {state.get('project_id')}\n"
                             f"project_name: {state.get('project_name')}\n"
-                            f"process_count: {len(state.get('project_processes') or [])}\n\n"
+                            f"process_count: {len(state.get('project_processes') or [])}\n"
+                            f"registered_processes: {_registered_process_names(state)}\n\n"
+                            "Recent conversation (resolve references against this):\n"
+                            f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )

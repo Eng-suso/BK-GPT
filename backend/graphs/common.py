@@ -10,6 +10,30 @@ from pydantic import BaseModel, ValidationError
 logger = logging.getLogger(__name__)
 
 
+def message_text(message) -> str:
+    """Extract readable text from a message-like value.
+    
+    Args:
+        message: Untrusted message-like value whose ``content`` may be a string,
+            a list of strings or text blocks, or another value.
+    
+    Returns:
+        The normalized, whitespace-trimmed message text.
+    """
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text") or ""))
+        return "\n".join(part for part in parts if part).strip()
+    return str(content or "").strip()
+
+
 def latest_user_text(state: dict) -> str:
     """Finds the text of the most recent human or user message.
     
@@ -22,23 +46,83 @@ def latest_user_text(state: dict) -> str:
     for message in reversed(state.get("messages", [])):
         role = getattr(message, "type", None) or getattr(message, "role", "")
         if role in {"human", "user"}:
-            return str(getattr(message, "content", "") or "")
+            return message_text(message)
 
     return ""
 
 
+# What a router gets to read of the conversation before it decides. Runtime
+# policy, not a model field: enough turns to resolve a reference, few enough
+# that routing stays a cheap decision.
+ROUTER_DIGEST_MAX_TURNS = 8
+ROUTER_DIGEST_MAX_CHARS = 4_000
+ROUTER_DIGEST_MAX_CHARS_PER_TURN = 700
+
+
+def recent_conversation_digest(
+    state: dict,
+    *,
+    max_turns: int = ROUTER_DIGEST_MAX_TURNS,
+    max_chars: int = ROUTER_DIGEST_MAX_CHARS,
+    max_chars_per_turn: int = ROUTER_DIGEST_MAX_CHARS_PER_TURN,
+) -> str:
+    """Builds a bounded chronological digest of recent conversation turns for routing.
+    
+    Args:
+        state (dict): Untrusted conversation state containing a ``messages`` entry.
+        max_turns (int): Maximum number of human and assistant turns to include.
+        max_chars (int): Maximum total length of the digest.
+        max_chars_per_turn (int): Maximum length of each turn before truncation.
+    
+    Returns:
+        str: A labeled digest of recent human and assistant messages. Tool and other
+            message types are excluded; an empty string is returned when no eligible
+            content is available.
+    
+    The function has no side effects and does not persist or modify the input state.
+    """
+    turns: list[str] = []
+    for message in reversed(state.get("messages", [])):
+        role = getattr(message, "type", None) or getattr(message, "role", "")
+        if role not in {"human", "user", "ai", "assistant"}:
+            continue
+
+        text = message_text(message)
+        if not text:
+            continue
+        if len(text) > max_chars_per_turn:
+            text = text[:max_chars_per_turn] + " [...]"
+
+        speaker = "utente" if role in {"human", "user"} else "DeliR"
+        turns.append(f"{speaker}: {text}")
+        if len(turns) >= max_turns:
+            break
+
+    # `turns` is newest-first; keep the newest turns that fit and restore order.
+    digest = ""
+    for turn in turns:
+        candidate = f"{turn}\n{digest}" if digest else turn
+        if len(candidate) > max_chars:
+            break
+        digest = candidate
+
+    return digest
+
+
 def validated_model(model_cls, value):
-    """Re-validate a stored payload against a Pydantic model.
+    """Validate an untrusted stored payload against a Pydantic model.
     
     Args:
         model_cls: Pydantic model class used for validation.
         value: Untrusted stored payload to validate.
     
     Returns:
-        A validated model instance, or ``None`` for empty or invalid payloads.
+        A validated model instance, or ``None`` when the payload is empty or
+        fails Pydantic validation.
     
-    The function catches Pydantic validation errors, logs a warning, and does not
-    persist or modify the payload.
+    Notes:
+        Validation errors are logged as warnings. The payload is not modified or
+        persisted.
     """
     if not value:
         return None

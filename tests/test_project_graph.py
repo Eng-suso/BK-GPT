@@ -41,6 +41,14 @@ def test_parse_project_router_json_returns_structured_state():
         }
         """,
         user_request="quali processi mappiamo prima?",
+        # Coordinamento vuol dire piu' processi: senza processi registrati il
+        # runtime rifiuta la capability, e quel rifiuto ha un test suo.
+        state={
+            "project_processes": [
+                {"id": "proc-1", "name": "Acquisti"},
+                {"id": "proc-2", "name": "Vendite"},
+            ]
+        },
     )
 
     assert result["project_route"] == "process_coordination"
@@ -100,12 +108,13 @@ def test_project_states_separate_snapshot_from_append_fields():
 
 
 def test_project_toolsets_are_small_and_owned():
-    assert len(project_tools) <= 8
+    assert len(project_tools) <= 9
     assert len(delivery_tools) <= 8
     assert len(process_coordination_tools) <= 8
 
     assert {tool.name for tool in project_tools} == {
         "get_project_workspace_brief",
+        "create_project_process",
         "prepare_project_delegation_payload",
         "manage_project_evidence",
         "extract_project_graph_from_evidence",

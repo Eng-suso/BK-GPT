@@ -55,11 +55,22 @@ class UpdateProjectRequest(BaseModel):
 
 
 class CreateProcessRequest(BaseModel):
+    # `None` = "non dichiarato": il placeholder lo mette
+    # `workspace_database.create_process`, in un punto solo.
     name: str
-    stage: str = "AS-IS"
-    status: str = "Bozza"
-    owner: str = "Da assegnare"
+    stage: str | None = None
+    status: str | None = None
+    owner: str | None = None
     readiness: int = 0
+
+
+class UpdateProcessRequest(BaseModel):
+    # Patch parziale: un campo non dichiarato resta com'e'.
+    name: str | None = None
+    stage: str | None = None
+    status: str | None = None
+    owner: str | None = None
+    readiness: int | None = None
 
 
 class CreateProjectSourceRequest(BaseModel):

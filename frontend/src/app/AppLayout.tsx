@@ -3,11 +3,12 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { TopBar } from "@/components/shell/TopBar";
+import { Toaster } from "@/ui/sonner";
 import { SECTION_PATH, sectionFromPath } from "@/app/routes";
 import { cn } from "@/lib/utils";
 
 /**
- * Renders the application shell with route-aware navigation and routed content.
+ * Renders the application shell with route-aware navigation, routed content, and global notifications.
  */
 export function AppLayout(): React.JSX.Element {
   const location = useLocation();
@@ -18,6 +19,7 @@ export function AppLayout(): React.JSX.Element {
   const compactNav = isStudio && !expandedStudioNav;
 
   return (
+    <>
     <div className={cn("grid h-dvh grid-cols-[60px_minmax(0,1fr)] overflow-hidden bg-background text-foreground", !compactNav && "lg:grid-cols-[212px_minmax(0,1fr)]")}>
       <GlobalSidebar
         compact={compactNav}
@@ -31,5 +33,12 @@ export function AppLayout(): React.JSX.Element {
         </main>
       </div>
     </div>
+    {/* Le conferme di salvataggio vivono sopra ogni schermata: un form che si
+        chiude senza dire cosa ha scritto lascia il consulente a verificarlo
+        nella lista. Fuori dalla griglia della shell, non dentro: come figlio
+        della griglia il suo `<section>` prendeva una riga implicita e
+        schiacciava di 125px sidebar e contenuto. */}
+    <Toaster position="bottom-right" />
+    </>
   );
 }

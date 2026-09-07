@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Download, Plus } from "lucide-react";
+import { Download, Pencil, Plus } from "lucide-react";
 
 import { PageHeader, WorkspaceListView } from "@/components/layout";
 import {
@@ -30,10 +30,26 @@ import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { buildProjectColumns } from "../columns";
 import { useProjectsQuery } from "../api";
+import { ProjectFormDialog } from "../components/ProjectFormDialog";
 import { projectStatusTone, type Project } from "../types";
 
-const STATUS_ORDER: Project["status"][] = ["In corso", "A rischio", "Bozza"];
+// L'ordine in cui il riepilogo mostra gli stati: prima quello che chiede
+// attenzione, per ultimo quello che non ne chiede piu'.
+const STATUS_ORDER: Project["status"][] = [
+  "A rischio",
+  "In corso",
+  "In pausa",
+  "Bozza",
+  "Completato",
+];
 
+/**
+ * Determines whether a project matches a search query across its searchable fields.
+ *
+ * @param p - The project to search
+ * @param q - The lowercase search query
+ * @returns `true` if any searchable project field contains the query, `false` otherwise.
+ */
 function matchProject(p: Project, q: string): boolean {
   return [p.name, p.client, p.phase, p.status, p.nextStep].some((v) =>
     v.toLowerCase().includes(q),
@@ -48,6 +64,9 @@ function processCount(p: Project): number {
   return p.processes || p.processItems.length;
 }
 
+/**
+ * Renders the project portfolio list with filtering, search, pagination, export, and project management actions.
+ */
 export function ProjectsListPage(): React.JSX.Element {
   const { t } = useTranslation("projects");
   const navigate = useNavigate();
@@ -55,6 +74,12 @@ export function ProjectsListPage(): React.JSX.Element {
 
   const { data: projects = [], isLoading, isError, refetch } = useProjectsQuery();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // `null` = creazione, un progetto = modifica di quel record. `formSession`
+  // cambia a ogni apertura e fa da `key` al dialog: la bozza riparte dai dati
+  // correnti senza risincronizzare lo state in un effetto.
+  const [editing, setEditing] = useState<Project | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formSession, setFormSession] = useState(0);
   // The detail panel only mounts at ≥1536px (the `panel` breakpoint); below
   // that a row click opens the full detail page instead of selecting into a
   // panel nobody can see.
@@ -110,6 +135,18 @@ export function ProjectsListPage(): React.JSX.Element {
     (p: Project) => (hasPanel ? setSelectedId(p.id) : openDetail(p.id)),
     [hasPanel, openDetail],
   );
+
+  const openCreate = useCallback(() => {
+    setEditing(null);
+    setFormSession((session) => session + 1);
+    setFormOpen(true);
+  }, []);
+
+  const openEdit = useCallback((project: Project) => {
+    setEditing(project);
+    setFormSession((session) => session + 1);
+    setFormOpen(true);
+  }, []);
 
   const { filters: activeFilters, setFilters } = qs;
   const summary = useMemo<ListSummaryItem[]>(() => {
@@ -179,7 +216,7 @@ export function ProjectsListPage(): React.JSX.Element {
               >
                 <Download /> {t("list.actions.export")}
               </Button>
-              <Button size="sm" onClick={() => navigate(ROUTES.consultant)}>
+              <Button size="sm" onClick={openCreate}>
                 <Plus /> {t("list.actions.new")}
               </Button>
             </>
@@ -259,6 +296,14 @@ export function ProjectsListPage(): React.JSX.Element {
                   >
                     {t("detail.actions.openChat")}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="col-span-2"
+                    onClick={() => openEdit(selected)}
+                  >
+                    <Pencil /> {t("detail.actions.edit")}
+                  </Button>
                 </div>
               </DetailPanelSection>
             </>
@@ -273,6 +318,12 @@ export function ProjectsListPage(): React.JSX.Element {
         </DetailPanel>
       }
     >
+      <ProjectFormDialog
+        key={formSession}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        project={editing}
+      />
       {isError ? (
         <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
           <ErrorState
@@ -312,6 +363,11 @@ export function ProjectsListPage(): React.JSX.Element {
               <EmptyState
                 title={t("list.empty.title")}
                 description={t("list.empty.description")}
+                action={
+                  <Button size="sm" onClick={openCreate}>
+                    <Plus /> {t("list.actions.new")}
+                  </Button>
+                }
               />
             )
           }

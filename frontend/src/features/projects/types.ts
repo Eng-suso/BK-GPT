@@ -1,4 +1,5 @@
 import type { Project, ProjectProcess } from "@/contracts/workspace";
+import type { StatusTone } from "@/components/status";
 
 export type { Project, ProjectProcess };
 
@@ -18,15 +19,21 @@ export const PROJECT_TABS: ProjectTab[] = [
 
 export const PROJECT_TAB_IDS = PROJECT_TABS.map((tab) => tab.id);
 
-const PROJECT_STATUS_TONE = {
+const PROJECT_STATUS_TONE: Record<Project["status"], StatusTone> = {
   "In corso": "ok",
   "A rischio": "warning",
+  "In pausa": "pending",
+  Completato: "neutral",
   Bozza: "neutral",
-} as const;
+};
 
-export function projectStatusTone(
-  status: Project["status"],
-): "ok" | "warning" | "neutral" {
+/**
+ * Determines the visual tone associated with a project status.
+ *
+ * @param status - The project status to map
+ * @returns The status tone associated with `status`
+ */
+export function projectStatusTone(status: Project["status"]): StatusTone {
   return PROJECT_STATUS_TONE[status];
 }
 
@@ -34,9 +41,17 @@ export function projectStatusTone(
 const PROJECT_STATUS_RANK: Record<Project["status"], number> = {
   "A rischio": 0,
   "In corso": 1,
-  Bozza: 2,
+  "In pausa": 2,
+  Bozza: 3,
+  Completato: 4,
 };
 
+/**
+ * Determines the sorting priority for a project status.
+ *
+ * @param status - The project status to rank
+ * @returns The configured status rank, or `99` for an unrecognized status
+ */
 export function projectStatusRank(status: Project["status"]): number {
   return PROJECT_STATUS_RANK[status] ?? 99;
 }

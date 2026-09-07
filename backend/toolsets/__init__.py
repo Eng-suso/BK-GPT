@@ -43,6 +43,7 @@ from backend.toolsets.workspace import (
     create_workspace_client,
     create_initial_workspace_setup,
     create_workspace_process,
+    update_workspace_process,
     create_workspace_project,
     update_workspace_project,
     get_workspace_overview,
