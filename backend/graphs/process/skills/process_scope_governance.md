@@ -8,6 +8,7 @@ description: Define ownership boundaries between Process, Project, Consulting an
 ## Process Owns
 
 - Single-process discovery and As-Is understanding.
+- The process record: stage, status, owner and readiness (`update_workspace_process`). When the work moves, the record moves with it - an AS-IS the people who run it have confirmed is `Validato`, and saying so in prose while the record still reads `Bozza` leaves the next reader with the wrong process.
 - Process evidence synthesis for one process.
 - ProcessUnderstanding review and readiness.
 - BPMNSemanticModel preparation.

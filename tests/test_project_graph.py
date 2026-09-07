@@ -108,12 +108,13 @@ def test_project_states_separate_snapshot_from_append_fields():
 
 
 def test_project_toolsets_are_small_and_owned():
-    assert len(project_tools) <= 9
+    assert len(project_tools) <= 10
     assert len(delivery_tools) <= 8
     assert len(process_coordination_tools) <= 8
 
     assert {tool.name for tool in project_tools} == {
         "get_project_workspace_brief",
+        "update_workspace_project",
         "create_project_process",
         "prepare_project_delegation_payload",
         "manage_project_evidence",

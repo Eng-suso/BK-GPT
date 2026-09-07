@@ -9,7 +9,7 @@ description: Define boundaries between Project, Process, Canvas and Consulting s
 
 - Project discussion and retrieval.
 - The list of processes in scope: registering, creating or adding a process record to this project (`create_project_process`). The record is project furniture; what happens inside the process is not.
-- Project phase, status, progress and next step.
+- The project record and what is written into it: the engagement objective, phase, status, progress and next step (`update_workspace_project`). Owning the field means owning the write, not only the conversation about it.
 - Project-level sources, decisions, deliverables and open issues.
 - Project-scoped episodic evidence when the user provides real interview notes, call notes, workshop notes or project observations.
 - Project-scoped GraphRAG for relationships between processes, sources, interviews, decisions, risks, stakeholders, deliverables, gaps, inconsistencies and ROI impact.

@@ -204,3 +204,77 @@ usata per farsi creare un record.
 processi, hint non registrato, delega sbloccata dopo la creazione), digest
 (ordine, esclusione dei tool, budget), prompt di scope, e il tool su Postgres —
 modello BPMN vuoto, perimetro salvato come fonte, idempotenza per nome.
+
+## PROJECT-06 — Il prompt prometteva un tool che nessuno scope aveva
+
+- **Severity**: P1
+- **Stato**: risolto (2026-09-07) — coperto da `tests/test_prompt_tool_contract.py`
+- **Input**: "L'obiettivo e' ricostruire l'AS-IS del ciclo ordini e misurare il
+  lead time." in Project Chat, su un progetto senza obiettivo registrato.
+- **Expected**: l'obiettivo finisce sul record.
+- **Actual**: niente. Lo scope prompt diceva "salvalo con
+  `update_workspace_project`", e quel tool non era fra quelli bindati per
+  nessuno scope: l'agente non aveva modo di obbedire.
+- **Causa**: `update_workspace_project` viveva in `workspace_mutation_tools`,
+  che nessun grafo binda. L'unico consumatore era la lista piatta `tools` in
+  `toolsets/registry.py`, marcata "compatibility export" e importata da
+  nessuno. Stessa sorte per `update_workspace_process`, aggiunto insieme alle
+  PATCH HTTP e mai arrivato al process scope.
+
+  E' PROJECT-03 un livello sopra: li' era la delega a finire in un vicolo cieco,
+  qui e' il prompt. Ed e' la regola di PROJECT-05 applicata a se stessa — non
+  promettere una capability che non c'e' vale anche quando a prometterla e'
+  DeliR a DeliR.
+
+  Effetto pratico: l'obiettivo si poteva scrivere solo alla creazione, con
+  `create_initial_workspace_setup`, che passa una volta sola. Un incarico il cui
+  mandato cambia non aveva strada.
+
+### Fix
+
+- `update_workspace_project` entra in `project_tools`, `update_workspace_process`
+  in `process_tools`. Lo scope che possiede un campo ne possiede la scrittura,
+  non solo la conversazione: il budget del Project Macro passa a 10 e quello del
+  Process Macro resta sotto 8.
+- Il Delivery subgraph continua a pianificare e inquadrare; la mutazione e' del
+  Project Macro, dove il tool vive. La guardrail "non mutare i record con tool
+  prepare-only" ora dice anche *dove* si muta.
+- L'indicazione dell'obiettivo si nomina solo dove il tool esiste: ogni scope
+  sotto un progetto porta il `project_id`, quindi la chat processo e il canvas
+  ricevevano lo stesso suggerimento. Ora sentono che l'obiettivo manca e che
+  registrarlo e' lavoro della chat di progetto.
+
+### Verifica
+
+`tests/test_prompt_tool_contract.py` legge i prompt reali di ogni scope —
+system prompt, tool policy e skill markdown — cerca i nomi dei tool che il
+progetto definisce e verifica che ognuno sia raggiungibile da li'. La domanda
+la risponde il runtime, non un elenco da tenere aggiornato a mano: e' stato
+questo test a trovare il residuo nello scope processo.
+
+## PROJECT-07 — Il record scritto dall'agente non compariva nella pagina aperta
+
+- **Severity**: P1
+- **Stato**: risolto (2026-09-07)
+- **Input**: "aggiungi il processo" in Project Chat, sulla pagina di dettaglio
+  del progetto.
+- **Expected**: il processo appena registrato compare in Panoramica e Processi.
+- **Actual**: niente, finche' non si navigava via e si tornava.
+- **Causa**: `useChatStream` emette `workspace:refresh` a fine turno, ma
+  `useWorkspaceRefresh` era montato per pagina — sulle tre liste (clienti,
+  progetti, home). Le pagine che *ospitano una chat* non erano fra quelle, e
+  sono esattamente quelle su cui l'evento serve: `ProjectDetailPage` contiene la
+  Project Chat, `ProcessStudioPage` la chat di processo. Con `staleTime: 30s` e
+  `refetchOnWindowFocus: false`, e la query di dettaglio montata a livello di
+  pagina (cambiare tab non rimonta), nessun refetch partiva.
+
+  Il difetto era invisibile finche' la chat non ha avuto un tool che scrive
+  davvero: PROJECT-03 gliel'ha dato.
+
+### Fix
+
+Un solo iscritto, in `AppLayout`, che e' il padre di ogni rotta — quello che il
+docstring dell'hook chiedeva gia' ("mount once near the workspace routes") e che
+tre mount per pagina non erano. I tre duplicati spariscono. Il listener del
+canvas in `useBpmnCanvas` resta separato: ascolta lo stesso evento per ricaricare
+l'XML, ed e' un'altra cosa.

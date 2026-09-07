@@ -188,10 +188,19 @@ def build_scope_system_prompt(state: dict) -> str:
     if state.get("engagement_objective"):
         lines.append(f"project_objective: {state['engagement_objective']}")
     elif state.get("project_id"):
+        # Il tool si nomina solo dove esiste. Ogni scope sotto un progetto porta
+        # il `project_id`, ma `update_workspace_project` sta nei tool del
+        # progetto: chiederlo alla chat processo o al canvas e' promettere una
+        # capability che quello scope non ha (la stessa lezione di PROJECT-05).
         lines.append(
-            "project_objective: non registrato. Se il consulente enuncia "
-            "l'obiettivo dell'incarico, salvalo con update_workspace_project "
-            "invece di lasciarlo nella sola conversazione."
+            "project_objective: non registrato."
+            + (
+                " Se il consulente enuncia l'obiettivo dell'incarico, salvalo "
+                "con update_workspace_project invece di lasciarlo nella sola "
+                "conversazione."
+                if scope_type == "project"
+                else " Registrarlo e' lavoro della chat di progetto."
+            )
         )
     if state.get("project_phase"):
         lines.append(f"project_phase: {state['project_phase']}")

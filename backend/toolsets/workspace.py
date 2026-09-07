@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
@@ -6,6 +6,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.agents.scope_guard import assert_project_in_scope
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_defaults import (
     CLIENT_STATUS_DESCRIPTION,
@@ -143,6 +144,46 @@ class ClientRecordInput(BaseModel):
     contact: str | None = Field(default=None, description="Non-sensitive contact note when provided.")
 
 
+class MilestoneInput(BaseModel):
+    """Un traguardo del progetto, e se e' stato raggiunto."""
+
+    title: str = Field(description="The milestone as the consultant named it.")
+    status: Literal["planned", "done"] = Field(
+        default="planned",
+        description="`done` when the milestone has been reached, `planned` when it is still ahead.",
+    )
+
+
+def milestone_payload(values: list | None) -> list | None:
+    """Flatten validated milestone entries into what the database layer stores.
+
+    Args:
+        values: Milestone entries as validated by the tool schema: `MilestoneInput`
+            instances for the structured form, plain strings for bare titles.
+
+    Returns:
+        list | None: The same entries as mappings or strings, or `None` when the
+        caller declared no milestone list.
+    """
+    if values is None:
+        return None
+
+    return [value.model_dump() if isinstance(value, MilestoneInput) else value for value in values]
+
+
+MILESTONES_DESCRIPTION = (
+    "Planned milestones, when stated. A plain string is a milestone still ahead; "
+    'send {"title": "...", "status": "done"} for one already reached.'
+)
+
+MILESTONES_REPLACEMENT_DESCRIPTION = (
+    "Full replacement list of milestones. Send every entry you want kept, not only the new ones. "
+    "An entry sent as a plain string keeps the state that milestone already had, so listing them "
+    'does not reopen what is done; send {"title": "...", "status": "done"} to mark one reached, '
+    '"planned" to reopen it.'
+)
+
+
 class ProjectRecordInput(BaseModel):
     """I campi di un progetto, con la stessa definizione che legge il consulente.
 
@@ -158,7 +199,10 @@ class ProjectRecordInput(BaseModel):
     status: ProjectStatus | None = Field(default=None, description=PROJECT_STATUS_DESCRIPTION)
     progress: int = Field(default=0, description="Completion percentage, 0-100.")
     next_step: str | None = Field(default=None, description="The next concrete step, when the user stated it.")
-    milestones: list[str] = Field(default_factory=list, description="Planned milestones, when stated.")
+    milestones: list[MilestoneInput | str] = Field(
+        default_factory=list,
+        description=MILESTONES_DESCRIPTION,
+    )
     open_issues: list[str] = Field(default_factory=list, description="Open issues or blockers, when stated.")
     deliverables: list[str] = Field(default_factory=list, description="Expected deliverables, when stated.")
 
@@ -173,9 +217,9 @@ class ProjectUpdateInput(BaseModel):
     status: ProjectStatus | None = Field(default=None, description=PROJECT_STATUS_DESCRIPTION)
     progress: int | None = Field(default=None, description="Completion percentage, 0-100.")
     next_step: str | None = Field(default=None, description="The next concrete step.")
-    milestones: list[str] | None = Field(
+    milestones: list[MilestoneInput | str] | None = Field(
         default=None,
-        description="Full replacement list of milestones. Send every entry you want kept, not only the new ones.",
+        description=MILESTONES_REPLACEMENT_DESCRIPTION,
     )
     open_issues: list[str] | None = Field(
         default=None,
@@ -610,7 +654,7 @@ def create_workspace_project(
     status: ProjectStatus | None = None,
     progress: int = 0,
     next_step: str | None = None,
-    milestones: list[str] | None = None,
+    milestones: list[MilestoneInput | str] | None = None,
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> str:
@@ -625,7 +669,7 @@ def create_workspace_project(
         status (ProjectStatus | None): Project status, when specified.
         progress (int): Project progress percentage.
         next_step (str | None): Untrusted description of the next step.
-        milestones (list[str] | None): Untrusted project milestones.
+        milestones (list[MilestoneInput | str] | None): Untrusted project milestones.
         open_issues (list[str] | None): Untrusted open issues.
         deliverables (list[str] | None): Untrusted project deliverables.
     
@@ -648,7 +692,7 @@ def create_workspace_project(
         status=status,
         progress=progress,
         next_step=next_step,
-        milestones=milestones,
+        milestones=milestone_payload(milestones),
         open_issues=open_issues,
         deliverables=deliverables,
     )
@@ -677,33 +721,33 @@ def update_workspace_project(
     status: ProjectStatus | None = None,
     progress: int | None = None,
     next_step: str | None = None,
-    milestones: list[str] | None = None,
+    milestones: list[MilestoneInput | str] | None = None,
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> str:
+    # NB: docstring = prompt. LangChain lo manda al modello come `description`
+    # del tool, quindi dice quando usarlo, non che tipo hanno gli argomenti.
     """
-    Update selected fields of an existing project and persist the changes.
-    
-    Args:
-        project_id (str): Untrusted project identifier.
-        name (str | None): Untrusted replacement project name.
-        objective (str | None): Untrusted replacement project objective.
-        phase (ProjectPhase | None): Untrusted replacement project phase.
-        status (ProjectStatus | None): Untrusted replacement project status.
-        progress (int | None): Untrusted replacement progress value.
-        next_step (str | None): Untrusted replacement next step.
-        milestones (list[str] | None): Untrusted complete replacement milestone list.
-        open_issues (list[str] | None): Untrusted complete replacement open-issue list.
-        deliverables (list[str] | None): Untrusted complete replacement deliverable list.
-    
-    Returns:
-        str: A standardized result containing the updated project, or a structured error
-            for a missing project or database validation failure.
-    
-    Side Effects:
-        Persists the supplied field changes. Fields omitted from the call remain unchanged;
-        supplied list fields replace their corresponding complete lists.
+    Write the project record: objective, phase, status, progress, next step and
+    the milestone / open issue / deliverable lists. Declare only the fields that
+    change; an undeclared field keeps its value.
+
+    Use it the moment the consultant states the engagement objective - why this
+    project exists and what closes it. Left in the conversation it is gone
+    tomorrow, and the next Project Chat opens on a container with no mandate.
+    Announcing a change without writing it is worse than not making it.
+
+    A declared list replaces the current one whole, so send the full list, not
+    the delta. A milestone the consultant says has been reached is written here
+    too: send that entry with status `done`, so the record shows what happened
+    and not only what was promised. This never touches processes or BPMN.
     """
+    # G3: `project_id` e' un argomento deciso dall'LLM. Dentro un agent run
+    # vincolato deve combaciare con lo scope autorizzato del thread, altrimenti
+    # un'injection in un documento caricato sposta la scrittura su un altro
+    # progetto dello stesso tenant.
+    assert_project_in_scope(project_id)
+
     try:
         project = workspace_database.update_project(
             project_id=project_id,
@@ -713,7 +757,7 @@ def update_workspace_project(
             status=status,
             progress=progress,
             next_step=next_step,
-            milestones=milestones,
+            milestones=milestone_payload(milestones),
             open_issues=open_issues,
             deliverables=deliverables,
         )
@@ -785,19 +829,28 @@ def update_workspace_process(
     owner: str | None = None,
     readiness: int | None = None,
 ) -> str:
-    """Update selected metadata fields on an existing process record without changing its BPMN model.
-    
-    Args:
-        process_id (str): [Untrusted input] Identifier of the process to update.
-        name (str | None): [Untrusted input] Replacement process name, or None to leave it unchanged.
-        stage (ProcessStage | None): Replacement process stage, or None to leave it unchanged.
-        status (ProcessStatus | None): Replacement process status, or None to leave it unchanged.
-        owner (str | None): [Untrusted input] Replacement process owner, or None to leave it unchanged.
-        readiness (int | None): [Untrusted input] Replacement readiness value, or None to leave it unchanged.
-    
-    Returns:
-        str: A structured result containing the updated process, or an error result when the process cannot be updated. Database ValueError instances are represented in the result rather than raised.
+    # NB: docstring = prompt, non documentazione Python. Vedi
+    # `tests/test_tool_descriptions.py`.
     """
+    Update an existing process record: name, stage, status, owner, readiness.
+    Declare only the fields that change; an undeclared field keeps its value.
+
+    Use it when the work actually moved - an AS-IS confirmed by the people who
+    run it becomes "Validato" - or when the consultant corrects a recorded
+    value. Saying it in prose while the record still reads "Bozza" leaves the
+    workspace lying to whoever opens it next.
+
+    The consultant edits the same fields by hand in the UI, on the same record.
+    This never touches the BPMN model content.
+    """
+    # G3, come per il progetto: il `process_id` lo sceglie il modello. Il
+    # processo non porta lo scope con se', quindi si risale al progetto che lo
+    # possiede e si verifica quello. Un id di un altro tenant qui e' gia' None,
+    # e la update lo riporta come "non trovato".
+    existing = workspace_database.get_process(process_id)
+    if existing is not None:
+        assert_project_in_scope(existing.get("project_id"))
+
     try:
         process = workspace_database.update_process(
             process_id=process_id,
