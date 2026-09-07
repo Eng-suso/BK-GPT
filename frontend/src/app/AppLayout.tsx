@@ -5,12 +5,20 @@ import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { TopBar } from "@/components/shell/TopBar";
 import { Toaster } from "@/ui/sonner";
 import { SECTION_PATH, sectionFromPath } from "@/app/routes";
+import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { cn } from "@/lib/utils";
 
 /**
  * Renders the application shell with route-aware navigation and routed content.
  */
 export function AppLayout(): React.JSX.Element {
+  // Un solo iscritto a `workspace:refresh`, sopra tutte le rotte. Stava sulle
+  // tre pagine di lista, e le pagine che ospitano una chat non erano fra
+  // quelle: la Project Chat registrava un processo, l'evento partiva e nessuno
+  // sulla pagina lo ascoltava, quindi il record nuovo non compariva finche'
+  // non si navigava via e si tornava.
+  useWorkspaceRefresh();
+
   const location = useLocation();
   const navigate = useNavigate();
   const activeSection = sectionFromPath(location.pathname);

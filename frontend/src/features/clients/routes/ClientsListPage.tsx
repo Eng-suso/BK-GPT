@@ -17,7 +17,6 @@ import { Button } from "@/ui/button";
 import { ROUTES } from "@/app/routes";
 import { usePagedList } from "@/lib/hooks/usePagedList";
 import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
-import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { buildClientColumns } from "../columns";
 import { useClientsQuery } from "../api";
 import { ClientFormDialog } from "../components/ClientFormDialog";
@@ -31,7 +30,6 @@ function matchClient(c: Client, q: string): boolean {
 
 export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation("clients");
-  useWorkspaceRefresh();
 
   const { data: clients = [], isLoading, isError, refetch } = useClientsQuery();
   const [sorting, setSorting] = useState<SortingState>([]);

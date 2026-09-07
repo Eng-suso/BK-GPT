@@ -432,6 +432,7 @@ def test_process_toolsets_are_small_and_owned():
     assert {tool.name for tool in process_tools} == {
         "get_process_workspace_brief",
         "get_process_semantic_context",
+        "update_workspace_process",
         "prepare_process_delegation_payload",
         "manage_process_evidence",
         "retrieve_process_graph_context",

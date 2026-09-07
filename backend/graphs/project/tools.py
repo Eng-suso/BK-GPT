@@ -12,7 +12,7 @@ from backend.toolsets.project_memory import (
     retrieve_project_gap_context,
     retrieve_project_graph_context,
 )
-from backend.toolsets.workspace import enterprise_tool_result
+from backend.toolsets.workspace import enterprise_tool_result, update_workspace_project
 
 
 class ProjectProcessRecordInput(BaseModel):
@@ -629,11 +629,18 @@ PROJECT_TOOL_POLICY = """
 Project macro tools.
 
 The Project Macro Agent owns project-level orchestration, not every project
-operation. It can read the project brief, register the processes in scope,
-prepare handoff payloads, save project-scoped episodic evidence, prepare
-enterprise graph extraction from evidence, and retrieve project-scoped GraphRAG
-context for relation-heavy questions, gaps, inconsistencies, cross-process
-impact and ROI.
+operation. It can read the project brief, write the project record, register the
+processes in scope, prepare handoff payloads, save project-scoped episodic
+evidence, prepare enterprise graph extraction from evidence, and retrieve
+project-scoped GraphRAG context for relation-heavy questions, gaps,
+inconsistencies, cross-process impact and ROI.
+
+The engagement objective, the phase, the status, the progress and the next step
+are fields of the project record, and `update_workspace_project` is how they get
+written. When the consultant states the objective - why the engagement exists
+and what closes it - record it in the same turn. Left in the conversation it is
+gone tomorrow, and the next Project Chat opens on a container with no mandate.
+Announcing a change without writing it is worse than not making it.
 
 The processes of a project are project records: creating one is workspace setup
 and belongs here, with `create_project_process`. What happens *inside* a process
@@ -655,6 +662,7 @@ missing.
 
 project_tools = [
     get_project_workspace_brief,
+    update_workspace_project,
     create_project_process,
     prepare_project_delegation_payload,
     manage_project_evidence,

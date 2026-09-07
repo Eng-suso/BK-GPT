@@ -8,7 +8,6 @@ import { StatusIndicator } from "@/components/status";
 import { EmptyState, ErrorState } from "@/components/feedback";
 import { Skeleton } from "@/ui/skeleton";
 import { ROUTES } from "@/app/routes";
-import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 // Home is an aggregation dashboard; importing the projects/clients query hooks
 // is a deliberate exception to the no-cross-feature-import rule.
 import { useProjectsQuery } from "@/features/projects/api";
@@ -18,7 +17,6 @@ import { clientStatusTone } from "@/features/clients/types";
 
 export function HomePage(): React.JSX.Element {
   const { t } = useTranslation("common");
-  useWorkspaceRefresh();
 
   const projectsQ = useProjectsQuery();
   const clientsQ = useClientsQuery();

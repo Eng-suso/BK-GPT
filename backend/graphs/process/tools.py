@@ -12,7 +12,7 @@ from backend.toolsets.process_memory import (
     retrieve_process_gap_context,
     retrieve_process_graph_context,
 )
-from backend.toolsets.workspace import enterprise_tool_result
+from backend.toolsets.workspace import enterprise_tool_result, update_workspace_process
 
 
 ProcessTargetOwner = Literal[
@@ -396,12 +396,19 @@ evidence synthesis, ProcessUnderstanding, BPMN semantic readiness and handoff to
 Canvas Macro. It can use the enterprise knowledge graph for relation-heavy
 process evidence, gaps, contradictions and lineage. It does not directly edit
 BPMN XML.
+
+The process record itself - stage, status, owner, readiness - belongs here too,
+with `update_workspace_process`. When the work actually moves, say so on the
+record: an AS-IS the people who run it have confirmed is `Validato`, and saying
+it in prose while the record still reads `Bozza` leaves the workspace lying to
+whoever opens it next.
 """.strip()
 
 
 process_tools = [
     get_process_workspace_brief,
     get_process_semantic_context,
+    update_workspace_process,
     prepare_process_delegation_payload,
     manage_process_evidence,
     retrieve_process_graph_context,

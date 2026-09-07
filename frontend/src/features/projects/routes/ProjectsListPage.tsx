@@ -26,7 +26,6 @@ import { usePagedList } from "@/lib/hooks/usePagedList";
 import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
 import { useListQueryState } from "@/lib/hooks/useListQueryState";
 import { useMediaQuery } from "@/lib/useMediaQuery";
-import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { buildProjectColumns } from "../columns";
 import { useProjectsQuery } from "../api";
@@ -60,7 +59,6 @@ function processCount(p: Project): number {
 export function ProjectsListPage(): React.JSX.Element {
   const { t } = useTranslation("projects");
   const navigate = useNavigate();
-  useWorkspaceRefresh();
 
   const { data: projects = [], isLoading, isError, refetch } = useProjectsQuery();
   const [selectedId, setSelectedId] = useState<string | null>(null);
