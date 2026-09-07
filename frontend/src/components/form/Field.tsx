@@ -17,12 +17,11 @@ type FieldProps = {
 };
 
 /**
- * Etichetta, controllo e spiegazione, legati fra loro.
+ * Groups a label, form control, and optional hint with accessible associations.
  *
- * L'`id` non lo sceglie il chiamante: il campo lo genera e lo passa al
- * controllo insieme all'`aria-describedby` del suo hint, cosi' un lettore di
- * schermo sente l'etichetta *e* il motivo del campo, e nessun form puo'
- * dimenticarsi il collegamento.
+ * @param hint - Optional explanatory text linked to the control.
+ * @param children - Function that renders the control with generated accessibility attributes.
+ * @returns The grouped field markup.
  */
 export function Field({
   label,

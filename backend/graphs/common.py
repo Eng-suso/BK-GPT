@@ -11,7 +11,15 @@ logger = logging.getLogger(__name__)
 
 
 def message_text(message) -> str:
-    """The readable text of one message, whatever shape the provider used."""
+    """Extract readable text from a message-like value.
+    
+    Args:
+        message: Untrusted message-like value whose ``content`` may be a string,
+            a list of strings or text blocks, or another value.
+    
+    Returns:
+        The normalized, whitespace-trimmed message text.
+    """
     content = getattr(message, "content", "")
     if isinstance(content, str):
         return content.strip()
@@ -58,13 +66,20 @@ def recent_conversation_digest(
     max_chars: int = ROUTER_DIGEST_MAX_CHARS,
     max_chars_per_turn: int = ROUTER_DIGEST_MAX_CHARS_PER_TURN,
 ) -> str:
-    """The tail of the conversation, in the form a router can route on.
-
-    A router that sees only the latest user message cannot resolve "aggiungi il
-    processo": the referent was named one turn earlier, often by the assistant
-    itself, so the turn ended in "quale processo?" while the answer sat in the
-    transcript (PROJECT-04). Tool traffic stays out - the router routes the
-    conversation, not the tool trace.
+    """Builds a bounded chronological digest of recent conversation turns for routing.
+    
+    Args:
+        state (dict): Untrusted conversation state containing a ``messages`` entry.
+        max_turns (int): Maximum number of human and assistant turns to include.
+        max_chars (int): Maximum total length of the digest.
+        max_chars_per_turn (int): Maximum length of each turn before truncation.
+    
+    Returns:
+        str: A labeled digest of recent human and assistant messages. Tool and other
+            message types are excluded; an empty string is returned when no eligible
+            content is available.
+    
+    The function has no side effects and does not persist or modify the input state.
     """
     turns: list[str] = []
     for message in reversed(state.get("messages", [])):
@@ -95,17 +110,19 @@ def recent_conversation_digest(
 
 
 def validated_model(model_cls, value):
-    """Re-validate a stored payload against a Pydantic model.
+    """Validate an untrusted stored payload against a Pydantic model.
     
     Args:
         model_cls: Pydantic model class used for validation.
         value: Untrusted stored payload to validate.
     
     Returns:
-        A validated model instance, or ``None`` for empty or invalid payloads.
+        A validated model instance, or ``None`` when the payload is empty or
+        fails Pydantic validation.
     
-    The function catches Pydantic validation errors, logs a warning, and does not
-    persist or modify the payload.
+    Notes:
+        Validation errors are logged as warnings. The payload is not modified or
+        persisted.
     """
     if not value:
         return None

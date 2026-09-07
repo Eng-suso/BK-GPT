@@ -245,6 +245,18 @@ def create_workspace_project_decision(
     project_id: str,
     request: CreateProjectDecisionRequest,
 ) -> ProjectDecisionResponse:
+    """Create a decision for a project and persist it.
+    
+    Args:
+        project_id (str): Untrusted project identifier.
+        request (CreateProjectDecisionRequest): Untrusted decision data.
+    
+    Returns:
+        ProjectDecisionResponse: The newly created project decision.
+    
+    Raises:
+        HTTPException: With status code 400 when the decision data is invalid.
+    """
     try:
         return ProjectDecisionResponse(**create_project_decision(project_id=project_id, **request.model_dump()))
     except ValueError as exc:
@@ -253,7 +265,19 @@ def create_workspace_project_decision(
 
 @router.patch("/processes/{process_id}")
 def update_workspace_process(process_id: str, request: UpdateProcessRequest) -> ProjectProcessResponse:
-    """Modifica manuale del processo: nome, stadio, stato, owner, readiness."""
+    """
+    Update editable fields of a workspace process and persist the changes.
+    
+    Args:
+        process_id (str): Untrusted process identifier.
+        request (UpdateProcessRequest): Untrusted partial update containing editable process fields.
+    
+    Returns:
+        ProjectProcessResponse: The updated process.
+    
+    Raises:
+        HTTPException: A 404 response if the process is not found, or a 400 response if the update is invalid.
+    """
     try:
         return ProjectProcessResponse(
             **update_process(process_id, **request.model_dump(exclude_unset=True))
@@ -264,6 +288,17 @@ def update_workspace_process(process_id: str, request: UpdateProcessRequest) -> 
 
 @router.get("/processes/{process_id}")
 def get_workspace_process(process_id: str) -> ProjectProcessResponse:
+    """Retrieve a workspace process by ID.
+    
+    Args:
+        process_id: Untrusted process identifier used to locate the process.
+    
+    Returns:
+        The process represented as a `ProjectProcessResponse`.
+    
+    Raises:
+        HTTPException: With status code 404 if the process does not exist.
+    """
     process = get_process(process_id)
 
     if process is None:

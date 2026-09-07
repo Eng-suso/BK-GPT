@@ -195,6 +195,7 @@ pytestmark_db = pytest.mark.skipif(
 
 @pytest.fixture()
 def tenant():
+    """Provide an isolated tenant context for the test."""
     from backend.security import reset_current_tenant_id, set_current_tenant_id
 
     token = set_current_tenant_id(f"t-{uuid.uuid4().hex[:8]}")
@@ -205,7 +206,15 @@ def tenant():
 
 
 def _tool_payload(result: str) -> dict:
-    """Il risultato enterprise e' `action\\n{json}`."""
+    """
+    Extracts the JSON payload from an enterprise tool result.
+    
+    Parameters:
+        result (str): A result containing an action line followed by a JSON object.
+    
+    Returns:
+        dict: The decoded JSON payload.
+    """
     return json.loads(result.split("\n", 1)[1])
 
 

@@ -9,7 +9,7 @@ import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { cn } from "@/lib/utils";
 
 /**
- * Renders the application shell with route-aware navigation and routed content.
+ * Renders the application shell with route-aware navigation, routed content, and global notifications.
  */
 export function AppLayout(): React.JSX.Element {
   // Un solo iscritto a `workspace:refresh`, sopra tutte le rotte. Stava sulle

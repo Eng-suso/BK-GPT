@@ -26,15 +26,13 @@ type VocabularySelectProps = {
 };
 
 /**
- * Un campo a vocabolario chiuso, con la definizione di ogni voce accanto.
+ * Renders a controlled vocabulary select with labels and optional meanings.
  *
- * "Fase corrente: Validazione" non dice niente se non si sa cosa DeliR chiama
- * Validazione. Le definizioni vivono accanto alle voci - le stesse che il
- * backend passa al modello - cosi' il consulente e l'agente scelgono da un
- * vocabolario solo.
+ * Unknown nonempty values are included as the current option so externally supplied
+ * or legacy values remain visible.
  *
- * Un valore fuori vocabolario (un record piu' vecchio, o scritto da un altro
- * canale) non viene mai perso: entra nella lista come voce corrente.
+ * @param options - Vocabulary entries available for selection, each with a label and optional meaning.
+ * @returns The rendered vocabulary select.
  */
 export function VocabularySelect({
   value,

@@ -34,6 +34,13 @@ const EMPTY: ProjectDraft = {
   deliverables: [],
 };
 
+/**
+ * Creates an editable project draft from an existing project or default values.
+ *
+ * @param project - The project to map into a draft, or `null` for a new project
+ * @param clientId - The client identifier to use when creating a new project
+ * @returns A project draft populated from `project` or default values
+ */
 function draftFrom(project: Project | null, clientId: string): ProjectDraft {
   if (!project) return { ...EMPTY, clientId };
   return {
@@ -60,17 +67,12 @@ type ProjectFormDialogProps = {
 };
 
 /**
- * Il record di progetto, modificabile a mano.
+ * Renders a dialog for creating or editing a project.
  *
- * L'obiettivo sta in cima e non in fondo: e' il perche' dell'incarico, l'unico
- * campo che una Project Chat aperta domani legge come proprio mandato, e finche'
- * e' vuoto il progetto e' un contenitore senza motivo (PROJECT-01). Fase e stato
- * non sono testo libero: sono lo stesso vocabolario che vede l'agente, con la
- * definizione di ogni voce accanto.
+ * Validates required project fields and saves the project through the appropriate
+ * create or update operation.
  *
- * La bozza nasce dal record al montaggio e basta: chi apre il dialog gli passa
- * una `key` nuova a ogni apertura, cosi' la riapertura riparte dai dati veri
- * invece di risincronizzare lo state dentro un effetto.
+ * @returns The project form dialog.
  */
 export function ProjectFormDialog({
   open,

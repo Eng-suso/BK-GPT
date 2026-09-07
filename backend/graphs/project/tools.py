@@ -147,6 +147,7 @@ def get_project_workspace_brief(project_id: str) -> str:
     Read the authoritative project workspace snapshot: project status, process list,
     sources, decisions, deliverables and open issues. Use before project-level synthesis
     or routing when project context is needed. This is read-only.
+
     """
     payload = _project_payload(project_id)
     project = payload["project"]
@@ -177,6 +178,12 @@ def create_project_process(
     owner: str = "Da assegnare",
     scope_note: str = "",
 ) -> str:
+    # NB: questo docstring non e' documentazione dell'API Python. LangChain lo
+    # passa al modello come `description` del tool, quindi e' il prompt su cui
+    # l'agente decide se chiamarlo e cosa non fare dopo averlo chiamato.
+    # Riscriverlo in formato `Args:/Returns:/Raises:` toglie le istruzioni di
+    # comportamento e aggiunge tipi che il modello ha gia' nello schema.
+    # `tests/test_project_chat_boundaries.py` pinna le due promesse che contano.
     """
     Register a process inside the current project. Use whenever the consultant
     says to add, create or register a process here - this is project workspace
@@ -278,6 +285,7 @@ def prepare_project_delegation_payload(
     Purpose: create a narrow structured handoff payload from Project Macro to a
     project subgraph, Process Macro or Canvas Macro. This does not execute the
     delegated work.
+
     """
     return "Project delegation payload\n" + json.dumps(
         {
@@ -297,22 +305,9 @@ def prepare_project_delegation_payload(
 @tool
 def get_project_delivery_brief(project_id: str) -> str:
     """
-    Builds a delivery-focused brief for an authorized project.
-    
-    The project must be within the authorized scope and must exist. This function
-    only reads project context and does not modify or persist data.
-    
-    Args:
-        project_id (str): Untrusted project identifier used to locate the project.
-    
-    Returns:
-        str: Serialized project delivery context, including objective, phase, status,
-            progress, next step, milestones, deliverables, open issues, and
-            decisions.
-    
-    Raises:
-        PermissionError: If the project is outside the authorized scope.
-        ValueError: If the project does not exist.
+    Read project delivery context: phase, status, progress, next step, milestones,
+    deliverables, open issues and open decisions. Use for delivery planning/status.
+
     """
     payload = _project_payload(project_id)
     project = payload["project"]

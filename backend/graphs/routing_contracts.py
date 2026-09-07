@@ -783,6 +783,19 @@ def _state_value_as_dict(value: Any) -> dict[str, Any]:
 
 
 def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
+    """Determine whether the state contains a complete canonical semantic model.
+    
+    Args:
+        state (dict[str, Any]): Untrusted routing state to inspect.
+    
+    Returns:
+        bool: `True` if the semantic model contains non-empty ``flowNodes``,
+            ``sequenceFlows``, ``compilationPlan``, and
+            ``sourceProcessUnderstanding`` sections, `False` otherwise.
+    
+    This function does not modify or persist state and does not raise errors for
+    missing or malformed semantic-model data.
+    """
     semantic_model = _state_value_as_dict(
         state.get("bpmn_semantic_model")
     )
@@ -795,6 +808,18 @@ def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
 
 
 def project_processes(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return dictionary-valued project processes from routing state.
+    
+    Args:
+        state (dict[str, Any]): Untrusted routing state containing an optional
+            ``project_processes`` collection.
+    
+    Returns:
+        list[dict[str, Any]]: The project process entries that are dictionaries.
+        Returns an empty list when the collection is missing, null, or empty.
+    
+    This function does not modify or persist state and does not raise errors.
+    """
     return [
         process
         for process in state.get("project_processes") or []
@@ -803,14 +828,18 @@ def project_processes(state: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def resolved_project_process(state: dict[str, Any]) -> dict[str, Any] | None:
-    """The one *existing* process a project decision is about, or None.
-
-    A hint only names a target when the project actually has that process. "Il
-    processo Gestione acquisto materiali indiretti" for a process nobody has
-    created yet is a request to create it, not a delegation target: Process
-    Macro needs a process_id, so handing it a name would route the turn into a
-    dead end (PROJECT-03). With no hint, a single process in the project is
-    unambiguous by itself.
+    """Resolve the unambiguous existing process targeted by the project state.
+    
+    Args:
+        state (dict[str, Any]): Untrusted routing state containing project processes
+            and an optional process entity hint.
+    
+    Returns:
+        dict[str, Any] | None: The matching existing process, the sole project
+        process when no hint is provided, or `None` when no unambiguous existing
+        process can be identified.
+    
+    This function does not raise errors, mutate state, or persist data.
     """
     processes = project_processes(state)
     hint = _normalized((state.get("entity_hints") or {}).get("process"))

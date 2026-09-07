@@ -22,6 +22,12 @@ const EMPTY: ProcessDraft = {
   readiness: 0,
 };
 
+/**
+ * Creates a process draft from an existing process or the default empty draft.
+ *
+ * @param process - The process to copy, or `null` to create an empty draft.
+ * @returns A draft populated with the process values or default values.
+ */
 function draftFrom(process: ProjectProcess | null): ProcessDraft {
   if (!process) return EMPTY;
   return {
@@ -43,15 +49,13 @@ type ProcessFormDialogProps = {
 };
 
 /**
- * Il record di processo, modificabile a mano.
+ * Renders a dialog for creating or editing a project process.
  *
- * Creare qui non disegna niente: nasce il record e il suo modello BPMN vuoto,
- * che si riempie nel canvas o con l'agente. Stadio e stato rispondono a due
- * domande diverse — quale processo si sta descrivendo, e quanto e' avanti
- * quella descrizione — e ognuno porta la propria definizione nel menu.
- *
- * Come gli altri form del workspace, la bozza nasce al montaggio: chi apre il
- * dialog gli passa una `key` nuova a ogni apertura.
+ * @param open - Whether the dialog is visible
+ * @param onOpenChange - Called when the dialog visibility changes
+ * @param projectId - Identifier of the project receiving a new process
+ * @param process - Existing process to edit; omit to create a new process
+ * @returns The process form dialog
  */
 export function ProcessFormDialog({
   open,

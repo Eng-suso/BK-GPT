@@ -22,6 +22,11 @@ export const clientKeys = {
   list: () => [...clientKeys.all] as const,
 };
 
+/**
+ * Fetches the workspace clients.
+ *
+ * @returns The query result containing the workspace clients
+ */
 export function useClientsQuery(): UseQueryResult<Client[]> {
   return useQuery({
     queryKey: clientKeys.list(),
@@ -33,8 +38,9 @@ export function useClientsQuery(): UseQueryResult<Client[]> {
 }
 
 /**
- * Crea un cliente a mano. Il record e' lo stesso che scrive l'agente: qui il
- * consulente non passa dalla chat, ma finisce nella stessa anagrafica.
+ * Creates a client from a draft.
+ *
+ * @returns A mutation result whose successful value is the created client.
  */
 export function useCreateClientMutation(): UseMutationResult<
   Client,
@@ -56,7 +62,13 @@ export function useCreateClientMutation(): UseMutationResult<
   });
 }
 
-/** Modifica manuale: correggere un campo gia' deciso e' un update, non una create. */
+/**
+ * Provides a mutation for updating an existing client.
+ *
+ * Successful updates refresh client and project query data.
+ *
+ * @returns The client update mutation result
+ */
 export function useUpdateClientMutation(): UseMutationResult<
   Client,
   Error,
