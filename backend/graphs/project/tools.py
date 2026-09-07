@@ -187,28 +187,26 @@ def create_project_process(
     owner: str = "Da assegnare",
     scope_note: str = "",
 ) -> str:
+    # NB: questo docstring non e' documentazione dell'API Python. LangChain lo
+    # passa al modello come `description` del tool, quindi e' il prompt su cui
+    # l'agente decide se chiamarlo e cosa non fare dopo averlo chiamato.
+    # Riscriverlo in formato `Args:/Returns:/Raises:` toglie le istruzioni di
+    # comportamento e aggiunge tipi che il modello ha gia' nello schema.
+    # `tests/test_project_chat_boundaries.py` pinna le due promesse che contano.
     """
-    Register a process in the authorized project workspace without starting discovery or BPMN generation.
-    
-    The operation is idempotent by normalized process name: an existing matching process is
-    returned instead of creating a duplicate. For a new process, it persists the process and
-    its empty BPMN model. When provided, the stated perimeter is persisted as a project source
-    linked to the process; otherwise, the result includes a warning.
-    
-    Args:
-        project_id (str, untrusted): Identifier of the project in which to register the process.
-        name (str, untrusted): Process name used for registration and duplicate detection.
-        stage (str, untrusted): Process lifecycle stage.
-        owner (str, untrusted): Initial process owner.
-        scope_note (str, untrusted): Optional stated perimeter for the process.
-    
-    Returns:
-        str: A serialized result indicating whether the process already existed or was created,
-            including the process details, BPMN model identifier, and any warnings or follow-up
-            actions.
-    
-    Raises:
-        ValueError: If the project is outside the authorized scope or does not exist.
+    Register a process inside the current project. Use whenever the consultant
+    says to add, create or register a process here - this is project workspace
+    setup and it belongs to the Project scope, not to a handoff.
+
+    It creates the process record and its empty BPMN model, and nothing else: it
+    does not start discovery, does not ask discovery questions, does not infer
+    missing process knowledge and does not generate BPMN. Ownership moves to
+    Process Macro only after the record exists, and only when the consultant
+    asks for that work.
+
+    Idempotent by name: a process already registered under the same name is
+    returned instead of a duplicate. A stated perimeter is stored as a project
+    source linked to the process, so it survives the conversation.
     """
     payload = _project_payload(project_id)
     wanted = " ".join(name.casefold().split())
