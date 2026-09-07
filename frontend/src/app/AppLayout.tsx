@@ -8,7 +8,7 @@ import { SECTION_PATH, sectionFromPath } from "@/app/routes";
 import { cn } from "@/lib/utils";
 
 /**
- * Renders the application shell with route-aware navigation and routed content.
+ * Renders the application shell with route-aware navigation, routed content, and global notifications.
  */
 export function AppLayout(): React.JSX.Element {
   const location = useLocation();

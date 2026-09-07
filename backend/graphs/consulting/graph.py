@@ -192,24 +192,39 @@ def parse_router_json(content: str, user_request: str = "", state: dict | None =
 
 def build_consulting_router(llm):
     """
-    Build a consulting-intent routing node backed by a language model.
+    Build a language-model-backed node that routes consulting requests into normalized state.
     
-    The returned node routes the latest user request into normalized consulting
-    routing state. Requests without user text use the direct route with empty
-    delegation and clarification data. Unexpected routing failures are converted
-    to an invalid routing decision rather than propagated.
-    
-    The node invokes the language model and performs no persistence.
+    The returned node uses the latest user request and recent conversation context. When no
+    user text is available, it selects the direct route. Unexpected routing failures are
+    represented as an invalid routing decision rather than propagated. The node invokes the
+    language model and performs no persistence.
     
     Args:
-        llm: Language model used to resolve the routing decision.
+        llm: Language model used to resolve routing decisions.
     
     Returns:
-        A routing callable that accepts consulting state and runtime configuration
-        and returns normalized routing state.
-    
+        A callable accepting consulting state and runtime configuration and returning
+        normalized routing state.
     """
     def route_consulting_intent(state: ConsultingState, config: RunnableConfig) -> dict:
+        """
+        Route the latest consulting request to an authorized destination.
+        
+        Args:
+            state (ConsultingState): Untrusted conversation and routing state used to
+                identify the latest request and resolve conversational references.
+            config (RunnableConfig): Runtime configuration passed to the routing model.
+        
+        Returns:
+            dict: Normalized consulting routing state. When no user message is
+            available, contains a direct route with empty delegation and clarification
+            data. Unexpected routing failures are represented as an invalid decision
+            rather than raised.
+        
+        Side Effects:
+            Invokes the configured language model. Does not persist data.
+        
+        """
         user_text = latest_user_text(state)
         if not user_text:
             return {

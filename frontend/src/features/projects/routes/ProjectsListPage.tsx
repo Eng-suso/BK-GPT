@@ -43,6 +43,13 @@ const STATUS_ORDER: Project["status"][] = [
   "Completato",
 ];
 
+/**
+ * Determines whether a project matches a search query across its searchable fields.
+ *
+ * @param p - The project to search
+ * @param q - The lowercase search query
+ * @returns `true` if any searchable project field contains the query, `false` otherwise.
+ */
 function matchProject(p: Project, q: string): boolean {
   return [p.name, p.client, p.phase, p.status, p.nextStep].some((v) =>
     v.toLowerCase().includes(q),
@@ -57,6 +64,9 @@ function processCount(p: Project): number {
   return p.processes || p.processItems.length;
 }
 
+/**
+ * Renders the project portfolio list with filtering, search, pagination, export, and project management actions.
+ */
 export function ProjectsListPage(): React.JSX.Element {
   const { t } = useTranslation("projects");
   const navigate = useNavigate();

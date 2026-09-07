@@ -290,7 +290,14 @@ export function ProjectDetailPage(): React.JSX.Element {
   );
 }
 
-/* ------------------------------------------------------------------ */
+/**
+ * Displays the project's objective, recent processes, and recent decisions.
+ *
+ * @param project - The project whose overview content is displayed
+ * @param decisions - Decisions associated with the project
+ * @param onOpenProcess - Handles selection of a process
+ * @param onEdit - Opens the project objective editor
+ */
 
 function OverviewTab({
   project,
@@ -360,12 +367,10 @@ function OverviewTab({
 }
 
 /**
- * L'incarico, in cima alla panoramica.
+ * Displays the project objective and provides an action to edit or add it.
  *
- * Fase, stato e avanzamento dicono *dove* e' il progetto; questo dice perche'
- * esiste, ed e' la prima cosa che serve a chi lo riapre — persona o agente.
- * Finche' e' vuoto il blocco lo dice e offre il campo, invece di far sembrare
- * completo un record senza mandato.
+ * @param objective - The current project objective, if available
+ * @param onEdit - Called when the edit or add action is selected
  */
 function ObjectiveBlock({
   objective,
@@ -434,6 +439,14 @@ function ProjectChatTab({
   );
 }
 
+/**
+ * Displays project processes with navigation, editing, and creation actions.
+ *
+ * @param processes - The project processes to display
+ * @param onOpenProcess - Called when a process is selected
+ * @param onCreate - Called when the create-process action is selected
+ * @param onEdit - Called when a process edit action is selected
+ */
 function ProcessesTab({
   processes,
   onOpenProcess,

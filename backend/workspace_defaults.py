@@ -382,16 +382,63 @@ _PROCESS_STATUS_ALIASES: dict[str, str] = {
 
 
 def normalize_process_stage(raw: str | None) -> str | None:
+    """
+    Normalize a process stage value to its canonical representation.
+    
+    Args:
+        raw (str | None): Untrusted stage value to normalize. Empty values produce
+            `None`; unrecognized non-empty values are preserved after whitespace
+            normalization.
+    
+    Returns:
+        str | None: The canonical process stage, the cleaned unrecognized value, or
+            `None` for an absent or empty value.
+    """
     return _normalize_vocabulary(raw, _PROCESS_STAGE_ALIASES)
 
 
 def normalize_process_status(raw: str | None) -> str | None:
+    """Normalize a process status value to its canonical form.
+    
+    Args:
+        raw: Untrusted status input, which may be an alias, an unknown value,
+            empty, or ``None``.
+    
+    Returns:
+        The canonical process status for a recognized alias, the trimmed
+        unrecognized value, or ``None`` for empty or absent input.
+    
+    This function has no side effects and does not persist data.
+    """
     return _normalize_vocabulary(raw, _PROCESS_STATUS_ALIASES)
 
 
 def resolve_process_stage(raw: str | None) -> str:
+    """Resolve a process stage to its canonical value or the default stage.
+    
+    Args:
+        raw: Untrusted stage value to normalize. Empty or missing values use the
+            default stage; unrecognized non-empty values are preserved after
+            whitespace normalization.
+    
+    Returns:
+        The normalized process stage, or ``DEFAULT_PROCESS_STAGE`` when ``raw`` is
+        empty or missing.
+    
+    This function has no side effects and does not persist data.
+    """
     return normalize_process_stage(raw) or DEFAULT_PROCESS_STAGE
 
 
 def resolve_process_status(raw: str | None) -> str:
+    """Resolve a process status to its canonical value.
+    
+    Args:
+        raw: Untrusted status input to normalize.
+    
+    Returns:
+        The normalized status, or ``Bozza`` when the input is absent or empty.
+    
+    The function has no side effects and does not persist data.
+    """
     return normalize_process_status(raw) or DEFAULT_PROCESS_STATUS

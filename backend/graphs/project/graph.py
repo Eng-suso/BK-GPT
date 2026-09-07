@@ -222,6 +222,18 @@ def project_routing_state(
 
 
 def parse_project_router_json(content: str, user_request: str = "", state: dict | None = None) -> dict:
+    """
+    Parse router output and normalize it into project routing state.
+    
+    Args:
+        content (str): Untrusted structured router output to parse.
+        user_request (str): Untrusted user request associated with the routing decision.
+        state (dict | None): Existing project state to incorporate into the normalized result.
+    
+    Returns:
+        dict: Normalized project routing state containing the parsed decision, parsing metadata,
+            and routing information.
+    """
     decision, parse_source, parse_error = parse_routing_decision(
         content,
         ProjectRoutingDecision,
@@ -237,10 +249,15 @@ def parse_project_router_json(content: str, user_request: str = "", state: dict 
 
 
 def _registered_process_names(state: dict) -> str:
-    """The processes that actually exist, so a hint can be checked against them.
-
-    Without the list the router could only guess whether "il processo Gestione
-    acquisti" was a delegation target or a process nobody has created yet.
+    """Formats the names of processes registered in the project state for routing context.
+    
+    Args:
+        state (dict): Untrusted project state containing the optional
+            ``project_processes`` collection.
+    
+    Returns:
+        str: A comma-separated list of registered process names, or ``"nessuno"``
+            when no named processes are registered.
     """
     names = [
         str(process.get("name") or "")
@@ -252,17 +269,38 @@ def _registered_process_names(state: dict) -> str:
 
 def build_project_router(llm):
     """
-    Create a project-intent routing node backed by the configured language model.
+    Create a project-intent routing callable backed by the configured language model.
     
-    The generated node routes the latest user request into normalized project state. It uses a direct route when no user message is available and falls back to an invalid decision when structured routing fails unexpectedly.
+    The callable converts each project request into normalized routing-state updates. It
+    uses a direct route when no user message is available and an invalid decision when
+    structured routing fails unexpectedly. Routing is performed in memory and does not
+    persist state.
     
     Args:
         llm: Language model used to classify project requests.
     
     Returns:
-        A routing callable that accepts project state and runtime configuration and returns routing-state updates.
+        A callable that accepts project state and runtime configuration and returns
+        normalized routing-state updates.
     """
     def route_project_intent(state: ProjectState, config: RunnableConfig) -> dict:
+        """
+        Route the latest project request to the appropriate project workflow.
+        
+        Args:
+            state (ProjectState): Untrusted project and conversation state used to resolve
+                and normalize the routing decision.
+            config (RunnableConfig): Runtime configuration for the routing operation.
+        
+        Returns:
+            dict: Normalized project routing state with route, confidence, clarification,
+                delegation, and routing-trace metadata. When no user request is available,
+                returns a direct route with empty routing metadata.
+        
+        The function does not persist state. Routing failures are converted into an
+        invalid decision and recorded in the returned routing metadata; no exceptions
+        are propagated.
+        """
         user_text = latest_user_text(state)
         if not user_text:
             return {

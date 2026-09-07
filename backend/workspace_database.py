@@ -540,10 +540,29 @@ def create_process(
     owner: str | None = None,
     readiness: int = 0,
 ) -> dict:
-    """Crea il processo e il suo modello BPMN vuoto.
-
-    Stadio e stato seguono la regola del resto del workspace: `None` significa
-    "non dichiarato" e il placeholder si applica qui, al confine col database.
+    """Create a tenant-scoped process and its associated empty BPMN model.
+    
+    The process name is trimmed and must be non-empty. Stage, status, and owner
+    use configured placeholders when unspecified, and readiness is constrained to
+    the range 0–100. The project must belong to the current tenant. This function
+    persists both records and updates the project's process count.
+    
+    Args:
+        project_id (str): Untrusted project identifier.
+        name (str): Untrusted process name.
+        stage (str | None): Untrusted process stage, or None to use its placeholder.
+        status (str | None): Untrusted process status, or None to use its placeholder.
+        owner (str | None): Untrusted process owner, or None to use its placeholder.
+        readiness (int): Untrusted readiness value, constrained to 0–100.
+    
+    Returns:
+        dict: The serialized newly created process.
+    
+    Raises:
+        ValueError: If the name is blank, the project does not exist in the current
+            tenant, or readiness cannot be converted to an integer.
+        TypeError: If readiness cannot be converted to an integer because of its
+            type.
     """
     clean_name = name.strip()
 
@@ -598,11 +617,29 @@ def update_process(
     owner: str | None = None,
     readiness: int | None = None,
 ) -> dict:
-    """Aggiorna i campi dichiarati di un processo. `None` = "non toccare".
-
-    Il nome del modello BPMN segue quello del processo: sono la stessa cosa per
-    chi legge, e lasciarli divergere farebbe comparire nel canvas il nome
-    vecchio dopo una rinomina.
+    """Update selected fields of a tenant-owned process and persist the changes.
+    
+    A process rename also updates the associated BPMN model name. Readiness is
+    constrained to the range 0–100, and omitted fields retain their existing
+    values.
+    
+    Args:
+        process_id (str): Untrusted process identifier.
+        name (str | None): Untrusted replacement name; must contain non-whitespace
+            text when provided.
+        stage (str | None): Untrusted replacement process stage.
+        status (str | None): Untrusted replacement process status.
+        owner (str | None): Untrusted replacement owner; blank values use the
+            configured unknown-owner placeholder.
+        readiness (int | None): Untrusted replacement readiness value, constrained
+            to 0–100.
+    
+    Returns:
+        dict: The updated process serialized as a dictionary.
+    
+    Raises:
+        ValueError: If the process does not exist for the current tenant, the
+            provided name is blank, or readiness cannot be converted to an integer.
     """
     with workspace_connection() as session:
         process = tenant_row(session, WorkspaceProcess, process_id)
@@ -632,6 +669,14 @@ def update_process(
 
 
 def get_process(process_id: str) -> dict | None:
+    """Retrieve a process belonging to the current tenant.
+    
+    Args:
+        process_id (str): Untrusted process identifier to look up within the current tenant.
+    
+    Returns:
+        dict | None: The serialized process, or None if no matching tenant-owned process exists.
+    """
     with workspace_connection() as session:
         process = tenant_row(session, WorkspaceProcess, process_id)
         return process_to_dict(process) if process else None

@@ -126,7 +126,7 @@ def agent_scope_state(
 
 def build_scope_system_prompt(state: dict) -> str:
     """
-    Builds the localized system prompt for the active conversation scope.
+    Build the localized system prompt for the active conversation scope.
     
     Args:
         state (dict): Untrusted per-turn state containing scope identifiers, chat
@@ -134,15 +134,16 @@ def build_scope_system_prompt(state: dict) -> str:
             canvas artifacts.
     
     Returns:
-        str: A newline-delimited system prompt containing the scoped context and
-            operational constraints. Oversized state artifacts and BPMN XML are
-            truncated according to the configured limits.
+        str: A newline-delimited prompt containing scoped context and operational
+            constraints. Oversized state artifacts and BPMN XML are truncated
+            according to the configured limits.
     
     Raises:
-        KeyError: If the chat mode is missing from ``CHAT_MODE_CONTRACTS``.
+        KeyError: If the resolved chat mode is not present in
+            ``CHAT_MODE_CONTRACTS``.
     
-    The generated prompt preserves scope boundaries, uses available identifiers
-    without inventing missing ones, and performs no side effects or persistence.
+    The generated prompt preserves scope boundaries, uses only available
+    identifiers, and does not persist data or perform other side effects.
     """
     scope_type = str(state.get("scope_type") or "consultant")
     chat_mode = str(state.get("chat_mode") or "agent")

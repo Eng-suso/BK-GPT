@@ -292,7 +292,9 @@ def test_update_project_rejects_an_unknown_project(tenant):
 
 @pytestmark_db
 def test_the_consultant_can_edit_a_project_over_http(tenant):
-    """La modifica manuale non passa dall'agente: e' una PATCH sul record."""
+    """
+    Verify that a consultant can partially update a project through the HTTP API while preserving unspecified fields and receiving appropriate responses for missing or invalid records.
+    """
     from fastapi.testclient import TestClient
 
     from backend.app import app

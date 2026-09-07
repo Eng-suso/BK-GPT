@@ -144,9 +144,19 @@ def _project_payload(project_id: str) -> dict:
 @tool
 def get_project_workspace_brief(project_id: str) -> str:
     """
-    Read the authoritative project workspace snapshot: project status, process list,
-    sources, decisions, deliverables and open issues. Use before project-level synthesis
-    or routing when project context is needed. This is read-only.
+    Provide the authorized project workspace snapshot for project-level synthesis and routing.
+    
+    Args:
+        project_id (str): Untrusted project identifier used to select the project.
+    
+    Returns:
+        str: Structured result containing project status and progress, sources, decisions,
+            process counts, and process-readiness data.
+    
+    Raises:
+        ValueError: If the project does not exist or is outside the authorized scope.
+    
+    This function is read-only and does not persist changes.
     """
     payload = _project_payload(project_id)
     project = payload["project"]
@@ -178,19 +188,27 @@ def create_project_process(
     scope_note: str = "",
 ) -> str:
     """
-    Register a process inside the current project. Use whenever the consultant
-    says to add, create or register a process here - this is project workspace
-    setup and it belongs to the Project scope, not to a handoff.
-
-    It creates the process record and its empty BPMN model, and nothing else: it
-    does not start discovery, does not ask discovery questions, does not infer
-    missing process knowledge and does not generate BPMN. Ownership moves to
-    Process Macro only after the record exists, and only when the consultant
-    asks for that work.
-
-    Idempotent by name: a process already registered under the same name is
-    returned instead of a duplicate. A stated perimeter is stored as a project
-    source linked to the process, so it survives the conversation.
+    Register a process in the authorized project workspace without starting discovery or BPMN generation.
+    
+    The operation is idempotent by normalized process name: an existing matching process is
+    returned instead of creating a duplicate. For a new process, it persists the process and
+    its empty BPMN model. When provided, the stated perimeter is persisted as a project source
+    linked to the process; otherwise, the result includes a warning.
+    
+    Args:
+        project_id (str, untrusted): Identifier of the project in which to register the process.
+        name (str, untrusted): Process name used for registration and duplicate detection.
+        stage (str, untrusted): Process lifecycle stage.
+        owner (str, untrusted): Initial process owner.
+        scope_note (str, untrusted): Optional stated perimeter for the process.
+    
+    Returns:
+        str: A serialized result indicating whether the process already existed or was created,
+            including the process details, BPMN model identifier, and any warnings or follow-up
+            actions.
+    
+    Raises:
+        ValueError: If the project is outside the authorized scope or does not exist.
     """
     payload = _project_payload(project_id)
     wanted = " ".join(name.casefold().split())
@@ -275,9 +293,18 @@ def prepare_project_delegation_payload(
     known_context: str = "",
 ) -> str:
     """
-    Purpose: create a narrow structured handoff payload from Project Macro to a
-    project subgraph, Process Macro or Canvas Macro. This does not execute the
-    delegated work.
+    Prepare a structured handoff payload without executing or persisting delegated work.
+    
+    Args:
+        target_owner (str): Untrusted input identifying the intended receiving owner or agent.
+        user_request (str): Untrusted input containing the requested work.
+        expected_result (str): Untrusted input describing the expected outcome.
+        reason (str): Untrusted input explaining the delegation rationale.
+        known_context (str): Untrusted input containing relevant context.
+    
+    Returns:
+        str: A JSON-formatted delegation payload with status, routing, request,
+            expected result, reason, and known context.
     """
     return "Project delegation payload\n" + json.dumps(
         {

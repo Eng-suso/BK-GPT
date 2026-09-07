@@ -288,18 +288,40 @@ def parse_canvas_router_json(content: str, user_request: str = "", state: dict |
 
 
 def build_canvas_router(llm):
-    """Create a canvas-intent routing function backed by the supplied language model.
+    """
+    Create a routing function backed by the supplied language model.
+    
+    The returned function routes the latest canvas request into authorized workflow
+    state. Missing user requests are routed directly, and routing or parsing
+    failures produce an invalid decision without propagating the underlying
+    exception. The function does not persist data or otherwise modify external
+    state.
     
     Args:
-        llm: Language model used to classify the latest user request.
+        llm: Language model used to classify canvas requests.
     
     Returns:
-        A routing function that converts the current canvas state and request into
-        authorized workflow routing state. Missing requests use direct handling,
-        and router failures produce an invalid routing decision without raising
-        the underlying exception.
+        A function that accepts canvas state and runnable configuration and returns
+        authorized canvas routing state.
     """
     def route_canvas_intent(state: CanvasState, config: RunnableConfig) -> dict:
+        """
+        Route the latest canvas request to the appropriate workflow handler.
+        
+        The function treats missing user text as a direct request and converts routing
+        or parsing failures into an invalid routing decision without propagating the
+        underlying exception. It does not persist state or perform external
+        side effects beyond invoking the configured routing model.
+        
+        Args:
+            state (CanvasState): Untrusted workflow state and user-provided context
+                used to determine the routing decision.
+            config (RunnableConfig): Runtime configuration for the routing model.
+        
+        Returns:
+            dict: Authorized canvas routing state containing the selected route,
+                routing metadata, and the original user request.
+        """
         user_text = latest_user_text(state)
         if not user_text:
             return parse_canvas_router_json(

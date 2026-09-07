@@ -17,6 +17,12 @@ const EMPTY: ClientDraft = {
   contact: "",
 };
 
+/**
+ * Creates a client draft from an existing client or the default empty draft.
+ *
+ * @param client - The client whose editable fields should populate the draft, or `null` for an empty draft
+ * @returns A client draft containing the client's editable fields or default values
+ */
 function draftFrom(client: Client | null): ClientDraft {
   if (!client) return EMPTY;
   return {
@@ -36,15 +42,12 @@ type ClientFormDialogProps = {
 };
 
 /**
- * Anagrafica cliente modificabile a mano.
+ * Renders a dialog for creating or editing a client record.
  *
- * Gli stessi campi che l'agente scrive dalla chat, sullo stesso record: il
- * consulente non deve chiedere a un agente il permesso di correggere un settore
- * o promuovere un prospect a cliente attivo.
+ * The client name is required before submission.
  *
- * La bozza nasce dal record al montaggio e basta: chi apre il dialog gli passa
- * una `key` nuova a ogni apertura, cosi' la riapertura riparte dai dati veri
- * invece di risincronizzare lo state dentro un effetto.
+ * @param client - The client to edit; omit to create a new client.
+ * @returns The client form dialog.
  */
 export function ClientFormDialog({
   open,

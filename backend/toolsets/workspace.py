@@ -694,27 +694,27 @@ def update_workspace_project(
     deliverables: list[str] | None = None,
 ) -> str:
     """
-    Update selected fields of an existing project record and persist the changes.
+    Update selected fields of an existing project and persist the changes.
     
     Args:
-        project_id (str): [Untrusted input] Identifier of the project to update.
-        name (str | None): [Untrusted input] Replacement project name, if provided.
-        objective (str | None): [Untrusted input] Replacement project objective, if provided.
-        phase (ProjectPhase | None): [Untrusted input] Replacement project phase, if provided.
-        status (ProjectStatus | None): [Untrusted input] Replacement project status, if provided.
-        progress (int | None): [Untrusted input] Replacement project progress, if provided.
-        next_step (str | None): [Untrusted input] Replacement next step, if provided.
-        milestones (list[str] | None): [Untrusted input] Replacement milestone list, if provided.
-        open_issues (list[str] | None): [Untrusted input] Replacement open-issue list, if provided.
-        deliverables (list[str] | None): [Untrusted input] Replacement deliverable list, if provided.
+        project_id (str): Untrusted project identifier.
+        name (str | None): Untrusted replacement project name.
+        objective (str | None): Untrusted replacement project objective.
+        phase (ProjectPhase | None): Untrusted replacement project phase.
+        status (ProjectStatus | None): Untrusted replacement project status.
+        progress (int | None): Untrusted replacement progress value.
+        next_step (str | None): Untrusted replacement next step.
+        milestones (list[str] | None): Untrusted complete replacement milestone list.
+        open_issues (list[str] | None): Untrusted complete replacement open-issue list.
+        deliverables (list[str] | None): Untrusted complete replacement deliverable list.
     
     Returns:
-        str: A standardized result describing the updated project, or an error result when
-            the project cannot be updated.
+        str: A standardized result containing the updated project, or a structured error
+            for a missing project or database validation failure.
     
     Side Effects:
-        Persists the supplied project-field changes. Database validation or missing-record
-        errors are returned as structured error results.
+        Persists the supplied field changes. Fields omitted from the call remain unchanged;
+        supplied list fields replace their corresponding complete lists.
     """
     try:
         project = workspace_database.update_project(
@@ -758,11 +758,24 @@ def create_workspace_process(
     owner: str | None = None,
     readiness: int = 0,
 ) -> str:
-    """
-    Create a process inside an existing project.
-    Use for AS-IS/TO-BE process records. This creates the process record and its empty BPMN model.
-    It does not generate BPMN XML.
-    Leave stage, status and owner unset when the consultant did not state them.
+    """Create and persist a process and its empty BPMN model within an existing project.
+    
+    Args:
+        project_id: Untrusted identifier of the existing project.
+        name: Untrusted process name.
+        stage: Optional untrusted process stage.
+        status: Optional untrusted process status.
+        owner: Optional untrusted process owner.
+        readiness: Untrusted readiness value, defaulting to zero.
+    
+    Returns:
+        A formatted result describing the created process.
+    
+    Raises:
+        ValueError: If the project does not exist or the process data is invalid.
+    
+    The function does not generate BPMN XML. Unspecified stage, status, and owner
+    values remain unset.
     """
     process = workspace_database.create_process(
         project_id=project_id,
@@ -784,13 +797,18 @@ def update_workspace_process(
     owner: str | None = None,
     readiness: int | None = None,
 ) -> str:
-    """
-    Update an existing process record: name, stage, status, owner, readiness.
-    Declare only the fields that change.
-    Use when the work actually moved - an AS-IS confirmed by the people who run it
-    becomes "Validato" - or when the consultant corrects a recorded value. The
-    consultant edits the same fields by hand in the UI, on the same record.
-    This never touches the BPMN model content.
+    """Update selected metadata fields on an existing process record without changing its BPMN model.
+    
+    Args:
+        process_id (str): [Untrusted input] Identifier of the process to update.
+        name (str | None): [Untrusted input] Replacement process name, or None to leave it unchanged.
+        stage (ProcessStage | None): Replacement process stage, or None to leave it unchanged.
+        status (ProcessStatus | None): Replacement process status, or None to leave it unchanged.
+        owner (str | None): [Untrusted input] Replacement process owner, or None to leave it unchanged.
+        readiness (int | None): [Untrusted input] Replacement readiness value, or None to leave it unchanged.
+    
+    Returns:
+        str: A structured result containing the updated process, or an error result when the process cannot be updated. Database ValueError instances are represented in the result rather than raised.
     """
     try:
         process = workspace_database.update_process(
@@ -824,8 +842,13 @@ def update_workspace_process(
 @tool
 def list_workspace_project_sources(project_id: str) -> str:
     """
-    List sources/evidence already recorded for a project.
-    Use before adding evidence or when the user asks what material is linked to a project.
+    List evidence recorded for a project.
+    
+    Args:
+        project_id (str): Untrusted project identifier used to select linked sources.
+    
+    Returns:
+        str: Formatted project source results.
     """
     return format_workspace_result(
         "Fonti progetto workspace",

@@ -18,14 +18,19 @@ type ListFieldProps = {
 };
 
 /**
- * Una lista di voci brevi — milestone, punti aperti, deliverable — modificabile
- * a mano.
+ * Provides a controlled editor for a list of string values.
  *
- * Le liste del progetto arrivano al backend intere, quindi qui si lavora sempre
- * sull'elenco completo: aggiungere non e' un'append cieca e rimuovere non e' un
- * flag. Invio aggiunge la riga successiva senza inviare il form, cosi' si
- * scrive tutta la lista da tastiera; le righe vuote le scarta il backend, che
- * e' l'unico posto che decide cosa e' una voce.
+ * Pressing Enter inserts a new empty row after the current row without submitting
+ * the surrounding form.
+ *
+ * @param label - The field's accessible label
+ * @param hint - Optional descriptive text displayed below the field
+ * @param values - The current list of values
+ * @param onChange - Called with the updated list when values are added, edited, or removed
+ * @param placeholder - Optional placeholder text for each input
+ * @param addLabel - Label for the button that adds an empty row
+ * @param removeLabel - Label prefix for each row's remove button
+ * @param emptyLabel - Message displayed when the list has no values
  */
 export function ListField({
   label,
