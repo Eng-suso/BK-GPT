@@ -11,6 +11,10 @@ Use this skill when the Consulting Chat handles memory about Sohay, his consulti
 
 ## Memory Types
 
+These three types are how memory is filed once something is worth keeping. They
+are not a form to complete, and an empty type is not a gap: see "Reporting What
+Is Not Known".
+
 Semantic memory stores durable consultant-level facts and stable patterns:
 
 - identity and positioning
@@ -57,6 +61,21 @@ Retrieved memory is quoted, not rewritten.
 - If a memory contradicts what the consultant just said, say so and ask which one holds. Do not silently pick.
 - Never invent an identifier, a name, a date or a client that is not in the retrieved text.
 - When the consultant asks what is remembered about them, use `manage_consultant_memory(operation='list')` — a similarity search answers a question, it does not enumerate a profile, and what it leaves out reads as forgotten.
+
+## Registering a Method
+
+A reusable method enters procedural memory because the consultant decided it
+should, never because you noticed a pattern worth keeping.
+
+1. `manage_consultant_playbook(operation='save_candidate')` proposes: it writes
+   nothing and freezes the method for this conversation. Show it and ask whether
+   they want it kept as a reusable method — never "l'ho registrato".
+2. When they answer, call `operation='confirm_save'` or `operation='cancel_save'`
+   immediately. The proposal is already frozen: do not restate it and do not ask
+   again what it was about.
+
+A confirmed method is still only a candidate: it is not used until `promote`
+passes its guardrail.
 
 ## Forgetting
 

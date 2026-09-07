@@ -598,8 +598,9 @@ class ManageConsultantPlaybookInput(BaseModel):
     operation: str = Field(
         description=(
             "list to retrieve active playbooks relevant to a task; inspect for one "
-            "playbook by id; save_candidate to store a new learned method as a "
-            "candidate (NOT active); promote to run the guardrail and activate a "
+            "playbook by id; save_candidate to PROPOSE a new learned method (nothing "
+            "is written until the consultant confirms); confirm_save or cancel_save "
+            "the moment they answer; promote to run the guardrail and activate a "
             "candidate; deprecate to retire an active playbook; generalize to turn a "
             "client-scoped playbook into a consultant-scoped candidate (needs project + "
             "playbook_id, INV-13 — a rewrite, not a copy); record_outcome to log how a "
@@ -644,19 +645,27 @@ def manage_consultant_playbook(
     future turns: a method, a heuristic, or a checklist. Shipped repo skills are the
     source of truth for their own content and are never edited here (INV-12); this
     tool only handles methods learned while working with the consultant.
-    A new playbook is saved as a candidate and is NOT used by the agent until it is
-    promoted: promote runs a guardrail (PII, and for consultant scope any leftover
-    client names) and activates the playbook only if it comes back clean.
+    Registering a method is the consultant's decision, never your initiative:
+    save_candidate writes nothing, it freezes the proposal for this conversation and
+    returns it so you can show the method and ask "lo registro come metodo
+    riutilizzabile?". Never say it is saved at this step. Call confirm_save or
+    cancel_save as soon as they answer; the proposal is already frozen, so do not
+    restate it and do not ask again what it was about.
+    A confirmed playbook is stored as a candidate and is still NOT used by the agent
+    until it is promoted: promote runs a guardrail (PII, and for consultant scope any
+    leftover client names) and activates the playbook only if it comes back clean.
     Promoting a client-scoped playbook to consultant scope is a separate
     generalization step, never a copy (INV-13).
     Returns an enterprise tool result with the playbook id and status.
     """
-    from backend.memory import canonical_memory, gateway
+    from backend.agents.run_context import active_thread_id
+    from backend.memory import canonical_memory, gateway, pending_actions
     from backend.memory import scope as canonical_scope
     from backend.settings import settings
 
     normalized_operation = (operation or "").strip().lower()
     consultant_id = settings.default_consultant_id
+    thread_id = active_thread_id() or "unbound"
     scope_value = (scope or "").strip().lower()
     # `project` = si opera nello scope di quel cliente (necessario per vedere /
     # promuovere / valutare i playbook client-scoped). generalize lo richiede
@@ -727,6 +736,9 @@ def manage_consultant_playbook(
         )
 
     if normalized_operation == "save_candidate":
+        # CONSULTANT-V2-01: il metodo lo registra il consulente, non l'agente di
+        # propria iniziativa. Qui non si scrive niente: si congela la proposta sul
+        # thread, esattamente come per una cancellazione, e si aspetta la risposta.
         if not title.strip() or not body.strip():
             return enterprise_tool_result(
                 status="blocked",
@@ -735,18 +747,102 @@ def manage_consultant_playbook(
                 summary="save_candidate richiede title e body.",
                 payload={"operation": normalized_operation},
             )
+        preview = "\n".join(
+            part
+            for part in (
+                title.strip(),
+                f"Si applica quando: {applies_when.strip()}" if applies_when.strip() else "",
+                body.strip(),
+            )
+            if part
+        )
+        action = pending_actions.propose(
+            consultant_id=consultant_id,
+            thread_id=thread_id,
+            action="save_playbook",
+            params={
+                "kind": (kind or "playbook").strip().lower(),
+                "title": title.strip(),
+                "body": body.strip(),
+                "applies_when": applies_when.strip() or None,
+                "scope": "client" if save_as_client else "consultant",
+                "client_id": client_id if save_as_client else None,
+                "project_id": canonical_project_id if save_as_client else None,
+                "derived_from": derived_from or [],
+                "confidence": confidence,
+            },
+            preview=preview,
+        )
+        return enterprise_tool_result(
+            status="awaiting_confirmation",
+            action="manage_consultant_playbook",
+            entity_type="consultant_playbook",
+            entity_id=action["id"],
+            summary=(
+                "Metodo proposto, non registrato. Mostralo al consulente e chiedi se "
+                "vuole tenerlo come metodo riutilizzabile."
+            ),
+            payload={
+                "operation": normalized_operation,
+                "pending_action_id": action["id"],
+                "preview": preview,
+                "next_step": "manage_consultant_playbook(operation='confirm_save'|'cancel_save')",
+            },
+        )
+
+    if normalized_operation in {"confirm_save", "cancel_save"}:
+        pending = pending_actions.open_action(
+            consultant_id=consultant_id, thread_id=thread_id, action="save_playbook"
+        )
+        if pending is None:
+            return enterprise_tool_result(
+                status="not_found",
+                action="manage_consultant_playbook",
+                entity_type="consultant_playbook",
+                summary=(
+                    "Nessun metodo in attesa su questa conversazione. Se il consulente "
+                    "vuole registrarne uno, riparti da operation='save_candidate'."
+                ),
+                payload={"operation": normalized_operation},
+            )
+
+        if normalized_operation == "cancel_save":
+            pending_actions.cancel(consultant_id=consultant_id, thread_id=thread_id)
+            return enterprise_tool_result(
+                status="cancelled",
+                action="manage_consultant_playbook",
+                entity_type="consultant_playbook",
+                entity_id=pending["id"],
+                summary="Metodo non registrato: resta solo in questa conversazione.",
+                payload={"operation": normalized_operation, "preview": pending["preview"]},
+            )
+
+        claimed = pending_actions.claim(
+            consultant_id=consultant_id, thread_id=thread_id, action_id=pending["id"]
+        )
+        if claimed is None:
+            return enterprise_tool_result(
+                status="noop",
+                action="manage_consultant_playbook",
+                entity_type="consultant_playbook",
+                entity_id=pending["id"],
+                summary="Proposta gia' risolta (registrata, annullata o scaduta): non la rieseguo.",
+                payload={"operation": normalized_operation},
+            )
+
+        params = claimed["params"] or {}
         try:
             new_id = canonical_memory.write_procedural_candidate(
                 consultant_id,
-                kind=(kind or "playbook").strip().lower(),
-                title=title.strip(),
-                body=body.strip(),
-                applies_when=applies_when.strip() or None,
-                scope="client" if save_as_client else "consultant",
-                client_id=client_id if save_as_client else None,
-                project_id=canonical_project_id if save_as_client else None,
-                derived_from=derived_from or [],
-                confidence=confidence,
+                kind=params.get("kind") or "playbook",
+                title=params["title"],
+                body=params["body"],
+                applies_when=params.get("applies_when"),
+                scope=params.get("scope") or "consultant",
+                client_id=params.get("client_id"),
+                project_id=params.get("project_id"),
+                derived_from=params.get("derived_from") or [],
+                confidence=params.get("confidence", 0.5),
                 created_by="consultant",
             )
         except Exception as exc:  # noqa: BLE001
@@ -757,6 +853,13 @@ def manage_consultant_playbook(
                 summary=f"Salvataggio candidate fallito: {exc}",
                 payload={"operation": normalized_operation},
             )
+
+        pending_actions.record_result(
+            consultant_id=consultant_id,
+            thread_id=thread_id,
+            action_id=claimed["id"],
+            result={"status": "ok", "playbook_id": new_id},
+        )
         return enterprise_tool_result(
             status="saved",
             action="manage_consultant_playbook",
