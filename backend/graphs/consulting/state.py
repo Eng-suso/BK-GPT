@@ -31,6 +31,12 @@ class ConsultingState(ConversationState):
     clarification_question: str | None
     entity_hints: dict
     workspace_overview_json: dict | None
+    # I record che il workspace contiene davvero. Il router li legge per sapere
+    # se un progetto esiste gia': "delega il lavoro" e "crea il contenitore" sono
+    # due decisioni diverse, e la differenza sta nei dati, non nel tono della
+    # richiesta.
+    workspace_clients: list[dict]
+    workspace_projects: list[dict]
 
     routing_trace: Annotated[list[dict], add]
     delegation_events: Annotated[list[dict], add]

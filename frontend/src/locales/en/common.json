@@ -54,12 +54,70 @@
     "empty": "The model library activates once the dedicated endpoint is ready."
   },
   "archive": {
-    "description": "Documents, versions, exports and project deliverables.",
-    "empty": "The document archive activates once the dedicated endpoint is ready."
+    "description": "Closed clients, projects and processes. Still readable, and reopenable.",
+    "empty": "Nothing archived: everything you opened is still work in progress.",
+    "tabs": {
+      "clients": "Clients",
+      "projects": "Projects",
+      "processes": "Processes"
+    },
+    "closedOn": "Closed on",
+    "reason": "Reason",
+    "noReason": "No reason recorded"
   },
   "language": {
     "label": "Language",
     "it": "Italian",
     "en": "English"
+  },
+  "lifecycle": {
+    "kind": {
+      "client": "client",
+      "project": "project",
+      "process": "process"
+    },
+    "error": "The operation failed.",
+    "actions": {
+      "archive": "Archive",
+      "restore": "Restore",
+      "delete": "Delete",
+      "edit": "Edit",
+      "more": "More actions"
+    },
+    "archive": {
+      "title": "Archive {{kind}}",
+      "description": "\"{{name}}\" leaves the working lists and stays readable in the Archive. You can reopen it any time.",
+      "submit": "Archive",
+      "reason": "Reason for closing",
+      "reasonHint": "Optional, but it is what tells \"finished\" from \"never went anywhere\" when you read it back in a year.",
+      "reasonPlaceholder": "Engagement closed, final report delivered…"
+    },
+    "restore": {
+      "title": "Reopen {{kind}}",
+      "description": "\"{{name}}\" returns to the working lists, along with what was closed with it.",
+      "submit": "Restore"
+    },
+    "delete": {
+      "title": "Delete {{kind}}",
+      "description": "\"{{name}}\" is permanently deleted, with everything that depends on it.",
+      "submit": "Delete permanently",
+      "confirmLabel": "Type \"{{name}}\" to confirm",
+      "confirmHint": "It is there so the wrong record cannot be deleted by accident.",
+      "nameMismatch": "The name does not match: nothing was deleted.",
+      "warning": "This cannot be undone. If you only need it out of your current work, archive it instead."
+    },
+    "impact": {
+      "title": "What this involves",
+      "projects": "Projects",
+      "processes": "Processes",
+      "sources": "Sources",
+      "decisions": "Decisions",
+      "none": "No linked records."
+    },
+    "toast": {
+      "archived": "{{name}} archived.",
+      "restored": "{{name}} restored.",
+      "deleted": "{{name}} deleted."
+    }
   }
 }

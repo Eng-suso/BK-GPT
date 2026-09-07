@@ -6,6 +6,7 @@ import {
   apiBpmnModelSchema,
   apiBpmnVersionSchema,
   apiClientSchema,
+  apiMilestoneSchema,
   apiProcessSchema,
   apiProjectDecisionSchema,
   apiProjectSchema,
@@ -35,6 +36,7 @@ const components = (backendContract as { components: Record<string, ComponentSpe
 const SCHEMA_BY_COMPONENT: Record<string, ZodType> = {
   ClientResponse: apiClientSchema,
   ProjectResponse: apiProjectSchema,
+  MilestoneModel: apiMilestoneSchema,
   ProjectProcessResponse: apiProcessSchema,
   ProjectSourceResponse: apiProjectSourceSchema,
   ProjectDecisionResponse: apiProjectDecisionSchema,

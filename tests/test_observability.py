@@ -119,7 +119,7 @@ def test_stream_agent_events_records_first_token_usage_and_langsmith_config(monk
     class FakeAgent:
         def stream(self, _input, *, config, stream_mode):
             captured_config.update(config)
-            assert stream_mode == "messages"
+            assert stream_mode == ["messages", "updates"]
             yield FakeChunk("Ciao"), {"langgraph_node": "consult_macro_agent"}
             yield FakeChunk(
                 "",
@@ -132,7 +132,6 @@ def test_stream_agent_events_records_first_token_usage_and_langsmith_config(monk
 
     monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: FakeAgent())
     monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
-    monkeypatch.setattr(agent_runtime, "build_activity_event", lambda **_kwargs: None)
     monkeypatch.setattr(settings, "langsmith_model_name", "gpt-5.4-mini")
 
     events = list(
@@ -160,7 +159,14 @@ def test_stream_agent_events_records_first_token_usage_and_langsmith_config(monk
     assert "consultant-chat" in captured_config["tags"]
 
 
-def test_stream_agent_events_emits_llm_activity_while_agent_is_busy(monkeypatch):
+class FakeToolCallMessage:
+    """Un messaggio dell'agente che sta per chiamare dei tool."""
+
+    def __init__(self, tool_calls):
+        self.tool_calls = tool_calls
+
+
+def test_stream_agent_events_narrates_the_phases_the_agent_actually_goes_through(monkeypatch):
     class FakeChunk:
         type = "AIMessageChunk"
 
@@ -168,39 +174,94 @@ def test_stream_agent_events_emits_llm_activity_while_agent_is_busy(monkeypatch)
             self.content = content
             self.usage_metadata = None
 
-    class SlowAgent:
+    class ToolUsingAgent:
         def stream(self, _input, *, config, stream_mode):
-            assert stream_mode == "messages"
-            time.sleep(0.04)
-            yield FakeChunk("Fatto"), {"langgraph_node": "consult_macro_agent"}
+            assert stream_mode == ["messages", "updates"]
+            time.sleep(0.02)
+            yield "updates", {
+                "consult_macro_agent": {
+                    "messages": [
+                        FakeToolCallMessage(
+                            [{"name": "retrieve_consulting_context", "args": {"query": "intervista Laura"}}]
+                        )
+                    ]
+                }
+            }
+            # Due tool della stessa famiglia: una sola riga di progresso.
+            yield "updates", {
+                "consult_macro_agent": {
+                    "messages": [
+                        FakeToolCallMessage([{"name": "retrieve_consulting_graph_context", "args": {}}])
+                    ]
+                }
+            }
+            yield "updates", {
+                "consult_macro_agent": {
+                    "messages": [
+                        FakeToolCallMessage(
+                            [{"name": "list_workspace_project_sources", "args": {"project_id": "p-1"}}]
+                        )
+                    ]
+                }
+            }
+            yield "messages", (FakeChunk("Ecco "), {"langgraph_node": "consult_macro_agent"})
+            yield "messages", (FakeChunk("il quadro."), {"langgraph_node": "consult_macro_agent"})
 
-    def fake_activity(**kwargs):
-        return AgentStreamEvent(
-            type="activity",
-            request_id=kwargs["context"].request_id,
-            trace_id=kwargs["context"].trace_id,
-            thread_id=kwargs["thread_id"],
-            node=kwargs["node_name"],
-            message="Analizzo richiesta",
-            payload={"activity_id": f"activity-{kwargs['sequence']}", "icon": "brain"},
-        )
-
-    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: SlowAgent())
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: ToolUsingAgent())
     monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
-    monkeypatch.setattr(agent_runtime, "ACTIVITY_HEARTBEAT_SECONDS", 0.01)
-    monkeypatch.setattr(agent_runtime, "build_activity_event", fake_activity)
 
     events = list(
         agent_runtime.stream_agent_events(
             thread_id="thread-activity",
             model_name="gpt-5.6-luna",
-            messages=[{"role": "user", "content": "lavora sul canvas"}],
+            messages=[{"role": "user", "content": "cosa sappiamo di Esaote"}],
             scope=None,
         )
     )
+    activities = [event for event in events if event.type == "activity"]
+    phases = [event.payload["phase"] for event in activities]
 
-    assert [event.type for event in events].count("activity") >= 2
-    assert any(event.type == "delta" and event.content == "Fatto" for event in events)
+    assert phases == ["understanding", "recalling", "reading_sources", "drafting"]
+    # Una fase per riga: nessuna frase ripetuta, mai.
+    assert len(phases) == len(set(phases))
+    assert any(event.type == "delta" and event.content == "Ecco " for event in events)
+
+
+def test_progress_updates_never_leak_internal_names(monkeypatch):
+    class FakeChunk:
+        type = "AIMessageChunk"
+
+        def __init__(self, content=""):
+            self.content = content
+            self.usage_metadata = None
+
+    class CanvasAgent:
+        def stream(self, _input, *, config, stream_mode):
+            yield "messages", (FakeChunk(""), {"langgraph_node": "canvas_construction_agent"})
+            yield "messages", (FakeChunk("Pronto"), {"langgraph_node": "canvas_drawing_agent"})
+
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: CanvasAgent())
+    monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
+
+    events = list(
+        agent_runtime.stream_agent_events(
+            thread_id="thread-internal-names",
+            model_name="gpt-5.6-luna",
+            messages=[{"role": "user", "content": "aggiorna il canvas"}],
+            scope=None,
+        )
+    )
+    activities = [event for event in events if event.type == "activity"]
+
+    assert activities
+    for event in activities:
+        rendered = f"{event.message} {event.payload.get('detail', '')}".lower()
+        for leak in ("agent", "subgraph", "node", "router", "canvas_", "xml", "tool"):
+            assert leak not in rendered
+        # Il livello di traccia porta il nodo; il livello utente no.
+        assert event.node is None
+    # Il nodo interno resta comunque visibile nella traccia.
+    assert any(event.type == "node" and event.node == "canvas_drawing_agent" for event in events)
 
 
 def test_stream_agent_events_streams_canvas_subagent_text_but_hides_internal_chunks(monkeypatch):
@@ -213,7 +274,7 @@ def test_stream_agent_events_streams_canvas_subagent_text_but_hides_internal_chu
 
     class FakeAgent:
         def stream(self, _input, *, config, stream_mode):
-            assert stream_mode == "messages"
+            assert stream_mode == ["messages", "updates"]
             yield FakeChunk('{"rows":[["Start","Task"]]}'), {
                 "langgraph_node": "canvas_layout_consultant_agent",
                 "delir_stream_visibility": "internal",
@@ -222,7 +283,6 @@ def test_stream_agent_events_streams_canvas_subagent_text_but_hides_internal_chu
 
     monkeypatch.setattr(agent_runtime, "get_agent", lambda *_args, **_kwargs: FakeAgent())
     monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
-    monkeypatch.setattr(agent_runtime, "build_activity_event", lambda **_kwargs: None)
 
     events = list(
         agent_runtime.stream_agent_events(

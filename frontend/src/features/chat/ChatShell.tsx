@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MoreHorizontal, Share2, Trash2 } from "lucide-react";
+import { MoreHorizontal, Share2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
@@ -32,6 +32,10 @@ interface ChatShellProps {
   messages?: ChatMessage[];
   activeTitle?: string;
   isBusy?: boolean;
+  /** Messaggi scritti durante il turno e non ancora partiti. */
+  queuedMessages?: { content: string }[];
+  onCancelQueued?: (index: number) => void;
+  onStop?: () => void;
   selectedModel?: string;
   chatMode: ChatMode;
   onChatModeChange: (mode: ChatMode) => void;
@@ -54,6 +58,63 @@ interface ChatShellProps {
   reviewSlot?: React.ReactNode;
 }
 
+/**
+ * La coda del turno, a vista.
+ *
+ * Quello che il consulente scrive mentre l'agente lavora non sparisce e non
+ * scavalca la risposta: resta qui finche' il turno non si chiude, e si puo'
+ * togliere se nel frattempo non serve piu'.
+ */
+function QueuedMessages({
+  items,
+  onCancel,
+}: {
+  items: { content: string }[];
+  onCancel?: (index: number) => void;
+}): React.JSX.Element | null {
+  const { t } = useTranslation("chat");
+  if (items.length === 0) return null;
+
+  return (
+    <section
+      className="mx-auto mt-3 flex w-full max-w-[var(--chat-measure)] flex-col gap-1.5 rounded-lg border border-dashed border-border bg-muted/40 p-3"
+      aria-label={t("queue.title")}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+        {t("queue.title")}
+      </p>
+      <ul className="flex flex-col gap-1.5">
+        {items.map((item, index) => (
+          <li
+            key={`${index}-${item.content.slice(0, 24)}`}
+            className="flex items-start gap-2 text-sm text-foreground"
+          >
+            <span className="mt-0.5 flex-none rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.04em] text-muted-foreground">
+              {t("status.queuedLabel")}
+            </span>
+            <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
+              {item.content}
+            </span>
+            {onCancel ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t("queue.remove")}
+                title={t("queue.remove")}
+                onClick={() => onCancel(index)}
+              >
+                <X />
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-muted-foreground">{t("queue.hint")}</p>
+    </section>
+  );
+}
+
 export const ChatShell: React.FC<ChatShellProps> = ({
   chrome = "full",
   layout = "standalone",
@@ -63,6 +124,9 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   messages = [],
   activeTitle = "Chat consulente",
   isBusy = false,
+  queuedMessages = [],
+  onCancelQueued,
+  onStop,
   selectedModel = "gpt-5.6-luna",
   chatMode,
   onChatModeChange,
@@ -197,6 +261,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           ) : (
             <MessageList messages={messages} onRetry={onRetry} />
           )}
+          <QueuedMessages items={queuedMessages} onCancel={onCancelQueued} />
           {reviewSlot}
           <div ref={messagesEndRef} />
         </div>
@@ -209,6 +274,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           reasoningEffort={reasoningEffort}
           onReasoningEffortChange={onReasoningEffortChange}
           isBusy={isBusy}
+          onStop={onStop}
           onSubmit={onSendMessage}
           onTranscribeAudio={onTranscribeAudio}
           onAttach={onAttach}
@@ -261,6 +327,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
               ) : (
                 <MessageList messages={messages} onRetry={onRetry} />
               )}
+              <QueuedMessages items={queuedMessages} onCancel={onCancelQueued} />
               {reviewSlot}
               <div ref={messagesEndRef} />
             </div>
@@ -274,6 +341,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
             reasoningEffort={reasoningEffort}
             onReasoningEffortChange={onReasoningEffortChange}
             isBusy={isBusy}
+            onStop={onStop}
             onSubmit={onSendMessage}
             onTranscribeAudio={onTranscribeAudio}
             onAttach={onAttach}

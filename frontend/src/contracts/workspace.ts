@@ -1,6 +1,28 @@
 import { z } from "zod";
 
-export type ProjectProcess = {
+/**
+ * Quando un record e' stato chiuso, e perche'.
+ *
+ * `archivedAt` vuoto = lavoro corrente. Un incarico chiuso esce dagli elenchi
+ * operativi e resta leggibile in Archivio: chiudere e cancellare sono due
+ * decisioni diverse, e prima esisteva solo la seconda.
+ */
+export type ArchiveState = {
+  archivedAt: string | null;
+  archiveReason: string | null;
+};
+
+/** Cosa si porta dietro chiudere o eliminare un record. */
+export type ArchiveImpact = {
+  id: string;
+  name: string;
+  projects: number;
+  processes: number;
+  sources: number;
+  decisions: number;
+};
+
+export type ProjectProcess = ArchiveState & {
   id: string;
   projectId: string;
   bpmnModelId: string;
@@ -58,7 +80,24 @@ export const PROCESS_STATUSES = [
 ] as const;
 export type ProcessStatus = (typeof PROCESS_STATUSES)[number];
 
-export type Project = {
+/**
+ * Un traguardo del progetto, e se e' stato raggiunto.
+ *
+ * Prima era una riga di testo, e il pannello di riepilogo disegnava lo stato
+ * dall'ordine della lista: la prima voce spuntata, la seconda in corso. Adesso
+ * lo stato arriva dal record, e nessuno lo inventa.
+ */
+export type Milestone = {
+  title: string;
+  status: MilestoneStatus;
+  /** ISO 8601, valorizzata dal backend solo quando la milestone e' raggiunta. */
+  completedAt: string | null;
+};
+
+export const MILESTONE_STATUSES = ["planned", "done"] as const;
+export type MilestoneStatus = (typeof MILESTONE_STATUSES)[number];
+
+export type Project = ArchiveState & {
   id: string;
   clientId: string;
   name: string;
@@ -70,13 +109,13 @@ export type Project = {
   progress: number;
   processes: number;
   nextStep: string;
-  milestones: string[];
+  milestones: Milestone[];
   openIssues: string[];
   deliverables: string[];
   processItems: ProjectProcess[];
 };
 
-export type Client = {
+export type Client = ArchiveState & {
   id: string;
   name: string;
   sector: string;
@@ -114,6 +153,11 @@ export type ProjectDraft = {
   status: ProjectStatus;
   progress: number;
   nextStep: string;
+  /**
+   * Il form modifica i titoli; lo stato di ogni milestone lo conserva il
+   * backend, che riconosce le voci rimaste per titolo. Marcarne una come
+   * raggiunta passa da `toApiMilestonePayload`.
+   */
   milestones: string[];
   openIssues: string[];
   deliverables: string[];
@@ -137,6 +181,33 @@ export type ProjectDecision = {
   status: string;
 };
 
+// Un record salvato prima dell'archivio non porta questi campi: assenti vuol
+// dire attivo, non "risposta malformata".
+const archiveFields = {
+  archived_at: z.string().nullable().default(null),
+  archive_reason: z.string().nullable().default(null),
+};
+
+/** Legge lo stato di archiviazione da una risposta del backend. */
+export function toArchiveState(record: {
+  archived_at?: string | null;
+  archive_reason?: string | null;
+}): ArchiveState {
+  return {
+    archivedAt: record.archived_at ?? null,
+    archiveReason: record.archive_reason ?? null,
+  };
+}
+
+export const apiArchiveImpactSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  projects: z.number(),
+  processes: z.number(),
+  sources: z.number(),
+  decisions: z.number(),
+});
+
 export const apiClientSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -149,6 +220,7 @@ export const apiClientSchema = z.object({
   contact: z.string(),
   processes: z.array(z.string()),
   documents: z.array(z.string()),
+  ...archiveFields,
 });
 
 const CLIENT_STATUS: Record<string, Client["status"]> = {
@@ -179,6 +251,15 @@ export const apiProcessSchema = z.object({
   status: z.string(),
   owner: z.string(),
   readiness: z.number(),
+  ...archiveFields,
+});
+
+export const apiMilestoneSchema = z.object({
+  title: z.string(),
+  // Vocabolario del backend, non enum: uno stato sconosciuto non deve far
+  // fallire il parse dell'intero progetto. Lo normalizza `toMilestone`.
+  status: z.string().default("planned"),
+  completed_at: z.string().nullable().default(null),
 });
 
 export const apiProjectSchema = z.object({
@@ -193,10 +274,18 @@ export const apiProjectSchema = z.object({
   progress: z.number(),
   processes: z.number(),
   next_step: z.string(),
-  milestones: z.array(z.string()),
+  // Un record salvato prima di MILESTONE-01 porta ancora una lista di stringhe.
+  milestones: z.array(z.union([apiMilestoneSchema, z.string()])),
   open_issues: z.array(z.string()),
   deliverables: z.array(z.string()),
+  ...archiveFields,
   process_items: z.array(apiProcessSchema),
+});
+
+export const apiArchiveSchema = z.object({
+  clients: z.array(apiClientSchema),
+  projects: z.array(apiProjectSchema),
+  processes: z.array(apiProcessSchema),
 });
 
 export const apiProjectSourceSchema = z.object({
@@ -240,6 +329,7 @@ export function toClient(client: z.infer<typeof apiClientSchema>): Client {
     contact: client.contact,
     processes: client.processes,
     documents: client.documents,
+    ...toArchiveState(client),
   };
 }
 
@@ -279,7 +369,46 @@ export function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectPro
       : "Bozza") as ProjectProcess["status"],
     owner: process.owner,
     readiness: process.readiness,
+    ...toArchiveState(process),
   };
+}
+
+/**
+ * Converts one API milestone entry into the client-side milestone.
+ *
+ * @param milestone - A structured milestone, or the bare title stored before
+ *   milestones carried their own state
+ * @returns The normalized milestone
+ */
+export function toMilestone(
+  milestone: z.infer<typeof apiMilestoneSchema> | string,
+): Milestone {
+  if (typeof milestone === "string") {
+    return { title: milestone, status: "planned", completedAt: null };
+  }
+
+  const status: MilestoneStatus = milestone.status === "done" ? "done" : "planned";
+  return {
+    title: milestone.title,
+    status,
+    completedAt: status === "done" ? milestone.completed_at : null,
+  };
+}
+
+/**
+ * Builds the backend payload for a milestone list whose state must be preserved.
+ *
+ * @param milestones - The milestones as the UI holds them
+ * @returns The milestone entries in backend field names
+ */
+export function toApiMilestonePayload(
+  milestones: Milestone[],
+): Record<string, unknown>[] {
+  return milestones.map((milestone) => ({
+    title: milestone.title,
+    status: milestone.status,
+    completed_at: milestone.completedAt,
+  }));
 }
 
 /**
@@ -302,9 +431,10 @@ export function toProject(project: z.infer<typeof apiProjectSchema>): Project {
     progress: project.progress,
     processes: project.processes,
     nextStep: project.next_step,
-    milestones: project.milestones,
+    milestones: project.milestones.map(toMilestone),
     openIssues: project.open_issues,
     deliverables: project.deliverables,
+    ...toArchiveState(project),
     processItems: project.process_items.map(toProcess),
   };
 }

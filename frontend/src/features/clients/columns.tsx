@@ -1,12 +1,32 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
+import { Archive, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { StatusIndicator } from "@/components/status";
+import { Button } from "@/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import type { Client } from "./types";
 import { clientStatusTone } from "./types";
 
-export function buildClientColumns(t: TFunction): ColumnDef<Client>[] {
-  return [
+export type ClientRowActions = {
+  onEdit: (client: Client) => void;
+  onArchive: (client: Client) => void;
+  onDelete: (client: Client) => void;
+  /** Etichette dal namespace `common`, dove vive il vocabolario del ciclo di vita. */
+  tCommon: TFunction;
+};
+
+export function buildClientColumns(
+  t: TFunction,
+  actions?: ClientRowActions,
+): ColumnDef<Client>[] {
+  const columns: ColumnDef<Client>[] = [
     {
       accessorKey: "name",
       header: t("list.columns.client"),
@@ -58,4 +78,53 @@ export function buildClientColumns(t: TFunction): ColumnDef<Client>[] {
       ),
     },
   ];
+
+  if (!actions) return columns;
+
+  // Le azioni stanno sulla riga, non solo nel pannello di dettaglio: quel
+  // pannello sparisce sotto una certa larghezza, e con lui sparivano modifica,
+  // chiusura ed eliminazione del cliente.
+  const { tCommon } = actions;
+  columns.push({
+    id: "actions",
+    header: "",
+    enableSorting: false,
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`${tCommon("lifecycle.actions.more")}: ${row.original.name}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => actions.onEdit(row.original)}>
+              <Pencil />
+              {tCommon("lifecycle.actions.edit")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => actions.onArchive(row.original)}>
+              <Archive />
+              {tCommon("lifecycle.actions.archive")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => actions.onDelete(row.original)}
+            >
+              <Trash2 />
+              {tCommon("lifecycle.actions.delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    ),
+  });
+
+  return columns;
 }

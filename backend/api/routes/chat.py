@@ -4,6 +4,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from backend.agents.product_language import internal_language_leaks
 from backend.database import (
     append_chat_message,
     create_chat_session,
@@ -24,6 +25,7 @@ from backend.schemas.chat_api import (
     SendMessageRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
+from backend.services import degradation_counters
 from backend.services.agent_runtime import (
     build_trace_context,
     scope_fields,
@@ -33,6 +35,32 @@ from backend.services.agent_runtime import (
 
 
 router = APIRouter(tags=["chat"], dependencies=[Depends(require_principal)])
+
+
+def record_product_language(*, answer: str, asked: str, scope_type: str | None) -> list[str]:
+    """Segna quando la risposta al consulente parla ancora da sistema.
+
+    PROCESS-V2-01. Il contratto di lingua sta nel prompt, quindi la regola vive
+    nel modello: senza un contatore, una regressione di linguaggio si vede solo
+    quando la nota il consulente. Qui non si riscrive niente - riscrivere la
+    risposta a valle nasconderebbe il difetto invece di misurarlo.
+
+    Args:
+        answer: Testo consegnato al consulente.
+        asked: Messaggio del consulente in questo turno.
+        scope_type: Scope della chat, per sapere dove sta perdendo.
+
+    Returns:
+        list[str]: Famiglie di vocabolario interno trovate, vuota se pulita.
+    """
+    leaks = internal_language_leaks(answer, consultant_asked=asked)
+    if leaks:
+        degradation_counters.bump(
+            "product_language",
+            "internal_leak",
+            detail=f"scope={scope_type or 'consultant'} terms={','.join(leaks)}",
+        )
+    return leaks
 
 
 def ndjson_event(event_type: str, **payload) -> str:
@@ -194,6 +222,11 @@ def send_consultant_chat_message(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    record_product_language(
+        answer=response_message,
+        asked=request.message,
+        scope_type=fields.get("scope_type"),
+    )
     append_chat_message(
         thread_id=thread_id,
         role="assistant",
@@ -290,6 +323,11 @@ def stream_consultant_chat_message(
                     return
 
             response_message = "".join(response_parts)
+            record_product_language(
+                answer=response_message,
+                asked=request.message,
+                scope_type=fields.get("scope_type"),
+            )
             append_chat_message(
                 thread_id=thread_id,
                 role="assistant",

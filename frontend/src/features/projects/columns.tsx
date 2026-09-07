@@ -1,10 +1,27 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
+import { Archive, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { ProgressBar } from "@/components/data";
 import { StatusIndicator } from "@/components/status";
+import { Button } from "@/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import type { Project } from "./types";
 import { projectStatusRank, projectStatusTone } from "./types";
+
+export type ProjectRowActions = {
+  onEdit: (project: Project) => void;
+  onArchive: (project: Project) => void;
+  onDelete: (project: Project) => void;
+  /** Etichette dal namespace `common`, dove vive il vocabolario del ciclo di vita. */
+  tCommon: TFunction;
+};
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -12,8 +29,11 @@ function initials(name: string): string {
   return name.slice(0, 2).toUpperCase() || "—";
 }
 
-export function buildProjectColumns(t: TFunction): ColumnDef<Project>[] {
-  return [
+export function buildProjectColumns(
+  t: TFunction,
+  actions?: ProjectRowActions,
+): ColumnDef<Project>[] {
+  const columns: ColumnDef<Project>[] = [
     {
       accessorKey: "name",
       header: t("list.columns.project"),
@@ -92,4 +112,50 @@ export function buildProjectColumns(t: TFunction): ColumnDef<Project>[] {
       ),
     },
   ];
+
+  if (!actions) return columns;
+
+  const { tCommon } = actions;
+  columns.push({
+    id: "actions",
+    header: "",
+    enableSorting: false,
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`${tCommon("lifecycle.actions.more")}: ${row.original.name}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => actions.onEdit(row.original)}>
+              <Pencil />
+              {tCommon("lifecycle.actions.edit")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => actions.onArchive(row.original)}>
+              <Archive />
+              {tCommon("lifecycle.actions.archive")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => actions.onDelete(row.original)}
+            >
+              <Trash2 />
+              {tCommon("lifecycle.actions.delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    ),
+  });
+
+  return columns;
 }

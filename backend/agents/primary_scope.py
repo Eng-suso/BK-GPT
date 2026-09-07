@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from backend.agents.attachments import build_attachments_prompt, resolve_attachments
+from backend.agents.product_language import PRODUCT_LANGUAGE_CONTRACT
 from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
     ChatAttachment,
@@ -248,6 +249,29 @@ def build_scope_system_prompt(state: dict) -> str:
                 ]
             )
 
+    # PROCESS-V2-01: i blocchi qui sotto sono stato di lavoro. L'agente li legge
+    # per decidere; il consulente non deve leggerne i nomi. Il marcatore sta
+    # prima del primo blocco tecnico presente, cosi' la regola arriva insieme al
+    # materiale a cui si applica invece che in fondo, dopo l'XML.
+    if any(
+        state.get(field) is not None
+        for field in (
+            "readiness_score",
+            "process_understanding",
+            "process_understanding_diagnostics",
+            "process_quality_report",
+            "bpmn_semantic_model",
+        )
+    ):
+        lines.extend(
+            [
+                "",
+                "Stato di lavoro interno. Serve a te per decidere, non al "
+                "consulente per leggerlo: usane il contenuto, non i nomi dei "
+                "campi ne' i punteggi grezzi.",
+            ]
+        )
+
     if state.get("readiness_score") is not None:
         lines.append(f"readiness_score: {state['readiness_score']}")
     if state.get("missing_information"):
@@ -387,6 +411,8 @@ def build_scope_system_prompt(state: dict) -> str:
             "Il riferimento a un'entita' nominata nei turni precedenti - \"il "
             "processo\", \"quello\", \"aggiungilo\" - va risolto leggendo la "
             "conversazione. Richiedi il nome solo se resta davvero ambiguo.",
+            "",
+            PRODUCT_LANGUAGE_CONTRACT,
         ]
     )
     return "\n".join(lines)

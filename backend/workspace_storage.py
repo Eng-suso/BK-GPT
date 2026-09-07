@@ -23,8 +23,15 @@ class WorkspaceClient(WorkspaceBase):
     status: Mapped[str] = mapped_column(String, nullable=False)
     owner: Mapped[str] = mapped_column(String, nullable=False)
     contact: Mapped[str] = mapped_column(String, nullable=False)
+    # Un incarico che finisce non sparisce: esce dal lavoro corrente e resta
+    # consultabile in archivio. `archived_at` vuoto = attivo.
+    archived_at: Mapped[str | None] = mapped_column(String, index=True)
+    archive_reason: Mapped[str | None] = mapped_column(Text)
 
-    projects: Mapped[list["WorkspaceProject"]] = relationship(back_populates="client")
+    projects: Mapped[list["WorkspaceProject"]] = relationship(
+        back_populates="client",
+        cascade="all, delete-orphan",
+    )
 
 
 class WorkspaceProject(WorkspaceBase):
@@ -47,6 +54,8 @@ class WorkspaceProject(WorkspaceBase):
     milestones_json: Mapped[str] = mapped_column(Text, nullable=False)
     open_issues_json: Mapped[str] = mapped_column(Text, nullable=False)
     deliverables_json: Mapped[str] = mapped_column(Text, nullable=False)
+    archived_at: Mapped[str | None] = mapped_column(String, index=True)
+    archive_reason: Mapped[str | None] = mapped_column(Text)
 
     client: Mapped[WorkspaceClient] = relationship(back_populates="projects")
     processes: Mapped[list["WorkspaceProcess"]] = relationship(
@@ -68,6 +77,8 @@ class WorkspaceProcess(WorkspaceBase):
     status: Mapped[str] = mapped_column(String, nullable=False)
     owner: Mapped[str] = mapped_column(String, nullable=False)
     readiness: Mapped[int] = mapped_column(Integer, nullable=False)
+    archived_at: Mapped[str | None] = mapped_column(String, index=True)
+    archive_reason: Mapped[str | None] = mapped_column(Text)
 
     project: Mapped[WorkspaceProject] = relationship(back_populates="processes")
     bpmn_model: Mapped["WorkspaceBpmnModel"] = relationship(

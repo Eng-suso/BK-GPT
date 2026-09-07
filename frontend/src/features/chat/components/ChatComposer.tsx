@@ -36,6 +36,8 @@ interface ChatComposerProps {
   reasoningEffort: ReasoningEffort;
   onReasoningEffortChange: (effort: ReasoningEffort) => void;
   isBusy?: boolean;
+  /** Ferma il turno in corso. Assente quando non c'e' niente da fermare. */
+  onStop?: () => void;
   onSubmit?: (message: string, attachments: ChatAttachment[]) => void;
   onTranscribeAudio?: (file: File) => Promise<string>;
   onAttach?: () => void;
@@ -184,6 +186,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   reasoningEffort,
   onReasoningEffortChange,
   isBusy = false,
+  onStop,
   onSubmit,
   onTranscribeAudio,
   onAttach,
@@ -216,7 +219,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const liveDeltaByItemRef = useRef<Map<string, string>>(new Map());
   const timerRef = useRef<number | null>(null);
   const startedAtRef = useRef<number | null>(null);
-  const isLocked = isBusy || isTranscribing;
+  // Mentre l'agente lavora la riga resta scrivibile: quello che si scrive va in
+  // coda al turno. Bloccarla costringeva ad aspettare la fine per aggiungere un
+  // dettaglio che serviva subito.
+  const isLocked = isTranscribing;
 
   const autoGrow = () => {
     if (textareaRef.current) {
@@ -765,6 +771,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
 
           <div className="composer-actions">
+            {/* Un turno in corso si ferma da qui, senza cambiare pagina e senza
+                perdere la parte di risposta gia' arrivata. */}
+            {isBusy && onStop ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onStop}
+                title={t("composer.stopAgentHint")}
+              >
+                <Square />
+                <span>{t("composer.stopAgent")}</span>
+              </Button>
+            ) : null}
             {/* In registrazione il microfono diventa Stop con il tempo a vista:
                 uno stato attivo deve essere fermabile in un click. */}
             {isRecording ? (
@@ -800,10 +820,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               type="submit"
               size="sm"
               disabled={isLocked || isRecording || !value.trim()}
-              aria-label={t("composer.send")}
-              title={t("composer.sendHint")}
+              aria-label={isBusy ? t("composer.queue") : t("composer.send")}
+              title={isBusy ? t("composer.queueHint") : t("composer.sendHint")}
             >
-              <span>{t("composer.send")}</span>
+              <span>{isBusy ? t("composer.queue") : t("composer.send")}</span>
               <ArrowUp />
             </Button>
           </div>

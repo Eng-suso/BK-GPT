@@ -23,6 +23,7 @@ from backend.workspace_defaults import (
     resolve_project_phase,
     resolve_project_status,
 )
+from backend.workspace_milestones import merge_milestones, normalise_milestones
 from backend.workspace_services.bpmn_review import build_bpmn_review_draft, bpmn_xml_from_review
 from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 from backend.workspace_storage import (
@@ -35,6 +36,7 @@ from backend.workspace_storage import (
     WorkspaceProcess,
     WorkspaceProject,
     WorkspaceSimulationRun,
+    WorkspaceSimulationRunArtifact,
     WorkspaceSource,
     workspace_connection,
 )
@@ -47,6 +49,22 @@ def encode_list(values: list[str]) -> str:
 def decode_list(value: str) -> list[str]:
     parsed = json.loads(value or "[]")
     return parsed if isinstance(parsed, list) else []
+
+
+def decode_milestones(value: str) -> list[dict]:
+    """Read the stored milestones, upgrading rows written as plain titles.
+
+    Args:
+        value: The project's stored ``milestones_json`` payload.
+
+    Returns:
+        list[dict]: The milestones as ``{title, status, completed_at}``.
+    """
+    return normalise_milestones(decode_list(value))
+
+
+def encode_milestones(values: list[dict]) -> str:
+    return json.dumps(values, ensure_ascii=False)
 
 
 def now_iso() -> str:
@@ -94,6 +112,8 @@ def process_to_dict(process: WorkspaceProcess) -> dict:
         "status": process.status,
         "owner": process.owner,
         "readiness": process.readiness,
+        "archived_at": process.archived_at,
+        "archive_reason": process.archive_reason,
     }
 
 
@@ -120,18 +140,32 @@ def project_to_dict(project: WorkspaceProject, include_processes: bool = True) -
         "progress": project.progress,
         "processes": project.process_count,
         "next_step": project.next_step,
-        "milestones": decode_list(project.milestones_json),
+        "milestones": decode_milestones(project.milestones_json),
         "open_issues": decode_list(project.open_issues_json),
         "deliverables": decode_list(project.deliverables_json),
-        "process_items": [process_to_dict(process) for process in project.processes]
+        "archived_at": project.archived_at,
+        "archive_reason": project.archive_reason,
+        "process_items": [
+            process_to_dict(process)
+            for process in project.processes
+            if process.archived_at is None
+        ]
         if include_processes
         else [],
     }
 
 
 def client_to_dict(client: WorkspaceClient) -> dict:
-    projects = list(client.projects)
-    processes = [process.name for project in projects for process in project.processes]
+    # I conteggi che il consulente legge sono quelli del lavoro corrente: un
+    # progetto archiviato non e' un progetto in corso, e contarlo qui rimetterebbe
+    # in pista un incarico chiuso.
+    projects = [project for project in client.projects if project.archived_at is None]
+    processes = [
+        process.name
+        for project in projects
+        for process in project.processes
+        if process.archived_at is None
+    ]
     documents = [
         deliverable
         for project in projects
@@ -150,21 +184,30 @@ def client_to_dict(client: WorkspaceClient) -> dict:
         "contact": client.contact,
         "processes": processes,
         "documents": documents,
+        "archived_at": client.archived_at,
+        "archive_reason": client.archive_reason,
     }
 
 
-def list_clients() -> list[dict]:
+def list_clients(include_archived: bool = False) -> list[dict]:
     """List clients belonging to the current tenant in name order.
-    
+
+    Args:
+        include_archived: Include closed clients. Off by default: the directory
+            is the work in progress, not everything that ever happened.
+
     Returns:
         list[dict]: Tenant-scoped client records sorted by name.
     """
     with workspace_connection() as session:
-        clients = session.execute(
+        statement = (
             select(WorkspaceClient)
             .where(WorkspaceClient.tenant_id == tenant_id())
             .order_by(WorkspaceClient.name)
-        ).scalars().all()
+        )
+        if not include_archived:
+            statement = statement.where(WorkspaceClient.archived_at.is_(None))
+        clients = session.execute(statement).scalars().all()
         return [client_to_dict(client) for client in clients]
 
 
@@ -277,13 +320,16 @@ def create_client(
         return client_to_dict(client)
 
 
-def list_projects() -> list[dict]:
+def list_projects(include_archived: bool = False) -> list[dict]:
     with workspace_connection() as session:
-        projects = session.execute(
+        statement = (
             select(WorkspaceProject)
             .where(WorkspaceProject.tenant_id == tenant_id())
             .order_by(WorkspaceProject.name)
-        ).scalars().all()
+        )
+        if not include_archived:
+            statement = statement.where(WorkspaceProject.archived_at.is_(None))
+        projects = session.execute(statement).scalars().all()
         return [project_to_dict(project) for project in projects]
 
 
@@ -295,7 +341,7 @@ def create_project(
     status: str | None = None,
     progress: int = 0,
     next_step: str | None = None,
-    milestones: list[str] | None = None,
+    milestones: list | None = None,
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> dict:
@@ -309,7 +355,7 @@ def create_project(
         status (str | None): Untrusted project status, resolved to the configured placeholder when omitted.
         progress (int): Untrusted progress value, constrained to the range 0 through 100.
         next_step (str | None): Untrusted next step, replaced with the configured placeholder when empty.
-        milestones (list[str] | None): Untrusted milestone entries to store with the project.
+        milestones (list | None): Untrusted milestone entries to store with the project, as titles or as ``{title, status, completed_at}`` mappings.
         open_issues (list[str] | None): Untrusted open-issue entries to store with the project.
         deliverables (list[str] | None): Untrusted deliverable entries to store with the project.
     
@@ -346,7 +392,7 @@ def create_project(
             progress=max(0, min(int(progress), 100)),
             process_count=0,
             next_step=(next_step or "").strip() or UNKNOWN_NEXT_STEP,
-            milestones_json=encode_list(milestones or []),
+            milestones_json=encode_milestones(normalise_milestones(milestones)),
             open_issues_json=encode_list(open_issues or []),
             deliverables_json=encode_list(deliverables or []),
         )
@@ -421,7 +467,7 @@ def update_project(
     status: str | None = None,
     progress: int | None = None,
     next_step: str | None = None,
-    milestones: list[str] | None = None,
+    milestones: list | None = None,
     open_issues: list[str] | None = None,
     deliverables: list[str] | None = None,
 ) -> dict:
@@ -441,7 +487,9 @@ def update_project(
         status: Untrusted replacement project status.
         progress: Untrusted replacement progress value.
         next_step: Untrusted replacement next step.
-        milestones: Untrusted replacement milestone list.
+        milestones: Untrusted replacement milestone list, as titles or as
+            ``{title, status, completed_at}`` mappings. An entry sent as a plain
+            title keeps the state it already had.
         open_issues: Untrusted replacement open-issue list.
         deliverables: Untrusted replacement deliverable list.
     
@@ -479,7 +527,9 @@ def update_project(
         if next_step is not None:
             project.next_step = next_step.strip() or UNKNOWN_NEXT_STEP
         if milestones is not None:
-            project.milestones_json = encode_list(_clean_list(milestones))
+            project.milestones_json = encode_milestones(
+                merge_milestones(decode_milestones(project.milestones_json), milestones)
+            )
         if open_issues is not None:
             project.open_issues_json = encode_list(_clean_list(open_issues))
         if deliverables is not None:
@@ -517,7 +567,7 @@ def get_project(project_id: str) -> dict | None:
         return project_to_dict(project) if project else None
 
 
-def list_project_processes(project_id: str) -> list[dict]:
+def list_project_processes(project_id: str, include_archived: bool = False) -> list[dict]:
     with workspace_connection() as session:
         if tenant_row(session, WorkspaceProject, project_id) is None:
             return []
@@ -528,6 +578,8 @@ def list_project_processes(project_id: str) -> list[dict]:
             .where(WorkspaceProcess.tenant_id == tenant_id())
             .order_by(WorkspaceProcess.name)
         )
+        if not include_archived:
+            statement = statement.where(WorkspaceProcess.archived_at.is_(None))
         processes = session.execute(statement).scalars().all()
         return [process_to_dict(process) for process in processes]
 
@@ -1736,6 +1788,397 @@ def create_project_decision(
         session.add(decision)
         session.flush()
         return decision_to_dict(decision)
+
+
+# ---------------------------------------------------------------------------
+# Ciclo di vita: chiudere non e' cancellare
+#
+# Un incarico finisce, e il record deve poter uscire dal lavoro corrente senza
+# portarsi via decisioni, fonti e modelli. `archive` mette una data; `restore` la
+# toglie; `delete` e' l'unica operazione che perde davvero qualcosa, e per questo
+# dichiara prima cosa porta con se'.
+# ---------------------------------------------------------------------------
+
+
+def _client_or_raise(session, client_id: str) -> WorkspaceClient:
+    client = tenant_row(session, WorkspaceClient, client_id)
+    if client is None:
+        raise ValueError(f"Cliente non trovato: {client_id}")
+    return client
+
+
+def _project_or_raise(session, project_id: str) -> WorkspaceProject:
+    project = tenant_row(session, WorkspaceProject, project_id)
+    if project is None:
+        raise ValueError(f"Progetto non trovato: {project_id}")
+    return project
+
+
+def _process_or_raise(session, process_id: str) -> WorkspaceProcess:
+    process = tenant_row(session, WorkspaceProcess, process_id)
+    if process is None:
+        raise ValueError(f"Processo non trovato: {process_id}")
+    return process
+
+
+def _record_counts(session, *, client=None, project=None) -> dict[str, int]:
+    """Cosa sta appeso a questo record, contato sui dati.
+
+    Serve a scrivere la conferma: "questo cliente porta con se' 3 progetti e 5
+    processi" e' una frase che si puo' verificare, "sei sicuro?" no.
+    """
+    if client is not None:
+        projects = list(client.projects)
+    elif project is not None:
+        projects = [project]
+    else:
+        projects = []
+
+    processes = [process for item in projects for process in item.processes]
+    project_ids = [item.id for item in projects]
+    sources = 0
+    decisions = 0
+
+    if project_ids:
+        sources = session.execute(
+            select(func.count())
+            .select_from(WorkspaceSource)
+            .where(WorkspaceSource.project_id.in_(project_ids))
+            .where(WorkspaceSource.tenant_id == tenant_id())
+        ).scalar_one()
+        decisions = session.execute(
+            select(func.count())
+            .select_from(WorkspaceDecision)
+            .where(WorkspaceDecision.project_id.in_(project_ids))
+            .where(WorkspaceDecision.tenant_id == tenant_id())
+        ).scalar_one()
+
+    return {
+        "projects": len(projects) if client is not None else 0,
+        "processes": len(processes),
+        "sources": int(sources),
+        "decisions": int(decisions),
+    }
+
+
+def client_impact(client_id: str) -> dict:
+    """Cosa comporta chiudere o eliminare questo cliente."""
+    with workspace_connection() as session:
+        client = _client_or_raise(session, client_id)
+        return {"id": client.id, "name": client.name, **_record_counts(session, client=client)}
+
+
+def project_impact(project_id: str) -> dict:
+    """Cosa comporta chiudere o eliminare questo progetto."""
+    with workspace_connection() as session:
+        project = _project_or_raise(session, project_id)
+        counts = _record_counts(session, project=project)
+        return {"id": project.id, "name": project.name, **counts}
+
+
+def process_impact(process_id: str) -> dict:
+    """Cosa comporta chiudere o eliminare questo processo."""
+    with workspace_connection() as session:
+        process = _process_or_raise(session, process_id)
+        sources = session.execute(
+            select(func.count())
+            .select_from(WorkspaceSource)
+            .where(WorkspaceSource.process_id == process.id)
+            .where(WorkspaceSource.tenant_id == tenant_id())
+        ).scalar_one()
+        return {
+            "id": process.id,
+            "name": process.name,
+            "projects": 0,
+            "processes": 0,
+            "sources": int(sources),
+            "decisions": 0,
+        }
+
+
+def archive_client(client_id: str, reason: str | None = None) -> dict:
+    """Chiude un cliente e, con lui, i suoi progetti e processi.
+
+    Un cliente chiuso i cui progetti restassero aperti sarebbe uno stato che il
+    consulente non puo' spiegare: l'archiviazione scende lungo la gerarchia, e
+    `restore` la risale solo per cio' che era stato chiuso insieme.
+    """
+    assert_write_allowed("archiviare un cliente")
+    stamp = now_iso()
+    clean_reason = " ".join((reason or "").split()) or None
+
+    with workspace_connection() as session:
+        client = _client_or_raise(session, client_id)
+        if client.archived_at is not None:
+            return client_to_dict(client)
+
+        client.archived_at = stamp
+        client.archive_reason = clean_reason
+
+        for project in client.projects:
+            if project.archived_at is None:
+                project.archived_at = stamp
+                project.archive_reason = clean_reason
+                project.process_count = 0
+                for process in project.processes:
+                    if process.archived_at is None:
+                        process.archived_at = stamp
+                        process.archive_reason = clean_reason
+
+        session.flush()
+        return client_to_dict(client)
+
+
+def restore_client(client_id: str) -> dict:
+    """Riapre un cliente e cio' che era stato chiuso nello stesso momento."""
+    assert_write_allowed("ripristinare un cliente")
+
+    with workspace_connection() as session:
+        client = _client_or_raise(session, client_id)
+        stamp = client.archived_at
+        client.archived_at = None
+        client.archive_reason = None
+
+        for project in client.projects:
+            if project.archived_at == stamp:
+                project.archived_at = None
+                project.archive_reason = None
+                restored = 0
+                for process in project.processes:
+                    if process.archived_at == stamp:
+                        process.archived_at = None
+                        process.archive_reason = None
+                    if process.archived_at is None:
+                        restored += 1
+                project.process_count = restored
+
+        session.flush()
+        return client_to_dict(client)
+
+
+def archive_project(project_id: str, reason: str | None = None) -> dict:
+    """Chiude un progetto e i suoi processi."""
+    assert_write_allowed("archiviare un progetto")
+    stamp = now_iso()
+    clean_reason = " ".join((reason or "").split()) or None
+
+    with workspace_connection() as session:
+        project = _project_or_raise(session, project_id)
+        if project.archived_at is not None:
+            return project_to_dict(project)
+
+        project.archived_at = stamp
+        project.archive_reason = clean_reason
+        project.process_count = 0
+        for process in project.processes:
+            if process.archived_at is None:
+                process.archived_at = stamp
+                process.archive_reason = clean_reason
+
+        session.flush()
+        return project_to_dict(project)
+
+
+def restore_project(project_id: str) -> dict:
+    """Riapre un progetto, e con lui il cliente se era chiuso."""
+    assert_write_allowed("ripristinare un progetto")
+
+    with workspace_connection() as session:
+        project = _project_or_raise(session, project_id)
+        stamp = project.archived_at
+        project.archived_at = None
+        project.archive_reason = None
+
+        restored = 0
+        for process in project.processes:
+            if process.archived_at == stamp:
+                process.archived_at = None
+                process.archive_reason = None
+            if process.archived_at is None:
+                restored += 1
+        project.process_count = restored
+
+        # Un progetto attivo sotto un cliente chiuso non e' uno stato leggibile.
+        if project.client.archived_at is not None:
+            project.client.archived_at = None
+            project.client.archive_reason = None
+
+        session.flush()
+        return project_to_dict(project)
+
+
+def archive_process(process_id: str, reason: str | None = None) -> dict:
+    """Chiude un processo, lasciando aperto il progetto."""
+    assert_write_allowed("archiviare un processo")
+
+    with workspace_connection() as session:
+        process = _process_or_raise(session, process_id)
+        if process.archived_at is None:
+            process.archived_at = now_iso()
+            process.archive_reason = " ".join((reason or "").split()) or None
+            process.project.process_count = max(0, process.project.process_count - 1)
+            session.flush()
+        return process_to_dict(process)
+
+
+def restore_process(process_id: str) -> dict:
+    """Riapre un processo, e con lui il progetto se era chiuso."""
+    assert_write_allowed("ripristinare un processo")
+
+    with workspace_connection() as session:
+        process = _process_or_raise(session, process_id)
+        if process.archived_at is not None:
+            process.archived_at = None
+            process.archive_reason = None
+            project = process.project
+            if project.archived_at is not None:
+                project.archived_at = None
+                project.archive_reason = None
+                project.process_count = 0
+            if project.client.archived_at is not None:
+                project.client.archived_at = None
+                project.client.archive_reason = None
+            project.process_count += 1
+            session.flush()
+        return process_to_dict(process)
+
+
+def delete_client(client_id: str) -> dict:
+    """Elimina un cliente e tutto cio' che ne dipende. Non si torna indietro."""
+    assert_write_allowed("eliminare un cliente")
+
+    with workspace_connection() as session:
+        client = _client_or_raise(session, client_id)
+        removed = {"id": client.id, "name": client.name, **_record_counts(session, client=client)}
+        for project in list(client.projects):
+            _purge_project(session, project)
+        session.delete(client)
+        session.flush()
+        return removed
+
+
+def delete_project(project_id: str) -> dict:
+    """Elimina un progetto, i suoi processi, fonti e decisioni."""
+    assert_write_allowed("eliminare un progetto")
+
+    with workspace_connection() as session:
+        project = _project_or_raise(session, project_id)
+        removed = {
+            "id": project.id,
+            "name": project.name,
+            **_record_counts(session, project=project),
+        }
+        _purge_project(session, project)
+        session.flush()
+        return removed
+
+
+def delete_process(process_id: str) -> dict:
+    """Elimina un processo, il suo modello BPMN e le fonti che vi puntavano."""
+    assert_write_allowed("eliminare un processo")
+
+    with workspace_connection() as session:
+        process = _process_or_raise(session, process_id)
+        removed = {
+            "id": process.id,
+            "name": process.name,
+            "projects": 0,
+            "processes": 1,
+            "sources": 0,
+            "decisions": 0,
+        }
+        project = process.project
+        _purge_process(session, process)
+        if project.archived_at is None:
+            project.process_count = max(0, project.process_count - 1)
+        session.flush()
+        return removed
+
+
+def _purge_process(session, process: WorkspaceProcess) -> None:
+    """Toglie un processo e tutto cio' che lo referenzia per id."""
+    bpmn_model_id = process.bpmn_model_id
+
+    # L'artefatto di simulazione ha una FK sul run: va tolto prima, o la
+    # cancellazione del run lascia una riga orfana che nessuna query raggiunge.
+    run_ids = [
+        run.id
+        for run in session.execute(
+            select(WorkspaceSimulationRun).where(
+                WorkspaceSimulationRun.bpmn_model_id == bpmn_model_id
+            )
+        ).scalars()
+    ]
+    if run_ids:
+        for artifact in session.execute(
+            select(WorkspaceSimulationRunArtifact).where(
+                WorkspaceSimulationRunArtifact.run_id.in_(run_ids)
+            )
+        ).scalars():
+            session.delete(artifact)
+
+    for model, column in (
+        (WorkspaceBpmnVersion, WorkspaceBpmnVersion.bpmn_model_id),
+        (WorkspaceBpmnReview, WorkspaceBpmnReview.bpmn_model_id),
+        (WorkspaceBpmnReviewVersion, WorkspaceBpmnReviewVersion.bpmn_model_id),
+        (WorkspaceSimulationRun, WorkspaceSimulationRun.bpmn_model_id),
+    ):
+        for row in session.execute(select(model).where(column == bpmn_model_id)).scalars():
+            session.delete(row)
+
+    for model, column in (
+        (WorkspaceSource, WorkspaceSource.process_id),
+        (WorkspaceDecision, WorkspaceDecision.process_id),
+    ):
+        for row in session.execute(select(model).where(column == process.id)).scalars():
+            session.delete(row)
+
+    session.delete(process)
+
+
+def _purge_project(session, project: WorkspaceProject) -> None:
+    """Toglie un progetto, i suoi processi e i record che vi appartengono."""
+    for process in list(project.processes):
+        _purge_process(session, process)
+
+    for model, column in (
+        (WorkspaceSource, WorkspaceSource.project_id),
+        (WorkspaceDecision, WorkspaceDecision.project_id),
+    ):
+        for row in session.execute(select(model).where(column == project.id)).scalars():
+            session.delete(row)
+
+    session.delete(project)
+
+
+def list_archive() -> dict:
+    """Tutto cio' che e' stato chiuso, per la sezione Archivio."""
+    with workspace_connection() as session:
+        current_tenant_id = tenant_id()
+        clients = session.execute(
+            select(WorkspaceClient)
+            .where(WorkspaceClient.tenant_id == current_tenant_id)
+            .where(WorkspaceClient.archived_at.is_not(None))
+            .order_by(WorkspaceClient.archived_at.desc())
+        ).scalars().all()
+        projects = session.execute(
+            select(WorkspaceProject)
+            .where(WorkspaceProject.tenant_id == current_tenant_id)
+            .where(WorkspaceProject.archived_at.is_not(None))
+            .order_by(WorkspaceProject.archived_at.desc())
+        ).scalars().all()
+        processes = session.execute(
+            select(WorkspaceProcess)
+            .where(WorkspaceProcess.tenant_id == current_tenant_id)
+            .where(WorkspaceProcess.archived_at.is_not(None))
+            .order_by(WorkspaceProcess.archived_at.desc())
+        ).scalars().all()
+
+        return {
+            "clients": [client_to_dict(client) for client in clients],
+            "projects": [project_to_dict(project, include_processes=False) for project in projects],
+            "processes": [process_to_dict(process) for process in processes],
+        }
 
 
 def reset_workspace() -> None:

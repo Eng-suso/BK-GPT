@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  toApiMilestonePayload,
   toApiProcessPayload,
   toApiProjectPayload,
   toProcess,
@@ -18,6 +19,7 @@ import {
   apiProjectsSchema,
   apiProjectSourcesSchema,
   apiProjectDecisionsSchema,
+  type Milestone,
   toProject,
   toProjectSource,
   toProjectDecision,
@@ -112,6 +114,35 @@ export function useUpdateProjectMutation(): UseMutationResult<
       queryClient.setQueryData(projectKeys.detail(project.id), project);
       void queryClient.invalidateQueries({ queryKey: projectKeys.all });
       void queryClient.invalidateQueries({ queryKey: ["clients"] });
+    },
+  });
+}
+
+/**
+ * Writes the project's milestone list with the state of each entry.
+ *
+ * Separate from `useUpdateProjectMutation`, which carries a whole draft: marking
+ * a milestone reached touches one field and must not resend the rest of the
+ * record from a view that may be a few seconds stale.
+ *
+ * @param projectId - The project whose milestones are written
+ * @returns The mutation writing the milestone list
+ */
+export function useSetProjectMilestonesMutation(
+  projectId: string,
+): UseMutationResult<Project, Error, Milestone[]> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (milestones: Milestone[]) => {
+      const raw = await http<unknown>(`/v1/workspace/projects/${projectId}`, {
+        method: "PATCH",
+        body: { milestones: toApiMilestonePayload(milestones) },
+      });
+      return toProject(apiProjectSchema.parse(raw));
+    },
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectKeys.detail(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
     },
   });
 }

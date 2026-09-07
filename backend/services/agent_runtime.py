@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
-import json
-import re
-from functools import lru_cache
 from queue import Empty, Queue
 from threading import Lock
 from threading import Thread
-import time
 from typing import Any, Iterator
 from uuid import UUID
 
@@ -16,13 +12,16 @@ from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
 from backend.agents.run_context import bind_active_thread
 from backend.agents.scope_guard import bind_active_scope
-from backend.llm_config import chat_openai_kwargs
 from backend.llm_streaming import (
     INTERNAL_STREAM_METADATA_KEY,
     INTERNAL_STREAM_METADATA_VALUE,
-    stream_to_text,
 )
 from backend.schemas.api import AgentStreamEvent, ApiError, TraceContext
+from backend.services.agent_progress import (
+    DRAFTING,
+    UNDERSTANDING,
+    ProgressNarrator,
+)
 from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
     ChatAttachment,
@@ -46,7 +45,10 @@ except ImportError:  # pragma: no cover - langsmith is provided by LangChain dep
 
 
 THREAD_LOCK_TIMEOUT_SECONDS = 30
-ACTIVITY_HEARTBEAT_SECONDS = 4.0
+# Il ciclo di lettura della coda si sveglia per accorgersi che il worker e' morto
+# senza sentinella. Non e' piu' un battito che genera testo: il progresso esce
+# quando cambia la fase, non allo scadere di un timer.
+QUEUE_POLL_SECONDS = 1.0
 # Agent work is visible by default. These two sets are the exceptions, so a node
 # added to a graph reports progress without anyone remembering to register it -
 # the previous allow-list of 44 node names silently swallowed every new node.
@@ -59,6 +61,7 @@ INTERNAL_AGENT_NODES = {
     "load_process_context",
     "load_canvas_context",
     "load_context",
+    "load_workspace_records",
     "consulting_router",
     "project_router",
     "process_router",
@@ -93,7 +96,6 @@ def is_internal_agent_node(node_name: str) -> bool:
 
 _THREAD_LOCKS: dict[str, Lock] = {}
 _THREAD_LOCKS_GUARD = Lock()
-_ACTIVITY_WORD_RE = re.compile(r"[\w']+")
 
 
 def merge_usage_metadata(
@@ -145,32 +147,6 @@ def message_content_to_text(content) -> str:
     return str(content or "")
 
 
-def sanitize_activity_label(value: str) -> str:
-    """Visible agent status: no JSON, no hidden reasoning, max five words."""
-    text = " ".join(str(value or "").strip().split())
-    if not text or "{" in text or "}" in text:
-        return ""
-    words = _ACTIVITY_WORD_RE.findall(text)
-    return " ".join(words[:5])
-
-
-def activity_icon_for_node(node_name: str | None) -> str:
-    node = node_name or ""
-    if "layout" in node:
-        return "compass"
-    if "draw" in node or "canvas" in node:
-        return "draw"
-    if "validation" in node or "review" in node or "completion" in node:
-        return "check"
-    if "route" in node or "router" in node:
-        return "route"
-    if "construction" in node or "modeling" in node:
-        return "build"
-    if "edit" in node or "patch" in node:
-        return "edit"
-    return "brain"
-
-
 def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
     if metadata.get(INTERNAL_STREAM_METADATA_KEY) == INTERNAL_STREAM_METADATA_VALUE:
         return True
@@ -183,104 +159,97 @@ def is_internal_stream_metadata(metadata: dict[str, Any]) -> bool:
     return isinstance(tags, list) and INTERNAL_STREAM_METADATA_VALUE in tags
 
 
-@lru_cache(maxsize=1)
-def _activity_narrator_llm() -> Any | None:
-    if not settings.openai_api_key:
-        return None
-    try:
-        from langchain_openai import ChatOpenAI
-
-        kwargs = chat_openai_kwargs(
-            max_tokens=18,
-            temperature=settings.model_temperature,
-            reasoning_effort="low",
-            verbosity="low",
-        )
-        kwargs["timeout"] = min(float(settings.model_timeout_seconds), 6.0)
-        kwargs["max_retries"] = 0
-        kwargs["streaming"] = True
-        kwargs["disable_streaming"] = False
-        return ChatOpenAI(**kwargs)
-    except Exception:
-        return None
-
-
-def _activity_prompt(
-    *,
-    user_text: str,
-    scope_type: str | None,
-    node_name: str | None,
-    elapsed_seconds: int,
-) -> list:
-    from langchain_core.messages import HumanMessage, SystemMessage
-
-    return [
-        SystemMessage(
-            content=(
-                "Scrivi solo una micro-frase italiana di massimo 5 parole che dica "
-                "cosa sta facendo ora un agente enterprise. Niente JSON, niente "
-                "spiegazioni, niente punteggiatura finale, niente dettagli interni. "
-                "Non rispondere mai alla richiesta utente: descrivi solo l'azione "
-                "in corso. Non salutare. Esempi validi: Analizzo il contesto, "
-                "Verifico i passaggi, Coordino i tool."
-            )
-        ),
-        HumanMessage(
-            content=json.dumps(
-                {
-                    "scope": scope_type or "consultant",
-                    "current_node": node_name or "agent",
-                    "elapsed_seconds": elapsed_seconds,
-                    "user_request": user_text[:500],
-                },
-                ensure_ascii=False,
-            )
-        ),
-    ]
-
-
-def build_activity_event(
+def progress_event(
     *,
     context: TraceContext,
     thread_id: str,
-    user_text: str,
-    node_name: str | None,
-    elapsed_seconds: int,
-    sequence: int,
+    payload: dict | None,
 ) -> AgentStreamEvent | None:
-    llm = _activity_narrator_llm()
-    if llm is None:
+    """Confeziona un cambio di fase come evento di stream, o niente se non c'e'.
+
+    Il nodo non viaggia nell'evento: il consulente non deve mai leggere un nome
+    interno, e il livello di traccia lo riporta comunque a parte.
+    """
+    if not payload:
         return None
-    try:
-        label = sanitize_activity_label(
-            stream_to_text(
-                llm,
-                _activity_prompt(
-                    user_text=user_text,
-                    scope_type=context.scope_type,
-                    node_name=node_name,
-                    elapsed_seconds=elapsed_seconds,
-                ),
-            )
-        )
-    except Exception:
-        return None
-    if not label:
-        return None
+
     return AgentStreamEvent(
         type="activity",
         request_id=context.request_id,
         trace_id=context.trace_id,
         thread_id=thread_id,
-        node=node_name,
-        message=label,
-        payload={
-            "activity_id": f"activity-{sequence}",
-            "icon": activity_icon_for_node(node_name),
-            "source": "llm",
-            "max_words": 5,
-        },
+        message=payload["label"],
+        payload=payload,
     )
+
+
+def normalize_stream_event(event: Any) -> tuple[str, Any]:
+    """Riporta un elemento dello stream a ``(modo, payload)``.
+
+    Con piu' `stream_mode` LangGraph antepone il nome del modo; con uno solo
+    consegna direttamente la coppia ``(chunk, metadata)``. Gli agenti finti dei
+    test usano ancora la forma corta, e devono continuare a funzionare.
+    """
+    if (
+        isinstance(event, tuple)
+        and len(event) == 2
+        and isinstance(event[0], str)
+        and event[0] in {"messages", "updates", "values", "custom", "debug"}
+    ):
+        return event[0], event[1]
+
+    if isinstance(event, tuple) and len(event) == 2:
+        return "messages", event
+
+    return "messages", (event, {})
+
+
+def tool_calls_in_update(update: Any) -> list[dict]:
+    """Raccoglie le chiamate a tool contenute in un aggiornamento di stato.
+
+    LangGraph consegna gli update come mappa nodo -> stato parziale, e i
+    sottografi possono annidarli. La ricerca e' strutturale invece che per
+    percorso noto, cosi' un grafo nuovo non smette di raccontare cosa fa.
+
+    Args:
+        update: Aggiornamento di stato emesso dal grafo.
+
+    Returns:
+        list[dict]: Chiamate trovate, ognuna con ``name`` e ``args``.
+    """
+    found: list[dict] = []
+
+    def walk(value: Any, depth: int = 0) -> None:
+        if depth > 4:
+            return
+
+        if isinstance(value, dict):
+            for item in value.values():
+                walk(item, depth + 1)
+            return
+
+        if isinstance(value, list | tuple):
+            for item in value:
+                walk(item, depth + 1)
+            return
+
+        calls = getattr(value, "tool_calls", None)
+        if not calls:
+            return
+
+        for call in calls:
+            if isinstance(call, dict):
+                found.append({"name": call.get("name"), "args": call.get("args")})
+            else:
+                found.append(
+                    {
+                        "name": getattr(call, "name", None),
+                        "args": getattr(call, "args", None),
+                    }
+                )
+
+    walk(update)
+    return found
 
 
 def agent_checkpoint_thread_id(thread_id: str, scope_key: str | None) -> str:
@@ -489,12 +458,7 @@ def stream_agent_events(
     last_node = None
     first_token_recorded = False
     usage_totals: dict[str, Any] = {}
-    latest_state: dict[str, Any] = {
-        "node": None,
-        "activity_sequence": 0,
-        "started_at": time.monotonic(),
-        "user_text": _latest_user_message(messages),
-    }
+    narrator = ProgressNarrator()
     run_tags = langsmith_tags(
         "consultant-chat",
         f"scope:{fields['scope_type']}",
@@ -626,14 +590,30 @@ def stream_agent_events(
                         "tags": run_tags,
                         "metadata": run_metadata,
                     },
-                    stream_mode="messages",
+                    # "updates" porta le chiamate a tool: senza questo modo il
+                    # consulente resta al buio proprio mentre l'agente cerca in
+                    # memoria o rilegge le fonti, che e' l'attesa piu' lunga.
+                    stream_mode=["messages", "updates"],
                 )
 
                 for event in events:
-                    if isinstance(event, tuple):
-                        chunk, metadata = event
-                    else:
-                        chunk, metadata = event, {}
+                    stream_mode_name, payload = normalize_stream_event(event)
+
+                    if stream_mode_name == "updates":
+                        if emit_activity:
+                            for call in tool_calls_in_update(payload):
+                                progress = progress_event(
+                                    context=context,
+                                    thread_id=thread_id,
+                                    payload=narrator.enter_for_tool(
+                                        call["name"], call["args"]
+                                    ),
+                                )
+                                if progress is not None:
+                                    enqueue(progress)
+                        continue
+
+                    chunk, metadata = payload
 
                     node_name = metadata.get("langgraph_node")
                     if node_name and is_internal_agent_node(node_name):
@@ -641,7 +621,14 @@ def stream_agent_events(
 
                     if node_name and node_name != last_node:
                         last_node = node_name
-                        latest_state["node"] = node_name
+                        if emit_activity:
+                            progress = progress_event(
+                                context=context,
+                                thread_id=thread_id,
+                                payload=narrator.enter_for_node(node_name),
+                            )
+                            if progress is not None:
+                                enqueue(progress)
                         node_trace = trace_event(
                             context,
                             "node",
@@ -673,6 +660,17 @@ def stream_agent_events(
 
                     if node_name and node_name in NON_DELTA_AGENT_NODES:
                         continue
+
+                    if content and emit_activity:
+                        # La risposta ha iniziato a formarsi: la fase e' questa,
+                        # qualunque cosa il grafo stia facendo sotto.
+                        progress = progress_event(
+                            context=context,
+                            thread_id=thread_id,
+                            payload=narrator.enter(DRAFTING),
+                        )
+                        if progress is not None:
+                            enqueue(progress)
 
                     if content and not first_token_recorded:
                         first_token_recorded = True
@@ -772,34 +770,23 @@ def stream_agent_events(
     worker.start()
 
     if emit_activity:
-        latest_state["activity_sequence"] += 1
-        initial_activity = build_activity_event(
+        # Il primo aggiornamento parte subito e senza modello: prima si vedeva
+        # comparire il progresso solo se il narratore LLM rispondeva in tempo, e
+        # spesso il turno finiva prima.
+        initial_activity = progress_event(
             context=context,
             thread_id=thread_id,
-            user_text=str(latest_state["user_text"] or ""),
-            node_name=None,
-            elapsed_seconds=0,
-            sequence=int(latest_state["activity_sequence"]),
+            payload=narrator.enter(UNDERSTANDING),
         )
         if initial_activity is not None:
             yield initial_activity
 
     while True:
         try:
-            queued = output_queue.get(timeout=ACTIVITY_HEARTBEAT_SECONDS)
+            queued = output_queue.get(timeout=QUEUE_POLL_SECONDS)
         except Empty:
-            if emit_activity:
-                latest_state["activity_sequence"] += 1
-                activity = build_activity_event(
-                    context=context,
-                    thread_id=thread_id,
-                    user_text=str(latest_state["user_text"] or ""),
-                    node_name=str(latest_state["node"] or "") or None,
-                    elapsed_seconds=int(time.monotonic() - float(latest_state["started_at"])),
-                    sequence=int(latest_state["activity_sequence"]),
-                )
-                if activity is not None:
-                    yield activity
+            if not worker.is_alive() and output_queue.empty():
+                break
             continue
 
         if queued is None:

@@ -61,21 +61,55 @@
     "overview": {
       "processes": "Processi in scope",
       "decisions": "Decisioni",
-      "objective": "Obiettivo dell'incarico"
+      "objective": "Obiettivo dell'incarico",
+      "milestones": "Avanzamento dell'incarico",
+      "sources": "Fonti",
+      "deliverables": "Deliverable"
     },
     "processes": {
       "empty": "Nessun processo in scope"
     },
+    "milestones": {
+      "empty": "Nessuna milestone registrata",
+      "emptyDescription": "Le milestone dicono cosa chiude ogni tappa dell'incarico. Aggiungile da «Modifica progetto», o chiedile in chat.",
+      "reached": "{{done}} di {{total}} raggiunte",
+      "progressLabel": "Milestone raggiunte",
+      "planned": "Da raggiungere",
+      "reachedOn": "Raggiunta il {{date}}",
+      "reachedNoDate": "Raggiunta",
+      "saving": "Salvataggio…",
+      "error": "Non è stato possibile aggiornare la milestone. Riprova."
+    },
     "sources": {
-      "empty": "Nessuna fonte collegata"
+      "empty": "Nessuna fonte collegata",
+      "emptyDescription": "Documenti, interviste, registrazioni ed export su cui poggia la ricostruzione. Le registra l'agente quando le ricevi, o tu dalla chat di progetto.",
+      "search": "Cerca fonti…",
+      "type": "Tipo",
+      "shown": "{{shown}} di {{total}} fonti",
+      "noResults": "Nessuna fonte corrisponde a ricerca e filtri",
+      "resetFilters": "Azzera ricerca e filtri",
+      "open": "Apri fonte",
+      "seeAll": "Vedi tutte ({{count}})",
+      "detailSubtitle": "Fonte di tipo {{type}}",
+      "linkedProcess": "Processo collegato",
+      "noLinkedProcess": "Nessuno",
+      "notes": "Note",
+      "noNotes": "Nessuna nota registrata",
+      "identifier": "Identificativo",
+      "reference": "DeliR conserva il riferimento alla fonte e ciò che ne è stato estratto, non il file originale.",
+      "openProcess": "Apri processo collegato"
     },
     "decisions": {
       "empty": "Nessuna decisione registrata"
     },
+    "deliverables": {
+      "empty": "Nessun deliverable registrato"
+    },
     "panel": {
       "summary": "Riepilogo progetto",
       "openIssues": "Punti aperti",
-      "milestones": "Milestone principali",
+      "milestones": "Milestone",
+      "deliverables": "Deliverable",
       "actions": "Azioni rapide",
       "nextStep": "Prossimo passo",
       "openProject": "Apri progetto",

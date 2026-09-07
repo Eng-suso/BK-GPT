@@ -70,13 +70,18 @@ Current tools:
 
 ### Setup Subgraph
 
-Owns explicit initial workspace setup: client plus project, process stub, source, or decision.
+Owns the workspace records an engagement needs before anyone can work in it:
+client, project (under a new *or* an already existing client), process stub,
+source, decision. Creating a project container is setup, not project execution —
+the Project Macro Agent takes ownership only once the record exists.
 After setup, ongoing execution moves to Project, Process, or Canvas macro agents.
 
 Current tools:
 
 - `get_workspace_overview`
+- `list_workspace_clients`
 - `validate_initial_workspace_setup`
+- `create_workspace_project`
 - `create_initial_workspace_setup`
 
 ## External Delegation Targets

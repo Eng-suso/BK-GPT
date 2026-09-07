@@ -3,6 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.schemas.workspace import (
     AnswerBpmnReviewQuestionRequest,
     ApproveBpmnReviewResponse,
+    ArchiveImpactResponse,
+    ArchiveRequest,
+    ArchiveResponse,
     BpmnModelResponse,
     BpmnReviewResponse,
     BpmnReviewVersionResponse,
@@ -29,25 +32,38 @@ from backend.security import AuthPrincipal, require_admin_principal, require_pri
 from backend.workspace_database import (
     answer_bpmn_review_question,
     approve_bpmn_review,
+    archive_client,
+    archive_process,
+    archive_project,
+    client_impact,
     create_client,
     create_process,
     create_project,
     create_project_decision,
     create_project_source,
+    delete_client,
+    delete_process,
+    delete_project,
     get_bpmn_model,
     get_bpmn_review,
     get_bpmn_review_version,
     list_bpmn_review_versions,
     get_process,
     get_project,
+    list_archive,
     list_bpmn_versions,
     list_clients,
     list_project_decisions,
     list_project_processes,
     list_project_sources,
     list_projects,
+    process_impact,
+    project_impact,
     reset_workspace,
     restore_bpmn_version,
+    restore_client,
+    restore_process,
+    restore_project,
     update_bpmn_model,
     revise_bpmn_review,
     update_bpmn_review_brief,
@@ -77,13 +93,17 @@ def _edit_error(exc: ValueError) -> HTTPException:
 
 
 @router.get("/clients")
-def get_workspace_clients() -> list[ClientResponse]:
-    """Retrieve all workspace clients as API response objects.
-    
+def get_workspace_clients(include_archived: bool = False) -> list[ClientResponse]:
+    """Retrieve the workspace clients.
+
+    Args:
+        include_archived: Include closed clients. Off by default: the directory
+            shows the work in progress.
+
     Returns:
         list[ClientResponse]: The workspace clients.
     """
-    return [ClientResponse(**client) for client in list_clients()]
+    return [ClientResponse(**client) for client in list_clients(include_archived=include_archived)]
 
 
 @router.post("/clients")
@@ -130,13 +150,157 @@ def update_workspace_client(client_id: str, request: UpdateClientRequest) -> Cli
 
 
 @router.get("/projects")
-def get_workspace_projects() -> list[ProjectResponse]:
-    """List all workspace projects as typed response objects.
-    
+def get_workspace_projects(include_archived: bool = False) -> list[ProjectResponse]:
+    """List the workspace projects.
+
+    Args:
+        include_archived: Include closed projects. Off by default.
+
     Returns:
         list[ProjectResponse]: The workspace projects.
     """
-    return [ProjectResponse(**project) for project in list_projects()]
+    return [
+        ProjectResponse(**project)
+        for project in list_projects(include_archived=include_archived)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Ciclo di vita dei record
+#
+# Tre verbi distinti, perche' sono tre decisioni distinte: archiviare chiude un
+# incarico e lo lascia leggibile, ripristinare lo riapre, eliminare lo perde.
+# L'endpoint di impatto esiste perche' una conferma deve dire cosa succede, e
+# quel numero lo conosce solo il database.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/archive")
+def get_workspace_archive() -> ArchiveResponse:
+    """Everything that has been closed: clients, projects and processes."""
+    archive = list_archive()
+    return ArchiveResponse(
+        clients=[ClientResponse(**client) for client in archive["clients"]],
+        projects=[ProjectResponse(**project) for project in archive["projects"]],
+        processes=[ProjectProcessResponse(**process) for process in archive["processes"]],
+    )
+
+
+@router.get("/clients/{client_id}/impact")
+def get_client_impact(client_id: str) -> ArchiveImpactResponse:
+    """What closing or deleting this client would take with it."""
+    try:
+        return ArchiveImpactResponse(**client_impact(client_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.post("/clients/{client_id}/archive")
+def archive_workspace_client(client_id: str, request: ArchiveRequest) -> ClientResponse:
+    """Close a client, and with it its projects and processes."""
+    try:
+        return ClientResponse(**archive_client(client_id, request.reason))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.post("/clients/{client_id}/restore")
+def restore_workspace_client(client_id: str) -> ClientResponse:
+    """Reopen a client and whatever was closed together with it."""
+    try:
+        return ClientResponse(**restore_client(client_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.delete("/clients/{client_id}")
+def delete_workspace_client(
+    client_id: str,
+    _principal: AuthPrincipal = Depends(require_admin_principal),
+) -> ArchiveImpactResponse:
+    """Delete a client and everything under it. Not reversible."""
+    try:
+        return ArchiveImpactResponse(**delete_client(client_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.get("/projects/{project_id}/impact")
+def get_project_impact(project_id: str) -> ArchiveImpactResponse:
+    """What closing or deleting this project would take with it."""
+    try:
+        return ArchiveImpactResponse(**project_impact(project_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.post("/projects/{project_id}/archive")
+def archive_workspace_project(project_id: str, request: ArchiveRequest) -> ProjectResponse:
+    """Close a project and its processes."""
+    try:
+        return ProjectResponse(**archive_project(project_id, request.reason))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.post("/projects/{project_id}/restore")
+def restore_workspace_project(project_id: str) -> ProjectResponse:
+    """Reopen a project, and its client when that was closed too."""
+    try:
+        return ProjectResponse(**restore_project(project_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.delete("/projects/{project_id}")
+def delete_workspace_project(
+    project_id: str,
+    _principal: AuthPrincipal = Depends(require_admin_principal),
+) -> ArchiveImpactResponse:
+    """Delete a project, its processes, sources and decisions. Not reversible."""
+    try:
+        return ArchiveImpactResponse(**delete_project(project_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.get("/processes/{process_id}/impact")
+def get_process_impact(process_id: str) -> ArchiveImpactResponse:
+    """What closing or deleting this process would take with it."""
+    try:
+        return ArchiveImpactResponse(**process_impact(process_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.post("/processes/{process_id}/archive")
+def archive_workspace_process(process_id: str, request: ArchiveRequest) -> ProjectProcessResponse:
+    """Close a process, leaving its project open."""
+    try:
+        return ProjectProcessResponse(**archive_process(process_id, request.reason))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.post("/processes/{process_id}/restore")
+def restore_workspace_process(process_id: str) -> ProjectProcessResponse:
+    """Reopen a process, and its project when that was closed too."""
+    try:
+        return ProjectProcessResponse(**restore_process(process_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
+
+
+@router.delete("/processes/{process_id}")
+def delete_workspace_process(
+    process_id: str,
+    _principal: AuthPrincipal = Depends(require_admin_principal),
+) -> ArchiveImpactResponse:
+    """Delete a process, its BPMN model, versions and simulation runs. Not reversible."""
+    try:
+        return ArchiveImpactResponse(**delete_process(process_id))
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
 
 
 @router.post("/projects")

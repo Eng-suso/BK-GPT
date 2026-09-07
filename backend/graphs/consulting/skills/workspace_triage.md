@@ -51,7 +51,9 @@ Projects is for:
 
 - Home summary or priorities: Home subagent.
 - New or updated client: Clients subagent.
-- New or updated project: Project Macro Agent.
+- Creating a project record, whether or not the client already exists: Setup subagent.
+  Resolve the client first, create the project, then report the project id.
+- Updating a project that already exists: Project Macro Agent.
 - Sources or decisions inside a project: Project Macro Agent.
 - Process discovery/modeling: Process Macro Agent.
 - BPMN canvas operations: Canvas Macro Agent.

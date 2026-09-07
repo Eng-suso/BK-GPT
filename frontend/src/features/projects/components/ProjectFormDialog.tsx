@@ -51,7 +51,9 @@ function draftFrom(project: Project | null, clientId: string): ProjectDraft {
     status: project.status,
     progress: project.progress,
     nextStep: project.nextStep,
-    milestones: project.milestones,
+    // Il form edita i titoli: chi ha raggiunto cosa si segna dalla panoramica,
+    // e il backend conserva lo stato delle voci rimaste in lista.
+    milestones: project.milestones.map((milestone) => milestone.title),
     openIssues: project.openIssues,
     deliverables: project.deliverables,
   };

@@ -61,21 +61,55 @@
     "overview": {
       "processes": "Processes in scope",
       "decisions": "Decisions",
-      "objective": "Engagement objective"
+      "objective": "Engagement objective",
+      "milestones": "Engagement progress",
+      "sources": "Sources",
+      "deliverables": "Deliverables"
     },
     "processes": {
       "empty": "No processes in scope"
     },
+    "milestones": {
+      "empty": "No milestones recorded",
+      "emptyDescription": "Milestones say what closes each stage of the engagement. Add them from \"Edit project\", or ask for them in chat.",
+      "reached": "{{done}} of {{total}} reached",
+      "progressLabel": "Milestones reached",
+      "planned": "Still ahead",
+      "reachedOn": "Reached on {{date}}",
+      "reachedNoDate": "Reached",
+      "saving": "Saving…",
+      "error": "Could not update the milestone. Try again."
+    },
     "sources": {
-      "empty": "No linked sources"
+      "empty": "No linked sources",
+      "emptyDescription": "Documents, interviews, recordings and exports the reconstruction rests on. The agent records them as you hand them over, or you do from the project chat.",
+      "search": "Search sources…",
+      "type": "Type",
+      "shown": "{{shown}} of {{total}} sources",
+      "noResults": "No source matches the search and filters",
+      "resetFilters": "Clear search and filters",
+      "open": "Open source",
+      "seeAll": "See all ({{count}})",
+      "detailSubtitle": "{{type}} source",
+      "linkedProcess": "Linked process",
+      "noLinkedProcess": "None",
+      "notes": "Notes",
+      "noNotes": "No notes recorded",
+      "identifier": "Identifier",
+      "reference": "DeliR keeps the reference to the source and what was extracted from it, not the original file.",
+      "openProcess": "Open linked process"
     },
     "decisions": {
       "empty": "No decisions recorded"
     },
+    "deliverables": {
+      "empty": "No deliverables recorded"
+    },
     "panel": {
       "summary": "Project summary",
       "openIssues": "Open issues",
-      "milestones": "Key milestones",
+      "milestones": "Milestones",
+      "deliverables": "Deliverables",
       "actions": "Quick actions",
       "nextStep": "Next step",
       "openProject": "Open project",
