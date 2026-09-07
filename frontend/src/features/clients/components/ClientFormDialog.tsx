@@ -18,10 +18,10 @@ const EMPTY: ClientDraft = {
 };
 
 /**
- * Creates a form draft from an existing client or the default empty draft.
+ * Creates a client draft from an existing client or the default empty draft.
  *
- * @param client - The client whose values should populate the draft
- * @returns A client draft containing the client's values or empty defaults
+ * @param client - The client whose editable fields should populate the draft, or `null` for an empty draft
+ * @returns A client draft containing the client's editable fields or default values
  */
 function draftFrom(client: Client | null): ClientDraft {
   if (!client) return EMPTY;
@@ -42,10 +42,12 @@ type ClientFormDialogProps = {
 };
 
 /**
- * Provides a dialog for creating or editing a client.
+ * Renders a dialog for creating or editing a client record.
  *
- * @param client - The client to edit, or `null` to create a new client
- * @returns The client form dialog
+ * The client name is required before submission.
+ *
+ * @param client - The client to edit; omit to create a new client.
+ * @returns The client form dialog.
  */
 export function ClientFormDialog({
   open,

@@ -542,28 +542,27 @@ def create_process(
 ) -> dict:
     """Create a tenant-scoped process and its associated empty BPMN model.
     
+    The process name is trimmed and must be non-empty. Stage, status, and owner
+    use configured placeholders when unspecified, and readiness is constrained to
+    the range 0–100. The project must belong to the current tenant. This function
+    persists both records and updates the project's process count.
+    
     Args:
-        project_id (str): Untrusted project identifier. The project must belong to
-            the current tenant.
-        name (str): Untrusted process name. It must contain non-whitespace text.
-        stage (str | None): Untrusted process stage; omitted values use the
-            configured default.
-        status (str | None): Untrusted process status; omitted values use the
-            configured default.
-        owner (str | None): Untrusted process owner; blank values use the configured
-            unknown-owner placeholder.
-        readiness (int): Untrusted readiness percentage, constrained to 0 through
-            100.
+        project_id (str): Untrusted project identifier.
+        name (str): Untrusted process name.
+        stage (str | None): Untrusted process stage, or None to use its placeholder.
+        status (str | None): Untrusted process status, or None to use its placeholder.
+        owner (str | None): Untrusted process owner, or None to use its placeholder.
+        readiness (int): Untrusted readiness value, constrained to 0–100.
     
     Returns:
-        dict: The serialized process with its associated BPMN model identifier.
+        dict: The serialized newly created process.
     
     Raises:
-        ValueError: If the name is blank, the project does not exist in the
-            current tenant, or readiness cannot be converted to an integer.
-    
-    The process and BPMN model are persisted atomically, and the project's process
-    count is updated.
+        ValueError: If the name is blank, the project does not exist in the current
+            tenant, or readiness cannot be converted to an integer.
+        TypeError: If readiness cannot be converted to an integer because of its
+            type.
     """
     clean_name = name.strip()
 
@@ -618,32 +617,29 @@ def update_process(
     owner: str | None = None,
     readiness: int | None = None,
 ) -> dict:
-    """
-    Update the specified fields of a tenant-owned process and persist the changes.
+    """Update selected fields of a tenant-owned process and persist the changes.
+    
+    A process rename also updates the associated BPMN model name. Readiness is
+    constrained to the range 0–100, and omitted fields retain their existing
+    values.
     
     Args:
-        process_id (str): [Untrusted input] Identifier of the process to update.
-        name (str | None): [Untrusted input] Replacement process name; whitespace is
-            trimmed and a non-empty value is required. ``None`` leaves it unchanged.
-        stage (str | None): [Untrusted input] Replacement process stage. ``None``
-            leaves it unchanged.
-        status (str | None): [Untrusted input] Replacement process status. ``None``
-            leaves it unchanged.
-        owner (str | None): [Untrusted input] Replacement owner; blank values use
-            the unknown-owner fallback. ``None`` leaves it unchanged.
-        readiness (int | None): [Untrusted input] Replacement readiness, clamped to
-            the range 0–100. ``None`` leaves it unchanged.
+        process_id (str): Untrusted process identifier.
+        name (str | None): Untrusted replacement name; must contain non-whitespace
+            text when provided.
+        stage (str | None): Untrusted replacement process stage.
+        status (str | None): Untrusted replacement process status.
+        owner (str | None): Untrusted replacement owner; blank values use the
+            configured unknown-owner placeholder.
+        readiness (int | None): Untrusted replacement readiness value, constrained
+            to 0–100.
     
     Returns:
-        dict: The updated process serialized as an API dictionary.
+        dict: The updated process serialized as a dictionary.
     
     Raises:
-        ValueError: If the process does not exist in the current tenant, the name
-            is blank, or a supplied field has an invalid value.
-    
-    Side Effects:
-        Persists the process changes. When the process name changes, also updates
-        the linked BPMN model name.
+        ValueError: If the process does not exist for the current tenant, the
+            provided name is blank, or readiness cannot be converted to an integer.
     """
     with workspace_connection() as session:
         process = tenant_row(session, WorkspaceProcess, process_id)
@@ -673,15 +669,13 @@ def update_process(
 
 
 def get_process(process_id: str) -> dict | None:
-    """Retrieve a process owned by the current tenant.
+    """Retrieve a process belonging to the current tenant.
     
     Args:
-        process_id: Untrusted process identifier used to locate the process.
+        process_id (str): Untrusted process identifier to look up within the current tenant.
     
     Returns:
-        A serialized process dictionary, or ``None`` when the process does not
-        exist or is not owned by the current tenant.
-    
+        dict | None: The serialized process, or None if no matching tenant-owned process exists.
     """
     with workspace_connection() as session:
         process = tenant_row(session, WorkspaceProcess, process_id)

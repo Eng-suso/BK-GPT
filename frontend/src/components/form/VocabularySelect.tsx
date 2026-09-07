@@ -26,12 +26,13 @@ type VocabularySelectProps = {
 };
 
 /**
- * Renders a closed-vocabulary select control with explanatory meanings for its options.
+ * Renders a controlled vocabulary select with labels and optional meanings.
  *
- * Preserves a nonempty value that is absent from the supplied options by displaying it as
- * the current option.
+ * Unknown nonempty values are included as the current option so externally supplied
+ * or legacy values remain visible.
  *
- * @returns The rendered vocabulary select control
+ * @param options - Vocabulary entries available for selection, each with a label and optional meaning.
+ * @returns The rendered vocabulary select.
  */
 export function VocabularySelect({
   value,

@@ -245,18 +245,17 @@ def create_workspace_project_decision(
     project_id: str,
     request: CreateProjectDecisionRequest,
 ) -> ProjectDecisionResponse:
-    """
-    Create a decision for a workspace project.
+    """Create a decision for a project and persist it.
     
     Args:
-        project_id (str): Untrusted project identifier associated with the decision.
-        request (CreateProjectDecisionRequest): Untrusted decision data to validate and persist.
+        project_id (str): Untrusted project identifier.
+        request (CreateProjectDecisionRequest): Untrusted decision data.
     
     Returns:
         ProjectDecisionResponse: The newly created project decision.
     
     Raises:
-        HTTPException: With status 400 when the decision data is invalid or persistence fails.
+        HTTPException: With status code 400 when the decision data is invalid.
     """
     try:
         return ProjectDecisionResponse(**create_project_decision(project_id=project_id, **request.model_dump()))
@@ -266,21 +265,18 @@ def create_workspace_project_decision(
 
 @router.patch("/processes/{process_id}")
 def update_workspace_process(process_id: str, request: UpdateProcessRequest) -> ProjectProcessResponse:
-    """Partially updates a workspace process with the supplied fields.
+    """
+    Update editable fields of a workspace process and persist the changes.
     
     Args:
-        process_id (str): Untrusted identifier of the process to update.
-        request (UpdateProcessRequest): Untrusted update data; only explicitly
-            provided fields are persisted.
+        process_id (str): Untrusted process identifier.
+        request (UpdateProcessRequest): Untrusted partial update containing editable process fields.
     
     Returns:
         ProjectProcessResponse: The updated process.
     
     Raises:
-        HTTPException: With status 404 if the process does not exist, or status
-            400 if the update data is invalid.
-    
-    The update persists changes to the workspace process.
+        HTTPException: A 404 response if the process is not found, or a 400 response if the update is invalid.
     """
     try:
         return ProjectProcessResponse(
@@ -292,19 +288,16 @@ def update_workspace_process(process_id: str, request: UpdateProcessRequest) -> 
 
 @router.get("/processes/{process_id}")
 def get_workspace_process(process_id: str) -> ProjectProcessResponse:
-    """
-    Retrieve a workspace process by identifier.
+    """Retrieve a workspace process by ID.
     
     Args:
-        process_id (str): Untrusted process identifier used to locate the process.
+        process_id: Untrusted process identifier used to locate the process.
     
     Returns:
-        ProjectProcessResponse: The requested process.
+        The process represented as a `ProjectProcessResponse`.
     
     Raises:
         HTTPException: With status code 404 if the process does not exist.
-    
-    The function does not modify or persist data.
     """
     process = get_process(process_id)
 

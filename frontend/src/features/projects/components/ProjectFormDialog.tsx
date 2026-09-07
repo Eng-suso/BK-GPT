@@ -35,11 +35,11 @@ const EMPTY: ProjectDraft = {
 };
 
 /**
- * Creates a project draft from an existing project or initializes an empty draft.
+ * Creates an editable project draft from an existing project or default values.
  *
- * @param project - The project whose editable values should populate the draft, or `null` to create a new draft
- * @param clientId - The client identifier for a new draft
- * @returns A project draft populated from `project` or initialized with `clientId`
+ * @param project - The project to map into a draft, or `null` for a new project
+ * @param clientId - The client identifier to use when creating a new project
+ * @returns A project draft populated from `project` or default values
  */
 function draftFrom(project: Project | null, clientId: string): ProjectDraft {
   if (!project) return { ...EMPTY, clientId };
@@ -69,8 +69,8 @@ type ProjectFormDialogProps = {
 /**
  * Renders a dialog for creating or editing a project.
  *
- * Validates the required client and project name before saving and displays
- * localized feedback for loading, validation, and save errors.
+ * Validates required project fields and saves the project through the appropriate
+ * create or update operation.
  *
  * @returns The project form dialog.
  */

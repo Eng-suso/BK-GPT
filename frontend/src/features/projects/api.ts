@@ -46,7 +46,7 @@ export function useProjectsQuery(): UseQueryResult<Project[]> {
 }
 
 /**
- * Fetches a project by its identifier.
+ * Fetches a project by ID.
  *
  * @param id - The project identifier
  * @returns The project query result
@@ -62,9 +62,10 @@ export function useProjectQuery(id: string): UseQueryResult<Project> {
 }
 
 /**
- * Creates a project from a draft.
+ * Creates a project from a project draft.
  *
- * @returns A mutation result containing the created project.
+ * @param draft - The project details to submit
+ * @returns The created project
  */
 export function useCreateProjectMutation(): UseMutationResult<
   Project,
@@ -89,9 +90,9 @@ export function useCreateProjectMutation(): UseMutationResult<
 }
 
 /**
- * Provides a mutation for updating a project.
+ * Provides a mutation for updating an existing project from a draft.
  *
- * @returns The project update mutation and its current state
+ * @returns The mutation result for updating a project.
  */
 export function useUpdateProjectMutation(): UseMutationResult<
   Project,
@@ -141,9 +142,11 @@ export function useCreateProcessMutation(
 }
 
 /**
- * Provides a mutation for updating a project's process.
+ * Updates an existing project process from a draft.
  *
- * @returns A mutation that updates a process and returns the updated process.
+ * @param id - The process identifier and update payload.
+ * @param draft - The process fields to update.
+ * @returns The updated project process.
  */
 export function useUpdateProcessMutation(): UseMutationResult<
   ProjectProcess,

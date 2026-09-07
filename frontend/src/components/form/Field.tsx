@@ -17,16 +17,11 @@ type FieldProps = {
 };
 
 /**
- * Renders a labeled form field with optional hint and required-state metadata.
+ * Groups a label, form control, and optional hint with accessible associations.
  *
- * Generates the control ID and related accessibility attributes, then passes
- * them to the control renderer.
- *
- * @param label - The text associated with the form control
- * @param hint - Optional explanatory text displayed below the control
- * @param required - Whether the field is required
- * @param children - Renders the form control using generated accessibility props
- * @returns The labeled field element
+ * @param hint - Optional explanatory text linked to the control.
+ * @param children - Function that renders the control with generated accessibility attributes.
+ * @returns The grouped field markup.
  */
 export function Field({
   label,

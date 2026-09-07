@@ -15,6 +15,26 @@ from backend.toolsets.project_memory import (
 from backend.toolsets.workspace import enterprise_tool_result
 
 
+class ProjectProcessRecordInput(BaseModel):
+    project_id: str = Field(description="Current project id.")
+    name: str = Field(description="Process name as the consultant named it.")
+    stage: str = Field(
+        default="AS-IS",
+        description="AS-IS or TO-BE. Use AS-IS unless the consultant asked for a target process.",
+    )
+    owner: str = Field(
+        default="Da assegnare",
+        description="Owner or business area, only when the consultant named one. Do not guess.",
+    )
+    scope_note: str = Field(
+        default="",
+        description=(
+            "The perimeter the consultant stated - start, end, what is in and out. "
+            "Use their words. Leave empty when they did not state one."
+        ),
+    )
+
+
 class ProjectDelegationPayloadInput(BaseModel):
     target_owner: str = Field(
         description="Destination owner: delivery, process_coordination, process_macro, or canvas_macro."
@@ -124,9 +144,19 @@ def _project_payload(project_id: str) -> dict:
 @tool
 def get_project_workspace_brief(project_id: str) -> str:
     """
-    Read the authoritative project workspace snapshot: project status, process list,
-    sources, decisions, deliverables and open issues. Use before project-level synthesis
-    or routing when project context is needed. This is read-only.
+    Provide the authorized project workspace snapshot for project-level synthesis and routing.
+    
+    Args:
+        project_id (str): Untrusted project identifier used to select the project.
+    
+    Returns:
+        str: Structured result containing project status and progress, sources, decisions,
+            process counts, and process-readiness data.
+    
+    Raises:
+        ValueError: If the project does not exist or is outside the authorized scope.
+    
+    This function is read-only and does not persist changes.
     """
     payload = _project_payload(project_id)
     project = payload["project"]
@@ -149,6 +179,111 @@ def get_project_workspace_brief(project_id: str) -> str:
     )
 
 
+@tool(args_schema=ProjectProcessRecordInput)
+def create_project_process(
+    project_id: str,
+    name: str,
+    stage: str = "AS-IS",
+    owner: str = "Da assegnare",
+    scope_note: str = "",
+) -> str:
+    """
+    Register a process in the authorized project workspace without starting discovery or BPMN generation.
+    
+    The operation is idempotent by normalized process name: an existing matching process is
+    returned instead of creating a duplicate. For a new process, it persists the process and
+    its empty BPMN model. When provided, the stated perimeter is persisted as a project source
+    linked to the process; otherwise, the result includes a warning.
+    
+    Args:
+        project_id (str, untrusted): Identifier of the project in which to register the process.
+        name (str, untrusted): Process name used for registration and duplicate detection.
+        stage (str, untrusted): Process lifecycle stage.
+        owner (str, untrusted): Initial process owner.
+        scope_note (str, untrusted): Optional stated perimeter for the process.
+    
+    Returns:
+        str: A serialized result indicating whether the process already existed or was created,
+            including the process details, BPMN model identifier, and any warnings or follow-up
+            actions.
+    
+    Raises:
+        ValueError: If the project is outside the authorized scope or does not exist.
+    """
+    payload = _project_payload(project_id)
+    wanted = " ".join(name.casefold().split())
+    existing = next(
+        (
+            process
+            for process in payload["processes"]
+            if " ".join(str(process["name"]).casefold().split()) == wanted
+        ),
+        None,
+    )
+    if existing:
+        return enterprise_tool_result(
+            status="exists",
+            action="create_project_process",
+            entity_type="process",
+            entity_id=existing["id"],
+            summary=f"Processo gia registrato nel progetto: {existing['name']}",
+            payload={"project_id": project_id, "process": existing},
+            warnings=["Existing process returned instead of creating a duplicate."],
+        )
+
+    process = workspace_database.create_process(
+        project_id=project_id,
+        name=name,
+        stage=stage,
+        owner=owner,
+    )
+
+    warnings = []
+    perimeter_source = None
+    if scope_note.strip():
+        perimeter_source = workspace_database.create_project_source(
+            project_id=project_id,
+            process_id=process["id"],
+            name=f"Perimetro - {process['name']}",
+            type="Perimetro",
+            meta=scope_note.strip(),
+        )
+    else:
+        warnings.append(
+            "Process registered without a stated perimeter: nothing records where it "
+            "starts and ends. Ask the consultant, or record it later as a source."
+        )
+
+    return enterprise_tool_result(
+        status="created",
+        action="create_project_process",
+        entity_type="process",
+        entity_id=process["id"],
+        summary=f"Processo registrato nel progetto: {process['name']}",
+        payload={
+            "project_id": project_id,
+            "process": process,
+            "process_id": process["id"],
+            "bpmn_model_id": process["bpmn_model_id"],
+            "perimeter_source": perimeter_source,
+        },
+        warnings=warnings,
+        next_actions=[
+            {
+                "owner": "Project Macro Agent",
+                "action": "Registrare gli altri processi in scope, se il consulente ne ha altri.",
+            },
+            {
+                "owner": "Process Macro Agent",
+                "action": (
+                    "Discovery AS-IS su questo processo, nella chat processo, "
+                    "quando il consulente decide di partire."
+                ),
+            },
+        ],
+    )
+
+
 @tool(args_schema=ProjectDelegationPayloadInput)
 def prepare_project_delegation_payload(
     target_owner: str,
@@ -158,9 +293,18 @@ def prepare_project_delegation_payload(
     known_context: str = "",
 ) -> str:
     """
-    Purpose: create a narrow structured handoff payload from Project Macro to a
-    project subgraph, Process Macro or Canvas Macro. This does not execute the
-    delegated work.
+    Prepare a structured handoff payload without executing or persisting delegated work.
+    
+    Args:
+        target_owner (str): Untrusted input identifying the intended receiving owner or agent.
+        user_request (str): Untrusted input containing the requested work.
+        expected_result (str): Untrusted input describing the expected outcome.
+        reason (str): Untrusted input explaining the delegation rationale.
+        known_context (str): Untrusted input containing relevant context.
+    
+    Returns:
+        str: A JSON-formatted delegation payload with status, routing, request,
+            expected result, reason, and known context.
     """
     return "Project delegation payload\n" + json.dumps(
         {
@@ -512,18 +656,33 @@ PROJECT_TOOL_POLICY = """
 Project macro tools.
 
 The Project Macro Agent owns project-level orchestration, not every project
-operation. It can read the project brief, prepare handoff payloads, save
-project-scoped episodic evidence, prepare enterprise graph extraction from
-evidence, and retrieve project-scoped GraphRAG context for relation-heavy
-questions, gaps, inconsistencies, cross-process impact and ROI.
-Delivery execution belongs to the Delivery subgraph. Multi-process orchestration
-belongs to the Process Coordination subgraph. AS-IS/BPMN work belongs to Process
-or Canvas macro agents.
+operation. It can read the project brief, register the processes in scope,
+prepare handoff payloads, save project-scoped episodic evidence, prepare
+enterprise graph extraction from evidence, and retrieve project-scoped GraphRAG
+context for relation-heavy questions, gaps, inconsistencies, cross-process
+impact and ROI.
+
+The processes of a project are project records: creating one is workspace setup
+and belongs here, with `create_project_process`. What happens *inside* a process
+does not: delivery execution belongs to the Delivery subgraph, multi-process
+orchestration to the Process Coordination subgraph, AS-IS/BPMN work to Process
+or Canvas macro agents. Registering a process must not turn into discovery in
+the same turn.
+
+A project with no registered processes has no process readiness, no process
+dependencies and no missing process knowledge. Do not infer any of it: at that
+point the only work available here is agreeing the portfolio of processes in
+scope.
+
+Never describe buttons, menu items or screens as a way around a missing
+capability. If the workspace cannot do something, say which capability is
+missing.
 """.strip()
 
 
 project_tools = [
     get_project_workspace_brief,
+    create_project_process,
     prepare_project_delegation_payload,
     manage_project_evidence,
     extract_project_graph_from_evidence,

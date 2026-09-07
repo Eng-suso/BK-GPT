@@ -291,9 +291,12 @@ export function ProjectDetailPage(): React.JSX.Element {
 }
 
 /**
- * Renders the project overview with its objective, processes, and decisions.
+ * Displays the project's objective, recent processes, and recent decisions.
  *
- * @returns The project overview content.
+ * @param project - The project whose overview content is displayed
+ * @param decisions - Decisions associated with the project
+ * @param onOpenProcess - Handles selection of a process
+ * @param onEdit - Opens the project objective editor
  */
 
 function OverviewTab({
@@ -364,10 +367,10 @@ function OverviewTab({
 }
 
 /**
- * Displays the project objective and provides an action to add or edit it.
+ * Displays the project objective and provides an action to edit or add it.
  *
- * @param objective - The project's objective text, or an empty string when no objective is set
- * @param onEdit - Called when the add or edit action is selected
+ * @param objective - The current project objective, if available
+ * @param onEdit - Called when the edit or add action is selected
  */
 function ObjectiveBlock({
   objective,
@@ -437,12 +440,12 @@ function ProjectChatTab({
 }
 
 /**
- * Displays the project's processes with navigation, readiness, editing, and creation controls.
+ * Displays project processes with navigation, editing, and creation actions.
  *
- * @param processes - The processes to display
+ * @param processes - The project processes to display
  * @param onOpenProcess - Called when a process is selected
  * @param onCreate - Called when the create-process action is selected
- * @param onEdit - Called when a process's edit action is selected
+ * @param onEdit - Called when a process edit action is selected
  */
 function ProcessesTab({
   processes,

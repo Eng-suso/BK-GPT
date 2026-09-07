@@ -23,10 +23,10 @@ const EMPTY: ProcessDraft = {
 };
 
 /**
- * Creates a form draft from an existing process or the empty draft when no process is provided.
+ * Creates a process draft from an existing process or the default empty draft.
  *
- * @param process - The process to use as the draft source, or `null` for a new process
- * @returns A process draft populated from `process` or the empty draft
+ * @param process - The process to copy, or `null` to create an empty draft.
+ * @returns A draft populated with the process values or default values.
  */
 function draftFrom(process: ProjectProcess | null): ProcessDraft {
   if (!process) return EMPTY;
@@ -51,8 +51,11 @@ type ProcessFormDialogProps = {
 /**
  * Renders a dialog for creating or editing a project process.
  *
- * @param process - The process to edit, or `null` to create a new process.
- * @returns The process form dialog.
+ * @param open - Whether the dialog is visible
+ * @param onOpenChange - Called when the dialog visibility changes
+ * @param projectId - Identifier of the project receiving a new process
+ * @param process - Existing process to edit; omit to create a new process
+ * @returns The process form dialog
  */
 export function ProcessFormDialog({
   open,

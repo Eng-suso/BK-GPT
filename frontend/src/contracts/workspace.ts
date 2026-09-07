@@ -223,10 +223,10 @@ export const apiProjectSourcesSchema = z.array(apiProjectSourceSchema);
 export const apiProjectDecisionsSchema = z.array(apiProjectDecisionSchema);
 
 /**
- * Converts an API client record to the client-side model.
+ * Converts an API client record into the client-side model.
  *
- * @param client - The API client record to convert
- * @returns The client-side client model
+ * @param client - The validated API client record
+ * @returns The normalized client model
  */
 export function toClient(client: z.infer<typeof apiClientSchema>): Client {
   return {

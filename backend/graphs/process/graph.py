@@ -10,6 +10,7 @@ from backend.graphs.common import (
     artifact_is_present,
     build_tool_chat_subgraph,
     latest_user_text,
+    recent_conversation_digest,
 )
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
@@ -247,18 +248,41 @@ def parse_process_router_json(content: str, user_request: str = "", state: dict 
 
 def build_process_router(llm):
     """
-    Build a process-intent routing node for the process workflow.
+    Build a process-intent routing node.
+    
+    The returned node routes the latest user request using the supplied language
+    model and converts both valid and invalid routing decisions into authorized
+    process state. When no user message is available, it enforces the direct
+    route. Unexpected routing failures are converted into an invalid decision
+    instead of being propagated.
     
     Args:
-        llm: Language model used to produce structured routing decisions.
+        llm: Language model used to generate structured routing decisions.
     
     Returns:
-        A routing function that accepts process state and runtime configuration, preserves
-        a direct route when no user message is available, and converts valid or invalid
-        model output into authorized process routing state. Unexpected routing failures
-        are converted into an invalid routing decision rather than raised.
+        A routing node that accepts process state and runtime configuration and
+        returns updated process routing state. The node invokes the language model
+        but does not persist data.
+    
     """
     def route_process_intent(state: ProcessState, config: RunnableConfig) -> dict:
+        """
+        Route the latest process request to the appropriate workflow.
+        
+        Args:
+            state (ProcessState): Untrusted process state and user-request context used to
+                construct the routing decision.
+            config (RunnableConfig): Runtime configuration for the routing invocation.
+        
+        Returns:
+            dict: Authorized process routing state, including the selected route and
+                routing metadata. Falls back to a direct route when no user message is
+                available or structured routing fails.
+        
+        Notes:
+            The function does not persist state. It invokes the configured routing model
+            and converts model failures into an invalid routing decision.
+        """
         user_text = latest_user_text(state)
         if not user_text:
             return parse_process_router_json(
@@ -287,6 +311,8 @@ def build_process_router(llm):
                             f"{artifact_for_prompt(state.get('process_quality_report'))}\n"
                             f"has_bpmn_semantic_model: {artifact_is_present(state.get('bpmn_semantic_model'))}\n"
                             f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n\n"
+                            "Recent conversation (resolve references against this):\n"
+                            f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )

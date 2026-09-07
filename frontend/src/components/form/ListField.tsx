@@ -18,14 +18,19 @@ type ListFieldProps = {
 };
 
 /**
- * Provides an editable field for managing a complete list of short text entries.
+ * Provides a controlled editor for a list of string values.
  *
- * Pressing Enter in an entry inserts a new entry after it.
+ * Pressing Enter inserts a new empty row after the current row without submitting
+ * the surrounding form.
  *
- * @param label - The fieldset label
- * @param values - The current list of entries
- * @param onChange - Called with the updated list when an entry is edited, added, or removed
- * @returns The rendered list editing field
+ * @param label - The field's accessible label
+ * @param hint - Optional descriptive text displayed below the field
+ * @param values - The current list of values
+ * @param onChange - Called with the updated list when values are added, edited, or removed
+ * @param placeholder - Optional placeholder text for each input
+ * @param addLabel - Label for the button that adds an empty row
+ * @param removeLabel - Label prefix for each row's remove button
+ * @param emptyLabel - Message displayed when the list has no values
  */
 export function ListField({
   label,

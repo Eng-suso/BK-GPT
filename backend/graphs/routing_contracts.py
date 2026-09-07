@@ -243,9 +243,11 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="project",
         route="process_coordination",
         target="process_coordination_subgraph",
+        prerequisites=["existing_project_process"],
         description=(
             "Multiple processes in one project: sequencing, readiness matrix, "
-            "cross-process dependencies, interview needs by process or handoff planning."
+            "cross-process dependencies, interview needs by process or handoff planning. "
+            "Needs processes that already exist: a project with none has nothing to coordinate."
         ),
     ),
     "project.process_delegation": CapabilitySpec(
@@ -253,10 +255,12 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="project",
         route="delegate_process",
         target="process_macro",
-        prerequisites=["unambiguous_process_target"],
+        prerequisites=["existing_project_process", "unambiguous_process_target"],
         description=(
-            "Deep work on one process: AS-IS/TO-BE discovery, evidence synthesis, "
-            "readiness or BPMN semantic review. Needs one unambiguous target process."
+            "Deep work on one process that is already registered in this project: "
+            "AS-IS/TO-BE discovery, evidence synthesis, readiness or BPMN semantic "
+            "review. Needs one unambiguous target process that exists. Creating the "
+            "process record is project work, not a reason to delegate."
         ),
     ),
     "project.canvas_delegation": CapabilitySpec(
@@ -264,8 +268,8 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="project",
         route="delegate_canvas",
         target="canvas_macro",
-        prerequisites=["unambiguous_process_target"],
-        description="Hand the canvas of one unambiguous process over to the Canvas Macro Agent.",
+        prerequisites=["existing_project_process", "unambiguous_process_target"],
+        description="Hand the canvas of one unambiguous existing process over to the Canvas Macro Agent.",
     ),
     "project.clarification": CapabilitySpec(
         id="project.clarification",
@@ -779,6 +783,19 @@ def _state_value_as_dict(value: Any) -> dict[str, Any]:
 
 
 def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
+    """Determine whether the state contains a complete canonical semantic model.
+    
+    Args:
+        state (dict[str, Any]): Untrusted routing state to inspect.
+    
+    Returns:
+        bool: `True` if the semantic model contains non-empty ``flowNodes``,
+            ``sequenceFlows``, ``compilationPlan``, and
+            ``sourceProcessUnderstanding`` sections, `False` otherwise.
+    
+    This function does not modify or persist state and does not raise errors for
+    missing or malformed semantic-model data.
+    """
     semantic_model = _state_value_as_dict(
         state.get("bpmn_semantic_model")
     )
@@ -788,6 +805,52 @@ def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
         and semantic_model.get("compilationPlan")
         and semantic_model.get("sourceProcessUnderstanding")
     )
+
+
+def project_processes(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return dictionary-valued project processes from routing state.
+    
+    Args:
+        state (dict[str, Any]): Untrusted routing state containing an optional
+            ``project_processes`` collection.
+    
+    Returns:
+        list[dict[str, Any]]: The project process entries that are dictionaries.
+        Returns an empty list when the collection is missing, null, or empty.
+    
+    This function does not modify or persist state and does not raise errors.
+    """
+    return [
+        process
+        for process in state.get("project_processes") or []
+        if isinstance(process, dict)
+    ]
+
+
+def resolved_project_process(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve the unambiguous existing process targeted by the project state.
+    
+    Args:
+        state (dict[str, Any]): Untrusted routing state containing project processes
+            and an optional process entity hint.
+    
+    Returns:
+        dict[str, Any] | None: The matching existing process, the sole project
+        process when no hint is provided, or `None` when no unambiguous existing
+        process can be identified.
+    
+    This function does not raise errors, mutate state, or persist data.
+    """
+    processes = project_processes(state)
+    hint = _normalized((state.get("entity_hints") or {}).get("process"))
+
+    if hint:
+        for process in processes:
+            if hint in {_normalized(process.get("id")), _normalized(process.get("name"))}:
+                return process
+        return None
+
+    return processes[0] if len(processes) == 1 else None
 
 
 def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[str]:
@@ -826,11 +889,10 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
                 missing.append(prerequisite)
         elif prerequisite == "no_critical_contradictions" and _has_critical_contradiction(state):
             missing.append(prerequisite)
-        elif prerequisite == "unambiguous_process_target":
-            hints = state.get("entity_hints") or {}
-            processes = state.get("project_processes") or []
-            if not hints.get("process") and len(processes) != 1:
-                missing.append(prerequisite)
+        elif prerequisite == "existing_project_process" and not project_processes(state):
+            missing.append(prerequisite)
+        elif prerequisite == "unambiguous_process_target" and resolved_project_process(state) is None:
+            missing.append(prerequisite)
         elif prerequisite == "bpmn_model_id" and not (state.get("bpmn_model_id") or (state.get("entity_hints") or {}).get("canvas")):
             missing.append(prerequisite)
         elif prerequisite == "effective_bpmn_xml" and not (

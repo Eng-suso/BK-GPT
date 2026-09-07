@@ -126,7 +126,7 @@ def agent_scope_state(
 
 def build_scope_system_prompt(state: dict) -> str:
     """
-    Builds the localized system prompt for the active conversation scope.
+    Build the localized system prompt for the active conversation scope.
     
     Args:
         state (dict): Untrusted per-turn state containing scope identifiers, chat
@@ -134,15 +134,16 @@ def build_scope_system_prompt(state: dict) -> str:
             canvas artifacts.
     
     Returns:
-        str: A newline-delimited system prompt containing the scoped context and
-            operational constraints. Oversized state artifacts and BPMN XML are
-            truncated according to the configured limits.
+        str: A newline-delimited prompt containing scoped context and operational
+            constraints. Oversized state artifacts and BPMN XML are truncated
+            according to the configured limits.
     
     Raises:
-        KeyError: If the chat mode is missing from ``CHAT_MODE_CONTRACTS``.
+        KeyError: If the resolved chat mode is not present in
+            ``CHAT_MODE_CONTRACTS``.
     
-    The generated prompt preserves scope boundaries, uses available identifiers
-    without inventing missing ones, and performs no side effects or persistence.
+    The generated prompt preserves scope boundaries, uses only available
+    identifiers, and does not persist data or perform other side effects.
     """
     scope_type = str(state.get("scope_type") or "consultant")
     chat_mode = str(state.get("chat_mode") or "agent")
@@ -204,8 +205,9 @@ def build_scope_system_prompt(state: dict) -> str:
         lines.append(f"process_name: {state['process_name']}")
 
     if scope_type == "project":
+        processes = state.get("project_processes") or []
         project_snapshot = {
-            "processes": state.get("project_processes") or [],
+            "processes": processes,
             "sources": state.get("project_sources") or [],
             "decisions": state.get("project_decisions") or [],
             "deliverables": state.get("project_deliverables") or [],
@@ -218,6 +220,24 @@ def build_scope_system_prompt(state: dict) -> str:
                 _state_value_to_text(project_snapshot, MAX_STATE_ARTIFACT_CHARS),
             ]
         )
+        if not processes:
+            # PROJECT-02: senza processi registrati la chat elencava le lacune di
+            # un processo inesistente. Non e' prudenza: e' inventare lo stato di
+            # una cosa che nel workspace non c'e'.
+            lines.extend(
+                [
+                    "",
+                    "Il progetto non ha ancora processi registrati (process_count: 0).",
+                    "Con zero processi la readiness di processo non e' valutabile, non "
+                    "esistono dipendenze fra processi e non c'e' conoscenza di processo "
+                    "mancante: non elencarla, non dedurla e non anticipare le domande "
+                    "della discovery.",
+                    "Il lavoro disponibile qui e' il perimetro del portfolio: concordare "
+                    "quali processi entrano in scope e registrarli con "
+                    "create_project_process. La discovery di un processo comincia dopo, "
+                    "nella chat processo, quando il consulente lo decide.",
+                ]
+            )
 
     if state.get("readiness_score") is not None:
         lines.append(f"readiness_score: {state['readiness_score']}")
@@ -347,6 +367,17 @@ def build_scope_system_prompt(state: dict) -> str:
             "Non mischiare dati tra chat generale, progetto, processo e canvas.",
             "Se un'operazione richiede un id mancante, chiedi il contesto invece di inventarlo.",
             "I tool disponibili per questo scope definiscono le azioni consentite.",
+            # PROJECT-05: davanti a una capability mancante l'agente inventava un
+            # giro nella UI ("Aggiungi processo"). Un pulsante inesistente e' una
+            # falsa promessa, e il consulente la scopre solo cercandolo.
+            "Non inventare percorsi nell'interfaccia. Non nominare pulsanti, voci "
+            "di menu, schermate o scorciatoie come alternativa a quello che non "
+            "puoi fare: descrivi solo cio' che sai esistere.",
+            "Quando una capability manca, dillo apertamente e nomina cosa manca. "
+            "Un limite dichiarato vale piu' di un'alternativa inventata.",
+            "Il riferimento a un'entita' nominata nei turni precedenti - \"il "
+            "processo\", \"quello\", \"aggiungilo\" - va risolto leggendo la "
+            "conversazione. Richiedi il nome solo se resta davvero ambiguo.",
         ]
     )
     return "\n".join(lines)

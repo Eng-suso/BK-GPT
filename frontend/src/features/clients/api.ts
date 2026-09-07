@@ -23,7 +23,7 @@ export const clientKeys = {
 };
 
 /**
- * Fetches the clients in the current workspace.
+ * Fetches the workspace clients.
  *
  * @returns The query result containing the workspace clients
  */
@@ -38,10 +38,9 @@ export function useClientsQuery(): UseQueryResult<Client[]> {
 }
 
 /**
- * Creates a workspace client from a client draft.
+ * Creates a client from a draft.
  *
- * @param draft - The client details to create
- * @returns The created client
+ * @returns A mutation result whose successful value is the created client.
  */
 export function useCreateClientMutation(): UseMutationResult<
   Client,
@@ -64,11 +63,11 @@ export function useCreateClientMutation(): UseMutationResult<
 }
 
 /**
- * Provides a mutation for updating an existing workspace client.
+ * Provides a mutation for updating an existing client.
  *
  * Successful updates refresh client and project query data.
  *
- * @returns The client update mutation.
+ * @returns The client update mutation result
  */
 export function useUpdateClientMutation(): UseMutationResult<
   Client,

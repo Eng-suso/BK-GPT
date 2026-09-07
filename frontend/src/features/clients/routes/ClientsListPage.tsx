@@ -24,10 +24,10 @@ import { ClientFormDialog } from "../components/ClientFormDialog";
 import { clientStatusTone, type Client } from "../types";
 
 /**
- * Determines whether a client matches a search query by name, sector, owner, or contact.
+ * Determines whether a client matches a case-insensitive search query across its name, sector, owner, or contact fields.
  *
  * @param c - The client to search
- * @param q - The lowercase search query
+ * @param q - The normalized search query
  * @returns `true` if any searchable client field contains the query, `false` otherwise.
  */
 function matchClient(c: Client, q: string): boolean {
@@ -37,7 +37,7 @@ function matchClient(c: Client, q: string): boolean {
 }
 
 /**
- * Renders the client directory with search, filtering, sorting, pagination, selection, and create or edit actions.
+ * Renders the clients directory with search, filtering, sorting, pagination, and client detail and form views.
  */
 export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation("clients");

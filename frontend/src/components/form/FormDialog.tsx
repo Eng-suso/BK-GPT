@@ -30,12 +30,12 @@ type FormDialogProps = {
 /**
  * Renders a reusable dialog for workspace record forms.
  *
- * Keeps the dialog actions disabled during submission, displays submission errors,
- * and provides a scrollable area for form content.
+ * The dialog provides a fixed header and footer with a scrollable form body,
+ * displays backend errors, and prevents duplicate submissions while saving.
  *
- * @param isSubmitting - Whether a submission is currently in progress
- * @param error - An optional error message to display in the form
- * @param onSubmit - Called when the form is submitted
+ * @param error - An optional error message displayed in the form footer.
+ * @param onSubmit - Called when the form is submitted and no submission is in progress.
+ * @returns The form dialog element.
  */
 export function FormDialog({
   open,

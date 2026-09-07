@@ -4,7 +4,11 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
-from backend.graphs.common import build_tool_chat_subgraph, latest_user_text
+from backend.graphs.common import (
+    build_tool_chat_subgraph,
+    latest_user_text,
+    recent_conversation_digest,
+)
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.consulting.subgraphs.clients import build_clients_subgraph, clients_tools
 from backend.graphs.consulting.subgraphs.home import build_home_subgraph, home_tools
@@ -188,24 +192,39 @@ def parse_router_json(content: str, user_request: str = "", state: dict | None =
 
 def build_consulting_router(llm):
     """
-    Build a consulting-intent routing node backed by a language model.
+    Build a language-model-backed node that routes consulting requests into normalized state.
     
-    The returned node routes the latest user request into normalized consulting
-    routing state. Requests without user text use the direct route with empty
-    delegation and clarification data. Unexpected routing failures are converted
-    to an invalid routing decision rather than propagated.
-    
-    The node invokes the language model and performs no persistence.
+    The returned node uses the latest user request and recent conversation context. When no
+    user text is available, it selects the direct route. Unexpected routing failures are
+    represented as an invalid routing decision rather than propagated. The node invokes the
+    language model and performs no persistence.
     
     Args:
-        llm: Language model used to resolve the routing decision.
+        llm: Language model used to resolve routing decisions.
     
     Returns:
-        A routing callable that accepts consulting state and runtime configuration
-        and returns normalized routing state.
-    
+        A callable accepting consulting state and runtime configuration and returning
+        normalized routing state.
     """
     def route_consulting_intent(state: ConsultingState, config: RunnableConfig) -> dict:
+        """
+        Route the latest consulting request to an authorized destination.
+        
+        Args:
+            state (ConsultingState): Untrusted conversation and routing state used to
+                identify the latest request and resolve conversational references.
+            config (RunnableConfig): Runtime configuration passed to the routing model.
+        
+        Returns:
+            dict: Normalized consulting routing state. When no user message is
+            available, contains a direct route with empty delegation and clarification
+            data. Unexpected routing failures are represented as an invalid decision
+            rather than raised.
+        
+        Side Effects:
+            Invokes the configured language model. Does not persist data.
+        
+        """
         user_text = latest_user_text(state)
         if not user_text:
             return {
@@ -233,6 +252,8 @@ def build_consulting_router(llm):
                     HumanMessage(
                         content=(
                             "Active scope: consultant\n\n"
+                            "Recent conversation (resolve references against this):\n"
+                            f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )
