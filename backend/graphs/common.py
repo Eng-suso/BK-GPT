@@ -10,6 +10,22 @@ from pydantic import BaseModel, ValidationError
 logger = logging.getLogger(__name__)
 
 
+def message_text(message) -> str:
+    """The readable text of one message, whatever shape the provider used."""
+    content = getattr(message, "content", "")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text") or ""))
+        return "\n".join(part for part in parts if part).strip()
+    return str(content or "").strip()
+
+
 def latest_user_text(state: dict) -> str:
     """Finds the text of the most recent human or user message.
     
@@ -22,9 +38,60 @@ def latest_user_text(state: dict) -> str:
     for message in reversed(state.get("messages", [])):
         role = getattr(message, "type", None) or getattr(message, "role", "")
         if role in {"human", "user"}:
-            return str(getattr(message, "content", "") or "")
+            return message_text(message)
 
     return ""
+
+
+# What a router gets to read of the conversation before it decides. Runtime
+# policy, not a model field: enough turns to resolve a reference, few enough
+# that routing stays a cheap decision.
+ROUTER_DIGEST_MAX_TURNS = 8
+ROUTER_DIGEST_MAX_CHARS = 4_000
+ROUTER_DIGEST_MAX_CHARS_PER_TURN = 700
+
+
+def recent_conversation_digest(
+    state: dict,
+    *,
+    max_turns: int = ROUTER_DIGEST_MAX_TURNS,
+    max_chars: int = ROUTER_DIGEST_MAX_CHARS,
+    max_chars_per_turn: int = ROUTER_DIGEST_MAX_CHARS_PER_TURN,
+) -> str:
+    """The tail of the conversation, in the form a router can route on.
+
+    A router that sees only the latest user message cannot resolve "aggiungi il
+    processo": the referent was named one turn earlier, often by the assistant
+    itself, so the turn ended in "quale processo?" while the answer sat in the
+    transcript (PROJECT-04). Tool traffic stays out - the router routes the
+    conversation, not the tool trace.
+    """
+    turns: list[str] = []
+    for message in reversed(state.get("messages", [])):
+        role = getattr(message, "type", None) or getattr(message, "role", "")
+        if role not in {"human", "user", "ai", "assistant"}:
+            continue
+
+        text = message_text(message)
+        if not text:
+            continue
+        if len(text) > max_chars_per_turn:
+            text = text[:max_chars_per_turn] + " [...]"
+
+        speaker = "utente" if role in {"human", "user"} else "DeliR"
+        turns.append(f"{speaker}: {text}")
+        if len(turns) >= max_turns:
+            break
+
+    # `turns` is newest-first; keep the newest turns that fit and restore order.
+    digest = ""
+    for turn in turns:
+        candidate = f"{turn}\n{digest}" if digest else turn
+        if len(candidate) > max_chars:
+            break
+        digest = candidate
+
+    return digest
 
 
 def validated_model(model_cls, value):

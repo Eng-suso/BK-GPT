@@ -16,6 +16,7 @@ from backend.graphs.common import (
     build_tool_chat_subgraph,
     canonical_semantic_context,
     latest_user_text,
+    recent_conversation_digest,
 )
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.routing_contracts import (
@@ -326,6 +327,8 @@ def build_canvas_router(llm):
                             f"has_effective_bpmn_xml: {bool(state.get('effective_bpmn_xml'))}\n"
                             f"effective_bpmn_xml_source: {state.get('effective_bpmn_xml_source')}\n"
                             f"has_prepared_preview_ready_to_apply: {bool(state.get('canvas_preview_xml'))}\n\n"
+                            "Recent conversation (resolve references against this):\n"
+                            f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )

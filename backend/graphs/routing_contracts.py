@@ -243,9 +243,11 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="project",
         route="process_coordination",
         target="process_coordination_subgraph",
+        prerequisites=["existing_project_process"],
         description=(
             "Multiple processes in one project: sequencing, readiness matrix, "
-            "cross-process dependencies, interview needs by process or handoff planning."
+            "cross-process dependencies, interview needs by process or handoff planning. "
+            "Needs processes that already exist: a project with none has nothing to coordinate."
         ),
     ),
     "project.process_delegation": CapabilitySpec(
@@ -253,10 +255,12 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="project",
         route="delegate_process",
         target="process_macro",
-        prerequisites=["unambiguous_process_target"],
+        prerequisites=["existing_project_process", "unambiguous_process_target"],
         description=(
-            "Deep work on one process: AS-IS/TO-BE discovery, evidence synthesis, "
-            "readiness or BPMN semantic review. Needs one unambiguous target process."
+            "Deep work on one process that is already registered in this project: "
+            "AS-IS/TO-BE discovery, evidence synthesis, readiness or BPMN semantic "
+            "review. Needs one unambiguous target process that exists. Creating the "
+            "process record is project work, not a reason to delegate."
         ),
     ),
     "project.canvas_delegation": CapabilitySpec(
@@ -264,8 +268,8 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="project",
         route="delegate_canvas",
         target="canvas_macro",
-        prerequisites=["unambiguous_process_target"],
-        description="Hand the canvas of one unambiguous process over to the Canvas Macro Agent.",
+        prerequisites=["existing_project_process", "unambiguous_process_target"],
+        description="Hand the canvas of one unambiguous existing process over to the Canvas Macro Agent.",
     ),
     "project.clarification": CapabilitySpec(
         id="project.clarification",
@@ -790,6 +794,36 @@ def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
     )
 
 
+def project_processes(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        process
+        for process in state.get("project_processes") or []
+        if isinstance(process, dict)
+    ]
+
+
+def resolved_project_process(state: dict[str, Any]) -> dict[str, Any] | None:
+    """The one *existing* process a project decision is about, or None.
+
+    A hint only names a target when the project actually has that process. "Il
+    processo Gestione acquisto materiali indiretti" for a process nobody has
+    created yet is a request to create it, not a delegation target: Process
+    Macro needs a process_id, so handing it a name would route the turn into a
+    dead end (PROJECT-03). With no hint, a single process in the project is
+    unambiguous by itself.
+    """
+    processes = project_processes(state)
+    hint = _normalized((state.get("entity_hints") or {}).get("process"))
+
+    if hint:
+        for process in processes:
+            if hint in {_normalized(process.get("id")), _normalized(process.get("name"))}:
+                return process
+        return None
+
+    return processes[0] if len(processes) == 1 else None
+
+
 def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[str]:
     """
     Identify prerequisites declared by a capability that are not satisfied by the current routing state.
@@ -826,11 +860,10 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
                 missing.append(prerequisite)
         elif prerequisite == "no_critical_contradictions" and _has_critical_contradiction(state):
             missing.append(prerequisite)
-        elif prerequisite == "unambiguous_process_target":
-            hints = state.get("entity_hints") or {}
-            processes = state.get("project_processes") or []
-            if not hints.get("process") and len(processes) != 1:
-                missing.append(prerequisite)
+        elif prerequisite == "existing_project_process" and not project_processes(state):
+            missing.append(prerequisite)
+        elif prerequisite == "unambiguous_process_target" and resolved_project_process(state) is None:
+            missing.append(prerequisite)
         elif prerequisite == "bpmn_model_id" and not (state.get("bpmn_model_id") or (state.get("entity_hints") or {}).get("canvas")):
             missing.append(prerequisite)
         elif prerequisite == "effective_bpmn_xml" and not (

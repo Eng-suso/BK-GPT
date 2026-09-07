@@ -4,7 +4,11 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
-from backend.graphs.common import build_tool_chat_subgraph, latest_user_text
+from backend.graphs.common import (
+    build_tool_chat_subgraph,
+    latest_user_text,
+    recent_conversation_digest,
+)
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.consulting.subgraphs.clients import build_clients_subgraph, clients_tools
 from backend.graphs.consulting.subgraphs.home import build_home_subgraph, home_tools
@@ -233,6 +237,8 @@ def build_consulting_router(llm):
                     HumanMessage(
                         content=(
                             "Active scope: consultant\n\n"
+                            "Recent conversation (resolve references against this):\n"
+                            f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )

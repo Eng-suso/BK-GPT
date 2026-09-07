@@ -4,7 +4,11 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
-from backend.graphs.common import build_tool_chat_subgraph, latest_user_text
+from backend.graphs.common import (
+    build_tool_chat_subgraph,
+    latest_user_text,
+    recent_conversation_digest,
+)
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.project.nodes import load_project_context
 from backend.graphs.project.state import ProjectState
@@ -73,9 +77,25 @@ Propose exactly one route for the latest user request using project state, inten
 Capabilities you may propose:
 {capability_menu}
 
+Resolve references before you route. "il processo", "quello", "aggiungilo",
+"approvalo", "il secondo" point at an entity already named in the recent
+conversation - often by you, in the previous turn. Read the conversation,
+resolve the referent and put it in entity_hints. Route to clarification only
+when the referent is still ambiguous after reading the conversation, never
+because the latest message on its own is short.
+
+The project owns the process records inside it. Registering, creating or adding
+a process to this project is project workspace setup, so route it direct: the
+Project Macro Agent has the tool. Delegation to Process Macro is for work on a
+process that already exists, and never a way to get one created.
+
+When process_count is 0 the project has no processes at all. Process readiness,
+cross-process dependencies and process knowledge gaps are not evaluable, and
+nothing about a process that does not exist may be inferred. Route direct and
+stay on portfolio and scope setup.
+
 Return structured output matching the ProjectRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
-If process/canvas delegation has an ambiguous target, route to clarification.
 """.strip()
 
 
@@ -216,6 +236,20 @@ def parse_project_router_json(content: str, user_request: str = "", state: dict 
     )
 
 
+def _registered_process_names(state: dict) -> str:
+    """The processes that actually exist, so a hint can be checked against them.
+
+    Without the list the router could only guess whether "il processo Gestione
+    acquisti" was a delegation target or a process nobody has created yet.
+    """
+    names = [
+        str(process.get("name") or "")
+        for process in state.get("project_processes") or []
+        if isinstance(process, dict) and process.get("name")
+    ]
+    return ", ".join(names) if names else "nessuno"
+
+
 def build_project_router(llm):
     """
     Create a project-intent routing node backed by the configured language model.
@@ -258,7 +292,10 @@ def build_project_router(llm):
                             "Active scope: project\n\n"
                             f"project_id: {state.get('project_id')}\n"
                             f"project_name: {state.get('project_name')}\n"
-                            f"process_count: {len(state.get('project_processes') or [])}\n\n"
+                            f"process_count: {len(state.get('project_processes') or [])}\n"
+                            f"registered_processes: {_registered_process_names(state)}\n\n"
+                            "Recent conversation (resolve references against this):\n"
+                            f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )

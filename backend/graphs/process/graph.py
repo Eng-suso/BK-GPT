@@ -10,6 +10,7 @@ from backend.graphs.common import (
     artifact_is_present,
     build_tool_chat_subgraph,
     latest_user_text,
+    recent_conversation_digest,
 )
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
@@ -287,6 +288,8 @@ def build_process_router(llm):
                             f"{artifact_for_prompt(state.get('process_quality_report'))}\n"
                             f"has_bpmn_semantic_model: {artifact_is_present(state.get('bpmn_semantic_model'))}\n"
                             f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n\n"
+                            "Recent conversation (resolve references against this):\n"
+                            f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )
