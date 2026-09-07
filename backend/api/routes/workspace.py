@@ -22,6 +22,7 @@ from backend.schemas.workspace import (
     UpdateBpmnModelRequest,
     UpdateBpmnReviewRequest,
     UpdateClientRequest,
+    UpdateProcessRequest,
     UpdateProjectRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
@@ -51,6 +52,7 @@ from backend.workspace_database import (
     revise_bpmn_review,
     update_bpmn_review_brief,
     update_client,
+    update_process,
     update_project,
 )
 
@@ -247,6 +249,17 @@ def create_workspace_project_decision(
         return ProjectDecisionResponse(**create_project_decision(project_id=project_id, **request.model_dump()))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch("/processes/{process_id}")
+def update_workspace_process(process_id: str, request: UpdateProcessRequest) -> ProjectProcessResponse:
+    """Modifica manuale del processo: nome, stadio, stato, owner, readiness."""
+    try:
+        return ProjectProcessResponse(
+            **update_process(process_id, **request.model_dump(exclude_unset=True))
+        )
+    except ValueError as exc:
+        raise _edit_error(exc) from exc
 
 
 @router.get("/processes/{process_id}")

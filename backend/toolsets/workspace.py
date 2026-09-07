@@ -9,10 +9,14 @@ from backend import workspace_database
 from backend.toolsets.common import format_workspace_result
 from backend.workspace_defaults import (
     CLIENT_STATUS_DESCRIPTION,
+    PROCESS_STAGE_DESCRIPTION,
+    PROCESS_STATUS_DESCRIPTION,
     PROJECT_OBJECTIVE_DESCRIPTION,
     PROJECT_PHASE_DESCRIPTION,
     PROJECT_STATUS_DESCRIPTION,
     ClientStatus,
+    ProcessStage,
+    ProcessStatus,
     ProjectPhase,
     ProjectStatus,
 )
@@ -181,6 +185,31 @@ class ProjectUpdateInput(BaseModel):
         default=None,
         description="Full replacement list of deliverables. Send every entry you want kept.",
     )
+
+
+class ProcessRecordInput(BaseModel):
+    """I campi di un processo, con lo stesso vocabolario che vede il consulente."""
+
+    project_id: str = Field(description="Id of the project this process belongs to.")
+    name: str = Field(description="Process name as the consultant named it.")
+    stage: ProcessStage | None = Field(default=None, description=PROCESS_STAGE_DESCRIPTION)
+    status: ProcessStatus | None = Field(default=None, description=PROCESS_STATUS_DESCRIPTION)
+    owner: str | None = Field(
+        default=None,
+        description="Owner or business area, only when the consultant named one. Do not guess.",
+    )
+    readiness: int = Field(default=0, description="How complete the process knowledge is, 0-100.")
+
+
+class ProcessUpdateInput(BaseModel):
+    """Una modifica parziale: si dichiarano solo i campi che cambiano."""
+
+    process_id: str = Field(description="Id of the process to update.")
+    name: str | None = Field(default=None, description="New process name, only when it changes.")
+    stage: ProcessStage | None = Field(default=None, description=PROCESS_STAGE_DESCRIPTION)
+    status: ProcessStatus | None = Field(default=None, description=PROCESS_STATUS_DESCRIPTION)
+    owner: str | None = Field(default=None, description="Owner or business area.")
+    readiness: int | None = Field(default=None, description="How complete the process knowledge is, 0-100.")
 
 
 class InitialWorkspaceSetupInput(BaseModel):
@@ -720,19 +749,20 @@ def update_workspace_project(
     )
 
 
-@tool
+@tool(args_schema=ProcessRecordInput)
 def create_workspace_process(
     project_id: str,
     name: str,
-    stage: str = "AS-IS",
-    status: str = "Bozza",
-    owner: str = "Da assegnare",
+    stage: ProcessStage | None = None,
+    status: ProcessStatus | None = None,
+    owner: str | None = None,
     readiness: int = 0,
 ) -> str:
     """
     Create a process inside an existing project.
     Use for AS-IS/TO-BE process records. This creates the process record and its empty BPMN model.
     It does not generate BPMN XML.
+    Leave stage, status and owner unset when the consultant did not state them.
     """
     process = workspace_database.create_process(
         project_id=project_id,
@@ -743,6 +773,52 @@ def create_workspace_process(
         readiness=readiness,
     )
     return format_workspace_result("Processo creato", process)
+
+
+@tool(args_schema=ProcessUpdateInput)
+def update_workspace_process(
+    process_id: str,
+    name: str | None = None,
+    stage: ProcessStage | None = None,
+    status: ProcessStatus | None = None,
+    owner: str | None = None,
+    readiness: int | None = None,
+) -> str:
+    """
+    Update an existing process record: name, stage, status, owner, readiness.
+    Declare only the fields that change.
+    Use when the work actually moved - an AS-IS confirmed by the people who run it
+    becomes "Validato" - or when the consultant corrects a recorded value. The
+    consultant edits the same fields by hand in the UI, on the same record.
+    This never touches the BPMN model content.
+    """
+    try:
+        process = workspace_database.update_process(
+            process_id=process_id,
+            name=name,
+            stage=stage,
+            status=status,
+            owner=owner,
+            readiness=readiness,
+        )
+    except ValueError as exc:
+        return enterprise_tool_result(
+            status="error",
+            action="update_workspace_process",
+            entity_type="process",
+            entity_id=process_id,
+            summary=str(exc),
+            warnings=[str(exc)],
+        )
+
+    return enterprise_tool_result(
+        status="updated",
+        action="update_workspace_process",
+        entity_type="process",
+        entity_id=process["id"],
+        summary=f"Processo aggiornato: {process['name']}",
+        payload=process,
+    )
 
 
 @tool
@@ -1073,6 +1149,7 @@ workspace_mutation_tools = [
     create_workspace_project,
     update_workspace_project,
     create_workspace_process,
+    update_workspace_process,
     add_workspace_source,
     add_workspace_decision,
 ]
@@ -1085,6 +1162,7 @@ workspace_project_tools = [
 workspace_process_tools = [
     *workspace_read_tools,
     create_workspace_process,
+    update_workspace_process,
     add_workspace_source,
     add_workspace_decision,
 ]

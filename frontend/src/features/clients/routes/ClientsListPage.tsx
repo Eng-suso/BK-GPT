@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SortingState } from "@tanstack/react-table";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 
 import { PageHeader, WorkspaceListView } from "@/components/layout";
 import { DataTable, DataTablePagination, ListToolbar } from "@/components/data";
@@ -20,6 +20,7 @@ import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
 import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { buildClientColumns } from "../columns";
 import { useClientsQuery } from "../api";
+import { ClientFormDialog } from "../components/ClientFormDialog";
 import { clientStatusTone, type Client } from "../types";
 
 function matchClient(c: Client, q: string): boolean {
@@ -35,6 +36,12 @@ export function ClientsListPage(): React.JSX.Element {
   const { data: clients = [], isLoading, isError, refetch } = useClientsQuery();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // `null` = creazione, un cliente = modifica di quel record. `formSession`
+  // cambia a ogni apertura e fa da `key` al dialog: la bozza riparte dai dati
+  // correnti senza risincronizzare lo state in un effetto.
+  const [editing, setEditing] = useState<Client | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formSession, setFormSession] = useState(0);
 
   const filterDefs = useMemo<ListFilterDef<Client>[]>(
     () => [
@@ -57,6 +64,18 @@ export function ClientsListPage(): React.JSX.Element {
   const columns = useMemo(() => buildClientColumns(t), [t]);
   const handleRowClick = useCallback((c: Client) => setSelectedId(c.id), []);
 
+  const openCreate = useCallback(() => {
+    setEditing(null);
+    setFormSession((session) => session + 1);
+    setFormOpen(true);
+  }, []);
+
+  const openEdit = useCallback((client: Client) => {
+    setEditing(client);
+    setFormSession((session) => session + 1);
+    setFormOpen(true);
+  }, []);
+
   return (
     <WorkspaceListView
       header={
@@ -69,7 +88,7 @@ export function ClientsListPage(): React.JSX.Element {
           description={t("list.description")}
           count={clients.length || undefined}
           actions={
-            <Button size="sm">
+            <Button size="sm" onClick={openCreate}>
               <Plus /> {t("list.actions.new")}
             </Button>
           }
@@ -92,7 +111,19 @@ export function ClientsListPage(): React.JSX.Element {
                 title={selected.name}
                 subtitle={selected.sector}
               />
-              <DetailPanelSection title={t("detail.summary")}>
+              <DetailPanelSection
+                title={t("detail.summary")}
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => openEdit(selected)}
+                  >
+                    <Pencil /> {t("detail.actions.edit")}
+                  </Button>
+                }
+              >
                 <DetailPanelKeyValue
                   rows={[
                     {
@@ -145,6 +176,12 @@ export function ClientsListPage(): React.JSX.Element {
         </DetailPanel>
       }
     >
+      <ClientFormDialog
+        key={formSession}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        client={editing}
+      />
       {isError ? (
         <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
           <ErrorState
@@ -166,6 +203,11 @@ export function ClientsListPage(): React.JSX.Element {
             <EmptyState
               title={t("list.empty.title")}
               description={t("list.empty.description")}
+              action={
+                <Button size="sm" onClick={openCreate}>
+                  <Plus /> {t("list.actions.new")}
+                </Button>
+              }
             />
           }
           footer={

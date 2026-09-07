@@ -21,6 +21,7 @@ import { ProcessWorkspace, type ProcessView } from "../ProcessWorkspace";
 const PROCESS_STATUS_TONE: Record<ProjectProcess["status"], StatusTone> = {
   "In corso": "ok",
   "Da validare": "pending",
+  Validato: "ok",
   Bozza: "neutral",
 };
 

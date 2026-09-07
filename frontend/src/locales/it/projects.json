@@ -6,7 +6,10 @@
   "list": {
     "title": "Progetti",
     "description": "Monitora lo stato del portafoglio progetti di consulenza e avanza con decisioni informate.",
-    "actions": { "new": "Nuovo progetto", "export": "Esporta" },
+    "actions": {
+      "new": "Nuovo progetto",
+      "export": "Esporta"
+    },
     "filter": {
       "placeholder": "Cerca progetti…",
       "client": "Cliente",
@@ -23,10 +26,12 @@
       "processes": "Processi",
       "progress": "Avanzamento"
     },
-    "owner": { "unassigned": "Da assegnare" },
+    "owner": {
+      "unassigned": "Da assegnare"
+    },
     "empty": {
       "title": "Nessun progetto",
-      "description": "Crea il primo progetto dalla chat agente."
+      "description": "Crea il primo progetto qui, o chiedilo all'agente in chat."
     },
     "noResults": {
       "title": "Nessun progetto corrispondente",
@@ -42,7 +47,9 @@
     "phaseLabel": "Fase",
     "actions": {
       "openChat": "Apri chat",
-      "openProcess": "Apri processo"
+      "openProcess": "Apri processo",
+      "edit": "Modifica progetto",
+      "editProcess": "Modifica processo"
     },
     "tabs": {
       "overview": "Panoramica",
@@ -53,11 +60,18 @@
     },
     "overview": {
       "processes": "Processi in scope",
-      "decisions": "Decisioni"
+      "decisions": "Decisioni",
+      "objective": "Obiettivo dell'incarico"
     },
-    "processes": { "empty": "Nessun processo in scope" },
-    "sources": { "empty": "Nessuna fonte collegata" },
-    "decisions": { "empty": "Nessuna decisione registrata" },
+    "processes": {
+      "empty": "Nessun processo in scope"
+    },
+    "sources": {
+      "empty": "Nessuna fonte collegata"
+    },
+    "decisions": {
+      "empty": "Nessuna decisione registrata"
+    },
     "panel": {
       "summary": "Riepilogo progetto",
       "openIssues": "Punti aperti",
@@ -66,9 +80,130 @@
       "nextStep": "Prossimo passo",
       "openProject": "Apri progetto",
       "selectPrompt": "Seleziona un progetto per vederne il dettaglio."
+    },
+    "objective": {
+      "add": "Aggiungi obiettivo",
+      "empty": "Nessun obiettivo registrato. Finché resta vuoto, la chat di progetto conosce il contenitore ma non il mandato."
     }
   },
   "state": {
     "loadError": "Non è stato possibile caricare i progetti. Verifica che il backend sia attivo."
+  },
+  "form": {
+    "createTitle": "Nuovo progetto",
+    "editTitle": "Modifica progetto",
+    "description": "Gli stessi campi che scrive l'agente, sullo stesso record.",
+    "create": "Crea progetto",
+    "save": "Salva modifiche",
+    "fields": {
+      "name": "Nome progetto",
+      "client": "Cliente",
+      "objective": "Obiettivo dell'incarico",
+      "phase": "Fase corrente",
+      "status": "Stato",
+      "progress": "Avanzamento (%)",
+      "nextStep": "Prossimo passo",
+      "milestones": "Milestone",
+      "deliverables": "Deliverable",
+      "openIssues": "Punti aperti"
+    },
+    "hint": {
+      "objective": "Perché l'incarico esiste e cosa lo chiude. È il brief che la chat di progetto legge come proprio mandato.",
+      "phase": "Dove si trova l'incarico nel suo ciclo di vita.",
+      "status": "Come sta andando la consegna.",
+      "nextStep": "La prossima azione concreta, non l'obiettivo finale.",
+      "clientsUnavailable": "Elenco clienti non disponibile: verifica che il backend sia attivo."
+    },
+    "placeholder": {
+      "client": "Seleziona un cliente",
+      "objective": "Es. ricostruire l'AS-IS del ciclo ordini, validarlo con gli stakeholder, simularlo e misurare i KPI di lead time.",
+      "nextStep": "Es. fissare le interviste con il reparto ordini"
+    },
+    "list": {
+      "add": "Aggiungi voce",
+      "remove": "Rimuovi voce",
+      "emptyMilestones": "Nessuna milestone.",
+      "emptyDeliverables": "Nessun deliverable.",
+      "emptyOpenIssues": "Nessun punto aperto."
+    },
+    "error": {
+      "nameRequired": "Il nome progetto è obbligatorio.",
+      "clientRequired": "Seleziona il cliente a cui appartiene il progetto.",
+      "save": "Non è stato possibile salvare il progetto."
+    },
+    "toast": {
+      "created": "Progetto «{{name}}» creato.",
+      "updated": "Progetto «{{name}}» aggiornato."
+    }
+  },
+  "vocab": {
+    "phase": {
+      "Discovery": "Perimetro, stakeholder e fonti: si decide cosa entra nell'incarico.",
+      "AS-IS": "Ricostruzione del processo esistente da fonti e interviste.",
+      "Validazione": "L'AS-IS viene confermato dagli stakeholder che lo eseguono.",
+      "TO-BE": "Progettazione del processo target e delle sue alternative.",
+      "Simulazione": "Il modello gira: si misurano KPI, scenari e impatti.",
+      "Delivery": "Consegna di risultati e raccomandazioni, chiusura dell'incarico."
+    },
+    "status": {
+      "Bozza": "Registrato ma non ancora avviato.",
+      "In corso": "Lavoro attivo, che avanza secondo il piano.",
+      "A rischio": "Attivo, ma con un blocco su tempi, perimetro o disponibilità del cliente.",
+      "In pausa": "Sospeso per decisione del cliente o del team, non abbandonato.",
+      "Completato": "Deliverable consegnati e incarico chiuso."
+    },
+    "processStage": {
+      "Discovery": "Perimetro del processo: chi lo esegue, dove inizia e dove finisce.",
+      "AS-IS": "Il processo come viene eseguito oggi, ricostruito dalle evidenze.",
+      "TO-BE": "Il processo come si vuole che diventi.",
+      "Validazione": "Il modello è sotto conferma da parte di chi esegue il processo."
+    },
+    "processStatus": {
+      "Bozza": "Registrato: c'è il nome, non ancora il contenuto.",
+      "In corso": "Ricostruzione attiva: interviste, evidenze, modello che cresce.",
+      "Da validare": "Il modello è completo abbastanza da portarlo agli stakeholder.",
+      "Validato": "Confermato da chi esegue il processo: si può costruirci sopra."
+    }
+  },
+  "process": {
+    "actions": {
+      "new": "Nuovo processo",
+      "edit": "Modifica"
+    },
+    "empty": {
+      "description": "Registra i processi che entrano nel perimetro: qui nasce il record, il modello si costruisce nel canvas."
+    },
+    "form": {
+      "createTitle": "Nuovo processo",
+      "editTitle": "Modifica processo",
+      "create": "Crea processo",
+      "fields": {
+        "name": "Nome processo",
+        "stage": "Stadio",
+        "status": "Stato",
+        "owner": "Owner",
+        "readiness": "Completezza (%)"
+      },
+      "hint": {
+        "stage": "Quale processo stai descrivendo: quello di oggi o quello che vuoi.",
+        "status": "A che punto è la descrizione.",
+        "owner": "Reparto o persona che esegue il processo. Non tirare a indovinare.",
+        "readiness": "Quanto è completa la conoscenza del processo, non quanto è buono il processo."
+      },
+      "placeholder": {
+        "name": "Es. Evasione ordini cliente",
+        "owner": "Es. Logistica"
+      },
+      "error": {
+        "nameRequired": "Il nome processo è obbligatorio.",
+        "save": "Non è stato possibile salvare il processo."
+      },
+      "toast": {
+        "created": "Processo «{{name}}» creato.",
+        "updated": "Processo «{{name}}» aggiornato."
+      },
+      "createDescription": "Crea il record del processo e il suo modello BPMN vuoto. Non disegna nulla.",
+      "editDescription": "Modifica il record. Il contenuto del modello BPMN non viene toccato."
+    }
   }
 }

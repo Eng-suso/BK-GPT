@@ -6,7 +6,10 @@
   "list": {
     "title": "Projects",
     "description": "Track the consulting project portfolio and move forward with informed decisions.",
-    "actions": { "new": "New project", "export": "Export" },
+    "actions": {
+      "new": "New project",
+      "export": "Export"
+    },
     "filter": {
       "placeholder": "Search projects…",
       "client": "Client",
@@ -23,10 +26,12 @@
       "processes": "Processes",
       "progress": "Progress"
     },
-    "owner": { "unassigned": "Unassigned" },
+    "owner": {
+      "unassigned": "Unassigned"
+    },
     "empty": {
       "title": "No projects",
-      "description": "Create the first project from the agent chat."
+      "description": "Create the first project here, or ask the agent in chat."
     },
     "noResults": {
       "title": "No matching projects",
@@ -42,7 +47,9 @@
     "phaseLabel": "Phase",
     "actions": {
       "openChat": "Open chat",
-      "openProcess": "Open process"
+      "openProcess": "Open process",
+      "edit": "Edit project",
+      "editProcess": "Edit process"
     },
     "tabs": {
       "overview": "Overview",
@@ -53,11 +60,18 @@
     },
     "overview": {
       "processes": "Processes in scope",
-      "decisions": "Decisions"
+      "decisions": "Decisions",
+      "objective": "Engagement objective"
     },
-    "processes": { "empty": "No processes in scope" },
-    "sources": { "empty": "No linked sources" },
-    "decisions": { "empty": "No decisions recorded" },
+    "processes": {
+      "empty": "No processes in scope"
+    },
+    "sources": {
+      "empty": "No linked sources"
+    },
+    "decisions": {
+      "empty": "No decisions recorded"
+    },
     "panel": {
       "summary": "Project summary",
       "openIssues": "Open issues",
@@ -66,9 +80,130 @@
       "nextStep": "Next step",
       "openProject": "Open project",
       "selectPrompt": "Select a project to see its details."
+    },
+    "objective": {
+      "add": "Add objective",
+      "empty": "No objective recorded. While it stays empty, the project chat knows the container but not the mandate."
     }
   },
   "state": {
     "loadError": "Could not load projects. Check that the backend is running."
+  },
+  "form": {
+    "createTitle": "New project",
+    "editTitle": "Edit project",
+    "description": "The same fields the agent writes, on the same record.",
+    "create": "Create project",
+    "save": "Save changes",
+    "fields": {
+      "name": "Project name",
+      "client": "Client",
+      "objective": "Engagement objective",
+      "phase": "Current phase",
+      "status": "Status",
+      "progress": "Progress (%)",
+      "nextStep": "Next step",
+      "milestones": "Milestones",
+      "deliverables": "Deliverables",
+      "openIssues": "Open issues"
+    },
+    "hint": {
+      "objective": "Why the engagement exists and what closes it. This is the brief the project chat reads as its mandate.",
+      "phase": "Where the engagement sits in its lifecycle.",
+      "status": "How delivery is going.",
+      "nextStep": "The next concrete action, not the end goal.",
+      "clientsUnavailable": "Client list unavailable: check that the backend is running."
+    },
+    "placeholder": {
+      "client": "Select a client",
+      "objective": "E.g. rebuild the AS-IS order-to-cash process, validate it with stakeholders, simulate it and measure lead-time KPIs.",
+      "nextStep": "E.g. schedule interviews with the order desk"
+    },
+    "list": {
+      "add": "Add entry",
+      "remove": "Remove entry",
+      "emptyMilestones": "No milestones.",
+      "emptyDeliverables": "No deliverables.",
+      "emptyOpenIssues": "No open issues."
+    },
+    "error": {
+      "nameRequired": "Project name is required.",
+      "clientRequired": "Select the client this project belongs to.",
+      "save": "Could not save the project."
+    },
+    "toast": {
+      "created": "Project “{{name}}” created.",
+      "updated": "Project “{{name}}” updated."
+    }
+  },
+  "vocab": {
+    "phase": {
+      "Discovery": "Scope, stakeholders and sources: what the engagement covers.",
+      "AS-IS": "Rebuilding the existing process from sources and interviews.",
+      "Validazione": "The AS-IS is confirmed by the stakeholders who run it.",
+      "TO-BE": "Designing the target process and its alternatives.",
+      "Simulazione": "The model runs: KPIs, scenarios and impacts are measured.",
+      "Delivery": "Handing over results and recommendations, closing the engagement."
+    },
+    "status": {
+      "Bozza": "Recorded but not started yet.",
+      "In corso": "Active work, moving along the plan.",
+      "A rischio": "Active, but blocked on time, scope or client availability.",
+      "In pausa": "Paused by the client or the team, not abandoned.",
+      "Completato": "Deliverables handed over and engagement closed."
+    },
+    "processStage": {
+      "Discovery": "Process scope: who runs it, where it starts and ends.",
+      "AS-IS": "The process as it runs today, rebuilt from the evidence.",
+      "TO-BE": "The process as it is meant to become.",
+      "Validazione": "The model is being confirmed by the people who run the process."
+    },
+    "processStatus": {
+      "Bozza": "Recorded: it has a name, not yet the content.",
+      "In corso": "Active reconstruction: interviews, evidence, a model taking shape.",
+      "Da validare": "Complete enough to take to the stakeholders.",
+      "Validato": "Confirmed by the people who run it: safe to build on."
+    }
+  },
+  "process": {
+    "actions": {
+      "new": "New process",
+      "edit": "Edit"
+    },
+    "empty": {
+      "description": "Register the processes in scope: the record starts here, the model is built on the canvas."
+    },
+    "form": {
+      "createTitle": "New process",
+      "editTitle": "Edit process",
+      "create": "Create process",
+      "fields": {
+        "name": "Process name",
+        "stage": "Stage",
+        "status": "Status",
+        "owner": "Owner",
+        "readiness": "Completeness (%)"
+      },
+      "hint": {
+        "stage": "Which process you are describing: today's, or the one you want.",
+        "status": "How far that description has got.",
+        "owner": "The team or person who runs the process. Do not guess.",
+        "readiness": "How complete the process knowledge is, not how good the process is."
+      },
+      "placeholder": {
+        "name": "E.g. Customer order fulfilment",
+        "owner": "E.g. Logistics"
+      },
+      "error": {
+        "nameRequired": "Process name is required.",
+        "save": "Could not save the process."
+      },
+      "toast": {
+        "created": "Process “{{name}}” created.",
+        "updated": "Process “{{name}}” updated."
+      },
+      "createDescription": "Creates the process record and its empty BPMN model. It draws nothing.",
+      "editDescription": "Edits the record. The BPMN model content is left untouched."
+    }
   }
 }

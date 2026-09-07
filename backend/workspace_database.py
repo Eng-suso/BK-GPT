@@ -18,6 +18,8 @@ from backend.workspace_defaults import (
     is_unknown_client_status,
     normalize_client_status,
     resolve_client_status,
+    resolve_process_stage,
+    resolve_process_status,
     resolve_project_phase,
     resolve_project_status,
 )
@@ -533,11 +535,21 @@ def list_project_processes(project_id: str) -> list[dict]:
 def create_process(
     project_id: str,
     name: str,
-    stage: str = "AS-IS",
-    status: str = "Bozza",
-    owner: str = "Da assegnare",
+    stage: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
     readiness: int = 0,
 ) -> dict:
+    """Crea il processo e il suo modello BPMN vuoto.
+
+    Stadio e stato seguono la regola del resto del workspace: `None` significa
+    "non dichiarato" e il placeholder si applica qui, al confine col database.
+    """
+    clean_name = name.strip()
+
+    if not clean_name:
+        raise ValueError("Il nome processo è obbligatorio.")
+
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
         project = tenant_row(session, WorkspaceProject, project_id)
@@ -545,17 +557,17 @@ def create_process(
         if project is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
-        process_id = unique_id(session, WorkspaceProcess, slugify(name, "process"))
+        process_id = unique_id(session, WorkspaceProcess, slugify(clean_name, "process"))
         bpmn_model_id = unique_id(session, WorkspaceBpmnModel, f"{process_id}-bpmn")
         process = WorkspaceProcess(
             id=process_id,
             tenant_id=current_tenant_id,
             project_id=project_id,
             bpmn_model_id=bpmn_model_id,
-            name=name.strip(),
-            stage=stage.strip() or "AS-IS",
-            status=status.strip() or "Bozza",
-            owner=owner.strip() or "Da assegnare",
+            name=clean_name,
+            stage=resolve_process_stage(stage),
+            status=resolve_process_status(status),
+            owner=(owner or "").strip() or UNKNOWN_OWNER,
             readiness=max(0, min(int(readiness), 100)),
         )
         session.add(process)
@@ -575,6 +587,47 @@ def create_process(
             .where(WorkspaceProcess.project_id == project_id)
             .where(WorkspaceProcess.tenant_id == current_tenant_id)
         ) or 0
+        return process_to_dict(process)
+
+
+def update_process(
+    process_id: str,
+    name: str | None = None,
+    stage: str | None = None,
+    status: str | None = None,
+    owner: str | None = None,
+    readiness: int | None = None,
+) -> dict:
+    """Aggiorna i campi dichiarati di un processo. `None` = "non toccare".
+
+    Il nome del modello BPMN segue quello del processo: sono la stessa cosa per
+    chi legge, e lasciarli divergere farebbe comparire nel canvas il nome
+    vecchio dopo una rinomina.
+    """
+    with workspace_connection() as session:
+        process = tenant_row(session, WorkspaceProcess, process_id)
+
+        if process is None:
+            raise ValueError(f"Processo non trovato: {process_id}")
+
+        if name is not None:
+            clean_name = name.strip()
+            if not clean_name:
+                raise ValueError("Il nome processo è obbligatorio.")
+            process.name = clean_name
+            model = tenant_row(session, WorkspaceBpmnModel, process.bpmn_model_id)
+            if model is not None:
+                model.name = f"{clean_name} BPMN"
+        if stage is not None:
+            process.stage = resolve_process_stage(stage)
+        if status is not None:
+            process.status = resolve_process_status(status)
+        if owner is not None:
+            process.owner = owner.strip() or UNKNOWN_OWNER
+        if readiness is not None:
+            process.readiness = max(0, min(int(readiness), 100))
+
+        session.flush()
         return process_to_dict(process)
 
 

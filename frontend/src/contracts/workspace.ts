@@ -2,10 +2,11 @@ import { z } from "zod";
 
 export type ProjectProcess = {
   id: string;
+  projectId: string;
   bpmnModelId: string;
   name: string;
-  stage: "Discovery" | "AS-IS" | "TO-BE" | "Validazione";
-  status: "In corso" | "Da validare" | "Bozza";
+  stage: ProcessStage;
+  status: ProcessStatus;
   owner: string;
   readiness: number;
 };
@@ -38,6 +39,24 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
 export const CLIENT_STATUSES = ["Attivo", "Da seguire", "Prospect"] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
+
+// Lo stadio dice *quale* processo si sta descrivendo, lo stato a che punto e'
+// quella descrizione: due domande diverse, due vocabolari.
+export const PROCESS_STAGES = [
+  "Discovery",
+  "AS-IS",
+  "TO-BE",
+  "Validazione",
+] as const;
+export type ProcessStage = (typeof PROCESS_STAGES)[number];
+
+export const PROCESS_STATUSES = [
+  "Bozza",
+  "In corso",
+  "Da validare",
+  "Validato",
+] as const;
+export type ProcessStatus = (typeof PROCESS_STATUSES)[number];
 
 export type Project = {
   id: string;
@@ -77,6 +96,14 @@ export type ClientDraft = {
   status: ClientStatus;
   owner: string;
   contact: string;
+};
+
+export type ProcessDraft = {
+  name: string;
+  stage: ProcessStage;
+  status: ProcessStatus;
+  owner: string;
+  readiness: number;
 };
 
 export type ProjectDraft = {
@@ -210,8 +237,8 @@ export function toClient(client: z.infer<typeof apiClientSchema>): Client {
   };
 }
 
-const VALID_PROCESS_STAGES = new Set(["Discovery", "AS-IS", "TO-BE", "Validazione"]);
-const VALID_PROCESS_STATUSES = new Set(["In corso", "Da validare", "Bozza"]);
+const VALID_PROCESS_STAGES = new Set<string>(PROCESS_STAGES);
+const VALID_PROCESS_STATUSES = new Set<string>(PROCESS_STATUSES);
 const VALID_PROJECT_STATUSES = new Set<string>(PROJECT_STATUSES);
 
 /**
@@ -232,9 +259,10 @@ export function isKnownProjectPhase(phase: string): phase is ProjectPhase {
  * @param process - The API process record to convert
  * @returns The normalized project process
  */
-function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectProcess {
+export function toProcess(process: z.infer<typeof apiProcessSchema>): ProjectProcess {
   return {
     id: process.id,
+    projectId: process.project_id,
     bpmnModelId: process.bpmn_model_id,
     name: process.name,
     stage: (VALID_PROCESS_STAGES.has(process.stage)
@@ -289,6 +317,22 @@ export function toApiClientPayload(draft: ClientDraft): Record<string, unknown> 
     status: draft.status,
     owner: draft.owner.trim(),
     contact: draft.contact.trim(),
+  };
+}
+
+/**
+ * Converts a process draft into the backend request payload format.
+ *
+ * @param draft - The process data to serialize
+ * @returns A backend-compatible process payload with editable text fields trimmed
+ */
+export function toApiProcessPayload(draft: ProcessDraft): Record<string, unknown> {
+  return {
+    name: draft.name.trim(),
+    stage: draft.stage,
+    status: draft.status,
+    owner: draft.owner.trim(),
+    readiness: draft.readiness,
   };
 }
 

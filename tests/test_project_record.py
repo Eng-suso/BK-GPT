@@ -28,6 +28,12 @@ import pytest
 
 from backend.settings import settings
 from backend.workspace_defaults import (
+    DEFAULT_PROCESS_STAGE,
+    DEFAULT_PROCESS_STATUS,
+    PROCESS_STAGE_MEANINGS,
+    PROCESS_STAGES,
+    PROCESS_STATUS_MEANINGS,
+    PROCESS_STATUSES,
     DEFAULT_PROJECT_PHASE,
     DEFAULT_PROJECT_STATUS,
     PROJECT_PHASE_MEANINGS,
@@ -282,6 +288,146 @@ def test_update_project_rejects_an_unknown_project(tenant):
 
     with pytest.raises(ValueError, match="non trovato"):
         wd.update_project("progetto-che-non-esiste", phase="TO-BE")
+
+
+@pytestmark_db
+def test_the_consultant_can_edit_a_project_over_http(tenant):
+    """La modifica manuale non passa dall'agente: e' una PATCH sul record."""
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    with TestClient(app) as http:
+        # Creati dallo stesso canale che poi li modifica: il tenant del test e
+        # quello della richiesta HTTP non sono lo stesso.
+        client = http.post(
+            "/v1/workspace/clients", json={"name": f"Esaote {uuid.uuid4().hex[:6]}"}
+        ).json()
+        project = http.post(
+            "/v1/workspace/projects",
+            json={"client_id": client["id"], "name": f"Ciclo ordini {uuid.uuid4().hex[:6]}"},
+        ).json()
+
+        response = http.patch(
+            f"/v1/workspace/projects/{project['id']}",
+            json={"objective": OBJECTIVE, "phase": "Validazione", "progress": 60},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["objective"] == OBJECTIVE
+        assert body["phase"] == "Validazione"
+        assert body["progress"] == 60
+        # I campi non dichiarati restano quelli del record
+        assert body["name"] == project["name"]
+        assert body["status"] == project["status"]
+
+        missing = http.patch("/v1/workspace/projects/non-esiste", json={"phase": "TO-BE"})
+        assert missing.status_code == 404
+
+        invalid = http.patch(f"/v1/workspace/projects/{project['id']}", json={"name": "   "})
+        assert invalid.status_code == 400
+
+
+@pytestmark_db
+def test_the_consultant_can_edit_a_client_over_http(tenant):
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    with TestClient(app) as http:
+        client = http.post(
+            "/v1/workspace/clients", json={"name": f"Esaote {uuid.uuid4().hex[:6]}"}
+        ).json()
+        response = http.patch(
+            f"/v1/workspace/clients/{client['id']}",
+            json={"status": "attivo", "sector": "Medicale"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "Attivo"
+    assert response.json()["sector"] == "Medicale"
+    assert response.json()["owner"] == client["owner"]
+
+
+@pytestmark_db
+def test_a_process_can_be_created_and_corrected_by_hand(tenant):
+    """Anche il processo si modifica senza passare dall'agente."""
+    from backend import workspace_database as wd
+
+    client = wd.create_client(name=f"Esaote {uuid.uuid4().hex[:6]}")
+    project = wd.create_project(client_id=client["id"], name=f"Ordini {uuid.uuid4().hex[:6]}")
+    process = wd.create_process(project_id=project["id"], name=f"Evasione {uuid.uuid4().hex[:6]}")
+
+    # placeholder dal vocabolario, non dalla firma del chiamante
+    assert process["stage"] == DEFAULT_PROCESS_STAGE
+    assert process["status"] == DEFAULT_PROCESS_STATUS
+    assert process["owner"] == "Da assegnare"
+
+    updated = wd.update_process(
+        process["id"], stage="to be", status="validato", owner="Logistica", readiness=180
+    )
+
+    assert updated["stage"] == "TO-BE"
+    assert updated["status"] == "Validato"
+    assert updated["owner"] == "Logistica"
+    assert updated["readiness"] == 100  # clamp
+    assert updated["name"] == process["name"]
+
+    # rinominare il processo rinomina anche il suo modello BPMN
+    renamed = wd.update_process(process["id"], name="Evasione ordini")
+    assert wd.get_bpmn_model(renamed["bpmn_model_id"])["name"] == "Evasione ordini BPMN"
+
+    with pytest.raises(ValueError, match="non trovato"):
+        wd.update_process("processo-che-non-esiste", stage="AS-IS")
+
+
+@pytestmark_db
+def test_the_consultant_can_edit_a_process_over_http(tenant):
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    with TestClient(app) as http:
+        client = http.post(
+            "/v1/workspace/clients", json={"name": f"Esaote {uuid.uuid4().hex[:6]}"}
+        ).json()
+        project = http.post(
+            "/v1/workspace/projects",
+            json={"client_id": client["id"], "name": f"Ordini {uuid.uuid4().hex[:6]}"},
+        ).json()
+        process = http.post(
+            f"/v1/workspace/projects/{project['id']}/processes",
+            json={"name": f"Evasione {uuid.uuid4().hex[:6]}"},
+        ).json()
+
+        response = http.patch(
+            f"/v1/workspace/processes/{process['id']}",
+            json={"status": "da validare", "readiness": 70},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "Da validare"
+        assert response.json()["readiness"] == 70
+        assert response.json()["stage"] == process["stage"]
+
+        assert http.patch("/v1/workspace/processes/non-esiste", json={"stage": "TO-BE"}).status_code == 404
+
+
+def test_no_entry_point_defaults_the_process_stage_or_status():
+    from backend import workspace_database
+    from backend.schemas.workspace import CreateProcessRequest
+    from backend.toolsets.workspace import ProcessRecordInput
+
+    for field in ("stage", "status", "owner"):
+        assert ProcessRecordInput.model_fields[field].default is None
+        assert CreateProcessRequest.model_fields[field].default is None
+        assert inspect.signature(workspace_database.create_process).parameters[field].default is None
+
+
+def test_every_process_vocabulary_entry_has_a_definition():
+    assert tuple(PROCESS_STAGE_MEANINGS) == PROCESS_STAGES
+    assert tuple(PROCESS_STATUS_MEANINGS) == PROCESS_STATUSES
+    assert all(meaning.strip() for meaning in PROCESS_STAGE_MEANINGS.values())
+    assert all(meaning.strip() for meaning in PROCESS_STATUS_MEANINGS.values())
 
 
 @pytestmark_db

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,6 +8,9 @@ import {
   Clock,
   FileText,
   MessageSquare,
+  Pencil,
+  Plus,
+  Target,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
@@ -30,6 +33,8 @@ import {
   useProjectSourcesQuery,
   useProjectDecisionsQuery,
 } from "../api";
+import { ProcessFormDialog } from "../components/ProcessFormDialog";
+import { ProjectFormDialog } from "../components/ProjectFormDialog";
 import {
   PROJECT_TABS,
   PROJECT_TAB_IDS,
@@ -46,6 +51,22 @@ export function ProjectDetailPage(): React.JSX.Element {
   const { t } = useTranslation("projects");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [formOpen, setFormOpen] = useState(false);
+  // Nuova `key` a ogni apertura: il form riparte dal progetto appena caricato.
+  const [formSession, setFormSession] = useState(0);
+  const openForm = useCallback(() => {
+    setFormSession((session) => session + 1);
+    setFormOpen(true);
+  }, []);
+  // Il form processo: `null` crea, un processo modifica quel record.
+  const [processOpen, setProcessOpen] = useState(false);
+  const [editingProcess, setEditingProcess] = useState<ProjectProcess | null>(null);
+  const [processSession, setProcessSession] = useState(0);
+  const openProcessForm = useCallback((process: ProjectProcess | null) => {
+    setEditingProcess(process);
+    setProcessSession((session) => session + 1);
+    setProcessOpen(true);
+  }, []);
 
   const projectQ = useProjectQuery(projectId);
   const sourcesQ = useProjectSourcesQuery(projectId);
@@ -135,6 +156,13 @@ export function ProjectDetailPage(): React.JSX.Element {
           }
           actions={
             <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openForm}
+              >
+                <Pencil /> {t("detail.actions.edit")}
+              </Button>
               {tab !== "chat" && <Button
                 variant="outline"
                 size="sm"
@@ -171,6 +199,7 @@ export function ProjectDetailPage(): React.JSX.Element {
               project={project}
               decisions={decisionsQ.data ?? []}
               onOpenProcess={openProcess}
+              onEdit={openForm}
             />
           </TabsContent>
           <TabsContent value="chat" className="min-h-0 flex-1">
@@ -180,6 +209,8 @@ export function ProjectDetailPage(): React.JSX.Element {
             <ProcessesTab
               processes={project.processItems}
               onOpenProcess={openProcess}
+              onCreate={() => openProcessForm(null)}
+              onEdit={openProcessForm}
             />
           </TabsContent>
           <TabsContent value="sources">
@@ -240,6 +271,21 @@ export function ProjectDetailPage(): React.JSX.Element {
           </DetailPanelSection>
         )}
       </DetailPanel>
+
+      <ProjectFormDialog
+        key={formSession}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        project={project}
+      />
+
+      <ProcessFormDialog
+        key={`process-${processSession}`}
+        open={processOpen}
+        onOpenChange={setProcessOpen}
+        projectId={project.id}
+        process={editingProcess}
+      />
     </div>
   );
 }
@@ -250,14 +296,18 @@ function OverviewTab({
   project,
   decisions,
   onOpenProcess,
+  onEdit,
 }: {
   project: Project;
   decisions: { title: string; status: string }[];
   onOpenProcess: (p: ProjectProcess) => void;
+  onEdit: () => void;
 }): React.JSX.Element {
   const { t } = useTranslation("projects");
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div className="flex flex-col gap-6">
+      <ObjectiveBlock objective={project.objective} onEdit={onEdit} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Block title={t("detail.overview.processes")}>
         {project.processItems.length === 0 ? (
           <EmptyState variant="inline" title={t("detail.processes.empty")} />
@@ -303,8 +353,54 @@ function OverviewTab({
             </div>
           ))
         )}
-      </Block>
+        </Block>
+      </div>
     </div>
+  );
+}
+
+/**
+ * L'incarico, in cima alla panoramica.
+ *
+ * Fase, stato e avanzamento dicono *dove* e' il progetto; questo dice perche'
+ * esiste, ed e' la prima cosa che serve a chi lo riapre — persona o agente.
+ * Finche' e' vuoto il blocco lo dice e offre il campo, invece di far sembrare
+ * completo un record senza mandato.
+ */
+function ObjectiveBlock({
+  objective,
+  onEdit,
+}: {
+  objective: string;
+  onEdit: () => void;
+}): React.JSX.Element {
+  const { t } = useTranslation("projects");
+  return (
+    <section className="flex flex-col rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="eyebrow flex items-center gap-1.5">
+          <Target className="size-3.5" />
+          {t("detail.overview.objective")}
+        </h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-mt-1 h-7 px-2 text-xs"
+          onClick={onEdit}
+        >
+          <Pencil /> {objective ? t("detail.actions.edit") : t("detail.objective.add")}
+        </Button>
+      </div>
+      {objective ? (
+        <p className="mt-2 max-w-[70ch] text-body-sm leading-relaxed text-foreground">
+          {objective}
+        </p>
+      ) : (
+        <p className="mt-2 max-w-[70ch] text-xs leading-relaxed text-muted-foreground">
+          {t("detail.objective.empty")}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -341,27 +437,80 @@ function ProjectChatTab({
 function ProcessesTab({
   processes,
   onOpenProcess,
+  onCreate,
+  onEdit,
 }: {
   processes: ProjectProcess[];
   onOpenProcess: (p: ProjectProcess) => void;
+  onCreate: () => void;
+  onEdit: (p: ProjectProcess) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("projects");
+
+  const newProcessButton = (
+    <Button size="sm" variant="outline" onClick={onCreate}>
+      <Plus /> {t("process.actions.new")}
+    </Button>
+  );
+
   if (processes.length === 0) {
-    return <EmptyState variant="inline" title={t("detail.processes.empty")} />;
+    return (
+      <EmptyState
+        variant="inline"
+        title={t("detail.processes.empty")}
+        description={t("process.empty.description")}
+        action={newProcessButton}
+      />
+    );
   }
+
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-card">
-      {processes.map((p) => (
-        <NavRow
-          key={p.id}
-          onClick={() => onOpenProcess(p)}
-          className="py-3"
-          titleClassName="text-body-sm text-primary"
-          title={p.name}
-          meta={`${p.stage} · ${p.owner}`}
-          trailing={<ArrowRight className="size-4 text-muted-foreground" />}
-        />
-      ))}
+    <div className="flex flex-col gap-3">
+      {/* Righe costruite a mano invece che con `NavRow`: aprire il processo e
+          modificarne il record sono due intenzioni diverse, e servono due
+          controlli fratelli — un bottone dentro un bottone non e' HTML valido
+          e non riceverebbe il click. */}
+      <ul className="flex flex-col rounded-xl border border-border bg-card">
+        {processes.map((p) => (
+          <li
+            key={p.id}
+            className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5 last:border-b-0"
+          >
+            <button
+              type="button"
+              onClick={() => onOpenProcess(p)}
+              className="flex min-w-0 flex-1 flex-col items-start rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <span className="truncate text-body-sm font-medium text-primary">
+                {p.name}
+              </span>
+              <span className="truncate text-micro text-muted-foreground">
+                {p.stage} · {p.status} · {p.owner}
+              </span>
+            </button>
+            <Meter
+              value={p.readiness}
+              showValue={false}
+              height={4}
+              className="hidden w-16 flex-none sm:block"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 flex-none px-2 text-xs"
+              aria-label={`${t("detail.actions.editProcess")}: ${p.name}`}
+              onClick={() => onEdit(p)}
+            >
+              <Pencil /> {t("process.actions.edit")}
+            </Button>
+            <ArrowRight
+              aria-hidden
+              className="size-4 flex-none text-muted-foreground"
+            />
+          </li>
+        ))}
+      </ul>
+      <div>{newProcessButton}</div>
     </div>
   );
 }

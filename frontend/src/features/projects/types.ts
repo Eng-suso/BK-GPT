@@ -1,4 +1,5 @@
 import type { Project, ProjectProcess } from "@/contracts/workspace";
+import type { StatusTone } from "@/components/status";
 
 export type { Project, ProjectProcess };
 
@@ -18,15 +19,15 @@ export const PROJECT_TABS: ProjectTab[] = [
 
 export const PROJECT_TAB_IDS = PROJECT_TABS.map((tab) => tab.id);
 
-const PROJECT_STATUS_TONE = {
+const PROJECT_STATUS_TONE: Record<Project["status"], StatusTone> = {
   "In corso": "ok",
   "A rischio": "warning",
+  "In pausa": "pending",
+  Completato: "neutral",
   Bozza: "neutral",
-} as const;
+};
 
-export function projectStatusTone(
-  status: Project["status"],
-): "ok" | "warning" | "neutral" {
+export function projectStatusTone(status: Project["status"]): StatusTone {
   return PROJECT_STATUS_TONE[status];
 }
 
@@ -34,7 +35,9 @@ export function projectStatusTone(
 const PROJECT_STATUS_RANK: Record<Project["status"], number> = {
   "A rischio": 0,
   "In corso": 1,
-  Bozza: 2,
+  "In pausa": 2,
+  Bozza: 3,
+  Completato: 4,
 };
 
 export function projectStatusRank(status: Project["status"]): number {
