@@ -191,25 +191,17 @@ def retrieve_consulting_graph_context(
     limit: int = 5,
 ) -> str:
     """
-    Retrieve relationship-oriented consulting context from semantic memory, episodic evidence, and optionally workspace records.
-    
-    Args:
-        query (str): Untrusted question or retrieval query.
-        relation_focus (str): Untrusted description of the relationships to prioritize.
-        reason (str): Untrusted explanation for the retrieval request.
-        entities (list[str] | None): Untrusted entities to use when linking related memories and evidence.
-        include_workspace_overview (bool): Whether to include the workspace overview for operational grounding.
-        limit (int): Maximum number of episodic results to retrieve.
-    
-    Returns:
-        str: Formatted relational context containing semantic memory, episodic evidence, workspace grounding, and source-authority guidance.
-    
-    Raises:
-        ValidationError: If the request parameters violate the retrieval request schema.
-        Exception: If semantic-memory, episodic-memory, or workspace retrieval fails.
-    
-    Side Effects:
-        Performs read-only retrieval from semantic memory, episodic memory, and optionally workspace data. It does not persist changes.
+    Retrieve relational consulting context through Mem0 Graph Memory-style retrieval plus optional workspace grounding.
+
+    Use this tool when the user asks a relation-heavy question or when routing/synthesis depends on relationships, for example:
+    - which clients, projects, processes, sources, decisions, risks, offers, or insights are connected;
+    - which evidence supports an insight or decision;
+    - which projects share a recurring pain, risk, objection, or delivery pattern;
+    - how Sohay's preferences, positioning, offers, ICP, or delivery method connect to current workspace work.
+
+    Do not use this tool for simple factual lookup, simple workspace CRUD, BPMN editing, or external/current web information.
+    Do not treat Mem0 as the operational source of truth: use workspace tools for authoritative clients/projects/processes.
+
     """
     request = ConsultingGraphRetrievalRequest(
         query=query,
@@ -297,35 +289,19 @@ def manage_consultant_memory(
     limit: int = 20,
 ) -> str:
     """
-    Manage listing and two-step deletion of the consultant's durable memories.
-    
-    Deletion requests resolve and freeze exact targets as a pending action; they do not
-    delete memories until explicit confirmation. Confirmation uses the frozen targets,
-    records the execution result, and reports complete or partial deletion. Cancellation
-    leaves the memories unchanged. Results identify blocked operations, unresolved or
-    missing targets, absent or already-resolved pending actions, cancellations, and
-    persistence outcomes through enterprise status values.
-    
-    Args:
-        operation (str): Untrusted lifecycle operation: ``list``, ``search``,
-            ``forget``, ``confirm``, or ``cancel``.
-        query (str): Untrusted search text used to list memories or resolve deletion
-            targets.
-        memory_ids (list[str] | None): Untrusted memory identifiers used to resolve
-            deletion targets.
-        reason (str): Untrusted reason recorded with a deletion request.
-        limit (int): Untrusted maximum number of memories to list or targets to
-            resolve.
-    
-    Returns:
-        str: An enterprise tool result containing the operation status, memory or
-        pending-action details, and any deletion results.
-    
-    Side Effects:
-        Listing and deletion workflows may persist pending actions and execution
-        results. Confirmed deletion updates durable-memory state and records the
-        outcome; partial deletion excludes affected memories from recall even when
-        index removal is incomplete.
+    Manage the lifecycle of the consultant's durable memories: see them, and forget them.
+    Use operation=list when the consultant asks what is stored about them, or before
+    proposing a deletion: it returns each memory with its id.
+    Use operation=forget as soon as the consultant asks to remove, forget or correct a
+    durable memory. It NEVER deletes: it freezes the exact target memories, stores them
+    as this conversation's pending action, and returns them so you can show them and ask
+    "posso eliminarla, confermi?". Never say a memory is already deleted at this step.
+    Use operation=confirm (or cancel) the moment the consultant answers. The target is
+    already frozen: do not pass it again, do not re-run the search, and never ask which
+    memory they meant or which client it was about.
+    Returns an enterprise tool result; after confirm it reports what was actually
+    deleted, verified after the fact.
+
     """
     from backend.agents.run_context import active_thread_id
     from backend.memory import forget, pending_actions
@@ -1036,16 +1012,16 @@ def extract_playbook_from_episodes(project: str, limit: int = 8) -> str:
 @tool
 def remember_bpmn_preference(rule: str, area: str) -> str:
     """
-    Persist a durable BPMN or process-modeling preference explicitly stated by the consultant.
-    
-    Args:
-        rule (str): Untrusted preference statement to store.
-        area (str): Untrusted BPMN or process-modeling area associated with the preference.
-    
-    Returns:
-        str: Confirmation of persistence, or a clear disabled/error message when the semantic memory store is unavailable.
-    
-    The preference must represent a stable consultant rule rather than a one-off process detail or raw evidence. Absence of a preference is treated as valid and does not require creating a record.
+    Save a durable BPMN/process modeling preference the consultant has actually stated.
+    Use when the user states a stable preference or rule about BPMN style, gateways,
+    events, lanes, pools, handoffs, exceptions, assumptions, readiness, validation,
+    evidence policy, or process-discovery method.
+    Do not use for a one-off process detail or raw interview/call evidence.
+    Not having a preference about a BPMN construct is the normal case, not a gap in
+    the profile: apply BPMN correctly by default and never ask the consultant to
+    supply a preference just to fill this category.
+    Returns a confirmation message, or a clear disabled/error message if Mem0 is unavailable.
+
     """
     return semantic_store.save_bpmn_preference(rule=rule, area=area)
 

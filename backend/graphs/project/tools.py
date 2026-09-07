@@ -144,19 +144,10 @@ def _project_payload(project_id: str) -> dict:
 @tool
 def get_project_workspace_brief(project_id: str) -> str:
     """
-    Provide the authorized project workspace snapshot for project-level synthesis and routing.
-    
-    Args:
-        project_id (str): Untrusted project identifier used to select the project.
-    
-    Returns:
-        str: Structured result containing project status and progress, sources, decisions,
-            process counts, and process-readiness data.
-    
-    Raises:
-        ValueError: If the project does not exist or is outside the authorized scope.
-    
-    This function is read-only and does not persist changes.
+    Read the authoritative project workspace snapshot: project status, process list,
+    sources, decisions, deliverables and open issues. Use before project-level synthesis
+    or routing when project context is needed. This is read-only.
+
     """
     payload = _project_payload(project_id)
     project = payload["project"]
@@ -187,28 +178,26 @@ def create_project_process(
     owner: str = "Da assegnare",
     scope_note: str = "",
 ) -> str:
+    # NB: questo docstring non e' documentazione dell'API Python. LangChain lo
+    # passa al modello come `description` del tool, quindi e' il prompt su cui
+    # l'agente decide se chiamarlo e cosa non fare dopo averlo chiamato.
+    # Riscriverlo in formato `Args:/Returns:/Raises:` toglie le istruzioni di
+    # comportamento e aggiunge tipi che il modello ha gia' nello schema.
+    # `tests/test_project_chat_boundaries.py` pinna le due promesse che contano.
     """
-    Register a process in the authorized project workspace without starting discovery or BPMN generation.
-    
-    The operation is idempotent by normalized process name: an existing matching process is
-    returned instead of creating a duplicate. For a new process, it persists the process and
-    its empty BPMN model. When provided, the stated perimeter is persisted as a project source
-    linked to the process; otherwise, the result includes a warning.
-    
-    Args:
-        project_id (str, untrusted): Identifier of the project in which to register the process.
-        name (str, untrusted): Process name used for registration and duplicate detection.
-        stage (str, untrusted): Process lifecycle stage.
-        owner (str, untrusted): Initial process owner.
-        scope_note (str, untrusted): Optional stated perimeter for the process.
-    
-    Returns:
-        str: A serialized result indicating whether the process already existed or was created,
-            including the process details, BPMN model identifier, and any warnings or follow-up
-            actions.
-    
-    Raises:
-        ValueError: If the project is outside the authorized scope or does not exist.
+    Register a process inside the current project. Use whenever the consultant
+    says to add, create or register a process here - this is project workspace
+    setup and it belongs to the Project scope, not to a handoff.
+
+    It creates the process record and its empty BPMN model, and nothing else: it
+    does not start discovery, does not ask discovery questions, does not infer
+    missing process knowledge and does not generate BPMN. Ownership moves to
+    Process Macro only after the record exists, and only when the consultant
+    asks for that work.
+
+    Idempotent by name: a process already registered under the same name is
+    returned instead of a duplicate. A stated perimeter is stored as a project
+    source linked to the process, so it survives the conversation.
     """
     payload = _project_payload(project_id)
     wanted = " ".join(name.casefold().split())
@@ -293,18 +282,10 @@ def prepare_project_delegation_payload(
     known_context: str = "",
 ) -> str:
     """
-    Prepare a structured handoff payload without executing or persisting delegated work.
-    
-    Args:
-        target_owner (str): Untrusted input identifying the intended receiving owner or agent.
-        user_request (str): Untrusted input containing the requested work.
-        expected_result (str): Untrusted input describing the expected outcome.
-        reason (str): Untrusted input explaining the delegation rationale.
-        known_context (str): Untrusted input containing relevant context.
-    
-    Returns:
-        str: A JSON-formatted delegation payload with status, routing, request,
-            expected result, reason, and known context.
+    Purpose: create a narrow structured handoff payload from Project Macro to a
+    project subgraph, Process Macro or Canvas Macro. This does not execute the
+    delegated work.
+
     """
     return "Project delegation payload\n" + json.dumps(
         {
@@ -324,22 +305,9 @@ def prepare_project_delegation_payload(
 @tool
 def get_project_delivery_brief(project_id: str) -> str:
     """
-    Builds a delivery-focused brief for an authorized project.
-    
-    The project must be within the authorized scope and must exist. This function
-    only reads project context and does not modify or persist data.
-    
-    Args:
-        project_id (str): Untrusted project identifier used to locate the project.
-    
-    Returns:
-        str: Serialized project delivery context, including objective, phase, status,
-            progress, next step, milestones, deliverables, open issues, and
-            decisions.
-    
-    Raises:
-        PermissionError: If the project is outside the authorized scope.
-        ValueError: If the project does not exist.
+    Read project delivery context: phase, status, progress, next step, milestones,
+    deliverables, open issues and open decisions. Use for delivery planning/status.
+
     """
     payload = _project_payload(project_id)
     project = payload["project"]
