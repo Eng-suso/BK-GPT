@@ -81,6 +81,7 @@ export async function transcribeAudio(file: File): Promise<string> {
  *
  * @param threadId - The thread receiving the message
  * @param input - The message, model, scope, mode, and optional attachments
+ * @param signal - Aborts the request when the consultant stops the turn
  * @returns The response containing the NDJSON stream
  */
 export function streamChatMessage(
@@ -92,9 +93,11 @@ export function streamChatMessage(
     mode: ChatMode;
     attachments?: ApiChatAttachment[];
   },
+  signal?: AbortSignal,
 ): Promise<Response> {
   return httpStream(`${SESSIONS_BASE}/${threadId}/messages/stream`, {
     method: "POST",
+    signal,
     body: {
       message: input.message,
       model_name: input.modelName,

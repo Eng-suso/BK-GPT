@@ -1,81 +1,126 @@
 import type { AgentActivity } from "../types";
 
-const AGENT_ACTIVITY_LABELS: Record<string, string> = {
-  canvas_subgraph: "Apro canvas",
-  canvas_router: "Scelgo percorso",
-  canvas_macro_agent: "Coordino canvas",
-  patch_edit_subgraph: "Preparo modifica",
-  canvas_patch_edit_agent: "Modifico elementi",
-  construction_subgraph: "Preparo modello",
-  canvas_construction_agent: "Costruisco processo",
-  layout_subgraph: "Preparo disegno",
-  canvas_layout_consultant_agent: "Studio layout",
-  canvas_drawing_agent: "Disegno canvas",
-  validation_subgraph: "Verifico canvas",
-  canvas_validation_agent: "Controllo copertura",
-  evaluate_canvas_completion: "Valuto completamento",
-  canvas_completion_report: "Chiudo risultato",
-  ask_canvas_clarification: "Preparo domanda",
+/**
+ * Il progresso che il consulente vede.
+ *
+ * Il backend manda una riga per *fase di lavoro*, gia' scritta nel vocabolario
+ * del consulente. Qui non si traduce piu' niente da nomi interni: la vecchia
+ * versione, quando non riconosceva un nodo, ne mostrava il nome con gli
+ * underscore sostituiti da spazi — cioe' `canvas_layout_consultant_agent`
+ * diventava una riga di stato. Un evento senza etichetta ora viene scartato.
+ */
+
+/** Un aggiornamento di fase come arriva dallo stream. */
+export type AgentProgressEvent = {
+  activityId?: string;
+  phase?: string;
+  label: string;
+  detail?: string;
+  icon?: string;
 };
 
-export function activityLabelForNode(nodeName: string): string {
-  const label = AGENT_ACTIVITY_LABELS[nodeName] || nodeName.replace(/_/g, " ");
-  return label.split(/\s+/).slice(0, 5).join(" ");
+/**
+ * Legge un evento `activity` dello stream, o `null` se non e' presentabile.
+ *
+ * @param event - Evento NDJSON grezzo.
+ */
+export function readProgressEvent(event: {
+  message?: unknown;
+  content?: unknown;
+  payload?: Record<string, unknown> | null;
+}): AgentProgressEvent | null {
+  const payload = event.payload ?? {};
+  const label = String(
+    payload.label ?? event.message ?? event.content ?? "",
+  ).trim();
+  if (!label) return null;
+
+  const phase = typeof payload.phase === "string" ? payload.phase : undefined;
+  const detail =
+    typeof payload.detail === "string" && payload.detail.trim()
+      ? payload.detail.trim()
+      : undefined;
+  const icon = typeof payload.icon === "string" ? payload.icon : undefined;
+  const activityId =
+    typeof payload.activity_id === "string" ? payload.activity_id : undefined;
+
+  return { activityId, phase, label, detail, icon };
 }
 
-const AGENT_ACTIVITY_ICONS: Record<string, string> = {
-  canvas_subgraph: "layout",
-  canvas_router: "route",
-  canvas_macro_agent: "brain",
-  patch_edit_subgraph: "edit",
-  canvas_patch_edit_agent: "edit",
-  construction_subgraph: "build",
-  canvas_construction_agent: "build",
-  layout_subgraph: "compass",
-  canvas_layout_consultant_agent: "compass",
-  canvas_drawing_agent: "draw",
-  validation_subgraph: "check",
-  canvas_validation_agent: "check",
-  evaluate_canvas_completion: "check",
-  canvas_completion_report: "check",
-  ask_canvas_clarification: "help",
-};
-
-export function activityIconForNode(nodeName: string): string {
-  return AGENT_ACTIVITY_ICONS[nodeName] || "brain";
-}
-
-/** Advance the activity list: mark the running step done, start `nodeName`. */
+/**
+ * Avanza la timeline: chiude il passo in corso e apre quello nuovo.
+ *
+ * Un evento che ripete la fase gia' in corso non produce una riga in piu' —
+ * il consulente vede il tempo che scorre su quella riga, non la stessa frase
+ * scritta sette volte.
+ *
+ * @param current - Timeline corrente.
+ * @param event - Aggiornamento di fase.
+ * @param now - Istante di arrivo, in millisecondi.
+ */
 export function nextAgentActivity(
   current: AgentActivity[] | undefined,
-  nodeName: string,
-  label?: string,
-  icon?: string,
+  event: AgentProgressEvent,
+  now: number = Date.now(),
 ): AgentActivity[] {
   const existing = current || [];
-  const completed = existing.map((item) =>
-    item.status === "running" ? { ...item, status: "completed" as const } : item,
-  );
-  const previousIndex = completed.findIndex((item) => item.key === nodeName);
-  const nextItem: AgentActivity = {
-    key: nodeName,
-    label: (label || activityLabelForNode(nodeName)).split(/\s+/).slice(0, 5).join(" "),
-    status: "running",
-    icon: icon || activityIconForNode(nodeName),
-  };
+  const running = existing.find((item) => item.status === "running");
 
-  if (previousIndex >= 0) {
-    const updated = [...completed];
-    updated[previousIndex] = nextItem;
-    return updated;
+  if (running && event.phase && running.phase === event.phase) {
+    // Stessa fase, dettaglio nuovo (un'altra fonte, un'altra ricerca):
+    // si aggiorna la riga, non se ne aggiunge una.
+    if (!event.detail || running.detail === event.detail) return existing;
+    return existing.map((item) =>
+      item === running ? { ...item, detail: event.detail } : item,
+    );
   }
 
-  return [...completed, nextItem];
+  const closed = existing.map((item) =>
+    item.status === "running"
+      ? { ...item, status: "completed" as const, endedAtMs: now }
+      : item,
+  );
+
+  return [
+    ...closed,
+    {
+      key: event.activityId || `${event.phase || "phase"}-${now}`,
+      phase: event.phase,
+      label: event.label,
+      detail: event.detail,
+      icon: event.icon,
+      status: "running",
+      startedAtMs: now,
+    },
+  ];
 }
 
+/** Chiude la timeline quando il turno finisce. */
 export function completeAgentActivity(
   current: AgentActivity[] | undefined,
+  now: number = Date.now(),
 ): AgentActivity[] | undefined {
   if (!current || current.length === 0) return current;
-  return current.map((item) => ({ ...item, status: "completed" }));
+  return current.map((item) =>
+    item.status === "running"
+      ? { ...item, status: "completed" as const, endedAtMs: now }
+      : item,
+  );
+}
+
+/** Durata di un passo: chiusa se il passo e' finito, viva se e' in corso. */
+export function activityDurationMs(
+  item: AgentActivity,
+  now: number = Date.now(),
+): number {
+  return Math.max(0, (item.endedAtMs ?? now) - item.startedAtMs);
+}
+
+/** `12s`, `1:05` — la stessa forma che il consulente legge sul cronometro. */
+export function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }

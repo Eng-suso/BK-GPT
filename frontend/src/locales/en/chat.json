@@ -53,10 +53,17 @@
     "audioUpload": "Upload audio",
     "interviewStart": "Start interview",
     "stopHint": "Stop the interview and build the transcript",
-    "sendHint": "Send message (Enter)"
+    "sendHint": "Send message (Enter)",
+    "stopAgent": "Stop",
+    "stopAgentHint": "Stop the turn and keep the partial answer",
+    "queue": "Queue",
+    "queueHint": "Add the message to the running turn queue (Enter)"
   },
   "status": {
-    "thinking": "Working on it…"
+    "thinking": "Working on it…",
+    "progressLabel": "Work progress",
+    "stoppedByUser": "Turn stopped: this is the part of the answer already produced.",
+    "queuedLabel": "Queued"
   },
   "empty": {
     "tryLabel": "Try asking"
@@ -166,5 +173,10 @@
       "count": "{{count}} / {{max}} characters",
       "fallbackLabel": "Pasted text"
     }
+  },
+  "queue": {
+    "title": "Queued messages",
+    "hint": "They go out as soon as the running turn closes.",
+    "remove": "Remove from queue"
   }
 }

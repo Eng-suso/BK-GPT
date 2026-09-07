@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 import { httpErrorMessage } from "@/lib/http";
 import { notifyWorkspaceChanged } from "@/lib/workspaceEvents";
@@ -11,13 +10,18 @@ import {
   type ChatScope,
 } from "../../../contracts/chat";
 import type { ChatMessage, ChatSession } from "../types";
-import {
-  completeAgentActivity,
-  nextAgentActivity,
-} from "../lib/agentActivity";
 import { streamChatMessage } from "../api";
-
-type LiveTranscript = { threadId: string; messages: ChatMessage[] };
+import {
+  clearRun,
+  dropQueuedMessage,
+  enqueueMessage,
+  getRun,
+  getRunsVersion,
+  startRun,
+  stopRun,
+  subscribeToRuns,
+  type QueuedMessage,
+} from "../stream/chatRunStore";
 
 type UseChatStreamArgs = {
   scope: ChatScope;
@@ -40,26 +44,20 @@ export type UseChatStream = {
   lastUserAttachments: ChatAttachment[];
   liveThreadId: string | null;
   liveMessages: ChatMessage[] | null;
+  /** Messaggi scritti durante il turno e non ancora inviati. */
+  queuedMessages: QueuedMessage[];
   streamError: string | null;
+  /** Da quando l'agente sta lavorando, per il cronometro. */
+  startedAtMs: number | null;
   sendMessage: (
     content: string,
     attachments?: ChatAttachment[],
   ) => Promise<void>;
+  /** Ferma il turno in corso tenendo la risposta parziale. */
+  stopStreaming: () => void;
+  cancelQueuedMessage: (index: number) => void;
   clearStreamError: () => void;
 };
-
-function replaceThinkingWithError(
-  messages: ChatMessage[],
-  thinkingLabel: string,
-  errorText: string,
-): ChatMessage[] {
-  const last = messages.at(-1);
-  const isPendingAssistant =
-    last?.role === "assistant" &&
-    (last.content === thinkingLabel || !last.content?.trim());
-  const trimmed = isPendingAssistant ? messages.slice(0, -1) : messages;
-  return [...trimmed, { role: "error", content: errorText }];
-}
 
 function notifyChatWorkspaceChanged(scope: ChatScope) {
   if (scope.type !== "canvas") {
@@ -73,17 +71,21 @@ function notifyChatWorkspaceChanged(scope: ChatScope) {
 }
 
 /**
- * Manages chat message submission, streamed responses, transcript state, and retry data.
+ * Espone il turno in corso su questo thread.
  *
- * @param scope - Workspace scope associated with the conversation
- * @param selectedModel - Model used to generate the response
- * @param chatMode - Chat mode used for the request
- * @param activeSession - Currently active chat session
- * @param ensureThread - Creates or retrieves the thread for the message
- * @param selectThread - Selects a chat thread
- * @param commitTranscript - Persists the completed transcript
- * @param onSettled - Optional callback invoked after a successful request
- * @returns Chat streaming state and callbacks for sending messages and clearing errors
+ * Il turno non vive qui: vive nello store di modulo (`chatRunStore`), e questo
+ * hook lo osserva. E' la ragione per cui cambiare pagina non lo interrompe piu'
+ * — smontare il componente toglie solo l'osservatore.
+ *
+ * @param scope - Ambito di lavoro della conversazione
+ * @param selectedModel - Modello usato per generare la risposta
+ * @param chatMode - Modalita' di lavoro della richiesta
+ * @param activeSession - Sessione attiva
+ * @param ensureThread - Crea o recupera il thread del messaggio
+ * @param selectThread - Seleziona un thread
+ * @param commitTranscript - Consolida il trascritto finito
+ * @param onSettled - Callback opzionale a turno riuscito
+ * @returns Stato del turno e comandi per inviare, fermare e accodare
  */
 export function useChatStream({
   scope,
@@ -95,21 +97,12 @@ export function useChatStream({
   commitTranscript,
   onSettled,
 }: UseChatStreamArgs): UseChatStream {
-  const { t } = useTranslation("chat");
-
-  const [isBusy, setIsBusy] = useState(false);
-  const [lastUserPrompt, setLastUserPrompt] = useState("");
-  // Il retry rimanda lo stesso turno: senza questo gli allegati che il
-  // consulente aveva scelto sparirebbero senza dirlo.
-  const [lastUserAttachments, setLastUserAttachments] = useState<ChatAttachment[]>([]);
-  const [live, setLive] = useState<LiveTranscript | null>(null);
-  const [streamError, setStreamError] = useState<string | null>(null);
-
   // Latest values for the async send flow without re-memoising `sendMessage`.
   const scopeRef = useRef(scope);
   const modelRef = useRef(selectedModel);
   const modeRef = useRef(chatMode);
   const activeSessionRef = useRef(activeSession);
+  const liveThreadRef = useRef<string | null>(null);
   useEffect(() => {
     scopeRef.current = scope;
     modelRef.current = selectedModel;
@@ -117,191 +110,112 @@ export function useChatStream({
     activeSessionRef.current = activeSession;
   });
 
-  const clearStreamError = useCallback(() => setStreamError(null), []);
+  useSyncExternalStore(subscribeToRuns, getRunsVersion, getRunsVersion);
+
+  const activeThreadId = activeSession?.threadId ?? liveThreadRef.current;
+  const run = getRun(activeThreadId);
+
+  const clearStreamError = useCallback(() => {
+    if (activeThreadId) clearRun(activeThreadId);
+  }, [activeThreadId]);
 
   const sendMessage = useCallback(
     async (content: string, attachments: ChatAttachment[] = []) => {
-      const thinkingLabel = t("status.thinking");
-      setLastUserPrompt(content);
-      setLastUserAttachments(attachments);
-      setStreamError(null);
-      setIsBusy(true);
+      const currentThreadId = activeSessionRef.current?.threadId ?? liveThreadRef.current;
+      const currentRun = getRun(currentThreadId);
 
-      const userMessage: ChatMessage = { role: "user", content };
-      const thinkingMessage: ChatMessage = {
-        role: "assistant",
-        content: "",
-        activity: [],
-      };
+      // Un turno e' gia' in corso: il messaggio si accoda invece di sparire o di
+      // scavalcare la risposta che il consulente sta ancora leggendo.
+      if (currentRun?.status === "streaming" && currentThreadId) {
+        enqueueMessage(currentThreadId, content, attachments);
+        return;
+      }
 
-      let threadId: string;
-      let base: ChatMessage[];
+      let session: ChatSession;
       try {
-        const session = await ensureThread(content);
-        threadId = session.threadId;
-        base = (
-          session.threadId === activeSessionRef.current?.threadId
-            ? activeSessionRef.current.messages
-            : session.messages
-        ).filter((m) => m.role !== "error");
+        session = await ensureThread(content);
       } catch (err) {
         console.error("[chat] could not open a session", err);
         const detail = httpErrorMessage(err, "Errore sconosciuto");
         const fallbackId = `local-error-${Date.now()}`;
+        liveThreadRef.current = fallbackId;
         selectThread(fallbackId);
-        setLive({
+        await startRun({
           threadId: fallbackId,
-          messages: [
-            userMessage,
-            {
-              role: "error",
-              content: `Non sono riuscito a completare questa richiesta. ${detail}`,
-            },
-          ],
+          base: [],
+          content,
+          attachments,
+          transport: () => Promise.reject(new Error(detail)),
+          commit: async () => {},
         });
-        setIsBusy(false);
         return;
       }
 
-      let localMessages: ChatMessage[] = [...base, userMessage, thinkingMessage];
-      setLive({ threadId, messages: localMessages });
+      const threadId = session.threadId;
+      liveThreadRef.current = threadId;
+      const existingRun = getRun(threadId);
+      const base = (
+        existingRun && existingRun.status !== "streaming"
+          ? existingRun.messages
+          : session.threadId === activeSessionRef.current?.threadId
+            ? activeSessionRef.current.messages
+            : session.messages
+      ).filter((message) => message.role !== "error");
 
-      const updateLive = (
-        updater: (messages: ChatMessage[]) => ChatMessage[],
-      ) => {
-        localMessages = updater(localMessages);
-        setLive((prev) =>
-          prev && prev.threadId === threadId
-            ? { ...prev, messages: localMessages }
-            : prev,
-        );
-      };
+      const scopeAtSend = scopeRef.current;
+      const modelAtSend = modelRef.current;
+      const modeAtSend = modeRef.current;
 
-      try {
-        const res = await streamChatMessage(threadId, {
-          message: content,
-          modelName: modelRef.current,
-          scope: toApiChatScope(scopeRef.current),
-          mode: modeRef.current,
-          attachments: attachments.map(toApiChatAttachment),
-        });
-        if (!res.body) throw new Error("Streaming fallito");
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let accumulatedText = "";
-        let buffer = "";
-
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const event = JSON.parse(line);
-
-            if (event.type === "activity") {
-              const label = String(event.message || event.content || "").trim();
-              const key = String(
-                event.payload?.activity_id ||
-                  `${event.node || "agent"}:${label || Date.now()}`,
-              );
-              updateLive((messages) => {
-                const next = [...messages];
-                const last = next[next.length - 1];
-                if (!last || last.role !== "assistant") return messages;
-                next[next.length - 1] = {
-                  ...last,
-                  activity: nextAgentActivity(
-                    last.activity,
-                    key,
-                    label,
-                    typeof event.payload?.icon === "string"
-                      ? event.payload.icon
-                      : undefined,
-                  ),
-                };
-                return next;
-              });
-            }
-
-            if (event.type === "delta") {
-              accumulatedText += event.content || "";
-              updateLive((messages) => {
-                const next = [...messages];
-                const last = next[next.length - 1];
-                next[next.length - 1] = {
-                  ...(last || { role: "assistant" as const }),
-                  role: "assistant",
-                  content: accumulatedText,
-                };
-                return next;
-              });
-            }
-
-            if (event.type === "done") {
-              accumulatedText = event.message || accumulatedText;
-              updateLive((messages) => {
-                const next = [...messages];
-                const last = next[next.length - 1];
-                if (!last || last.role !== "assistant") return messages;
-                next[next.length - 1] = {
-                  ...last,
-                  role: "assistant",
-                  content: accumulatedText,
-                  activity: completeAgentActivity(last.activity),
-                };
-                return next;
-              });
-            }
-
-            if (event.type === "error") {
-              throw new Error(
-                event.error?.detail ||
-                  event.error?.message ||
-                  event.detail ||
-                  "Errore backend",
-              );
-            }
-          }
-        }
-
-        await commitTranscript(threadId, localMessages);
-        notifyChatWorkspaceChanged(scopeRef.current);
-        onSettled?.(threadId);
-        setLive((prev) => (prev?.threadId === threadId ? null : prev));
-      } catch (err) {
-        console.error("[chat] stream failed", err);
-        const detail = httpErrorMessage(err, "Errore sconosciuto");
-        setStreamError(
-          `Backend non raggiungibile o richiesta fallita: ${detail}`,
-        );
-        updateLive((messages) =>
-          replaceThinkingWithError(
-            messages,
-            thinkingLabel,
-            `Non sono riuscito a completare questa richiesta. ${detail}`,
+      await startRun({
+        threadId,
+        base,
+        content,
+        attachments,
+        transport: (id, input, signal) =>
+          streamChatMessage(
+            id,
+            {
+              message: input.message,
+              modelName: modelAtSend,
+              scope: toApiChatScope(scopeAtSend),
+              mode: modeAtSend,
+              attachments: input.attachments.map(toApiChatAttachment),
+            },
+            signal,
           ),
-        );
-      } finally {
-        setIsBusy(false);
-      }
+        commit: commitTranscript,
+        onSettled: (id) => {
+          notifyChatWorkspaceChanged(scopeAtSend);
+          onSettled?.(id);
+        },
+      });
     },
-    [t, ensureThread, selectThread, commitTranscript, onSettled],
+    [ensureThread, selectThread, commitTranscript, onSettled],
+  );
+
+  const stopStreaming = useCallback(() => {
+    if (activeThreadId) stopRun(activeThreadId);
+  }, [activeThreadId]);
+
+  const cancelQueuedMessage = useCallback(
+    (index: number) => {
+      if (activeThreadId) dropQueuedMessage(activeThreadId, index);
+    },
+    [activeThreadId],
   );
 
   return {
-    isBusy,
-    lastUserPrompt,
-    lastUserAttachments,
-    liveThreadId: live?.threadId ?? null,
-    liveMessages: live?.messages ?? null,
-    streamError,
+    isBusy: run?.status === "streaming",
+    lastUserPrompt: run?.lastPrompt ?? "",
+    lastUserAttachments: run?.lastAttachments ?? [],
+    liveThreadId: run ? run.threadId : null,
+    liveMessages: run ? run.messages : null,
+    queuedMessages: run?.queued ?? [],
+    streamError: run?.error ?? null,
+    startedAtMs: run?.status === "streaming" ? run.startedAtMs : null,
     sendMessage,
+    stopStreaming,
+    cancelQueuedMessage,
     clearStreamError,
   };
 }

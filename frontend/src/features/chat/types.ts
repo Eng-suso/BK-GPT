@@ -2,11 +2,18 @@ export type MessageRole = "user" | "assistant" | "system" | "error";
 
 export type AgentActivityStatus = "running" | "completed";
 
+/** Un passo di lavoro come lo vede il consulente: fase, non nodo. */
 export interface AgentActivity {
   key: string;
+  /** Identificativo stabile della fase (`recalling`, `reading_sources`, ...). */
+  phase?: string;
   label: string;
+  /** Il nome di dominio su cui la fase sta lavorando, quando esiste. */
+  detail?: string;
   status: AgentActivityStatus;
   icon?: string;
+  startedAtMs: number;
+  endedAtMs?: number;
 }
 
 export interface ChatMessage {
@@ -15,6 +22,10 @@ export interface ChatMessage {
   content: string;
   createdAt?: string;
   activity?: AgentActivity[];
+  /** Il consulente ha fermato il turno: la risposta e' quello che era arrivato. */
+  stoppedByUser?: boolean;
+  /** Messaggio scritto durante un turno in corso, non ancora inviato. */
+  pending?: boolean;
 }
 
 export type ChatStatus = "idle" | "sending" | "streaming" | "error";

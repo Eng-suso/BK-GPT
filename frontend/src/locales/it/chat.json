@@ -53,10 +53,17 @@
     "audioUpload": "Carica audio",
     "interviewStart": "Avvia intervista",
     "stopHint": "Ferma l’intervista e genera il transcript",
-    "sendHint": "Invia messaggio (Invio)"
+    "sendHint": "Invia messaggio (Invio)",
+    "stopAgent": "Ferma",
+    "stopAgentHint": "Ferma il turno e tieni la risposta parziale",
+    "queue": "Accoda",
+    "queueHint": "Aggiungi il messaggio alla coda del turno in corso (Invio)"
   },
   "status": {
-    "thinking": "Sto elaborando…"
+    "thinking": "Sto elaborando…",
+    "progressLabel": "Avanzamento del lavoro",
+    "stoppedByUser": "Turno fermato: questa è la parte di risposta già prodotta.",
+    "queuedLabel": "In coda"
   },
   "empty": {
     "tryLabel": "Prova a chiedere"
@@ -166,5 +173,10 @@
       "count": "{{count}} / {{max}} caratteri",
       "fallbackLabel": "Testo incollato"
     }
+  },
+  "queue": {
+    "title": "Messaggi in coda",
+    "hint": "Partiranno appena il turno in corso si chiude.",
+    "remove": "Togli dalla coda"
   }
 }
