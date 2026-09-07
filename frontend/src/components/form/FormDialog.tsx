@@ -28,13 +28,14 @@ type FormDialogProps = {
 };
 
 /**
- * Il guscio condiviso di ogni form di record del workspace.
+ * Renders a reusable dialog for workspace record forms.
  *
- * Un solo posto decide come si comporta una modifica manuale: il campo si
- * salva con Invio, il pulsante resta disabilitato durante la scrittura (una
- * doppia POST creerebbe due record), e l'errore del backend si vede nel form
- * invece di sparire in console. Il corpo scrolla da solo: header e footer
- * restano fermi anche su un form lungo o su un viewport basso.
+ * Keeps the dialog actions disabled during submission, displays submission errors,
+ * and provides a scrollable area for form content.
+ *
+ * @param isSubmitting - Whether a submission is currently in progress
+ * @param error - An optional error message to display in the form
+ * @param onSubmit - Called when the form is submitted
  */
 export function FormDialog({
   open,

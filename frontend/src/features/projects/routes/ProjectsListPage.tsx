@@ -43,6 +43,13 @@ const STATUS_ORDER: Project["status"][] = [
   "Completato",
 ];
 
+/**
+ * Determines whether a project matches a search query across its key text fields.
+ *
+ * @param p - The project to search
+ * @param q - The normalized search query
+ * @returns `true` if the query appears in the project's name, client, phase, status, or next step; `false` otherwise
+ */
 function matchProject(p: Project, q: string): boolean {
   return [p.name, p.client, p.phase, p.status, p.nextStep].some((v) =>
     v.toLowerCase().includes(q),
@@ -57,6 +64,9 @@ function processCount(p: Project): number {
   return p.processes || p.processItems.length;
 }
 
+/**
+ * Renders the responsive projects list workspace with filtering, search, pagination, project details, and project creation or editing actions.
+ */
 export function ProjectsListPage(): React.JSX.Element {
   const { t } = useTranslation("projects");
   const navigate = useNavigate();

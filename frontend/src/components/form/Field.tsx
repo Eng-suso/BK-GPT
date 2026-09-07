@@ -17,12 +17,16 @@ type FieldProps = {
 };
 
 /**
- * Etichetta, controllo e spiegazione, legati fra loro.
+ * Renders a labeled form field with optional hint and required-state metadata.
  *
- * L'`id` non lo sceglie il chiamante: il campo lo genera e lo passa al
- * controllo insieme all'`aria-describedby` del suo hint, cosi' un lettore di
- * schermo sente l'etichetta *e* il motivo del campo, e nessun form puo'
- * dimenticarsi il collegamento.
+ * Generates the control ID and related accessibility attributes, then passes
+ * them to the control renderer.
+ *
+ * @param label - The text associated with the form control
+ * @param hint - Optional explanatory text displayed below the control
+ * @param required - Whether the field is required
+ * @param children - Renders the form control using generated accessibility props
+ * @returns The labeled field element
  */
 export function Field({
   label,

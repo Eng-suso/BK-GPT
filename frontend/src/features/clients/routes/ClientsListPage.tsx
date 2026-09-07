@@ -23,12 +23,22 @@ import { useClientsQuery } from "../api";
 import { ClientFormDialog } from "../components/ClientFormDialog";
 import { clientStatusTone, type Client } from "../types";
 
+/**
+ * Determines whether a client matches a search query by name, sector, owner, or contact.
+ *
+ * @param c - The client to search
+ * @param q - The lowercase search query
+ * @returns `true` if any searchable client field contains the query, `false` otherwise.
+ */
 function matchClient(c: Client, q: string): boolean {
   return [c.name, c.sector, c.owner, c.contact].some((v) =>
     v.toLowerCase().includes(q),
   );
 }
 
+/**
+ * Renders the client directory with search, filtering, sorting, pagination, selection, and create or edit actions.
+ */
 export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation("clients");
   useWorkspaceRefresh();

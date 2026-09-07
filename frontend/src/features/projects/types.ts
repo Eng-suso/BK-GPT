@@ -27,6 +27,12 @@ const PROJECT_STATUS_TONE: Record<Project["status"], StatusTone> = {
   Bozza: "neutral",
 };
 
+/**
+ * Maps a project status to its visual status tone.
+ *
+ * @param status - The project status to map
+ * @returns The corresponding status tone
+ */
 export function projectStatusTone(status: Project["status"]): StatusTone {
   return PROJECT_STATUS_TONE[status];
 }
@@ -40,6 +46,12 @@ const PROJECT_STATUS_RANK: Record<Project["status"], number> = {
   Completato: 4,
 };
 
+/**
+ * Determines the sorting rank for a project status.
+ *
+ * @param status - The project status to rank
+ * @returns The configured status rank, or `99` for an unrecognized status
+ */
 export function projectStatusRank(status: Project["status"]): number {
   return PROJECT_STATUS_RANK[status] ?? 99;
 }

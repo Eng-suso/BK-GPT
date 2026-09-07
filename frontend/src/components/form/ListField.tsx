@@ -18,14 +18,14 @@ type ListFieldProps = {
 };
 
 /**
- * Una lista di voci brevi — milestone, punti aperti, deliverable — modificabile
- * a mano.
+ * Provides an editable field for managing a complete list of short text entries.
  *
- * Le liste del progetto arrivano al backend intere, quindi qui si lavora sempre
- * sull'elenco completo: aggiungere non e' un'append cieca e rimuovere non e' un
- * flag. Invio aggiunge la riga successiva senza inviare il form, cosi' si
- * scrive tutta la lista da tastiera; le righe vuote le scarta il backend, che
- * e' l'unico posto che decide cosa e' una voce.
+ * Pressing Enter in an entry inserts a new entry after it.
+ *
+ * @param label - The fieldset label
+ * @param values - The current list of entries
+ * @param onChange - Called with the updated list when an entry is edited, added, or removed
+ * @returns The rendered list editing field
  */
 export function ListField({
   label,

@@ -45,6 +45,12 @@ export function useProjectsQuery(): UseQueryResult<Project[]> {
   });
 }
 
+/**
+ * Fetches a project by its identifier.
+ *
+ * @param id - The project identifier
+ * @returns The project query result
+ */
 export function useProjectQuery(id: string): UseQueryResult<Project> {
   return useQuery({
     queryKey: projectKeys.detail(id),
@@ -56,8 +62,9 @@ export function useProjectQuery(id: string): UseQueryResult<Project> {
 }
 
 /**
- * Crea un progetto a mano. `objective` viaggia con la create: e' il perche'
- * dell'incarico, e senza di lui il record nasce senza mandato (PROJECT-01).
+ * Creates a project from a draft.
+ *
+ * @returns A mutation result containing the created project.
  */
 export function useCreateProjectMutation(): UseMutationResult<
   Project,
@@ -81,7 +88,11 @@ export function useCreateProjectMutation(): UseMutationResult<
   });
 }
 
-/** Modifica manuale del progetto: obiettivo, fase, stato, avanzamento, liste. */
+/**
+ * Provides a mutation for updating a project.
+ *
+ * @returns The project update mutation and its current state
+ */
 export function useUpdateProjectMutation(): UseMutationResult<
   Project,
   Error,
@@ -104,7 +115,12 @@ export function useUpdateProjectMutation(): UseMutationResult<
   });
 }
 
-/** Registra un processo nel progetto: record + modello BPMN vuoto. */
+/**
+ * Creates a process within a project.
+ *
+ * @param projectId - The ID of the project that will contain the process
+ * @returns The created project process
+ */
 export function useCreateProcessMutation(
   projectId: string,
 ): UseMutationResult<ProjectProcess, Error, ProcessDraft> {
@@ -124,7 +140,11 @@ export function useCreateProcessMutation(
   });
 }
 
-/** Modifica manuale del processo: nome, stadio, stato, owner, readiness. */
+/**
+ * Provides a mutation for updating a project's process.
+ *
+ * @returns A mutation that updates a process and returns the updated process.
+ */
 export function useUpdateProcessMutation(): UseMutationResult<
   ProjectProcess,
   Error,
@@ -145,6 +165,12 @@ export function useUpdateProcessMutation(): UseMutationResult<
   });
 }
 
+/**
+ * Fetches the sources associated with a project.
+ *
+ * @param id - The project identifier
+ * @returns The project's sources
+ */
 export function useProjectSourcesQuery(
   id: string,
 ): UseQueryResult<ProjectSource[]> {

@@ -245,6 +245,19 @@ def create_workspace_project_decision(
     project_id: str,
     request: CreateProjectDecisionRequest,
 ) -> ProjectDecisionResponse:
+    """
+    Create a decision for a workspace project.
+    
+    Args:
+        project_id (str): Untrusted project identifier associated with the decision.
+        request (CreateProjectDecisionRequest): Untrusted decision data to validate and persist.
+    
+    Returns:
+        ProjectDecisionResponse: The newly created project decision.
+    
+    Raises:
+        HTTPException: With status 400 when the decision data is invalid or persistence fails.
+    """
     try:
         return ProjectDecisionResponse(**create_project_decision(project_id=project_id, **request.model_dump()))
     except ValueError as exc:
@@ -253,7 +266,22 @@ def create_workspace_project_decision(
 
 @router.patch("/processes/{process_id}")
 def update_workspace_process(process_id: str, request: UpdateProcessRequest) -> ProjectProcessResponse:
-    """Modifica manuale del processo: nome, stadio, stato, owner, readiness."""
+    """Partially updates a workspace process with the supplied fields.
+    
+    Args:
+        process_id (str): Untrusted identifier of the process to update.
+        request (UpdateProcessRequest): Untrusted update data; only explicitly
+            provided fields are persisted.
+    
+    Returns:
+        ProjectProcessResponse: The updated process.
+    
+    Raises:
+        HTTPException: With status 404 if the process does not exist, or status
+            400 if the update data is invalid.
+    
+    The update persists changes to the workspace process.
+    """
     try:
         return ProjectProcessResponse(
             **update_process(process_id, **request.model_dump(exclude_unset=True))
@@ -264,6 +292,20 @@ def update_workspace_process(process_id: str, request: UpdateProcessRequest) -> 
 
 @router.get("/processes/{process_id}")
 def get_workspace_process(process_id: str) -> ProjectProcessResponse:
+    """
+    Retrieve a workspace process by identifier.
+    
+    Args:
+        process_id (str): Untrusted process identifier used to locate the process.
+    
+    Returns:
+        ProjectProcessResponse: The requested process.
+    
+    Raises:
+        HTTPException: With status code 404 if the process does not exist.
+    
+    The function does not modify or persist data.
+    """
     process = get_process(process_id)
 
     if process is None:

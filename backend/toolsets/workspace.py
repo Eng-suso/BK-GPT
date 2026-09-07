@@ -694,27 +694,28 @@ def update_workspace_project(
     deliverables: list[str] | None = None,
 ) -> str:
     """
-    Update selected fields of an existing project record and persist the changes.
+    Update selected fields of an existing project and persist the changes.
     
     Args:
-        project_id (str): [Untrusted input] Identifier of the project to update.
-        name (str | None): [Untrusted input] Replacement project name, if provided.
-        objective (str | None): [Untrusted input] Replacement project objective, if provided.
-        phase (ProjectPhase | None): [Untrusted input] Replacement project phase, if provided.
-        status (ProjectStatus | None): [Untrusted input] Replacement project status, if provided.
-        progress (int | None): [Untrusted input] Replacement project progress, if provided.
-        next_step (str | None): [Untrusted input] Replacement next step, if provided.
-        milestones (list[str] | None): [Untrusted input] Replacement milestone list, if provided.
-        open_issues (list[str] | None): [Untrusted input] Replacement open-issue list, if provided.
-        deliverables (list[str] | None): [Untrusted input] Replacement deliverable list, if provided.
+        project_id (str): Untrusted project identifier.
+        name (str | None): Untrusted replacement project name.
+        objective (str | None): Untrusted replacement project objective.
+        phase (ProjectPhase | None): Untrusted replacement project phase.
+        status (ProjectStatus | None): Untrusted replacement project status.
+        progress (int | None): Untrusted replacement progress value.
+        next_step (str | None): Untrusted replacement next step.
+        milestones (list[str] | None): Untrusted replacement milestone list.
+        open_issues (list[str] | None): Untrusted replacement open-issue list.
+        deliverables (list[str] | None): Untrusted replacement deliverable list.
     
     Returns:
-        str: A standardized result describing the updated project, or an error result when
-            the project cannot be updated.
+        str: A standardized result containing the updated project, or an error result
+            when validation fails or the project does not exist.
     
-    Side Effects:
-        Persists the supplied project-field changes. Database validation or missing-record
-        errors are returned as structured error results.
+    Notes:
+        Supplied list fields replace their existing values in full. Database validation
+        and missing-record errors are returned as structured results rather than raised.
+        Successful calls persist the supplied changes.
     """
     try:
         project = workspace_database.update_project(
@@ -758,11 +759,23 @@ def create_workspace_process(
     owner: str | None = None,
     readiness: int = 0,
 ) -> str:
-    """
-    Create a process inside an existing project.
-    Use for AS-IS/TO-BE process records. This creates the process record and its empty BPMN model.
-    It does not generate BPMN XML.
-    Leave stage, status and owner unset when the consultant did not state them.
+    """Create a process record and an empty BPMN model within an existing project.
+    
+    Args:
+        project_id: Untrusted identifier of the existing project.
+        name: Untrusted process name.
+        stage: Optional process lifecycle stage.
+        status: Optional process status.
+        owner: Optional process owner.
+        readiness: Initial readiness value.
+    
+    Returns:
+        A formatted result describing the created process.
+    
+    Raises:
+        Database validation or persistence errors from the workspace database layer.
+    
+    The function persists the process and BPMN model but does not generate BPMN XML. Unspecified stage, status, and owner values remain unset.
     """
     process = workspace_database.create_process(
         project_id=project_id,
@@ -785,12 +798,21 @@ def update_workspace_process(
     readiness: int | None = None,
 ) -> str:
     """
-    Update an existing process record: name, stage, status, owner, readiness.
-    Declare only the fields that change.
-    Use when the work actually moved - an AS-IS confirmed by the people who run it
-    becomes "Validato" - or when the consultant corrects a recorded value. The
-    consultant edits the same fields by hand in the UI, on the same record.
-    This never touches the BPMN model content.
+    Update selected fields of an existing persisted process record without changing its BPMN model.
+    
+    Args:
+        process_id (str): Untrusted identifier of the process to update.
+        name (str | None): Untrusted replacement process name, or None to preserve it.
+        stage (ProcessStage | None): Untrusted replacement process stage, or None to preserve it.
+        status (ProcessStatus | None): Untrusted replacement process status, or None to preserve it.
+        owner (str | None): Untrusted replacement process owner, or None to preserve it.
+        readiness (int | None): Untrusted replacement readiness value, or None to preserve it.
+    
+    Returns:
+        str: A structured result describing the updated process or a database validation/not-found error.
+    
+    Side Effects:
+        Persists the supplied field changes to the existing process record. The BPMN model content remains unchanged.
     """
     try:
         process = workspace_database.update_process(
@@ -824,8 +846,15 @@ def update_workspace_process(
 @tool
 def list_workspace_project_sources(project_id: str) -> str:
     """
-    List sources/evidence already recorded for a project.
-    Use before adding evidence or when the user asks what material is linked to a project.
+    List evidence linked to a workspace project.
+    
+    Args:
+        project_id: Untrusted project identifier used to retrieve linked sources.
+    
+    Returns:
+        A formatted workspace result containing the project's recorded sources.
+    
+    This operation is read-only and does not persist changes.
     """
     return format_workspace_result(
         "Fonti progetto workspace",
