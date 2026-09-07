@@ -71,7 +71,7 @@ describe("il turno vive fuori dal componente", () => {
     await run;
 
     expect(commit).toHaveBeenCalledTimes(1);
-    const [threadId, messages] = commit.mock.calls[0] as [string, ChatMessage[]];
+    const [threadId, messages] = commit.mock.calls[0] as unknown as [string, ChatMessage[]];
     expect(threadId).toBe("t-1");
     expect(messages.at(-1)).toMatchObject({
       role: "assistant",
@@ -243,7 +243,7 @@ describe("errori", () => {
     pipe.close();
     await run;
 
-    const [, messages] = commit.mock.calls[0] as [string, ChatMessage[]];
+    const [, messages] = commit.mock.calls[0] as unknown as [string, ChatMessage[]];
     expect(messages.at(-1)?.content).toBe("va bene");
   });
 });
