@@ -509,27 +509,15 @@ def manage_client_record(
     contact: str | None = None,
 ) -> str:
     """
-    Manage a persisted client record through create, inspect, or summarize operations.
-    
-    The create operation is idempotent by normalized client name: it returns an
-    existing record instead of creating a duplicate and may fill its placeholder
-    fields with values supplied by the request. Inspect and summarize return a
-    not-found result when no matching record exists. Unsupported operations produce
-    a structured error result. This function persists records when creating or
-    updating client information.
-    
-    Args:
-        operation (str): Untrusted operation name; supported values are ``create``,
-            ``inspect``, and ``summarize``.
-        name (str): Untrusted client name used for matching and creation.
-        sector (str | None): Untrusted sector information for the client.
-        status (ClientStatus | None): Untrusted client status.
-        owner (str | None): Untrusted client owner.
-        contact (str | None): Untrusted client contact information.
-    
-    Returns:
-        str: A structured result describing the created, existing, found, not-found,
-        or unsupported-operation outcome.
+    Purpose: manage a client record through one LLM-friendly facade.
+    Use for explicit real client work from the Clients subgraph.
+    Supported operations: create, inspect, summarize.
+    It checks existing clients before creating to avoid duplicates.
+    Set `status` from the user's own words whenever they make it evident: a client
+    they say they acquired or already work with is "Attivo", not "Prospect".
+    Leave a field unset when the user did not state it.
+    Do not use for project execution, process discovery, canvas work, or hypothetical examples.
+
     """
     normalized_operation = operation.strip().lower()
     clients = workspace_database.list_clients()
@@ -926,28 +914,11 @@ def validate_initial_workspace_setup(
     client_owner: str | None = None,
 ) -> str:
     """
-    Validate proposed initial workspace setup data without persisting records.
-    
-    The validation checks that the client name and setup reason are present, identifies
-    existing clients and projects with matching normalized names, and flags a missing
-    project objective when a project is requested. This function performs read-only
-    workspace queries and does not create or modify records.
-    
-    Args:
-        client_name: Untrusted client name to validate and compare against existing records.
-        project_name: Untrusted optional project name to validate and compare.
-        project_objective: Untrusted optional objective required when a project name is provided.
-        process_name: Untrusted optional process name included in the validation payload.
-        source_name: Untrusted optional source name included in the validation payload.
-        decision_title: Untrusted optional decision title included in the validation payload.
-        reason: Untrusted explanation for creating the workspace.
-        client_sector: Untrusted optional client sector included for setup context.
-        client_status: Optional client status included for setup context.
-        client_owner: Untrusted optional client owner included for setup context.
-    
-    Returns:
-        A structured result string with status ``"valid"`` when no warnings are found,
-        or ``"review_required"`` with the applicable warnings otherwise.
+    Purpose: validate an explicit initial workspace setup before creating records.
+    Use in Setup subgraph before create_initial_workspace_setup.
+    It checks missing required setup pieces and duplicate client/project candidates.
+    This tool is read-only.
+
     """
     warnings = []
     clients = workspace_database.list_clients()
@@ -1021,29 +992,13 @@ def create_initial_workspace_setup(
     client_owner: str | None = None,
 ) -> str:
     """
-    Create or reuse a client and optionally persist related project setup records.
-    
-    The operation may create a project, process stub, source, and decision when the
-    corresponding names are provided. Related records are skipped with warnings when
-    no project is available. Missing project objectives are also reported as warnings.
-    This function performs persistent workspace mutations and returns a structured
-    result serialized as a string.
-    
-    Args:
-        client_name: [Untrusted input] Client name used for creation and matching.
-        project_name: [Untrusted input] Optional project name used for creation or reuse.
-        project_objective: [Untrusted input] Optional objective stored with a new project.
-        process_name: [Untrusted input] Optional process name for a project process stub.
-        source_name: [Untrusted input] Optional source name to record for the project.
-        decision_title: [Untrusted input] Optional decision title to record.
-        reason: [Untrusted input] Context stored with the source and included in the result.
-        client_sector: [Untrusted input] Optional client sector.
-        client_status: [Untrusted input] Optional client status.
-        client_owner: [Untrusted input] Optional client owner.
-    
-    Returns:
-        A serialized enterprise result containing the client, any related records,
-        created and reused entities, warnings, and the next suggested action.
+    Purpose: create a minimal initial workspace setup in one controlled operation.
+    Set `client_status` from the user's own words whenever they make it evident:
+    a client they say they acquired or already work with is "Attivo", not "Prospect".
+    Use only when the user explicitly asks to register real setup records.
+    Creates or reuses the client, then optionally creates project, process stub, source and decision.
+    Stop after setup; ongoing execution belongs to Project, Process or Canvas macro agents.
+
     """
     warnings = []
     created_records = []

@@ -155,20 +155,9 @@ def extract_process_claims(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Prepare atomic process claims from a source for evidence synthesis and GraphRAG indexing.
-    
-    Args:
-        process_id (str): Untrusted process identifier used to scope persisted state.
-        source_name (str): Untrusted name of the evidence source associated with the claims.
-        claims (list[dict]): Untrusted atomic claim records to serialize and persist.
-        extraction_notes (list[str] | None): Optional notes describing the extraction.
-    
-    Returns:
-        Command: A command containing the prepared claims and persistence state.
-    
-    Side Effects:
-        Persists the claims, source metadata, extraction notes, and GraphRAG readiness
-        flag in enterprise state for the specified process.
+    Structure atomic process claims from one source. Use before synthesis or
+    future GraphRAG indexing. Each claim must keep source, confidence and status.
+
     """
     claim_payload = _jsonable_items(claims)
     return enterprise_state_write(
@@ -247,47 +236,17 @@ def manage_process_contradiction(
     *,
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
-    """Record or resolve a process contradiction and persist the resulting state update.
-    
-    For ``identify``, derives a contradiction identifier from ``title`` and records
-    the conflicting claims and affected process area. For ``resolve``, requires a
-    resolution and rationale; resolutions of ``resolved`` or ``not_material`` also
-    require supporting sources. Invalid resolution inputs remain ``still_blocking``
-    and include invariant violations rather than clearing the contradiction.
-    
-    Args:
-        process_id (str): Process whose contradiction state is being updated.
-        operation (str): Untrusted operation name; must be ``"identify"`` or
-            ``"resolve"``.
-        title (str): Untrusted contradiction title used for identification and
-            identifier derivation.
-        contradiction_id (str | None): Existing contradiction identifier for
-            resolution. If omitted, derives one from ``title``.
-        conflicting_claims (list[str] | None): Untrusted claims involved in the
-            contradiction.
-        affected_process_area (str | None): Untrusted process area affected by the
-            contradiction.
-        source_names (list[str] | None): Untrusted sources containing the
-            conflicting claims.
-        resolution_needed (str): Untrusted explanation of the resolution required.
-        severity (str): Untrusted contradiction severity.
-        resolution (str | None): Untrusted resolution outcome. Values
-            ``"resolved"`` and ``"not_material"`` require supporting sources.
-        rationale (str): Untrusted explanation supporting the resolution.
-        supporting_sources (list[str] | None): Untrusted sources supporting a
-            clearing resolution.
-    
-    Raises:
-        ValueError: If ``operation`` is neither ``"identify"`` nor ``"resolve"``.
-    
-    Returns:
-        Command: State update containing the contradiction identification or
-            resolution, including warnings and invariant violations when
-            applicable.
-    
-    Side Effects:
-        Persists the contradiction identification or resolution in shared
-        enterprise state.
+    """
+    Record a process contradiction, or record what you concluded about one.
+
+    Use operation=identify when sources disagree about actors, activities,
+    decisions, handoffs, exceptions or controls. Use operation=resolve once you
+    have settled it, or decided it does not affect the model you are building -
+    a contradiction you leave unresolved at high or blocking severity keeps
+    modeling closed, so say what you concluded rather than leaving it open.
+    The runtime does not judge the contradiction; it only checks that a
+    conclusion carries a reason, and that clearing one cites a source.
+
     """
     conflicting_claims = conflicting_claims or []
     source_names = source_names or []
@@ -377,21 +336,9 @@ def prepare_evidence_coverage_matrix(
     tool_call_id: Annotated[str, InjectedToolCallId] = "",
 ) -> Command:
     """
-    Assess evidence coverage for each process area and determine whether modeling can proceed.
-    
-    Args:
-        process_id (str): Process identifier.
-        coverage_items (list[dict]): Untrusted coverage assessments by process area.
-        modeling_blockers (list[str] | None): Untrusted issues that prevent modeling.
-        tool_call_id (str): Injected tool-call identifier.
-    
-    Returns:
-        Command: A state-write command containing the coverage matrix and its status.
-    
-    The matrix is marked ``ready_for_modeling`` only when there are no modeling
-    blockers and at most two areas have ``none`` or ``weak`` coverage. The latest
-    matrix replaces the previous assessment for the process. The command persists
-    the matrix in enterprise state.
+    Prepare an evidence coverage matrix by process area. Use as the gate between
+    evidence synthesis and ProcessUnderstanding modeling.
+
     """
     coverage_payload = _jsonable_items(coverage_items)
     weak_areas = [

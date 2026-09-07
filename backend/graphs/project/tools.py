@@ -144,19 +144,10 @@ def _project_payload(project_id: str) -> dict:
 @tool
 def get_project_workspace_brief(project_id: str) -> str:
     """
-    Provide the authorized project workspace snapshot for project-level synthesis and routing.
-    
-    Args:
-        project_id (str): Untrusted project identifier used to select the project.
-    
-    Returns:
-        str: Structured result containing project status and progress, sources, decisions,
-            process counts, and process-readiness data.
-    
-    Raises:
-        ValueError: If the project does not exist or is outside the authorized scope.
-    
-    This function is read-only and does not persist changes.
+    Read the authoritative project workspace snapshot: project status, process list,
+    sources, decisions, deliverables and open issues. Use before project-level synthesis
+    or routing when project context is needed. This is read-only.
+
     """
     payload = _project_payload(project_id)
     project = payload["project"]
@@ -291,18 +282,10 @@ def prepare_project_delegation_payload(
     known_context: str = "",
 ) -> str:
     """
-    Prepare a structured handoff payload without executing or persisting delegated work.
-    
-    Args:
-        target_owner (str): Untrusted input identifying the intended receiving owner or agent.
-        user_request (str): Untrusted input containing the requested work.
-        expected_result (str): Untrusted input describing the expected outcome.
-        reason (str): Untrusted input explaining the delegation rationale.
-        known_context (str): Untrusted input containing relevant context.
-    
-    Returns:
-        str: A JSON-formatted delegation payload with status, routing, request,
-            expected result, reason, and known context.
+    Purpose: create a narrow structured handoff payload from Project Macro to a
+    project subgraph, Process Macro or Canvas Macro. This does not execute the
+    delegated work.
+
     """
     return "Project delegation payload\n" + json.dumps(
         {
@@ -322,22 +305,9 @@ def prepare_project_delegation_payload(
 @tool
 def get_project_delivery_brief(project_id: str) -> str:
     """
-    Builds a delivery-focused brief for an authorized project.
-    
-    The project must be within the authorized scope and must exist. This function
-    only reads project context and does not modify or persist data.
-    
-    Args:
-        project_id (str): Untrusted project identifier used to locate the project.
-    
-    Returns:
-        str: Serialized project delivery context, including objective, phase, status,
-            progress, next step, milestones, deliverables, open issues, and
-            decisions.
-    
-    Raises:
-        PermissionError: If the project is outside the authorized scope.
-        ValueError: If the project does not exist.
+    Read project delivery context: phase, status, progress, next step, milestones,
+    deliverables, open issues and open decisions. Use for delivery planning/status.
+
     """
     payload = _project_payload(project_id)
     project = payload["project"]
