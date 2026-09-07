@@ -442,3 +442,46 @@ def resolve_process_status(raw: str | None) -> str:
     The function has no side effects and does not persist data.
     """
     return normalize_process_status(raw) or DEFAULT_PROCESS_STATUS
+
+
+# --- Fonti -----------------------------------------------------------------
+#
+# Il tipo grezzo di un'evidenza ("interview_notes", "system_export") e' il
+# vocabolario di chi la salva: agente, tool, memoria episodica. Nel pannello
+# Fonti quel valore e' anche l'etichetta che il consulente legge e il criterio
+# su cui filtra, quindi passa da qui prima di essere scritto.
+
+DEFAULT_SOURCE_TYPE = "Fonte"
+
+EVIDENCE_TYPE_LABELS: dict[str, str] = {
+    "interview": "Intervista",
+    "interview_notes": "Intervista",
+    "workshop": "Workshop",
+    "workshop_notes": "Workshop",
+    "call": "Call",
+    "note": "Nota",
+    "document": "Documento",
+    "system_export": "Export di sistema",
+    "observation": "Osservazione",
+    "example_case": "Caso reale",
+    "decision": "Decisione",
+    "feedback": "Feedback",
+    "other": DEFAULT_SOURCE_TYPE,
+}
+
+
+def evidence_type_label(raw: str | None) -> str:
+    """Traduce il tipo di un'evidenza nell'etichetta che il consulente legge.
+
+    Args:
+        raw: Tipo grezzo, non affidabile, come lo scrive chi salva l'evidenza.
+
+    Returns:
+        L'etichetta corrispondente; un tipo sconosciuto ma non vuoto viene
+        restituito ripulito invece che appiattito su ``Fonte``, perche' una
+        parola scritta da chi sa cos'e' quella fonte vale piu' di un default.
+    """
+    cleaned = " ".join((raw or "").split())
+    if not cleaned:
+        return DEFAULT_SOURCE_TYPE
+    return EVIDENCE_TYPE_LABELS.get(cleaned.lower(), cleaned)

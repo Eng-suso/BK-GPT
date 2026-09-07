@@ -1743,6 +1743,67 @@ def create_project_source(
         return source_to_dict(source)
 
 
+def ensure_project_source(
+    project_id: str,
+    name: str,
+    type: str,
+    meta: str = "",
+    process_id: str | None = None,
+) -> tuple[dict, bool]:
+    """Registra una fonte una volta sola, per nome, dentro il suo processo.
+
+    Un'intervista salvata due volte dalla chat - il consulente riformula, il
+    turno viene ripetuto - non deve diventare due voci nel pannello Fonti. La
+    fonte esistente viene restituita com'e': il record dice quando l'evidenza e'
+    entrata nel progetto, e riscriverlo a ogni salvataggio cancellerebbe quel
+    fatto.
+
+    Args:
+        project_id: Progetto proprietario, non affidabile.
+        name: Nome della fonte come la legge il consulente, non affidabile.
+        type: Etichetta del tipo, gia' tradotta per chi legge.
+        meta: Nota in prosa sulla fonte.
+        process_id: Processo a cui l'evidenza appartiene, quando c'e'.
+
+    Returns:
+        La fonte e se e' stata creata adesso (``False`` se esisteva gia').
+
+    Raises:
+        ValueError: Se il progetto non esiste o il processo non e' suo.
+
+    Scrive nel workspace solo quando la fonte non esiste.
+    """
+    cleaned_name = name.strip()
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceProject, project_id) is None:
+            raise ValueError(f"Progetto non trovato: {project_id}")
+
+        existing = (
+            session.execute(
+                select(WorkspaceSource)
+                .where(WorkspaceSource.project_id == project_id)
+                .where(WorkspaceSource.tenant_id == tenant_id())
+                .where(WorkspaceSource.process_id == process_id)
+                .where(func.lower(WorkspaceSource.name) == cleaned_name.lower())
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return source_to_dict(existing), False
+
+    return (
+        create_project_source(
+            project_id=project_id,
+            name=cleaned_name,
+            type=type,
+            meta=meta,
+            process_id=process_id,
+        ),
+        True,
+    )
+
+
 def list_project_decisions(project_id: str) -> list[dict]:
     with workspace_connection() as session:
         if tenant_row(session, WorkspaceProject, project_id) is None:

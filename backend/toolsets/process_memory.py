@@ -14,7 +14,9 @@ from backend.memory.knowledge_graph.models import (
     KnowledgeGraphImpact,
     KnowledgeGraphRelationship,
 )
+from backend.services import degradation_counters
 from backend.toolsets.workspace import enterprise_tool_result
+from backend.workspace_defaults import evidence_type_label
 
 
 class ProcessGraphExtractionInput(BaseModel):
@@ -183,6 +185,80 @@ def _process_episode_tags(
     return normalized_tags
 
 
+def _evidence_note(summary: str, raw_content: str, limit: int = 240) -> str:
+    """La nota che il consulente legge sotto la fonte, in prosa.
+
+    Args:
+        summary: Sintesi dichiarata da chi salva, non affidabile.
+        raw_content: Testo originale, usato solo se la sintesi manca.
+        limit: Lunghezza massima della nota.
+
+    Returns:
+        La sintesi, o un estratto del testo originale, o stringa vuota. Il
+        pannello Fonti mostra questo campo cosi' com'e': non ci va una struttura
+        dati, ci va una frase.
+    """
+    text = " ".join((summary or "").split()) or " ".join((raw_content or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
+def _register_evidence_source(
+    *,
+    project_id: str,
+    process_id: str,
+    episode_type: str,
+    title: str,
+    summary: str,
+    raw_content: str,
+) -> dict | None:
+    """Fa comparire l'evidenza appena salvata fra le fonti del progetto.
+
+    Un'intervista raccolta in chat finiva solo nella memoria episodica: il
+    consulente la vedeva citata dall'agente ma non la trovava nel pannello
+    Fonti, dove cerca cio' che regge l'analisi. Qui l'episodio prende anche il
+    suo record di fonte, legato al processo, quindi apribile e navigabile.
+
+    Args:
+        project_id: Progetto proprietario.
+        process_id: Processo a cui l'evidenza appartiene.
+        episode_type: Tipo grezzo dell'episodio.
+        title: Titolo dell'evidenza.
+        summary: Sintesi dichiarata.
+        raw_content: Testo originale.
+
+    Returns:
+        La fonte registrata, o ``None`` se non c'era un titolo o se la scrittura
+        e' fallita.
+
+    Scrive nel workspace. Il fallimento non interrompe il salvataggio
+    dell'episodio - la memoria e' gia' scritta a questo punto - ma viene
+    contato, perche' una fonte che non compare e' esattamente il tipo di
+    degradazione che nessuno nota.
+    """
+    clean_title = " ".join((title or "").split())
+    if not clean_title:
+        return None
+
+    try:
+        source, _created = workspace_database.ensure_project_source(
+            project_id=project_id,
+            process_id=process_id,
+            name=clean_title,
+            type=evidence_type_label(episode_type),
+            meta=_evidence_note(summary, raw_content),
+        )
+        return source
+    except Exception as exc:  # noqa: BLE001 — l'episodio e' gia' salvato
+        degradation_counters.bump(
+            "evidence_source",
+            "not_registered",
+            detail=f"process={process_id} title={clean_title}: {exc}",
+        )
+        return None
+
+
 def _save_process_episode_payload(
     *,
     action: str,
@@ -253,6 +329,15 @@ def _save_process_episode_payload(
         occurred_at=occurred_at,
     )
 
+    source = _register_evidence_source(
+        project_id=project_id,
+        process_id=process_id,
+        episode_type=episode_type,
+        title=title,
+        summary=summary,
+        raw_content=raw_content,
+    )
+
     return enterprise_tool_result(
         status="saved",
         action=action,
@@ -263,6 +348,7 @@ def _save_process_episode_payload(
             "project_id": project_id,
             "process_id": process_id,
             "process_name": process["name"],
+            "source": source,
             "episode_type": episode_type,
             "title": title,
             "entities": _clean_text_list(entities),

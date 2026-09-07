@@ -1,4 +1,3 @@
-import json
 from typing import Literal
 
 from langchain_core.tools import tool
@@ -13,6 +12,7 @@ from backend.toolsets.process_memory import (
     retrieve_process_graph_context,
 )
 from backend.toolsets.workspace import enterprise_tool_result, update_workspace_process
+from backend.workspace_defaults import evidence_type_label
 
 
 ProcessTargetOwner = Literal[
@@ -267,25 +267,24 @@ def save_process_evidence(
     if process is None:
         raise ValueError(f"Processo non trovato: {process_id}")
 
-    meta = json.dumps(
-        {
-            "summary": summary,
-            "provenance_note": provenance_note,
-            "confidence": confidence,
-            "tags": tags or [],
-            "graph_rag_indexed": False,
-        },
-        ensure_ascii=False,
-    )
-    source = workspace_database.create_project_source(
+    # `meta` e' la nota che il consulente legge sotto la fonte, e il pannello la
+    # mostra cosi' com'e': qui c'era un JSON con confidence e flag di indicizzazione,
+    # cioe' lo stato interno stampato in faccia a chi cerca l'evidenza. La
+    # struttura resta nel payload del tool, che e' materiale di lavoro.
+    note = " ".join(summary.split())
+    provenance = " ".join(provenance_note.split())
+    if provenance:
+        note = f"{note} ({provenance})" if note else provenance
+
+    source, created = workspace_database.ensure_project_source(
         project_id=process["project_id"],
         process_id=process_id,
         name=name,
-        type=evidence_type,
-        meta=meta,
+        type=evidence_type_label(evidence_type),
+        meta=note,
     )
     return enterprise_tool_result(
-        status="created",
+        status="created" if created else "exists",
         action="save_process_evidence",
         entity_type="process_evidence",
         entity_id=source["id"],
@@ -294,6 +293,8 @@ def save_process_evidence(
             "source": source,
             "process_id": process_id,
             "project_id": process["project_id"],
+            "confidence": confidence,
+            "tags": tags or [],
             "graph_rag_indexed": False,
         },
         next_actions=[
