@@ -148,11 +148,30 @@ for (const [surface, path] of [
         const rect = button.getBoundingClientRect();
         return rect.width > 0 && (rect.right > innerWidth + 1 || rect.left < 0 || rect.bottom > innerHeight + 1);
       }).length)).toBe(0);
-      const mode = composer.getByRole("radio", { name: "Agente", exact: true });
-      await mode.click();
-      await mode.press("ArrowLeft");
-      await expect(composer.getByRole("radio", { name: "Modifica", exact: true })).toBeFocused();
-      await expect(composer.getByRole("radio", { name: "Modifica", exact: true })).toBeChecked();
+      // La modalita' di lavoro sta dietro un menu, non piu' su tre radio a
+      // vista: la barra dice cosa e' scelto e le alternative stanno a un click.
+      // Il menu si apre in un portal fuori da `.composer-wrap`, e i suoi item
+      // sono `menuitemradio`. Qui conta che si apra, che stia dentro il
+      // viewport anche a 390px, e che la scelta arrivi al trigger.
+      const modeTrigger = composer.locator(".chat-mode-trigger");
+      await expect(modeTrigger).toBeInViewport();
+      await modeTrigger.click();
+      const modeMenu = page.getByRole("menu");
+      await expect(modeMenu).toBeVisible();
+      expect(await modeMenu.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.right > innerWidth + 1 || rect.left < -1
+          || rect.bottom > innerHeight + 1 || rect.top < -1;
+      })).toBe(false);
+      const chosen = modeMenu.getByRole("menuitemradio", { name: /Modifica/ });
+      await chosen.click();
+      await expect(modeMenu).toBeHidden();
+      await expect(modeTrigger).toContainText("Modifica");
+      // Riaperto, il menu ricorda la scelta invece di ripartire dal default.
+      await modeTrigger.click();
+      await expect(page.getByRole("menuitemradio", { name: /Modifica/ })).toBeChecked();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("menu")).toBeHidden();
       const messages = page.locator(".messages, .embedded-chat-body");
       expect(await messages.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
       await messages.evaluate((element) => element.scrollTo(0, 0));
