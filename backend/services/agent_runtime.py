@@ -61,6 +61,7 @@ INTERNAL_AGENT_NODES = {
     "load_process_context",
     "load_canvas_context",
     "load_context",
+    "load_workspace_records",
     "consulting_router",
     "project_router",
     "process_router",

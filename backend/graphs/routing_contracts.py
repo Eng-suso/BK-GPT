@@ -181,8 +181,10 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="setup",
         target="setup_subgraph",
         description=(
-            "Explicit initial workspace setup involving a client plus a project, "
-            "process stub, source or decision."
+            "Create the workspace records an engagement needs before anyone can work "
+            "in it: a client, a project under a new or an already existing client, and "
+            "optionally a first process stub, source or decision. 'Crea un progetto "
+            "per <cliente>' belongs here, including when that client already exists."
         ),
     ),
     "consultant.project_delegation": CapabilitySpec(
@@ -190,9 +192,12 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="consultant",
         route="delegate_project",
         target="project_macro",
+        prerequisites=["existing_project"],
         description=(
-            "Project execution, status, sources, decisions, deliverables, phase, "
-            "progress or next step."
+            "Work inside a project that already exists: execution, status, sources, "
+            "decisions, deliverables, phase, progress or next step. Creating the "
+            "project record is not project work - a project that does not exist yet "
+            "cannot be handed over, so that is setup."
         ),
     ),
     "consultant.process_delegation": CapabilitySpec(
@@ -853,6 +858,47 @@ def resolved_project_process(state: dict[str, Any]) -> dict[str, Any] | None:
     return processes[0] if len(processes) == 1 else None
 
 
+def workspace_projects(state: dict[str, Any]) -> list[dict[str, Any]]:
+    """I progetti che il workspace contiene davvero, come li vede il router."""
+    return [
+        project
+        for project in state.get("workspace_projects") or []
+        if isinstance(project, dict)
+    ]
+
+
+def has_existing_project(state: dict[str, Any]) -> bool:
+    """C'e' un progetto reale a cui la richiesta si riferisce?
+
+    Il router puo' nominare un progetto (`entity_hints["project"]`) o un cliente:
+    in entrambi i casi la verifica e' sui record, non sulla convinzione del
+    modello. Quando il nome citato non corrisponde a nessun progetto registrato,
+    non c'e' niente da delegare - il lavoro e' crearlo.
+    """
+    projects = workspace_projects(state)
+    if not projects:
+        return False
+
+    hints = state.get("entity_hints") or {}
+    project_hint = _normalized(hints.get("project"))
+    client_hint = _normalized(hints.get("client"))
+
+    if project_hint:
+        return any(
+            project_hint in {_normalized(project.get("id")), _normalized(project.get("name"))}
+            for project in projects
+        )
+
+    if client_hint:
+        return any(
+            client_hint
+            in {_normalized(project.get("client_id")), _normalized(project.get("client"))}
+            for project in projects
+        )
+
+    return True
+
+
 def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[str]:
     """
     Identify prerequisites declared by a capability that are not satisfied by the current routing state.
@@ -888,6 +934,8 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
                 # item still unaccounted for keeps the canvas closed.
                 missing.append(prerequisite)
         elif prerequisite == "no_critical_contradictions" and _has_critical_contradiction(state):
+            missing.append(prerequisite)
+        elif prerequisite == "existing_project" and not has_existing_project(state):
             missing.append(prerequisite)
         elif prerequisite == "existing_project_process" and not project_processes(state):
             missing.append(prerequisite)

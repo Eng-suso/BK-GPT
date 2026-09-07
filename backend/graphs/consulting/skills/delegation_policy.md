@@ -21,7 +21,8 @@ The macro agent decides where work belongs. The specialized agent executes the w
 | Consultant memory or preferences | Consult Macro Agent |
 | Home dashboard, global priorities, next actions | Home subagent |
 | Client creation or update | Clients subagent |
-| Project creation, update, phase, next step | Project Macro Agent |
+| Creating a project record, for a new or an existing client | Setup subagent |
+| Phase, next step, progress of a project that already exists | Project Macro Agent |
 | Project sources, decisions, deliverables | Project Macro Agent |
 | AS-IS discovery, evidence synthesis, readiness | Process Macro Agent |
 | BPMN semantic model or process review | Process Macro Agent |
@@ -43,6 +44,10 @@ If a responsibility needs more than 8 tools, split it into a narrower subagent o
 
 ## Guardrails
 
+- Do not hand over a project that does not exist yet. The Project Macro Agent owns
+  what happens *inside* a project; it cannot take ownership of a record nobody has
+  created. "Crea un progetto per <cliente>" is setup, and the answer to it is a
+  created project with its id — not an invitation to open the project chat.
 - Do not delegate just to avoid answering a strategic question.
 - Do not execute low-level operations in Consult Macro when a specialized owner exists.
 - Do not let specialized agents mutate outside their ownership boundary.

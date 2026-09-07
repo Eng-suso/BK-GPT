@@ -15,6 +15,7 @@ from backend.graphs.consulting.subgraphs.home import build_home_subgraph, home_t
 from backend.graphs.consulting.subgraphs.setup import build_setup_subgraph, setup_tools
 from backend.graphs.consulting.tools import CONSULTING_TOOL_POLICY
 from backend.graphs.consulting.state import ConsultingState
+from backend import workspace_database
 from backend.graphs.routing_contracts import (
     ConsultingRoutingDecision,
     authorize_routing_decision,
@@ -279,6 +280,36 @@ def build_consulting_router(llm):
     return route_consulting_intent
 
 
+def load_workspace_records(state: ConsultingState) -> dict:
+    """Mette in stato i clienti e i progetti che esistono davvero.
+
+    Deterministico e senza modello: il router deve poter distinguere "lavora su
+    quel progetto" da "quel progetto non c'e' ancora" guardando i record, non
+    indovinando. Se la lettura fallisce lo stato resta vuoto e il router tratta
+    il workspace come sconosciuto, invece di far cadere il turno.
+    """
+    try:
+        clients = workspace_database.list_clients()
+        projects = workspace_database.list_projects()
+    except Exception:
+        return {"workspace_clients": [], "workspace_projects": []}
+
+    return {
+        "workspace_clients": [
+            {"id": client["id"], "name": client["name"]} for client in clients
+        ],
+        "workspace_projects": [
+            {
+                "id": project["id"],
+                "name": project["name"],
+                "client_id": project["client_id"],
+                "client": project["client"],
+            }
+            for project in projects
+        ],
+    }
+
+
 def selected_consulting_route(state: ConsultingState) -> str:
     return state.get("consulting_route") or "direct"
 
@@ -348,6 +379,7 @@ def build_consulting_subgraph(tools: list, llm, llm_with_tools, build_context_me
     )
 
     workflow = StateGraph(ConsultingState)
+    workflow.add_node("load_workspace_records", load_workspace_records)
     workflow.add_node("consult_router", build_consulting_router(llm))
     workflow.add_node("consult_macro_agent", consult_macro_agent)
     workflow.add_node(
@@ -376,7 +408,8 @@ def build_consulting_subgraph(tools: list, llm, llm_with_tools, build_context_me
     workflow.add_node("delegate_to_canvas_macro", delegate_to_canvas_macro)
     workflow.add_node("ask_consulting_clarification", ask_consulting_clarification)
 
-    workflow.add_edge(START, "consult_router")
+    workflow.add_edge(START, "load_workspace_records")
+    workflow.add_edge("load_workspace_records", "consult_router")
     workflow.add_conditional_edges(
         "consult_router",
         selected_consulting_route,

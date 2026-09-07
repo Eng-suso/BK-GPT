@@ -659,30 +659,16 @@ def create_workspace_project(
     deliverables: list[str] | None = None,
 ) -> str:
     """
-    Create and persist a project for an existing workspace client.
-    
-    Args:
-        client_id (str): Untrusted identifier of the existing client.
-        name (str): Untrusted project name.
-        objective (str | None): Untrusted project objective, when provided.
-        phase (ProjectPhase | None): Project phase, when specified.
-        status (ProjectStatus | None): Project status, when specified.
-        progress (int): Project progress percentage.
-        next_step (str | None): Untrusted description of the next step.
-        milestones (list[MilestoneInput | str] | None): Untrusted project milestones.
-        open_issues (list[str] | None): Untrusted open issues.
-        deliverables (list[str] | None): Untrusted project deliverables.
-    
-    Returns:
-        str: A standardized result containing the created project and any warning
-            when no objective was stored.
-    
-    Raises:
-        ValueError: If the client does not exist or the project data violates
-            database constraints.
-    
-    The project is persisted in the workspace database. The client must already
-    exist, and unspecified phase and status values remain unset.
+    Purpose: register a real project under a client that already exists.
+    Use when the user asks for a project to be created and the client is known:
+    resolve the client id with list_workspace_clients first, then create the
+    project and report back the id you got.
+    Creating the container is where this job ends. Do not plan the engagement,
+    do not start discovery, do not invent objective, phase or milestones the user
+    has not stated; ownership moves to Project Macro once the record exists.
+    Do not use it to change a project that already exists - that is
+    update_workspace_project - nor when the client has to be created too, which
+    is create_initial_workspace_setup.
     """
     project = workspace_database.create_project(
         client_id=client_id,
