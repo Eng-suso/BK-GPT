@@ -27,7 +27,8 @@
       "progress": "Progress"
     },
     "owner": {
-      "unassigned": "Unassigned"
+      "unassigned": "Unassigned",
+      "unassignedLead": "No lead assigned"
     },
     "empty": {
       "title": "No projects",
@@ -48,8 +49,7 @@
     "actions": {
       "openChat": "Open chat",
       "openProcess": "Open process",
-      "edit": "Edit project",
-      "editProcess": "Edit process"
+      "edit": "Edit project"
     },
     "tabs": {
       "overview": "Overview",
@@ -113,7 +113,10 @@
       "actions": "Quick actions",
       "nextStep": "Next step",
       "openProject": "Open project",
-      "selectPrompt": "Select a project to see its details."
+      "selectPrompt": "Select a project to see its details.",
+      "lead": "Lead",
+      "dates": "Period",
+      "noDates": "Not set"
     },
     "objective": {
       "add": "Add objective",
@@ -133,6 +136,9 @@
       "name": "Project name",
       "client": "Client",
       "objective": "Engagement objective",
+      "lead": "Lead",
+      "startDate": "Start",
+      "endDate": "End",
       "phase": "Current phase",
       "status": "Status",
       "progress": "Progress (%)",
@@ -146,12 +152,15 @@
       "phase": "Where the engagement sits in its lifecycle.",
       "status": "How delivery is going.",
       "nextStep": "The next concrete action, not the end goal.",
-      "clientsUnavailable": "Client list unavailable: check that the backend is running."
+      "clientsUnavailable": "Client list unavailable: check that the backend is running.",
+      "lead": "Who runs this engagement. Leave empty when it is not decided yet.",
+      "datesOutOfOrder": "The end precedes the start: check the dates."
     },
     "placeholder": {
       "client": "Select a client",
       "objective": "E.g. rebuild the AS-IS order-to-cash process, validate it with stakeholders, simulate it and measure lead-time KPIs.",
-      "nextStep": "E.g. schedule interviews with the order desk"
+      "nextStep": "E.g. schedule interviews with the order desk",
+      "lead": "Full name"
     },
     "list": {
       "add": "Add entry",

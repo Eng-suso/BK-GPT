@@ -104,6 +104,11 @@ export type Project = ArchiveState & {
   client: string;
   /** Perche' l'incarico esiste e cosa lo chiude. Vuoto = mai dichiarato. */
   objective: string;
+  /** Chi segue l'incarico. `null` = mai dichiarato. */
+  lead: string | null;
+  /** Finestra dell'incarico, in ISO `YYYY-MM-DD`. `null` = mai dichiarata. */
+  startDate: string | null;
+  endDate: string | null;
   phase: string;
   status: ProjectStatus;
   progress: number;
@@ -149,6 +154,11 @@ export type ProjectDraft = {
   clientId: string;
   name: string;
   objective: string;
+  /** Chi segue l'incarico. Vuoto significa "non l'ho ancora detto". */
+  lead: string;
+  /** Date in ISO `YYYY-MM-DD`, come le scrive un `<input type="date">`. */
+  startDate: string;
+  endDate: string;
   phase: string;
   status: ProjectStatus;
   progress: number;
@@ -269,6 +279,11 @@ export const apiProjectSchema = z.object({
   name: z.string(),
   // Aggiunto con PROJECT-01: un record creato prima non lo porta.
   objective: z.string().default(""),
+  // Aggiunti con WS-04, e per la stessa ragione facoltativi: chi segue
+  // l'incarico e fra quali date sta. Date in ISO `YYYY-MM-DD`.
+  lead: z.string().nullable().default(null),
+  start_date: z.string().nullable().default(null),
+  end_date: z.string().nullable().default(null),
   phase: z.string(),
   status: z.string(),
   progress: z.number(),
@@ -424,6 +439,9 @@ export function toProject(project: z.infer<typeof apiProjectSchema>): Project {
     name: project.name,
     client: project.client,
     objective: project.objective,
+    lead: project.lead,
+    startDate: project.start_date,
+    endDate: project.end_date,
     phase: project.phase,
     status: (VALID_PROJECT_STATUSES.has(project.status)
       ? project.status
@@ -483,6 +501,11 @@ export function toApiProjectPayload(draft: ProjectDraft): Record<string, unknown
     client_id: draft.clientId,
     name: draft.name.trim(),
     objective: draft.objective.trim(),
+    // Campo svuotato nel form = campo tolto dal record: il backend legge la
+    // stringa vuota come "dimenticalo", non come "non l'ho detto".
+    lead: draft.lead.trim(),
+    start_date: draft.startDate,
+    end_date: draft.endDate,
     phase: draft.phase,
     status: draft.status,
     progress: draft.progress,

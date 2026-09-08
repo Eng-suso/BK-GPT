@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from backend import workspace_database
 from backend.agents.scope_guard import assert_project_in_scope
 from backend.toolsets.common import format_workspace_result
+from backend.schemas.workspace import IsoDate
 from backend.workspace_defaults import (
     CLIENT_STATUS_DESCRIPTION,
     PROCESS_STAGE_DESCRIPTION,
@@ -213,6 +214,21 @@ class ProjectUpdateInput(BaseModel):
     project_id: str = Field(description="Id of the project to update.")
     name: str | None = Field(default=None, description="New project name, only when it changes.")
     objective: str | None = Field(default=None, description=PROJECT_OBJECTIVE_DESCRIPTION)
+    lead: str | None = Field(
+        default=None,
+        description="Person who runs this engagement, by name, as the consultant said it.",
+    )
+    # Stesso validatore del confine HTTP: una data proposta dal modello non e'
+    # piu' affidabile di una che arriva dal client, e "prossimo mese" non deve
+    # poter entrare nella colonna.
+    start_date: IsoDate = Field(
+        default=None,
+        description="Engagement start date as YYYY-MM-DD. Send it only when the consultant states it.",
+    )
+    end_date: IsoDate = Field(
+        default=None,
+        description="Engagement end date as YYYY-MM-DD. Send it only when the consultant states it.",
+    )
     phase: ProjectPhase | None = Field(default=None, description=PROJECT_PHASE_DESCRIPTION)
     status: ProjectStatus | None = Field(default=None, description=PROJECT_STATUS_DESCRIPTION)
     progress: int | None = Field(default=None, description="Completion percentage, 0-100.")
@@ -703,6 +719,9 @@ def update_workspace_project(
     project_id: str,
     name: str | None = None,
     objective: str | None = None,
+    lead: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     phase: ProjectPhase | None = None,
     status: ProjectStatus | None = None,
     progress: int | None = None,
@@ -714,9 +733,10 @@ def update_workspace_project(
     # NB: docstring = prompt. LangChain lo manda al modello come `description`
     # del tool, quindi dice quando usarlo, non che tipo hanno gli argomenti.
     """
-    Write the project record: objective, phase, status, progress, next step and
-    the milestone / open issue / deliverable lists. Declare only the fields that
-    change; an undeclared field keeps its value.
+    Write the project record: objective, engagement lead, start and end dates,
+    phase, status, progress, next step and the milestone / open issue /
+    deliverable lists. Declare only the fields that change; an undeclared field
+    keeps its value.
 
     Use it the moment the consultant states the engagement objective - why this
     project exists and what closes it. Left in the conversation it is gone
@@ -739,6 +759,9 @@ def update_workspace_project(
             project_id=project_id,
             name=name,
             objective=objective,
+            lead=lead,
+            start_date=start_date,
+            end_date=end_date,
             phase=phase,
             status=status,
             progress=progress,

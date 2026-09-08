@@ -22,6 +22,9 @@ const PROJECT: Project = {
   client: "Esaote",
   name: "Ciclo ordini",
   objective: "Ricostruire l'AS-IS del ciclo ordini e misurare il lead time.",
+  lead: "Laura Verdi",
+  startDate: "2026-09-01",
+  endDate: "2026-12-15",
   phase: "AS-IS",
   status: "In corso",
   progress: 40,
@@ -41,6 +44,9 @@ const API_PROJECT = {
   client: "Esaote",
   name: PROJECT.name,
   objective: PROJECT.objective,
+  lead: PROJECT.lead,
+  start_date: PROJECT.startDate,
+  end_date: PROJECT.endDate,
   phase: PROJECT.phase,
   status: PROJECT.status,
   progress: PROJECT.progress,
@@ -113,6 +119,81 @@ describe("ProjectFormDialog", () => {
         }),
       }),
     );
+  });
+
+  it("prefills the lead and the engagement window from the record", () => {
+    http.mockResolvedValue([]);
+    renderDialog(PROJECT);
+
+    expect(screen.getByRole("textbox", { name: /referente/i })).toHaveValue(
+      PROJECT.lead,
+    );
+    expect(screen.getByLabelText(/inizio/i)).toHaveValue(PROJECT.startDate);
+    expect(screen.getByLabelText(/^fine/i)).toHaveValue(PROJECT.endDate);
+  });
+
+  it("saves the lead and the dates onto the project record", async () => {
+    const user = userEvent.setup();
+    http.mockImplementation((path: string) =>
+      path === "/v1/workspace/clients"
+        ? Promise.resolve([])
+        : Promise.resolve(API_PROJECT),
+    );
+    const { onOpenChange } = renderDialog(PROJECT);
+
+    const lead = screen.getByRole("textbox", { name: /referente/i });
+    await user.clear(lead);
+    await user.type(lead, "Marco Bianchi");
+    await user.clear(screen.getByLabelText(/^fine/i));
+    await user.type(screen.getByLabelText(/^fine/i), "2027-01-31");
+    await user.click(screen.getByRole("button", { name: /salva modifiche/i }));
+
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(http).toHaveBeenCalledWith(
+      `/v1/workspace/projects/${PROJECT.id}`,
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.objectContaining({
+          lead: "Marco Bianchi",
+          start_date: "2026-09-01",
+          end_date: "2027-01-31",
+        }),
+      }),
+    );
+  });
+
+  it("sends an emptied field as empty, so the record can forget it", async () => {
+    const user = userEvent.setup();
+    http.mockImplementation((path: string) =>
+      path === "/v1/workspace/clients"
+        ? Promise.resolve([])
+        : Promise.resolve(API_PROJECT),
+    );
+    renderDialog(PROJECT);
+
+    await user.clear(screen.getByRole("textbox", { name: /referente/i }));
+    await user.clear(screen.getByLabelText(/inizio/i));
+    await user.click(screen.getByRole("button", { name: /salva modifiche/i }));
+
+    await waitFor(() =>
+      expect(http).toHaveBeenCalledWith(
+        `/v1/workspace/projects/${PROJECT.id}`,
+        expect.objectContaining({
+          body: expect.objectContaining({ lead: "", start_date: "" }),
+        }),
+      ),
+    );
+  });
+
+  it("says so when the engagement ends before it starts", async () => {
+    const user = userEvent.setup();
+    http.mockResolvedValue([]);
+    renderDialog(PROJECT);
+
+    await user.clear(screen.getByLabelText(/^fine/i));
+    await user.type(screen.getByLabelText(/^fine/i), "2026-08-01");
+
+    expect(await screen.findByText(/la fine precede l'inizio/i)).toBeVisible();
   });
 
   it("refuses to create a project with no client and writes nothing", async () => {

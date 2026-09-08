@@ -132,6 +132,120 @@ async function openRowMenu(page: Page, name: string) {
   await page.getByRole("button", { name: `Altre azioni: ${name}` }).click();
 }
 
+type ProcessRow = {
+  id: string;
+  project_id: string;
+  bpmn_model_id: string;
+  name: string;
+  stage: string;
+  status: string;
+  owner: string;
+  readiness: number;
+  archived_at: string | null;
+  archive_reason: string | null;
+};
+
+/**
+ * Un progetto con due processi aperti, servito dalla scheda di dettaglio.
+ *
+ * Come il fixture cliente, tiene stato: archiviare un processo lo toglie da
+ * `process_items`, che e' esattamente cio' che fa il backend vero
+ * (`workspace_database` filtra gli `archived_at` non nulli).
+ */
+async function projectFixture(page: Page) {
+  const state = {
+    processes: [
+      {
+        id: "acquisti",
+        project_id: "p-1",
+        bpmn_model_id: "bm-1",
+        name: "Ciclo passivo",
+        stage: "Discovery",
+        status: "Bozza",
+        owner: "Marco Bianchi",
+        readiness: 20,
+        archived_at: null,
+        archive_reason: null,
+      },
+      {
+        id: "vendite",
+        project_id: "p-1",
+        bpmn_model_id: "bm-2",
+        name: "Ordine a incasso",
+        stage: "Discovery",
+        status: "Bozza",
+        owner: "Marco Bianchi",
+        readiness: 10,
+        archived_at: null,
+        archive_reason: null,
+      },
+    ] as ProcessRow[],
+    archived: [] as { id: string; reason: string | null }[],
+  };
+
+  await page.addInitScript(() =>
+    Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" }),
+  );
+
+  await page.route(`${API}/**`, async (route: Route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+    const open = state.processes.filter((row) => row.archived_at === null);
+
+    if (path === "/v1/workspace/projects/p-1" && method === "GET") {
+      return route.fulfill({
+        json: {
+          id: "p-1",
+          client_id: "esaote",
+          client: "Esaote",
+          name: "Mappatura acquisti",
+          objective: "Ricostruire l'AS-IS",
+          phase: "Discovery",
+          status: "In corso",
+          progress: 30,
+          processes: open.length,
+          next_step: "Interviste Operations",
+          milestones: [],
+          open_issues: [],
+          deliverables: [],
+          archived_at: null,
+          archive_reason: null,
+          process_items: open,
+        },
+      });
+    }
+
+    const impact = path.match(/^\/v1\/workspace\/processes\/([^/]+)\/impact$/);
+    if (impact && method === "GET") {
+      return route.fulfill({
+        json: {
+          id: impact[1],
+          name: "Ciclo passivo",
+          projects: 0,
+          processes: 1,
+          sources: 3,
+          decisions: 0,
+        },
+      });
+    }
+
+    const archive = path.match(/^\/v1\/workspace\/processes\/([^/]+)\/archive$/);
+    if (archive && method === "POST") {
+      const body = request.postDataJSON() as { reason: string | null };
+      const row = state.processes.find((item) => item.id === archive[1])!;
+      row.archived_at = "2026-09-08T10:00:00Z";
+      row.archive_reason = body.reason;
+      state.archived.push({ id: archive[1], reason: body.reason });
+      return route.fulfill({ json: row });
+    }
+
+    return route.fulfill({ status: 200, json: [] });
+  });
+
+  return state;
+}
+
 test("il consulente chiude un cliente e lo ritrova in Archivio", async ({ page }) => {
   await fixture(page);
 
@@ -176,6 +290,38 @@ test("un cliente archiviato si riapre dall'Archivio", async ({ page }) => {
   await expect(dialog).toBeHidden();
   await page.getByRole("button", { name: "Clienti" }).click();
   await expect(page.getByRole("cell", { name: "Esaote" }).first()).toBeVisible();
+});
+
+test("un processo si chiude dalla scheda del progetto", async ({ page }) => {
+  // Il buco che questo test copre: archiviare e ripristinare un processo era
+  // gia' nel backend e nell'Archivio, ma nel prodotto l'unico modo di chiuderne
+  // uno era archiviare il progetto che lo contiene.
+  const state = await projectFixture(page);
+
+  await page.goto("/projects/p-1?tab=processes");
+  await expect(page.getByText("Ciclo passivo")).toBeVisible();
+
+  await openRowMenu(page, "Ciclo passivo");
+  await page.getByRole("menuitem", { name: "Archivia" }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Cosa coinvolge")).toBeVisible();
+  await expect(dialog.getByText("Fonti")).toBeVisible();
+
+  await dialog
+    .getByRole("textbox", { name: /motivo della chiusura/i })
+    .fill("Processo fuori perimetro");
+  await dialog.getByRole("button", { name: "Archivia", exact: true }).click();
+
+  await expect(dialog).toBeHidden();
+  expect(state.archived).toEqual([
+    { id: "acquisti", reason: "Processo fuori perimetro" },
+  ]);
+  // L'elenco operativo mostra il lavoro corrente: il processo chiuso sparisce,
+  // l'altro resta.
+  await expect(page.getByText("Ciclo passivo")).toHaveCount(0);
+  await expect(page.getByText("Ordine a incasso")).toBeVisible();
 });
 
 test("eliminare chiede di scrivere il nome, e senza quello non elimina", async ({

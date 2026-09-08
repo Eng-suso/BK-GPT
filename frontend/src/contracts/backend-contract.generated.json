@@ -50,7 +50,9 @@
         "client": "string",
         "client_id": "string",
         "deliverables": "string[]",
+        "end_date": "string?",
         "id": "string",
+        "lead": "string?",
         "milestones": "MilestoneModel[]",
         "name": "string",
         "next_step": "string",
@@ -60,6 +62,7 @@
         "process_items": "ProjectProcessResponse[]",
         "processes": "integer",
         "progress": "integer",
+        "start_date": "string?",
         "status": "string"
       }
     },

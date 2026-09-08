@@ -25,6 +25,9 @@ const EMPTY: ProjectDraft = {
   clientId: "",
   name: "",
   objective: "",
+  lead: "",
+  startDate: "",
+  endDate: "",
   phase: "Discovery",
   status: "Bozza",
   progress: 0,
@@ -47,6 +50,11 @@ function draftFrom(project: Project | null, clientId: string): ProjectDraft {
     clientId: project.clientId,
     name: project.name,
     objective: project.objective,
+    // Il record dice `null` quando il campo non e' mai stato dichiarato; il
+    // form lavora con stringhe, e la stringa vuota torna indietro come "toglilo".
+    lead: project.lead ?? "",
+    startDate: project.startDate ?? "",
+    endDate: project.endDate ?? "",
     phase: project.phase,
     status: project.status,
     progress: project.progress,
@@ -57,6 +65,18 @@ function draftFrom(project: Project | null, clientId: string): ProjectDraft {
     openIssues: project.openIssues,
     deliverables: project.deliverables,
   };
+}
+
+/**
+ * Un incarico che finisce prima di cominciare e' un errore di battitura.
+ *
+ * @param draft - La bozza in corso di compilazione
+ * @returns `true` quando la data di fine precede quella di inizio
+ */
+function datesOutOfOrder(draft: ProjectDraft): boolean {
+  return Boolean(
+    draft.startDate && draft.endDate && draft.endDate < draft.startDate,
+  );
 }
 
 type ProjectFormDialogProps = {
@@ -183,6 +203,50 @@ export function ProjectFormDialog({
           />
         )}
       </Field>
+
+      <Field label={t("form.fields.lead")} hint={t("form.hint.lead")}>
+        {(props) => (
+          <Input
+            {...props}
+            value={draft.lead}
+            placeholder={t("form.placeholder.lead")}
+            onChange={(event) => set("lead", event.target.value)}
+          />
+        )}
+      </Field>
+
+      {/* Le due date stanno affiancate perche' si leggono insieme: sono la
+          finestra dell'incarico, non due attributi indipendenti. */}
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label={t("form.fields.startDate")}>
+          {(props) => (
+            <Input
+              {...props}
+              type="date"
+              value={draft.startDate}
+              max={draft.endDate || undefined}
+              onChange={(event) => set("startDate", event.target.value)}
+            />
+          )}
+        </Field>
+
+        <Field
+          label={t("form.fields.endDate")}
+          hint={
+            datesOutOfOrder(draft) ? t("form.hint.datesOutOfOrder") : undefined
+          }
+        >
+          {(props) => (
+            <Input
+              {...props}
+              type="date"
+              value={draft.endDate}
+              min={draft.startDate || undefined}
+              onChange={(event) => set("endDate", event.target.value)}
+            />
+          )}
+        </Field>
+      </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label={t("form.fields.phase")} hint={t("form.hint.phase")}>

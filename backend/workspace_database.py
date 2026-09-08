@@ -135,6 +135,9 @@ def project_to_dict(project: WorkspaceProject, include_processes: bool = True) -
         "client": project.client.name,
         "name": project.name,
         "objective": project.objective or "",
+        "lead": project.lead,
+        "start_date": project.start_date,
+        "end_date": project.end_date,
         "phase": project.phase,
         "status": project.status,
         "progress": project.progress,
@@ -337,6 +340,9 @@ def create_project(
     client_id: str,
     name: str,
     objective: str | None = None,
+    lead: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     phase: str | None = None,
     status: str | None = None,
     progress: int = 0,
@@ -351,6 +357,12 @@ def create_project(
         client_id (str): Untrusted client identifier that must belong to the current tenant.
         name (str): Untrusted project name; must contain non-whitespace characters.
         objective (str | None): Untrusted project objective.
+        lead (str | None): Untrusted engagement lead. Left unset when not declared:
+            il placeholder lo mette chi legge, non il record.
+        start_date (str | None): Untrusted ISO start date, already validated at the
+            Pydantic boundary.
+        end_date (str | None): Untrusted ISO end date, already validated at the
+            Pydantic boundary.
         phase (str | None): Untrusted project phase, resolved to the configured placeholder when omitted.
         status (str | None): Untrusted project status, resolved to the configured placeholder when omitted.
         progress (int): Untrusted progress value, constrained to the range 0 through 100.
@@ -387,6 +399,9 @@ def create_project(
             client_id=client_id,
             name=clean_name,
             objective=(objective or "").strip(),
+            lead=(lead or "").strip() or None,
+            start_date=(start_date or "").strip() or None,
+            end_date=(end_date or "").strip() or None,
             phase=resolve_project_phase(phase),
             status=resolve_project_status(status),
             progress=max(0, min(int(progress), 100)),
@@ -463,6 +478,9 @@ def update_project(
     name: str | None = None,
     client_id: str | None = None,
     objective: str | None = None,
+    lead: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     phase: str | None = None,
     status: str | None = None,
     progress: int | None = None,
@@ -518,6 +536,14 @@ def update_project(
             project.client_id = client_id
         if objective is not None:
             project.objective = objective.strip()
+        # Stringa vuota qui e' "l'ho cancellato", non "non l'ho detto": il form
+        # svuota un campo mandandolo vuoto, e il record deve poterlo dimenticare.
+        if lead is not None:
+            project.lead = lead.strip() or None
+        if start_date is not None:
+            project.start_date = start_date.strip() or None
+        if end_date is not None:
+            project.end_date = end_date.strip() or None
         if phase is not None:
             project.phase = resolve_project_phase(phase)
         if status is not None:
@@ -1741,6 +1767,67 @@ def create_project_source(
         session.add(source)
         session.flush()
         return source_to_dict(source)
+
+
+def ensure_project_source(
+    project_id: str,
+    name: str,
+    type: str,
+    meta: str = "",
+    process_id: str | None = None,
+) -> tuple[dict, bool]:
+    """Registra una fonte una volta sola, per nome, dentro il suo processo.
+
+    Un'intervista salvata due volte dalla chat - il consulente riformula, il
+    turno viene ripetuto - non deve diventare due voci nel pannello Fonti. La
+    fonte esistente viene restituita com'e': il record dice quando l'evidenza e'
+    entrata nel progetto, e riscriverlo a ogni salvataggio cancellerebbe quel
+    fatto.
+
+    Args:
+        project_id: Progetto proprietario, non affidabile.
+        name: Nome della fonte come la legge il consulente, non affidabile.
+        type: Etichetta del tipo, gia' tradotta per chi legge.
+        meta: Nota in prosa sulla fonte.
+        process_id: Processo a cui l'evidenza appartiene, quando c'e'.
+
+    Returns:
+        La fonte e se e' stata creata adesso (``False`` se esisteva gia').
+
+    Raises:
+        ValueError: Se il progetto non esiste o il processo non e' suo.
+
+    Scrive nel workspace solo quando la fonte non esiste.
+    """
+    cleaned_name = name.strip()
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceProject, project_id) is None:
+            raise ValueError(f"Progetto non trovato: {project_id}")
+
+        existing = (
+            session.execute(
+                select(WorkspaceSource)
+                .where(WorkspaceSource.project_id == project_id)
+                .where(WorkspaceSource.tenant_id == tenant_id())
+                .where(WorkspaceSource.process_id == process_id)
+                .where(func.lower(WorkspaceSource.name) == cleaned_name.lower())
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return source_to_dict(existing), False
+
+    return (
+        create_project_source(
+            project_id=project_id,
+            name=cleaned_name,
+            type=type,
+            meta=meta,
+            process_id=process_id,
+        ),
+        True,
+    )
 
 
 def list_project_decisions(project_id: str) -> list[dict]:

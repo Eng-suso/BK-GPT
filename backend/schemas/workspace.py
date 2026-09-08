@@ -1,6 +1,38 @@
-from typing import Any
+from datetime import date
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
+
+
+def _iso_date(value: str | None) -> str | None:
+    """Valida una data del workspace al confine, dove il payload smette di essere testo.
+
+    Args:
+        value: Data non affidabile in arrivo dal client. ``None`` significa "non
+            l'ho detto", stringa vuota "toglila", una data ISO la registra.
+
+    Returns:
+        La data normalizzata in ``YYYY-MM-DD``, la stringa vuota, o ``None``.
+
+    Raises:
+        ValueError: Se la stringa non e' una data ISO. Una data illeggibile va
+            rifiutata qui: piu' a valle diventerebbe una colonna con dentro
+            "prossimo mese".
+    """
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return ""
+    try:
+        return date.fromisoformat(text).isoformat()
+    except ValueError as exc:
+        raise ValueError("Data non valida: usa il formato YYYY-MM-DD.") from exc
+
+
+# `None` lascia il campo com'e', `""` lo svuota, una data ISO lo registra: le
+# stesse tre intenzioni che gli altri campi testuali esprimono gia'.
+IsoDate = Annotated[str | None, AfterValidator(_iso_date)]
 
 
 class CreateClientRequest(BaseModel):
@@ -39,6 +71,9 @@ class CreateProjectRequest(BaseModel):
     client_id: str
     name: str
     objective: str | None = None
+    lead: str | None = None
+    start_date: IsoDate = None
+    end_date: IsoDate = None
     phase: str | None = None
     status: str | None = None
     progress: int = 0
@@ -54,6 +89,9 @@ class UpdateProjectRequest(BaseModel):
     name: str | None = None
     client_id: str | None = None
     objective: str | None = None
+    lead: str | None = None
+    start_date: IsoDate = None
+    end_date: IsoDate = None
     phase: str | None = None
     status: str | None = None
     progress: int | None = None
@@ -282,6 +320,9 @@ class ProjectResponse(BaseModel):
     client: str
     name: str
     objective: str = ""
+    lead: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
     phase: str
     status: str
     progress: int

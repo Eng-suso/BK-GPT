@@ -46,6 +46,13 @@ class WorkspaceProject(WorkspaceBase):
     # la Project Chat sapeva come si chiamava il progetto e non cosa doveva farci
     # (bug PROJECT-01).
     objective: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Chi segue l'incarico e fra quali date sta. Il referente mostrato
+    # nell'elenco era preso in prestito dal primo processo registrato, quindi
+    # mancava sui progetti senza processi e ne mostrava uno a caso su quelli con
+    # tre. Date in ISO `YYYY-MM-DD`: validate al confine Pydantic, non qui.
+    lead: Mapped[str | None] = mapped_column(String)
+    start_date: Mapped[str | None] = mapped_column(String)
+    end_date: Mapped[str | None] = mapped_column(String)
     phase: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     progress: Mapped[int] = mapped_column(Integer, nullable=False)

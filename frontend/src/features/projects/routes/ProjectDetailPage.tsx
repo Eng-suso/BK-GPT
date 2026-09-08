@@ -3,14 +3,18 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
+  Archive,
   ArrowRight,
   FileText,
   MessageSquare,
+  MoreHorizontal,
   Package,
   Pencil,
   Plus,
   Target,
+  Trash2,
 } from "lucide-react";
+import type { TFunction } from "i18next";
 
 import { PageHeader } from "@/components/layout";
 import { ProgressBar, NavRow, Meter } from "@/components/data";
@@ -22,11 +26,24 @@ import {
   DetailPanelSection,
 } from "@/components/panel";
 import { Button } from "@/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/ui/dropdown-menu";
 import { Skeleton } from "@/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
 import { cn } from "@/lib/utils";
+import { formatDateRange } from "@/lib/date";
 import { ChatExperience } from "@/features/chat/ChatExperience";
+import {
+  RecordLifecycleDialog,
+  type LifecycleAction,
+  type LifecycleTarget,
+} from "@/features/archive/RecordLifecycleDialog";
 import type { ProjectDecision, ProjectSource } from "@/contracts/workspace";
 import {
   useProjectQuery,
@@ -50,7 +67,10 @@ import {
  */
 export function ProjectDetailPage(): React.JSX.Element {
   const { projectId = "" } = useParams();
-  const { t } = useTranslation("projects");
+  const { t, i18n } = useTranslation("projects");
+  // Il vocabolario del ciclo di vita vive in `common`: e' lo stesso per cliente,
+  // progetto e processo, e va detto con le stesse parole ovunque si agisca.
+  const { t: tCommon } = useTranslation("common");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [formOpen, setFormOpen] = useState(false);
@@ -69,6 +89,21 @@ export function ProjectDetailPage(): React.JSX.Element {
     setProcessSession((session) => session + 1);
     setProcessOpen(true);
   }, []);
+  // Chiudere ed eliminare un processo erano gia' capacita' del backend e
+  // dell'Archivio, ma senza una porta qui l'unico modo di archiviarne uno era
+  // archiviare il progetto che lo contiene.
+  const [lifecycle, setLifecycle] = useState<{
+    target: LifecycleTarget;
+    action: LifecycleAction;
+  } | null>(null);
+  const openProcessLifecycle = useCallback(
+    (process: ProjectProcess, action: LifecycleAction) =>
+      setLifecycle({
+        target: { kind: "process", id: process.id, name: process.name },
+        action,
+      }),
+    [],
+  );
 
   const projectQ = useProjectQuery(projectId);
   const sourcesQ = useProjectSourcesQuery(projectId);
@@ -215,6 +250,8 @@ export function ProjectDetailPage(): React.JSX.Element {
               onOpenProcess={openProcess}
               onCreate={() => openProcessForm(null)}
               onEdit={openProcessForm}
+              onLifecycle={openProcessLifecycle}
+              tCommon={tCommon}
             />
           </TabsContent>
           <TabsContent value="sources">
@@ -247,6 +284,19 @@ export function ProjectDetailPage(): React.JSX.Element {
         <DetailPanelSection title={t("detail.panel.summary")}>
           <DetailPanelKeyValue
             rows={[
+              {
+                label: t("detail.panel.lead"),
+                value: project.lead || t("list.owner.unassignedLead"),
+              },
+              {
+                label: t("detail.panel.dates"),
+                value:
+                  formatDateRange(
+                    project.startDate,
+                    project.endDate,
+                    i18n.language,
+                  ) || t("detail.panel.noDates"),
+              },
               { label: t("list.columns.phase"), value: project.phase },
               {
                 label: t("list.columns.status"),
@@ -323,6 +373,14 @@ export function ProjectDetailPage(): React.JSX.Element {
         onOpenChange={setProcessOpen}
         projectId={project.id}
         process={editingProcess}
+      />
+
+      <RecordLifecycleDialog
+        target={lifecycle?.target ?? null}
+        action={lifecycle?.action ?? "archive"}
+        onOpenChange={(open) => {
+          if (!open) setLifecycle(null);
+        }}
       />
     </div>
   );
@@ -585,23 +643,29 @@ function ProjectChatTab({
 }
 
 /**
- * Displays project processes with navigation, editing, and creation actions.
+ * I processi del progetto: aprirli, modificarne il record, chiuderli, eliminarli.
  *
- * @param processes - The project processes to display
- * @param onOpenProcess - Called when a process is selected
- * @param onCreate - Called when the create-process action is selected
- * @param onEdit - Called when a process edit action is selected
+ * @param processes - I processi ancora aperti del progetto
+ * @param onOpenProcess - Apre il processo
+ * @param onCreate - Registra un nuovo processo
+ * @param onEdit - Modifica il record del processo
+ * @param onLifecycle - Archivia o elimina il processo
+ * @param tCommon - Etichette dal namespace `common`, dove vive il ciclo di vita
  */
 function ProcessesTab({
   processes,
   onOpenProcess,
   onCreate,
   onEdit,
+  onLifecycle,
+  tCommon,
 }: {
   processes: ProjectProcess[];
   onOpenProcess: (p: ProjectProcess) => void;
   onCreate: () => void;
   onEdit: (p: ProjectProcess) => void;
+  onLifecycle: (p: ProjectProcess, action: LifecycleAction) => void;
+  tCommon: TFunction;
 }): React.JSX.Element {
   const { t } = useTranslation("projects");
 
@@ -652,15 +716,41 @@ function ProcessesTab({
               height={4}
               className="hidden w-16 flex-none sm:block"
             />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 flex-none px-2 text-xs"
-              aria-label={`${t("detail.actions.editProcess")}: ${p.name}`}
-              onClick={() => onEdit(p)}
-            >
-              <Pencil /> {t("process.actions.edit")}
-            </Button>
+            {/* Le tre azioni sul record stanno nello stesso menu che le righe
+                di cliente e progetto usano gia': stesso gesto, stesse parole,
+                stesso peso. Modifica resta la prima perche' e' quella che il
+                consulente cerca ogni giorno. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="flex-none"
+                  aria-label={`${tCommon("lifecycle.actions.more")}: ${p.name}`}
+                >
+                  <MoreHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => onEdit(p)}>
+                  <Pencil />
+                  {tCommon("lifecycle.actions.edit")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onLifecycle(p, "archive")}>
+                  <Archive />
+                  {tCommon("lifecycle.actions.archive")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={() => onLifecycle(p, "delete")}
+                >
+                  <Trash2 />
+                  {tCommon("lifecycle.actions.delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ArrowRight
               aria-hidden
               className="size-4 flex-none text-muted-foreground"
