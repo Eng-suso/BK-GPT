@@ -892,6 +892,7 @@ def write_evidence(
         [*(entities or []), *rel_names],
         context=(source_text or "").strip()[:500] or None,
         llm=resolver_llm,
+        project_id=project_id,
     )
 
     with canonical_session(consultant_id, client_id) as session:

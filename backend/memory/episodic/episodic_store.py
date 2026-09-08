@@ -31,6 +31,7 @@ class Episode(Base):
     __tablename__ = "episodes"
     __table_args__ = (
         Index("idx_episodes_type_project_date", "episode_type", "project", "occurred_at"),
+        Index("ix_episodes_project_process", "project", "process_id"),
     )
 
     episode_id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -39,6 +40,10 @@ class Episode(Base):
     occurred_at: Mapped[str | None] = mapped_column(String)
     participants: Mapped[str] = mapped_column(Text, nullable=False)
     project: Mapped[str | None] = mapped_column(String)
+    # L'appartenenza al processo e' una colonna, non piu' solo il tag
+    # "process:<id>": un filtro testuale su un id fa match anche sui prefissi
+    # (proc-1 dentro proc-10) e su qualunque testo che citi quella stringa.
+    process_id: Mapped[str | None] = mapped_column(String)
     summary: Mapped[str | None] = mapped_column(Text)
     insights: Mapped[str] = mapped_column(Text, nullable=False)
     tags: Mapped[str] = mapped_column(Text, nullable=False)
@@ -203,6 +208,7 @@ def save_episode_memory(
     project: str | None = None,
     tags: str | list[str] | None = None,
     occurred_at: str | None = None,
+    process_id: str | None = None,
 ) -> str:
     normalized_raw_content = raw_content.strip()
 
@@ -225,6 +231,7 @@ def save_episode_memory(
         "occurred_at": occurred_at.strip() if occurred_at else None,
         "participants": json.dumps(normalize_list(participants), ensure_ascii=False),
         "project": project.strip() if project else None,
+        "process_id": process_id.strip() if process_id else None,
         "summary": summary.strip(),
         "insights": json.dumps(normalize_list(insights), ensure_ascii=False),
         "tags": json.dumps(normalize_list(tags), ensure_ascii=False),
@@ -252,6 +259,7 @@ def save_episode_memory(
                 occurred_at=episode["occurred_at"],
                 participants=episode["participants"],
                 project=episode["project"],
+                process_id=episode["process_id"],
                 summary=episode["summary"],
                 insights=episode["insights"],
                 tags=episode["tags"],
@@ -287,8 +295,13 @@ def save_episode_memory(
         except Exception:  # noqa: BLE001
             client_id = canonical_project_id = None
 
+    # Il progetto viaggia nei metadata Mem0: senza, un episodio di un incarico
+    # tornava nel recall di qualunque altro incarico dello stesso cliente.
     mem0_result, mem0_id = add_mem0_memory_with_id(
-        build_mem0_episode_content(episode, source), client_id=client_id
+        build_mem0_episode_content(episode, source),
+        client_id=client_id,
+        project_id=canonical_project_id,
+        process_id=episode["process_id"],
     )
     mirror_episodic_to_canonical(
         episode_type=episode["episode_type"],
@@ -312,6 +325,7 @@ def local_episode_matches(
     project: str | None = None,
     limit: int = 5,
     include_archived: bool = False,
+    process_id: str | None = None,
 ) -> list[dict]:
     statement = (
         select(Episode, EpisodeSource)
@@ -325,6 +339,9 @@ def local_episode_matches(
 
     if project:
         statement = statement.where(Episode.project == project)
+
+    if process_id:
+        statement = statement.where(_belongs_to_process(process_id))
 
     if not include_archived:
         statement = statement.where(Episode.status == "active")
@@ -356,6 +373,7 @@ def episode_to_dict(episode: Episode, source: EpisodeSource | None) -> dict:
         "occurred_at": episode.occurred_at,
         "participants": episode.participants,
         "project": episode.project,
+        "process_id": episode.process_id,
         "summary": episode.summary,
         "insights": episode.insights,
         "tags": episode.tags,
@@ -446,11 +464,21 @@ def search_episode_memory(
     project: str | None = None,
     limit: int = 5,
     include_archived: bool = False,
+    process_id: str | None = None,
 ) -> str:
     category = f"episodic:{episode_type}" if episode_type else "episodic"
-    client_id = canonical_scope.resolve_client_id(project) if project else None
+    client_id = canonical_project_id = None
+    if project:
+        client_id = canonical_scope.resolve_client_id(project)
+        try:
+            canonical_project_id = canonical_scope.resolve(project).project_id
+        except Exception:  # noqa: BLE001 — recall degrada a scope cliente
+            canonical_project_id = None
     mem0_result = search_consultant_memory(
-        query=query, category=category, client_id=client_id
+        query=query,
+        category=category,
+        client_id=client_id,
+        project_id=canonical_project_id,
     )
     local_result = format_local_episode_matches(
         local_episode_matches(
@@ -459,6 +487,7 @@ def search_episode_memory(
             project=project,
             limit=limit,
             include_archived=include_archived,
+            process_id=process_id,
         )
     )
 
@@ -543,23 +572,37 @@ def get_episode_memory(
 def list_episode_memory(
     *,
     project: str | None = None,
+    process_id: str | None = None,
     episode_type: str | None = None,
     query: str = "",
     status: str = "active",
     limit: int = 20,
 ) -> list[dict]:
+    """Gli episodi di un progetto (e, se richiesto, di un suo processo).
+
+    `process_id` e' una condizione SQL, non un termine di ricerca: l'elenco
+    delle interviste di un processo non puo' dipendere da come e' scritta la
+    query. Il filtro testuale `query` resta un di piu' sopra allo scope.
+    """
     statement = (
         select(Episode, EpisodeSource)
         .join(EpisodeSource, EpisodeSource.source_id == Episode.source_id, isouter=True)
         .order_by(func.coalesce(Episode.occurred_at, Episode.created_at).desc())
-        .limit(max(min(limit, 100), 1) * 3)
     )
     if project:
         statement = statement.where(Episode.project == project)
+    if process_id:
+        statement = statement.where(_belongs_to_process(process_id))
     if episode_type:
         statement = statement.where(Episode.episode_type == episode_type)
     if status != "any":
         statement = statement.where(Episode.status == status)
+    if not query:
+        # Senza filtro testuale il LIMIT lo fa il database. Con il filtro no:
+        # tagliare prima di filtrare faceva sparire le evidenze piu' vecchie
+        # del processo, ed e' il motivo per cui la stessa chat rispondeva prima
+        # "c'e' solo il Perimetro" e un attimo dopo elencava tre interviste.
+        statement = statement.limit(max(min(limit, 100), 1))
 
     with episodic_connection() as session:
         rows = session.execute(statement).all()
@@ -575,6 +618,19 @@ def list_episode_memory(
     return matches
 
 
+def _belongs_to_process(process_id: str):
+    """Condizione di appartenenza al processo, colonna o tag storico.
+
+    Gli episodi salvati prima della migration 0007 hanno solo il tag; il
+    confronto sul tag e' esatto sull'elemento JSON, non una `LIKE` sul prefisso.
+    """
+    normalized = str(process_id).strip()
+    return (Episode.process_id == normalized) | (
+        (Episode.process_id.is_(None))
+        & (Episode.tags.like(f'%"process:{normalized}"%'))
+    )
+
+
 def update_episode_metadata(
     episode_id: str,
     *,
@@ -585,6 +641,7 @@ def update_episode_metadata(
     project: str | None = None,
     tags: list[str] | str | None = None,
     occurred_at: str | None = None,
+    process_id: str | None = None,
 ) -> dict:
     normalized_episode_id = episode_id.strip()
     if not normalized_episode_id:
@@ -605,6 +662,8 @@ def update_episode_metadata(
             episode.participants = json.dumps(normalize_list(participants), ensure_ascii=False)
         if project is not None:
             episode.project = project.strip() or None
+        if process_id is not None:
+            episode.process_id = process_id.strip() or None
         if tags is not None:
             episode.tags = json.dumps(normalize_list(tags), ensure_ascii=False)
         if occurred_at is not None:

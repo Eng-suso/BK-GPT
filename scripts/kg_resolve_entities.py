@@ -263,7 +263,8 @@ def merge_entities(
 
 
 _ACTIVE_ENTITIES = (
-    "SELECT id, canonical_name, entity_type, created_at, embedding::text AS emb "
+    "SELECT id, canonical_name, entity_type, created_at, project_id, "
+    "       embedding::text AS emb "
     "FROM kg_entity WHERE client_id = :cl AND status = 'active' "
     "ORDER BY created_at DESC"  # la piu' recente confluisce nella piu' vecchia
 )
@@ -292,6 +293,8 @@ def sweep_client(
                     name=e.canonical_name,
                     name_vec=e.emb,
                     exclude_entity_id=str(e.id),
+                    # Lo sweep fonde dentro l'incarico, come il write path.
+                    project_id=str(e.project_id) if e.project_id else None,
                 ),
             )
             for e in ents

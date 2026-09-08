@@ -141,6 +141,13 @@ class ManageProcessEvidenceInput(BaseModel):
 
 
 def _require_process(project_id: str, process_id: str) -> dict:
+    # G3: dentro un turno di chat processo, l'id del processo e' quello
+    # autorizzato per il thread - non uno scelto dall'LLM fra quelli del
+    # progetto. Fuori da un run (worker, test) e' un no-op.
+    from backend.agents.scope_guard import assert_process_in_scope
+
+    assert_process_in_scope(process_id)
+
     process = workspace_database.get_process(process_id)
     if process is None:
         raise ValueError(f"Processo non trovato: {process_id}")
@@ -313,6 +320,7 @@ def _save_process_episode_payload(
         insights=insights or [],
         participants=participants or [],
         project=project_id,
+        process_id=process_id,
         tags=_process_episode_tags(
             project_id=project_id,
             process_id=process_id,
@@ -486,8 +494,14 @@ def _process_evidence_or_scope_error(
         return None, "Process evidence not found."
     if evidence.get("project") != project_id:
         return evidence, f"Evidence {evidence.get('episode_id')} does not belong to project {project_id}."
-    tags = episodic_store.normalize_list(evidence.get("tags"))
-    if f"process:{process_id}" not in tags:
+    stored_process = evidence.get("process_id")
+    # Colonna se c'e', altrimenti il tag degli episodi anteriori alla 0007.
+    belongs = (
+        stored_process == process_id
+        if stored_process
+        else f"process:{process_id}" in episodic_store.normalize_list(evidence.get("tags"))
+    )
+    if not belongs:
         return evidence, f"Evidence {evidence.get('episode_id')} does not belong to process {process_id}."
     return evidence, None
 
@@ -531,13 +545,15 @@ def manage_process_evidence(
     process = _require_process(project_id, process_id)
     normalized_operation = operation.strip().lower()
     normalized_status = status if status in {"active", "archived", "any"} else "active"
-    scoped_query = " ".join([query, f"process:{process_id}"]).strip()
 
     if normalized_operation in {"list", "search"}:
+        # Lo scope e' un argomento, non un termine appeso alla query: prima si
+        # delimita l'evidenza del processo, poi eventualmente ci si cerca dentro.
         evidence = episodic_store.list_episode_memory(
             project=project_id,
+            process_id=process_id,
             episode_type=episode_type,
-            query=scoped_query,
+            query=query,
             status=normalized_status,
             limit=limit,
         )
@@ -629,6 +645,7 @@ def manage_process_evidence(
             insights=insights if insights else None,
             participants=participants if participants else None,
             project=project_id,
+            process_id=process_id,
             tags=_process_episode_tags(
                 project_id=project_id,
                 process_id=process_id,
@@ -851,7 +868,13 @@ def _canonical_graph_context(
     limit: int,
 ) -> dict | None:
     """Lettura dal grafo canonical via gateway (INV-9). Best-effort: None se
-    il canonical non e' configurato o lo scope non si risolve."""
+    il canonical non e' configurato o lo scope non si risolve.
+
+    Lo scope non e' opzionale: una Process Chat legge l'evidenza del proprio
+    processo (piu' quella project-level), mai quella di un altro processo dello
+    stesso cliente. Se il processo non si risolve in canonical, la lettura non
+    viene fatta - meglio niente contesto che il contesto di qualcun altro.
+    """
     if not gateway.graph_available():
         return None
     try:
@@ -866,6 +889,8 @@ def _canonical_graph_context(
         query=query,
         entity_names=entities or [],
         process_id=s.process_id,
+        scope_project_id=s.project_id,
+        scope_process_id=s.process_id,
         relation_focus=relation_focus,
         limit=limit,
     )

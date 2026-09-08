@@ -263,6 +263,13 @@ def save_process_evidence(
     interview notes, workshop notes, documents, observations or examples that
     should remain linked to this process. This is not GraphRAG indexing yet.
     """
+    # Qui il progetto viene dedotto dal process_id, che e' un argomento del
+    # modello: l'id va verificato prima di leggere il record del processo, non
+    # solo prima di scrivere la fonte.
+    from backend.agents.scope_guard import assert_process_in_scope
+
+    assert_process_in_scope(process_id)
+
     process = workspace_database.get_process(process_id)
     if process is None:
         raise ValueError(f"Processo non trovato: {process_id}")

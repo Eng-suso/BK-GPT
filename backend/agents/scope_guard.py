@@ -87,3 +87,28 @@ def assert_project_in_scope(project_id: str | None) -> None:
             f"tool con project_id={requested!r} ma lo scope del thread e' "
             f"'{scope.type}' (nessun progetto autorizzato)"
         )
+
+
+def assert_process_in_scope(process_id: str | None) -> None:
+    """Solleva se `process_id` non e' quello autorizzato per il run corrente.
+
+    Il progetto da solo non basta: due processi dello stesso progetto hanno
+    evidenze distinte, e un tool chiamato con l'id del processo sbagliato
+    leggerebbe legittimamente - secondo il guard - fatti di un'altra
+    discovery. No-op quando il thread non e' vincolato a un processo (chat
+    progetto/consulente) o fuori da un agent run.
+    """
+    scope = _active_scope.get()
+    if scope is None:
+        return
+
+    bound = getattr(scope, "process_id", None)
+    if not bound:
+        return
+
+    requested = str(process_id).strip() if process_id else ""
+    if requested and requested != str(bound):
+        raise ScopeViolation(
+            f"tool con process_id={requested!r} fuori dallo scope autorizzato "
+            f"(process_id={bound!r}, scope={scope.type})"
+        )

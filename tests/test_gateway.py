@@ -94,6 +94,8 @@ def test_graph_retrieve_returns_hydrated_triples(scope, wait_projected):
             client_id=scope["client"],
             entity_names=["CFO"],
             process_id=scope["process"],
+            scope_project_id=scope["project"],
+            scope_process_id=scope["process"],
         )
 
     target = ("CFO", "APPROVES", "Emissione fattura")
@@ -122,6 +124,7 @@ def test_graph_retrieve_is_client_scoped(scope):
         consultant_id=scope["consultant"],
         client_id=other_client,          # cliente diverso
         entity_names=["Segreto A"],
+        allow_client_wide=True,
     )
     # nessun seed nel client sbagliato -> niente match
     assert result["matches"] == []
