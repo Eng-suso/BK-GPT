@@ -27,7 +27,8 @@
       "progress": "Avanzamento"
     },
     "owner": {
-      "unassigned": "Da assegnare"
+      "unassigned": "Da assegnare",
+      "unassignedLead": "Referente non assegnato"
     },
     "empty": {
       "title": "Nessun progetto",
@@ -112,7 +113,10 @@
       "actions": "Azioni rapide",
       "nextStep": "Prossimo passo",
       "openProject": "Apri progetto",
-      "selectPrompt": "Seleziona un progetto per vederne il dettaglio."
+      "selectPrompt": "Seleziona un progetto per vederne il dettaglio.",
+      "lead": "Referente",
+      "dates": "Periodo",
+      "noDates": "Non definito"
     },
     "objective": {
       "add": "Aggiungi obiettivo",
@@ -132,6 +136,9 @@
       "name": "Nome progetto",
       "client": "Cliente",
       "objective": "Obiettivo dell'incarico",
+      "lead": "Referente",
+      "startDate": "Inizio",
+      "endDate": "Fine",
       "phase": "Fase corrente",
       "status": "Stato",
       "progress": "Avanzamento (%)",
@@ -145,12 +152,15 @@
       "phase": "Dove si trova l'incarico nel suo ciclo di vita.",
       "status": "Come sta andando la consegna.",
       "nextStep": "La prossima azione concreta, non l'obiettivo finale.",
-      "clientsUnavailable": "Elenco clienti non disponibile: verifica che il backend sia attivo."
+      "clientsUnavailable": "Elenco clienti non disponibile: verifica che il backend sia attivo.",
+      "lead": "Chi segue l'incarico. Lascia vuoto se non è ancora deciso.",
+      "datesOutOfOrder": "La fine precede l'inizio: controlla le date."
     },
     "placeholder": {
       "client": "Seleziona un cliente",
       "objective": "Es. ricostruire l'AS-IS del ciclo ordini, validarlo con gli stakeholder, simularlo e misurare i KPI di lead time.",
-      "nextStep": "Es. fissare le interviste con il reparto ordini"
+      "nextStep": "Es. fissare le interviste con il reparto ordini",
+      "lead": "Nome e cognome"
     },
     "list": {
       "add": "Aggiungi voce",

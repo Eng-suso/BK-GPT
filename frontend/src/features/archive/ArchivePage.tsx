@@ -7,6 +7,7 @@ import { EmptyState, ErrorState } from "@/components/feedback";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
+import { formatDate } from "@/lib/date";
 import { useArchiveQuery } from "./api";
 import {
   RecordLifecycleDialog,
@@ -192,12 +193,3 @@ function ArchivedList({
   );
 }
 
-function formatDate(iso: string, locale: string): string {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) return iso;
-  return new Intl.DateTimeFormat(locale || "it", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(ms);
-}

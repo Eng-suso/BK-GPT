@@ -67,7 +67,10 @@ export function buildProjectColumns(
       header: t("list.columns.lead"),
       enableSorting: false,
       cell: ({ row }) => {
-        const lead = row.original.processItems[0]?.owner;
+        // Il referente dell'incarico, quando c'e'. Prima questa colonna mostrava
+        // l'owner del primo processo registrato: un progetto senza processi non
+        // aveva referente, e uno con tre ne mostrava uno a caso.
+        const lead = row.original.lead || row.original.processItems[0]?.owner;
         return lead ? (
           <span className="inline-flex max-w-[160px] items-center gap-2">
             <span className="grid size-[23px] flex-none place-items-center rounded-full bg-muted text-2xs font-semibold text-muted-foreground ring-1 ring-black/5">
@@ -77,7 +80,7 @@ export function buildProjectColumns(
           </span>
         ) : (
           <span className="text-muted-foreground">
-            {t("list.owner.unassigned")}
+            {t("list.owner.unassignedLead")}
           </span>
         );
       },

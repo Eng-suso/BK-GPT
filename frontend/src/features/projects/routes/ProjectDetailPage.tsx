@@ -37,6 +37,7 @@ import { Skeleton } from "@/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { ROUTES } from "@/app/routes";
 import { cn } from "@/lib/utils";
+import { formatDateRange } from "@/lib/date";
 import { ChatExperience } from "@/features/chat/ChatExperience";
 import {
   RecordLifecycleDialog,
@@ -66,7 +67,7 @@ import {
  */
 export function ProjectDetailPage(): React.JSX.Element {
   const { projectId = "" } = useParams();
-  const { t } = useTranslation("projects");
+  const { t, i18n } = useTranslation("projects");
   // Il vocabolario del ciclo di vita vive in `common`: e' lo stesso per cliente,
   // progetto e processo, e va detto con le stesse parole ovunque si agisca.
   const { t: tCommon } = useTranslation("common");
@@ -283,6 +284,19 @@ export function ProjectDetailPage(): React.JSX.Element {
         <DetailPanelSection title={t("detail.panel.summary")}>
           <DetailPanelKeyValue
             rows={[
+              {
+                label: t("detail.panel.lead"),
+                value: project.lead || t("list.owner.unassignedLead"),
+              },
+              {
+                label: t("detail.panel.dates"),
+                value:
+                  formatDateRange(
+                    project.startDate,
+                    project.endDate,
+                    i18n.language,
+                  ) || t("detail.panel.noDates"),
+              },
               { label: t("list.columns.phase"), value: project.phase },
               {
                 label: t("list.columns.status"),
