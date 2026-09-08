@@ -19,7 +19,12 @@ import {
   readLocalBpmnDraft,
   writeLocalBpmnDraft,
 } from "./draft";
-import { canvas, fitCanvas, keepSequenceConnectionsDocked } from "./viewport";
+import {
+  canvas,
+  fitCanvas,
+  hasDiagramContent,
+  keepSequenceConnectionsDocked,
+} from "./viewport";
 import { assertBpmnXml, downloadBpmn, loadInitialXml } from "./xml";
 import type {
   BpmnCanvasService,
@@ -43,6 +48,8 @@ export type UseBpmnCanvas = {
   containerRef: RefObject<HTMLDivElement | null>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   isReady: boolean;
+  /** The model has no elements yet: a process recorded but not reconstructed. */
+  isEmptyModel: boolean;
   status: string;
   error: string | null;
   isSaving: boolean;
@@ -85,6 +92,7 @@ export function useBpmnCanvas({
   const [status, setStatus] = useState("Caricamento canvas...");
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [isEmptyModel, setIsEmptyModel] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [restoringVersionId, setRestoringVersionId] = useState<number | null>(
     null,
@@ -182,6 +190,10 @@ export function useBpmnCanvas({
     }, 100);
   }, []);
 
+  const syncEmptiness = useCallback(() => {
+    if (modelerRef.current) setIsEmptyModel(!hasDiagramContent(modelerRef.current));
+  }, []);
+
   const loadVersions = useCallback(async () => {
     try {
       setVersions(await fetchBpmnVersions(bpmnModelId));
@@ -219,9 +231,11 @@ export function useBpmnCanvas({
         await modeler.importXML(xml);
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
+        syncEmptiness();
 
         const eventBus = modeler.get("eventBus") as BpmnEventBus;
         eventBus.on("commandStack.changed", () => {
+          syncEmptiness();
           if (!isImportingRef.current && !isSavingRef.current) {
             scheduleUnsavedCheck();
           }
@@ -283,6 +297,7 @@ export function useBpmnCanvas({
     loadVersions,
     scheduleUnsavedCheck,
     scheduleCanvasFit,
+    syncEmptiness,
   ]);
 
   useEffect(() => {
@@ -321,6 +336,7 @@ export function useBpmnCanvas({
         await modelerRef.current.importXML(xml);
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
+        syncEmptiness();
         scheduleCanvasFit();
         lastSavedXmlRef.current = xml;
         markUnsaved(false);
@@ -336,7 +352,7 @@ export function useBpmnCanvas({
         );
       }
     });
-  }, [bpmnModelId, processName, loadVersions, scheduleCanvasFit]);
+  }, [bpmnModelId, processName, loadVersions, scheduleCanvasFit, syncEmptiness]);
 
   const save = useCallback(async () => {
     if (!modelerRef.current) return;
@@ -394,6 +410,7 @@ export function useBpmnCanvas({
         await modelerRef.current.importXML(xml);
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
+        syncEmptiness();
         clearLocalBpmnDraft(bpmnModelId);
         lastSavedXmlRef.current = xml;
         markUnsaved(false);
@@ -407,7 +424,7 @@ export function useBpmnCanvas({
         setRestoringVersionId(null);
       }
     },
-    [bpmnModelId, loadVersions, scheduleCanvasFit],
+    [bpmnModelId, loadVersions, scheduleCanvasFit, syncEmptiness],
   );
 
   const exportXml = useCallback(async () => {
@@ -434,6 +451,7 @@ export function useBpmnCanvas({
         await modelerRef.current.importXML(xml);
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
+        syncEmptiness();
         scheduleCanvasFit();
         markUnsaved(true);
         writeLocalBpmnDraft(bpmnModelId, xml);
@@ -449,7 +467,7 @@ export function useBpmnCanvas({
         }
       }
     },
-    [bpmnModelId, scheduleCanvasFit],
+    [bpmnModelId, scheduleCanvasFit, syncEmptiness],
   );
 
   useEffect(() => {
@@ -536,6 +554,7 @@ export function useBpmnCanvas({
     containerRef,
     fileInputRef,
     isReady,
+    isEmptyModel,
     status,
     error,
     isSaving,

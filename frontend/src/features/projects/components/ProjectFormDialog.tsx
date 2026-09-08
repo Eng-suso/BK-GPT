@@ -299,7 +299,7 @@ export function ProjectFormDialog({
                 )
               }
             />
-            <Meter value={draft.progress} showValue={false} className="flex-1" />
+            <Meter value={draft.progress} label={t("form.fields.progress")} showValue={false} className="flex-1" />
           </div>
         )}
       </Field>

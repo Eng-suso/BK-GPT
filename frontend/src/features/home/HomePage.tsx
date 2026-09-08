@@ -46,7 +46,7 @@ export function HomePage(): React.JSX.Element {
       />
 
       {isError ? (
-        <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
+        <div className="flex flex-1 items-center justify-center ui-surface ui-surface-panel">
           <ErrorState onRetry={() => void projectsQ.refetch()} />
         </div>
       ) : (
@@ -55,7 +55,7 @@ export function HomePage(): React.JSX.Element {
             {metrics.map((m) => (
               <div
                 key={m.key}
-                className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_3px_rgba(14,20,32,0.06)]"
+                className="ui-surface ui-surface-panel p-4 "
               >
                 <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                   {t(`home.metrics.${m.key}`)}
@@ -137,7 +137,7 @@ function HomeList({
   items: HomeListItem[];
 }): React.JSX.Element {
   return (
-    <section className="flex flex-col rounded-xl border border-border bg-card shadow-[0_1px_3px_rgba(14,20,32,0.06)]">
+    <section className="flex flex-col ui-surface ui-surface-panel ">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
           {title}

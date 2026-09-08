@@ -32,7 +32,7 @@ export function WorkspaceListView({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-col gap-4 overflow-hidden px-7 py-6">
+      <div className="flex min-w-0 flex-col gap-4 overflow-hidden px-4 py-4 sm:px-7 sm:py-6">
         {header}
         {toolbar}
         {children}

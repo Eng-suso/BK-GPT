@@ -18,6 +18,8 @@ type ProcessWorkspaceProps = {
   view: ProcessView;
   propertiesOpen: boolean;
   onTogglePropertiesPanel: () => void;
+  /** Switches to the discussion view — where an empty model gets reconstructed. */
+  onOpenDiscussion: () => void;
 };
 
 /**
@@ -30,7 +32,7 @@ type ProcessWorkspaceProps = {
  * @param onTogglePropertiesPanel - Toggles the properties panel.
  * @returns The process workspace element.
  */
-export function ProcessWorkspace({ project, process, view, propertiesOpen, onTogglePropertiesPanel }: ProcessWorkspaceProps): React.JSX.Element {
+export function ProcessWorkspace({ project, process, view, propertiesOpen, onTogglePropertiesPanel, onOpenDiscussion }: ProcessWorkspaceProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const { ref, width } = useElementWidth<HTMLElement>();
   const [chatOpen, setChatOpen] = React.useState(false);
@@ -87,7 +89,7 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
               {inline && <ResizeHandle ariaLabel={t("actions.toggleChat")} onResizeStart={() => (dragStart.current = availableChatWidth)} onDelta={(dx) => setChatWidth(Math.min(dragStart.current + dx, width - 730))} onStep={(dx) => setChatWidth(Math.min(availableChatWidth + dx, width - 730))} valueNow={availableChatWidth} valueMin={320} valueMax={Math.min(480, width - 730)} />}
             </>}
             <section className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas} aria-label="Canvas BPMN">
-              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processName={process.name} propertiesPanelRef={propertiesPanelRef} onCurrentXmlChange={setCurrentCanvasXml} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
+              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processName={process.name} propertiesPanelRef={propertiesPanelRef} onCurrentXmlChange={setCurrentCanvasXml} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
             </section>
             <aside className="process-studio-properties" style={{ width: inline ? 360 : "100%", flex: inline ? "0 0 360px" : "1", marginLeft: inline ? 12 : 0 }} aria-label={t("properties.title")} hidden={!propertiesOpen}>
               <PanelShellHeader title={t("properties.title")} actions={<Button ref={propertiesOpen ? closeRef : undefined} variant="ghost" size="icon-sm" aria-label={t("actions.closeOverlays")} onClick={closeSupport}><X className="size-4" /></Button>} />
@@ -97,7 +99,7 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
           </div>
         ) : (
           <section className="process-primary-panel" aria-label="Chat processo">
-            <ChatExperience chrome="panel" layout="embedded" scope={{ type: "process", projectId: project.id, processId: process.id, processName: process.name }} />
+            <ChatExperience chrome="panel" layout="embedded" scope={{ type: "process", projectId: project.id, processId: process.id, processName: process.name, bpmnModelId: process.bpmnModelId }} />
           </section>
         )}
       </div>

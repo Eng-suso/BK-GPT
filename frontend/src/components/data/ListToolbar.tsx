@@ -36,7 +36,7 @@ export function ListToolbar({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      <div className="flex h-8 w-52 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-muted-foreground shadow-control">
+      <div className="flex h-8 w-52 items-center gap-2 ui-field rounded-full px-2.5 text-muted-foreground">
         <Search className="size-3.5" />
         <input
           value={search}
@@ -81,7 +81,7 @@ function FilterMenu({ filter }: { filter: ListFilterMenu }): React.JSX.Element {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-lg border bg-card px-2.5 text-xs font-medium shadow-control transition-colors outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/40",
+          "inline-flex h-8 items-center gap-1.5 rounded-lg border ui-button-glass px-2.5 text-xs font-medium shadow-control transition-colors outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted/40",
           active
             ? "border-primary/40 text-foreground"
             : "border-border text-muted-foreground",

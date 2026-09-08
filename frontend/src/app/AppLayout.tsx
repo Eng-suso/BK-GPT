@@ -28,7 +28,7 @@ export function AppLayout(): React.JSX.Element {
 
   return (
     <>
-    <div className={cn("grid h-dvh grid-cols-[60px_minmax(0,1fr)] overflow-hidden bg-background text-foreground", !compactNav && "lg:grid-cols-[212px_minmax(0,1fr)]")}>
+    <div className={cn("app-material grid h-dvh grid-cols-[60px_minmax(0,1fr)] overflow-hidden text-foreground", !compactNav && "lg:grid-cols-[212px_minmax(0,1fr)]")}>
       <GlobalSidebar
         compact={compactNav}
         activeSection={activeSection}

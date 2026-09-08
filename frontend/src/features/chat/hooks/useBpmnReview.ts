@@ -38,7 +38,15 @@ export function useBpmnReview(
   onToast: (message: string) => void,
 ): UseBpmnReview {
   const queryClient = useQueryClient();
-  const bpmnModelId = scope.type === "canvas" ? scope.bpmnModelId : null;
+  // Il piano appartiene al processo, non alla scheda che lo mostra: la
+  // discussione che raccoglie le evidenze e il canvas che le disegna leggono lo
+  // stesso modello.
+  const bpmnModelId =
+    scope.type === "canvas"
+      ? scope.bpmnModelId
+      : scope.type === "process"
+        ? scope.bpmnModelId ?? null
+        : null;
   const queryKey = chatKeys.review(bpmnModelId ?? "none");
 
   const reviewQuery = useQuery({

@@ -59,9 +59,18 @@ class ProcessState(ConversationState):
     discovery_readiness: dict | None
     evidence_coverage: dict | None
     canvas_handoff_payload: dict | None
+    # Il registro dell'evidenza persistita di questo processo, ricaricato a ogni
+    # apertura di turno da `load_process_context`. Non e' un accumulatore: e' lo
+    # stato del knowledge graph, quindi si sostituisce, non si somma.
+    evidence_ledger: dict | None
 
     routing_trace: Annotated[list[dict], add]
     delegation_events: Annotated[list[dict], add]
     process_claims: Annotated[list[dict], add]
     process_gaps: Annotated[list[dict], add]
     contradictions: Annotated[list[dict], add]
+    # Cio' che ogni specialista ha concluso nella sua passata. Non e' un
+    # messaggio: e' materiale per la risposta unica che il consulente legge a
+    # fine giro. Un turno con tre passate produceva tre sintesi consegnate una
+    # dietro l'altra, ognuna quasi identica alla precedente.
+    specialist_findings: Annotated[list[dict], add]

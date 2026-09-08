@@ -33,7 +33,7 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-md border border-border bg-muted/40 px-2.5 py-2",
+        "ui-surface ui-surface-inset min-w-0 px-2.5 py-2",
         className,
       )}
     >

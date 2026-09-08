@@ -653,7 +653,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         </Dialog>
       )}
 
-      <form className="composer-box" onSubmit={handleSubmit}>
+      <form className="composer-box ui-surface ui-surface-framed" onSubmit={handleSubmit}>
         <input
           ref={fileInputRef}
           type="file"
@@ -771,20 +771,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
 
           <div className="composer-actions">
-            {/* Un turno in corso si ferma da qui, senza cambiare pagina e senza
-                perdere la parte di risposta gia' arrivata. */}
-            {isBusy && onStop ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={onStop}
-                title={t("composer.stopAgentHint")}
-              >
-                <Square />
-                <span>{t("composer.stopAgent")}</span>
-              </Button>
-            ) : null}
             {/* In registrazione il microfono diventa Stop con il tempo a vista:
                 uno stato attivo deve essere fermabile in un click. */}
             {isRecording ? (
@@ -816,15 +802,17 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </Button>
             )}
             <Button
-              className="btn-send"
-              type="submit"
+              className={cn("btn-send composer-submit-control", isBusy && "composer-agent-stop")}
+              type={isBusy ? "button" : "submit"}
+              variant={isBusy ? "outline" : "default"}
               size="sm"
-              disabled={isLocked || isRecording || !value.trim()}
-              aria-label={isBusy ? t("composer.queue") : t("composer.send")}
-              title={isBusy ? t("composer.queueHint") : t("composer.sendHint")}
+              onClick={isBusy ? onStop : undefined}
+              disabled={isBusy ? !onStop : isLocked || isRecording || !value.trim()}
+              aria-label={isBusy ? t("composer.stopAgent") : t("composer.send")}
+              title={isBusy ? t("composer.stopAgentHint") : t("composer.sendHint")}
             >
-              <span>{isBusy ? t("composer.queue") : t("composer.send")}</span>
-              <ArrowUp />
+              <span>{isBusy ? t("composer.stopAgent") : t("composer.send")}</span>
+              {isBusy ? <Square /> : <ArrowUp />}
             </Button>
           </div>
         </div>

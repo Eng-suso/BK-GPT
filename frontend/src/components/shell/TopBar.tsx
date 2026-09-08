@@ -17,18 +17,18 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
   const user = { name: "Marco Bianchi", role: "Admin", initials: "MB" };
 
   return (
-    <header className="flex min-w-0 items-center gap-2 border-b border-border bg-card px-3 sm:gap-3.5">
+    <header className="app-chrome flex min-w-0 items-center gap-2 border-b px-3 sm:gap-3.5">
       {onToggleNavigation && <button type="button" onClick={onToggleNavigation} aria-label={t("nav.toggle")} aria-expanded={navigationExpanded} className="hidden size-8 shrink-0 place-items-center rounded-md hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring lg:grid"><PanelLeft className="size-4" /></button>}
       <button
         type="button"
-        className="inline-flex h-[34px] shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-border px-2.5 text-[13px] font-medium shadow-[0_1px_2px_rgba(14,20,32,0.05)]"
+        className="ui-button-glass inline-flex h-[34px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2.5 text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-ring"
       >
         <Building2 className="size-4 text-muted-foreground" strokeWidth={1.7} />
         Gruppo DeliR
         <ChevronDown className="size-3 text-muted-foreground" />
       </button>
 
-      <label className={cn("hidden h-[34px] min-w-0 max-w-[440px] flex-1 items-center gap-2 rounded-lg border border-border bg-[var(--color-surface-secondary)] px-3 text-muted-foreground focus-within:ring-2 focus-within:ring-ring", compact ? "xl:flex" : "md:flex")}>
+      <label className={cn("hidden h-[34px] min-w-0 max-w-[440px] flex-1 items-center gap-2 ui-field rounded-full px-3 text-muted-foreground focus-within:ring-2 focus-within:ring-ring", compact ? "xl:flex" : "md:flex")}>
         <Search className="size-[15px]" strokeWidth={1.8} />
         <input
           className="w-full bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
@@ -39,7 +39,7 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
 
       <div className="flex-1" />
 
-      <div className={cn("hidden h-[34px] items-center gap-2 whitespace-nowrap rounded-lg border border-border px-2.5 text-[12.5px] font-medium text-muted-foreground shadow-[0_1px_2px_rgba(14,20,32,0.05)]", !compact && "xl:inline-flex")}>
+      <div className={cn("hidden h-[34px] items-center gap-2 whitespace-nowrap ui-button-glass rounded-full px-2.5 text-[12.5px] font-medium text-muted-foreground", !compact && "xl:inline-flex")}>
         <Calendar className="size-3.5" strokeWidth={1.7} />
         01 mag – 31 lug 2024
         <ChevronDown className="size-3" />

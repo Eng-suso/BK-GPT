@@ -6,8 +6,16 @@ query. Con Neo4j Community senza subgraph ACL, e con Mem0 senza tenant ACL,
 questo e' l'unico punto di enforcement in lettura.
 
 `graph_retrieve` (grafo tipizzato, retrieval ibrido — P3):
+  0. confine di lettura — `scope_project_id` / `scope_process_id` delimitano
+     l'evidenza leggibile: solo le righe di quel processo (piu' quelle
+     project-level senza processo), mai quelle di un altro processo o progetto
+     dello stesso cliente. Senza uno dei due la chiamata e' rifiutata, a meno
+     che il chiamante dichiari `allow_client_wide=True` (letture consultant /
+     cliente, es. cutover e sweep). Il write path e' sempre stato scoped
+     (`canonical.write_*` stampa project_id/process_id); questo e' il lato in
+     lettura dello stesso confine — vedi PROCESS-V2-08.
   1. seed entita' — nomi entita' + parole della query -> match esatto/alias/LIKE
-     su kg_entity (Postgres, RLS per client)
+     su kg_entity (Postgres, RLS per client), ristretto allo scope
   2. ricerca testo su kg_chunk (`_text_search`), due segnali fusi con RRF:
        - lessicale: `content_tsv @@ websearch_to_tsquery` + `ts_rank_cd`
        - vettoriale: cosine sull'embedding della query (se l'embedder c'e')
@@ -17,7 +25,10 @@ questo e' l'unico punto di enforcement in lettura.
   4. espansione — k-hop in Neo4j dai seed, ogni nodo del path filtrato per
      client_id
   5. idratazione — ogni id opaco -> testo autoritativo da Postgres (RLS):
-     canonical_name, statement, title, ...
+     canonical_name, statement, title, ... In idratazione lo scope viene
+     riapplicato: un nodo che Neo4j ha portato dentro il path ma che in
+     Postgres appartiene a un altro processo viene scartato, e con lui la
+     tripla. Neo4j non e' il confine: Postgres lo e'.
   6. rerank opzionale (`settings.retrieval_rerank_enabled`, default off) — un
      giudice LLM riordina i `chunks` di contesto per rilevanza alla query.
   I chunk fusi tornano come contesto testuale (`chunks`).
@@ -46,7 +57,7 @@ from typing import Any
 from sqlalchemy import text
 
 from backend.db import canonical_session
-from backend.memory import embeddings, forget, mem0_client
+from backend.memory import embeddings, forget, mem0_client, provenance
 from backend.memory.knowledge_graph import neo4j_store
 from backend.memory.mem0_client import Mem0Disabled
 from backend.services import degradation_counters
@@ -69,11 +80,62 @@ def procedural_available() -> bool:
     return bool(settings.canonical_database_url)
 
 
+@dataclass(frozen=True)
+class ReadScope:
+    """Il confine dell'evidenza leggibile in una chiamata di retrieval.
+
+    `client_wide` e' la lettura senza confine interno (cutover, sweep, chat
+    consulente): si dichiara, non si ottiene per dimenticanza.
+    """
+
+    client_id: str
+    project_id: str | None = None
+    process_id: str | None = None
+    client_wide: bool = False
+
+    @property
+    def narrowed(self) -> bool:
+        return not self.client_wide and bool(self.project_id or self.process_id)
+
+
+def _scope_sql(scope: ReadScope) -> tuple[str, dict[str, Any]]:
+    """Predicato SQL che tiene una riga dentro lo scope, piu' i suoi parametri.
+
+    Una riga entra se e' del processo corrente, oppure se e' project-level
+    (nessun processo) nel progetto corrente. Senza processo il confine e' il
+    progetto.
+    """
+    if not scope.narrowed:
+        return "", {}
+    project = str(scope.project_id) if scope.project_id else None
+    if scope.process_id:
+        return (
+            " AND (process_id = CAST(:sc_pr AS uuid) "
+            "      OR (process_id IS NULL "
+            "          AND project_id = CAST(:sc_pj AS uuid)))",
+            {"sc_pr": str(scope.process_id), "sc_pj": project},
+        )
+    return " AND project_id = CAST(:sc_pj AS uuid)", {"sc_pj": project}
+
+
+def _authorized_source_ids(session, scope: ReadScope) -> list[str] | None:
+    """Le `kg_source` che questa lettura puo' vedere. `None` = nessun confine."""
+    if not scope.narrowed:
+        return None
+    predicate, params = _scope_sql(scope)
+    rows = session.execute(
+        text("SELECT id FROM kg_source WHERE client_id = :cl" + predicate),
+        {"cl": scope.client_id, **params},
+    ).all()
+    return [str(row.id) for row in rows]
+
+
 def _resolve_seed_entities(
     consultant_id: str,
-    client_id: str,
+    scope: ReadScope,
     entity_names: list[str],
     query: str,
+    source_ids: list[str] | None,
 ) -> list[str]:
     # lower() (non casefold) per coincidere con lower(canonical_name) di Postgres
     # e con gli alias, che entity_resolution salva gia' lower()
@@ -83,7 +145,18 @@ def _resolve_seed_entities(
         return []
     exact = list(terms)
     like_patterns = [f"%{t}%" for t in terms]
-    with canonical_session(consultant_id, client_id) as session:
+    # Un'entita' entra come seed se ha provenance dentro lo scope, oppure se e'
+    # stata scritta per questo processo/progetto (evidenza senza testo grezzo,
+    # quindi senza kg_source). Il nome da solo non basta piu': due omonimi di
+    # due processi diversi restano due entita' diverse.
+    predicate, params = _scope_sql(scope)
+    if scope.narrowed:
+        predicate = (
+            " AND (source_ids && CAST(:sc_sids AS uuid[])"
+            f" OR ({predicate.removeprefix(' AND ')}))"
+        )
+        params = {**params, "sc_sids": list(source_ids or [])}
+    with canonical_session(consultant_id, scope.client_id) as session:
         rows = session.execute(
             text(
                 "SELECT id FROM kg_entity "
@@ -91,14 +164,15 @@ def _resolve_seed_entities(
                 "  AND (lower(canonical_name) = ANY(:exact) "
                 "       OR aliases && CAST(:exact AS text[]) "  # P2: alias noti
                 "       OR lower(canonical_name) LIKE ANY(:like)) "
+                + predicate +
                 # match esatto (nome o alias) prima, poi nome piu' corto (piu'
                 # probabilmente l'entita' precisa): da' un ranking vero alla RRF
-                "ORDER BY (lower(canonical_name) = ANY(:exact) "
+                " ORDER BY (lower(canonical_name) = ANY(:exact) "
                 "          OR aliases && CAST(:exact AS text[])) DESC, "
                 "         char_length(canonical_name) "
                 "LIMIT 40"
             ),
-            {"cl": client_id, "exact": exact, "like": like_patterns},
+            {"cl": scope.client_id, "exact": exact, "like": like_patterns, **params},
         ).all()
     return [str(r.id) for r in rows]
 
@@ -124,13 +198,21 @@ class ChunkHit:
     score: float  # RRF fuso
     lexical_score: float | None = None
     vector_score: float | None = None
+    source_title: str = ""
+    process_id: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
+        # La provenance viaggia col testo: un passaggio che finisce nel contesto
+        # dell'agente deve poter essere ricondotto alla fonte e al processo da
+        # cui viene, altrimenti nessuno puo' verificarlo a valle.
         return {
             "content": self.content,
             "score": round(self.score, 6),
             "lexical_score": self.lexical_score,
             "vector_score": self.vector_score,
+            "source_id": self.source_id,
+            "source_title": self.source_title,
+            "process_id": self.process_id,
         }
 
 
@@ -145,18 +227,26 @@ _EMPTY_CHUNK_SEARCH = ChunkSearch(entity_ids=(), chunks=())
 
 def _text_search(
     consultant_id: str,
-    client_id: str,
+    scope: ReadScope,
     query: str,
     k: int,
+    source_ids: list[str] | None,
 ) -> ChunkSearch:
     """Ricerca ibrida sui `kg_chunk`: lessicale (`ts_rank_cd`) + vettoriale
     (cosine), fusi con RRF. Dai chunk fusi si risale alle entita' con quella
     provenance, ordinate per rank del loro miglior chunk.
 
+    I chunk cercabili sono solo quelli delle `kg_source` autorizzate
+    (`source_ids`): il testo grezzo di un'altra intervista dello stesso cliente
+    non deve poter entrare nel contesto per somiglianza semantica.
+
     Degrada: senza embedder -> solo lessicale; senza match -> vuoto.
     """
     if not (query or "").strip():
         return _EMPTY_CHUNK_SEARCH
+    if source_ids is not None and not source_ids:
+        return _EMPTY_CHUNK_SEARCH  # scope senza fonti: fail closed, non client-wide
+    client_id = scope.client_id
 
     # tsquery OR-of-terms: recall lessicale (qualsiasi parola), ranking a
     # `ts_rank_cd`. I termini vengono dal regex `_WORD` (solo caratteri di
@@ -164,9 +254,15 @@ def _text_search(
     lex_terms = list(dict.fromkeys(w.lower() for w in _WORD.findall(query or "")))
     tsquery = " | ".join(lex_terms)
 
+    # `kg_chunk` non porta process_id: la provenance del chunk e' la sua
+    # `kg_source`, che invece lo porta. Il confine passa quindi dall'elenco di
+    # fonti autorizzate, non da una colonna del chunk.
+    scoped = "" if source_ids is None else " AND source_id = ANY(CAST(:sids AS uuid[]))"
+    scope_params: dict[str, Any] = {} if source_ids is None else {"sids": list(source_ids)}
+
     with canonical_session(consultant_id, client_id) as session:
         if not session.execute(
-            text("SELECT 1 FROM kg_chunk WHERE client_id = :cl LIMIT 1"),
+            text("SELECT 1 FROM kg_chunk WHERE client_id = :cl LIMIT 1" ),
             {"cl": client_id},
         ).first():
             return _EMPTY_CHUNK_SEARCH
@@ -179,9 +275,10 @@ def _text_search(
                     "       ts_rank_cd(content_tsv, q) AS score "
                     "FROM kg_chunk, to_tsquery('simple', :tsq) AS q "
                     "WHERE client_id = :cl AND content_tsv @@ q "
-                    "ORDER BY score DESC LIMIT :k"
+                    + scoped +
+                    " ORDER BY score DESC LIMIT :k"
                 ),
-                {"cl": client_id, "tsq": tsquery, "k": k},
+                {"cl": client_id, "tsq": tsquery, "k": k, **scope_params},
             ).all()
 
         vec_rows: list[Any] = []
@@ -193,9 +290,10 @@ def _text_search(
                     "       1 - (embedding <=> CAST(:q AS vector)) AS score "
                     "FROM kg_chunk "
                     "WHERE client_id = :cl AND embedding IS NOT NULL "
-                    "ORDER BY embedding <=> CAST(:q AS vector) LIMIT :k"
+                    + scoped +
+                    " ORDER BY embedding <=> CAST(:q AS vector) LIMIT :k"
                 ),
-                {"q": embeddings.to_pgvector(vec), "cl": client_id, "k": k},
+                {"q": embeddings.to_pgvector(vec), "cl": client_id, "k": k, **scope_params},
             ).all()
 
         if not lex_rows and not vec_rows:
@@ -209,6 +307,9 @@ def _text_search(
         content_by_key = {_key(r): r.content for r in (*lex_rows, *vec_rows)}
 
         fused = _rrf([[_key(r) for r in lex_rows], [_key(r) for r in vec_rows]])
+        provenance = _source_provenance(
+            session, client_id, {key[0] for key, _ in fused[:k]}
+        )
         chunks = tuple(
             ChunkHit(
                 content=content_by_key[key],
@@ -217,6 +318,8 @@ def _text_search(
                 score=rrf,
                 lexical_score=lexical_by_key.get(key),
                 vector_score=vector_by_key.get(key),
+                source_title=provenance.get(key[0], ("", None))[0],
+                process_id=provenance.get(key[0], ("", None))[1],
             )
             for key, rrf in fused[:k]
         )
@@ -244,6 +347,25 @@ def _text_search(
         str(r.id) for r in sorted(ent_rows, key=_entity_rank)
     )
     return ChunkSearch(entity_ids=entity_ids, chunks=chunks)
+
+
+def _source_provenance(
+    session, client_id: str, source_ids: set[str]
+) -> dict[str, tuple[str, str | None]]:
+    """`source_id -> (titolo, process_id)`, per etichettare i chunk restituiti."""
+    if not source_ids:
+        return {}
+    rows = session.execute(
+        text(
+            "SELECT id, title, process_id FROM kg_source "
+            "WHERE client_id = :cl AND id = ANY(CAST(:ids AS uuid[]))"
+        ),
+        {"cl": client_id, "ids": list(source_ids)},
+    ).all()
+    return {
+        str(row.id): (row.title or "", str(row.process_id) if row.process_id else None)
+        for row in rows
+    }
 
 
 def _expand(
@@ -300,7 +422,89 @@ def _node_ref(labels: list[str], props: dict) -> tuple[str, str] | None:
     return None
 
 
-def _hydrate(consultant_id: str, client_id: str, triples: list[dict]) -> list[dict]:
+# Ogni nodo del grafo tipizzato porta la propria appartenenza in Postgres. Il
+# `process` non ha un `process_id`: e' se stesso, quindi lo si confronta con
+# l'id della riga.
+_HYDRATE_SQL = {
+    "Entity": (
+        "SELECT id, canonical_name AS label, project_id, process_id, source_ids, "
+        "       '' AS attributed_to, '' AS source_name "
+        "FROM kg_entity WHERE id = ANY(:ids)"
+    ),
+    "Process": (
+        "SELECT id, name AS label, project_id, id AS process_id, "
+        "       CAST(ARRAY[] AS uuid[]) AS source_ids, "
+        "       '' AS attributed_to, '' AS source_name "
+        "FROM process WHERE id = ANY(:ids)"
+    ),
+    # Un claim non e' una stringa: chi lo dice e da quale fonte viaggiano con
+    # lui, altrimenti a valle l'attribuzione si ricostruisce dal testo — ed e'
+    # cosi' che nel V3 un'affermazione di uno e' finita in bocca a un altro.
+    "Claim": (
+        "SELECT id, statement AS label, project_id, process_id, source_ids, "
+        "       attributed_to, source_name "
+        "FROM kg_claim WHERE id = ANY(:ids)"
+    ),
+    "Gap": (
+        "SELECT id, title AS label, project_id, process_id, source_ids, "
+        "       '' AS attributed_to, '' AS source_name "
+        "FROM kg_gap WHERE id = ANY(:ids)"
+    ),
+    "Contradiction": (
+        "SELECT id, title AS label, project_id, process_id, source_ids, "
+        "       '' AS attributed_to, '' AS source_name "
+        "FROM kg_contradiction WHERE id = ANY(:ids)"
+    ),
+    "Impact": (
+        "SELECT id, title AS label, project_id, process_id, source_ids, "
+        "       '' AS attributed_to, '' AS source_name "
+        "FROM kg_impact WHERE id = ANY(:ids)"
+    ),
+}
+
+
+@dataclass(frozen=True)
+class _Node:
+    label: str
+    project_id: str | None
+    process_id: str | None
+    source_ids: tuple[str, ...]
+    attributed_to: str = ""
+    source_name: str = ""
+
+    @property
+    def attribution(self) -> str | None:
+        """Chi risponde di questo nodo, quando qualcuno ne risponde."""
+        return (self.attributed_to or "").strip() or (self.source_name or "").strip() or None
+
+    def in_scope(self, scope: ReadScope, authorized_sources: set[str]) -> bool:
+        if not scope.narrowed:
+            return True
+        if self.process_id and scope.process_id:
+            if str(self.process_id) == str(scope.process_id):
+                return True
+        elif not self.process_id and self.project_id and scope.project_id:
+            if str(self.project_id) == str(scope.project_id):
+                return True
+        # Un nodo condiviso fra piu' processi (tipicamente un'entita' riusata)
+        # resta leggibile solo se almeno una delle sue fonti e' autorizzata qui.
+        return bool(authorized_sources and set(self.source_ids) & authorized_sources)
+
+
+def _hydrate(
+    consultant_id: str,
+    scope: ReadScope,
+    triples: list[dict],
+    authorized_sources: list[str] | None,
+) -> list[dict]:
+    """Da triple opache a triple leggibili, riapplicando il confine di lettura.
+
+    Neo4j Community non ha subgraph ACL e conosce solo il cliente: e' Postgres
+    a sapere a quale progetto e processo appartiene ogni nodo. Una tripla con
+    anche un solo estremo fuori scope - o non idratabile - viene scartata:
+    fail closed, perche' e' esattamente da li' che nel test E2E V2 sono entrati
+    i fatti di un altro processo.
+    """
     by_label: dict[str, set[str]] = {}
     for tri in triples:
         for labels, props in ((tri["la"], tri["ap"]), (tri["lb"], tri["bp"])):
@@ -308,37 +512,59 @@ def _hydrate(consultant_id: str, client_id: str, triples: list[dict]) -> list[di
             if ref:
                 by_label.setdefault(ref[0], set()).add(ref[1])
 
-    names: dict[tuple[str, str], str] = {}
-    _q = {
-        "Entity": "SELECT id, canonical_name AS label FROM kg_entity WHERE id = ANY(:ids)",
-        "Process": "SELECT id, name AS label FROM process WHERE id = ANY(:ids)",
-        "Claim": "SELECT id, statement AS label FROM kg_claim WHERE id = ANY(:ids)",
-        "Gap": "SELECT id, title AS label FROM kg_gap WHERE id = ANY(:ids)",
-        "Contradiction": "SELECT id, title AS label FROM kg_contradiction WHERE id = ANY(:ids)",
-        "Impact": "SELECT id, title AS label FROM kg_impact WHERE id = ANY(:ids)",
-    }
-    with canonical_session(consultant_id, client_id) as session:
+    nodes: dict[tuple[str, str], _Node] = {}
+    with canonical_session(consultant_id, scope.client_id) as session:
         for label, ids in by_label.items():
-            if label not in _q:
+            if label not in _HYDRATE_SQL:
                 continue
-            for row in session.execute(text(_q[label]), {"ids": list(ids)}).all():
-                names[(label, str(row.id))] = row.label
+            for row in session.execute(text(_HYDRATE_SQL[label]), {"ids": list(ids)}).all():
+                nodes[(label, str(row.id))] = _Node(
+                    label=row.label,
+                    project_id=str(row.project_id) if row.project_id else None,
+                    process_id=str(row.process_id) if row.process_id else None,
+                    source_ids=tuple(str(s) for s in (row.source_ids or ())),
+                    attributed_to=str(getattr(row, "attributed_to", "") or ""),
+                    source_name=str(getattr(row, "source_name", "") or ""),
+                )
 
-    def _label_of(labels, props) -> str:
+    allowed = set(authorized_sources or ())
+
+    def _node_of(labels, props) -> tuple[str, _Node | None]:
         ref = _node_ref(labels, props)
         if not ref:
-            return "?"
-        return names.get(ref, ref[1])  # nome autoritativo, o id se non idratato
+            return "?", None
+        node = nodes.get(ref)
+        # Non idratato: in una lettura scoped non si tiene un id opaco di cui
+        # non si sa la provenienza.
+        return (node.label if node else ref[1]), node
 
     matches = []
     for tri in triples:
+        source_label, source_node = _node_of(tri["la"], tri["ap"])
+        target_label, target_node = _node_of(tri["lb"], tri["bp"])
+        if scope.narrowed:
+            if source_node is None or target_node is None:
+                continue
+            if not source_node.in_scope(scope, allowed):
+                continue
+            if not target_node.in_scope(scope, allowed):
+                continue
         matches.append(
             {
-                "source": _label_of(tri["la"], tri["ap"]),
+                "source": source_label,
                 "relation": tri["rt"],
-                "target": _label_of(tri["lb"], tri["bp"]),
+                "target": target_label,
                 "confidence": tri["rp"].get("confidence"),
                 "confirmed": tri["rp"].get("confirmed"),
+                # Chi risponde dei due estremi, quando sono affermazioni. Un
+                # claim che arriva nel contesto senza la sua voce e' materiale
+                # per una misattribuzione.
+                "source_attribution": source_node.attribution if source_node else None,
+                "target_attribution": target_node.attribution if target_node else None,
+                "process_id": (
+                    (source_node.process_id if source_node else None)
+                    or (target_node.process_id if target_node else None)
+                ),
             }
         )
     return matches
@@ -351,19 +577,52 @@ def graph_retrieve(
     query: str = "",
     entity_names: list[str] | None = None,
     process_id: str | None = None,
+    scope_project_id: str | None = None,
+    scope_process_id: str | None = None,
+    allow_client_wide: bool = False,
     relation_focus: str | None = None,
     max_hops: int = 2,
     limit: int = 25,
 ) -> dict[str, Any]:
+    """Retrieval sul grafo dentro un confine di lettura dichiarato.
+
+    `scope_project_id` / `scope_process_id` sono l'autorizzazione: l'evidenza
+    leggibile e' quella del processo corrente piu' quella project-level. Non
+    e' un suggerimento di ranking - le righe fuori scope non vengono proprio
+    lette. `process_id` resta il seed di espansione in Neo4j, cosa diversa.
+
+    Senza confine la chiamata e' rifiutata (`status="blocked"`), a meno che il
+    chiamante dichiari `allow_client_wide=True`: c'e' un uso legittimo
+    (cutover, sweep, letture consulente), ma dev'essere una scelta scritta.
+    """
     if not graph_available():
         return {"status": "not_configured", "matches": [], "count": 0, "chunks": []}
 
+    scope = ReadScope(
+        client_id=str(client_id),
+        project_id=scope_project_id,
+        process_id=scope_process_id,
+        client_wide=allow_client_wide,
+    )
+    if not scope.narrowed and not allow_client_wide:
+        degradation_counters.bump("graph_retrieve", "unscoped_call")
+        return {
+            "status": "blocked",
+            "matches": [], "count": 0, "chunks": [],
+            "reason": (
+                "retrieval senza scope: serve scope_project_id/scope_process_id, "
+                "oppure allow_client_wide=True dichiarato dal chiamante"
+            ),
+        }
+
     try:
+        with canonical_session(consultant_id, scope.client_id) as session:
+            authorized_sources = _authorized_source_ids(session, scope)
         name_seeds = _resolve_seed_entities(
-            consultant_id, client_id, entity_names or [], query
+            consultant_id, scope, entity_names or [], query, authorized_sources
         )
         text_hit = _text_search(
-            consultant_id, client_id, query, k=max(limit // 3, 8)
+            consultant_id, scope, query, k=max(limit // 3, 8), source_ids=authorized_sources
         )
         seeds = [
             eid
@@ -377,7 +636,9 @@ def graph_retrieve(
             }
 
         triples = _expand(client_id, seeds, process_id, max_hops, limit)
-        matches = _hydrate(consultant_id, client_id, triples) if triples else []
+        matches = (
+            _hydrate(consultant_id, scope, triples, authorized_sources) if triples else []
+        )
     except Exception as exc:  # noqa: BLE001 — la lettura non deve mai far fallire il tool
         degradation_counters.bump("graph_retrieve", "error", detail=str(exc))
         return {"status": "error", "matches": [], "count": 0, "chunks": [], "reason": str(exc)}
@@ -388,6 +649,163 @@ def graph_retrieve(
 
     status = "ok" if (matches or chunks) else "empty"
     return {"status": status, "count": len(matches), "matches": matches, "chunks": chunks}
+
+
+# --------------------------------------------------------------------------- #
+# claim_ledger — il registro dell'evidenza, senza modello di mezzo (INV-9)
+# --------------------------------------------------------------------------- #
+
+_LEDGER_SQL = (
+    "SELECT c.id, c.statement, c.process_area, c.claim_status, c.confidence, "
+    "       c.attributed_to, c.source_name, c.topic, c.assertion, c.qualifiers, "
+    "       c.quote, c.quote_verified, "
+    "       c.scope_label, c.scope_level, c.epistemic_status, c.source_ids, "
+    "       c.process_id, c.created_at "
+    "FROM kg_claim c "
+    "WHERE c.client_id = :cl AND c.status = 'active'"
+)
+
+_CONTRADICTION_SQL = (
+    "SELECT title, conflicting_statements, divergence_type, severity, "
+    "       resolution_question "
+    "FROM kg_contradiction "
+    "WHERE client_id = :cl AND status = 'active'"
+)
+
+
+def _contested_topics(session, scope: ReadScope) -> dict[str, list[str]]:
+    """I temi su cui esiste una divergenza davvero incompatibile.
+
+    Solo `incompatible` rende conteso un claim. Una differenza di ambito, un
+    diverso grado di formalizzazione o un "non lo so" restano registrati come
+    divergenze ma non tolgono nulla a cio' che ciascuna fonte ha detto: e' la
+    distinzione che nel V3 mancava e che gonfiava ogni attrito in conflitto.
+    """
+    predicate, params = _scope_sql(scope)
+    rows = session.execute(
+        text(_CONTRADICTION_SQL + predicate), {"cl": scope.client_id, **params}
+    ).all()
+    contested: dict[str, list[str]] = {}
+    for row in rows:
+        if str(row.divergence_type or "") != "incompatible":
+            continue
+        for statement in row.conflicting_statements or []:
+            key = provenance.topic_key(statement)
+            if key:
+                contested.setdefault(key, []).append(row.title or "")
+    return contested
+
+
+def claim_ledger(
+    *,
+    consultant_id: str,
+    client_id: str,
+    scope_project_id: str | None = None,
+    scope_process_id: str | None = None,
+    allow_client_wide: bool = False,
+    limit: int = 200,
+) -> dict[str, Any]:
+    """Tutte le affermazioni in scope, con la loro provenance e il loro sostegno.
+
+    E' la lettura che rende possibile un audit: ogni riga porta chi lo dice, da
+    quale fonte, con quale passaggio verbatim, per quale perimetro, e con un
+    `support` **calcolato** (`backend.memory.provenance.build_ledger`) contando
+    le voci distinte sullo stesso tema. Nessun modello dichiara qui che una
+    cosa e' confermata.
+
+    Stesso confine di `graph_retrieve`: senza scope la chiamata e' rifiutata a
+    meno che il chiamante dichiari `allow_client_wide`.
+    """
+    if not settings.canonical_database_url:
+        return {"status": "not_configured", "claims": [], "count": 0}
+
+    scope = ReadScope(
+        client_id=str(client_id),
+        project_id=scope_project_id,
+        process_id=scope_process_id,
+        client_wide=allow_client_wide,
+    )
+    if not scope.narrowed and not allow_client_wide:
+        degradation_counters.bump("claim_ledger", "unscoped_call")
+        return {
+            "status": "blocked", "claims": [], "count": 0,
+            "reason": (
+                "registro senza scope: serve scope_project_id/scope_process_id, "
+                "oppure allow_client_wide=True dichiarato dal chiamante"
+            ),
+        }
+
+    predicate, params = _scope_sql(scope)
+    try:
+        with canonical_session(consultant_id, scope.client_id) as session:
+            rows = session.execute(
+                text(_LEDGER_SQL + predicate + " ORDER BY c.created_at LIMIT :lim"),
+                {"cl": scope.client_id, "lim": max(1, int(limit)), **params},
+            ).all()
+            source_titles = _source_provenance(
+                session,
+                scope.client_id,
+                {str(s) for row in rows for s in (row.source_ids or ())},
+            )
+            contested = _contested_topics(session, scope)
+    except Exception as exc:  # noqa: BLE001 — la lettura non deve far fallire il tool
+        degradation_counters.bump("claim_ledger", "error", detail=str(exc))
+        return {"status": "error", "claims": [], "count": 0, "reason": str(exc)}
+
+    claims = []
+    for row in rows:
+        source_id = str(row.source_ids[0]) if row.source_ids else None
+        claims.append(
+            {
+                "claim_id": str(row.id),
+                "statement": row.statement,
+                "attributed_to": row.attributed_to or "",
+                # Il titolo autoritativo della `kg_source` batte il nome che
+                # l'estrazione ha dichiarato: e' quello che il consulente puo'
+                # aprire.
+                "source_name": (
+                    source_titles.get(source_id, ("", None))[0]
+                    if source_id
+                    else ""
+                ) or (row.source_name or ""),
+                "source_id": source_id,
+                "topic": row.topic or "",
+                "assertion": row.assertion or "",
+                "qualifiers": list(row.qualifiers or ()),
+                "quote": row.quote or "",
+                "quote_verified": bool(row.quote_verified),
+                "scope_label": row.scope_label or "",
+                "scope_level": row.scope_level or "stated_scope",
+                "epistemic_status": row.epistemic_status or "reported",
+                "process_area": row.process_area or "other",
+                "process_id": str(row.process_id) if row.process_id else None,
+            }
+        )
+
+    # Una contraddizione cita le affermazioni in conflitto per testo, non per
+    # tema: qui si risale dal testo al tema del claim, altrimenti la
+    # classificazione resta scritta e non arriva mai al registro.
+    by_statement = {}
+    for item in claims:
+        assertion = provenance.topic_key(item["assertion"] or item["statement"])
+        for written in (item["statement"], item["topic"], item["assertion"]):
+            key = provenance.topic_key(written)
+            if key:
+                by_statement.setdefault(key, assertion)
+    for key, titles in list(contested.items()):
+        mapped = by_statement.get(key)
+        if mapped and mapped != key:
+            contested.setdefault(mapped, []).extend(titles)
+
+    entries = provenance.build_ledger(claims, contested_topics=contested)
+    payload = provenance.ledger_payload(entries)
+    return {
+        "status": "ok" if payload else "empty",
+        "count": len(payload),
+        "claims": payload,
+        "summary": provenance.summarize_ledger(entries).as_dict(),
+        "contested_topics": sorted(contested),
+    }
 
 
 def _context_chunks(query: str, text_hit: ChunkSearch) -> list[dict[str, Any]]:
@@ -425,10 +843,29 @@ def _mem0_items(raw: Any) -> list:
     return raw or []
 
 
+def _memory_out_of_scope(
+    metadata: dict[str, Any],
+    client_id: str | None,
+    project_id: str | None,
+) -> bool:
+    """Una memoria e' fuori scope se dichiara un'appartenenza diversa da questa.
+
+    Le memorie senza appartenenza (preferenze, metodo, profilo del consulente)
+    restano visibili ovunque: sono del consulente, non di un incarico. Quelle
+    che dichiarano un cliente o un progetto valgono solo li'.
+    """
+    mem_client = metadata.get("client_id")
+    if mem_client and str(mem_client) != (str(client_id) if client_id else None):
+        return True
+    mem_project = metadata.get("project_id")
+    return bool(project_id and mem_project and str(mem_project) != str(project_id))
+
+
 def memory_search(
     *,
     consultant_id: str,
     client_id: str | None = None,
+    project_id: str | None = None,
     query: str,
     category: str | None = None,
     limit: int = 5,
@@ -444,6 +881,9 @@ def memory_search(
         consultant_id (str): Consultant namespace identifier; treated as untrusted
             input.
         client_id (str | None): Optional client scope; treated as untrusted input.
+        project_id (str | None): Optional canonical project scope. When given,
+            memories that declare a different project are excluded; memories with
+            no project declared stay visible. Treated as untrusted input.
         query (str): Search text; treated as untrusted input.
         category (str | None): Optional category prefix for the search; treated as
             untrusted input.
@@ -487,9 +927,10 @@ def memory_search(
                 {"memory_id": None, "memory": str(item), "score": None, "client_scoped": False}
             )
         else:
-            mem_client = (item.get("metadata") or {}).get("client_id")
-            if mem_client and mem_client != cid:
-                continue  # memoria di un altro cliente: fuori scope
+            metadata = item.get("metadata") or {}
+            mem_client = metadata.get("client_id")
+            if _memory_out_of_scope(metadata, cid, project_id):
+                continue  # memoria di un altro cliente o di un altro incarico
             memory_id = item.get("id") or item.get("memory_id") or item.get("uuid")
             statement = (
                 item.get("memory")

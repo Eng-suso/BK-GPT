@@ -113,7 +113,7 @@ export function SimulationConfigRail({
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-col rounded-lg border border-border bg-card",
+        "flex min-h-0 flex-col ui-surface ui-surface-panel",
         workspace && "sim-config-workspace",
         embedded ? "" : "overflow-hidden shadow-sm",
       )}

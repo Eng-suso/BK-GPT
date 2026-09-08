@@ -873,6 +873,9 @@ def retrieve_project_graph_context(
                 query=query,
                 entity_names=entity_terms,
                 process_id=s.process_id,
+                # Una Project Chat legge tutto il proprio progetto: il confine
+                # e' il progetto, non il singolo processo ancorato.
+                scope_project_id=s.project_id,
                 relation_focus=relation_focus,
                 limit=limit,
             )

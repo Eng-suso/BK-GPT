@@ -22,6 +22,7 @@ from backend.schemas.workspace import (
     ProjectSourceResponse,
     RestoreBpmnVersionResponse,
     ReviseBpmnReviewRequest,
+    SourceDocumentResponse,
     UpdateBpmnModelRequest,
     UpdateBpmnReviewRequest,
     UpdateClientRequest,
@@ -386,6 +387,21 @@ def create_workspace_process(
 @router.get("/projects/{project_id}/sources")
 def get_workspace_project_sources(project_id: str) -> list[ProjectSourceResponse]:
     return [ProjectSourceResponse(**source) for source in list_project_sources(project_id)]
+
+
+@router.get("/sources/{source_id}/document")
+def get_workspace_source_document(source_id: str) -> SourceDocumentResponse:
+    """L'intervista o il documento per intero, con la sua sintesi.
+
+    Il pannello Fonti mostrava solo la nota di due righe: per verificare
+    un'affermazione serve il testo originale, non l'etichetta.
+    """
+    from backend.workspace_services.source_document import source_document
+
+    document = source_document(source_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
+    return SourceDocumentResponse(**document)
 
 
 @router.post("/projects/{project_id}/sources")

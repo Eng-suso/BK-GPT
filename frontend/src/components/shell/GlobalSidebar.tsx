@@ -29,7 +29,7 @@ export function GlobalSidebar({
   return (
     <aside
       aria-label={t("nav.primary")}
-      className={cn("flex flex-col items-center border-r border-border bg-card px-2 py-4", !compact && "lg:items-stretch lg:px-3")}
+      className={cn("app-chrome flex flex-col items-center border-r px-2 py-4", !compact && "lg:items-stretch lg:px-3")}
     >
       <div className="pb-[18px] pt-1 text-[19px] font-bold tracking-[-0.03em] text-primary lg:px-2">
         <span className={compact ? "" : "lg:hidden"}>D</span>
@@ -48,11 +48,11 @@ export function GlobalSidebar({
               title={t(item.labelKey)}
               onClick={() => onSectionChange(item.id)}
               className={cn(
-                "relative flex h-10 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] font-normal text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring",
+                "ui-nav-item relative flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] font-normal text-muted-foreground",
                 !compact && "lg:justify-start lg:px-2.5",
-                "hover:bg-muted/60 hover:text-foreground",
+                "hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
                 isActive &&
-                  "bg-[var(--color-surface-selected)] font-medium text-primary lg:before:absolute lg:before:-left-3 lg:before:inset-y-2 lg:before:w-[3px] lg:before:rounded-r-[3px] lg:before:bg-primary lg:before:content-['']",
+                  "font-medium text-primary",
               )}
             >
               <Icon
@@ -72,7 +72,7 @@ export function GlobalSidebar({
         <button
           type="button"
           title={t("nav.help")}
-          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground", !compact && "lg:justify-start lg:px-2.5")}
+          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", !compact && "lg:justify-start lg:px-2.5")}
         >
           <HelpCircle className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
           <span className={compact ? "hidden" : "hidden lg:inline"}>{t("nav.help")}</span>
@@ -80,7 +80,7 @@ export function GlobalSidebar({
         <button
           type="button"
           title={t("nav.profile")}
-          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-[7px] text-[13.5px] text-muted-foreground hover:bg-muted/60 hover:text-foreground", !compact && "lg:justify-start lg:px-2.5")}
+          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", !compact && "lg:justify-start lg:px-2.5")}
         >
           <Settings className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
           <span className={compact ? "hidden" : "hidden lg:inline"}>{t("nav.profile")}</span>

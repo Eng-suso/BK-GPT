@@ -3,6 +3,7 @@ import {
   BrainCircuit,
   Check,
   CheckCircle2,
+  ChevronDown,
   CircleHelp,
   Copy,
   DraftingCompass,
@@ -95,6 +96,70 @@ function ActivityIcon({ icon, running }: { icon?: string; running: boolean }) {
  * che scorre: e' l'informazione che mancava quando l'agente restava zitto per
  * venti secondi dentro una ricerca in memoria.
  */
+function ActivityDisclosure({
+  activity,
+  label,
+  hasBody,
+}: {
+  activity: AgentActivity[];
+  label: string;
+  hasBody: boolean;
+}): React.JSX.Element {
+  const panelId = React.useId();
+  const running = activity.some((item) => item.status === "running");
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [running]);
+  const startedAt = Math.min(...activity.map((item) => item.startedAtMs));
+  const endedAt = running
+    ? now
+    : Math.max(...activity.map((item) => item.endedAtMs ?? item.startedAtMs));
+  const totalElapsed = formatElapsed(Math.max(0, endedAt - startedAt));
+  const [choice, setChoice] = React.useState<{ hasBody: boolean; open: boolean } | null>(null);
+  if (choice && choice.hasBody !== hasBody) {
+    setChoice(null);
+  }
+  // A manual choice belongs to this phase. The first response text starts a
+  // new phase, collapsing once without fighting subsequent manual toggles.
+  const open = choice?.hasBody === hasBody ? choice.open : !hasBody;
+
+  return (
+    <div className="mb-3">
+      <button
+        type="button"
+        className="flex min-h-9 w-full items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setChoice({ hasBody, open: !open })}
+      >
+        <BrainCircuit className="size-3.5 flex-none" aria-hidden="true" />
+        <span className="min-w-0 flex-1">{label}</span>
+        <span className="flex-none tabular-nums">{totalElapsed}</span>
+        <ChevronDown
+          className={cn("size-4 flex-none transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")}
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        id={panelId}
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <ActivityTimeline activity={activity} label={label} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ActivityTimeline({
   activity,
   label,
@@ -238,9 +303,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
 
         {message.activity && message.activity.length > 0 ? (
-          <ActivityTimeline
+          <ActivityDisclosure
             activity={message.activity}
             label={t("status.progressLabel")}
+            hasBody={hasBody}
           />
         ) : null}
 
@@ -265,7 +331,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </span>
         ) : null}
       </div>
-      <div className="whitespace-pre-wrap rounded-lg border border-border bg-muted px-3 py-2 text-sm leading-relaxed text-foreground">
+      <div className="user-message-glass whitespace-pre-wrap px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
         {message.content}
       </div>
     </div>

@@ -83,7 +83,7 @@ export function ScenarioBuilderPage(): React.JSX.Element {
             {activeRun?.status === "completed" && <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.projects.simulation(projectId, processId, "overview"))}>{t("simulation.workspace.viewResults")}</Button>}
           </div>
         </header>
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto rounded-lg border border-border bg-card">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto ui-surface ui-surface-panel">
         {templateLoading ? (
           <div className="grid gap-3">
             <Skeleton className="h-24 w-full" />

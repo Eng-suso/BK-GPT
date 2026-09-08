@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { InlineNotice } from "@/components/feedback";
+import { Button } from "@/ui/button";
 
 import { API_BASE } from "@/lib/api";
 import {
@@ -35,6 +38,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   layout = "standalone",
   scope = DEFAULT_SCOPE,
 }) => {
+  const { t } = useTranslation("chat");
   const [selectedModel, setSelectedModel] = useState("gpt-5.6-luna");
   // The working mode is per-conversation, not per-thread: switching it changes what
   // the next message is allowed to do, and must not fork the session.
@@ -89,8 +93,12 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     ? sessions.activeSession.title
     : titleForScope(scope);
 
-  const offlineMessage = stream.streamError ?? sessions.offlineMessage;
-  const isOffline = Boolean(stream.streamError) || sessions.isOffline;
+  // PROCESS-V2-14: due guasti diversi finivano nello stesso avviso, e un turno
+  // che non ha chiuso veniva raccontato come backend irraggiungibile. Il
+  // consulente andava a cercare un server spento mentre il problema era il giro
+  // di lavoro precedente ancora in corso. Sono due cose, e si dicono separate.
+  const turnError = stream.streamError;
+  const historyUnavailable = sessions.isOffline ? sessions.offlineMessage : null;
 
   return (
     <>
@@ -142,24 +150,55 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         onModelChange={setSelectedModel}
         reviewSlot={
           <>
-            {isOffline && offlineMessage ? (
-              <section className="api-status-card" role="status">
-                <strong>Backend scollegato</strong>
-                <p>{offlineMessage}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    stream.clearStreamError();
-                    sessions.retrySessions();
-                  }}
-                >
-                  Riprova ora
-                </button>
-              </section>
+            {turnError ? (
+              <InlineNotice
+                className="chat-service-notice"
+                tone="error"
+                title={t("status.requestFailed")}
+                action={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      stream.clearStreamError();
+                      if (stream.lastUserPrompt)
+                        void stream.sendMessage(
+                          stream.lastUserPrompt,
+                          stream.lastUserAttachments,
+                        );
+                    }}
+                  >
+                    {t("actions.retry")}
+                  </Button>
+                }
+              >
+                {turnError}
+              </InlineNotice>
+            ) : null}
+            {historyUnavailable ? (
+              <InlineNotice
+                className="chat-service-notice"
+                tone="warning"
+                title={t("status.historyUnavailable")}
+                action={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => sessions.retrySessions()}
+                  >
+                    {t("actions.retry")}
+                  </Button>
+                }
+              >
+                {t("status.historyUnavailableBody")}
+              </InlineNotice>
             ) : null}
             {review.review ? (
               <BpmnReviewCard
                 review={review.review}
+                isStale={Boolean(turnError)}
                 onOpen={() => setIsReviewOpen(true)}
               />
             ) : null}

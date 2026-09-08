@@ -1,14 +1,17 @@
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from backend.schemas.chat import (
-    DEFAULT_CHAT_MODE,
     MAX_CHAT_ATTACHMENTS,
     ChatAttachment,
-    ChatMode,
     ChatScope,
 )
+
+
+# Public requests must match the modes enforced by the current router and write
+# guard. Scope-specific modes are not wired through that runtime yet.
+RequestChatMode = Literal["plan", "edit", "agent"]
 
 
 class ChatRequest(BaseModel):
@@ -18,7 +21,7 @@ class ChatRequest(BaseModel):
     scope: ChatScope | None = None
     # How much of the workflow the user is handing over this turn. Per-request, not
     # per-thread: switching mode must not fork the conversation.
-    mode: ChatMode = DEFAULT_CHAT_MODE
+    mode: RequestChatMode = "agent"
     attachments: list[ChatAttachment] = Field(
         default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
     )
@@ -80,7 +83,7 @@ class SendMessageRequest(BaseModel):
     message: str
     model_name: str | None = None
     scope: ChatScope | None = None
-    mode: ChatMode = DEFAULT_CHAT_MODE
+    mode: RequestChatMode = "agent"
     # Il cap non e' difesa dal client: oltre un pugno di allegati il turno
     # diventa un dump e il modello smette di leggerli.
     attachments: list[ChatAttachment] = Field(

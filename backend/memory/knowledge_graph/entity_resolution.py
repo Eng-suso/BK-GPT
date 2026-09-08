@@ -151,12 +151,30 @@ class _Verdict(BaseModel):
 # --------------------------------------------------------------------------- #
 
 
+# Il merge per somiglianza si ferma al confine dell'incarico. L'identita' per
+# nome esatto resta client-level (e' l'unique index su kg_entity: la stessa
+# persona che compare in due progetti dello stesso cliente e' una riga sola, e
+# accumula la provenance di entrambi). Quello che non deve piu' succedere e'
+# che un nome *simile* di un altro progetto venga giudicato la stessa entita':
+# la' non c'e' un'identita' certa, c'e' un'omonimia, e fonderla trasferisce
+# attributi da un incarico all'altro (PROCESS-V2-10). Cosa la Process Chat
+# possa poi leggere di quell'entita' lo decide il gateway per provenance.
+# Le entita' senza progetto restano fondibili: sono conoscenza di cliente
+# (cutover, ingestion client-level), non l'identita' di un altro incarico. Una
+# scrittura client-level, a sua volta, si ferma su quelle.
+_SAME_PROJECT = (
+    " AND (project_id IS NULL "
+    "     OR project_id IS NOT DISTINCT FROM CAST(:pj AS uuid)) "
+)
+
+
 def _exact(
     session: Session,
     client_id: str,
     norm_name: str,
     entity_type: str,
     exclude_id: str | None,
+    project_id: str | None,
 ) -> Match | None:
     rows = session.execute(
         text(
@@ -166,11 +184,17 @@ def _exact(
             "WHERE client_id = :cl AND status = 'active' "
             "  AND id <> CAST(:excl AS uuid) "
             "  AND (lower(canonical_name) = :n OR aliases @> ARRAY[:n]) "
+            + _SAME_PROJECT +
             # nome esatto prima dell'alias
             "ORDER BY name_hit DESC "
             "LIMIT 10"
         ),
-        {"cl": client_id, "n": norm_name, "excl": exclude_id or _NIL_UUID},
+        {
+            "cl": client_id,
+            "n": norm_name,
+            "excl": exclude_id or _NIL_UUID,
+            "pj": str(project_id) if project_id else None,
+        },
     ).all()
     for row in rows:
         if types_compatible(entity_type, row.entity_type):
@@ -189,10 +213,16 @@ def _candidates(
     name_vec: str | None,
     entity_type: str,
     exclude_id: str | None = None,
+    project_id: str | None = None,
 ) -> list[Candidate]:
     by_id: dict[str, Candidate] = {}
-    common = {"cl": client_id, "n": norm_name, "excl": exclude_id or _NIL_UUID}
-    not_self = "AND id <> CAST(:excl AS uuid) "
+    common = {
+        "cl": client_id,
+        "n": norm_name,
+        "excl": exclude_id or _NIL_UUID,
+        "pj": str(project_id) if project_id else None,
+    }
+    not_self = "AND id <> CAST(:excl AS uuid) " + _SAME_PROJECT
 
     trgm_rows = session.execute(
         text(
@@ -406,6 +436,7 @@ def shortlist(
     name: str,
     name_vec: str | None = None,
     exclude_entity_id: str | None = None,
+    project_id: str | None = None,
 ) -> Shortlist:
     """Lookup deterministico per un nome (match esatto + candidati fuzzy).
 
@@ -419,11 +450,11 @@ def shortlist(
         return _EMPTY_SHORTLIST
     etype = (entity_type or _OTHER).strip().lower() or _OTHER
 
-    exact = _exact(session, str(client_id), norm_name, etype, exclude_entity_id)
+    exact = _exact(session, str(client_id), norm_name, etype, exclude_entity_id, project_id)
     if exact is not None:
         return Shortlist(exact=exact, candidates=())
     candidates = _candidates(
-        session, str(client_id), norm_name, name_vec, etype, exclude_entity_id
+        session, str(client_id), norm_name, name_vec, etype, exclude_entity_id, project_id
     )
     return Shortlist(exact=None, candidates=tuple(candidates))
 
@@ -458,6 +489,7 @@ def find_match(
     exclude_entity_id: str | None = None,
     llm: Any | None = None,
     use_llm: bool = True,
+    project_id: str | None = None,
 ) -> Match | None:
     """Lookup + giudizio in un colpo solo, per una singola entita' (test, chiamate
     puntuali). Per un batch usare `plan_resolution` (chiude la sessione prima
@@ -470,6 +502,7 @@ def find_match(
         name=name,
         name_vec=name_vec,
         exclude_entity_id=exclude_entity_id,
+        project_id=project_id,
     )
     model = llm if llm is not None else (build_llm() if use_llm else None)
     return decide(sl, name=name, entity_type=entity_type, context=context, llm=model)
@@ -495,6 +528,7 @@ def plan_resolution(
     *,
     context: str | None = None,
     llm: Any | None = None,
+    project_id: str | None = None,
 ) -> ResolutionPlan:
     """Risolve un insieme di nomi entita' PRIMA della transazione di scrittura.
 
@@ -528,6 +562,7 @@ def plan_resolution(
                     entity_type=_OTHER,
                     name=display,
                     name_vec=name_vectors.get(key),
+                    project_id=project_id,
                 )
                 for key, display in uniq.items()
             }

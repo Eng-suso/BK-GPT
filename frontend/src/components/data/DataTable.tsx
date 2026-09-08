@@ -87,7 +87,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card",
+        "ui-surface ui-surface-panel flex min-h-0 flex-1 flex-col overflow-hidden",
         className,
       )}
     >
@@ -111,7 +111,7 @@ export function DataTable<T>({
                               ? "descending"
                               : "none"
                       }
-                      className="h-auto bg-card px-4 py-3 text-micro font-semibold tracking-[0.04em] text-muted-foreground uppercase"
+                      className="h-auto ui-surface-toolbar px-4 py-3 text-micro font-semibold tracking-[0.04em] text-muted-foreground uppercase"
                     >
                       {canSort ? (
                         <button
@@ -211,7 +211,7 @@ export function DataTable<T>({
       </div>
 
       {footer && (
-        <div className="flex items-center justify-between border-t border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between border-t border-border ui-surface-toolbar px-4 py-3 text-xs text-muted-foreground">
           {footer}
         </div>
       )}

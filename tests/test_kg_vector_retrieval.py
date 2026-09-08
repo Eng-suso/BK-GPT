@@ -147,6 +147,8 @@ def test_vector_seed_recovers_entity_not_named_in_query(scope, wait_projected):
             client_id=scope["client"],
             query="cosa succede se un cliente supera il limite di fido?",
             process_id=scope["process"],
+            scope_project_id=scope["project"],
+            scope_process_id=scope["process"],
             limit=25,
         )
 
@@ -174,6 +176,7 @@ def test_vector_seed_is_client_scoped(scope):
         consultant_id=scope["consultant"],
         client_id=str(uuid.uuid4()),  # cliente diverso
         query="qual e' il margine sul prodotto X?",
+        allow_client_wide=True,
     )
     assert result["chunks"] == []
     assert result["matches"] == []
@@ -209,6 +212,8 @@ def test_lexical_arm_works_without_embedder(scope, monkeypatch, wait_projected):
             client_id=scope["client"],
             query="chi delibera sullo sconfinamento del plafond?",
             process_id=scope["process"],
+            scope_project_id=scope["project"],
+            scope_process_id=scope["process"],
         )
 
     target = ("Comitato fidi", "AUTORIZZA", "Ufficio crediti")
@@ -243,6 +248,8 @@ def test_hybrid_fuses_lexical_and_vector(scope, wait_projected):
             client_id=scope["client"],
             query="cosa succede quando un cliente supera il limite di fido?",
             process_id=scope["process"],
+            scope_project_id=scope["project"],
+            scope_process_id=scope["process"],
         )
 
     def _fused(r: dict) -> list:
@@ -280,6 +287,7 @@ def test_rerank_reorders_context_chunks_when_enabled(scope, wait_projected, monk
             consultant_id=scope["consultant"], client_id=scope["client"],
             query="chi autorizza il rilascio in caso di sconfinamento?",
             process_id=scope["process"], limit=30,
+            scope_project_id=scope["project"], scope_process_id=scope["process"],
         )
 
     assert wait_projected(lambda: len(_q()["chunks"]) >= 2)

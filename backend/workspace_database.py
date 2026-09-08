@@ -1737,6 +1737,41 @@ def list_project_sources(project_id: str) -> list[dict]:
         return [source_to_dict(source) for source in sources]
 
 
+def get_project_source(source_id: str) -> dict | None:
+    """La fonte, per id, dentro il tenant corrente.
+
+    Args:
+        source_id: Id della fonte, non affidabile.
+
+    Returns:
+        Il record della fonte, o ``None`` se non esiste in questo tenant.
+
+    Sola lettura.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        return source_to_dict(source) if source is not None else None
+
+
+def _assert_source_scope(project_id: str, process_id: str | None) -> None:
+    """Una fonte non puo' essere registrata fuori dallo scope del turno.
+
+    L'evidenza raccolta in chat ha due destinazioni: la memoria episodica e il
+    pannello Fonti. Isolare solo la prima lascerebbe il buco piu' visibile dei
+    due - l'evidenza finisce nel processo giusto, ma la fonte compare nel
+    pannello di un altro incarico, dove qualcuno la aprira' credendola sua.
+    Qui il vincolo vale prima della scrittura, per ogni chiamante: il tool
+    `save_process_evidence` deriva il progetto dal process_id che gli passa
+    l'LLM, quindi controllare il solo progetto non basterebbe.
+
+    No-op fuori da un agent run (worker, cutover, test).
+    """
+    from backend.agents.scope_guard import assert_process_in_scope, assert_project_in_scope
+
+    assert_project_in_scope(project_id)
+    assert_process_in_scope(process_id)
+
+
 def create_project_source(
     project_id: str,
     name: str,
@@ -1744,6 +1779,7 @@ def create_project_source(
     meta: str = "",
     process_id: str | None = None,
 ) -> dict:
+    _assert_source_scope(project_id, process_id)
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
         if tenant_row(session, WorkspaceProject, project_id) is None:
@@ -1796,9 +1832,12 @@ def ensure_project_source(
 
     Raises:
         ValueError: Se il progetto non esiste o il processo non e' suo.
+        ScopeViolation: Se progetto o processo non sono quelli autorizzati per
+            il turno di chat corrente.
 
     Scrive nel workspace solo quando la fonte non esiste.
     """
+    _assert_source_scope(project_id, process_id)
     cleaned_name = name.strip()
     with workspace_connection() as session:
         if tenant_row(session, WorkspaceProject, project_id) is None:

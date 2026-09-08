@@ -97,7 +97,12 @@
       "noNotes": "No notes recorded",
       "identifier": "Identifier",
       "reference": "DeliR keeps the reference to the source and what was extracted from it, not the original file.",
-      "openProcess": "Open linked process"
+      "openProcess": "Open linked process",
+      "participants": "Present",
+      "summaryHeading": "Summary",
+      "contentHeading": "Source text",
+      "contentLoading": "Loading the source text...",
+      "noContent": "This source has no full text on record."
     },
     "decisions": {
       "empty": "No decisions recorded"

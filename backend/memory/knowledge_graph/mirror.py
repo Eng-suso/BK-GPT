@@ -22,6 +22,7 @@ import logging
 from typing import Any
 
 from backend.agents.scope_guard import ScopeViolation
+from backend.memory import provenance
 from backend.memory import scope as scope_module
 from backend.memory.knowledge_graph import canonical
 from backend.services import degradation_counters
@@ -120,6 +121,12 @@ def mirror_evidence(
         }
         for r in relationships or []
     ]
+    # La provenance del singolo claim viaggia fino in fondo: chi lo dice, con
+    # quali parole, per quale perimetro. Prima si fermava qui — il tool la
+    # chiedeva all'LLM e questo dict la buttava via, quindi ogni attribuzione a
+    # valle era una ricostruzione dal testo. E' la causa comune dei difetti V3
+    # su attribuzione incrociata, audit di provenance e linguaggio troppo forte
+    # su fonte singola.
     claim_dicts = [
         {
             "statement": _get(c, "claim"),
@@ -127,6 +134,15 @@ def mirror_evidence(
             "claim_status": _get(c, "status", "partial"),
             "linked_element_hint": _get(c, "linked_element_hint"),
             "confidence": _conf(_get(c, "confidence")),
+            "source_name": _get(c, "source_name", "") or source_title or "",
+            "attributed_to": _get(c, "attributed_to", "") or "",
+            "topic": _get(c, "topic", "") or "",
+            "assertion": _get(c, "assertion", "") or "",
+            "qualifiers": list(_get(c, "qualifiers", []) or []),
+            "quote": _get(c, "quote", "") or "",
+            "scope_label": _get(c, "scope_label", "") or "",
+            "scope_level": _get(c, "scope_level", "stated_scope") or "stated_scope",
+            "epistemic_status": _get(c, "epistemic_status", "reported") or "reported",
         }
         for c in claims or []
     ]
@@ -140,16 +156,25 @@ def mirror_evidence(
         }
         for g in gaps or []
     ]
-    contra_dicts = [
-        {
-            "title": _get(c, "title"),
-            "conflicting_statements": list(_get(c, "conflicting_claims", []) or []),
-            "resolution_question": _get(c, "resolution_question", ""),
-            "severity": _get(c, "severity", "medium"),
-            "affected_process_ids": _canon_processes(_get(c, "affected_process_ids")),
-        }
-        for c in contradictions or []
-    ]
+    # Il tipo di divergenza non e' quello dichiarato ma quello che le posizioni
+    # in campo permettono: `classify_divergence` puo' solo declassare. Senza
+    # questo, ogni differenza di prospettiva finiva scritta come contraddizione.
+    contra_dicts = []
+    for c in contradictions or []:
+        verdict = provenance.classify_divergence(
+            _get(c, "divergence_type", "tension_to_explore"),
+            _get(c, "stances", []) or [],
+        )
+        contra_dicts.append(
+            {
+                "title": _get(c, "title"),
+                "conflicting_statements": list(_get(c, "conflicting_claims", []) or []),
+                "resolution_question": _get(c, "resolution_question", ""),
+                "severity": _get(c, "severity", "medium"),
+                "divergence_type": verdict.effective,
+                "affected_process_ids": _canon_processes(_get(c, "affected_process_ids")),
+            }
+        )
     impact_dicts = [
         {
             "title": _get(i, "title"),

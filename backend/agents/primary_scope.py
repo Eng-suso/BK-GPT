@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from backend.agents.attachments import build_attachments_prompt, resolve_attachments
+from backend.agents.evidence_brief import evidence_prompt_block
 from backend.agents.product_language import PRODUCT_LANGUAGE_CONTRACT
 from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
@@ -213,6 +214,13 @@ def build_scope_system_prompt(state: dict) -> str:
         lines.append(f"project_next_step: {state['next_step']}")
     if state.get("process_name"):
         lines.append(f"process_name: {state['process_name']}")
+
+    # PROCESS-V2-11/13: il registro dell'evidenza arrivava al solo nodo che
+    # scrive la risposta. Ogni specialista - quello che pianifica il BPMN per
+    # primo - apriva la sua passata senza vederlo, e ricominciava dal nome del
+    # processo come se le interviste non fossero mai state fatte. Sta qui perche'
+    # qui lo leggono tutti: e' il prompt di scope, non il prompt di un nodo.
+    lines.extend(evidence_prompt_block(state))
 
     if scope_type == "project":
         processes = state.get("project_processes") or []

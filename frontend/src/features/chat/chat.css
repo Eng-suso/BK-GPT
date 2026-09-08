@@ -1,7 +1,6 @@
 /*
- * Chat surface styles — de-glassed for the enterprise direction: no
- * backdrop-filter, no ambient gradients, solid token surfaces, tight focus
- * rings. Step P1: ported off raw px onto the --space / --font-size / --radius
+ * Chat surface styles: operational layouts with shared glass controls and
+ * lightly tinted user messages. Ported onto the --space / --font-size / --radius
  * token scale, and collapsed the old double gutter (padding + inner
  * calc(100% - 48px)) into one --chat-gutter.
  *
@@ -29,7 +28,7 @@
   padding: 0;
   display: block;
   overflow: hidden;
-  background: var(--color-surface-app);
+  background: transparent;
 }
 
 .shell {
@@ -42,7 +41,7 @@
      e' `auto` e cresce fino al max-content dei messaggi, spingendo il composer
      fuori dall'area visibile (la shell ha overflow: hidden, quindi sparisce). */
   grid-template-rows: minmax(0, 100%);
-  background: var(--color-surface-app);
+  background: transparent;
   overflow: hidden;
   border: none;
   border-radius: 0;
@@ -58,7 +57,7 @@
 .viewport-embedded .shell {
   width: 100%;
   height: 100%;
-  background: var(--color-surface-app);
+  background: transparent;
 }
 
 .viewport-embedded .chat-shell-embedded { grid-template-columns: minmax(0, 1fr); }
@@ -68,7 +67,7 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-primary);
+  background: var(--material-rail);
   border-right: 1px solid var(--color-border-subtle);
   padding: var(--space-400) var(--space-300);
   min-width: 0;
@@ -79,7 +78,7 @@
 .main {
   display: flex;
   flex-direction: column;
-  background: var(--color-surface-app);
+  background: transparent;
   height: 100%;
   min-height: 0;
   min-width: 0;
@@ -93,7 +92,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-400);
-  background: var(--color-surface-primary);
+  background: var(--material-toolbar);
   border-bottom: 1px solid var(--color-border-subtle);
   flex-shrink: 0;
 }
@@ -152,6 +151,27 @@
 /* One shared cap for the user bubble across both surfaces (was 75 / 82 / 86%). */
 .message.user {
   max-width: min(82%, 40rem);
+}
+
+.user-message-glass {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--glass-border);
+  border-radius: 18px 18px 6px 18px;
+  background-color: var(--material-panel);
+  background-image: var(--glass-sheen);
+  box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(12px) saturate(1.35);
+  backdrop-filter: blur(12px) saturate(1.35);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .user-message-glass {
+    background: var(--color-surface-primary);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -263,26 +283,27 @@
 .composer-box {
   width: min(100%, var(--chat-measure));
   margin-inline: auto;
-  background: var(--color-surface-primary);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-300);
-  padding: var(--space-300) var(--space-300) var(--space-200);
-  box-shadow: none;
+  background: var(--material-panel);
+  border: 1px solid var(--material-edge);
+  border-radius: var(--material-radius-frame);
+  padding: var(--space-400);
+  box-shadow: var(--material-shadow);
   display: flex;
   flex-direction: column;
-  gap: var(--space-200);
+  gap: var(--space-400);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .composer-box:focus-within {
-  border-color: var(--color-border-selected);
-  box-shadow: 0 0 0 var(--border-width-200)
-    color-mix(in srgb, var(--color-border-selected) 28%, transparent);
+  border-color: var(--material-edge);
+  outline: 2px solid color-mix(in srgb, var(--color-border-selected) 70%, transparent);
+  outline-offset: 6px;
+  box-shadow: var(--material-shadow);
 }
 
 .composer-bottom-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-300);
   padding-top: var(--space-100);
@@ -290,9 +311,14 @@
 
 .composer-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--space-200);
   margin-left: auto;
+}
+
+.composer-submit-control {
+  width: 5.5rem;
+  min-width: 5.5rem;
 }
 
 .composer-bottom-left {
@@ -482,7 +508,7 @@
 .chat-mode-trigger:hover:not(:disabled),
 .chat-mode-trigger[data-state="open"] {
   color: var(--color-text-primary);
-  background: var(--color-surface-muted);
+  background-color: var(--glass-surface-hover);
 }
 
 .chat-mode-trigger svg {
@@ -607,6 +633,11 @@
 /* Ultima cosa a cedere: l'etichetta di Invia. La freccia resta, e il nome
    accessibile e' comunque sul bottone. */
 @container composer-wrap (max-width: 320px) {
+  .composer-submit-control {
+    min-width: 2rem;
+    width: 2rem;
+  }
+
   .composer-actions .btn-send span {
     display: none;
   }
@@ -1479,6 +1510,14 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   box-shadow: var(--shadow-card);
 }
 
+/* Il piano c'e' ancora ma non e' il risultato dell'ultimo tentativo: si smorza,
+   cosi' non compete visivamente con l'errore che sta sopra. */
+.bpmn-review-card.is-stale {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+  box-shadow: none;
+}
+
 .bpmn-review-card-icon,
 .bpmn-review-sheet-icon {
   display: grid;
@@ -2080,7 +2119,11 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   display: flex;
   flex-direction: column;
   gap: var(--space-400);
-  margin-top: var(--space-400);
+  margin: var(--space-400) 0 0;
+  padding: 0;
+  /* La numerazione la stampa il markup, non il browser: deve restare allineata
+     alle scorciatoie da tastiera anche quando l'elenco viene riordinato. */
+  list-style: none;
 }
 
 .review-question + .review-question {
@@ -2094,6 +2137,13 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   font-size: var(--font-size-200);
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.review-question-position {
+  margin-right: var(--space-200);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
 }
 
 .review-question-badge {
@@ -2157,6 +2207,24 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   overflow-wrap: anywhere;
 }
 
+/* Il numero della scorciatoia. Sta nella riga, non fuori: e' cio' che si preme,
+   quindi deve essere leggibile insieme all'etichetta che sceglie. */
+.review-question-option-index {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 18px;
+  min-block-size: 18px;
+  margin-right: var(--space-100);
+  border-radius: var(--radius-200);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
 .review-question-option small {
   display: block;
   margin-top: 2px;
@@ -2166,29 +2234,12 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   overflow-wrap: anywhere;
 }
 
-/* La via d'uscita: un'alternativa proposta che non calza non deve mai
-   essere l'unico modo di rispondere. */
-.review-question-escape {
-  display: inline-flex;
-  align-items: center;
-  margin-top: var(--space-100);
-  /* WCAG 2.2 SC 2.5.8: 24x24 minimo. Da link inline era alto 20px. */
-  min-block-size: 24px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--color-action-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--font-size-200);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.review-question-escape:focus-visible {
-  outline: var(--border-width-200) solid var(--color-border-selected);
-  outline-offset: 2px;
-  border-radius: var(--radius-200);
+/* La via d'uscita: un'alternativa proposta che non calza non deve mai essere
+   l'unico modo di rispondere. Sta nell'elenco come le altre, ultima e
+   numerata, perche' scriverla e' una scelta pari alle altre - non un ripiego
+   nascosto sotto. */
+.review-question-option-other {
+  border-style: dashed;
 }
 
 .review-question-own {
@@ -2210,10 +2261,9 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
 }
 
 .review-question-own input:focus-visible {
-  outline: none;
   border-color: var(--color-border-selected);
-  box-shadow: 0 0 0 var(--border-width-200)
-    color-mix(in srgb, var(--color-border-selected) 28%, transparent);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
 }
 
 /* Conversation workspace: readable messages and controls at every panel width. */
@@ -2391,4 +2441,10 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   padding: 0;
   border: none;
   box-shadow: none;
+}
+
+/* Status feedback follows the same reading measure as the conversation. */
+.chat-service-notice {
+  width: min(100%, var(--chat-measure));
+  margin: 16px auto;
 }

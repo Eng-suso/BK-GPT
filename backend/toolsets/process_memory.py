@@ -1,9 +1,11 @@
+from typing import Literal
+
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
 from backend.agents.scope_guard import ScopeViolation
-from backend.memory import gateway
+from backend.memory import gateway, provenance
 from backend.memory import scope as canonical_scope
 from backend.memory.episodic import episodic_store
 from backend.memory.knowledge_graph import mirror
@@ -15,6 +17,7 @@ from backend.memory.knowledge_graph.models import (
     KnowledgeGraphRelationship,
 )
 from backend.services import degradation_counters
+from backend.settings import settings
 from backend.toolsets.workspace import enterprise_tool_result
 from backend.workspace_defaults import evidence_type_label
 
@@ -108,6 +111,9 @@ class ManageProcessEvidenceInput(BaseModel):
         description=(
             "Process evidence lifecycle operation. Use list/search/inspect to retrieve process evidence; "
             "use save_interview or save_episode to store source-backed evidence with optional enterprise KG extraction; "
+            "use ledger to read every recorded claim with who states it and a runtime-computed support level; "
+            "use provenance to trace claim -> source -> the original excerpt verbatim, which is how you answer "
+            "'where does this come from' - never with a new synthesis; "
             "use update_metadata for labels; use archive for normal removal from active retrieval; "
             "use restore to reactivate; use delete only after explicit destructive confirmation."
         )
@@ -136,11 +142,22 @@ class ManageProcessEvidenceInput(BaseModel):
     reason: str = Field(default="", description="Why this lifecycle action is being taken, especially archive/delete.")
     limit: int = Field(default=10, ge=1, le=50, description="Maximum evidence records to return.")
     include_source_text: bool = Field(default=False, description="For inspect: include raw source text when needed.")
+    claim_ids: list[str] = Field(
+        default_factory=list,
+        description="For provenance: specific claim_ids returned by a previous ledger call.",
+    )
     confirm_destructive_action: bool = Field(default=False, description="Required for hard delete. Prefer archive for ordinary removal.")
     delete_raw_source: bool = Field(default=False, description="Also delete local raw source file during confirmed hard delete.")
 
 
 def _require_process(project_id: str, process_id: str) -> dict:
+    # G3: dentro un turno di chat processo, l'id del processo e' quello
+    # autorizzato per il thread - non uno scelto dall'LLM fra quelli del
+    # progetto. Fuori da un run (worker, test) e' un no-op.
+    from backend.agents.scope_guard import assert_process_in_scope
+
+    assert_process_in_scope(process_id)
+
     process = workspace_database.get_process(process_id)
     if process is None:
         raise ValueError(f"Processo non trovato: {process_id}")
@@ -150,11 +167,25 @@ def _require_process(project_id: str, process_id: str) -> dict:
 
 
 def _scope_items_to_process(items: list, process_id: str) -> list:
+    """Riporta gap/contraddizioni/impatti al processo del turno.
+
+    Un elenco vuoto di processi interessati significa "questo processo", non
+    "nessuno": trattarlo come nessuno faceva sparire in silenzio ogni
+    contraddizione e ogni lacuna che il modello non avesse esplicitamente
+    indirizzato — e l'unico posto dove il consulente se ne sarebbe accorto era
+    il turno dopo, quando la cosa risultava mai emersa.
+
+    Un elenco che nomina solo processi diversi da questo resta escluso: lo
+    scope del turno e' un confine, non un suggerimento.
+    """
     scoped = []
     for item in items or []:
         affected = getattr(item, "affected_process_ids", None)
         if affected is None:
             scoped.append(item)
+            continue
+        if not affected:
+            scoped.append(item.model_copy(update={"affected_process_ids": [process_id]}))
             continue
         filtered = [value for value in affected if value == process_id]
         if filtered:
@@ -313,6 +344,7 @@ def _save_process_episode_payload(
         insights=insights or [],
         participants=participants or [],
         project=project_id,
+        process_id=process_id,
         tags=_process_episode_tags(
             project_id=project_id,
             process_id=process_id,
@@ -486,8 +518,14 @@ def _process_evidence_or_scope_error(
         return None, "Process evidence not found."
     if evidence.get("project") != project_id:
         return evidence, f"Evidence {evidence.get('episode_id')} does not belong to project {project_id}."
-    tags = episodic_store.normalize_list(evidence.get("tags"))
-    if f"process:{process_id}" not in tags:
+    stored_process = evidence.get("process_id")
+    # Colonna se c'e', altrimenti il tag degli episodi anteriori alla 0007.
+    belongs = (
+        stored_process == process_id
+        if stored_process
+        else f"process:{process_id}" in episodic_store.normalize_list(evidence.get("tags"))
+    )
+    if not belongs:
         return evidence, f"Evidence {evidence.get('episode_id')} does not belong to process {process_id}."
     return evidence, None
 
@@ -519,6 +557,7 @@ def manage_process_evidence(
     reason: str = "",
     limit: int = 10,
     include_source_text: bool = False,
+    claim_ids: list[str] | None = None,
     confirm_destructive_action: bool = False,
     delete_raw_source: bool = False,
 ) -> str:
@@ -527,17 +566,37 @@ def manage_process_evidence(
     of separate CRUD-style tools when the Process Agent or Evidence subagent needs
     to list, inspect, save, update, archive, restore or explicitly delete process
     interviews/episodes. Saves preserve the existing enterprise KG indexing path.
+
+    Two read operations answer for the evidence rather than about it: `ledger`
+    returns every recorded claim with who states it, the scope it covers and a
+    support level computed by the runtime; `provenance` returns claim -> source
+    -> the original excerpt. Read them before saying something is missing,
+    before saying two sources agree, and whenever asked where a statement comes
+    from. Support levels come back computed - report them, do not assert them.
     """
     process = _require_process(project_id, process_id)
     normalized_operation = operation.strip().lower()
     normalized_status = status if status in {"active", "archived", "any"} else "active"
-    scoped_query = " ".join([query, f"process:{process_id}"]).strip()
+
+    if normalized_operation in {"ledger", "provenance"}:
+        return audit_process_evidence(
+            operation=normalized_operation,
+            project_id=project_id,
+            process_id=process_id,
+            process_name=process["name"],
+            query=query,
+            claim_ids=claim_ids,
+            limit=max(limit, 40),
+        )
 
     if normalized_operation in {"list", "search"}:
+        # Lo scope e' un argomento, non un termine appeso alla query: prima si
+        # delimita l'evidenza del processo, poi eventualmente ci si cerca dentro.
         evidence = episodic_store.list_episode_memory(
             project=project_id,
+            process_id=process_id,
             episode_type=episode_type,
-            query=scoped_query,
+            query=query,
             status=normalized_status,
             limit=limit,
         )
@@ -629,6 +688,7 @@ def manage_process_evidence(
             insights=insights if insights else None,
             participants=participants if participants else None,
             project=project_id,
+            process_id=process_id,
             tags=_process_episode_tags(
                 project_id=project_id,
                 process_id=process_id,
@@ -851,7 +911,13 @@ def _canonical_graph_context(
     limit: int,
 ) -> dict | None:
     """Lettura dal grafo canonical via gateway (INV-9). Best-effort: None se
-    il canonical non e' configurato o lo scope non si risolve."""
+    il canonical non e' configurato o lo scope non si risolve.
+
+    Lo scope non e' opzionale: una Process Chat legge l'evidenza del proprio
+    processo (piu' quella project-level), mai quella di un altro processo dello
+    stesso cliente. Se il processo non si risolve in canonical, la lettura non
+    viene fatta - meglio niente contesto che il contesto di qualcun altro.
+    """
     if not gateway.graph_available():
         return None
     try:
@@ -866,9 +932,211 @@ def _canonical_graph_context(
         query=query,
         entity_names=entities or [],
         process_id=s.process_id,
+        scope_project_id=s.project_id,
+        scope_process_id=s.process_id,
         relation_focus=relation_focus,
         limit=limit,
     )
+
+
+# Quanto testo attorno alla citazione si riporta nell'audit: abbastanza da
+# leggere la frase nel suo contesto, non tanto da rimettere in circolo il
+# transcript intero.
+_EXCERPT_WINDOW = 320
+
+
+def _episode_texts(project_id: str, process_id: str) -> dict[str, str]:
+    """`titolo fonte normalizzato -> testo grezzo` delle evidenze del processo."""
+    texts: dict[str, str] = {}
+    for episode in episodic_store.list_episode_memory(
+        project=project_id, process_id=process_id, status="active", limit=100
+    ):
+        full = episodic_store.get_episode_memory(
+            episode_id=episode["episode_id"], include_source_text=True
+        )
+        if full and full.get("source_text"):
+            texts[provenance.normalize(episode.get("title"))] = full["source_text"]
+    return texts
+
+
+def _excerpt_around(source_text: str, quote: str) -> str:
+    """Il passaggio originale attorno alla citazione, dal testo della fonte.
+
+    Il testo torna com'e' scritto nell'intervista - maiuscole, punteggiatura,
+    a capo. Prima si ritagliava sul testo normalizzato, quindi l'audit mostrava
+    fra virgolette una versione minuscola e ripulita: sembrava un verbatim e
+    non lo era. Stringa vuota se il passaggio non si trova: un audit che
+    inventa l'estratto e' peggio di uno che dichiara di non averlo trovato.
+    """
+    return provenance.excerpt_around(quote, source_text, window=_EXCERPT_WINDOW)
+
+
+def _matches_audit_query(entry: dict, query: str) -> bool:
+    if not query.strip():
+        return True
+    needle = provenance.normalize(query)
+    haystack = provenance.normalize(
+        " ".join(
+            str(entry.get(field) or "")
+            for field in ("statement", "attributed_to", "source_name", "topic", "quote")
+        )
+    )
+    if needle in haystack:
+        return True
+    # Ricerca per parole: "cosa ha detto Paolo sull'autorizzazione" deve
+    # trovare i claim di Paolo anche se la frase esatta non compare.
+    terms = [t for t in needle.split() if len(t) > 3]
+    return bool(terms) and all(term in haystack for term in terms)
+
+
+def audit_process_evidence(
+    *,
+    operation: str,
+    project_id: str,
+    process_id: str,
+    process_name: str,
+    query: str = "",
+    claim_ids: list[str] | None = None,
+    limit: int = 40,
+) -> str:
+    """Il registro dell'evidenza del processo, o la traccia di un'affermazione
+    fino alle parole originali che la reggono.
+
+    Non sintetizza e non ragiona: restituisce righe registrate. Il grado di
+    sostegno (corroborato / fonte singola / conteso / inferenza / dichiarato
+    non noto) lo calcola il runtime contando le voci distinte su un tema, non
+    lo dichiara chi legge.
+
+    E' l'unica risposta possibile a "da dove viene questa affermazione": una
+    sintesi nuova non dimostra niente, un estratto verbatim si'.
+
+    Args:
+        operation: ``ledger`` o ``provenance``.
+        project_id: Progetto del turno, gia' verificato dal chiamante.
+        process_id: Processo del turno, gia' verificato dal chiamante.
+        process_name: Nome leggibile del processo, per il sommario.
+        query: Filtro testuale su affermazione, voce, fonte o tema.
+        claim_ids: Restrizione a claim specifici.
+        limit: Massimo di righe lette dal registro.
+
+    Returns:
+        Il risultato del tool in formato workspace. Sola lettura.
+    """
+    normalized_operation = str(operation or "").strip().lower()
+    ledger = _process_claim_ledger(project_id, process_id, limit=limit)
+    claims = ledger.get("claims") or []
+    wanted = {str(item) for item in (claim_ids or []) if item}
+    if wanted:
+        claims = [item for item in claims if str(item.get("claim_id")) in wanted]
+    if query:
+        claims = [item for item in claims if _matches_audit_query(item, query)]
+
+    if normalized_operation == "ledger":
+        return enterprise_tool_result(
+            status=ledger.get("status", "empty"),
+            action="audit_process_evidence",
+            entity_type="process_evidence_ledger",
+            entity_id=process_id,
+            summary=(
+                f"Evidence ledger for {process_name}: {len(claims)} claims, "
+                f"{len(ledger.get('summary', {}).get('voices') or [])} distinct voices."
+            ),
+            payload={
+                "operation": normalized_operation,
+                "project_id": project_id,
+                "process_id": process_id,
+                "claims": claims,
+                "summary": ledger.get("summary") or {},
+                "contested_topics": ledger.get("contested_topics") or [],
+            },
+        )
+
+    texts = _episode_texts(project_id, process_id)
+    trail = []
+    for item in claims:
+        source_text = texts.get(provenance.normalize(item.get("source_name")), "")
+        excerpt = _excerpt_around(source_text, item.get("quote") or "")
+        trail.append(
+            {
+                "claim_id": item.get("claim_id"),
+                "statement": item.get("statement"),
+                "attributed_to": item.get("attributed_to"),
+                "source_name": item.get("source_name"),
+                "source_id": item.get("source_id"),
+                "quote": item.get("quote"),
+                "quote_verified": item.get("quote_verified"),
+                "original_excerpt": excerpt,
+                "excerpt_found": bool(excerpt),
+                "scope_label": item.get("scope_label"),
+                "scope_level": item.get("scope_level"),
+                "epistemic_status": item.get("epistemic_status"),
+                "support": item.get("support"),
+                "support_label": item.get("support_label"),
+                "corroborating_sources": item.get("corroborating_sources") or [],
+            }
+        )
+
+    unproven = [row["statement"] for row in trail if not row["excerpt_found"]]
+    return enterprise_tool_result(
+        status="ok" if trail else "empty",
+        action="audit_process_evidence",
+        entity_type="process_evidence_provenance",
+        entity_id=process_id,
+        summary=f"Provenance trail for {process_name}: {len(trail)} claims traced.",
+        payload={
+            "operation": normalized_operation,
+            "project_id": project_id,
+            "process_id": process_id,
+            "query": query,
+            "trail": trail,
+            "provenance_section": provenance.render_provenance_section(
+                provenance.build_ledger(claims)
+            ),
+        },
+        warnings=(
+            [
+                "Queste affermazioni non hanno un estratto riscontrato nel testo "
+                "della fonte: dichiaralo invece di riformularle. "
+                + "; ".join(unproven[:5])
+            ]
+            if unproven
+            else []
+        ),
+    )
+
+
+def _process_claim_ledger(project_id: str, process_id: str, *, limit: int = 200) -> dict:
+    """Registro dell'evidenza del processo dal canonical, via gateway (INV-9).
+
+    Stesso confine di lettura del retrieval: lo scope non e' opzionale. Se il
+    canonical non c'e' o lo scope non si risolve, si torna vuoto - meglio
+    niente registro che il registro di un altro processo.
+    """
+    if not settings.canonical_database_url:
+        return {"status": "not_configured", "claims": [], "count": 0}
+    try:
+        s = canonical_scope.resolve(project_id, process_id)
+    except ScopeViolation:
+        raise
+    except Exception:  # noqa: BLE001
+        return {"status": "not_configured", "claims": [], "count": 0}
+    return gateway.claim_ledger(
+        consultant_id=s.consultant_id,
+        client_id=s.client_id,
+        scope_project_id=s.project_id,
+        scope_process_id=s.process_id,
+        limit=limit,
+    )
+
+
+def process_claim_ledger(project_id: str, process_id: str, *, limit: int = 200) -> dict:
+    """Il registro dell'evidenza di un processo, per il runtime (non un tool).
+
+    Lo usa `load_process_context` per aprire ogni turno con l'evidenza gia'
+    raccolta: senza questo, un'informazione documentata in un turno precedente
+    tornava a essere "mancante" nella chat successiva.
+    """
+    return _process_claim_ledger(project_id, process_id, limit=limit)
 
 
 @tool

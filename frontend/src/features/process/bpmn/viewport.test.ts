@@ -1,6 +1,44 @@
 import { describe, expect, it } from "vitest";
 
-import { getDiagramBounds, withViewportPadding } from "./viewport";
+import { getDiagramBounds, hasDiagramContent, withViewportPadding } from "./viewport";
+import type { BpmnModeler, BpmnRegistryElement } from "./types";
+
+/** A modeler whose element registry holds exactly these elements. */
+function fakeModeler(elements: BpmnRegistryElement[]): BpmnModeler {
+  return {
+    importXML: async () => undefined,
+    saveXML: async () => ({}),
+    destroy: () => undefined,
+    get: () => ({
+      filter: (predicate: (element: BpmnRegistryElement) => boolean) =>
+        elements.filter(predicate),
+    }),
+  };
+}
+
+describe("hasDiagramContent", () => {
+  it("calls a model with only its process shell empty", () => {
+    expect(
+      hasDiagramContent(
+        fakeModeler([
+          { id: "Process_Workspace", type: "bpmn:Process" },
+          { id: "__implicitroot" },
+        ]),
+      ),
+    ).toBe(false);
+  });
+
+  it("sees a model as soon as something has been drawn on it", () => {
+    expect(
+      hasDiagramContent(
+        fakeModeler([
+          { id: "Process_Workspace", type: "bpmn:Process" },
+          { id: "StartEvent_1", type: "bpmn:StartEvent" },
+        ]),
+      ),
+    ).toBe(true);
+  });
+});
 
 describe("getDiagramBounds", () => {
   it("returns null when there is nothing measurable", () => {

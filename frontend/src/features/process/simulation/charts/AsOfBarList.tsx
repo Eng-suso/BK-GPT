@@ -52,7 +52,7 @@ export function AsOfBarList({
   );
 
   return (
-    <figure className="m-0 flex min-w-0 flex-col rounded-lg border border-border bg-card p-3">
+    <figure className="m-0 flex min-w-0 flex-col ui-surface ui-surface-panel p-3">
       <figcaption className="mb-2 flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold text-foreground">{title}</span>
         {legend && (

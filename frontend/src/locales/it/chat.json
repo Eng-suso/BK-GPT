@@ -60,6 +60,9 @@
     "queueHint": "Aggiungi il messaggio alla coda del turno in corso (Invio)"
   },
   "status": {
+    "historyUnavailable": "Cronologia non disponibile",
+    "historyUnavailableBody": "Non è stato possibile caricare le conversazioni. Puoi riprovare; la bozza resta qui.",
+    "requestFailed": "Richiesta non completata",
     "thinking": "Sto elaborando…",
     "progressLabel": "Avanzamento del lavoro",
     "stoppedByUser": "Turno fermato: questa è la parte di risposta già prodotta.",
@@ -104,9 +107,14 @@
       "description": "Modifica il modello BPMN a parole: l'assistente aggiorna il diagramma e verifica la coerenza.",
       "prompts": [
         "Genera il BPMN dalle evidenze del processo",
-        "Aggiungi un gateway dopo la verifica del credito",
+        "Che cosa manca per costruire il modello?",
+        "Elenca le attività emerse dalle fonti"
+      ],
+      "promptsModeled": [
+        "Spiega il modello attuale passo per passo",
+        "Valida la copertura di ruoli ed eccezioni",
         "Assegna un ruolo owner a ogni attività",
-        "Valida la copertura di ruoli ed eccezioni"
+        "Riordina il layout del diagramma"
       ]
     }
   },

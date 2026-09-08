@@ -10,8 +10,17 @@ from backend.graphs.common import (
     artifact_is_present,
     build_tool_chat_subgraph,
     latest_user_text,
+    message_text,
     recent_conversation_digest,
 )
+from backend.agents.evidence_brief import (
+    ledger_vocabulary,
+    question_is_grounded,
+    render_divergences,
+    render_ledger_lines,
+    turn_evidence_ledger,
+)
+from backend.memory import provenance
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
 from backend.graphs.process.state import ProcessState
@@ -89,6 +98,17 @@ to resolve, a semantic model still missing). Switch it to single_step, local_ope
 or direct as soon as the remaining request can be answered without another pass -
 you decide when the work is done. The runtime owns the pass budget and stops on
 repeated no-progress passes; you do not set or negotiate that limit.
+
+The evidence ledger below is what this process already knows, voice by voice.
+Read it before routing: what is in the ledger is not missing, and a pass that
+re-collects it is a wasted pass.
+
+If you choose route=clarification, clarification_question must name the concrete
+gap or contradiction in that ledger that makes the question necessary - who said
+what, and what does not add up. A question that asks for a whole category the
+ledger already covers ("which actors?", "which rules?", "how does the process
+work?") is not a clarification: it is a restart, and the runtime will reject it
+and route to evidence instead.
 """.strip()
 
 
@@ -139,6 +159,53 @@ def process_state_signature(state: dict) -> str:
     )
 
 
+# La capability con cui il runtime rimpiazza un chiarimento non ancorato. Non e'
+# una scelta di merito - quale evidenza serva lo decide lo specialista - ma il
+# solo passo che ha senso quando la domanda proposta chiedeva cio' che il
+# registro contiene gia'.
+_EVIDENCE_CAPABILITY = "process.evidence"
+_EVIDENCE_MODES = frozenset({"plan", "agent"})
+
+
+def ungrounded_clarification(
+    *, status: str, question: str | None, state: dict
+) -> str | None:
+    """Perche' questo chiarimento non si puo' consegnare, se non si puo'.
+
+    Vale solo per il chiarimento che il router ha scelto (`clarification_required`):
+    quello che il runtime impone per un prerequisito mancante o per una capability
+    fuori modalita' e' un rifiuto motivato, e va detto al consulente cosi' com'e'.
+
+    PROCESS-V2-12/15: con tre interviste agli atti il router proponeva ancora
+    "quali attori?", "quali regole?", "quali soglie di approvazione?". Non sono
+    domande, sono le categorie su cui l'evidenza era gia' stata raccolta: chi le
+    riceve capisce che il lavoro fatto non e' arrivato da nessuna parte.
+
+    Args:
+        status: Lo stato dell'autorizzazione di routing.
+        question: La domanda proposta dal router.
+        state: Stato del turno, da cui si costruisce il registro.
+
+    Returns:
+        La ragione del rifiuto, o `None` se il chiarimento e' legittimo.
+    """
+    if status != "clarification_required":
+        return None
+    if state.get("chat_mode") and state["chat_mode"] not in _EVIDENCE_MODES:
+        return None
+
+    vocabulary = ledger_vocabulary(turn_evidence_ledger(state))
+    if not vocabulary:
+        return None
+    if question_is_grounded(question or "", vocabulary):
+        return None
+    return (
+        "Clarification refused: the proposed question asks for a category the "
+        "evidence ledger already covers, without naming the gap or contradiction "
+        f"behind it ({' '.join((question or 'nessuna domanda').split())[:200]})."
+    )
+
+
 def process_routing_state(
     decision: ProcessRoutingDecision,
     *,
@@ -158,6 +225,32 @@ def process_routing_state(
     route = authorization["route"]
     target = authorization["target"]
     reason = decision.reason or decision.reasoning_summary or "Process router decision."
+
+    refusal = ungrounded_clarification(
+        status=authorization["status"],
+        question=decision.clarification_question,
+        state=state,
+    )
+    if refusal:
+        route = "evidence"
+        target = "evidence_subgraph"
+        reason = refusal
+        authorization = {
+            **authorization,
+            "route": route,
+            "target": target,
+            "status": "ungrounded_clarification",
+            "authorized_capability": _EVIDENCE_CAPABILITY,
+            "blocking_conditions": [*authorization["blocking_conditions"], refusal],
+            "termination_reason": None,
+        }
+        decision = decision.model_copy(
+            update={
+                "needs_clarification": False,
+                "clarification_question": None,
+                "process_mode": "evidence",
+            }
+        )
     expected_result = decision.expected_result or ""
     process_mode = decision.process_mode or ("clarification" if route == "clarification" else route)
     process_objective = decision.process_objective or decision.goal or expected_result or None
@@ -315,8 +408,21 @@ def build_process_router(llm):
                             f"{artifact_for_prompt(state.get('process_quality_report'))}\n"
                             f"has_bpmn_semantic_model: {artifact_is_present(state.get('bpmn_semantic_model'))}\n"
                             f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n\n"
+                            # PROCESS-V2-13: il router decideva il passo
+                            # successivo senza vedere una riga dell'evidenza,
+                            # quindi mandava a raccogliere cio' che era gia'
+                            # agli atti o chiedeva chiarimenti su cio' che il
+                            # registro spiegava.
+                            "Evidence ledger for this process:\n"
+                            f"{render_ledger_lines(turn_evidence_ledger(state))}\n\n"
+                            f"Recorded divergences:\n{render_divergences(state)}\n\n"
                             "Recent conversation (resolve references against this):\n"
                             f"{recent_conversation_digest(state)}\n\n"
+                            # Le passate degli specialisti non stanno nel
+                            # transcript: senza questo il router non saprebbe
+                            # cosa e' gia' stato fatto in questo stesso turno.
+                            "Work already done this turn:\n"
+                            f"{specialist_findings_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )
@@ -416,6 +522,177 @@ def evaluate_process_iteration(state: ProcessState) -> dict:
             }
         ],
     }
+
+
+def specialist_findings_digest(state: dict, limit: int = 6) -> str:
+    """Cosa hanno concluso gli specialisti in questo turno, in breve.
+
+    Le loro passate non passano dal transcript (vedi `findings_channel` in
+    `build_tool_chat_subgraph`), quindi chi deve decidere il passo successivo
+    le legge da qui.
+    """
+    findings = state.get("specialist_findings") or []
+    lines = [
+        f"- [{item.get('owner') or 'passata'}] {' '.join(str(item.get('finding') or '').split())[:400]}"
+        for item in findings[-limit:]
+        if str(item.get("finding") or "").strip()
+    ]
+    return "\n".join(lines) or "nessuna passata conclusa in questo turno"
+
+
+PROCESS_REPORT_PROMPT = """
+Scrivi la risposta che il consulente legge alla fine di questo giro di lavoro.
+
+Gli specialisti hanno gia' lavorato: quello che hanno concluso e' qui sotto. Non
+e' un testo da consegnare, e' materiale. Tu scrivi UNA risposta sola, in prosa,
+che tiene insieme le loro passate senza ripeterle: se due passate dicono la
+stessa cosa, la dici una volta.
+
+Sopra alle passate c'e' il REGISTRO DELL'EVIDENZA: le affermazioni raccolte,
+ognuna con chi la dice, l'ambito che copre e un grado di sostegno gia'
+calcolato. Il registro vince sulle passate. Dove le due cose divergono, vale il
+registro - e' l'unico posto dove la provenance e' verificata.
+
+Governance dell'evidenza - il punto su cui questa risposta si gioca:
+
+- Attribuisci ogni affermazione alla voce che il registro le assegna, e a
+  nessun'altra. Se il registro dice "Laura Conti", non puoi scrivere "secondo
+  Paolo". Se una voce non c'e', dillo, non sceglierne una plausibile.
+- Il grado di sostegno non lo decidi tu: e' nel registro.
+  "riferito da una sola fonte" -> scrivi "X riferisce che...", "secondo X".
+  "corroborato da piu' fonti" -> puoi dire che piu' fonti concordano, e citarle.
+  "inferenza" -> dichiaralo come tua deduzione.
+  "la fonte dichiara di non saperlo" -> e' un'informazione su quella persona,
+  non una lacuna del processo.
+  "Confermato" vale solo per cio' che il registro dichiara corroborato: non
+  promuovere mai una fonte sola.
+- Rispetta l'ambito (`scope_label`). Cio' che vale per un reparto vale per quel
+  reparto: non estenderlo al processo intero. Due persone che, ciascuna per il
+  proprio pezzo, dicono di non avere un dato non dimostrano che il processo non
+  ce l'abbia: dicono che loro non ce l'hanno, e va scritto cosi'.
+- Una frase attribuita a piu' voci puo' contenere SOLO cio' che tutte quelle
+  voci reggono. Il registro lo dice riga per riga: cio' che segue "solo <voce>"
+  e' di quella voce e non entra in una frase condivisa. Se serve dirlo, si dice
+  a parte: "entrambi riferiscono X; <voce> aggiunge Y".
+- Non rafforzare il testo originale. Se la fonte dice "puo' essere necessario
+  chiedere conferma", non scrivere "deve confermare". Quando la citazione c'e',
+  la tua frase non puo' dire piu' di quella.
+- Fra virgolette ci va solo cio' che il registro riporta come "parole
+  originali". Una riga marcata "nessuna citazione riscontrata" e' una
+  riformulazione: raccontala, non citarla.
+- Le divergenze sono gia' classificate. Chiama contraddizione solo cio' che il
+  registro marca come incompatibilita' vera; una differenza di ambito, un
+  diverso grado di formalizzazione o un "non lo so" si raccontano per quello
+  che sono. Una contraddizione vera si dichiara e resta aperta: non la risolvi
+  tu scegliendo la versione piu' plausibile.
+- Non dichiarare mancante cio' che il registro contiene. Se c'e' ma lo dice una
+  sola voce, e' evidenza non ancora corroborata, non un buco.
+- Non aggiungere attori, soglie, sistemi o date che nel registro e nelle fonti
+  non ci sono.
+
+Struttura la risposta cosi', senza intestazioni tecniche:
+cosa ci hanno detto - cosa resta incerto - cosa si contraddice - cosa chiedere
+dopo, e a chi.
+
+Non riscrivere il registro in fondo alla risposta: al lettore arriva gia'
+stampato dal sistema, riga per riga. Tu scrivi la prosa.
+
+Nessun nome interno di sistema, di agente o di passaggio: il consulente legge il
+risultato del lavoro, non come e' organizzato.
+""".strip()
+
+
+def build_process_report(llm):
+    """Il nodo che parla al consulente, uno solo per turno.
+
+    Il giro di lavoro puo' durare piu' passate, e ogni specialista ne concludeva
+    una in chat: il consulente si ritrovava quattro o cinque sintesi quasi
+    identiche una dietro l'altra. Ora le passate lavorano in silenzio e qui si
+    scrive la risposta, una volta, su quello che hanno prodotto.
+
+    La prosa la scrive il modello; la tracciabilita' no. La sezione "Da dove
+    viene" viene stampata dal runtime dal registro dell'evidenza: e' l'unica
+    parte della risposta che non puo' essere riscritta piu' forte di quanto la
+    fonte dica, e da' al consulente una riga da verificare per ogni
+    affermazione.
+    """
+
+    def write_process_report(state: ProcessState, config: RunnableConfig) -> dict:
+        findings = state.get("specialist_findings") or []
+        if not findings:
+            # Nessuno ha concluso niente: non c'e' una risposta da scrivere, e
+            # inventarne una sarebbe peggio del silenzio.
+            return {}
+
+        dossier = "\n\n".join(
+            f"[passata {index}] {item.get('finding', '')}".strip()
+            for index, item in enumerate(findings, start=1)
+            if str(item.get("finding") or "").strip()
+        )
+        ledger = turn_evidence_ledger(state)
+        summary = provenance.summarize_ledger(ledger)
+        brief = HumanMessage(
+            content=(
+                f"Processo: {state.get('process_name') or 'senza nome'}\n"
+                f"Richiesta del consulente:\n{latest_user_text(state)}\n\n"
+                "REGISTRO DELL'EVIDENZA (autoritativo su attribuzione e "
+                "grado di sostegno):\n"
+                f"{render_ledger_lines(ledger)}\n\n"
+                f"Voci sentite finora: {', '.join(summary.voices) or 'nessuna'}\n"
+                f"Divergenze registrate:\n{render_divergences(state)}\n\n"
+                f"Cosa manca ancora: {state.get('missing_information') or []}\n\n"
+                f"Conclusioni delle passate di lavoro:\n{dossier}"
+            )
+        )
+        messages = [SystemMessage(content=PROCESS_REPORT_PROMPT), brief]
+        response = llm.invoke(messages, config=config)
+
+        # Il controllo di composizione viveva solo dentro il tool di sintesi,
+        # che l'agente puo' non chiamare: la frase multi-fonte tornava a
+        # formarsi qui, all'ultimo passaggio, dove nessuno la guardava.
+        # Una correzione sola, poi si dice come stanno le cose.
+        violations = provenance.audit_answer(message_text(response), ledger)
+        if violations:
+            response = llm.invoke(
+                [
+                    *messages,
+                    response,
+                    HumanMessage(content=_attribution_correction(violations)),
+                ],
+                config=config,
+            )
+            violations = provenance.audit_answer(message_text(response), ledger)
+
+        parts = [
+            message_text(response),
+            provenance.render_attribution_notice(violations),
+            provenance.render_provenance_section(ledger),
+        ]
+        response.content = "\n\n".join(part for part in parts if part.strip())
+        return {"messages": [response]}
+
+    return write_process_report
+
+
+def _attribution_correction(violations: list[provenance.AnswerViolation]) -> str:
+    """Cosa si chiede al modello quando ha fuso due fonti in una frase.
+
+    Non "riscrivi tutto": si nomina la frase, l'attributo e il suo proprietario.
+    La parte condivisa resta corroborata, l'attributo torna a chi lo ha detto.
+    """
+    lines = [
+        "Una o piu' frasi attribuiscono a piu' fonti qualcosa che dice una sola "
+        "voce. Riscrivi SOLO quelle frasi, tenendo il resto com'e':",
+        "",
+    ]
+    lines += [f"- {item.as_dict()['message']}" for item in violations]
+    lines += [
+        "",
+        "La parte che tutte le fonti reggono resta come accordo; cio' che "
+        "aggiunge una sola voce si dice a parte, attribuito a lei. Non "
+        "aggiungere nulla che non sia nel registro.",
+    ]
+    return "\n".join(lines)
 
 
 def selected_process_loop_transition(state: ProcessState) -> str:
@@ -588,6 +865,7 @@ def build_process_subgraph(
     workflow.add_node("delegate_to_canvas_macro", build_canvas_delegation_node(canvas_subgraph))
     workflow.add_node("ask_process_clarification", ask_process_clarification)
     workflow.add_node("evaluate_process_iteration", evaluate_process_iteration)
+    workflow.add_node("process_report", build_process_report(llm))
 
     workflow.add_edge(START, "load_process_context")
     workflow.add_edge("load_process_context", "process_router")
@@ -614,9 +892,12 @@ def build_process_subgraph(
         selected_process_loop_transition,
         {
             "continue": "load_process_context",
-            "end": END,
+            # Finito il giro, una risposta sola: le passate hanno lavorato in
+            # silenzio proprio perche' a parlare sia questo nodo.
+            "end": "process_report",
         },
     )
+    workflow.add_edge("process_report", END)
     workflow.add_edge("delegate_to_canvas_macro", END)
     workflow.add_edge("ask_process_clarification", END)
 

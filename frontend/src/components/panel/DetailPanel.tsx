@@ -18,7 +18,7 @@ export function DetailPanel({
   return (
     <aside
       className={cn(
-        "flex flex-col overflow-hidden border-l border-border bg-card px-5 pt-5 shadow-panel-left",
+        "ui-surface ui-surface-chrome flex flex-col overflow-hidden border-l border-border px-5 pt-5 shadow-panel-left",
         className,
       )}
     >

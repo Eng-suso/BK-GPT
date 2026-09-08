@@ -74,7 +74,7 @@ export function SimulationWorkspace(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 ui-surface ui-surface-panel px-4 py-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">{t("simulation.workspace.overviewTitle")}</h2>
           <p className="mt-1 text-xs text-muted-foreground">{t(activeRun ? "simulation.workspace.resultsHint" : "simulation.workspace.startHint")}</p>
@@ -91,13 +91,13 @@ export function SimulationWorkspace(): React.JSX.Element {
         onOpenReplay={() => navigate(ROUTES.projects.simulation(projectId, processId, `replay/${activeRun.id}`))}
         onOpenDashboard={() => navigate(ROUTES.projects.simulation(projectId, processId, `dashboard/${activeRun.id}`))}
       />}
-      <section aria-label={t("simulation.diagram.title")} className="flex min-h-[440px] flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      <section aria-label={t("simulation.diagram.title")} className="flex min-h-[440px] flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
         <header className="shrink-0 border-b border-border px-4 py-2">
           <h2 className="text-sm font-medium">{t("simulation.diagram.title")}</h2>
         </header>
         {bpmnXml ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} overlays={overlays} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /> : <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />}
       </section>
-      {activeRun && <section aria-label={t("simulation.output.eyebrow")} className="shrink-0 rounded-lg border border-border bg-card">
+      {activeRun && <section aria-label={t("simulation.output.eyebrow")} className="shrink-0 ui-surface ui-surface-panel">
         <details open={Boolean(selectedElementId)}>
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{t("simulation.results.summary")}</summary>
           <div className="border-t border-border p-4">
@@ -132,7 +132,7 @@ function RunSnapshot({
 
   if (!run) {
     return (
-      <section className="rounded-lg border border-border bg-card p-4">
+      <section className="ui-surface ui-surface-panel p-4">
         <EmptyState
           variant="inline"
           title={t("simulation.empty")}
@@ -147,7 +147,7 @@ function RunSnapshot({
   )[0];
 
   return (
-    <section className="rounded-lg border border-border bg-card">
+    <section className="ui-surface ui-surface-panel">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
           <p className="eyebrow">{t("simulation.output.eyebrow")}</p>

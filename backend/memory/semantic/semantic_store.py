@@ -145,7 +145,12 @@ def format_memory_results(response, limit: int = 5) -> str:
 
 
 def add_mem0_memory_with_id(
-    content: str, *, client_id: str | None = None, infer: bool | None = None
+    content: str,
+    *,
+    client_id: str | None = None,
+    project_id: str | None = None,
+    process_id: str | None = None,
+    infer: bool | None = None,
 ) -> tuple[str, str | None]:
     """
     Save content to Mem0 and expose the resulting memory identifier when available.
@@ -176,6 +181,12 @@ def add_mem0_memory_with_id(
     metadata = {"source": "delir"}
     if client_id:
         metadata["client_id"] = str(client_id)
+    # Appartenenza all'incarico: senza, il recall di un progetto restituiva
+    # anche gli episodi degli altri progetti dello stesso cliente.
+    if project_id:
+        metadata["project_id"] = str(project_id)
+    if process_id:
+        metadata["process_id"] = str(process_id)
     should_infer = (not settings.memory_verbatim_facts) if infer is None else infer
     try:
         result = memory.add(
@@ -215,7 +226,10 @@ def save_consultant_memory(content: str, category: str) -> str:
 
 
 def search_consultant_memory(
-    query: str, category: str | None = None, client_id: str | None = None
+    query: str,
+    category: str | None = None,
+    client_id: str | None = None,
+    project_id: str | None = None,
 ) -> str:
     """Retrieve consultant semantic memories within the applicable scope.
     
@@ -238,6 +252,7 @@ def search_consultant_memory(
     result = gateway.memory_search(
         consultant_id=settings.default_consultant_id,
         client_id=client_id,
+        project_id=project_id,
         query=query,
         category=category,
         limit=5,

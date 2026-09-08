@@ -430,6 +430,7 @@ class TestWriteEvidenceResolution:
             result = gateway.graph_retrieve(
                 consultant_id=scope["consultant"], client_id=scope["client"],
                 entity_names=["ufficio risorse umane"], process_id=scope["process"],
+                scope_project_id=scope["project"], scope_process_id=scope["process"],
             )
             rels = {(m["source"], m["relation"], m["target"]) for m in result["matches"]}
             if ("Ufficio del Personale", "CURA", "Onboarding") in rels:

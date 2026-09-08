@@ -292,6 +292,7 @@ def test_evidence_tool_end_to_end(monkeypatch, wait_pipeline):
             r = gateway.graph_retrieve(
                 consultant_id=consultant_id, client_id=client_id,
                 query="chi autorizza il rilascio della pratica bloccata per il fido?",
+                allow_client_wide=True,
             )
             rels = {(m["source"], m["relation"], m["target"]) for m in r["matches"]}
             return ("Direzione amministrativa", "AUTORIZZA", "Pratica fido") in rels

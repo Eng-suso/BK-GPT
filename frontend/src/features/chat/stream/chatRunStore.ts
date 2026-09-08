@@ -320,7 +320,7 @@ export async function startRun(input: StartRunInput): Promise<void> {
       });
       write(threadId, {
         status: "error",
-        error: `Backend non raggiungibile o richiesta fallita: ${detail}`,
+        error: detail,
       });
     }
   } finally {

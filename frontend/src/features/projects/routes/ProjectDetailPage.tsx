@@ -584,7 +584,7 @@ function ObjectiveBlock({
 }): React.JSX.Element {
   const { t } = useTranslation("projects");
   return (
-    <section className="flex flex-col rounded-xl border border-border bg-card p-4">
+    <section className="flex flex-col ui-surface ui-surface-panel p-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="eyebrow flex items-center gap-1.5">
           <Target className="size-3.5" />
@@ -628,7 +628,7 @@ function ProjectChatTab({
     // header + tab bar). A quiet slate hairline bounds it — the bare `<Card>`
     // `border` utility resolved to currentColor (near-black) under Tailwind v4
     // preflight; `border-border` pins it back to the subtle token.
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden ui-surface ui-surface-panel">
       <ChatExperience
         chrome="panel"
         layout="embedded"
@@ -692,7 +692,7 @@ function ProcessesTab({
           modificarne il record sono due intenzioni diverse, e servono due
           controlli fratelli — un bottone dentro un bottone non e' HTML valido
           e non riceverebbe il click. */}
-      <ul className="flex flex-col rounded-xl border border-border bg-card">
+      <ul className="flex flex-col ui-surface ui-surface-panel">
         {processes.map((p) => (
           <li
             key={p.id}
@@ -774,7 +774,7 @@ function SimpleList({
     return <EmptyState variant="inline" title={emptyTitle} />;
   }
   return (
-    <ul className="flex flex-col rounded-xl border border-border bg-card">
+    <ul className="flex flex-col ui-surface ui-surface-panel">
       {items.map((item) => (
         <li
           key={item}

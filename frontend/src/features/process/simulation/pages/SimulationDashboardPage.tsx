@@ -90,7 +90,7 @@ function DashboardBody({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pb-4">
-      <div className="shrink-0 overflow-hidden rounded-lg border border-border bg-card">
+      <div className="shrink-0 overflow-hidden ui-surface ui-surface-panel">
         <TransportBar engine={engine} />
       </div>
 
@@ -201,7 +201,7 @@ function DashboardHeadline({
   const p95 = Number(summary?.cycle?.p95 ?? 0);
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4">
+    <section className="ui-surface ui-surface-panel p-4">
       <p className="text-[13px] leading-relaxed text-foreground">
         {bottleneck
           ? t("simulation.dashboard.headline", {

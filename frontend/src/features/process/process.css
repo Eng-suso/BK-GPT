@@ -44,10 +44,10 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius);
-  background: var(--color-surface-primary);
-  box-shadow: var(--shadow-100);
+  border: 1px solid var(--material-edge);
+  border-radius: var(--material-radius-panel);
+  background: var(--material-panel);
+  box-shadow: var(--material-shadow);
 }
 
 .process-simulation-panel {
@@ -145,10 +145,10 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius);
-  background: var(--color-surface-primary);
-  box-shadow: var(--shadow-100);
+  border: 1px solid var(--material-edge);
+  border-radius: var(--material-radius-panel);
+  background: var(--material-panel);
+  box-shadow: var(--material-shadow);
 }
 
 .process-studio-properties {
@@ -213,9 +213,29 @@
 }
 
 .process-bpmn-canvas {
+  position: relative;
   min-width: 0;
   min-height: 0;
   background: var(--color-surface-primary);
+}
+
+/*
+ * Cosa fare quando non c'e' ancora un modello. Sta sopra la tela ma spostata a
+ * destra: la palette bpmn-js occupa il bordo sinistro e deve restare cliccabile
+ * anche mentre questo riquadro e' visibile.
+ */
+.process-bpmn-blank {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 5;
+  width: min(420px, calc(100% - 6rem));
+  transform: translate(-50%, -50%);
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 0.75rem;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
 }
 
 .process-bpmn-history {
@@ -273,8 +293,10 @@
  * height — shrinking each entry keeps it single-column on shorter viewports.
  */
 .process-bpmn-canvas .djs-palette {
-  border-color: var(--color-border-subtle);
-  box-shadow: var(--shadow-100);
+  border-color: var(--material-edge);
+  border-radius: var(--material-radius-control);
+  background: var(--material-panel);
+  box-shadow: var(--material-shadow);
 }
 
 .process-bpmn-canvas .djs-palette .entry {
@@ -357,8 +379,8 @@
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-  background: var(--color-surface-muted);
+  border-radius: var(--material-radius-control);
+  background: var(--material-field);
   color: var(--color-text-primary);
   padding: 7px 10px;
   font-size: 12px;
@@ -424,41 +446,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--color-surface-primary);
-}
-
-.api-status-card {
-  margin: 12px 0;
-  padding: 14px;
-  border: 1px solid var(--state-warning-border);
-  border-radius: 8px;
-  background: var(--state-warning-surface);
-  color: var(--color-text-primary);
-}
-
-.api-status-card strong {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-}
-
-.api-status-card p {
-  margin: 0 0 10px;
-  color: var(--color-text-secondary);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.api-status-card button {
-  min-height: 32px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 6px;
-  background: var(--color-surface-primary);
-  color: var(--color-text-primary);
-  padding: 0 10px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
+  background: transparent;
 }
 
 .embedded-chat-body {
@@ -519,9 +507,9 @@
 }
 
 .embedded-chat-panel .composer-box {
-  border-radius: var(--radius-300);
-  padding: var(--space-300) var(--space-300) var(--space-200);
-  box-shadow: none;
+  border-radius: var(--material-radius-frame);
+  padding: var(--space-400);
+  box-shadow: var(--material-shadow);
 }
 
 .embedded-chat-panel .footnote {
