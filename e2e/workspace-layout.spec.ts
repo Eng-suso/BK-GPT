@@ -37,9 +37,12 @@ async function fixture(page: Page) {
 
 test.beforeEach(async ({ page }) => { await fixture(page); });
 
+// Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
+const canvasView = `${studio}?view=canvas`;
+
 test("laptop tools preserve canvas space and unsaved model edits", async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
-  await page.goto(studio);
+  await page.goto(canvasView);
   const canvas = page.locator(".process-bpmn-canvas");
   await page.locator('[data-element-id="Task_1"]').first().click();
   await page.getByRole("textbox", { name: "Etichetta / Nome" }).fill("Modifica da conservare");
@@ -93,7 +96,7 @@ test("mobile tools are reachable and scenario controls stay inside the viewport"
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(studio);
+  await page.goto(canvasView);
   await page.getByRole("button", { name: "Chat canvas", exact: true }).click();
   await expect(page.locator(".process-studio-chat")).toBeVisible();
   await expect(page.getByRole("button", { name: "Chiudi i pannelli", exact: true })).toBeFocused();
@@ -118,7 +121,7 @@ for (const [surface, path] of [
   ["consultant", "/consultant"],
   ["project", "/projects/layout-project?tab=chat"],
   ["process", `${studio}?view=chat`],
-  ["canvas", studio],
+  ["canvas", canvasView],
 ] as const) {
   test(`${surface} chat keeps long conversations and composer usable on laptop and mobile`, async ({ page }) => {
     const session = {

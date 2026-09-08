@@ -27,7 +27,7 @@ export function PanelShell({
   return (
     <Tag
       className={cn(
-        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-[0_1px_2px_var(--shadow-100)]",
+        "ui-surface ui-surface-panel flex min-h-0 min-w-0 flex-col overflow-hidden",
         className,
       )}
       {...rest}

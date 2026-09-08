@@ -23,6 +23,9 @@ import {
   toProject,
   toProjectSource,
   toProjectDecision,
+  toSourceDocument,
+  apiSourceDocumentSchema,
+  type SourceDocument,
   type ProjectSource,
   type ProjectDecision,
 } from "@/contracts/workspace";
@@ -34,6 +37,8 @@ export const projectKeys = {
   list: () => [...projectKeys.all] as const,
   detail: (id: string) => [...projectKeys.all, id] as const,
   sources: (id: string) => [...projectKeys.all, id, "sources"] as const,
+  sourceDocument: (sourceId: string) =>
+    [...projectKeys.all, "source", sourceId, "document"] as const,
   decisions: (id: string) => [...projectKeys.all, id, "decisions"] as const,
 };
 
@@ -213,6 +218,30 @@ export function useProjectSourcesQuery(
     queryFn: async () => {
       const raw = await http<unknown>(`/v1/workspace/projects/${id}/sources`);
       return apiProjectSourcesSchema.parse(raw).map(toProjectSource);
+    },
+  });
+}
+
+/**
+ * Fetches one source with its summary and its full text.
+ *
+ * Only runs when a source is actually open: a transcript is not something to
+ * prefetch for every row of the list.
+ *
+ * @param sourceId - The source to read, or null when none is open
+ * @returns The source document
+ */
+export function useSourceDocumentQuery(
+  sourceId: string | null,
+): UseQueryResult<SourceDocument> {
+  return useQuery({
+    queryKey: projectKeys.sourceDocument(sourceId ?? ""),
+    enabled: sourceId !== null,
+    queryFn: async () => {
+      const raw = await http<unknown>(
+        `/v1/workspace/sources/${sourceId}/document`,
+      );
+      return toSourceDocument(apiSourceDocumentSchema.parse(raw));
     },
   });
 }

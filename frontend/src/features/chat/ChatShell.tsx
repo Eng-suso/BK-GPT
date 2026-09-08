@@ -201,7 +201,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   if (chrome === "panel") {
     return (
       <section className="embedded-chat-panel" aria-label="Chat contestuale">
-        <header className="embedded-chat-header flex min-h-[var(--inspector-header-height)] items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+        <header className="embedded-chat-header ui-surface-toolbar flex min-h-[var(--inspector-header-height)] items-center justify-between gap-3 border-b border-border px-4 py-2.5">
           <div className="flex min-w-0 flex-col gap-1">
             <ThreadSwitcher
               sessions={sessions}

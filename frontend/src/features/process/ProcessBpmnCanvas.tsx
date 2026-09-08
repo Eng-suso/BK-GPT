@@ -1,5 +1,7 @@
 import React from "react";
 import type { RefObject } from "react";
+import { useTranslation } from "react-i18next";
+import { MessagesSquare, Upload } from "lucide-react";
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
@@ -7,6 +9,7 @@ import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 // Note: bpmn-js-properties-panel bundles its styles internally; no separate CSS import needed.
 
 import type { StatusTone } from "@/components/status";
+import { Button } from "@/ui/button";
 import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
 import { BpmnCanvasToolbar } from "./components/BpmnCanvasToolbar";
 import { BpmnNodeInspector } from "./components/BpmnNodeInspector";
@@ -18,6 +21,8 @@ type ProcessBpmnCanvasProps = {
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
   onCurrentXmlChange?: (xml: string) => void;
+  /** Sends the consultant to the discussion, where the model is reconstructed. */
+  onOpenDiscussion?: () => void;
   /** Canvas-chat rail toggle (owned by ProcessWorkspace). */
   isCanvasChatOpen?: boolean;
   onToggleCanvasChat?: () => void;
@@ -36,16 +41,19 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   processName,
   propertiesPanelRef,
   onCurrentXmlChange,
+  onOpenDiscussion,
   isCanvasChatOpen,
   onToggleCanvasChat,
   isPropertiesOpen,
   onTogglePropertiesPanel,
 }) => {
+  const { t } = useTranslation("process");
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   const {
     containerRef,
     fileInputRef,
     isReady,
+    isEmptyModel,
     status,
     error,
     isSaving,
@@ -122,6 +130,36 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
               onDocChange={updateSelectedNodeDoc}
               onClose={clearSelection}
             />
+          )}
+          {/* Un processo appena creato non ha un modello: prima il canvas
+              apriva su un diagramma finto che nessuno aveva descritto. Qui la
+              tela resta vuota e dice da dove si parte — la palette bpmn-js
+              rimane raggiungibile a sinistra. */}
+          {isReady && isEmptyModel && !error && (
+            <div className="process-bpmn-blank">
+              <h3 className="text-sm font-semibold text-foreground">
+                {t("canvas.blank.title")}
+              </h3>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                {t("canvas.blank.description")}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {onOpenDiscussion && (
+                  <Button size="sm" onClick={onOpenDiscussion}>
+                    <MessagesSquare aria-hidden className="size-4" />
+                    {t("canvas.blank.openDiscussion")}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload aria-hidden className="size-4" />
+                  {t("canvas.blank.import")}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
 

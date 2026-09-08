@@ -145,7 +145,20 @@ export function chatAttachmentKey(attachment: ChatAttachment): string {
 export type ChatScope =
   | { type: "consultant" }
   | { type: "project"; projectId: string; projectName: string }
-  | { type: "process"; projectId: string; processId: string; processName: string }
+  | {
+      type: "process";
+      projectId: string;
+      processId: string;
+      processName: string;
+      /**
+       * Solo per la UI: non viaggia verso il backend, che sul processo lavora
+       * con project_id e process_id. Serve alla chat di processo per leggere il
+       * piano dello stesso processo di cui sta discutendo. Senza, le domande del
+       * piano vivevano nella sola scheda canvas, e la discussione che le aveva
+       * generate non le vedeva (PROCESS-V2-13).
+       */
+      bpmnModelId?: string | null;
+    }
   | {
       type: "canvas";
       projectId: string;

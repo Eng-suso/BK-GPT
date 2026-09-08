@@ -47,6 +47,37 @@ export function fitCanvas(modeler: BpmnModeler): void {
   );
 }
 
+/** Element types bpmn-js keeps in the registry even for an empty diagram. */
+const STRUCTURAL_TYPES = new Set([
+  "bpmn:Definitions",
+  "bpmn:Process",
+  "bpmn:Collaboration",
+  "label",
+]);
+
+/**
+ * Reports whether the model carries anything someone actually drew.
+ *
+ * Distinguishes "the process has not been reconstructed yet" from "the canvas
+ * failed to load": an empty model is a valid, expected state for a process that
+ * has only just been recorded.
+ *
+ * @param modeler - The mounted bpmn-js modeler
+ * @returns `true` when at least one diagram element exists
+ */
+export function hasDiagramContent(modeler: BpmnModeler): boolean {
+  const elementRegistry = modeler.get("elementRegistry") as BpmnElementRegistry;
+  const drawn = elementRegistry.filter((element) => {
+    const type = element.type ?? element.businessObject?.$type;
+    return (
+      element.id !== "__implicitroot" &&
+      (!type || !STRUCTURAL_TYPES.has(type))
+    );
+  });
+
+  return drawn.length > 0;
+}
+
 export function isConnection(element: BpmnRegistryElement): boolean {
   return Boolean(
     element.id &&

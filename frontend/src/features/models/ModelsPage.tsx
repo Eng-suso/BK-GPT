@@ -18,7 +18,7 @@ export function ModelsPage(): React.JSX.Element {
         title={t("nav.models")}
         description={t("models.description")}
       />
-      <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
+      <div className="flex flex-1 items-center justify-center ui-surface ui-surface-panel">
         <EmptyState
           icon={Boxes}
           title={t("state.comingSoon")}

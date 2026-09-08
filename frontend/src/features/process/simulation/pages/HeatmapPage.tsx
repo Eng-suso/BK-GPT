@@ -131,7 +131,7 @@ export function HeatmapPage(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:flex-row">
-      <section className="flex min-h-[440px] shrink-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+      <section className="flex min-h-[440px] shrink-0 flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
           <label className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {t("simulation.heatmap.metricLabel")}
@@ -170,7 +170,7 @@ export function HeatmapPage(): React.JSX.Element {
         />
       </section>
 
-      <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card lg:w-[336px]">
+      <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden ui-surface ui-surface-panel lg:w-[336px]">
         {selected && (
           <div className="border-b border-border px-4 py-3">
             <div className="flex items-start justify-between gap-2">

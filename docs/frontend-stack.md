@@ -1,6 +1,9 @@
 # Frontend Stack — Decisioni congelate
 
 Data: 2026-08-30
+
+Identità visiva aggiornata il 2026-09-08: [Satin design system](design/satin-design-system.md).
+Le ricette condivise di questa guida sostituiscono i precedenti trattamenti visivi dei controlli e delle superfici.
 Contesto: migrazione `frontend/src` a UI enterprise con design system. Vedi [frontend-audit.md](frontend-audit.md).
 
 ---

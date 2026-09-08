@@ -119,7 +119,7 @@ export function ComparePage(): React.JSX.Element {
       <Verdict runA={runA} runB={runB} />
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
           <header className="border-b border-border px-4 py-2.5">
             <p className="eyebrow">{t("simulation.compare.kpiHeader")}</p>
           </header>
@@ -128,7 +128,7 @@ export function ComparePage(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
           <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
             <p className="eyebrow">{t("simulation.diagram.title")}</p>
             {mode === "delta" ? (
@@ -198,7 +198,7 @@ function Verdict({ runA, runB }: { runA: SimulationRun; runB: SimulationRun }) {
       : "—";
 
   return (
-    <p className="shrink-0 rounded-lg border border-border bg-card px-4 py-2.5 text-[13px] leading-relaxed text-foreground">
+    <p className="shrink-0 ui-surface ui-surface-panel px-4 py-2.5 text-[13px] leading-relaxed text-foreground">
       <strong className="font-semibold">{runB.scenario_name}</strong>
       {": "}
       {t("simulation.compare.verdict", {

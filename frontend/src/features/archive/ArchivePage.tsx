@@ -88,14 +88,14 @@ export function ArchivePage(): React.JSX.Element {
           <Skeleton className="h-40 w-full" />
         </div>
       ) : archiveQuery.isError ? (
-        <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
+        <div className="flex flex-1 items-center justify-center ui-surface ui-surface-panel">
           <ErrorState
             description={t("state.errorBody")}
             onRetry={() => void archiveQuery.refetch()}
           />
         </div>
       ) : total === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
+        <div className="flex flex-1 items-center justify-center ui-surface ui-surface-panel">
           <EmptyState
             icon={Archive}
             title={t("nav.archive")}
@@ -149,7 +149,7 @@ function ArchivedList({
   }
 
   return (
-    <ul className="flex flex-col rounded-xl border border-border bg-card">
+    <ul className="flex flex-col ui-surface ui-surface-panel">
       {rows.map((row) => (
         <li
           key={`${row.kind}-${row.id}`}

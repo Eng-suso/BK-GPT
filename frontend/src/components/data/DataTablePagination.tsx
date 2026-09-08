@@ -37,7 +37,7 @@ export function DataTablePagination({
   ).filter((p) => p >= 1 && p <= pageCount);
 
   const btn =
-    "grid h-7 min-w-7 place-items-center rounded-md border border-border bg-card px-2 text-xs font-medium tabular-nums text-muted-foreground shadow-control disabled:opacity-40";
+    "grid h-7 min-w-7 place-items-center rounded-full ui-button-glass px-2 text-xs font-medium tabular-nums text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-40";
 
   return (
     <>
@@ -47,7 +47,7 @@ export function DataTablePagination({
             aria-label={t("pagination.rowsPerPage")}
             value={pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="h-7 rounded-md border border-border bg-card px-1.5 text-xs font-medium tabular-nums text-muted-foreground shadow-control"
+            className="h-7 rounded-full ui-button-glass px-1.5 text-xs font-medium tabular-nums text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
             {pageSizeOptions.map((n) => (
               <option key={n} value={n}>

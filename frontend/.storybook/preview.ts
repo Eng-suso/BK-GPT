@@ -6,6 +6,7 @@ import "@fontsource-variable/geist-mono";
 import "../styles/tokens/primitive.css";
 import "../styles/tokens/semantic.css";
 import "../src/styles/theme.css";
+import "../src/styles/materials.css";
 
 const preview: Preview = {
   parameters: {

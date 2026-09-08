@@ -97,7 +97,12 @@
       "noNotes": "Nessuna nota registrata",
       "identifier": "Identificativo",
       "reference": "DeliR conserva il riferimento alla fonte e ciò che ne è stato estratto, non il file originale.",
-      "openProcess": "Apri processo collegato"
+      "openProcess": "Apri processo collegato",
+      "participants": "Presenti",
+      "summaryHeading": "In sintesi",
+      "contentHeading": "Testo della fonte",
+      "contentLoading": "Carico il testo della fonte...",
+      "noContent": "Questa fonte non ha un testo integrale registrato."
     },
     "decisions": {
       "empty": "Nessuna decisione registrata"

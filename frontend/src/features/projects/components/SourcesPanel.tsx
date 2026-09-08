@@ -23,6 +23,7 @@ import {
 } from "@/ui/dialog";
 import { useListFilters } from "@/lib/hooks/useListFilters";
 import type { ProjectProcess, ProjectSource } from "@/contracts/workspace";
+import { useSourceDocumentQuery } from "../api";
 
 /**
  * Picks the icon that matches a source type.
@@ -93,6 +94,9 @@ export function SourcesPanel({
   const openProcess = openSource?.processId
     ? (processById.get(openSource.processId) ?? null)
     : null;
+  // Il testo integrale si carica quando la fonte viene aperta: un transcript
+  // per riga di elenco sarebbe traffico per qualcosa che nessuno ha chiesto.
+  const { data: document, isLoading } = useSourceDocumentQuery(openSourceId);
 
   if (sources.length === 0) {
     return (
@@ -141,7 +145,7 @@ export function SourcesPanel({
           }
         />
       ) : (
-        <ul className="flex flex-col rounded-xl border border-border bg-card">
+        <ul className="flex flex-col ui-surface ui-surface-panel">
           {visible.map((source) => {
             const Icon = iconForType(source.type);
             const process = source.processId
@@ -184,7 +188,7 @@ export function SourcesPanel({
         open={openSource !== null}
         onOpenChange={(next) => !next && setOpenSourceId(null)}
       >
-        <DialogContent className="border-border sm:max-w-lg">
+        <DialogContent className="flex max-h-[85vh] flex-col overflow-y-auto border-border sm:max-w-2xl">
           {openSource && (
             <>
               <DialogHeader>
@@ -203,10 +207,12 @@ export function SourcesPanel({
                   label={t("detail.sources.linkedProcess")}
                   value={openProcess?.name ?? t("detail.sources.noLinkedProcess")}
                 />
-                <DetailRow
-                  label={t("detail.sources.notes")}
-                  value={openSource.meta || t("detail.sources.noNotes")}
-                />
+                {document?.participants.length ? (
+                  <DetailRow
+                    label={t("detail.sources.participants")}
+                    value={document.participants.join(", ")}
+                  />
+                ) : null}
                 <DetailRow
                   label={t("detail.sources.identifier")}
                   value={
@@ -214,6 +220,42 @@ export function SourcesPanel({
                   }
                 />
               </dl>
+
+              <section className="flex flex-col gap-1.5">
+                <h3 className="text-micro font-medium tracking-wide text-muted-foreground uppercase">
+                  {t("detail.sources.summaryHeading")}
+                </h3>
+                <p className="text-body-sm leading-relaxed text-foreground">
+                  {document?.summary || openSource.meta || t("detail.sources.noNotes")}
+                </p>
+              </section>
+
+              <section className="flex min-h-0 flex-col gap-1.5">
+                <h3 className="text-micro font-medium tracking-wide text-muted-foreground uppercase">
+                  {t("detail.sources.contentHeading")}
+                </h3>
+                {isLoading ? (
+                  <p className="text-body-sm text-muted-foreground">
+                    {t("detail.sources.contentLoading")}
+                  </p>
+                ) : document?.hasContent ? (
+                  // Il testo integrale, scrollabile dentro la sua sezione: un
+                  // transcript non deve allungare il dialogo fuori schermo, e
+                  // whitespace-pre-wrap tiene le andate a capo dell'originale.
+                  <div
+                    tabIndex={0}
+                    role="region"
+                    aria-label={t("detail.sources.contentHeading")}
+                    className="max-h-[42vh] overflow-y-auto rounded-md border border-border bg-muted/30 p-3 text-body-sm leading-relaxed whitespace-pre-wrap text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {document.content}
+                  </div>
+                ) : (
+                  <p className="text-body-sm text-muted-foreground">
+                    {t("detail.sources.noContent")}
+                  </p>
+                )}
+              </section>
 
               <p className="text-micro leading-relaxed text-muted-foreground">
                 {t("detail.sources.reference")}

@@ -3,7 +3,7 @@
     "projects": "Progetti"
   },
   "tabs": {
-    "canvas": "Modello",
+    "canvas": "Canvas",
     "chat": "Discussione",
     "simulation": "Simulazione"
   },
@@ -359,5 +359,13 @@
     "eyebrow": "BPMN 2.0",
     "title": "Pannello proprietà",
     "hint": "Elemento selezionato"
+  },
+  "canvas": {
+    "blank": {
+      "title": "Il modello è ancora vuoto",
+      "description": "Questo processo è registrato ma non ancora ricostruito. Il canvas nasce dalla discussione: raccontala all'agente e ti proporrà il BPMN. In alternativa importa un file .bpmn o disegnalo a mano dalla palette qui a sinistra.",
+      "openDiscussion": "Vai alla discussione",
+      "import": "Importa BPMN"
+    }
   }
 }

@@ -80,7 +80,7 @@ export function InsightsPage(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto pb-4">
-      <section className="rounded-lg border border-border bg-card p-4">
+      <section className="ui-surface ui-surface-panel p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Sparkles aria-hidden className="size-4 text-muted-foreground" />
@@ -143,7 +143,7 @@ export function InsightsPage(): React.JSX.Element {
           <ExperimentCard key={i} exp={exp} onApply={() => applyExperiment(exp)} />
         ))}
         {report && report.experiments.length === 0 && (
-          <section className="rounded-lg border border-border bg-card p-4">
+          <section className="ui-surface ui-surface-panel p-4">
             <p className="text-xs text-muted-foreground">
               {t("simulation.insights.noExperiment")}
             </p>
@@ -165,7 +165,7 @@ function ExperimentCard({
   const cyclePct = exp.estimate.cycle_pct;
   const costPct = exp.estimate.cost_pct;
   return (
-    <section className="flex flex-col rounded-lg border border-border bg-card p-4">
+    <section className="flex flex-col ui-surface ui-surface-panel p-4">
       <p className="eyebrow">{t("simulation.insights.experimentKind.add_resource")}</p>
       <h3 className="mt-1 text-sm font-semibold text-foreground">
         {t("simulation.insights.addResourceTitle", {

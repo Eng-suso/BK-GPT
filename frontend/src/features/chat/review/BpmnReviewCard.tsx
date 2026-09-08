@@ -33,6 +33,13 @@ import type { BpmnReview, BpmnReviewVersion, ReviewOpenQuestion } from "../types
 type BpmnReviewCardProps = {
   review: BpmnReview;
   onOpen: () => void;
+  /**
+   * Il turno appena tentato non e' arrivato in fondo, quindi questo piano e'
+   * quello di prima. Senza dirlo, la pagina mostrava un errore e un piano
+   * "pronto" nello stesso schermo, e il consulente non poteva sapere quale dei
+   * due raccontasse il presente (PROCESS-V2-14).
+   */
+  isStale?: boolean;
 };
 
 type BpmnReviewSheetProps = {
@@ -54,19 +61,25 @@ const SCORE_MAX = 10;
 export function BpmnReviewCard({
   review,
   onOpen,
+  isStale = false,
 }: BpmnReviewCardProps) {
   const qualityReport = review.quality_report || {};
   const isReady = qualityReport.approval_recommendation === "ready_to_generate";
 
   return (
-    <section className="bpmn-review-card" aria-label="Piano BPMN pronto">
+    <section
+      className={cn("bpmn-review-card", isStale && "is-stale")}
+      aria-label={isStale ? "Piano BPMN dell'ultimo giro riuscito" : "Piano BPMN pronto"}
+    >
       <div className="bpmn-review-card-icon" aria-hidden="true">
         <ClipboardCheck className="size-4" />
       </div>
       <div className="bpmn-review-card-copy">
         <div className="bpmn-review-card-heading">
           <div>
-            <p className="product-eyebrow">Piano di modellazione pronto</p>
+            <p className="product-eyebrow">
+              {isStale ? "Piano dell'ultimo giro riuscito" : "Piano di modellazione pronto"}
+            </p>
             <h4>Ho preparato la review BPMN</h4>
           </div>
           <span className={cn("bpmn-review-status", isReady ? "is-ready" : "is-attention")}>
@@ -74,8 +87,9 @@ export function BpmnReviewCard({
           </span>
         </div>
         <p>
-          Controlla cosa ho capito, cosa manca e il flusso che userò per creare il
-          canvas.
+          {isStale
+            ? "L'ultima richiesta non è arrivata in fondo: questo piano è quello di prima, non il risultato di quel tentativo."
+            : "Controlla cosa ho capito, cosa manca e il flusso che userò per creare il canvas."}
         </p>
         <div className="bpmn-review-card-actions">
           <Button type="button" size="sm" onClick={onOpen}>

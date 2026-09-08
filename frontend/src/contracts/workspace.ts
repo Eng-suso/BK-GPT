@@ -182,6 +182,27 @@ export type ProjectSource = {
   meta: string;
 };
 
+/**
+ * A source with what it actually says, not just how it is labelled.
+ *
+ * The sources panel used to show a truncated note. Reading a claim back to its
+ * evidence needs the original words, so a source carries its summary and its
+ * full text. `hasContent` is false for evidence that never had a transcript.
+ */
+export type SourceDocument = {
+  id: string;
+  projectId: string;
+  processId: string | null;
+  name: string;
+  type: string;
+  summary: string;
+  participants: string[];
+  occurredAt: string | null;
+  episodeId: string | null;
+  content: string;
+  hasContent: boolean;
+};
+
 export type ProjectDecision = {
   id: string;
   projectId: string;
@@ -312,6 +333,20 @@ export const apiProjectSourceSchema = z.object({
   meta: z.string(),
 });
 
+export const apiSourceDocumentSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  process_id: z.string().nullable(),
+  name: z.string(),
+  type: z.string(),
+  summary: z.string(),
+  participants: z.array(z.string()),
+  occurred_at: z.string().nullable(),
+  episode_id: z.string().nullable(),
+  content: z.string(),
+  has_content: z.boolean(),
+});
+
 export const apiProjectDecisionSchema = z.object({
   id: z.string(),
   project_id: z.string(),
@@ -325,6 +360,30 @@ export const apiClientsSchema = z.array(apiClientSchema);
 export const apiProjectsSchema = z.array(apiProjectSchema);
 export const apiProjectSourcesSchema = z.array(apiProjectSourceSchema);
 export const apiProjectDecisionsSchema = z.array(apiProjectDecisionSchema);
+
+/**
+ * Converts an API source document into the client-side model.
+ *
+ * @param document - The validated API source document
+ * @returns The source document with client-side field names
+ */
+export function toSourceDocument(
+  document: z.infer<typeof apiSourceDocumentSchema>,
+): SourceDocument {
+  return {
+    id: document.id,
+    projectId: document.project_id,
+    processId: document.process_id,
+    name: document.name,
+    type: document.type,
+    summary: document.summary,
+    participants: document.participants,
+    occurredAt: document.occurred_at,
+    episodeId: document.episode_id,
+    content: document.content,
+    hasContent: document.has_content,
+  };
+}
 
 /**
  * Converts an API client record into the client-side model.

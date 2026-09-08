@@ -32,7 +32,11 @@ const VIEWS: ProcessView[] = ["chat", "canvas"];
 function parseView(raw: string | null): ProcessView {
   // Back-compat: the old standalone "properties" view is now a canvas dock.
   if (raw === "properties") return "canvas";
-  return VIEWS.includes(raw as ProcessView) ? (raw as ProcessView) : "canvas";
+  // Senza `?view` si apre la discussione, non il canvas: aprire un processo
+  // significa riprendere il filo con l'agente, e il modello e' il risultato di
+  // quella conversazione. Chi vuole il canvas ci arriva con un click, e il link
+  // con `?view=canvas` continua ad aprirlo direttamente.
+  return VIEWS.includes(raw as ProcessView) ? (raw as ProcessView) : "chat";
 }
 
 /**
@@ -193,6 +197,7 @@ export function ProcessStudioPage(): React.JSX.Element {
           view={view}
           propertiesOpen={propertiesOpen}
           onTogglePropertiesPanel={togglePropertiesPanel}
+          onOpenDiscussion={() => setView("chat")}
         />
       </div>
     </div>

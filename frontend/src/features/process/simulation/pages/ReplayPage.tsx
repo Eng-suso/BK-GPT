@@ -120,12 +120,12 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
-      <div className="shrink-0 overflow-hidden rounded-lg border border-border bg-card">
+      <div className="shrink-0 overflow-hidden ui-surface ui-surface-panel">
         <TransportBar engine={engine} />
       </div>
 
       <div className="flex min-h-[360px] shrink-0 flex-1 gap-3">
-        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
           <SimulationCanvas
             className="min-h-0 flex-1"
             bpmnXml={bpmnXml}
@@ -138,7 +138,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
 
           {selectedId && (
             <aside
-              className="absolute right-3 top-14 z-10 max-h-[calc(100%-4.25rem)] w-[280px] max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-border bg-card p-4 shadow-lg"
+              className="absolute right-3 top-14 z-10 max-h-[calc(100%-4.25rem)] w-[280px] max-w-[calc(100%-1.5rem)] overflow-y-auto ui-surface ui-surface-panel p-4 shadow-lg"
               aria-label={t("simulation.replay.nodeInspector")}
             >
               <div className="mb-2 flex items-start justify-between gap-2 border-b border-border pb-2">
@@ -201,7 +201,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
       </div>
 
       {status?.granularity === "case" && (
-        <div className="flex h-[156px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex h-[156px] shrink-0 flex-col overflow-hidden ui-surface ui-surface-panel px-4 py-3">
           <CaseTimeline engine={engine} />
         </div>
       )}

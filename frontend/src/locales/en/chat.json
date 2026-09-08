@@ -60,6 +60,9 @@
     "queueHint": "Add the message to the running turn queue (Enter)"
   },
   "status": {
+    "historyUnavailable": "History unavailable",
+    "historyUnavailableBody": "Conversations could not be loaded. You can retry; your draft stays here.",
+    "requestFailed": "Request not completed",
     "thinking": "Working on it…",
     "progressLabel": "Work progress",
     "stoppedByUser": "Turn stopped: this is the part of the answer already produced.",
@@ -104,9 +107,14 @@
       "description": "Edit the BPMN model in words: the assistant updates the diagram and checks it stays consistent.",
       "prompts": [
         "Generate the BPMN from the process evidence",
-        "Add a gateway after the credit check",
+        "What is missing to build the model?",
+        "List the activities that emerged from the sources"
+      ],
+      "promptsModeled": [
+        "Walk me through the current model step by step",
+        "Validate the coverage of roles and exceptions",
         "Assign an owner role to every activity",
-        "Validate the coverage of roles and exceptions"
+        "Tidy up the diagram layout"
       ]
     }
   },

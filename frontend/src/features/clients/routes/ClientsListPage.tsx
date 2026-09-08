@@ -230,7 +230,7 @@ export function ClientsListPage(): React.JSX.Element {
         onDone={() => setSelectedId(null)}
       />
       {isError ? (
-        <div className="flex flex-1 items-center justify-center rounded-xl border border-border bg-card">
+        <div className="flex flex-1 items-center justify-center ui-surface ui-surface-panel">
           <ErrorState
             description={t("state.loadError")}
             onRetry={() => void refetch()}

@@ -50,7 +50,7 @@ export function ReadinessSummary({
     <div
       className={cn(
         "flex flex-col gap-3",
-        !dense && "rounded-lg border border-border bg-card p-4",
+        !dense && "ui-surface ui-surface-panel p-4",
         className,
       )}
     >

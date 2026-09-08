@@ -53,7 +53,7 @@ export function TimeSeriesChart({
   const frac = Math.min(1, Math.max(0, durationSec ? tNow / durationSec : 0));
 
   return (
-    <figure className="m-0 flex min-w-0 flex-col rounded-lg border border-border bg-card p-3.5">
+    <figure className="m-0 flex min-w-0 flex-col ui-surface ui-surface-panel p-3.5">
       <figcaption className="mb-2">
         <div className="flex items-center justify-between gap-2">
           <span className="eyebrow">{title}</span>
