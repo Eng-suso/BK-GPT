@@ -26,7 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
-from backend.memory import embeddings
+from backend.memory import embeddings, provenance
 from backend.memory.knowledge_graph import catalog
 from backend.memory.knowledge_graph import entity_resolution
 
@@ -53,6 +53,12 @@ _SOURCE_KINDS = frozenset(
     {"interview_transcript", "document", "chat_extract",
      "system_export", "note", "observation"}
 )
+# 0015 — provenance per claim e tipo di divergenza. I valori ammessi stanno in
+# `backend.memory.provenance`: qui si importano invece di riscriverli, cosi' il
+# CHECK del DB, il write path e le regole epistemiche non possono divergere.
+_SCOPE_LEVELS = frozenset(provenance.SCOPE_LEVELS)
+_EPISTEMIC_STATUSES = frozenset(provenance.EPISTEMIC_STATUSES)
+_DIVERGENCE_TYPES = frozenset(provenance.DIVERGENCE_TYPES)
 
 
 def _enum(value: Any, allowed: frozenset[str], default: str) -> str:
@@ -468,10 +474,30 @@ def write_claim(
     linked_element_hint: str | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
+    attributed_to: str = "",
+    source_name: str = "",
+    topic: str = "",
+    assertion: str = "",
+    qualifiers: list[str] | None = None,
+    quote: str = "",
+    quote_verified: bool = False,
+    scope_label: str = "",
+    scope_level: str = "stated_scope",
+    epistemic_status: str = "reported",
     tx: Session | None = None,
 ) -> str:
+    """Scrive un `kg_claim` con la sua provenance (0015).
+
+    Chi lo dice, con quali parole, per quale perimetro e in che modo epistemico
+    sono colonne, non ricostruzioni a valle: e' l'unico modo perche' la lettura
+    possa dimostrare "claim -> fonte -> estratto" invece di risintetizzarlo.
+    `quote_verified` lo decide il chiamante (`write_evidence`) confrontando la
+    citazione col testo sorgente; qui si registra il verdetto.
+    """
     process_area = _enum(process_area, _PROCESS_AREAS, "other")
     claim_status = _enum(claim_status, _CLAIM_STATUS, "partial")
+    scope_level = _enum(scope_level, _SCOPE_LEVELS, "stated_scope")
+    epistemic_status = _enum(epistemic_status, _EPISTEMIC_STATUSES, "reported")
     with _open(consultant_id, client_id, tx) as session:
         claim_id = str(
             session.execute(
@@ -479,9 +505,13 @@ def write_claim(
                     "INSERT INTO kg_claim "
                     "(consultant_id, client_id, project_id, process_id, scope, "
                     " statement, process_area, claim_status, linked_element_hint, "
-                    " confidence, source_ids, created_by) "
+                    " confidence, source_ids, attributed_to, source_name, topic, "
+                    " assertion, qualifiers, quote, quote_verified, scope_label, "
+                    " scope_level, epistemic_status, created_by) "
                     "VALUES (:c,:cl,:p,:pr,'client',:st,:pa,:cs,:hint,:conf,"
-                    "        CAST(:src AS uuid[]),'agent') RETURNING id"
+                    "        CAST(:src AS uuid[]),:att,:sname,:topic,:assertion,"
+                    "        CAST(:quals AS text[]),:quote,:qver,"
+                    "        :slabel,:slevel,:epi,'agent') RETURNING id"
                 ),
                 {
                     "c": str(consultant_id), "cl": str(client_id),
@@ -490,6 +520,12 @@ def write_claim(
                     "st": statement, "pa": process_area, "cs": claim_status,
                     "hint": linked_element_hint, "conf": confidence,
                     "src": _pg_uuid_array(source_ids),
+                    "att": attributed_to or "", "sname": source_name or "",
+                    "topic": topic or "", "assertion": assertion or "",
+                    "quals": list(provenance.normalize_qualifiers(qualifiers or ())),
+                    "quote": quote or "",
+                    "qver": bool(quote_verified), "slabel": scope_label or "",
+                    "slevel": scope_level, "epi": epistemic_status,
                 },
             ).one().id
         )
@@ -502,6 +538,10 @@ def write_claim(
                 "layer": "L1", "status": "active", "confidence": confidence,
                 "process_area": process_area, "claim_status": claim_status,
                 "linked_element_hint": linked_element_hint,
+                # Enum non identificativi: passano a Neo4j, i testi no (B+).
+                "epistemic_status": epistemic_status,
+                "scope_level": scope_level,
+                "quote_verified": bool(quote_verified),
             },
         )
         if process_id:
@@ -584,12 +624,16 @@ def write_contradiction(
     conflicting_statements: list[str] | None = None,
     resolution_question: str = "",
     severity: str = "medium",
+    divergence_type: str = "incompatible",
     affected_process_ids: list[str] | None = None,
     confidence: float = 0.5,
     source_ids: list[str] | None = None,
     tx: Session | None = None,
 ) -> str:
     severity = _enum(severity, _SEVERITY, "medium")
+    # Il tipo arriva gia' classificato da `provenance.classify_divergence`: qui
+    # si valida soltanto l'enum, non si rialza mai a `incompatible`.
+    divergence_type = _enum(divergence_type, _DIVERGENCE_TYPES, "tension_to_explore")
     claim_ids = _pg_uuid_array(conflicting_claim_ids)
     affected = _pg_uuid_array(affected_process_ids)
     with _open(consultant_id, client_id, tx) as session:
@@ -599,10 +643,10 @@ def write_contradiction(
                     "INSERT INTO kg_contradiction "
                     "(consultant_id, client_id, project_id, process_id, scope, "
                     " title, conflicting_claim_ids, conflicting_statements, "
-                    " resolution_question, severity, affected_process_ids, "
-                    " confidence, source_ids, created_by) "
+                    " resolution_question, severity, divergence_type, "
+                    " affected_process_ids, confidence, source_ids, created_by) "
                     "VALUES (:c,:cl,:p,:pr,'client',:t,CAST(:cc AS uuid[]),"
-                    "        CAST(:cst AS text[]),:rq,:sev,CAST(:aff AS uuid[]),"
+                    "        CAST(:cst AS text[]),:rq,:sev,:dt,CAST(:aff AS uuid[]),"
                     "        :conf,CAST(:src AS uuid[]),'agent') RETURNING id"
                 ),
                 {
@@ -611,7 +655,8 @@ def write_contradiction(
                     "pr": str(process_id) if process_id else None,
                     "t": title, "cc": claim_ids,
                     "cst": list(conflicting_statements or []),
-                    "rq": resolution_question, "sev": severity, "aff": affected,
+                    "rq": resolution_question, "sev": severity,
+                    "dt": divergence_type, "aff": affected,
                     "conf": confidence, "src": _pg_uuid_array(source_ids),
                 },
             ).one().id
@@ -624,7 +669,7 @@ def write_contradiction(
                 "contradiction_id": contra_id, "client_id": str(client_id),
                 "project_id": str(project_id) if project_id else None,
                 "layer": "L1", "status": "active", "confidence": confidence,
-                "severity": severity,
+                "severity": severity, "divergence_type": divergence_type,
             },
         )
         for target_process in affected or ([str(process_id)] if process_id else []):
@@ -872,6 +917,9 @@ def write_evidence(
     counts = {
         "entities": 0, "relationships": 0, "claims": 0,
         "gaps": 0, "contradictions": 0, "impacts": 0, "chunks": 0,
+        # Claim la cui citazione non e' stata riscontrata nel testo sorgente:
+        # non e' un errore fatale, e' un dato che il chiamante deve poter vedere.
+        "unverified_quotes": 0,
     }
     # chunk + embedding FUORI dalla transazione: la chiamata all'embedder e' di
     # rete e non deve tenere lock sul pacchetto di evidenza atomico.
@@ -965,6 +1013,22 @@ def write_evidence(
             counts["relationships"] += 1
 
         for claim in claims or []:
+            # La citazione si verifica contro il testo sorgente PRIMA di
+            # scriverla: una sintesi puo' comprimere, non puo' rafforzare. Se il
+            # passaggio non c'e' (o non c'e' il sorgente) il claim entra
+            # comunque, ma dichiarato non riscontrato — cosi' a valle si vede la
+            # differenza fra "citato" e "riformulato".
+            declared_quote = str(claim.get("quote", "") or "")
+            # Quando il passaggio c'e', si scrive quello della FONTE, non la
+            # copia di chi estrae: bastano una maiuscola o una virgola cambiate
+            # perche' cio' che a valle finisce fra virgolette non sia piu' il
+            # verbatim dell'intervista. Il lineage deve arrivare al testo
+            # originale, non fermarsi al claim normalizzato.
+            grounded = provenance.exact_span(declared_quote, source_text)
+            quote = grounded or declared_quote
+            verified = bool(grounded)
+            if declared_quote and not verified:
+                counts["unverified_quotes"] += 1
             write_claim(
                 consultant_id, client_id, claim.get("statement", "") or "",
                 claim.get("process_area", "other"),
@@ -972,7 +1036,25 @@ def write_evidence(
                 claim_status=claim.get("claim_status", "partial"),
                 linked_element_hint=claim.get("linked_element_hint"),
                 confidence=_float(claim.get("confidence")),
-                source_ids=source_ids, tx=session,
+                source_ids=source_ids,
+                attributed_to=str(claim.get("attributed_to", "") or ""),
+                source_name=str(claim.get("source_name", "") or source_title or ""),
+                topic=provenance.topic_key(
+                    claim.get("topic") or claim.get("statement") or ""
+                ),
+                # La chiave della corroborazione e' la proposizione, non il
+                # soggetto: senza `assertion` si ricade sull'enunciato, quindi
+                # due formulazioni diverse non diventano un accordo.
+                assertion=provenance.topic_key(
+                    claim.get("assertion") or claim.get("statement") or ""
+                ),
+                qualifiers=claim.get("qualifiers") or [],
+                quote=quote,
+                quote_verified=verified,
+                scope_label=str(claim.get("scope_label", "") or ""),
+                scope_level=str(claim.get("scope_level", "") or "stated_scope"),
+                epistemic_status=str(claim.get("epistemic_status", "") or "reported"),
+                tx=session,
             )
             counts["claims"] += 1
 
@@ -996,6 +1078,7 @@ def write_evidence(
                 conflicting_claim_ids=contra.get("conflicting_claim_ids"),
                 resolution_question=contra.get("resolution_question", "") or "",
                 severity=contra.get("severity", "medium"),
+                divergence_type=contra.get("divergence_type", "tension_to_explore"),
                 affected_process_ids=contra.get("affected_process_ids"),
                 source_ids=source_ids, tx=session,
             )

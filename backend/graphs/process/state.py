@@ -59,6 +59,10 @@ class ProcessState(ConversationState):
     discovery_readiness: dict | None
     evidence_coverage: dict | None
     canvas_handoff_payload: dict | None
+    # Il registro dell'evidenza persistita di questo processo, ricaricato a ogni
+    # apertura di turno da `load_process_context`. Non e' un accumulatore: e' lo
+    # stato del knowledge graph, quindi si sostituisce, non si somma.
+    evidence_ledger: dict | None
 
     routing_trace: Annotated[list[dict], add]
     delegation_events: Annotated[list[dict], add]

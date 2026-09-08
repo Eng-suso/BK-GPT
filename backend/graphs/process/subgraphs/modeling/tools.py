@@ -104,6 +104,51 @@ def validate_process_understanding_readiness(
     )
 
 
+def _persisted_claim_count(project_id: str | None, process_id: str) -> int:
+    """Quante affermazioni il knowledge graph tiene su questo processo.
+
+    Il piano si prepara sull'evidenza, quindi il runtime deve poterla contare
+    senza fidarsi di cio' che l'agente dichiara di aver letto. Se il registro non
+    e' raggiungibile si torna zero: il gate qui sotto non deve bloccare un
+    workspace senza knowledge graph.
+    """
+    if not project_id:
+        return 0
+    from backend.toolsets.process_memory import process_claim_ledger
+
+    try:
+        return len((process_claim_ledger(project_id, process_id) or {}).get("claims") or [])
+    except Exception:  # noqa: BLE001 — un registro illeggibile non e' un piano invalido
+        return 0
+
+
+def _plan_ignores_evidence(
+    understanding: ProcessUnderstanding | None, claim_count: int
+) -> str | None:
+    """Il piano riparte da zero mentre l'evidenza esiste: perche', se e' cosi'.
+
+    PROCESS-V2-11: dopo tre interviste il planner dichiarava di conoscere
+    "esclusivamente il titolo del processo" e preparava una review con zero
+    attori e zero lane. Non e' prudenza, e' evidenza che non e' arrivata fin
+    qui: salvarla come piano la renderebbe lo stato ufficiale del processo, e
+    tutto cio' che viene dopo leggerebbe quel vuoto invece delle interviste.
+    """
+    if claim_count == 0:
+        return None
+    if understanding is None:
+        return (
+            f"Il processo ha {claim_count} affermazioni registrate ma la review "
+            "arriva senza ProcessUnderstanding strutturata."
+        )
+    if understanding.actors or understanding.participants or understanding.steps:
+        return None
+    return (
+        f"Il processo ha {claim_count} affermazioni registrate, ma la "
+        "ProcessUnderstanding proposta non contiene attori, partecipanti ne' "
+        "attivita'."
+    )
+
+
 @tool(args_schema=ProcessUnderstandingReviewInput)
 def prepare_process_understanding_review(
     process_id: str,
@@ -117,10 +162,27 @@ def prepare_process_understanding_review(
     Build and save a pending ProcessUnderstanding/BPMNSemanticModel review for
     one process. Use only after discovery/evidence synthesis, not from generic
     free text. This does not approve or save final BPMN XML.
+
+    The runtime counts the process claims already on record. A review that
+    carries no actors, participants or activities while claims exist is refused:
+    the evidence has not reached the plan, and saving it would make that gap the
+    official state of the process.
     """
     process = workspace_database.get_process(process_id)
     if process is None:
         raise ValueError(f"Processo non trovato: {process_id}")
+
+    claim_count = _persisted_claim_count(process.get("project_id"), process_id)
+    ignored_evidence = _plan_ignores_evidence(process_understanding, claim_count)
+    if ignored_evidence:
+        raise ValueError(
+            f"{ignored_evidence} Rileggi il registro dell'evidenza di questo "
+            "processo (e' nel tuo contesto di scope, e audit_process_evidence lo "
+            "riporta riga per riga), struttura attori, partecipanti e attivita' "
+            "su quello che le fonti hanno gia' detto, poi ripresenta la review. "
+            "Se il registro davvero non basta per una bozza, dillo al consulente "
+            "citando cosa manca invece di salvare un piano vuoto."
+        )
 
     sections = [process_description.strip()]
     if evidence_summary.strip():

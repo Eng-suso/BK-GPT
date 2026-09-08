@@ -410,6 +410,13 @@ with `update_workspace_process`. When the work actually moves, say so on the
 record: an AS-IS the people who run it have confirmed is `Validato`, and saying
 it in prose while the record still reads `Bozza` leaves the workspace lying to
 whoever opens it next.
+
+Evidence already collected is not something to re-derive from the conversation:
+`audit_process_evidence` returns the recorded claims of this process with who
+states each one, the scope it covers, and a support level computed by the
+runtime. Read it before saying that something is missing, before saying two
+sources agree, and whenever the consultant asks where a statement comes from -
+that question is answered with the original excerpt, not with a new summary.
 """.strip()
 
 

@@ -277,11 +277,26 @@ class ProcessUnknown(BaseModel):
     question: str
     affects: str
     severity: Literal["blocking", "non_blocking", "optional_extension"] = "non_blocking"
+    # PROCESS-V2-15: senza questo campo la domanda non doveva render conto di
+    # niente, e usciva la categoria invece della lacuna - "quali attori?" dopo
+    # tre interviste sugli attori. Qui la domanda dichiara da dove nasce, e il
+    # runtime puo' verificare che quella cosa nelle note ci sia davvero.
+    grounded_in: str = Field(
+        default="",
+        description=(
+            "The concrete gap or contradiction in the source notes that makes this "
+            "question necessary: name the voice and what it said. E.g. 'Paolo says "
+            "small amounts may skip formal approval, Francesca says authorisation is "
+            "always required'. Not a category name."
+        ),
+    )
     options: list[ProcessUnknownOption] = Field(
         default_factory=list,
         description=(
             "Two to four alternatives that would close this gap, when the plausible "
-            "answers are knowable. Leave empty for a genuinely open question."
+            "answers are knowable. Each option must be an answer the notes make "
+            "possible, not a generic business template. Leave empty for a genuinely "
+            "open question."
         ),
     )
 
@@ -1057,10 +1072,23 @@ Regole:
 - Lascia quality_report vuoto: sara prodotto da un evaluator separato.
 - Usa id XML-safe con lettere, numeri e underscore.
 - Metti in unknowns cio che manca; usa blocking solo se impedisce una bozza BPMN minima.
+- Ogni unknown nasce da una lacuna o da una contraddizione precisa delle note, e
+  grounded_in deve dirla nominando la voce e cosa ha detto. Esempi di domande
+  valide: "Paolo dice che per piccoli importi l'approvazione puo non essere
+  formalizzata, Francesca dice che l'autorizzazione e sempre richiesta: quale
+  descrive il processo effettivo?"; "Francesca dice che Acquisti crea e invia
+  l'ordine: cosa succede fra invio ordine e ricezione fattura?".
+- Non chiedere una categoria intera su cui le note gia parlano. "Quali sono gli
+  attori?", "quali attivita?", "quali regole?", "come funziona il processo?" non
+  sono unknowns: se le note nominano attori, attivita o regole, quella conoscenza
+  va estratta, non richiesta. Se non le nominano, l'unknown deve dire quale
+  passaggio specifico resta scoperto.
 - Per ogni unknown, quando le risposte plausibili sono conoscibili, proponi da 2 a 4
   options: label breve e selezionabile + implication (cosa cambierebbe nel modello
-  se quella fosse la risposta). Lascia options vuoto solo per una domanda davvero
-  aperta, dove elencare alternative sarebbe indovinare.
+  se quella fosse la risposta). Ogni option deve essere una lettura che le note
+  rendono possibile: non proporre temi generici di settore (sourcing, budget,
+  conformita, soglie) che nelle note non compaiono. Lascia options vuoto quando
+  elencare alternative sarebbe indovinare.
 - Se un'eccezione e citata ma la gestione manca, usa is_defined=false.
 - Per ogni eccezione collega attached_to_step_id allo step su cui puo scattare e
   imposta interrupting=false solo se lo step prosegue mentre parte la gestione.

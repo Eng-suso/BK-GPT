@@ -278,3 +278,104 @@ docstring dell'hook chiedeva gia' ("mount once near the workspace routes") e che
 tre mount per pagina non erano. I tre duplicati spariscono. Il listener del
 canvas in `useBpmnCanvas` resta separato: ascolta lo stesso evento per ricaricare
 l'XML, ed e' un'altra cosa.
+
+## PROCESS-V2-11/13 — L'evidenza non arrivava al piano
+
+- **Severity**: P0
+- **Stato**: risolto (2026-09-08) — coperto da
+  `tests/test_process_evidence_to_plan.py` e
+  `e2e/process-evidence-to-plan.spec.ts`
+- **Input**: tre interviste raccolte in chat di processo, poi "prepara il piano".
+- **Expected**: il piano porta gli attori, le corsie e le regole che le fonti
+  hanno nominato.
+- **Actual**: il planner dichiarava di conoscere "esclusivamente il titolo del
+  processo" e preparava una review con 0 attori e 0 lane. Nello stesso turno la
+  chat di processo, il retrieval delle evidenze e la review BPMN raccontavano
+  stati diversi dello stesso processo.
+- **Causa**: il registro dell'evidenza veniva caricato a ogni turno da
+  `load_process_context`, ma lo leggeva un solo nodo — `process_report`, quello
+  che scrive la risposta finale. Il prompt di scope
+  (`build_scope_system_prompt`), che e' cio' che ogni specialista vede quando
+  apre la sua passata, non lo stampava mai; e nemmeno il router, che decideva il
+  passo successivo senza sapere cosa fosse gia' agli atti. Due letture divergenti
+  dello stesso stato non sono una race: sono due sorgenti di verita'.
+
+### Fix
+
+`backend/agents/evidence_brief.py` costruisce e stampa il registro una volta
+sola. Lo usano il prompt di scope, il router e il nodo di risposta: le stesse
+righe, per tutti. Il prompt aggiunge la regola che manca da sola non basta —
+cio' che il registro contiene non e' informazione mancante.
+
+A valle, `prepare_process_understanding_review` conta le affermazioni persistite
+sul processo e rifiuta una review senza attori, partecipanti ne' attivita'
+quando ce ne sono: salvare quel vuoto lo renderebbe lo stato ufficiale del
+processo, e tutto cio' che viene dopo leggerebbe quello invece delle interviste.
+
+Lato UI, la chat di processo riceve il `bpmnModelId` del proprio processo: le
+domande del piano vivevano nella sola scheda del canvas, e la discussione che le
+aveva generate non le vedeva.
+
+## PROCESS-V2-12/15 — Domande di chiarimento non ancorate all'evidenza
+
+- **Severity**: P1
+- **Stato**: risolto (2026-09-08) — coperto da
+  `tests/test_process_evidence_to_plan.py`
+- **Input**: le stesse tre interviste, che parlavano di ordini, approvazioni e
+  urgenze.
+- **Expected**: "Paolo dice che per importi piccoli l'approvazione puo' non
+  essere formalizzata, Francesca dice che l'autorizzazione e' sempre richiesta:
+  quale descrive il processo effettivo?"
+- **Actual**: tre domande bloccanti su sourcing, verifica budget, conformita' e
+  soglie di approvazione — temi di settore che nessuna fonte aveva nominato,
+  piu' "quali attori?" e "quali regole?" dopo che le interviste avevano parlato
+  proprio di attori e regole.
+- **Causa**: figlia della precedente. Chi formulava le domande non vedeva il
+  registro, quindi non aveva rispetto a cosa essere specifico, e cadeva sul
+  template. Nessun campo obbligava una domanda a dichiarare da dove nascesse, e
+  nessun controllo la fermava.
+
+### Fix
+
+`ProcessUnknown.grounded_in`: ogni domanda dichiara la lacuna o la
+contraddizione concreta che l'ha generata, nominando la voce e cosa ha detto.
+
+Il controllo e' deterministico (`question_is_grounded`), non un secondo giudizio
+di un modello: una domanda passa se dichiara una lacuna che nelle note esiste,
+oppure se il suo testo pesca dal registro — con la soglia piu' alta quando
+chiede una categoria intera, perche' la forma larga si giustifica solo se il
+contenuto e' stretto. Senza registro non filtra niente: la prima intervista deve
+poter fare domande larghe.
+
+Si applica in due punti: `build_bpmn_review_draft` scarta le domande non
+ancorate prima che diventino "domande del piano" (e lascia scritto perche',
+invece di farle sparire in silenzio), e il router di processo rifiuta un
+chiarimento generico instradando su raccolta evidenze.
+
+## PROCESS-V2-14 — Il lock del thread letto come backend spento
+
+- **Severity**: P1
+- **Stato**: risolto (2026-09-08) — coperto da
+  `e2e/process-evidence-to-plan.spec.ts`
+- **Input**: un turno lungo interrotto (pagina cambiata, connessione caduta),
+  poi un nuovo messaggio sulla stessa conversazione.
+- **Expected**: "il turno precedente sta ancora lavorando".
+- **Actual**: "Backend scollegato", accanto a una review BPMN presentata come
+  pronta: la pagina sembrava contemporaneamente fallita e a posto.
+- **Causa**: `stream_agent_events` tiene il lock del thread di checkpoint dentro
+  un worker, e lo rilascia a fine grafo. Se il consumatore dello stream spariva,
+  il worker continuava a macinare passate — con il lock in mano — e la richiesta
+  dopo trovava la sessione occupata. In piu' la UI trattava un turno fallito e
+  un backend irraggiungibile come lo stesso guasto.
+
+### Fix
+
+Il worker viene a sapere che non c'e' piu' nessuno che legge (`consumer_gone`) e
+si ferma al primo evento utile: uscire dal ciclo chiude il generatore del grafo e
+il `finally` libera il lock. Il messaggio di sessione occupata dice cosa sta
+succedendo davvero.
+
+Lato UI, turno fallito e cronologia irraggiungibile sono due avvisi distinti, con
+azioni diverse (rimanda il messaggio / ricarica la cronologia), e il piano
+mostrato accanto a un turno fallito si dichiara per quello che e': quello
+dell'ultimo giro riuscito, non il risultato di questo.

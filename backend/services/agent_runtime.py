@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from queue import Empty, Queue
+from threading import Event
 from threading import Lock
 from threading import Thread
 from typing import Any, Iterator
@@ -511,9 +512,16 @@ def stream_agent_events(
 
     acquired = thread_lock.acquire(timeout=THREAD_LOCK_TIMEOUT_SECONDS)
     if not acquired:
+        # PROCESS-V2-14: questo non e' un backend caduto, ed e' l'unica cosa che
+        # il consulente deve capire. Il turno precedente su questa conversazione
+        # sta ancora lavorando: il messaggio lo dice, e `retryable` lascia
+        # riprovare senza ricaricare niente.
         error = ApiError(
             code="agent_thread_busy",
-            message="Sessione occupata. Riprova tra qualche secondo.",
+            message=(
+                "Il turno precedente di questa conversazione sta ancora "
+                "lavorando. Aspetta che finisca e reinvia: il backend risponde."
+            ),
             detail="A previous request is still running for this checkpoint thread.",
             request_id=context.request_id,
             trace_id=context.trace_id,
@@ -543,6 +551,13 @@ def stream_agent_events(
         return
 
     output_queue: Queue[AgentStreamEvent | None] = Queue()
+    # PROCESS-V2-14: chi legge questo stream puo' sparire prima della fine - la
+    # connessione cade, il consulente cambia pagina, il client annulla. Il lock
+    # del thread di checkpoint pero' vive nel worker, e finche' il worker macina
+    # passate nessun altro turno puo' partire su questa conversazione: il
+    # messaggio dopo trovava "sessione occupata" e sembrava un backend spento.
+    # Qui il worker viene a sapere che non c'e' piu' nessuno, e si ferma.
+    consumer_gone = Event()
 
     def enqueue(event: AgentStreamEvent) -> None:
         output_queue.put(event)
@@ -605,6 +620,12 @@ def stream_agent_events(
                 )
 
                 for event in events:
+                    if consumer_gone.is_set():
+                        # Uscire dal `for` chiude il generatore del grafo: le
+                        # passate in corso si fermano e il `finally` qui sotto
+                        # libera il lock invece di tenerlo fino a fine giro.
+                        break
+
                     stream_mode_name, payload = normalize_stream_event(event)
 
                     if stream_mode_name == "updates":
@@ -789,17 +810,23 @@ def stream_agent_events(
         if initial_activity is not None:
             yield initial_activity
 
-    while True:
-        try:
-            queued = output_queue.get(timeout=QUEUE_POLL_SECONDS)
-        except Empty:
-            if not worker.is_alive() and output_queue.empty():
-                break
-            continue
+    try:
+        while True:
+            try:
+                queued = output_queue.get(timeout=QUEUE_POLL_SECONDS)
+            except Empty:
+                if not worker.is_alive() and output_queue.empty():
+                    break
+                continue
 
-        if queued is None:
-            break
-        yield queued
+            if queued is None:
+                break
+            yield queued
+    finally:
+        # Vale sia per la fine normale sia per il `GeneratorExit` di un client
+        # che ha chiuso la connessione. Nel primo caso il worker ha gia' finito e
+        # il flag non cambia niente; nel secondo e' cio' che gli dice di smettere.
+        consumer_gone.set()
 
     worker.join(timeout=1)
 

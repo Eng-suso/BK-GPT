@@ -15,6 +15,15 @@ Process Modeling subgraph contract.
 
 Use ProcessUnderstanding as the canonical semantic context. A BPMNSemanticModel
 may be derived only from ProcessUnderstanding, not directly from free text.
+
+The evidence ledger in your scope context is the material this plan is built
+from. It is not background reading: every actor, activity, rule and document it
+records must reach the ProcessUnderstanding, attributed to the voice that stated
+it. Never open a plan from the process title alone while the ledger has entries -
+the runtime refuses a review with no actors, participants or activities when
+claims exist, and it is right to. When the ledger genuinely does not support a
+step, say which claim is missing; do not invent the step and do not silently drop
+what the sources did say.
 For new AS-IS mapping, build a consultant-grade ProcessUnderstanding first:
 separate actors from BPMN participants, classify pool/lane/black-box candidates,
 assign every activity to an actor, preserve document requirements and business

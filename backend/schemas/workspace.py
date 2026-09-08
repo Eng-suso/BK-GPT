@@ -305,6 +305,28 @@ class ProjectSourceResponse(BaseModel):
     meta: str
 
 
+class SourceDocumentResponse(BaseModel):
+    """La fonte com'e' davvero, non la riga che la riassume.
+
+    Il pannello Fonti mostrava solo `meta`: una nota di due righe. Chi apre una
+    fonte vuole leggere l'intervista, non il suo sommario - e per verificare un
+    claim serve il testo, non l'etichetta. Qui la fonte porta la sua sintesi e
+    il suo testo integrale.
+    """
+
+    id: str
+    project_id: str
+    process_id: str | None = None
+    name: str
+    type: str
+    summary: str = ""
+    participants: list[str] = Field(default_factory=list)
+    occurred_at: str | None = None
+    episode_id: str | None = None
+    content: str = ""
+    has_content: bool = False
+
+
 class ProjectDecisionResponse(BaseModel):
     id: str
     project_id: str

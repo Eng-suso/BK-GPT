@@ -24,6 +24,7 @@ compose up -d`).
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from pathlib import Path
 
@@ -201,14 +202,27 @@ def _save_interviews(project_id: str, process_id: str, interviews) -> None:
         )
 
 
-def _drain() -> None:
-    """Ingestion asincrona + proiezione Neo4j, come in produzione."""
+def _drain(landed=None, *, expected: int = 0, tries: int = 40, delay: float = 0.5) -> None:
+    """Ingestion asincrona + proiezione Neo4j, come in produzione.
+
+    Un numero fisso di passate non basta: la coda di ingestione e' per
+    consulente e condivisa, quindi un altro drenatore (il supervisore
+    in-process, un'altra sessione) puo' aver gia' preso in carico un job che a
+    quel punto non e' piu' reclamabile ma nemmeno ancora scritto. Con `landed`
+    si aspetta il risultato invece di scommettere su quante passate servono -
+    ed e' il risultato l'unica cosa che il test deve vedere.
+    """
     from backend.workers.graph_worker import drain_once as drain_graph
     from backend.workers.ingest_worker import drain_once as drain_ingest
 
-    for _ in range(6):
+    for _ in range(tries if landed else 6):
         drain_ingest(limit=50)
         drain_graph(limit=200)
+        if landed is None:
+            continue
+        if landed() >= expected:
+            return
+        time.sleep(delay)
 
 
 # Un terzo processo, dentro lo STESSO progetto di A: il confine da verificare
@@ -368,8 +382,34 @@ def two_processes_with_evidence(workspace):
         _save_interviews(workspace["project_a"], workspace["process_a2"], [INTERVIEW_A2])
     with _bind_process_chat(workspace["project_b"], workspace["process_b"]):
         _save_interviews(workspace["project_b"], workspace["process_b"], INTERVIEWS_B)
-    _drain()
+
+    # Sette pacchetti di evidenza, tre processi: si aspetta che siano tutti
+    # atterrati, non che sei passate siano bastate.
+    expected = len(INTERVIEWS_A) + 1 + len(INTERVIEWS_B)
+    _drain(lambda: _ingested_sources(workspace), expected=expected)
+    assert _ingested_sources(workspace) == expected, "evidenza non ingerita"
     return workspace
+
+
+def _ingested_sources(workspace: dict) -> int:
+    """Quante `kg_source` sono gia' state scritte per questo cliente."""
+    from sqlalchemy import text as sql
+
+    from backend.db import canonical_session
+    from backend.memory import scope as canonical_scope
+    from backend.settings import settings
+
+    client_id = canonical_scope.resolve_client_id(workspace["project_a"])
+    if not client_id:
+        return 0
+    with canonical_session(str(settings.default_consultant_id), client_id) as session:
+        return int(
+            session.execute(
+                sql("SELECT count(*) FROM kg_source WHERE client_id = :c"),
+                {"c": client_id},
+            ).scalar()
+            or 0
+        )
 
 
 # --- l'invariante ----------------------------------------------------------

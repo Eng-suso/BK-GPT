@@ -1737,6 +1737,22 @@ def list_project_sources(project_id: str) -> list[dict]:
         return [source_to_dict(source) for source in sources]
 
 
+def get_project_source(source_id: str) -> dict | None:
+    """La fonte, per id, dentro il tenant corrente.
+
+    Args:
+        source_id: Id della fonte, non affidabile.
+
+    Returns:
+        Il record della fonte, o ``None`` se non esiste in questo tenant.
+
+    Sola lettura.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        return source_to_dict(source) if source is not None else None
+
+
 def _assert_source_scope(project_id: str, process_id: str | None) -> None:
     """Una fonte non puo' essere registrata fuori dallo scope del turno.
 

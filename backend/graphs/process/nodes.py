@@ -1,9 +1,44 @@
+import logging
+
 from backend import workspace_database
 from backend.graphs.common import canonical_semantic_context, validated_model
 from backend.process_understanding import (
     ProcessUnderstandingQualityReport,
     process_understanding_diagnostics,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def load_evidence_ledger(project_id: str | None, process_id: str | None) -> dict:
+    """Il registro dell'evidenza gia' raccolta su questo processo.
+
+    Senza questo, ogni chat ripartiva dal solo transcript: cio' che una fonte
+    aveva gia' detto in un turno precedente tornava a essere "informazione
+    mancante" al turno dopo, perche' i claim vivevano solo nello stato del
+    giro. Qui l'apertura del turno legge cio' che e' persistito, dentro il
+    confine del proprio processo.
+
+    Args:
+        project_id: Progetto del turno.
+        process_id: Processo del turno.
+
+    Returns:
+        Il registro (`status`, `claims`, `summary`), o uno vuoto se il
+        canonical non e' configurato o la lettura fallisce: la chat deve poter
+        aprirsi anche senza knowledge graph.
+    """
+    if not project_id or not process_id:
+        return {"status": "empty", "claims": [], "count": 0}
+    from backend.toolsets.process_memory import process_claim_ledger
+
+    try:
+        return process_claim_ledger(project_id, process_id)
+    except Exception:  # noqa: BLE001 — l'apertura del turno non deve fallire per questo
+        logger.warning(
+            "registro evidenza non caricato per il processo %s", process_id, exc_info=True
+        )
+        return {"status": "error", "claims": [], "count": 0}
 
 
 def load_process_context(state: dict) -> dict:
@@ -46,8 +81,10 @@ def load_process_context(state: dict) -> dict:
             "missing_information": [],
             "review_open_questions": [],
             "saved_bpmn_xml": None,
+            "evidence_ledger": {"status": "empty", "claims": [], "count": 0},
         }
 
+    ledger = load_evidence_ledger(process["project_id"], process_id)
     bpmn_model = workspace_database.get_bpmn_model(process["bpmn_model_id"])
     review = workspace_database.get_bpmn_review(process["bpmn_model_id"], include_approved=True)
 
@@ -63,6 +100,7 @@ def load_process_context(state: dict) -> dict:
             "missing_information": [],
             "review_open_questions": [],
             "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,
+            "evidence_ledger": ledger,
         }
 
     process_understanding, bpmn_semantic_model = canonical_semantic_context(
@@ -87,4 +125,5 @@ def load_process_context(state: dict) -> dict:
         "missing_information": review.get("missing_information") or [],
         "review_open_questions": review.get("open_questions") or [],
         "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,
+        "evidence_ledger": ledger,
     }

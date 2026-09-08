@@ -2,6 +2,11 @@ import json
 
 from pydantic import BaseModel
 
+from backend.agents.evidence_brief import (
+    content_tokens,
+    is_catch_all_question,
+    question_is_grounded,
+)
 from backend.bpmn import (
     BPMNSemanticModel,
     build_bpmn_semantic_model,
@@ -43,6 +48,52 @@ class BpmnReviewDraft(BaseModel):
         return self.bpmn_semantic_model.model_dump_json()
 
 
+def partition_grounded_unknowns(
+    process: ProcessUnderstanding, source_text: str
+) -> tuple[list, list]:
+    """Separa le domande che citano una lacuna reale da quelle che non lo fanno.
+
+    PROCESS-V2-12/15: le domande bloccanti proponevano "sourcing", "verifica
+    budget", "conformita'", "soglie di approvazione" - temi di settore, non
+    lacune di questo processo. Consegnate al consulente sembrano il risultato
+    della discovery e lo portano a descrivere un processo che non e' il suo.
+
+    Il giudizio e' deterministico: una domanda regge se dichiara la lacuna in
+    `grounded_in` con parole che nelle note esistono, o se nomina qualcosa delle
+    note. Cade solo se, oltre a non agganciarsi, chiede una categoria intera. Le
+    note vuote non producono scarti: la prima passata di discovery deve poter
+    fare domande larghe.
+
+    Args:
+        process: Il ProcessUnderstanding proposto.
+        source_text: Le note su cui e' stato estratto.
+
+    Returns:
+        `(tenute, scartate)`, nell'ordine originale.
+    """
+    vocabulary = content_tokens(source_text)
+    kept, dropped = [], []
+    for unknown in process.unknowns:
+        grounded = question_is_grounded(
+            unknown.question,
+            vocabulary,
+            grounded_in=getattr(unknown, "grounded_in", ""),
+        )
+        (kept if grounded else dropped).append(unknown)
+    return kept, dropped
+
+
+def _ungrounded_question_warning(dropped: list) -> str:
+    questions = "; ".join(
+        " ".join(str(item.question or "").split())[:120] for item in dropped
+    )
+    return (
+        "Domande di chiarimento scartate perche' non citano una lacuna di questo "
+        f"processo: {questions}. Riformulale partendo da cio' che le fonti hanno "
+        "gia' detto, oppure estrai quella conoscenza invece di richiederla."
+    )
+
+
 def build_bpmn_review_draft(
     bpmn_process_id: str,
     process_name: str,
@@ -63,6 +114,13 @@ def build_bpmn_review_draft(
     else:
         process_model = ProcessUnderstanding.model_validate(process_understanding)
     process_model.schema_version = "process_understanding.v1"
+    # Le domande passano di qui prima di diventare le "domande del piano" che il
+    # consulente legge: e' l'unico punto attraversato sia dall'estrazione LLM sia
+    # dal ProcessUnderstanding che l'agente propone gia' strutturato.
+    kept_unknowns, ungrounded_unknowns = partition_grounded_unknowns(
+        process_model, source_text
+    )
+    process_model.unknowns = kept_unknowns
     bpmn_semantic_model = build_bpmn_semantic_model(
         process_id=bpmn_process_id,
         process_name=process_name,
@@ -93,6 +151,11 @@ def build_bpmn_review_draft(
         for issue in process_model.quality_report.blocking_issues
         if issue.message not in missing_information
     )
+    if ungrounded_unknowns:
+        # Lo scarto e' visibile: resta nel piano come cosa da sistemare, cosi'
+        # l'agente sa che quelle domande non sono passate e perche'. Sparire in
+        # silenzio le riproporrebbe identiche al giro dopo.
+        missing_information.append(_ungrounded_question_warning(ungrounded_unknowns))
 
     return BpmnReviewDraft(
         source_text=source_text,

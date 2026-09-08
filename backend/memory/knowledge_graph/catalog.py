@@ -28,6 +28,17 @@ PII_FORBIDDEN_IN_NEO4J: frozenset[str] = frozenset(
         "username",
         "address",
         "statement",          # testo del claim: puo' contenere dettagli sensibili
+        # Provenance per claim (0015): chi parla e con quali parole resta in
+        # Postgres. `attributed_to` e' un nome di persona, `quote` e' testo
+        # grezzo dell'intervista: entrambi sono esattamente cio' che B+ tiene
+        # fuori dal grafo.
+        "attributed_to",
+        "source_name",
+        "quote",
+        "scope_label",
+        "topic",
+        "assertion",
+        "qualifiers",
         "evidence",
         "mechanism",
         "missing_information",
@@ -104,8 +115,27 @@ NODES: tuple[NodeSpec, ...] = (
         table="kg_claim",
         label="Claim",
         id_prop="claim_id",
-        props=("process_area", "claim_status", "linked_element_hint"),
-        pg_only=("statement", "source_ids"),
+        # Gli enum di provenance passano (non identificano nessuno e servono a
+        # filtrare nel grafo); i testi restano in Postgres.
+        props=(
+            "process_area",
+            "claim_status",
+            "linked_element_hint",
+            "epistemic_status",
+            "scope_level",
+            "quote_verified",
+        ),
+        pg_only=(
+            "statement",
+            "attributed_to",
+            "source_name",
+            "topic",
+            "assertion",
+            "qualifiers",
+            "quote",
+            "scope_label",
+            "source_ids",
+        ),
     ),
     NodeSpec(
         table="kg_gap",
@@ -118,7 +148,7 @@ NODES: tuple[NodeSpec, ...] = (
         table="kg_contradiction",
         label="Contradiction",
         id_prop="contradiction_id",
-        props=("severity",),
+        props=("severity", "divergence_type"),
         pg_only=(
             "title",
             "conflicting_statements",
