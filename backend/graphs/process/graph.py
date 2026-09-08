@@ -317,6 +317,11 @@ def build_process_router(llm):
                             f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n\n"
                             "Recent conversation (resolve references against this):\n"
                             f"{recent_conversation_digest(state)}\n\n"
+                            # Le passate degli specialisti non stanno nel
+                            # transcript: senza questo il router non saprebbe
+                            # cosa e' gia' stato fatto in questo stesso turno.
+                            "Work already done this turn:\n"
+                            f"{specialist_findings_digest(state)}\n\n"
                             "Latest user request:\n"
                             f"{user_text}"
                         )
@@ -416,6 +421,96 @@ def evaluate_process_iteration(state: ProcessState) -> dict:
             }
         ],
     }
+
+
+def specialist_findings_digest(state: dict, limit: int = 6) -> str:
+    """Cosa hanno concluso gli specialisti in questo turno, in breve.
+
+    Le loro passate non passano dal transcript (vedi `findings_channel` in
+    `build_tool_chat_subgraph`), quindi chi deve decidere il passo successivo
+    le legge da qui.
+    """
+    findings = state.get("specialist_findings") or []
+    lines = [
+        f"- [{item.get('owner') or 'passata'}] {' '.join(str(item.get('finding') or '').split())[:400]}"
+        for item in findings[-limit:]
+        if str(item.get("finding") or "").strip()
+    ]
+    return "\n".join(lines) or "nessuna passata conclusa in questo turno"
+
+
+PROCESS_REPORT_PROMPT = """
+Scrivi la risposta che il consulente legge alla fine di questo giro di lavoro.
+
+Gli specialisti hanno gia' lavorato: quello che hanno concluso e' qui sotto. Non
+e' un testo da consegnare, e' materiale. Tu scrivi UNA risposta sola, in prosa,
+che tiene insieme le loro passate senza ripeterle: se due passate dicono la
+stessa cosa, la dici una volta.
+
+Governance dell'evidenza - il punto su cui questa risposta si gioca:
+
+- Una cosa detta da una sola persona e' cio' che quella persona riferisce, non
+  un fatto accertato. Scrivi "Laura riferisce che...", "secondo Paolo...".
+  "Confermato" si usa solo per cio' che due fonti indipendenti dicono allo
+  stesso modo, o che un documento mostra.
+- Tieni separato cio' che una persona sa da cio' che dichiara di non sapere:
+  "su questo dice di non avere visibilita'" e' un'informazione, non un buco.
+- Una contraddizione fra fonti si dichiara e resta aperta. Non la risolvi tu
+  scegliendo la versione piu' plausibile.
+- Non trasformare in "lacuna emersa" un tema di cui nessuno ha parlato. Se e'
+  una tua ipotesi di indagine, va fra le cose da chiedere dopo, detta come
+  domanda tua.
+- Non aggiungere attori, soglie, sistemi o date che nelle fonti non ci sono.
+
+Struttura la risposta cosi', senza intestazioni tecniche:
+cosa ci hanno detto - cosa resta incerto - cosa si contraddice - cosa chiedere
+dopo, e a chi.
+
+Nessun nome interno di sistema, di agente o di passaggio: il consulente legge il
+risultato del lavoro, non come e' organizzato.
+""".strip()
+
+
+def build_process_report(llm):
+    """Il nodo che parla al consulente, uno solo per turno.
+
+    Il giro di lavoro puo' durare piu' passate, e ogni specialista ne concludeva
+    una in chat: il consulente si ritrovava quattro o cinque sintesi quasi
+    identiche una dietro l'altra. Ora le passate lavorano in silenzio e qui si
+    scrive la risposta, una volta, su quello che hanno prodotto.
+    """
+
+    def write_process_report(state: ProcessState, config: RunnableConfig) -> dict:
+        findings = state.get("specialist_findings") or []
+        if not findings:
+            # Nessuno ha concluso niente: non c'e' una risposta da scrivere, e
+            # inventarne una sarebbe peggio del silenzio.
+            return {}
+
+        dossier = "\n\n".join(
+            f"[passata {index}] {item.get('finding', '')}".strip()
+            for index, item in enumerate(findings, start=1)
+            if str(item.get("finding") or "").strip()
+        )
+        contradictions = state.get("contradictions") or []
+        response = llm.invoke(
+            [
+                SystemMessage(content=PROCESS_REPORT_PROMPT),
+                HumanMessage(
+                    content=(
+                        f"Processo: {state.get('process_name') or 'senza nome'}\n"
+                        f"Richiesta del consulente:\n{latest_user_text(state)}\n\n"
+                        f"Contraddizioni registrate: {contradictions or 'nessuna'}\n"
+                        f"Cosa manca ancora: {state.get('missing_information') or []}\n\n"
+                        f"Conclusioni delle passate di lavoro:\n{dossier}"
+                    )
+                ),
+            ],
+            config=config,
+        )
+        return {"messages": [response]}
+
+    return write_process_report
 
 
 def selected_process_loop_transition(state: ProcessState) -> str:
@@ -588,6 +683,7 @@ def build_process_subgraph(
     workflow.add_node("delegate_to_canvas_macro", build_canvas_delegation_node(canvas_subgraph))
     workflow.add_node("ask_process_clarification", ask_process_clarification)
     workflow.add_node("evaluate_process_iteration", evaluate_process_iteration)
+    workflow.add_node("process_report", build_process_report(llm))
 
     workflow.add_edge(START, "load_process_context")
     workflow.add_edge("load_process_context", "process_router")
@@ -614,9 +710,12 @@ def build_process_subgraph(
         selected_process_loop_transition,
         {
             "continue": "load_process_context",
-            "end": END,
+            # Finito il giro, una risposta sola: le passate hanno lavorato in
+            # silenzio proprio perche' a parlare sia questo nodo.
+            "end": "process_report",
         },
     )
+    workflow.add_edge("process_report", END)
     workflow.add_edge("delegate_to_canvas_macro", END)
     workflow.add_edge("ask_process_clarification", END)
 

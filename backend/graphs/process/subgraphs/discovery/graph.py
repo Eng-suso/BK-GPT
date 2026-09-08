@@ -45,4 +45,8 @@ def build_discovery_subgraph(llm_with_tools, build_context_messages):
         subgraph_contract=DISCOVERY_SUBGRAPH_CONTRACT,
         agent_node_name="process_discovery_agent",
         tool_node_name="process_discovery_tools",
+        # La conclusione della passata va nel dossier di lavoro, non nella
+        # chat: a parlare al consulente e' `process_report`, una volta sola.
+        findings_channel="specialist_findings",
+        specialist="discovery",
     )

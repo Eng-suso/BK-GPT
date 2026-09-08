@@ -65,3 +65,8 @@ class ProcessState(ConversationState):
     process_claims: Annotated[list[dict], add]
     process_gaps: Annotated[list[dict], add]
     contradictions: Annotated[list[dict], add]
+    # Cio' che ogni specialista ha concluso nella sua passata. Non e' un
+    # messaggio: e' materiale per la risposta unica che il consulente legge a
+    # fine giro. Un turno con tre passate produceva tre sintesi consegnate una
+    # dietro l'altra, ognuna quasi identica alla precedente.
+    specialist_findings: Annotated[list[dict], add]

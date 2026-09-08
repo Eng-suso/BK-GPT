@@ -7,6 +7,8 @@ from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import BaseModel, ValidationError
 
+from backend.memory.procedural.skill_loader import message_content_to_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,6 +246,19 @@ class ConversationState(MessagesState):
     active_skill_context: str
 
 
+def _findings_digest(findings: list[dict]) -> str:
+    """Cosa hanno gia' concluso le passate precedenti di questo stesso turno."""
+    lines = []
+    for item in findings:
+        finding = str((item or {}).get("finding") or "").strip()
+        if finding:
+            lines.append(f"- [{(item or {}).get('owner') or 'passata'}] {finding}")
+    return (
+        "Lavoro gia' svolto in questo turno, dalle passate precedenti. Non "
+        "ripeterlo e non ripartire da capo: prosegui da qui.\n\n" + "\n".join(lines)
+    )
+
+
 def build_tool_chat_subgraph(
     state_schema,
     tools: list,
@@ -253,19 +268,52 @@ def build_tool_chat_subgraph(
     preload_node=None,
     agent_node_name: str = "chatbot",
     tool_node_name: str = "tools",
+    findings_channel: str | None = None,
+    specialist: str | None = None,
 ):
+    """Un agente con i suoi tool, come sottografo.
+
+    `findings_channel` rende la passata muta verso il consulente: la conclusione
+    in prosa finisce in quel canale di stato invece che in `messages`, e la
+    chat non la riceve. Serve agli specialisti che lavorano dentro un loop -
+    quello che il consulente deve leggere e' una risposta sola, scritta alla
+    fine, non una sintesi per passata.
+
+    Non e' una preferenza di stile: sotto un sottografo annidato lo stream di
+    LangGraph consegna il messaggio scritto in stato, attribuito al nodo piu'
+    esterno, quindi non c'e' nome di nodo ne' tag su cui filtrare a valle.
+    Cio' che non deve essere letto non deve entrare in `messages`.
+
+    I messaggi con tool call restano sempre in `messages`: sono l'appiglio a cui
+    ToolNode aggancia i risultati, e non hanno testo da leggere.
+    """
+
     def agent_node(state, config: RunnableConfig):
         messages = build_context_messages(state)
 
         if subgraph_contract:
             messages = [*messages, SystemMessage(content=subgraph_contract)]
 
+        # Le passate precedenti non sono nel transcript: senza questo, ogni
+        # specialista ripartirebbe da zero e rifarebbe il lavoro appena fatto.
+        prior = state.get(findings_channel) if findings_channel else None
+        if prior:
+            messages = [*messages, SystemMessage(content=_findings_digest(prior))]
+
         response = None
 
         for chunk in llm_with_tools.stream(messages, config=config):
             response = chunk if response is None else response + chunk
 
-        return {"messages": [response or AIMessage(content="")]}
+        response = response or AIMessage(content="")
+
+        if findings_channel and not getattr(response, "tool_calls", None):
+            finding = message_content_to_text(response.content).strip()
+            if not finding:
+                return {}
+            return {findings_channel: [{"owner": specialist or agent_node_name, "finding": finding}]}
+
+        return {"messages": [response]}
 
     workflow = StateGraph(state_schema)
     workflow.add_node(agent_node_name, agent_node)

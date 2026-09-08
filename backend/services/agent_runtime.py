@@ -72,6 +72,14 @@ INTERNAL_AGENT_NODES = {
 
 # Nodes that report progress but whose token stream is not an answer to the user:
 # a router's structured decision, a subgraph wrapper replaying its child's tokens.
+#
+# Attenzione al raggio d'azione: `agent.stream(...)` gira senza `subgraphs=True`,
+# e in quel modo LangGraph consegna il messaggio scritto in stato attribuendolo
+# al nodo del grafo PIU' ESTERNO (`process_subgraph`, `canvas_subgraph`, ...).
+# I nomi annidati qui sotto e in INTERNAL_AGENT_NODES non arrivano mai, quindi
+# non filtrano: valgono solo i nodi di primo livello. Cio' che non deve essere
+# letto va tenuto fuori da `messages` alla fonte - vedi `findings_channel` in
+# `build_tool_chat_subgraph` e il nodo `process_report`.
 NON_DELTA_AGENT_NODES = {
     "canvas_router",
     "patch_edit_subgraph",
