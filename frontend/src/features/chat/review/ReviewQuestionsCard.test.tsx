@@ -147,6 +147,44 @@ describe("ReviewQuestionsCard", () => {
     expect(asked[0]).toMatch(/^1/);
   });
 
+  it("asks only the next process-dependent question", () => {
+    render(
+      <ReviewQuestionsCard
+        questions={[
+          question({ question_id: "decision", question: "Chi approva oltre soglia?" }),
+          question({ question_id: "trigger", question: "Cosa fa partire il processo?" }),
+        ]}
+        isAnswering={false}
+        onAnswer={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Cosa fa partire il processo?")).toBeInTheDocument();
+    expect(screen.queryByText("Chi approva oltre soglia?")).not.toBeInTheDocument();
+  });
+
+  it("caps proposed choices at four and keeps Altro available", () => {
+    render(
+      <ReviewQuestionsCard
+        questions={[question({
+          options: [
+            { label: "A", implication: "a" },
+            { label: "B", implication: "b" },
+            { label: "C", implication: "c" },
+            { label: "D", implication: "d" },
+            { label: "E", implication: "e" },
+          ],
+        })]}
+        isAnswering={false}
+        onAnswer={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByRole("button")).toHaveLength(5);
+    expect(screen.queryByRole("button", { name: /E/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Altro/ })).toBeInTheDocument();
+  });
+
   it("cannot answer twice while the first answer is in flight", async () => {
     const user = userEvent.setup();
     const onAnswer = vi.fn().mockResolvedValue(undefined);

@@ -120,6 +120,10 @@
   },
   "mode": {
     "label": "Working mode",
+    "conversation": {
+      "label": "Chat",
+      "hint": "Conversation only: answers and clarifies without creating BPMN reviews, questions or artifacts."
+    },
     "plan": {
       "label": "Plan",
       "hint": "Understands and proposes: prepares and reworks the process plan without touching the canvas."

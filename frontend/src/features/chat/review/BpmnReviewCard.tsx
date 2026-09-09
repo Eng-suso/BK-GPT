@@ -54,6 +54,7 @@ type BpmnReviewSheetProps = {
   onSave: (bpmnBrief: string) => Promise<void>;
   onAnswer: (question: string, answer: string) => Promise<void>;
   onToast: (message: string) => void;
+  onReturnFocus?: () => void;
 };
 
 const SCORE_MAX = 10;
@@ -119,6 +120,7 @@ export function BpmnReviewCard({
  * @param onSave - Saves the edited process plan
  * @param onAnswer - Submits an answer to an open question
  * @param onToast - Displays feedback for copy and other user actions
+ * @param onReturnFocus - Restores focus to the workspace launcher after closing
  */
 export function BpmnReviewSheet({
   review,
@@ -132,11 +134,21 @@ export function BpmnReviewSheet({
   onSave,
   onAnswer,
   onToast,
+  onReturnFocus,
 }: BpmnReviewSheetProps) {
   const [copied, setCopied] = useState(false);
   const [activeSection, setActiveSection] = useState<ReviewSection>("overview");
   const [isEditing, setIsEditing] = useState(false);
-  const [draftMarkdown, setDraftMarkdown] = useState(review.bpmn_brief);
+  const [draftState, setDraftState] = useState(() => ({
+    reviewUpdatedAt: review.updated_at,
+    value: review.bpmn_brief,
+  }));
+  const draftMarkdown =
+    draftState.reviewUpdatedAt === review.updated_at
+      ? draftState.value
+      : review.bpmn_brief;
+  const setDraftMarkdown = (value: string) =>
+    setDraftState({ reviewUpdatedAt: review.updated_at, value });
   const understanding = review.process_understanding || {};
   const qualityReport = review.quality_report || {};
   const semanticModel = review.bpmn_semantic_model || {};
@@ -188,6 +200,10 @@ export function BpmnReviewSheet({
         className="bpmn-review-sheet-content"
         overlayClassName="bpmn-review-sheet-overlay"
         aria-describedby="bpmn-review-sheet-description"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          onReturnFocus?.();
+        }}
       >
         <header className="bpmn-review-sheet-header">
           <DialogHeader className="bpmn-review-sheet-heading">

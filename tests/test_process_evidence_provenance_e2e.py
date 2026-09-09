@@ -1303,3 +1303,160 @@ def test_the_answer_the_consultant_reads_carries_the_provenance(three_interviews
         assert voice in answer
     assert provenance.SUPPORT_LABEL_IT["corroborated"] in answer
     assert provenance.SUPPORT_LABEL_IT["single_source"] in answer
+
+
+# --- 9. V3 residuo: fondere due voci non le mette d'accordo ----------------
+#
+# Le fonti venivano recuperate, distinte e citate correttamente, ma la sintesi
+# multi-fonte raggruppava per argomento: "Paolo + Francesca | Corroborato" su
+# una regola che dice Acquisti, su un trigger che le due descrivono da due
+# punti di ingresso diversi, e su una soglia che una delle due dichiara di non
+# conoscere. Qui si verifica sul registro davvero ingerito.
+
+
+def _entries(ws: dict) -> list:
+    """Il registro persistito, ricostruito come lo legge chi risponde."""
+    return provenance.build_ledger(_ledger(ws))
+
+
+def test_no_voice_corroborates_an_assertion_its_own_words_do_not_carry(three_interviews):
+    """L'invariante, su tutto il registro: chi conferma lo dice con parole sue."""
+    claims = _ledger(three_interviews)
+    by_assertion: dict[str, list[dict]] = {}
+    for claim in claims:
+        by_assertion.setdefault(claim["assertion"], []).append(claim)
+
+    for claim in claims:
+        if claim["support"] != "corroborated":
+            continue
+        group = by_assertion[claim["assertion"]]
+        carrying = [
+            item
+            for item in group
+            if provenance.statement_carries_assertion(item["assertion"], item["statement"])
+        ]
+        # O nessuno regge l'enunciato dichiarato - e allora il raggruppamento
+        # dell'estrattore e' tutto cio' che c'e' - oppure chi corrobora e' fra
+        # quelli che lo reggono.
+        assert not carrying or claim in carrying, claim["statement"]
+
+
+def test_no_source_that_declares_it_does_not_know_ends_up_corroborating(three_interviews):
+    """Un "non lo so" non entra fra le fonti che sostengono quella proposizione.
+
+    Il vincolo e' per proposizione, non per persona: chi dichiara di non sapere
+    una cosa continua a sostenere tutto il resto che ha detto.
+    """
+    claims = _ledger(three_interviews)
+    unknown_by_assertion: dict[str, set[str]] = {}
+    for claim in claims:
+        if claim["epistemic_status"] == "declared_unknown" and claim["attributed_to"]:
+            unknown_by_assertion.setdefault(claim["assertion"], set()).add(
+                claim["attributed_to"]
+            )
+
+    assert unknown_by_assertion, "il dataset deve contenere almeno una non-conoscenza"
+    for claim in claims:
+        ignorant = unknown_by_assertion.get(claim["assertion"], set())
+        assert not (ignorant & set(claim["corroborating_sources"])), claim["statement"]
+
+
+def test_a_rule_of_one_department_is_not_corroborated_by_the_other(three_interviews):
+    """La responsabilita' autorizzativa la dichiara Acquisti, non entrambe."""
+    claims = _by_assertion(_ledger(three_interviews), SAYS_AUTHORISATION_EXISTS)
+    corroborated = [claim for claim in claims if claim["support"] == "corroborated"]
+
+    assert claims, "il tema deve essere nel registro"
+    assert not corroborated
+    assert all(MAINTENANCE_LEAD not in claim["corroborating_sources"] for claim in claims)
+
+
+def test_the_urgency_core_stays_corroborated_while_its_details_do_not(three_interviews):
+    """Il nucleo condiviso regge; l'attributo di una voce resta suo."""
+    claims = _by_assertion(_ledger(three_interviews), SAYS_DIRECT_SUPPLIER)
+    owners = {
+        claim["attributed_to"]
+        for claim in claims
+        if ONLY_MAINTENANCE_SAYS in claim["exclusive_qualifiers"]
+    }
+
+    assert {claim["support"] for claim in claims} == {"corroborated"}
+    assert owners == {MAINTENANCE_LEAD}
+
+
+def test_a_matrix_that_declares_an_agreement_the_ledger_does_not_have_is_refused(
+    three_interviews,
+):
+    """La matrice "Area | Sintesi | Fonte/i | Valutazione" e' verificabile."""
+    violations = provenance.audit_answer(
+        f"| Autorizzazione | Deve esistere una responsabilita' autorizzativa "
+        f"anche per importi piccoli | {MAINTENANCE_LEAD}, {PURCHASING} | Corroborato |",
+        _entries(three_interviews),
+    )
+
+    assert [item.kind for item in violations] == ["unsupported_agreement"]
+
+
+def test_a_matrix_row_that_carries_a_single_source_detail_is_refused(three_interviews):
+    """Il nucleo urgenza si puo' corroborare; "gia' conosciuto" no."""
+    violations = provenance.audit_answer(
+        f"| Urgenze | In urgenza il reparto ordina direttamente da un "
+        f"{ONLY_MAINTENANCE_SAYS} | {MAINTENANCE_LEAD}, {PURCHASING} | Corroborato |",
+        _entries(three_interviews),
+    )
+
+    assert "attribute_leak" in {item.kind for item in violations}
+    assert all(item.owner in {"", MAINTENANCE_LEAD} for item in violations)
+
+
+def test_a_matrix_that_keeps_every_voice_where_it_belongs_passes(three_interviews):
+    """Il controllo non impedisce di dire cio' che le fonti reggono davvero."""
+    entries = _entries(three_interviews)
+
+    assert (
+        provenance.audit_answer(
+            f"| Urgenze | In urgenza il reparto ordina direttamente dal fornitore "
+            f"| {MAINTENANCE_LEAD}, {PURCHASING} | Corroborato |\n"
+            f"| Autorizzazione | Sopra soglia serve l'autorizzazione del responsabile "
+            f"| {PURCHASING} | Riferito da una sola fonte |",
+            entries,
+        )
+        == []
+    )
+
+
+def test_the_answer_node_annotates_the_merge_it_could_not_correct(three_interviews):
+    """Percorso vero: se la prosa insiste, il consulente legge di chi e' cosa."""
+    from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    from backend.graphs.process.graph import build_process_report
+    from backend.graphs.process.nodes import load_process_context
+
+    merged = (
+        f"{MAINTENANCE_LEAD} e {PURCHASING} concordano: deve esistere una "
+        "responsabilita' autorizzativa anche per importi piccoli."
+    )
+    with _bind_process_chat(three_interviews["project"], three_interviews["process"]):
+        context = load_process_context({"process_id": three_interviews["process"]})
+
+    report = build_process_report(
+        GenericFakeChatModel(
+            messages=iter([AIMessage(content=merged), AIMessage(content=merged)])
+        )
+    )
+    answer = report(
+        {
+            "messages": [HumanMessage(content="Dammi la matrice delle evidenze.")],
+            "process_name": "Gestione acquisto materiali indiretti e servizi",
+            "specialist_findings": [{"owner": "evidence", "finding": "Tre interviste lette."}],
+            "evidence_ledger": context["evidence_ledger"],
+            "process_claims": [],
+            "contradictions": [],
+            "missing_information": [],
+        },
+        None,
+    )["messages"][0].content
+
+    assert "Precisazione sull'attribuzione" in answer
+    assert "non le riporta d'accordo" in answer

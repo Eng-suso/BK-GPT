@@ -52,6 +52,7 @@ export type UseChatStream = {
   sendMessage: (
     content: string,
     attachments?: ChatAttachment[],
+    modeOverride?: ChatMode,
   ) => Promise<void>;
   /** Ferma il turno in corso tenendo la risposta parziale. */
   stopStreaming: () => void;
@@ -131,7 +132,11 @@ export function useChatStream({
   }, [activeThreadId]);
 
   const sendMessage = useCallback(
-    async (content: string, attachments: ChatAttachment[] = []) => {
+    async (
+      content: string,
+      attachments: ChatAttachment[] = [],
+      modeOverride?: ChatMode,
+    ) => {
       const currentThreadId = activeSessionRef.current?.threadId ?? liveThreadRef.current;
       const currentRun = getRun(currentThreadId);
 
@@ -175,7 +180,9 @@ export function useChatStream({
 
       const scopeAtSend = scopeRef.current;
       const modelAtSend = modelRef.current;
-      const modeAtSend = modeRef.current;
+      // Dedicated product actions may explicitly delegate one workflow without
+      // relying on a React state update landing before the request starts.
+      const modeAtSend = modeOverride ?? modeRef.current;
 
       await startRun({
         threadId,

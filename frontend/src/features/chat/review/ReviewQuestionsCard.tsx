@@ -11,7 +11,15 @@ type ReviewQuestionsCardProps = {
   onAnswer: (question: string, answer: string) => Promise<void>;
 };
 
-/** Blocking gaps first: they are the ones that keep the plan from being drawn. */
+/** Process dependency order comes before severity. */
+const DEPENDENCY_PATTERNS: RegExp[] = [
+  /trigger|avvia|inizia|evento iniziale|cosa fa partire/i,
+  /prima attivit|primo passaggio|prima azione/i,
+  /attore|ruolo|chi (?:esegue|riceve|gestisce|avvia)/i,
+  /decision|approv|condizion|gateway|soglia/i,
+  /esito|fine|termina|risultato|output/i,
+];
+
 const SEVERITY_ORDER: Record<string, number> = {
   blocking: 0,
   non_blocking: 1,
@@ -28,9 +36,13 @@ const MAX_SHORTCUT_INDEX = 9;
  * @returns A new array ordered from blocking to optional
  */
 function sortQuestions(questions: ReviewOpenQuestion[]): ReviewOpenQuestion[] {
-  return [...questions].sort(
-    (a, b) =>
-      (SEVERITY_ORDER[a.severity ?? "non_blocking"] ?? 1) -
+  const dependency = (question: ReviewOpenQuestion) => {
+    const index = DEPENDENCY_PATTERNS.findIndex((pattern) => pattern.test(question.question));
+    return index === -1 ? DEPENDENCY_PATTERNS.length : index;
+  };
+  return [...questions].sort((a, b) =>
+    dependency(a) - dependency(b) ||
+    (SEVERITY_ORDER[a.severity ?? "non_blocking"] ?? 1) -
       (SEVERITY_ORDER[b.severity ?? "non_blocking"] ?? 1),
   );
 }
@@ -48,6 +60,7 @@ export function ReviewQuestionsCard({
 }: ReviewQuestionsCardProps) {
   const open = sortQuestions(questions.filter((item) => !item.answer));
   if (open.length === 0) return null;
+  const current = open[0];
 
   return (
     <section className="review-questions-card" aria-label="Domande aperte sul piano">
@@ -57,25 +70,20 @@ export function ReviewQuestionsCard({
         </span>
         <div>
           <p className="product-eyebrow">Serve una tua decisione</p>
-          <h4>
-            {open.length === 1
-              ? "1 punto da chiarire prima di disegnare"
-              : `${open.length} punti da chiarire prima di disegnare`}
-          </h4>
+          <h4>Una decisione alla volta</h4>
+          <p>{open.length === 1 ? "Ultimo punto aperto" : `${open.length} punti aperti`}</p>
         </div>
       </header>
 
       <ol className="review-questions-list">
-        {open.map((question, index) => (
-          <OpenQuestion
-            key={question.question_id}
-            position={index + 1}
-            total={open.length}
-            question={question}
-            isAnswering={isAnswering}
-            onAnswer={onAnswer}
-          />
-        ))}
+        <OpenQuestion
+          key={current.question_id}
+          position={1}
+          total={open.length}
+          question={current}
+          isAnswering={isAnswering}
+          onAnswer={onAnswer}
+        />
       </ol>
     </section>
   );
@@ -112,7 +120,7 @@ function OpenQuestion({
   const [ownAnswer, setOwnAnswer] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const ownInputRef = useRef<HTMLInputElement>(null);
-  const options = question.options ?? [];
+  const options = (question.options ?? []).slice(0, 4);
   const labelId = `question-${question.question_id}`;
   const otherIndex = options.length + 1;
 

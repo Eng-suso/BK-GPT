@@ -1,4 +1,4 @@
-"""The user's chat mode (plan / edit / agent) as a runtime constraint.
+"""The user's chat mode as a runtime constraint.
 
 The mode is a choice about how much of the workflow the user is handing over. It
 arrives from the UI, never from the model, and it is enforced in two places: the
@@ -52,6 +52,37 @@ def test_plan_mode_cannot_route_to_a_canvas_edit():
     assert result["canvas_route"] != "patch_edit"
     assert result["orchestration_status"] == "capability_not_in_mode"
     assert any("not available in plan mode" in item for item in result["blocking_conditions"])
+
+
+def test_conversation_mode_cannot_start_process_modeling():
+    result = parse_process_router_json(
+        """
+        {
+          "route": "modeling",
+          "confidence": 0.9,
+          "suggested_capability": "process.modeling",
+          "process_mode": "modeling",
+          "reason": "Prepare a BPMN review."
+        }
+        """,
+        state={"chat_mode": "conversation", "process_id": "proc-1"},
+    )
+
+    assert result["process_route"] != "modeling"
+    assert result["orchestration_status"] == "capability_not_in_mode"
+
+
+def test_conversation_mode_only_exposes_direct_answers_and_clarification():
+    for owner in ("consultant", "project", "process", "canvas"):
+        routes = {spec.route for spec in capabilities_for(owner, "conversation")}
+        assert routes == {"direct", "clarification"}
+
+
+def test_conversation_mode_refuses_bpmn_artifact_writes():
+    with bind_active_mode("conversation"):
+        for operation in ("prepare_bpmn_review", "update_bpmn_model", "approve_bpmn_review"):
+            with pytest.raises(WriteNotAllowedInMode):
+                assert_write_allowed(operation)
 
 
 def test_edit_mode_can_apply_a_plan_it_did_not_write():
@@ -218,7 +249,7 @@ def test_the_mode_reaches_the_agent_state_and_its_contract_reaches_the_prompt():
     assert "chat_mode: plan" in prompt
     assert "Modalita' Piano" in prompt
 
-    assert agent_scope_state(None)["chat_mode"] == "agent"
+    assert agent_scope_state(None)["chat_mode"] == "conversation"
 
 
 # --- the mode survives the whole request path -------------------------------
@@ -258,7 +289,7 @@ def test_the_mode_sent_with_a_request_reaches_the_agent_run(monkeypatch):
     assert start.payload["chat_mode"] == "plan"
 
 
-def test_a_request_without_a_mode_runs_as_agent(monkeypatch):
+def test_a_request_without_a_mode_runs_as_conversation(monkeypatch):
     from backend.services import agent_runtime
 
     seen: dict = {}
@@ -290,4 +321,4 @@ def test_a_request_without_a_mode_runs_as_agent(monkeypatch):
         )
     )
 
-    assert seen["chat_mode"] == "agent"
+    assert seen["chat_mode"] == "conversation"

@@ -23,6 +23,8 @@ from backend.memory import provenance
 # Quante righe di registro entrano in un prompt. Oltre questa soglia il contesto
 # costa piu' di quanto renda: le righe sono ordinate per rilevanza dal ledger.
 LEDGER_PROMPT_LIMIT = 60
+SOURCE_CONTENT_LIMIT = 12_000
+SOURCE_SET_CONTENT_LIMIT = 30_000
 
 
 def turn_evidence_ledger(state: dict) -> list[provenance.LedgerEntry]:
@@ -98,11 +100,72 @@ def render_ledger_lines(
             if entry.shared_qualifiers
             else ""
         )
+        # Chi parla dello stesso tema senza confermare l'enunciato: e' materiale
+        # vero e va detto, ma come prospettiva complementare, non come conferma.
+        nearby = (
+            " | stesso tema ma non conferma: " + ", ".join(entry.same_topic_voices)
+            if entry.same_topic_voices
+            else ""
+        )
         lines.append(
             f"- {claim.statement} | voce: {claim.voice or 'non dichiarata'} "
             f"| sostegno: {provenance.SUPPORT_LABEL_IT.get(entry.support, entry.support)}"
-            f"{scope}{others}{shared}{only}{quote}"
+            f"{scope}{others}{shared}{only}{nearby}{quote}"
         )
+    return "\n".join(lines)
+
+
+def render_source_evidence(snapshot: dict, *, include_content: bool = True) -> str:
+    """Il source set del processo, una fonte alla volta e senza fonderle.
+
+    Il testo di ogni intervista sta dentro i suoi delimitatori con il nome di
+    chi l'ha detta: e' la stessa regola che tiene separate le voci nel registro
+    dei claim. Fondere i transcript in un unico blocco e' il modo piu' diretto
+    per far diventare "regola generale" cio' che una sola persona ha descritto
+    del proprio reparto.
+
+    Args:
+        snapshot: Lo snapshot di `load_evidence_ledger`.
+        include_content: Se includere il testo integrale. Chi risponde e chi
+            modella ne ha bisogno; chi sceglie solo il passo successivo no.
+
+    Returns:
+        Il blocco di prompt, o la ragione per cui il set non e' leggibile.
+    """
+    sources = list(snapshot.get("sources") or [])
+    if not sources:
+        if snapshot.get("source_status") in {"error", "stale"}:
+            # "Non ho potuto leggere" e "non c'e' niente" portano a due risposte
+            # opposte, e il consulente le ha viste alternarsi nella stessa chat.
+            return "source set non leggibile in questo turno; non dire che le fonti sono zero"
+        return "nessuna fonte registrata per questo processo"
+
+    lines = [
+        f"Source set autoritativo: {len(sources)} fonti "
+        f"(id: {snapshot.get('source_set_id') or 'non disponibile'})."
+    ]
+    remaining = SOURCE_SET_CONTENT_LIMIT
+    for source in sources:
+        name = str(source.get("name") or source.get("id") or "Fonte senza nome").strip()
+        source_id = str(source.get("id") or "").strip()
+        source_type = str(source.get("type") or "Fonte").strip()
+        summary = str(source.get("summary") or source.get("meta") or "").strip()
+        participants = ", ".join(str(item) for item in source.get("participants") or [])
+        header = f"[FONTE {source_id}] {name} | tipo: {source_type}"
+        if participants:
+            header += f" | partecipanti: {participants}"
+        lines.append(header)
+        if summary:
+            lines.append(f"Sintesi dichiarata: {summary}")
+        content = str(source.get("content") or "").strip()
+        if include_content and content and remaining > 0:
+            excerpt = content[: min(SOURCE_CONTENT_LIMIT, remaining)]
+            lines.append("Testo della fonte (mantieni questa attribuzione):")
+            lines.append(excerpt)
+            remaining -= len(excerpt)
+        elif include_content:
+            lines.append("Testo integrale non disponibile; non inventare dettagli.")
+        lines.append(f"[/FONTE {source_id}]")
     return "\n".join(lines)
 
 
@@ -138,22 +201,36 @@ def evidence_prompt_block(state: dict) -> list[str]:
     if str(state.get("scope_type") or "") != "process":
         return []
 
+    snapshot = state.get("evidence_ledger") or {}
     entries = turn_evidence_ledger(state)
     summary = provenance.summarize_ledger(entries)
     voices = ", ".join(summary.voices) or "nessuna"
+    sources = list(snapshot.get("sources") or [])
 
     lines = [
         "",
-        "REGISTRO DELL'EVIDENZA di questo processo. E' cio' che il processo sa "
-        "gia', con chi lo dice e quanto e' sostenuto. Vale come stato di fatto: "
-        "non e' materiale opzionale da rileggere solo se ti serve.",
+        "REGISTRO DELL'EVIDENZA di questo processo. Il source set viene dal "
+        "workspace autoritativo; i claim sono una proiezione separata per "
+        "provenance e corroborazione. Tutti i nodi devono usare questo stesso snapshot.",
+        render_source_evidence(snapshot),
+        "",
+        "Claim projection (non modifica mai il source set):",
         render_ledger_lines(entries),
         "",
         f"Voci sentite finora: {voices}",
         f"Divergenze registrate:\n{render_divergences(state)}",
     ]
 
-    if entries:
+    if snapshot.get("claim_status") in {"error", "not_configured", "blocked"}:
+        lines.extend(
+            [
+                "",
+                "La claim projection non e' disponibile in questo turno. Le fonti "
+                "sopra restano presenti e leggibili: non dire che le interviste sono zero.",
+            ]
+        )
+
+    if entries or sources:
         lines.extend(
             [
                 "",
@@ -189,6 +266,10 @@ _CATCH_ALL_SHAPES: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bcome\s+funziona\s+(?:il\s+)?processo\b"),
     re.compile(r"\bqual\s*e\s+il\s+processo\b"),
     re.compile(r"\bdescriv\w*\s+(?:il\s+)?processo\b"),
+    re.compile(r"\bqual\w*\s+(?:e\s+)?(?:il\s+)?trigger\b"),
+    re.compile(r"\b(?:come|quando)\s+(?:inizia|parte|finisce|termina)\s+(?:il\s+)?processo\b"),
+    re.compile(r"\bqual\w*\s+(?:e\s+)?(?:la\s+)?prima\s+(?:attivita|fase)\b"),
+    re.compile(r"\bqual\w*\s+(?:e\s+)?(?:la\s+)?fine\s+(?:del\s+)?processo\b"),
 )
 
 # Parole troppo comuni per provare che una domanda parla davvero del registro.
@@ -245,8 +326,13 @@ def ledger_vocabulary(entries: list[provenance.LedgerEntry]) -> set[str]:
 
 
 def is_catch_all_question(question: str) -> bool:
-    """La domanda chiede una categoria intera invece di una lacuna precisa."""
-    normalized = provenance.normalize(question)
+    """La domanda chiede una categoria intera invece di una lacuna precisa.
+
+    La punteggiatura cade prima del confronto: "qual e' il trigger?" e "qual e
+    il trigger" sono la stessa domanda, e l'apostrofo elisivo non deve decidere
+    se una forma larga viene riconosciuta.
+    """
+    normalized = " ".join(_PUNCTUATION.sub(" ", provenance.normalize(question)).split())
     return any(shape.search(normalized) for shape in _CATCH_ALL_SHAPES)
 
 

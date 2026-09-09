@@ -366,6 +366,9 @@ class LedgerEntry:
     # non puo' contenerli.
     exclusive_qualifiers: tuple[str, ...] = ()
     shared_qualifiers: tuple[str, ...] = ()
+    # Voci che l'estrattore ha messo sotto la stessa proposizione ma le cui
+    # parole non la reggono: parlano del tema, non confermano l'enunciato.
+    same_topic_voices: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -388,6 +391,7 @@ class LedgerEntry:
             "support": self.support,
             "support_label": SUPPORT_LABEL_IT.get(self.support, self.support),
             "corroborating_sources": list(self.corroborating_sources),
+            "same_topic_voices": list(self.same_topic_voices),
             "contested_by": list(self.contested_by),
         }
 
@@ -550,6 +554,52 @@ def _distinct_voices(claims: Iterable[ClaimRecord]) -> list[str]:
     return seen
 
 
+# Quanta parte della proposizione dichiarata deve trovarsi nelle parole della
+# fonte perche' quella fonte la stia davvero dicendo. Meta' e' la soglia: sotto,
+# la fonte sta parlando del tema con parole proprie che dicono altro - "sulle
+# piccole spese l'autorizzazione e' meno formalizzata" non e' "sopra soglia
+# serve un'autorizzazione", anche se l'estrattore le ha messe sotto lo stesso
+# enunciato.
+_ASSERTION_CARRIED_RATIO = 0.5
+
+# Parole troppo corte per distinguere una proposizione da un'altra.
+_MIN_ASSERTION_TOKEN = 4
+
+
+def _content_stems(text: str) -> set[str]:
+    return {_stem(word) for word in _loose(text).split() if len(word) >= _MIN_ASSERTION_TOKEN}
+
+
+def statement_carries_assertion(assertion: Any, statement: Any) -> bool:
+    """Le parole di questa fonte reggono la proposizione che le e' stata messa sopra?
+
+    `assertion` la scrive l'estrattore, e due claim che la condividono vengono
+    contati come la stessa proposizione. E' li' che si perdeva la granularita':
+    bastava che l'estrattore raggruppasse per argomento perche' una regola di
+    Acquisti risultasse confermata anche dalla Manutenzione, che sullo stesso
+    argomento diceva il contrario.
+
+    Il controllo e' sulle parole della fonte, non sul significato: se
+    l'enunciato dichiarato non si ritrova nell'enunciato che la fonte ha
+    effettivamente prodotto, quella voce parla del tema senza confermarlo. Fail
+    closed - meglio due `single_source` che una corroborazione che nessuna delle
+    due fonti ha davvero espresso.
+
+    Args:
+        assertion: La proposizione dichiarata sul claim.
+        statement: Le parole con cui quella fonte l'ha detta.
+
+    Returns:
+        True se la proposizione non e' dichiarata (non c'e' niente da
+        verificare) o se le parole della fonte la reggono.
+    """
+    wanted = _content_stems(assertion)
+    if not wanted:
+        return True
+    carried = wanted & _content_stems(statement)
+    return len(carried) >= len(wanted) * _ASSERTION_CARRIED_RATIO
+
+
 def build_ledger(
     claims: Iterable[Any],
     *,
@@ -576,8 +626,22 @@ def build_ledger(
 
     entries: list[LedgerEntry] = []
     for record in records:
-        peers = by_assertion.get(record.key, [])
-        voices = _distinct_voices(peers)
+        # Dentro il gruppo contano solo le fonti le cui parole reggono davvero
+        # la proposizione: condividere l'`assertion` che ha scritto l'estrattore
+        # non basta, altrimenti il raggruppamento per argomento diventa una
+        # conferma reciproca che nessuna delle due fonti ha espresso.
+        group = by_assertion.get(record.key, [])
+        carrying = [
+            item
+            for item in group
+            if statement_carries_assertion(item.assertion, item.statement)
+        ]
+        # Se nessuno regge l'enunciato, l'enunciato e' una sintesi astratta e il
+        # controllo non discrimina: resta valido il raggruppamento dichiarato.
+        # Discrimina quando alcuni lo reggono e altri no, ed e' li' che serve.
+        peers = carrying or group
+        aside = [item for item in group if item not in peers]
+        voices = _distinct_voices(peers) if record in peers else []
         # Una divergenza puo' essere registrata sul soggetto o sull'enunciato:
         # entrambi contano, altrimenti la classificazione non arriva mai qui.
         contested_by = tuple(contested.get(record.key, ()) or contested.get(record.subject, ()))
@@ -606,6 +670,16 @@ def build_ledger(
             # dirlo esplicitamente evita che a valle si assuma il contrario.
             else record.qualifiers
         )
+        # Cio' che e' stato messo da parte non sparisce: e' materiale vero, ed e'
+        # la differenza fra "prospettive complementari" e "conferma reciproca".
+        same_topic = tuple(
+            dict.fromkeys(
+                claim.voice
+                for claim in aside
+                if claim.voice.strip()
+                and normalize(claim.voice) != normalize(record.voice)
+            )
+        )
         entries.append(
             LedgerEntry(
                 claim=record,
@@ -614,6 +688,7 @@ def build_ledger(
                 contested_by=contested_by,
                 exclusive_qualifiers=tuple(exclusive),
                 shared_qualifiers=core.shared if support == "corroborated" else (),
+                same_topic_voices=same_topic,
             )
         )
     return entries
@@ -934,28 +1009,83 @@ _PLURAL_ATTRIBUTION = re.compile(
 # esattamente le due cose che il controllo deve vedere insieme.
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 
+# Il grado di sostegno dichiarato con il vocabolario del prodotto. La risposta
+# lo scrive perche' e' la colonna "Valutazione" della matrice che il consulente
+# chiede: se lo scrive, e' verificabile.
+_DECLARED_CORROBORATION = re.compile(r"\bcorrobora\w*\b")
+
 
 @dataclass(frozen=True)
 class AnswerViolation:
-    """Una frase della risposta che attribuisce a piu' voci cio' che ne dice una."""
+    """Una frase della risposta che dichiara piu' sostegno di quanto ne esista.
+
+    Due difetti diversi, un solo tipo perche' la correzione e' la stessa
+    conversazione:
+
+    - `attribute_leak`: la frase attribuisce a piu' voci un attributo che ne
+      dichiara una sola;
+    - `unsupported_agreement`: la frase presenta come concorde una proposizione
+      che nel registro nessuna coppia di quelle voci sostiene insieme. Parlare
+      dello stesso argomento non e' corroborare, e un "non lo so" non sostiene
+      la posizione di chi sa.
+    """
 
     sentence: str
-    qualifier: str
-    owner: str
+    qualifier: str = ""
+    owner: str = ""
     voices_named: tuple[str, ...] = ()
+    kind: Literal["attribute_leak", "unsupported_agreement"] = "attribute_leak"
+
+    @property
+    def message(self) -> str:
+        sentence = self.sentence.strip()
+        if self.kind == "unsupported_agreement":
+            return (
+                f"La frase «{sentence}» presenta come concorde "
+                f"{', '.join(self.voices_named)}, ma il registro non ha una "
+                "proposizione che quelle voci sostengano insieme. Corrobora solo "
+                "il nucleo davvero condiviso, oppure separa le posizioni "
+                "attribuendo a ciascuna cio' che dice."
+            )
+        return (
+            f"«{self.qualifier}» lo dice solo {self.owner}: la frase "
+            f"«{sentence}» lo attribuisce a piu' fonti. "
+            f"Dillo separato, attribuito a {self.owner}."
+        )
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "sentence": self.sentence,
+            "kind": self.kind,
             "qualifier": self.qualifier,
             "owner": self.owner,
             "voices_named": list(self.voices_named),
-            "message": (
-                f"«{self.qualifier}» lo dice solo {self.owner}: la frase "
-                f"«{self.sentence.strip()}» lo attribuisce a piu' fonti. "
-                f"Dillo separato, attribuito a {self.owner}."
-            ),
+            "message": self.message,
         }
+
+
+def corroborated_agreements(
+    entries: Iterable[LedgerEntry],
+) -> list[tuple[frozenset[str], str]]:
+    """Gli accordi agli atti: su quale proposizione, e fra quali voci.
+
+    Non basta sapere che due voci concordano su qualcosa. Due persone d'accordo
+    sulle urgenze non sono per questo d'accordo sulle autorizzazioni, e senza
+    legare l'accordo alla sua proposizione il controllo lascerebbe passare
+    proprio la sostituzione che deve impedire.
+    """
+    agreements: list[tuple[frozenset[str], str]] = []
+    for entry in entries:
+        if entry.support != "corroborated":
+            continue
+        voices = frozenset(
+            normalize(voice)
+            for voice in (entry.claim.voice, *entry.corroborating_sources)
+            if voice.strip()
+        )
+        if len(voices) >= 2:
+            agreements.append((voices, entry.claim.assertion or entry.claim.statement))
+    return agreements
 
 
 def _sentences(text: str) -> list[str]:
@@ -979,16 +1109,22 @@ def _named_voices(sentence: str, voices: Iterable[str]) -> tuple[str, ...]:
 
 
 def audit_answer(text: str, entries: Iterable[LedgerEntry]) -> list[AnswerViolation]:
-    """Le frasi della risposta che fondono indebitamente piu' fonti.
+    """Le frasi della risposta che dichiarano piu' sostegno di quanto ce ne sia.
 
     Una frase e' "multi-fonte" quando nomina almeno due voci del registro,
     oppure quando dichiara un accordo senza nominarne nessuna ("piu' fonti
-    concordano", "entrambi riferiscono"). In una frase cosi' non puo' comparire
-    un attributo che il registro assegna a una voce sola.
+    concordano", "entrambi riferiscono", "corroborato"). Due controlli:
 
-    Il controllo e' deterministico perche' gli attributi sono dichiarati sul
-    claim: non si prova a capire la frase, si verifica che non porti dentro
-    qualcosa che una sola fonte sostiene.
+    - in una frase cosi' non puo' comparire un attributo che il registro
+      assegna a una voce sola;
+    - se la frase dichiara un accordo fra voci nominate, quelle voci devono
+      sostenere insieme almeno una proposizione del registro. Nominare due
+      fonti che parlano dello stesso argomento non le mette d'accordo, e una
+      fonte che dichiara di non sapere non sostiene nulla.
+
+    Il controllo e' deterministico perche' attributi e sostegno sono calcolati
+    sul claim: non si prova a capire la frase, si verifica che non dichiari cio'
+    che il registro non contiene.
 
     Args:
         text: La risposta prodotta, non affidabile.
@@ -1005,17 +1141,37 @@ def audit_answer(text: str, entries: Iterable[LedgerEntry]) -> list[AnswerViolat
         for qualifier in entry.exclusive_qualifiers
         if qualifier.strip() and entry.claim.voice.strip()
     ]
-    if not owned:
-        return []
+    agreements = corroborated_agreements(ledger)
 
     violations: list[AnswerViolation] = []
     for sentence in _sentences(text):
         named = _named_voices(sentence, dict.fromkeys(voices))
-        shared_claim = len(named) >= 2 or (
-            bool(_PLURAL_ATTRIBUTION.search(_loose(sentence))) and len(named) <= 1
+        declares_agreement = bool(
+            _PLURAL_ATTRIBUTION.search(_loose(sentence))
+            or _DECLARED_CORROBORATION.search(_loose(sentence))
         )
+        shared_claim = len(named) >= 2 or (declares_agreement and len(named) <= 1)
         if not shared_claim:
             continue
+
+        # Un accordo dichiarato che nel registro non esiste: quelle voci non
+        # sostengono insieme una proposizione che questa frase stia dicendo.
+        # E' la fusione che nasceva dopo l'estrazione, dove finora nessuno
+        # guardava.
+        if declares_agreement and len(named) >= 2:
+            claimed = {normalize(voice) for voice in named}
+            if not any(
+                claimed <= voices and statement_carries_assertion(assertion, sentence)
+                for voices, assertion in agreements
+            ):
+                violations.append(
+                    AnswerViolation(
+                        sentence=sentence,
+                        voices_named=named,
+                        kind="unsupported_agreement",
+                    )
+                )
+
         for qualifier, owner in owned:
             # Se la frase nomina soltanto il proprietario dell'attributo, sta
             # attribuendo correttamente: non e' una fusione.
@@ -1043,11 +1199,17 @@ def render_attribution_notice(violations: Iterable[AnswerViolation]) -> str:
     if not items:
         return ""
     lines = ["**Precisazione sull'attribuzione**", ""]
-    for owner in dict.fromkeys(item.owner for item in items):
-        attributes = dict.fromkeys(
-            item.qualifier for item in items if item.owner == owner
-        )
+    leaks = [item for item in items if item.kind == "attribute_leak"]
+    for owner in dict.fromkeys(item.owner for item in leaks):
+        attributes = dict.fromkeys(item.qualifier for item in leaks if item.owner == owner)
         lines.append(f"- {', '.join(attributes)}: lo riferisce solo {owner}.")
+    for item in items:
+        if item.kind != "unsupported_agreement":
+            continue
+        lines.append(
+            f"- {', '.join(item.voices_named)}: parlano dello stesso tema, ma il "
+            "registro non le riporta d'accordo su questa affermazione."
+        )
     return "\n".join(lines)
 
 

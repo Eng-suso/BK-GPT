@@ -1,68 +1,207 @@
+import hashlib
+import json
 import logging
 
 from backend import workspace_database
 from backend.graphs.common import canonical_semantic_context, validated_model
 from backend.process_understanding import (
     ProcessUnderstandingQualityReport,
+    draft_readiness_from_understanding,
     process_understanding_diagnostics,
+    validation_readiness_from_understanding,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def load_evidence_ledger(project_id: str | None, process_id: str | None) -> dict:
-    """Il registro dell'evidenza gia' raccolta su questo processo.
+def _source_set_id(sources: list[dict]) -> str:
+    """L'identita' del set di fonti, confrontabile fra un turno e l'altro.
 
-    Senza questo, ogni chat ripartiva dal solo transcript: cio' che una fonte
-    aveva gia' detto in un turno precedente tornava a essere "informazione
-    mancante" al turno dopo, perche' i claim vivevano solo nello stato del
-    giro. Qui l'apertura del turno legge cio' che e' persistito, dentro il
-    confine del proprio processo.
+    Serve a rendere verificabile l'invariante invece di doverla dedurre: due
+    fasi che dichiarano lo stesso `source_set_id` hanno letto le stesse fonti.
+    Entra anche nella firma di progresso del loop, cosi' una fonte in piu' conta
+    come avanzamento.
+    """
+    identity = [
+        {
+            "id": str(item.get("id") or ""),
+            "name": str(item.get("name") or ""),
+            "project_id": str(item.get("project_id") or ""),
+            "process_id": str(item.get("process_id") or ""),
+        }
+        for item in sources
+    ]
+    encoded = json.dumps(identity, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:20]
+
+
+def _empty_evidence_snapshot() -> dict:
+    return {
+        "status": "empty",
+        "source_status": "empty",
+        "claim_status": "empty",
+        "sources": [],
+        "source_ids": [],
+        "source_count": 0,
+        "source_set_id": _source_set_id([]),
+        "claims": [],
+        "count": 0,
+    }
+
+
+def _authoritative_process_sources(project_id: str, process_id: str) -> list[dict]:
+    """Le fonti del processo, con il loro testo, dal registro operativo.
+
+    Il confine e' lo stesso del gateway: le fonti del processo piu' quelle di
+    progetto che non appartengono a nessun processo. L'ordine e' per nome, cosi'
+    l'elenco non dipende dall'ordine di scrittura. Se il testo di una fonte non
+    si carica, la fonte resta comunque nel set: manca il transcript, non
+    l'intervista.
+    """
+    from backend.workspace_services import source_document as source_documents
+
+    records = [
+        item
+        for item in workspace_database.list_project_sources(project_id)
+        if item.get("process_id") in {None, process_id}
+    ]
+    sources: list[dict] = []
+    for record in sorted(
+        records,
+        key=lambda item: (
+            str(item.get("name") or "").casefold(),
+            str(item.get("id") or ""),
+        ),
+    ):
+        try:
+            document = source_documents.source_document(str(record.get("id") or "")) or {}
+        except Exception:  # noqa: BLE001 - the manifest remains authoritative
+            logger.warning(
+                "testo fonte %s non caricato per il processo %s",
+                record.get("id"),
+                process_id,
+                exc_info=True,
+            )
+            document = {}
+        sources.append(
+            {
+                **record,
+                "summary": str(document.get("summary") or record.get("meta") or "").strip(),
+                "participants": list(document.get("participants") or []),
+                "content": str(document.get("content") or "").strip(),
+                "has_content": bool(document.get("has_content")),
+                "episode_id": document.get("episode_id"),
+            }
+        )
+    return sources
+
+
+def load_evidence_ledger(
+    project_id: str | None,
+    process_id: str | None,
+    *,
+    previous: dict | None = None,
+) -> dict:
+    """Un solo snapshot dell'evidenza, per tutti i consumatori del turno.
+
+    Il set di fonti autoritativo e' il registro operativo del workspace; i claim
+    del canonical sono una proiezione, e servono per provenance e corroborazione.
+    Prima erano la stessa cosa, e siccome l'ingestione del knowledge graph e'
+    asincrona e puo' degradare, "proiezione non pronta" diventava "zero
+    interviste": nella stessa chat il consulente vedeva tre fonti, poi nessuna,
+    poi di nuovo tre. Qui i due piani restano distinti e ognuno porta il proprio
+    stato, cosi' chi legge sa se una fonte manca o se non e' stata letta.
 
     Args:
         project_id: Progetto del turno.
         process_id: Processo del turno.
+        previous: Lo snapshot del turno precedente, se c'e'. Serve solo quando
+            la lettura operativa fallisce: meglio l'ultimo set noto, dichiarato
+            `stale`, che un vuoto indistinguibile da un processo senza fonti.
 
     Returns:
-        Il registro (`status`, `claims`, `summary`), o uno vuoto se il
-        canonical non e' configurato o la lettura fallisce: la chat deve poter
-        aprirsi anche senza knowledge graph.
+        Lo snapshot: fonti con il loro testo, claim proiettati, e gli stati
+        separati di ciascun piano.
     """
     if not project_id or not process_id:
-        return {"status": "empty", "claims": [], "count": 0}
+        return _empty_evidence_snapshot()
+
     from backend.toolsets.process_memory import process_claim_ledger
 
+    source_status = "ok"
     try:
-        return process_claim_ledger(project_id, process_id)
-    except Exception:  # noqa: BLE001 — l'apertura del turno non deve fallire per questo
+        sources = _authoritative_process_sources(project_id, process_id)
+    except Exception:  # noqa: BLE001 — non leggibile e vuoto non sono lo stesso stato
         logger.warning(
-            "registro evidenza non caricato per il processo %s", process_id, exc_info=True
+            "registro fonti non caricato per il processo %s", process_id, exc_info=True
         )
-        return {"status": "error", "claims": [], "count": 0}
+        sources = list((previous or {}).get("sources") or [])
+        source_status = "stale" if sources else "error"
+
+    try:
+        projected = process_claim_ledger(project_id, process_id)
+    except Exception:  # noqa: BLE001 — le fonti restano leggibili comunque
+        logger.warning(
+            "registro claim non caricato per il processo %s", process_id, exc_info=True
+        )
+        projected = {"status": "error", "claims": [], "count": 0}
+
+    source_ids = [str(item.get("id") or "") for item in sources if item.get("id")]
+    claim_status = str(projected.get("status") or "empty")
+    status = source_status if source_status != "ok" else ("ok" if sources else "empty")
+    return {
+        **projected,
+        "status": status,
+        "source_status": source_status,
+        "claim_status": claim_status,
+        "sources": sources,
+        "source_ids": source_ids,
+        "source_count": len(sources),
+        "source_set_id": _source_set_id(sources),
+        "claims": list(projected.get("claims") or []),
+        "count": len(projected.get("claims") or []),
+    }
+
+
+def evidence_count(snapshot: dict) -> int:
+    """Quanta evidenza questo processo ha davvero agli atti.
+
+    Le fonti salvate e i claim proiettati non arrivano insieme: l'ingestione del
+    knowledge graph e' asincrona, quindi fra il salvataggio di un'intervista e la
+    sua proiezione esiste una finestra in cui i claim sono zero e le fonti no.
+    Contare i soli claim in quella finestra fa dire "nessuna evidenza" a un
+    processo che ha tre interviste sul tavolo.
+
+    Args:
+        snapshot: Lo snapshot di `load_evidence_ledger`.
+
+    Returns:
+        Il numero di elementi di evidenza registrati, fonti o claim che siano.
+    """
+    return max(
+        int(snapshot.get("source_count") or 0),
+        len(snapshot.get("claims") or []),
+    )
 
 
 def load_process_context(state: dict) -> dict:
-    """Load process metadata, review results, and saved BPMN content for the requested process.
-    
+    """Lo stato del processo con cui si apre ogni turno.
+
+    Il nodo riapre a ogni giro del loop, quindi cio' che scrive vince su cio'
+    che i tool hanno scritto prima: readiness e registro dell'evidenza si
+    ricavano qui dallo stato persistito, non si leggono da un campo che qualcuno
+    potrebbe aver lasciato indietro.
+
     Args:
-        state (dict): Untrusted state containing the optional ``process_id`` used to
-            identify the process.
-    
+        state: Lo stato del turno, non affidabile. Serve `process_id`; se c'e'
+            gia' uno snapshot dell'evidenza viene usato solo come ultima
+            risorsa, quando la lettura fallisce.
+
     Returns:
-        dict: A normalized process context. Returns an empty dictionary when no
-        process ID is provided. For an unknown process, returns a context with
-        null process data, empty review lists, and no saved BPMN XML. Existing
-        contexts include process metadata, saved BPMN XML, semantic-model data,
-        diagnostics, quality data, readiness, and review findings, with missing
-        list values normalized to empty lists.
-    
-    Raises:
-        KeyError: If a retrieved process lacks a required process field.
-        TypeError: If stored review data cannot be processed by the semantic-model
-            or quality-report validators.
-    
-    Side Effects:
-        Performs read-only database lookups and does not persist changes.
+        Processo, review, BPMN salvato, le due readiness e lo snapshot
+        dell'evidenza. Vuoto se il turno non e' su un processo.
+
+    Sola lettura.
     """
     process_id = state.get("process_id")
     if not process_id:
@@ -78,13 +217,17 @@ def load_process_context(state: dict) -> dict:
             "process_quality_report": None,
             "bpmn_semantic_model": None,
             "readiness_score": None,
+            "draft_readiness": None,
+            "validation_readiness": None,
             "missing_information": [],
             "review_open_questions": [],
             "saved_bpmn_xml": None,
-            "evidence_ledger": {"status": "empty", "claims": [], "count": 0},
+            "evidence_ledger": _empty_evidence_snapshot(),
         }
 
-    ledger = load_evidence_ledger(process["project_id"], process_id)
+    ledger = load_evidence_ledger(
+        process["project_id"], process_id, previous=state.get("evidence_ledger")
+    )
     bpmn_model = workspace_database.get_bpmn_model(process["bpmn_model_id"])
     review = workspace_database.get_bpmn_review(process["bpmn_model_id"], include_approved=True)
 
@@ -97,6 +240,8 @@ def load_process_context(state: dict) -> dict:
             "process_quality_report": None,
             "bpmn_semantic_model": None,
             "readiness_score": None,
+            "draft_readiness": None,
+            "validation_readiness": None,
             "missing_information": [],
             "review_open_questions": [],
             "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,
@@ -105,6 +250,21 @@ def load_process_context(state: dict) -> dict:
 
     process_understanding, bpmn_semantic_model = canonical_semantic_context(
         review.get("bpmn_semantic_model")
+    )
+    # Le due soglie si ricavano qui dallo stesso ProcessUnderstanding salvato,
+    # non da un campo persistito: questo nodo riapre a ogni giro del loop, e un
+    # valore letto da altrove sovrascriverebbe quello appena calcolato dal tool
+    # di modeling. Derivarlo significa che lo stesso processo, dopo un restart o
+    # un checkpoint, torna alla stessa readiness.
+    draft_readiness = (
+        draft_readiness_from_understanding(process_understanding)
+        if process_understanding
+        else None
+    )
+    validation_readiness = (
+        validation_readiness_from_understanding(process_understanding)
+        if process_understanding
+        else None
     )
 
     return {
@@ -122,6 +282,8 @@ def load_process_context(state: dict) -> dict:
         ),
         "bpmn_semantic_model": bpmn_semantic_model,
         "readiness_score": review.get("readiness_score"),
+        "draft_readiness": draft_readiness,
+        "validation_readiness": validation_readiness,
         "missing_information": review.get("missing_information") or [],
         "review_open_questions": review.get("open_questions") or [],
         "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,

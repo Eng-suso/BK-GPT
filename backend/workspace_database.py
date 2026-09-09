@@ -1075,6 +1075,7 @@ def answer_bpmn_review_question(
     
     The answer is stored for later review revision and does not modify the process model.
     """
+    assert_write_allowed("answer_bpmn_review_question")
     clean_question = " ".join(str(question or "").split())
     clean_answer = str(answer or "").strip()
     if not clean_question:
@@ -1379,6 +1380,7 @@ def update_bpmn_review_brief(bpmn_model_id: str, bpmn_brief: str) -> dict:
         timestamp, and records a new review-version snapshot. The semantic model
         and canvas-generation content remain unchanged.
     """
+    assert_write_allowed("update_bpmn_review_brief")
     clean_brief = bpmn_brief.strip()
     if not clean_brief:
         raise ValueError("Il piano Markdown non può essere vuoto.")
@@ -1436,6 +1438,7 @@ def prepare_bpmn_review(
     preparing an existing review creates its next version while preserving the
     previous snapshot.
     """
+    assert_write_allowed("prepare_bpmn_review")
     clean_text = process_description.strip()
     if not clean_text:
         raise ValueError("Descrizione processo obbligatoria.")
@@ -1524,6 +1527,7 @@ def revise_bpmn_review(
     The revision persists the updated review, records a historical version, increments
     the review version, and reopens the review with pending status.
     """
+    assert_write_allowed("revise_bpmn_review")
     with workspace_connection() as session:
         model = tenant_row(session, WorkspaceBpmnModel, bpmn_model_id)
         if model is None:

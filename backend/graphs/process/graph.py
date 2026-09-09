@@ -18,8 +18,10 @@ from backend.agents.evidence_brief import (
     question_is_grounded,
     render_divergences,
     render_ledger_lines,
+    render_source_evidence,
     turn_evidence_ledger,
 )
+from backend.agents.process_snapshot import build_process_snapshot
 from backend.memory import provenance
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
@@ -155,6 +157,9 @@ def process_state_signature(state: dict) -> str:
             str(len(state.get("contradictions") or [])),
             str(len(state.get("process_claims") or [])),
             str(len(state.get("process_gaps") or [])),
+            str((state.get("evidence_ledger") or {}).get("source_set_id") or ""),
+            str((state.get("draft_readiness") or {}).get("status") or ""),
+            str((state.get("validation_readiness") or {}).get("status") or ""),
         ]
     )
 
@@ -407,13 +412,18 @@ def build_process_router(llm):
                             "process_quality_report: "
                             f"{artifact_for_prompt(state.get('process_quality_report'))}\n"
                             f"has_bpmn_semantic_model: {artifact_is_present(state.get('bpmn_semantic_model'))}\n"
-                            f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n\n"
+                            f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n"
+                            f"draft_readiness: {(state.get('draft_readiness') or {}).get('status')}\n"
+                            f"validation_readiness: {(state.get('validation_readiness') or {}).get('status')}\n\n"
                             # PROCESS-V2-13: il router decideva il passo
                             # successivo senza vedere una riga dell'evidenza,
                             # quindi mandava a raccogliere cio' che era gia'
                             # agli atti o chiedeva chiarimenti su cio' che il
-                            # registro spiegava.
+                            # registro spiegava. Qui basta sapere quali fonti
+                            # esistono: il testo integrale serve a chi risponde e
+                            # a chi modella, non a chi sceglie il passo.
                             "Evidence ledger for this process:\n"
+                            f"{render_source_evidence(state.get('evidence_ledger') or {}, include_content=False)}\n\n"
                             f"{render_ledger_lines(turn_evidence_ledger(state))}\n\n"
                             f"Recorded divergences:\n{render_divergences(state)}\n\n"
                             "Recent conversation (resolve references against this):\n"
@@ -763,6 +773,12 @@ def build_canvas_delegation_node(canvas_subgraph):
             }
 
         payload = state.get("delegation_payload") or {}
+        # La versione di conoscenza che il Process Agent sta consegnando. Non e'
+        # un dato in piu': e' cio' che rende l'handoff verificabile. Il Canvas
+        # rilegge lo stesso stato dal database, ma parte dichiaratamente da
+        # questa versione, quindi "il disegno viene da V17" si puo' dimostrare e
+        # una V18 comparsa nel frattempo si vede.
+        snapshot = build_process_snapshot(state["process_id"]) if state.get("process_id") else None
         result = canvas_subgraph.invoke(
             {
                 "messages": state.get("messages") or [],
@@ -773,6 +789,7 @@ def build_canvas_delegation_node(canvas_subgraph):
                 "bpmn_model_id": state.get("bpmn_model_id"),
                 "process_name": state.get("process_name"),
                 "current_bpmn_xml": None,
+                "canvas_run_snapshot_id": snapshot.snapshot_id if snapshot else None,
                 "goal": payload.get("goal") or state.get("goal"),
                 "intent": payload.get("intent") or state.get("intent"),
                 "next_action": payload.get("next_action") or state.get("next_action"),
@@ -785,11 +802,15 @@ def build_canvas_delegation_node(canvas_subgraph):
             "messages": result.get("messages") or [],
             "saved_bpmn_xml": result.get("saved_bpmn_xml") or state.get("saved_bpmn_xml"),
             "routing_trace": result.get("routing_trace") or [],
+            "canvas_handoff_payload": snapshot.as_handoff_payload() if snapshot else None,
             "delegation_events": [
                 {
                     "target": "canvas_macro",
                     "status": result.get("canvas_loop_status") or "completed",
+                    "run_status": result.get("canvas_run_status"),
                     "canvas_route": result.get("canvas_route"),
+                    "handoff_snapshot_id": snapshot.snapshot_id if snapshot else None,
+                    "handoff_snapshot_label": snapshot.label if snapshot else None,
                     "reason": state.get("delegation_reason"),
                 }
             ],

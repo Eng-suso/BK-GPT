@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Bot, ChevronDown, PencilLine, Route } from "lucide-react";
+import { Bot, ChevronDown, MessageCircle, PencilLine, Route } from "lucide-react";
 
 import { Button } from "@/ui/button";
 import {
@@ -28,6 +28,7 @@ type ChatModeSelectorProps = {
 };
 
 const MODE_ICONS: Record<ChatMode, React.ReactNode> = {
+  conversation: <MessageCircle aria-hidden="true" />,
   plan: <Route aria-hidden="true" />,
   edit: <PencilLine aria-hidden="true" />,
   agent: <Bot aria-hidden="true" />,
