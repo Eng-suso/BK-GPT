@@ -8,6 +8,10 @@ from backend.toolsets.bpmn import (
     prepare_canvas_bpmn_review,
 )
 from backend.toolsets.memory import remember_bpmn_preference, search_bpmn_preferences
+from backend.toolsets.process_knowledge import (
+    inspect_process_knowledge,
+    raise_modeling_question,
+)
 from backend.toolsets.process_memory import retrieve_process_canvas_traceability_context
 from backend.graphs.process.tools import get_process_semantic_context
 from backend.toolsets.workspace import (
@@ -64,6 +68,24 @@ def prepare_canvas_delegation_payload(
     )
 
 
+KNOWLEDGE_BOUNDARY_POLICY = """
+Knowledge boundary.
+
+The process knowledge belongs to the Process Agent; the canvas owns turning that
+knowledge into BPMN. The two are joined by one versioned snapshot, read with
+inspect_process_knowledge: sources, claims with who states them and how well
+supported they are, open gaps with their alternatives, decisions the consultant
+already took, readiness. Model from that snapshot, and say which version you
+modelled ("V17"), not from chat prose and not from the canvas XML alone.
+
+When a modeling decision genuinely is not settled by the snapshot, you have two
+honest moves and no third one: model the uncertainty explicitly, or hand the
+decision back with raise_modeling_question. Never invent the answer, never keep
+a private assumption that the process plan does not contain. A question raised
+this way ends your run in waiting_for_user: the answer comes back as a new
+snapshot version, and you model on that.
+""".strip()
+
 CANVAS_TOOL_POLICY = """
 Canvas Macro tools.
 
@@ -75,7 +97,9 @@ to the construction subgraph and must preserve ProcessUnderstanding and
 BPMNSemanticModel context. Canvas always has access to process semantic context,
 BPMN preferences and process-to-canvas traceability memory, including for small
 local patches.
-""".strip()
+
+{knowledge_boundary}
+""".format(knowledge_boundary=KNOWLEDGE_BOUNDARY_POLICY).strip()
 
 PATCH_EDIT_TOOL_POLICY = """
 Patch/Edit subagent tools.
@@ -94,12 +118,26 @@ when the listed model has no match or multiple plausible matches.
 CONSTRUCTION_TOOL_POLICY = """
 Process Construction subagent tools.
 
+{knowledge_boundary}
+
+You are a senior process modeler working to BPMN 2.0, not a diagram printer.
+Read the snapshot first, then decide the topology it actually supports: one start
+event on the trigger the sources describe, activities owned by the actor who
+performs them, a lane or pool per participant, a gateway only where the evidence
+shows a real decision - with its outcomes named as the sources named them - an
+end event per distinct outcome, and exceptions attached where they interrupt the
+work rather than dangling as a parallel drawing. What one voice alone reports is
+not the main path; what nobody states is not a step.
+
 Use ProcessUnderstanding and BPMNSemanticModel as the semantic source of truth.
 For broad creation or reconstruction, prepare/load a review, generate or inspect
 the preview, validate it and wait for explicit approval before saving. If the
 user supplied a raw process description and no semantic model exists yet, call
-prepare_canvas_bpmn_review using that description. Do not infer missing process
-semantics from raw canvas XML alone. The visible canvas must stay operational:
+prepare_canvas_bpmn_review using that description - that tool is refused on a
+process that already has recorded evidence, because there the plan is the process
+agent's and rebuilding it from prose would drop what the sources said. Do not
+infer missing process semantics from raw canvas XML alone. The visible canvas
+must stay operational:
 show BPMN flow nodes, gateways, lanes and sequence flows; keep rules, unknowns,
 data objects, handoffs and traceability in the semantic payload, not as visible
 text annotations or data artifacts.
@@ -108,15 +146,23 @@ The runtime keeps the XML that generate_preview produced. Do not carry it back:
 apply_approved_preview reads that preview itself, so it only needs
 confirm_apply=True. Pass proposed_xml only when applying something other than the
 preview you just generated.
-""".strip()
+""".format(knowledge_boundary=KNOWLEDGE_BOUNDARY_POLICY).strip()
 
 VALIDATION_TOOL_POLICY = """
 Canvas Validation subagent tools.
 
+{knowledge_boundary}
+
 Validate the current canvas technically and semantically against available
 ProcessUnderstanding/BPMNSemanticModel context. Report issues, warnings and next
 actions. Do not mutate XML except when explicitly asked only for layout repair.
-""".strip()
+
+Validation also covers coverage of the snapshot: an actor with no lane, a
+decision with no gateway, a recorded exception path with nowhere to attach and a
+gateway whose branches the evidence never named are all findings. When a finding
+cannot be settled without a decision only the consultant can make, raise it with
+raise_modeling_question rather than reporting it as a defect you already fixed.
+""".format(knowledge_boundary=KNOWLEDGE_BOUNDARY_POLICY).strip()
 
 LAYOUT_TOOL_POLICY = """
 Canvas Drawing/Layout subagent tools.
@@ -139,6 +185,7 @@ canvas_macro_tools = [
     get_workspace_process,
     get_workspace_bpmn_model,
     get_workspace_bpmn_review,
+    inspect_process_knowledge,
     get_process_semantic_context,
     manage_canvas_bpmn_model,
     prepare_canvas_delegation_payload,
@@ -148,6 +195,8 @@ canvas_macro_tools = [
 
 
 patch_edit_tools = [
+    # Il patch resta stretto per scelta: una modifica locale non ha bisogno
+    # dello snapshot completo, e darglielo lo inviterebbe a rimodellare.
     manage_canvas_bpmn_model,
     get_process_semantic_context,
     retrieve_process_canvas_traceability_context,
@@ -160,6 +209,8 @@ construction_tools = [
     get_workspace_process,
     get_workspace_bpmn_model,
     get_workspace_bpmn_review,
+    inspect_process_knowledge,
+    raise_modeling_question,
     get_process_semantic_context,
     retrieve_process_canvas_traceability_context,
     prepare_canvas_bpmn_review,
@@ -173,6 +224,8 @@ validation_tools = [
     get_workspace_process,
     get_workspace_bpmn_model,
     get_workspace_bpmn_review,
+    inspect_process_knowledge,
+    raise_modeling_question,
     get_process_semantic_context,
     retrieve_process_canvas_traceability_context,
     manage_canvas_validation,

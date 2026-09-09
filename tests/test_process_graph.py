@@ -6,6 +6,7 @@ from backend.graphs.process.graph import (
     build_canvas_delegation_node,
     evaluate_process_iteration,
     parse_process_router_json,
+    process_state_signature,
 )
 from backend.graphs.process.subgraphs.discovery import graph as discovery_graph_module
 from backend.graphs.process.skills_manifest import required_skills_for
@@ -293,16 +294,19 @@ def test_process_registered_capability_not_allowed_by_state_is_not_executed():
     assert "Missing prerequisite: bpmn_semantic_model" in result["blocking_conditions"]
 
 
-def test_process_single_no_progress_pass_does_not_terminate_the_loop():
-    # One pass without a state change is not proof of a stall - a discovery/evidence
-    # pass can legitimately end in a question or an assessment without moving state.
+def _stalled_state(**overrides) -> dict:
+    """Uno stato che dichiara di essere identico al giro precedente.
+
+    La firma si calcola invece di scriverla a mano: un campo nuovo che entra nel
+    segnale di progresso non deve poter rompere questi test per una stringa
+    disallineata, altrimenti smettono di parlare del loop e parlano del formato.
+    """
     state = {
         "workflow_scope": "full_workflow",
         "process_route": "evidence",
         "engineering_loop_iteration": 0,
         "engineering_loop_max_iterations": 3,
         "process_no_progress_count": 0,
-        "process_progress_signature": "False|False|None|0|False|False|None|False|0|0|0",
         "process_understanding": None,
         "bpmn_semantic_model": None,
         "readiness_score": None,
@@ -311,7 +315,16 @@ def test_process_single_no_progress_pass_does_not_terminate_the_loop():
         "contradictions": [],
         "process_claims": [],
         "process_gaps": [],
+        **overrides,
     }
+    state["process_progress_signature"] = process_state_signature(state)
+    return state
+
+
+def test_process_single_no_progress_pass_does_not_terminate_the_loop():
+    # One pass without a state change is not proof of a stall - a discovery/evidence
+    # pass can legitimately end in a question or an assessment without moving state.
+    state = _stalled_state()
 
     result = evaluate_process_iteration(state)
 
@@ -320,22 +333,11 @@ def test_process_single_no_progress_pass_does_not_terminate_the_loop():
 
 
 def test_process_repeated_no_progress_terminates_controlled_loop():
-    state = {
-        "workflow_scope": "full_workflow",
-        "process_route": "evidence",
-        "engineering_loop_iteration": 1,
-        "engineering_loop_max_iterations": 5,
-        "process_no_progress_count": 1,
-        "process_progress_signature": "False|False|None|0|False|False|None|False|0|0|0",
-        "process_understanding": None,
-        "bpmn_semantic_model": None,
-        "readiness_score": None,
-        "missing_information": [],
-        "saved_bpmn_xml": None,
-        "contradictions": [],
-        "process_claims": [],
-        "process_gaps": [],
-    }
+    state = _stalled_state(
+        engineering_loop_iteration=1,
+        engineering_loop_max_iterations=5,
+        process_no_progress_count=1,
+    )
 
     result = evaluate_process_iteration(state)
 
@@ -1099,6 +1101,24 @@ def test_unclassified_open_item_still_blocks_the_canvas():
     state = canvas_ready_state(missing_information=["chi approva sopra soglia"])
 
     assert "readiness_for_canvas" in canvas_prerequisites(state)
+
+
+def test_explicit_draft_readiness_allows_a_preliminary_canvas_with_open_gaps():
+    state = canvas_ready_state(
+        readiness_score=5,
+        missing_information=["chi regolarizza l'ordine urgente"],
+        draft_readiness={
+            "status": "modelable",
+            "blockers": [],
+            "gaps": ["chi regolarizza l'ordine urgente"],
+        },
+        validation_readiness={
+            "status": "needs_validation",
+            "blockers": ["chi regolarizza l'ordine urgente"],
+        },
+    )
+
+    assert canvas_prerequisites(state) == []
 
 
 def test_readiness_bar_set_by_the_agent_is_honoured():

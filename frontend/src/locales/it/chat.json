@@ -120,6 +120,10 @@
   },
   "mode": {
     "label": "Modalità di lavoro",
+    "conversation": {
+      "label": "Chat",
+      "hint": "Solo conversazione: risponde e chiarisce senza creare review, domande o artefatti BPMN."
+    },
     "plan": {
       "label": "Piano",
       "hint": "Capisce e propone: prepara e corregge il piano di processo, senza toccare il canvas."

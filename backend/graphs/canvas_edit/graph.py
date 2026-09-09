@@ -5,6 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
 from backend import workspace_database
+from backend.agents.process_snapshot import build_process_snapshot
 from backend.graphs.canvas_edit.nodes import load_canvas_context
 from backend.graphs.canvas_edit.state import CanvasState
 from backend.graphs.canvas_edit.subgraphs.construction import build_construction_subgraph, construction_tools
@@ -33,6 +34,72 @@ from backend.workspace_services.bpmn_canvas_validation import validate_canvas_ag
 
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 CANVAS_LOOP_MAX_ATTEMPTS = 2
+
+
+def knowledge_drift(state: dict) -> dict | None:
+    """Il processo sa qualcosa che non sapeva quando questo run e' partito?
+
+    Ha una causa sola, in questo disegno: il Canvas ha rimandato indietro una
+    decisione con `raise_modeling_question`, e registrarla ha fatto salire la
+    versione del piano. Da quel momento il disegno in corso descrive uno stato
+    che non e' piu' quello ufficiale, e applicarlo lo renderebbe la verita' del
+    processo - esattamente cio' che il confine esiste per impedire.
+
+    Args:
+        state: Lo stato del run, non affidabile. Serve `process_id` e la
+            versione su cui il run e' partito.
+
+    Returns:
+        Le due versioni a confronto, o ``None`` se la conoscenza e' ferma.
+
+    Sola lettura.
+    """
+    started_on = state.get("canvas_run_snapshot_id")
+    process_id = state.get("process_id")
+    if not started_on or not process_id:
+        return None
+
+    current = build_process_snapshot(process_id)
+    if current is None or current.snapshot_id == started_on:
+        return None
+    return {
+        "started_on": started_on,
+        "current_snapshot_id": current.snapshot_id,
+        "current_snapshot_label": current.label,
+        "open_questions": [
+            item.model_dump(mode="json")
+            for item in current.open_questions
+            if not item.answer
+        ],
+    }
+
+
+def waiting_for_knowledge_state(drift: dict) -> dict:
+    """Il run si ferma e dice cosa aspetta, invece di chiudere su dati vecchi."""
+    pending = (drift.get("open_questions") or [None])[0]
+    return {
+        "canvas_loop_status": "blocked",
+        "canvas_run_status": "waiting_for_user",
+        "canvas_pending_question": pending,
+        "process_snapshot_id": drift["current_snapshot_id"],
+        "process_snapshot_label": drift["current_snapshot_label"],
+        "blocking_conditions": [
+            "Il piano del processo e' cambiato durante il lavoro sul canvas: "
+            f"{drift['current_snapshot_label']} non e' la versione su cui questo "
+            "disegno e' stato costruito."
+        ],
+        "canvas_task_log": [
+            {
+                "step": "knowledge_refresh",
+                "status": "waiting_for_user",
+                "owner": "canvas_loop",
+                "summary": (
+                    "Serve una decisione sul processo prima di chiudere il disegno: "
+                    f"riprendo da {drift['current_snapshot_label']} quando arriva la risposta."
+                ),
+            }
+        ],
+    }
 
 
 def expects_empty_canvas(state: dict) -> bool:
@@ -381,6 +448,14 @@ def selected_canvas_route(state: CanvasState) -> str:
 
 
 def refresh_canvas_context_after_work(state: CanvasState) -> dict:
+    # Prima di rileggere il canvas si guarda se il processo e' cambiato: un
+    # disegno corretto su conoscenza superata resta un disegno da rifare, e
+    # portarlo avanti fino al salvataggio e' il modo in cui il canvas
+    # diventerebbe la fonte al posto del processo.
+    drift = knowledge_drift(state)
+    if drift:
+        return waiting_for_knowledge_state(drift)
+
     bpmn_model_id = state.get("bpmn_model_id")
     if not bpmn_model_id:
         return {
@@ -501,10 +576,15 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
             follow-up actions, task-log entries, and a loop status of
             ``"completed"``, ``"needs_fix"``, or ``"blocked"``.
     """
+    drift = knowledge_drift(state)
+    if drift:
+        return waiting_for_knowledge_state(drift)
+
     bpmn_model_id = state.get("bpmn_model_id")
     if not bpmn_model_id:
         return {
             "canvas_loop_status": "blocked",
+            "canvas_run_status": "failed",
             "blocking_conditions": ["Missing prerequisite: bpmn_model_id"],
             "canvas_task_log": [
                 {
@@ -556,9 +636,15 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
     if not issues:
         return {
             "canvas_loop_status": "completed",
+            "canvas_run_status": "done",
             "canvas_loop_attempt": next_attempt,
             "canvas_last_validation": validation,
             "validation_report": {
+                # Quale stato del processo questo disegno rappresenta. Senza
+                # questo, "il canvas e' aggiornato" non e' un'affermazione
+                # verificabile: aggiornato rispetto a cosa.
+                "process_snapshot_id": state.get("canvas_run_snapshot_id"),
+                "process_snapshot_label": state.get("process_snapshot_label"),
                 "objective": state.get("canvas_objective")
                 or ("Svuotamento canvas" if empty_canvas_expected else "Verifica completamento canvas"),
                 "xml_valid": bool(validation.get("technical", {}).get("valid", validation.get("valid"))),
@@ -591,6 +677,8 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
             "canvas_loop_attempt": next_attempt,
             "canvas_last_validation": validation,
             "validation_report": {
+                "process_snapshot_id": state.get("canvas_run_snapshot_id"),
+                "process_snapshot_label": state.get("process_snapshot_label"),
                 "objective": state.get("canvas_objective") or "Correzione post-validazione canvas",
                 "xml_valid": bool(validation.get("technical", {}).get("valid", validation.get("valid"))),
                 "semantic_valid": False,
@@ -619,9 +707,12 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
 
     return {
         "canvas_loop_status": "blocked",
+        "canvas_run_status": "failed",
         "canvas_loop_attempt": next_attempt,
         "canvas_last_validation": validation,
         "validation_report": {
+            "process_snapshot_id": state.get("canvas_run_snapshot_id"),
+            "process_snapshot_label": state.get("process_snapshot_label"),
             "objective": state.get("canvas_objective") or "Verifica completamento canvas",
             "xml_valid": bool(validation.get("technical", {}).get("valid", validation.get("valid"))),
             "semantic_valid": False,
@@ -666,10 +757,42 @@ def route_after_validation_subgraph(state: CanvasState) -> str:
 
 def canvas_completion_report(state: CanvasState) -> dict:
     status = state.get("canvas_loop_status")
+    run_status = state.get("canvas_run_status")
     validation = state.get("canvas_last_validation") or {}
     report = state.get("validation_report") or {}
     issues = report.get("issues") or validation.get("issues") or []
     warnings = report.get("warnings") or validation.get("warnings") or []
+
+    if run_status == "waiting_for_user":
+        # Il run non e' fallito e non e' finito: ha trovato una cosa che non
+        # poteva decidere e l'ha rimandata a chi la decide. Dirlo cosi' e' la
+        # differenza fra un agente che aspetta e uno che ha inventato.
+        pending = state.get("canvas_pending_question") or {}
+        question = str(pending.get("question") or "").strip()
+        content = (
+            "Mi serve una decisione tua prima di chiudere il disegno: l'ho registrata "
+            "sul processo, cosi' resta parte di quello che sappiamo e non solo del canvas."
+        )
+        if question:
+            content += f"\n\n{question}"
+        options = [
+            str(option.get("label") or "").strip()
+            for option in pending.get("options") or []
+            if str(option.get("label") or "").strip()
+        ]
+        if options:
+            content += "\n\n" + "\n".join(f"- {option}" for option in options)
+        return {
+            "messages": [AIMessage(content=content)],
+            "canvas_task_log": [
+                {
+                    "step": "final_report",
+                    "status": "waiting_for_user",
+                    "owner": "canvas_loop",
+                    "summary": content,
+                }
+            ],
+        }
 
     if status == "completed":
         if report.get("completion_kind") == "empty_canvas":
@@ -702,12 +825,13 @@ def canvas_completion_report(state: CanvasState) -> dict:
 
 def ask_canvas_clarification(state: CanvasState) -> dict:
     return {
+        "canvas_run_status": "waiting_for_user",
         "messages": [
             AIMessage(
                 content=state.get("clarification_question")
                 or "Mi serve un chiarimento sul canvas o sulla modifica richiesta prima di procedere."
             )
-        ]
+        ],
     }
 
 

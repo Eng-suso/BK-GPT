@@ -303,17 +303,17 @@ def test_edit_mode_keeps_its_clarification_instead_of_collecting_evidence():
 
 def test_a_plan_with_no_actors_is_refused_when_the_evidence_exists():
     """PROCESS-V2-11 nella sua forma piu' dannosa: il vuoto che diventa stato ufficiale."""
-    from backend.graphs.process.subgraphs.modeling.tools import _plan_ignores_evidence
+    from backend.agents.process_snapshot import plan_ignores_evidence
     from backend.process_understanding import ProcessUnderstanding
 
     empty_plan = ProcessUnderstanding(title="Ciclo passivo")
 
-    assert _plan_ignores_evidence(empty_plan, claim_count=4) is not None
-    assert _plan_ignores_evidence(None, claim_count=4) is not None
+    assert plan_ignores_evidence(empty_plan, 4) is not None
+    assert plan_ignores_evidence(None, 4) is not None
 
 
 def test_a_plan_that_carries_the_actors_goes_through():
-    from backend.graphs.process.subgraphs.modeling.tools import _plan_ignores_evidence
+    from backend.agents.process_snapshot import plan_ignores_evidence
     from backend.process_understanding import ProcessActor, ProcessUnderstanding
 
     plan = ProcessUnderstanding(
@@ -321,15 +321,15 @@ def test_a_plan_that_carries_the_actors_goes_through():
         actors=[ProcessActor(id="acquisti", label="Acquisti", kind="team")],
     )
 
-    assert _plan_ignores_evidence(plan, claim_count=4) is None
+    assert plan_ignores_evidence(plan, 4) is None
 
 
 def test_a_process_without_evidence_can_still_start_from_a_sketch():
     """Senza fonti registrate il gate non ha niente da difendere."""
-    from backend.graphs.process.subgraphs.modeling.tools import _plan_ignores_evidence
+    from backend.agents.process_snapshot import plan_ignores_evidence
     from backend.process_understanding import ProcessUnderstanding
 
-    assert _plan_ignores_evidence(ProcessUnderstanding(title="Nuovo"), claim_count=0) is None
+    assert plan_ignores_evidence(ProcessUnderstanding(title="Nuovo"), 0) is None
 
 
 # --- le domande scartate non spariscono in silenzio ------------------------
@@ -368,3 +368,244 @@ def test_the_dropped_questions_stay_visible_as_work_to_redo():
     assert [item.question for item in kept] == [plan.unknowns[1].question]
     assert [item.question for item in dropped] == [plan.unknowns[0].question]
     assert "sourcing" in _ungrounded_question_warning(dropped)
+
+
+# --- P0: il source set e' operativo, non una conseguenza del KG ------------
+
+
+def _workspace_sources() -> list[dict]:
+    return [
+        {
+            "id": "src-laura",
+            "project_id": "p1",
+            "process_id": "pr1",
+            "name": "Intervista Laura Conti",
+            "type": "Intervista",
+            "meta": "Laura descrive la richiesta e il passaggio ad Acquisti.",
+        },
+        {
+            "id": "src-paolo",
+            "project_id": "p1",
+            "process_id": "pr1",
+            "name": "Intervista Paolo Marchetti",
+            "type": "Intervista",
+            "meta": "Paolo descrive il percorso urgente.",
+        },
+        {
+            "id": "src-francesca",
+            "project_id": "p1",
+            "process_id": "pr1",
+            "name": "Intervista Francesca Neri",
+            "type": "Intervista",
+            "meta": "Francesca descrive ordine e controlli.",
+        },
+    ]
+
+
+def test_the_source_set_does_not_flap_when_the_claim_projection_does(monkeypatch):
+    """Tre richieste e un restart vedono le stesse fonti anche se il KG degrada."""
+    from backend.graphs.process import nodes
+    from backend.toolsets import process_memory
+    from backend.workspace_services import source_document
+
+    monkeypatch.setattr(nodes.workspace_database, "list_project_sources", lambda _project_id: _workspace_sources())
+    monkeypatch.setattr(
+        source_document,
+        "source_document",
+        lambda source_id: {
+            **next(item for item in _workspace_sources() if item["id"] == source_id),
+            "summary": "Fonte salvata",
+            "participants": [],
+            "content": f"testo autoritativo di {source_id}",
+            "has_content": True,
+        },
+    )
+    ledgers = iter(
+        [
+            {"status": "ok", "claims": THREE_INTERVIEWS, "count": 4},
+            {"status": "error", "claims": [], "count": 0, "reason": "projection restarting"},
+            {"status": "ok", "claims": THREE_INTERVIEWS, "count": 4},
+            {"status": "empty", "claims": [], "count": 0},
+        ]
+    )
+    monkeypatch.setattr(process_memory, "process_claim_ledger", lambda *_args, **_kwargs: next(ledgers))
+
+    snapshots = [nodes.load_evidence_ledger("p1", "pr1") for _ in range(4)]
+    expected_ids = ["src-francesca", "src-laura", "src-paolo"]
+
+    assert [snapshot["source_ids"] for snapshot in snapshots] == [expected_ids] * 4
+    assert len({snapshot["source_set_id"] for snapshot in snapshots}) == 1
+    assert [snapshot["source_count"] for snapshot in snapshots] == [3, 3, 3, 3]
+    assert snapshots[1]["claim_status"] == "error"
+    assert snapshots[1]["status"] == "ok"
+
+
+def test_the_scope_prompt_keeps_sources_visible_when_claims_are_still_projecting():
+    state = process_state(claims=[])
+    state["evidence_ledger"] = {
+        "status": "ok",
+        "claim_status": "error",
+        "claims": [],
+        "count": 0,
+        "source_count": 3,
+        "source_set_id": "stable-set",
+        "sources": [
+            {**source, "content": f"testo autoritativo di {source['id']}"}
+            for source in _workspace_sources()
+        ],
+    }
+
+    prompt = build_scope_system_prompt(state)
+
+    for voice in ("Laura Conti", "Paolo Marchetti", "Francesca Neri"):
+        assert voice in prompt
+    assert "3 fonti" in prompt
+    assert "claim projection" in prompt
+
+
+def test_a_plan_cannot_ignore_saved_sources_just_because_claims_are_not_ready():
+    from backend.agents.process_snapshot import plan_ignores_evidence
+    from backend.process_understanding import ProcessUnderstanding
+
+    assert plan_ignores_evidence(ProcessUnderstanding(title="Ciclo passivo"), 3)
+
+
+# --- P1: bozza modellabile e validazione sono due soglie -------------------
+
+
+def test_partial_evidence_can_be_modelable_without_being_validated():
+    from backend.process_understanding import (
+        ProcessActor,
+        ProcessBoundaries,
+        ProcessStep,
+        ProcessUnderstanding,
+        ProcessUnknown,
+        draft_readiness_from_understanding,
+        validation_readiness_from_understanding,
+    )
+
+    understanding = ProcessUnderstanding(
+        title="Ciclo passivo",
+        actors=[ProcessActor(id="acquisti", label="Acquisti", kind="team")],
+        steps=[
+            ProcessStep(
+                id="crea_ordine",
+                label="Crea e invia ordine",
+                actor_ids=["acquisti"],
+                source_evidence=["src-francesca"],
+            )
+        ],
+        sequence=["crea_ordine"],
+        main_success_path=["crea_ordine"],
+        boundaries=ProcessBoundaries(trigger="Fabbisogno rilevato", success_end="Ordine inviato"),
+        unknowns=[
+            ProcessUnknown(
+                question="Chi autorizza a posteriori l'ordine urgente?",
+                affects="gestione urgenze",
+                severity="blocking",
+                grounded_in="Paolo descrive l'ordine urgente ma non chi lo regolarizza.",
+            )
+        ],
+    )
+
+    draft = draft_readiness_from_understanding(understanding)
+    validation = validation_readiness_from_understanding(understanding)
+
+    assert draft["status"] == "modelable"
+    assert draft["blockers"] == []
+    assert draft["gaps"] == ["Chi autorizza a posteriori l'ordine urgente?"]
+    assert validation["status"] == "needs_validation"
+
+
+# --- P1: non si richiede cio' che il modello ha gia' estratto --------------
+
+
+def _plan_that_already_knows(*questions: str):
+    """Un piano che ha trigger, attori, attivita', decisioni e fine processo."""
+    from backend.process_understanding import (
+        ProcessActor,
+        ProcessBoundaries,
+        ProcessDecision,
+        ProcessStep,
+        ProcessUnderstanding,
+        ProcessUnknown,
+    )
+
+    return ProcessUnderstanding(
+        title="Ciclo passivo",
+        actors=[ProcessActor(id="acquisti", label="Acquisti", kind="team")],
+        steps=[ProcessStep(id="crea", label="Crea ordine", actor_ids=["acquisti"])],
+        sequence=["crea"],
+        main_success_path=["crea"],
+        decisions=[
+            ProcessDecision(id="urgente", label="Richiesta urgente?", outcomes=["si", "no"])
+        ],
+        boundaries=ProcessBoundaries(
+            trigger="Fabbisogno rilevato",
+            start_event="Richiesta ricevuta",
+            success_end="Ordine inviato",
+        ),
+        unknowns=[
+            ProcessUnknown(
+                question=question,
+                affects="ciclo passivo",
+                grounded_in="Laura e Francesca descrivono gia' questo punto.",
+            )
+            for question in questions
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Qual e' il trigger del processo?",
+        "Qual e' la prima attivita'?",
+        "Quali sono gli attori del processo?",
+        "Quali decisioni ci sono?",
+        "Come finisce il processo?",
+    ],
+)
+def test_clarification_drops_a_fact_already_present_in_the_understanding(question):
+    from backend.workspace_services.bpmn_review import partition_answered_unknowns
+
+    kept, answered = partition_answered_unknowns(_plan_that_already_knows(question))
+
+    assert kept == []
+    assert [item.question for item in answered] == [question]
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Chi regolarizza a posteriori l'ordine urgente che Paolo manda al fornitore?",
+        "Quale controllo si applica quando l'ordine urgente supera il budget del reparto?",
+        "Quando la richiesta arriva a voce, chi la trascrive prima dell'ordine?",
+    ],
+)
+def test_a_gap_on_a_concrete_case_survives_even_if_the_category_is_populated(question):
+    """Il filtro toglie le domande di categoria, non le lacune vere.
+
+    Un piano che ha degli attori non rende superflua "chi regolarizza l'ordine
+    urgente": scartarla perche' nomina un ruolo silenzierebbe la lacuna che il
+    consulente deve ancora chiudere.
+    """
+    from backend.workspace_services.bpmn_review import partition_answered_unknowns
+
+    kept, answered = partition_answered_unknowns(_plan_that_already_knows(question))
+
+    assert answered == []
+    assert [item.question for item in kept] == [question]
+
+
+def test_an_answered_question_is_reported_as_answered_not_as_ungrounded():
+    """Due difetti diversi, due spiegazioni diverse per chi legge il piano."""
+    from backend.workspace_services.bpmn_review import (
+        _answered_question_warning,
+        _ungrounded_question_warning,
+    )
+
+    plan = _plan_that_already_knows("Quali sono gli attori del processo?")
+
+    assert "contiene gia'" in _answered_question_warning(plan.unknowns)
+    assert "contiene gia'" not in _ungrounded_question_warning(plan.unknowns)

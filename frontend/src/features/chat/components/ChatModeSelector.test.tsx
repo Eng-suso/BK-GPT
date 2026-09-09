@@ -33,14 +33,14 @@ describe("ChatModeSelector", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers the three modes as a single-choice menu", async () => {
+  it("offers conversation and delegated modes as a single-choice menu", async () => {
     const user = userEvent.setup();
     renderSelector({ value: "plan" });
 
     await user.click(screen.getByRole("button"));
 
     const options = await screen.findAllByRole("menuitemradio");
-    expect(options).toHaveLength(3);
+    expect(options).toHaveLength(4);
     expect(
       screen.getByRole("menuitemradio", { name: /mode\.plan\.label/ }),
     ).toHaveAttribute("aria-checked", "true");

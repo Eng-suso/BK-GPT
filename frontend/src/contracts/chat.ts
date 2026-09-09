@@ -27,9 +27,13 @@ export type ApiChatScope = z.infer<typeof apiChatScopeSchema>;
  * user's choice, sent with the request; the backend narrows which capabilities
  * the router may propose and refuses the writes the mode excludes.
  */
-export const CHAT_MODES = ["plan", "edit", "agent"] as const;
+export const CHAT_MODES = ["conversation", "plan", "edit", "agent"] as const;
 export type ChatMode = (typeof CHAT_MODES)[number];
-export const DEFAULT_CHAT_MODE: ChatMode = "agent";
+/**
+ * A chat starts as a conversation. Planning or changing a BPMN artifact is an
+ * explicit delegation choice, never a side effect of opening a process chat.
+ */
+export const DEFAULT_CHAT_MODE: ChatMode = "conversation";
 
 /**
  * Quanto il modello deve ragionare prima di rispondere. Ortogonale alla

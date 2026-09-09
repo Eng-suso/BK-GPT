@@ -55,7 +55,8 @@ interface ChatShellProps {
   onAttach?: () => void;
   onVoice?: () => void;
   onModelChange?: (model: string) => void;
-  reviewSlot?: React.ReactNode;
+  /** A separate workspace control rendered outside the conversation stream. */
+  workspaceSlot?: React.ReactNode;
 }
 
 /**
@@ -146,7 +147,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   onAttach,
   onVoice,
   onModelChange,
-  reviewSlot,
+  workspaceSlot,
 }) => {
   const { t, i18n } = useTranslation("chat");
   const locale = i18n.language || "it";
@@ -262,9 +263,14 @@ export const ChatShell: React.FC<ChatShellProps> = ({
             <MessageList messages={messages} onRetry={onRetry} />
           )}
           <QueuedMessages items={queuedMessages} onCancel={onCancelQueued} />
-          {reviewSlot}
           <div ref={messagesEndRef} />
         </div>
+
+        {workspaceSlot ? (
+          <div className="shrink-0 border-t border-border bg-background px-4 py-2">
+            {workspaceSlot}
+          </div>
+        ) : null}
 
         <ChatComposer
           scope={scope ?? { type: "consultant" }}
@@ -328,10 +334,15 @@ export const ChatShell: React.FC<ChatShellProps> = ({
                 <MessageList messages={messages} onRetry={onRetry} />
               )}
               <QueuedMessages items={queuedMessages} onCancel={onCancelQueued} />
-              {reviewSlot}
               <div ref={messagesEndRef} />
             </div>
           </div>
+
+          {workspaceSlot ? (
+            <div className="shrink-0 border-t border-border bg-background px-4 py-2">
+              {workspaceSlot}
+            </div>
+          ) : null}
 
           <ChatComposer
             scope={scope ?? { type: "consultant" }}

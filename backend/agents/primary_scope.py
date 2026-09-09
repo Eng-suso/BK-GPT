@@ -24,6 +24,12 @@ AgentScopeType = Literal["consultant", "project", "process", "canvas"]
 # `agents/chat_mode.py`): questo testo serve a far spiegare bene il limite,
 # non a imporlo.
 CHAT_MODE_CONTRACTS: dict[str, str] = {
+    "conversation": (
+        "Modalita' Conversazione: rispondi alla richiesta senza avviare discovery, "
+        "modeling, review o modifiche persistenti. Non creare questionari o artefatti "
+        "BPMN. Se per procedere serve una decisione, formula solo il chiarimento "
+        "necessario e attendi la risposta."
+    ),
     "plan": (
         "Modalita' Piano: l'utente vuole capire e decidere, non applicare. Puoi "
         "esplorare, raccogliere evidenze, preparare e correggere il piano di "
@@ -148,7 +154,7 @@ def build_scope_system_prompt(state: dict) -> str:
     identifiers, and does not persist data or perform other side effects.
     """
     scope_type = str(state.get("scope_type") or "consultant")
-    chat_mode = str(state.get("chat_mode") or "agent")
+    chat_mode = str(state.get("chat_mode") or "conversation")
     lines = [
         "Contesto operativo del thread.",
         "Lo scope arriva dalla UI/backend: non dedurlo dal testo utente.",

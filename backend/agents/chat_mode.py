@@ -41,6 +41,18 @@ class WriteNotAllowedInMode(RuntimeError):
 # restano permesse. Edit applica modifiche locali ma non approva una review -
 # approvare genera un modello intero da un piano, che non e' una modifica locale.
 FORBIDDEN_WRITES: dict[str, frozenset[str]] = {
+    "conversation": frozenset(
+        {
+            "prepare_bpmn_review",
+            "revise_bpmn_review",
+            "update_bpmn_review_brief",
+            "answer_bpmn_review_question",
+            "update_bpmn_model",
+            "create_bpmn_version",
+            "restore_bpmn_version",
+            "approve_bpmn_review",
+        }
+    ),
     "plan": frozenset(
         {
             "update_bpmn_model",
@@ -54,6 +66,11 @@ FORBIDDEN_WRITES: dict[str, frozenset[str]] = {
 }
 
 MODE_REFUSALS: dict[str, str] = {
+    "conversation": (
+        "Questa chat e' in modalita' Conversazione: posso rispondere e chiarire, "
+        "ma non creare o modificare artefatti BPMN. L'utente deve attivare "
+        "esplicitamente Piano, Modifica o Agente."
+    ),
     "plan": (
         "Questa chat e' in modalita' Piano: posso preparare, correggere e "
         "spiegare il piano di processo, ma non modificare il canvas. "

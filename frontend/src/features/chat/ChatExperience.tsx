@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { InlineNotice } from "@/components/feedback";
 import { Button } from "@/ui/button";
+import { ClipboardCheck } from "lucide-react";
 
 import { API_BASE } from "@/lib/api";
 import {
@@ -17,8 +18,7 @@ import { transcribeAudio } from "./api";
 import { useBpmnReview } from "./hooks/useBpmnReview";
 import { useChatSessions } from "./hooks/useChatSessions";
 import { useChatStream } from "./hooks/useChatStream";
-import { BpmnReviewCard, BpmnReviewSheet } from "./review/BpmnReviewCard";
-import { ReviewQuestionsCard } from "./review/ReviewQuestionsCard";
+import { BpmnReviewSheet } from "./review/BpmnReviewCard";
 
 type ChatExperienceProps = {
   chrome?: "full" | "panel";
@@ -49,7 +49,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     useState<ReasoningEffort>(DEFAULT_REASONING_EFFORT);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const lastReviewTimestamp = useRef<string | null>(null);
+  const reviewButtonRef = useRef<HTMLButtonElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -64,14 +64,6 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const sessions = useChatSessions(scope, selectedModel);
   const review = useBpmnReview(scope, showToast);
 
-  useEffect(() => {
-    if (!review.review) return;
-
-    if (review.review.updated_at !== lastReviewTimestamp.current) {
-      lastReviewTimestamp.current = review.review.updated_at;
-      setIsReviewOpen(true);
-    }
-  }, [review.review]);
   const stream = useChatStream({
     scope,
     selectedModel,
@@ -99,6 +91,16 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   // di lavoro precedente ancora in corso. Sono due cose, e si dicono separate.
   const turnError = stream.streamError;
   const historyUnavailable = sessions.isOffline ? sessions.offlineMessage : null;
+  const canModel = scope.type === "process" || scope.type === "canvas";
+
+  const startModelingReview = () => {
+    setChatMode("plan");
+    void stream.sendMessage(
+      "Prepara una review BPMN per questo processo usando le evidenze disponibili. Non generare ancora il canvas.",
+      [],
+      "plan",
+    );
+  };
 
   return (
     <>
@@ -148,7 +150,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         onAttach={() => showToast("Carica un file audio da trascrivere.")}
         onVoice={() => showToast("Registrazione vocale pronta.")}
         onModelChange={setSelectedModel}
-        reviewSlot={
+        workspaceSlot={turnError || historyUnavailable || review.review || canModel ? (
           <>
             {turnError ? (
               <InlineNotice
@@ -196,26 +198,43 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
               </InlineNotice>
             ) : null}
             {review.review ? (
-              <BpmnReviewCard
-                review={review.review}
-                isStale={Boolean(turnError)}
-                onOpen={() => setIsReviewOpen(true)}
-              />
+              <div className="mx-auto flex w-full max-w-[var(--chat-measure)] items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-foreground">
+                    Workspace di modellazione disponibile
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Review e decisioni restano fuori dalla conversazione.
+                  </p>
+                </div>
+                <Button ref={reviewButtonRef} type="button" size="sm" variant="outline" onClick={() => setIsReviewOpen(true)}>
+                  <ClipboardCheck aria-hidden="true" />
+                  Apri review
+                </Button>
+              </div>
             ) : null}
-            {review.review?.open_questions?.length ? (
-              <ReviewQuestionsCard
-                questions={review.review.open_questions}
-                isAnswering={review.isAnswering}
-                onAnswer={review.answerQuestion}
-              />
+            {!review.review && canModel && !turnError && !historyUnavailable ? (
+              <div className="mx-auto flex w-full max-w-[var(--chat-measure)] items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-foreground">
+                    Modellazione BPMN
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    Avvia una review separata quando vuoi trasformare le evidenze in processo.
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={stream.isBusy} onClick={startModelingReview}>
+                  <ClipboardCheck aria-hidden="true" />
+                  Genera bozza
+                </Button>
+              </div>
             ) : null}
           </>
-        }
+        ) : undefined}
       />
 
       {review.review ? (
         <BpmnReviewSheet
-          key={review.review.updated_at}
           review={review.review}
           open={isReviewOpen}
           versions={review.versions}
@@ -227,6 +246,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
           onSave={review.save}
           onAnswer={review.answerQuestion}
           onToast={showToast}
+          onReturnFocus={() => reviewButtonRef.current?.focus()}
         />
       ) : null}
 

@@ -135,7 +135,8 @@ class CanvasRoutingDecision(RoutingDecisionBase):
         return self
 
 
-ALL_CHAT_MODES: frozenset[str] = frozenset({"plan", "edit", "agent"})
+WORKFLOW_CHAT_MODES: frozenset[str] = frozenset({"plan", "edit", "agent"})
+ALL_CHAT_MODES: frozenset[str] = frozenset({"conversation", *WORKFLOW_CHAT_MODES})
 
 
 class CapabilitySpec(BaseModel):
@@ -148,7 +149,7 @@ class CapabilitySpec(BaseModel):
     # Chat modes this capability is available in. `agent` is the full loop and is
     # in every set; `plan` understands and proposes without changing the process
     # model; `edit` applies the change asked for without re-planning it.
-    modes: frozenset[str] = ALL_CHAT_MODES
+    modes: frozenset[str] = WORKFLOW_CHAT_MODES
 
 
 CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
@@ -160,6 +161,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "Consultant-level strategy, memory, planning, positioning, offers, "
             "cross-project synthesis or general advice."
         ),
+        modes=ALL_CHAT_MODES,
     ),
     "consultant.home": CapabilitySpec(
         id="consultant.home",
@@ -222,6 +224,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="consultant",
         route="clarification",
         description="Context, owner or entity reference is ambiguous.",
+        modes=ALL_CHAT_MODES,
     ),
     "project.direct": CapabilitySpec(
         id="project.direct",
@@ -232,6 +235,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "interview saving and retrieval, project-scoped GraphRAG, light synthesis, "
             "scope clarification, source/decision awareness or general project coordination."
         ),
+        modes=ALL_CHAT_MODES,
     ),
     "project.delivery": CapabilitySpec(
         id="project.delivery",
@@ -281,6 +285,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="project",
         route="clarification",
         description="The project or the target process is ambiguous.",
+        modes=ALL_CHAT_MODES,
     ),
     "process.direct": CapabilitySpec(
         id="process.direct",
@@ -290,6 +295,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "Process-level discussion, retrieval of existing context, light explanation "
             "or scope clarification the Process Macro Agent can answer itself."
         ),
+        modes=ALL_CHAT_MODES,
     ),
     "process.discovery": CapabilitySpec(
         id="process.discovery",
@@ -344,12 +350,14 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="process",
         route="clarification",
         description="Process intent is unclear or required ids/context are missing.",
+        modes=ALL_CHAT_MODES,
     ),
     "canvas.direct": CapabilitySpec(
         id="canvas.direct",
         owner="canvas",
         route="direct",
         description="Read-only canvas explanation, scope/context check or very light discussion.",
+        modes=ALL_CHAT_MODES,
     ),
     "canvas.patch_edit": CapabilitySpec(
         id="canvas.patch_edit",
@@ -376,12 +384,13 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "context from a substantive raw process description supplied by the user. "
             "Available even when no semantic context is loaded yet."
         ),
-        # In every mode, because the *write* is what the mode governs and the write
-        # guard already enforces it: plan mode can prepare and preview but not
-        # apply, edit mode can apply a preview the user just approved. Blocking the
+        # In every delegated workflow mode: plan can prepare and preview but not
+        # apply, while conversation cannot start construction at all. The write
+        # guard remains the second boundary: plan still cannot save, while edit
+        # mode can apply a preview the user just approved. Blocking the
         # route in edit mode instead left a prepared preview impossible to apply -
         # "inseriscila nel canvas" came back as "what should I insert?".
-        modes=ALL_CHAT_MODES,
+        modes=WORKFLOW_CHAT_MODES,
     ),
     "canvas.layout": CapabilitySpec(
         id="canvas.layout",
@@ -412,6 +421,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         owner="canvas",
         route="clarification",
         description="Required ids/context or the scope of the requested change is unclear.",
+        modes=ALL_CHAT_MODES,
     ),
 }
 
@@ -924,6 +934,14 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
             missing.append(prerequisite)
         elif prerequisite == "readiness_for_canvas":
             if state.get("workflow_scope") == "local_operation" and state.get("saved_bpmn_xml"):
+                continue
+            draft_readiness = _state_value_as_dict(state.get("draft_readiness"))
+            if (
+                draft_readiness.get("status") == "modelable"
+                and not (draft_readiness.get("blockers") or [])
+            ):
+                # A preliminary BPMN may carry explicit gaps. Final approval is
+                # governed separately by validation_readiness/review status.
                 continue
             readiness = state.get("readiness_score")
             if readiness is None or readiness < minimum_readiness_score(state):

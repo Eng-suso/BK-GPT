@@ -5,15 +5,31 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from backend import workspace_database
+from backend.agents.evidence_brief import (
+    render_ledger_lines,
+    render_source_evidence,
+    turn_evidence_ledger,
+)
+from backend.agents.process_snapshot import (
+    PLAN_IGNORES_EVIDENCE_REMEDY,
+    plan_ignores_evidence,
+)
 from backend.bpmn import build_bpmn_semantic_model, validate_bpmn_semantic_model
+from backend.graphs.process.nodes import evidence_count, load_evidence_ledger
 from backend.graphs.process.tools import (
     bpmn_semantic_model_from_payload,
     prepare_canvas_handoff,
     process_understanding_from_payload,
     process_workspace_payload,
 )
-from backend.process_understanding import evaluate_process_understanding_quality, render_process_review
-from backend.process_understanding import ProcessUnderstanding, process_understanding_diagnostics
+from backend.process_understanding import (
+    ProcessUnderstanding,
+    draft_readiness_from_understanding,
+    evaluate_process_understanding_quality,
+    process_understanding_diagnostics,
+    render_process_review,
+    validation_readiness_from_understanding,
+)
 from backend.toolsets.workspace import enterprise_state_write, enterprise_tool_result
 
 
@@ -70,25 +86,35 @@ def validate_process_understanding_readiness(
     warnings = []
 
     if review is None or understanding is None:
-        warnings.append("No valid ProcessUnderstanding review exists.")
+        missing = "No valid ProcessUnderstanding review exists."
+        warnings.append(missing)
         score = 0
+        draft_readiness = {"status": "not_modelable", "blockers": [missing], "gaps": []}
+        validation_readiness = {
+            "status": "needs_validation",
+            "blockers": [missing],
+            "warnings": [],
+            "quality_score": 0,
+        }
     else:
         score = int(review.get("readiness_score") or 0)
-        blocking_unknowns = [
-            item.question
-            for item in understanding.unknowns
-            if item.severity == "blocking"
-        ]
-        warnings.extend(blocking_unknowns)
-        if score < minimum_readiness_score:
-            warnings.append("Readiness score is below the requested threshold.")
+        draft_readiness = draft_readiness_from_understanding(understanding)
+        validation_readiness = validation_readiness_from_understanding(understanding)
+        warnings.extend(draft_readiness["blockers"])
 
-    status = "ready_for_modeling" if not warnings else "review_required"
+    # Il gate del canvas chiede una bozza disegnabile, non una bozza validata:
+    # le lacune aperte viaggiano dentro il modello preliminare invece di
+    # impedirlo. Cio' che manca per l'approvazione resta in validation_readiness.
+    status = "ready_for_modeling" if draft_readiness["status"] == "modelable" else "review_required"
     return enterprise_state_write(
         tool_call_id=tool_call_id,
         # The bar this process has to clear before canvas handoff. The agent sets
         # it here; `minimum_readiness_score()` reads it back at the gate.
-        state={"minimum_readiness_score": minimum_readiness_score},
+        state={
+            "minimum_readiness_score": minimum_readiness_score,
+            "draft_readiness": draft_readiness,
+            "validation_readiness": validation_readiness,
+        },
         status=status,
         action="validate_process_understanding_readiness",
         entity_type="process_understanding_readiness",
@@ -98,54 +124,11 @@ def validate_process_understanding_readiness(
             "process_id": process_id,
             "minimum_readiness_score": minimum_readiness_score,
             "readiness_score": score,
+            "draft_readiness": draft_readiness,
+            "validation_readiness": validation_readiness,
             "missing_information": review.get("missing_information") if review else [],
         },
         warnings=warnings,
-    )
-
-
-def _persisted_claim_count(project_id: str | None, process_id: str) -> int:
-    """Quante affermazioni il knowledge graph tiene su questo processo.
-
-    Il piano si prepara sull'evidenza, quindi il runtime deve poterla contare
-    senza fidarsi di cio' che l'agente dichiara di aver letto. Se il registro non
-    e' raggiungibile si torna zero: il gate qui sotto non deve bloccare un
-    workspace senza knowledge graph.
-    """
-    if not project_id:
-        return 0
-    from backend.toolsets.process_memory import process_claim_ledger
-
-    try:
-        return len((process_claim_ledger(project_id, process_id) or {}).get("claims") or [])
-    except Exception:  # noqa: BLE001 — un registro illeggibile non e' un piano invalido
-        return 0
-
-
-def _plan_ignores_evidence(
-    understanding: ProcessUnderstanding | None, claim_count: int
-) -> str | None:
-    """Il piano riparte da zero mentre l'evidenza esiste: perche', se e' cosi'.
-
-    PROCESS-V2-11: dopo tre interviste il planner dichiarava di conoscere
-    "esclusivamente il titolo del processo" e preparava una review con zero
-    attori e zero lane. Non e' prudenza, e' evidenza che non e' arrivata fin
-    qui: salvarla come piano la renderebbe lo stato ufficiale del processo, e
-    tutto cio' che viene dopo leggerebbe quel vuoto invece delle interviste.
-    """
-    if claim_count == 0:
-        return None
-    if understanding is None:
-        return (
-            f"Il processo ha {claim_count} affermazioni registrate ma la review "
-            "arriva senza ProcessUnderstanding strutturata."
-        )
-    if understanding.actors or understanding.participants or understanding.steps:
-        return None
-    return (
-        f"Il processo ha {claim_count} affermazioni registrate, ma la "
-        "ProcessUnderstanding proposta non contiene attori, partecipanti ne' "
-        "attivita'."
     )
 
 
@@ -172,19 +155,19 @@ def prepare_process_understanding_review(
     if process is None:
         raise ValueError(f"Processo non trovato: {process_id}")
 
-    claim_count = _persisted_claim_count(process.get("project_id"), process_id)
-    ignored_evidence = _plan_ignores_evidence(process_understanding, claim_count)
+    evidence_snapshot = load_evidence_ledger(process.get("project_id"), process_id)
+    ignored_evidence = plan_ignores_evidence(
+        process_understanding, evidence_count(evidence_snapshot)
+    )
     if ignored_evidence:
-        raise ValueError(
-            f"{ignored_evidence} Rileggi il registro dell'evidenza di questo "
-            "processo (e' nel tuo contesto di scope, e audit_process_evidence lo "
-            "riporta riga per riga), struttura attori, partecipanti e attivita' "
-            "su quello che le fonti hanno gia' detto, poi ripresenta la review. "
-            "Se il registro davvero non basta per una bozza, dillo al consulente "
-            "citando cosa manca invece di salvare un piano vuoto."
-        )
+        raise ValueError(f"{ignored_evidence} {PLAN_IGNORES_EVIDENCE_REMEDY}")
 
-    sections = [process_description.strip()]
+    projected_claims = turn_evidence_ledger({"evidence_ledger": evidence_snapshot})
+    sections = [
+        "Authoritative process evidence:\n" + render_source_evidence(evidence_snapshot),
+        "Projected claims with provenance:\n" + render_ledger_lines(projected_claims),
+        process_description.strip(),
+    ]
     if evidence_summary.strip():
         sections.append("Evidence summary:\n" + evidence_summary.strip())
     if known_assumptions:
@@ -197,9 +180,12 @@ def prepare_process_understanding_review(
         process_description="\n\n".join(sections),
         process_understanding=process_understanding.model_dump(mode="json") if process_understanding else None,
     )
-    diagnostics = process_understanding_diagnostics(
-        ProcessUnderstanding.model_validate(review["process_understanding"])
-    )
+    # La review salvata e' la sola versione che conta da qui in poi: le due
+    # soglie si ricavano da quella, non dal ProcessUnderstanding proposto, cosi'
+    # il consulente legge nel payload la stessa readiness che il gate del canvas
+    # ricalcolera' al turno dopo.
+    saved_understanding = ProcessUnderstanding.model_validate(review["process_understanding"])
+    diagnostics = process_understanding_diagnostics(saved_understanding)
     return enterprise_tool_result(
         status="prepared",
         action="prepare_process_understanding_review",
@@ -210,6 +196,10 @@ def prepare_process_understanding_review(
             "process_id": process_id,
             "bpmn_model_id": process["bpmn_model_id"],
             "readiness_score": review["readiness_score"],
+            "draft_readiness": draft_readiness_from_understanding(saved_understanding),
+            "validation_readiness": validation_readiness_from_understanding(saved_understanding),
+            "evidence_source_set_id": evidence_snapshot.get("source_set_id"),
+            "evidence_source_ids": evidence_snapshot.get("source_ids") or [],
             "missing_information": review["missing_information"],
             "process_review_markdown": review["bpmn_brief"],
             "process_understanding": review["process_understanding"],

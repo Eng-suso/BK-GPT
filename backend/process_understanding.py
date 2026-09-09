@@ -755,6 +755,71 @@ def readiness_from_understanding(process: ProcessUnderstanding) -> int:
     return quality_report_from_understanding(process).overall_score
 
 
+def draft_readiness_from_understanding(process: ProcessUnderstanding) -> dict[str, Any]:
+    """Se cio' che le fonti sostengono basta per una bozza di modello.
+
+    "Non validato" e "non modellabile" erano la stessa soglia, e la seconda
+    vinceva: una domanda aperta bloccava il disegno di un flusso che le
+    interviste descrivevano gia'. Sono due soglie diverse. Qui passa solo cio'
+    che rende il flusso noto incoerente - nessuna attivita, un riferimento che
+    punta a un nodo inesistente. Le domande aperte restano lacune dichiarate
+    dentro la bozza, non un divieto di disegnarla; la validazione finale e' di
+    `validation_readiness_from_understanding`.
+
+    Args:
+        process: Il ProcessUnderstanding da giudicare.
+
+    Returns:
+        `status` (`modelable`/`not_modelable`), i `blockers` strutturali e i
+        `gaps` che la bozza deve portare con se'.
+    """
+    if _is_extraction_failure_placeholder(process):
+        return {
+            "status": "not_modelable",
+            "blockers": ["ProcessUnderstanding non disponibile."],
+            "gaps": [],
+        }
+    blockers = list(process_understanding_diagnostics(process).blocking)
+    return {
+        "status": "not_modelable" if blockers else "modelable",
+        "blockers": blockers,
+        "gaps": process_open_questions(process),
+    }
+
+
+def validation_readiness_from_understanding(process: ProcessUnderstanding) -> dict[str, Any]:
+    """Se la bozza puo' essere dichiarata verificata, non solo disegnabile.
+
+    Questa e' la soglia alta: le domande bloccanti contano, e il quality report
+    deve raccomandare la generazione. Una bozza `modelable` con lacune aperte
+    finisce qui come `needs_validation`, che e' esattamente cio' che deve
+    risultare finche' il consulente non le ha chiuse.
+    """
+    if _is_extraction_failure_placeholder(process):
+        return {
+            "status": "needs_validation",
+            "blockers": ["ProcessUnderstanding non disponibile."],
+            "warnings": [],
+            "quality_score": 0,
+        }
+    quality = quality_report_from_understanding(process)
+    blockers = [
+        *[
+            item.question
+            for item in process.unknowns
+            if item.severity == "blocking" and item.question.strip()
+        ],
+        *[item.message for item in quality.blocking_issues],
+    ]
+    ready = quality.approval_recommendation == "ready_to_generate" and not blockers
+    return {
+        "status": "ready_for_approval" if ready else "needs_validation",
+        "blockers": list(dict.fromkeys(blockers)),
+        "warnings": [item.message for item in quality.warnings],
+        "quality_score": quality.overall_score,
+    }
+
+
 def quality_report_from_understanding(process: ProcessUnderstanding) -> ProcessUnderstandingQualityReport:
     if _is_extraction_failure_placeholder(process):
         raise ValueError("quality report non applicabile: estrazione ProcessUnderstanding fallita.")
@@ -976,12 +1041,19 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
             for node_ref in (message_flow.source_ref, message_flow.target_ref):
                 if node_ref and node_ref not in known_node_ids:
                     warnings.append(f"Message flow {message_flow.id} collegato a nodo non definito.")
+    # Un arco puo' partire da un'eccezione: e' cosi' che il compilatore capisce
+    # dove il boundary event porta - `_exception_rejoin_node` cerca esattamente
+    # `flow_edges` con `source_id == exception.id`. Contarli come riferimenti
+    # rotti bloccava la bozza proprio sul modo corretto di modellare un percorso
+    # d'eccezione: il gestore restava senza attivita' propria, e quindi senza la
+    # corsia dell'attore che lo esegue.
+    edge_endpoint_ids = known_node_ids | {item.id for item in process.exceptions}
     for edge in process.flow_edges:
         if not edge.label.strip():
             warnings.append(f"Collegamento {edge.id} senza label comprensibile.")
-        if edge.source_id not in known_node_ids:
+        if edge.source_id not in edge_endpoint_ids:
             blocking.append(f"Collegamento {edge.id} con sorgente non definita: {edge.source_id}.")
-        if edge.target_id not in known_node_ids:
+        if edge.target_id not in edge_endpoint_ids:
             blocking.append(f"Collegamento {edge.id} con destinazione non definita: {edge.target_id}.")
 
     return ProcessUnderstandingDiagnostics(

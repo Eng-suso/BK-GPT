@@ -48,6 +48,83 @@ class BpmnReviewDraft(BaseModel):
         return self.bpmn_semantic_model.model_dump_json()
 
 
+def _answered_categories(process: ProcessUnderstanding) -> list[tuple[tuple[str, ...], bool]]:
+    """Le categorie di conoscenza che questo piano ha gia' popolato.
+
+    Ogni voce accoppia le parole con cui una domanda nomina la categoria e il
+    fatto che il ProcessUnderstanding la contenga davvero. Non e' una lista di
+    domande vietate: e' la mappa fra cio' che si chiede e cio' che c'e' gia'.
+    """
+    boundaries = process.boundaries
+    return [
+        (("attor", "ruol", "chi partecipa", "chi fa cosa"), bool(process.actors or process.participants)),
+        (("attivit", "passaggi", "step", "task", "fase"), bool(process.steps)),
+        (("decision", "gateway"), bool(process.decisions)),
+        (
+            ("trigger", "inizia", "parte", "avvia"),
+            bool(boundaries and (boundaries.trigger or boundaries.start_event)),
+        ),
+        (
+            ("finisce", "termina", "fine"),
+            bool(boundaries and boundaries.success_end)
+            or any(event.type == "end" for event in process.events),
+        ),
+        (
+            ("controll", "regole", "vincoli"),
+            bool(process.controls or process.structured_business_rules),
+        ),
+    ]
+
+
+def _question_requests_known_fact(process: ProcessUnderstanding, question: str) -> bool:
+    """La domanda richiede una categoria che il piano ha gia' riempito.
+
+    Il filtro vale solo per le domande in forma di categoria: "qual e' il
+    trigger?", "quali sono gli attori?". Una domanda che nomina un caso
+    concreto - "chi regolarizza l'ordine urgente di Paolo?" - non e' ridondante
+    perche' il piano ha degli attori, e deve arrivare al consulente. Senza
+    questo vincolo il filtro silenzierebbe lacune vere per omonimia di parole.
+    """
+    if not is_catch_all_question(question):
+        return False
+    normalized = " ".join(str(question or "").casefold().replace("'", " ").split())
+    return any(
+        answered and any(term in normalized for term in terms)
+        for terms, answered in _answered_categories(process)
+    )
+
+
+def partition_answered_unknowns(process: ProcessUnderstanding) -> tuple[list, list]:
+    """Toglie dal piano le domande che chiedono cio' che il piano gia' sa.
+
+    Il planner ripartiva da trigger, prima attivita', attori, decisioni e fine
+    processo anche dopo tre interviste che quei punti li avevano gia' descritti:
+    al consulente arrivava la richiesta di reinserire conoscenza gia' raccolta.
+
+    Args:
+        process: Il ProcessUnderstanding proposto.
+
+    Returns:
+        `(tenute, gia_risposte)`, nell'ordine originale.
+    """
+    kept, answered = [], []
+    for unknown in process.unknowns:
+        target = answered if _question_requests_known_fact(process, unknown.question) else kept
+        target.append(unknown)
+    return kept, answered
+
+
+def _answered_question_warning(answered: list) -> str:
+    questions = "; ".join(
+        " ".join(str(item.question or "").split())[:120] for item in answered
+    )
+    return (
+        "Domande di chiarimento scartate perche' chiedono un dato che la "
+        f"ProcessUnderstanding contiene gia': {questions}. Se su quel punto resta "
+        "un'incertezza, dichiarala sul caso concreto invece che sulla categoria."
+    )
+
+
 def partition_grounded_unknowns(
     process: ProcessUnderstanding, source_text: str
 ) -> tuple[list, list]:
@@ -116,7 +193,11 @@ def build_bpmn_review_draft(
     process_model.schema_version = "process_understanding.v1"
     # Le domande passano di qui prima di diventare le "domande del piano" che il
     # consulente legge: e' l'unico punto attraversato sia dall'estrazione LLM sia
-    # dal ProcessUnderstanding che l'agente propone gia' strutturato.
+    # dal ProcessUnderstanding che l'agente propone gia' strutturato. Due filtri
+    # distinti, perche' i difetti sono distinti: chiedere un dato che il piano ha
+    # gia' non e' la stessa cosa che chiedere di un tema che le fonti non hanno
+    # mai nominato, e al consulente vanno spiegati per quello che sono.
+    process_model.unknowns, answered_unknowns = partition_answered_unknowns(process_model)
     kept_unknowns, ungrounded_unknowns = partition_grounded_unknowns(
         process_model, source_text
     )
@@ -151,10 +232,12 @@ def build_bpmn_review_draft(
         for issue in process_model.quality_report.blocking_issues
         if issue.message not in missing_information
     )
+    # Lo scarto e' visibile: resta nel piano come cosa da sistemare, cosi'
+    # l'agente sa che quelle domande non sono passate e perche'. Sparire in
+    # silenzio le riproporrebbe identiche al giro dopo.
+    if answered_unknowns:
+        missing_information.append(_answered_question_warning(answered_unknowns))
     if ungrounded_unknowns:
-        # Lo scarto e' visibile: resta nel piano come cosa da sistemare, cosi'
-        # l'agente sa che quelle domande non sono passate e perche'. Sparire in
-        # silenzio le riproporrebbe identiche al giro dopo.
         missing_information.append(_ungrounded_question_warning(ungrounded_unknowns))
 
     return BpmnReviewDraft(

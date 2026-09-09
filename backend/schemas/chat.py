@@ -16,11 +16,12 @@ from pydantic import BaseModel, Field
 # and every one of them narrows something real: the capabilities the router may
 # propose, and the writes the guard refuses.
 #
-# Each surface's modes are a ladder: every rung allows what the rung before it
-# allows, plus more. The last rung is the full loop and the default, so a turn
-# that does not choose keeps the reach it always had.
+# Each surface's delegated modes are a ladder: every rung allows what the rung
+# before it allows, plus more. Conversation sits outside that ladder and is the
+# safe default until the user explicitly delegates workflow work.
 ChatMode: TypeAlias = Literal[
     # Compatibility with the frontend and runtime during the scoped-mode migration.
+    "conversation",
     "plan",
     "edit",
     "agent",
@@ -49,15 +50,15 @@ CHAT_MODES_BY_SCOPE: dict[ChatScopeType, tuple[ChatMode, ...]] = {
 }
 
 ALL_CHAT_MODES: frozenset[str] = frozenset(
-    mode for modes in CHAT_MODES_BY_SCOPE.values() for mode in modes
+    {"conversation", *(mode for modes in CHAT_MODES_BY_SCOPE.values() for mode in modes)}
 )
 
-# The widest rung of each ladder: what a turn runs as when the caller sends no
-# mode at all (workers, tests, older clients).
+# Conversation is the safe baseline for callers that do not explicitly hand a
+# workflow over to the agent.
 DEFAULT_CHAT_MODE_BY_SCOPE: dict[ChatScopeType, ChatMode] = {
-    scope: modes[-1] for scope, modes in CHAT_MODES_BY_SCOPE.items()
+    scope: "conversation" for scope in CHAT_MODES_BY_SCOPE
 }
-DEFAULT_CHAT_MODE: ChatMode = "agent"
+DEFAULT_CHAT_MODE: ChatMode = "conversation"
 
 
 def chat_modes_for_scope(scope_type: str | None) -> tuple[ChatMode, ...]:
@@ -81,9 +82,9 @@ def default_chat_mode(scope_type: str | None) -> ChatMode:
             consultant surface.
 
     Returns:
-        The widest mode of that surface.
+        Conversation mode, the safe non-workflow baseline.
     """
-    return chat_modes_for_scope(scope_type)[-1]
+    return "conversation"
 
 
 def chat_mode_belongs_to_scope(mode: str | None, scope_type: str | None) -> bool:
@@ -98,7 +99,7 @@ def chat_mode_belongs_to_scope(mode: str | None, scope_type: str | None) -> bool
     """
     if mode is None:
         return True
-    return mode in chat_modes_for_scope(scope_type)
+    return mode == "conversation" or mode in chat_modes_for_scope(scope_type)
 
 
 class ConsultantChatScope(BaseModel):

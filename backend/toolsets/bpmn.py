@@ -1295,7 +1295,23 @@ def prepare_canvas_bpmn_review(bpmn_model_id: str, process_description: str) -> 
     Prepare a BPMN canvas review for an existing BPMN model before generating XML.
     Use only in canvas scope when the user asks to generate, draw, update, or create a BPMN/AS-IS draft.
     Do not approve or save XML with this tool. Ask the user to approve or correct the review first.
+
+    This tool rebuilds the process plan from the description you pass it, so it is
+    refused on a process that already has recorded evidence: there the plan belongs
+    to the process knowledge owner, and the canvas reads it with
+    inspect_process_knowledge instead of writing a second version of it.
     """
+    # Il confine, applicato dove poteva essere aggirato. Questo tool ricostruisce
+    # la ProcessUnderstanding da prosa libera: su un processo con interviste agli
+    # atti sarebbe una seconda source of truth, prodotta dal disegno e capace di
+    # sovrascrivere quella costruita sulle fonti.
+    from backend.agents.process_snapshot import assert_plan_respects_evidence
+
+    model = workspace_database.get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+    assert_plan_respects_evidence(model["process_id"], None)
+
     review = workspace_database.prepare_bpmn_review(
         bpmn_model_id=bpmn_model_id,
         process_description=process_description,
@@ -1309,10 +1325,18 @@ def prepare_process_bpmn_review(process_id: str, process_description: str) -> st
     Prepare an AS-IS/BPMN review for a process-scoped chat.
     Use in process scope when the user asks to collect, review, model, or generate an AS-IS draft.
     This resolves the process BPMN model automatically and does not save XML until approval.
+
+    Refused on a process that already has recorded evidence: rebuilding the plan
+    from prose there would drop what the sources said. Use the modeling tools,
+    which structure the plan on the evidence ledger.
     """
+    from backend.agents.process_snapshot import assert_plan_respects_evidence
+
     process = workspace_database.get_process(process_id)
     if process is None:
         raise ValueError(f"Processo non trovato: {process_id}")
+
+    assert_plan_respects_evidence(process_id, None)
 
     review = workspace_database.prepare_bpmn_review(
         bpmn_model_id=process["bpmn_model_id"],

@@ -30,6 +30,21 @@ class CanvasState(ConversationState):
     effective_bpmn_xml: str | None
     effective_bpmn_xml_source: str | None
 
+    # Lo stato del processo su cui questo run sta lavorando, cosi' come il
+    # Process Agent lo possiede. Il Canvas non lo ricostruisce: lo riceve, lo
+    # cita e, se cambia mentre sta lavorando, se ne accorge.
+    process_snapshot: dict | None
+    process_snapshot_id: str | None
+    process_snapshot_label: str | None
+    # La versione su cui il run e' partito. Alla fine si confronta con quella
+    # corrente: se e' cambiata, il disegno appena prodotto descrive uno stato
+    # che non e' piu' quello ufficiale.
+    canvas_run_snapshot_id: str | None
+    # done | waiting_for_user | failed. Il Canvas e' un runtime agentico, e un
+    # runtime agentico dichiara come e' finito.
+    canvas_run_status: str | None
+    canvas_pending_question: dict | None
+
     canvas_route: str | None
     canvas_mode: str | None
     canvas_objective: str | None
