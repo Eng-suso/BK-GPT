@@ -22,11 +22,12 @@ descriva la sua azienda.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from backend.bpmn import BPMNSemanticModel, semantic_model_to_bpmn_xml
 from backend.bpmn.soundness import analyze_control_flow
-from backend.memory.provenance import _loose, normalize  # noqa: PLC2701
+from backend.memory.provenance import normalize
 from backend.process_understanding import ProcessUnderstanding
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 
@@ -42,13 +43,15 @@ _STOPWORDS = frozenset(
 )
 
 _MIN_TOKEN = 4
+_NON_WORD = re.compile(r"[^\w\s]+", re.UNICODE)
 
 
 def content_words(text: str) -> set[str]:
     """Le parole di contenuto di un testo, confrontabili fra loro."""
+    plain = " ".join(_NON_WORD.sub(" ", normalize(text)).split())
     return {
         word
-        for word in _loose(text).split()
+        for word in plain.split()
         if len(word) >= _MIN_TOKEN and word not in _STOPWORDS
     }
 
