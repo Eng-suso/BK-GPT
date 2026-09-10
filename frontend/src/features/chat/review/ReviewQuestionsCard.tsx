@@ -4,6 +4,7 @@ import { CornerDownLeft, HelpCircle, Check } from "lucide-react";
 import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 import type { ReviewOpenQuestion } from "../types";
+import { sortQuestions } from "./questionOrder";
 
 type ReviewQuestionsCardProps = {
   questions: ReviewOpenQuestion[];
@@ -11,41 +12,8 @@ type ReviewQuestionsCardProps = {
   onAnswer: (question: string, answer: string) => Promise<void>;
 };
 
-/** Process dependency order comes before severity. */
-const DEPENDENCY_PATTERNS: RegExp[] = [
-  /trigger|avvia|inizia|evento iniziale|cosa fa partire/i,
-  /prima attivit|primo passaggio|prima azione/i,
-  /attore|ruolo|chi (?:esegue|riceve|gestisce|avvia)/i,
-  /decision|approv|condizion|gateway|soglia/i,
-  /esito|fine|termina|risultato|output/i,
-];
-
-const SEVERITY_ORDER: Record<string, number> = {
-  blocking: 0,
-  non_blocking: 1,
-  optional_extension: 2,
-};
-
 /** Oltre questa posizione la scorciatoia numerica non esiste piu' sulla tastiera. */
 const MAX_SHORTCUT_INDEX = 9;
-
-/**
- * Sorts review questions by severity without modifying the input array.
- *
- * @param questions - The review questions to sort
- * @returns A new array ordered from blocking to optional
- */
-function sortQuestions(questions: ReviewOpenQuestion[]): ReviewOpenQuestion[] {
-  const dependency = (question: ReviewOpenQuestion) => {
-    const index = DEPENDENCY_PATTERNS.findIndex((pattern) => pattern.test(question.question));
-    return index === -1 ? DEPENDENCY_PATTERNS.length : index;
-  };
-  return [...questions].sort((a, b) =>
-    dependency(a) - dependency(b) ||
-    (SEVERITY_ORDER[a.severity ?? "non_blocking"] ?? 1) -
-      (SEVERITY_ORDER[b.severity ?? "non_blocking"] ?? 1),
-  );
-}
 
 /**
  * Displays unanswered plan questions that require the consultant's decisions.
@@ -158,8 +126,14 @@ function OpenQuestion({
     void answer(option.label);
   };
 
+  const topic = (question.affects ?? "").trim();
+  const grounding = (question.grounded_in ?? "").trim();
+
   return (
     <li className="review-question">
+      {topic ? (
+        <p className="review-question-topic">Cosa cambia nel modello: {topic}</p>
+      ) : null}
       <p className="review-question-text" id={labelId}>
         <span className="review-question-position">
           {position}
@@ -170,6 +144,11 @@ function OpenQuestion({
         ) : null}
         {question.question}
       </p>
+
+      {/* Perche' la domanda esiste. Senza, "chi approva?" e' indistinguibile da
+          quella che si farebbe prima di aver sentito qualcuno; con, il
+          consulente vede che due voci dicono cose diverse e decide su quelle. */}
+      {grounding ? <p className="review-question-grounding">{grounding}</p> : null}
 
       <div
         className="review-question-options"

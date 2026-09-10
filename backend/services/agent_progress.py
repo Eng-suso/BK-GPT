@@ -39,6 +39,12 @@ UNDERSTANDING = ProgressPhase("understanding", "Leggo la richiesta", "brain")
 RECALLING = ProgressPhase("recalling", "Cerco nella memoria di lavoro", "recall")
 READING_WORKSPACE = ProgressPhase("reading_workspace", "Rileggo i dati del workspace", "folder")
 READING_SOURCES = ProgressPhase("reading_sources", "Leggo le fonti raccolte", "document")
+# Il primo passo del runtime di modellazione: rileggere cio' che il processo sa.
+# Il consulente deve vedere che il disegno parte dalla conoscenza raccolta, non
+# da un foglio bianco - era esattamente il dubbio che il difetto gli lasciava.
+READING_PROCESS_KNOWLEDGE = ProgressPhase(
+    "reading_process_knowledge", "Leggo cio' che sappiamo del processo", "folder"
+)
 RESEARCHING = ProgressPhase("researching", "Cerco riferimenti esterni", "search")
 EXTRACTING = ProgressPhase("extracting", "Estraggo fatti e punti aperti", "extract")
 COMPARING = ProgressPhase("comparing", "Confronto con le evidenze esistenti", "compare")
@@ -56,6 +62,7 @@ ALL_PHASES: tuple[ProgressPhase, ...] = (
     RECALLING,
     READING_WORKSPACE,
     READING_SOURCES,
+    READING_PROCESS_KNOWLEDGE,
     RESEARCHING,
     EXTRACTING,
     COMPARING,
@@ -87,6 +94,8 @@ _TOOL_PHASES: dict[str, ProgressPhase] = {
     "list_workspace_project_decisions": READING_WORKSPACE,
     "prepare_delegation_payload": HANDING_OVER,
     "ask_canvas_clarification": ASKING,
+    "inspect_process_knowledge": READING_PROCESS_KNOWLEDGE,
+    "raise_modeling_question": ASKING,
 }
 
 # (frammento nel nome del tool, fase). L'ordine conta: il primo che combacia vince.
@@ -137,6 +146,13 @@ _NODE_RULES: tuple[tuple[str, ProgressPhase], ...] = (
     ("patch_edit", MODELING),
     ("understanding", EXTRACTING),
     ("delegation", HANDING_OVER),
+    # Il runtime di modellazione, raccontato per fasi e non per nodi: leggo cio'
+    # che sappiamo, passo al disegno, verifico il risultato.
+    ("load_process_context", READING_PROCESS_KNOWLEDGE),
+    ("load_canvas_context", READING_PROCESS_KNOWLEDGE),
+    ("delegate_to_canvas", HANDING_OVER),
+    ("evaluate_canvas_completion", CHECKING),
+    ("refresh_canvas_context", CHECKING),
 )
 
 _ID_LIKE = re.compile(r"^[0-9a-f]{8}-|^[a-z0-9]+[-_][0-9a-f]{6,}$|^\d+$", re.IGNORECASE)

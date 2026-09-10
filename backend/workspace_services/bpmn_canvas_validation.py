@@ -56,6 +56,15 @@ def validate_canvas_against_process(
         _normalize(" ".join([str(item.get("name", "")), str(item.get("documentation", ""))]))
         for item in elements
     )
+    # I nomi delle sole attivita'. `element_text` fonde nomi e documentazione di
+    # ogni elemento, annotazioni comprese: un'attivita' del piano citata dentro
+    # una nota a margine risultava "rappresentata nel canvas", e il controllo che
+    # deve accorgersi di un disegno vuoto si lasciava soddisfare da un commento.
+    activity_names = {
+        _normalize(item.get("name", ""))
+        for item in elements
+        if item.get("type", "") in ACTIVITY_TYPES and _normalize(item.get("name", ""))
+    }
     element_type_counts = Counter(item.get("type", "") for item in elements)
     issues = list(technical.get("issues") or [])
     warnings = list(technical.get("warnings") or [])
@@ -106,6 +115,7 @@ def validate_canvas_against_process(
         _validate_process_understanding_coverage(
             process=understanding,
             element_text=element_text,
+            activity_names=activity_names,
             element_type_counts=element_type_counts,
             issues=issues,
             warnings=warnings,
@@ -244,19 +254,61 @@ def _validate_semantic_model_coverage(
         warnings.append("Il canvas contiene meno sequence flow del BPMNSemanticModel.")
 
 
+ACTIVITY_TYPES = {
+    "task",
+    "userTask",
+    "serviceTask",
+    "sendTask",
+    "receiveTask",
+    "manualTask",
+    "businessRuleTask",
+    "scriptTask",
+    "subProcess",
+}
+
+
 def _validate_process_understanding_coverage(
     *,
     process: ProcessUnderstanding,
     element_text: str,
+    activity_names: set[str],
     element_type_counts: Counter,
     issues: list[str],
     warnings: list[str],
 ) -> None:
+    labelled_steps = [step for step in process.steps if step.label.strip()]
+    # L'avviso resta largo - un passaggio nominato in una documentazione e' un
+    # segnale debole ma non e' niente - mentre il difetto sotto e' stretto: si
+    # conta rappresentato solo cio' che sul canvas e' un'attivita' col suo nome.
     missing_steps = [
         step.label
-        for step in process.steps
-        if step.label.strip() and _normalize(step.label) not in element_text
+        for step in labelled_steps
+        if _normalize(step.label) not in element_text
     ]
+
+    # Uno step mancante e' un difetto da correggere; tutti gli step mancanti non
+    # sono un difetto del disegno, sono l'assenza del disegno. E' la differenza
+    # fra un canvas incompleto e il canvas start -> end che il runtime
+    # dichiarava "aggiornato e verificato senza problemi bloccanti": la
+    # validazione non trovava issue perche' non c'era niente da confrontare.
+    if labelled_steps:
+        activities_on_canvas = sum(
+            element_type_counts.get(item, 0) for item in ACTIVITY_TYPES
+        )
+        represented = sum(
+            1 for step in labelled_steps if _normalize(step.label) in activity_names
+        )
+        if activities_on_canvas == 0:
+            issues.append(
+                f"Il piano descrive {len(labelled_steps)} attivita' ma il canvas non ne "
+                "rappresenta nessuna: non e' un modello del processo."
+            )
+        elif represented == 0:
+            issues.append(
+                f"Nessuna delle {len(labelled_steps)} attivita' del piano compare nel "
+                "canvas: il disegno non rappresenta il processo conosciuto."
+            )
+
     if missing_steps:
         warnings.append("Step del ProcessUnderstanding non visibili nel canvas: " + ", ".join(missing_steps[:8]))
 

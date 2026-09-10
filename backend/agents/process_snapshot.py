@@ -48,9 +48,18 @@ from backend.process_understanding import ProcessUnderstanding
 # legge. Il resto resta nello snapshot strutturato, interrogabile dai tool.
 LEDGER_RENDER_LIMIT = 40
 
+# Quanto testo di ogni fonte attraversa il confine, e quanto in tutto. Lo
+# snapshot portava il solo nome dell'intervista: con la proiezione dei claim
+# indietro - che e' asincrona, e nella prova reale valeva zero claim su tre
+# interviste - dall'altra parte arrivavano tre nomi e nessuna sostanza. Chi
+# modella non aveva materiale da cui modellare, e l'unica mossa onesta che gli
+# restava era chiedere all'utente cio' che le fonti avevano gia' detto.
+SOURCE_EXCERPT_LIMIT = 6_000
+SOURCE_EXCERPT_TOTAL_LIMIT = 24_000
+
 
 class SnapshotSource(BaseModel):
-    """Una fonte agli atti, con chi ci ha parlato dentro."""
+    """Una fonte agli atti, con chi ci ha parlato dentro e cosa ha detto."""
 
     id: str = ""
     name: str = ""
@@ -58,6 +67,11 @@ class SnapshotSource(BaseModel):
     participants: list[str] = Field(default_factory=list)
     summary: str = ""
     has_content: bool = False
+    # Il testo della fonte, tagliato alla lunghezza che il confine regge. Vuoto
+    # significa "transcript non caricato", non "intervista senza contenuto":
+    # `has_content` tiene separate le due cose.
+    content: str = ""
+    content_truncated: bool = False
 
 
 class SnapshotClaim(BaseModel):
@@ -84,6 +98,10 @@ class SnapshotQuestion(BaseModel):
     question: str = ""
     affects: str = ""
     severity: str = "non_blocking"
+    # La lacuna dell'evidenza che rende necessaria la domanda: la voce e cio' che
+    # ha detto. Attraversa il confine perche' il Canvas deve poter distinguere
+    # una lacuna reale da una categoria non ancora riempita.
+    grounded_in: str = ""
     options: list[dict[str, Any]] = Field(default_factory=list)
     answer: str | None = None
     answered_at: str | None = None
@@ -109,6 +127,10 @@ class ProcessKnowledgeSnapshot(BaseModel):
     version: int = 0
     snapshot_id: str = ""
     evidence_source_set_id: str = ""
+    # Il set di fonti su cui il piano salvato e' stato costruito. Diverso da
+    # `evidence_source_set_id` significa che il piano e' indietro rispetto
+    # all'evidenza: descrive un processo di qualche intervista fa.
+    plan_evidence_source_set_id: str = ""
 
     # --- conoscenza canonica ---------------------------------------------
     process_understanding: dict[str, Any] | None = None
@@ -138,6 +160,30 @@ class ProcessKnowledgeSnapshot(BaseModel):
     @property
     def has_semantic_model(self) -> bool:
         return bool(self.bpmn_semantic_model)
+
+    @property
+    def evidence_count(self) -> int:
+        """Quanta evidenza c'e' agli atti, fonti o claim che siano.
+
+        Le due cose non arrivano insieme - la proiezione del knowledge graph e'
+        asincrona - e contare i soli claim in quella finestra fa dire "nessuna
+        evidenza" a un processo con tre interviste sul tavolo.
+        """
+        return max(len(self.sources), len(self.claims))
+
+    @property
+    def plan_is_current(self) -> bool:
+        """Il piano salvato e' costruito sulle fonti che ci sono adesso?
+
+        Un piano che non dichiara la propria provenienza (`plan_evidence_source_set_id`
+        vuoto) non e' corrente: "non si sa su cosa e' stato costruito" non e'
+        un'assicurazione, e con evidenza agli atti va risintetizzato.
+        """
+        return bool(
+            self.has_semantic_model
+            and self.plan_evidence_source_set_id
+            and self.plan_evidence_source_set_id == self.evidence_source_set_id
+        )
 
     @property
     def modelable(self) -> bool:
@@ -178,6 +224,8 @@ class ProcessKnowledgeSnapshot(BaseModel):
             "blocking_question_count": len(self.blocking_questions),
             "modelable": self.modelable,
             "has_semantic_model": self.has_semantic_model,
+            "plan_evidence_source_set_id": self.plan_evidence_source_set_id,
+            "plan_is_current": self.plan_is_current,
             "readiness_score": self.readiness_score,
         }
 
@@ -217,6 +265,78 @@ def snapshot_identity(
         ensure_ascii=False,
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def _snapshot_sources(records: list[dict]) -> list[SnapshotSource]:
+    """Le fonti con il loro testo, entro il budget che il confine regge.
+
+    Il taglio e' dichiarato (`content_truncated`) invece che silenzioso: chi
+    modella deve poter distinguere "la fonte dice solo questo" da "di questa
+    fonte ho letto la prima parte", perche' le due cose portano a due AS-IS
+    diversi e solo una delle due e' onesta.
+    """
+    sources: list[SnapshotSource] = []
+    remaining = SOURCE_EXCERPT_TOTAL_LIMIT
+    for item in records:
+        text = str(item.get("content") or "").strip()
+        budget = min(SOURCE_EXCERPT_LIMIT, max(remaining, 0))
+        excerpt = text[:budget]
+        remaining -= len(excerpt)
+        sources.append(
+            SnapshotSource(
+                id=str(item.get("id") or ""),
+                name=str(item.get("name") or ""),
+                type=str(item.get("type") or ""),
+                participants=[str(voice) for voice in item.get("participants") or []],
+                summary=str(item.get("summary") or ""),
+                has_content=bool(item.get("has_content")),
+                content=excerpt,
+                content_truncated=len(excerpt) < len(text),
+            )
+        )
+    return sources
+
+
+def draft_readiness_without_plan(evidence_items: int) -> dict[str, Any]:
+    """La soglia della bozza quando il piano non c'e' ancora.
+
+    `None` non era una risposta: chi leggeva lo trattava come "non modellabile",
+    e un processo con tre interviste e nessun piano diventava indistinguibile da
+    un processo di cui non si sa niente. Sono due stati diversi e portano a due
+    azioni diverse - il primo si sintetizza, il secondo si intervista.
+    """
+    if evidence_items > 0:
+        return {
+            "status": "synthesizable",
+            "blockers": [],
+            "gaps": [],
+            "reason": (
+                f"Il processo ha {evidence_items} elementi di evidenza agli atti ma "
+                "nessun piano strutturato: il piano va costruito su quelli prima "
+                "di disegnare."
+            ),
+        }
+    return {
+        "status": "not_modelable",
+        "blockers": ["Nessuna evidenza registrata per questo processo."],
+        "gaps": [],
+        "reason": "Non ci sono ne' fonti ne' claim da cui costruire un piano.",
+    }
+
+
+def validation_readiness_without_plan() -> dict[str, Any]:
+    """La soglia alta quando il piano non c'e': non si valida cio' che non esiste.
+
+    Lo stesso letterale viveva in tre punti - il caricamento del contesto, il tool
+    di readiness e lo snapshot - e tre copie della stessa regola divergono al
+    primo cambiamento. Qui e' una sola, e chi la legge sa che e' quella.
+    """
+    return {
+        "status": "needs_validation",
+        "blockers": ["Nessun piano strutturato da validare."],
+        "warnings": [],
+        "quality_score": 0,
+    }
 
 
 def _snapshot_claims(entries: list[provenance.LedgerEntry]) -> list[SnapshotClaim]:
@@ -280,8 +400,9 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
         )
 
     version = int((review or {}).get("version") or 0)
-    draft_readiness = None
-    validation_readiness = None
+    evidence_items = max(
+        len(ledger_snapshot.get("sources") or []), len(entries)
+    )
     if understanding is not None:
         from backend.process_understanding import (
             draft_readiness_from_understanding,
@@ -290,6 +411,11 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
 
         draft_readiness = draft_readiness_from_understanding(understanding)
         validation_readiness = validation_readiness_from_understanding(understanding)
+    else:
+        # Le due soglie restano due anche quando il piano manca: si puo' non
+        # avere ancora una bozza e avere gia' il materiale per farne una.
+        draft_readiness = draft_readiness_without_plan(evidence_items)
+        validation_readiness = validation_readiness_without_plan()
 
     return ProcessKnowledgeSnapshot(
         process_id=process_id,
@@ -303,19 +429,10 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
             source_set_id=str(ledger_snapshot.get("source_set_id") or ""),
         ),
         evidence_source_set_id=str(ledger_snapshot.get("source_set_id") or ""),
+        plan_evidence_source_set_id=str((review or {}).get("evidence_source_set_id") or ""),
         process_understanding=understanding.model_dump(mode="json") if understanding else None,
         bpmn_semantic_model=semantic_model.model_dump(mode="json") if semantic_model else None,
-        sources=[
-            SnapshotSource(
-                id=str(item.get("id") or ""),
-                name=str(item.get("name") or ""),
-                type=str(item.get("type") or ""),
-                participants=[str(voice) for voice in item.get("participants") or []],
-                summary=str(item.get("summary") or ""),
-                has_content=bool(item.get("has_content")),
-            )
-            for item in ledger_snapshot.get("sources") or []
-        ],
+        sources=_snapshot_sources(list(ledger_snapshot.get("sources") or [])),
         claims=_snapshot_claims(entries),
         ledger_summary=provenance.summarize_ledger(entries).as_dict(),
         source_status=str(ledger_snapshot.get("source_status") or "empty"),
@@ -453,10 +570,32 @@ def render_snapshot_for_modeling(snapshot: ProcessKnowledgeSnapshot) -> str:
 
     if snapshot.sources:
         lines.append("")
-        lines.append("Fonti:")
+        lines.append(
+            "Fonti, una per volta e con le loro parole. Non fondere due voci in "
+            "una frase: cio' che descrive un reparto solo non e' la regola generale."
+        )
         for source in snapshot.sources:
             voices = ", ".join(source.participants) or "partecipanti non dichiarati"
-            lines.append(f"- {source.name} [{source.type or 'fonte'}] — {voices}")
+            lines.append("")
+            lines.append(f"[FONTE {source.id}] {source.name} [{source.type or 'fonte'}] — {voices}")
+            if source.summary:
+                lines.append(f"sintesi: {source.summary}")
+            if source.content:
+                lines.append("testo:")
+                lines.append(source.content)
+                if source.content_truncated:
+                    lines.append("(testo troncato: la fonte continua oltre questo punto)")
+            elif source.content_truncated:
+                # Budget degli estratti esaurito su questo turno: la fonte ha
+                # contenuto e non se ne e' portata nemmeno una riga. Dirlo "non
+                # caricato" lo confonde con un transcript mancante, e sono due
+                # cose che portano a due azioni diverse.
+                lines.append(
+                    "(testo non riportato: il budget di estratti del confine e' esaurito "
+                    "su questo turno, la fonte ha contenuto)"
+                )
+            elif source.has_content:
+                lines.append("(testo non caricato in questo turno: non concludere che la fonte sia vuota)")
 
     if snapshot.claims:
         lines.append("")
@@ -495,9 +634,14 @@ def render_snapshot_for_modeling(snapshot: ProcessKnowledgeSnapshot) -> str:
                 if question.options
                 else ""
             )
+            grounding = (
+                f" | nasce da: {question.grounded_in}"
+                if question.grounded_in.strip()
+                else ""
+            )
             lines.append(
                 f"- [{question.severity}] {question.question} "
-                f"(tocca: {question.affects or 'non dichiarato'}){options}"
+                f"(tocca: {question.affects or 'non dichiarato'}){grounding}{options}"
             )
 
     answered = [item for item in snapshot.open_questions if item.answer]
@@ -518,4 +662,18 @@ def render_snapshot_for_modeling(snapshot: ProcessKnowledgeSnapshot) -> str:
         f"readiness: {snapshot.readiness_score if snapshot.readiness_score is not None else 'non calcolata'} | "
         f"modello semantico: {'presente' if snapshot.has_semantic_model else 'assente'}."
     )
+    # Le due soglie, dette separate. "Non ancora validato" non e' "non
+    # modellabile": una bozza utile si disegna prima che l'AS-IS sia approvato, e
+    # le incertezze ci restano dentro dichiarate invece di cancellarla.
+    draft_status = (snapshot.draft_readiness or {}).get("status") or "sconosciuta"
+    validation_status = (snapshot.validation_readiness or {}).get("status") or "sconosciuta"
+    lines.append(
+        f"Soglia bozza: {draft_status} | soglia validazione: {validation_status}. "
+        "Sono due soglie diverse: una bozza si disegna con le lacune dentro, "
+        "l'AS-IS si dichiara validato solo quando sono chiuse."
+    )
+    if not snapshot.plan_is_current and snapshot.evidence_count:
+        lines.append(
+            "Attenzione: il piano non risulta costruito sul set di fonti corrente."
+        )
     return "\n".join(lines)

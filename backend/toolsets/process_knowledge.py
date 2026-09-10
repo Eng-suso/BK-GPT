@@ -90,9 +90,26 @@ def inspect_process_knowledge(process_id: str) -> str:
 
     warnings: list[str] = []
     if not snapshot.has_semantic_model:
+        # Due stati, non uno. Un processo con evidenza agli atti e senza piano ha
+        # il materiale e gli manca il passo che lo struttura, e quel passo lo fa
+        # il Process Agent al confine; un processo senza fonti va prima
+        # raccontato. Collassarli faceva rispondere "non posso modellarlo" a un
+        # processo con tre interviste.
+        if snapshot.evidence_count:
+            warnings.append(
+                f"Il processo ha {snapshot.evidence_count} elementi di evidenza agli "
+                "atti ma il piano strutturato non e' ancora arrivato fin qui. Non "
+                "costruirlo tu dalla chat: chiedi che venga sintetizzato dalle fonti."
+            )
+        else:
+            warnings.append(
+                "Nessun modello semantico canonico e nessuna fonte registrata: il "
+                "lavoro che manca e' la comprensione del processo, non il disegno."
+            )
+    elif not snapshot.plan_is_current:
         warnings.append(
-            "Nessun modello semantico canonico: il processo non ha ancora un piano "
-            "approvabile. Il Canvas non puo' costruirlo da solo."
+            "Il piano non risulta costruito sul set di fonti corrente: potrebbe "
+            "descrivere il processo prima dell'ultima intervista."
         )
     if snapshot.source_status in {"error", "stale"}:
         warnings.append("Il set di fonti non e' stato riletto in questo turno.")
@@ -117,6 +134,9 @@ def inspect_process_knowledge(process_id: str) -> str:
             "knowledge_brief": render_snapshot_for_modeling(snapshot),
             "process_understanding": snapshot.process_understanding,
             "bpmn_semantic_model": snapshot.bpmn_semantic_model,
+            # Le fonti con le loro parole, non i loro nomi: e' il materiale su cui
+            # si modella quando la proiezione dei claim e' ancora indietro.
+            "sources": [item.model_dump(mode="json") for item in snapshot.sources],
             "open_questions": [item.model_dump(mode="json") for item in snapshot.open_questions],
             "missing_information": snapshot.missing_information,
             "draft_readiness": snapshot.draft_readiness,

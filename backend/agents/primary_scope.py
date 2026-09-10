@@ -275,6 +275,12 @@ def build_scope_system_prompt(state: dict) -> str:
             "process_understanding_diagnostics",
             "process_quality_report",
             "bpmn_semantic_model",
+            # Anche il giudizio sul piano e le due soglie sono materiale interno:
+            # sono blocchi tecnici come gli altri, e senza il marker arrivavano
+            # nel prompt senza la riga che dice di non consegnarli cosi' come sono.
+            "plan_review",
+            "draft_readiness",
+            "validation_readiness",
         )
     ):
         lines.extend(
@@ -317,6 +323,49 @@ def build_scope_system_prompt(state: dict) -> str:
                 )
                 suffix = f" [alternative gia' proposte: {options}]" if options else ""
                 lines.append(f"- ({item.get('severity')}) {item.get('question')}{suffix}")
+
+    # Il loop di review del piano, come il canvas ha il suo. I difetti li ha
+    # trovati il runtime rileggendo il piano dal database: chi deve correggerli
+    # li riceve, invece di dover indovinare cosa non andava.
+    plan_review = state.get("plan_review")
+    if plan_review and (plan_review.get("issues") or plan_review.get("warnings")):
+        lines.extend(
+            [
+                "",
+                "Review del piano, sulla versione riletta dal database "
+                f"({plan_review.get('plan_snapshot_label') or 'senza versione'}). "
+                "Correggi i difetti elencati amendando il piano - non ricostruirlo da "
+                "capo, e non togliere cio' che il piano gia' sa per far sparire un "
+                "difetto.",
+                _state_value_to_text(
+                    {
+                        "issues": plan_review.get("issues") or [],
+                        "warnings": plan_review.get("warnings") or [],
+                        "draft_allowed": plan_review.get("draft_allowed"),
+                        "validation_complete": plan_review.get("validation_complete"),
+                        "attempt": plan_review.get("attempt"),
+                    },
+                    MAX_STATE_ARTIFACT_CHARS,
+                ),
+            ]
+        )
+
+    # Le due soglie, dichiarate come due. "Non ancora validato" non e' "non
+    # modellabile": una bozza utile si disegna prima dell'approvazione, con le
+    # lacune dentro invece che al posto delle attivita'.
+    draft_status = (state.get("draft_readiness") or {}).get("status")
+    validation_status = (state.get("validation_readiness") or {}).get("status")
+    if draft_status or validation_status:
+        lines.extend(
+            [
+                "",
+                f"Soglia bozza: {draft_status or 'non calcolata'} | "
+                f"soglia validazione: {validation_status or 'non calcolata'}. "
+                "Sono due soglie diverse. Conoscenza riferita da una sola fonte, o non "
+                "ancora corroborata, entra nella bozza con la sua provenance e la sua "
+                "incertezza dichiarate: non si toglie dal modello.",
+            ]
+        )
 
     lines.extend(build_attachments_prompt(state.get("attachments")))
 

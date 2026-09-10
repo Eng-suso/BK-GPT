@@ -65,6 +65,33 @@ FORBIDDEN_WRITES: dict[str, frozenset[str]] = {
     "agent": frozenset(),
 }
 
+def narrowest_mode_allowing(operation: str) -> str | None:
+    """La modalita' meno ampia in cui questa scrittura passa.
+
+    Il rifiuto nominava sempre tre modalita' insieme, e chi lo leggeva ne
+    sceglieva una a caso - di solito la piu' larga: per scrivere sul piano veniva
+    attivata la modalita' che serve a disegnare. Il piano e il disegno sono due
+    artefatti e costano due permessi diversi, e il permesso piu' basso che basta
+    e' quello da chiedere.
+
+    La risposta si ricava da `FORBIDDEN_WRITES`, che e' il gate vero. Una tabella
+    scritta a mano accanto al gate sarebbe una seconda verita' sullo stesso
+    fatto, e le due divergerebbero al primo permesso che cambia.
+
+    Args:
+        operation: L'operazione rifiutata, non affidabile.
+
+    Returns:
+        L'etichetta di prodotto della modalita', o `None` se nessuna la permette.
+    """
+    from backend.graphs.routing_contracts import MODE_LADDER, mode_label
+
+    for mode in MODE_LADDER:
+        if operation not in FORBIDDEN_WRITES.get(mode, frozenset()):
+            return mode_label(mode)
+    return None
+
+
 MODE_REFUSALS: dict[str, str] = {
     "conversation": (
         "Questa chat e' in modalita' Conversazione: posso rispondere e chiarire, "
@@ -139,6 +166,13 @@ def assert_write_allowed(operation: str) -> None:
         return
 
     if operation in FORBIDDEN_WRITES.get(mode, frozenset()):
-        raise WriteNotAllowedInMode(
-            MODE_REFUSALS.get(mode, f"Operazione '{operation}' non consentita in modalita' {mode}.")
+        message = MODE_REFUSALS.get(
+            mode, f"Operazione '{operation}' non consentita in modalita' {mode}."
         )
+        required = narrowest_mode_allowing(operation)
+        if required:
+            message += (
+                f" Per questa operazione basta la modalita' {required}: non serve "
+                "una modalita' piu' ampia."
+            )
+        raise WriteNotAllowedInMode(message)

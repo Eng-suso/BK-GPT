@@ -2131,10 +2131,71 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   border-top: 1px solid var(--color-border-subtle);
 }
 
+/* La superficie di modellazione vive sopra il compositore, non dentro il
+   transcript: si apre, si chiude e si riapre senza lasciare residui fra i
+   messaggi. Prima readiness card, questionario e review restavano incollati alla
+   conversazione e scorrevano con lei per sempre. */
+.modeling-workspace-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-300);
+  width: 100%;
+  max-width: var(--chat-measure);
+  margin-inline: auto;
+}
+
+.modeling-workspace-text {
+  min-width: 0;
+}
+
+.modeling-workspace-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modeling-workspace-detail {
+  margin: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* L'argomento della domanda: quale parte del modello cambia se si risponde.
+   Raggruppa le domande correlate senza doverlo spiegare a parole. */
+.review-question-topic {
+  margin: 0 0 var(--space-200);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
 .review-question-text {
   margin: 0 0 var(--space-300);
   color: var(--color-text-primary);
   font-size: var(--font-size-200);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Da dove nasce la domanda: la voce e cio' che ha detto. Sta sotto la domanda e
+   non sopra, perche' e' la giustificazione, non il titolo. */
+.review-question-grounding {
+  margin: calc(var(--space-300) * -1) 0 var(--space-300);
+  padding-left: var(--space-300);
+  border-left: 2px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }

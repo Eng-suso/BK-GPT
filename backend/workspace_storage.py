@@ -142,6 +142,10 @@ class WorkspaceBpmnReview(WorkspaceBase):
     bpmn_brief: Mapped[str] = mapped_column(Text, nullable=False)
     readiness_score: Mapped[int] = mapped_column(Integer, nullable=False)
     missing_information_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # Su quale set di fonti questo piano e' stato costruito. NULL significa "non
+    # si sa", che non e' "nessuna fonte": il runtime lo tratta come un piano da
+    # risintetizzare quando l'evidenza esiste.
+    evidence_source_set_id: Mapped[str | None] = mapped_column(String, nullable=True)
     # Risposte del consulente alle domande aperte del piano: cio' che l'umano ha
     # deciso, tenuto separato da cio' che il modello ha estratto.
     answers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
@@ -169,6 +173,7 @@ class WorkspaceBpmnReviewVersion(WorkspaceBase):
     bpmn_brief: Mapped[str] = mapped_column(Text, nullable=False)
     readiness_score: Mapped[int] = mapped_column(Integer, nullable=False)
     missing_information_json: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_source_set_id: Mapped[str | None] = mapped_column(String, nullable=True)
     answers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     # Why this version exists: prepared from a description, revised by the

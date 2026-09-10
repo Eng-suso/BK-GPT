@@ -13,6 +13,37 @@ from backend.llm_streaming import stream_to_final
 Owner = Literal["consultant", "project", "process", "canvas"]
 WorkflowScope = Literal["direct", "local_operation", "single_step", "full_workflow", "clarification"]
 
+# Quale artefatto la richiesta modifica. Erano due operazioni distinte trattate
+# come una sola: "mettilo nel piano" e "genera il BPMN" competevano per la stessa
+# decisione di routing senza che niente, nel runtime, distinguesse l'artefatto
+# toccato. Il risultato era che una modifica al piano chiedeva la modalita' che
+# serve a disegnare, per un'operazione che il disegno non lo tocca nemmeno.
+#
+# Il modello dichiara l'artefatto; il runtime verifica che la route sia coerente
+# con l'artefatto dichiarato. La classificazione dell'intento resta lavoro del
+# modello, l'accoppiamento fra le due operazioni no.
+ArtifactTarget = Literal["modeling_plan", "bpmn_canvas", "none"]
+
+ARTIFACT_TARGET_DESCRIPTION = """
+target_artifact - quale artefatto questa richiesta modifica. Sono due, e sono
+separati:
+
+- modeling_plan: la comprensione strutturata del processo (partecipanti, corsie
+  candidate, attivita', flusso, decisioni, percorsi di eccezione, evidenza a
+  sostegno, incertezze, lacune, prontezza). "Mettilo nel piano", "aggiorna il
+  piano", "aggiungi al piano", "correggi la review", "crea il piano con quello
+  che sai". Si genera, si modifica, si versiona, si riapre e si approva SENZA
+  toccare il diagramma.
+- bpmn_canvas: il disegno. "Genera il BPMN", "applica al canvas", "disegnalo",
+  "sposta questo nodo", "rinomina questo passaggio".
+- none: la richiesta non modifica nessuno dei due (domanda, spiegazione,
+  raccolta di evidenza, discovery).
+
+Non accoppiarli. Una richiesta sul piano non e' una richiesta sul canvas, e
+chiedere di passare alla modalita' che serve a disegnare per modificare il piano
+e' una risposta sbagliata.
+""".strip()
+
 
 class RoutingDecisionBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -88,6 +119,9 @@ class ProcessRoutingDecision(RoutingDecisionBase):
     process_mode: Literal["discussion", "discovery", "evidence", "modeling", "delegation", "clarification"] | None = None
     process_objective: str | None = None
     workflow_scope: WorkflowScope = "single_step"
+    # Il piano e il disegno sono due artefatti, e l'intento dell'utente decide
+    # quale si tocca. Vedi ARTIFACT_TARGET_DESCRIPTION.
+    target_artifact: ArtifactTarget = "none"
     # The engineering-loop budget is deliberately NOT a field here. CODE_QUALITY.md
     # ("Runtime MUST own arithmetic, limits, deadlines, budgets") puts limits on the
     # runtime side of the boundary, and a model-set ceiling broke that both ways: a
@@ -111,6 +145,10 @@ class CanvasRoutingDecision(RoutingDecisionBase):
     canvas_mode: Literal["inspection", "patch_edit", "construction", "layout", "validation", "clarification"] | None = None
     canvas_objective: str | None = None
     workflow_scope: WorkflowScope = "single_step"
+    # Il Canvas possiede il disegno e non possiede il piano: qui l'artefatto e'
+    # dichiarato per lo stesso motivo per cui lo e' di la', cosi' una richiesta
+    # sul piano arrivata fin qui si vede invece di essere eseguita sul diagramma.
+    target_artifact: ArtifactTarget = "bpmn_canvas"
     # What the canvas should look like once the request is satisfied. The agent
     # declares the target end state; the runtime only verifies it deterministically.
     # An emptied canvas cannot be checked against the semantic model - there is
@@ -150,6 +188,11 @@ class CapabilitySpec(BaseModel):
     # in every set; `plan` understands and proposes without changing the process
     # model; `edit` applies the change asked for without re-planning it.
     modes: frozenset[str] = WORKFLOW_CHAT_MODES
+    # L'artefatto che questa capability puo' modificare. Serve al runtime per
+    # rifiutare una route che non corrisponde all'artefatto dichiarato: senza
+    # questo, "modifica il piano" e "disegna il BPMN" restano indistinguibili
+    # per chiunque non sia il modello che le ha proposte.
+    artifact: ArtifactTarget = "none"
 
 
 CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
@@ -328,10 +371,34 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         target="modeling_subgraph",
         prerequisites=["process_id", "process_understanding", "no_critical_contradictions"],
         description=(
-            "ProcessUnderstanding, AS-IS review, BPMNSemanticModel, modeling readiness, "
-            "semantic BPMN structure or review before canvas."
+            "Build or rebuild the modeling plan from scratch: ProcessUnderstanding, "
+            "AS-IS review, BPMNSemanticModel, modeling readiness, semantic BPMN "
+            "structure. Produces the plan; it does not draw the diagram. Use "
+            "process.plan_edit instead when a plan already exists and the request "
+            "adds to or corrects it."
         ),
         modes=frozenset({"plan", "agent"}),
+        artifact="modeling_plan",
+    ),
+    "process.plan_edit": CapabilitySpec(
+        id="process.plan_edit",
+        owner="process",
+        route="modeling",
+        target="modeling_subgraph",
+        # Nessun prerequisito di piano esistente: "crea il piano con quello che
+        # sai" e "mettilo nel piano" sono la stessa operazione a due stadi
+        # diversi dello stesso artefatto, e chiedere che il piano ci sia gia' per
+        # poterlo scrivere e' il cerchio in cui il difetto viveva.
+        prerequisites=["process_id"],
+        description=(
+            "Add to, correct, extend or version the modeling plan of this process "
+            "WITHOUT touching the BPMN diagram: 'mettilo nel piano', 'aggiungi al "
+            "piano', 'aggiorna il piano', 'crea il piano con quello che sai', "
+            "'correggi la review'. The plan is a separate artifact from the canvas: "
+            "it is generated, edited, versioned, reopened and approved on its own."
+        ),
+        modes=frozenset({"plan", "agent"}),
+        artifact="modeling_plan",
     ),
     "process.canvas_handoff": CapabilitySpec(
         id="process.canvas_handoff",
@@ -340,10 +407,13 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         target="canvas_macro",
         prerequisites=["process_id", "bpmn_semantic_model", "readiness_for_canvas"],
         description=(
-            "BPMN XML, canvas inspection, canvas edits, layout, validation, versions, "
-            "approval or saved XML changes. Runs the Canvas Macro Agent on this process."
+            "Apply the plan to the DIAGRAM: BPMN XML, canvas inspection, canvas edits, "
+            "layout, validation, versions, approval or saved XML changes. Runs the "
+            "Canvas Macro Agent on this process. Editing the plan itself is not canvas "
+            "work and does not belong here."
         ),
         modes=frozenset({"edit", "agent"}),
+        artifact="bpmn_canvas",
     ),
     "process.clarification": CapabilitySpec(
         id="process.clarification",
@@ -371,6 +441,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "reconnect a few elements, empty the canvas."
         ),
         modes=frozenset({"edit", "agent"}),
+        artifact="bpmn_canvas",
     ),
     "canvas.construction": CapabilitySpec(
         id="canvas.construction",
@@ -391,6 +462,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         # route in edit mode instead left a prepared preview impossible to apply -
         # "inseriscila nel canvas" came back as "what should I insert?".
         modes=WORKFLOW_CHAT_MODES,
+        artifact="bpmn_canvas",
     ),
     "canvas.layout": CapabilitySpec(
         id="canvas.layout",
@@ -404,6 +476,7 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "objects and edge routing."
         ),
         modes=frozenset({"edit", "agent"}),
+        artifact="bpmn_canvas",
     ),
     "canvas.validation": CapabilitySpec(
         id="canvas.validation",
@@ -445,6 +518,42 @@ def capabilities_for(owner: Owner, mode: str | None = None) -> list[CapabilitySp
     ]
 
 
+# La scala delle modalita', dalla piu' stretta alla piu' larga. Ogni gradino
+# permette cio' che permette il precedente, piu' qualcosa. Serve al runtime per
+# dire *quale* modalita' sbloccherebbe un rifiuto: quando a sceglierla era il
+# modello, per modificare il piano veniva chiesta la modalita' che serve a
+# disegnare, e al consulente arrivava un cambio di modalita' che non gli serviva.
+MODE_LADDER: tuple[str, ...] = ("conversation", "plan", "edit", "agent")
+
+# Come la modalita' si chiama nel prodotto. Il consulente non legge `edit`.
+MODE_LABEL_IT: dict[str, str] = {
+    "conversation": "Conversazione",
+    "plan": "Piano",
+    "edit": "Modifica",
+    "agent": "Agente",
+}
+
+
+def narrowest_mode_for(spec: CapabilitySpec) -> str | None:
+    """La modalita' meno ampia in cui questa capability e' disponibile.
+
+    Args:
+        spec: La capability rifiutata.
+
+    Returns:
+        Il nome della modalita', o `None` se la capability non ne dichiara
+        nessuna riconoscibile.
+    """
+    for mode in MODE_LADDER:
+        if mode in spec.modes:
+            return mode
+    return None
+
+
+def mode_label(mode: str | None) -> str:
+    return MODE_LABEL_IT.get(str(mode or ""), str(mode or "sconosciuta"))
+
+
 def capability_menu(owner: Owner, mode: str | None = None) -> str:
     """Render the registry-authorized capabilities available to an owner and chat mode.
     
@@ -462,6 +571,8 @@ def capability_menu(owner: Owner, mode: str | None = None) -> str:
     lines = []
     for spec in capabilities_for(owner, mode):
         line = f"- {spec.route} (capability: {spec.id})"
+        if spec.artifact != "none":
+            line += f" [modifies: {spec.artifact}]"
         if spec.prerequisites:
             line += f" [requires: {', '.join(spec.prerequisites)}]"
         if spec.description:
@@ -470,9 +581,20 @@ def capability_menu(owner: Owner, mode: str | None = None) -> str:
     return "\n".join(lines)
 
 
-DEFAULT_CAPABILITY_BY_OWNER_ROUTE: dict[tuple[str, str], str] = {
-    (spec.owner, spec.route): spec.id for spec in CAPABILITY_REGISTRY.values()
-}
+# Quale capability vale quando il router propone una route senza nominarla. Con
+# due capability sulla stessa route - il piano si costruisce e si modifica, e
+# sono due operazioni diverse dello stesso artefatto - "l'ultima registrata
+# vince" sceglieva a caso.
+#
+# Il default e' quella che pretende meno. Su `modeling` l'alternativa era
+# `process.modeling`, che richiede `process_understanding`: una route proposta
+# senza nome sarebbe caduta sulla capability che pretende il piano per poter
+# scrivere il piano, ed e' esattamente il cerchio in cui il difetto viveva. Chi
+# vuole la capability piu' esigente la nomina.
+DEFAULT_CAPABILITY_BY_OWNER_ROUTE: dict[tuple[str, str], str] = {}
+for _spec in sorted(CAPABILITY_REGISTRY.values(), key=lambda spec: len(spec.prerequisites)):
+    DEFAULT_CAPABILITY_BY_OWNER_ROUTE.setdefault((_spec.owner, _spec.route), _spec.id)
+del _spec
 
 
 def invalid_consulting_decision(reason: str) -> ConsultingRoutingDecision:
@@ -822,6 +944,27 @@ def _has_canonical_semantic_model(state: dict[str, Any]) -> bool:
     )
 
 
+def _plan_is_synthesizable(state: dict[str, Any]) -> bool:
+    """C'e' l'evidenza per costruire un piano, anche se il piano non c'e' ancora.
+
+    Le due soglie del task sono queste, e vanno tenute separate: "abbastanza per
+    una bozza vincolata all'evidenza" e "abbastanza per dichiarare l'AS-IS
+    validato". Un processo con tre interviste e nessun piano sta sopra la prima e
+    sotto la seconda; trattarlo come non modellabile cancella cio' che si sa gia'
+    invece di trasformarlo in una bozza con le lacune dichiarate dentro.
+    """
+    draft_readiness = _state_value_as_dict(state.get("draft_readiness"))
+    if draft_readiness.get("status") == "synthesizable":
+        return True
+
+    # Fallback per uno stato che non porta la readiness (un router invocato fuori
+    # dal nodo di contesto): l'evidenza agli atti vale comunque.
+    ledger = _state_value_as_dict(state.get("evidence_ledger"))
+    return max(
+        int(ledger.get("source_count") or 0), len(ledger.get("claims") or [])
+    ) > 0
+
+
 def project_processes(state: dict[str, Any]) -> list[dict[str, Any]]:
     """Return dictionary-valued project processes from routing state.
     
@@ -931,17 +1074,47 @@ def missing_prerequisites(spec: CapabilitySpec, state: dict[str, Any]) -> list[s
         elif prerequisite == "bpmn_semantic_model" and not _has_canonical_semantic_model(state):
             if state.get("workflow_scope") == "local_operation" and state.get("saved_bpmn_xml"):
                 continue
+            if _plan_is_synthesizable(state):
+                # Il piano non c'e' ancora, ma l'evidenza da cui costruirlo si'.
+                # Rifiutare qui era il difetto: con tre interviste agli atti il
+                # gate rispondeva "prerequisito mancante", il turno finiva in
+                # chiarimento e al consulente arrivavano le domande da
+                # questionario su trigger, attori e prima attivita'. Il confine
+                # sintetizza il piano prima di consegnare al canvas.
+                continue
             missing.append(prerequisite)
         elif prerequisite == "readiness_for_canvas":
             if state.get("workflow_scope") == "local_operation" and state.get("saved_bpmn_xml"):
                 continue
+            # Una lacuna che l'agente ha classificato bloccante chiude il canvas
+            # comunque. Le due soglie sono due, ma "bloccante" e' la parola con
+            # cui l'agente dice che senza quella risposta il disegno sarebbe una
+            # invenzione: le scorciatoie qui sotto aprivano la porta anche a
+            # quello, e una bozza con dentro una lacuna dichiarata bloccante non
+            # e' una bozza onesta, e' un AS-IS inventato con una nota a margine.
+            blocking_gap = _has_blocking_gap(state)
             draft_readiness = _state_value_as_dict(state.get("draft_readiness"))
             if (
-                draft_readiness.get("status") == "modelable"
+                not blocking_gap
+                and draft_readiness.get("status") == "modelable"
                 and not (draft_readiness.get("blockers") or [])
             ):
                 # A preliminary BPMN may carry explicit gaps. Final approval is
                 # governed separately by validation_readiness/review status.
+                continue
+            # La scorciatoia "c'e' evidenza, il piano si puo' sintetizzare" vale
+            # solo dove il piano non c'e'. Con un piano agli atti che si dichiara
+            # non modellabile, contare le interviste per aprire comunque il
+            # canvas ribalta il verdetto del piano con un conteggio di fonti: il
+            # piano ha gia' guardato quelle fonti e ha detto di no.
+            if (
+                not blocking_gap
+                and not _has_canonical_semantic_model(state)
+                and _plan_is_synthesizable(state)
+            ):
+                continue
+            if blocking_gap:
+                missing.append(prerequisite)
                 continue
             readiness = state.get("readiness_score")
             if readiness is None or readiness < minimum_readiness_score(state):
@@ -1037,14 +1210,45 @@ def authorize_routing_decision(
         blocking_conditions.append("Suggested capability does not match the authorized owner/route.")
         termination_reason = "WAITING_FOR_USER"
 
+    # L'artefatto dichiarato e l'artefatto che la capability tocca devono essere
+    # lo stesso. E' il punto in cui "mettilo nel piano" smetteva di essere una
+    # modifica al piano e diventava una richiesta sul disegno: due operazioni
+    # diverse su due artefatti diversi, e niente nel runtime le teneva separate.
+    declared_artifact = getattr(decision, "target_artifact", "none")
+    if (
+        status == "authorized"
+        and declared_artifact in {"modeling_plan", "bpmn_canvas"}
+        and spec.artifact != "none"
+        and spec.artifact != declared_artifact
+    ):
+        blocking_conditions.append(
+            f"Artifact mismatch: the request was declared as modifying "
+            f"{declared_artifact}, but {spec.id} modifies {spec.artifact}. "
+            "The modeling plan and the BPMN canvas are two separate artifacts and "
+            "one operation does not stand in for the other."
+        )
+        route = "clarification"
+        capability_id = f"{owner}.clarification"
+        spec = CAPABILITY_REGISTRY[capability_id]
+        status = "artifact_route_mismatch"
+        termination_reason = "WAITING_FOR_USER"
+        refused_route = proposed_route
+
     chat_mode = state.get("chat_mode")
+    required_mode = None
     if chat_mode and chat_mode not in spec.modes:
         # The user chose how much of the workflow to hand over this turn. Like a
         # missing prerequisite this is a refusal with a reason, not a substitution:
         # `resolve_routing_decision` lets the agent pick something the mode allows.
+        #
+        # *Quale* modalita' sbloccherebbe il rifiuto lo calcola il runtime, non il
+        # modello: sceglierla a occhio faceva chiedere la modalita' che serve a
+        # disegnare per un'operazione che il disegno non lo tocca.
+        required_mode = narrowest_mode_for(spec)
         blocking_conditions.append(
             f"Capability {spec.id} is not available in {chat_mode} mode "
-            f"(available in: {', '.join(sorted(spec.modes))})"
+            f"(available in: {', '.join(sorted(spec.modes))}; narrowest mode that "
+            f"allows it: {required_mode or 'none'})"
         )
         route = "clarification"
         capability_id = f"{owner}.clarification"
@@ -1052,8 +1256,6 @@ def authorize_routing_decision(
         status = "capability_not_in_mode"
         termination_reason = "WAITING_FOR_USER"
         refused_route = proposed_route
-    else:
-        refused_route = None
 
     missing = missing_prerequisites(
         spec,
@@ -1084,6 +1286,13 @@ def authorize_routing_decision(
         "proposed_route": proposed_route,
         "target": target,
         "status": status,
+        # Lo stato della modalita' viene da qui, non dalla conversazione: e' cio'
+        # che il runtime ha applicato in questo turno. Un "si', fatto" dell'utente
+        # non e' una fonte su quale modalita' e' attiva.
+        "active_chat_mode": chat_mode,
+        "required_mode": required_mode,
+        "declared_artifact": declared_artifact,
+        "capability_artifact": spec.artifact,
         "proposed_capability": decision.suggested_capability,
         "authorized_capability": capability_id,
         "blocking_conditions": blocking_conditions,
@@ -1149,10 +1358,26 @@ def resolve_routing_decision(
             parse_source=parse_source,
             parse_error=parse_error,
         )
-        if authorization["status"] not in {"missing_prerequisite", "capability_not_in_mode"}:
+        if authorization["status"] not in {
+            "missing_prerequisite",
+            "capability_not_in_mode",
+            "artifact_route_mismatch",
+        }:
             break
 
-        if authorization["status"] == "missing_prerequisite":
+        if authorization["status"] == "artifact_route_mismatch":
+            refused_because = (
+                f"You declared this request as modifying {authorization['declared_artifact']}, "
+                f"then proposed a capability that modifies {authorization['capability_artifact']}. "
+                "The modeling plan and the BPMN canvas are two artifacts with two "
+                "separate lifecycles: editing the plan does not draw anything, and "
+                "drawing does not rewrite the plan."
+            )
+            what_to_do = (
+                "Decide which artifact the user actually asked you to change, then "
+                "propose the capability that owns that artifact."
+            )
+        elif authorization["status"] == "missing_prerequisite":
             refused_because = (
                 "Unsatisfied prerequisites (verified against current state, not opinion): "
                 f"{', '.join(authorization['missing_prerequisites'])}"
@@ -1163,14 +1388,23 @@ def resolve_routing_decision(
                 "prerequisite - or route to clarification if only the user can unblock this."
             )
         else:
+            required = authorization.get("required_mode")
             refused_because = (
-                f"The user put this chat in {chat_mode} mode, and that capability is not "
-                "part of it. The mode is the user's choice about how much of the workflow "
-                "to hand over; it is not yours to widen."
+                f"The chat is in {chat_mode} mode (this is the runtime's record of the "
+                "mode, not something inferred from the conversation), and that "
+                "capability is not part of it. The mode is the user's choice about how "
+                "much of the workflow to hand over; it is not yours to widen."
             )
             what_to_do = (
-                "Propose a capability the mode does allow, or route to clarification and "
-                "tell the user which mode would let you do what they asked."
+                "Propose a capability the mode does allow, or route to clarification. "
+                + (
+                    f"If you tell the user to switch, the mode they need is "
+                    f"'{required}' ({mode_label(required)}) - the narrowest one that "
+                    "allows what they asked. Do not name a wider mode than that, and "
+                    "do not ask for a canvas mode to edit the plan."
+                    if required
+                    else "Do not invent a mode name."
+                )
             )
 
         refusal = SystemMessage(
