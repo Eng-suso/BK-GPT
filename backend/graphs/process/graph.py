@@ -22,6 +22,7 @@ from backend.agents.evidence_brief import (
     turn_evidence_ledger,
 )
 from backend.agents.process_snapshot import build_process_snapshot
+from backend.agents.process_synthesis import ensure_process_plan
 from backend.memory import provenance
 from backend.graphs.consulting.skill_context import load_markdown_skills, tool_prompt_block
 from backend.graphs.process.nodes import load_process_context
@@ -30,12 +31,18 @@ from backend.graphs.process.subgraphs.discovery import build_discovery_subgraph,
 from backend.graphs.process.subgraphs.evidence import build_evidence_subgraph, evidence_tools
 from backend.graphs.process.subgraphs.modeling import build_modeling_subgraph, modeling_tools
 from backend.graphs.process.tools import PROCESS_TOOL_POLICY
+from backend.agents.process_plan import (
+    PLAN_REVIEW_MAX_ATTEMPTS,
+    review_process_plan,
+)
 from backend.graphs.routing_contracts import (
+    ARTIFACT_TARGET_DESCRIPTION,
     ENGINEERING_LOOP_MAX_ITERATIONS,
     ProcessRoutingDecision,
     authorize_routing_decision,
     capability_menu,
     invalid_process_decision,
+    mode_label,
     parse_routing_decision,
     resolve_routing_decision,
 )
@@ -89,6 +96,14 @@ Capabilities you may propose:
 
 Return structured output matching the ProcessRoutingDecision schema.
 Set goal, intent, next_action and suggested_capability separately.
+
+{artifact_rules}
+
+The runtime verifies that the capability you propose owns the artifact you
+declared, and refuses the pair when it does not. The chat mode below is the
+runtime's record of what the user selected, not something to infer from the
+conversation: a user saying they switched is not evidence that they did.
+
 Use workflow_scope=local_operation for narrow canvas/XML patch requests, single_step
 for one bounded capability, and full_workflow only when the user asks for an
 end-to-end engineering outcome.
@@ -125,7 +140,10 @@ def process_router_prompt(chat_mode: str | None = None) -> str:
         str: A router prompt containing the capability menu for the selected chat
             mode.
     """
-    return PROCESS_ROUTER_PROMPT_TEMPLATE.format(capability_menu=capability_menu("process", chat_mode))
+    return PROCESS_ROUTER_PROMPT_TEMPLATE.format(
+        capability_menu=capability_menu("process", chat_mode),
+        artifact_rules=ARTIFACT_TARGET_DESCRIPTION,
+    )
 
 
 
@@ -161,6 +179,54 @@ def process_state_signature(state: dict) -> str:
             str((state.get("draft_readiness") or {}).get("status") or ""),
             str((state.get("validation_readiness") or {}).get("status") or ""),
         ]
+    )
+
+
+# La capability che possiede il piano quando la richiesta e' sul piano. Non e'
+# una scelta di merito: e' l'unica capability process il cui artefatto e' il
+# modeling plan e che non pretende che il piano esista gia'.
+_PLAN_CAPABILITY = "process.plan_edit"
+
+# Gli esiti di autorizzazione su cui la sostituzione ha senso. Un rifiuto per
+# modalita' o per prerequisito e' una ragione vera: sostituirlo nasconderebbe al
+# consulente perche' la richiesta non e' partita, che e' il difetto rovesciato.
+_SUBSTITUTABLE_STATUSES = frozenset({"authorized", "artifact_route_mismatch"})
+
+
+def misdirected_plan_request(
+    *, decision: ProcessRoutingDecision, status: str = "authorized", state: dict | None = None
+) -> str | None:
+    """Una richiesta sul piano instradata sul disegno: perche', se e' cosi'.
+
+    "Mettilo nel piano" e "genera il BPMN" sono due operazioni su due artefatti
+    diversi, e non c'era niente, nel runtime, che le tenesse separate: il router
+    poteva dichiarare `target_artifact="modeling_plan"` e proporre comunque il
+    passaggio al canvas. Il consulente se ne accorgeva solo dalla risposta - una
+    richiesta di cambiare modalita' per disegnare, dopo aver chiesto di scrivere.
+
+    Non corregge l'intento - quello resta lavoro del modello - corregge
+    l'accoppiamento. E lo corregge solo dove c'e' un accoppiamento da correggere:
+    se la capability era gia' stata rifiutata per modalita' o per prerequisito,
+    quella ragione vale ed e' quella che il consulente deve leggere.
+
+    Args:
+        decision: La decisione del router, non affidabile.
+        status: Lo stato dell'autorizzazione gia' calcolata.
+        state: Lo stato del turno.
+
+    Returns:
+        La ragione del re-instradamento, o `None` se non serve.
+    """
+    if decision.target_artifact != "modeling_plan":
+        return None
+    if decision.route != "delegate_canvas":
+        return None
+    if status not in _SUBSTITUTABLE_STATUSES:
+        return None
+    return (
+        "Plan request routed to the canvas: the declared artifact is the modeling "
+        "plan, which is edited and versioned without touching the diagram. "
+        f"Re-routed to {_PLAN_CAPABILITY} (refused: {decision.suggested_capability or decision.route})."
     )
 
 
@@ -231,6 +297,50 @@ def process_routing_state(
     target = authorization["target"]
     reason = decision.reason or decision.reasoning_summary or "Process router decision."
 
+    misdirected = misdirected_plan_request(
+        decision=decision, status=authorization["status"], state=state
+    )
+    if misdirected:
+        # La sostituzione passa dal gate come qualunque altra decisione. Asserirla
+        # a mano - route, capability, termination scritti qui - farebbe partire
+        # una capability che nessuno ha autorizzato: se il lavoro sul piano non e'
+        # permesso in questa modalita', o gli manca un prerequisito, deve
+        # risultare rifiutato e detto, non eseguito perche' il runtime lo ha
+        # scelto al posto del modello.
+        substitute = decision.model_copy(
+            update={
+                "needs_clarification": False,
+                "clarification_question": None,
+                "process_mode": "modeling",
+                "route": "modeling",
+                "suggested_capability": _PLAN_CAPABILITY,
+            }
+        )
+        substitute_authorization = authorize_routing_decision(
+            owner="process",
+            decision=substitute,
+            state=state,
+            parse_source=parse_source,
+            parse_error=parse_error,
+        )
+        decision = substitute
+        route = substitute_authorization["route"]
+        target = substitute_authorization["target"]
+        reason = misdirected
+        authorization = {
+            **substitute_authorization,
+            "status": (
+                "plan_request_rerouted"
+                if substitute_authorization["status"] == "authorized"
+                else substitute_authorization["status"]
+            ),
+            "blocking_conditions": [
+                *authorization["blocking_conditions"],
+                misdirected,
+                *substitute_authorization["blocking_conditions"],
+            ],
+        }
+
     refusal = ungrounded_clarification(
         status=authorization["status"],
         question=decision.clarification_question,
@@ -271,6 +381,7 @@ def process_routing_state(
         "intent": decision.intent,
         "next_action": decision.next_action,
         "workflow_scope": decision.workflow_scope,
+        "target_artifact": decision.target_artifact,
         "authorized_capability": authorization["authorized_capability"],
     }
     routing_event = {
@@ -285,6 +396,9 @@ def process_routing_state(
         "intent": decision.intent,
         "next_action": decision.next_action,
         "workflow_scope": decision.workflow_scope,
+        "target_artifact": decision.target_artifact,
+        "active_chat_mode": authorization.get("active_chat_mode"),
+        "required_mode": authorization.get("required_mode"),
         "proposed_capability": authorization["proposed_capability"],
         "authorized_capability": authorization["authorized_capability"],
         "blocking_conditions": authorization["blocking_conditions"],
@@ -301,6 +415,12 @@ def process_routing_state(
         "process_mode": process_mode,
         "process_objective": process_objective,
         "process_phase": process_mode,
+        # Quale artefatto questo turno sta modificando, come il runtime lo ha
+        # autorizzato. Il nodo di delega lo rilegge: un lavoro sul piano non
+        # attraversa il confine verso il disegno nemmeno per sbaglio.
+        "target_artifact": decision.target_artifact,
+        "active_chat_mode": authorization.get("active_chat_mode"),
+        "required_chat_mode": authorization.get("required_mode"),
         "delegation_target": target,
         "delegation_reason": reason,
         "routing_confidence": decision.confidence,
@@ -401,6 +521,14 @@ def build_process_router(llm):
                     HumanMessage(
                         content=(
                             "Active scope: process\n\n"
+                            # Lo stato della modalita' viene dal runtime. Prima
+                            # non entrava nel contesto affatto: l'agente non
+                            # poteva ne' citarlo ne' verificarlo, e l'unica cosa
+                            # che vedeva era il testo dell'utente - che di quale
+                            # modalita' e' attiva non e' una fonte.
+                            "runtime_chat_mode: "
+                            f"{state.get('chat_mode') or 'non dichiarata'} "
+                            f"({mode_label(state.get('chat_mode'))})\n"
                             f"project_id: {state.get('project_id')}\n"
                             f"process_id: {state.get('process_id')}\n"
                             f"process_name: {state.get('process_name')}\n"
@@ -414,7 +542,12 @@ def build_process_router(llm):
                             f"has_bpmn_semantic_model: {artifact_is_present(state.get('bpmn_semantic_model'))}\n"
                             f"has_saved_bpmn_xml: {bool(state.get('saved_bpmn_xml'))}\n"
                             f"draft_readiness: {(state.get('draft_readiness') or {}).get('status')}\n"
-                            f"validation_readiness: {(state.get('validation_readiness') or {}).get('status')}\n\n"
+                            f"validation_readiness: {(state.get('validation_readiness') or {}).get('status')}\n"
+                            # Le due soglie sono due, e vanno lette come due. Un
+                            # piano disegnabile con lacune dentro non e' un piano
+                            # da bloccare: e' esattamente cio' che una bozza e'.
+                            "draft and validation are two separate thresholds: a plan can "
+                            "be drawable while the AS-IS is not yet validated\n\n"
                             # PROCESS-V2-13: il router decideva il passo
                             # successivo senza vedere una riga dell'evidenza,
                             # quindi mandava a raccogliere cio' che era gia'
@@ -532,6 +665,116 @@ def evaluate_process_iteration(state: ProcessState) -> dict:
             }
         ],
     }
+
+
+def evaluate_plan_review(state: ProcessState) -> dict:
+    """Il piano appena scritto regge? Letto dal database, non dallo stato del run.
+
+    Il Canvas aveva un loop di verifica - disegna, confronta col piano, ripara,
+    riconfronta - e il piano non ne aveva nessuno. `evaluate_process_iteration`
+    guarda una firma di progresso, che dice se lo stato *e' cambiato*, non se cio'
+    che c'e' ora e' un piano utilizzabile: un piano collassato a inizio e fine
+    usciva come "passata completata" e arrivava al disegno cosi'.
+
+    Qui il piano si fa rivedere da un giudizio deterministico
+    (`review_process_plan`) su cio' che il database ha davvero. I difetti
+    correggibili tornano al subagente di modellazione con l'elenco; gli avvisi
+    restano avvisi. Il budget e' del runtime, e una passata che ripropone gli
+    stessi difetti non ne consuma un'altra: un loop che non puo' finire e' peggio
+    del difetto che chiude.
+
+    Sola lettura.
+    """
+    process_id = state.get("process_id")
+    if not process_id:
+        return {"plan_review": None}
+
+    snapshot = build_process_snapshot(process_id)
+    review = review_process_plan(snapshot)
+    plan_version = snapshot.version if snapshot else 0
+    previous = state.get("plan_review") or {}
+
+    # Il budget appartiene alla versione del piano, non al giro di routing. Il
+    # router e' re-invocato dopo ogni passata di specialista: azzerarlo li'
+    # significava non averlo, e portarselo dietro per sempre significava che una
+    # richiesta successiva nasceva gia' senza tentativi. Una versione nuova e'
+    # lavoro nuovo e riapre il budget; la stessa versione che ripropone gli
+    # stessi difetti lo chiude.
+    same_plan = previous.get("plan_version") == plan_version
+    attempt = int(previous.get("attempt") or 0) if same_plan else 0
+    previous_signature = previous.get("signature") if same_plan else None
+
+    entry = {
+        **review.as_dict(),
+        # Il tentativo che questa rilettura consuma. E' cio' che la prossima
+        # passata trovera' registrato: senza incrementarlo qui il budget non
+        # avanzerebbe mai, perche' e' questo record - non un contatore a parte -
+        # a portarlo attraverso le passate.
+        "attempt": attempt if review.is_clean else attempt + 1,
+        "plan_version": plan_version,
+        "plan_snapshot_id": snapshot.snapshot_id if snapshot else None,
+        "plan_snapshot_label": snapshot.label if snapshot else None,
+    }
+
+    if review.is_clean:
+        return {
+            "plan_review": entry,
+            "plan_review_continue": False,
+            "routing_trace": [
+                {
+                    "owner": "process",
+                    "event": "plan_review",
+                    "status": "clean",
+                    "plan_version": entry["plan_version"],
+                    "draft_allowed": review.draft_allowed,
+                    "validation_complete": review.validation_complete,
+                    "warnings": review.warnings,
+                }
+            ],
+        }
+
+    stalled = previous_signature is not None and previous_signature == review.signature
+    within_budget = attempt < PLAN_REVIEW_MAX_ATTEMPTS
+    continue_loop = within_budget and not stalled
+
+    return {
+        "plan_review": entry,
+        "plan_review_attempt": attempt + 1,
+        "plan_review_continue": continue_loop,
+        # I difetti diventano il compito della passata successiva. Il subagente
+        # non deve indovinare cosa non andava: gli arriva l'elenco, letto dal
+        # piano persistito.
+        "plan_review_issues": review.issues,
+        "blocking_conditions": [] if continue_loop else review.issues,
+        "routing_trace": [
+            {
+                "owner": "process",
+                "event": "plan_review",
+                "status": "needs_fix" if continue_loop else "blocked",
+                "attempt": attempt + 1,
+                "max_attempts": PLAN_REVIEW_MAX_ATTEMPTS,
+                "stalled": stalled,
+                "plan_version": entry["plan_version"],
+                "issues": review.issues,
+            }
+        ],
+        "specialist_findings": [
+            {
+                "owner": "plan_review",
+                "finding": (
+                    "Il piano riletto dal database ha ancora questi difetti e non li "
+                    "ho corretti: " + "; ".join(review.issues[:5])
+                ),
+            }
+        ]
+        if not continue_loop
+        else [],
+    }
+
+
+def route_after_plan_review(state: ProcessState) -> str:
+    """Il piano torna in modellazione finche' il budget lo permette."""
+    return "modeling_subgraph" if state.get("plan_review_continue") else "evaluate_process_iteration"
 
 
 def specialist_findings_digest(state: dict, limit: int = 6) -> str:
@@ -718,6 +961,47 @@ def selected_process_loop_transition(state: ProcessState) -> str:
     return "continue" if state.get("process_continue_loop") else "end"
 
 
+def _canvas_handoff_without_plan(synthesis) -> dict:
+    """Il canvas non parte, e si dice perche' - senza fingere un disegno.
+
+    Due situazioni diverse finiscono qui e non vanno raccontate allo stesso modo:
+    un processo senza interviste, dove il lavoro che manca e' la discovery, e una
+    sintesi fallita, che e' un guasto. In nessuno dei due casi il Canvas viene
+    invocato su un piano vuoto: lo farebbe partire per produrre start -> end e
+    dichiararlo completato.
+    """
+    if synthesis.action == "no_evidence":
+        content = (
+            "Per disegnare il processo mi serve prima sapere com'e' fatto: di "
+            "questo processo non risultano ancora interviste o documenti agli "
+            "atti. Raccogliamo le fonti e poi il disegno viene da quelle."
+        )
+    else:
+        content = (
+            "Non sono riuscito a costruire il piano del processo dalle fonti "
+            "registrate, quindi non ho disegnato niente: preferisco dirtelo "
+            "invece di lasciarti un canvas che non rappresenta le interviste."
+        )
+        if synthesis.reason:
+            content += f"\n\nMotivo: {synthesis.reason}"
+
+    return {
+        "messages": [AIMessage(content=content)],
+        "canvas_handoff_payload": (
+            synthesis.snapshot.as_handoff_payload() if synthesis.snapshot else None
+        ),
+        "delegation_events": [
+            {
+                "target": "canvas_macro",
+                "status": "blocked",
+                "run_status": "failed" if synthesis.action != "no_evidence" else "waiting_for_user",
+                "reason": synthesis.reason,
+                "plan_synthesis": synthesis.as_log_entry(),
+            }
+        ],
+    }
+
+
 def build_canvas_delegation_node(canvas_subgraph):
     """Create a process node that delegates authorized Canvas work.
     
@@ -773,12 +1057,74 @@ def build_canvas_delegation_node(canvas_subgraph):
             }
 
         payload = state.get("delegation_payload") or {}
+
+        # Ultimo punto in cui i due artefatti si possono ancora confondere. Se la
+        # richiesta era sul piano, oltre questa riga c'e' il disegno: consegnarla
+        # comunque significa modificare un artefatto che l'utente non ha chiesto
+        # di modificare, e chiedergli la modalita' che serve a farlo.
+        if (payload.get("target_artifact") or state.get("target_artifact")) == "modeling_plan":
+            return {
+                "messages": [
+                    AIMessage(
+                        content=(
+                            "Questa e' una modifica al piano, non al disegno: la faccio "
+                            "sul piano e il canvas resta com'e'. Quando vuoi che il "
+                            "disegno segua il piano, dimmelo e lo applico."
+                        )
+                    )
+                ],
+                "delegation_events": [
+                    {
+                        "target": "canvas_macro",
+                        "status": "blocked",
+                        "run_status": "waiting_for_user",
+                        "reason": "plan request must not reach the canvas",
+                        "target_artifact": "modeling_plan",
+                    }
+                ],
+            }
+
+        # Il piano si garantisce qui, prima di consegnare. E' il punto in cui il
+        # difetto viveva: la `ProcessUnderstanding` esiste solo dentro la review,
+        # la review la scriveva un passo dell'agente, e quando quel passo non
+        # avveniva il Canvas riceveva un processo senza piano. Da li' venivano
+        # "nessuna intervista disponibile", "nessun attore" e il modello
+        # start -> end: non conoscenza persa nel passaggio, conoscenza mai
+        # sintetizzata. La sintesi appartiene al Process Agent, che possiede la
+        # comprensione del processo; il Canvas continua a non poterla scrivere.
+        #
+        # Una modifica locale non passa di qui: "rinomina questo passaggio" non
+        # ha bisogno del piano del processo, e risintetizzarlo per una rinomina
+        # costerebbe un'estrazione e cambierebbe la versione sotto i piedi del
+        # consulente. E' lo stesso confine che il gate dei prerequisiti conosce
+        # gia', e vale la stessa condizione: c'e' un canvas su cui lavorare.
+        local_operation = (
+            (state.get("delegation_payload") or {}).get("workflow_scope")
+            or state.get("workflow_scope")
+        ) == "local_operation" and bool(state.get("saved_bpmn_xml"))
+        synthesis = (
+            ensure_process_plan(state["process_id"])
+            if state.get("process_id") and not local_operation
+            else None
+        )
+        # Si blocca su cio' che riguarda il piano - non c'e' evidenza da cui
+        # costruirlo, o costruirlo e' fallito - e non su un processo che non si
+        # e' riusciti a leggere: quello e' un guasto di lettura, e raccontarlo
+        # come "manca il piano" manderebbe il consulente a raccogliere interviste
+        # che ha gia'. Gli altri guardrail del nodo restano al loro posto.
+        if synthesis is not None and synthesis.action in {"no_evidence", "synthesis_failed"}:
+            return _canvas_handoff_without_plan(synthesis)
+
         # La versione di conoscenza che il Process Agent sta consegnando. Non e'
         # un dato in piu': e' cio' che rende l'handoff verificabile. Il Canvas
         # rilegge lo stesso stato dal database, ma parte dichiaratamente da
         # questa versione, quindi "il disegno viene da V17" si puo' dimostrare e
         # una V18 comparsa nel frattempo si vede.
-        snapshot = build_process_snapshot(state["process_id"]) if state.get("process_id") else None
+        snapshot = (
+            synthesis.snapshot
+            if synthesis is not None and synthesis.snapshot is not None
+            else (build_process_snapshot(state["process_id"]) if state.get("process_id") else None)
+        )
         result = canvas_subgraph.invoke(
             {
                 "messages": state.get("messages") or [],
@@ -811,6 +1157,10 @@ def build_canvas_delegation_node(canvas_subgraph):
                     "canvas_route": result.get("canvas_route"),
                     "handoff_snapshot_id": snapshot.snapshot_id if snapshot else None,
                     "handoff_snapshot_label": snapshot.label if snapshot else None,
+                    # Il piano e' stato riusato o costruito adesso: dichiararlo
+                    # rende leggibile, dopo, perche' quel disegno contiene quello
+                    # che contiene.
+                    "plan_synthesis": synthesis.as_log_entry() if synthesis else None,
                     "reason": state.get("delegation_reason"),
                 }
             ],
@@ -883,6 +1233,7 @@ def build_process_subgraph(
             build_context_messages=build_context_messages,
         ),
     )
+    workflow.add_node("evaluate_plan_review", evaluate_plan_review)
     workflow.add_node("delegate_to_canvas_macro", build_canvas_delegation_node(canvas_subgraph))
     workflow.add_node("ask_process_clarification", ask_process_clarification)
     workflow.add_node("evaluate_process_iteration", evaluate_process_iteration)
@@ -907,7 +1258,18 @@ def build_process_subgraph(
     # loop evaluation below already sees what the pass produced.
     workflow.add_edge("discovery_subgraph", "evaluate_process_iteration")
     workflow.add_edge("evidence_subgraph", "evaluate_process_iteration")
-    workflow.add_edge("modeling_subgraph", "evaluate_process_iteration")
+    # Il piano si fa rivedere prima di essere considerato una passata conclusa.
+    # E' il loop che il Canvas aveva e il piano no: scrive, rilegge dal database,
+    # giudica, e se il piano non regge rientra a correggerlo.
+    workflow.add_edge("modeling_subgraph", "evaluate_plan_review")
+    workflow.add_conditional_edges(
+        "evaluate_plan_review",
+        route_after_plan_review,
+        {
+            "modeling_subgraph": "modeling_subgraph",
+            "evaluate_process_iteration": "evaluate_process_iteration",
+        },
+    )
     workflow.add_conditional_edges(
         "evaluate_process_iteration",
         selected_process_loop_transition,

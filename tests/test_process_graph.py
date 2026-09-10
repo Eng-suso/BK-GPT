@@ -40,6 +40,7 @@ from backend.graphs.process.tools import (
 from backend.bpmn import build_bpmn_semantic_model
 from backend.process_understanding import ProcessUnderstanding
 import backend.graphs.process.tools as process_tools_module
+import backend.graphs.process.subgraphs.modeling.tools as modeling_tools_module
 from backend.toolsets.workspace import enterprise_tool_result
 from backend.toolsets.process_memory import (
     index_process_evidence_graph,
@@ -772,7 +773,68 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
     )
 
     assert '"status": "review_required"' in result
-    assert "No valid ProcessUnderstanding review exists." in result
+    # Senza piano ci sono due stati, e questo e' quello povero: nessuna fonte da
+    # cui costruirlo. Il messaggio lo dice, invece di dire soltanto che la review
+    # manca - "manca la review" non distingue un processo con tre interviste da
+    # uno di cui non si sa niente, e la prima va sintetizzata, la seconda
+    # intervistata.
+    assert '"status": "not_modelable"' in result
+    assert "Non ci sono ne' fonti ne' claim da cui costruire un piano." in result
+
+
+def test_modeling_readiness_separates_a_missing_plan_from_a_missing_process(monkeypatch):
+    """Tre interviste e nessun piano non e' "non posso modellarlo".
+
+    E' la soglia che il difetto schiacciava: `review_required` restava, ma la
+    ragione diventava "non modellabile" e il gate del canvas chiudeva su un
+    processo di cui sapevamo gia' abbastanza per una bozza.
+    """
+    process = {
+        "id": "proc-1",
+        "project_id": "project-1",
+        "bpmn_model_id": "proc-1-bpmn",
+        "name": "Order to Cash",
+        "stage": "AS-IS",
+        "status": "Bozza",
+        "owner": "Ops",
+        "readiness": 35,
+    }
+    monkeypatch.setattr(process_tools_module.workspace_database, "get_process", lambda process_id: process)
+    monkeypatch.setattr(process_tools_module.workspace_database, "get_project", lambda project_id: None)
+    monkeypatch.setattr(
+        process_tools_module.workspace_database,
+        "get_bpmn_model",
+        lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "name": "BPMN", "xml": None},
+    )
+    monkeypatch.setattr(
+        process_tools_module.workspace_database,
+        "get_bpmn_review",
+        lambda bpmn_model_id, include_approved=False: None,
+    )
+    monkeypatch.setattr(process_tools_module.workspace_database, "list_project_decisions", lambda project_id: [])
+    monkeypatch.setattr(
+        modeling_tools_module,
+        "load_evidence_ledger",
+        lambda project_id, process_id, previous=None: {
+            "sources": [{"id": "src-1", "name": "Intervista Laura"}],
+            "source_count": 1,
+            "source_set_id": "set-1",
+            "source_status": "ok",
+            "claim_status": "empty",
+            "claims": [],
+        },
+    )
+
+    result = tool_result_text(
+        validate_process_understanding_readiness,
+        {
+            "process_id": "proc-1",
+            "objective": "Check if canvas handoff is possible.",
+        },
+    )
+
+    assert '"status": "synthesizable"' in result
+    assert '"status": "ready_for_modeling"' in result
 
 
 def tool_result_text(state_writing_tool, args: dict) -> str:

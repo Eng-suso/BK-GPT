@@ -50,6 +50,19 @@ class ProcessState(ConversationState):
     process_no_progress_count: int
     process_progress_signature: str | None
     process_continue_loop: bool
+    # Quale artefatto questo turno modifica - il piano di modellazione o il
+    # disegno - e in quale modalita' il runtime lo sta facendo. Erano due
+    # informazioni che nessuno portava: senza la prima le due operazioni erano
+    # indistinguibili, senza la seconda la modalita' la si deduceva dalla chat.
+    target_artifact: str | None
+    active_chat_mode: str | None
+    required_chat_mode: str | None
+    # Il loop di review del piano: il giudizio dell'ultima rilettura, quante
+    # correzioni sono gia' state tentate e se ne vale un'altra.
+    plan_review: dict | None
+    plan_review_attempt: int
+    plan_review_continue: bool
+    plan_review_issues: list[str]
     delegation_target: str | None
     delegation_reason: str | None
     delegation_payload: dict

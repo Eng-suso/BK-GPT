@@ -1039,6 +1039,11 @@ def open_questions_with_answers(review) -> list[dict]:
                 "question": question,
                 "affects": unknown.get("affects") or "",
                 "severity": unknown.get("severity") or "non_blocking",
+                # Da dove nasce la domanda: quale voce ha detto cosa, e cosa
+                # resta scoperto. Senza questo al consulente arriva "chi
+                # approva?" - una domanda da questionario, indistinguibile da
+                # quella che si farebbe prima di aver sentito qualcuno.
+                "grounded_in": str(unknown.get("grounded_in") or ""),
                 "options": [
                     {
                         "label": str(option.get("label") or ""),
@@ -1174,6 +1179,11 @@ def review_version_to_dict(version: WorkspaceBpmnReviewVersion) -> dict:
         "bpmn_brief": version.bpmn_brief,
         "readiness_score": version.readiness_score,
         "missing_information": _open_missing_information(version),
+        # La provenance viaggia anche nella storia: "questa versione del piano su
+        # quali fonti era costruita" e' la domanda che rende leggibile un
+        # confronto fra due versioni, e la colonna la salvava gia' senza che
+        # nessuno potesse rileggerla.
+        "evidence_source_set_id": getattr(version, "evidence_source_set_id", None),
         "open_questions": open_questions_with_answers(version),
         "answers": decode_answers(version),
         "created_at": version.created_at,
@@ -1211,6 +1221,7 @@ def _record_review_version(
         bpmn_brief=review.bpmn_brief,
         readiness_score=review.readiness_score,
         missing_information_json=review.missing_information_json,
+        evidence_source_set_id=getattr(review, "evidence_source_set_id", None),
         answers_json=getattr(review, "answers_json", "[]") or "[]",
         status=review.status,
         change_summary=change_summary,
@@ -1336,6 +1347,9 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
         "bpmn_brief": review.bpmn_brief,
         "readiness_score": review.readiness_score,
         "missing_information": _open_missing_information(review),
+        # Su quali fonti questo piano e' nato. Chi legge puo' confrontarlo con il
+        # registro dell'evidenza di adesso e sapere se il piano e' indietro.
+        "evidence_source_set_id": getattr(review, "evidence_source_set_id", None),
         "open_questions": open_questions_with_answers(review),
         "answers": decode_answers(review),
         "status": getattr(review, "status", "pending"),
@@ -1412,10 +1426,26 @@ def _is_canonical_semantic_model_payload(value: dict) -> bool:
     )
 
 
+# "Non e' stato detto" e "e' stato detto: nessuna fonte" sono due cose diverse, e
+# `None` non poteva esprimerle entrambe. I chiamanti che non conoscono il set di
+# fonti - i tool che ricostruiscono la review da prosa - passavano implicitamente
+# `None` e cancellavano la provenance di un piano nato dalle interviste: da quel
+# momento il piano risultava "di provenienza ignota" e veniva risintetizzato a
+# ogni giro.
+class _KeepExistingValue:
+    """L'argomento non e' stato passato, che non e' "passato vuoto"."""
+
+    __slots__ = ()
+
+
+_KEEP_EVIDENCE_SOURCE_SET = _KeepExistingValue()
+
+
 def prepare_bpmn_review(
     bpmn_model_id: str,
     process_description: str,
     process_understanding: dict | None = None,
+    evidence_source_set_id: str | None | _KeepExistingValue = _KEEP_EVIDENCE_SOURCE_SET,
 ) -> dict:
     """Prepare and persist a pending BPMN review for a model.
     
@@ -1426,7 +1456,12 @@ def prepare_bpmn_review(
             non-whitespace text.
         process_understanding (dict | None): Untrusted optional process understanding
             used to generate the review draft.
-    
+        evidence_source_set_id (str | None): Identity of the evidence source set this
+            plan was built on. Recorded so a later turn can tell an up-to-date plan
+            from one that predates a source. Omit it to keep whatever the existing
+            review declares: a caller that does not know the source set must not
+            erase the provenance of a plan that was built on the interviews.
+
     Returns:
         dict: The serialized, pending BPMN review.
     
@@ -1475,6 +1510,11 @@ def prepare_bpmn_review(
                 bpmn_brief=review_draft.bpmn_brief,
                 readiness_score=review_draft.readiness_score,
                 missing_information_json=encode_list(review_draft.missing_information),
+                evidence_source_set_id=(
+                    None
+                    if isinstance(evidence_source_set_id, _KeepExistingValue)
+                    else evidence_source_set_id
+                ),
                 status="pending",
                 created_at=timestamp,
                 updated_at=timestamp,
@@ -1490,6 +1530,8 @@ def prepare_bpmn_review(
             review.bpmn_brief = review_draft.bpmn_brief
             review.readiness_score = review_draft.readiness_score
             review.missing_information_json = encode_list(review_draft.missing_information)
+            if not isinstance(evidence_source_set_id, _KeepExistingValue):
+                review.evidence_source_set_id = evidence_source_set_id
             review.status = "pending"
             review.updated_at = timestamp
 

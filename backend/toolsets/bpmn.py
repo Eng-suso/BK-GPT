@@ -26,6 +26,10 @@ from backend.workspace_services.bpmn_canvas_edit import (
     validate_bpmn_xml,
 )
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
+from backend.workspace_services.write_verification import (
+    verify_bpmn_model_persisted,
+    verify_review_persisted,
+)
 from backend.workspace_services.canvas_business_report import (
     canvas_business_report,
     construction_business_report,
@@ -753,6 +757,11 @@ def manage_canvas_construction(
         )
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
+        # `xml_saved: True` era la dichiarazione di un'intenzione: il writer non
+        # aveva sollevato eccezioni, quindi il tool riportava salvato. Qui il
+        # canvas si rilegge dal database e si confronta con cio' che si e'
+        # scritto; se non coincide, l'operazione fallisce invece di raccontarsi.
+        verify_bpmn_model_persisted(bpmn_model_id, clean_xml)
         return _construction_result(
             tool_call_id,
             {
@@ -765,6 +774,7 @@ def manage_canvas_construction(
                     {"operation": operation, "validation": validation}
                 ),
                 "xml_saved": True,
+                "persistence_verified": True,
             },
             state={
                 "saved_bpmn_xml": clean_xml,
@@ -1312,9 +1322,31 @@ def prepare_canvas_bpmn_review(bpmn_model_id: str, process_description: str) -> 
         raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
     assert_plan_respects_evidence(model["process_id"], None)
 
-    review = workspace_database.prepare_bpmn_review(
+    previous_version = int(
+        (workspace_database.get_bpmn_review(bpmn_model_id, include_approved=True) or {}).get(
+            "version"
+        )
+        or 0
+    )
+    workspace_database.prepare_bpmn_review(
         bpmn_model_id=bpmn_model_id,
         process_description=process_description,
+    )
+    # "Ho aggiornato la review" davanti a una review a zero attori: il tool
+    # riportava cio' che aveva chiesto di scrivere, non cio' che il database
+    # aveva accettato.
+    #
+    # La versione attesa fa parte della verifica. Rileggere il solo contenuto
+    # lascia passare la scrittura sparita nel modo piu' silenzioso che c'e': il
+    # piano di prima ha attori, quindi la review "contiene un piano" e il turno
+    # si chiude bene su una modifica che non e' mai arrivata.
+    #
+    # Cio' che si riporta e' la review riletta: verificare una versione e poi
+    # raccontarne un'altra sarebbe verificare per finta.
+    review = verify_review_persisted(
+        bpmn_model_id,
+        expect_plan_content=True,
+        minimum_version=previous_version + 1,
     )
     return format_workspace_result("Review BPMN pronta per approvazione", review)
 
@@ -1338,9 +1370,23 @@ def prepare_process_bpmn_review(process_id: str, process_description: str) -> st
 
     assert_plan_respects_evidence(process_id, None)
 
-    review = workspace_database.prepare_bpmn_review(
+    previous_version = int(
+        (
+            workspace_database.get_bpmn_review(
+                process["bpmn_model_id"], include_approved=True
+            )
+            or {}
+        ).get("version")
+        or 0
+    )
+    workspace_database.prepare_bpmn_review(
         bpmn_model_id=process["bpmn_model_id"],
         process_description=process_description,
+    )
+    review = verify_review_persisted(
+        process["bpmn_model_id"],
+        expect_plan_content=True,
+        minimum_version=previous_version + 1,
     )
     return format_workspace_result("Review AS-IS pronta per approvazione", review)
 

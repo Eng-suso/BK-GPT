@@ -232,6 +232,15 @@ def load_process_context(state: dict) -> dict:
     review = workspace_database.get_bpmn_review(process["bpmn_model_id"], include_approved=True)
 
     if review is None:
+        from backend.agents.process_snapshot import (
+            draft_readiness_without_plan,
+            validation_readiness_without_plan,
+        )
+
+        # Nessun piano non e' nessuna conoscenza. Con l'evidenza agli atti la
+        # soglia della bozza vale `synthesizable`: c'e' il materiale, manca il
+        # passo che lo struttura, e il gate del canvas lo esegue invece di
+        # rifiutare la richiesta come se il processo fosse sconosciuto.
         return {
             "process_name": process["name"],
             "bpmn_model_id": process["bpmn_model_id"],
@@ -240,8 +249,8 @@ def load_process_context(state: dict) -> dict:
             "process_quality_report": None,
             "bpmn_semantic_model": None,
             "readiness_score": None,
-            "draft_readiness": None,
-            "validation_readiness": None,
+            "draft_readiness": draft_readiness_without_plan(evidence_count(ledger)),
+            "validation_readiness": validation_readiness_without_plan(),
             "missing_information": [],
             "review_open_questions": [],
             "saved_bpmn_xml": bpmn_model["xml"] if bpmn_model else None,

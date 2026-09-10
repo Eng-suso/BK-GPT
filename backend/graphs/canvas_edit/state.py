@@ -42,10 +42,23 @@ class CanvasState(ConversationState):
     canvas_run_snapshot_id: str | None
     # done | waiting_for_user | failed. Il Canvas e' un runtime agentico, e un
     # runtime agentico dichiara come e' finito.
+    #
+    # Il quarto esito - annullato - non vive qui perche' il grafo non puo'
+    # osservarlo: l'annullamento e' del turno, e appartiene al runtime dello
+    # stream, che quando il client si stacca esce dal generatore del grafo e
+    # ferma le passate in corso. Scriverlo qui significherebbe dichiarare uno
+    # stato che nessuno imposta. Cio' che rende sicuro l'annullamento non e'
+    # l'etichetta: e' che nessuna scrittura viene dichiarata senza rilettura,
+    # quindi un run interrotto a meta' non lascia dietro un canvas che al giro
+    # dopo si legge come riuscito.
     canvas_run_status: str | None
     canvas_pending_question: dict | None
 
     canvas_route: str | None
+    # La route con cui il run e' partito. `canvas_route` viene riscritta dal loop
+    # di correzione; questa no, e i controlli che dipendono da come il run e' nato
+    # leggono questa.
+    canvas_initial_route: str | None
     canvas_mode: str | None
     canvas_objective: str | None
     canvas_expected_outcome: str | None

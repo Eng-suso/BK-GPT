@@ -5,7 +5,9 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
 
 from backend import workspace_database
-from backend.agents.process_snapshot import build_process_snapshot
+from backend.agents.process_snapshot import ProcessKnowledgeSnapshot, build_process_snapshot
+from backend.bpmn import BPMNSemanticModel
+from backend.process_understanding import ProcessUnderstanding
 from backend.graphs.canvas_edit.nodes import load_canvas_context
 from backend.graphs.canvas_edit.state import CanvasState
 from backend.graphs.canvas_edit.subgraphs.construction import build_construction_subgraph, construction_tools
@@ -36,7 +38,9 @@ SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 CANVAS_LOOP_MAX_ATTEMPTS = 2
 
 
-def knowledge_drift(state: dict) -> dict | None:
+def knowledge_drift(
+    state: dict, current: ProcessKnowledgeSnapshot | None = None
+) -> dict | None:
     """Il processo sa qualcosa che non sapeva quando questo run e' partito?
 
     Ha una causa sola, in questo disegno: il Canvas ha rimandato indietro una
@@ -48,6 +52,9 @@ def knowledge_drift(state: dict) -> dict | None:
     Args:
         state: Lo stato del run, non affidabile. Serve `process_id` e la
             versione su cui il run e' partito.
+        current: Lo snapshot corrente, quando chi chiama lo ha gia' letto. Lo
+            snapshot carica fonti, testi e claim, e costruirlo due volte nello
+            stesso nodo si paga due volte.
 
     Returns:
         Le due versioni a confronto, o ``None`` se la conoscenza e' ferma.
@@ -59,7 +66,8 @@ def knowledge_drift(state: dict) -> dict | None:
     if not started_on or not process_id:
         return None
 
-    current = build_process_snapshot(process_id)
+    if current is None:
+        current = build_process_snapshot(process_id)
     if current is None or current.snapshot_id == started_on:
         return None
     return {
@@ -100,6 +108,63 @@ def waiting_for_knowledge_state(drift: dict) -> dict:
             }
         ],
     }
+
+
+def _authoritative_semantic_context(
+    state: dict, snapshot: ProcessKnowledgeSnapshot | None
+) -> tuple[ProcessUnderstanding | None, BPMNSemanticModel | None]:
+    """Il piano contro cui verificare il disegno, letto dall'autorita'.
+
+    Lo stato del run puo' portarsi dietro un modello semantico vecchio o non
+    portarne nessuno; lo snapshot del processo e' la versione che conta. Se
+    l'autorita' non lo ha, si ricade sullo stato, ma la mancanza viene poi
+    dichiarata da `_unverifiable_completion_issues` invece di sparire in un
+    warning.
+
+    Sola lettura.
+    """
+    if snapshot is not None and snapshot.bpmn_semantic_model:
+        return canonical_semantic_context(snapshot.bpmn_semantic_model)
+    return canonical_semantic_context(state.get("bpmn_semantic_model"))
+
+
+def _unverifiable_completion_issues(
+    state: dict,
+    snapshot: ProcessKnowledgeSnapshot | None,
+    empty_canvas_expected: bool,
+) -> list[str]:
+    """Cosa impedisce di dichiarare completata questa operazione.
+
+    Non e' una verifica del disegno: e' la verifica che una verifica sia
+    possibile. Un processo con evidenza agli atti e senza piano non offre niente
+    contro cui confrontare il canvas, e "nessuna issue trovata" li' non significa
+    "modello corretto" - significa "controllo non eseguito". Chiamarlo successo e'
+    il modo in cui l'agente dichiarava writes che nessuno poteva smentire.
+
+    Il controllo vale per la costruzione, che e' l'operazione che dichiara di aver
+    modellato il processo. Una modifica locale su un canvas disegnato a mano si
+    verifica contro l'XML e basta: pretendere li' un piano del processo sarebbe lo
+    stesso difetto rovesciato, un fallimento dichiarato senza motivo.
+
+    Sola lettura.
+    """
+    # La route con cui il run e' partito, non quella corrente: al primo giro di
+    # correzione `evaluate_canvas_completion` riscrive `canvas_route` in
+    # "patch_edit", e questo controllo spariva proprio nel momento in cui serviva.
+    # Una costruzione che al primo tentativo non era verificabile diventava, al
+    # secondo, una costruzione senza issue - cioe' completata.
+    initial_route = state.get("canvas_initial_route") or state.get("canvas_route")
+    if empty_canvas_expected or initial_route != "construction":
+        return []
+
+    if snapshot is None or snapshot.has_semantic_model or not snapshot.evidence_count:
+        return []
+
+    return [
+        f"Il processo ha {snapshot.evidence_count} elementi di evidenza agli atti ma "
+        "nessun piano strutturato: il canvas non e' confrontabile con cio' che "
+        "sappiamo del processo, quindi non posso dichiararlo verificato."
+    ]
 
 
 def expects_empty_canvas(state: dict) -> bool:
@@ -300,6 +365,10 @@ def canvas_routing_state(
 
     return {
         "canvas_route": route,
+        # La route del run, che non cambia. `canvas_route` invece si riscrive
+        # durante il loop di correzione, e i controlli che devono sapere *come il
+        # run e' nato* leggono questa.
+        "canvas_initial_route": route,
         "canvas_mode": canvas_mode,
         "canvas_objective": canvas_objective,
         "canvas_expected_outcome": decision.expected_canvas_outcome,
@@ -475,6 +544,46 @@ def refresh_canvas_context_after_work(state: CanvasState) -> dict:
     if refreshed.get("effective_bpmn_xml"):
         refreshed["effective_bpmn_xml_source"] = "saved_backend_after_canvas_work"
 
+    # Il subagente ha lavorato e il canvas salvato e' identico a quello di
+    # partenza: qualunque cosa creda di aver fatto, non e' arrivata al database.
+    # Prima questo caso finiva nel report finale con lo stato del giro ancora
+    # "running", e usciva come "ho preparato il lavoro sul canvas" - una frase
+    # che non dice ne' fatto ne' fallito. Un write che non si rilegge e' un
+    # write che non c'e' stato.
+    #
+    # Un'anteprima in attesa di approvazione e' l'eccezione, e va tenuta
+    # separata: li' non aver scritto e' il comportamento voluto, e chiamarlo
+    # fallimento sarebbe lo stesso difetto rovesciato.
+    # Come il run e' nato, non com'e' adesso: dopo il primo giro di correzione
+    # `canvas_route` vale "patch_edit", e il controllo spariva dal momento in cui
+    # una costruzione poteva ancora non aver scritto niente.
+    if (
+        (state.get("canvas_initial_route") or state.get("canvas_route")) == "construction"
+        and not state.get("canvas_preview_xml")
+        and refreshed.get("saved_bpmn_xml") == state.get("canvas_initial_saved_bpmn_xml")
+    ):
+        return {
+            **refreshed,
+            "current_bpmn_xml": None,
+            "canvas_loop_status": "blocked",
+            "canvas_run_status": "failed",
+            "blocking_conditions": [
+                "Il canvas salvato e' identico a quello di partenza: la costruzione "
+                "non e' stata persistita."
+            ],
+            "canvas_task_log": [
+                {
+                    "step": "refresh",
+                    "status": "failed",
+                    "owner": "canvas_loop",
+                    "summary": (
+                        "Rileggendo il canvas dal backend non risulta nessuna modifica: "
+                        "l'operazione non e' completata."
+                    ),
+                }
+            ],
+        }
+
     return {
         **refreshed,
         "current_bpmn_xml": None,
@@ -576,7 +685,12 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
             follow-up actions, task-log entries, and a loop status of
             ``"completed"``, ``"needs_fix"``, or ``"blocked"``.
     """
-    drift = knowledge_drift(state)
+    # Una lettura sola dell'autorita' per tutto il nodo: lo snapshot carica fonti,
+    # testi e claim, e serve sia al controllo di deriva sia alla verifica finale.
+    process_id = state.get("process_id")
+    snapshot = build_process_snapshot(process_id) if process_id else None
+
+    drift = knowledge_drift(state, snapshot)
     if drift:
         return waiting_for_knowledge_state(drift)
 
@@ -596,18 +710,26 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
             ],
         }
 
+    # Read-after-write: cio' che si verifica e' cio' che il database ha, mai cio'
+    # che lo stato del run ricorda di aver prodotto. La differenza fra le due
+    # cose e' esattamente la differenza fra un canvas aggiornato e un canvas
+    # dichiarato aggiornato.
     model = workspace_database.get_bpmn_model(bpmn_model_id)
-    xml = (model or {}).get("xml") or state.get("effective_bpmn_xml")
+    xml = (model or {}).get("xml")
     if not xml:
         return {
             "canvas_loop_status": "blocked",
-            "blocking_conditions": ["Missing prerequisite: saved BPMN XML"],
+            "canvas_run_status": "failed",
+            "blocking_conditions": [
+                "Nessun canvas persistito da verificare: rileggendo il modello dal "
+                "backend non c'e' XML salvato."
+            ],
             "canvas_task_log": [
                 {
                     "step": "completion_check",
-                    "status": "blocked",
+                    "status": "failed",
                     "owner": "canvas_loop",
-                    "summary": "Non esiste ancora un canvas salvato da verificare.",
+                    "summary": "Non esiste un canvas salvato da verificare.",
                 }
             ],
         }
@@ -619,8 +741,13 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
     if empty_canvas_expected:
         validation = _empty_canvas_completion_report(xml)
     else:
-        process_understanding, bpmn_semantic_model = canonical_semantic_context(
-            state.get("bpmn_semantic_model")
+        # Il piano contro cui si verifica e' quello dell'autorita', non quello
+        # che lo stato del run si porta dietro: uno stato che si valida da solo
+        # verifica di aver avuto l'intenzione giusta. Quando il piano manca del
+        # tutto, la validazione semantica degradava a warning e un start -> end
+        # tecnicamente valido usciva senza issue, cioe' "completato".
+        process_understanding, bpmn_semantic_model = _authoritative_semantic_context(
+            state, snapshot
         )
         validation = validate_canvas_against_process(
             xml=xml,
@@ -628,7 +755,17 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
             bpmn_semantic_model=bpmn_semantic_model,
         )
 
-    issues = validation.get("issues") or []
+    # Due famiglie di problemi, e solo una si corregge disegnando. "Il processo
+    # ha evidenza e nessun piano" non e' un difetto del disegno: e' l'assenza del
+    # metro. Mandarlo al patch agent gli chiede di riparare una cosa che non e'
+    # sul canvas, brucia un tentativo e finisce bloccato lo stesso - con in mezzo
+    # una passata che puo' solo peggiorare il disegno.
+    fixable_issues = list(validation.get("issues") or [])
+    unverifiable_issues = _unverifiable_completion_issues(
+        state, snapshot, empty_canvas_expected
+    )
+    issues = [*fixable_issues, *unverifiable_issues]
+    validation = {**validation, "issues": issues}
     warnings = validation.get("warnings") or []
     next_attempt = int(state.get("canvas_loop_attempt") or 0) + 1
     max_attempts = int(state.get("canvas_loop_max_attempts") or CANVAS_LOOP_MAX_ATTEMPTS)
@@ -670,7 +807,7 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
             ],
         }
 
-    if next_attempt < max_attempts:
+    if fixable_issues and not unverifiable_issues and next_attempt < max_attempts:
         return {
             "canvas_route": "patch_edit",
             "canvas_loop_status": "needs_fix",
@@ -798,16 +935,37 @@ def canvas_completion_report(state: CanvasState) -> dict:
         if report.get("completion_kind") == "empty_canvas":
             content = "Canvas svuotato. Ho verificato che non ci siano piu' elementi o collegamenti visibili."
         else:
-            content = "Operazione completata. Il canvas e' stato aggiornato e verificato senza problemi bloccanti."
+            # "Aggiornato" senza dire rispetto a quale stato del processo e'
+            # un'affermazione senza referente: il consulente non ha modo di
+            # verificarla, ed e' proprio cosi' che un successo dichiarato passava.
+            snapshot_label = report.get("process_snapshot_label")
+            content = "Operazione completata. Ho aggiornato il disegno e l'ho verificato"
+            content += (
+                f" contro il piano {snapshot_label} del processo."
+                if snapshot_label
+                else " contro il piano del processo."
+            )
         if warnings and report.get("completion_kind") != "empty_canvas":
             content += "\n\nPunti da verificare non bloccanti:\n" + "\n".join(f"- {item}" for item in warnings[:5])
     elif status == "blocked":
-        content = "Ho lavorato sul canvas, ma la verifica finale indica che la richiesta non e' ancora chiudibile."
-        if issues:
-            content += "\n\nProblemi da correggere:\n" + "\n".join(f"- {item}" for item in issues[:5])
+        if run_status == "failed" and not issues:
+            # Un fallimento di persistenza non e' "la richiesta non e' ancora
+            # chiudibile": e' che non e' stato scritto niente, e va detto cosi'.
+            content = (
+                "Non ho completato l'operazione: rileggendo il canvas dal backend non "
+                "risulta salvata nessuna modifica. Non te lo racconto come fatto."
+            )
+            blocking = state.get("blocking_conditions") or []
+            if blocking:
+                content += "\n\n" + "\n".join(f"- {item}" for item in blocking[:5])
+        else:
+            content = "Ho lavorato sul canvas, ma la verifica finale indica che la richiesta non e' ancora chiudibile."
+            if issues:
+                content += "\n\nProblemi da correggere:\n" + "\n".join(f"- {item}" for item in issues[:5])
     else:
         content = (
-            "Ho preparato il lavoro sul canvas. Serve approvazione o contesto aggiuntivo prima di considerarlo completato."
+            "Ho preparato il lavoro sul canvas, ma non l'ho verificato: non posso "
+            "dichiararlo completato. Serve approvazione o contesto aggiuntivo."
         )
 
     return {
