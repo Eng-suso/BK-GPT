@@ -118,6 +118,8 @@ export type ReviewOpenQuestion = {
   question: string;
   affects?: string;
   severity?: string;
+  /** La lacuna dell'evidenza da cui la domanda nasce: chi ha detto cosa, e cosa resta scoperto. */
+  grounded_in?: string;
   options?: ReviewOption[];
   answer?: string | null;
   answered_at?: string | null;

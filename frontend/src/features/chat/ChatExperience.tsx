@@ -2,7 +2,6 @@ import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { InlineNotice } from "@/components/feedback";
 import { Button } from "@/ui/button";
-import { ClipboardCheck } from "lucide-react";
 
 import { API_BASE } from "@/lib/api";
 import {
@@ -19,6 +18,7 @@ import { useBpmnReview } from "./hooks/useBpmnReview";
 import { useChatSessions } from "./hooks/useChatSessions";
 import { useChatStream } from "./hooks/useChatStream";
 import { BpmnReviewSheet } from "./review/BpmnReviewCard";
+import { ModelingWorkspaceBar } from "./review/ModelingWorkspaceBar";
 
 type ChatExperienceProps = {
   chrome?: "full" | "panel";
@@ -92,9 +92,38 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const turnError = stream.streamError;
   const historyUnavailable = sessions.isOffline ? sessions.offlineMessage : null;
   const canModel = scope.type === "process" || scope.type === "canvas";
+  // Chiudere la superficie non cancella niente: il piano vive nel backend, e
+  // riaprirla lo ritrova dov'era. Una nuova versione del piano la fa tornare,
+  // perche' a quel punto c'e' qualcosa di nuovo da guardare.
+  //
+  // La chiusura e' legata al piano *di questo processo*, non al solo numero di
+  // versione: due processi diversi possono stare entrambi alla V3, e una
+  // chiusura fatta sul primo spegneva la superficie anche sul secondo - un piano
+  // con decisioni da prendere che non si mostrava mai.
+  // Anche il "nessun piano" e' di un processo preciso. Un literal condiviso
+  // faceva sparire la barra su ogni processo senza piano appena la si chiudeva
+  // su uno: la chiusura viaggiava da un cliente all'altro.
+  const scopeKey =
+    scope.type === "canvas"
+      ? scope.bpmnModelId
+      : scope.type === "process"
+        ? scope.processId
+        : scope.type;
+  const reviewIdentity = review.review
+    ? `${review.review.bpmn_model_id}@${review.review.version}`
+    : `no-plan@${scopeKey}`;
+  const [dismissedReview, setDismissedReview] = useState<string | null>(null);
+  const setIsModelingSurfaceDismissed = (dismissed: boolean) =>
+    setDismissedReview(dismissed ? reviewIdentity : null);
+  const showModelingSurface =
+    canModel && !turnError && !historyUnavailable && dismissedReview !== reviewIdentity;
 
   const startModelingReview = () => {
     setChatMode("plan");
+    // Attivazione esplicita: il runtime di modellazione parte da un gesto del
+    // consulente o da una richiesta scritta, mai da solo perche' il turno ha
+    // toccato il processo.
+    setDismissedReview(null);
     void stream.sendMessage(
       "Prepara una review BPMN per questo processo usando le evidenze disponibili. Non generare ancora il canvas.",
       [],
@@ -150,7 +179,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         onAttach={() => showToast("Carica un file audio da trascrivere.")}
         onVoice={() => showToast("Registrazione vocale pronta.")}
         onModelChange={setSelectedModel}
-        workspaceSlot={turnError || historyUnavailable || review.review || canModel ? (
+        workspaceSlot={turnError || historyUnavailable || showModelingSurface ? (
           <>
             {turnError ? (
               <InlineNotice
@@ -197,37 +226,18 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
                 {t("status.historyUnavailableBody")}
               </InlineNotice>
             ) : null}
-            {review.review ? (
-              <div className="mx-auto flex w-full max-w-[var(--chat-measure)] items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-foreground">
-                    Workspace di modellazione disponibile
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    Review e decisioni restano fuori dalla conversazione.
-                  </p>
-                </div>
-                <Button ref={reviewButtonRef} type="button" size="sm" variant="outline" onClick={() => setIsReviewOpen(true)}>
-                  <ClipboardCheck aria-hidden="true" />
-                  Apri review
-                </Button>
-              </div>
-            ) : null}
-            {!review.review && canModel && !turnError && !historyUnavailable ? (
-              <div className="mx-auto flex w-full max-w-[var(--chat-measure)] items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-foreground">
-                    Modellazione BPMN
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    Avvia una review separata quando vuoi trasformare le evidenze in processo.
-                  </p>
-                </div>
-                <Button type="button" size="sm" variant="outline" disabled={stream.isBusy} onClick={startModelingReview}>
-                  <ClipboardCheck aria-hidden="true" />
-                  Genera bozza
-                </Button>
-              </div>
+            {showModelingSurface ? (
+              <ModelingWorkspaceBar
+                review={review.review}
+                isLoadingReview={review.isLoadingReview}
+                reviewError={review.reviewError}
+                canModel={canModel}
+                isBusy={stream.isBusy}
+                openButtonRef={reviewButtonRef}
+                onOpenReview={() => setIsReviewOpen(true)}
+                onStartModeling={startModelingReview}
+                onDismiss={() => setIsModelingSurfaceDismissed(true)}
+              />
             ) : null}
           </>
         ) : undefined}

@@ -3,7 +3,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ReviewQuestionsCard } from "./ReviewQuestionsCard";
+import { sortQuestions } from "./questionOrder";
 import type { ReviewOpenQuestion } from "../types";
+
+const sortedTopics = (questions: ReviewOpenQuestion[]): string[] =>
+  sortQuestions(questions).map((item) => item.affects ?? "");
 
 const question = (overrides: Partial<ReviewOpenQuestion> = {}): ReviewOpenQuestion => ({
   question_id: "chi-approva",
@@ -147,20 +151,73 @@ describe("ReviewQuestionsCard", () => {
     expect(asked[0]).toMatch(/^1/);
   });
 
-  it("asks only the next process-dependent question", () => {
+  it("asks one question at a time and starts from the part of the model that is blocked", () => {
+    // L'ordine non viene piu' da una lista di parole chiave applicata al testo
+    // della domanda - quella era una checklist statica che metteva "qual e' il
+    // trigger?" in cima anche dopo tre interviste che il trigger lo avevano
+    // detto. Viene da cosa la domanda tocca e da quanto blocca il disegno.
     render(
       <ReviewQuestionsCard
         questions={[
-          question({ question_id: "decision", question: "Chi approva oltre soglia?" }),
-          question({ question_id: "trigger", question: "Cosa fa partire il processo?" }),
+          question({
+            question_id: "etichetta",
+            question: "Come si chiama il documento finale?",
+            affects: "etichetta di un task",
+            severity: "non_blocking",
+          }),
+          question({
+            question_id: "regolarizzazione",
+            question: "Chi regolarizza l'ordine urgente di Manutenzione?",
+            affects: "percorso urgente",
+            severity: "blocking",
+          }),
         ]}
         isAnswering={false}
         onAnswer={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("Cosa fa partire il processo?")).toBeInTheDocument();
-    expect(screen.queryByText("Chi approva oltre soglia?")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Chi regolarizza l'ordine urgente di Manutenzione?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Come si chiama il documento finale?"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps questions about the same part of the model together", () => {
+    const asked = sortedTopics([
+      question({ question_id: "a", affects: "percorso urgente", severity: "blocking" }),
+      question({ question_id: "b", affects: "corsia di Acquisti", severity: "non_blocking" }),
+      question({ question_id: "c", affects: "percorso urgente", severity: "non_blocking" }),
+    ]);
+
+    // Il gruppo che contiene la bloccante viene prima e non si spezza: al
+    // consulente arriva un argomento alla volta, non cinque domande scollegate.
+    expect(asked).toEqual([
+      "percorso urgente",
+      "percorso urgente",
+      "corsia di Acquisti",
+    ]);
+  });
+
+  it("shows the evidence gap the question comes from", () => {
+    render(
+      <ReviewQuestionsCard
+        questions={[
+          question({
+            grounded_in:
+              "Paolo descrive un via libera del responsabile per alcuni importi, Francesca dice che l'autorizzazione serve sempre.",
+          }),
+        ]}
+        isAnswering={false}
+        onAnswer={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Paolo descrive un via libera del responsabile/),
+    ).toBeInTheDocument();
   });
 
   it("caps proposed choices at four and keeps Altro available", () => {

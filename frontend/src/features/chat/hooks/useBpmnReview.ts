@@ -16,6 +16,18 @@ import {
 
 export type UseBpmnReview = {
   review: BpmnReview | null;
+  /** La prima lettura del piano non e' ancora tornata. */
+  isLoadingReview: boolean;
+  /**
+   * La lettura del piano e' fallita.
+   *
+   * Tre stati diversi collassavano in `review: null`: sto leggendo, la lettura e'
+   * fallita, e il processo non ha davvero un piano. Chi legge il null mostrava
+   * "nessun piano" in tutti e tre i casi - un'affermazione sullo stato
+   * persistito fatta senza averlo letto, e da li' un bottone che propone di
+   * costruire un piano che potrebbe gia' esistere.
+   */
+  reviewError: string | null;
   versions: BpmnReviewVersion[];
   isApproving: boolean;
   isSaving: boolean;
@@ -144,6 +156,12 @@ export function useBpmnReview(
 
   return {
     review: reviewQuery.data ?? null,
+    // Solo la prima lettura: un refetch con il piano gia' a schermo non deve
+    // farlo sparire dietro un caricamento.
+    isLoadingReview: Boolean(bpmnModelId) && reviewQuery.isLoading && !reviewQuery.data,
+    reviewError: reviewQuery.isError
+      ? httpErrorMessage(reviewQuery.error, "Non è stato possibile rileggere il piano.")
+      : null,
     versions: versionsQuery.data ?? [],
     isApproving: approveMutation.isPending,
     isSaving: saveMutation.isPending,
