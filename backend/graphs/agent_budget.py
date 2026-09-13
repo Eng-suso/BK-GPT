@@ -43,14 +43,23 @@ class AgentBudget:
     def from_settings(cls) -> "AgentBudget":
         return cls(
             max_decision_steps=max(1, int(settings.agent_max_decision_steps)),
-            max_tool_calls=max(0, int(settings.agent_max_tool_calls)),
+            # Almeno uno: con zero il controllo scatterebbe prima del primo
+            # passo, e una configurazione sbagliata renderebbe muto ogni turno
+            # invece di togliere i tool.
+            max_tool_calls=max(1, int(settings.agent_max_tool_calls)),
             deadline_seconds=max(1.0, float(settings.agent_run_deadline_seconds)),
         )
 
 
-# Le chiavi di stato del budget. Vivono in `ConversationState`, quindi sono
-# condivise fra il grafo esterno e i sottografi: il tetto vale sul run, non sul
-# singolo subagente, altrimenti tre subagenti da N passi farebbero 3N passi.
+# Le chiavi di stato del budget. Vivono in `ConversationState`, quindi il tetto
+# e' condiviso fra i subagenti di uno stesso scope: tre passate da N passi
+# ciascuna non sono tre budget, sono un budget solo.
+#
+# `ConsultantState` - lo schema del grafo esterno, che e' quello persistito nel
+# checkpoint - **non** le dichiara, ed e' voluto: LangGraph filtra lo stato sul
+# confine fra schemi diversi, quindi i contatori non sopravvivono al turno. Se
+# qualcuno le aggiungesse la', ogni thread arriverebbe al proprio tetto una volta
+# sola e poi ogni turno successivo nascerebbe gia' scaduto.
 STEPS_KEY = "agent_decision_steps"
 TOOL_CALLS_KEY = "agent_tool_calls"
 STARTED_AT_KEY = "agent_run_started_at"

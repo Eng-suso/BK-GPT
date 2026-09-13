@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import AfterValidator, BaseModel, Field
 
@@ -305,7 +305,8 @@ class BpmnDraftResponse(BaseModel):
     risposta con dei numeri.
     """
 
-    status: str
+    status: Literal["drafted", "failed", "refused_by_mode"]
+    reason_code: str
     process_id: str
     bpmn_model_id: str
     snapshot_id: str = ""
@@ -314,7 +315,9 @@ class BpmnDraftResponse(BaseModel):
     pending_verification: list[str] = Field(default_factory=list)
     issues: list[str] = Field(default_factory=list)
     reason: str = ""
-    metrics: dict = Field(default_factory=dict)
+    # Durate in millisecondi e conteggi; `process_snapshot_version` puo' essere
+    # nullo quando il processo non ha ancora una versione di piano.
+    metrics: dict[str, int | None] = Field(default_factory=dict)
 
 
 class ProjectSourceResponse(BaseModel):

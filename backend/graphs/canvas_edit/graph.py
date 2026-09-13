@@ -377,6 +377,12 @@ def canvas_routing_state(
         # durante il loop di correzione, e i controlli che devono sapere *come il
         # run e' nato* leggono questa.
         "canvas_initial_route": route,
+        # Un run nuovo non eredita l'esito del precedente: un `waiting_for_user`
+        # rimasto in stato farebbe raccontare al report finale l'attesa di un
+        # giro che e' gia' finito.
+        "canvas_run_status": None,
+        "canvas_pending_question": None,
+        "canvas_draft_metrics": None,
         "canvas_mode": canvas_mode,
         "canvas_objective": canvas_objective,
         "canvas_expected_outcome": decision.expected_canvas_outcome,

@@ -532,12 +532,13 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
 
     Returns:
         BpmnDraftResponse: L'esito, con il modello salvato quando la bozza e'
-        stata prodotta, le cause tecniche quando no, e sempre le metriche di
-        fase.
+        stata prodotta, le cause tecniche quando no (`status="failed"` o
+        `"refused_by_mode"`, con `reason_code` e `issues`), e sempre le metriche
+        di fase. Un comando eseguito che non ha prodotto un disegno risponde 200
+        con il proprio esito: e' un risultato, non un errore di trasporto.
 
     Raises:
-        HTTPException: 404 quando il processo non esiste, 422 quando il piano non
-            regge una bozza o la generazione fallisce tecnicamente.
+        HTTPException: 404 quando il processo o il suo modello BPMN non esistono.
 
     Side effects:
         Scrive il modello BPMN e una sua versione.
@@ -546,22 +547,17 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
 
     if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
         raise HTTPException(status_code=404, detail=result.reason)
-    if result.reason_code == "write_not_allowed_in_mode":
-        raise HTTPException(status_code=409, detail=result.reason)
-    if not result.ok:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "reason_code": result.reason_code,
-                "reason": result.reason,
-                "issues": result.issues,
-                "metrics": result.metrics,
-            },
-        )
 
-    model = get_bpmn_model(result.bpmn_model_id)
+    # Ogni altro esito e' un risultato del comando, non un errore di trasporto, e
+    # torna con 200 insieme alla sua causa. Il gestore di HTTPException riduce il
+    # `detail` a una stringa generica quando non e' testo, quindi un 422 qui
+    # cancellerebbe proprio cio' che serve leggere: `reason_code`, le issue
+    # tecniche e le metriche di fase. Un guasto raccontato come "richiesta non
+    # valida" e' un guasto mascherato.
+    model = get_bpmn_model(result.bpmn_model_id) if result.ok else None
     return BpmnDraftResponse(
         status=result.status,
+        reason_code=result.reason_code,
         process_id=result.process_id,
         bpmn_model_id=result.bpmn_model_id,
         snapshot_id=result.snapshot_id,
@@ -570,7 +566,7 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
         pending_verification=result.pending_verification,
         issues=result.issues,
         reason=result.reason,
-        metrics=result.metrics,
+        metrics=dict(result.metrics or {}),
     )
 
 

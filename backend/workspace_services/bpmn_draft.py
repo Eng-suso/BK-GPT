@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Any, Literal
+from typing import Literal, TypedDict
 
 from backend.agents.chat_mode import WriteNotAllowedInMode
 from backend.agents.process_snapshot import ProcessKnowledgeSnapshot, build_process_snapshot
@@ -92,6 +92,30 @@ MAX_REPAIR_ATTEMPTS = 1
 PLAN_SYNTHESIS_LLM_CALLS = 3
 
 
+class DraftMetrics(TypedDict):
+    """Dove se ne va il tempo, fase per fase, e quanto lavoro non deterministico
+    e' servito.
+
+    E' un contratto e non un dizionario di comodo: chi legge queste metriche -
+    un test di regressione, un grafico, una risposta a «perche' ci ha messo
+    cinque secondi» - deve poter contare sulle stesse chiavi a ogni run.
+    """
+
+    load_snapshot_ms: int
+    plan_synthesis_ms: int
+    semantic_generation_ms: int
+    validation_ms: int
+    repair_ms: int
+    serialization_di_ms: int
+    persistence_ms: int
+    read_after_write_ms: int
+    total_ms: int
+    llm_calls: int
+    tool_calls: int
+    repair_count: int
+    process_snapshot_version: int | None
+
+
 @dataclass(frozen=True)
 class BpmnDraftResult:
     """L'esito del comando, con il tempo speso in ogni fase.
@@ -116,7 +140,7 @@ class BpmnDraftResult:
     # Le cause tecniche, quando `failed`.
     issues: list[str] = field(default_factory=list)
     reason: str = ""
-    metrics: dict[str, Any] = field(default_factory=dict)
+    metrics: DraftMetrics | None = None
 
     @property
     def ok(self) -> bool:
@@ -145,7 +169,7 @@ class _Stopwatch:
     def total_ms(self) -> int:
         return int((perf_counter() - self._started) * 1000)
 
-    def as_metrics(self, *, snapshot_version: int | None) -> dict[str, Any]:
+    def as_metrics(self, *, snapshot_version: int | None) -> DraftMetrics:
         return {
             "load_snapshot_ms": self.phases.get("load_snapshot", 0),
             "plan_synthesis_ms": self.phases.get("plan_synthesis", 0),
