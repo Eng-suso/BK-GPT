@@ -86,11 +86,6 @@ DraftReasonCode = Literal[
 # il difetto e' nel piano o nel compilatore e va detto, non ritentato.
 MAX_REPAIR_ATTEMPTS = 1
 
-# Le tre chiamate che la sintesi di un piano costa: estrazione, quality report
-# dell'estrattore, quality report della review. Contarle serve a far vedere
-# nelle metriche quando il percorso caldo non e' stato caldo.
-PLAN_SYNTHESIS_LLM_CALLS = 3
-
 
 class DraftMetrics(TypedDict):
     """Dove se ne va il tempo, fase per fase, e quanto lavoro non deterministico
@@ -199,6 +194,17 @@ def _pending_verification(snapshot: ProcessKnowledgeSnapshot) -> list[str]:
     pending += [
         item for item in snapshot.missing_information if item and item not in pending
     ]
+    if snapshot.has_semantic_model and not snapshot.plan_is_current:
+        # Il piano c'e' ma non e' costruito sulle fonti di adesso: la
+        # ricostruzione e' in coda (`workspace_plan_materializations`). Si
+        # disegna quello che c'e' - e' meglio di niente e l'utente lo ha chiesto
+        # - dichiarando che una fonte non e' ancora entrata nel piano. Fare qui
+        # la sintesi rimetterebbe tre chiamate al modello davanti a chi aspetta.
+        pending.insert(
+            0,
+            "Il piano non e' ancora ricostruito sull'ultima evidenza registrata: "
+            "questo disegno descrive il processo senza le fonti piu' recenti.",
+        )
     return pending
 
 
@@ -343,8 +349,9 @@ def generate_bpmn_draft(
         started = perf_counter()
         synthesis = ensure_process_plan(process_id)
         watch.mark("plan_synthesis", started)
-        if synthesis.action == "synthesized":
-            watch.llm_calls += PLAN_SYNTHESIS_LLM_CALLS
+        # Quante chiamate e' costata lo dice la sintesi: sono una per fonte
+        # piu' il giudizio di qualita', non un numero fisso.
+        watch.llm_calls += synthesis.llm_calls
         if synthesis.snapshot is not None:
             snapshot = synthesis.snapshot
         semantic_model = _semantic_model(snapshot)

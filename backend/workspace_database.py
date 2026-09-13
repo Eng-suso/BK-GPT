@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 
@@ -33,6 +33,7 @@ from backend.workspace_storage import (
     WorkspaceBpmnVersion,
     WorkspaceClient,
     WorkspaceDecision,
+    WorkspacePlanMaterialization,
     WorkspaceProcess,
     WorkspaceProject,
     WorkspaceSimulationRun,
@@ -1848,6 +1849,15 @@ def create_project_source(
         )
         session.add(source)
         session.flush()
+        # La conoscenza del processo e' cambiata: il piano che descrive il
+        # processo senza questa fonte e' da rifare. Va in coda qui, nella stessa
+        # transazione della fonte, invece di essere ricostruito quando qualcuno
+        # chiede di disegnare - che e' il momento in cui nessuno puo' aspettare.
+        enqueue_plan_materialization(
+            process_id,
+            reason=f"fonte registrata: {source.name}",
+            session=session,
+        )
         return source_to_dict(source)
 
 
@@ -1913,6 +1923,209 @@ def ensure_project_source(
         ),
         True,
     )
+
+
+MATERIALIZATION_MAX_ATTEMPTS = 5
+MATERIALIZATION_BACKOFF_SECONDS = 30
+
+
+def _materialization_to_dict(row: WorkspacePlanMaterialization) -> dict:
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "process_id": row.process_id,
+        "status": row.status,
+        "requested_at": row.requested_at,
+        "reason": row.reason,
+        "attempts": row.attempts,
+        "next_attempt_at": row.next_attempt_at,
+        "last_error": row.last_error,
+        "completed_at": row.completed_at,
+        "last_action": row.last_action,
+        "plan_version": row.plan_version,
+    }
+
+
+def enqueue_plan_materialization(
+    process_id: str | None,
+    *,
+    reason: str = "",
+    session=None,
+) -> dict | None:
+    """Segna che il piano di questo processo va ricostruito.
+
+    Non e' una scrittura sul processo: e' la registrazione di un lavoro da fare,
+    e per questo non passa da `assert_write_allowed`. Salvare un'intervista e'
+    permesso in ogni modalita' di chat, e una modalita' che permette di
+    raccogliere evidenza ma non di prenderne nota lascerebbe il piano indietro
+    senza che nessuno lo sappia.
+
+    Una riga per processo. Se ce n'e' gia' una in attesa, `requested_at` si
+    sposta in avanti e i tentativi ripartono: una fonte nuova rende di nuovo
+    utile un lavoro che aveva fallito.
+
+    Args:
+        process_id: Il processo la cui evidenza e' cambiata; `None` non fa nulla
+            (una fonte di progetto non appartiene a nessun processo).
+        reason: Perche', per chi legge la coda.
+        session: La sessione della scrittura che ha cambiato l'evidenza, quando
+            c'e'. Passarla tiene coda e fonte nella stessa transazione: se il
+            salvataggio della fonte torna indietro, la richiesta di
+            ricostruzione torna indietro con lui.
+
+    Returns:
+        La riga di coda, o `None` se non c'era niente da mettere in coda.
+    """
+    if not process_id:
+        return None
+
+    def _upsert(active_session) -> dict:
+        now = now_iso()
+        current_tenant_id = tenant_id()
+        row = (
+            active_session.execute(
+                select(WorkspacePlanMaterialization)
+                .where(WorkspacePlanMaterialization.tenant_id == current_tenant_id)
+                .where(WorkspacePlanMaterialization.process_id == process_id)
+            )
+            .scalars()
+            .first()
+        )
+        if row is None:
+            row = WorkspacePlanMaterialization(
+                tenant_id=current_tenant_id,
+                process_id=process_id,
+                status="pending",
+                requested_at=now,
+                reason=reason,
+                attempts=0,
+                next_attempt_at=now,
+            )
+            active_session.add(row)
+        else:
+            row.status = "pending"
+            row.requested_at = now
+            row.reason = reason or row.reason
+            row.attempts = 0
+            row.next_attempt_at = now
+            row.last_error = None
+            row.completed_at = None
+        active_session.flush()
+        return _materialization_to_dict(row)
+
+    if session is not None:
+        return _upsert(session)
+
+    with workspace_connection() as owned_session:
+        return _upsert(owned_session)
+
+
+def due_plan_materializations(limit: int = 5) -> list[dict]:
+    """Le richieste pronte da lavorare, di tutti i tenant.
+
+    Il worker gira fuori da una richiesta HTTP e quindi fuori da un tenant: la
+    riga porta il proprio, e chi la lavora lo vincola prima di toccare il
+    processo. Le piu' vecchie per prime, cosi' una richiesta non resta indietro
+    perche' un altro processo continua a ricevere fonti.
+
+    Sola lettura.
+    """
+    now = now_iso()
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspacePlanMaterialization)
+                .where(WorkspacePlanMaterialization.status == "pending")
+                .where(WorkspacePlanMaterialization.next_attempt_at <= now)
+                .order_by(WorkspacePlanMaterialization.next_attempt_at)
+                .limit(max(1, int(limit)))
+            )
+            .scalars()
+            .all()
+        )
+        return [_materialization_to_dict(row) for row in rows]
+
+
+def complete_plan_materialization(
+    materialization_id: int,
+    *,
+    action: str,
+    plan_version: int | None,
+) -> dict | None:
+    """La richiesta e' stata lavorata: cosa ne e' uscito resta scritto."""
+    with workspace_connection() as session:
+        row = session.get(WorkspacePlanMaterialization, materialization_id)
+        if row is None:
+            return None
+        row.status = "done"
+        row.completed_at = now_iso()
+        row.last_error = None
+        row.last_action = action
+        row.plan_version = plan_version
+        session.flush()
+        return _materialization_to_dict(row)
+
+
+def fail_plan_materialization(
+    materialization_id: int,
+    *,
+    error: str,
+    max_attempts: int = MATERIALIZATION_MAX_ATTEMPTS,
+    backoff_seconds: int = MATERIALIZATION_BACKOFF_SECONDS,
+) -> dict | None:
+    """Un tentativo non riuscito: si riprova piu' tardi, ma non per sempre.
+
+    Un guasto momentaneo - il modello in rate limit, il database occupato - si
+    supera aspettando; un piano che non si riesce a costruire non migliora al
+    quinto tentativo, e tenerlo in coda nasconderebbe che quel processo non ha
+    un piano.
+    """
+    with workspace_connection() as session:
+        row = session.get(WorkspacePlanMaterialization, materialization_id)
+        if row is None:
+            return None
+        row.attempts += 1
+        row.last_error = str(error)[:2000]
+        if row.attempts >= max_attempts:
+            row.status = "failed"
+            row.completed_at = now_iso()
+        else:
+            delay = backoff_seconds * (2 ** (row.attempts - 1))
+            row.next_attempt_at = (
+                datetime.now(UTC) + timedelta(seconds=delay)
+            ).isoformat(timespec="seconds")
+        session.flush()
+        return _materialization_to_dict(row)
+
+
+def plan_materialization_for(process_id: str) -> dict | None:
+    """La richiesta di ricostruzione di questo processo, se c'e'."""
+    with workspace_connection() as session:
+        row = (
+            session.execute(
+                select(WorkspacePlanMaterialization)
+                .where(WorkspacePlanMaterialization.tenant_id == tenant_id())
+                .where(WorkspacePlanMaterialization.process_id == process_id)
+            )
+            .scalars()
+            .first()
+        )
+        return _materialization_to_dict(row) if row else None
+
+
+def plan_materialization_stats() -> dict[str, int]:
+    """Quante richieste sono in attesa e quante hanno smesso di riprovare."""
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspacePlanMaterialization.status, func.count())
+            .group_by(WorkspacePlanMaterialization.status)
+        ).all()
+    counts = {str(status): int(count) for status, count in rows}
+    return {
+        "pending": counts.get("pending", 0),
+        "done": counts.get("done", 0),
+        "stuck": counts.get("failed", 0),
+    }
 
 
 def list_project_decisions(project_id: str) -> list[dict]:

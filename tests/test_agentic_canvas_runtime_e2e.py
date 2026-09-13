@@ -123,15 +123,20 @@ def _no_live_model(monkeypatch):
 
 @pytest.fixture()
 def recorded_extractions(monkeypatch) -> list[str]:
-    """Sostituisce l'estrattore, e tiene il corpus che gli e' arrivato.
+    """Sostituisce l'estrattore, e tiene i testi che gli sono arrivati.
 
-    Il corpus e' cio' che conta: se le parole di Laura, Paolo e Francesca non
+    Il testo e' cio' che conta: se le parole di Laura, Paolo e Francesca non
     arrivano fin qui, nessun modello - vero o finto - puo' produrre un AS-IS che
     le rispetti, e il difetto sta a monte dell'LLM.
+
+    L'estrazione gira una volta per fonte (a testo intero), quindi qui si
+    accumula una voce per chiamata invece di un corpus solo.
     """
     corpora: list[str] = []
 
-    def _fake_extraction(title: str, source_text: str) -> ProcessUnderstandingResult:
+    def _fake_extraction(
+        title: str, source_text: str, *, with_quality_report: bool = True
+    ) -> ProcessUnderstandingResult:
         corpora.append(source_text)
         return ProcessUnderstandingResult(status="success", process=_supported_understanding())
 
@@ -212,12 +217,25 @@ def test_the_evidence_corpus_reaches_the_extractor_with_the_voices_separated(
     """
     ensure_process_plan(interviewed_process["process_id"])
 
-    assert len(recorded_extractions) == 1
-    corpus = recorded_extractions[0]
+    # Una estrazione per fonte: il testo di ognuna arriva intero, e nessuna
+    # chiamata porta dentro due voci insieme.
+    assert len(recorded_extractions) == len(INTERVIEWS)
     for interview in INTERVIEWS:
-        assert interview["participants"][0] in corpus
-        assert interview["raw_content"][:40] in corpus
-    assert corpus.count("[FONTE ") >= len(INTERVIEWS)
+        voice = interview["participants"][0]
+        mine = [notes for notes in recorded_extractions if voice in notes]
+        assert len(mine) == 1, f"la voce di {voice} deve arrivare in una sola estrazione"
+        assert interview["raw_content"][:40] in mine[0]
+
+    others = [
+        other["participants"][0]
+        for other in INTERVIEWS
+        if other["participants"][0] != INTERVIEWS[0]["participants"][0]
+    ]
+    laura_notes = next(
+        notes for notes in recorded_extractions if INTERVIEWS[0]["participants"][0] in notes
+    )
+    for voice in others:
+        assert voice not in laura_notes
 
 
 # --- TEST 2 — ricostruzione semantica vincolata all'evidenza ---------------
@@ -265,7 +283,9 @@ def test_a_plan_already_built_on_the_current_sources_is_not_rebuilt(
     again = ensure_process_plan(interviewed_process["process_id"])
 
     assert again.action == "reused"
-    assert len(recorded_extractions) == 1
+    # Una estrazione per fonte, spesa dalla prima sintesi: il riuso non ne
+    # aggiunge nessuna.
+    assert len(recorded_extractions) == len(INTERVIEWS)
     assert again.snapshot.snapshot_id == first.snapshot_id
 
 
@@ -302,8 +322,10 @@ def test_a_new_source_makes_the_plan_stale_and_it_is_rebuilt(
 
     outcome = ensure_process_plan(interviewed_process["process_id"])
     assert outcome.action == "synthesized"
-    assert len(recorded_extractions) == 2
-    assert "Marco Bianchi" in recorded_extractions[1]
+    # Tre fonti la prima volta, quattro la seconda: la quarta intervista viene
+    # letta, e con lei anche le altre tre - un piano si ricostruisce intero.
+    assert len(recorded_extractions) == len(INTERVIEWS) * 2 + 1
+    assert any("Marco Bianchi" in notes for notes in recorded_extractions)
 
 
 def test_a_process_without_evidence_is_not_a_process_to_draw(empty_process):
@@ -645,7 +667,7 @@ def test_the_whole_loop_keeps_one_truth_from_the_interviews_to_the_canvas(
     # Il piano non viene ricostruito sopra la risposta: le fonti sono le stesse.
     again = ensure_process_plan(interviewed_process["process_id"])
     assert again.action == "reused"
-    assert len(recorded_extractions) == 1
+    assert len(recorded_extractions) == len(INTERVIEWS)
     assert again.snapshot.snapshot_id == second.snapshot_id
 
     # E il Canvas legge la versione nuova, non quella su cui aveva iniziato.

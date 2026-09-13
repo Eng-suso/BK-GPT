@@ -88,13 +88,34 @@ async def run_queue_workers() -> None:
     if not settings.workers_in_process:
         logger.info("worker in-process disattivati (workers_in_process=False)")
         return
+
+    from backend.workers import plan_worker
+
+    # Il piano vive nel workspace operativo, non nel canonical: la sua coda deve
+    # girare anche dove il knowledge graph non e' configurato. Metterla insieme
+    # agli altri worker significherebbe che senza Neo4j il piano smette di essere
+    # materializzato e «Genera BPMN» torna a sintetizzarlo davanti all'utente.
+    plan_task = asyncio.create_task(
+        _drain_loop(
+            "plan_worker", plan_worker.drain_once, plan_worker.queue_stats, 5.0,
+        ),
+        name="plan_worker",
+    )
+
     if not settings.canonical_worker_url:
-        logger.info("canonical non configurato: worker in-process non avviati")
+        logger.info("canonical non configurato: avviato il solo plan_worker")
+        try:
+            await plan_task
+        except asyncio.CancelledError:
+            plan_task.cancel()
+            await asyncio.gather(plan_task, return_exceptions=True)
+            raise
         return
 
     from backend.workers import graph_worker, ingest_worker, mem0_worker
 
     tasks = [
+        plan_task,
         asyncio.create_task(
             _drain_loop(
                 "ingest_worker", ingest_worker.drain_once, ingest_worker.queue_stats,
@@ -117,7 +138,7 @@ async def run_queue_workers() -> None:
             name="mem0_worker",
         ),
     ]
-    logger.info("worker in-process avviati (ingest + graph + mem0)")
+    logger.info("worker in-process avviati (plan + ingest + graph + mem0)")
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:
