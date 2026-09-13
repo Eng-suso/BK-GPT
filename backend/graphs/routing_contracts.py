@@ -154,6 +154,14 @@ class CanvasRoutingDecision(RoutingDecisionBase):
     # An emptied canvas cannot be checked against the semantic model - there is
     # nothing left to compare - so it needs its own completion check.
     expected_canvas_outcome: Literal["updated_model", "empty_canvas"] = "updated_model"
+    # Che tipo di costruzione e' questa. Serve al runtime per sapere se il
+    # disegno si puo' produrre in modo deterministico dal piano - compilazione,
+    # validazione, layout, salvataggio, senza un solo passaggio dal modello - o
+    # se serve davvero un subagente. "Genera il BPMN" e "ridisegna solo il ramo
+    # urgente" sono due operazioni diverse e costano due percorsi diversi.
+    construction_kind: Literal[
+        "full_from_plan", "partial_change", "from_user_description"
+    ] = "full_from_plan"
 
     @model_validator(mode="after")
     def normalize_route_clarification(self):

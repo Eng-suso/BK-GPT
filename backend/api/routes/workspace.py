@@ -6,6 +6,7 @@ from backend.schemas.workspace import (
     ArchiveImpactResponse,
     ArchiveRequest,
     ArchiveResponse,
+    BpmnDraftResponse,
     BpmnModelResponse,
     BpmnReviewResponse,
     BpmnReviewVersionResponse,
@@ -30,6 +31,7 @@ from backend.schemas.workspace import (
     UpdateProjectRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
+from backend.workspace_services.bpmn_draft import generate_bpmn_draft
 from backend.workspace_database import (
     answer_bpmn_review_question,
     approve_bpmn_review,
@@ -511,6 +513,65 @@ def update_workspace_bpmn_model(
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
 
     return BpmnModelResponse(**model)
+
+
+@router.post("/processes/{process_id}/bpmn-draft")
+def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
+    """Genera la bozza BPMN di un processo dal piano gia' materializzato.
+
+    E' un comando, non una conversazione: compila il piano, valida, ripara al
+    massimo una volta, dispone il diagramma, salva e rilegge. Nessuna chiamata al
+    modello quando il piano c'e' gia', nessuna dipendenza da Mem0 o dal
+    knowledge graph.
+
+    La richiesta e' gia' l'autorizzazione alla bozza: le lacune aperte tornano in
+    `pending_verification` accanto al disegno, non al posto del disegno.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+
+    Returns:
+        BpmnDraftResponse: L'esito, con il modello salvato quando la bozza e'
+        stata prodotta, le cause tecniche quando no, e sempre le metriche di
+        fase.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste, 422 quando il piano non
+            regge una bozza o la generazione fallisce tecnicamente.
+
+    Side effects:
+        Scrive il modello BPMN e una sua versione.
+    """
+    result = generate_bpmn_draft(process_id)
+
+    if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
+        raise HTTPException(status_code=404, detail=result.reason)
+    if result.reason_code == "write_not_allowed_in_mode":
+        raise HTTPException(status_code=409, detail=result.reason)
+    if not result.ok:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "reason_code": result.reason_code,
+                "reason": result.reason,
+                "issues": result.issues,
+                "metrics": result.metrics,
+            },
+        )
+
+    model = get_bpmn_model(result.bpmn_model_id)
+    return BpmnDraftResponse(
+        status=result.status,
+        process_id=result.process_id,
+        bpmn_model_id=result.bpmn_model_id,
+        snapshot_id=result.snapshot_id,
+        snapshot_label=result.snapshot_label,
+        bpmn_model=BpmnModelResponse(**model) if model else None,
+        pending_verification=result.pending_verification,
+        issues=result.issues,
+        reason=result.reason,
+        metrics=result.metrics,
+    )
 
 
 @router.get("/bpmn-models/{bpmn_model_id}/versions")

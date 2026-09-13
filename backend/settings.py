@@ -108,6 +108,14 @@ class Settings(BaseSettings):
     model_timeout_seconds: int = 45
     model_max_retries: int = 1
 
+    # --- budget del runtime agentico ---------------------------------------
+    # L'agente decide cosa fare, il runtime decide per quanto. Senza questi
+    # limiti il ciclo agente -> tool -> agente finisce quando il modello decide
+    # di aver finito, che non e' una garanzia di terminazione.
+    agent_max_decision_steps: int = 8
+    agent_max_tool_calls: int = 12
+    agent_run_deadline_seconds: float = 90.0
+
     tavily_max_results: int = 5
 
     # e2e / CI / dev offline: sostituisce la runtime dell'agente con uno stub

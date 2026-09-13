@@ -62,6 +62,12 @@ class CanvasState(ConversationState):
     canvas_mode: str | None
     canvas_objective: str | None
     canvas_expected_outcome: str | None
+    # full_from_plan | partial_change | from_user_description. Decide se la
+    # costruzione passa dal comando deterministico o da un subagente.
+    canvas_construction_kind: str | None
+    # Le durate di fase dell'ultima generazione deterministica, per capire dove
+    # e' stato speso il tempo senza dover leggere i log.
+    canvas_draft_metrics: dict | None
     goal: str | None
     intent: str | None
     next_action: str | None

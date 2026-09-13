@@ -266,6 +266,14 @@ other case. The runtime verifies that outcome deterministically once the work is
 done, so declare the end state you actually intend.
 For small changes, still consider semantic context and traceability memory before
 proposing patch_edit; do not treat local as context-free.
+When you propose construction, set construction_kind to what the request actually
+is: full_from_plan when the user asks to draw or redraw the process from what the
+project already knows ("genera il BPMN", "disegna il processo", "rifai la mappa"),
+partial_change when only a part of the existing drawing changes, and
+from_user_description when the request carries a raw process description the user
+just wrote and there is no plan yet. full_from_plan runs as a deterministic
+command: the plan is compiled, validated, laid out and saved without another
+agent pass, so do not choose it for a partial edit.
 When has_prepared_preview_ready_to_apply is true and the user asks to apply, insert,
 save or draw it ("inseriscila nel canvas", "salvala", "vai"), that is not an
 ambiguous request: route to construction and apply the prepared preview. Asking
@@ -372,6 +380,7 @@ def canvas_routing_state(
         "canvas_mode": canvas_mode,
         "canvas_objective": canvas_objective,
         "canvas_expected_outcome": decision.expected_canvas_outcome,
+        "canvas_construction_kind": decision.construction_kind,
         "canvas_loop_status": "running" if route in {"patch_edit", "construction", "layout"} else None,
         "canvas_loop_attempt": 0,
         "canvas_loop_max_attempts": CANVAS_LOOP_MAX_ATTEMPTS,
@@ -512,8 +521,128 @@ def build_canvas_router(llm):
     return route_canvas_intent
 
 
+def draft_command_applies(state: CanvasState) -> bool:
+    """Questa costruzione si puo' fare senza un agente?
+
+    Si', quando la richiesta e' «disegna il processo che conosciamo» e il piano
+    esiste: compilare il piano in BPMN e' un lavoro deterministico che il
+    compilatore fa da solo, e farlo fare a un subagente costava sei-otto
+    chiamate al modello per riottenere lo stesso XML.
+
+    No in tre casi, e sono tre casi veri:
+
+    - c'e' un'anteprima gia' preparata in attesa di essere applicata: quella va
+      applicata, non sostituita con una rigenerazione;
+    - la richiesta cambia una parte del disegno (`partial_change`): rigenerare
+      tutto cancellerebbe il lavoro intorno;
+    - la richiesta porta una descrizione del processo scritta dall'utente
+      (`from_user_description`): li' il piano va costruito, e non e' lavoro del
+      comando.
+
+    Sola lettura.
+    """
+    if state.get("canvas_route") != "construction":
+        return False
+    if state.get("canvas_construction_kind") not in {None, "full_from_plan"}:
+        return False
+    if state.get("canvas_preview_xml"):
+        return False
+    if expects_empty_canvas(state):
+        return False
+    snapshot = state.get("process_snapshot") or {}
+    return bool(state.get("process_id") and (snapshot.get("bpmn_semantic_model") or snapshot.get("sources")))
+
+
 def selected_canvas_route(state: CanvasState) -> str:
+    if draft_command_applies(state):
+        return "draft_command"
     return state.get("canvas_route") or "direct"
+
+
+def generate_canvas_draft(state: CanvasState) -> dict:
+    """«Genera BPMN» eseguito come comando: compila, valida, dispone, salva.
+
+    Nessuna chiamata al modello quando il piano e' materializzato, nessuna
+    dipendenza da Mem0 o dal knowledge graph, nessun secondo consenso chiesto
+    all'utente: la richiesta di generare **e'** l'autorizzazione alla bozza. Cio'
+    che resta aperto esce come punto da verificare accanto al disegno, non al
+    posto del disegno.
+    """
+    from backend.workspace_services.bpmn_draft import generate_bpmn_draft
+
+    process_id = state.get("process_id")
+    if not process_id:
+        return {
+            "canvas_loop_status": "blocked",
+            "canvas_run_status": "failed",
+            "blocking_conditions": ["Missing prerequisite: process_id"],
+            "messages": [
+                AIMessage(
+                    content=(
+                        "Non riesco a generare il disegno: questo canvas non e' collegato "
+                        "a un processo."
+                    )
+                )
+            ],
+        }
+
+    result = generate_bpmn_draft(process_id)
+    log_entry = {
+        "step": "draft_command",
+        "status": "completed" if result.ok else "failed",
+        "owner": "canvas_draft_command",
+        "summary": result.reason,
+        "metrics": result.metrics,
+    }
+
+    if not result.ok:
+        content = (
+            f"Non ho generato il disegno. {result.reason}"
+            if result.status == "failed"
+            else result.reason
+        )
+        if result.issues:
+            content += "\n\n" + "\n".join(f"- {item}" for item in result.issues[:5])
+        return {
+            "canvas_loop_status": "blocked",
+            "canvas_run_status": "failed" if result.status == "failed" else "waiting_for_user",
+            "canvas_draft_metrics": result.metrics,
+            "blocking_conditions": result.issues or [result.reason],
+            "messages": [AIMessage(content=content)],
+            "canvas_task_log": [log_entry],
+        }
+
+    content = (
+        f"Ho disegnato la bozza del processo dal piano {result.snapshot_label} "
+        "e l'ho riletta dal canvas salvato."
+    )
+    if result.pending_verification:
+        content += "\n\nPunti ancora da verificare, che restano aperti sul piano:\n" + "\n".join(
+            f"- {item}" for item in result.pending_verification[:5]
+        )
+
+    return {
+        "saved_bpmn_xml": result.xml,
+        "effective_bpmn_xml": result.xml,
+        "effective_bpmn_xml_source": "bpmn_draft_command",
+        "current_bpmn_xml": None,
+        "canvas_loop_status": "completed",
+        "canvas_run_status": "done",
+        "canvas_draft_metrics": result.metrics,
+        "canvas_warnings": result.pending_verification,
+        "validation_report": {
+            "process_snapshot_id": result.snapshot_id,
+            "process_snapshot_label": result.snapshot_label,
+            "objective": state.get("canvas_objective") or "Generazione bozza BPMN dal piano",
+            "xml_valid": True,
+            "semantic_valid": True,
+            "issues": [],
+            "warnings": result.pending_verification,
+            "next_actions": [],
+        },
+        "messages": [AIMessage(content=content)],
+        "canvas_task_log": [log_entry],
+    }
 
 
 def refresh_canvas_context_after_work(state: CanvasState) -> dict:
@@ -1034,6 +1163,7 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
         ),
     )
     workflow.add_node("ask_canvas_clarification", ask_canvas_clarification)
+    workflow.add_node("generate_canvas_draft", generate_canvas_draft)
 
     workflow.add_edge(START, "load_canvas_context")
     workflow.add_edge("load_canvas_context", "canvas_router")
@@ -1043,6 +1173,8 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
         {
             "direct": "canvas_macro_agent",
             "patch_edit": "patch_edit_subgraph",
+            # Il disegno dal piano non passa da un agente: e' una compilazione.
+            "draft_command": "generate_canvas_draft",
             "construction": "construction_subgraph",
             "layout": "layout_subgraph",
             "validation": "validation_subgraph",
@@ -1088,5 +1220,9 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
     )
     workflow.add_edge("canvas_completion_report", END)
     workflow.add_edge("ask_canvas_clarification", END)
+    # Il comando si verifica da solo (validazione, layout, rilettura dal
+    # database): mandarlo nel loop di verifica del canvas rimetterebbe in mezzo
+    # i subagenti che esiste per togliere.
+    workflow.add_edge("generate_canvas_draft", END)
 
     return workflow.compile()

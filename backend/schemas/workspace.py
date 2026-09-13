@@ -296,6 +296,27 @@ class ApproveBpmnReviewResponse(BaseModel):
     review: BpmnReviewResponse
 
 
+class BpmnDraftResponse(BaseModel):
+    """L'esito del comando «genera la bozza BPMN dal piano».
+
+    `pending_verification` non e' un errore: sono le lacune che il piano dichiara
+    ancora aperte, consegnate accanto al disegno invece che al posto del disegno.
+    `metrics` porta le durate di fase, cosi' «dove se ne vanno i secondi» ha una
+    risposta con dei numeri.
+    """
+
+    status: str
+    process_id: str
+    bpmn_model_id: str
+    snapshot_id: str = ""
+    snapshot_label: str = ""
+    bpmn_model: BpmnModelResponse | None = None
+    pending_verification: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+    reason: str = ""
+    metrics: dict = Field(default_factory=dict)
+
+
 class ProjectSourceResponse(BaseModel):
     id: str
     project_id: str
