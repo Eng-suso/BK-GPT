@@ -82,8 +82,14 @@ def extractor(monkeypatch):
 
 def test_every_source_is_read_whole_and_alone(extractor):
     """Una estrazione per fonte, e dentro c'e' solo quella fonte."""
+    # La coda del testo e' la prova che serve: un taglio a 12.000 caratteri la
+    # farebbe sparire, e con lei l'ultimo passaggio raccontato dall'intervista.
+    tail = "E alla fine firma il direttore acquisti."
     sources = [
-        _source("Intervista Laura", "Laura Conti apre la richiesta di acquisto. " * 400),
+        _source(
+            "Intervista Laura",
+            "Laura Conti apre la richiesta di acquisto. " * 400 + tail,
+        ),
         _source("Intervista Paolo", "Paolo Marchetti chiama il fornitore. " * 400),
     ]
 
@@ -95,16 +101,28 @@ def test_every_source_is_read_whole_and_alone(extractor):
     laura_notes, paolo_notes = extractor
     assert "Paolo" not in laura_notes, "le voci non si fondono in un prompt unico"
     assert "Laura" not in paolo_notes
-    # Il testo arriva intero: nessun taglio a 12.000 caratteri.
     assert len(laura_notes) > 12_000
+    assert tail in laura_notes, "la fine dell'intervista deve arrivare all'estrattore"
+    assert "troncato" not in laura_notes, "un testo intero non si dichiara tagliato"
 
 
-def test_a_source_longer_than_the_limit_is_cut_at_the_declared_limit(extractor):
+def test_a_source_longer_than_the_limit_is_cut_and_says_so(extractor):
+    """Oltre il limite si taglia, e il taglio si dichiara.
+
+    Un testo che finisce senza preavviso fa concludere che il processo finisce
+    li': la riga di troncamento e' cio' che separa "la fonte dice solo questo"
+    da "di questa fonte ho letto la prima parte".
+    """
     huge = _source("Intervista lunga", "parola " * 40_000)
 
     extract_plan_from_sources("Ciclo passivo", [huge])
 
-    assert len(extractor[0]) <= SOURCE_EXTRACTION_CHAR_LIMIT + 1_000
+    notes = extractor[0]
+    body = notes.split("\n\n", 1)[1]
+    assert len(body.replace("(testo troncato: la fonte continua oltre questo punto)", "")) <= (
+        SOURCE_EXTRACTION_CHAR_LIMIT + 2
+    )
+    assert "troncato" in notes
 
 
 def test_the_partial_plans_are_merged_without_losing_anyone(extractor):
@@ -214,6 +232,39 @@ def test_the_main_path_keeps_every_voice(monkeypatch):
 
     assert result.process.sequence == ["apri_richiesta", "crea_ordine"]
     assert result.process.main_success_path == ["apri_richiesta", "crea_ordine"]
+
+
+def test_every_source_failing_is_reported_as_a_failure(monkeypatch):
+    """Se nessuna fonte e' stata letta, il piano non c'e' e si dice perche'."""
+
+    def _all_down(title: str, source_text: str, *, with_quality_report: bool = True):
+        return ProcessUnderstandingResult(
+            status="failed",
+            failure=ExtractionFailure(
+                kind="provider_error",
+                message="provider non raggiungibile",
+                retryable=True,
+                attempt=1,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "backend.agents.process_synthesis.build_process_understanding", _all_down
+    )
+
+    result = extract_plan_from_sources(
+        "Ciclo passivo",
+        [
+            _source("Intervista Laura", "Laura Conti, Ufficio Tecnico."),
+            _source("Intervista Paolo", "Paolo Marchetti, Manutenzione."),
+        ],
+    )
+
+    assert result.process is None
+    assert result.sources_read == 2, (
+        "le fonti erano leggibili: distingue un guasto da un processo senza trascrizioni"
+    )
+    assert len(result.failures) == 2
 
 
 def test_sources_without_text_are_not_extracted(extractor):

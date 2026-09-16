@@ -41,6 +41,7 @@ from backend.agents.process_snapshot import (
     plan_ignores_evidence,
 )
 from backend.process_understanding import (
+    ExtractionFailure,
     ProcessUnderstanding,
     ProcessUnderstandingExtractionError,
     ProcessUnderstandingResult,
@@ -188,7 +189,8 @@ def _source_notes(source: dict, process_name: str) -> str:
     diretto per farlo diventare tale.
     """
     participants = ", ".join(str(item) for item in source.get("participants") or [])
-    content = str(source.get("content") or "").strip()[:SOURCE_EXTRACTION_CHAR_LIMIT]
+    full_text = str(source.get("content") or "").strip()
+    content = full_text[:SOURCE_EXTRACTION_CHAR_LIMIT]
     header = [
         f"Processo: {process_name}",
         f"Fonte: {source.get('name') or source.get('id') or 'senza nome'}",
@@ -203,7 +205,14 @@ def _source_notes(source: dict, process_name: str) -> str:
         "Estrai solo cio' che questa fonte dice. Cio' che non dice non e' una "
         "lacuna del processo: e' una cosa che questa voce non copre."
     )
-    return "\n".join([*header, "", content])
+    # Un taglio si dichiara sempre, anche quando e' improbabile: un testo che
+    # finisce senza preavviso fa concludere che il processo finisce li'.
+    tail = (
+        ["", "(testo troncato: la fonte continua oltre questo punto)"]
+        if len(content) < len(full_text)
+        else []
+    )
+    return "\n".join([*header, "", content, *tail])
 
 
 @dataclass(frozen=True)
@@ -251,15 +260,29 @@ def extract_plan_from_sources(process_name: str, sources: list[dict]) -> CorpusE
     if not readable:
         return CorpusExtraction(process=None, llm_calls=0, sources_read=0)
 
-    def _extract(source: dict):
-        return build_process_understanding(
-            process_name,
-            _source_notes(source, process_name),
-            # Il giudizio di qualita' si da' sul piano intero, non su ogni pezzo:
-            # chiederlo per fonte moltiplicherebbe le chiamate per giudicare
-            # frammenti che nessuno usera' da soli.
-            with_quality_report=False,
-        )
+    def _extract(source: dict) -> ProcessUnderstandingResult:
+        try:
+            return build_process_understanding(
+                process_name,
+                _source_notes(source, process_name),
+                # Il giudizio di qualita' si da' sul piano intero, non su ogni
+                # pezzo: chiederlo per fonte moltiplicherebbe le chiamate per
+                # giudicare frammenti che nessuno usera' da soli.
+                with_quality_report=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Una fonte che esplode e' una fonte persa, non l'estrazione persa.
+            # Senza questo, un'eccezione non classificata dentro `pool.map`
+            # risalirebbe e porterebbe via anche le fonti gia' estratte.
+            return ProcessUnderstandingResult(
+                status="failed",
+                failure=ExtractionFailure(
+                    kind="provider_error",
+                    message=f"{type(exc).__name__}: {exc}",
+                    retryable=True,
+                    attempt=1,
+                ),
+            )
 
     workers = max(1, min(MAX_PARALLEL_EXTRACTIONS, len(readable)))
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="plan-extract") as pool:
@@ -341,6 +364,21 @@ def synthesize_process_plan(process_id: str) -> PlanSynthesis:
     extraction = extract_plan_from_sources(process["name"], ledger.get("sources") or [])
     llm_calls = extraction.llm_calls
     understanding = extraction.process
+
+    if understanding is None and extraction.sources_read:
+        # Le fonti c'erano e nessuna estrazione ha prodotto un piano: e' un
+        # guasto - rate limit, provider giu' - e ritentare qui su un corpus
+        # tagliato spenderebbe un'altra chiamata per fallire di nuovo. La coda
+        # di materializzazione riprova piu' tardi, con il suo backoff.
+        reason = "; ".join(extraction.failures) or "Estrazione del piano non riuscita."
+        logger.warning("sintesi piano fallita per il processo %s: %s", process_id, reason)
+        return PlanSynthesis(
+            action="synthesis_failed",
+            snapshot=build_process_snapshot(process_id),
+            reason=reason,
+            blockers=list(extraction.failures) or [reason],
+            llm_calls=llm_calls,
+        )
 
     if understanding is None:
         # Nessuna fonte con un testo leggibile: restano nomi, sintesi e claim

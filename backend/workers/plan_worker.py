@@ -55,36 +55,44 @@ def _work_one(row: dict) -> bool:
     """
     from backend.agents.process_synthesis import ensure_process_plan
 
+    # Il tenant resta vincolato anche per la chiusura della riga: le transizioni
+    # di coda sono scritture come le altre e controllano di stare dentro il
+    # tenant che vedono. Rilasciarlo prima le farebbe ricadere su quello di
+    # default, cioe' su un confine diverso da quello in cui il lavoro e' stato
+    # fatto.
     token = set_current_tenant_id(row["tenant_id"])
     try:
-        synthesis = ensure_process_plan(row["process_id"])
-    except Exception as exc:  # noqa: BLE001 - una riga storta non ferma la coda
-        logger.warning(
-            "materializzazione piano fallita per il processo %s",
-            row["process_id"],
-            exc_info=True,
+        try:
+            synthesis = ensure_process_plan(row["process_id"])
+        except Exception as exc:  # noqa: BLE001 - una riga storta non ferma la coda
+            logger.warning(
+                "materializzazione piano fallita per il processo %s",
+                row["process_id"],
+                exc_info=True,
+            )
+            wd.fail_plan_materialization(row["id"], error=f"{type(exc).__name__}: {exc}")
+            return False
+
+        if synthesis.action in _SETTLED:
+            wd.complete_plan_materialization(
+                row["id"],
+                action=synthesis.action,
+                plan_version=synthesis.snapshot.version if synthesis.snapshot else None,
+            )
+            return True
+
+        wd.fail_plan_materialization(
+            row["id"],
+            error=synthesis.reason or synthesis.action,
+            # Un processo che non esiste non ricompare: la riga esce subito
+            # invece di consumare quattro tentativi per dire la stessa cosa.
+            max_attempts=(
+                1 if synthesis.action in _PERMANENT else wd.MATERIALIZATION_MAX_ATTEMPTS
+            ),
         )
-        wd.fail_plan_materialization(row["id"], error=f"{type(exc).__name__}: {exc}")
         return False
     finally:
         reset_current_tenant_id(token)
-
-    if synthesis.action in _SETTLED:
-        wd.complete_plan_materialization(
-            row["id"],
-            action=synthesis.action,
-            plan_version=synthesis.snapshot.version if synthesis.snapshot else None,
-        )
-        return True
-
-    wd.fail_plan_materialization(
-        row["id"],
-        error=synthesis.reason or synthesis.action,
-        # Un processo che non esiste non ricompare: la riga esce subito invece
-        # di consumare quattro tentativi per dire la stessa cosa.
-        max_attempts=1 if synthesis.action in _PERMANENT else wd.MATERIALIZATION_MAX_ATTEMPTS,
-    )
-    return False
 
 
 def drain_once(limit: int = _BATCH) -> int:

@@ -26,10 +26,14 @@ logger = logging.getLogger(__name__)
 _STATS_EVERY_SECONDS = 120.0
 _PRUNE_EVERY_SECONDS = 3600.0
 
-# Executor dedicato: le passate di drain fanno I/O bloccante (Postgres + Neo4j)
-# e non devono competere con il threadpool di default che serve le route sync
-# di FastAPI. Due worker = due loop, uno alla volta ciascuno.
-_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="queue-worker")
+# Executor dedicato: le passate di drain fanno I/O bloccante (Postgres, Neo4j,
+# e per il piano anche chiamate al modello) e non devono competere con il
+# threadpool di default che serve le route sync di FastAPI. Un posto per loop:
+# con meno posti che loop, una passata lenta - la sintesi di un piano dura
+# quanto dura un LLM - terrebbe fermi gli altri worker senza che nessuno lo
+# veda, e il sintomo sarebbe una coda che non avanza.
+_LOOPS = 4
+_EXECUTOR = ThreadPoolExecutor(max_workers=_LOOPS, thread_name_prefix="queue-worker")
 
 _T = TypeVar("_T")
 

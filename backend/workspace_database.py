@@ -1927,6 +1927,11 @@ def ensure_project_source(
 
 MATERIALIZATION_MAX_ATTEMPTS = 5
 MATERIALIZATION_BACKOFF_SECONDS = 30
+# Per quanto una riga presa in carico resta invisibile agli altri worker. Non e'
+# uno stato `running` - un lease che nessuno rilascia e' il modo in cui una coda
+# si blocca in silenzio - ma una scadenza: se chi l'ha presa muore, la riga torna
+# eleggibile da sola.
+MATERIALIZATION_LEASE_SECONDS = 300
 
 
 def _materialization_to_dict(row: WorkspacePlanMaterialization) -> dict:
@@ -2021,16 +2026,26 @@ def enqueue_plan_materialization(
 
 
 def due_plan_materializations(limit: int = 5) -> list[dict]:
-    """Le richieste pronte da lavorare, di tutti i tenant.
+    """Prende in carico le richieste pronte, di tutti i tenant.
 
     Il worker gira fuori da una richiesta HTTP e quindi fuori da un tenant: la
     riga porta il proprio, e chi la lavora lo vincola prima di toccare il
     processo. Le piu' vecchie per prime, cosi' una richiesta non resta indietro
     perche' un altro processo continua a ricevere fonti.
 
-    Sola lettura.
+    Non e' una lettura: le righe vengono prese in carico (`FOR UPDATE SKIP
+    LOCKED` + scadenza spostata in avanti). Due worker - due istanze dell'app,
+    o un worker separato accanto all'app - altrimenti sintetizzerebbero lo stesso
+    piano due volte, e il processo si troverebbe due versioni nate dallo stesso
+    evento.
+
+    Side effects:
+        Sposta `next_attempt_at` di ogni riga presa in carico.
     """
     now = now_iso()
+    lease_until = (
+        datetime.now(UTC) + timedelta(seconds=MATERIALIZATION_LEASE_SECONDS)
+    ).isoformat(timespec="seconds")
     with workspace_connection() as session:
         rows = (
             session.execute(
@@ -2039,11 +2054,30 @@ def due_plan_materializations(limit: int = 5) -> list[dict]:
                 .where(WorkspacePlanMaterialization.next_attempt_at <= now)
                 .order_by(WorkspacePlanMaterialization.next_attempt_at)
                 .limit(max(1, int(limit)))
+                .with_for_update(skip_locked=True)
             )
             .scalars()
             .all()
         )
-        return [_materialization_to_dict(row) for row in rows]
+        claimed = [_materialization_to_dict(row) for row in rows]
+        for row in rows:
+            row.next_attempt_at = lease_until
+        session.flush()
+        return claimed
+
+
+def _owned_materialization(session, materialization_id: int):
+    """La riga di coda, se appartiene al tenant vincolato adesso.
+
+    Il worker lavora righe di tenant diversi e l'id da solo non dice di chi sia:
+    chiudere una riga senza guardare il tenant e' una scrittura fuori confine
+    anche quando l'id viene dalla coda stessa, perche' fa dipendere l'isolamento
+    dall'ordine delle chiamate invece che da un controllo.
+    """
+    row = session.get(WorkspacePlanMaterialization, materialization_id)
+    if row is None or row.tenant_id != tenant_id():
+        return None
+    return row
 
 
 def complete_plan_materialization(
@@ -2054,7 +2088,7 @@ def complete_plan_materialization(
 ) -> dict | None:
     """La richiesta e' stata lavorata: cosa ne e' uscito resta scritto."""
     with workspace_connection() as session:
-        row = session.get(WorkspacePlanMaterialization, materialization_id)
+        row = _owned_materialization(session, materialization_id)
         if row is None:
             return None
         row.status = "done"
@@ -2081,7 +2115,7 @@ def fail_plan_materialization(
     un piano.
     """
     with workspace_connection() as session:
-        row = session.get(WorkspacePlanMaterialization, materialization_id)
+        row = _owned_materialization(session, materialization_id)
         if row is None:
             return None
         row.attempts += 1
