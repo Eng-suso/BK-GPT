@@ -39,6 +39,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from backend.agents.plan_provenance import ProvenanceReport, verify_plan_provenance
 from backend.bpmn import BPMNSemanticModel
 from backend.memory import provenance
 from backend.process_understanding import ProcessUnderstanding
@@ -153,11 +154,10 @@ class ProcessKnowledgeSnapshot(BaseModel):
     validation_readiness: dict[str, Any] | None = None
 
     # --- da dove viene ogni elemento -------------------------------------
-    # Il piano confrontato con le fonti intere, elemento per elemento
-    # (`plan_provenance.ProvenanceReport`): conteggi per esito, fonti da cui
-    # il piano non prende niente, e l'esito di ogni elemento con il passaggio
-    # della fonte che lo regge. `None` quando non c'e' un piano da verificare.
-    provenance: dict[str, Any] | None = None
+    # Il piano confrontato con le fonti intere, elemento per elemento: esito di
+    # ogni elemento con il passaggio della fonte che lo regge, e le fonti da cui
+    # il piano non prende niente. `None` quando non c'e' un piano da verificare.
+    provenance: ProvenanceReport | None = None
 
     @property
     def label(self) -> str:
@@ -234,11 +234,7 @@ class ProcessKnowledgeSnapshot(BaseModel):
             "plan_evidence_source_set_id": self.plan_evidence_source_set_id,
             "plan_is_current": self.plan_is_current,
             "readiness_score": self.readiness_score,
-            "provenance": (
-                {key: value for key, value in self.provenance.items() if key != "elements"}
-                if self.provenance
-                else None
-            ),
+            "provenance": self.provenance.summary() if self.provenance else None,
         }
 
 
@@ -434,17 +430,11 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
     # inventato cio' che la fonte dice dopo il taglio. Non si persiste - si
     # ricalcola a ogni lettura - quindi non puo' descrivere un piano o un set di
     # fonti diverso da quello che lo snapshot porta.
-    plan_provenance = None
-    if understanding is not None:
-        from backend.agents.plan_provenance import verify_plan_provenance
-
-        report = verify_plan_provenance(
-            understanding, list(ledger_snapshot.get("sources") or [])
-        )
-        plan_provenance = {
-            **report.summary(),
-            "elements": [item.model_dump(mode="json") for item in report.elements],
-        }
+    plan_provenance = (
+        verify_plan_provenance(understanding, list(ledger_snapshot.get("sources") or []))
+        if understanding is not None
+        else None
+    )
 
     return ProcessKnowledgeSnapshot(
         process_id=process_id,

@@ -352,11 +352,11 @@ def test_the_drawing_shows_what_no_interview_said(empty_process):  # noqa: F811
 
     snapshot = build_process_snapshot(empty_process["process_id"])
     assert snapshot.provenance is not None
-    assert snapshot.provenance["sources_checked"] == len(INTERVIEWS)
+    assert snapshot.provenance.sources_checked == len(INTERVIEWS)
     audit = next(
-        item for item in snapshot.provenance["elements"] if item["element_id"] == "audit_trimestrale"
+        item for item in snapshot.provenance.elements if item.element_id == "audit_trimestrale"
     )
-    assert audit["status"] == "unverified"
+    assert audit.status == "unverified"
 
     with _bind_process_chat(empty_process["project_id"], empty_process["process_id"]):
         result = generate_bpmn_draft(empty_process["process_id"])
@@ -396,6 +396,12 @@ def test_the_provenance_endpoint_reports_every_element(process_with_plan):
         missing = client.get(
             f"/v1/workspace/processes/{uuid.uuid4().hex}/provenance", headers=headers
         )
+        # Il processo esiste, ma non per un altro tenant: la provenance di un
+        # cliente non e' leggibile da un altro workspace.
+        foreign = client.get(
+            f"/v1/workspace/processes/{process_with_plan['process_id']}/provenance",
+            headers={"X-DeliR-Tenant-Id": f"t-foreign-{uuid.uuid4().hex[:8]}"},
+        )
 
     assert response.status_code == 200, response.text
     body = response.json()
@@ -406,22 +412,30 @@ def test_the_provenance_endpoint_reports_every_element(process_with_plan):
         body["verified"] + body["paraphrased"] + body["label_grounded"] + body["unverified"]
     )
     assert missing.status_code == 404
+    assert foreign.status_code == 404
 
 
 def test_the_canvas_completion_check_warns_about_unverified_elements():
     """Anche il percorso agentico dice cosa nessuna fonte regge."""
+    from backend.agents.plan_provenance import ElementProvenance, ProvenanceReport
     from backend.agents.process_snapshot import ProcessKnowledgeSnapshot
     from backend.graphs.canvas_edit.graph import _unverified_element_warnings
 
     snapshot = ProcessKnowledgeSnapshot(
         process_id="p1",
-        provenance={
-            "elements": [
-                {"element_id": "a", "label": "Audit trimestrale", "status": "unverified"},
-                {"element_id": "b", "label": "Apri richiesta", "status": "verified"},
+        provenance=ProvenanceReport(
+            elements=[
+                ElementProvenance(
+                    kind="step", element_id="a", label="Audit trimestrale",
+                    status="unverified", source_ref="steps:a",
+                ),
+                ElementProvenance(
+                    kind="step", element_id="b", label="Apri richiesta",
+                    status="verified", source_ref="steps:b",
+                ),
             ],
-            "unused_sources": ["Intervista Paolo Marchetti"],
-        },
+            unused_sources=["Intervista Paolo Marchetti"],
+        ),
     )
 
     warnings = _unverified_element_warnings(snapshot)

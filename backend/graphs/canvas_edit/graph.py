@@ -173,12 +173,10 @@ def _unverified_element_warnings(snapshot: ProcessKnowledgeSnapshot | None) -> l
     Sola lettura: il rapporto e' gia' nello snapshot, calcolato sulle fonti
     intere.
     """
-    report = (snapshot.provenance if snapshot else None) or {}
-    unverified = [
-        str(item.get("label") or item.get("element_id"))
-        for item in report.get("elements") or []
-        if item.get("status") == "unverified"
-    ]
+    report = snapshot.provenance if snapshot else None
+    if report is None:
+        return []
+    unverified = [item.label or item.element_id for item in report.unverified]
     warnings: list[str] = []
     if unverified:
         more = f" e altri {len(unverified) - 5}" if len(unverified) > 5 else ""
@@ -188,7 +186,7 @@ def _unverified_element_warnings(snapshot: ProcessKnowledgeSnapshot | None) -> l
             + more
             + "."
         )
-    for name in report.get("unused_sources") or []:
+    for name in report.unused_sources:
         warnings.append(f"Dal piano non risulta niente di cio' che dice «{name}».")
     return warnings
 

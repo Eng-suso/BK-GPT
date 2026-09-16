@@ -540,21 +540,29 @@ def get_workspace_process_provenance(process_id: str) -> ProcessProvenanceRespon
     snapshot = build_process_snapshot(process_id)
     if snapshot is None:
         raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
-    report = snapshot.provenance or {}
+    report = snapshot.provenance
+    if report is None:
+        # Nessun piano: "niente da verificare", che non e' "zero elementi verificati".
+        return ProcessProvenanceResponse(
+            process_id=process_id,
+            snapshot_id=snapshot.snapshot_id,
+            snapshot_label=snapshot.label,
+            has_plan=False,
+        )
     return ProcessProvenanceResponse(
         process_id=process_id,
         snapshot_id=snapshot.snapshot_id,
         snapshot_label=snapshot.label,
-        has_plan=snapshot.has_semantic_model,
-        total=int(report.get("total") or 0),
-        verified=int(report.get("verified") or 0),
-        paraphrased=int(report.get("paraphrased") or 0),
-        label_grounded=int(report.get("label_grounded") or 0),
-        unverified=int(report.get("unverified") or 0),
-        grounded_ratio=float(report.get("grounded_ratio") or 0.0),
-        sources_checked=int(report.get("sources_checked") or 0),
-        unused_sources=list(report.get("unused_sources") or []),
-        elements=list(report.get("elements") or []),
+        has_plan=True,
+        total=len(report.elements),
+        verified=report.count("verified"),
+        paraphrased=report.count("paraphrased"),
+        label_grounded=report.count("label_grounded"),
+        unverified=report.count("unverified"),
+        grounded_ratio=report.grounded_ratio,
+        sources_checked=report.sources_checked,
+        unused_sources=list(report.unused_sources),
+        elements=[item.model_dump(mode="json") for item in report.elements],
     )
 
 

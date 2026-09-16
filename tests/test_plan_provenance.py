@@ -129,6 +129,27 @@ def test_a_faithful_paraphrase_is_not_an_invention_but_not_a_quote_either():
     assert "autorizzazione del responsabile" in step.quote
 
 
+def test_one_word_of_evidence_proves_nothing():
+    """"Fornitore" sta in meta' delle frasi di un'intervista sugli acquisti.
+
+    Un'evidenza di una parola sola che passasse come parafrasi sarebbe una prova
+    inventata: qualunque elemento che la citi risulterebbe detto da qualcuno.
+    """
+    plan = _plan(
+        steps=[
+            ProcessStep(
+                id="audit",
+                label="Audit trimestrale",
+                source_evidence=["fornitore"],
+            )
+        ]
+    )
+
+    report = verify_plan_provenance(plan, [FRANCESCA, PAOLO])
+
+    assert _element(report, "audit").status == "unverified"
+
+
 def test_an_element_without_evidence_can_still_be_grounded_by_its_words():
     """L'estrattore ha dimenticato l'evidenza, ma il passaggio e' detto."""
     plan = _plan(
@@ -178,6 +199,54 @@ def test_a_source_the_plan_takes_nothing_from_is_visible():
 
     assert "Intervista Paolo Marchetti" in report.unused_sources
     assert "Intervista Laura Conti" not in report.unused_sources
+
+
+def test_two_voices_telling_the_same_step_are_both_used():
+    """A parita' di frase vince la prima fonte, ma la seconda non e' "ignorata".
+
+    Dichiarare non usata un'intervista che racconta gli stessi passaggi di
+    un'altra e' una frase falsa che arriva a chi legge il canvas.
+    """
+    laura_copy = {
+        "id": "src-laura-bis",
+        "name": "Intervista Laura Conti (seconda sessione)",
+        "content": LAURA["content"],
+    }
+    plan = _plan(steps=[ProcessStep(id="apri", label="Apri richiesta di acquisto")])
+
+    report = verify_plan_provenance(plan, [LAURA, laura_copy])
+
+    assert report.unused_sources == []
+
+
+def test_the_provenance_of_a_long_transcript_stays_cheap():
+    """Lo snapshot si legge molte volte per run: la verifica non puo' costare secondi."""
+    from time import perf_counter
+
+    transcript = {
+        "id": "src-lunga",
+        "name": "Intervista lunga",
+        "content": " ".join(
+            f"Frase numero {index}: il reparto {index % 7} prepara il documento {index % 11}."
+            for index in range(1500)
+        ),
+    }
+    plan = _plan(
+        steps=[
+            ProcessStep(
+                id=f"step_{index}",
+                label=f"Prepara documento {index % 11} reparto {index % 7}",
+                source_evidence=[f"il reparto {index % 7} prepara il documento {index % 11}"],
+            )
+            for index in range(60)
+        ]
+    )
+
+    started = perf_counter()
+    verify_plan_provenance(plan, [transcript, LAURA, FRANCESCA])
+    elapsed = perf_counter() - started
+
+    assert elapsed < 1.0, f"verifica provenance troppo lenta: {elapsed:.2f}s"
 
 
 def test_decisions_are_verified_on_their_question_too():

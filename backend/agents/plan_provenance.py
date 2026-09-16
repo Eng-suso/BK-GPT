@@ -183,13 +183,21 @@ def _best_sentence(
     return best
 
 
-def _passes(match, min_ratio: float, stems: set[str]) -> bool:
+def _passes(
+    match, min_ratio: float, stems: set[str], *, allow_single_word: bool = False
+) -> bool:
+    """La frase migliore regge davvero, o condivide solo una parola?
+
+    Il rilassamento a una parola vale solo per l'etichetta: un'etichetta di una
+    parola sola ("Collaudo") non ha due parole da condividere. Un'evidenza di una
+    parola sola invece non prova niente - "fornitore" sta in meta' delle frasi di
+    un'intervista sugli acquisti - e dichiararla parafrasata sarebbe una prova
+    inventata.
+    """
     if match is None:
         return False
     _source, _sentence, ratio, shared = match
-    # Un'etichetta di una parola sola non ha due parole da condividere: basta
-    # quella, purche' sia una parola di contenuto.
-    needed = min(MIN_SHARED_TOKENS, len(stems))
+    needed = min(MIN_SHARED_TOKENS, len(stems)) if allow_single_word else MIN_SHARED_TOKENS
     return ratio >= min_ratio and shared >= needed
 
 
@@ -240,7 +248,7 @@ def _judge(
 
     stems = _stems(f"{label} {extra_text}")
     match = _best_sentence(stems, sources)
-    if _passes(match, LABEL_MIN_OVERLAP, stems):
+    if _passes(match, LABEL_MIN_OVERLAP, stems, allow_single_word=True):
         source, sentence, _ratio, _shared = match
         return ElementProvenance(
             **base,
@@ -320,9 +328,63 @@ def verify_plan_provenance(
         add(kind="flow", field="flow_edges", element_id=edge.id, label=edge.label,
             evidence=edge.source_evidence, extra_text=edge.condition or "")
 
-    used = {item.source_id for item in elements if item.status != "unverified"}
     return ProvenanceReport(
         elements=elements,
         sources_checked=len(indexed),
-        unused_sources=[source.name for source in indexed if source.id not in used],
+        unused_sources=_unused_sources(plan, elements, indexed),
+    )
+
+
+def _unused_sources(
+    plan: ProcessUnderstanding,
+    elements: list[ElementProvenance],
+    sources: list[_IndexedSource],
+) -> list[str]:
+    """Le fonti da cui nessun elemento del piano puo' venire.
+
+    Non basta guardare a quale fonte e' stato attribuito ogni elemento: a parita'
+    di frase vince la prima fonte, e due voci che raccontano lo stesso passaggio
+    lo attribuiscono alla prima letta. Contare solo quella farebbe dichiarare
+    "ignorata" un'intervista che il piano usa per intero - e quella frase arriva
+    a chi legge il canvas. Una fonte e' usata se **almeno un** elemento regge su
+    di lei, attribuito o no.
+    """
+    attributed = {item.source_id for item in elements if item.status != "unverified"}
+    probes: list[tuple[list[str], str]] = []
+    for item in plan.actors:
+        probes.append((item.source_evidence, item.label))
+    for item in plan.participants:
+        probes.append((item.source_evidence, item.label))
+    for item in plan.steps:
+        probes.append((item.source_evidence, f"{item.label} {item.description or ''}"))
+    for item in plan.decisions:
+        probes.append((item.source_evidence, f"{item.label} {item.question or ''}"))
+    for item in plan.exceptions:
+        probes.append(([], " ".join(filter(None, [item.label, item.trigger, item.handling]))))
+    for item in plan.events:
+        probes.append((item.source_evidence, item.label))
+
+    unused: list[str] = []
+    for source in sources:
+        if source.id in attributed:
+            continue
+        if not any(_supports(evidence, text, source) for evidence, text in probes):
+            unused.append(source.name)
+    return unused
+
+
+def _supports(evidence: list[str], text: str, source: _IndexedSource) -> bool:
+    """Questa fonte regge l'elemento, con una qualunque delle forme di prova?"""
+    for snippet in evidence:
+        snippet = str(snippet or "").strip()
+        if not snippet:
+            continue
+        if source.folded.locate(snippet) is not None:
+            return True
+        stems = _stems(snippet)
+        if _passes(_best_sentence(stems, [source]), PARAPHRASE_MIN_OVERLAP, stems):
+            return True
+    stems = _stems(text)
+    return _passes(
+        _best_sentence(stems, [source]), LABEL_MIN_OVERLAP, stems, allow_single_word=True
     )

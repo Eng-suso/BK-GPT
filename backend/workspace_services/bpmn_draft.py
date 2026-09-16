@@ -33,6 +33,7 @@ Tre regole che questo modulo non negozia:
 from __future__ import annotations
 
 import logging
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from time import perf_counter
 from typing import Literal, TypedDict
@@ -483,21 +484,11 @@ def generate_bpmn_draft(
     # che rende il flusso coerente - ma non si disegna come se qualcuno lo
     # avesse detto.
     started = perf_counter()
-    unverified = [
-        item
-        for item in (snapshot.provenance or {}).get("elements") or []
-        if item.get("status") == "unverified"
-    ]
+    report = snapshot.provenance
+    unverified = report.unverified if report else []
     try:
-        xml, _marks = mark_provenance(
-            xml,
-            {
-                str(item.get("source_ref")): str(item.get("status"))
-                for item in (snapshot.provenance or {}).get("elements") or []
-                if item.get("source_ref")
-            },
-        )
-    except Exception:  # noqa: BLE001 - la marcatura informa, non condiziona il disegno
+        xml, _marks = mark_provenance(xml, report.status_by_source_ref() if report else {})
+    except (ET.ParseError, ValueError, TypeError):
         # Un disegno senza marcature e' meno informativo, non sbagliato: non si
         # butta un BPMN valido per un attributo di estensione. Il guasto resta
         # nei log e nella nota per chi legge.
@@ -511,7 +502,7 @@ def generate_bpmn_draft(
     watch.mark("provenance_marks", started)
     watch.unverified_elements = len(unverified)
     if unverified:
-        labels = ", ".join(str(item.get("label") or item.get("element_id")) for item in unverified[:5])
+        labels = ", ".join(item.label or item.element_id for item in unverified[:5])
         more = f" e altri {len(unverified) - 5}" if len(unverified) > 5 else ""
         pending = [
             *pending,
