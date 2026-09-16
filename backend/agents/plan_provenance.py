@@ -236,7 +236,7 @@ def _judge(
     for snippet in snippets:
         stems = _stems(snippet)
         match = _best_sentence(stems, sources)
-        if _passes(match, PARAPHRASE_MIN_OVERLAP, stems):
+        if match is not None and _passes(match, PARAPHRASE_MIN_OVERLAP, stems):
             source, sentence, _ratio, _shared = match
             return ElementProvenance(
                 **base,
@@ -248,7 +248,7 @@ def _judge(
 
     stems = _stems(f"{label} {extra_text}")
     match = _best_sentence(stems, sources)
-    if _passes(match, LABEL_MIN_OVERLAP, stems, allow_single_word=True):
+    if match is not None and _passes(match, LABEL_MIN_OVERLAP, stems, allow_single_word=True):
         source, sentence, _ratio, _shared = match
         return ElementProvenance(
             **base,

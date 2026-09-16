@@ -1,0 +1,87 @@
+{
+  "title": "Gestione acquisto materiali indiretti e servizi",
+  "actors": [
+    {"id": "reparto", "label": "Reparto", "kind": "team"},
+    {"id": "ufficio_tecnico", "label": "Ufficio Tecnico", "kind": "team"},
+    {"id": "acquisti", "label": "Ufficio Acquisti", "kind": "team"},
+    {"id": "responsabile_acquisti", "label": "Responsabile Acquisti", "kind": "role"},
+    {"id": "magazzino", "label": "Magazzino", "kind": "team"},
+    {"id": "amministrazione", "label": "Amministrazione", "kind": "team"}
+  ],
+  "steps": [
+    {"id": "rileva_fabbisogno", "label": "Rileva fabbisogno durante il giro impianti", "actor_ids": ["reparto"]},
+    {"id": "invia_richiesta_ufficio_tecnico", "label": "Invia richiesta all'Ufficio Tecnico", "actor_ids": ["reparto"]},
+    {"id": "ricostruisci_richiesta", "label": "Ricostruisci richiesta e informazioni mancanti", "actor_ids": ["ufficio_tecnico"]},
+    {"id": "invia_richiesta_acquisti", "label": "Invia richiesta ad Acquisti", "actor_ids": ["ufficio_tecnico"]},
+    {"id": "verifica_lavorabilita", "label": "Verifica lavorabilita' della richiesta", "actor_ids": ["acquisti"]},
+    {"id": "richiedi_integrazione", "label": "Richiedi integrazione della richiesta", "actor_ids": ["acquisti"]},
+    {"id": "richiedi_autorizzazione", "label": "Richiedi autorizzazione al responsabile", "actor_ids": ["acquisti"]},
+    {"id": "autorizza_spesa", "label": "Autorizza spesa", "actor_ids": ["responsabile_acquisti"]},
+    {"id": "seleziona_fornitore", "label": "Seleziona fornitore o richiedi quotazioni", "actor_ids": ["acquisti"]},
+    {"id": "emetti_ordine", "label": "Emetti ordine al fornitore", "actor_ids": ["acquisti"]},
+    {"id": "ricevi_merce", "label": "Ricevi merce in magazzino", "actor_ids": ["magazzino"]},
+    {"id": "verifica_merce", "label": "Verifica merce ricevuta", "actor_ids": ["reparto"]},
+    {"id": "chiama_fornitore_diretto", "label": "Chiama fornitore direttamente", "actor_ids": ["reparto"]},
+    {"id": "invia_riferimento_ordine_urgente", "label": "Invia riferimento ordine del fornitore", "actor_ids": ["reparto"]},
+    {"id": "regolarizza_ordine", "label": "Regolarizza ordine a posteriori", "actor_ids": ["acquisti"]},
+    {"id": "gestione_contabile_fattura", "label": "Gestione contabile della fattura", "actor_ids": ["amministrazione"]}
+  ],
+  "main_success_path": [
+    "rileva_fabbisogno",
+    "invia_richiesta_ufficio_tecnico",
+    "ricostruisci_richiesta",
+    "invia_richiesta_acquisti",
+    "verifica_lavorabilita",
+    "seleziona_fornitore",
+    "emetti_ordine",
+    "ricevi_merce",
+    "verifica_merce"
+  ],
+  "decisions": [
+    {
+      "id": "urgenza",
+      "label": "Linea ferma, urgenza?",
+      "outcomes": ["Linea ferma", "Richiesta ordinaria"],
+      "outcome_details": [
+        {"id": "urgenza_si", "label": "Linea ferma", "target_path_id": "percorso_urgente"},
+        {"id": "urgenza_no", "label": "Richiesta ordinaria", "target_ref": "invia_richiesta_ufficio_tecnico", "is_default": true}
+      ]
+    },
+    {
+      "id": "esito_verifica",
+      "label": "Richiesta lavorabile, serve autorizzazione?",
+      "outcomes": ["Incompleta", "Serve autorizzazione", "Procedi"],
+      "outcome_details": [
+        {"id": "esito_incompleta", "label": "Incompleta", "target_path_id": "percorso_integrazione"},
+        {"id": "esito_autorizzazione", "label": "Serve autorizzazione", "target_path_id": "percorso_autorizzazione"},
+        {"id": "esito_procedi", "label": "Procedi", "target_ref": "seleziona_fornitore", "is_default": true}
+      ]
+    }
+  ],
+  "alternative_paths": [
+    {
+      "id": "percorso_urgente",
+      "label": "Urgenza con linea ferma",
+      "trigger_or_condition": "Linea ferma",
+      "sequence": ["chiama_fornitore_diretto", "invia_riferimento_ordine_urgente", "regolarizza_ordine", "gestione_contabile_fattura"]
+    },
+    {
+      "id": "percorso_integrazione",
+      "label": "Richiesta incompleta",
+      "trigger_or_condition": "Richiesta non lavorabile",
+      "sequence": ["richiedi_integrazione"],
+      "rejoins_at": "ricostruisci_richiesta"
+    },
+    {
+      "id": "percorso_autorizzazione",
+      "label": "Autorizzazione del responsabile",
+      "trigger_or_condition": "Sopra la soglia interna",
+      "sequence": ["richiedi_autorizzazione", "autorizza_spesa"],
+      "rejoins_at": "seleziona_fornitore"
+    }
+  ],
+  "flow_edges": [
+    {"id": "rileva_to_urgenza", "source_id": "rileva_fabbisogno", "target_id": "urgenza", "label": "Fabbisogno rilevato"},
+    {"id": "verifica_to_esito", "source_id": "verifica_lavorabilita", "target_id": "esito_verifica", "label": "Richiesta verificata"}
+  ]
+}

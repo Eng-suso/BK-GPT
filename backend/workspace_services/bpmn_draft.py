@@ -560,6 +560,7 @@ def generate_bpmn_draft(
         )
     watch.mark("read_after_write", started)
 
+    metrics = watch.as_metrics(snapshot_version=snapshot.version)
     drafted = BpmnDraftResult(
         status="drafted",
         reason_code="drafted",
@@ -570,13 +571,13 @@ def generate_bpmn_draft(
         xml=xml,
         pending_verification=pending,
         reason=f"Bozza costruita sul piano {snapshot.label} del processo.",
-        metrics=watch.as_metrics(snapshot_version=snapshot.version),
+        metrics=metrics,
     )
     logger.info(
         "bozza BPMN generata per il processo %s (%s) in %sms",
         process_id,
         snapshot.label,
-        drafted.metrics["total_ms"],
-        extra={"bpmn_draft_metrics": drafted.metrics},
+        metrics["total_ms"],
+        extra={"bpmn_draft_metrics": metrics},
     )
     return drafted

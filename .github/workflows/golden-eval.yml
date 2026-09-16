@@ -1,0 +1,89 @@
+name: Golden set eval
+
+# L'estrattore misurato con l'LLM vero sul golden set (tests/golden).
+# Notturno e non su ogni push: costa chiamate al modello e non e' deterministico.
+# Il tratto deterministico - dal piano al disegno - gira gia' in CI/CD Pipeline.
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: golden-eval
+  cancel-in-progress: false
+
+jobs:
+  golden-eval:
+    name: Golden set (LLM reale)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      UV_CACHE_DIR: .uv-cache
+      LANGSMITH_TRACING: "false"
+      LANGCHAIN_TRACING_V2: "false"
+      POSTGRES_PORT: "5432"
+      NEO4J_BOLT_PORT: "7687"
+      NEO4J_HTTP_PORT: "7474"
+      WORKSPACE_DATABASE_URL: postgresql+psycopg://delir_workspace:ci-workspace@127.0.0.1:5432/workspace
+      CANONICAL_DATABASE_URL: postgresql+psycopg://delir_app:ci-app@127.0.0.1:5432/delir
+      CANONICAL_MIGRATOR_URL: postgresql+psycopg://delir_migrator:ci-migrator@127.0.0.1:5432/delir
+      CANONICAL_WORKER_URL: postgresql+psycopg://delir_worker:ci-worker@127.0.0.1:5432/delir
+      NEO4J_URL: bolt://127.0.0.1:7687
+      NEO4J_PASSWORD: ci-neo4j
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Start data stack (Postgres + Neo4j)
+        run: |
+          cat > ops/.env <<'EOF'
+          POSTGRES_PORT=5432
+          POSTGRES_SUPER_PASSWORD=ci-super
+          DELIR_MIGRATOR_PASSWORD=ci-migrator
+          DELIR_APP_PASSWORD=ci-app
+          DELIR_WORKER_PASSWORD=ci-worker
+          DELIR_MEM0_PASSWORD=ci-mem0
+          DELIR_WORKSPACE_PASSWORD=ci-workspace
+          NEO4J_PASSWORD=ci-neo4j
+          NEO4J_HTTP_PORT=7474
+          NEO4J_BOLT_PORT=7687
+          EOF
+          docker compose -f ops/docker-compose.yml up -d --wait --wait-timeout 240
+
+      - name: Run migrations (canonical + workspace)
+        run: |
+          uv run alembic upgrade head
+          uv run alembic -c alembic_workspace.ini upgrade head
+
+      - name: Run golden eval
+        env:
+          DELIR_GOLDEN_EVAL: "1"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: uv run pytest tests/evals/test_golden_set.py -v -s --tb=short
+
+      - name: Upload golden reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: golden-reports
+          path: tests/golden/reports/
+          retention-days: 30
+
+      - name: Stop data stack
+        if: always()
+        run: docker compose -f ops/docker-compose.yml down -v

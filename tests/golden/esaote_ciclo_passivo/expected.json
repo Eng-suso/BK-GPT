@@ -1,0 +1,347 @@
+{
+  "case_id": "esaote_ciclo_passivo",
+  "status": "draft_da_validare",
+  "process_name": "Gestione acquisto materiali indiretti e servizi",
+  "notes": "Riferimento scritto dalle tre interviste in sources/. Da far validare a un consulente prima di usarlo come gate: finche' status e' draft_da_validare il job notturno lo misura ma non fallisce su di lui.",
+  "sources": [
+    "a1_laura_conti_ufficio_tecnico.md",
+    "a2_paolo_marchetti_manutenzione.md",
+    "a3_francesca_neri_acquisti.md"
+  ],
+  "lanes": [
+    {
+      "id": "reparto",
+      "aliases": [
+        "reparto",
+        "manutenzione",
+        "capoturno",
+        "tecnici",
+        "richiedente"
+      ]
+    },
+    {
+      "id": "ufficio_tecnico",
+      "aliases": [
+        "ufficio tecnico"
+      ]
+    },
+    {
+      "id": "acquisti",
+      "aliases": [
+        "acquisti",
+        "ufficio acquisti"
+      ]
+    },
+    {
+      "id": "responsabile_acquisti",
+      "aliases": [
+        "responsabile",
+        "responsabile acquisti"
+      ]
+    },
+    {
+      "id": "magazzino",
+      "aliases": [
+        "magazzino",
+        "magazziniere"
+      ]
+    },
+    {
+      "id": "amministrazione",
+      "aliases": [
+        "amministrazione"
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "id": "rileva_fabbisogno",
+      "lane": "reparto",
+      "aliases": [
+        "rileva fabbisogno",
+        "segnala fabbisogno",
+        "individua materiale mancante",
+        "giro impianti"
+      ]
+    },
+    {
+      "id": "invia_richiesta_ufficio_tecnico",
+      "lane": "reparto",
+      "aliases": [
+        "invia richiesta ufficio tecnico",
+        "invia richiesta a laura",
+        "comunica richiesta"
+      ]
+    },
+    {
+      "id": "ricostruisci_richiesta",
+      "lane": "ufficio_tecnico",
+      "aliases": [
+        "ricostruisci richiesta",
+        "raccogli informazioni mancanti",
+        "completa richiesta",
+        "ricostruisci riferimento materiale"
+      ]
+    },
+    {
+      "id": "invia_richiesta_acquisti",
+      "lane": "ufficio_tecnico",
+      "aliases": [
+        "invia richiesta acquisti",
+        "passa richiesta acquisti",
+        "trasmetti richiesta acquisti"
+      ]
+    },
+    {
+      "id": "verifica_lavorabilita",
+      "lane": "acquisti",
+      "aliases": [
+        "verifica lavorabilita",
+        "verifica richiesta",
+        "verifica completezza richiesta"
+      ]
+    },
+    {
+      "id": "richiedi_integrazione",
+      "lane": "acquisti",
+      "aliases": [
+        "richiedi integrazione",
+        "rimanda indietro richiesta",
+        "richiedi completamento",
+        "richiedi informazioni mancanti"
+      ]
+    },
+    {
+      "id": "richiedi_autorizzazione",
+      "lane": "acquisti",
+      "aliases": [
+        "richiedi autorizzazione",
+        "chiedi autorizzazione responsabile"
+      ]
+    },
+    {
+      "id": "autorizza_spesa",
+      "lane": "responsabile_acquisti",
+      "required": false,
+      "aliases": [
+        "autorizza spesa",
+        "approva spesa",
+        "rilascia autorizzazione"
+      ]
+    },
+    {
+      "id": "seleziona_fornitore",
+      "lane": "acquisti",
+      "aliases": [
+        "seleziona fornitore",
+        "scegli fornitore",
+        "richiedi quotazioni",
+        "confronta offerte"
+      ]
+    },
+    {
+      "id": "emetti_ordine",
+      "lane": "acquisti",
+      "aliases": [
+        "emetti ordine",
+        "crea ordine",
+        "invia ordine fornitore"
+      ]
+    },
+    {
+      "id": "ricevi_merce",
+      "lane": "magazzino",
+      "aliases": [
+        "ricevi merce",
+        "ricezione merce",
+        "arrivo materiale"
+      ]
+    },
+    {
+      "id": "verifica_merce",
+      "lane": "reparto",
+      "aliases": [
+        "verifica merce",
+        "controlla pezzo",
+        "verifica materiale ricevuto"
+      ]
+    },
+    {
+      "id": "chiama_fornitore_diretto",
+      "lane": "reparto",
+      "aliases": [
+        "chiama fornitore",
+        "ordina direttamente fornitore",
+        "contatta fornitore urgenza"
+      ]
+    },
+    {
+      "id": "invia_riferimento_ordine_urgente",
+      "lane": "reparto",
+      "required": false,
+      "aliases": [
+        "invia riferimento ordine",
+        "comunica riferimento fornitore"
+      ]
+    },
+    {
+      "id": "regolarizza_ordine",
+      "lane": "acquisti",
+      "aliases": [
+        "regolarizza ordine",
+        "ricostruisci pratica",
+        "apri ordine a posteriori"
+      ]
+    },
+    {
+      "id": "gestione_contabile_fattura",
+      "lane": "amministrazione",
+      "aliases": [
+        "gestione contabile",
+        "registrazione contabile",
+        "verifica fattura",
+        "parte contabile"
+      ]
+    }
+  ],
+  "gateways": [
+    {
+      "id": "richiesta_lavorabile",
+      "aliases": [
+        "richiesta lavorabile",
+        "richiesta completa",
+        "informazioni sufficienti"
+      ]
+    },
+    {
+      "id": "serve_autorizzazione",
+      "aliases": [
+        "serve autorizzazione",
+        "sopra soglia",
+        "importo",
+        "tipo acquisto"
+      ]
+    },
+    {
+      "id": "urgenza_linea_ferma",
+      "aliases": [
+        "linea ferma",
+        "urgenza",
+        "urgente"
+      ]
+    }
+  ],
+  "edges": [
+    [
+      "rileva_fabbisogno",
+      "invia_richiesta_ufficio_tecnico"
+    ],
+    [
+      "invia_richiesta_ufficio_tecnico",
+      "ricostruisci_richiesta"
+    ],
+    [
+      "ricostruisci_richiesta",
+      "invia_richiesta_acquisti"
+    ],
+    [
+      "invia_richiesta_acquisti",
+      "verifica_lavorabilita"
+    ],
+    [
+      "verifica_lavorabilita",
+      "richiedi_integrazione"
+    ],
+    [
+      "richiedi_integrazione",
+      "ricostruisci_richiesta"
+    ],
+    [
+      "verifica_lavorabilita",
+      "richiedi_autorizzazione"
+    ],
+    [
+      "verifica_lavorabilita",
+      "seleziona_fornitore"
+    ],
+    [
+      "richiedi_autorizzazione",
+      "autorizza_spesa"
+    ],
+    [
+      "autorizza_spesa",
+      "seleziona_fornitore"
+    ],
+    [
+      "seleziona_fornitore",
+      "emetti_ordine"
+    ],
+    [
+      "emetti_ordine",
+      "ricevi_merce"
+    ],
+    [
+      "ricevi_merce",
+      "verifica_merce"
+    ],
+    [
+      "rileva_fabbisogno",
+      "chiama_fornitore_diretto"
+    ],
+    [
+      "chiama_fornitore_diretto",
+      "invia_riferimento_ordine_urgente"
+    ],
+    [
+      "invia_riferimento_ordine_urgente",
+      "regolarizza_ordine"
+    ],
+    [
+      "regolarizza_ordine",
+      "gestione_contabile_fattura"
+    ]
+  ],
+  "forbidden": [
+    {
+      "aliases": [
+        "cinquemila euro",
+        "5000 euro",
+        "sopra 5000"
+      ],
+      "why": "Francesca rifiuta di dire la cifra della soglia: una soglia numerica e' inventata"
+    },
+    {
+      "aliases": [
+        "firma direttore",
+        "direttore acquisti"
+      ],
+      "why": "le fonti parlano del 'mio responsabile', non di un direttore"
+    },
+    {
+      "aliases": [
+        "albo fornitori",
+        "fornitori qualificati"
+      ],
+      "why": "Francesca dice che non e' un albo formale ma una lista sua"
+    },
+    {
+      "aliases": [
+        "conferma presa in carico",
+        "notifica stato richiesta",
+        "portale richieste"
+      ],
+      "why": "nessuna fonte descrive conferme o strumenti di tracciamento: e' il TO-BE desiderato, non l'AS-IS"
+    }
+  ],
+  "open_gaps": [
+    {
+      "question": "Qual e' la soglia di importo sopra cui serve l'autorizzazione, e chi autorizza quando il responsabile e' assente?",
+      "closed_by_aliases": [
+        "sostituto autorizza",
+        "autorizza vicario",
+        "delega autorizzazione"
+      ],
+      "why": "nessun sostituto formale esiste secondo Francesca: disegnarlo chiude una lacuna inventando"
+    }
+  ]
+}
