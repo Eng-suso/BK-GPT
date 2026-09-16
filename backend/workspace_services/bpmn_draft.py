@@ -50,6 +50,7 @@ from backend.workspace_services.bpmn_canvas_edit import (
     optimize_bpmn_layout,
     validate_bpmn_xml,
 )
+from backend.workspace_services.bpmn_provenance_marks import mark_provenance
 from backend.workspace_services.write_verification import (
     PersistenceVerificationError,
     verify_bpmn_model_persisted,
@@ -102,12 +103,16 @@ class DraftMetrics(TypedDict):
     validation_ms: int
     repair_ms: int
     serialization_di_ms: int
+    provenance_marks_ms: int
     persistence_ms: int
     read_after_write_ms: int
     total_ms: int
     llm_calls: int
     tool_calls: int
     repair_count: int
+    # Elementi del piano che nessuna fonte regge: il numero che dice quanto del
+    # disegno e' inferenza invece che evidenza.
+    unverified_elements: int
     process_snapshot_version: int | None
 
 
@@ -155,6 +160,7 @@ class _Stopwatch:
         self.llm_calls = 0
         self.tool_calls = 0
         self.repair_count = 0
+        self.unverified_elements = 0
 
     def mark(self, phase: str, started_at: float) -> None:
         elapsed = int((perf_counter() - started_at) * 1000)
@@ -172,12 +178,14 @@ class _Stopwatch:
             "validation_ms": self.phases.get("validation", 0),
             "repair_ms": self.phases.get("repair", 0),
             "serialization_di_ms": self.phases.get("serialization_di", 0),
+            "provenance_marks_ms": self.phases.get("provenance_marks", 0),
             "persistence_ms": self.phases.get("persistence", 0),
             "read_after_write_ms": self.phases.get("read_after_write", 0),
             "total_ms": self.total_ms,
             "llm_calls": self.llm_calls,
             "tool_calls": self.tool_calls,
             "repair_count": self.repair_count,
+            "unverified_elements": self.unverified_elements,
             "process_snapshot_version": snapshot_version,
         }
 
@@ -468,6 +476,47 @@ def generate_bpmn_draft(
         pending = [
             *pending,
             "La disposizione del diagramma non e' ottimale: elementi vicini o sovrapposti da sistemare.",
+        ]
+
+    # Ogni nodo porta l'esito della verifica sulle fonti. Un passaggio che
+    # nessuna intervista regge non si toglie dal disegno - puo' essere il pezzo
+    # che rende il flusso coerente - ma non si disegna come se qualcuno lo
+    # avesse detto.
+    started = perf_counter()
+    unverified = [
+        item
+        for item in (snapshot.provenance or {}).get("elements") or []
+        if item.get("status") == "unverified"
+    ]
+    try:
+        xml, _marks = mark_provenance(
+            xml,
+            {
+                str(item.get("source_ref")): str(item.get("status"))
+                for item in (snapshot.provenance or {}).get("elements") or []
+                if item.get("source_ref")
+            },
+        )
+    except Exception:  # noqa: BLE001 - la marcatura informa, non condiziona il disegno
+        # Un disegno senza marcature e' meno informativo, non sbagliato: non si
+        # butta un BPMN valido per un attributo di estensione. Il guasto resta
+        # nei log e nella nota per chi legge.
+        logger.warning(
+            "marcatura provenance non riuscita per il processo %s", process_id, exc_info=True
+        )
+        pending = [
+            *pending,
+            "Non e' stato possibile segnare sul disegno quali elementi vengono dalle fonti.",
+        ]
+    watch.mark("provenance_marks", started)
+    watch.unverified_elements = len(unverified)
+    if unverified:
+        labels = ", ".join(str(item.get("label") or item.get("element_id")) for item in unverified[:5])
+        more = f" e altri {len(unverified) - 5}" if len(unverified) > 5 else ""
+        pending = [
+            *pending,
+            f"{len(unverified)} elementi del disegno non risultano in nessuna fonte e vanno "
+            f"confermati: {labels}{more}.",
         ]
 
     from backend import workspace_database

@@ -177,6 +177,48 @@ def _fold(text: str, *, drop_punctuation: bool = False) -> tuple[str, list[int]]
     return "".join(folded), offsets
 
 
+class FoldedText:
+    """Un testo sorgente ripiegato una volta sola, per cercarci molti passaggi.
+
+    `locate_span` ripiega il testo a ogni chiamata, e va bene per verificare una
+    citazione. Verificare ogni elemento di un piano contro ogni fonte significa
+    centinaia di ricerche sullo stesso testo: ripiegarlo ogni volta costa
+    secondi, e quei secondi finiscono in ogni lettura dello snapshot.
+    """
+
+    __slots__ = ("text", "_strict", "_loose")
+
+    def __init__(self, text: Any) -> None:
+        self.text = str(text or "")
+        self._strict: tuple[str, list[int]] | None = None
+        self._loose: tuple[str, list[int]] | None = None
+
+    def _folded(self, loose: bool) -> tuple[str, list[int]]:
+        # Pigro: chi trova il passaggio alla prima forma non paga la seconda.
+        if loose:
+            if self._loose is None:
+                self._loose = _fold(self.text, drop_punctuation=True)
+            return self._loose
+        if self._strict is None:
+            self._strict = _fold(self.text, drop_punctuation=False)
+        return self._strict
+
+    def locate(self, quote: Any) -> tuple[int, int] | None:
+        """Dove sta il passaggio nel testo originale, con la stessa regola di
+        `locate_span`: prima com'e', poi ignorando la punteggiatura."""
+        if len(normalize(quote)) < MIN_QUOTE_CHARS or not self.text:
+            return None
+        for loose in (False, True):
+            haystack, offsets = self._folded(loose)
+            needle, _ = _fold(str(quote or ""), drop_punctuation=loose)
+            if not needle or not haystack:
+                continue
+            at = haystack.find(needle)
+            if at != -1:
+                return offsets[at], offsets[at + len(needle) - 1] + 1
+        return None
+
+
 def locate_span(quote: Any, source_text: Any) -> tuple[int, int] | None:
     """Dove sta questo passaggio nel testo originale, se ci sta.
 
@@ -189,19 +231,9 @@ def locate_span(quote: Any, source_text: Any) -> tuple[int, int] | None:
         Prima si cerca il passaggio cosi' com'e', poi ignorando la
         punteggiatura: ricopiare togliendo una virgola resta ricopiare.
     """
-    text = str(source_text or "")
-    if len(normalize(quote)) < MIN_QUOTE_CHARS or not text:
+    if len(normalize(quote)) < MIN_QUOTE_CHARS or not str(source_text or ""):
         return None
-    for loose in (False, True):
-        haystack, offsets = _fold(text, drop_punctuation=loose)
-        needle, _ = _fold(str(quote or ""), drop_punctuation=loose)
-        if not needle or not haystack:
-            continue
-        at = haystack.find(needle)
-        if at == -1:
-            continue
-        return offsets[at], offsets[at + len(needle) - 1] + 1
-    return None
+    return FoldedText(source_text).locate(quote)
 
 
 def quote_is_grounded(quote: Any, source_text: Any) -> bool:

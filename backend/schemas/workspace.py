@@ -296,6 +296,40 @@ class ApproveBpmnReviewResponse(BaseModel):
     review: BpmnReviewResponse
 
 
+class ProvenanceElementResponse(BaseModel):
+    kind: Literal["actor", "participant", "step", "decision", "exception", "event", "flow"]
+    element_id: str
+    label: str
+    status: Literal["verified", "paraphrased", "label_grounded", "unverified"]
+    source_ref: str
+    source_id: str = ""
+    source_name: str = ""
+    quote: str = ""
+
+
+class ProcessProvenanceResponse(BaseModel):
+    """Il piano confrontato con le fonti.
+
+    `has_plan=False` con `total=0` significa "non c'e' un piano da verificare",
+    che e' diverso da "un piano con zero elementi verificati": chi legge deve
+    poterli distinguere senza dedurlo dai numeri.
+    """
+
+    process_id: str
+    snapshot_id: str
+    snapshot_label: str
+    has_plan: bool
+    total: int = 0
+    verified: int = 0
+    paraphrased: int = 0
+    label_grounded: int = 0
+    unverified: int = 0
+    grounded_ratio: float = 0.0
+    sources_checked: int = 0
+    unused_sources: list[str] = Field(default_factory=list)
+    elements: list[ProvenanceElementResponse] = Field(default_factory=list)
+
+
 class BpmnDraftResponse(BaseModel):
     """L'esito del comando «genera la bozza BPMN dal piano».
 

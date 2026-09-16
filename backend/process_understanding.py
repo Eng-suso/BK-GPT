@@ -1166,6 +1166,10 @@ Regole:
   va dettagliato nella mappa operativa.
 - Lascia quality_report vuoto: sara prodotto da un evaluator separato.
 - Usa id XML-safe con lettere, numeri e underscore.
+- In source_evidence copia le parole della fonte cosi' come sono scritte, senza
+  riassumerle: ogni elemento viene cercato nel testo originale, e un'evidenza
+  riformulata non si trova. Se un elemento non e' detto da nessuna fonte ma serve
+  a rendere coerente il flusso, lascia source_evidence vuoto.
 - Metti in unknowns cio che manca; usa blocking solo se impedisce una bozza BPMN minima.
 - Ogni unknown nasce da una lacuna o da una contraddizione precisa delle note, e
   grounded_in deve dirla nominando la voce e cosa ha detto. Esempi di domande

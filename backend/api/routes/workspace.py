@@ -17,6 +17,7 @@ from backend.schemas.workspace import (
     CreateProjectDecisionRequest,
     CreateProjectRequest,
     CreateProjectSourceRequest,
+    ProcessProvenanceResponse,
     ProjectDecisionResponse,
     ProjectProcessResponse,
     ProjectResponse,
@@ -513,6 +514,48 @@ def update_workspace_bpmn_model(
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
 
     return BpmnModelResponse(**model)
+
+
+@router.get("/processes/{process_id}/provenance")
+def get_workspace_process_provenance(process_id: str) -> ProcessProvenanceResponse:
+    """Il piano del processo confrontato con le fonti, elemento per elemento.
+
+    Per ogni attore, passaggio, decisione, eccezione ed evento: se l'evidenza
+    dichiarata compare nelle interviste (`verified`), se una frase ne porta le
+    parole (`paraphrased`, `label_grounded`) o se nessuna fonte lo regge
+    (`unverified`). Calcolato a ogni lettura sulle fonti intere, senza modello.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+
+    Returns:
+        ProcessProvenanceResponse: I conteggi, le fonti da cui il piano non prende
+        niente e l'esito di ogni elemento con il passaggio della fonte.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.agents.process_snapshot import build_process_snapshot
+
+    snapshot = build_process_snapshot(process_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
+    report = snapshot.provenance or {}
+    return ProcessProvenanceResponse(
+        process_id=process_id,
+        snapshot_id=snapshot.snapshot_id,
+        snapshot_label=snapshot.label,
+        has_plan=snapshot.has_semantic_model,
+        total=int(report.get("total") or 0),
+        verified=int(report.get("verified") or 0),
+        paraphrased=int(report.get("paraphrased") or 0),
+        label_grounded=int(report.get("label_grounded") or 0),
+        unverified=int(report.get("unverified") or 0),
+        grounded_ratio=float(report.get("grounded_ratio") or 0.0),
+        sources_checked=int(report.get("sources_checked") or 0),
+        unused_sources=list(report.get("unused_sources") or []),
+        elements=list(report.get("elements") or []),
+    )
 
 
 @router.post("/processes/{process_id}/bpmn-draft")

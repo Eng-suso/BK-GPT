@@ -324,6 +324,113 @@ def test_the_endpoint_refuses_a_process_without_a_plan_with_the_technical_cause(
     assert body["bpmn_model"] is None
 
 
+def test_the_drawing_shows_what_no_interview_said(empty_process):  # noqa: F811
+    """Un passaggio che nessuno ha raccontato si disegna, ma non come gli altri.
+
+    La validazione confrontava il disegno con il piano: un passaggio inventato
+    dall'estrattore passava come tutti gli altri. Qui il piano si confronta con le
+    interviste, e l'esito arriva sul nodo.
+    """
+    from backend.process_understanding import ProcessStep
+    from backend.workspace_services.bpmn_provenance_marks import PROVENANCE_ATTRIBUTE
+
+    from tests.test_process_canvas_handoff_e2e import _supported_understanding
+
+    _save_interviews(empty_process)
+    understanding = _supported_understanding()
+    understanding.steps.append(
+        ProcessStep(
+            id="audit_trimestrale",
+            label="Audit trimestrale dei fornitori strategici",
+            actor_ids=["acquisti"],
+            source_evidence=["ogni trimestre facciamo audit sui fornitori strategici"],
+        )
+    )
+    understanding.sequence.append("audit_trimestrale")
+    understanding.main_success_path.append("audit_trimestrale")
+    _prepare_plan(empty_process, understanding)
+
+    snapshot = build_process_snapshot(empty_process["process_id"])
+    assert snapshot.provenance is not None
+    assert snapshot.provenance["sources_checked"] == len(INTERVIEWS)
+    audit = next(
+        item for item in snapshot.provenance["elements"] if item["element_id"] == "audit_trimestrale"
+    )
+    assert audit["status"] == "unverified"
+
+    with _bind_process_chat(empty_process["project_id"], empty_process["process_id"]):
+        result = generate_bpmn_draft(empty_process["process_id"])
+
+    assert result.status == "drafted", result.reason
+    assert result.metrics["unverified_elements"] >= 1
+    assert any("Audit trimestrale" in item for item in result.pending_verification)
+
+    root = ET.fromstring(result.xml or "")
+    marked = {
+        element.attrib.get("name"): element.attrib.get(PROVENANCE_ATTRIBUTE)
+        for element in root.iter()
+        if element.attrib.get(PROVENANCE_ATTRIBUTE)
+    }
+    assert marked.get("Audit trimestrale dei fornitori strategici") == "unverified"
+    # E cio' che le interviste dicono non viene marcato come inventato.
+    assert any(status != "unverified" for status in marked.values())
+
+    # La marcatura sopravvive al salvataggio: e' il disegno riletto a portarla.
+    saved = wd.get_bpmn_model(empty_process["bpmn_model_id"])
+    assert PROVENANCE_ATTRIBUTE.split("}")[0].strip("{") in saved["xml"]
+
+
+def test_the_provenance_endpoint_reports_every_element(process_with_plan):
+    """La revisione per elemento ha bisogno di sapere, per ogni elemento, da dove viene."""
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+    from backend.security import get_current_tenant_id
+
+    headers = {"X-DeliR-Tenant-Id": get_current_tenant_id()}
+    with TestClient(app) as client:
+        response = client.get(
+            f"/v1/workspace/processes/{process_with_plan['process_id']}/provenance",
+            headers=headers,
+        )
+        missing = client.get(
+            f"/v1/workspace/processes/{uuid.uuid4().hex}/provenance", headers=headers
+        )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["has_plan"] is True
+    assert body["sources_checked"] == len(INTERVIEWS)
+    assert body["total"] == len(body["elements"]) > 0
+    assert body["total"] == (
+        body["verified"] + body["paraphrased"] + body["label_grounded"] + body["unverified"]
+    )
+    assert missing.status_code == 404
+
+
+def test_the_canvas_completion_check_warns_about_unverified_elements():
+    """Anche il percorso agentico dice cosa nessuna fonte regge."""
+    from backend.agents.process_snapshot import ProcessKnowledgeSnapshot
+    from backend.graphs.canvas_edit.graph import _unverified_element_warnings
+
+    snapshot = ProcessKnowledgeSnapshot(
+        process_id="p1",
+        provenance={
+            "elements": [
+                {"element_id": "a", "label": "Audit trimestrale", "status": "unverified"},
+                {"element_id": "b", "label": "Apri richiesta", "status": "verified"},
+            ],
+            "unused_sources": ["Intervista Paolo Marchetti"],
+        },
+    )
+
+    warnings = _unverified_element_warnings(snapshot)
+
+    assert any("Audit trimestrale" in item and "Apri richiesta" not in item for item in warnings)
+    assert any("Paolo Marchetti" in item for item in warnings)
+    assert _unverified_element_warnings(None) == []
+
+
 def test_the_three_interviews_produce_real_activities(process_with_plan):
     """H. Regressione Esaote: le tre voci diventano lavoro, non start -> end."""
     with _bind_process_chat(process_with_plan["project_id"], process_with_plan["process_id"]):

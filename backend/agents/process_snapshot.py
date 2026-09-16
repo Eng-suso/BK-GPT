@@ -152,6 +152,13 @@ class ProcessKnowledgeSnapshot(BaseModel):
     draft_readiness: dict[str, Any] | None = None
     validation_readiness: dict[str, Any] | None = None
 
+    # --- da dove viene ogni elemento -------------------------------------
+    # Il piano confrontato con le fonti intere, elemento per elemento
+    # (`plan_provenance.ProvenanceReport`): conteggi per esito, fonti da cui
+    # il piano non prende niente, e l'esito di ogni elemento con il passaggio
+    # della fonte che lo regge. `None` quando non c'e' un piano da verificare.
+    provenance: dict[str, Any] | None = None
+
     @property
     def label(self) -> str:
         """Come si nomina questa versione in una frase: `V17`."""
@@ -227,6 +234,11 @@ class ProcessKnowledgeSnapshot(BaseModel):
             "plan_evidence_source_set_id": self.plan_evidence_source_set_id,
             "plan_is_current": self.plan_is_current,
             "readiness_score": self.readiness_score,
+            "provenance": (
+                {key: value for key, value in self.provenance.items() if key != "elements"}
+                if self.provenance
+                else None
+            ),
         }
 
 
@@ -417,6 +429,23 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
         draft_readiness = draft_readiness_without_plan(evidence_items)
         validation_readiness = validation_readiness_without_plan()
 
+    # La provenance si calcola qui, sulle fonti intere del registro e non sugli
+    # estratti che attraversano il confine: un testo tagliato farebbe risultare
+    # inventato cio' che la fonte dice dopo il taglio. Non si persiste - si
+    # ricalcola a ogni lettura - quindi non puo' descrivere un piano o un set di
+    # fonti diverso da quello che lo snapshot porta.
+    plan_provenance = None
+    if understanding is not None:
+        from backend.agents.plan_provenance import verify_plan_provenance
+
+        report = verify_plan_provenance(
+            understanding, list(ledger_snapshot.get("sources") or [])
+        )
+        plan_provenance = {
+            **report.summary(),
+            "elements": [item.model_dump(mode="json") for item in report.elements],
+        }
+
     return ProcessKnowledgeSnapshot(
         process_id=process_id,
         project_id=project_id,
@@ -444,6 +473,7 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
         readiness_score=(review or {}).get("readiness_score"),
         draft_readiness=draft_readiness,
         validation_readiness=validation_readiness,
+        provenance=plan_provenance,
     )
 
 

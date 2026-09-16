@@ -354,6 +354,44 @@ Il giudizio di qualita' si da' una volta sola, sul piano fuso: chiederlo per
 fonte moltiplicherebbe le chiamate per giudicare frammenti che nessuno usera' da
 soli.
 
+## Il piano si confronta con le fonti, non solo il disegno con il piano
+
+`validate_canvas_against_process` verificava che il canvas somigliasse al piano,
+e il piano e' l'output di un estrattore. Un passaggio inventato arrivava al
+disegno con la stessa dignita' di uno descritto da tre persone, e la validazione
+diceva "coerente": verificava l'ipotesi contro se stessa. Il campo
+`source_evidence` di ogni elemento era testo libero che nessuno rileggeva.
+
+`backend/agents/plan_provenance.py` lo rilegge, senza modello. Per ogni attore,
+partecipante, passaggio, decisione, eccezione, evento e flusso con evidenza:
+
+| esito | cosa e' stato trovato nelle fonti intere |
+| --- | --- |
+| `verified` | l'evidenza dichiarata, parola per parola (punteggiatura a parte), con lo span esatto |
+| `paraphrased` | una frase che porta almeno l'80% delle parole dell'evidenza |
+| `label_grounded` | l'evidenza non si trova, ma le parole dell'elemento stanno in una frase |
+| `unverified` | niente: e' un'inferenza |
+
+`unverified` non significa sbagliato - un passaggio che rende coerente il flusso
+puo' non essere stato detto da nessuno - significa che non si puo' dire a un
+cliente che viene dalle sue interviste. Il rapporto dice anche quali fonti il
+piano non usa: un'intervista da cui non viene nessun elemento e' stata ignorata,
+o riformulata al punto da non poterlo piu' dimostrare.
+
+Il rapporto si calcola dentro lo snapshot, a ogni lettura, sulle fonti **intere**
+del registro e non sugli estratti del confine: un testo tagliato farebbe
+risultare inventato cio' che la fonte dice dopo il taglio. Non si persiste,
+quindi non puo' descrivere un piano o un set di fonti diversi da quelli dello
+snapshot che lo porta.
+
+L'esito arriva sul disegno come attributo di estensione `delir:provenance` su
+ogni nodo tracciato - un nodo che rappresenta piu' elementi vale quanto il meno
+provato - e il BPMN resta 2.0 valido per chi l'estensione non la conosce. Il
+comando mette gli elementi `unverified` fra i punti da verificare e nelle
+metriche (`unverified_elements`); il percorso agentico li riporta come avvisi del
+controllo di completamento; `GET /v1/workspace/processes/{id}/provenance` li
+espone elemento per elemento, con il passaggio della fonte che li regge.
+
 ## La divisione
 
 ```

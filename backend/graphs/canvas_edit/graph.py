@@ -167,6 +167,32 @@ def _unverifiable_completion_issues(
     ]
 
 
+def _unverified_element_warnings(snapshot: ProcessKnowledgeSnapshot | None) -> list[str]:
+    """Gli elementi del piano che nessuna fonte regge, detti come avvisi.
+
+    Sola lettura: il rapporto e' gia' nello snapshot, calcolato sulle fonti
+    intere.
+    """
+    report = (snapshot.provenance if snapshot else None) or {}
+    unverified = [
+        str(item.get("label") or item.get("element_id"))
+        for item in report.get("elements") or []
+        if item.get("status") == "unverified"
+    ]
+    warnings: list[str] = []
+    if unverified:
+        more = f" e altri {len(unverified) - 5}" if len(unverified) > 5 else ""
+        warnings.append(
+            "Elementi del disegno che nessuna fonte regge, da confermare: "
+            + ", ".join(unverified[:5])
+            + more
+            + "."
+        )
+    for name in report.get("unused_sources") or []:
+        warnings.append(f"Dal piano non risulta niente di cio' che dice «{name}».")
+    return warnings
+
+
 def expects_empty_canvas(state: dict) -> bool:
     """Determine whether the requested end state is an empty canvas.
     
@@ -900,7 +926,17 @@ def evaluate_canvas_completion(state: CanvasState) -> dict:
         state, snapshot, empty_canvas_expected
     )
     issues = [*fixable_issues, *unverifiable_issues]
-    validation = {**validation, "issues": issues}
+    # Il confronto con il piano dice se il disegno somiglia al piano; non dice
+    # se il piano somiglia alle interviste. Gli elementi che nessuna fonte regge
+    # sono avvisi e non issue - un passaggio inferito puo' essere quello giusto -
+    # ma devono arrivare a chi legge: prima il disegno risultava "verificato"
+    # anche con dentro un passaggio che nessuno aveva raccontato.
+    provenance_warnings = _unverified_element_warnings(snapshot)
+    validation = {
+        **validation,
+        "issues": issues,
+        "warnings": [*(validation.get("warnings") or []), *provenance_warnings],
+    }
     warnings = validation.get("warnings") or []
     next_attempt = int(state.get("canvas_loop_attempt") or 0) + 1
     max_attempts = int(state.get("canvas_loop_max_attempts") or CANVAS_LOOP_MAX_ATTEMPTS)
