@@ -24,6 +24,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof BpmnCanvasToolbar>[0
       onZoomIn={vi.fn()}
       onZoomOut={vi.fn()}
       onZoomFit={vi.fn()}
+      onZoomReadable={vi.fn()}
       onImportClick={vi.fn()}
       onImportFile={vi.fn()}
       onExport={vi.fn()}

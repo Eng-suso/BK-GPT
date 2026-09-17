@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getDiagramBounds, hasDiagramContent, withViewportPadding } from "./viewport";
+import { getDiagramBounds, hasDiagramContent, readableViewbox, withViewportPadding } from "./viewport";
 import type { BpmnModeler, BpmnRegistryElement } from "./types";
 
 /** A modeler whose element registry holds exactly these elements. */
@@ -84,5 +84,32 @@ describe("withViewportPadding", () => {
       1,
     );
     expect(padded.height).toBeGreaterThanOrEqual(420);
+  });
+});
+
+describe("readableViewbox", () => {
+  const bounds = { x: 110, y: 160, width: 1828, height: 870 };
+  const start = { x: 298, y: 264, width: 36, height: 36, type: "bpmn:StartEvent" };
+
+  it("keeps a fit overview on a large desktop viewport", () => {
+    const view = readableViewbox(bounds, { width: 2200, height: 1100 }, start);
+    expect(view.width).toBeGreaterThan(bounds.width);
+    expect(view.x).toBeLessThan(bounds.x);
+  });
+
+  it("holds a legible scale and shows the first step in a narrow pane", () => {
+    const outer = { width: 1000, height: 600 };
+    const view = readableViewbox(bounds, outer, start);
+    expect(outer.width / view.width).toBeCloseTo(1);
+    expect(start.x).toBeGreaterThan(view.x);
+    expect(start.x).toBeLessThan(view.x + view.width);
+  });
+
+  it("starts at normal text scale on a phone", () => {
+    const outer = { width: 390, height: 844 };
+    const view = readableViewbox(bounds, outer, start);
+    expect(outer.width / view.width).toBeCloseTo(1);
+    expect(start.x).toBeGreaterThan(view.x);
+    expect(start.x + start.width).toBeLessThan(view.x + view.width);
   });
 });

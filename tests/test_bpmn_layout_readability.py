@@ -1,6 +1,7 @@
 """Geometry regressions for dense, multi-lane BPMN drafts."""
 
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from backend.workspace_services.bpmn_canvas_edit import (
     BPMNDI_NS,
@@ -58,6 +59,7 @@ def test_dense_lanes_use_only_the_rows_they_contain():
     shapes = _bounds(laid_out)
     report = validate_bpmn_layout(laid_out)
 
+    assert layout_bpmn_di(laid_out) == laid_out
     assert report["valid"] is True
     assert report["metrics"]["bounds"]["height"] < 1200
     assert shapes["Lane_A"]["height"] == shapes["Lane_B"]["height"]
@@ -73,6 +75,7 @@ def test_dense_lanes_use_only_the_rows_they_contain():
     )
     waypoints = list(message_edge.iter(f"{{{DI_NS}}}waypoint"))
     assert float(waypoints[0].attrib["x"]) == float(waypoints[1].attrib["x"])
+    assert float(waypoints[0].attrib["y"]) < float(waypoints[1].attrib["y"])
 
 
 def test_layout_report_identifies_connectors_through_other_activities():
@@ -124,3 +127,95 @@ def test_wide_layout_plan_wraps_before_nodes_leave_the_lane():
         shapes[f"Task_{index}"]["x"] + shapes[f"Task_{index}"]["width"] < lane_right
         for index in range(6)
     )
+
+
+def test_purchase_layout_keeps_lanes_inside_company_pool_and_separates_connectors():
+    xml = Path("tests/fixtures/purchase_layout.bpmn").read_text(encoding="utf-8")
+    laid_out = layout_bpmn_di(xml)
+    shapes = _bounds(laid_out)
+    report = validate_bpmn_layout(laid_out)
+
+    assert layout_bpmn_di(laid_out) == laid_out
+    assert report["valid"] is True
+    assert report["warnings"] == []
+    assert report["metrics"]["edge_edge_crossing_count"] == 0
+    assert report["metrics"]["edge_shape_crossing_count"] == 0
+    assert report["metrics"]["bounds"]["height"] < 1100
+    company = shapes["Company"]
+    supplier = shapes["Supplier"]
+    assert supplier["x"] == company["x"]
+    assert supplier["width"] == company["width"]
+    assert supplier["y"] + supplier["height"] < company["y"]
+    for lane_id in ("Technical", "Purchasing", "Maintenance"):
+        lane = shapes[lane_id]
+        assert company["x"] < lane["x"]
+        assert lane["x"] + lane["width"] < company["x"] + company["width"]
+        assert company["y"] < lane["y"]
+        assert lane["y"] + lane["height"] < company["y"] + company["height"]
+    assert shapes["Purchasing"]["y"] < shapes["End"]["y"] < shapes["Maintenance"]["y"]
+
+    root = ET.fromstring(laid_out)
+    urgent_edge = next(
+        edge for edge in root.iter(f"{{{BPMNDI_NS}}}BPMNEdge")
+        if edge.attrib.get("bpmnElement") == "F8"
+    )
+    label = urgent_edge.find(f"{{{BPMNDI_NS}}}BPMNLabel/{{{DC_NS}}}Bounds")
+    assert label is not None
+    assert float(label.attrib["y"]) > shapes["Maintenance"]["y"]
+
+    for node_id in ("Decision", "End"):
+        node_shape = next(
+            shape for shape in root.iter(f"{{{BPMNDI_NS}}}BPMNShape")
+            if shape.attrib.get("bpmnElement") == node_id
+        )
+        assert node_shape.find(f"{{{BPMNDI_NS}}}BPMNLabel/{{{DC_NS}}}Bounds") is not None
+
+
+def test_compiler_order_branch_and_boundary_event_do_not_cross_main_path():
+    xml = Path("tests/fixtures/purchase_layout.bpmn").read_text(encoding="utf-8")
+    director = '<bpmn:userTask id="Director_Sign" name="Raccogli firma direttore" />'
+    xml = xml.replace(f"    {director}\n", "")
+    xml = xml.replace(
+        '    <bpmn:endEvent id="End" name="Ordine inviato" />',
+        f'    <bpmn:endEvent id="End" name="Ordine inviato" />\n    {director}',
+    )
+    xml = xml.replace(
+        '    <bpmn:dataObjectReference id="Request_Document"',
+        '    <bpmn:boundaryEvent id="Urgency_Boundary" attachedToRef="Open_Request" />\n'
+        '    <bpmn:dataObjectReference id="Request_Document"',
+    )
+    xml = xml.replace('id="F8" name="Urgenza" sourceRef="Open_Request"',
+                      'id="F8" name="Urgenza" sourceRef="Urgency_Boundary"')
+
+    laid_out = layout_bpmn_di(xml)
+    report = validate_bpmn_layout(laid_out)
+    shapes = _bounds(laid_out)
+    assert report["valid"] is True
+    assert report["warnings"] == []
+    assert shapes["Director_Sign"]["x"] < shapes["Create_Order"]["x"] < shapes["End"]["x"]
+
+
+def test_long_single_lane_snakes_without_crossing_and_is_idempotent():
+    nodes = "".join(
+        f'<bpmn:task id="Task_{index}" name="Verifica e approva passaggio {index + 1}" />'
+        for index in range(14)
+    )
+    refs = "".join(f'<bpmn:flowNodeRef>Task_{index}</bpmn:flowNodeRef>' for index in range(14))
+    flows = "".join(
+        f'<bpmn:sequenceFlow id="Flow_{index}" sourceRef="Task_{index - 1}" targetRef="Task_{index}" />'
+        for index in range(1, 14)
+    )
+    xml = f'''<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Long">
+      <bpmn:process id="Process"><bpmn:laneSet><bpmn:lane id="Lane">{refs}</bpmn:lane></bpmn:laneSet>
+      {nodes}{flows}</bpmn:process></bpmn:definitions>'''
+    first = layout_bpmn_di(xml)
+    second = layout_bpmn_di(first)
+    report = validate_bpmn_layout(first)
+    shapes = _bounds(first)
+
+    assert first == second
+    assert report["valid"] is True
+    assert report["warnings"] == []
+    assert shapes["Task_5"]["x"] == shapes["Task_6"]["x"]
+    assert shapes["Task_6"]["x"] > shapes["Task_7"]["x"]
+    assert shapes["Task_11"]["x"] == shapes["Task_12"]["x"]

@@ -39,6 +39,7 @@ export type BpmnEventBus = {
 
 export type BpmnDiagramElement = {
   id?: string;
+  type?: string;
   x?: number;
   y?: number;
   width?: number;

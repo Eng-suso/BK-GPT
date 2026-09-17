@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Purchase_Definitions" targetNamespace="http://delir.test/purchase">
+  <bpmn:collaboration id="Purchase_Collaboration">
+    <bpmn:participant id="Company" name="Azienda" processRef="Purchase_Process" />
+    <bpmn:participant id="Supplier" name="Fornitore" />
+    <bpmn:messageFlow id="Supplier_Message" sourceRef="Supplier" targetRef="Create_Order" />
+  </bpmn:collaboration>
+  <bpmn:process id="Purchase_Process" isExecutable="false">
+    <bpmn:laneSet id="Purchase_Lanes">
+      <bpmn:lane id="Technical" name="Ufficio tecnico"><bpmn:flowNodeRef>Start</bpmn:flowNodeRef><bpmn:flowNodeRef>Open_Request</bpmn:flowNodeRef></bpmn:lane>
+      <bpmn:lane id="Purchasing" name="Acquisti"><bpmn:flowNodeRef>Verify</bpmn:flowNodeRef><bpmn:flowNodeRef>Decision</bpmn:flowNodeRef><bpmn:flowNodeRef>Director_Sign</bpmn:flowNodeRef><bpmn:flowNodeRef>Create_Order</bpmn:flowNodeRef></bpmn:lane>
+      <bpmn:lane id="Maintenance" name="Manutenzione"><bpmn:flowNodeRef>Urgent_Call</bpmn:flowNodeRef></bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start" name="Materiale mancante" />
+    <bpmn:userTask id="Open_Request" name="Apri richiesta di acquisto" />
+    <bpmn:userTask id="Verify" name="Verifica autorizzazione" />
+    <bpmn:exclusiveGateway id="Decision" name="Importo oltre 5000 euro?" />
+    <bpmn:userTask id="Director_Sign" name="Raccogli firma direttore" />
+    <bpmn:userTask id="Create_Order" name="Crea e invia ordine" />
+    <bpmn:userTask id="Urgent_Call" name="Chiama fornitore urgente" />
+    <bpmn:endEvent id="End" name="Ordine inviato" />
+    <bpmn:dataObjectReference id="Request_Document" name="Richiesta di acquisto" />
+    <bpmn:association id="Request_Data" sourceRef="Open_Request" targetRef="Request_Document" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Open_Request" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Open_Request" targetRef="Verify" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Verify" targetRef="Decision" />
+    <bpmn:sequenceFlow id="F4" name="Sopra soglia" sourceRef="Decision" targetRef="Director_Sign" />
+    <bpmn:sequenceFlow id="F5" name="Sotto soglia" sourceRef="Decision" targetRef="Create_Order" />
+    <bpmn:sequenceFlow id="F6" sourceRef="Director_Sign" targetRef="Create_Order" />
+    <bpmn:sequenceFlow id="F7" sourceRef="Create_Order" targetRef="End" />
+    <bpmn:sequenceFlow id="F8" name="Urgenza" sourceRef="Open_Request" targetRef="Urgent_Call" />
+    <bpmn:sequenceFlow id="F9" sourceRef="Urgent_Call" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>
