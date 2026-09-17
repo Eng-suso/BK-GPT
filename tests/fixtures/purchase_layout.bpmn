@@ -3,7 +3,7 @@
   <bpmn:collaboration id="Purchase_Collaboration">
     <bpmn:participant id="Company" name="Azienda" processRef="Purchase_Process" />
     <bpmn:participant id="Supplier" name="Fornitore" />
-    <bpmn:messageFlow id="Supplier_Message" sourceRef="Supplier" targetRef="Create_Order" />
+    <bpmn:messageFlow id="Supplier_Message" name="Ordine da confermare" sourceRef="Supplier" targetRef="Create_Order" />
   </bpmn:collaboration>
   <bpmn:process id="Purchase_Process" isExecutable="false">
     <bpmn:laneSet id="Purchase_Lanes">
@@ -23,7 +23,7 @@
     <bpmn:association id="Request_Data" sourceRef="Open_Request" targetRef="Request_Document" />
     <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Open_Request" />
     <bpmn:sequenceFlow id="F2" sourceRef="Open_Request" targetRef="Verify" />
-    <bpmn:sequenceFlow id="F3" sourceRef="Verify" targetRef="Decision" />
+    <bpmn:sequenceFlow id="F3" name="Autorizzazione verificata" sourceRef="Verify" targetRef="Decision" />
     <bpmn:sequenceFlow id="F4" name="Sopra soglia" sourceRef="Decision" targetRef="Director_Sign" />
     <bpmn:sequenceFlow id="F5" name="Sotto soglia" sourceRef="Decision" targetRef="Create_Order" />
     <bpmn:sequenceFlow id="F6" sourceRef="Director_Sign" targetRef="Create_Order" />

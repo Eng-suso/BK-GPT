@@ -3,6 +3,14 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from backend.bpmn import semantic_model_to_bpmn_xml
+from backend.bpmn.models import (
+    BPMNFlowNode,
+    BPMNMessageFlow,
+    BPMNParticipant,
+    BPMNSemanticModel,
+    BPMNSequenceFlow,
+)
 from backend.workspace_services.bpmn_canvas_edit import (
     BPMNDI_NS,
     BpmnLayoutConfig,
@@ -148,10 +156,12 @@ def test_purchase_layout_keeps_lanes_inside_company_pool_and_separates_connector
     assert supplier["y"] + supplier["height"] < company["y"]
     for lane_id in ("Technical", "Purchasing", "Maintenance"):
         lane = shapes[lane_id]
-        assert company["x"] < lane["x"]
-        assert lane["x"] + lane["width"] < company["x"] + company["width"]
-        assert company["y"] < lane["y"]
-        assert lane["y"] + lane["height"] < company["y"] + company["height"]
+        assert lane["x"] == company["x"] + 30
+        assert lane["x"] + lane["width"] == company["x"] + company["width"]
+    assert shapes["Technical"]["y"] == company["y"]
+    assert shapes["Maintenance"]["y"] + shapes["Maintenance"]["height"] == company["y"] + company["height"]
+    assert shapes["Technical"]["y"] + shapes["Technical"]["height"] == shapes["Purchasing"]["y"]
+    assert shapes["Purchasing"]["y"] + shapes["Purchasing"]["height"] == shapes["Maintenance"]["y"]
     assert shapes["Purchasing"]["y"] < shapes["End"]["y"] < shapes["Maintenance"]["y"]
 
     root = ET.fromstring(laid_out)
@@ -159,9 +169,16 @@ def test_purchase_layout_keeps_lanes_inside_company_pool_and_separates_connector
         edge for edge in root.iter(f"{{{BPMNDI_NS}}}BPMNEdge")
         if edge.attrib.get("bpmnElement") == "F8"
     )
-    label = urgent_edge.find(f"{{{BPMNDI_NS}}}BPMNLabel/{{{DC_NS}}}Bounds")
-    assert label is not None
-    assert float(label.attrib["y"]) > shapes["Maintenance"]["y"]
+    assert urgent_edge.find(f"{{{BPMNDI_NS}}}BPMNLabel") is None
+    bpmn_ns = "http://www.omg.org/spec/BPMN/20100524/MODEL"
+    elements = {element.attrib["id"]: element for element in root.iter()
+                if element.tag.startswith(f"{{{bpmn_ns}}}") and element.attrib.get("id")}
+    for flow_id in ("F3", "F8", "Supplier_Message"):
+        flow = elements[flow_id]
+        assert "name" not in flow.attrib
+        assert flow.find(f"{{{bpmn_ns}}}documentation") is not None
+    for flow_id in ("F4", "F5"):
+        assert elements[flow_id].attrib.get("name")
 
     for node_id in ("Decision", "End"):
         node_shape = next(
@@ -232,3 +249,36 @@ def test_repeated_branches_across_lanes_remain_unentangled_and_idempotent():
     assert report["warnings"] == []
     assert report["metrics"]["edge_edge_crossing_count"] == 0
     assert report["metrics"]["edge_shape_crossing_count"] == 0
+
+
+def test_serializer_shows_connector_text_only_on_gateway_branches():
+    model = BPMNSemanticModel(
+        id="Process_Labels", name="Etichette dei collegamenti",
+        flowNodes=[
+            BPMNFlowNode(id="Start", type="startEvent", name="Avvio"),
+            BPMNFlowNode(id="Decision", type="exclusiveGateway", name="Approvata?"),
+            BPMNFlowNode(id="Work", type="task", name="Prepara ordine"),
+            BPMNFlowNode(id="End", type="endEvent", name="Concluso"),
+        ],
+        sequenceFlows=[
+            BPMNSequenceFlow(id="First", sourceRef="Start", targetRef="Decision", name="Richiesta ricevuta"),
+            BPMNSequenceFlow(id="Branch", sourceRef="Decision", targetRef="Work", name="Sì"),
+            BPMNSequenceFlow(id="Last", sourceRef="Work", targetRef="End", name="Ordine pronto"),
+        ],
+        participants=[
+            BPMNParticipant(id="Company", name="Azienda", processRef="Process_Labels"),
+            BPMNParticipant(id="Supplier", name="Fornitore", isExternal=True),
+        ],
+        messageFlows=[
+            BPMNMessageFlow(id="Message", sourceRef="Supplier", targetRef="Work", name="Conferma"),
+        ],
+    )
+    xml = semantic_model_to_bpmn_xml(model)
+    root = ET.fromstring(xml)
+    elements = {element.attrib["id"]: element for element in root.iter() if element.attrib.get("id")}
+    model_ns = "http://www.omg.org/spec/BPMN/20100524/MODEL"
+
+    assert elements["Branch"].attrib["name"] == "Sì"
+    for flow_id in ("First", "Last", "Message"):
+        assert "name" not in elements[flow_id].attrib
+        assert elements[flow_id].find(f"{{{model_ns}}}documentation") is not None

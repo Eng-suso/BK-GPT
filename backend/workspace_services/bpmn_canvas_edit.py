@@ -678,6 +678,7 @@ def layout_bpmn_di(
     """
     config = _readable_layout_config(config or BpmnLayoutConfig())
     root = _parse_bpmn_xml(xml)
+    _normalize_connector_labels(root)
     definitions_id = root.attrib.get("id", "Definitions")
     process = _find_process(root)
     process_id = process.attrib.get("id", "Process")
@@ -874,6 +875,37 @@ def layout_bpmn_di(
 
     _avoid_node_label_collisions(plane, connectable_positions, lane_shapes)
     return _xml_to_string(root)
+
+
+def _normalize_connector_labels(root: ET.Element) -> None:
+    """Only gateway branches carry visible names on connectors."""
+    gateways = {
+        element.attrib["id"] for element in root.iter()
+        if _namespace(element.tag) == BPMN_NS
+        and _local_name(element.tag).endswith("Gateway")
+        and element.attrib.get("id")
+    }
+    for flow in _sequence_flows(root):
+        if flow.attrib.get("sourceRef") not in gateways:
+            _move_connector_name_to_documentation(flow)
+    collaboration = _find_collaboration(root)
+    if collaboration is not None:
+        for flow in _message_flows(collaboration):
+            _move_connector_name_to_documentation(flow)
+
+
+def _move_connector_name_to_documentation(flow: ET.Element) -> None:
+    name = flow.attrib.pop("name", "").strip()
+    if not name:
+        return
+    documentation = ET.Element(_bpmn_tag("documentation"))
+    documentation.text = name
+    insert_at = 0
+    for child in flow:
+        if _namespace(child.tag) != BPMN_NS or _local_name(child.tag) != "documentation":
+            break
+        insert_at += 1
+    flow.insert(insert_at, documentation)
 
 
 def _avoid_node_label_collisions(
@@ -1738,10 +1770,21 @@ def _layout_participant_shapes(
         for element in collaboration
         if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "participant"
     ]
-    pool_left = min_x - 30
-    pool_width = (max_x - pool_left) + 40
-    primary_top = min_y - 30
-    primary_height = max(max_y - primary_top + 30, 160.0)
+    if lane_shapes:
+        # A lane is a subdivision of its participant, not an inset box.
+        # Its first and last edges must coincide with the pool border; the
+        # remaining 30 px on the left are the participant's title strip.
+        pool_left = min(float(lane["x"]) for lane in lane_shapes) - 30
+        pool_right = max(float(lane["x"]) + float(lane["width"]) for lane in lane_shapes)
+        primary_top = min(float(lane["y"]) for lane in lane_shapes)
+        primary_bottom = max(float(lane["y"]) + float(lane["height"]) for lane in lane_shapes)
+        pool_width = pool_right - pool_left
+        primary_height = primary_bottom - primary_top
+    else:
+        pool_left = min_x - 30
+        pool_width = (max_x - pool_left) + 40
+        primary_top = min_y - 30
+        primary_height = max(max_y - primary_top + 30, 160.0)
 
     positions: dict[str, dict[str, float]] = {}
     external_count = 0
