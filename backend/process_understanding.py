@@ -285,9 +285,10 @@ class ProcessUnknown(BaseModel):
         default="",
         description=(
             "The concrete gap or contradiction in the source notes that makes this "
-            "question necessary: name the voice and what it said. E.g. 'Paolo says "
-            "small amounts may skip formal approval, Francesca says authorisation is "
-            "always required'. Not a category name."
+            "question necessary: name the voice and what it said. E.g. 'the "
+            "maintenance lead says small amounts may skip formal approval, the "
+            "purchasing lead says authorisation is always required'. Use the voices "
+            "of these notes, not example names. Not a category name."
         ),
     )
     options: list[ProcessUnknownOption] = Field(
@@ -1239,10 +1240,12 @@ Regole:
 - Metti in unknowns cio che manca; usa blocking solo se impedisce una bozza BPMN minima.
 - Ogni unknown nasce da una lacuna o da una contraddizione precisa delle note, e
   grounded_in deve dirla nominando la voce e cosa ha detto. Esempi di domande
-  valide: "Paolo dice che per piccoli importi l'approvazione puo non essere
-  formalizzata, Francesca dice che l'autorizzazione e sempre richiesta: quale
-  descrive il processo effettivo?"; "Francesca dice che Acquisti crea e invia
-  l'ordine: cosa succede fra invio ordine e ricezione fattura?".
+  valide, con le voci di QUESTE note e non con i nomi degli esempi: "la voce della
+  manutenzione dice che per piccoli importi l'approvazione puo non essere
+  formalizzata, la voce degli acquisti dice che l'autorizzazione e sempre
+  richiesta: quale descrive il processo effettivo?"; "la voce degli acquisti dice
+  che l'ordine viene creato e inviato: cosa succede fra invio ordine e ricezione
+  fattura?".
 - Non chiedere una categoria intera su cui le note gia parlano. "Quali sono gli
   attori?", "quali attivita?", "quali regole?", "come funziona il processo?" non
   sono unknowns: se le note nominano attori, attivita o regole, quella conoscenza
