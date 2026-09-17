@@ -2168,6 +2168,40 @@ def due_conformance_checks(limit: int = 3) -> list[dict]:
         return claimed
 
 
+def enqueue_unchecked_conformance(limit: int = 20, *, only_tenant_id: str | None = None) -> list[str]:
+    """Mette in coda i processi che hanno un disegno e non sono mai stati confrontati.
+
+    La coda si riempie quando qualcuno disegna o rivede un piano. Da sola quella
+    regola coprirebbe solo i processi toccati da quando il confronto esiste: tutti
+    i disegni gia' sul tavolo - gli altri progetti, gli altri clienti - resterebbero
+    senza verifica per sempre, e il pannello direbbe "non ancora confrontato"
+    finche' qualcuno non li riapre. Qui entrano anche loro, un po' per passata.
+
+    Args:
+        limit: Quanti processi mettere in coda al massimo.
+        only_tenant_id: Limita a un tenant (amministrazione, test).
+
+    Returns:
+        Gli id dei modelli messi in coda.
+    """
+    with workspace_connection() as session:
+        statement = (
+            select(WorkspaceBpmnReview)
+            .join(WorkspaceBpmnModel, WorkspaceBpmnModel.id == WorkspaceBpmnReview.bpmn_model_id)
+            .where(WorkspaceBpmnReview.conformance_status.is_(None))
+            .where(WorkspaceBpmnModel.xml.is_not(None))
+            .order_by(WorkspaceBpmnReview.updated_at)
+            .limit(max(1, int(limit)))
+        )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
+        rows = session.execute(statement).scalars().all()
+        for row in rows:
+            row.conformance_status = "pending"
+        session.flush()
+        return [row.bpmn_model_id for row in rows]
+
+
 def conformance_queue_stats() -> dict[str, int]:
     """Quanti confronti sono in attesa e quanti sono stati presi in carico."""
     with workspace_connection() as session:

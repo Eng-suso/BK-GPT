@@ -603,3 +603,50 @@ def test_a_plan_missing_an_unreadable_interview_is_not_drawn(esaote_state, monke
     assert result.reason_code == "plan_synthesis_failed"
     assert any("Paolo" in item for item in result.issues)
     assert _draft_versions(esaote_state["bpmn_model_id"]) == []
+
+
+def test_a_drawing_from_another_project_gets_checked_without_anyone_touching_it(
+    esaote_state, extractor, auditor
+):
+    """Il confronto non vale solo per il processo su cui si sta lavorando adesso.
+
+    I disegni gia' sul tavolo - gli altri progetti, gli altri clienti - non sono
+    mai passati da una scrittura che li mettesse in coda. Lo sweep li trova, e da
+    li' in poi hanno un esito come tutti gli altri.
+    """
+    from backend.workers import conformance_worker
+
+    with _bind_process_chat(esaote_state["project_id"], esaote_state["process_id"]):
+        assert generate_bpmn_draft(esaote_state["process_id"]).ok
+
+    # Lo stato di un processo disegnato prima che il confronto esistesse.
+    with wd.workspace_connection() as session:
+        session.execute(
+            text(
+                "UPDATE workspace_bpmn_reviews SET conformance_status = NULL, "
+                "conformance_json = NULL WHERE bpmn_model_id = :model AND tenant_id = :tenant"
+            ),
+            {"model": esaote_state["bpmn_model_id"], "tenant": get_current_tenant_id()},
+        )
+
+    queued = wd.enqueue_unchecked_conformance(only_tenant_id=get_current_tenant_id())
+    assert esaote_state["bpmn_model_id"] in queued
+
+    for _ in range(10):
+        if conformance_worker.drain_once(limit=5) == 0:
+            break
+        if wd.get_bpmn_review(esaote_state["bpmn_model_id"], include_approved=True)[
+            "conformance"
+        ]["status"] == "done":
+            break
+
+    state = wd.get_bpmn_review(esaote_state["bpmn_model_id"], include_approved=True)["conformance"]
+    assert state["status"] == "done"
+    assert state["report"]["verdict"] in {"conformant", "conformant_with_divergences", "not_conformant"}
+    assert auditor.requests, "le fonti sono state lette davvero"
+
+    # E un secondo giro sullo stesso stato non ricompra le stesse letture.
+    read_before = len(auditor.requests)
+    wd.request_conformance_check(esaote_state["bpmn_model_id"])
+    conformance_worker.drain_once(limit=5)
+    assert len(auditor.requests) == read_before

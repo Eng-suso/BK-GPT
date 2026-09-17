@@ -926,11 +926,29 @@ def evaluate_conformance(
     )
 
 
+def conformance_is_current(snapshot: ProcessKnowledgeSnapshot, stored: dict | None, canvas_xml: str | None) -> bool:
+    """Il rapporto registrato descrive esattamente questo stato?
+
+    Due cose lo identificano: la versione di conoscenza del processo e
+    l'impronta del disegno salvato. Se coincidono, rifare il confronto
+    spenderebbe una chiamata per fonte per riscrivere le stesse righe - e con il
+    confronto acceso su tutti i progetti, quelle chiamate sono il costo che
+    decide se la verifica puo' restare sempre attiva.
+    """
+    if not stored:
+        return False
+    return (
+        stored.get("snapshot_id") == snapshot.snapshot_id
+        and stored.get("canvas_signature") == signature_digest(canvas_xml)
+    )
+
+
 def audit_process_conformance(
     process_id: str,
     *,
     auditor: SourceAuditor | None | object = _AUDITOR_FROM_SETTINGS,
     persist: bool = True,
+    force: bool = False,
 ) -> ConformanceReport | None:
     """Verifica lo stato persistito di un processo e registra l'esito.
 
@@ -940,6 +958,8 @@ def audit_process_conformance(
             ``None`` esplicito: nessun revisore, il verdetto sara' al piu'
             `incomplete`.
         persist: Registrare il rapporto sulla review del processo.
+        force: Rifare il confronto anche se quello registrato descrive gia'
+            questo stato. Serve quando lo si chiede esplicitamente.
 
     Returns:
         Il rapporto, o ``None`` se il processo non esiste.
@@ -963,6 +983,20 @@ def audit_process_conformance(
         if snapshot.bpmn_model_id
         else None
     )
+
+    stored = ((review or {}).get("conformance") or {}).get("report")
+    if not force and conformance_is_current(snapshot, stored, (model or {}).get("xml")):
+        logger.info(
+            "confronto gia' attuale per il processo %s: nessuna nuova lettura delle fonti",
+            process_id,
+        )
+        existing = ConformanceReport.model_validate(stored)
+        if persist:
+            try:
+                workspace_database.record_conformance_report(snapshot.bpmn_model_id, stored)
+            except Exception:  # noqa: BLE001 - lo stato della coda non e' il rapporto
+                logger.warning("stato del confronto non aggiornato per %s", process_id, exc_info=True)
+        return existing
 
     report = evaluate_conformance(
         snapshot,

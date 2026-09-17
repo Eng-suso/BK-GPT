@@ -781,7 +781,9 @@ def run_workspace_process_conformance_audit(process_id: str) -> ConformanceStatu
     """
     from backend.agents.conformance_audit import audit_process_conformance
 
-    report = audit_process_conformance(process_id)
+    # Richiesto a mano: si rifa' anche se quello registrato descrive gia' questo
+    # stato. E' il bottone «Confronta ora», e deve confrontare.
+    report = audit_process_conformance(process_id, force=True)
     if report is None:
         raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
     return ConformanceStatusResponse(

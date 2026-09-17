@@ -30,6 +30,11 @@ from backend.security import reset_current_tenant_id, set_current_tenant_id
 logger = logging.getLogger(__name__)
 
 _IDLE_SLEEP_SECONDS = 5.0
+# Ogni quanto, a coda vuota, si cercano i disegni che nessuno ha mai confrontato.
+# Sono i processi di prima che il confronto esistesse: i progetti degli altri
+# clienti, non solo quello su cui si sta lavorando adesso.
+_SWEEP_INTERVAL_SECONDS = 600.0
+_last_sweep_at: float | None = None
 # Quanti confronti per passata. Ognuno e' una chiamata per fonte: due processi
 # insieme bastano a tenere la coda vuota senza aprire venti connessioni al
 # provider.
@@ -68,12 +73,48 @@ def _work_one(row: dict) -> bool:
     return True
 
 
+def sweep_unchecked(*, force: bool = False) -> int:
+    """Mette in coda i disegni mai confrontati, al piu' ogni tanto.
+
+    Returns:
+        Quanti processi ha messo in coda.
+    """
+    global _last_sweep_at
+    now = time.monotonic()
+    if not force and _last_sweep_at is not None and now - _last_sweep_at < _SWEEP_INTERVAL_SECONDS:
+        return 0
+    _last_sweep_at = now
+    try:
+        queued = wd.enqueue_unchecked_conformance()
+    except Exception:  # noqa: BLE001 - uno sweep storto non ferma la coda
+        logger.warning("sweep dei disegni mai confrontati non riuscito", exc_info=True)
+        return 0
+    if queued:
+        logger.info("sweep: %s disegni mai confrontati messi in coda", len(queued))
+    return len(queued)
+
+
 def drain_once(limit: int = _BATCH) -> int:
     """Una passata sulla coda dei confronti."""
     rows = wd.due_conformance_checks(limit)
     for row in rows:
         _work_one(row)
     return len(rows)
+
+
+def drain_and_sweep(limit: int = _BATCH) -> int:
+    """La passata del loop di servizio: la coda, e a coda vuota i mai confrontati.
+
+    Separata da `drain_once` per lo stesso motivo del piano: chi drena a mano
+    vuole lavorare la coda che vede, non quella che uno sweep su tutti i tenant
+    potrebbe riempire nel frattempo.
+    """
+    processed = drain_once(limit)
+    if processed:
+        return processed
+    if sweep_unchecked():
+        return drain_once(limit)
+    return 0
 
 
 def queue_stats() -> dict[str, int]:
@@ -89,7 +130,7 @@ def run_forever(idle_sleep: float = _IDLE_SLEEP_SECONDS) -> None:
     logger.info("conformance_worker avviato")
     while True:
         try:
-            processed = drain_once()
+            processed = drain_and_sweep()
         except Exception:  # noqa: BLE001 - una passata storta non ferma il loop
             logger.exception("conformance_worker: passata fallita")
             processed = 0

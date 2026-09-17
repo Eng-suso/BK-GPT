@@ -111,7 +111,7 @@ async def run_queue_workers() -> None:
     conformance_task = asyncio.create_task(
         _drain_loop(
             "conformance_worker",
-            conformance_worker.drain_once,
+            conformance_worker.drain_and_sweep,
             conformance_worker.queue_stats,
             5.0,
         ),

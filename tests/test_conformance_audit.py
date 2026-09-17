@@ -353,3 +353,22 @@ def test_a_finding_about_the_order_stays_readable():
     assert "Passaggio 7" not in message
     assert message.startswith("«L'ordine dei passaggi»")
     assert len(message) < 300
+
+
+def test_an_unchanged_state_does_not_pay_for_a_second_reading():
+    """Con il confronto acceso su tutti i progetti, rileggere per niente e' il costo che lo spegne."""
+    from backend.agents.conformance_audit import conformance_is_current, signature_digest
+
+    snapshot = ProcessKnowledgeSnapshot(process_id="p", snapshot_id="abc123")
+    stored = {"snapshot_id": "abc123", "canvas_signature": signature_digest(PLAN_XML)}
+
+    assert conformance_is_current(snapshot, stored, PLAN_XML) is True
+    # Il disegno cambia...
+    edited = PLAN_XML.replace("Crea ordine", "Crea ordine a mano")
+    assert conformance_is_current(snapshot, stored, edited) is False
+    # ...o cambia cio' che il processo sa.
+    assert conformance_is_current(
+        snapshot.model_copy(update={"snapshot_id": "def456"}), stored, PLAN_XML
+    ) is False
+    # Nessun rapporto: non c'e' niente di attuale.
+    assert conformance_is_current(snapshot, None, PLAN_XML) is False
