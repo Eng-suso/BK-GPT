@@ -485,7 +485,7 @@ def generate_bpmn_draft(
     # avesse detto.
     started = perf_counter()
     report = snapshot.provenance
-    unverified = report.unverified if report else []
+    unverified = report.awaiting_confirmation if report else []
     try:
         xml, _marks = mark_provenance(xml, report.status_by_source_ref() if report else {})
     except (ET.ParseError, ValueError, TypeError):

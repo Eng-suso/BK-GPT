@@ -1353,6 +1353,7 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
         "evidence_source_set_id": getattr(review, "evidence_source_set_id", None),
         "open_questions": open_questions_with_answers(review),
         "answers": decode_answers(review),
+        "element_decisions": decode_element_decisions(review),
         "status": getattr(review, "status", "pending"),
         "created_at": review.created_at,
         "updated_at": review.updated_at,
@@ -1923,6 +1924,70 @@ def ensure_project_source(
         ),
         True,
     )
+
+
+ELEMENT_DECISIONS = frozenset({"confirmed", "rejected"})
+
+
+def decode_element_decisions(review: WorkspaceBpmnReview) -> dict[str, dict]:
+    """Le decisioni del consulente sugli elementi del piano, per riferimento."""
+    try:
+        parsed = json.loads(getattr(review, "element_decisions_json", None) or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def record_element_decision(
+    bpmn_model_id: str,
+    *,
+    source_ref: str,
+    label: str,
+    decision: str,
+    note: str = "",
+) -> dict[str, dict]:
+    """Registra che il consulente ha confermato o rifiutato un elemento del piano.
+
+    Non passa da `assert_write_allowed`: e' una revisione umana fatta dal
+    pannello delle evidenze, fuori da qualunque turno di chat, come l'approvazione
+    di una review.
+
+    Args:
+        bpmn_model_id: Il modello a cui la review appartiene.
+        source_ref: Il riferimento di tracciabilita' dell'elemento.
+        label: L'etichetta dell'elemento al momento della decisione. Si tiene
+            perche' un piano ricostruito puo' riusare lo stesso id per un
+            passaggio diverso, e chi rilegge la decisione deve poterlo vedere.
+        decision: `confirmed` o `rejected`.
+        note: Perche', se il consulente lo scrive.
+
+    Returns:
+        Tutte le decisioni della review, dopo la scrittura.
+
+    Raises:
+        ValueError: Se la decisione non e' ammessa o la review non esiste.
+    """
+    if decision not in ELEMENT_DECISIONS:
+        raise ValueError(f"Decisione non ammessa: {decision}")
+    if not str(source_ref or "").strip():
+        raise ValueError("Riferimento dell'elemento obbligatorio.")
+
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None:
+            raise ValueError(f"Review BPMN non trovata: {bpmn_model_id}")
+        decisions = decode_element_decisions(review)
+        decisions[source_ref] = {
+            "decision": decision,
+            "label": label,
+            "note": note.strip(),
+            "decided_at": now_iso(),
+            "plan_version": int(getattr(review, "version", 1) or 1),
+        }
+        review.element_decisions_json = json.dumps(decisions, ensure_ascii=False)
+        review.updated_at = now_iso()
+        session.flush()
+        return decisions
 
 
 MATERIALIZATION_MAX_ATTEMPTS = 5

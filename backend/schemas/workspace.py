@@ -305,6 +305,13 @@ class ProvenanceElementResponse(BaseModel):
     source_id: str = ""
     source_name: str = ""
     quote: str = ""
+    consultant_decision: Literal["confirmed", "rejected"] | None = None
+    # L'esito che il disegno mostra sul nodo: quello della verifica, o
+    # `confirmed` quando un'inferenza e' stata confermata dal consulente.
+    mark_status: Literal["verified", "paraphrased", "label_grounded", "unverified", "confirmed"]
+    # Il rifiuto toglie l'elemento dal piano: vale per passaggi, eventi ed
+    # eccezioni, non per attori e decisioni.
+    removable: bool = False
 
 
 class ProcessProvenanceResponse(BaseModel):
@@ -324,10 +331,33 @@ class ProcessProvenanceResponse(BaseModel):
     paraphrased: int = 0
     label_grounded: int = 0
     unverified: int = 0
+    awaiting_confirmation: int = 0
     grounded_ratio: float = 0.0
     sources_checked: int = 0
     unused_sources: list[str] = Field(default_factory=list)
     elements: list[ProvenanceElementResponse] = Field(default_factory=list)
+
+
+class ElementReviewRequest(BaseModel):
+    source_ref: str = Field(min_length=1)
+    decision: Literal["confirmed", "rejected"]
+    note: str = ""
+
+
+class ElementReviewResponse(BaseModel):
+    """L'esito di una revisione, con il rapporto riletto dopo la scrittura.
+
+    `ok=False` non e' un errore di trasporto: la decisione puo' essere stata
+    registrata e il disegno non aggiornato, e chi legge deve sapere quale delle
+    due cose e' successa (`reason_code`).
+    """
+
+    ok: bool
+    reason_code: str
+    reason: str
+    provenance: ProcessProvenanceResponse | None = None
+    draft_status: str | None = None
+    pending_verification: list[str] = Field(default_factory=list)
 
 
 class BpmnDraftResponse(BaseModel):

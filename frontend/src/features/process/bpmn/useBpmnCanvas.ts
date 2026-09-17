@@ -25,6 +25,7 @@ import {
   hasDiagramContent,
   keepSequenceConnectionsDocked,
 } from "./viewport";
+import { applyProvenanceMarkers } from "./provenance";
 import { assertBpmnXml, downloadBpmn, loadInitialXml } from "./xml";
 import type {
   BpmnCanvasService,
@@ -69,6 +70,12 @@ export type UseBpmnCanvas = {
   zoomIn: () => void;
   zoomOut: () => void;
   zoomFit: () => void;
+  /**
+   * Seleziona e porta in vista il nodo che rappresenta un elemento del piano.
+   * `false` quando il disegno non lo contiene: il pannello delle evidenze lo
+   * dice invece di non fare niente.
+   */
+  focusSourceRef: (sourceRef: string) => boolean;
 };
 
 export function useBpmnCanvas({
@@ -88,6 +95,9 @@ export function useBpmnCanvas({
   const fitTimerRef = useRef<number | null>(null);
   const lastSavedXmlRef = useRef<string | null>(null);
   const onCurrentXmlChangeRef = useRef(onCurrentXmlChange);
+  // Riferimento di tracciabilita' -> nodi del disegno. Si ricostruisce a ogni
+  // import: un disegno nuovo puo' rappresentare lo stesso passaggio altrove.
+  const provenanceIndexRef = useRef<Map<string, string[]>>(new Map());
 
   const [status, setStatus] = useState("Caricamento canvas...");
   const [error, setError] = useState<string | null>(null);
@@ -191,7 +201,16 @@ export function useBpmnCanvas({
   }, []);
 
   const syncEmptiness = useCallback(() => {
-    if (modelerRef.current) setIsEmptyModel(!hasDiagramContent(modelerRef.current));
+    if (!modelerRef.current) return;
+    setIsEmptyModel(!hasDiagramContent(modelerRef.current));
+    // Ogni punto che importa un XML passa di qui: e' il momento in cui i segni
+    // di provenance vanno riletti dal disegno appena caricato.
+    try {
+      provenanceIndexRef.current = applyProvenanceMarkers(modelerRef.current);
+    } catch (err) {
+      console.warn("[bpmn] provenance markers failed", err);
+      provenanceIndexRef.current = new Map();
+    }
   }, []);
 
   const loadVersions = useCallback(async () => {
@@ -550,6 +569,22 @@ export function useBpmnCanvas({
 
   const clearSelection = useCallback(() => setSelectedElement(null), []);
 
+  const focusSourceRef = useCallback((sourceRef: string) => {
+    const modeler = modelerRef.current;
+    const elementId = provenanceIndexRef.current.get(sourceRef)?.[0];
+    if (!modeler || !elementId) return false;
+    const registry = modeler.get("elementRegistry") as BpmnElementRegistry;
+    const element = registry.get?.(elementId);
+    if (!element) return false;
+    const selection = modeler.get("selection") as { select: (element: unknown) => void };
+    const canvasService = modeler.get("canvas") as {
+      scrollToElement?: (element: unknown, padding?: number) => void;
+    };
+    selection.select(element);
+    canvasService.scrollToElement?.(element, 120);
+    return true;
+  }, []);
+
   return {
     containerRef,
     fileInputRef,
@@ -574,5 +609,6 @@ export function useBpmnCanvas({
     zoomIn,
     zoomOut,
     zoomFit,
+    focusSourceRef,
   };
 }

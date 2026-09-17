@@ -176,7 +176,7 @@ def _unverified_element_warnings(snapshot: ProcessKnowledgeSnapshot | None) -> l
     report = snapshot.provenance if snapshot else None
     if report is None:
         return []
-    unverified = [item.label or item.element_id for item in report.unverified]
+    unverified = [item.label or item.element_id for item in report.awaiting_confirmation]
     warnings: list[str] = []
     if unverified:
         more = f" e altri {len(unverified) - 5}" if len(unverified) > 5 else ""

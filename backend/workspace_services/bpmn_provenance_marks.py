@@ -34,7 +34,7 @@ _TRACEABILITY_MARKER = "DeliR traceability:"
 # - un compito di recupero legato a un passaggio e a un'eccezione - vale quanto
 # il suo elemento meno provato: dichiararlo verificato perche' meta' di cio' che
 # rappresenta lo e' sarebbe una promozione.
-_STRENGTH = {"unverified": 0, "label_grounded": 1, "paraphrased": 2, "verified": 3}
+_STRENGTH = {"unverified": 0, "label_grounded": 1, "confirmed": 2, "paraphrased": 2, "verified": 3}
 
 
 def _source_refs(element: ET.Element) -> list[str]:

@@ -366,6 +366,61 @@
       "description": "The process is recorded but not reconstructed yet. The canvas comes out of the discussion: describe the process to the agent and it will propose the BPMN. You can also import a .bpmn file, or draw it by hand from the palette on the left.",
       "openDiscussion": "Go to the discussion",
       "import": "Import BPMN"
+    },
+    "evidence": {
+      "toggle": "Evidence",
+      "toggleLabel": "Review the drawing against the evidence",
+      "title": "Drawing evidence",
+      "plan": "Plan {{label}}",
+      "close": "Close evidence",
+      "loadError": "The comparison with the sources is not available.",
+      "reviewError": "The decision was not recorded.",
+      "noPlan": "This process has no plan yet: there is nothing to compare with the sources.",
+      "notDrawn": "“{{label}}” is not in the current drawing.",
+      "locate": "Show in the drawing",
+      "noQuote": "No passage in the sources supports this element.",
+      "confirm": "Confirm",
+      "confirmLabel": "Confirm “{{label}}”: it happens, even if no source says so",
+      "reject": "Reject",
+      "rejectLabel": "Reject “{{label}}”",
+      "rejectConfirm": "Remove from plan",
+      "rejectConfirmLabel": "Confirm: remove “{{label}}” from the plan and redraw",
+      "cancel": "Cancel",
+      "saving": "Saving…",
+      "redrawing": "Redrawing…",
+      "saveFirst": "Save your canvas changes before rejecting: the drawing is regenerated.",
+      "notRemovable": "Actors and decisions are corrected on the plan, not here.",
+      "nothingAwaiting": "Every element of the drawing is supported by the sources or has been confirmed.",
+      "unusedSources": "Nothing in the plan comes from: {{sources}}.",
+      "sections": {
+        "awaiting": "To confirm",
+        "confirmed": "Confirmed by you",
+        "weak": "Supported in other words",
+        "verified": "Quoted by the sources"
+      },
+      "summary": {
+        "grounded": "Supported by the sources",
+        "verified": "Quoted verbatim",
+        "weak": "Paraphrased or label only",
+        "awaiting": "To confirm",
+        "sources": "Sources read"
+      },
+      "status": {
+        "verified": "Quoted",
+        "paraphrased": "Paraphrased",
+        "label_grounded": "Label only",
+        "confirmed": "Confirmed",
+        "unverified": "To confirm"
+      },
+      "kind": {
+        "actor": "Actor",
+        "participant": "Participant",
+        "step": "Activity",
+        "decision": "Decision",
+        "exception": "Exception",
+        "event": "Event",
+        "flow": "Flow"
+      }
     }
   }
 }

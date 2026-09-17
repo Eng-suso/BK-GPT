@@ -17,6 +17,8 @@ from backend.schemas.workspace import (
     CreateProjectDecisionRequest,
     CreateProjectRequest,
     CreateProjectSourceRequest,
+    ElementReviewRequest,
+    ElementReviewResponse,
     ProcessProvenanceResponse,
     ProjectDecisionResponse,
     ProjectProcessResponse,
@@ -516,30 +518,10 @@ def update_workspace_bpmn_model(
     return BpmnModelResponse(**model)
 
 
-@router.get("/processes/{process_id}/provenance")
-def get_workspace_process_provenance(process_id: str) -> ProcessProvenanceResponse:
-    """Il piano del processo confrontato con le fonti, elemento per elemento.
+def _provenance_response(process_id: str, snapshot) -> ProcessProvenanceResponse:
+    """Il rapporto di provenance dello snapshot, nella forma dell'API."""
+    from backend.agents.plan_element_removal import REMOVABLE_KINDS
 
-    Per ogni attore, passaggio, decisione, eccezione ed evento: se l'evidenza
-    dichiarata compare nelle interviste (`verified`), se una frase ne porta le
-    parole (`paraphrased`, `label_grounded`) o se nessuna fonte lo regge
-    (`unverified`). Calcolato a ogni lettura sulle fonti intere, senza modello.
-
-    Args:
-        process_id: Identificatore del processo, non affidabile.
-
-    Returns:
-        ProcessProvenanceResponse: I conteggi, le fonti da cui il piano non prende
-        niente e l'esito di ogni elemento con il passaggio della fonte.
-
-    Raises:
-        HTTPException: 404 quando il processo non esiste.
-    """
-    from backend.agents.process_snapshot import build_process_snapshot
-
-    snapshot = build_process_snapshot(process_id)
-    if snapshot is None:
-        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
     report = snapshot.provenance
     if report is None:
         # Nessun piano: "niente da verificare", che non e' "zero elementi verificati".
@@ -559,10 +541,90 @@ def get_workspace_process_provenance(process_id: str) -> ProcessProvenanceRespon
         paraphrased=report.count("paraphrased"),
         label_grounded=report.count("label_grounded"),
         unverified=report.count("unverified"),
+        awaiting_confirmation=len(report.awaiting_confirmation),
         grounded_ratio=report.grounded_ratio,
         sources_checked=report.sources_checked,
         unused_sources=list(report.unused_sources),
-        elements=[item.model_dump(mode="json") for item in report.elements],
+        elements=[
+            {
+                **item.model_dump(mode="json"),
+                "mark_status": item.mark_status,
+                "removable": item.kind in REMOVABLE_KINDS,
+            }
+            for item in report.elements
+        ],
+    )
+
+
+@router.get("/processes/{process_id}/provenance")
+def get_workspace_process_provenance(process_id: str) -> ProcessProvenanceResponse:
+    """Il piano del processo confrontato con le fonti, elemento per elemento.
+
+    Per ogni attore, passaggio, decisione, eccezione ed evento: se l'evidenza
+    dichiarata compare nelle interviste (`verified`), se una frase ne porta le
+    parole (`paraphrased`, `label_grounded`) o se nessuna fonte lo regge
+    (`unverified`), con la decisione del consulente quando l'ha rivisto.
+    Calcolato a ogni lettura sulle fonti intere, senza modello.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+
+    Returns:
+        ProcessProvenanceResponse: I conteggi, le fonti da cui il piano non prende
+        niente e l'esito di ogni elemento con il passaggio della fonte.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.agents.process_snapshot import build_process_snapshot
+
+    snapshot = build_process_snapshot(process_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
+    return _provenance_response(process_id, snapshot)
+
+
+@router.post("/processes/{process_id}/provenance/decisions")
+def review_workspace_process_element(
+    process_id: str, request: ElementReviewRequest
+) -> ElementReviewResponse:
+    """Il consulente conferma o rifiuta un elemento che nessuna fonte regge.
+
+    Conferma: il piano resta com'e', la decisione si registra e il segno sul
+    canvas salvato si aggiorna senza ridisegnarlo. Rifiuto: l'elemento esce dal
+    piano (solo passaggi, eventi ed eccezioni), il flusso si ricuce, la review
+    sale di versione e il disegno si rigenera.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+        request: Riferimento dell'elemento, decisione e nota.
+
+    Returns:
+        ElementReviewResponse: L'esito, con il rapporto riletto dopo la
+        scrittura. Un esito non riuscito risponde 200 con la sua causa: una
+        decisione puo' essere registrata e il disegno non aggiornato, e il
+        gestore degli errori HTTP cancellerebbe proprio quella distinzione.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.workspace_services.element_review import review_plan_element
+
+    result = review_plan_element(
+        process_id,
+        source_ref=request.source_ref,
+        decision=request.decision,
+        note=request.note,
+    )
+    if result.reason_code == "process_not_found":
+        raise HTTPException(status_code=404, detail=result.reason)
+    return ElementReviewResponse(
+        ok=result.ok,
+        reason_code=result.reason_code,
+        reason=result.reason,
+        provenance=_provenance_response(process_id, result.snapshot) if result.snapshot else None,
+        draft_status=result.draft.status if result.draft else None,
+        pending_verification=list(result.draft.pending_verification) if result.draft else [],
     )
 
 

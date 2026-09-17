@@ -366,6 +366,61 @@
       "description": "Questo processo è registrato ma non ancora ricostruito. Il canvas nasce dalla discussione: raccontala all'agente e ti proporrà il BPMN. In alternativa importa un file .bpmn o disegnalo a mano dalla palette qui a sinistra.",
       "openDiscussion": "Vai alla discussione",
       "import": "Importa BPMN"
+    },
+    "evidence": {
+      "toggle": "Evidenze",
+      "toggleLabel": "Revisione delle evidenze del disegno",
+      "title": "Evidenze del disegno",
+      "plan": "Piano {{label}}",
+      "close": "Chiudi evidenze",
+      "loadError": "Il confronto con le fonti non è disponibile.",
+      "reviewError": "La decisione non è stata registrata.",
+      "noPlan": "Questo processo non ha ancora un piano: non c'è niente da confrontare con le fonti.",
+      "notDrawn": "«{{label}}» non compare nel disegno attuale.",
+      "locate": "Mostra nel disegno",
+      "noQuote": "Nessun passaggio delle fonti regge questo elemento.",
+      "confirm": "Conferma",
+      "confirmLabel": "Conferma «{{label}}»: succede, anche se nessuna fonte lo dice",
+      "reject": "Rifiuta",
+      "rejectLabel": "Rifiuta «{{label}}»",
+      "rejectConfirm": "Togli dal piano",
+      "rejectConfirmLabel": "Conferma: togli «{{label}}» dal piano e ridisegna",
+      "cancel": "Annulla",
+      "saving": "Registro…",
+      "redrawing": "Ridisegno…",
+      "saveFirst": "Salva le modifiche al canvas prima di rifiutare: il disegno viene rigenerato.",
+      "notRemovable": "Attori e decisioni si correggono sul piano, non da qui.",
+      "nothingAwaiting": "Ogni elemento del disegno ha un appiglio nelle fonti o è stato confermato.",
+      "unusedSources": "Dal piano non risulta niente di ciò che dicono: {{sources}}.",
+      "sections": {
+        "awaiting": "Da confermare",
+        "confirmed": "Confermati da te",
+        "weak": "Retti dalle fonti con altre parole",
+        "verified": "Citati dalle fonti"
+      },
+      "summary": {
+        "grounded": "Con un appiglio nelle fonti",
+        "verified": "Citati parola per parola",
+        "weak": "Riformulati o solo per etichetta",
+        "awaiting": "Da confermare",
+        "sources": "Fonti lette"
+      },
+      "status": {
+        "verified": "Citato",
+        "paraphrased": "Parafrasato",
+        "label_grounded": "Solo etichetta",
+        "confirmed": "Confermato",
+        "unverified": "Da confermare"
+      },
+      "kind": {
+        "actor": "Attore",
+        "participant": "Partecipante",
+        "step": "Attività",
+        "decision": "Decisione",
+        "exception": "Eccezione",
+        "event": "Evento",
+        "flow": "Flusso"
+      }
     }
   }
 }

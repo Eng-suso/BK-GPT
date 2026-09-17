@@ -10,6 +10,7 @@ import {
   PanelRight,
   Plus,
   Save,
+  ShieldCheck,
   Upload,
 } from "lucide-react";
 
@@ -28,6 +29,11 @@ type PanelToggle = {
   onToggle?: () => void;
 };
 
+type EvidenceToggle = PanelToggle & {
+  /** Elementi che nessuna fonte regge e nessuno ha confermato. */
+  awaitingCount?: number;
+};
+
 type BpmnCanvasToolbarProps = {
   saveTone: StatusTone;
   saveLabel: string;
@@ -40,6 +46,7 @@ type BpmnCanvasToolbarProps = {
   menuButtonRef?: RefObject<HTMLButtonElement | null>;
   canvasChat: PanelToggle;
   properties: PanelToggle;
+  evidence?: EvidenceToggle;
   onSave: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -67,6 +74,7 @@ export function BpmnCanvasToolbar({
   menuButtonRef,
   canvasChat,
   properties,
+  evidence,
   onSave,
   onZoomIn,
   onZoomOut,
@@ -116,6 +124,30 @@ export function BpmnCanvasToolbar({
 
       <div className="process-bpmn-toolbar-actions">
         <StatusIndicator tone={saveTone} label={saveLabel} className="bpmn-save-status mr-1 shrink-0" />
+
+        {evidence?.onToggle && (
+          <Button
+            type="button"
+            variant={evidence.isOpen ? "secondary" : "outline"}
+            size="sm"
+            onClick={evidence.onToggle}
+            aria-pressed={evidence.isOpen}
+            aria-label={
+              evidence.awaitingCount
+                ? `${t("canvas.evidence.toggleLabel")} (${evidence.awaitingCount})`
+                : t("canvas.evidence.toggleLabel")
+            }
+            title={t("canvas.evidence.toggleLabel")}
+          >
+            <ShieldCheck aria-hidden />
+            {t("canvas.evidence.toggle")}
+            {evidence.awaitingCount ? (
+              <span className="ml-0.5 rounded-full border border-warning-border bg-warning-surface px-1.5 text-[10px] font-semibold tabular-nums text-foreground">
+                {evidence.awaitingCount}
+              </span>
+            ) : null}
+          </Button>
+        )}
 
         <div className="bpmn-zoom-group" aria-label="Controlli zoom">
           <Button

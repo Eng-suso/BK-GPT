@@ -431,7 +431,9 @@ def build_process_snapshot(process_id: str) -> ProcessKnowledgeSnapshot | None:
     # ricalcola a ogni lettura - quindi non puo' descrivere un piano o un set di
     # fonti diverso da quello che lo snapshot porta.
     plan_provenance = (
-        verify_plan_provenance(understanding, list(ledger_snapshot.get("sources") or []))
+        verify_plan_provenance(
+            understanding, list(ledger_snapshot.get("sources") or [])
+        ).with_decisions(dict((review or {}).get("element_decisions") or {}))
         if understanding is not None
         else None
     )

@@ -149,6 +149,11 @@ class WorkspaceBpmnReview(WorkspaceBase):
     # Risposte del consulente alle domande aperte del piano: cio' che l'umano ha
     # deciso, tenuto separato da cio' che il modello ha estratto.
     answers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    # Le decisioni del consulente sugli elementi che nessuna fonte regge, per
+    # riferimento di tracciabilita' (`steps:apri_richiesta`): confermato da chi
+    # conosce il processo, o rifiutato e tolto dal piano. E' conoscenza umana, e
+    # come le risposte resta separata da cio' che il modello ha estratto.
+    element_decisions_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)

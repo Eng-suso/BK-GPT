@@ -40,6 +40,12 @@ from backend.memory.provenance import FoldedText
 from backend.process_understanding import ProcessUnderstanding
 
 ProvenanceStatus = Literal["verified", "paraphrased", "label_grounded", "unverified"]
+ConsultantDecision = Literal["confirmed", "rejected"]
+# L'esito che il disegno mostra: quello della verifica, oppure "confirmed" quando
+# un elemento che nessuna fonte regge e' stato confermato da chi conosce il
+# processo. La verifica non cambia - la fonte continua a non dirlo - ma
+# l'elemento non e' piu' un'inferenza di un modello.
+MarkStatus = Literal["verified", "paraphrased", "label_grounded", "unverified", "confirmed"]
 ElementKind = Literal["actor", "participant", "step", "decision", "exception", "event", "flow"]
 
 # Quanto di un'evidenza parafrasata deve ritrovarsi in una frase della fonte.
@@ -76,6 +82,20 @@ class ElementProvenance(BaseModel):
     # all'etichetta. Mai il testo che l'estrattore dichiara: quello e' la
     # domanda, non la risposta.
     quote: str = ""
+    # Cosa ne ha deciso il consulente, quando l'ha rivisto. `None` significa
+    # "non ancora rivisto", non "accettato".
+    consultant_decision: ConsultantDecision | None = None
+
+    @property
+    def awaiting_confirmation(self) -> bool:
+        """Nessuna fonte lo regge e nessuno lo ha ancora confermato."""
+        return self.status == "unverified" and self.consultant_decision != "confirmed"
+
+    @property
+    def mark_status(self) -> MarkStatus:
+        if self.status == "unverified" and self.consultant_decision == "confirmed":
+            return "confirmed"
+        return self.status
 
 
 class ProvenanceReport(BaseModel):
@@ -96,6 +116,11 @@ class ProvenanceReport(BaseModel):
         return [item for item in self.elements if item.status == "unverified"]
 
     @property
+    def awaiting_confirmation(self) -> list[ElementProvenance]:
+        """Cio' che resta da rivedere: inferenze che nessuno ha ancora confermato."""
+        return [item for item in self.elements if item.awaiting_confirmation]
+
+    @property
     def grounded_ratio(self) -> float:
         """Quota di elementi con un appiglio nelle fonti, di qualunque forza."""
         if not self.elements:
@@ -109,13 +134,40 @@ class ProvenanceReport(BaseModel):
             "paraphrased": self.count("paraphrased"),
             "label_grounded": self.count("label_grounded"),
             "unverified": self.count("unverified"),
+            "awaiting_confirmation": len(self.awaiting_confirmation),
             "grounded_ratio": self.grounded_ratio,
             "sources_checked": self.sources_checked,
             "unused_sources": list(self.unused_sources),
         }
 
-    def status_by_source_ref(self) -> dict[str, ProvenanceStatus]:
-        return {item.source_ref: item.status for item in self.elements}
+    def status_by_source_ref(self) -> dict[str, MarkStatus]:
+        return {item.source_ref: item.mark_status for item in self.elements}
+
+    def with_decisions(self, decisions: dict[str, dict]) -> "ProvenanceReport":
+        """Il rapporto con le decisioni del consulente accanto a ogni elemento.
+
+        Una decisione vale per l'elemento che aveva quell'etichetta: un piano
+        ricostruito puo' riusare lo stesso id per un passaggio diverso, e
+        applicarle una conferma data a un altro passaggio sarebbe una conferma
+        inventata.
+        """
+        if not decisions:
+            return self
+        elements = []
+        for item in self.elements:
+            recorded = decisions.get(item.source_ref) or {}
+            same_element = str(recorded.get("label") or "") == item.label
+            decision = recorded.get("decision") if same_element else None
+            elements.append(
+                item.model_copy(
+                    update={
+                        "consultant_decision": decision
+                        if decision in ("confirmed", "rejected")
+                        else None
+                    }
+                )
+            )
+        return self.model_copy(update={"elements": elements})
 
 
 class _Sentence:
