@@ -64,9 +64,23 @@ AuditLayer = Literal[
     "plan_sources",
     "source_coverage",
     "source_contradiction",
+    # Non un difetto del piano: due voci raccontano lo stesso passaggio in modo
+    # diverso. Il piano ha seguito una delle due, e nessuna riscrittura puo'
+    # accontentarle entrambe: serve una decisione di chi conosce il processo.
+    "source_divergence",
 ]
 FindingSeverity = Literal["blocking", "gap"]
-Verdict = Literal["conformant", "not_conformant", "incomplete"]
+Verdict = Literal[
+    "conformant",
+    # Il disegno segue le fonti, ma le fonti non dicono tutte la stessa cosa.
+    "conformant_with_divergences",
+    "not_conformant",
+    "incomplete",
+]
+
+# I rilievi che una nuova estrazione dalle fonti puo' chiudere. Una divergenza
+# fra due voci non e' fra questi: riestrarre la rifarebbe identica.
+REPAIRABLE_LAYERS = frozenset({"source_coverage", "source_contradiction"})
 LlmAuditStatus = Literal["done", "partial", "skipped", "failed"]
 
 # I nodi che fanno il processo. Il DI, la documentazione e gli attributi di
@@ -153,11 +167,14 @@ class ConformanceReport(BaseModel):
         return [item for item in self.findings if item.severity == "blocking"]
 
     @property
+    def divergences(self) -> list[ConformanceFinding]:
+        """I punti in cui sono le fonti a non essere d'accordo fra loro."""
+        return [item for item in self.findings if item.layer == "source_divergence"]
+
+    @property
     def needs_plan_repair(self) -> bool:
         """Ci sono rilievi dell'agente che una nuova estrazione puo' chiudere."""
-        return any(
-            item.layer in {"source_coverage", "source_contradiction"} for item in self.findings
-        )
+        return any(item.layer in REPAIRABLE_LAYERS for item in self.findings)
 
     def consultant_lines(self) -> list[str]:
         """I rilievi come li legge il consulente, raggruppati e contati."""
@@ -170,6 +187,11 @@ class ConformanceReport(BaseModel):
                 lines.append(item.message)
             if len(items) > CONSULTANT_LINES_PER_LAYER:
                 lines.append(f"... e altri {len(items) - CONSULTANT_LINES_PER_LAYER} punti dello stesso tipo.")
+        if self.verdict == "conformant_with_divergences":
+            lines.append(
+                "Il disegno segue le fonti: i punti qui sopra sono disaccordi fra le voci, "
+                "e si chiudono con una tua conferma."
+            )
         if self.verdict == "incomplete":
             lines.append(
                 "Il confronto con le fonti non e' completo: "
@@ -650,11 +672,17 @@ def _verified_source_findings(
     request: SourceAuditRequest,
     verdict: SourceAuditVerdict,
     known_refs: set[str],
+    element_sources: dict[str, str] | None = None,
 ) -> _SourceOutcome:
     labels = {
         str(item.get("ref")): str(item.get("etichetta") or "")
         for item in request.plan_elements
     }
+    # Da quale fonte viene l'elemento che questa fonte smentisce. Se viene da
+    # un'altra voce, il disaccordo e' fra le due voci, non fra il piano e le
+    # fonti: il piano ha seguito una delle due, ed e' esattamente cio' che deve
+    # arrivare a chi conosce il processo come domanda.
+    origins = element_sources or {}
     folded = FoldedText(request.source_text)
     findings: list[ConformanceFinding] = []
     discarded = 0
@@ -691,6 +719,27 @@ def _verified_source_findings(
             discarded += 1
             continue
         quote = folded.text[span[0] : span[1]]
+        label = labels.get(contradiction.element_ref) or UNNAMED
+        origin = origins.get(contradiction.element_ref) or ""
+        if origin and origin != request.source_name:
+            findings.append(
+                ConformanceFinding(
+                    layer="source_divergence",
+                    severity="gap",
+                    code="sources_disagree",
+                    element_ref=contradiction.element_ref,
+                    source_id=request.source_id,
+                    source_name=request.source_name,
+                    quote=quote,
+                    message=(
+                        f"«{label}»: «{origin}» e «{request.source_name}» lo raccontano in modo "
+                        f"diverso. «{request.source_name}» dice «{quote}» "
+                        f"({contradiction.explanation}). Il disegno segue «{origin}»: "
+                        "serve una tua conferma su come funziona davvero."
+                    ),
+                )
+            )
+            continue
         findings.append(
             ConformanceFinding(
                 layer="source_contradiction",
@@ -701,7 +750,7 @@ def _verified_source_findings(
                 source_name=request.source_name,
                 quote=quote,
                 message=(
-                    f"«{labels.get(contradiction.element_ref) or UNNAMED}»: «{request.source_name}» "
+                    f"«{label}»: «{request.source_name}» "
                     f"dice diversamente - «{quote}» ({contradiction.explanation})."
                 ),
             )
@@ -729,13 +778,19 @@ def _audit_sources(
         for source in sources
     ]
 
+    element_sources = {
+        item.source_ref: item.source_name
+        for item in (snapshot.provenance.elements if snapshot.provenance else [])
+        if item.status != "unverified" and item.source_name
+    }
+
     def _run(request: SourceAuditRequest) -> _SourceOutcome:
         try:
             verdict = auditor(request)
         except Exception as exc:  # noqa: BLE001 - una fonte non letta non porta via le altre
             logger.warning("verifica di conformita' non riuscita su %s", request.source_name, exc_info=True)
             return _SourceOutcome(findings=[], discarded=0, failed=f"{request.source_name}: {type(exc).__name__}: {exc}")
-        return _verified_source_findings(request, verdict, known_refs)
+        return _verified_source_findings(request, verdict, known_refs, element_sources)
 
     workers = max(1, min(MAX_PARALLEL_AUDITS, len(requests)))
     if workers > 1:
@@ -756,6 +811,26 @@ def _audit_sources(
 
 
 _AUDITOR_FROM_SETTINGS = object()
+
+
+def verdict_for(findings: list[ConformanceFinding], llm_audit: LlmAuditStatus) -> Verdict:
+    """Il verdetto, dalle sole cose che si possono contare.
+
+    Tre regole, e nessuna scorciatoia:
+
+    - un rilievo che riguarda il disegno o il piano lo rende non conforme;
+    - se restano solo disaccordi fra le voci, il disegno segue le fonti e lo si
+      dice - ma con i punti da chiarire dichiarati, perche' il consulente deve
+      deciderli;
+    - senza un revisore che abbia letto tutte le fonti non si dichiara conforme
+      niente: `incomplete` e' la risposta onesta quando il controllo non c'e'
+      stato.
+    """
+    if any(item.layer != "source_divergence" for item in findings):
+        return "not_conformant"
+    if llm_audit != "done":
+        return "incomplete"
+    return "conformant_with_divergences" if findings else "conformant"
 
 
 def evaluate_conformance(
@@ -825,12 +900,7 @@ def evaluate_conformance(
             note = "nessuna fonte e' stata confrontata. Riprova la verifica tra qualche minuto."
             logger.warning("verifica fallita su tutte le fonti: %s", "; ".join(failures))
 
-    if findings:
-        verdict: Verdict = "not_conformant"
-    elif llm_audit == "done":
-        verdict = "conformant"
-    else:
-        verdict = "incomplete"
+    verdict = verdict_for(findings, llm_audit)
 
     return ConformanceReport(
         verdict=verdict,

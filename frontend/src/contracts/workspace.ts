@@ -833,7 +833,12 @@ export function toElementReviewResult(
  * quando piano, fonti o disegno sono cambiati dopo il confronto.
  */
 
-export type ConformanceVerdict = "conformant" | "not_conformant" | "incomplete";
+export type ConformanceVerdict =
+  | "conformant"
+  /** Il disegno segue le fonti; sono le fonti a non dire tutte la stessa cosa. */
+  | "conformant_with_divergences"
+  | "not_conformant"
+  | "incomplete";
 
 export type ConformanceArea =
   | "plan_currency"
@@ -841,7 +846,8 @@ export type ConformanceArea =
   | "review_plan"
   | "plan_sources"
   | "source_coverage"
-  | "source_contradiction";
+  | "source_contradiction"
+  | "source_divergence";
 
 export type ConformanceFinding = {
   area: ConformanceArea;
@@ -861,6 +867,8 @@ export type ConformanceReport = {
 
 export type ConformanceStatus = {
   processId: string;
+  /** Un confronto e' in coda o sta girando: il rapporto qui sotto e' quello di prima. */
+  running: boolean;
   isCurrent: boolean;
   report: ConformanceReport | null;
 };
@@ -873,6 +881,7 @@ const apiConformanceFindingSchema = z.object({
     "plan_sources",
     "source_coverage",
     "source_contradiction",
+    "source_divergence",
   ]),
   severity: z.enum(["blocking", "gap"]),
   message: z.string(),
@@ -880,7 +889,12 @@ const apiConformanceFindingSchema = z.object({
 });
 
 const apiConformanceReportSchema = z.object({
-  verdict: z.enum(["conformant", "not_conformant", "incomplete"]),
+  verdict: z.enum([
+    "conformant",
+    "conformant_with_divergences",
+    "not_conformant",
+    "incomplete",
+  ]),
   findings: z.array(apiConformanceFindingSchema).default([]),
   sources_audited: z.number().default(0),
   sources_with_text: z.number().default(0),
@@ -890,6 +904,7 @@ const apiConformanceReportSchema = z.object({
 
 export const apiConformanceStatusSchema = z.object({
   process_id: z.string(),
+  running: z.boolean().default(false),
   is_current: z.boolean().default(false),
   report: apiConformanceReportSchema.nullable().default(null),
 });
@@ -899,6 +914,7 @@ export function toConformanceStatus(
 ): ConformanceStatus {
   return {
     processId: raw.process_id,
+    running: raw.running,
     isCurrent: raw.is_current,
     report: raw.report
       ? {

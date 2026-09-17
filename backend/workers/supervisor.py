@@ -93,7 +93,7 @@ async def run_queue_workers() -> None:
         logger.info("worker in-process disattivati (workers_in_process=False)")
         return
 
-    from backend.workers import plan_worker
+    from backend.workers import conformance_worker, plan_worker
 
     # Il piano vive nel workspace operativo, non nel canonical: la sua coda deve
     # girare anche dove il knowledge graph non e' configurato. Metterla insieme
@@ -106,13 +106,26 @@ async def run_queue_workers() -> None:
         name="plan_worker",
     )
 
+    # Il confronto con le fonti sta fuori dal percorso di chi aspetta: il disegno
+    # esce subito, la verifica gira qui e il pannello la mostra quando arriva.
+    conformance_task = asyncio.create_task(
+        _drain_loop(
+            "conformance_worker",
+            conformance_worker.drain_once,
+            conformance_worker.queue_stats,
+            5.0,
+        ),
+        name="conformance_worker",
+    )
+
     if not settings.canonical_worker_url:
-        logger.info("canonical non configurato: avviato il solo plan_worker")
+        logger.info("canonical non configurato: avviati plan_worker e conformance_worker")
         try:
-            await plan_task
+            await asyncio.gather(plan_task, conformance_task)
         except asyncio.CancelledError:
             plan_task.cancel()
-            await asyncio.gather(plan_task, return_exceptions=True)
+            conformance_task.cancel()
+            await asyncio.gather(plan_task, conformance_task, return_exceptions=True)
             raise
         return
 
@@ -120,6 +133,7 @@ async def run_queue_workers() -> None:
 
     tasks = [
         plan_task,
+        conformance_task,
         asyncio.create_task(
             _drain_loop(
                 "ingest_worker", ingest_worker.drain_once, ingest_worker.queue_stats,
@@ -142,7 +156,7 @@ async def run_queue_workers() -> None:
             name="mem0_worker",
         ),
     ]
-    logger.info("worker in-process avviati (plan + ingest + graph + mem0)")
+    logger.info("worker in-process avviati (plan + conformance + ingest + graph + mem0)")
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:

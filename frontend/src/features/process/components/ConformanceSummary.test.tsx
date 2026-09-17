@@ -23,8 +23,19 @@ const { ConformanceSummary } = await import("./ConformanceSummary");
 
 const LOADED = { timeout: 5_000 };
 
-function status(report: Record<string, unknown> | null, isCurrent = true) {
-  return { process_id: "p1", snapshot_id: "s", snapshot_label: "V3", is_current: isCurrent, report };
+function status(
+  report: Record<string, unknown> | null,
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    process_id: "p1",
+    snapshot_id: "s",
+    snapshot_label: "V3",
+    running: false,
+    is_current: true,
+    report,
+    ...extra,
+  };
 }
 
 function report(verdict: string, findings: Record<string, unknown>[] = [], extra: Record<string, unknown> = {}) {
@@ -53,7 +64,7 @@ function renderSummary() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  render(<ConformanceSummary processId="p1" />, { wrapper });
+  render(<ConformanceSummary processId="p1" bpmnModelId="b1" />, { wrapper });
 }
 
 function expectNoTechnicalWords() {
@@ -109,7 +120,7 @@ describe("ConformanceSummary", () => {
   });
 
   it("warns when the result no longer describes what is on screen", async () => {
-    http.mockResolvedValue(status(report("conformant"), false));
+    http.mockResolvedValue(status(report("conformant"), { is_current: false }));
     renderSummary();
 
     expect(await screen.findByText(/sono cambiati dopo l'ultimo confronto/, {}, LOADED)).toBeInTheDocument();
@@ -155,5 +166,59 @@ describe("ConformanceSummary", () => {
     await user.click(screen.getByRole("button", { name: "Confronta ora" }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("says the check is running instead of showing the previous result as current", async () => {
+    http.mockResolvedValue(status(report("conformant"), { running: true, is_current: false }));
+    renderSummary();
+
+    expect(await screen.findByText("Confronto in corso", {}, LOADED)).toBeInTheDocument();
+    expect(screen.queryByText("Il disegno coincide con le fonti")).not.toBeInTheDocument();
+    expect(screen.getByText(/Puoi continuare a lavorare/)).toBeInTheDocument();
+  });
+
+  it("offers to add the missing points to the diagram, and only then redraws", async () => {
+    http.mockImplementation((path: string, options?: { method?: string }) => {
+      if (options?.method === "POST" && path.endsWith("/conformance/repair")) return Promise.resolve({});
+      return Promise.resolve(
+        status(
+          report("not_conformant", [
+            finding("source_coverage", "«Intervista Paolo» dice «chiamo il fornitore», e il disegno non lo rappresenta."),
+            finding("source_divergence", "«Laura» e «Marco» lo raccontano in modo diverso."),
+          ]),
+        ),
+      );
+    });
+    renderSummary();
+    const user = userEvent.setup({ delay: null });
+
+    // Il disaccordo fra voci non si "integra": si chiede. Conta solo l'altro.
+    const button = await screen.findByRole("button", { name: "Integra nel disegno 1 punto" }, LOADED);
+    expect(screen.getByText("Le fonti si contraddicono fra loro")).toBeInTheDocument();
+
+    await user.click(button);
+
+    await waitFor(() =>
+      expect(http).toHaveBeenCalledWith(
+        "/v1/workspace/processes/p1/conformance/repair",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("shows a drawing that follows the sources as good, with the points to clarify", async () => {
+    http.mockResolvedValue(
+      status(
+        report("conformant_with_divergences", [
+          finding("source_divergence", "«Laura» e «Marco» lo raccontano in modo diverso."),
+        ]),
+      ),
+    );
+    renderSummary();
+
+    expect(
+      await screen.findByText("Il disegno segue le fonti · 1 punto da chiarire", {}, LOADED),
+    ).toBeInTheDocument();
+    expectNoTechnicalWords();
   });
 });

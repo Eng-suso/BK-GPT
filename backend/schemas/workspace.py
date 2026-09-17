@@ -394,6 +394,9 @@ class ConformanceStatusResponse(BaseModel):
     process_id: str
     snapshot_id: str = ""
     snapshot_label: str = ""
+    # Un confronto e' in coda o sta girando: cio' che si legge sotto descrive il
+    # disegno di prima.
+    running: bool = False
     is_current: bool = False
     report: dict[str, Any] | None = None
 

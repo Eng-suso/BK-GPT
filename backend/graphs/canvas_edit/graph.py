@@ -714,25 +714,27 @@ def draft_outcome_message(result) -> str:
     content = f"Ho disegnato la bozza del processo: {drawn}."
 
     report = result.conformance
-    repaired = (
-        " Nel confronto erano emersi passaggi mancanti: li ho riportati nel piano e ho ridisegnato."
-        if result.conformance_repairs
-        else ""
-    )
     if report is None:
-        content += " Il confronto con le fonti non e' stato fatto."
-    elif report.verdict == "conformant":
+        # Il confronto e' partito e sta girando nel worker: dirlo e' l'unica cosa
+        # onesta adesso, e il pannello lo mostra quando arriva.
         content += (
-            f" Ho confrontato il disegno con le {report.sources_audited} fonti raccolte: "
-            f"coincide.{repaired}"
+            " Sto confrontando ogni passaggio con le fonti: l'esito compare nel pannello "
+            "Evidenze del canvas fra poco."
+        )
+    elif report.verdict == "conformant":
+        content += f" Confrontato con le {report.sources_audited} fonti raccolte: coincide."
+    elif report.verdict == "conformant_with_divergences":
+        content += (
+            f" Il disegno segue le fonti, ma su {len(report.divergences)} punti le voci "
+            "raccontano cose diverse: serve una tua conferma."
         )
     elif report.verdict == "not_conformant":
         content += (
-            " Il disegno non coincide ancora del tutto con le fonti: "
-            f"{len(report.findings)} punti da rivedere.{repaired}"
+            f" Il disegno non coincide ancora del tutto con le fonti: {len(report.findings)} "
+            "punti da rivedere."
         )
     else:
-        content += f" Il confronto con le fonti non e' completo.{repaired}"
+        content += " Il confronto con le fonti non e' completo."
 
     points = report.consultant_lines() if report is not None else []
     open_questions = [item for item in _open_plan_questions(result) if item not in points]
@@ -804,7 +806,7 @@ def generate_canvas_draft(state: CanvasState) -> dict:
     che resta aperto esce come punto da verificare accanto al disegno, non al
     posto del disegno.
     """
-    from backend.workspace_services.bpmn_draft import generate_verified_bpmn_draft
+    from backend.workspace_services.bpmn_draft import generate_bpmn_draft
 
     process_id = state.get("process_id")
     if not process_id:
@@ -822,7 +824,11 @@ def generate_canvas_draft(state: CanvasState) -> dict:
             ],
         }
 
-    result = generate_verified_bpmn_draft(process_id)
+    # Il disegno esce e basta: il confronto con le fonti - una chiamata per
+    # fonte, minuti - parte da solo quando il canvas viene salvato e finisce
+    # nel pannello Evidenze. Chi ha chiesto di generare vede il processo
+    # adesso, e puo' guardarlo, correggerlo e riprovare mentre gira.
+    result = generate_bpmn_draft(process_id)
     log_entry = {
         "step": "draft_command",
         "status": "completed" if result.ok else "failed",

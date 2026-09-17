@@ -53,6 +53,7 @@ from backend.agents.conformance_audit import (  # noqa: E402
     SourceAuditRequest,
     SourceAuditVerdict,
     flow_signature,
+    signature_digest,
 )
 from backend.agents.process_snapshot import build_process_snapshot  # noqa: E402
 from backend.bpmn import BPMNSemanticModel, semantic_model_to_bpmn_xml  # noqa: E402
@@ -340,33 +341,76 @@ def test_an_empty_plan_on_current_sources_is_not_drawn(esaote_state, monkeypatch
 # --- 2. il revisore nel loop ---------------------------------------------
 
 
-def test_esaote_generate_from_the_endpoint_rebuilds_verifies_and_repairs(
+def test_esaote_from_the_button_the_drawing_comes_first_and_the_check_follows(
     esaote_state, extractor, auditor
 ):
-    """Il bottone «Genera BPMN»: dal piano vuoto a un canvas conforme alle interviste."""
+    """Il giro completo come lo vive il consulente.
+
+    Preme «Genera BPMN» e vede il processo: il piano viene ricostruito sulle
+    interviste e il disegno esce senza aspettare il confronto, che costa una
+    chiamata per fonte. Il confronto parte da solo, lo fa il worker, e quando
+    arriva dice cosa non coincide. I punti che una rilettura delle fonti puo'
+    chiudere li integra lui, quando lo decide.
+    """
     from fastapi.testclient import TestClient
 
     from backend.app import app
+    from backend.workers import conformance_worker
 
     headers = {"X-DeliR-Tenant-Id": get_current_tenant_id()}
     with TestClient(app) as client:
-        response = client.post(
+        drafted = client.post(
             f"/v1/workspace/processes/{esaote_state['process_id']}/bpmn-draft",
             headers=headers,
         )
-        status = client.get(
+        queued = client.get(
             f"/v1/workspace/processes/{esaote_state['process_id']}/conformance",
             headers=headers,
         )
 
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["status"] == "drafted", body
-    report = body["conformance"]
-    assert report["verdict"] == "conformant", report["findings"]
-    assert report["llm_audit"] == "done"
-    assert report["sources_audited"] == len(INTERVIEWS)
-    assert body["metrics"]["conformance_repairs"] == 1
+        assert drafted.status_code == 200, drafted.text
+        body = drafted.json()
+        assert body["status"] == "drafted", body
+        # Il disegno non ha aspettato nessun revisore.
+        assert body["conformance"] is None
+        assert not auditor.requests
+
+        # ... ma il confronto e' in coda, e il pannello lo dice.
+        assert queued.json()["running"] is True
+        assert queued.json()["report"] is None
+
+        # Il database di sviluppo ha altre code: si drena finche' tocca a questo
+        # processo, invece di pretendere che sia il primo della fila.
+        for _ in range(10):
+            if conformance_worker.drain_once(limit=5) == 0:
+                break
+            if wd.get_bpmn_review(esaote_state["bpmn_model_id"], include_approved=True)[
+                "conformance"
+            ]["status"] == "done":
+                break
+
+        after_check = client.get(
+            f"/v1/workspace/processes/{esaote_state['process_id']}/conformance",
+            headers=headers,
+        ).json()
+        assert after_check["running"] is False
+        assert after_check["is_current"] is True
+        first = after_check["report"]
+        assert first["verdict"] == "not_conformant"
+        assert first["llm_audit"] == "done"
+        assert first["sources_audited"] == len(INTERVIEWS)
+        assert any(item["layer"] == "source_coverage" for item in first["findings"])
+
+        repaired = client.post(
+            f"/v1/workspace/processes/{esaote_state['process_id']}/conformance/repair",
+            headers=headers,
+        )
+
+    assert repaired.status_code == 200, repaired.text
+    repaired_body = repaired.json()
+    assert repaired_body["status"] == "drafted"
+    assert repaired_body["metrics"]["conformance_repairs"] == 1
+    assert repaired_body["conformance"]["verdict"] == "conformant", repaired_body["conformance"]["findings"]
 
     # Il loop: il primo piano perdeva Paolo, il revisore l'ha citato, la prova
     # inventata e' stata scartata, e la nota verificata e' arrivata
@@ -402,10 +446,11 @@ def test_esaote_generate_from_the_endpoint_rebuilds_verifies_and_repairs(
         render_process_review(ProcessUnderstanding.model_validate(snapshot.process_understanding)).split()
     )
 
-    # Il rapporto e' registrato e vale per cio' che si vede adesso.
-    assert status.status_code == 200, status.text
-    assert status.json()["is_current"] is True
-    assert status.json()["report"]["verdict"] == "conformant"
+    # E il rapporto registrato descrive il disegno che si vede adesso.
+    stored = review["conformance"]
+    assert stored["status"] == "done"
+    assert stored["report"]["verdict"] == "conformant"
+    assert stored["report"]["canvas_signature"] == signature_digest(saved["xml"])
 
 
 def test_the_canvas_chat_rebuilds_the_plan_before_it_reasons(esaote_state, extractor, auditor):
@@ -431,8 +476,10 @@ def test_the_canvas_chat_rebuilds_the_plan_before_it_reasons(esaote_state, extra
     message = drafted["messages"][0].content
     assert drafted["canvas_run_status"] == "done", message
     assert "attivita'" in message and "0 attivita'" not in message
-    assert "coincide" in message and "non coincide" not in message
-    assert drafted["validation_report"]["conformance"]["verdict"] == "conformant"
+    # Il disegno c'e' adesso; il confronto sta girando e il messaggio dice dove
+    # comparira', invece di far aspettare o di dichiarare una verifica non fatta.
+    assert "Sto confrontando" in message
+    assert "Evidenze" in message
 
 
 def test_a_contradiction_that_repair_cannot_close_reaches_the_consultant(

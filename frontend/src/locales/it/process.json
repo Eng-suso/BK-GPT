@@ -442,19 +442,31 @@
         "conformant": "Il disegno coincide con le fonti",
         "notConformant_one": "{{count}} punto da rivedere",
         "notConformant_other": "{{count}} punti da rivedere",
-        "incomplete": "Confronto non completo"
+        "incomplete": "Confronto non completo",
+        "withDivergences_one": "Il disegno segue le fonti · {{count}} punto da chiarire",
+        "withDivergences_other": "Il disegno segue le fonti · {{count}} punti da chiarire"
       },
       "area": {
         "source_contradiction": "Le fonti dicono diversamente",
         "source_coverage": "Detto nelle fonti, assente nel disegno",
         "plan_currency": "Piano non aggiornato alle fonti",
         "review_plan": "Piano modificato a mano",
-        "canvas_plan": "Disegno diverso dal piano"
+        "canvas_plan": "Disegno diverso dal piano",
+        "source_divergence": "Le fonti si contraddicono fra loro"
       },
       "toast": {
         "conformant": "Il disegno coincide con le fonti.",
-        "done": "Confronto completato: ci sono punti da rivedere."
-      }
+        "done": "Confronto completato: ci sono punti da rivedere.",
+        "repaired": "Punti integrati: il disegno è stato rifatto."
+      },
+      "inProgress": "Confronto in corso",
+      "inProgressHint": "Sto rileggendo ogni fonte e confrontandola con il disegno. Puoi continuare a lavorare: l'esito compare qui.",
+      "repairing": "Integro i punti nel disegno",
+      "repairingHint": "Rileggo le fonti sui punti aperti, aggiorno il piano e ridisegno.",
+      "repair_one": "Integra nel disegno {{count}} punto",
+      "repair_other": "Integra nel disegno {{count}} punti",
+      "repairHint": "Il piano viene aggiornato e il disegno rifatto: le modifiche fatte a mano sul canvas si recuperano dalla cronologia versioni.",
+      "repairError": "L'integrazione non è riuscita. Riprova tra qualche minuto."
     }
   }
 }

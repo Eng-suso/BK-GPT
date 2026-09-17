@@ -871,6 +871,11 @@ def update_bpmn_model(
             raise ValueError("XML BPMN obbligatorio.")
 
         model.xml = clean_xml
+        # Il disegno e' cambiato: il confronto con le fonti che risultava prima
+        # non descrive piu' cio' che si vede. Va rifatto, e lo fa il worker.
+        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None and getattr(review, "tenant_id", "local") == tenant_id():
+            review.conformance_status = "pending"
         create_bpmn_version(
             session=session,
             model=model,
@@ -1359,7 +1364,7 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
         "open_questions": open_questions_with_answers(review),
         "answers": decode_answers(review),
         "element_decisions": decode_element_decisions(review),
-        "conformance": decode_conformance_report(review),
+        "conformance": conformance_state(review),
         "status": getattr(review, "status", "pending"),
         "created_at": review.created_at,
         "updated_at": review.updated_at,
@@ -1543,6 +1548,9 @@ def prepare_bpmn_review(
             review.status = "pending"
             review.updated_at = timestamp
 
+        # Il piano e' cambiato: il confronto con le fonti che risultava prima
+        # descrive un altro piano. Va rifatto, e lo fa il worker.
+        review.conformance_status = "pending"
         _record_review_version(
             session,
             review,
@@ -1604,6 +1612,8 @@ def revise_bpmn_review(
         # A revision reopens the plan: an approved review that gets corrected is a
         # new proposal, not a still-approved one.
         review.status = "pending"
+        # E il confronto con le fonti descriveva il piano di prima: va rifatto.
+        review.conformance_status = "pending"
         review.updated_at = now_iso()
 
         _record_review_version(
@@ -2046,6 +2056,19 @@ def record_element_decision(
         return decisions
 
 
+def conformance_state(review: WorkspaceBpmnReview) -> dict:
+    """Lo stato del confronto disegno-piano-fonti di questa review.
+
+    `status` dice se un confronto e' in attesa di girare; `report` e' l'ultimo
+    esito, che resta leggibile anche mentre il prossimo e' in coda: il consulente
+    continua a vedere cosa risultava, con l'avviso che le cose sono cambiate.
+    """
+    return {
+        "status": getattr(review, "conformance_status", None) or "none",
+        "report": decode_conformance_report(review),
+    }
+
+
 def decode_conformance_report(review: WorkspaceBpmnReview) -> dict | None:
     """L'ultima verifica di conformita' registrata, se leggibile.
 
@@ -2082,8 +2105,91 @@ def record_conformance_report(bpmn_model_id: str, report: dict) -> dict | None:
         if review is None:
             return None
         review.conformance_json = json.dumps(report, ensure_ascii=False)
+        review.conformance_status = "done"
         session.flush()
         return report
+
+
+def request_conformance_check(bpmn_model_id: str) -> bool:
+    """Segna che il confronto con le fonti va rifatto.
+
+    Lo scrivono le operazioni che cambiano cio' che il confronto guarda: una
+    bozza appena disegnata, un canvas salvato, un piano rivisto. Il disegno esce
+    subito e la verifica gira dietro - il consulente itera invece di aspettare -
+    e finche' non e' finita il pannello dice che e' in corso.
+
+    Non alza la versione del piano e non passa da `assert_write_allowed`: e' la
+    registrazione di un lavoro da fare, come la coda di materializzazione.
+
+    Returns:
+        `True` se la richiesta e' stata registrata; `False` se il processo non ha
+        una review (niente piano, niente da confrontare).
+    """
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None:
+            return False
+        review.conformance_status = "pending"
+        session.flush()
+        return True
+
+
+def due_conformance_checks(limit: int = 3) -> list[dict]:
+    """I confronti in attesa, di tutti i tenant, i piu' vecchi per primi.
+
+    Come la coda dei piani: il worker gira fuori da una richiesta HTTP, quindi la
+    riga porta il proprio tenant, e chi la prende in carico lo vincola prima di
+    leggere il processo. La presa in carico marca `running`, cosi' due worker non
+    spendono due volte le stesse chiamate sullo stesso disegno.
+    """
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspaceBpmnReview)
+                .where(WorkspaceBpmnReview.conformance_status == "pending")
+                .order_by(WorkspaceBpmnReview.updated_at)
+                .limit(max(1, int(limit)))
+                .with_for_update(skip_locked=True)
+            )
+            .scalars()
+            .all()
+        )
+        claimed = [
+            {
+                "tenant_id": row.tenant_id,
+                "process_id": row.process_id,
+                "bpmn_model_id": row.bpmn_model_id,
+            }
+            for row in rows
+        ]
+        for row in rows:
+            row.conformance_status = "running"
+        session.flush()
+        return claimed
+
+
+def conformance_queue_stats() -> dict[str, int]:
+    """Quanti confronti sono in attesa e quanti sono stati presi in carico."""
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspaceBpmnReview.conformance_status, func.count())
+            .group_by(WorkspaceBpmnReview.conformance_status)
+        ).all()
+    counts = {str(status): int(count) for status, count in rows}
+    return {
+        "pending": counts.get("pending", 0),
+        "done": counts.get("done", 0),
+        "stuck": counts.get("running", 0),
+    }
+
+
+def release_conformance_check(bpmn_model_id: str, *, status: str = "pending") -> None:
+    """Rimette una presa in carico nello stato dato (riprova, o resa)."""
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None:
+            review.conformance_status = status
+            session.flush()
 
 
 MATERIALIZATION_MAX_ATTEMPTS = 5

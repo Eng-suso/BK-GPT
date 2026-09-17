@@ -1,21 +1,29 @@
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, CircleDashed, RefreshCw, TriangleAlert } from "lucide-react";
+import { CheckCircle2, CircleDashed, Loader2, RefreshCw, TriangleAlert, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import type { ConformanceArea, ConformanceFinding, ConformanceStatus } from "@/contracts/workspace";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 import { httpErrorMessage } from "@/lib/http";
-import { useConformanceStatusQuery, useRunConformanceAuditMutation } from "../api";
+import {
+  useConformanceStatusQuery,
+  useRepairFromConformanceMutation,
+  useRunConformanceAuditMutation,
+} from "../api";
 
 /** L'ordine in cui il consulente legge i punti: prima cio' che cambia il disegno. */
 const AREA_ORDER: ConformanceArea[] = [
   "source_contradiction",
   "source_coverage",
+  "source_divergence",
   "plan_currency",
   "review_plan",
   "canvas_plan",
 ];
+
+/** I punti che una rilettura delle fonti puo' chiudere davvero. */
+const REPAIRABLE: ConformanceArea[] = ["source_coverage", "source_contradiction"];
 
 type Tone = "ok" | "attention" | "neutral";
 
@@ -25,36 +33,56 @@ const TONE_CLASS: Record<Tone, string> = {
   neutral: "border-border bg-muted",
 };
 
+type ConformanceSummaryProps = {
+  processId: string;
+  bpmnModelId: string;
+};
+
 /**
  * Il confronto fra disegno, piano e fonti, come lo legge un consulente.
  *
- * Una risposta sola in alto - coincide, da rivedere, non ancora confrontato - e
- * sotto i punti raggruppati per cosa significano per il disegno. Gli elementi
- * senza riscontro nelle fonti non si ripetono qui: hanno gia' la loro sezione,
- * con le azioni per confermarli o toglierli.
+ * Il confronto non blocca il disegno: parte quando il canvas viene salvato e
+ * gira dietro, quindi questo pannello ha tre stati veri - in corso, un esito,
+ * nessun esito ancora - e non li confonde mai fra loro. I punti sono
+ * raggruppati per cosa significano per il disegno; quelli che una rilettura
+ * delle fonti puo' chiudere hanno il bottone che li integra, ed e' il consulente
+ * a premerlo: il disegno non cambia da solo sotto i suoi occhi.
+ *
+ * Gli elementi senza riscontro nelle fonti non si ripetono qui: hanno gia' la
+ * loro sezione, con le azioni per confermarli o toglierli.
  */
-export function ConformanceSummary({ processId }: { processId: string }) {
+export function ConformanceSummary({ processId, bpmnModelId }: ConformanceSummaryProps) {
   const { t } = useTranslation("process");
   const query = useConformanceStatusQuery(processId);
   const audit = useRunConformanceAuditMutation(processId);
+  const repair = useRepairFromConformanceMutation(processId, bpmnModelId);
+
+  const status = query.data;
+  const busy = audit.isPending || repair.isPending || Boolean(status?.running);
 
   function runAudit() {
     audit.mutate(undefined, {
-      onSuccess: (status) => {
-        const verdict = status.report?.verdict;
+      onSuccess: (result) => {
+        const verdict = result.report?.verdict;
         if (verdict === "conformant") toast.success(t("canvas.conformance.toast.conformant"));
         else toast.message(t("canvas.conformance.toast.done"));
       },
-      onError: (error) => {
-        toast.error(httpErrorMessage(error, t("canvas.conformance.runError")));
-      },
+      onError: (error) => toast.error(httpErrorMessage(error, t("canvas.conformance.runError"))),
     });
   }
 
-  const status = query.data;
+  function runRepair() {
+    repair.mutate(undefined, {
+      onSuccess: () => toast.success(t("canvas.conformance.toast.repaired")),
+      onError: (error) => toast.error(httpErrorMessage(error, t("canvas.conformance.repairError"))),
+    });
+  }
 
   return (
-    <section className="grid gap-2 border-b border-border px-3 py-2.5" aria-labelledby="process-conformance-title">
+    <section
+      className="grid gap-2 border-b border-border px-3 py-2.5"
+      aria-labelledby="process-conformance-title"
+    >
       <div className="flex items-center justify-between gap-2">
         <h4 id="process-conformance-title" className="text-xs font-semibold text-foreground">
           {t("canvas.conformance.title")}
@@ -64,7 +92,7 @@ export function ConformanceSummary({ processId }: { processId: string }) {
           size="sm"
           variant="outline"
           onClick={runAudit}
-          disabled={audit.isPending || !status}
+          disabled={busy || !status}
           aria-busy={audit.isPending}
         >
           <RefreshCw aria-hidden className={`size-3.5 ${audit.isPending ? "animate-spin" : ""}`} />
@@ -88,7 +116,12 @@ export function ConformanceSummary({ processId }: { processId: string }) {
           <Skeleton className="h-10 w-full" />
         </div>
       ) : (
-        <StatusBody status={status} running={audit.isPending} />
+        <StatusBody
+          status={status}
+          working={audit.isPending || repair.isPending}
+          repairing={repair.isPending}
+          onRepair={runRepair}
+        />
       )}
     </section>
   );
@@ -96,15 +129,30 @@ export function ConformanceSummary({ processId }: { processId: string }) {
 
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
-function StatusBody({ status, running }: { status: ConformanceStatus; running: boolean }) {
+function StatusBody({
+  status,
+  working,
+  repairing,
+  onRepair,
+}: {
+  status: ConformanceStatus;
+  working: boolean;
+  repairing: boolean;
+  onRepair: () => void;
+}) {
   const { t, i18n } = useTranslation("process");
   const report = status.report;
 
-  if (running) {
+  if (working || status.running) {
     return (
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        {t("canvas.conformance.runningHint")}
-      </p>
+      <Verdict tone="neutral" icon={<Loader2 aria-hidden className="size-4 animate-spin text-muted-foreground" />}>
+        <p className="text-[13px] font-medium text-foreground">
+          {repairing ? t("canvas.conformance.repairing") : t("canvas.conformance.inProgress")}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {repairing ? t("canvas.conformance.repairingHint") : t("canvas.conformance.inProgressHint")}
+        </p>
+      </Verdict>
     );
   }
 
@@ -119,29 +167,43 @@ function StatusBody({ status, running }: { status: ConformanceStatus; running: b
 
   const listed = report.findings.filter((item) => item.area !== "plan_sources");
   const withoutSource = report.findings.length - listed.length;
-  const auditedAt = formatDate(report.auditedAt, i18n.language);
+  const repairable = listed.filter((item) => REPAIRABLE.includes(item.area)).length;
+  const checkedOn = t("canvas.conformance.checkedOn", {
+    count: report.sourcesAudited,
+    date: formatDate(report.auditedAt, i18n.language),
+  });
 
   return (
     <div className="grid gap-2">
       {report.verdict === "conformant" ? (
         <Verdict tone="ok" icon={<CheckCircle2 aria-hidden className="size-4 text-[var(--color-status-success)]" />}>
-          <p className="text-[13px] font-medium text-foreground">{t("canvas.conformance.verdict.conformant")}</p>
-          <p className="text-xs text-muted-foreground">
-            {t("canvas.conformance.checkedOn", { count: report.sourcesAudited, date: auditedAt })}
+          <p className="text-[13px] font-medium text-foreground">
+            {t("canvas.conformance.verdict.conformant")}
           </p>
+          <p className="text-xs text-muted-foreground">{checkedOn}</p>
+        </Verdict>
+      ) : report.verdict === "conformant_with_divergences" ? (
+        <Verdict tone="ok" icon={<CheckCircle2 aria-hidden className="size-4 text-[var(--color-status-success)]" />}>
+          <p className="text-[13px] font-medium text-foreground">
+            {t("canvas.conformance.verdict.withDivergences", { count: report.findings.length })}
+          </p>
+          <p className="text-xs text-muted-foreground">{checkedOn}</p>
         </Verdict>
       ) : report.verdict === "not_conformant" ? (
-        <Verdict tone="attention" icon={<TriangleAlert aria-hidden className="size-4 text-[var(--color-status-warning)]" />}>
+        <Verdict
+          tone="attention"
+          icon={<TriangleAlert aria-hidden className="size-4 text-[var(--color-status-warning)]" />}
+        >
           <p className="text-[13px] font-medium text-foreground">
             {t("canvas.conformance.verdict.notConformant", { count: report.findings.length })}
           </p>
-          <p className="text-xs text-muted-foreground">
-            {t("canvas.conformance.checkedOn", { count: report.sourcesAudited, date: auditedAt })}
-          </p>
+          <p className="text-xs text-muted-foreground">{checkedOn}</p>
         </Verdict>
       ) : (
         <Verdict tone="neutral" icon={<CircleDashed aria-hidden className="size-4 text-muted-foreground" />}>
-          <p className="text-[13px] font-medium text-foreground">{t("canvas.conformance.verdict.incomplete")}</p>
+          <p className="text-[13px] font-medium text-foreground">
+            {t("canvas.conformance.verdict.incomplete")}
+          </p>
           {report.note && <p className="text-xs text-muted-foreground">{capitalize(report.note)}</p>}
         </Verdict>
       )}
@@ -156,6 +218,18 @@ function StatusBody({ status, running }: { status: ConformanceStatus; running: b
         const items = listed.filter((item) => item.area === area);
         return items.length ? <FindingGroup key={area} area={area} items={items} t={t} /> : null;
       })}
+
+      {repairable > 0 && (
+        <div className="grid gap-1">
+          <Button type="button" size="sm" variant="secondary" onClick={onRepair} disabled={repairing}>
+            <Wand2 aria-hidden className="size-3.5" />
+            {t("canvas.conformance.repair", { count: repairable })}
+          </Button>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            {t("canvas.conformance.repairHint")}
+          </p>
+        </div>
+      )}
 
       {withoutSource > 0 && (
         <p className="text-xs leading-relaxed text-muted-foreground">
@@ -175,7 +249,15 @@ function Verdict({ tone, icon, children }: { tone: Tone; icon: React.ReactNode; 
   );
 }
 
-function FindingGroup({ area, items, t }: { area: ConformanceArea; items: ConformanceFinding[]; t: TFunction }) {
+function FindingGroup({
+  area,
+  items,
+  t,
+}: {
+  area: ConformanceArea;
+  items: ConformanceFinding[];
+  t: TFunction;
+}) {
   return (
     <details className="rounded-md border border-border" open={area === "source_contradiction"}>
       <summary className="cursor-pointer px-2.5 py-1.5 text-xs font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring">

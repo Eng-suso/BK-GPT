@@ -56,6 +56,12 @@ export async function fetchConformanceStatus(processId: string): Promise<Conform
   return toConformanceStatus(apiConformanceStatusSchema.parse(raw));
 }
 
+export async function repairFromConformance(processId: string): Promise<void> {
+  await http<unknown>(`/v1/workspace/processes/${processId}/conformance/repair`, {
+    method: "POST",
+  });
+}
+
 export async function runConformanceAudit(processId: string): Promise<ConformanceStatus> {
   const raw = await http<unknown>(`/v1/workspace/processes/${processId}/conformance-audit`, {
     method: "POST",
@@ -226,6 +232,27 @@ export function useConformanceStatusQuery(
     queryFn: () => fetchConformanceStatus(processId),
     enabled: options.enabled ?? true,
     staleTime: 0,
+    // Il confronto gira nel worker mentre il consulente guarda il disegno:
+    // finche' e' in corso la risposta si ricarica da sola, cosi' l'esito
+    // compare senza che nessuno debba riaprire il pannello.
+    refetchInterval: (query) => (query.state.data?.running ? 5_000 : false),
+  });
+}
+
+/**
+ * Riporta nel piano i punti che le fonti dicono e il disegno non mostra.
+ *
+ * Il disegno viene rifatto: le evidenze e il canvas si ricaricano dal backend.
+ */
+export function useRepairFromConformanceMutation(processId: string, bpmnModelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => repairFromConformance(processId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: provenanceKeys.process(processId) });
+      void queryClient.invalidateQueries({ queryKey: bpmnKeys.scope(bpmnModelId) });
+      notifyWorkspaceChanged({ bpmnModelId, forceCanvasReload: true });
+    },
   });
 }
 

@@ -273,3 +273,55 @@ def test_a_finding_about_the_order_names_steps_not_ids():
     assert "step_" not in order["etichetta"]
     assert "step_" not in outcome.findings[0].message
     assert "Ricevi la richiesta" in outcome.findings[0].message
+
+
+def test_two_voices_that_disagree_are_a_question_not_a_defect():
+    """Laura dice che decide lei, Marco dice che decide lui: il piano non e' sbagliato.
+
+    Il disegno ha seguito una delle due voci. Riestrarre dalle fonti rifarebbe lo
+    stesso piano, quindi il punto non e' riparabile: e' una decisione di chi
+    conosce il processo, e va chiesta invece di essere contata come difetto.
+    """
+    verdict = SourceAuditVerdict(
+        contradicted_elements=[
+            AuditedContradiction(
+                element_change="different_performer",
+                element_ref="steps:crea_ordine",
+                quote="non aspetto Acquisti",
+                explanation="lo fa la Manutenzione",
+            )
+        ]
+    )
+
+    outcome = _verified_source_findings(
+        _request(), verdict, {"steps:crea_ordine"}, {"steps:crea_ordine": "Intervista Francesca"}
+    )
+
+    finding = outcome.findings[0]
+    assert finding.layer == "source_divergence"
+    assert finding.severity == "gap"
+    assert "Intervista Francesca" in finding.message and "Intervista Paolo" in finding.message
+    assert "conferma" in finding.message
+
+    report = ConformanceReport(verdict="not_conformant", process_id="p", findings=[finding])
+    assert report.needs_plan_repair is False, "riestrarre non chiude un disaccordo fra voci"
+
+
+def test_the_verdict_separates_a_defect_from_a_disagreement():
+    """Solo disaccordi fra voci: il disegno segue le fonti, e il verdetto lo dice."""
+    from backend.agents.conformance_audit import verdict_for
+
+    divergence = ConformanceFinding(
+        layer="source_divergence", severity="gap", code="sources_disagree",
+        message="«Chiudere segnalazione»: «Laura» e «Marco» lo raccontano in modo diverso.",
+    )
+    defect = ConformanceFinding(
+        layer="canvas_plan", severity="blocking", code="canvas_missing_element", message="manca",
+    )
+
+    assert verdict_for([], "done") == "conformant"
+    assert verdict_for([divergence], "done") == "conformant_with_divergences"
+    assert verdict_for([divergence, defect], "done") == "not_conformant"
+    # Senza revisore non si dichiara conforme niente, nemmeno uno stato pulito.
+    assert verdict_for([], "skipped") == "incomplete"
+    assert verdict_for([defect], "skipped") == "not_conformant"
