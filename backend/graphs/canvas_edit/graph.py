@@ -682,6 +682,7 @@ _DRAFTED_NODE_KINDS = {
     "decisioni": ("exclusiveGateway", "inclusiveGateway", "eventBasedGateway", "complexGateway"),
     "ruoli": ("lane",),
 }
+_DRAFTED_NODE_SINGULAR = {"attivita'": "attivita'", "decisioni": "decisione", "ruoli": "ruolo"}
 
 
 def draft_outcome_message(result) -> str:
@@ -706,35 +707,92 @@ def draft_outcome_message(result) -> str:
         label: sum(tags.get(kind, 0) for kind in kinds)
         for label, kinds in _DRAFTED_NODE_KINDS.items()
     }
-    drawn = ", ".join(f"{value} {label}" for label, value in counts.items())
-    content = f"Ho disegnato la bozza dal piano {result.snapshot_label}: {drawn}."
+    drawn = ", ".join(
+        f"{value} {_DRAFTED_NODE_SINGULAR[label] if value == 1 else label}"
+        for label, value in counts.items()
+    )
+    content = f"Ho disegnato la bozza del processo: {drawn}."
 
     report = result.conformance
     repaired = (
-        f" Il piano e' stato ricostruito {result.conformance_repairs} volta sui rilievi del revisore."
+        " Nel confronto erano emersi passaggi mancanti: li ho riportati nel piano e ho ridisegnato."
         if result.conformance_repairs
         else ""
     )
     if report is None:
-        content += " La verifica con le fonti non e' stata eseguita."
+        content += " Il confronto con le fonti non e' stato fatto."
     elif report.verdict == "conformant":
         content += (
-            f" La verifica di conformita' e' passata: il canvas coincide con il piano, e il piano "
-            f"con le {report.sources_audited} fonti lette.{repaired}"
+            f" Ho confrontato il disegno con le {report.sources_audited} fonti raccolte: "
+            f"coincide.{repaired}"
         )
     elif report.verdict == "not_conformant":
         content += (
-            f" Il disegno NON coincide ancora del tutto con le fonti: "
-            f"{len(report.findings)} rilievi della verifica.{repaired}"
+            " Il disegno non coincide ancora del tutto con le fonti: "
+            f"{len(report.findings)} punti da rivedere.{repaired}"
         )
     else:
-        content += f" La verifica con le fonti e' incompleta.{repaired}"
+        content += f" Il confronto con le fonti non e' completo.{repaired}"
 
-    if result.pending_verification:
-        content += "\n\nDa verificare:\n" + "\n".join(
-            f"- {item}" for item in result.pending_verification[:8]
+    points = report.consultant_lines() if report is not None else []
+    open_questions = [item for item in _open_plan_questions(result) if item not in points]
+    if points:
+        content += "\n\nDa rivedere:\n" + "\n".join(f"- {item}" for item in points[:8])
+    if open_questions:
+        content += "\n\nDomande ancora aperte:\n" + "\n".join(
+            f"- {item}" for item in open_questions[:5]
         )
+    if points or open_questions:
+        content += "\n\nIl dettaglio, con le parole delle fonti, e' nel pannello Evidenze del canvas."
     return content
+
+
+_DRAFT_FAILURE_MESSAGES = {
+    "plan_stale": (
+        "Non ho disegnato il processo: il piano non tiene ancora conto di tutte le fonti "
+        "raccolte. Lo sto ricostruendo; riprova tra qualche minuto."
+    ),
+    "plan_synthesis_failed": (
+        "Non sono riuscito a ricostruire il piano dalle fonti raccolte, quindi non ho "
+        "disegnato niente: meglio nessun disegno che uno che non corrisponde alle "
+        "interviste. Riprova tra qualche minuto."
+    ),
+    "plan_ignores_evidence": (
+        "Non ho disegnato il processo: dal piano non risulta nessuna delle attivita' "
+        "raccontate nelle fonti. Va ricostruito dalle interviste prima di disegnarlo."
+    ),
+    "no_plan_no_evidence": (
+        "Non c'e' ancora niente da disegnare: per questo processo non ci sono fonti "
+        "raccolte ne' un piano. Registra almeno un'intervista."
+    ),
+    "write_not_allowed_in_mode": (
+        "In questa modalita' non modifico il canvas. Passa alla modalita' Agente o "
+        "Modifica per generare il disegno."
+    ),
+}
+
+
+def draft_failure_message(result) -> str:
+    """Perche' non c'e' un disegno, detto a chi deve decidere cosa fare."""
+    return _DRAFT_FAILURE_MESSAGES.get(
+        result.reason_code,
+        "Non ho salvato il disegno per un problema tecnico: niente e' stato modificato. "
+        "Riprova tra qualche minuto.",
+    )
+
+
+def _open_plan_questions(result) -> list[str]:
+    """Le domande aperte del piano, non le note interne della sua costruzione."""
+    process_id = getattr(result, "process_id", "")
+    if not process_id:
+        return []
+    try:
+        snapshot = build_process_snapshot(process_id)
+    except Exception:  # noqa: BLE001 - le domande sono un complemento, non il messaggio
+        return []
+    if snapshot is None:
+        return []
+    return [item.question for item in snapshot.open_questions if not item.answer and item.question]
 
 
 def generate_canvas_draft(state: CanvasState) -> dict:
@@ -774,13 +832,11 @@ def generate_canvas_draft(state: CanvasState) -> dict:
     }
 
     if not result.ok:
-        content = (
-            f"Non ho generato il disegno. {result.reason}"
-            if result.status == "failed"
-            else result.reason
-        )
-        if result.issues:
-            content += "\n\n" + "\n".join(f"- {item}" for item in result.issues[:5])
+        # Il consulente legge perche' non c'e' un disegno e cosa fare adesso. Le
+        # cause tecniche restano nel task log e nei log, dove qualcuno puo'
+        # usarle: hash di set di fonti e nomi di eccezioni in chat non aiutano
+        # nessuno a decidere.
+        content = draft_failure_message(result)
         return {
             "canvas_loop_status": "blocked",
             "canvas_run_status": "failed" if result.status == "failed" else "waiting_for_user",

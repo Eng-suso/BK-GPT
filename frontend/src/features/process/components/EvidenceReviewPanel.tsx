@@ -17,6 +17,7 @@ import {
   useProcessProvenanceQuery,
   useReviewProvenanceElementMutation,
 } from "../api";
+import { ConformanceSummary } from "./ConformanceSummary";
 
 type EvidenceReviewPanelProps = {
   processId: string;
@@ -248,6 +249,7 @@ export function EvidenceReviewPanel({
       <p className="sr-only" role="status" aria-live="polite">
         {liveMessage}
       </p>
+      <ConformanceSummary processId={processId} />
       <Summary provenance={provenance} awaiting={awaiting.length} t={t} />
       {provenance.unusedSources.length > 0 && (
         <p className="mx-3 mb-2 rounded-md border border-warning-border bg-warning-surface px-2.5 py-2 text-xs leading-relaxed text-foreground">

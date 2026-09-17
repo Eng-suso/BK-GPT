@@ -225,28 +225,24 @@ class FakeAuditor:
         verdict = SourceAuditVerdict()
         if "Paolo" in request.source_name and "steps:chiama_fornitore" not in refs:
             verdict.missing_facts = [
-                AuditedFact(
-                    kind="activity",
+                AuditedFact(kind="activity", diagram_change="new_activity",
                     statement="Con la linea ferma Manutenzione chiama direttamente il fornitore",
                     quote=PAOLO_URGENT_QUOTE,
                 ),
                 # Una prova che la fonte non contiene: il runtime deve scartarla.
-                AuditedFact(
-                    kind="rule",
+                AuditedFact(kind="rule", diagram_change="new_activity",
                     statement="Il fornitore emette sempre una nota di credito",
                     quote="il fornitore emette sempre una nota di credito entro trenta giorni",
                 ),
             ]
         if self.contradict and "Francesca" in request.source_name:
             verdict.contradicted_elements = [
-                AuditedContradiction(
-                    element_ref=self.contradict,
+                AuditedContradiction(element_change="different_order", element_ref=self.contradict,
                     quote="verifico che ci sia l'autorizzazione del responsabile",
                     explanation="la fonte colloca la verifica prima dell'ordine, non dopo",
                 ),
                 # Un riferimento che il piano non ha: scartato.
-                AuditedContradiction(
-                    element_ref="steps:non_esiste",
+                AuditedContradiction(element_change="different_order", element_ref="steps:non_esiste",
                     quote="creo l'ordine e lo invio al fornitore",
                     explanation="riferimento inventato",
                 ),
@@ -435,7 +431,7 @@ def test_the_canvas_chat_rebuilds_the_plan_before_it_reasons(esaote_state, extra
     message = drafted["messages"][0].content
     assert drafted["canvas_run_status"] == "done", message
     assert "attivita'" in message and "0 attivita'" not in message
-    assert "verifica di conformita' e' passata" in message
+    assert "coincide" in message and "non coincide" not in message
     assert drafted["validation_report"]["conformance"]["verdict"] == "conformant"
 
 
@@ -457,7 +453,7 @@ def test_a_contradiction_that_repair_cannot_close_reaches_the_consultant(
     assert [item.element_ref for item in contradictions] == ["steps:crea_ordine"]
     assert result.conformance.discarded_findings >= 1, "il riferimento inventato va scartato"
     assert result.conformance_repairs == 1, "la riparazione si tenta una volta, non all'infinito"
-    assert any("smentisce" in item for item in result.pending_verification)
+    assert any("dice diversamente" in item for item in result.pending_verification)
 
 
 def test_without_a_reviewer_the_draft_is_never_declared_conformant(esaote_state, extractor):
@@ -533,3 +529,30 @@ def test_a_project_level_source_queues_every_process_of_the_project(empty_proces
 
     assert wd.plan_materialization_for(empty_process["process_id"]) is not None
     assert wd.plan_materialization_for(other["id"]) is not None
+
+
+def test_a_plan_missing_an_unreadable_interview_is_not_drawn(esaote_state, monkeypatch):
+    """Una fonte che non si riesce a leggere nemmeno al secondo tentativo: niente disegno a meta'."""
+    from backend.process_understanding import ExtractionFailure
+
+    def _paolo_down(title: str, source_text: str, *, with_quality_report: bool = True):
+        if "Paolo" in source_text:
+            return ProcessUnderstandingResult(
+                status="failed",
+                failure=ExtractionFailure(
+                    kind="timeout", message="Request timed out.", retryable=True, attempt=1
+                ),
+            )
+        return ProcessUnderstandingResult(
+            status="success", process=_grounded_plan(include_urgent_path=False)
+        )
+
+    monkeypatch.setattr("backend.agents.process_synthesis.build_process_understanding", _paolo_down)
+
+    with _bind_process_chat(esaote_state["project_id"], esaote_state["process_id"]):
+        result = generate_bpmn_draft(esaote_state["process_id"])
+
+    assert result.status == "failed"
+    assert result.reason_code == "plan_synthesis_failed"
+    assert any("Paolo" in item for item in result.issues)
+    assert _draft_versions(esaote_state["bpmn_model_id"]) == []

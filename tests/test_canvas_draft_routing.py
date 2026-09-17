@@ -99,7 +99,11 @@ def test_the_node_reports_a_technical_failure_as_technical(monkeypatch):
     result = generate_canvas_draft(_state())
 
     assert result["canvas_run_status"] == "failed"
-    assert "connection timeout" in result["messages"][0].content
+    # La causa tecnica resta nel task log: in chat il consulente legge cosa e'
+    # successo e cosa fare, non il nome di un'eccezione.
+    assert "connection timeout" not in result["messages"][0].content
+    assert "problema tecnico" in result["messages"][0].content
+    assert "connection timeout" in " ".join(result["blocking_conditions"])
     assert result["canvas_draft_metrics"]["llm_calls"] == 0
 
 
@@ -125,8 +129,7 @@ def test_the_node_hands_back_the_drawing_and_the_open_points(monkeypatch):
 
     assert result["canvas_run_status"] == "done"
     assert result["saved_bpmn_xml"] == "<definitions/>"
-    assert "V4" in result["messages"][0].content
-    assert "ordine urgente" in result["messages"][0].content
+    assert result["messages"][0].content.startswith("Ho disegnato la bozza del processo")
     assert result["validation_report"]["warnings"] == ["Chi regolarizza l'ordine urgente?"]
 
 

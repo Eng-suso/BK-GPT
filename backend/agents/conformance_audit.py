@@ -106,6 +106,9 @@ MAX_PARALLEL_AUDITS = 4
 # perche' una verifica su meno testo di quello estratto dichiarerebbe mancante
 # cio' che non ha letto.
 AUDIT_SOURCE_CHAR_LIMIT = 120_000
+# Come si nomina un elemento del disegno senza etichetta: mai con il suo id.
+UNNAMED = "un elemento senza nome"
+
 # Quanti rilievi per layer finiscono nelle righe per il consulente.
 CONSULTANT_LINES_PER_LAYER = 6
 
@@ -166,11 +169,11 @@ class ConformanceReport(BaseModel):
             for item in items[:CONSULTANT_LINES_PER_LAYER]:
                 lines.append(item.message)
             if len(items) > CONSULTANT_LINES_PER_LAYER:
-                lines.append(f"... e altri {len(items) - CONSULTANT_LINES_PER_LAYER} rilievi dello stesso tipo.")
+                lines.append(f"... e altri {len(items) - CONSULTANT_LINES_PER_LAYER} punti dello stesso tipo.")
         if self.verdict == "incomplete":
             lines.append(
-                "La verifica del piano sulle fonti non e' stata completata: "
-                + (self.llm_audit_note or "il revisore non ha letto tutte le fonti.")
+                "Il confronto con le fonti non e' completo: "
+                + (self.llm_audit_note or "alcune fonti non sono state lette.")
             )
         return lines
 
@@ -178,10 +181,29 @@ class ConformanceReport(BaseModel):
 # --- il contratto dell'agente --------------------------------------------
 
 
+DiagramChange = Literal[
+    "new_activity",
+    "new_decision",
+    "new_alternative_path",
+    "new_exception_path",
+    "new_role",
+    "new_start_or_end",
+]
+ElementChange = Literal[
+    "different_performer",
+    "different_order",
+    "different_condition",
+    "step_does_not_happen",
+]
+
+
 class AuditedFact(BaseModel):
-    """Un fatto che la fonte racconta e che il piano non rappresenta."""
+    """Un fatto che la fonte racconta e che il disegno dovrebbe mostrare e non mostra."""
 
     kind: Literal["activity", "decision", "actor", "exception", "event", "rule", "handoff"]
+    diagram_change: DiagramChange = Field(
+        description="Cosa andrebbe aggiunto al diagramma BPMN per rappresentarlo."
+    )
     statement: str = Field(description="Il fatto, in una frase, in italiano.")
     quote: str = Field(
         description="Le parole esatte della fonte che lo dicono, copiate senza modificarle."
@@ -192,6 +214,9 @@ class AuditedContradiction(BaseModel):
     """Un elemento del piano che la fonte smentisce."""
 
     element_ref: str = Field(description="Il riferimento dell'elemento del piano, es. steps:crea_ordine.")
+    element_change: ElementChange = Field(
+        description="Cosa cambierebbe di quell'elemento nel diagramma."
+    )
     quote: str = Field(description="Le parole esatte della fonte che lo smentiscono.")
     explanation: str = Field(description="Cosa dice la fonte di diverso, in una frase.")
 
@@ -221,16 +246,22 @@ AUDITOR_PROMPT = """
 Sei il revisore di conformita' di DeliR. Confronti UNA fonte (un'intervista o un
 documento) con il piano di un processo AS-IS, elemento per elemento.
 
-Riporta solo due cose:
+Il metro e' il diagramma BPMN: riporti solo cio' che, se la fonte ha ragione,
+cambierebbe il disegno. Riporta due cose:
 
 1. missing_facts: fatti che la fonte afferma su come il processo funziona OGGI e
-   che nessun elemento del piano rappresenta. Un fatto e' un'attivita' svolta da
-   qualcuno, una decisione o condizione che cambia il percorso, un ruolo che
-   agisce, un'eccezione e come viene gestita, un evento che avvia o chiude, una
-   regola (soglia, autorizzazione), un passaggio fra ruoli.
-2. contradicted_elements: elementi del piano che la fonte smentisce: un altro
-   attore, un altro ordine, un'altra condizione, un passaggio che la fonte dice
-   non avvenire.
+   che il diagramma dovrebbe mostrare e non mostra. In `diagram_change` dichiari
+   cosa andrebbe aggiunto: un'attivita', una decisione, un percorso alternativo,
+   un percorso d'eccezione, un ruolo (corsia), un evento di inizio o fine.
+2. contradicted_elements: elementi del piano che la fonte smentisce. In
+   `element_change` dichiari cosa cambierebbe: chi lo esegue, in che ordine, a
+   quale condizione, oppure che non avviene.
+
+Non sono rilievi, perche' non cambiano il diagramma: frequenze e abitudini
+("di solito la mattina"), durate e tempi di attesa, campi di un modulo, stati di
+un registro, strumenti usati, canali di comunicazione quando il passaggio e' gia'
+disegnato, opinioni, lamentele, proposte, cio' che la voce dice di non sapere, la
+descrizione della giornata di lavoro della persona intervistata.
 
 Regole:
 - Ogni rilievo porta in `quote` le parole esatte della fonte, copiate senza
@@ -351,7 +382,7 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                 layer="canvas_plan",
                 severity="blocking",
                 code="plan_not_compilable",
-                message="Il piano non si compila in un BPMN: non c'e' niente con cui confrontare il canvas.",
+                message="Il piano non si traduce in un disegno: va rivisto prima di confrontarlo con il canvas.",
             )
         ]
     if not canvas_xml or not canvas_xml.strip():
@@ -360,7 +391,7 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                 layer="canvas_plan",
                 severity="blocking",
                 code="canvas_empty",
-                message="Il canvas salvato e' vuoto mentre il piano ha un processo da disegnare.",
+                message="Il disegno salvato e' vuoto mentre il piano descrive un processo.",
             )
         ]
     try:
@@ -371,7 +402,7 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                 layer="canvas_plan",
                 severity="blocking",
                 code="canvas_unreadable",
-                message=f"Il canvas salvato non e' un BPMN leggibile: {exc}.",
+                message="Il disegno salvato non si riesce a leggere: va rigenerato dal piano.",
             )
         ]
     expected = flow_signature(expected_xml)
@@ -379,7 +410,7 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
     findings: list[ConformanceFinding] = []
     for node_id, (kind, name) in expected["nodes"].items():
         found = actual["nodes"].get(node_id)
-        label = name or node_id
+        label = name or UNNAMED
         if found is None:
             findings.append(
                 ConformanceFinding(
@@ -387,7 +418,7 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                     severity="blocking",
                     code="canvas_missing_element",
                     element_ref=node_id,
-                    message=f"Nel canvas manca «{label}», che il piano contiene.",
+                    message=f"Nel disegno manca «{label}», che il piano contiene.",
                 )
             )
         elif found != (kind, name):
@@ -398,7 +429,7 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                     code="canvas_element_differs",
                     element_ref=node_id,
                     message=(
-                        f"Nel canvas «{found[1] or node_id}» non coincide con il piano, "
+                        f"Nel disegno «{found[1] or UNNAMED}» non coincide con il piano, "
                         f"che dice «{label}»."
                     ),
                 )
@@ -411,10 +442,10 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                     severity="blocking",
                     code="canvas_extra_element",
                     element_ref=node_id,
-                    message=f"Nel canvas c'e' «{name or node_id}», che il piano non contiene.",
+                    message=f"Nel disegno c'e' «{name or UNNAMED}», che il piano non contiene.",
                 )
             )
-    names = {key: value[1] or key for key, value in {**expected["nodes"], **actual["nodes"]}.items()}
+    names = {key: value[1] or UNNAMED for key, value in {**expected["nodes"], **actual["nodes"]}.items()}
     for flow_id, ends in expected["flows"].items():
         if actual["flows"].get(flow_id) != ends:
             findings.append(
@@ -424,8 +455,8 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                     code="canvas_flow_differs",
                     element_ref=flow_id,
                     message=(
-                        f"Nel canvas manca o e' diverso il collegamento da «{names.get(ends[0], ends[0])}» "
-                        f"a «{names.get(ends[1], ends[1])}»."
+                        f"Nel disegno manca o e' diverso il collegamento da «{names.get(ends[0], UNNAMED)}» "
+                        f"a «{names.get(ends[1], UNNAMED)}»."
                     ),
                 )
             )
@@ -438,8 +469,8 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
                     code="canvas_extra_flow",
                     element_ref=flow_id,
                     message=(
-                        f"Nel canvas c'e' un collegamento da «{names.get(ends[0], ends[0])}» a "
-                        f"«{names.get(ends[1], ends[1])}» che il piano non prevede."
+                        f"Nel disegno c'e' un collegamento da «{names.get(ends[0], UNNAMED)}» a "
+                        f"«{names.get(ends[1], UNNAMED)}» che il piano non prevede."
                     ),
                 )
             )
@@ -455,8 +486,8 @@ def plan_currency_findings(snapshot: ProcessKnowledgeSnapshot) -> list[Conforman
             severity="blocking",
             code="plan_stale",
             message=(
-                f"Il piano {snapshot.label} non e' costruito sulle fonti agli atti adesso: "
-                "descrive un processo diverso da quello delle interviste."
+                "Il piano non tiene conto di tutte le fonti raccolte: e' stato preparato "
+                "prima che alcune arrivassero."
             ),
         )
     ]
@@ -489,8 +520,8 @@ def review_plan_findings(
             severity="blocking",
             code="review_document_diverges",
             message=(
-                "Il documento di piano mostrato nella review non coincide con il piano "
-                "strutturato da cui nasce il disegno: e' stato modificato senza rivedere il piano."
+                "Il testo del piano e' stato modificato a mano e non corrisponde piu' a cio' "
+                "che il disegno rappresenta."
             ),
         )
     ]
@@ -592,7 +623,19 @@ def plan_elements_for_audit(snapshot: ProcessKnowledgeSnapshot) -> list[dict[str
         add(f"structured_business_rules:{rule.id}", "regola", rule.consequence, condizione=rule.condition)
     order = plan.main_success_path or plan.sequence
     if order:
-        elements.append({"ref": "sequence", "tipo": "ordine_percorso_principale", "etichetta": " -> ".join(order)})
+        # Le etichette, non gli id: questo testo torna al consulente dentro un
+        # rilievo sull'ordine dei passaggi.
+        names = {step.id: step.label for step in plan.steps}
+        names.update({event.id: event.label for event in plan.events})
+        names.update({decision.id: decision.label for decision in plan.decisions})
+        elements.append(
+            {
+                "ref": "sequence",
+                "tipo": "ordine_percorso_principale",
+                "etichetta": "L'ordine dei passaggi principali: "
+                + " → ".join(names.get(item, UNNAMED) for item in order),
+            }
+        )
     return elements
 
 
@@ -608,6 +651,10 @@ def _verified_source_findings(
     verdict: SourceAuditVerdict,
     known_refs: set[str],
 ) -> _SourceOutcome:
+    labels = {
+        str(item.get("ref")): str(item.get("etichetta") or "")
+        for item in request.plan_elements
+    }
     folded = FoldedText(request.source_text)
     findings: list[ConformanceFinding] = []
     discarded = 0
@@ -632,7 +679,7 @@ def _verified_source_findings(
                 source_name=request.source_name,
                 quote=quote,
                 message=(
-                    f"«{request.source_name}» dice «{quote}», e il piano non lo rappresenta "
+                    f"«{request.source_name}» dice «{quote}», e il disegno non lo rappresenta "
                     f"({fact.statement})."
                 ),
             )
@@ -654,8 +701,8 @@ def _verified_source_findings(
                 source_name=request.source_name,
                 quote=quote,
                 message=(
-                    f"«{request.source_name}» smentisce un elemento del piano: «{quote}» "
-                    f"({contradiction.explanation})."
+                    f"«{labels.get(contradiction.element_ref) or UNNAMED}»: «{request.source_name}» "
+                    f"dice diversamente - «{quote}» ({contradiction.explanation})."
                 ),
             )
         )
@@ -760,9 +807,9 @@ def evaluate_conformance(
         llm_audit = "done"
         note = "nessuna fonte con un testo da verificare."
     elif not snapshot.process_understanding:
-        note = "non c'e' un piano da confrontare con le fonti."
+        note = "non c'e' ancora un piano da confrontare con le fonti."
     elif auditor is None:
-        note = "il revisore delle fonti non e' configurato (modello non disponibile)."
+        note = "il confronto con le fonti non e' disponibile in questo momento."
     else:
         source_findings, discarded, audited, failures = _audit_sources(snapshot, readable, auditor)
         findings += source_findings
@@ -770,10 +817,13 @@ def evaluate_conformance(
             llm_audit = "done"
         elif audited:
             llm_audit = "partial"
-            note = "fonti non verificate: " + "; ".join(failures)
+            note = "alcune fonti non sono state confrontate: " + ", ".join(
+                failure.split(":", 1)[0] for failure in failures
+            ) + ". Riprova la verifica."
         else:
             llm_audit = "failed"
-            note = "nessuna fonte verificata: " + "; ".join(failures)
+            note = "nessuna fonte e' stata confrontata. Riprova la verifica tra qualche minuto."
+            logger.warning("verifica fallita su tutte le fonti: %s", "; ".join(failures))
 
     if findings:
         verdict: Verdict = "not_conformant"

@@ -20,6 +20,9 @@ si emette **solo quando la fase cambia**.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 import re
 import time
@@ -56,6 +59,16 @@ SAVING_MEMORY = ProgressPhase("saving_memory", "Aggiorno la memoria di lavoro", 
 HANDING_OVER = ProgressPhase("handing_over", "Preparo il passaggio di consegne", "route")
 ASKING = ProgressPhase("asking", "Preparo le domande aperte", "help")
 DRAFTING = ProgressPhase("drafting", "Preparo la risposta", "pen")
+# Le fasi lunghe di «Genera BPMN»: senza, il consulente vedeva un'unica riga
+# ferma per minuti mentre il piano si ricostruiva e il disegno veniva confrontato
+# con ogni intervista.
+REBUILDING_PLAN = ProgressPhase("rebuilding_plan", "Ricostruisco il piano dalle fonti", "extract")
+COMPARING_WITH_SOURCES = ProgressPhase(
+    "comparing_with_sources", "Confronto il disegno con le fonti", "compare"
+)
+CORRECTING_PLAN = ProgressPhase(
+    "correcting_plan", "Riporto nel piano i passaggi mancanti", "extract"
+)
 
 ALL_PHASES: tuple[ProgressPhase, ...] = (
     UNDERSTANDING,
@@ -74,7 +87,48 @@ ALL_PHASES: tuple[ProgressPhase, ...] = (
     HANDING_OVER,
     ASKING,
     DRAFTING,
+    REBUILDING_PLAN,
+    COMPARING_WITH_SOURCES,
+    CORRECTING_PLAN,
 )
+
+PHASES_BY_ID: dict[str, ProgressPhase] = {phase.id: phase for phase in ALL_PHASES}
+
+_progress_sink: ContextVar[Callable[[ProgressPhase], None] | None] = ContextVar(
+    "delir_progress_sink", default=None
+)
+
+
+@contextmanager
+def bind_progress_sink(sink: Callable[[ProgressPhase], None]) -> Iterator[None]:
+    """Chi ascolta le fasi dei lavori lunghi per la durata di un run."""
+    token = _progress_sink.set(sink)
+    try:
+        yield
+    finally:
+        _progress_sink.reset(token)
+
+
+def report_progress(phase: ProgressPhase) -> None:
+    """Annuncia la fase di un lavoro lungo dentro un nodo del grafo.
+
+    Il narratore vede i nodi e i tool; un comando deterministico che dura minuti
+    dentro un nodo solo - ricostruire il piano, confrontare il disegno con ogni
+    fonte - restava una riga ferma. Lo stream `custom` di LangGraph non attraversa
+    i sottografi invocati dentro un nodo senza `subgraphs=True`, che cambierebbe
+    la forma di ogni evento: il canale e' un contextvar, lo stesso meccanismo con
+    cui scope e modalita' raggiungono i tool.
+
+    Fuori da un run (API diretta, worker, test) nessuno ascolta e la chiamata non
+    fa niente.
+    """
+    sink = _progress_sink.get()
+    if sink is None:
+        return
+    try:
+        sink(phase)
+    except Exception:  # noqa: BLE001 - il progresso non deve rompere il lavoro
+        return
 
 # Nome esatto del tool -> fase. Le regole a prefisso sotto coprono il resto, cosi'
 # un tool nuovo non resta muto ne' costringe a ricordarsi di registrarlo.

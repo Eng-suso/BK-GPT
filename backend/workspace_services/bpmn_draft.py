@@ -428,7 +428,9 @@ def generate_bpmn_draft(
             # per rendere questo ramo raro invece che normale. Raro non vuol dire
             # saltabile: disegnare il piano vecchio e' disegnare un altro processo.
             from backend.agents.process_synthesis import ensure_process_plan
+            from backend.services.agent_progress import REBUILDING_PLAN, report_progress
 
+            report_progress(REBUILDING_PLAN)
             started = perf_counter()
             synthesis = ensure_process_plan(process_id)
             watch.mark("plan_synthesis", started)
@@ -472,6 +474,9 @@ def generate_bpmn_draft(
 
     pending = _pending_verification(snapshot)
 
+    from backend.services.agent_progress import DRAWING, report_progress
+
+    report_progress(DRAWING)
     started = perf_counter()
     try:
         xml = semantic_model_to_bpmn_xml(semantic_model)
@@ -721,6 +726,11 @@ def generate_verified_bpmn_draft(
         audit_process_conformance,
         llm_source_auditor,
     )
+    from backend.services.agent_progress import (
+        COMPARING_WITH_SOURCES,
+        CORRECTING_PLAN,
+        report_progress,
+    )
 
     resolved = llm_source_auditor() if auditor is _DEFAULT_AUDITOR else auditor
     result = generate_bpmn_draft(
@@ -732,11 +742,15 @@ def generate_verified_bpmn_draft(
     if not result.ok:
         return result
 
+    report_progress(COMPARING_WITH_SOURCES)
     started = perf_counter()
     report = audit_process_conformance(process_id, auditor=resolved)
     audit_ms = int((perf_counter() - started) * 1000)
     audit_calls = report.llm_calls if report else 0
     repairs = 0
+    # Quanti punti c'erano prima della riparazione: e' il numero che dice se la
+    # riparazione serve, o se il loop spende chiamate senza chiudere niente.
+    findings_before_repair = len(report.findings) if report else 0
 
     while (
         report is not None
@@ -747,6 +761,7 @@ def generate_verified_bpmn_draft(
         from backend.agents.process_synthesis import repair_plan_from_audit
 
         repairs += 1
+        report_progress(CORRECTING_PLAN)
         started = perf_counter()
         synthesis = repair_plan_from_audit(process_id, report)
         audit_ms += int((perf_counter() - started) * 1000)
@@ -767,6 +782,7 @@ def generate_verified_bpmn_draft(
         if not redrawn.ok:
             return replace(redrawn, conformance=report, conformance_repairs=repairs)
         result = redrawn
+        report_progress(COMPARING_WITH_SOURCES)
         started = perf_counter()
         report = audit_process_conformance(process_id, auditor=resolved)
         audit_ms += int((perf_counter() - started) * 1000)
@@ -776,6 +792,8 @@ def generate_verified_bpmn_draft(
     metrics["llm_calls"] = int(metrics.get("llm_calls") or 0) + audit_calls
     metrics["conformance_audit_ms"] = audit_ms
     metrics["conformance_repairs"] = repairs
+    metrics["conformance_findings_before_repair"] = findings_before_repair
+    metrics["conformance_findings"] = len(report.findings) if report else 0
     pending = list(result.pending_verification)
     if report is not None:
         pending = [*report.consultant_lines(), *[item for item in pending if item not in report.consultant_lines()]]

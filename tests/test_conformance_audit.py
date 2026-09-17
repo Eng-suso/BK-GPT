@@ -105,12 +105,12 @@ def test_an_empty_canvas_against_a_plan_is_blocking():
 def test_a_finding_counts_only_with_a_quote_the_source_contains():
     verdict = SourceAuditVerdict(
         missing_facts=[
-            AuditedFact(kind="activity", statement="chiama il fornitore", quote="chiamo direttamente il fornitore"),
-            AuditedFact(kind="rule", statement="inventato", quote="il fornitore manda sempre la nota di credito"),
+            AuditedFact(kind="activity", diagram_change="new_activity", statement="chiama il fornitore", quote="chiamo direttamente il fornitore"),
+            AuditedFact(kind="rule", diagram_change="new_activity", statement="inventato", quote="il fornitore manda sempre la nota di credito"),
         ],
         contradicted_elements=[
-            AuditedContradiction(element_ref="steps:crea_ordine", quote="non aspetto Acquisti", explanation="x"),
-            AuditedContradiction(element_ref="steps:inesistente", quote="non aspetto Acquisti", explanation="x"),
+            AuditedContradiction(element_change="different_order", element_ref="steps:crea_ordine", quote="non aspetto Acquisti", explanation="x"),
+            AuditedContradiction(element_change="different_order", element_ref="steps:inesistente", quote="non aspetto Acquisti", explanation="x"),
         ],
     )
 
@@ -125,8 +125,8 @@ def test_a_finding_counts_only_with_a_quote_the_source_contains():
 def test_the_same_passage_reported_twice_is_one_finding():
     verdict = SourceAuditVerdict(
         missing_facts=[
-            AuditedFact(kind="activity", statement="a", quote="chiamo direttamente il fornitore"),
-            AuditedFact(kind="exception", statement="b", quote="chiamo  direttamente il fornitore"),
+            AuditedFact(kind="activity", diagram_change="new_activity", statement="a", quote="chiamo direttamente il fornitore"),
+            AuditedFact(kind="exception", diagram_change="new_activity", statement="b", quote="chiamo  direttamente il fornitore"),
         ]
     )
     outcome = _verified_source_findings(_request(), verdict, set())
@@ -171,7 +171,7 @@ def test_without_a_reviewer_a_clean_state_is_incomplete_not_conformant():
     # revisore non c'e'. Due motivi diversi, nessuno dei due e' "conforme".
     assert report.verdict != "conformant"
     assert report.llm_audit == "skipped"
-    assert "non e' configurato" in report.llm_audit_note
+    assert "non e' disponibile" in report.llm_audit_note
 
 
 def test_a_reviewer_that_crashes_on_one_source_makes_the_audit_partial():
@@ -239,3 +239,37 @@ def test_an_empty_plan_cannot_score_seven_out_of_ten():
     assert coherent.overall_score <= 2
     assert coherent.approval_recommendation != "ready_to_generate"
     assert any("Nessuna attivita" in item.message for item in coherent.blocking_issues)
+
+
+def test_a_finding_about_the_order_names_steps_not_ids():
+    """Rilievo sul percorso: il consulente legge i nomi dei passaggi, mai i loro id."""
+    from backend.agents.conformance_audit import plan_elements_for_audit
+    from backend.process_understanding import ProcessStep
+
+    plan = ProcessUnderstanding(
+        title="Acquisti",
+        steps=[
+            ProcessStep(id="step_ricevi_richiesta", label="Ricevi la richiesta"),
+            ProcessStep(id="step_crea_ordine", label="Crea l'ordine"),
+        ],
+        main_success_path=["step_ricevi_richiesta", "step_crea_ordine"],
+    )
+    snapshot = ProcessKnowledgeSnapshot(process_id="p", process_understanding=plan.model_dump(mode="json"))
+    elements = plan_elements_for_audit(snapshot)
+    order = next(item for item in elements if item["ref"] == "sequence")
+
+    verdict = SourceAuditVerdict(
+        contradicted_elements=[
+            AuditedContradiction(
+                element_change="different_order", element_ref="sequence",
+                quote="chiamo direttamente il fornitore", explanation="l'ordine e' un altro",
+            )
+        ]
+    )
+    outcome = _verified_source_findings(
+        _request(plan_elements=elements), verdict, {item["ref"] for item in elements}
+    )
+
+    assert "step_" not in order["etichetta"]
+    assert "step_" not in outcome.findings[0].message
+    assert "Ricevi la richiesta" in outcome.findings[0].message

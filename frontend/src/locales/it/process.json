@@ -422,6 +422,39 @@
         "flow": "Flusso"
       },
       "rejectWarning": "Il disegno viene rigenerato dal piano: le modifiche fatte a mano sul canvas si recuperano solo dalla cronologia versioni."
+    },
+    "conformance": {
+      "title": "Confronto con le fonti",
+      "run": "Confronta ora",
+      "running": "Confronto…",
+      "runningHint": "Sto rileggendo ogni fonte e confrontandola con il disegno: può richiedere qualche minuto.",
+      "runError": "Il confronto non è riuscito. Riprova tra qualche minuto.",
+      "loadError": "Non riesco a leggere l'ultimo confronto.",
+      "retry": "Riprova",
+      "noneHint": "Il confronto parte da solo quando generi il disegno, oppure avvialo ora.",
+      "checkedOn_one": "Confrontato con {{count}} fonte · {{date}}",
+      "checkedOn_other": "Confrontato con {{count}} fonti · {{date}}",
+      "outdated": "Il disegno, il piano o le fonti sono cambiati dopo l'ultimo confronto: questo esito potrebbe non valere più.",
+      "withoutSource_one": "{{count}} elemento del disegno non ha riscontro nelle fonti: lo trovi qui sotto in «Da confermare».",
+      "withoutSource_other": "{{count}} elementi del disegno non hanno riscontro nelle fonti: li trovi qui sotto in «Da confermare».",
+      "verdict": {
+        "none": "Non ancora confrontato",
+        "conformant": "Il disegno coincide con le fonti",
+        "notConformant_one": "{{count}} punto da rivedere",
+        "notConformant_other": "{{count}} punti da rivedere",
+        "incomplete": "Confronto non completo"
+      },
+      "area": {
+        "source_contradiction": "Le fonti dicono diversamente",
+        "source_coverage": "Detto nelle fonti, assente nel disegno",
+        "plan_currency": "Piano non aggiornato alle fonti",
+        "review_plan": "Piano modificato a mano",
+        "canvas_plan": "Disegno diverso dal piano"
+      },
+      "toast": {
+        "conformant": "Il disegno coincide con le fonti.",
+        "done": "Confronto completato: ci sono punti da rivedere."
+      }
     }
   }
 }

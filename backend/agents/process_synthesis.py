@@ -334,6 +334,19 @@ def extract_plan_from_sources(
         # se le chiamate finiscono in ordine diverso.
         results = list(pool.map(_extract, readable))
 
+    # Un guasto temporaneo del provider - timeout, rate limit - non deve costare
+    # un'intervista al piano. Sul caso Esaote l'estrazione di Francesca e' andata
+    # in timeout e il piano e' nato su due voci su tre, dichiarato costruito. Un
+    # secondo tentativo, in fila per non ripetere la raffica che ha causato il
+    # guasto, e poi quello che resta fallito resta fallito.
+    retried = 0
+    for index, result in enumerate(results):
+        failure = result.failure
+        if result.status == "success" or failure is None or not failure.retryable:
+            continue
+        retried += 1
+        results[index] = _extract(readable[index])
+
     merged = None
     failures: list[str] = []
     for source, result in zip(readable, results):
@@ -352,7 +365,7 @@ def extract_plan_from_sources(
 
     return CorpusExtraction(
         process=merged,
-        llm_calls=len(readable),
+        llm_calls=len(readable) + retried,
         sources_read=len(readable),
         failures=failures,
     )
@@ -449,13 +462,19 @@ def synthesize_process_plan(
             )
         understanding = result.process
     elif extraction.failures:
-        # Una fonte non letta non annulla le altre, ma non sparisce nemmeno: il
-        # piano nasce su meno evidenza di quella agli atti, e chi legge deve
-        # saperlo.
-        logger.warning(
-            "estrazione parziale per il processo %s: %s",
-            process_id,
-            "; ".join(extraction.failures),
+        # Una fonte con un testo che non si e' riusciti a leggere, anche dopo un
+        # secondo tentativo. Un piano costruito senza di lei e dichiarato
+        # "costruito sulle fonti" e' un piano che non coincide con le fonti: il
+        # disegno che ne esce contraddice un'intervista che il consulente ha
+        # fatto. Si chiude come guasto, e la coda riprova con il suo backoff.
+        reason = "Fonti non lette: " + "; ".join(extraction.failures)
+        logger.warning("estrazione parziale per il processo %s: %s", process_id, reason)
+        return PlanSynthesis(
+            action="synthesis_failed",
+            snapshot=build_process_snapshot(process_id),
+            reason=reason,
+            blockers=list(extraction.failures),
+            llm_calls=llm_calls,
         )
 
     result = ProcessUnderstandingResult(status="success", process=understanding)
@@ -513,17 +532,12 @@ def synthesize_process_plan(
     # pezzo.
     llm_calls += 1
     snapshot = build_process_snapshot(process_id)
-    read_note = (
-        f" Non tutte le fonti sono state lette: {'; '.join(extraction.failures)}."
-        if extraction.failures
-        else ""
-    )
     return PlanSynthesis(
         action="synthesized",
         snapshot=snapshot,
         reason=(
             f"Piano costruito su {len(ledger.get('sources') or [])} fonti "
-            f"(set {ledger.get('source_set_id')})." + read_note
+            f"(set {ledger.get('source_set_id')})."
         ),
         llm_calls=llm_calls,
     )

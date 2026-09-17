@@ -825,3 +825,95 @@ export function toElementReviewResult(
     draftStatus: raw.draft_status,
   };
 }
+
+/* ── Confronto disegno-piano-fonti ─────────────────────────────────
+ * Backend: /v1/workspace/processes/{id}/conformance (GET: ultimo confronto,
+ * POST .../conformance-audit: confronta adesso). Il rapporto dice se il disegno
+ * salvato coincide con il piano e il piano con le fonti; `isCurrent` e' falso
+ * quando piano, fonti o disegno sono cambiati dopo il confronto.
+ */
+
+export type ConformanceVerdict = "conformant" | "not_conformant" | "incomplete";
+
+export type ConformanceArea =
+  | "plan_currency"
+  | "canvas_plan"
+  | "review_plan"
+  | "plan_sources"
+  | "source_coverage"
+  | "source_contradiction";
+
+export type ConformanceFinding = {
+  area: ConformanceArea;
+  severity: "blocking" | "gap";
+  message: string;
+  sourceName: string;
+};
+
+export type ConformanceReport = {
+  verdict: ConformanceVerdict;
+  findings: ConformanceFinding[];
+  sourcesAudited: number;
+  sourcesWithText: number;
+  note: string;
+  auditedAt: string;
+};
+
+export type ConformanceStatus = {
+  processId: string;
+  isCurrent: boolean;
+  report: ConformanceReport | null;
+};
+
+const apiConformanceFindingSchema = z.object({
+  layer: z.enum([
+    "plan_currency",
+    "canvas_plan",
+    "review_plan",
+    "plan_sources",
+    "source_coverage",
+    "source_contradiction",
+  ]),
+  severity: z.enum(["blocking", "gap"]),
+  message: z.string(),
+  source_name: z.string().default(""),
+});
+
+const apiConformanceReportSchema = z.object({
+  verdict: z.enum(["conformant", "not_conformant", "incomplete"]),
+  findings: z.array(apiConformanceFindingSchema).default([]),
+  sources_audited: z.number().default(0),
+  sources_with_text: z.number().default(0),
+  llm_audit_note: z.string().default(""),
+  audited_at: z.string().default(""),
+});
+
+export const apiConformanceStatusSchema = z.object({
+  process_id: z.string(),
+  is_current: z.boolean().default(false),
+  report: apiConformanceReportSchema.nullable().default(null),
+});
+
+export function toConformanceStatus(
+  raw: z.infer<typeof apiConformanceStatusSchema>,
+): ConformanceStatus {
+  return {
+    processId: raw.process_id,
+    isCurrent: raw.is_current,
+    report: raw.report
+      ? {
+          verdict: raw.report.verdict,
+          findings: raw.report.findings.map((item) => ({
+            area: item.layer,
+            severity: item.severity,
+            message: item.message,
+            sourceName: item.source_name,
+          })),
+          sourcesAudited: raw.report.sources_audited,
+          sourcesWithText: raw.report.sources_with_text,
+          note: raw.report.llm_audit_note,
+          auditedAt: raw.report.audited_at,
+        }
+      : null,
+  };
+}
