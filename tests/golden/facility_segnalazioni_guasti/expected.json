@@ -2,7 +2,7 @@
   "case_id": "facility_segnalazioni_guasti",
   "status": "draft_da_validare",
   "process_name": "Gestione segnalazioni tecniche e guasti impianti sede",
-  "notes": "Caso speculare a esaote_ciclo_passivo: qui la soglia di 5.000 euro e l'approvazione della Direzione sono dette da tre voci, quindi non sono vietate. La manutenzione preventiva e' esplicitamente fuori dal processo. L'urgenza (guasto che blocca un'attivita' critica) e' modellata come esito della valutazione di gravita' perche' il compilatore ha un solo evento di inizio: da far validare. L'intervento del fornitore non ha corsia: e' lavoro di un partecipante esterno, che in BPMN va in un pool esterno o in un message flow.",
+  "notes": "Caso speculare a esaote_ciclo_passivo: qui la soglia di 5.000 euro e l'approvazione della Direzione sono dette da tre voci, quindi non sono vietate. La manutenzione preventiva e' esplicitamente fuori dal processo. L'urgenza (guasto che blocca un'attivita' critica) e' modellata come esito della valutazione di gravita' perche' il compilatore ha un solo evento di inizio: da far validare. L'intervento del fornitore non ha corsia: e' lavoro di un partecipante esterno, che in BPMN va in un pool esterno o in un message flow. Dopo la chiamata urgente e il modulo aperto in giornata, l'intervento del fornitore si chiude come gli altri: Laura verifica e chiude ogni segnalazione.",
   "sources": [
     "b1_laura_conti_facility.md",
     "b2_marco_gallo_tecnico_sede.md",
@@ -262,6 +262,10 @@
     [
       "chiama_fornitore_urgente",
       "apri_modulo_in_giornata"
+    ],
+    [
+      "apri_modulo_in_giornata",
+      "esegui_intervento_fornitore"
     ]
   ],
   "forbidden": [

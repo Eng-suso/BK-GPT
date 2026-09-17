@@ -274,7 +274,32 @@ def _ideal_plan(case: ReferenceCase) -> ProcessUnderstanding:
     )
 
 
-def _compiler_cases() -> list:
+def _compile_ideal(case: ReferenceCase):
+    plan = _ideal_plan(case)
+    model = build_bpmn_semantic_model(
+        process_id=f"Process_{case.case_id}", process_name=case.process_name, process=plan
+    )
+    return compare(parse_bpmn(semantic_model_to_bpmn_xml(model)), case)
+
+
+@pytest.mark.parametrize("case", load_golden_cases(GOLDEN), ids=lambda case: case.case_id)
+def test_the_compiler_keeps_every_activity_lane_and_decision(case: ReferenceCase):
+    """Attivita', corsie, decisioni e onesta' sono obbligatorie per ogni caso.
+
+    Anche per un caso con un limite noto del compilatore: il limite riguarda un
+    ordine che non si sa esprimere, non una ragione per perdere un'attivita'.
+    """
+    metrics = _compile_ideal(case)
+
+    report = metrics.as_dict()
+    assert metrics.activity_recall == 1.0, report
+    assert metrics.activity_precision == 1.0, report
+    assert metrics.lane_accuracy == 1.0, report
+    assert metrics.gateway_recall == 1.0, report
+    assert metrics.honest, report
+
+
+def _flow_cases() -> list:
     return [
         pytest.param(
             case,
@@ -292,25 +317,21 @@ def _compiler_cases() -> list:
     ]
 
 
-@pytest.mark.parametrize("case", _compiler_cases())
-def test_the_compiler_loses_nothing_between_plan_and_drawing(case: ReferenceCase):
-    plan = _ideal_plan(case)
-    model = build_bpmn_semantic_model(
-        process_id=f"Process_{case.case_id}", process_name=case.process_name, process=plan
-    )
+@pytest.mark.parametrize("case", _flow_cases())
+def test_the_compiler_keeps_the_order_between_plan_and_drawing(case: ReferenceCase):
+    """L'ordine del riferimento, e nessun ordine in piu'.
 
-    metrics = compare(parse_bpmn(semantic_model_to_bpmn_xml(model)), case)
+    E' l'unica parte su cui un limite noto del compilatore si dichiara, e si
+    dichiara strict: quando il compilatore lo supera, il test fallisce finche'
+    la voce non viene tolta dal caso.
+    """
+    metrics = _compile_ideal(case)
 
     report = metrics.as_dict()
-    assert metrics.activity_recall == 1.0, report
-    assert metrics.activity_precision == 1.0, report
-    assert metrics.lane_accuracy == 1.0, report
-    assert metrics.gateway_recall == 1.0, report
     assert metrics.edge_recall == 1.0, report
     # Il compilatore non deve nemmeno aggiungere ordini che il piano non dice:
     # un arco inventato fra due passaggi e' un AS-IS diverso da quello descritto.
     assert metrics.edge_precision == 1.0, report
-    assert metrics.honest, report
 
 
 def test_a_decision_keeps_every_branch_it_names():
@@ -349,9 +370,18 @@ def test_a_decision_keeps_every_branch_it_names():
     )
 
     model = build_bpmn_semantic_model(process_id="P", process_name="Tre vie", process=plan)
-    names = {node.name for node in model.flowNodes}
+    graph = parse_bpmn(semantic_model_to_bpmn_xml(model))
+    by_name = {node.name: node.id for node in graph.nodes.values() if node.name}
 
-    assert {"Richiedi integrazione", "Richiedi autorizzazione"} <= names
+    # Non basta che i nodi esistano: il gateway deve portare a entrambi i rami, e
+    # ogni ramo deve ricongiungersi dove il piano dice.
+    gateway = next(node for node in graph.gateways if node.name == "Esito verifica?")
+    assert graph.successors.get(gateway.id)
+    targets = set(graph.successors[gateway.id])
+    assert by_name["Richiedi integrazione"] in targets
+    assert by_name["Richiedi autorizzazione"] in targets
+    assert by_name["Verifica richiesta"] in graph.next_activities(by_name["Richiedi integrazione"])
+    assert by_name["Emetti ordine"] in graph.next_activities(by_name["Richiedi autorizzazione"])
     assert not any("senza alternative path" in warning for warning in model.model_warnings)
 
 

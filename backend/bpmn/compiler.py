@@ -41,6 +41,7 @@ from backend.process_understanding import (
     ProcessDecision,
     ProcessEvent,
     ProcessExceptionPath,
+    ProcessPath,
     ProcessStep,
     ProcessUnderstanding,
 )
@@ -690,7 +691,9 @@ def _resolve_alt_path_end(
     return synth.id
 
 
-def _take_alternative_paths_for_decision(decision, paths: list) -> list:
+def _take_alternative_paths_for_decision(
+    decision: ProcessDecision, paths: list[ProcessPath]
+) -> list[ProcessPath]:
     """Find and remove every alternative path that a decision's outcomes name.
 
     Args:

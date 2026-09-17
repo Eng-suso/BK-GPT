@@ -223,6 +223,13 @@ class ReferenceCase:
     def load(cls, folder: Path) -> "ReferenceCase":
         data = json.loads((folder / "expected.json").read_text(encoding="utf-8"))
         activity_ids = {item["id"] for item in data["activities"]}
+        lane_ids = {item["id"] for item in data.get("lanes") or []}
+        for item in data["activities"]:
+            lane = item.get("lane", "")
+            if lane and lane not in lane_ids:
+                # Una corsia che il riferimento non dichiara renderebbe l'accuratezza
+                # delle corsie un numero calcolato su un refuso.
+                raise ValueError(f"{folder.name}: {item['id']} in una corsia non dichiarata {lane}")
         edges = [tuple(edge) for edge in data.get("edges") or []]
         for source, target in edges:
             # Un riferimento che cita un'attivita' che non dichiara e' un

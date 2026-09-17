@@ -13,6 +13,10 @@ concurrency:
   group: golden-eval
   cancel-in-progress: false
 
+# Il job legge il repository e chiama il modello: nessun permesso di scrittura.
+permissions:
+  contents: read
+
 jobs:
   golden-eval:
     name: Golden set (LLM reale)
@@ -35,6 +39,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # Il token non resta nel workspace mentre girano test e client esterni.
+          persist-credentials: false
+
+      # Senza chiave i test del golden set si saltano e il job risulta verde senza
+      # aver misurato niente: un eval che passa perche' non e' partito e' peggio
+      # di un eval rosso.
+      - name: Require OpenAI key
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY mancante: il golden eval non misura niente senza il modello"
+            exit 1
+          fi
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
