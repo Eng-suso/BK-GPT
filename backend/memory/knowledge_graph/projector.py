@@ -10,6 +10,13 @@ Forme di payload:
                               target:{label,id_prop,id_value}, props}
   node_delete   {kind, label, id_prop, id_value}
   edge_delete   {kind, label, source:{...}, target:{...}}
+
+`validate_payload` e' la stessa regola letta dal lato dell'accodamento: un
+payload che il projector non saprebbe applicare non deve entrare in coda, dove
+non c'e' piu' nessuno a cui dire che era sbagliato. Chi emette la chiama prima
+dell'INSERT (canonical.py, scripts/kg_resolve_entities.py); il DB la ripete come
+CHECK (migration 0017); il worker la usa per riconoscere un veleno e metterlo in
+dead-letter senza consumare cinque tentativi su un errore che non passera' mai.
 """
 
 from __future__ import annotations
@@ -18,11 +25,60 @@ import re
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+PAYLOAD_KINDS = ("node", "edge", "node_delete", "edge_delete")
+
+
+class InvalidGraphPayload(ValueError):
+    """Il payload non e' applicabile a Neo4j, e non lo sara' mai."""
+
 
 def _ident(value: str, what: str) -> str:
     if not isinstance(value, str) or not _IDENT.match(value):
-        raise ValueError(f"{what} non sicura per Cypher: {value!r}")
+        raise InvalidGraphPayload(f"{what} non sicura per Cypher: {value!r}")
     return value
+
+
+def _endpoint(payload: dict, key: str) -> None:
+    node = payload.get(key)
+    if not isinstance(node, dict):
+        raise InvalidGraphPayload(f"payload graph_outbox: {key} mancante o non oggetto")
+    _ident(node.get("label"), f"{key}.label")
+    _ident(node.get("id_prop"), f"{key}.id_prop")
+    if not str(node.get("id_value") or "").strip():
+        raise InvalidGraphPayload(f"payload graph_outbox: {key}.id_value vuoto")
+
+
+def validate_payload(payload: object) -> dict:
+    """Verifica che il payload sia una delle quattro forme applicabili.
+
+    Args:
+        payload: Il payload da accodare o appena letto dalla coda, non affidabile.
+
+    Returns:
+        Lo stesso payload, quando e' valido.
+
+    Raises:
+        InvalidGraphPayload: Se manca `kind`, se il `kind` non e' fra
+            `PAYLOAD_KINDS`, o se la forma di quel `kind` e' incompleta o non
+            sicura per Cypher.
+    """
+    if not isinstance(payload, dict):
+        raise InvalidGraphPayload(
+            f"payload graph_outbox non e' un oggetto: {type(payload).__name__}"
+        )
+    kind = payload.get("kind")
+    if kind not in PAYLOAD_KINDS:
+        raise InvalidGraphPayload(f"payload graph_outbox non riconosciuto: kind={kind!r}")
+
+    _ident(payload.get("label"), "label")
+    if kind in ("node", "node_delete"):
+        _ident(payload.get("id_prop"), "id_prop")
+        if not str(payload.get("id_value") or "").strip():
+            raise InvalidGraphPayload("payload graph_outbox: id_value vuoto")
+    else:
+        _endpoint(payload, "source")
+        _endpoint(payload, "target")
+    return payload
 
 
 def _merge_node(tx, label, id_prop, id_value, props):
@@ -71,7 +127,7 @@ def _delete_edge(tx, label, source, target):
 
 
 def apply(session, payload: dict) -> None:
-    kind = payload.get("kind")
+    kind = validate_payload(payload)["kind"]
     if kind == "node":
         session.execute_write(
             _merge_node,
@@ -92,9 +148,7 @@ def apply(session, payload: dict) -> None:
             payload["target"],
             payload.get("props"),
         )
-    elif kind == "edge_delete":
+    else:  # edge_delete — `validate_payload` ha gia' escluso tutto il resto
         session.execute_write(
             _delete_edge, payload["label"], payload["source"], payload["target"]
         )
-    else:
-        raise ValueError(f"payload graph_outbox non riconosciuto: kind={kind!r}")

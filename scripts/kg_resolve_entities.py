@@ -41,6 +41,7 @@ from sqlalchemy.orm import Session
 from backend.db import canonical_session
 from backend.memory import embeddings
 from backend.memory.knowledge_graph import entity_resolution as er
+from backend.memory.knowledge_graph import projector
 from backend.settings import settings
 
 logger = logging.getLogger("kg_resolve_entities")
@@ -168,6 +169,10 @@ def _repoint_one(session: Session, client: str, rel, ns: str, nt: str) -> None:
 
 def _emit(session: Session, *, agg_type: str, agg_id: str, consultant: str,
           client: str, payload: dict, op: str = "upsert") -> None:
+    # Stessa regola del write path: cio' che il projector non sa applicare non
+    # entra in coda. Qui vale il doppio, perche' una fusione sbagliata emette
+    # anche gli archi del survivor.
+    projector.validate_payload(payload)
     session.execute(
         text(
             "INSERT INTO graph_outbox "

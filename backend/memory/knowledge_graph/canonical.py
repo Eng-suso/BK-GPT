@@ -29,6 +29,7 @@ from backend.db import canonical_session
 from backend.memory import embeddings, provenance
 from backend.memory.knowledge_graph import catalog
 from backend.memory.knowledge_graph import entity_resolution
+from backend.memory.knowledge_graph import projector
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,12 @@ def _emit(
     payload: dict[str, Any],
     op: str = "upsert",
 ) -> None:
+    # Il payload si valida qui, dove c'e' ancora un chiamante a cui sollevare.
+    # Una riga che il projector non sa applicare, una volta in coda, non ha piu'
+    # nessuno a cui dire di essere sbagliata: resta a consumare tentativi finche'
+    # non finisce in dead-letter, e il pacchetto di evidenza che l'ha prodotta
+    # risulta scritto. Meglio abortire la transazione.
+    projector.validate_payload(payload)
     # dedupe_key: nonce per riga. delir_app ha solo INSERT su graph_outbox
     # (nessun SELECT), quindi niente ON CONFLICT. Un eventuale doppione e'
     # innocuo: il projector riapplica a Neo4j in modo idempotente (MERGE), e

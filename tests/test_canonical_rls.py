@@ -11,6 +11,7 @@ Senza, il modulo viene skippato.
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import pytest
@@ -248,24 +249,67 @@ def test_with_check_blocks_write_into_another_client(tenants):
 
 
 def test_app_can_enqueue_but_not_read_outbox(tenants):
-    with APP.begin() as conn:
-        _set_ctx(conn, tenants["a"], tenants["a_client"])
-        conn.execute(
-            text(
-                "INSERT INTO graph_outbox "
-                "(aggregate_type, aggregate_id, consultant_id, client_id, op, payload, dedupe_key) "
-                "VALUES ('entity', :aid, :c, :cl, 'upsert', '{}'::jsonb, :dk)"
-            ),
-            {
-                "aid": uuid.uuid4(),
-                "c": tenants["a"],
-                "cl": tenants["a_client"],
-                "dk": f"test-{uuid.uuid4()}",
-            },
-        )
+    # Il payload e' una forma vera (il CHECK della 0017 rifiuta il resto) e la
+    # riga viene tolta a fine test: questo test ha lasciato per giorni righe
+    # `{}` in una coda vera, che il worker ha poi riprovato cinque volte a
+    # testa prima di dichiararle bloccate. Un test che sporca la coda che
+    # sorveglia produce esattamente l'allarme che stiamo cercando di rendere
+    # affidabile.
+    entity_id = uuid.uuid4()
+    dedupe_key = f"test-{uuid.uuid4()}"
+    try:
+        with APP.begin() as conn:
+            _set_ctx(conn, tenants["a"], tenants["a_client"])
+            conn.execute(
+                text(
+                    "INSERT INTO graph_outbox "
+                    "(aggregate_type, aggregate_id, consultant_id, client_id, op, payload, dedupe_key) "
+                    "VALUES ('entity', :aid, :c, :cl, 'upsert', CAST(:p AS jsonb), :dk)"
+                ),
+                {
+                    "aid": entity_id,
+                    "c": tenants["a"],
+                    "cl": tenants["a_client"],
+                    "p": json.dumps(
+                        {
+                            "kind": "node",
+                            "label": "Entity",
+                            "id_prop": "entity_id",
+                            "id_value": str(entity_id),
+                            "props": {"entity_id": str(entity_id), "status": "active"},
+                        }
+                    ),
+                    "dk": dedupe_key,
+                },
+            )
+        with pytest.raises((DBAPIError, ProgrammingError)):
+            with APP.begin() as conn:
+                conn.execute(text("SELECT count(*) FROM graph_outbox"))
+    finally:
+        with MIGRATOR.begin() as conn:
+            conn.execute(
+                text("DELETE FROM graph_outbox WHERE dedupe_key = :dk"), {"dk": dedupe_key}
+            )
+
+
+def test_outbox_rejects_payload_the_projector_cannot_apply(tenants):
+    """Il veleno si ferma all'accodamento, non dopo cinque tentativi."""
     with pytest.raises((DBAPIError, ProgrammingError)):
         with APP.begin() as conn:
-            conn.execute(text("SELECT count(*) FROM graph_outbox"))
+            _set_ctx(conn, tenants["a"], tenants["a_client"])
+            conn.execute(
+                text(
+                    "INSERT INTO graph_outbox "
+                    "(aggregate_type, aggregate_id, consultant_id, client_id, op, payload, dedupe_key) "
+                    "VALUES ('entity', :aid, :c, :cl, 'upsert', '{}'::jsonb, :dk)"
+                ),
+                {
+                    "aid": uuid.uuid4(),
+                    "c": tenants["a"],
+                    "cl": tenants["a_client"],
+                    "dk": f"test-{uuid.uuid4()}",
+                },
+            )
 
 
 def test_guardrail_gate_blocks_active_while_not_clean(tenants):
