@@ -270,9 +270,11 @@ def test_a_finding_about_the_order_names_steps_not_ids():
         _request(plan_elements=elements), verdict, {item["ref"] for item in elements}
     )
 
+    # L'agente legge i nomi dei passaggi, non i loro id...
     assert "step_" not in order["etichetta"]
+    assert "Ricevi la richiesta" in order["etichetta"]
+    # ...e il rilievo che ne esce resta leggibile.
     assert "step_" not in outcome.findings[0].message
-    assert "Ricevi la richiesta" in outcome.findings[0].message
 
 
 def test_two_voices_that_disagree_are_a_question_not_a_defect():
@@ -325,3 +327,29 @@ def test_the_verdict_separates_a_defect_from_a_disagreement():
     # Senza revisore non si dichiara conforme niente, nemmeno uno stato pulito.
     assert verdict_for([], "skipped") == "incomplete"
     assert verdict_for([defect], "skipped") == "not_conformant"
+
+
+def test_a_finding_about_the_order_stays_readable():
+    """Il percorso intero come etichetta renderebbe il rilievo un muro di testo."""
+    long_order = {
+        "ref": "sequence",
+        "tipo": "ordine_percorso_principale",
+        "etichetta": "L'ordine dei passaggi principali: " + " → ".join(f"Passaggio {i}" for i in range(25)),
+    }
+    verdict = SourceAuditVerdict(
+        contradicted_elements=[
+            AuditedContradiction(
+                element_change="different_order", element_ref="sequence",
+                quote="chiamo direttamente il fornitore", explanation="la fattura arriva alla fine",
+            )
+        ]
+    )
+
+    outcome = _verified_source_findings(
+        _request(plan_elements=[long_order]), verdict, {"sequence"}
+    )
+
+    message = outcome.findings[0].message
+    assert "Passaggio 7" not in message
+    assert message.startswith("«L'ordine dei passaggi»")
+    assert len(message) < 300

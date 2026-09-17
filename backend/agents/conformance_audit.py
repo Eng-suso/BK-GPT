@@ -719,7 +719,13 @@ def _verified_source_findings(
             discarded += 1
             continue
         quote = folded.text[span[0] : span[1]]
-        label = labels.get(contradiction.element_ref) or UNNAMED
+        # Il percorso principale come etichetta e' l'elenco di tutti i passaggi:
+        # dentro un rilievo diventa un muro di testo. Si nomina per quello che e'.
+        label = (
+            "L'ordine dei passaggi"
+            if contradiction.element_ref == "sequence"
+            else labels.get(contradiction.element_ref) or UNNAMED
+        )
         origin = origins.get(contradiction.element_ref) or ""
         if origin and origin != request.source_name:
             findings.append(

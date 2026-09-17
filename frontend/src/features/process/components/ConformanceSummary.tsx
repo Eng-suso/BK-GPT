@@ -214,10 +214,19 @@ function StatusBody({
         </p>
       )}
 
-      {AREA_ORDER.map((area) => {
-        const items = listed.filter((item) => item.area === area);
-        return items.length ? <FindingGroup key={area} area={area} items={items} t={t} /> : null;
-      })}
+      {AREA_ORDER.filter((area) => listed.some((item) => item.area === area)).map(
+        (area, index) => (
+          <FindingGroup
+            key={area}
+            area={area}
+            items={listed.filter((item) => item.area === area)}
+            // Il primo gruppo e' aperto: il punto piu' importante si legge
+            // senza doverlo cercare, gli altri restano a portata di un clic.
+            defaultOpen={index === 0}
+            t={t}
+          />
+        ),
+      )}
 
       {repairable > 0 && (
         <div className="grid gap-1">
@@ -252,14 +261,16 @@ function Verdict({ tone, icon, children }: { tone: Tone; icon: React.ReactNode; 
 function FindingGroup({
   area,
   items,
+  defaultOpen,
   t,
 }: {
   area: ConformanceArea;
   items: ConformanceFinding[];
+  defaultOpen: boolean;
   t: TFunction;
 }) {
   return (
-    <details className="rounded-md border border-border" open={area === "source_contradiction"}>
+    <details className="rounded-md border border-border" open={defaultOpen}>
       <summary className="cursor-pointer px-2.5 py-1.5 text-xs font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-ring">
         {t(`canvas.conformance.area.${area}`)}{" "}
         <span className="font-normal tabular-nums text-muted-foreground">({items.length})</span>
