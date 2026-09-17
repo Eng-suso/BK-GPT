@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUser } from "@/test/user";
 
 import { ReviewQuestionsCard } from "./ReviewQuestionsCard";
 import { sortQuestions } from "./questionOrder";
@@ -32,7 +32,7 @@ describe("ReviewQuestionsCard", () => {
   });
 
   it("answers with the option the consultant picked", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     render(
       <ReviewQuestionsCard questions={[question()]} isAnswering={false} onAnswer={onAnswer} />,
@@ -62,7 +62,7 @@ describe("ReviewQuestionsCard", () => {
   });
 
   it("picks an alternative with its number key", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     render(
       <ReviewQuestionsCard questions={[question()]} isAnswering={false} onAnswer={onAnswer} />,
@@ -80,7 +80,7 @@ describe("ReviewQuestionsCard", () => {
 
   it("always leaves a way to answer in your own words", async () => {
     // A proposed option that does not fit must never be the only way to answer.
-    const user = userEvent.setup();
+    const user = setupUser();
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     render(
       <ReviewQuestionsCard questions={[question()]} isAnswering={false} onAnswer={onAnswer} />,
@@ -97,7 +97,7 @@ describe("ReviewQuestionsCard", () => {
   });
 
   it("still asks a question that came without alternatives", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     render(
       <ReviewQuestionsCard
@@ -243,7 +243,7 @@ describe("ReviewQuestionsCard", () => {
   });
 
   it("cannot answer twice while the first answer is in flight", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onAnswer = vi.fn().mockResolvedValue(undefined);
     render(
       <ReviewQuestionsCard questions={[question()]} isAnswering onAnswer={onAnswer} />,

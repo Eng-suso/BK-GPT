@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "@/lib/i18n";
+import { setupUser } from "@/test/user";
 import type { ProjectProcess } from "../types";
 
 const http = vi.fn();
@@ -66,7 +66,7 @@ afterEach(() => {
 
 describe("ProcessFormDialog", () => {
   it("registers a process on the project the consultant is looking at", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockResolvedValue(API_PROCESS);
     const { onOpenChange } = renderDialog(null);
 
@@ -91,7 +91,7 @@ describe("ProcessFormDialog", () => {
   });
 
   it("edits the record in place, prefilled from the process", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockResolvedValue({ ...API_PROCESS, owner: "Customer service" });
     const { onOpenChange } = renderDialog(PROCESS);
 
@@ -112,7 +112,7 @@ describe("ProcessFormDialog", () => {
   });
 
   it("refuses a process with no name and writes nothing", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockResolvedValue(API_PROCESS);
     renderDialog(null);
 

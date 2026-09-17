@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUser } from "@/test/user";
 
 import { ModelingWorkspaceBar } from "./ModelingWorkspaceBar";
 import type { BpmnReview } from "../types";
@@ -48,7 +48,7 @@ describe("ModelingWorkspaceBar", () => {
   });
 
   it("activates modeling only when asked", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onStartModeling = vi.fn();
     render(
       <ModelingWorkspaceBar {...props} review={null} onStartModeling={onStartModeling} />,
@@ -113,7 +113,7 @@ describe("ModelingWorkspaceBar", () => {
   });
 
   it("can be closed without losing the plan", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onDismiss = vi.fn();
     render(<ModelingWorkspaceBar {...props} review={review()} onDismiss={onDismiss} />);
 
