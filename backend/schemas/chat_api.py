@@ -65,6 +65,17 @@ class ChatSessionSummary(BaseModel):
     message_count: int = 0
 
 
+class ChatSessionSearchHit(ChatSessionSummary):
+    """Una conversazione trovata, col perche' e' stata trovata."""
+
+    #: Il testo intorno alla parola cercata; vuoto quando ha corrisposto il titolo.
+    snippet: str = ""
+    #: Chi ha scritto il messaggio dello snippet (`user` / `assistant`).
+    snippet_role: str | None = None
+    #: Quanti messaggi corrispondono, fino al limite di scansione.
+    match_count: int = 0
+
+
 class ChatSessionDetail(BaseModel):
     thread_id: str
     title: str

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { InlineNotice } from "@/components/feedback";
 import { Button } from "@/ui/button";
 
-import { API_BASE } from "@/lib/api";
+import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
 import {
   DEFAULT_CHAT_MODE,
   DEFAULT_REASONING_EFFORT,
@@ -17,6 +17,7 @@ import { transcribeAudio } from "./api";
 import { useBpmnReview } from "./hooks/useBpmnReview";
 import { useChatSessions } from "./hooks/useChatSessions";
 import { useChatStream } from "./hooks/useChatStream";
+import { HistorySearchDialog } from "./navigation/HistorySearchDialog";
 import { BpmnReviewSheet } from "./review/BpmnReviewCard";
 import { ModelingWorkspaceBar } from "./review/ModelingWorkspaceBar";
 
@@ -38,7 +39,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   layout = "standalone",
   scope = DEFAULT_SCOPE,
 }) => {
-  const { t } = useTranslation("chat");
+  const { t, i18n } = useTranslation("chat");
   const [selectedModel, setSelectedModel] = useState("gpt-5.6-luna");
   // The working mode is per-conversation, not per-thread: switching it changes what
   // the next message is allowed to do, and must not fork the session.
@@ -49,6 +50,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     useState<ReasoningEffort>(DEFAULT_REASONING_EFFORT);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
   const reviewButtonRef = useRef<HTMLButtonElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -160,8 +163,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
           await sessions.clearHistory();
           showToast("Cronologia eliminata.");
         }}
-        onSearch={() => showToast("Ricerca cronologia.")}
-        onConfig={() => showToast(`API backend: ${API_BASE || "locale"}`)}
+        onSearch={() => setIsSearchOpen(true)}
+        onConfig={() => setIsStatusOpen(true)}
         onShare={async () => {
           const text = messages
             .map((m) => `${m.role}: ${m.content}`)
@@ -259,6 +262,21 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
           onReturnFocus={() => reviewButtonRef.current?.focus()}
         />
       ) : null}
+
+      <HistorySearchDialog
+        open={isSearchOpen}
+        onOpenChange={setIsSearchOpen}
+        scopeKey={sessions.scopeKey}
+        currentThreadId={sessions.currentThreadId}
+        locale={i18n.language || "it"}
+        onSelectSession={sessions.selectThread}
+      />
+
+      <ServiceStatusDialog
+        open={isStatusOpen}
+        onOpenChange={setIsStatusOpen}
+        modelName={selectedModel}
+      />
 
       {toastMessage && (
         <div className="toast show" role="status">

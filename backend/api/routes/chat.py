@@ -1,7 +1,7 @@
 import json
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from backend.agents.product_language import internal_language_leaks
@@ -13,12 +13,14 @@ from backend.database import (
     delete_chat_sessions_by_scope,
     get_chat_session,
     list_chat_sessions,
+    search_chat_sessions,
 )
 from backend.schemas.api import AgentStreamEvent
 from backend.schemas.chat_api import (
     ChatRequest,
     ChatResponse,
     ChatSessionDetail,
+    ChatSessionSearchHit,
     ChatSessionSummary,
     CreateSessionRequest,
     CreateSessionResponse,
@@ -138,6 +140,28 @@ def create_consultant_chat_session(request: CreateSessionRequest) -> CreateSessi
 @router.get("/v1/consultant-chat/sessions")
 def get_consultant_chat_sessions(scope_key: str | None = None) -> list[ChatSessionSummary]:
     return [ChatSessionSummary(**session) for session in list_chat_sessions(scope_key=scope_key)]
+
+
+# Prima di `/sessions/{thread_id}`: FastAPI prova le rotte in ordine di
+# dichiarazione, e piu' in basso "search" sarebbe letto come un thread_id.
+@router.get("/v1/consultant-chat/sessions/search")
+def search_consultant_chat_sessions(
+    q: str,
+    scope_key: str | None = None,
+    limit: int = Query(default=30, ge=1, le=100),
+) -> list[ChatSessionSearchHit]:
+    """Cerca fra le conversazioni per titolo e per testo scambiato.
+
+    Args:
+        q: Il testo cercato. Vuoto restituisce una lista vuota, non tutto: una
+            ricerca senza parole non e' la cronologia.
+        scope_key: Limita alla superficie da cui la ricerca e' partita.
+        limit: Quante conversazioni restituire.
+    """
+    return [
+        ChatSessionSearchHit(**session)
+        for session in search_chat_sessions(q, scope_key=scope_key, limit=limit)
+    ]
 
 
 @router.get("/v1/consultant-chat/sessions/{thread_id}")

@@ -119,5 +119,23 @@
       "restored": "{{name}} ripristinato.",
       "deleted": "{{name}} eliminato."
     }
+  },
+  "serviceStatus": {
+    "title": "Stato del servizio",
+    "description": "Dove parla il prodotto, se il backend risponde e che lavoro ha in coda.",
+    "endpoint": "Endpoint backend",
+    "sameOrigin": "Stessa origine della pagina",
+    "connection": "Connessione",
+    "checking": "Verifico...",
+    "healthy": "Il backend risponde, nessun ripiego attivo.",
+    "degraded": "Il backend risponde, ma qualcosa ha risposto da una via di ripiego.",
+    "unreachable": "Backend non raggiungibile.",
+    "queues": "Code di lavorazione",
+    "queuesUnknown": "Stato della coda non leggibile.",
+    "queuesNotConfigured": "Code non configurate in questo ambiente.",
+    "queueCounts": "{{pending}} in attesa, {{stuck}} bloccati",
+    "deadLetter": "{{count}} messi da parte: non passeranno da soli.",
+    "model": "Modello della conversazione",
+    "refresh": "Aggiorna"
   }
 }

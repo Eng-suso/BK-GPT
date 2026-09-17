@@ -119,5 +119,23 @@
       "restored": "{{name}} restored.",
       "deleted": "{{name}} deleted."
     }
+  },
+  "serviceStatus": {
+    "title": "Service status",
+    "description": "Where the product talks, whether the backend answers, and what work is queued.",
+    "endpoint": "Backend endpoint",
+    "sameOrigin": "Same origin as the page",
+    "connection": "Connection",
+    "checking": "Checking...",
+    "healthy": "The backend answers, no fallback active.",
+    "degraded": "The backend answers, but something came back through a fallback path.",
+    "unreachable": "Backend unreachable.",
+    "queues": "Work queues",
+    "queuesUnknown": "Queue state cannot be read.",
+    "queuesNotConfigured": "Queues are not configured in this environment.",
+    "queueCounts": "{{pending}} waiting, {{stuck}} stuck",
+    "deadLetter": "{{count}} set aside: they will not pass on their own.",
+    "model": "Conversation model",
+    "refresh": "Refresh"
   }
 }

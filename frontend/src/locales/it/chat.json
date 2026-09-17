@@ -190,5 +190,19 @@
     "title": "Messaggi in coda",
     "hint": "Partiranno appena il turno in corso si chiude.",
     "remove": "Togli dalla coda"
+  },
+  "search": {
+    "title": "Cerca nella cronologia",
+    "description": "Cerca nei titoli e nel testo delle conversazioni di questa area di lavoro.",
+    "placeholder": "Parole dette in chat, o titolo",
+    "hint": "Scrivi almeno {{min}} caratteri.",
+    "searching": "Cerco...",
+    "failed": "Ricerca non riuscita.",
+    "empty": "Nessuna conversazione contiene \"{{query}}\".",
+    "results": "Conversazioni trovate",
+    "current": "Aperta",
+    "titleMatch": "Corrisponde il titolo della conversazione.",
+    "fromUser": "Consulente",
+    "fromAssistant": "DeliR"
   }
 }
