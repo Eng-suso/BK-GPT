@@ -557,9 +557,14 @@ def validate_bpmn_layout(xml: str) -> dict:
     if diagram_bounds:
         width = diagram_bounds["width"]
         height = diagram_bounds["height"]
-        if width > LAYOUT_MAX_READABLE_WIDTH and len(flow_node_ids) <= 12:
+        gateway_count = sum(
+            _local_name(element.tag).endswith("Gateway") for element in process
+            if _namespace(element.tag) == BPMN_NS
+        )
+        compact_simple_process = len(flow_node_ids) <= 12 and gateway_count < 3
+        if width > LAYOUT_MAX_READABLE_WIDTH and compact_simple_process:
             warnings.append("Il disegno e' ancora molto largo: conviene distribuirlo su piu' righe.")
-        if width / max(height, 1) > 4.5 and len(flow_node_ids) <= 12:
+        if width / max(height, 1) > 4.5 and compact_simple_process:
             warnings.append("Il disegno e' troppo orizzontale per essere letto bene a schermo.")
 
     edge_count = sum(1 for element in root.iter() if _namespace(element.tag) == BPMNDI_NS and _local_name(element.tag) == "BPMNEdge")
@@ -867,7 +872,112 @@ def layout_bpmn_di(
         )
         _layout_message_flow_edges(plane, collaboration, {**node_positions, **pool_positions})
 
+    _avoid_node_label_collisions(plane, connectable_positions, lane_shapes)
     return _xml_to_string(root)
+
+
+def _avoid_node_label_collisions(
+    plane: ET.Element,
+    node_positions: dict[str, dict[str, float]],
+    lane_shapes: list[dict[str, float | str]],
+) -> None:
+    """Move external labels away from connectors after all routes are known."""
+    edges = [
+        [(float(point.attrib["x"]), float(point.attrib["y"]))
+         for point in edge.iter(f"{{{DI_NS}}}waypoint")]
+        for edge in plane.iter(f"{{{BPMNDI_NS}}}BPMNEdge")
+    ]
+    labels: list[tuple[str, ET.Element, dict[str, float]]] = []
+    for shape in plane.iter(f"{{{BPMNDI_NS}}}BPMNShape"):
+        owner_id = shape.attrib.get("bpmnElement", "")
+        if owner_id not in node_positions:
+            continue
+        bounds = shape.find(f"{{{BPMNDI_NS}}}BPMNLabel/{{{DC_NS}}}Bounds")
+        if bounds is None:
+            continue
+        labels.append((owner_id, bounds, {key: float(bounds.attrib[key]) for key in ("x", "y", "width", "height")}))
+
+    def overlaps(a: dict[str, float], b: dict[str, float], margin: float = 2) -> bool:
+        return (a["x"] < b["x"] + b["width"] + margin
+                and a["x"] + a["width"] + margin > b["x"]
+                and a["y"] < b["y"] + b["height"] + margin
+                and a["y"] + a["height"] + margin > b["y"])
+
+    for owner_id, bounds_element, current in labels:
+        owner = node_positions[owner_id]
+        width, height = current["width"], current["height"]
+        center_x = owner["x"] + owner["width"] / 2
+        center_y = owner["y"] + owner["height"] / 2
+        candidates = [
+            current,
+            {"x": center_x - width / 2, "y": owner["y"] + owner["height"] + 12,
+             "width": width, "height": height},
+            {"x": center_x - width / 2, "y": owner["y"] - height - 12,
+             "width": width, "height": height},
+            {"x": owner["x"] + owner["width"] + 14, "y": center_y - height / 2,
+             "width": width, "height": height},
+            {"x": owner["x"] - width - 14, "y": center_y - height / 2,
+             "width": width, "height": height},
+        ]
+        containing_lane = next((lane for lane in lane_shapes
+            if float(lane["x"]) <= center_x <= float(lane["x"]) + float(lane["width"])
+            and float(lane["y"]) <= center_y <= float(lane["y"]) + float(lane["height"])), None)
+        for candidate in candidates:
+            if containing_lane and not (
+                float(containing_lane["x"]) + 8 <= candidate["x"]
+                and candidate["x"] + width <= float(containing_lane["x"]) + float(containing_lane["width"]) - 8
+                and float(containing_lane["y"]) + 8 <= candidate["y"]
+                and candidate["y"] + height <= float(containing_lane["y"]) + float(containing_lane["height"]) - 8
+            ):
+                continue
+            if any(overlaps(candidate, box) for node_id, box in node_positions.items() if node_id != owner_id):
+                continue
+            if any(overlaps(candidate, other) for label_id, _, other in labels if label_id != owner_id):
+                continue
+            if any(_segment_crosses_box(start, end, candidate)
+                   for points in edges for start, end in zip(points, points[1:])):
+                continue
+            current["x"], current["y"] = candidate["x"], candidate["y"]
+            bounds_element.set("x", str(candidate["x"]))
+            bounds_element.set("y", str(candidate["y"]))
+            break
+
+    edge_labels: list[tuple[ET.Element, dict[str, float], list[tuple[float, float]]]] = []
+    for edge in plane.iter(f"{{{BPMNDI_NS}}}BPMNEdge"):
+        bounds = edge.find(f"{{{BPMNDI_NS}}}BPMNLabel/{{{DC_NS}}}Bounds")
+        if bounds is None:
+            continue
+        points = [(float(point.attrib["x"]), float(point.attrib["y"]))
+                  for point in edge.iter(f"{{{DI_NS}}}waypoint")]
+        edge_labels.append((bounds, {key: float(bounds.attrib[key])
+                                    for key in ("x", "y", "width", "height")}, points))
+
+    for bounds_element, current, points in edge_labels:
+        verticals = [(a, b) for a, b in zip(points, points[1:]) if abs(a[0] - b[0]) < 2]
+        if not verticals:
+            continue
+        longest = max(verticals, key=lambda segment: abs(segment[0][1] - segment[1][1]))
+        line_x = longest[0][0]
+        candidates = [current]
+        for offset in (0, -45, 45):
+            for x in (line_x - current["width"] - 14, line_x + 14):
+                candidates.append({"x": x, "y": current["y"] + offset,
+                                   "width": current["width"], "height": current["height"]})
+        for candidate in candidates:
+            if any(overlaps(candidate, box) for box in node_positions.values()):
+                continue
+            if any(overlaps(candidate, other) for _, _, other in labels):
+                continue
+            if any(overlaps(candidate, other) for other_bounds, other, _ in edge_labels
+                   if other_bounds is not bounds_element):
+                continue
+            if any(_segment_crosses_box(start, end, candidate)
+                   for route in edges for start, end in zip(route, route[1:])):
+                continue
+            current["x"], current["y"] = candidate["x"], candidate["y"]
+            bounds_element.set("x", str(candidate["x"]))
+            bounds_element.set("y", str(candidate["y"]))
+            break
 
 
 def _layout_flow_nodes(
@@ -998,6 +1108,32 @@ def _edge_waypoints(
         end = {"x": target["x"], "y": target["y"] + target["height"] / 2}
         channel_x = min(source["x"], target["x"]) - 40
         direct = [start, {"x": channel_x, "y": start["y"]}, {"x": channel_x, "y": end["y"]}, end]
+    elif (
+        source_flow_index and source["width"] <= 60
+        and target["x"] > source["x"] + source["width"] + 20
+        and abs(target["y"] - source["y"]) > 100
+    ):
+        # The alternate branch leaves a gateway on its vertical side, then
+        # reaches the activity along its lane. This keeps the sibling branch
+        # free to run through the gap between lanes.
+        downward = target["y"] > source["y"]
+        start = {"x": source["x"] + source["width"] / 2,
+                 "y": source["y"] + source["height"] if downward else source["y"]}
+        end = {"x": target["x"], "y": target["y"] + target["height"] / 2}
+        direct = [start, {"x": start["x"], "y": end["y"]}, end]
+    elif (
+        source["width"] > 60 and target["width"] <= 60
+        and target["x"] > source["x"] + source["width"] + 20
+        and abs(target["y"] - source["y"]) > 100
+    ):
+        downward = target["y"] > source["y"]
+        start = {"x": source["x"] + source["width"] / 2,
+                 "y": source["y"] + source["height"] if downward else source["y"]}
+        end = {"x": target["x"] + target["width"] / 2,
+               "y": target["y"] if downward else target["y"] + target["height"]}
+        gap_y = (start["y"] + end["y"]) / 2
+        direct = [start, {"x": start["x"], "y": gap_y},
+                  {"x": end["x"], "y": gap_y}, end]
     elif target["y"] > source["y"] + source["height"] + 20:
         # A change of lane uses the gap beside the tasks. Distinct outgoing
         # flows take distinct ports and channels, so branches do not coincide.
@@ -1169,7 +1305,10 @@ def _lane_cells(
 
     cells: dict[str, dict[str, int]] = {}
     capacity = config.max_nodes_per_row
-    if len(by_lane) > 1 and any(len(elements) > capacity for elements in by_lane.values()):
+    gateway_count = sum(_local_name(element.tag).endswith("Gateway") for element in flow_nodes)
+    if len(by_lane) > 1 and (
+        any(len(elements) > capacity for elements in by_lane.values()) or gateway_count >= 3
+    ):
         # A multi-lane process needs one shared time axis. Independent wrapping
         # makes later cross-lane flows travel backwards through prior tasks.
         return {

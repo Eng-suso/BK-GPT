@@ -219,3 +219,16 @@ def test_long_single_lane_snakes_without_crossing_and_is_idempotent():
     assert shapes["Task_5"]["x"] == shapes["Task_6"]["x"]
     assert shapes["Task_6"]["x"] > shapes["Task_7"]["x"]
     assert shapes["Task_11"]["x"] == shapes["Task_12"]["x"]
+
+
+def test_repeated_branches_across_lanes_remain_unentangled_and_idempotent():
+    xml = Path("tests/fixtures/multibranch_layout.bpmn").read_text(encoding="utf-8")
+    first = layout_bpmn_di(xml)
+    second = layout_bpmn_di(first)
+    report = validate_bpmn_layout(first)
+
+    assert first == second
+    assert report["valid"] is True
+    assert report["warnings"] == []
+    assert report["metrics"]["edge_edge_crossing_count"] == 0
+    assert report["metrics"]["edge_shape_crossing_count"] == 0

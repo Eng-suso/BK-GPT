@@ -1,0 +1,41 @@
+<ns0:definitions xmlns:ns0="http://www.omg.org/spec/BPMN/20100524/MODEL" id="BranchStress">
+  <ns0:process id="Process">
+    <ns0:laneSet id="Lanes">
+      <ns0:lane id="Lane_0" name="Reparto 0">
+        <ns0:flowNodeRef>Start</ns0:flowNodeRef>
+        <ns0:flowNodeRef>Gateway_0</ns0:flowNodeRef>
+        <ns0:flowNodeRef>Task_0_A</ns0:flowNodeRef>
+        <ns0:flowNodeRef>Task_1_B</ns0:flowNodeRef>
+        <ns0:flowNodeRef>Join_1</ns0:flowNodeRef>
+        <ns0:flowNodeRef>End</ns0:flowNodeRef>
+      </ns0:lane>
+      <ns0:lane id="Lane_1" name="Reparto 1">
+        <ns0:flowNodeRef>Task_0_B</ns0:flowNodeRef>
+        <ns0:flowNodeRef>Join_0</ns0:flowNodeRef>
+        <ns0:flowNodeRef>Gateway_1</ns0:flowNodeRef>
+        <ns0:flowNodeRef>Task_1_A</ns0:flowNodeRef>
+      </ns0:lane>
+    </ns0:laneSet>
+    <ns0:startEvent id="Start" name="Inizio" />
+    <ns0:exclusiveGateway id="Gateway_0" name="Scelta del percorso 0" />
+    <ns0:task id="Task_0_A" name="Verifica pratica principale 0" />
+    <ns0:task id="Task_0_B" name="Controllo alternativa 0" />
+    <ns0:exclusiveGateway id="Join_0" name="Prosegui dopo controllo 0" />
+    <ns0:exclusiveGateway id="Gateway_1" name="Scelta del percorso 1" />
+    <ns0:task id="Task_1_A" name="Verifica pratica principale 1" />
+    <ns0:task id="Task_1_B" name="Controllo alternativa 1" />
+    <ns0:exclusiveGateway id="Join_1" name="Prosegui dopo controllo 1" />
+    <ns0:endEvent id="End" name="Completato" />
+    <ns0:sequenceFlow id="F_Start_Gateway_0" sourceRef="Start" targetRef="Gateway_0" />
+    <ns0:sequenceFlow id="F_Gateway_0_Task_0_A" sourceRef="Gateway_0" targetRef="Task_0_A" />
+    <ns0:sequenceFlow id="F_Gateway_0_Task_0_B" sourceRef="Gateway_0" targetRef="Task_0_B" />
+    <ns0:sequenceFlow id="F_Task_0_A_Join_0" sourceRef="Task_0_A" targetRef="Join_0" />
+    <ns0:sequenceFlow id="F_Task_0_B_Join_0" sourceRef="Task_0_B" targetRef="Join_0" />
+    <ns0:sequenceFlow id="F_Join_0_Gateway_1" sourceRef="Join_0" targetRef="Gateway_1" />
+    <ns0:sequenceFlow id="F_Gateway_1_Task_1_A" sourceRef="Gateway_1" targetRef="Task_1_A" />
+    <ns0:sequenceFlow id="F_Gateway_1_Task_1_B" sourceRef="Gateway_1" targetRef="Task_1_B" />
+    <ns0:sequenceFlow id="F_Task_1_A_Join_1" sourceRef="Task_1_A" targetRef="Join_1" />
+    <ns0:sequenceFlow id="F_Task_1_B_Join_1" sourceRef="Task_1_B" targetRef="Join_1" />
+    <ns0:sequenceFlow id="F_Join_1_End" sourceRef="Join_1" targetRef="End" />
+  </ns0:process>
+</ns0:definitions>
