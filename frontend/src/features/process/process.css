@@ -575,7 +575,13 @@
   background: var(--card);
 }
 
-@media (max-width: 960px) {
+/* Conta la larghezza della tela, non dello schermo: con la chat e le proprieta'
+   aperte la tela si stringe anche su un monitor largo. */
+.process-bpmn-shell {
+  container-type: inline-size;
+}
+
+@container (max-width: 720px) {
   .process-bpmn-body:has(> .process-evidence-panel) {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, 45%);
@@ -610,4 +616,18 @@
 .process-bpmn-canvas .delir-provenance-confirmed .djs-visual > :is(rect, circle, polygon):first-child {
   stroke: var(--color-success) !important;
   stroke-width: 2px !important;
+}
+
+/* I flussi dichiarati come evidenza portano lo stesso segno sulla loro linea. */
+.process-bpmn-canvas .djs-connection.delir-provenance-unverified .djs-visual > path {
+  stroke: var(--color-warning) !important;
+  stroke-dasharray: 6 4;
+}
+
+.process-bpmn-canvas .djs-connection.delir-provenance-label-grounded .djs-visual > path {
+  stroke-dasharray: 2 3;
+}
+
+.process-bpmn-canvas .djs-connection.delir-provenance-confirmed .djs-visual > path {
+  stroke: var(--color-success) !important;
 }

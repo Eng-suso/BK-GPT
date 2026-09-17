@@ -24,8 +24,10 @@ Nessun LLM, nessuna scrittura: chi chiama decide cosa fare del piano che torna.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
+from backend.agents.plan_provenance import ElementKind
 from backend.process_understanding import ProcessFlowEdge, ProcessUnderstanding
 
 RemovableKind = Literal["step", "event", "exception"]
@@ -58,6 +60,46 @@ def _single_successor(plan: ProcessUnderstanding, element_id: str) -> str | None
     return next(iter(successors)) if len(successors) == 1 else None
 
 
+def _merged(before: str | None, after: str | None) -> str | None:
+    if not before or not after or before == after:
+        return before or after
+    return None
+
+
+def _stitched(before: ProcessFlowEdge, after: ProcessFlowEdge) -> ProcessFlowEdge:
+    """L'arco che sostituisce `before -> x -> after`.
+
+    Condizioni diverse si compongono: lungo un percorso valgono entrambe, e
+    tenerne una sola farebbe passare dal nuovo arco casi che prima non passavano.
+    Tipo e percorso invece non si compongono: un flusso di messaggio seguito da
+    uno di sequenza, o due rami diversi, non sono un arco solo, e ricucirli
+    inventerebbe una connessione.
+    """
+    if before.kind != after.kind:
+        raise ElementNotRemovable(
+            f"I flussi intorno all'elemento sono di tipo diverso ({before.kind}, {after.kind}): "
+            "togliendolo non si possono ricucire in un flusso solo."
+        )
+    if before.path_id and after.path_id and before.path_id != after.path_id:
+        raise ElementNotRemovable(
+            "I flussi intorno all'elemento appartengono a percorsi diversi: "
+            "togliendolo non si possono ricucire senza inventare un collegamento."
+        )
+    condition = _merged(before.condition, after.condition)
+    if condition is None and before.condition and after.condition:
+        condition = f"{before.condition}; {after.condition}"
+    return ProcessFlowEdge(
+        id=f"{before.id}__{after.id}",
+        source_id=before.source_id,
+        target_id=after.target_id,
+        label=after.label or before.label,
+        condition=condition,
+        kind=before.kind,
+        path_id=before.path_id or after.path_id,
+        source_evidence=[*before.source_evidence, *after.source_evidence],
+    )
+
+
 def _rewire_flow_edges(plan: ProcessUnderstanding, element_id: str) -> list[ProcessFlowEdge]:
     incoming = [edge for edge in plan.flow_edges if edge.target_id == element_id]
     outgoing = [edge for edge in plan.flow_edges if edge.source_id == element_id]
@@ -73,25 +115,14 @@ def _rewire_flow_edges(plan: ProcessUnderstanding, element_id: str) -> list[Proc
             if before.source_id == after.target_id or pair in existing:
                 continue
             existing.add(pair)
-            kept.append(
-                ProcessFlowEdge(
-                    id=f"{before.id}__{after.id}",
-                    source_id=before.source_id,
-                    target_id=after.target_id,
-                    label=after.label or before.label,
-                    condition=before.condition,
-                    kind=before.kind,
-                    path_id=before.path_id,
-                    source_evidence=[*before.source_evidence, *after.source_evidence],
-                )
-            )
+            kept.append(_stitched(before, after))
     return kept
 
 
 def remove_plan_element(
-    understanding: ProcessUnderstanding | dict,
+    understanding: ProcessUnderstanding | Mapping[str, object],
     *,
-    kind: str,
+    kind: ElementKind,
     element_id: str,
 ) -> ProcessUnderstanding:
     """Il piano senza l'elemento rifiutato, con il flusso ricucito.

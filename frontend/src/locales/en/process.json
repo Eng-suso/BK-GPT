@@ -420,7 +420,8 @@
         "exception": "Exception",
         "event": "Event",
         "flow": "Flow"
-      }
+      },
+      "rejectWarning": "The drawing is regenerated from the plan: manual edits on the canvas can only be recovered from the version history."
     }
   }
 }

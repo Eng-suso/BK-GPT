@@ -420,7 +420,8 @@
         "exception": "Eccezione",
         "event": "Evento",
         "flow": "Flusso"
-      }
+      },
+      "rejectWarning": "Il disegno viene rigenerato dal piano: le modifiche fatte a mano sul canvas si recuperano solo dalla cronologia versioni."
     }
   }
 }

@@ -5,6 +5,8 @@ import {
   markerClass,
   provenanceOf,
   sourceRefsFromDocumentation,
+  splitTraceability,
+  withTraceability,
 } from "./provenance";
 import type { BpmnModeler } from "./types";
 
@@ -82,5 +84,30 @@ describe("provenance on the canvas", () => {
     applyProvenanceMarkers(modeler);
 
     expect(markers.get("t2")).toEqual(new Set([markerClass("confirmed")]));
+  });
+});
+
+describe("notes and traceability share the documentation", () => {
+  it("shows only the consultant notes and keeps the traceability on write", () => {
+    const { notes, traceability } = splitTraceability(DOC);
+
+    expect(notes).toBe("Passaggio");
+    const rewritten = withTraceability("Nota nuova del consulente", traceability);
+    expect(sourceRefsFromDocumentation(rewritten)).toEqual(["steps:apri", "exceptions:ex"]);
+    expect(splitTraceability(rewritten).notes).toBe("Nota nuova del consulente");
+  });
+
+  it("emptying the notes does not empty the traceability", () => {
+    const { traceability } = splitTraceability(DOC);
+
+    expect(sourceRefsFromDocumentation(withTraceability("", traceability))).toEqual([
+      "steps:apri",
+      "exceptions:ex",
+    ]);
+  });
+
+  it("leaves a node without traceability as it was", () => {
+    expect(splitTraceability("solo note")).toEqual({ notes: "solo note", traceability: "" });
+    expect(withTraceability("solo note", "")).toBe("solo note");
   });
 });

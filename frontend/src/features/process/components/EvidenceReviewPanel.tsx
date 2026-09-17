@@ -228,6 +228,11 @@ export function EvidenceReviewPanel({
             )}
           </div>
         )}
+        {rejecting && (
+          <p className="rounded-md border border-warning-border bg-warning-surface px-2 py-1.5 text-[11px] leading-relaxed text-foreground">
+            {t("canvas.evidence.rejectWarning")}
+          </p>
+        )}
         {actions && item.removable && hasUnsavedChanges && (
           <p className="text-[11px] text-muted-foreground">{t("canvas.evidence.saveFirst")}</p>
         )}

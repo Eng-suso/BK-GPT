@@ -112,3 +112,32 @@ export function applyProvenanceMarkers(modeler: BpmnModeler): Map<string, string
   }
   return index;
 }
+
+/**
+ * Separa le note scritte dal consulente dal blocco di tracciabilita' del
+ * compilatore, che vive nella stessa documentazione.
+ *
+ * L'ispettore mostrava il JSON di tracciabilita' come se fosse una nota, e
+ * salvare una nota lo cancellava: il nodo smetteva di essere riconoscibile, il
+ * pannello delle evidenze non lo ritrovava e i segni non si aggiornavano piu'.
+ */
+export function splitTraceability(text: string | undefined): {
+  notes: string;
+  traceability: string;
+} {
+  const value = text ?? "";
+  const at = value.indexOf(TRACEABILITY_MARKER);
+  if (at === -1) return { notes: value, traceability: "" };
+  return {
+    notes: value.slice(0, at).trimEnd(),
+    traceability: value.slice(at),
+  };
+}
+
+/** Le note nuove, con il blocco di tracciabilita' che il nodo aveva gia'. */
+export function withTraceability(notes: string, traceability: string): string {
+  if (!traceability) return notes;
+  return notes.trim() ? `${notes.trimEnd()}
+
+${traceability}` : traceability;
+}

@@ -109,6 +109,62 @@ def test_the_original_plan_is_not_touched():
     assert original.model_dump_json() == before
 
 
+def _edges_plan(before: ProcessFlowEdge, after: ProcessFlowEdge) -> ProcessUnderstanding:
+    return ProcessUnderstanding(
+        title="Ricucitura",
+        steps=[
+            ProcessStep(id="a", label="A"),
+            ProcessStep(id="x", label="X"),
+            ProcessStep(id="b", label="B"),
+        ],
+        main_success_path=["a", "x", "b"],
+        flow_edges=[before, after],
+    )
+
+
+def test_stitching_keeps_the_metadata_only_the_outgoing_edge_had():
+    plan = remove_plan_element(
+        _edges_plan(
+            ProcessFlowEdge(id="e1", source_id="a", target_id="x", label="entra"),
+            ProcessFlowEdge(
+                id="e2", source_id="x", target_id="b", label="esce",
+                condition="importo sopra soglia", path_id="p1",
+            ),
+        ),
+        kind="step",
+        element_id="x",
+    )
+
+    (edge,) = plan.flow_edges
+    assert (edge.condition, edge.path_id) == ("importo sopra soglia", "p1")
+
+
+def test_stitching_composes_two_different_conditions():
+    """Lungo un percorso valgono entrambe: tenerne una farebbe passare casi nuovi."""
+    plan = remove_plan_element(
+        _edges_plan(
+            ProcessFlowEdge(id="e1", source_id="a", target_id="x", label="l", condition="urgente"),
+            ProcessFlowEdge(id="e2", source_id="x", target_id="b", label="l", condition="fornitore abituale"),
+        ),
+        kind="step",
+        element_id="x",
+    )
+
+    assert plan.flow_edges[0].condition == "urgente; fornitore abituale"
+
+
+def test_stitching_refuses_to_join_two_different_kinds_of_flow():
+    with pytest.raises(ElementNotRemovable, match="tipo diverso"):
+        remove_plan_element(
+            _edges_plan(
+                ProcessFlowEdge(id="e1", source_id="a", target_id="x", label="l", kind="message"),
+                ProcessFlowEdge(id="e2", source_id="x", target_id="b", label="l", kind="sequence"),
+            ),
+            kind="step",
+            element_id="x",
+        )
+
+
 @pytest.mark.parametrize("kind", ["actor", "decision", "participant", "flow"])
 def test_structure_is_not_removed_with_a_click(kind):
     with pytest.raises(ElementNotRemovable):
@@ -351,3 +407,111 @@ def test_the_review_endpoint_returns_the_reread_report(drafted_process_with_an_i
     assert audit_after["mark_status"] == "confirmed"
     assert missing.status_code == 404
     assert invalid.status_code == 422
+
+    # La decisione e' persistita: una lettura nuova la riporta, non solo la
+    # risposta della scrittura.
+    with TestClient(app) as client:
+        reread = client.get(f"/v1/workspace/processes/{scope['process_id']}/provenance", headers=headers)
+    audit_reread = next(
+        item for item in reread.json()["elements"] if item["source_ref"] == "steps:audit_trimestrale"
+    )
+    assert (audit_reread["consultant_decision"], audit_reread["mark_status"]) == ("confirmed", "confirmed")
+
+
+@needs_db
+def test_a_plan_revision_keeps_the_decisions_already_taken(drafted_process_with_an_inference):
+    """Rifiutare un elemento non deve cancellare le conferme date sugli altri."""
+    from backend import workspace_database as wd
+    from backend.agents.process_snapshot import build_process_snapshot
+
+    scope = drafted_process_with_an_inference
+    wd.record_element_decision(
+        scope["bpmn_model_id"], source_ref="steps:altro", label="Altro", decision="confirmed"
+    )
+    snapshot = build_process_snapshot(scope["process_id"])
+
+    wd.revise_bpmn_review(
+        bpmn_model_id=scope["bpmn_model_id"],
+        process_understanding=snapshot.process_understanding,
+        change_summary="revisione di prova",
+    )
+
+    decisions = wd.get_bpmn_review(scope["bpmn_model_id"], include_approved=True)["element_decisions"]
+    assert decisions["steps:altro"]["decision"] == "confirmed"
+
+
+def test_a_corrupted_decision_is_dropped_not_trusted():
+    """Una voce rovinata non conferma niente: si scarta, e il resto resta."""
+    from types import SimpleNamespace
+
+    from backend.workspace_database import decode_element_decisions
+
+    review = SimpleNamespace(
+        bpmn_model_id="b1",
+        element_decisions_json=(
+            '{"steps:ok": {"decision": "confirmed", "label": "Ok"},'
+            ' "steps:rotta": {"decision": "forse"},'
+            ' "steps:nulla": null}'
+        ),
+    )
+
+    decisions = decode_element_decisions(review)
+
+    assert set(decisions) == {"steps:ok"}
+    assert decode_element_decisions(SimpleNamespace(bpmn_model_id="b1", element_decisions_json="{rotto")) == {}
+    assert decode_element_decisions(SimpleNamespace(bpmn_model_id="b1", element_decisions_json="[1]")) == {}
+
+
+@needs_db
+def test_only_what_awaits_confirmation_can_be_reviewed(drafted_process_with_an_inference, monkeypatch):
+    """Riconfermare non cambia niente; rifiutare un passaggio citato non si fa da qui."""
+    from backend.workspace_services import element_review
+
+    scope = drafted_process_with_an_inference
+    monkeypatch.setattr(settings, "openai_api_key", None)
+
+    first = element_review.review_plan_element(
+        scope["process_id"], source_ref="steps:audit_trimestrale", decision="confirmed"
+    )
+    again = element_review.review_plan_element(
+        scope["process_id"], source_ref="steps:audit_trimestrale", decision="confirmed"
+    )
+    reversed_ = element_review.review_plan_element(
+        scope["process_id"], source_ref="steps:audit_trimestrale", decision="rejected"
+    )
+    grounded = next(
+        item
+        for item in first.provenance.elements
+        if item.kind == "step" and item.status != "unverified"
+    )
+    rejected_grounded = element_review.review_plan_element(
+        scope["process_id"], source_ref=grounded.source_ref, decision="rejected"
+    )
+
+    assert first.ok
+    assert (again.ok, again.reason_code) == (False, "invalid_transition")
+    assert (reversed_.ok, reversed_.reason_code) == (False, "invalid_transition")
+    assert (rejected_grounded.ok, rejected_grounded.reason_code) == (False, "invalid_transition")
+
+
+@needs_db
+def test_another_tenant_can_neither_read_nor_decide(drafted_process_with_an_inference):
+    from fastapi.testclient import TestClient
+
+    from backend import workspace_database as wd
+    from backend.app import app
+
+    scope = drafted_process_with_an_inference
+    foreign = {"X-DeliR-Tenant-Id": f"t-foreign-{uuid.uuid4().hex[:8]}"}
+    with TestClient(app) as client:
+        read = client.get(f"/v1/workspace/processes/{scope['process_id']}/provenance", headers=foreign)
+        write = client.post(
+            f"/v1/workspace/processes/{scope['process_id']}/provenance/decisions",
+            json={"source_ref": "steps:audit_trimestrale", "decision": "confirmed"},
+            headers=foreign,
+        )
+
+    assert read.status_code == 404
+    assert write.status_code == 404
+    decisions = wd.get_bpmn_review(scope["bpmn_model_id"], include_approved=True)["element_decisions"]
+    assert "steps:audit_trimestrale" not in decisions

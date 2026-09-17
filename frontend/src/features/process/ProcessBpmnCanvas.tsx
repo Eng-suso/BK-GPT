@@ -57,6 +57,13 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const { t } = useTranslation("process");
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   const [isEvidenceOpen, setIsEvidenceOpen] = React.useState(false);
+  // Un pannello aperto su un processo non resta aperto sul successivo: le
+  // evidenze sono di quel disegno.
+  const [evidenceIdentity, setEvidenceIdentity] = React.useState(`${processId}:${bpmnModelId}`);
+  if (evidenceIdentity !== `${processId}:${bpmnModelId}`) {
+    setEvidenceIdentity(`${processId}:${bpmnModelId}`);
+    setIsEvidenceOpen(false);
+  }
   const queryClient = useQueryClient();
   const provenanceQuery = useProcessProvenanceQuery(processId ?? "", {
     enabled: Boolean(processId),

@@ -1,7 +1,10 @@
 import json
+import logging
 import re
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
+from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import func, select
 
 from backend.agents.chat_mode import assert_write_allowed
@@ -42,6 +45,8 @@ from backend.workspace_storage import (
     workspace_connection,
 )
 
+
+logger = logging.getLogger(__name__)
 
 def encode_list(values: list[str]) -> str:
     return json.dumps(values, ensure_ascii=False)
@@ -1929,13 +1934,51 @@ def ensure_project_source(
 ELEMENT_DECISIONS = frozenset({"confirmed", "rejected"})
 
 
+class _ElementDecisionRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    decision: Literal["confirmed", "rejected"]
+    label: str = ""
+    note: str = ""
+    decided_at: str = ""
+    plan_version: int = 0
+
+
 def decode_element_decisions(review: WorkspaceBpmnReview) -> dict[str, dict]:
-    """Le decisioni del consulente sugli elementi del piano, per riferimento."""
+    """Le decisioni del consulente sugli elementi del piano, per riferimento.
+
+    Ogni voce si valida da sola. Una voce rovinata si scarta e si scrive nei log;
+    un intero documento illeggibile si scarta allo stesso modo. Non si solleva:
+    una colonna rovinata renderebbe illeggibile l'intero processo, e il danno di
+    perdere una conferma e' molto piu' piccolo - si riconferma, e il segno sul
+    disegno torna "da confermare", che e' la parte prudente dell'errore.
+    """
+    raw = getattr(review, "element_decisions_json", None) or "{}"
     try:
-        parsed = json.loads(getattr(review, "element_decisions_json", None) or "{}")
+        parsed = json.loads(raw)
     except json.JSONDecodeError:
+        logger.warning(
+            "decisioni sugli elementi illeggibili per il modello %s: scartate",
+            getattr(review, "bpmn_model_id", "?"),
+        )
         return {}
-    return parsed if isinstance(parsed, dict) else {}
+    if not isinstance(parsed, dict):
+        logger.warning(
+            "decisioni sugli elementi non in forma di mappa per il modello %s: scartate",
+            getattr(review, "bpmn_model_id", "?"),
+        )
+        return {}
+    decisions: dict[str, dict] = {}
+    for source_ref, value in parsed.items():
+        try:
+            decisions[str(source_ref)] = _ElementDecisionRecord.model_validate(value).model_dump()
+        except ValidationError:
+            logger.warning(
+                "decisione non valida su %s per il modello %s: scartata",
+                source_ref,
+                getattr(review, "bpmn_model_id", "?"),
+            )
+    return decisions
 
 
 def record_element_decision(

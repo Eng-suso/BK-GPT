@@ -10,7 +10,10 @@ const http = vi.fn();
 
 vi.mock("@/lib/http", async () => {
   const actual = await vi.importActual<typeof import("@/lib/http")>("@/lib/http");
-  return { ...actual, http: (path: string, options?: unknown) => http(path, options) };
+  return {
+    ...actual,
+    http: (path: string, options?: unknown) => http(path, options),
+  };
 });
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -79,7 +82,9 @@ function report(elements: Record<string, unknown>[], extra: Record<string, unkno
 }
 
 function renderPanel(props: Partial<Parameters<typeof EvidenceReviewPanel>[0]> = {}) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
@@ -98,18 +103,21 @@ function renderPanel(props: Partial<Parameters<typeof EvidenceReviewPanel>[0]> =
   return { onLocate };
 }
 
+// Il primo render del file paga i18n e gli import: con l'intera suite in
+// parallelo il secondo di default di findBy non basta, e il rosso direbbe
+// "la sezione manca" quando la sezione arriva solo piu' tardi.
+const LOADED = { timeout: 5_000 };
+
 afterEach(() => {
   vi.clearAllMocks();
 });
 
 describe("EvidenceReviewPanel", () => {
   it("puts what no source supports first, with the words of the sources for the rest", async () => {
-    http.mockResolvedValue(
-      report([element({ label: "Apri richiesta", source_ref: "steps:apri" }), AUDIT]),
-    );
+    http.mockResolvedValue(report([element({ label: "Apri richiesta", source_ref: "steps:apri" }), AUDIT]));
     renderPanel();
 
-    const awaiting = await screen.findByRole("heading", { name: /Da confermare/ });
+    const awaiting = await screen.findByRole("heading", { name: /Da confermare/ }, LOADED);
     const section = awaiting.closest("section") as HTMLElement;
     expect(within(section).getByText("Audit trimestrale")).toBeInTheDocument();
     expect(within(section).getByText(/Nessun passaggio delle fonti/)).toBeInTheDocument();
@@ -127,7 +135,11 @@ describe("EvidenceReviewPanel", () => {
           reason_code: "reviewed",
           reason: "«Audit trimestrale» confermato.",
           provenance: report([
-            { ...AUDIT, consultant_decision: "confirmed", mark_status: "confirmed" },
+            {
+              ...AUDIT,
+              consultant_decision: "confirmed",
+              mark_status: "confirmed",
+            },
           ]),
           draft_status: null,
         });
@@ -136,7 +148,7 @@ describe("EvidenceReviewPanel", () => {
     });
     renderPanel();
 
-    await user.click(await screen.findByRole("button", { name: /Conferma «Audit trimestrale»/ }));
+    await user.click(await screen.findByRole("button", { name: /Conferma «Audit trimestrale»/ }, LOADED));
 
     await waitFor(() =>
       expect(screen.getByRole("heading", { name: /Confermati da te/ })).toBeInTheDocument(),
@@ -156,12 +168,16 @@ describe("EvidenceReviewPanel", () => {
     http.mockResolvedValue(report([AUDIT]));
     renderPanel();
 
-    await user.click(await screen.findByRole("button", { name: /Rifiuta «Audit trimestrale»/ }));
+    await user.click(await screen.findByRole("button", { name: /Rifiuta «Audit trimestrale»/ }, LOADED));
     expect(http).toHaveBeenCalledTimes(1);
 
     expect(
-      screen.getByRole("button", { name: /togli «Audit trimestrale» dal piano e ridisegna/ }),
+      screen.getByRole("button", {
+        name: /togli «Audit trimestrale» dal piano e ridisegna/,
+      }),
     ).toBeInTheDocument();
+    // Il ridisegno cancella anche le modifiche a mano gia' salvate: va detto prima.
+    expect(screen.getByText(/si recuperano solo dalla cronologia versioni/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Annulla/ }));
     expect(screen.queryByRole("button", { name: /dal piano e ridisegna/ })).not.toBeInTheDocument();
   });
@@ -170,7 +186,7 @@ describe("EvidenceReviewPanel", () => {
     http.mockResolvedValue(report([AUDIT]));
     renderPanel({ hasUnsavedChanges: true });
 
-    expect(await screen.findByRole("button", { name: /Rifiuta «Audit trimestrale»/ })).toBeDisabled();
+    expect(await screen.findByRole("button", { name: /Rifiuta «Audit trimestrale»/ }, LOADED)).toBeDisabled();
     expect(screen.getByText(/Salva le modifiche al canvas prima di rifiutare/)).toBeInTheDocument();
   });
 
@@ -178,7 +194,7 @@ describe("EvidenceReviewPanel", () => {
     http.mockResolvedValue(report([DECISION]));
     renderPanel();
 
-    await screen.findByRole("button", { name: /Conferma «Sopra soglia\?»/ });
+    await screen.findByRole("button", { name: /Conferma «Sopra soglia\?»/ }, LOADED);
     expect(screen.queryByRole("button", { name: /Rifiuta «Sopra soglia\?»/ })).not.toBeInTheDocument();
     expect(screen.getByText(/Attori e decisioni si correggono sul piano/)).toBeInTheDocument();
   });
@@ -189,7 +205,7 @@ describe("EvidenceReviewPanel", () => {
     const onLocate = vi.fn(() => false);
     renderPanel({ onLocate });
 
-    await user.click(await screen.findByRole("button", { name: "Audit trimestrale" }));
+    await user.click(await screen.findByRole("button", { name: "Audit trimestrale" }, LOADED));
 
     expect(onLocate).toHaveBeenCalledWith("steps:audit");
     expect(screen.getByRole("status")).toHaveTextContent(/non compare nel disegno attuale/);
@@ -199,20 +215,20 @@ describe("EvidenceReviewPanel", () => {
     http.mockResolvedValue(report([AUDIT], { unused_sources: ["Intervista Paolo Marchetti"] }));
     renderPanel();
 
-    expect(await screen.findByText(/Intervista Paolo Marchetti/)).toBeInTheDocument();
+    expect(await screen.findByText(/Intervista Paolo Marchetti/, undefined, LOADED)).toBeInTheDocument();
   });
 
   it("tells a process without a plan apart from a plan with nothing verified", async () => {
     http.mockResolvedValue({ ...report([]), has_plan: false });
     renderPanel();
 
-    expect(await screen.findByText(/non ha ancora un piano/)).toBeInTheDocument();
+    expect(await screen.findByText(/non ha ancora un piano/, undefined, LOADED)).toBeInTheDocument();
   });
 
   it("surfaces a load failure with a retry", async () => {
     http.mockRejectedValue(new Error("boom"));
     renderPanel();
 
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(await screen.findByRole("alert", undefined, LOADED)).toBeInTheDocument();
   });
 });

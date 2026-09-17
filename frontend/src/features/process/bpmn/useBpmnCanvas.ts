@@ -25,7 +25,7 @@ import {
   hasDiagramContent,
   keepSequenceConnectionsDocked,
 } from "./viewport";
-import { applyProvenanceMarkers } from "./provenance";
+import { applyProvenanceMarkers, splitTraceability, withTraceability } from "./provenance";
 import { assertBpmnXml, downloadBpmn, loadInitialXml } from "./xml";
 import type {
   BpmnCanvasService,
@@ -269,7 +269,9 @@ export function useBpmnCanvas({
           }
 
           const bo = selected.businessObject;
-          const docs = bo?.documentation?.[0]?.text || "";
+          // Il blocco di tracciabilita' non e' una nota: non si mostra e non si
+          // riscrive, cosi' il nodo resta riconoscibile per le evidenze.
+          const docs = splitTraceability(bo?.documentation?.[0]?.text).notes;
 
           setSelectedElement({
             id: selected.id,
@@ -537,10 +539,15 @@ export function useBpmnCanvas({
           "bpmnFactory",
         ) as BpmnFactory;
         const modeling = modelerRef.current.get("modeling") as BpmnModeling;
-        const elem = elementRegistry.get?.(selectedElement.id);
+        const elem = elementRegistry.get?.(selectedElement.id) as
+          | { businessObject?: { documentation?: Array<{ text?: string }> } }
+          | undefined;
         if (elem) {
+          const { traceability } = splitTraceability(
+            elem.businessObject?.documentation?.[0]?.text,
+          );
           const docObj = bpmnFactory.create("bpmn:Documentation", {
-            text: newDoc,
+            text: withTraceability(newDoc, traceability),
           });
           modeling.updateProperties(elem, { documentation: [docObj] });
           scheduleUnsavedCheck();

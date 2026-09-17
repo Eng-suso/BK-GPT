@@ -24,6 +24,9 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from typing import Literal
 
+from sqlalchemy.exc import SQLAlchemyError
+
+from backend.agents.chat_mode import WriteNotAllowedInMode
 from backend.agents.plan_element_removal import (
     REMOVABLE_KINDS,
     ElementNotRemovable,
@@ -46,6 +49,7 @@ ReviewReasonCode = Literal[
     "process_not_found",
     "no_plan",
     "element_not_found",
+    "invalid_transition",
     "not_removable",
     "plan_revision_failed",
     "marks_refresh_failed",
@@ -105,7 +109,7 @@ def _refresh_marks(snapshot: ProcessKnowledgeSnapshot) -> str | None:
         verify_bpmn_model_persisted(snapshot.bpmn_model_id, marked)
     except PersistenceVerificationError as exc:
         return str(exc)
-    except Exception as exc:  # noqa: BLE001 - un guasto di scrittura si racconta, non si nasconde
+    except (SQLAlchemyError, WriteNotAllowedInMode, ValueError) as exc:
         logger.warning(
             "aggiornamento segni provenance fallito per %s", snapshot.process_id, exc_info=True
         )
@@ -167,6 +171,36 @@ def review_plan_element(
             snapshot=snapshot,
         )
 
+    if decision == "rejected" and element.kind not in REMOVABLE_KINDS:
+        return ElementReviewResult(
+            ok=False,
+            reason_code="not_removable",
+            reason=(
+                f"«{element.label}» non si toglie dalla revisione delle evidenze: "
+                "cambia la struttura del processo e va corretto sul piano."
+            ),
+            snapshot=snapshot,
+        )
+
+    if not element.awaiting_confirmation:
+        # Si rivede cio' che nessuna fonte regge e nessuno ha ancora confermato.
+        # Confermare un elemento citato non aggiunge niente; riconfermarlo non
+        # cambia niente; rifiutarlo da qui toglierebbe dal piano un passaggio che
+        # le interviste raccontano, senza che il pannello lo abbia mai proposto.
+        return ElementReviewResult(
+            ok=False,
+            reason_code="invalid_transition",
+            reason=(
+                f"«{element.label}» non e' in attesa di conferma: "
+                + (
+                    "e' gia' stato confermato."
+                    if element.consultant_decision == "confirmed"
+                    else "le fonti lo reggono."
+                )
+            ),
+            snapshot=snapshot,
+        )
+
     if decision == "confirmed":
         workspace_database.record_element_decision(
             snapshot.bpmn_model_id,
@@ -194,17 +228,6 @@ def review_plan_element(
             reason_code="reviewed",
             reason=f"«{element.label}» confermato.",
             snapshot=refreshed,
-        )
-
-    if element.kind not in REMOVABLE_KINDS:
-        return ElementReviewResult(
-            ok=False,
-            reason_code="not_removable",
-            reason=(
-                f"«{element.label}» non si toglie dalla revisione delle evidenze: "
-                "cambia la struttura del processo e va corretto sul piano."
-            ),
-            snapshot=snapshot,
         )
 
     previous_version = snapshot.version
