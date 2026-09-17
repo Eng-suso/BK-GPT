@@ -882,10 +882,11 @@ def evaluate_process_understanding_quality(
                     ),
                 ]
             )
-            return (
+            return coherent_quality_report(
                 raw_report
                 if isinstance(raw_report, ProcessUnderstandingQualityReport)
-                else ProcessUnderstandingQualityReport.model_validate(raw_report)
+                else ProcessUnderstandingQualityReport.model_validate(raw_report),
+                process,
             )
         except Exception as exc:
             return conservative_process_quality_report(
@@ -896,6 +897,71 @@ def evaluate_process_understanding_quality(
     return conservative_process_quality_report(
         process,
         reason="Quality evaluator LLM non disponibile; usato fallback conservativo.",
+    )
+
+
+# Il punteggio massimo di un piano che non si puo' compilare in un processo: lo
+# stesso che il fallback conservativo da' a un piano con blocchi strutturali.
+STRUCTURALLY_BLOCKED_MAX_SCORE = 3
+
+
+def coherent_quality_report(
+    report: ProcessUnderstandingQualityReport,
+    process: ProcessUnderstanding,
+) -> ProcessUnderstandingQualityReport:
+    """Il giudizio del valutatore, reso coerente con cio' che il piano contiene.
+
+    Il valutatore giudica dimensione per dimensione, e su un piano vuoto premia
+    la prudenza: 10/10 a "non ha inventato attori", 10/10 a "non ha costruito un
+    percorso non supportato", 2/10 a "compilabilita'". Poi dichiara 7 come
+    punteggio complessivo, e il 7 diventa la readiness che il consulente legge
+    accanto a un piano con zero attivita' (caso Esaote, 2026-09-17).
+
+    Il giudizio per dimensione resta del modello. L'aritmetica fra i numeri e
+    cio' che si puo' contare sul piano sono del runtime:
+
+    - il complessivo non supera la dimensione bloccante piu' debole;
+    - un piano con blocchi strutturali (nessuna attivita', riferimenti rotti) non
+      supera la soglia del fallback conservativo e non e' pronto da generare.
+
+    Args:
+        report: Il rapporto prodotto dal valutatore.
+        process: Il piano giudicato.
+
+    Returns:
+        Una copia del rapporto con punteggio e raccomandazione coerenti.
+    """
+    ceiling = report.overall_score
+    blocking_scores = [item.score for item in report.dimension_scores if item.blocking]
+    if blocking_scores:
+        ceiling = min(ceiling, min(blocking_scores))
+
+    diagnostics = process_understanding_diagnostics(process)
+    recommendation = report.approval_recommendation
+    blocking_issues = list(report.blocking_issues)
+    if diagnostics.blocking:
+        ceiling = min(ceiling, STRUCTURALLY_BLOCKED_MAX_SCORE)
+        if recommendation == "ready_to_generate":
+            recommendation = "needs_auto_revision"
+        known = {issue.message for issue in blocking_issues}
+        blocking_issues.extend(
+            QualityIssue(
+                id=f"StructuralBlocker_{index}",
+                severity="blocking",
+                category="structural_diagnostic",
+                message=message,
+                recommendation="Correggere il piano prima della generazione BPMN.",
+            )
+            for index, message in enumerate(diagnostics.blocking, start=1)
+            if message not in known
+        )
+
+    return report.model_copy(
+        update={
+            "overall_score": max(1, ceiling),
+            "approval_recommendation": recommendation,
+            "blocking_issues": blocking_issues,
+        }
     )
 
 

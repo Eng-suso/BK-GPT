@@ -36,6 +36,10 @@ logger = logging.getLogger(__name__)
 
 _IDLE_SLEEP_SECONDS = 5.0
 _BATCH = 5
+# Ogni quanto, a coda vuota, si cercano i piani indietro che nessuna scrittura
+# ha messo in coda.
+_SWEEP_INTERVAL_SECONDS = 300.0
+_last_sweep_at: float | None = None
 
 # Esiti che chiudono la richiesta: il piano c'e' (costruito adesso o gia'
 # aggiornato), oppure non c'e' niente da cui costruirlo. Nessuno dei tre
@@ -95,6 +99,31 @@ def _work_one(row: dict) -> bool:
         reset_current_tenant_id(token)
 
 
+def sweep_stale_plans(*, force: bool = False) -> int:
+    """Rimette in coda i piani indietro rispetto alle fonti, al piu' ogni tanto.
+
+    La coda si riempie quando una fonte viene salvata; questa passata copre cio'
+    che quel momento non vede - fonti di prima della coda, fonti di progetto. Non
+    gira a ogni giro vuoto: legge processi, fonti e review di tutti i tenant.
+
+    Returns:
+        Quante richieste ha messo in coda.
+    """
+    global _last_sweep_at
+    now = time.monotonic()
+    if not force and _last_sweep_at is not None and now - _last_sweep_at < _SWEEP_INTERVAL_SECONDS:
+        return 0
+    _last_sweep_at = now
+    try:
+        queued = wd.enqueue_stale_plan_materializations()
+    except Exception:  # noqa: BLE001 - uno sweep storto non ferma la coda
+        logger.warning("sweep dei piani indietro non riuscito", exc_info=True)
+        return 0
+    if queued:
+        logger.info("sweep: %s piani indietro rispetto alle fonti messi in coda", len(queued))
+    return len(queued)
+
+
 def drain_once(limit: int = _BATCH) -> int:
     """Una passata sulla coda.
 
@@ -106,6 +135,21 @@ def drain_once(limit: int = _BATCH) -> int:
     for row in rows:
         _work_one(row)
     return len(rows)
+
+
+def drain_and_sweep(limit: int = _BATCH) -> int:
+    """La passata del loop di servizio: la coda, e a coda vuota lo sweep.
+
+    Separata da `drain_once` perche' chi drena a mano - i test, lo script di
+    amministrazione - vuole lavorare la coda che vede, non quella che uno sweep
+    su tutti i tenant potrebbe riempire nel frattempo.
+    """
+    processed = drain_once(limit)
+    if processed:
+        return processed
+    if sweep_stale_plans():
+        return drain_once(limit)
+    return 0
 
 
 def queue_stats() -> dict[str, int]:
@@ -122,7 +166,7 @@ def run_forever(idle_sleep: float = _IDLE_SLEEP_SECONDS) -> None:
     logger.info("plan_worker avviato")
     while True:
         try:
-            processed = drain_once()
+            processed = drain_and_sweep()
         except Exception:  # noqa: BLE001 - una passata storta non ferma il loop
             logger.exception("plan_worker: passata fallita")
             processed = 0

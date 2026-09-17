@@ -382,6 +382,20 @@ class BpmnDraftResponse(BaseModel):
     # Durate in millisecondi e conteggi; `process_snapshot_version` puo' essere
     # nullo quando il processo non ha ancora una versione di piano.
     metrics: dict[str, int | None] = Field(default_factory=dict)
+    # La verifica disegno-piano-fonti fatta sul canvas salvato: verdetto
+    # (`conformant` | `not_conformant` | `incomplete`), rilievi con le citazioni
+    # verificate, e lo snapshot su cui e' stata fatta.
+    conformance: dict[str, Any] | None = None
+
+
+class ConformanceStatusResponse(BaseModel):
+    """L'ultima verifica di conformita' di un processo, e se descrive ancora cio' che si vede."""
+
+    process_id: str
+    snapshot_id: str = ""
+    snapshot_label: str = ""
+    is_current: bool = False
+    report: dict[str, Any] | None = None
 
 
 class ProjectSourceResponse(BaseModel):

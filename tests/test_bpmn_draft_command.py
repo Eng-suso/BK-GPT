@@ -207,12 +207,17 @@ def test_a_new_interview_moves_the_draft_to_the_new_version(process_with_plan):
             process_with_plan["process_id"], synthesize_missing_plan=False
         )
 
-    # Il piano e' indietro, ma esiste: il comando disegna quello che c'e' e
-    # dichiara la versione, invece di fermarsi. Risintetizzarlo e' lavoro della
-    # materializzazione, non del disegno.
-    assert result.status == "drafted"
+    # Il piano e' indietro. Prima il comando lo disegnava lo stesso "dichiarando
+    # la versione": e' esattamente cio' che sul caso Esaote ha prodotto sei bozze
+    # start -> end su un piano nato prima delle interviste. Senza il ramo lento
+    # il comando rifiuta con la causa e mette in coda la ricostruzione; con il
+    # ramo lento la fa (vedi test_evidence_canvas_conformance_e2e).
+    assert result.status == "failed"
+    assert result.reason_code == "plan_stale"
     assert result.metrics["process_snapshot_version"] == after.version
     assert result.metrics["llm_calls"] == 0
+    queued = wd.plan_materialization_for(process_with_plan["process_id"])
+    assert queued is not None and queued["status"] == "pending"
 
 
 def test_a_process_without_plan_and_without_evidence_fails_technically(empty_process):  # noqa: F811

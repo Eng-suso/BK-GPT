@@ -154,6 +154,9 @@ class WorkspaceBpmnReview(WorkspaceBase):
     # conosce il processo, o rifiutato e tolto dal piano. E' conoscenza umana, e
     # come le risposte resta separata da cio' che il modello ha estratto.
     element_decisions_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    # L'ultima verifica di conformita' fra canvas, piano e fonti: verdetto,
+    # rilievi e lo snapshot su cui e' stata fatta. NULL: mai verificato.
+    conformance_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)

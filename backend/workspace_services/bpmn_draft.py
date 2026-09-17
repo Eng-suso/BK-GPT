@@ -34,9 +34,9 @@ from __future__ import annotations
 
 import logging
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from time import perf_counter
-from typing import Literal, TypedDict
+from typing import TYPE_CHECKING, Literal, TypedDict
 
 from backend.agents.chat_mode import WriteNotAllowedInMode
 from backend.agents.process_snapshot import ProcessKnowledgeSnapshot, build_process_snapshot
@@ -57,6 +57,9 @@ from backend.workspace_services.write_verification import (
     verify_bpmn_model_persisted,
 )
 
+if TYPE_CHECKING:
+    from backend.agents.conformance_audit import ConformanceReport, SourceAuditor
+
 logger = logging.getLogger(__name__)
 
 
@@ -72,6 +75,8 @@ DraftReasonCode = Literal[
     "process_not_found",
     "missing_bpmn_model",
     "plan_synthesis_failed",
+    "plan_stale",
+    "plan_ignores_evidence",
     "no_plan_no_evidence",
     "compilation_failed",
     "invalid_bpmn",
@@ -142,6 +147,11 @@ class BpmnDraftResult:
     issues: list[str] = field(default_factory=list)
     reason: str = ""
     metrics: DraftMetrics | None = None
+    # La verifica disegno-piano-fonti fatta sul canvas salvato, quando il
+    # comando e' passato dal revisore (`generate_verified_bpmn_draft`).
+    conformance: "ConformanceReport | None" = None
+    # Quante volte il piano e' stato ricostruito sui rilievi del revisore.
+    conformance_repairs: int = 0
 
     @property
     def ok(self) -> bool:
@@ -203,18 +213,71 @@ def _pending_verification(snapshot: ProcessKnowledgeSnapshot) -> list[str]:
     pending += [
         item for item in snapshot.missing_information if item and item not in pending
     ]
-    if snapshot.has_semantic_model and not snapshot.plan_is_current:
-        # Il piano c'e' ma non e' costruito sulle fonti di adesso: la
-        # ricostruzione e' in coda (`workspace_plan_materializations`). Si
-        # disegna quello che c'e' - e' meglio di niente e l'utente lo ha chiesto
-        # - dichiarando che una fonte non e' ancora entrata nel piano. Fare qui
-        # la sintesi rimetterebbe tre chiamate al modello davanti a chi aspetta.
-        pending.insert(
-            0,
-            "Il piano non e' ancora ricostruito sull'ultima evidenza registrata: "
-            "questo disegno descrive il processo senza le fonti piu' recenti.",
-        )
     return pending
+
+
+def _plan_cannot_describe_evidence(
+    snapshot: ProcessKnowledgeSnapshot,
+) -> tuple[DraftReasonCode, str, list[str]] | None:
+    """Il piano che sta per essere disegnato racconta le fonti che ci sono?
+
+    Tre condizioni, tutte verificabili sullo stato e nessuna affidata a un
+    giudizio:
+
+    - **il piano e' nato su un altro set di fonti.** Disegnarlo "dichiarando che
+      una fonte non e' ancora entrata" era il comportamento di prima, ed e' cio'
+      che ha prodotto sul caso Esaote sei bozze start -> end una dopo l'altra: un
+      piano preparato dal titolo del processo, prima delle interviste, disegnato
+      e dichiarato riletto mentre tre interviste aspettavano sul tavolo;
+    - **il piano non ha attivita'** mentre l'evidenza esiste. Il compilatore ne
+      ricava un evento di inizio e uno di fine, e chiamarlo bozza AS-IS e' la
+      frase falsa che il consulente legge;
+    - **nessuna fonte con un testo regge un solo elemento del piano.** Il piano
+      ha dei passaggi, ma non vengono da nessuna delle interviste lette.
+
+    Returns:
+        Il codice, il motivo e le cause tecniche; ``None`` se il piano regge.
+    """
+    if not snapshot.evidence_count:
+        # Un piano scritto a mano su un processo senza fonti e' conoscenza del
+        # consulente: si disegna.
+        return None
+
+    if not snapshot.plan_is_current:
+        return (
+            "plan_stale",
+            "Il piano del processo non e' costruito sulle fonti registrate adesso: "
+            "disegnarlo descriverebbe un processo diverso da quello delle interviste.",
+            [
+                f"Piano {snapshot.label} costruito sul set di fonti "
+                f"{snapshot.plan_evidence_source_set_id or 'non dichiarato'}, "
+                f"set corrente {snapshot.evidence_source_set_id}.",
+            ],
+        )
+
+    understanding = snapshot.process_understanding or {}
+    if not understanding.get("steps"):
+        return (
+            "plan_ignores_evidence",
+            f"Il piano non contiene attivita' mentre il processo ha "
+            f"{snapshot.evidence_count} evidenze agli atti: disegnarlo darebbe un "
+            "inizio e una fine senza il lavoro in mezzo.",
+            ["ProcessUnderstanding senza steps con evidenza registrata."],
+        )
+
+    report = snapshot.provenance
+    if (
+        report is not None
+        and report.sources_checked
+        and len(report.unused_sources) >= report.sources_checked
+    ):
+        return (
+            "plan_ignores_evidence",
+            "Nessun elemento del piano risulta dalle fonti lette: il piano non "
+            "descrive le interviste agli atti.",
+            [f"Fonti non usate dal piano: {', '.join(report.unused_sources)}."],
+        )
+    return None
 
 
 def _semantic_model(snapshot: ProcessKnowledgeSnapshot) -> BPMNSemanticModel | None:
@@ -347,31 +410,48 @@ def generate_bpmn_draft(
         )
 
     semantic_model = _semantic_model(snapshot)
+    plan_behind_evidence = bool(snapshot.evidence_count) and not snapshot.plan_is_current
 
-    if semantic_model is None and synthesize_missing_plan and snapshot.evidence_count:
-        # Il piano non e' ancora materializzato. Costruirlo qui e' il ramo lento e
-        # dichiarato: e' la sola parte del comando che chiama un modello, e la
-        # materializzazione al commit dell'evidenza esiste per rendere questo ramo
-        # raro invece che normale.
-        from backend.agents.process_synthesis import ensure_process_plan
+    if (semantic_model is None or plan_behind_evidence) and snapshot.evidence_count:
+        if not synthesize_missing_plan:
+            # Chi chiama ha escluso il ramo lento. Il piano resta da rifare, e
+            # la richiesta di rifarlo va in coda invece di perdersi.
+            from backend import workspace_database
 
-        started = perf_counter()
-        synthesis = ensure_process_plan(process_id)
-        watch.mark("plan_synthesis", started)
-        # Quante chiamate e' costata lo dice la sintesi: sono una per fonte
-        # piu' il giudizio di qualita', non un numero fisso.
-        watch.llm_calls += synthesis.llm_calls
-        if synthesis.snapshot is not None:
-            snapshot = synthesis.snapshot
-        semantic_model = _semantic_model(snapshot)
-        if semantic_model is None:
-            return failure(
-                "plan_synthesis_failed",
-                synthesis.reason
-                or "Il piano del processo non e' stato costruito dalle fonti registrate.",
-                issues=synthesis.blockers
-                or [synthesis.reason or "sintesi del piano non riuscita"],
+            workspace_database.enqueue_plan_materialization(
+                process_id, reason="bozza richiesta su un piano non corrente"
             )
+        else:
+            # Il piano manca, o descrive un altro set di fonti. Costruirlo qui e'
+            # il ramo lento e dichiarato: e' la sola parte del comando che chiama
+            # un modello, e la materializzazione al commit dell'evidenza esiste
+            # per rendere questo ramo raro invece che normale. Raro non vuol dire
+            # saltabile: disegnare il piano vecchio e' disegnare un altro processo.
+            from backend.agents.process_synthesis import ensure_process_plan
+
+            started = perf_counter()
+            synthesis = ensure_process_plan(process_id)
+            watch.mark("plan_synthesis", started)
+            # Quante chiamate e' costata lo dice la sintesi: sono una per fonte
+            # piu' il giudizio di qualita', non un numero fisso.
+            watch.llm_calls += synthesis.llm_calls
+            if synthesis.snapshot is not None:
+                snapshot = synthesis.snapshot
+            semantic_model = _semantic_model(snapshot)
+            if synthesis.action == "synthesis_failed" or semantic_model is None:
+                return failure(
+                    "plan_synthesis_failed",
+                    synthesis.reason
+                    or "Il piano del processo non e' stato costruito dalle fonti registrate.",
+                    issues=synthesis.blockers
+                    or [synthesis.reason or "sintesi del piano non riuscita"],
+                )
+
+    if semantic_model is not None:
+        refused = _plan_cannot_describe_evidence(snapshot)
+        if refused is not None:
+            reason_code, reason, issues = refused
+            return failure(reason_code, reason, issues=issues, pending=_pending_verification(snapshot))
 
     if semantic_model is None:
         # Nessun piano utilizzabile. Con evidenza agli atti il lavoro che manca e'
@@ -581,3 +661,128 @@ def generate_bpmn_draft(
         extra={"bpmn_draft_metrics": metrics},
     )
     return drafted
+
+
+# Quante volte il piano si ricostruisce sui rilievi del revisore prima di
+# consegnare. Una: la riparazione porta nell'estrazione fatti gia' verificati, e
+# se non li chiude il difetto va mostrato al consulente, non ritentato.
+MAX_CONFORMANCE_REPAIRS = 1
+
+_DEFAULT_AUDITOR = object()
+
+
+def generate_verified_bpmn_draft(
+    process_id: str,
+    *,
+    auditor: "SourceAuditor | None | object" = _DEFAULT_AUDITOR,
+    max_repairs: int = MAX_CONFORMANCE_REPAIRS,
+    change_summary: str = "Bozza BPMN generata dal piano del processo",
+    source: str = "bpmn_draft_command",
+    synthesize_missing_plan: bool = True,
+) -> BpmnDraftResult:
+    """La bozza, verificata contro il piano e le fonti prima di essere consegnata.
+
+    Il loop e' questo, e non ha altri rami:
+
+        genera -> verifica -> [rilievi sulle fonti] ripara il piano -> genera -> verifica
+
+    - **genera** e' `generate_bpmn_draft`: deterministico, rifiuta un piano che
+      non descrive le fonti di adesso.
+    - **verifica** e' il revisore di conformita': canvas salvato contro piano
+      compilato, documento di review contro piano, piano contro fonti intere
+      (deterministico), e un agente che legge ogni fonte cercando cio' che il
+      piano non ha o smentisce, con le citazioni ritrovate nel testo dal runtime.
+    - **ripara** ricostruisce il piano rileggendo le fonti con i rilievi
+      verificati, al massimo `max_repairs` volte.
+
+    La bozza si consegna anche quando la verifica non e' pulita: la richiesta di
+    generare e' l'autorizzazione alla bozza. Ma il verdetto viaggia con lei, e i
+    rilievi arrivano al consulente accanto al disegno: una bozza che non coincide
+    con le fonti non si racconta mai come una che coincide.
+
+    Args:
+        process_id: Il processo, non affidabile.
+        auditor: Il revisore delle fonti. Omesso: quello del modello
+            configurato; ``None``: nessun revisore (verdetto al piu' `incomplete`).
+        max_repairs: Quante ricostruzioni del piano concedere al loop.
+        change_summary: La riga della versione del canvas.
+        source: L'origine della versione del canvas.
+        synthesize_missing_plan: Vedi `generate_bpmn_draft`.
+
+    Returns:
+        L'esito del comando con `conformance` valorizzato quando un disegno e'
+        stato salvato.
+
+    Side effects:
+        Quelli di `generate_bpmn_draft`, piu' la registrazione del rapporto sulla
+        review e, quando il loop ripara, nuove versioni del piano e del canvas.
+    """
+    from backend.agents.conformance_audit import (
+        audit_process_conformance,
+        llm_source_auditor,
+    )
+
+    resolved = llm_source_auditor() if auditor is _DEFAULT_AUDITOR else auditor
+    result = generate_bpmn_draft(
+        process_id,
+        change_summary=change_summary,
+        source=source,
+        synthesize_missing_plan=synthesize_missing_plan,
+    )
+    if not result.ok:
+        return result
+
+    started = perf_counter()
+    report = audit_process_conformance(process_id, auditor=resolved)
+    audit_ms = int((perf_counter() - started) * 1000)
+    audit_calls = report.llm_calls if report else 0
+    repairs = 0
+
+    while (
+        report is not None
+        and report.needs_plan_repair
+        and repairs < max(0, int(max_repairs))
+        and synthesize_missing_plan
+    ):
+        from backend.agents.process_synthesis import repair_plan_from_audit
+
+        repairs += 1
+        started = perf_counter()
+        synthesis = repair_plan_from_audit(process_id, report)
+        audit_ms += int((perf_counter() - started) * 1000)
+        audit_calls += synthesis.llm_calls
+        if synthesis.action != "synthesized":
+            logger.warning(
+                "riparazione del piano sui rilievi non riuscita per %s: %s",
+                process_id,
+                synthesis.reason,
+            )
+            break
+        redrawn = generate_bpmn_draft(
+            process_id,
+            change_summary="Bozza rigenerata dopo la verifica di conformita' con le fonti",
+            source=source,
+            synthesize_missing_plan=False,
+        )
+        if not redrawn.ok:
+            return replace(redrawn, conformance=report, conformance_repairs=repairs)
+        result = redrawn
+        started = perf_counter()
+        report = audit_process_conformance(process_id, auditor=resolved)
+        audit_ms += int((perf_counter() - started) * 1000)
+        audit_calls += report.llm_calls if report else 0
+
+    metrics = dict(result.metrics or {})
+    metrics["llm_calls"] = int(metrics.get("llm_calls") or 0) + audit_calls
+    metrics["conformance_audit_ms"] = audit_ms
+    metrics["conformance_repairs"] = repairs
+    pending = list(result.pending_verification)
+    if report is not None:
+        pending = [*report.consultant_lines(), *[item for item in pending if item not in report.consultant_lines()]]
+    return replace(
+        result,
+        conformance=report,
+        conformance_repairs=repairs,
+        pending_verification=pending,
+        metrics=metrics,  # type: ignore[arg-type]
+    )

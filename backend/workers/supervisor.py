@@ -101,7 +101,7 @@ async def run_queue_workers() -> None:
     # materializzato e «Genera BPMN» torna a sintetizzarlo davanti all'utente.
     plan_task = asyncio.create_task(
         _drain_loop(
-            "plan_worker", plan_worker.drain_once, plan_worker.queue_stats, 5.0,
+            "plan_worker", plan_worker.drain_and_sweep, plan_worker.queue_stats, 5.0,
         ),
         name="plan_worker",
     )

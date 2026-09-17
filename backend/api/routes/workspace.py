@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.schemas.workspace import (
+    ConformanceStatusResponse,
     AnswerBpmnReviewQuestionRequest,
     ApproveBpmnReviewResponse,
     ArchiveImpactResponse,
@@ -34,7 +35,7 @@ from backend.schemas.workspace import (
     UpdateProjectRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
-from backend.workspace_services.bpmn_draft import generate_bpmn_draft
+from backend.workspace_services.bpmn_draft import generate_verified_bpmn_draft
 from backend.workspace_database import (
     answer_bpmn_review_question,
     approve_bpmn_review,
@@ -656,7 +657,7 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
     Side effects:
         Scrive il modello BPMN e una sua versione.
     """
-    result = generate_bpmn_draft(process_id)
+    result = generate_verified_bpmn_draft(process_id)
 
     if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
         raise HTTPException(status_code=404, detail=result.reason)
@@ -680,6 +681,63 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
         issues=result.issues,
         reason=result.reason,
         metrics=dict(result.metrics or {}),
+        conformance=result.conformance.model_dump(mode="json") if result.conformance else None,
+    )
+
+
+@router.get("/processes/{process_id}/conformance")
+def get_workspace_process_conformance(process_id: str) -> ConformanceStatusResponse:
+    """L'ultima verifica disegno-piano-fonti, e se vale ancora.
+
+    Il rapporto registrato porta lo snapshot del processo e l'impronta del canvas
+    su cui e' stato fatto: se nel frattempo il piano, le fonti o il canvas sono
+    cambiati, `is_current` e' falso e il verdetto non descrive piu' cio' che il
+    consulente vede.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.agents.conformance_audit import signature_digest
+    from backend.agents.process_snapshot import build_process_snapshot
+
+    snapshot = build_process_snapshot(process_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
+    review = get_bpmn_review(snapshot.bpmn_model_id, include_approved=True) if snapshot.bpmn_model_id else None
+    report = (review or {}).get("conformance")
+    model = get_bpmn_model(snapshot.bpmn_model_id) if snapshot.bpmn_model_id else None
+    is_current = bool(
+        report
+        and report.get("snapshot_id") == snapshot.snapshot_id
+        and report.get("canvas_signature") == signature_digest((model or {}).get("xml"))
+    )
+    return ConformanceStatusResponse(
+        process_id=process_id,
+        snapshot_id=snapshot.snapshot_id,
+        snapshot_label=snapshot.label,
+        is_current=is_current,
+        report=report,
+    )
+
+
+@router.post("/processes/{process_id}/conformance-audit")
+def run_workspace_process_conformance_audit(process_id: str) -> ConformanceStatusResponse:
+    """Esegue adesso la verifica disegno-piano-fonti sul canvas salvato.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.agents.conformance_audit import audit_process_conformance
+
+    report = audit_process_conformance(process_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
+    return ConformanceStatusResponse(
+        process_id=process_id,
+        snapshot_id=report.snapshot_id,
+        snapshot_label=report.snapshot_label,
+        is_current=True,
+        report=report.model_dump(mode="json"),
     )
 
 

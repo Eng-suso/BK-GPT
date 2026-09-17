@@ -61,6 +61,7 @@ INTERNAL_AGENT_NODES = {
     "classify_and_select_context",
     "load_process_context",
     "load_canvas_context",
+    "ensure_current_plan",
     "load_context",
     "load_workspace_records",
     "consulting_router",

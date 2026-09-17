@@ -150,6 +150,7 @@ _NODE_RULES: tuple[tuple[str, ProgressPhase], ...] = (
     # che sappiamo, passo al disegno, verifico il risultato.
     ("load_process_context", READING_PROCESS_KNOWLEDGE),
     ("load_canvas_context", READING_PROCESS_KNOWLEDGE),
+    ("ensure_current_plan", READING_PROCESS_KNOWLEDGE),
     ("delegate_to_canvas", HANDING_OVER),
     ("evaluate_canvas_completion", CHECKING),
     ("refresh_canvas_context", CHECKING),

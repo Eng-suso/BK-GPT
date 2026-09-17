@@ -85,7 +85,7 @@ def test_the_node_reports_a_technical_failure_as_technical(monkeypatch):
 
     monkeypatch.setattr(
         bpmn_draft,
-        "generate_bpmn_draft",
+        "generate_verified_bpmn_draft",
         lambda *args, **kwargs: BpmnDraftResult(
             status="failed",
             process_id="p1",
@@ -108,7 +108,7 @@ def test_the_node_hands_back_the_drawing_and_the_open_points(monkeypatch):
 
     monkeypatch.setattr(
         bpmn_draft,
-        "generate_bpmn_draft",
+        "generate_verified_bpmn_draft",
         lambda *args, **kwargs: BpmnDraftResult(
             status="drafted",
             process_id="p1",
