@@ -149,6 +149,11 @@ class WorkspaceBpmnReview(WorkspaceBase):
     # Risposte del consulente alle domande aperte del piano: cio' che l'umano ha
     # deciso, tenuto separato da cio' che il modello ha estratto.
     answers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    # Le decisioni del consulente sugli elementi che nessuna fonte regge, per
+    # riferimento di tracciabilita' (`steps:apri_richiesta`): confermato da chi
+    # conosce il processo, o rifiutato e tolto dal piano. E' conoscenza umana, e
+    # come le risposte resta separata da cio' che il modello ha estratto.
+    element_decisions_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
@@ -231,6 +236,46 @@ class WorkspaceSource(WorkspaceBase):
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
     meta: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkspacePlanMaterialization(WorkspaceBase):
+    """La coda dei piani da ricostruire perche' la conoscenza e' cambiata.
+
+    Il piano del processo nasceva quando il consulente chiedeva di disegnare: la
+    sintesi - tre chiamate al modello - stava dentro il percorso critico di
+    «Genera BPMN», che e' il momento peggiore per farla. Il lavoro appartiene al
+    momento in cui **l'evidenza cambia**, non al momento in cui qualcuno guarda
+    il risultato.
+
+    Una riga per processo, e non una per evento: cinque interviste salvate di
+    seguito non sono cinque sintesi da fare, sono una sintesi da fare dopo
+    l'ultima. `requested_at` si sposta in avanti a ogni richiesta e il worker
+    legge il set di fonti corrente quando arriva a lavorarla, quindi la coda non
+    porta uno stato che potrebbe essere gia' vecchio.
+    """
+
+    __tablename__ = "workspace_plan_materializations"
+    __table_args__ = (UniqueConstraint("tenant_id", "process_id", name="uq_plan_materialization_process"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    process_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # pending | done | failed. `running` non esiste: una passata che muore a
+    # meta' deve tornare eleggibile da sola, e un lease che nessuno rilascia e'
+    # il modo in cui una coda si blocca in silenzio.
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending", index=True)
+    requested_at: Mapped[str] = mapped_column(String, nullable=False)
+    # Perche' la conoscenza e' cambiata: una fonte salvata, una rimossa. Serve a
+    # leggere la coda, non a decidere: il set di fonti lo rilegge il worker.
+    reason: Mapped[str] = mapped_column(String, nullable=False, default="")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[str] = mapped_column(String, nullable=False)
+    last_error: Mapped[str | None] = mapped_column(Text)
+    completed_at: Mapped[str | None] = mapped_column(String)
+    # Il piano prodotto dall'ultima passata riuscita: la versione e l'esito che
+    # `ensure_process_plan` ha dichiarato (`synthesized`, `reused`, ...).
+    last_action: Mapped[str | None] = mapped_column(String)
+    plan_version: Mapped[int | None] = mapped_column(Integer)
 
 
 class WorkspaceDecision(WorkspaceBase):

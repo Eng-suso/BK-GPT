@@ -111,3 +111,5 @@ artifacts/
 
 AGENTS.md
 CLAUDE.md
+# Rapporti del golden eval: prodotti da ogni run, non versionati.
+tests/golden/reports/

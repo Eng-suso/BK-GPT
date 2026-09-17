@@ -673,3 +673,155 @@ export function toBpmnVersion(
     createdAt: version.created_at,
   };
 }
+
+/* ── Provenance del piano ──────────────────────────────────────────
+ * Backend: /v1/workspace/processes/{id}/provenance (+ /decisions).
+ * Ogni elemento del piano confrontato con le fonti intere, con la decisione
+ * del consulente quando l'ha rivisto. Consumed by features/process/api.ts.
+ */
+
+export type ProvenanceStatus =
+  | "verified"
+  | "paraphrased"
+  | "label_grounded"
+  | "unverified";
+
+/** L'esito che il disegno mostra: la verifica, o `confirmed` dal consulente. */
+export type ProvenanceMarkStatus = ProvenanceStatus | "confirmed";
+
+export type ProvenanceElementKind =
+  | "actor"
+  | "participant"
+  | "step"
+  | "decision"
+  | "exception"
+  | "event"
+  | "flow";
+
+export type ProvenanceElement = {
+  kind: ProvenanceElementKind;
+  elementId: string;
+  label: string;
+  status: ProvenanceStatus;
+  markStatus: ProvenanceMarkStatus;
+  sourceRef: string;
+  sourceName: string;
+  quote: string;
+  consultantDecision: "confirmed" | "rejected" | null;
+  removable: boolean;
+};
+
+export type ProcessProvenance = {
+  processId: string;
+  snapshotLabel: string;
+  hasPlan: boolean;
+  total: number;
+  verified: number;
+  paraphrased: number;
+  labelGrounded: number;
+  unverified: number;
+  awaitingConfirmation: number;
+  groundedRatio: number;
+  sourcesChecked: number;
+  unusedSources: string[];
+  elements: ProvenanceElement[];
+};
+
+export type ElementReviewDecision = "confirmed" | "rejected";
+
+export type ElementReviewResult = {
+  ok: boolean;
+  reasonCode: string;
+  reason: string;
+  provenance: ProcessProvenance | null;
+  draftStatus: string | null;
+};
+
+const provenanceStatusSchema = z.enum([
+  "verified",
+  "paraphrased",
+  "label_grounded",
+  "unverified",
+]);
+
+export const apiProvenanceElementSchema = z.object({
+  kind: z.enum(["actor", "participant", "step", "decision", "exception", "event", "flow"]),
+  element_id: z.string(),
+  label: z.string(),
+  status: provenanceStatusSchema,
+  mark_status: z.enum(["verified", "paraphrased", "label_grounded", "unverified", "confirmed"]),
+  source_ref: z.string(),
+  source_id: z.string().default(""),
+  source_name: z.string().default(""),
+  quote: z.string().default(""),
+  consultant_decision: z.enum(["confirmed", "rejected"]).nullable().default(null),
+  removable: z.boolean().default(false),
+});
+
+export const apiProcessProvenanceSchema = z.object({
+  process_id: z.string(),
+  snapshot_id: z.string(),
+  snapshot_label: z.string(),
+  has_plan: z.boolean(),
+  total: z.number().default(0),
+  verified: z.number().default(0),
+  paraphrased: z.number().default(0),
+  label_grounded: z.number().default(0),
+  unverified: z.number().default(0),
+  awaiting_confirmation: z.number().default(0),
+  grounded_ratio: z.number().default(0),
+  sources_checked: z.number().default(0),
+  unused_sources: z.array(z.string()).default([]),
+  elements: z.array(apiProvenanceElementSchema).default([]),
+});
+
+export const apiElementReviewSchema = z.object({
+  ok: z.boolean(),
+  reason_code: z.string(),
+  reason: z.string(),
+  provenance: apiProcessProvenanceSchema.nullable().default(null),
+  draft_status: z.string().nullable().default(null),
+});
+
+export function toProcessProvenance(
+  raw: z.infer<typeof apiProcessProvenanceSchema>,
+): ProcessProvenance {
+  return {
+    processId: raw.process_id,
+    snapshotLabel: raw.snapshot_label,
+    hasPlan: raw.has_plan,
+    total: raw.total,
+    verified: raw.verified,
+    paraphrased: raw.paraphrased,
+    labelGrounded: raw.label_grounded,
+    unverified: raw.unverified,
+    awaitingConfirmation: raw.awaiting_confirmation,
+    groundedRatio: raw.grounded_ratio,
+    sourcesChecked: raw.sources_checked,
+    unusedSources: raw.unused_sources,
+    elements: raw.elements.map((item) => ({
+      kind: item.kind,
+      elementId: item.element_id,
+      label: item.label,
+      status: item.status,
+      markStatus: item.mark_status,
+      sourceRef: item.source_ref,
+      sourceName: item.source_name,
+      quote: item.quote,
+      consultantDecision: item.consultant_decision,
+      removable: item.removable,
+    })),
+  };
+}
+
+export function toElementReviewResult(
+  raw: z.infer<typeof apiElementReviewSchema>,
+): ElementReviewResult {
+  return {
+    ok: raw.ok,
+    reasonCode: raw.reason_code,
+    reason: raw.reason,
+    provenance: raw.provenance ? toProcessProvenance(raw.provenance) : null,
+    draftStatus: raw.draft_status,
+  };
+}

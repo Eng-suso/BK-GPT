@@ -517,7 +517,26 @@ class ProcessUnderstandingExtractionError(RuntimeError):
         super().__init__(format_extraction_failure(failure))
 
 
-def build_process_understanding(title: str, source_text: str) -> ProcessUnderstandingResult:
+def build_process_understanding(
+    title: str,
+    source_text: str,
+    *,
+    with_quality_report: bool = True,
+) -> ProcessUnderstandingResult:
+    """Estrae il piano strutturato da un testo di note.
+
+    Args:
+        title: Il nome del processo.
+        source_text: Le note grezze, non affidabili.
+        with_quality_report: Se far valutare il risultato dal quality evaluator.
+            Vale una chiamata al modello in piu', e va chiesta una volta sola per
+            piano: quando l'estrazione gira una volta per fonte, il giudizio si
+            da' sul piano fuso, non su ogni pezzo.
+
+    Returns:
+        L'esito dell'estrazione, con il piano quando riesce e la classificazione
+        del guasto quando no.
+    """
     if not settings.openai_api_key:
         return ProcessUnderstandingResult(
             status="failed",
@@ -548,7 +567,11 @@ def build_process_understanding(title: str, source_text: str) -> ProcessUndersta
         process = _coerce_process_understanding(raw_process)
         return ProcessUnderstandingResult(
             status="success",
-            process=_with_quality_report(process, source_text=source_text),
+            process=(
+                _with_quality_report(process, source_text=source_text)
+                if with_quality_report
+                else process
+            ),
         )
     except Exception as exc:
         failure = classify_extraction_failure(exc)
@@ -1143,6 +1166,10 @@ Regole:
   va dettagliato nella mappa operativa.
 - Lascia quality_report vuoto: sara prodotto da un evaluator separato.
 - Usa id XML-safe con lettere, numeri e underscore.
+- In source_evidence copia le parole della fonte cosi' come sono scritte, senza
+  riassumerle: ogni elemento viene cercato nel testo originale, e un'evidenza
+  riformulata non si trova. Se un elemento non e' detto da nessuna fonte ma serve
+  a rendere coerente il flusso, lascia source_evidence vuoto.
 - Metti in unknowns cio che manca; usa blocking solo se impedisce una bozza BPMN minima.
 - Ogni unknown nasce da una lacuna o da una contraddizione precisa delle note, e
   grounded_in deve dirla nominando la voce e cosa ha detto. Esempi di domande

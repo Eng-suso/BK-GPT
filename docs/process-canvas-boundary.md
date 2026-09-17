@@ -239,6 +239,159 @@ il percorso su cui il difetto passava:
    Non dichiarare salvato cio' che non si e' riletto ha un gemello: non
    dichiarare assente cio' che non si e' riusciti a leggere.
 
+## Disegnare e' un comando, non una conversazione
+
+Il confine descritto qui sotto era costruito e il disegno restava lento. La
+catena che «Genera BPMN» attraversava era questa, misurata:
+
+```
+router di scope -> router di processo -> sintesi del piano (3 chiamate)
+  -> router del canvas -> subagente di costruzione (6-8 chiamate, 5-7 tool)
+  -> subagente di layout -> subagente di validazione -> loop di correzione
+```
+
+Dodici-venti chiamate al modello in sequenza per produrre un XML che il
+compilatore sa gia' produrre da solo, con `model_timeout_seconds=45` e un retry
+per ognuna. Nessun budget: il ciclo agente -> tool -> agente finiva quando il
+modello smetteva di chiedere tool, cioe' quando **il modello** decideva di aver
+finito. E poteva finire con una domanda invece che con un disegno: il canvas
+registrava una `raise_modeling_question`, la versione del piano saliva,
+`knowledge_drift` vedeva la deriva e il run si chiudeva `waiting_for_user`
+senza salvare niente - il disegno di quel giro buttato, e al giro dopo l'agente
+in attesa della propria domanda.
+
+`backend/workspace_services/bpmn_draft.py` rende la stessa operazione un comando:
+
+```
+snapshot -> compile -> validate -> (max 1 repair) -> layout -> persist
+         -> read-after-write
+```
+
+Zero chiamate al modello quando il piano e' materializzato, zero Mem0, zero
+Neo4j - sono proiezioni, e una proiezione lenta non e' una ragione per non
+disegnare. Tre regole che il comando non negozia:
+
+| regola | cosa significa |
+| --- | --- |
+| la richiesta e' l'autorizzazione | nessuna seconda conferma, nessun `waiting_for_user` per una lacuna: cio' che resta aperto esce in `pending_verification` **accanto** al disegno |
+| un guasto si racconta come guasto | `reason_code` su cui decidere, non una sottostringa da indovinare. Mai «mancano evidenze» davanti a un errore tecnico |
+| niente salvato senza rilettura | vale qui come nel resto del confine |
+
+Ogni fase e' misurata (`load_snapshot_ms` ... `read_after_write_ms`, piu'
+`llm_calls`, `tool_calls`, `repair_count`, `process_snapshot_version`): «dove se
+ne vanno i secondi» e' una domanda con una risposta numerica.
+
+Il router del canvas dichiara ora **che tipo** di costruzione propone, perche'
+un percorso veloce che si prende anche il lavoro sbagliato e' peggio di un
+percorso lento:
+
+| `construction_kind` | chi lo esegue |
+| --- | --- |
+| `full_from_plan` | il comando deterministico |
+| `partial_change` | il subagente: rigenerare tutto per cambiare un pezzo cancella il lavoro intorno |
+| `from_user_description` | il subagente: li' il piano va ancora costruito |
+
+### Un agente ha un tetto
+
+`backend/graphs/agent_budget.py`. Tre limiti, perche' i modi di non finire sono
+tre: passi di decisione, chiamate a tool, scadenza del turno. Il controllo sta
+**prima** della decisione, dove fermarsi lascia un transcript coerente: fermarsi
+dopo aver emesso una tool call lascerebbe una chiamata senza risposta nel
+checkpoint, e il turno successivo partirebbe da uno storico che il provider
+rifiuta.
+
+Il budget vive in `ConversationState`, quindi e' condiviso fra i subagenti di
+uno stesso scope - tre passate da N passi non sono tre budget - e **non** in
+`ConsultantState`, che e' lo schema persistito: se ci fosse, ogni thread
+arriverebbe al proprio tetto una volta sola e poi ogni turno nascerebbe gia'
+scaduto.
+
+## Il piano si materializza quando cambia la conoscenza
+
+La sintesi del piano costa chiamate al modello, e viveva dentro il percorso
+critico del disegno - cioe' nel momento in cui qualcuno guarda lo schermo e
+aspetta. Il lavoro appartiene al momento in cui l'evidenza cambia.
+
+Salvare una fonte mette il processo in coda
+(`workspace_plan_materializations`, migration `0009`) **nella stessa
+transazione della fonte**: se il salvataggio torna indietro, la richiesta di
+ricostruzione torna indietro con lui. `backend/workers/plan_worker.py` la lavora
+chiamando `ensure_process_plan` - la stessa funzione del confine, non una
+seconda strada per costruire un piano - dentro il tenant che la riga dichiara.
+
+Una riga per processo, non una per evento: cinque interviste salvate di seguito
+sono una sintesi dopo l'ultima. Un guasto momentaneo si riprova con backoff; un
+processo che non esiste piu' esce subito, perche' riprovarlo cinque volte dice
+la stessa cosa cinque volte.
+
+Quando il comando trova un piano **indietro** rispetto alle fonti, disegna
+quello che c'e' e lo dichiara: rifare la sintesi li' rimetterebbe tre chiamate al
+modello davanti a chi aspetta, e non disegnare niente sarebbe peggio di un
+disegno con una nota.
+
+## Il piano nasce da ogni fonte intera
+
+L'estrazione leggeva un corpus unico, tagliato a 12.000 caratteri per fonte e
+30.000 in tutto. Un'ora di intervista sono 40-60.000 caratteri: il piano nasceva
+da circa il primo terzo di ognuna, e cio' che veniva raccontato a meta' colloquio
+non arrivava mai al disegno. Nessun prompt puo' recuperare un testo che non e'
+stato letto, e il taglio non era nemmeno dichiarato - una fonte oltre il budget
+veniva presentata come «testo integrale non disponibile», che e' un'altra cosa.
+
+`extract_plan_from_sources` fa una estrazione **per fonte**, a testo intero e in
+parallelo, e fonde i piani parziali con la regola deterministica degli
+emendamenti (`merge_process_understanding`): nessun LLM nel merge, identita'
+stabile per le liste, ordine delle fonti stabile - quindi due ricostruzioni sulle
+stesse fonti danno lo stesso piano.
+
+Un dettaglio che sembra un dettaglio e non lo e': i percorsi ordinati
+(`sequence`, `main_success_path`) si fondono in `append` e non in `replace`. Nel
+merge di un emendamento chi dichiara un percorso lo sta riordinando; qui i due
+piani sono **due letture parziali dello stesso processo**, e sostituire
+lascerebbe nel piano i soli passaggi di chi ha parlato per ultimo.
+
+Il giudizio di qualita' si da' una volta sola, sul piano fuso: chiederlo per
+fonte moltiplicherebbe le chiamate per giudicare frammenti che nessuno usera' da
+soli.
+
+## Il piano si confronta con le fonti, non solo il disegno con il piano
+
+`validate_canvas_against_process` verificava che il canvas somigliasse al piano,
+e il piano e' l'output di un estrattore. Un passaggio inventato arrivava al
+disegno con la stessa dignita' di uno descritto da tre persone, e la validazione
+diceva "coerente": verificava l'ipotesi contro se stessa. Il campo
+`source_evidence` di ogni elemento era testo libero che nessuno rileggeva.
+
+`backend/agents/plan_provenance.py` lo rilegge, senza modello. Per ogni attore,
+partecipante, passaggio, decisione, eccezione, evento e flusso con evidenza:
+
+| esito | cosa e' stato trovato nelle fonti intere |
+| --- | --- |
+| `verified` | l'evidenza dichiarata, parola per parola (punteggiatura a parte), con lo span esatto |
+| `paraphrased` | una frase che porta almeno l'80% delle parole dell'evidenza |
+| `label_grounded` | l'evidenza non si trova, ma le parole dell'elemento stanno in una frase |
+| `unverified` | niente: e' un'inferenza |
+
+`unverified` non significa sbagliato - un passaggio che rende coerente il flusso
+puo' non essere stato detto da nessuno - significa che non si puo' dire a un
+cliente che viene dalle sue interviste. Il rapporto dice anche quali fonti il
+piano non usa: un'intervista da cui non viene nessun elemento e' stata ignorata,
+o riformulata al punto da non poterlo piu' dimostrare.
+
+Il rapporto si calcola dentro lo snapshot, a ogni lettura, sulle fonti **intere**
+del registro e non sugli estratti del confine: un testo tagliato farebbe
+risultare inventato cio' che la fonte dice dopo il taglio. Non si persiste,
+quindi non puo' descrivere un piano o un set di fonti diversi da quelli dello
+snapshot che lo porta.
+
+L'esito arriva sul disegno come attributo di estensione `delir:provenance` su
+ogni nodo tracciato - un nodo che rappresenta piu' elementi vale quanto il meno
+provato - e il BPMN resta 2.0 valido per chi l'estensione non la conosce. Il
+comando mette gli elementi `unverified` fra i punti da verificare e nelle
+metriche (`unverified_elements`); il percorso agentico li riporta come avvisi del
+controllo di completamento; `GET /v1/workspace/processes/{id}/provenance` li
+espone elemento per elemento, con il passaggio della fonte che li regge.
+
 ## La divisione
 
 ```

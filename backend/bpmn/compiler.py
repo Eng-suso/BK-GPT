@@ -41,6 +41,7 @@ from backend.process_understanding import (
     ProcessDecision,
     ProcessEvent,
     ProcessExceptionPath,
+    ProcessPath,
     ProcessStep,
     ProcessUnderstanding,
 )
@@ -124,6 +125,16 @@ def build_bpmn_semantic_model(
         process, lanes, collaboration_built=collaboration.collaboration_id is not None
     )
     warnings.extend(collaboration.warnings)
+    if process.steps and not (process.main_success_path or process.sequence):
+        # Senza un percorso dichiarato i passaggi si incatenano nell'ordine in
+        # cui il piano li elenca, e quell'ordine e' un'abitudine di chi scrive,
+        # non un'affermazione di una fonte: la fine del percorso normale finisce
+        # collegata all'inizio di un ramo d'urgenza. Il disegno resta, ma non in
+        # silenzio.
+        warnings.append(
+            "Percorso principale non dichiarato: l'ordine dei passaggi e' dedotto "
+            "dall'ordine in cui il piano li elenca, non da una fonte."
+        )
     registry = FlowRegistry(
         used_ids=used_ids,
         edges_by_original=sequence_flow_edges_by_endpoint(process),
@@ -577,53 +588,60 @@ def _add_alternative_paths(
         if gateway is None:
             continue
 
-        path = _take_alternative_path_for_decision(decision, unassigned_paths)
-        if path is None:
+        # Tutti i percorsi che la decisione nomina, non il primo. Una scelta a tre
+        # vie - richiesta incompleta, serve un'autorizzazione, si procede - e' una
+        # decisione con due rami alternativi piu' il percorso principale: prendere
+        # solo il primo ramo perdeva l'altro senza che la compilazione lo dicesse,
+        # cioe' un disegno "lossless" con un pezzo di processo in meno.
+        paths = _take_alternative_paths_for_decision(decision, unassigned_paths)
+        if not paths:
             warnings.append(f"Gateway '{decision.label}' senza alternative path esplicito collegato.")
             continue
-        if not path.sequence and not path.ends_at:
-            warnings.append(f"Alternative path '{path.label}' senza sequenza o fine esplicita.")
-            continue
 
-        outcome_name = _outcome_name_for_path(decision, path)
-        previous_id = gateway.id
-        for branch_index, step_id in enumerate(path.sequence, start=1):
-            if step_id == path.rejoins_at and step_id in step_node_by_original_id:
+        for path in paths:
+            if not path.sequence and not path.ends_at:
+                warnings.append(f"Alternative path '{path.label}' senza sequenza o fine esplicita.")
                 continue
-            source_step = step_by_id.get(step_id)
-            if source_step is None:
-                warnings.append(f"Alternative path '{path.label}' cita step non trovato: {step_id}")
-                continue
-            lane_id = lane_for_step(source_step, actors, actor_lane_map)
-            branch_node = BPMNFlowNode(
-                id=xml_id(f"{path.id}_{source_step.id or branch_index}", "Task", used_ids),
-                type=_task_type(source_step),
-                name=source_step.label,
-                laneId=lane_id,
-                owner=actor_label(actors, source_step.actor_ids),
-                loopCharacteristics=_loop_characteristics(source_step),
-            )
-            nodes.append(branch_node)
-            registry.map(source_step.id, branch_node.id)
-            registry.add(
-                previous_id,
-                branch_node.id,
-                name=outcome_name if previous_id == gateway.id else None,
-            )
-            previous_id = branch_node.id
 
-        if path.rejoins_at and path.rejoins_at in step_node_by_original_id:
-            registry.add(previous_id, step_node_by_original_id[path.rejoins_at], name=path.trigger_or_condition)
-        elif path.ends_at and path.ends_at in step_node_by_original_id:
-            registry.add(previous_id, step_node_by_original_id[path.ends_at], name=path.trigger_or_condition)
-        else:
-            end_target = _resolve_alt_path_end(
-                path, outcome_name, gateway.laneId, end_node_by_key, primary_end, nodes, used_ids
-            )
-            registry.add(previous_id, end_target, name=path.trigger_or_condition)
+            outcome_name = _outcome_name_for_path(decision, path)
+            previous_id = gateway.id
+            for branch_index, step_id in enumerate(path.sequence, start=1):
+                if step_id == path.rejoins_at and step_id in step_node_by_original_id:
+                    continue
+                source_step = step_by_id.get(step_id)
+                if source_step is None:
+                    warnings.append(f"Alternative path '{path.label}' cita step non trovato: {step_id}")
+                    continue
+                lane_id = lane_for_step(source_step, actors, actor_lane_map)
+                branch_node = BPMNFlowNode(
+                    id=xml_id(f"{path.id}_{source_step.id or branch_index}", "Task", used_ids),
+                    type=_task_type(source_step),
+                    name=source_step.label,
+                    laneId=lane_id,
+                    owner=actor_label(actors, source_step.actor_ids),
+                    loopCharacteristics=_loop_characteristics(source_step),
+                )
+                nodes.append(branch_node)
+                registry.map(source_step.id, branch_node.id)
+                registry.add(
+                    previous_id,
+                    branch_node.id,
+                    name=outcome_name if previous_id == gateway.id else None,
+                )
+                previous_id = branch_node.id
 
-        if not path.is_confirmed:
-            warnings.append(f"Alternative path '{path.label}' non confermato.")
+            if path.rejoins_at and path.rejoins_at in step_node_by_original_id:
+                registry.add(previous_id, step_node_by_original_id[path.rejoins_at], name=path.trigger_or_condition)
+            elif path.ends_at and path.ends_at in step_node_by_original_id:
+                registry.add(previous_id, step_node_by_original_id[path.ends_at], name=path.trigger_or_condition)
+            else:
+                end_target = _resolve_alt_path_end(
+                    path, outcome_name, gateway.laneId, end_node_by_key, primary_end, nodes, used_ids
+                )
+                registry.add(previous_id, end_target, name=path.trigger_or_condition)
+
+            if not path.is_confirmed:
+                warnings.append(f"Alternative path '{path.label}' non confermato.")
 
     if unassigned_paths and not gateways:
         warnings.append("Alternative path presenti, ma nessun gateway decisionale e' stato generato.")
@@ -673,22 +691,23 @@ def _resolve_alt_path_end(
     return synth.id
 
 
-def _take_alternative_path_for_decision(decision, paths: list):
-    """Find and remove the alternative path that matches a decision.
+def _take_alternative_paths_for_decision(
+    decision: ProcessDecision, paths: list[ProcessPath]
+) -> list[ProcessPath]:
+    """Find and remove every alternative path that a decision's outcomes name.
 
     Args:
         decision: The ProcessDecision to match against.
         paths: List of alternative paths to search and modify.
 
     Returns:
-        The matching alternative path (removed from the list), or None if not found.
+        The matching alternative paths in declaration order (removed from the
+        list); empty when the decision names none.
     """
-    if not paths:
-        return None
-    for index, path in enumerate(paths):
-        if _path_matches_decision(decision, path):
-            return paths.pop(index)
-    return None
+    taken = [path for path in paths if _path_matches_decision(decision, path)]
+    for path in taken:
+        paths.remove(path)
+    return taken
 
 
 def _path_matches_decision(decision, path) -> bool:

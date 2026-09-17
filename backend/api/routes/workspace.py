@@ -6,6 +6,7 @@ from backend.schemas.workspace import (
     ArchiveImpactResponse,
     ArchiveRequest,
     ArchiveResponse,
+    BpmnDraftResponse,
     BpmnModelResponse,
     BpmnReviewResponse,
     BpmnReviewVersionResponse,
@@ -16,6 +17,9 @@ from backend.schemas.workspace import (
     CreateProjectDecisionRequest,
     CreateProjectRequest,
     CreateProjectSourceRequest,
+    ElementReviewRequest,
+    ElementReviewResponse,
+    ProcessProvenanceResponse,
     ProjectDecisionResponse,
     ProjectProcessResponse,
     ProjectResponse,
@@ -30,6 +34,7 @@ from backend.schemas.workspace import (
     UpdateProjectRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
+from backend.workspace_services.bpmn_draft import generate_bpmn_draft
 from backend.workspace_database import (
     answer_bpmn_review_question,
     approve_bpmn_review,
@@ -511,6 +516,171 @@ def update_workspace_bpmn_model(
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
 
     return BpmnModelResponse(**model)
+
+
+def _provenance_response(process_id: str, snapshot) -> ProcessProvenanceResponse:
+    """Il rapporto di provenance dello snapshot, nella forma dell'API."""
+    from backend.agents.plan_element_removal import REMOVABLE_KINDS
+
+    report = snapshot.provenance
+    if report is None:
+        # Nessun piano: "niente da verificare", che non e' "zero elementi verificati".
+        return ProcessProvenanceResponse(
+            process_id=process_id,
+            snapshot_id=snapshot.snapshot_id,
+            snapshot_label=snapshot.label,
+            has_plan=False,
+        )
+    return ProcessProvenanceResponse(
+        process_id=process_id,
+        snapshot_id=snapshot.snapshot_id,
+        snapshot_label=snapshot.label,
+        has_plan=True,
+        total=len(report.elements),
+        verified=report.count("verified"),
+        paraphrased=report.count("paraphrased"),
+        label_grounded=report.count("label_grounded"),
+        unverified=report.count("unverified"),
+        awaiting_confirmation=len(report.awaiting_confirmation),
+        grounded_ratio=report.grounded_ratio,
+        sources_checked=report.sources_checked,
+        unused_sources=list(report.unused_sources),
+        elements=[
+            {
+                **item.model_dump(mode="json"),
+                "mark_status": item.mark_status,
+                "removable": item.kind in REMOVABLE_KINDS,
+            }
+            for item in report.elements
+        ],
+    )
+
+
+@router.get("/processes/{process_id}/provenance")
+def get_workspace_process_provenance(process_id: str) -> ProcessProvenanceResponse:
+    """Il piano del processo confrontato con le fonti, elemento per elemento.
+
+    Per ogni attore, passaggio, decisione, eccezione ed evento: se l'evidenza
+    dichiarata compare nelle interviste (`verified`), se una frase ne porta le
+    parole (`paraphrased`, `label_grounded`) o se nessuna fonte lo regge
+    (`unverified`), con la decisione del consulente quando l'ha rivisto.
+    Calcolato a ogni lettura sulle fonti intere, senza modello.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+
+    Returns:
+        ProcessProvenanceResponse: I conteggi, le fonti da cui il piano non prende
+        niente e l'esito di ogni elemento con il passaggio della fonte.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.agents.process_snapshot import build_process_snapshot
+
+    snapshot = build_process_snapshot(process_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
+    return _provenance_response(process_id, snapshot)
+
+
+@router.post("/processes/{process_id}/provenance/decisions")
+def review_workspace_process_element(
+    process_id: str, request: ElementReviewRequest
+) -> ElementReviewResponse:
+    """Il consulente conferma o rifiuta un elemento che nessuna fonte regge.
+
+    Conferma: il piano resta com'e', la decisione si registra e il segno sul
+    canvas salvato si aggiorna senza ridisegnarlo. Rifiuto: l'elemento esce dal
+    piano (solo passaggi, eventi ed eccezioni), il flusso si ricuce, la review
+    sale di versione e il disegno si rigenera.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+        request: Riferimento dell'elemento, decisione e nota.
+
+    Returns:
+        ElementReviewResponse: L'esito, con il rapporto riletto dopo la
+        scrittura. Un esito non riuscito risponde 200 con la sua causa: una
+        decisione puo' essere registrata e il disegno non aggiornato, e il
+        gestore degli errori HTTP cancellerebbe proprio quella distinzione.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.workspace_services.element_review import review_plan_element
+
+    result = review_plan_element(
+        process_id,
+        source_ref=request.source_ref,
+        decision=request.decision,
+        note=request.note,
+    )
+    if result.reason_code == "process_not_found":
+        raise HTTPException(status_code=404, detail=result.reason)
+    return ElementReviewResponse(
+        ok=result.ok,
+        reason_code=result.reason_code,
+        reason=result.reason,
+        provenance=_provenance_response(process_id, result.snapshot) if result.snapshot else None,
+        draft_status=result.draft.status if result.draft else None,
+        pending_verification=list(result.draft.pending_verification) if result.draft else [],
+    )
+
+
+@router.post("/processes/{process_id}/bpmn-draft")
+def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
+    """Genera la bozza BPMN di un processo dal piano gia' materializzato.
+
+    E' un comando, non una conversazione: compila il piano, valida, ripara al
+    massimo una volta, dispone il diagramma, salva e rilegge. Nessuna chiamata al
+    modello quando il piano c'e' gia', nessuna dipendenza da Mem0 o dal
+    knowledge graph.
+
+    La richiesta e' gia' l'autorizzazione alla bozza: le lacune aperte tornano in
+    `pending_verification` accanto al disegno, non al posto del disegno.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+
+    Returns:
+        BpmnDraftResponse: L'esito, con il modello salvato quando la bozza e'
+        stata prodotta, le cause tecniche quando no (`status="failed"` o
+        `"refused_by_mode"`, con `reason_code` e `issues`), e sempre le metriche
+        di fase. Un comando eseguito che non ha prodotto un disegno risponde 200
+        con il proprio esito: e' un risultato, non un errore di trasporto.
+
+    Raises:
+        HTTPException: 404 quando il processo o il suo modello BPMN non esistono.
+
+    Side effects:
+        Scrive il modello BPMN e una sua versione.
+    """
+    result = generate_bpmn_draft(process_id)
+
+    if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
+        raise HTTPException(status_code=404, detail=result.reason)
+
+    # Ogni altro esito e' un risultato del comando, non un errore di trasporto, e
+    # torna con 200 insieme alla sua causa. Il gestore di HTTPException riduce il
+    # `detail` a una stringa generica quando non e' testo, quindi un 422 qui
+    # cancellerebbe proprio cio' che serve leggere: `reason_code`, le issue
+    # tecniche e le metriche di fase. Un guasto raccontato come "richiesta non
+    # valida" e' un guasto mascherato.
+    model = get_bpmn_model(result.bpmn_model_id) if result.ok else None
+    return BpmnDraftResponse(
+        status=result.status,
+        reason_code=result.reason_code,
+        process_id=result.process_id,
+        bpmn_model_id=result.bpmn_model_id,
+        snapshot_id=result.snapshot_id,
+        snapshot_label=result.snapshot_label,
+        bpmn_model=BpmnModelResponse(**model) if model else None,
+        pending_verification=result.pending_verification,
+        issues=result.issues,
+        reason=result.reason,
+        metrics=dict(result.metrics or {}),
+    )
 
 
 @router.get("/bpmn-models/{bpmn_model_id}/versions")

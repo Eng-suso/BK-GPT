@@ -15,9 +15,15 @@ import { BpmnCanvasToolbar } from "./components/BpmnCanvasToolbar";
 import { BpmnNodeInspector } from "./components/BpmnNodeInspector";
 import { BpmnVersionHistory } from "./components/BpmnVersionHistory";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { onWorkspaceChanged } from "@/lib/workspaceEvents";
+import { provenanceKeys, useProcessProvenanceQuery } from "./api";
+import { EvidenceReviewPanel } from "./components/EvidenceReviewPanel";
 
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
+  /** Il processo del disegno: serve al confronto con le fonti. */
+  processId?: string;
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
   onCurrentXmlChange?: (xml: string) => void;
@@ -38,6 +44,7 @@ type ProcessBpmnCanvasProps = {
  */
 export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   bpmnModelId,
+  processId,
   processName,
   propertiesPanelRef,
   onCurrentXmlChange,
@@ -49,6 +56,28 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
 }) => {
   const { t } = useTranslation("process");
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
+  const [isEvidenceOpen, setIsEvidenceOpen] = React.useState(false);
+  // Un pannello aperto su un processo non resta aperto sul successivo: le
+  // evidenze sono di quel disegno.
+  const [evidenceIdentity, setEvidenceIdentity] = React.useState(`${processId}:${bpmnModelId}`);
+  if (evidenceIdentity !== `${processId}:${bpmnModelId}`) {
+    setEvidenceIdentity(`${processId}:${bpmnModelId}`);
+    setIsEvidenceOpen(false);
+  }
+  const queryClient = useQueryClient();
+  const provenanceQuery = useProcessProvenanceQuery(processId ?? "", {
+    enabled: Boolean(processId),
+  });
+
+  // Il disegno cambia anche da fuori - la chat genera una bozza, un'altra
+  // scheda salva - e il confronto con le fonti cambia con lui.
+  React.useEffect(() => {
+    if (!processId) return;
+    return onWorkspaceChanged((detail) => {
+      if (detail.bpmnModelId && detail.bpmnModelId !== bpmnModelId) return;
+      void queryClient.invalidateQueries({ queryKey: provenanceKeys.process(processId) });
+    });
+  }, [bpmnModelId, processId, queryClient]);
   const {
     containerRef,
     fileInputRef,
@@ -73,6 +102,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     zoomIn,
     zoomOut,
     zoomFit,
+    focusSourceRef,
   } = useBpmnCanvas({
     bpmnModelId,
     processName,
@@ -111,6 +141,15 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           isOpen: isPropertiesOpen,
           onToggle: onTogglePropertiesPanel,
         }}
+        evidence={
+          processId
+            ? {
+                isOpen: isEvidenceOpen,
+                onToggle: () => setIsEvidenceOpen((prev) => !prev),
+                awaitingCount: provenanceQuery.data?.awaitingConfirmation ?? 0,
+              }
+            : undefined
+        }
         onSave={save}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
@@ -123,7 +162,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
 
       <div className="process-bpmn-body">
         <div className="process-bpmn-canvas" ref={containerRef}>
-          {selectedElement && !isPropertiesOpen && (
+          {selectedElement && !isPropertiesOpen && !isEvidenceOpen && (
             <BpmnNodeInspector
               element={selectedElement}
               onNameChange={updateSelectedNodeName}
@@ -162,7 +201,15 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
-
+        {processId && isEvidenceOpen && (
+          <EvidenceReviewPanel
+            processId={processId}
+            bpmnModelId={bpmnModelId}
+            hasUnsavedChanges={hasUnsavedChanges}
+            onLocate={focusSourceRef}
+            onClose={() => setIsEvidenceOpen(false)}
+          />
+        )}
       </div>
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
         <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); menuButtonRef.current?.focus(); }} className="flex max-h-[85dvh] flex-col overflow-hidden border-border sm:max-w-xl">

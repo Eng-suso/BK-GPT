@@ -310,9 +310,14 @@ class PlanDiff:
         return ", ".join(parts)
 
 
+OrderedSequencePolicy = Literal["replace", "append"]
+
+
 def merge_process_understanding(
     base: ProcessUnderstanding | dict | None,
     incoming: ProcessUnderstanding | dict,
+    *,
+    ordered_sequences: OrderedSequencePolicy = "replace",
 ) -> tuple[ProcessUnderstanding, PlanDiff]:
     """Il piano corrente piu' cio' che arriva, senza perdere cio' che c'era.
 
@@ -325,6 +330,13 @@ def merge_process_understanding(
     Args:
         base: Il piano gia' persistito, o `None` se non ce n'e' uno.
         incoming: Il piano proposto, anche parziale.
+        ordered_sequences: Cosa fare di `sequence` e `main_success_path`.
+            `replace` e' la regola dell'emendamento: chi dichiara un percorso lo
+            sta riordinando, e chi tace lo lascia com'era. `append` serve quando
+            i due piani sono due **letture parziali dello stesso processo** - una
+            estrazione per intervista - e nessuna delle due descrive il percorso
+            intero: li' sostituire significherebbe tenere solo il pezzo di chi ha
+            parlato per ultimo.
 
     Returns:
         Il piano fuso e il diff di cio' che e' cambiato.
@@ -360,7 +372,11 @@ def merge_process_understanding(
             merged[key] = _merge_topology(base_data.get(key), value)
             continue
         if key in _ORDERED_SEQUENCES:
-            merged[key] = _merge_scalar(base_data.get(key), value)
+            merged[key] = (
+                _merge_string_list(base_data.get(key) or [], value or [])
+                if ordered_sequences == "append" and isinstance(value, list)
+                else _merge_scalar(base_data.get(key), value)
+            )
             continue
         if key in _LIST_KEYS and isinstance(value, list):
             fused, new_entries, changed = _merge_keyed_list(

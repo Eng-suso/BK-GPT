@@ -1,7 +1,10 @@
 import json
+import logging
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Literal
 
+from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import func, select
 
 from backend.agents.chat_mode import assert_write_allowed
@@ -33,6 +36,7 @@ from backend.workspace_storage import (
     WorkspaceBpmnVersion,
     WorkspaceClient,
     WorkspaceDecision,
+    WorkspacePlanMaterialization,
     WorkspaceProcess,
     WorkspaceProject,
     WorkspaceSimulationRun,
@@ -41,6 +45,8 @@ from backend.workspace_storage import (
     workspace_connection,
 )
 
+
+logger = logging.getLogger(__name__)
 
 def encode_list(values: list[str]) -> str:
     return json.dumps(values, ensure_ascii=False)
@@ -1352,6 +1358,7 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
         "evidence_source_set_id": getattr(review, "evidence_source_set_id", None),
         "open_questions": open_questions_with_answers(review),
         "answers": decode_answers(review),
+        "element_decisions": decode_element_decisions(review),
         "status": getattr(review, "status", "pending"),
         "created_at": review.created_at,
         "updated_at": review.updated_at,
@@ -1848,6 +1855,15 @@ def create_project_source(
         )
         session.add(source)
         session.flush()
+        # La conoscenza del processo e' cambiata: il piano che descrive il
+        # processo senza questa fonte e' da rifare. Va in coda qui, nella stessa
+        # transazione della fonte, invece di essere ricostruito quando qualcuno
+        # chiede di disegnare - che e' il momento in cui nessuno puo' aspettare.
+        enqueue_plan_materialization(
+            process_id,
+            reason=f"fonte registrata: {source.name}",
+            session=session,
+        )
         return source_to_dict(source)
 
 
@@ -1913,6 +1929,345 @@ def ensure_project_source(
         ),
         True,
     )
+
+
+ELEMENT_DECISIONS = frozenset({"confirmed", "rejected"})
+
+
+class _ElementDecisionRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    decision: Literal["confirmed", "rejected"]
+    label: str = ""
+    note: str = ""
+    decided_at: str = ""
+    plan_version: int = 0
+
+
+def decode_element_decisions(review: WorkspaceBpmnReview) -> dict[str, dict]:
+    """Le decisioni del consulente sugli elementi del piano, per riferimento.
+
+    Ogni voce si valida da sola. Una voce rovinata si scarta e si scrive nei log;
+    un intero documento illeggibile si scarta allo stesso modo. Non si solleva:
+    una colonna rovinata renderebbe illeggibile l'intero processo, e il danno di
+    perdere una conferma e' molto piu' piccolo - si riconferma, e il segno sul
+    disegno torna "da confermare", che e' la parte prudente dell'errore.
+    """
+    raw = getattr(review, "element_decisions_json", None) or "{}"
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning(
+            "decisioni sugli elementi illeggibili per il modello %s: scartate",
+            getattr(review, "bpmn_model_id", "?"),
+        )
+        return {}
+    if not isinstance(parsed, dict):
+        logger.warning(
+            "decisioni sugli elementi non in forma di mappa per il modello %s: scartate",
+            getattr(review, "bpmn_model_id", "?"),
+        )
+        return {}
+    decisions: dict[str, dict] = {}
+    for source_ref, value in parsed.items():
+        try:
+            decisions[str(source_ref)] = _ElementDecisionRecord.model_validate(value).model_dump()
+        except ValidationError:
+            logger.warning(
+                "decisione non valida su %s per il modello %s: scartata",
+                source_ref,
+                getattr(review, "bpmn_model_id", "?"),
+            )
+    return decisions
+
+
+def record_element_decision(
+    bpmn_model_id: str,
+    *,
+    source_ref: str,
+    label: str,
+    decision: str,
+    note: str = "",
+) -> dict[str, dict]:
+    """Registra che il consulente ha confermato o rifiutato un elemento del piano.
+
+    Non passa da `assert_write_allowed`: e' una revisione umana fatta dal
+    pannello delle evidenze, fuori da qualunque turno di chat, come l'approvazione
+    di una review.
+
+    Args:
+        bpmn_model_id: Il modello a cui la review appartiene.
+        source_ref: Il riferimento di tracciabilita' dell'elemento.
+        label: L'etichetta dell'elemento al momento della decisione. Si tiene
+            perche' un piano ricostruito puo' riusare lo stesso id per un
+            passaggio diverso, e chi rilegge la decisione deve poterlo vedere.
+        decision: `confirmed` o `rejected`.
+        note: Perche', se il consulente lo scrive.
+
+    Returns:
+        Tutte le decisioni della review, dopo la scrittura.
+
+    Raises:
+        ValueError: Se la decisione non e' ammessa o la review non esiste.
+    """
+    if decision not in ELEMENT_DECISIONS:
+        raise ValueError(f"Decisione non ammessa: {decision}")
+    if not str(source_ref or "").strip():
+        raise ValueError("Riferimento dell'elemento obbligatorio.")
+
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None:
+            raise ValueError(f"Review BPMN non trovata: {bpmn_model_id}")
+        decisions = decode_element_decisions(review)
+        decisions[source_ref] = {
+            "decision": decision,
+            "label": label,
+            "note": note.strip(),
+            "decided_at": now_iso(),
+            "plan_version": int(getattr(review, "version", 1) or 1),
+        }
+        review.element_decisions_json = json.dumps(decisions, ensure_ascii=False)
+        review.updated_at = now_iso()
+        session.flush()
+        return decisions
+
+
+MATERIALIZATION_MAX_ATTEMPTS = 5
+MATERIALIZATION_BACKOFF_SECONDS = 30
+# Per quanto una riga presa in carico resta invisibile agli altri worker. Non e'
+# uno stato `running` - un lease che nessuno rilascia e' il modo in cui una coda
+# si blocca in silenzio - ma una scadenza: se chi l'ha presa muore, la riga torna
+# eleggibile da sola.
+MATERIALIZATION_LEASE_SECONDS = 300
+
+
+def _materialization_to_dict(row: WorkspacePlanMaterialization) -> dict:
+    return {
+        "id": row.id,
+        "tenant_id": row.tenant_id,
+        "process_id": row.process_id,
+        "status": row.status,
+        "requested_at": row.requested_at,
+        "reason": row.reason,
+        "attempts": row.attempts,
+        "next_attempt_at": row.next_attempt_at,
+        "last_error": row.last_error,
+        "completed_at": row.completed_at,
+        "last_action": row.last_action,
+        "plan_version": row.plan_version,
+    }
+
+
+def enqueue_plan_materialization(
+    process_id: str | None,
+    *,
+    reason: str = "",
+    session=None,
+) -> dict | None:
+    """Segna che il piano di questo processo va ricostruito.
+
+    Non e' una scrittura sul processo: e' la registrazione di un lavoro da fare,
+    e per questo non passa da `assert_write_allowed`. Salvare un'intervista e'
+    permesso in ogni modalita' di chat, e una modalita' che permette di
+    raccogliere evidenza ma non di prenderne nota lascerebbe il piano indietro
+    senza che nessuno lo sappia.
+
+    Una riga per processo. Se ce n'e' gia' una in attesa, `requested_at` si
+    sposta in avanti e i tentativi ripartono: una fonte nuova rende di nuovo
+    utile un lavoro che aveva fallito.
+
+    Args:
+        process_id: Il processo la cui evidenza e' cambiata; `None` non fa nulla
+            (una fonte di progetto non appartiene a nessun processo).
+        reason: Perche', per chi legge la coda.
+        session: La sessione della scrittura che ha cambiato l'evidenza, quando
+            c'e'. Passarla tiene coda e fonte nella stessa transazione: se il
+            salvataggio della fonte torna indietro, la richiesta di
+            ricostruzione torna indietro con lui.
+
+    Returns:
+        La riga di coda, o `None` se non c'era niente da mettere in coda.
+    """
+    if not process_id:
+        return None
+
+    def _upsert(active_session) -> dict:
+        now = now_iso()
+        current_tenant_id = tenant_id()
+        row = (
+            active_session.execute(
+                select(WorkspacePlanMaterialization)
+                .where(WorkspacePlanMaterialization.tenant_id == current_tenant_id)
+                .where(WorkspacePlanMaterialization.process_id == process_id)
+            )
+            .scalars()
+            .first()
+        )
+        if row is None:
+            row = WorkspacePlanMaterialization(
+                tenant_id=current_tenant_id,
+                process_id=process_id,
+                status="pending",
+                requested_at=now,
+                reason=reason,
+                attempts=0,
+                next_attempt_at=now,
+            )
+            active_session.add(row)
+        else:
+            row.status = "pending"
+            row.requested_at = now
+            row.reason = reason or row.reason
+            row.attempts = 0
+            row.next_attempt_at = now
+            row.last_error = None
+            row.completed_at = None
+        active_session.flush()
+        return _materialization_to_dict(row)
+
+    if session is not None:
+        return _upsert(session)
+
+    with workspace_connection() as owned_session:
+        return _upsert(owned_session)
+
+
+def due_plan_materializations(limit: int = 5) -> list[dict]:
+    """Prende in carico le richieste pronte, di tutti i tenant.
+
+    Il worker gira fuori da una richiesta HTTP e quindi fuori da un tenant: la
+    riga porta il proprio, e chi la lavora lo vincola prima di toccare il
+    processo. Le piu' vecchie per prime, cosi' una richiesta non resta indietro
+    perche' un altro processo continua a ricevere fonti.
+
+    Non e' una lettura: le righe vengono prese in carico (`FOR UPDATE SKIP
+    LOCKED` + scadenza spostata in avanti). Due worker - due istanze dell'app,
+    o un worker separato accanto all'app - altrimenti sintetizzerebbero lo stesso
+    piano due volte, e il processo si troverebbe due versioni nate dallo stesso
+    evento.
+
+    Side effects:
+        Sposta `next_attempt_at` di ogni riga presa in carico.
+    """
+    now = now_iso()
+    lease_until = (
+        datetime.now(UTC) + timedelta(seconds=MATERIALIZATION_LEASE_SECONDS)
+    ).isoformat(timespec="seconds")
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspacePlanMaterialization)
+                .where(WorkspacePlanMaterialization.status == "pending")
+                .where(WorkspacePlanMaterialization.next_attempt_at <= now)
+                .order_by(WorkspacePlanMaterialization.next_attempt_at)
+                .limit(max(1, int(limit)))
+                .with_for_update(skip_locked=True)
+            )
+            .scalars()
+            .all()
+        )
+        claimed = [_materialization_to_dict(row) for row in rows]
+        for row in rows:
+            row.next_attempt_at = lease_until
+        session.flush()
+        return claimed
+
+
+def _owned_materialization(session, materialization_id: int):
+    """La riga di coda, se appartiene al tenant vincolato adesso.
+
+    Il worker lavora righe di tenant diversi e l'id da solo non dice di chi sia:
+    chiudere una riga senza guardare il tenant e' una scrittura fuori confine
+    anche quando l'id viene dalla coda stessa, perche' fa dipendere l'isolamento
+    dall'ordine delle chiamate invece che da un controllo.
+    """
+    row = session.get(WorkspacePlanMaterialization, materialization_id)
+    if row is None or row.tenant_id != tenant_id():
+        return None
+    return row
+
+
+def complete_plan_materialization(
+    materialization_id: int,
+    *,
+    action: str,
+    plan_version: int | None,
+) -> dict | None:
+    """La richiesta e' stata lavorata: cosa ne e' uscito resta scritto."""
+    with workspace_connection() as session:
+        row = _owned_materialization(session, materialization_id)
+        if row is None:
+            return None
+        row.status = "done"
+        row.completed_at = now_iso()
+        row.last_error = None
+        row.last_action = action
+        row.plan_version = plan_version
+        session.flush()
+        return _materialization_to_dict(row)
+
+
+def fail_plan_materialization(
+    materialization_id: int,
+    *,
+    error: str,
+    max_attempts: int = MATERIALIZATION_MAX_ATTEMPTS,
+    backoff_seconds: int = MATERIALIZATION_BACKOFF_SECONDS,
+) -> dict | None:
+    """Un tentativo non riuscito: si riprova piu' tardi, ma non per sempre.
+
+    Un guasto momentaneo - il modello in rate limit, il database occupato - si
+    supera aspettando; un piano che non si riesce a costruire non migliora al
+    quinto tentativo, e tenerlo in coda nasconderebbe che quel processo non ha
+    un piano.
+    """
+    with workspace_connection() as session:
+        row = _owned_materialization(session, materialization_id)
+        if row is None:
+            return None
+        row.attempts += 1
+        row.last_error = str(error)[:2000]
+        if row.attempts >= max_attempts:
+            row.status = "failed"
+            row.completed_at = now_iso()
+        else:
+            delay = backoff_seconds * (2 ** (row.attempts - 1))
+            row.next_attempt_at = (
+                datetime.now(UTC) + timedelta(seconds=delay)
+            ).isoformat(timespec="seconds")
+        session.flush()
+        return _materialization_to_dict(row)
+
+
+def plan_materialization_for(process_id: str) -> dict | None:
+    """La richiesta di ricostruzione di questo processo, se c'e'."""
+    with workspace_connection() as session:
+        row = (
+            session.execute(
+                select(WorkspacePlanMaterialization)
+                .where(WorkspacePlanMaterialization.tenant_id == tenant_id())
+                .where(WorkspacePlanMaterialization.process_id == process_id)
+            )
+            .scalars()
+            .first()
+        )
+        return _materialization_to_dict(row) if row else None
+
+
+def plan_materialization_stats() -> dict[str, int]:
+    """Quante richieste sono in attesa e quante hanno smesso di riprovare."""
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspacePlanMaterialization.status, func.count())
+            .group_by(WorkspacePlanMaterialization.status)
+        ).all()
+    counts = {str(status): int(count) for status, count in rows}
+    return {
+        "pending": counts.get("pending", 0),
+        "done": counts.get("done", 0),
+        "stuck": counts.get("failed", 0),
+    }
 
 
 def list_project_decisions(project_id: str) -> list[dict]:

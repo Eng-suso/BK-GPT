@@ -41,7 +41,10 @@ from backend.agents.process_snapshot import (
     plan_ignores_evidence,
 )
 from backend.process_understanding import (
+    ExtractionFailure,
+    ProcessUnderstanding,
     ProcessUnderstandingExtractionError,
+    ProcessUnderstandingResult,
     build_process_understanding,
 )
 from backend.workspace_services.write_verification import (
@@ -77,6 +80,10 @@ class PlanSynthesis:
     snapshot: ProcessKnowledgeSnapshot | None
     reason: str = ""
     blockers: list[str] = field(default_factory=list)
+    # Quante chiamate al modello e' costata questa sintesi. Serve a chi misura
+    # il percorso critico: un piano riusato ne costa zero, uno ricostruito ne
+    # costa una per fonte piu' il giudizio di qualita'.
+    llm_calls: int = 0
 
     @property
     def has_plan(self) -> bool:
@@ -89,6 +96,7 @@ class PlanSynthesis:
             "snapshot_id": self.snapshot.snapshot_id if self.snapshot else None,
             "snapshot_label": self.snapshot.label if self.snapshot else None,
             "has_plan": self.has_plan,
+            "llm_calls": self.llm_calls,
         }
 
 
@@ -106,6 +114,14 @@ def plan_is_built_on(review: dict | None, source_set_id: str) -> bool:
     return bool(recorded) and str(recorded) == str(source_set_id)
 
 
+# Quanto testo entra nel corpus della review. Piu' largo del budget di un prompt
+# di routing e piu' stretto del testo che l'estrazione legge: qui il testo serve
+# a giudicare l'ancoraggio delle domande e a far valutare la qualita' del piano,
+# e ogni carattere in piu' entra in quei due prompt.
+CORPUS_SOURCE_CHAR_LIMIT = 24_000
+CORPUS_TOTAL_CHAR_LIMIT = 80_000
+
+
 def evidence_corpus(ledger_snapshot: dict) -> str:
     """Il materiale su cui il piano viene costruito, voce per voce.
 
@@ -120,7 +136,19 @@ def evidence_corpus(ledger_snapshot: dict) -> str:
 
     sections = [
         "FONTI AGLI ATTI (autoritative: ogni voce resta separata dalle altre)",
-        render_source_evidence(ledger_snapshot, include_content=True),
+        render_source_evidence(
+            ledger_snapshot,
+            include_content=True,
+            # Piu' largo del budget di un prompt di routing: questo testo diventa
+            # il `source_text` della review, ed e' il vocabolario contro cui si
+            # giudica se una domanda del piano e' ancorata a una lacuna reale.
+            # Quando e' tagliato stretto, una domanda legittima su cio' che la
+            # fonte diceva a pagina tre viene scartata come "non ancorata".
+            # L'estrazione non passa piu' di qui: quella legge le fonti intere,
+            # una per volta.
+            source_limit=CORPUS_SOURCE_CHAR_LIMIT,
+            total_limit=CORPUS_TOTAL_CHAR_LIMIT,
+        ),
     ]
 
     entries = provenance.build_ledger(ledger_snapshot.get("claims") or [])
@@ -138,6 +166,152 @@ def evidence_corpus(ledger_snapshot: dict) -> str:
         ]
 
     return "\n".join(sections)
+
+
+# Quanto testo di UNA fonte entra nella sua estrazione. Il limite del confine
+# (12k per fonte, 30k in tutto) serve a far stare piu' fonti in un prompt solo:
+# qui la fonte e' una, e tagliarla a un quarto significa costruire il piano sul
+# primo quarto dell'intervista. Un'ora di trascrizione sta sotto questa soglia.
+SOURCE_EXTRACTION_CHAR_LIMIT = 120_000
+
+# Quante estrazioni contemporanee. Sono chiamate di rete: aspettarle in fila
+# moltiplica per il numero di fonti il tempo di una ricostruzione, e quel tempo
+# e' quello che separa «il piano c'e' gia'» da «il piano si sta ancora facendo».
+MAX_PARALLEL_EXTRACTIONS = 4
+
+
+def _source_notes(source: dict, process_name: str) -> str:
+    """Il testo di una fonte come lo legge l'estrattore: una voce sola.
+
+    Le fonti restano separate perche' e' la separazione a portare
+    l'informazione: cio' che descrive il reparto di Paolo non e' la regola
+    generale, e fondere tre trascrizioni in un blocco unico e' il modo piu'
+    diretto per farlo diventare tale.
+    """
+    participants = ", ".join(str(item) for item in source.get("participants") or [])
+    full_text = str(source.get("content") or "").strip()
+    content = full_text[:SOURCE_EXTRACTION_CHAR_LIMIT]
+    header = [
+        f"Processo: {process_name}",
+        f"Fonte: {source.get('name') or source.get('id') or 'senza nome'}",
+        f"Tipo: {source.get('type') or 'fonte'}",
+    ]
+    if participants:
+        header.append(f"Voci in questa fonte: {participants}")
+    summary = str(source.get("summary") or "").strip()
+    if summary:
+        header.append(f"Sintesi dichiarata: {summary}")
+    header.append(
+        "Estrai solo cio' che questa fonte dice. Cio' che non dice non e' una "
+        "lacuna del processo: e' una cosa che questa voce non copre."
+    )
+    # Un taglio si dichiara sempre, anche quando e' improbabile: un testo che
+    # finisce senza preavviso fa concludere che il processo finisce li'.
+    tail = (
+        ["", "(testo troncato: la fonte continua oltre questo punto)"]
+        if len(content) < len(full_text)
+        else []
+    )
+    return "\n".join([*header, "", content, *tail])
+
+
+@dataclass(frozen=True)
+class CorpusExtraction:
+    """Il piano ricavato dalle fonti, e quanto e' costato ricavarlo."""
+
+    process: ProcessUnderstanding | None
+    llm_calls: int
+    sources_read: int
+    failures: list[str] = field(default_factory=list)
+
+
+def extract_plan_from_sources(process_name: str, sources: list[dict]) -> CorpusExtraction:
+    """Una estrazione per fonte, a testo intero, poi un merge deterministico.
+
+    L'estrazione unica leggeva un corpus tagliato a 12k caratteri per fonte e 30k
+    in tutto: con tre interviste vere il piano nasceva da circa il primo terzo di
+    ognuna, e i passaggi raccontati a meta' colloquio non arrivavano al disegno.
+    Nessun prompt puo' recuperare un testo che non ha letto.
+
+    Qui ogni fonte viene letta intera e da sola, e i piani parziali si fondono
+    con la stessa regola deterministica che governa gli emendamenti del piano
+    (`merge_process_understanding`): niente LLM nel merge, identita' stabile per
+    le liste, e cio' che una fonte non ripete non viene cancellato.
+
+    L'ordine del merge e' quello delle fonti nel registro - stabile, per nome -
+    quindi due ricostruzioni sulle stesse fonti danno lo stesso piano.
+
+    Args:
+        process_name: Il nome del processo, per l'estrattore.
+        sources: Le fonti del registro, con il loro testo.
+
+    Returns:
+        Il piano fuso (o `None` se nessuna fonte ha prodotto niente), il numero
+        di chiamate al modello spese e i guasti per fonte.
+
+    Side effects:
+        Chiama il modello, una volta per fonte, in parallelo.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from backend.agents.process_plan import merge_process_understanding
+
+    readable = [source for source in sources if str(source.get("content") or "").strip()]
+    if not readable:
+        return CorpusExtraction(process=None, llm_calls=0, sources_read=0)
+
+    def _extract(source: dict) -> ProcessUnderstandingResult:
+        try:
+            return build_process_understanding(
+                process_name,
+                _source_notes(source, process_name),
+                # Il giudizio di qualita' si da' sul piano intero, non su ogni
+                # pezzo: chiederlo per fonte moltiplicherebbe le chiamate per
+                # giudicare frammenti che nessuno usera' da soli.
+                with_quality_report=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            # Una fonte che esplode e' una fonte persa, non l'estrazione persa.
+            # Senza questo, un'eccezione non classificata dentro `pool.map`
+            # risalirebbe e porterebbe via anche le fonti gia' estratte.
+            return ProcessUnderstandingResult(
+                status="failed",
+                failure=ExtractionFailure(
+                    kind="provider_error",
+                    message=f"{type(exc).__name__}: {exc}",
+                    retryable=True,
+                    attempt=1,
+                ),
+            )
+
+    workers = max(1, min(MAX_PARALLEL_EXTRACTIONS, len(readable)))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="plan-extract") as pool:
+        # `map` conserva l'ordine dell'input: il merge resta deterministico anche
+        # se le chiamate finiscono in ordine diverso.
+        results = list(pool.map(_extract, readable))
+
+    merged = None
+    failures: list[str] = []
+    for source, result in zip(readable, results):
+        name = str(source.get("name") or source.get("id") or "fonte senza nome")
+        if result.status != "success" or result.process is None:
+            reason = result.failure.message if result.failure else "estrazione non riuscita"
+            failures.append(f"{name}: {reason}")
+            continue
+        # `append` e non `replace`: ogni intervista descrive il pezzo di processo
+        # che ha visto, e nessuna descrive il percorso intero. Sostituire il
+        # percorso a ogni fonte lascerebbe nel piano solo i passaggi dell'ultima
+        # voce letta - che e' un ordine arbitrario, non un processo.
+        merged, _diff = merge_process_understanding(
+            merged, result.process, ordered_sequences="append"
+        )
+
+    return CorpusExtraction(
+        process=merged,
+        llm_calls=len(readable),
+        sources_read=len(readable),
+        failures=failures,
+    )
 
 
 def synthesize_process_plan(process_id: str) -> PlanSynthesis:
@@ -183,17 +357,58 @@ def synthesize_process_plan(process_id: str) -> PlanSynthesis:
         )
 
     corpus = evidence_corpus(ledger)
-    result = build_process_understanding(process["name"], corpus)
-    if result.status != "success" or result.process is None:
-        failure = result.failure
-        reason = failure.message if failure else "Estrazione del piano non riuscita."
+    # Una estrazione per fonte, a testo intero. Il corpus resta il testo della
+    # review - e' il materiale contro cui si giudica se una domanda del piano e'
+    # ancorata all'evidenza - ma non e' piu' cio' su cui si estrae: li' le fonti
+    # sono tagliate per stare tutte in un prompt solo.
+    extraction = extract_plan_from_sources(process["name"], ledger.get("sources") or [])
+    llm_calls = extraction.llm_calls
+    understanding = extraction.process
+
+    if understanding is None and extraction.sources_read:
+        # Le fonti c'erano e nessuna estrazione ha prodotto un piano: e' un
+        # guasto - rate limit, provider giu' - e ritentare qui su un corpus
+        # tagliato spenderebbe un'altra chiamata per fallire di nuovo. La coda
+        # di materializzazione riprova piu' tardi, con il suo backoff.
+        reason = "; ".join(extraction.failures) or "Estrazione del piano non riuscita."
         logger.warning("sintesi piano fallita per il processo %s: %s", process_id, reason)
         return PlanSynthesis(
             action="synthesis_failed",
             snapshot=build_process_snapshot(process_id),
             reason=reason,
-            blockers=[reason],
+            blockers=list(extraction.failures) or [reason],
+            llm_calls=llm_calls,
         )
+
+    if understanding is None:
+        # Nessuna fonte con un testo leggibile: restano nomi, sintesi e claim
+        # proiettati, e su quelli si estrae una volta sola. E' il caso di un
+        # processo le cui interviste non hanno trascrizione, non un guasto.
+        result = build_process_understanding(process["name"], corpus)
+        llm_calls += 2  # estrazione + quality report dell'estrattore
+        if result.status != "success" or result.process is None:
+            failure = result.failure
+            reason = failure.message if failure else "Estrazione del piano non riuscita."
+            logger.warning("sintesi piano fallita per il processo %s: %s", process_id, reason)
+            return PlanSynthesis(
+                action="synthesis_failed",
+                snapshot=build_process_snapshot(process_id),
+                reason=reason,
+                blockers=[reason],
+                llm_calls=llm_calls,
+            )
+        understanding = result.process
+    elif extraction.failures:
+        # Una fonte non letta non annulla le altre, ma non sparisce nemmeno: il
+        # piano nasce su meno evidenza di quella agli atti, e chi legge deve
+        # saperlo.
+        logger.warning(
+            "estrazione parziale per il processo %s: %s",
+            process_id,
+            "; ".join(extraction.failures),
+        )
+
+    result = ProcessUnderstandingResult(status="success", process=understanding)
 
     # La regola del confine vale anche per la sintesi: un piano senza attori,
     # partecipanti ne' attivita' su un processo che ha fonti agli atti non e'
@@ -208,6 +423,7 @@ def synthesize_process_plan(process_id: str) -> PlanSynthesis:
             snapshot=build_process_snapshot(process_id),
             reason=ignored,
             blockers=[ignored],
+            llm_calls=llm_calls,
         )
 
     previous = workspace_database.get_bpmn_review(
@@ -239,16 +455,27 @@ def synthesize_process_plan(process_id: str) -> PlanSynthesis:
             snapshot=build_process_snapshot(process_id),
             reason=str(exc),
             blockers=[str(exc)],
+            llm_calls=llm_calls,
         )
 
+    # Il giudizio di qualita' lo da' `prepare_bpmn_review` sul piano intero, una
+    # volta sola: e' la chiamata che l'estrazione per fonte non fa piu' su ogni
+    # pezzo.
+    llm_calls += 1
     snapshot = build_process_snapshot(process_id)
+    read_note = (
+        f" Non tutte le fonti sono state lette: {'; '.join(extraction.failures)}."
+        if extraction.failures
+        else ""
+    )
     return PlanSynthesis(
         action="synthesized",
         snapshot=snapshot,
         reason=(
             f"Piano costruito su {len(ledger.get('sources') or [])} fonti "
-            f"(set {ledger.get('source_set_id')})."
+            f"(set {ledger.get('source_set_id')})." + read_note
         ),
+        llm_calls=llm_calls,
     )
 
 

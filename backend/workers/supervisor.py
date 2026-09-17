@@ -26,10 +26,14 @@ logger = logging.getLogger(__name__)
 _STATS_EVERY_SECONDS = 120.0
 _PRUNE_EVERY_SECONDS = 3600.0
 
-# Executor dedicato: le passate di drain fanno I/O bloccante (Postgres + Neo4j)
-# e non devono competere con il threadpool di default che serve le route sync
-# di FastAPI. Due worker = due loop, uno alla volta ciascuno.
-_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="queue-worker")
+# Executor dedicato: le passate di drain fanno I/O bloccante (Postgres, Neo4j,
+# e per il piano anche chiamate al modello) e non devono competere con il
+# threadpool di default che serve le route sync di FastAPI. Un posto per loop:
+# con meno posti che loop, una passata lenta - la sintesi di un piano dura
+# quanto dura un LLM - terrebbe fermi gli altri worker senza che nessuno lo
+# veda, e il sintomo sarebbe una coda che non avanza.
+_LOOPS = 4
+_EXECUTOR = ThreadPoolExecutor(max_workers=_LOOPS, thread_name_prefix="queue-worker")
 
 _T = TypeVar("_T")
 
@@ -88,13 +92,34 @@ async def run_queue_workers() -> None:
     if not settings.workers_in_process:
         logger.info("worker in-process disattivati (workers_in_process=False)")
         return
+
+    from backend.workers import plan_worker
+
+    # Il piano vive nel workspace operativo, non nel canonical: la sua coda deve
+    # girare anche dove il knowledge graph non e' configurato. Metterla insieme
+    # agli altri worker significherebbe che senza Neo4j il piano smette di essere
+    # materializzato e «Genera BPMN» torna a sintetizzarlo davanti all'utente.
+    plan_task = asyncio.create_task(
+        _drain_loop(
+            "plan_worker", plan_worker.drain_once, plan_worker.queue_stats, 5.0,
+        ),
+        name="plan_worker",
+    )
+
     if not settings.canonical_worker_url:
-        logger.info("canonical non configurato: worker in-process non avviati")
+        logger.info("canonical non configurato: avviato il solo plan_worker")
+        try:
+            await plan_task
+        except asyncio.CancelledError:
+            plan_task.cancel()
+            await asyncio.gather(plan_task, return_exceptions=True)
+            raise
         return
 
     from backend.workers import graph_worker, ingest_worker, mem0_worker
 
     tasks = [
+        plan_task,
         asyncio.create_task(
             _drain_loop(
                 "ingest_worker", ingest_worker.drain_once, ingest_worker.queue_stats,
@@ -117,7 +142,7 @@ async def run_queue_workers() -> None:
             name="mem0_worker",
         ),
     ]
-    logger.info("worker in-process avviati (ingest + graph + mem0)")
+    logger.info("worker in-process avviati (plan + ingest + graph + mem0)")
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:

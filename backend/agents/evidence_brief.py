@@ -115,7 +115,13 @@ def render_ledger_lines(
     return "\n".join(lines)
 
 
-def render_source_evidence(snapshot: dict, *, include_content: bool = True) -> str:
+def render_source_evidence(
+    snapshot: dict,
+    *,
+    include_content: bool = True,
+    source_limit: int = SOURCE_CONTENT_LIMIT,
+    total_limit: int = SOURCE_SET_CONTENT_LIMIT,
+) -> str:
     """Il source set del processo, una fonte alla volta e senza fonderle.
 
     Il testo di ogni intervista sta dentro i suoi delimitatori con il nome di
@@ -144,7 +150,7 @@ def render_source_evidence(snapshot: dict, *, include_content: bool = True) -> s
         f"Source set autoritativo: {len(sources)} fonti "
         f"(id: {snapshot.get('source_set_id') or 'non disponibile'})."
     ]
-    remaining = SOURCE_SET_CONTENT_LIMIT
+    remaining = total_limit
     for source in sources:
         name = str(source.get("name") or source.get("id") or "Fonte senza nome").strip()
         source_id = str(source.get("id") or "").strip()
@@ -159,10 +165,24 @@ def render_source_evidence(snapshot: dict, *, include_content: bool = True) -> s
             lines.append(f"Sintesi dichiarata: {summary}")
         content = str(source.get("content") or "").strip()
         if include_content and content and remaining > 0:
-            excerpt = content[: min(SOURCE_CONTENT_LIMIT, remaining)]
+            excerpt = content[: min(source_limit, remaining)]
             lines.append("Testo della fonte (mantieni questa attribuzione):")
             lines.append(excerpt)
+            if len(excerpt) < len(content):
+                # Il taglio si dichiara. Senza questa riga chi legge conclude che
+                # l'intervista finisce dove finisce l'estratto, e un processo
+                # descritto per tre quarti diventa un processo che finisce a
+                # meta' - con l'aria di essere completo.
+                lines.append("(testo troncato: la fonte continua oltre questo punto)")
             remaining -= len(excerpt)
+        elif include_content and content:
+            # Budget esaurito su questo turno: la fonte ha un testo che non e'
+            # entrato. Dirlo "non disponibile" la confonde con un transcript che
+            # non c'e', e sono due cose che portano a due azioni diverse.
+            lines.append(
+                "(testo non riportato: budget di estratti esaurito in questo turno, "
+                "la fonte ha contenuto)"
+            )
         elif include_content:
             lines.append("Testo integrale non disponibile; non inventare dettagli.")
         lines.append(f"[/FONTE {source_id}]")

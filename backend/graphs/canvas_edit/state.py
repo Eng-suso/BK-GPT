@@ -1,5 +1,5 @@
 from operator import add
-from typing import Annotated
+from typing import Annotated, Literal
 
 from backend.graphs.common import ConversationState
 from backend.bpmn import BPMNSemanticModel
@@ -51,7 +51,7 @@ class CanvasState(ConversationState):
     # l'etichetta: e' che nessuna scrittura viene dichiarata senza rilettura,
     # quindi un run interrotto a meta' non lascia dietro un canvas che al giro
     # dopo si legge come riuscito.
-    canvas_run_status: str | None
+    canvas_run_status: Literal["done", "waiting_for_user", "failed"] | None
     canvas_pending_question: dict | None
 
     canvas_route: str | None
@@ -62,6 +62,16 @@ class CanvasState(ConversationState):
     canvas_mode: str | None
     canvas_objective: str | None
     canvas_expected_outcome: str | None
+    # Decide se la costruzione passa dal comando deterministico o da un
+    # subagente. I valori sono quelli che il router puo' dichiarare, e sono
+    # chiusi: una route che qui diventasse una stringa libera riaprirebbe la
+    # catena lenta per un refuso.
+    canvas_construction_kind: Literal[
+        "full_from_plan", "partial_change", "from_user_description"
+    ] | None
+    # Le durate di fase dell'ultima generazione deterministica, per capire dove
+    # e' stato speso il tempo senza dover leggere i log.
+    canvas_draft_metrics: dict | None
     goal: str | None
     intent: str | None
     next_action: str | None

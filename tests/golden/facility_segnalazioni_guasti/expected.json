@@ -1,0 +1,314 @@
+{
+  "case_id": "facility_segnalazioni_guasti",
+  "status": "draft_da_validare",
+  "process_name": "Gestione segnalazioni tecniche e guasti impianti sede",
+  "notes": "Caso speculare a esaote_ciclo_passivo: qui la soglia di 5.000 euro e l'approvazione della Direzione sono dette da tre voci, quindi non sono vietate. La manutenzione preventiva e' esplicitamente fuori dal processo. L'urgenza (guasto che blocca un'attivita' critica) e' modellata come esito della valutazione di gravita' perche' il compilatore ha un solo evento di inizio: da far validare. L'intervento del fornitore non ha corsia: e' lavoro di un partecipante esterno, che in BPMN va in un pool esterno o in un message flow. Dopo la chiamata urgente e il modulo aperto in giornata, l'intervento del fornitore si chiude come gli altri: Laura verifica e chiude ogni segnalazione.",
+  "sources": [
+    "b1_laura_conti_facility.md",
+    "b2_marco_gallo_tecnico_sede.md",
+    "b3_chiara_verdi_direzione.md"
+  ],
+  "lanes": [
+    {
+      "id": "segnalante",
+      "aliases": [
+        "segnalante",
+        "richiedente",
+        "chi rileva"
+      ]
+    },
+    {
+      "id": "facility",
+      "aliases": [
+        "facility manager",
+        "facility"
+      ]
+    },
+    {
+      "id": "tecnico",
+      "aliases": [
+        "tecnico di sede",
+        "tecnico sede",
+        "tecnico"
+      ]
+    },
+    {
+      "id": "direzione",
+      "aliases": [
+        "direzione"
+      ]
+    }
+  ],
+  "activities": [
+    {
+      "id": "compila_modulo",
+      "lane": "segnalante",
+      "aliases": [
+        "compila modulo standard",
+        "apri segnalazione",
+        "compila modulo segnalazione"
+      ]
+    },
+    {
+      "id": "verifica_gravita",
+      "lane": "facility",
+      "aliases": [
+        "verifica gravita",
+        "valuta gravita segnalazione",
+        "valuta segnalazione"
+      ]
+    },
+    {
+      "id": "assegna_tecnico",
+      "lane": "facility",
+      "aliases": [
+        "assegna tecnico",
+        "assegna intervento interno",
+        "assegna al tecnico di sede"
+      ]
+    },
+    {
+      "id": "sopralluogo",
+      "lane": "tecnico",
+      "aliases": [
+        "sopralluogo",
+        "verifica sul posto",
+        "prendi in carico intervento"
+      ]
+    },
+    {
+      "id": "esegui_intervento_interno",
+      "lane": "tecnico",
+      "aliases": [
+        "esegui intervento interno",
+        "risolvi guasto",
+        "ripara guasto"
+      ]
+    },
+    {
+      "id": "registra_nota_chiusura",
+      "lane": "tecnico",
+      "aliases": [
+        "nota di chiusura",
+        "registra nota chiusura",
+        "chiudi riga con nota"
+      ]
+    },
+    {
+      "id": "apri_richiesta_fornitore",
+      "lane": "facility",
+      "aliases": [
+        "apri richiesta fornitore",
+        "richiesta intervento ditta esterna",
+        "richiedi intervento fornitore"
+      ]
+    },
+    {
+      "id": "raccogli_due_offerte",
+      "lane": "facility",
+      "aliases": [
+        "raccogli due offerte",
+        "richiedi due offerte",
+        "raccogli offerte"
+      ]
+    },
+    {
+      "id": "approva_intervento",
+      "lane": "direzione",
+      "aliases": [
+        "approva intervento",
+        "valuta in riunione",
+        "approvazione direzione"
+      ]
+    },
+    {
+      "id": "esegui_intervento_fornitore",
+      "lane": "",
+      "aliases": [
+        "esegui intervento fornitore",
+        "intervento ditta esterna",
+        "intervento fornitore"
+      ]
+    },
+    {
+      "id": "verifica_intervento_terminato",
+      "lane": "facility",
+      "aliases": [
+        "verifica intervento terminato",
+        "verifica di persona",
+        "conferma intervento"
+      ]
+    },
+    {
+      "id": "chiudi_segnalazione",
+      "lane": "facility",
+      "aliases": [
+        "chiudi segnalazione",
+        "allega rapporto intervento",
+        "chiusura segnalazione"
+      ]
+    },
+    {
+      "id": "chiama_fornitore_urgente",
+      "lane": "facility",
+      "aliases": [
+        "chiama fornitore",
+        "chiama direttamente fornitore",
+        "contatta fornitore urgenza"
+      ]
+    },
+    {
+      "id": "apri_modulo_in_giornata",
+      "lane": "facility",
+      "aliases": [
+        "apri modulo in giornata",
+        "apri modulo stesso giorno",
+        "registra segnalazione dopo"
+      ]
+    },
+    {
+      "id": "invia_riepilogo_mensile",
+      "lane": "facility",
+      "required": false,
+      "aliases": [
+        "riepilogo mensile",
+        "report mensile direzione"
+      ]
+    }
+  ],
+  "gateways": [
+    {
+      "id": "interno_o_esterno",
+      "aliases": [
+        "interno o esterno",
+        "ditta esterna",
+        "intervento interno"
+      ]
+    },
+    {
+      "id": "sopra_soglia",
+      "aliases": [
+        "soglia",
+        "5000 euro",
+        "cinquemila"
+      ]
+    },
+    {
+      "id": "attivita_critica",
+      "aliases": [
+        "attivita critica",
+        "urgente",
+        "guasto critico"
+      ]
+    }
+  ],
+  "edges": [
+    [
+      "compila_modulo",
+      "verifica_gravita"
+    ],
+    [
+      "verifica_gravita",
+      "assegna_tecnico"
+    ],
+    [
+      "verifica_gravita",
+      "apri_richiesta_fornitore"
+    ],
+    [
+      "verifica_gravita",
+      "chiama_fornitore_urgente"
+    ],
+    [
+      "assegna_tecnico",
+      "sopralluogo"
+    ],
+    [
+      "sopralluogo",
+      "esegui_intervento_interno"
+    ],
+    [
+      "sopralluogo",
+      "apri_richiesta_fornitore"
+    ],
+    [
+      "esegui_intervento_interno",
+      "registra_nota_chiusura"
+    ],
+    [
+      "apri_richiesta_fornitore",
+      "raccogli_due_offerte"
+    ],
+    [
+      "apri_richiesta_fornitore",
+      "esegui_intervento_fornitore"
+    ],
+    [
+      "raccogli_due_offerte",
+      "approva_intervento"
+    ],
+    [
+      "approva_intervento",
+      "esegui_intervento_fornitore"
+    ],
+    [
+      "esegui_intervento_fornitore",
+      "verifica_intervento_terminato"
+    ],
+    [
+      "verifica_intervento_terminato",
+      "chiudi_segnalazione"
+    ],
+    [
+      "chiama_fornitore_urgente",
+      "apri_modulo_in_giornata"
+    ],
+    [
+      "apri_modulo_in_giornata",
+      "esegui_intervento_fornitore"
+    ]
+  ],
+  "forbidden": [
+    {
+      "aliases": [
+        "manutenzione preventiva",
+        "pianifica preventiva"
+      ],
+      "why": "tre voci dicono che la manutenzione preventiva e' fuori da questo processo"
+    },
+    {
+      "aliases": [
+        "criterio sostituzione",
+        "dopo n guasti sostituisci"
+      ],
+      "why": "Chiara dice che non esiste un criterio scritto di sostituzione"
+    },
+    {
+      "aliases": [
+        "controllo duplicati",
+        "verifica doppioni automatica"
+      ],
+      "why": "Marco dice che il modulo non controlla i doppioni"
+    },
+    {
+      "aliases": [
+        "foto obbligatoria",
+        "allega foto"
+      ],
+      "why": "la foto non e' obbligatoria: e' cio' che Marco vorrebbe, non cio' che succede"
+    }
+  ],
+  "open_gaps": [
+    {
+      "question": "Come si decide fra riparare e sostituire un impianto ricorrente?",
+      "closed_by_aliases": [
+        "applica criterio sostituzione",
+        "decidi sostituzione impianto"
+      ],
+      "why": "la decisione e' una discussione senza criterio: disegnarla come regola la inventa"
+    }
+  ],
+  "compiler_known_gaps": [
+    "Decisione dentro un ramo alternativo: il tecnico, dopo il sopralluogo, decide se risolvere o rimandare alla ditta esterna (sopralluogo -> apri_richiesta_fornitore). Il compilatore ancora le decisioni solo ai passaggi del percorso principale."
+  ]
+}

@@ -1,0 +1,231 @@
+{
+  "title": "Gestione segnalazioni tecniche e guasti impianti sede",
+  "actors": [
+    {
+      "id": "segnalante",
+      "label": "Segnalante",
+      "kind": "role"
+    },
+    {
+      "id": "facility",
+      "label": "Facility Manager",
+      "kind": "role"
+    },
+    {
+      "id": "tecnico",
+      "label": "Tecnico di sede",
+      "kind": "role"
+    },
+    {
+      "id": "direzione",
+      "label": "Direzione",
+      "kind": "team"
+    },
+    {
+      "id": "fornitore",
+      "label": "Fornitore abituale",
+      "kind": "external_party"
+    }
+  ],
+  "steps": [
+    {
+      "id": "compila_modulo",
+      "label": "Compila modulo standard di segnalazione",
+      "actor_ids": [
+        "segnalante"
+      ]
+    },
+    {
+      "id": "verifica_gravita",
+      "label": "Verifica gravita' della segnalazione",
+      "actor_ids": [
+        "facility"
+      ]
+    },
+    {
+      "id": "assegna_tecnico",
+      "label": "Assegna al tecnico di sede",
+      "actor_ids": [
+        "facility"
+      ]
+    },
+    {
+      "id": "sopralluogo",
+      "label": "Sopralluogo e verifica sul posto",
+      "actor_ids": [
+        "tecnico"
+      ]
+    },
+    {
+      "id": "esegui_intervento_interno",
+      "label": "Esegui intervento interno",
+      "actor_ids": [
+        "tecnico"
+      ]
+    },
+    {
+      "id": "registra_nota_chiusura",
+      "label": "Registra nota di chiusura",
+      "actor_ids": [
+        "tecnico"
+      ]
+    },
+    {
+      "id": "apri_richiesta_fornitore",
+      "label": "Apri richiesta intervento al fornitore",
+      "actor_ids": [
+        "facility"
+      ]
+    },
+    {
+      "id": "raccogli_due_offerte",
+      "label": "Raccogli due offerte",
+      "actor_ids": [
+        "facility"
+      ]
+    },
+    {
+      "id": "approva_intervento",
+      "label": "Approva intervento in riunione",
+      "actor_ids": [
+        "direzione"
+      ]
+    },
+    {
+      "id": "esegui_intervento_fornitore",
+      "label": "Esegui intervento fornitore",
+      "actor_ids": [
+        "fornitore"
+      ]
+    },
+    {
+      "id": "verifica_intervento_terminato",
+      "label": "Verifica intervento terminato",
+      "actor_ids": [
+        "facility"
+      ]
+    },
+    {
+      "id": "chiudi_segnalazione",
+      "label": "Chiudi segnalazione e allega rapporto intervento",
+      "actor_ids": [
+        "facility"
+      ]
+    },
+    {
+      "id": "chiama_fornitore_urgente",
+      "label": "Chiama direttamente il fornitore",
+      "actor_ids": [
+        "facility"
+      ]
+    },
+    {
+      "id": "apri_modulo_in_giornata",
+      "label": "Apri modulo in giornata",
+      "actor_ids": [
+        "facility"
+      ]
+    }
+  ],
+  "main_success_path": [
+    "compila_modulo",
+    "verifica_gravita",
+    "apri_richiesta_fornitore",
+    "esegui_intervento_fornitore",
+    "verifica_intervento_terminato",
+    "chiudi_segnalazione"
+  ],
+  "decisions": [
+    {
+      "id": "valutazione",
+      "label": "Intervento interno, ditta esterna o attivita' critica?",
+      "outcome_details": [
+        {
+          "id": "val_interno",
+          "label": "Intervento interno",
+          "condition": "Risolvibile dal tecnico di sede",
+          "target_path_id": "percorso_interno"
+        },
+        {
+          "id": "val_critico",
+          "label": "Attivita' critica bloccata",
+          "condition": "Il guasto blocca un'attivita' critica",
+          "target_path_id": "percorso_urgente"
+        },
+        {
+          "id": "val_esterno",
+          "label": "Ditta esterna",
+          "condition": "Serve una ditta esterna",
+          "target_ref": "apri_richiesta_fornitore",
+          "is_default": true
+        }
+      ]
+    },
+    {
+      "id": "soglia",
+      "label": "Sopra la soglia di 5000 euro?",
+      "outcome_details": [
+        {
+          "id": "soglia_si",
+          "label": "Sopra soglia",
+          "condition": "Intervento oltre 5.000 euro",
+          "target_path_id": "percorso_approvazione"
+        },
+        {
+          "id": "soglia_no",
+          "label": "Sotto soglia",
+          "condition": "Intervento fino a 5.000 euro",
+          "target_ref": "esegui_intervento_fornitore",
+          "is_default": true
+        }
+      ]
+    }
+  ],
+  "alternative_paths": [
+    {
+      "id": "percorso_interno",
+      "label": "Intervento interno",
+      "trigger_or_condition": "Risolvibile dal tecnico di sede",
+      "sequence": [
+        "assegna_tecnico",
+        "sopralluogo",
+        "esegui_intervento_interno",
+        "registra_nota_chiusura"
+      ]
+    },
+    {
+      "id": "percorso_urgente",
+      "label": "Guasto che blocca un'attivita' critica",
+      "trigger_or_condition": "Attivita' critica bloccata",
+      "sequence": [
+        "chiama_fornitore_urgente",
+        "apri_modulo_in_giornata"
+      ],
+      "rejoins_at": "esegui_intervento_fornitore"
+    },
+    {
+      "id": "percorso_approvazione",
+      "label": "Approvazione della Direzione",
+      "trigger_or_condition": "Sopra la soglia di 5.000 euro",
+      "sequence": [
+        "raccogli_due_offerte",
+        "approva_intervento"
+      ],
+      "rejoins_at": "esegui_intervento_fornitore"
+    }
+  ],
+  "flow_edges": [
+    {
+      "id": "verifica_to_valutazione",
+      "source_id": "verifica_gravita",
+      "target_id": "valutazione",
+      "label": "Gravita' verificata"
+    },
+    {
+      "id": "richiesta_to_soglia",
+      "source_id": "apri_richiesta_fornitore",
+      "target_id": "soglia",
+      "label": "Richiesta aperta"
+    }
+  ]
+}

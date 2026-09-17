@@ -7,6 +7,16 @@ from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import BaseModel, ValidationError
 
+from backend.graphs.agent_budget import (
+    BUDGET_EXHAUSTED_MESSAGE,
+    EXHAUSTED_KEY,
+    STARTED_AT_KEY,
+    STEPS_KEY,
+    TOOL_CALLS_KEY,
+    AgentBudget,
+    exhausted_reason,
+    run_started_at,
+)
 from backend.memory.procedural.skill_loader import message_content_to_text
 
 logger = logging.getLogger(__name__)
@@ -244,6 +254,13 @@ class ConversationState(MessagesState):
     active_skill_names: list[str]
     skill_selection_reason: str
     active_skill_context: str
+    # Il budget del runtime agentico (vedi `graphs/agent_budget.py`). Vive qui e
+    # non nei singoli stati perche' il tetto vale sul turno: tre subagenti che
+    # contano ognuno i propri passi non sono un limite, sono tre limiti.
+    agent_decision_steps: int
+    agent_tool_calls: int
+    agent_run_started_at: float | None
+    agent_budget_exhausted: str | None
 
 
 def _findings_digest(findings: list[dict]) -> str:
@@ -289,6 +306,38 @@ def build_tool_chat_subgraph(
     """
 
     def agent_node(state, config: RunnableConfig):
+        # Il budget si controlla *prima* di decidere, non dopo: qui i risultati
+        # dei tool del giro precedente sono gia' in `messages`, quindi fermarsi
+        # adesso lascia un transcript coerente. Fermarsi dopo aver emesso una
+        # tool call lascerebbe una chiamata senza risposta nel checkpoint, e il
+        # turno successivo partirebbe da uno storico che il provider rifiuta.
+        budget = AgentBudget.from_settings()
+        started_at = run_started_at(state)
+        exhausted = exhausted_reason({**state, STARTED_AT_KEY: started_at}, budget)
+        if exhausted:
+            logger.warning(
+                "budget del runtime agentico esaurito in %s: %s", agent_node_name, exhausted
+            )
+            # Solo chiavi di `ConversationState`: questo nodo serve anche
+            # sottografi il cui schema non dichiara `termination_reason` o
+            # `blocking_conditions`, e scrivere un canale inesistente farebbe
+            # fallire il turno invece di fermarlo.
+            stop_state = {STARTED_AT_KEY: started_at, EXHAUSTED_KEY: exhausted}
+            if findings_channel:
+                # La passata e' muta verso il consulente: il motivo dello stop
+                # viaggia nel canale delle conclusioni, dove chi scrive la
+                # risposta finale lo legge.
+                return {
+                    **stop_state,
+                    findings_channel: [
+                        {
+                            "owner": specialist or agent_node_name,
+                            "finding": f"Passata interrotta dal runtime. {exhausted}",
+                        }
+                    ],
+                }
+            return {**stop_state, "messages": [AIMessage(content=BUDGET_EXHAUSTED_MESSAGE)]}
+
         messages = build_context_messages(state)
 
         if subgraph_contract:
@@ -307,13 +356,23 @@ def build_tool_chat_subgraph(
 
         response = response or AIMessage(content="")
 
+        spent = {
+            STARTED_AT_KEY: started_at,
+            STEPS_KEY: int(state.get(STEPS_KEY) or 0) + 1,
+            TOOL_CALLS_KEY: int(state.get(TOOL_CALLS_KEY) or 0)
+            + len(getattr(response, "tool_calls", None) or []),
+        }
+
         if findings_channel and not getattr(response, "tool_calls", None):
             finding = message_content_to_text(response.content).strip()
             if not finding:
-                return {}
-            return {findings_channel: [{"owner": specialist or agent_node_name, "finding": finding}]}
+                return spent
+            return {
+                **spent,
+                findings_channel: [{"owner": specialist or agent_node_name, "finding": finding}],
+            }
 
-        return {"messages": [response]}
+        return {**spent, "messages": [response]}
 
     workflow = StateGraph(state_schema)
     workflow.add_node(agent_node_name, agent_node)
