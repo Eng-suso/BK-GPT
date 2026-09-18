@@ -470,3 +470,33 @@ def regressions(
             f"({'; '.join([*current.get('forbidden_hits', []), *current.get('gap_violations', [])][:3])})"
         )
     return found
+
+
+def plan_shape(plan: dict[str, Any]) -> dict[str, Any]:
+    """La forma del piano come la legge un consulente: quanti passaggi, in che ordine.
+
+    Il confronto col riferimento misura il disegno; qui si misura il piano da cui
+    il disegno nasce, perche' i due difetti del merge per fonte - un percorso che
+    comincia dalla fonte letta per prima, e lo stesso passaggio contato due volte -
+    stanno nel piano prima che nel grafo.
+    """
+    from backend.process_understanding import (
+        ProcessUnderstanding,
+        process_understanding_diagnostics,
+    )
+
+    labels = {
+        entry.get("id"): entry.get("label")
+        for name in ("steps", "events", "decisions")
+        for entry in plan.get(name) or []
+    }
+    path = plan.get("main_success_path") or plan.get("sequence") or []
+    diagnostics = process_understanding_diagnostics(ProcessUnderstanding.model_validate(plan))
+    return {
+        "steps": len(plan.get("steps") or []),
+        "main_success_path": [labels.get(item, item) for item in path],
+        "start_event": (plan.get("boundaries") or {}).get("start_event"),
+        "unified_elements": plan.get("unified_elements") or [],
+        "consultant_findings": [item.get("finding") for item in plan.get("consultant_findings") or []],
+        "diagnostics_blocking": diagnostics.blocking,
+    }
