@@ -31,10 +31,17 @@ risintetizzato invece di restare a descrivere un processo di tre fonti fa.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import Literal
 
+from backend.agents.plan_consolidation import (
+    PlanConsolidation,
+    PlanUnifier,
+    consolidate_plan,
+    llm_plan_unifier,
+)
 from backend.agents.process_snapshot import (
     ProcessKnowledgeSnapshot,
     build_process_snapshot,
@@ -82,8 +89,13 @@ class PlanSynthesis:
     blockers: list[str] = field(default_factory=list)
     # Quante chiamate al modello e' costata questa sintesi. Serve a chi misura
     # il percorso critico: un piano riusato ne costa zero, uno ricostruito ne
-    # costa una per fonte piu' il giudizio di qualita'.
+    # costa una per fonte, una per il consolidamento dei doppioni e una per il
+    # giudizio di qualita'.
     llm_calls: int = 0
+    # Cosa il consolidamento ha unito, scartato e ordinato. Serve a chi misura:
+    # i gruppi scartati sono il numero che dice quanto l'agente propone unioni
+    # che non reggono.
+    consolidation: dict = field(default_factory=dict)
 
     @property
     def has_plan(self) -> bool:
@@ -97,6 +109,7 @@ class PlanSynthesis:
             "snapshot_label": self.snapshot.label if self.snapshot else None,
             "has_plan": self.has_plan,
             "llm_calls": self.llm_calls,
+            "consolidation": dict(self.consolidation),
         }
 
 
@@ -255,14 +268,19 @@ class CorpusExtraction:
     llm_calls: int
     sources_read: int
     failures: list[str] = field(default_factory=list)
+    # Cosa e' stato unito, scartato e ordinato dopo il merge. `None` quando non
+    # c'era un piano da consolidare.
+    consolidation: PlanConsolidation | None = None
 
 
 def extract_plan_from_sources(
     process_name: str,
     sources: list[dict],
     reviewer_notes: dict[str, list[str]] | None = None,
+    *,
+    unifier: PlanUnifier | None = None,
 ) -> CorpusExtraction:
-    """Una estrazione per fonte, a testo intero, poi un merge deterministico.
+    """Una estrazione per fonte, a testo intero, poi un merge e un consolidamento.
 
     L'estrazione unica leggeva un corpus tagliato a 12k caratteri per fonte e 30k
     in tutto: con tre interviste vere il piano nasceva da circa il primo terzo di
@@ -274,21 +292,32 @@ def extract_plan_from_sources(
     (`merge_process_understanding`): niente LLM nel merge, identita' stabile per
     le liste, e cio' che una fonte non ripete non viene cancellato.
 
-    L'ordine del merge e' quello delle fonti nel registro - stabile, per nome -
-    quindi due ricostruzioni sulle stesse fonti danno lo stesso piano.
+    Il merge da solo lasciava due difetti, e il consolidamento li chiude
+    (`consolidate_plan`): il percorso principale seguiva l'ordine di lettura
+    delle fonti - alfabetico, quindi il processo cominciava da chi aveva il nome
+    piu' basso - e lo stesso passaggio raccontato da due voci restava due
+    passaggi. L'ordine ora si deduce dai legami del piano; i doppioni li
+    riconosce l'agente e li verifica il runtime.
+
+    Due ricostruzioni sulle stesse fonti danno lo stesso piano: l'ordine di
+    lettura resta stabile, e decide solo dove nessun legame decide.
 
     Args:
         process_name: Il nome del processo, per l'estrattore.
         sources: Le fonti del registro, con il loro testo.
         reviewer_notes: I rilievi verificati del revisore di conformita', per id
             di fonte, quando l'estrazione ripara un piano gia' verificato.
+        unifier: Il giudizio sui doppioni. ``None`` lascia i doppioni come sono,
+            e il consolidamento lo dichiara.
 
     Returns:
-        Il piano fuso (o `None` se nessuna fonte ha prodotto niente), il numero
-        di chiamate al modello spese e i guasti per fonte.
+        Il piano consolidato (o `None` se nessuna fonte ha prodotto niente), il
+        numero di chiamate al modello spese, i guasti per fonte e l'esito del
+        consolidamento.
 
     Side effects:
-        Chiama il modello, una volta per fonte, in parallelo.
+        Chiama il modello una volta per fonte, in parallelo, e una volta sul
+        piano fuso quando `unifier` c'e'.
     """
     from concurrent.futures import ThreadPoolExecutor
 
@@ -349,25 +378,69 @@ def extract_plan_from_sources(
 
     merged = None
     failures: list[str] = []
+    # Cio' che il merge cancella e il consolidamento deve sapere: da quale voce
+    # viene ogni elemento, in che ordine ogni voce racconta il suo pezzo, e dove
+    # ciascuna dice che il processo comincia e finisce.
+    origins: dict[str, list[str]] = {}
+    source_paths: dict[str, list[str]] = {}
+    partial_boundaries: dict[str, dict] = {}
     for source, result in zip(readable, results):
         name = str(source.get("name") or source.get("id") or "fonte senza nome")
         if result.status != "success" or result.process is None:
             reason = result.failure.message if result.failure else "estrazione non riuscita"
             failures.append(f"{name}: {reason}")
             continue
+        partial = result.process
+        for kind, entries in (
+            ("actor", partial.actors),
+            ("event", partial.events),
+            ("step", partial.steps),
+            ("decision", partial.decisions),
+        ):
+            for entry in entries:
+                voices = origins.setdefault(f"{kind}:{entry.id}", [])
+                if name not in voices:
+                    voices.append(name)
+        told = list(dict.fromkeys(partial.main_success_path or partial.sequence))
+        if told:
+            source_paths[name] = told
+        if partial.boundaries is not None:
+            partial_boundaries[name] = partial.boundaries.model_dump(mode="json")
         # `append` e non `replace`: ogni intervista descrive il pezzo di processo
         # che ha visto, e nessuna descrive il percorso intero. Sostituire il
         # percorso a ogni fonte lascerebbe nel piano solo i passaggi dell'ultima
-        # voce letta - che e' un ordine arbitrario, non un processo.
+        # voce letta. L'ordine accodato non e' ancora il percorso: lo diventa
+        # nel consolidamento, dedotto dai legami.
         merged, _diff = merge_process_understanding(
-            merged, result.process, ordered_sequences="append"
+            merged, partial, ordered_sequences="append"
         )
+
+    consolidation = None
+    if merged is not None:
+        consolidation = consolidate_plan(
+            merged,
+            process_name=process_name,
+            origins=origins,
+            source_paths=source_paths,
+            partial_boundaries=partial_boundaries,
+            # Un piano con una fonte persa non verra' salvato (vedi
+            # `synthesize_process_plan`): giudicarne i doppioni e' una chiamata
+            # spesa su un piano che nessuno usera'.
+            unifier=unifier if not failures else None,
+            skip_note=(
+                "unificazione dei doppioni non eseguita: fonti non lette"
+                if failures and unifier is not None
+                else ""
+            ),
+        )
+        merged = consolidation.process
 
     return CorpusExtraction(
         process=merged,
-        llm_calls=len(readable) + retried,
+        llm_calls=len(readable) + retried + (consolidation.llm_calls if consolidation else 0),
         sources_read=len(readable),
         failures=failures,
+        consolidation=consolidation,
     )
 
 
@@ -423,10 +496,20 @@ def synthesize_process_plan(
     # ancorata all'evidenza - ma non e' piu' cio' su cui si estrae: li' le fonti
     # sono tagliate per stare tutte in un prompt solo.
     extraction = extract_plan_from_sources(
-        process["name"], ledger.get("sources") or [], reviewer_notes=reviewer_notes
+        process["name"],
+        ledger.get("sources") or [],
+        reviewer_notes=reviewer_notes,
+        unifier=llm_plan_unifier(),
     )
     llm_calls = extraction.llm_calls
     understanding = extraction.process
+    consolidation = (
+        extraction.consolidation.as_log_entry() if extraction.consolidation else {}
+    )
+    if extraction.consolidation is not None:
+        logger.info(
+            "consolidamento del piano %s: %s", process_id, json.dumps(consolidation, ensure_ascii=False)
+        )
 
     if understanding is None and extraction.sources_read:
         # Le fonti c'erano e nessuna estrazione ha prodotto un piano: e' un
@@ -540,6 +623,7 @@ def synthesize_process_plan(
             f"(set {ledger.get('source_set_id')})."
         ),
         llm_calls=llm_calls,
+        consolidation=consolidation,
     )
 
 

@@ -8,6 +8,7 @@ from typing import Any, Literal
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from backend.llm_streaming import stream_to_final
 from backend.llm_config import chat_openai_kwargs
@@ -445,6 +446,23 @@ class ProcessUnderstandingQualityReport(BaseModel):
     ]
 
 
+class UnifiedElement(BaseModel):
+    """Traccia di elementi del piano riconosciuti come lo stesso elemento.
+
+    Due interviste che raccontano lo stesso passaggio lo estraggono con id ed
+    etichette diverse. Quando il piano li unifica, gli id assorbiti non possono
+    sparire: una decisione del consulente, un rilievo del revisore o un
+    emendamento successivo possono ancora nominarli, e qui trovano l'elemento
+    che li ha presi in carico.
+    """
+
+    id: str
+    kind: Literal["actor", "step", "event", "decision"]
+    absorbed_ids: list[str] = Field(default_factory=list)
+    absorbed_labels: list[str] = Field(default_factory=list)
+    reason: str = ""
+
+
 class ProcessUnderstanding(BaseModel):
     schema_version: str = "process_understanding.v1"
     language: Literal["it", "en"] = "it"
@@ -478,6 +496,10 @@ class ProcessUnderstanding(BaseModel):
     actor_relationships: list[ActorRelationship] = Field(default_factory=list)
     bpmn_modeling_hints: list[BpmnModelingHint] = Field(default_factory=list)
     consultant_findings: list[ConsultantFinding] = Field(default_factory=list)
+    # Scritto dal runtime quando unifica i doppioni, mai dall'estrattore: fuori
+    # dallo schema che il modello vede, perche' un alias inventato renderebbe
+    # "raggiungibile" un id che nessuna fonte ha mai prodotto.
+    unified_elements: SkipJsonSchema[list[UnifiedElement]] = Field(default_factory=list)
     quality_report: ProcessUnderstandingQualityReport | None = None
     confidence: ProcessConfidence | None = None
 

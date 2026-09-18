@@ -143,6 +143,7 @@ _LIST_KEYS: dict[str, Callable[[dict], str]] = {
     "actor_relationships": _by_actor,
     "input_outputs": _by_step,
     "bpmn_modeling_hints": _by_hint,
+    "unified_elements": _by_id,
 }
 
 _TOPOLOGY_LIST_KEYS: dict[str, Callable[[dict], str]] = {
@@ -313,6 +314,35 @@ class PlanDiff:
 OrderedSequencePolicy = Literal["replace", "append"]
 
 
+def _resolve_unified_ids(base_data: dict, incoming_data: dict) -> dict:
+    """Riporta sull'elemento sopravvissuto gli id che il piano ha gia' unificato.
+
+    Un emendamento puo' ancora nominare un passaggio con l'id che aveva prima
+    dell'unificazione - lo ha letto in una versione precedente, o in un rilievo
+    del revisore. Senza questa risoluzione il doppione rientrerebbe nel piano
+    dalla porta dell'emendamento, e l'unificazione durerebbe una versione.
+    """
+    unified = base_data.get("unified_elements") or []
+    if not unified:
+        return incoming_data
+    from backend.agents.plan_consolidation import rewrite_references
+
+    node_alias: dict[str, str] = {}
+    actor_alias: dict[str, str] = {}
+    for item in unified:
+        if not isinstance(item, dict):
+            continue
+        alias = actor_alias if item.get("kind") == "actor" else node_alias
+        for absorbed in item.get("absorbed_ids") or []:
+            alias[str(absorbed)] = str(item.get("id"))
+    resolved = rewrite_references(incoming_data, node_alias, actor_alias)
+    for name, alias in (("actors", actor_alias), ("events", node_alias), ("steps", node_alias), ("decisions", node_alias)):
+        for entry in resolved.get(name) or []:
+            if isinstance(entry, dict) and entry.get("id") in alias:
+                entry["id"] = alias[entry["id"]]
+    return resolved
+
+
 def merge_process_understanding(
     base: ProcessUnderstanding | dict | None,
     incoming: ProcessUnderstanding | dict,
@@ -360,6 +390,7 @@ def merge_process_understanding(
         if isinstance(base, ProcessUnderstanding)
         else dict(base)
     )
+    incoming_data = _resolve_unified_ids(base_data, incoming_data)
 
     merged = dict(base_data)
     added: dict[str, int] = {}
