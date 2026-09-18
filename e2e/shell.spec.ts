@@ -78,6 +78,18 @@ test.describe('App shell', () => {
     ).toBeVisible();
   });
 
+  test('models is a real library, not a "coming soon"', async ({ page }) => {
+    await page.goto('/models', { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByRole('heading', { name: 'Modelli', level: 1 })).toBeVisible();
+    await expect(page.getByText('In arrivo')).toHaveCount(0);
+    // No backend in this job: the library must say it could not load, with a
+    // way to retry — or render the table when a backend is there.
+    await expect(
+      page.getByRole('table').or(page.getByRole('button', { name: /Riprova/ })).first(),
+    ).toBeVisible({ timeout: 15000 });
+  });
+
   test('help opens and leads to the service status', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'domcontentloaded' });
     const sidebar = page.getByRole('complementary', {

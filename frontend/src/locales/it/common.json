@@ -50,8 +50,54 @@
     }
   },
   "models": {
-    "description": "Template riutilizzabili per interviste, processi e deliverable.",
-    "empty": "La libreria modelli si attiverà quando l'endpoint dedicato sarà pronto."
+    "description": "Tutti i disegni BPMN dei processi in corso, con lo stato del disegno, della review e del confronto con le fonti.",
+    "searchPlaceholder": "Cerca processo o cliente",
+    "columns": {
+      "model": "Processo",
+      "client": "Cliente",
+      "stage": "Stato",
+      "diagram": "Disegno",
+      "review": "Review",
+      "conformance": "Confronto con le fonti",
+      "touched": "Ultima modifica"
+    },
+    "stage": {
+      "toDraw": "Da disegnare",
+      "noPlan": "Piano da preparare",
+      "inReview": "In revisione",
+      "toFix": "Da correggere",
+      "approved": "Approvato"
+    },
+    "diagram": {
+      "none": "Nessun disegno",
+      "versions_one": "{{count}} versione",
+      "versions_other": "{{count}} versioni"
+    },
+    "review": {
+      "none": "Piano non preparato",
+      "pending": "In revisione · prontezza {{readiness}}%",
+      "approved": "Approvata"
+    },
+    "conformance": {
+      "none": "Non ancora confrontato",
+      "pending": "Confronto in corso",
+      "conformant": "Coincide con le fonti",
+      "divergences_one": "{{count}} punto da chiarire",
+      "divergences_other": "{{count}} punti da chiarire",
+      "notConformant_one": "{{count}} punto da rivedere",
+      "notConformant_other": "{{count}} punti da rivedere",
+      "incomplete": "Confronto non completo"
+    },
+    "empty": {
+      "title": "Ancora nessun modello",
+      "description": "Ogni processo ha il suo modello: crea un progetto e un processo, poi ricostruiscilo dalle fonti.",
+      "action": "Vai ai progetti"
+    },
+    "noResults": {
+      "title": "Nessun modello trovato",
+      "description": "Nessun modello corrisponde alla ricerca o ai filtri.",
+      "reset": "Azzera ricerca e filtri"
+    }
   },
   "archive": {
     "description": "Clienti, progetti e processi chiusi. Restano leggibili e si possono riaprire.",

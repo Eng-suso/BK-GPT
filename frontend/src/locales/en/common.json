@@ -50,8 +50,54 @@
     }
   },
   "models": {
-    "description": "Reusable templates for interviews, processes and deliverables.",
-    "empty": "The model library activates once the dedicated endpoint is ready."
+    "description": "Every BPMN diagram of the active processes, with the state of the diagram, the review and the comparison with the sources.",
+    "searchPlaceholder": "Search process or client",
+    "columns": {
+      "model": "Process",
+      "client": "Client",
+      "stage": "Status",
+      "diagram": "Diagram",
+      "review": "Review",
+      "conformance": "Comparison with sources",
+      "touched": "Last change"
+    },
+    "stage": {
+      "toDraw": "To draw",
+      "noPlan": "Plan to prepare",
+      "inReview": "In review",
+      "toFix": "To fix",
+      "approved": "Approved"
+    },
+    "diagram": {
+      "none": "No diagram",
+      "versions_one": "{{count}} version",
+      "versions_other": "{{count}} versions"
+    },
+    "review": {
+      "none": "Plan not prepared",
+      "pending": "In review · readiness {{readiness}}%",
+      "approved": "Approved"
+    },
+    "conformance": {
+      "none": "Not compared yet",
+      "pending": "Comparison running",
+      "conformant": "Matches the sources",
+      "divergences_one": "{{count}} point to clarify",
+      "divergences_other": "{{count}} points to clarify",
+      "notConformant_one": "{{count}} point to review",
+      "notConformant_other": "{{count}} points to review",
+      "incomplete": "Comparison incomplete"
+    },
+    "empty": {
+      "title": "No models yet",
+      "description": "Every process has its own model: create a project and a process, then reconstruct it from the sources.",
+      "action": "Go to projects"
+    },
+    "noResults": {
+      "title": "No models found",
+      "description": "No model matches the search or filters.",
+      "reset": "Clear search and filters"
+    }
   },
   "archive": {
     "description": "Closed clients, projects and processes. Still readable, and reopenable.",

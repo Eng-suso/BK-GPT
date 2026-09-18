@@ -23,6 +23,7 @@ from backend.schemas.workspace import (
     ProcessProvenanceResponse,
     ProjectDecisionResponse,
     ProjectProcessResponse,
+    ModelLibraryItem,
     ProjectResponse,
     ProjectSourceResponse,
     RestoreBpmnVersionResponse,
@@ -173,6 +174,19 @@ def get_workspace_projects(include_archived: bool = False) -> list[ProjectRespon
         ProjectResponse(**project)
         for project in list_projects(include_archived=include_archived)
     ]
+
+
+@router.get("/models")
+def get_workspace_models() -> list[ModelLibraryItem]:
+    """La libreria dei modelli BPMN dei processi attivi, dal piu' recente.
+
+    Returns:
+        list[ModelLibraryItem]: Un modello per processo, con lo stato del
+        disegno, della review e del confronto con le fonti.
+    """
+    from backend.workspace_services.model_library import list_models
+
+    return [ModelLibraryItem(**model) for model in list_models()]
 
 
 # ---------------------------------------------------------------------------

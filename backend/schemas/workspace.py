@@ -463,6 +463,35 @@ class ProjectResponse(BaseModel):
     process_items: list[ProjectProcessResponse] = Field(default_factory=list)
 
 
+class ModelLibraryItem(BaseModel):
+    """Un modello BPMN nella libreria, con cio' che serve per decidere se riaprirlo."""
+
+    bpmn_model_id: str
+    name: str
+    #: Se il disegno esiste: un processo appena creato ha il modello ma non l'XML.
+    has_diagram: bool
+    #: Quante versioni del disegno sono state salvate.
+    version_count: int = 0
+    last_saved_at: str | None = None
+    process_id: str
+    process_name: str
+    process_stage: str
+    project_id: str
+    project_name: str
+    client_id: str
+    client_name: str
+    #: `pending` / `approved`; `None` quando il piano non e' mai stato preparato.
+    review_status: str | None = None
+    review_version: int | None = None
+    readiness_score: int | None = None
+    review_updated_at: str | None = None
+    #: Ultimo verdetto del confronto con le fonti; `None` se mai confrontato.
+    conformance_verdict: str | None = None
+    conformance_findings: int = 0
+    #: Il disegno o il piano sono cambiati e il confronto deve ancora girare.
+    conformance_pending: bool = False
+
+
 class ArchiveResponse(BaseModel):
     """La sezione Archivio: cio' che e' stato chiuso, non cio' che e' sparito."""
 

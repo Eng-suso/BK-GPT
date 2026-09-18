@@ -19,6 +19,8 @@ export function useWorkspaceRefresh(): void {
     return onWorkspaceChanged(() => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       void queryClient.invalidateQueries({ queryKey: ["clients"] });
+      // Un disegno o un piano scritti dall'agente cambiano la libreria modelli.
+      void queryClient.invalidateQueries({ queryKey: ["workspace-models"] });
     });
   }, [queryClient]);
 }
