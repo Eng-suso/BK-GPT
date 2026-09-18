@@ -20,7 +20,13 @@ export const ROUTES = {
   },
   models: "/models",
   archive: "/archive",
+  settings: "/settings",
 } as const;
+
+/** Impostazioni non e' una sezione della navigazione principale: sta nel piede della sidebar. */
+export function isSettingsPath(pathname: string): boolean {
+  return pathname === ROUTES.settings || pathname.startsWith(`${ROUTES.settings}/`);
+}
 
 /** Landing route when no section is selected. */
 export const DEFAULT_ROUTE = ROUTES.projects.list;

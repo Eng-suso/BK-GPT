@@ -86,20 +86,58 @@ export const ServiceStatusDialog: React.FC<ServiceStatusDialogProps> = ({
 }) => {
   const { t } = useTranslation("common");
 
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("serviceStatus.title")}</DialogTitle>
+          <DialogDescription>{t("serviceStatus.description")}</DialogDescription>
+        </DialogHeader>
+        {/* Montato solo a dialog aperto: le verifiche partono quando qualcuno
+            guarda, non a ogni schermata che ospita il comando. */}
+        <ServiceStatusPanel modelName={modelName} footer={DialogFooter} />
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export interface ServiceStatusPanelProps {
+  modelName?: string | null;
+  /** Dove mettere il bottone di aggiornamento: il footer del dialog, o un div in pagina. */
+  footer?: React.ElementType<{ children?: React.ReactNode }>;
+}
+
+/**
+ * Il contenuto dello stato del servizio, senza il contenitore: lo usano il
+ * dialog della chat e la pagina impostazioni. Le verifiche partono quando il
+ * pannello e' montato.
+ */
+export const ServiceStatusPanel: React.FC<ServiceStatusPanelProps> = ({
+  modelName,
+  footer: Footer = "div",
+}) => {
+  const { t } = useTranslation("common");
+
+  // Nessun nuovo tentativo automatico: e' una diagnosi, e la risposta che serve
+  // e' la prima. Con il backend giu' un rifiuto di connessione puo' costare
+  // secondi (su Windows ~2s per tentativo), e il ritentativo con backoff teneva
+  // il pannello su "Verifico..." proprio quando c'era da dire "non risponde".
+  // Chi vuole riprovare ha "Aggiorna".
   const degradation = useQuery({
     queryKey: statusKeys.degradation(),
     queryFn: fetchDegradation,
-    enabled: open,
     staleTime: 10_000,
+    retry: false,
   });
   const queues = useQuery({
     queryKey: statusKeys.queues(),
     queryFn: fetchQueueHealth,
-    enabled: open,
     staleTime: 10_000,
+    retry: false,
   });
 
-  const isChecking = degradation.isPending || queues.isPending;
+  // La connessione si dice appena si sa: le code possono arrivare dopo.
+  const isChecking = degradation.isPending;
   const unreachable = degradation.isError;
   const counters = Object.entries(degradation.data?.counters ?? {});
 
@@ -109,121 +147,122 @@ export const ServiceStatusDialog: React.FC<ServiceStatusDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t("serviceStatus.title")}</DialogTitle>
-          <DialogDescription>{t("serviceStatus.description")}</DialogDescription>
-        </DialogHeader>
+    <>
+      <div className="flex flex-col">
+        <StatusRow
+          label={t("serviceStatus.endpoint")}
+          tone={unreachable ? "error" : "ok"}
+          value={API_BASE || t("serviceStatus.sameOrigin")}
+        />
 
-        <div className="flex flex-col">
+        {isChecking ? (
+          <p
+            className="flex items-center gap-2 py-3 text-[13px] text-muted-foreground"
+            role="status"
+          >
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            {t("serviceStatus.checking")}
+          </p>
+        ) : unreachable ? (
           <StatusRow
-            label={t("serviceStatus.endpoint")}
-            tone={unreachable ? "error" : "ok"}
-            value={API_BASE || t("serviceStatus.sameOrigin")}
+            label={t("serviceStatus.connection")}
+            tone="error"
+            value={t("serviceStatus.unreachable")}
           />
-
-          {open && isChecking ? (
-            <p
-              className="flex items-center gap-2 py-3 text-[13px] text-muted-foreground"
-              role="status"
-            >
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              {t("serviceStatus.checking")}
-            </p>
-          ) : unreachable ? (
+        ) : (
+          <>
             <StatusRow
               label={t("serviceStatus.connection")}
-              tone="error"
-              value={t("serviceStatus.unreachable")}
+              tone={degradation.data?.status === "degraded" ? "warning" : "ok"}
+              value={
+                degradation.data?.status === "degraded"
+                  ? t("serviceStatus.degraded")
+                  : t("serviceStatus.healthy")
+              }
+              detail={
+                counters.length > 0 ? (
+                  <ul className="flex flex-col gap-0.5">
+                    {counters.map(([key, count]) => (
+                      <li key={key} className="tabular-nums">
+                        {key}: {count}
+                      </li>
+                    ))}
+                  </ul>
+                ) : undefined
+              }
             />
-          ) : (
-            <>
-              <StatusRow
-                label={t("serviceStatus.connection")}
-                tone={degradation.data?.status === "degraded" ? "warning" : "ok"}
-                value={
-                  degradation.data?.status === "degraded"
-                    ? t("serviceStatus.degraded")
-                    : t("serviceStatus.healthy")
-                }
-                detail={
-                  counters.length > 0 ? (
-                    <ul className="flex flex-col gap-0.5">
-                      {counters.map(([key, count]) => (
-                        <li key={key} className="tabular-nums">
-                          {key}: {count}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : undefined
-                }
-              />
 
-              {queues.isError ? (
-                <StatusRow
-                  label={t("serviceStatus.queues")}
-                  tone="warning"
-                  value={t("serviceStatus.queuesUnknown")}
-                />
-              ) : queues.data?.status === "not_configured" ? (
-                <StatusRow
-                  label={t("serviceStatus.queues")}
-                  tone="warning"
-                  value={t("serviceStatus.queuesNotConfigured")}
-                />
-              ) : (
-                QUEUE_NAMES.map((name) => {
-                  const stats = queueStats(queues.data?.[name]);
-                  if (!stats) return null;
-                  if (stats.error) {
-                    return (
-                      <StatusRow
-                        key={name}
-                        label={name}
-                        tone="warning"
-                        value={t("serviceStatus.queuesUnknown")}
-                      />
-                    );
-                  }
-                  const stuck = stats.stuck ?? 0;
-                  const dead = stats.dead_letter ?? 0;
+            {queues.isPending ? (
+              <p
+                className="flex items-center gap-2 py-2.5 text-[12.5px] text-muted-foreground"
+                role="status"
+              >
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                {t("serviceStatus.queues")}: {t("serviceStatus.checking")}
+              </p>
+            ) : queues.isError ? (
+              <StatusRow
+                label={t("serviceStatus.queues")}
+                tone="warning"
+                value={t("serviceStatus.queuesUnknown")}
+              />
+            ) : queues.data?.status === "not_configured" ? (
+              <StatusRow
+                label={t("serviceStatus.queues")}
+                tone="warning"
+                value={t("serviceStatus.queuesNotConfigured")}
+              />
+            ) : (
+              QUEUE_NAMES.map((name) => {
+                const stats = queueStats(queues.data?.[name]);
+                if (!stats) return null;
+                if (stats.error) {
                   return (
                     <StatusRow
                       key={name}
                       label={name}
-                      // `stuck` puo' ancora passare da solo, `dead_letter` no:
-                      // sono due allarmi diversi e non si sommano in uno.
-                      tone={dead > 0 ? "error" : stuck > 0 ? "warning" : "ok"}
-                      value={t("serviceStatus.queueCounts", {
-                        pending: stats.pending ?? 0,
-                        stuck,
-                      })}
-                      detail={
-                        dead > 0 ? t("serviceStatus.deadLetter", { count: dead }) : undefined
-                      }
+                      tone="warning"
+                      value={t("serviceStatus.queuesUnknown")}
                     />
                   );
-                })
-              )}
-            </>
-          )}
+                }
+                const stuck = stats.stuck ?? 0;
+                const dead = stats.dead_letter ?? 0;
+                return (
+                  <StatusRow
+                    key={name}
+                    label={name}
+                    // `stuck` puo' ancora passare da solo, `dead_letter` no:
+                    // sono due allarmi diversi e non si sommano in uno.
+                    tone={dead > 0 ? "error" : stuck > 0 ? "warning" : "ok"}
+                    value={t("serviceStatus.queueCounts", {
+                      pending: stats.pending ?? 0,
+                      stuck,
+                    })}
+                    detail={
+                      dead > 0 ? t("serviceStatus.deadLetter", { count: dead }) : undefined
+                    }
+                  />
+                );
+              })
+            )}
+          </>
+        )}
 
-          {modelName ? (
-            <StatusRow
-              label={t("serviceStatus.model")}
-              tone="ok"
-              value={modelName}
-            />
-          ) : null}
-        </div>
+        {modelName ? (
+          <StatusRow
+            label={t("serviceStatus.model")}
+            tone="ok"
+            value={modelName}
+          />
+        ) : null}
+      </div>
 
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={refresh}>
-            {t("serviceStatus.refresh")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <Footer>
+        <Button type="button" variant="outline" size="sm" onClick={refresh}>
+          {t("serviceStatus.refresh")}
+        </Button>
+      </Footer>
+    </>
   );
 };

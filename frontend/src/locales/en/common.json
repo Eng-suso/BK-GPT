@@ -137,5 +137,61 @@
     "deadLetter": "{{count}} set aside: they will not pass on their own.",
     "model": "Conversation model",
     "refresh": "Refresh"
+  },
+  "settings": {
+    "description": "Interface preferences and service status.",
+    "language": {
+      "title": "Interface language",
+      "description": "Changes the whole interface immediately and stays chosen next time on this browser."
+    }
+  },
+  "help": {
+    "title": "Help",
+    "description": "How an engagement moves forward in DeliR, and what to do when something does not respond.",
+    "workflow": {
+      "title": "Engagement path",
+      "start": "Go to projects",
+      "project": {
+        "title": "Create the project",
+        "body": "One project per client and engagement: it holds processes, sources and decisions."
+      },
+      "sources": {
+        "title": "Add the sources",
+        "body": "Interviews, notes and process documents. The model is built only from what is on record."
+      },
+      "reconstruct": {
+        "title": "Reconstruct the process",
+        "body": "From the process chat DeliR drafts a plan and a BPMN diagram from the sources."
+      },
+      "gaps": {
+        "title": "Close the gaps",
+        "body": "Open questions come from contradictions or silences in the sources: answer them or pick one of the proposed alternatives."
+      },
+      "validate": {
+        "title": "Validate the model",
+        "body": "Compare the diagram with the sources and approve the review when no blocking points remain."
+      }
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "send": "Send the chat message",
+      "newline": "New line in the message",
+      "answer": "Pick an alternative in an open question",
+      "search": "Move through and open history search results",
+      "close": "Close the history or the side panel",
+      "resize": "Resize a panel from its divider"
+    },
+    "keys": {
+      "enter": "Enter",
+      "shift": "Shift",
+      "esc": "Esc",
+      "home": "Home",
+      "end": "End"
+    },
+    "trouble": {
+      "title": "Something not responding?",
+      "body": "Before retrying, check whether the backend answers and has queued work: knowledge that does not arrive is often a stalled queue, not a wrong answer.",
+      "action": "Check service status"
+    }
   }
 }
