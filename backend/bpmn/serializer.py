@@ -181,6 +181,7 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
         None. The function does not persist or modify external state.
     """
     incoming, outgoing = _flow_refs(model)
+    gateway_ids = {node.id for node in model.flowNodes if node.type.endswith("Gateway")}
     xml_parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" '
@@ -242,12 +243,15 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
         xml_parts.append(f"    </bpmn:{node.type}>")
 
     for flow in model.sequenceFlows:
-        name = f' name="{escape(flow.name)}"' if flow.name else ""
+        visible_name = flow.name if flow.sourceRef in gateway_ids else None
+        name = f' name="{escape(visible_name)}"' if visible_name else ""
         body: list[str] = []
         if flow.documentation or flow.sourceRefs:
             body.extend(
                 documentation_xml(element_documentation(flow.documentation, flow.sourceRefs), indent="      ")
             )
+        if flow.name and not visible_name:
+            body.extend(documentation_xml(flow.name, indent="      "))
         if flow.conditionExpression:
             body.append(
                 '      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">'
@@ -356,7 +360,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
         )
 
     for flow in model.sequenceFlows:
-        for line in _edge_xml(flow.id, flow.sourceRef, flow.targetRef, positions, flow.name):
+        visible_name = flow.name if flow.sourceRef in gateway_ids else None
+        for line in _edge_xml(flow.id, flow.sourceRef, flow.targetRef, positions, visible_name):
             xml_parts.append(line)
     connectable_positions = {**positions, **data_positions, **annotation_positions}
     for association in model.associations:
@@ -400,20 +405,22 @@ def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
             f'name="{escape(participant.name)}"{process_ref} />'
         )
     for message_flow in model.messageFlows:
-        name = f' name="{escape(message_flow.name)}"' if message_flow.name else ""
         header = (
             f'    <bpmn:messageFlow id="{escape(message_flow.id)}" '
             f'sourceRef="{escape(message_flow.sourceRef)}" '
-            f'targetRef="{escape(message_flow.targetRef)}"{name}'
+            f'targetRef="{escape(message_flow.targetRef)}"'
         )
-        if message_flow.documentation or message_flow.sourceRefs:
+        if message_flow.documentation or message_flow.sourceRefs or message_flow.name:
             lines.append(header + ">")
-            lines.extend(
-                documentation_xml(
-                    element_documentation(message_flow.documentation, message_flow.sourceRefs),
-                    indent="      ",
+            if message_flow.documentation or message_flow.sourceRefs:
+                lines.extend(
+                    documentation_xml(
+                        element_documentation(message_flow.documentation, message_flow.sourceRefs),
+                        indent="      ",
+                    )
                 )
-            )
+            if message_flow.name:
+                lines.extend(documentation_xml(message_flow.name, indent="      "))
             lines.append("    </bpmn:messageFlow>")
         else:
             lines.append(header + " />")
@@ -770,15 +777,5 @@ def _message_flow_edge_xml(
         f'        <di:waypoint x="{start_x}" y="{start_y}" />',
         f'        <di:waypoint x="{end_x}" y="{end_y}" />',
     ]
-    if message_flow.name:
-        label_width = min(180, max(80, len(message_flow.name) * 6))
-        lines.extend(
-            [
-                "        <bpmndi:BPMNLabel>",
-                f'          <dc:Bounds x="{(start_x + end_x) / 2 - label_width / 2}" '
-                f'y="{(start_y + end_y) / 2 - 12}" width="{label_width}" height="24" />',
-                "        </bpmndi:BPMNLabel>",
-            ]
-        )
     lines.append("      </bpmndi:BPMNEdge>")
     return lines

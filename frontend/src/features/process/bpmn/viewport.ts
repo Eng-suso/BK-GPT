@@ -47,6 +47,39 @@ export function fitCanvas(modeler: BpmnModeler): void {
   );
 }
 
+/** Start at a readable scale when the complete process would become tiny. */
+export function frameCanvasForReading(modeler: BpmnModeler): void {
+  const canvasService = canvas(modeler);
+  canvasService.resized?.();
+  const elements = (modeler.get("elementRegistry") as BpmnElementRegistry).getAll?.() ?? [];
+  const bounds = getDiagramBounds(elements);
+  const outer = canvasService.viewbox?.().outer;
+  if (!bounds || !outer || !outer.width || !outer.height || !canvasService.viewbox) return;
+  const start = elements.find((element) => element.type === "bpmn:StartEvent");
+  canvasService.viewbox(readableViewbox(bounds, outer, start));
+}
+
+export function readableViewbox(
+  bounds: BpmnCanvasViewbox,
+  outer: { width: number; height: number },
+  start?: BpmnDiagramElement,
+): BpmnCanvasViewbox {
+  const overview = withViewportPadding(bounds, outer.width / outer.height);
+  const overviewScale = outer.width / overview.width;
+  const minimumScale = 1;
+  if (overviewScale >= minimumScale) return overview;
+
+  const width = outer.width / minimumScale;
+  const height = outer.height / minimumScale;
+  const firstX = start?.x ?? bounds.x;
+  return {
+    x: Math.max(bounds.x - 40, firstX - width * 0.16),
+    y: bounds.y - 20,
+    width,
+    height,
+  };
+}
+
 /** Element types bpmn-js keeps in the registry even for an empty diagram. */
 const STRUCTURAL_TYPES = new Set([
   "bpmn:Definitions",

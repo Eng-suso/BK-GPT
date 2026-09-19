@@ -161,6 +161,29 @@ def test_external_actor_fallback_creates_black_box_pool():
     assert supplier.is_external and supplier.rendering == "black_box"
 
 
+def test_external_black_box_without_declared_company_pool_keeps_lanes_internal():
+    actors = [
+        _actor("Actor_Technical", "team"),
+        _actor("Actor_Purchasing", "team"),
+        _actor("Actor_Supplier", "external_party"),
+    ]
+    participants = [ProcessParticipant(
+        id="Supplier",
+        label="Fornitore",
+        actor_id="Actor_Supplier",
+        kind="organization",
+        bpmn_container="black_box",
+    )]
+    resolved = resolve_pool_topology(topology=None, participants=participants, actors=actors)
+
+    assert resolved.is_collaboration is True
+    assert resolved.primary_pool is not None
+    assert set(resolved.primary_pool.actor_ids) == {"Actor_Technical", "Actor_Purchasing"}
+    assert resolved.primary_pool.rendering == "expanded"
+    assert resolved.pool_for_actor("Actor_Supplier") == "Supplier"
+    assert next(pool for pool in resolved.pools if pool.key == "Supplier").rendering == "black_box"
+
+
 def test_single_party_process_is_not_a_collaboration():
     resolved = resolve_pool_topology(
         topology=None,

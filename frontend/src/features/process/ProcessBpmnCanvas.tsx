@@ -102,6 +102,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     zoomIn,
     zoomOut,
     zoomFit,
+    zoomReadable,
     focusSourceRef,
   } = useBpmnCanvas({
     bpmnModelId,
@@ -154,6 +155,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
         onZoomFit={zoomFit}
+        onZoomReadable={zoomReadable}
         onImportClick={() => fileInputRef.current?.click()}
         onImportFile={importFile}
         onExport={exportXml}

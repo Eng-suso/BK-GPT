@@ -555,6 +555,9 @@ def generate_bpmn_draft(
         )
     watch.mark("serialization_di", started)
 
+    layout_warnings = (layout_report.get("selected_report") or {}).get("warnings") or []
+    pending = [*pending, *(warning for warning in layout_warnings if warning not in pending)]
+
     # Un layout imperfetto non annulla una bozza corretta: il disegno esiste, si
     # legge meno bene, e lo si dice. Bloccare qui butterebbe via un modello
     # valido per una questione di geometria.

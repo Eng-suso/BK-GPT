@@ -22,6 +22,7 @@ import {
 import {
   canvas,
   fitCanvas,
+  frameCanvasForReading,
   hasDiagramContent,
   keepSequenceConnectionsDocked,
 } from "./viewport";
@@ -70,6 +71,7 @@ export type UseBpmnCanvas = {
   zoomIn: () => void;
   zoomOut: () => void;
   zoomFit: () => void;
+  zoomReadable: () => void;
   /**
    * Seleziona e porta in vista il nodo che rappresenta un elemento del piano.
    * `false` quando il disegno non lo contiene: il pannello delle evidenze lo
@@ -196,7 +198,7 @@ export function useBpmnCanvas({
     fitTimerRef.current = window.setTimeout(() => {
       fitTimerRef.current = null;
       if (document.hidden || !modelerRef.current) return;
-      fitCanvas(modelerRef.current);
+      frameCanvasForReading(modelerRef.current);
     }, 100);
   }, []);
 
@@ -573,6 +575,9 @@ export function useBpmnCanvas({
   const zoomFit = useCallback(() => {
     if (modelerRef.current) fitCanvas(modelerRef.current);
   }, []);
+  const zoomReadable = useCallback(() => {
+    if (modelerRef.current) frameCanvasForReading(modelerRef.current);
+  }, []);
 
   const clearSelection = useCallback(() => setSelectedElement(null), []);
 
@@ -616,6 +621,7 @@ export function useBpmnCanvas({
     zoomIn,
     zoomOut,
     zoomFit,
+    zoomReadable,
     focusSourceRef,
   };
 }

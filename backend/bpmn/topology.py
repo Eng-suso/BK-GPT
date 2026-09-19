@@ -287,6 +287,26 @@ def _resolve_from_participants(
             )
         )
 
+    # A plan may classify the external party correctly while omitting the
+    # obvious internal pool. Never promote that black box to the process pool:
+    # synthesize the enclosing pool for the internal actors and their lanes.
+    if raw_pools and not any(not pool.is_external for pool in raw_pools):
+        external_actor_ids = {actor_id for pool in raw_pools for actor_id in pool.actor_ids}
+        internal_actors = [
+            actor for actor in actors
+            if actor.id not in external_actor_ids and actor.kind not in _EXTERNAL_ACTOR_KINDS
+        ]
+        if internal_actors:
+            organization = next((actor for actor in internal_actors if actor.kind == "organization"), None)
+            raw_pools.insert(0, ResolvedPool(
+                key="__primary__",
+                label=organization.label if organization else "Processo interno",
+                actor_ids=tuple(actor.id for actor in internal_actors),
+                is_primary=False,
+                is_external=False,
+                rendering="expanded",
+            ))
+
     # Lane participants that name a parent pool attach their actor to that pool.
     for lane_participant in lane_participants:
         parent = lane_participant.parent_pool_id

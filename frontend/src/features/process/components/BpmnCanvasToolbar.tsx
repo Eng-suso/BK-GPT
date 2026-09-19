@@ -51,6 +51,7 @@ type BpmnCanvasToolbarProps = {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomFit: () => void;
+  onZoomReadable: () => void;
   onImportClick: () => void;
   onImportFile: (file: File | undefined) => void;
   onExport: () => void;
@@ -79,6 +80,7 @@ export function BpmnCanvasToolbar({
   onZoomIn,
   onZoomOut,
   onZoomFit,
+  onZoomReadable,
   onImportClick,
   onImportFile,
   onExport,
@@ -154,6 +156,15 @@ export function BpmnCanvasToolbar({
             type="button"
             variant="outline"
             size="sm"
+            onClick={onZoomReadable}
+            title="Apri una vista leggibile dall'inizio del processo"
+          >
+            Leggi
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={onZoomFit}
             title="Centra e adatta diagramma"
           >
@@ -204,6 +215,9 @@ export function BpmnCanvasToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem disabled={!isReady} onClick={onZoomReadable}>
+              Leggi il processo dall'inizio
+            </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onZoomFit}>
               <Maximize2 /> Centra e adatta diagramma
             </DropdownMenuItem>
