@@ -124,14 +124,20 @@ def sweep_stale_plans(*, force: bool = False) -> int:
     return len(queued)
 
 
-def drain_once(limit: int = _BATCH) -> int:
+def drain_once(limit: int = _BATCH, *, only_tenant_id: str | None = None) -> int:
     """Una passata sulla coda.
+
+    Args:
+        limit: Quante richieste lavorare.
+        only_tenant_id: Limita la passata a un tenant. Serve a chi drena a mano -
+            i test, l'amministrazione - per non lavorare la coda di un altro
+            workspace.
 
     Returns:
         Quante richieste sono state lavorate, riuscite o no. Zero significa coda
         vuota, ed e' cio' che il supervisore usa per decidere se dormire.
     """
-    rows = wd.due_plan_materializations(limit)
+    rows = wd.due_plan_materializations(limit, only_tenant_id=only_tenant_id)
     for row in rows:
         _work_one(row)
     return len(rows)

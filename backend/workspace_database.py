@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 
 from backend.agents.chat_mode import assert_write_allowed
 from backend.process_understanding import (
@@ -2106,6 +2106,7 @@ def record_conformance_report(bpmn_model_id: str, report: dict) -> dict | None:
             return None
         review.conformance_json = json.dumps(report, ensure_ascii=False)
         review.conformance_status = "done"
+        review.conformance_leased_at = None
         session.flush()
         return report
 
@@ -2134,26 +2135,51 @@ def request_conformance_check(bpmn_model_id: str) -> bool:
         return True
 
 
-def due_conformance_checks(limit: int = 3) -> list[dict]:
-    """I confronti in attesa, di tutti i tenant, i piu' vecchi per primi.
+def due_conformance_checks(limit: int = 3, *, only_tenant_id: str | None = None) -> list[dict]:
+    """I confronti in attesa, i piu' vecchi per primi, presi in carico con una scadenza.
 
     Come la coda dei piani: il worker gira fuori da una richiesta HTTP, quindi la
     riga porta il proprio tenant, e chi la prende in carico lo vincola prima di
-    leggere il processo. La presa in carico marca `running`, cosi' due worker non
-    spendono due volte le stesse chiamate sullo stesso disegno.
+    leggere il processo. La presa in carico marca `running` **e quando**: una
+    lettura delle fonti dura minuti, e se il processo che la stava facendo muore -
+    un riavvio, un deploy - la riga deve tornare eleggibile da sola. Senza la
+    scadenza resta `running` per sempre, nessuno la rilavora, e il pannello mostra
+    "Confronto in corso" all'infinito: sembra lavoro in corso e non lo e'.
+
+    Args:
+        limit: Quante righe prendere in carico.
+        only_tenant_id: Limita la coda a un tenant. I test drenano cosi', perche'
+            una passata che prende la riga di un altro workspace scriverebbe un
+            rapporto dentro il processo di un cliente.
+
+    Side effects:
+        Marca le righe prese in carico e ne segna l'istante.
     """
+    expired_before = (
+        datetime.now(UTC) - timedelta(seconds=CONFORMANCE_LEASE_SECONDS)
+    ).isoformat(timespec="seconds")
     with workspace_connection() as session:
-        rows = (
-            session.execute(
-                select(WorkspaceBpmnReview)
-                .where(WorkspaceBpmnReview.conformance_status == "pending")
-                .order_by(WorkspaceBpmnReview.updated_at)
-                .limit(max(1, int(limit)))
-                .with_for_update(skip_locked=True)
+        statement = (
+            select(WorkspaceBpmnReview)
+            .where(
+                or_(
+                    WorkspaceBpmnReview.conformance_status == "pending",
+                    and_(
+                        WorkspaceBpmnReview.conformance_status == "running",
+                        or_(
+                            WorkspaceBpmnReview.conformance_leased_at.is_(None),
+                            WorkspaceBpmnReview.conformance_leased_at < expired_before,
+                        ),
+                    ),
+                )
             )
-            .scalars()
-            .all()
+            .order_by(WorkspaceBpmnReview.updated_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
         )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
+        rows = session.execute(statement).scalars().all()
         claimed = [
             {
                 "tenant_id": row.tenant_id,
@@ -2162,8 +2188,10 @@ def due_conformance_checks(limit: int = 3) -> list[dict]:
             }
             for row in rows
         ]
+        now = now_iso()
         for row in rows:
             row.conformance_status = "running"
+            row.conformance_leased_at = now
         session.flush()
         return claimed
 
@@ -2202,6 +2230,13 @@ def enqueue_unchecked_conformance(limit: int = 20, *, only_tenant_id: str | None
         return [row.bpmn_model_id for row in rows]
 
 
+# Per quanto una riga presa in carico resta invisibile agli altri worker. Piu'
+# larga di quella dei piani perche' un confronto legge una fonte per volta con il
+# modello: sui processi veri sono minuti, e una scadenza stretta farebbe lavorare
+# due volte lo stesso disegno.
+CONFORMANCE_LEASE_SECONDS = 900
+
+
 def conformance_queue_stats() -> dict[str, int]:
     """Quanti confronti sono in attesa e quanti sono stati presi in carico."""
     with workspace_connection() as session:
@@ -2223,6 +2258,7 @@ def release_conformance_check(bpmn_model_id: str, *, status: str = "pending") ->
         review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
         if review is not None:
             review.conformance_status = status
+            review.conformance_leased_at = None
             session.flush()
 
 
@@ -2326,7 +2362,7 @@ def enqueue_plan_materialization(
         return _upsert(owned_session)
 
 
-def due_plan_materializations(limit: int = 5) -> list[dict]:
+def due_plan_materializations(limit: int = 5, *, only_tenant_id: str | None = None) -> list[dict]:
     """Prende in carico le richieste pronte, di tutti i tenant.
 
     Il worker gira fuori da una richiesta HTTP e quindi fuori da un tenant: la
@@ -2340,6 +2376,12 @@ def due_plan_materializations(limit: int = 5) -> list[dict]:
     piano due volte, e il processo si troverebbe due versioni nate dallo stesso
     evento.
 
+    Args:
+        limit: Quante righe prendere in carico.
+        only_tenant_id: Limita la coda a un tenant. I test drenano cosi': una
+            passata che prende la riga di un altro workspace lavorerebbe il
+            processo di un cliente.
+
     Side effects:
         Sposta `next_attempt_at` di ogni riga presa in carico.
     """
@@ -2348,18 +2390,19 @@ def due_plan_materializations(limit: int = 5) -> list[dict]:
         datetime.now(UTC) + timedelta(seconds=MATERIALIZATION_LEASE_SECONDS)
     ).isoformat(timespec="seconds")
     with workspace_connection() as session:
-        rows = (
-            session.execute(
-                select(WorkspacePlanMaterialization)
-                .where(WorkspacePlanMaterialization.status == "pending")
-                .where(WorkspacePlanMaterialization.next_attempt_at <= now)
-                .order_by(WorkspacePlanMaterialization.next_attempt_at)
-                .limit(max(1, int(limit)))
-                .with_for_update(skip_locked=True)
-            )
-            .scalars()
-            .all()
+        statement = (
+            select(WorkspacePlanMaterialization)
+            .where(WorkspacePlanMaterialization.status == "pending")
+            .where(WorkspacePlanMaterialization.next_attempt_at <= now)
+            .order_by(WorkspacePlanMaterialization.next_attempt_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
         )
+        if only_tenant_id:
+            statement = statement.where(
+                WorkspacePlanMaterialization.tenant_id == only_tenant_id
+            )
+        rows = session.execute(statement).scalars().all()
         claimed = [_materialization_to_dict(row) for row in rows]
         for row in rows:
             row.next_attempt_at = lease_until

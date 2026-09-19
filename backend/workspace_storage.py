@@ -161,6 +161,10 @@ class WorkspaceBpmnReview(WorkspaceBase):
     # ancora girare, `done` quando il rapporto qui accanto descrive cio' che c'e'.
     # E' una colonna e non un campo del JSON perche' il worker la interroga.
     conformance_status: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    # Quando la riga e' stata presa in carico. Una presa in carico senza scadenza
+    # e' il modo in cui una coda si blocca in silenzio: se chi lavorava muore, la
+    # riga deve tornare eleggibile da sola.
+    conformance_leased_at: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)

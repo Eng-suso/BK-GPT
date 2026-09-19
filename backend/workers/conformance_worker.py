@@ -94,9 +94,16 @@ def sweep_unchecked(*, force: bool = False) -> int:
     return len(queued)
 
 
-def drain_once(limit: int = _BATCH) -> int:
-    """Una passata sulla coda dei confronti."""
-    rows = wd.due_conformance_checks(limit)
+def drain_once(limit: int = _BATCH, *, only_tenant_id: str | None = None) -> int:
+    """Una passata sulla coda dei confronti.
+
+    Args:
+        limit: Quanti confronti lavorare.
+        only_tenant_id: Limita la passata a un tenant. Serve a chi drena a mano -
+            i test, l'amministrazione - per non lavorare la coda di un altro
+            workspace.
+    """
+    rows = wd.due_conformance_checks(limit, only_tenant_id=only_tenant_id)
     for row in rows:
         _work_one(row)
     return len(rows)

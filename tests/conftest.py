@@ -141,3 +141,34 @@ def mock_env(monkeypatch):
     """Override environment variables for testing without real API keys."""
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake-key-for-ci")
     monkeypatch.setenv("TAVILY_API_KEY", "tvly-test-fake-key-for-ci")
+
+
+@pytest.fixture(autouse=True)
+def _queues_stay_in_the_test_tenant(monkeypatch):
+    """Una passata di coda, nei test, non lavora il workspace di un cliente.
+
+    Le code del workspace (piani da ricostruire, confronti con le fonti) vivono
+    in un database condiviso con i dati di sviluppo, e le passate prendono le
+    righe piu' vecchie **di tutti i tenant**: un test che drena due righe puo'
+    prendere il processo di un cliente, ricostruirne il piano e scriverne il
+    rapporto. E' successo davvero il 2026-09-17: due processi reali sono rimasti
+    presi in carico da una passata di test.
+
+    Qui ogni lettura di coda viene vincolata al tenant che il test ha in mano.
+    Chi vuole davvero drenare oltre il proprio confine lo chiede per nome, e
+    allora e' una scelta dichiarata e non un effetto collaterale.
+    """
+    from backend import workspace_database as wd
+    from backend.security import get_current_tenant_id
+
+    for name in ("due_plan_materializations", "due_conformance_checks"):
+        original = getattr(wd, name)
+
+        def scoped(*args, _original=original, **kwargs):
+            # `setdefault` non basta: il worker passa `only_tenant_id=None` per
+            # nome, ed e' proprio la chiamata che deve restare dentro il confine.
+            if not kwargs.get("only_tenant_id"):
+                kwargs["only_tenant_id"] = get_current_tenant_id()
+            return _original(*args, **kwargs)
+
+        monkeypatch.setattr(wd, name, scoped)
