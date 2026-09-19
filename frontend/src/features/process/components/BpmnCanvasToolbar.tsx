@@ -142,7 +142,7 @@ export function BpmnCanvasToolbar({
             title={t("canvas.evidence.toggleLabel")}
           >
             <ShieldCheck aria-hidden />
-            {t("canvas.evidence.toggle")}
+            <span className="bpmn-toolbar-label">{t("canvas.evidence.toggle")}</span>
             {evidence.awaitingCount ? (
               <span className="ml-0.5 rounded-full border border-warning-border bg-warning-surface px-1.5 text-[10px] font-semibold tabular-nums text-foreground">
                 {evidence.awaitingCount}

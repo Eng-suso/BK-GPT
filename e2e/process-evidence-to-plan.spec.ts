@@ -452,8 +452,8 @@ test("un turno fallito non fa passare per fresco il piano di prima", async ({
   page,
 }) => {
   // Lo stato incoerente: la pagina sembrava contemporaneamente fallita e pronta.
-  // Il piano di prima resta, ma dichiarato per versione: e' la versione che dice
-  // al consulente che non e' quello che ha appena chiesto.
+  // Dopo il fallimento resta solo l'avviso: la barra che annuncia il piano
+  // pronto non si mostra accanto a un turno che non e' arrivato in fondo.
   await fixture(page, {
     turn: [
       {
@@ -473,6 +473,5 @@ test("un turno fallito non fa passare per fresco il piano di prima", async ({
   await ask(page, "prepara il piano");
 
   await expect(page.getByRole("alert")).toContainText(/il turno precedente/i);
-  await expect(bar).toContainText("Piano V1");
-  await expect(bar).not.toContainText("Piano V2");
+  await expect(bar).toHaveCount(0);
 });

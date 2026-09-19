@@ -556,6 +556,9 @@
   .process-bpmn-toolbar > div:first-child > div { border: 0; padding: 0; }
   .process-bpmn-toolbar-actions > .bpmn-save-status { display: none; }
   .bpmn-zoom-group { display: none; }
+  /* Su una tela stretta il bottone resta icona + contatore: col testo le azioni
+     scavalcavano i toggle dei pannelli e "Proprieta'" non si poteva cliccare. */
+  .process-bpmn-toolbar-actions .bpmn-toolbar-label { display: none; }
 }
 
 /*
