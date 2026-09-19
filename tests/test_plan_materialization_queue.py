@@ -213,7 +213,11 @@ def test_two_tenants_are_worked_each_inside_its_own(monkeypatch):
 
     monkeypatch.setattr(process_synthesis, "ensure_process_plan", _fake_ensure)
 
-    plan_worker.drain_once(limit=50)
+    # Ogni coda si drena per nome: una passata senza tenant, nei test, resta nel
+    # tenant ambientale (vedi conftest). Il tenant ambientale non e' nessuno dei
+    # due, quindi `seen` prova comunque che il worker vincola quello della riga.
+    for tenant, _ in created:
+        plan_worker.drain_once(limit=50, only_tenant_id=tenant)
 
     assert sorted(seen) == sorted(created)
     for tenant, process_id in created:

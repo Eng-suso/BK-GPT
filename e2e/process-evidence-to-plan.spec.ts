@@ -272,29 +272,35 @@ async function fixture(page: Page, options: FixtureOptions = {}) {
   return state;
 }
 
+function modelingBar(page: Page) {
+  return page.getByRole("region", { name: "Workspace di modellazione BPMN" });
+}
+
 /**
- * Apre la discussione del processo.
+ * Apre la discussione del processo e aspetta che il piano sia arrivato.
  *
- * Un piano appena arrivato apre la sua review a tutto schermo: e' voluto, ma
- * qui copre la chat e duplica le domande (la scheda le mostra anche dentro).
- * Chiuderla e' cio' che fa un consulente prima di scrivere, quindi lo fa anche
- * il test - a meno che sia proprio la scheda l'oggetto della verifica.
+ * La review non si apre piu' da sola sopra la chat: la conversazione annuncia il
+ * piano nella barra di modellazione, e il consulente apre la review quando vuole.
+ * Il bottone della barra compare solo a piano letto, quindi e' il segnale da
+ * aspettare prima di scrivere: scrivere prima e' una gara che il test perde.
  */
-async function openProcessDiscussion(
-  page: Page,
-  options: { keepReviewOpen?: boolean } = {},
-) {
+async function openProcessDiscussion(page: Page) {
   await page.goto(`/projects/${PROJECT}/processes/${PROCESS}`);
   await expect(page.getByLabel("Chat processo")).toBeVisible();
+  await expect(
+    modelingBar(page).getByRole("button", { name: /^(Decidi|Apri review)$/ }),
+  ).toBeVisible();
+}
 
-  // La scheda si apre da sola quando il piano arriva, quindi si aspetta che sia
-  // arrivato: chiudere prima e' una gara che il test perde a intermittenza.
+/** Apre la review dalla barra, come fa il consulente. */
+async function openReview(page: Page, section?: "Come lo disegno" | "Da decidere") {
+  await modelingBar(page)
+    .getByRole("button", { name: /^(Decidi|Apri review)$/ })
+    .click();
   const sheet = page.getByRole("dialog");
   await expect(sheet).toBeVisible();
-  if (options.keepReviewOpen) return;
-
-  await sheet.getByRole("button", { name: "Chiudi review" }).click();
-  await expect(sheet).toHaveCount(0);
+  if (section) await sheet.getByRole("button", { name: new RegExp(section) }).click();
+  return sheet;
 }
 
 async function ask(page: Page, text: string) {
@@ -309,9 +315,9 @@ test("il piano porta quello che le interviste hanno detto, non il solo titolo", 
   // PROCESS-V2-11: dopo tre interviste il piano dichiarava di conoscere
   // "esclusivamente il titolo del processo", con zero attori e zero corsie.
   await fixture(page);
-  await openProcessDiscussion(page, { keepReviewOpen: true });
+  await openProcessDiscussion(page);
+  const sheet = await openReview(page);
 
-  const sheet = page.getByRole("dialog");
   // Il colpo d'occhio del piano: quante persone e quante corsie ha capito.
   await expect(sheet).toContainText("Attori coinvolti");
   await expect(sheet).not.toContainText("0Attori coinvolti");
@@ -325,12 +331,15 @@ test("il piano porta quello che le interviste hanno detto, non il solo titolo", 
 
 test("la discussione e il piano raccontano lo stesso processo", async ({ page }) => {
   // PROCESS-V2-13: le domande del piano vivevano nella sola scheda del canvas,
-  // e la conversazione che le aveva generate non le vedeva.
+  // e la conversazione che le aveva generate non le vedeva. Ora la conversazione
+  // dice che serve una decisione, e la decisione e' quella del piano.
   await fixture(page);
   await openProcessDiscussion(page);
 
-  await expect(page.getByLabel("Domande aperte sul piano")).toBeVisible();
-  await expect(page.getByText(GROUNDED_QUESTION)).toBeVisible();
+  await expect(modelingBar(page)).toContainText("Serve una tua decisione");
+  const sheet = await openReview(page, "Da decidere");
+  await expect(sheet.getByLabel("Domande aperte sul piano")).toBeVisible();
+  await expect(sheet.getByText(GROUNDED_QUESTION)).toBeVisible();
 });
 
 test("la domanda cita la contraddizione che l'ha generata", async ({ page }) => {
@@ -338,8 +347,9 @@ test("la domanda cita la contraddizione che l'ha generata", async ({ page }) => 
   // conformita' e soglie - temi di settore che nessuna fonte aveva nominato.
   await fixture(page);
   await openProcessDiscussion(page);
+  const sheet = await openReview(page, "Da decidere");
 
-  const asked = page.getByLabel("Domande aperte sul piano");
+  const asked = sheet.getByLabel("Domande aperte sul piano");
   await expect(asked).toContainText("Paolo");
   await expect(asked).toContainText("Francesca");
 
@@ -354,8 +364,10 @@ test("le alternative sono numerate in ordine e l'ultima è sempre Altro", async 
 }) => {
   await fixture(page);
   await openProcessDiscussion(page);
+  const sheet = await openReview(page, "Da decidere");
 
-  const asked = page.getByLabel("Domande aperte sul piano");
+  const asked = sheet.getByLabel("Domande aperte sul piano");
+  await expect(asked).toBeVisible();
   const choices = await asked.getByRole("button").allInnerTexts();
 
   expect(choices[0].replace(/\s+/g, " ")).toMatch(/^1 L'autorizzazione è sempre richiesta/);
@@ -368,8 +380,9 @@ test("il consulente può rispondere con parole sue, e la risposta resta scritta"
 }) => {
   const state = await fixture(page);
   await openProcessDiscussion(page);
+  const sheet = await openReview(page, "Da decidere");
 
-  const asked = page.getByLabel("Domande aperte sul piano");
+  const asked = sheet.getByLabel("Domande aperte sul piano");
   await asked.getByRole("button", { name: /Altro/ }).click();
   await asked.getByRole("textbox").fill("Dipende dalla categoria merceologica");
   await asked.getByRole("button", { name: /^Rispondi$/ }).click();
@@ -381,7 +394,8 @@ test("il consulente può rispondere con parole sue, e la risposta resta scritta"
       { question: GROUNDED_QUESTION, answer: "Dipende dalla categoria merceologica" },
     ]);
   // E una domanda decisa non torna a chiedere.
-  await expect(page.getByLabel("Domande aperte sul piano")).toHaveCount(0);
+  await expect(sheet.getByLabel("Domande aperte sul piano")).toHaveCount(0);
+  await expect(sheet).toContainText("Dipende dalla categoria merceologica");
 });
 
 test("una risposta già data non riappare quando si riapre il processo", async ({
@@ -394,8 +408,9 @@ test("una risposta già data non riappare quando si riapre il processo", async (
 
   await openProcessDiscussion(page);
 
-  await expect(page.getByLabel("Piano BPMN pronto")).toBeVisible();
-  await expect(page.getByLabel("Domande aperte sul piano")).toHaveCount(0);
+  await expect(modelingBar(page)).toContainText("Workspace di modellazione disponibile");
+  const sheet = await openReview(page, "Da decidere");
+  await expect(sheet.getByLabel("Domande aperte sul piano")).toHaveCount(0);
 });
 
 test("un turno che non chiude non viene raccontato come backend spento", async ({
@@ -437,6 +452,8 @@ test("un turno fallito non fa passare per fresco il piano di prima", async ({
   page,
 }) => {
   // Lo stato incoerente: la pagina sembrava contemporaneamente fallita e pronta.
+  // Il piano di prima resta, ma dichiarato per versione: e' la versione che dice
+  // al consulente che non e' quello che ha appena chiesto.
   await fixture(page, {
     turn: [
       {
@@ -451,11 +468,11 @@ test("un turno fallito non fa passare per fresco il piano di prima", async ({
   });
   await openProcessDiscussion(page);
 
-  await expect(page.getByLabel("Piano BPMN pronto")).toBeVisible();
+  const bar = modelingBar(page);
+  await expect(bar).toContainText("Piano V1");
   await ask(page, "prepara il piano");
 
-  const stale = page.getByLabel("Piano BPMN dell'ultimo giro riuscito");
-  await expect(stale).toBeVisible();
-  await expect(stale).toContainText("non è arrivata in fondo");
-  await expect(page.getByLabel("Piano BPMN pronto")).toHaveCount(0);
+  await expect(page.getByRole("alert")).toContainText(/il turno precedente/i);
+  await expect(bar).toContainText("Piano V1");
+  await expect(bar).not.toContainText("Piano V2");
 });
