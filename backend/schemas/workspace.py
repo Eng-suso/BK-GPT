@@ -382,6 +382,23 @@ class BpmnDraftResponse(BaseModel):
     # Durate in millisecondi e conteggi; `process_snapshot_version` puo' essere
     # nullo quando il processo non ha ancora una versione di piano.
     metrics: dict[str, int | None] = Field(default_factory=dict)
+    # La verifica disegno-piano-fonti fatta sul canvas salvato: verdetto
+    # (`conformant` | `not_conformant` | `incomplete`), rilievi con le citazioni
+    # verificate, e lo snapshot su cui e' stata fatta.
+    conformance: dict[str, Any] | None = None
+
+
+class ConformanceStatusResponse(BaseModel):
+    """L'ultima verifica di conformita' di un processo, e se descrive ancora cio' che si vede."""
+
+    process_id: str
+    snapshot_id: str = ""
+    snapshot_label: str = ""
+    # Un confronto e' in coda o sta girando: cio' che si legge sotto descrive il
+    # disegno di prima.
+    running: bool = False
+    is_current: bool = False
+    report: dict[str, Any] | None = None
 
 
 class ProjectSourceResponse(BaseModel):
@@ -444,6 +461,35 @@ class ProjectResponse(BaseModel):
     archived_at: str | None = None
     archive_reason: str | None = None
     process_items: list[ProjectProcessResponse] = Field(default_factory=list)
+
+
+class ModelLibraryItem(BaseModel):
+    """Un modello BPMN nella libreria, con cio' che serve per decidere se riaprirlo."""
+
+    bpmn_model_id: str
+    name: str
+    #: Se il disegno esiste: un processo appena creato ha il modello ma non l'XML.
+    has_diagram: bool
+    #: Quante versioni del disegno sono state salvate.
+    version_count: int = 0
+    last_saved_at: str | None = None
+    process_id: str
+    process_name: str
+    process_stage: str
+    project_id: str
+    project_name: str
+    client_id: str
+    client_name: str
+    #: `pending` / `approved`; `None` quando il piano non e' mai stato preparato.
+    review_status: str | None = None
+    review_version: int | None = None
+    readiness_score: int | None = None
+    review_updated_at: str | None = None
+    #: Ultimo verdetto del confronto con le fonti; `None` se mai confrontato.
+    conformance_verdict: str | None = None
+    conformance_findings: int = 0
+    #: Il disegno o il piano sono cambiati e il confronto deve ancora girare.
+    conformance_pending: bool = False
 
 
 class ArchiveResponse(BaseModel):

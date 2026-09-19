@@ -169,7 +169,11 @@ describe("EvidenceReviewPanel", () => {
     renderPanel();
 
     await user.click(await screen.findByRole("button", { name: /Rifiuta «Audit trimestrale»/ }, LOADED));
-    expect(http).toHaveBeenCalledTimes(1);
+    // Il primo click non scrive niente: nessuna decisione parte.
+    expect(http).not.toHaveBeenCalledWith(
+      expect.stringContaining("/decisions"),
+      expect.anything(),
+    );
 
     expect(
       screen.getByRole("button", {

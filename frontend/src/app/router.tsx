@@ -19,6 +19,7 @@ import {
   InsightsPage,
 } from "@/features/process/simulation";
 import { ProjectsListPage, ProjectDetailPage } from "@/features/projects";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 
 /**
  * Library-mode router. Data is owned by TanStack Query, not RR loaders.
@@ -59,6 +60,7 @@ export const router = createBrowserRouter([
       },
       { path: "models", element: <ModelsPage /> },
       { path: "archive", element: <ArchivePage /> },
+      { path: "settings", element: <SettingsPage /> },
       { path: "*", element: <Navigate to={DEFAULT_ROUTE} replace /> },
     ],
   },

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MoreHorizontal, Share2, Trash2, X } from "lucide-react";
+import { MoreHorizontal, Search, Settings, Share2, Trash2, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
@@ -226,10 +226,22 @@ export const ChatShell: React.FC<ChatShellProps> = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {onSearch && (
+                  <DropdownMenuItem onClick={() => onSearch()}>
+                    <Search />
+                    {t("actions.search")}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => onShare?.()}>
                   <Share2 />
                   {t("actions.copy")}
                 </DropdownMenuItem>
+                {onConfig && (
+                  <DropdownMenuItem onClick={() => onConfig()}>
+                    <Settings />
+                    {t("actions.config")}
+                  </DropdownMenuItem>
+                )}
                 {currentThreadId && onDeleteSession && (
                   <DropdownMenuItem
                     variant="destructive"

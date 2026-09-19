@@ -422,6 +422,51 @@
         "flow": "Flow"
       },
       "rejectWarning": "The drawing is regenerated from the plan: manual edits on the canvas can only be recovered from the version history."
+    },
+    "conformance": {
+      "title": "Check against sources",
+      "run": "Check now",
+      "running": "Checking…",
+      "runningHint": "Re-reading every source and comparing it with the diagram: this can take a few minutes.",
+      "runError": "The check did not complete. Try again in a few minutes.",
+      "loadError": "The last check could not be loaded.",
+      "retry": "Retry",
+      "noneHint": "The check runs automatically when you generate the diagram, or start it now.",
+      "checkedOn_one": "Checked against {{count}} source · {{date}}",
+      "checkedOn_other": "Checked against {{count}} sources · {{date}}",
+      "outdated": "The diagram, the plan or the sources changed after the last check: this result may no longer apply.",
+      "withoutSource_one": "{{count}} diagram element has no support in the sources: see «To confirm» below.",
+      "withoutSource_other": "{{count}} diagram elements have no support in the sources: see «To confirm» below.",
+      "verdict": {
+        "none": "Not checked yet",
+        "conformant": "The diagram matches the sources",
+        "notConformant_one": "{{count}} point to review",
+        "notConformant_other": "{{count}} points to review",
+        "incomplete": "Check not complete",
+        "withDivergences_one": "The diagram follows the sources · {{count}} point to clarify",
+        "withDivergences_other": "The diagram follows the sources · {{count}} points to clarify"
+      },
+      "area": {
+        "source_contradiction": "Sources say otherwise",
+        "source_coverage": "In the sources, missing from the diagram",
+        "plan_currency": "Plan not up to date with the sources",
+        "review_plan": "Plan edited by hand",
+        "canvas_plan": "Diagram differs from the plan",
+        "source_divergence": "The sources contradict each other"
+      },
+      "toast": {
+        "conformant": "The diagram matches the sources.",
+        "done": "Check complete: there are points to review.",
+        "repaired": "Points added: the diagram has been redrawn."
+      },
+      "inProgress": "Check in progress",
+      "inProgressHint": "Re-reading every source and comparing it with the diagram. You can keep working: the result appears here.",
+      "repairing": "Adding the points to the diagram",
+      "repairingHint": "Re-reading the sources on the open points, updating the plan and redrawing.",
+      "repair_one": "Add {{count}} point to the diagram",
+      "repair_other": "Add {{count}} points to the diagram",
+      "repairHint": "The plan is updated and the diagram redrawn: hand edits on the canvas can be recovered from the version history.",
+      "repairError": "Adding the points did not work. Try again in a few minutes."
     }
   }
 }

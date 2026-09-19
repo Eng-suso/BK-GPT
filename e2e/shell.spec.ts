@@ -57,4 +57,50 @@ test.describe('App shell', () => {
     // The shell must survive whichever branch rendered.
     await expect(page.getByRole('heading', projectsHeading)).toBeVisible();
   });
+
+  test('settings opens a real page from the sidebar footer', async ({ page }) => {
+    await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+    const sidebar = page.getByRole('complementary', {
+      name: 'Navigazione principale',
+    });
+
+    await sidebar.getByRole('button', { name: 'Impostazioni' }).click();
+
+    await expect(page).toHaveURL(/\/settings$/);
+    await expect(page.getByRole('heading', { name: 'Impostazioni', level: 1 })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Impostazioni' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    // Without a backend the status panel must say so, not render empty.
+    await expect(
+      page.getByText(/Backend non raggiungibile|Il backend risponde/).first(),
+    ).toBeVisible();
+  });
+
+  test('models is a real library, not a "coming soon"', async ({ page }) => {
+    await page.goto('/models', { waitUntil: 'domcontentloaded' });
+
+    await expect(page.getByRole('heading', { name: 'Modelli', level: 1 })).toBeVisible();
+    await expect(page.getByText('In arrivo')).toHaveCount(0);
+    // No backend in this job: the library must say it could not load, with a
+    // way to retry — or render the table when a backend is there.
+    await expect(
+      page.getByRole('table').or(page.getByRole('button', { name: /Riprova/ })).first(),
+    ).toBeVisible({ timeout: 15000 });
+  });
+
+  test('help opens and leads to the service status', async ({ page }) => {
+    await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+    const sidebar = page.getByRole('complementary', {
+      name: 'Navigazione principale',
+    });
+
+    await sidebar.getByRole('button', { name: 'Aiuto' }).click();
+    const help = page.getByRole('dialog', { name: 'Aiuto' });
+    await expect(help).toBeVisible();
+
+    await help.getByRole('button', { name: /stato del servizio/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Stato del servizio' })).toBeVisible();
+  });
 });

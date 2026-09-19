@@ -280,3 +280,55 @@ def test_sources_without_text_are_not_extracted(extractor):
     assert result.process is None
     assert result.llm_calls == 0
     assert extractor == []
+
+
+def test_a_source_that_times_out_once_is_read_again(monkeypatch):
+    """Caso Esaote: un timeout su un'intervista non deve costare l'intervista al piano."""
+    calls: list[str] = []
+
+    def _flaky(title: str, source_text: str, *, with_quality_report: bool = True):
+        calls.append(source_text)
+        if "Paolo" in source_text and sum("Paolo" in item for item in calls) == 1:
+            return ProcessUnderstandingResult(
+                status="failed",
+                failure=ExtractionFailure(
+                    kind="timeout", message="Request timed out.", retryable=True, attempt=1
+                ),
+            )
+        if "Paolo" in source_text:
+            return _plan("manutenzione", "chiama_fornitore")
+        return _plan("ufficio_tecnico", "apri_richiesta")
+
+    monkeypatch.setattr("backend.agents.process_synthesis.build_process_understanding", _flaky)
+
+    result = extract_plan_from_sources(
+        "Ciclo passivo",
+        [
+            _source("Intervista Laura", "Laura Conti, Ufficio Tecnico."),
+            _source("Intervista Paolo", "Paolo Marchetti, Manutenzione."),
+        ],
+    )
+
+    assert result.failures == []
+    assert {actor.id for actor in result.process.actors} == {"ufficio_tecnico", "manutenzione"}
+    assert result.llm_calls == 3, "il secondo tentativo si conta"
+
+
+def test_a_permanent_failure_is_not_retried(monkeypatch):
+    calls: list[str] = []
+
+    def _bad_request(title: str, source_text: str, *, with_quality_report: bool = True):
+        calls.append(source_text)
+        return ProcessUnderstandingResult(
+            status="failed",
+            failure=ExtractionFailure(
+                kind="invalid_structured_output", message="schema", retryable=False, attempt=1
+            ),
+        )
+
+    monkeypatch.setattr("backend.agents.process_synthesis.build_process_understanding", _bad_request)
+
+    result = extract_plan_from_sources("Ciclo passivo", [_source("Intervista Laura", "Laura Conti.")])
+
+    assert len(calls) == 1
+    assert result.process is None

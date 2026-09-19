@@ -154,6 +154,17 @@ class WorkspaceBpmnReview(WorkspaceBase):
     # conosce il processo, o rifiutato e tolto dal piano. E' conoscenza umana, e
     # come le risposte resta separata da cio' che il modello ha estratto.
     element_decisions_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    # L'ultima verifica di conformita' fra canvas, piano e fonti: verdetto,
+    # rilievi e lo snapshot su cui e' stata fatta. NULL: mai verificato.
+    conformance_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # `pending` quando il disegno o il piano sono cambiati e il confronto deve
+    # ancora girare, `done` quando il rapporto qui accanto descrive cio' che c'e'.
+    # E' una colonna e non un campo del JSON perche' il worker la interroga.
+    conformance_status: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    # Quando la riga e' stata presa in carico. Una presa in carico senza scadenza
+    # e' il modo in cui una coda si blocca in silenzio: se chi lavorava muore, la
+    # riga deve tornare eleggibile da sola.
+    conformance_leased_at: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)

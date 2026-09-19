@@ -111,6 +111,7 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0011 | entity resolution (P2): HNSW coseno parziale su `kg_entity.embedding`, GIN trigram su `lower(canonical_name)`, GIN su `aliases` |
 | 0012 | unique key canonical allineate allo scope: `workspace_id` per consultant, `kg_source.content_hash` per client |
 | 0013 | `kg_ingest_queue` (P5): coda di ingestione asincrona dell'evidenza (payload = kwargs di `write_evidence`) + RLS strict-client + grant CRUD a `delir_app` |
+| 0017 | backoff per riga (`next_attempt_at`, `throttled_count`) sulle due code di proiezione + CHECK `graph_outbox.payload->>'kind'` (`NOT VALID`) + `graph_outbox_dead_letter` |
 
 Test: `tests/test_canonical_rls.py` (8) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 
@@ -165,13 +166,29 @@ uv run python -m backend.workers.mem0_worker    # loop dedicato (delir_worker)
 
 **Health + dead-letter.** `GET /v1/observability/queues` → `{pending, stuck}`
 per coda (`kg_ingest_queue`, `graph_outbox`, `mem0_projection_log`; `stuck` =
-falliti 5 volte). Ispezione / requeue delle due code di proiezione:
+falliti 5 volte), piu' `dead_letter` su `graph_outbox`. Ispezione / requeue delle
+due code di proiezione:
 
 ```bash
 CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin list
 CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin show <id> [--queue mem0_projection_log]
 CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin requeue-stuck
+CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin purge-invalid [--apply]
 ```
+
+**Tre esiti, non uno (0017).** Un job fallito non e' sempre la stessa cosa, e
+trattarlo come tale era il difetto:
+
+| esito | cosa succede | dove si vede |
+|---|---|---|
+| `permanent` | payload che il projector non sa applicare: esce dalla coda e va in `graph_outbox_dead_letter`, intero e col motivo | `dead_letter` |
+| `throttled` | 429 del provider (tipico su `memory.add()` di Mem0): **non consuma tentativi**, sposta `next_attempt_at` onorando `Retry-After`; oltre `retry.THROTTLE_BUDGET` torna a consumarli | `pending`, "in attesa di backoff" |
+| `transient` | guasto momentaneo (Neo4j giu', rete): consuma un tentativo, backoff esponenziale con jitter | `pending` → `stuck` dopo 5 |
+
+Il payload dell'outbox si valida in tre punti, con la stessa regola
+(`projector.validate_payload`): a chi accoda (`canonical._emit`,
+`kg_resolve_entities._emit`), nel DB (CHECK della 0017) e nel worker. `stuck` e
+`dead_letter` sono allarmi diversi: il primo puo' passare da solo, il secondo no.
 
 Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`,
 `tests/test_queue_supervisor.py`, `tests/test_kg_ingest_queue.py` (P5: enqueue,

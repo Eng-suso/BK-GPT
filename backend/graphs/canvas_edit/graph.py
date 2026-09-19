@@ -1,3 +1,4 @@
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -189,6 +190,90 @@ def _unverified_element_warnings(snapshot: ProcessKnowledgeSnapshot | None) -> l
     for name in report.unused_sources:
         warnings.append(f"Dal piano non risulta niente di cio' che dice «{name}».")
     return warnings
+
+
+def ensure_current_plan(state: CanvasState) -> dict:
+    """Prima di ragionare sul disegno, il piano deve essere quello delle fonti.
+
+    La chat del canvas entrava direttamente nel router, senza passare dal
+    confine del Process Agent che garantisce il piano. Con un piano preparato
+    dal titolo del processo prima delle interviste, il router leggeva «bozza
+    disegnabile: no», cinque domande bloccanti e zero attori, e rispondeva al
+    consulente che le evidenze non bastavano - con tre interviste agli atti
+    (caso Esaote, 2026-09-17). Il modello aveva ragionato bene sul dato
+    sbagliato.
+
+    Qui si fa la stessa cosa che fa il confine Process -> Canvas: se il processo
+    ha evidenza e il piano non e' costruito su quella, lo si ricostruisce. Quando
+    il piano e' gia' corrente non costa niente; la ricostruzione, quando serve,
+    e' il ramo lento dichiarato nel task log.
+
+    Returns:
+        Lo stato con `plan_refresh`: l'esito, perche' il router e chi risponde
+        sappiano su che piano stanno lavorando.
+    """
+    process_id = state.get("process_id")
+    if not process_id:
+        return {}
+    try:
+        snapshot = build_process_snapshot(process_id)
+    except Exception:  # noqa: BLE001 - un processo non leggibile lo dira' il contesto
+        return {}
+    if snapshot is None or not snapshot.evidence_count or snapshot.plan_is_current:
+        return {}
+
+    from backend.agents.process_synthesis import ensure_process_plan
+
+    try:
+        synthesis = ensure_process_plan(process_id)
+    except Exception as exc:  # noqa: BLE001 - il turno prosegue, con il guasto dichiarato
+        synthesis = None
+        outcome = {"action": "synthesis_failed", "reason": f"{type(exc).__name__}: {exc}"}
+    else:
+        outcome = {"action": synthesis.action, "reason": synthesis.reason}
+    return {
+        "plan_refresh": outcome,
+        "canvas_task_log": [
+            {
+                "step": "plan_refresh",
+                "status": "completed" if synthesis and synthesis.action == "synthesized" else "failed",
+                "owner": "process_boundary",
+                "summary": (
+                    "Il piano non era costruito sulle fonti agli atti: "
+                    f"{outcome['action']} ({outcome['reason']})."
+                ),
+                "llm_calls": synthesis.llm_calls if synthesis else 0,
+            }
+        ],
+    }
+
+
+def _knowledge_facts_for_router(state: dict) -> str:
+    """I fatti sul piano che il router non deve dedurre dal testo delle lacune."""
+    snapshot = state.get("process_snapshot") or {}
+    understanding = snapshot.get("process_understanding") or {}
+    sources = snapshot.get("sources") or []
+    plan_current = bool(
+        snapshot.get("bpmn_semantic_model")
+        and snapshot.get("plan_evidence_source_set_id")
+        and snapshot.get("plan_evidence_source_set_id") == snapshot.get("evidence_source_set_id")
+    )
+    refresh = state.get("plan_refresh") or {}
+    lines = [
+        f"sources_on_record: {len(sources)} (with_text: {sum(1 for item in sources if item.get('has_content'))})",
+        f"plan_built_on_current_sources: {plan_current}",
+        f"plan_counts: actors={len(understanding.get('actors') or [])} "
+        f"steps={len(understanding.get('steps') or [])} "
+        f"decisions={len(understanding.get('decisions') or [])}",
+    ]
+    if refresh:
+        lines.append(f"plan_refresh_this_turn: {refresh.get('action')} - {refresh.get('reason')}")
+    lines.append(
+        "A request to generate or draw the BPMN from the evidence is authorization for a "
+        "draft: route it to construction/full_from_plan. The runtime refuses a plan that "
+        "does not describe the sources and verifies the drawing against them."
+    )
+    return "\n".join(lines)
 
 
 def expects_empty_canvas(state: dict) -> bool:
@@ -524,6 +609,8 @@ def build_canvas_router(llm):
                             f"has_effective_bpmn_xml: {bool(state.get('effective_bpmn_xml'))}\n"
                             f"effective_bpmn_xml_source: {state.get('effective_bpmn_xml_source')}\n"
                             f"has_prepared_preview_ready_to_apply: {bool(state.get('canvas_preview_xml'))}\n\n"
+                            "Process knowledge facts (verified by the runtime):\n"
+                            f"{_knowledge_facts_for_router(state)}\n\n"
                             "Recent conversation (resolve references against this):\n"
                             f"{recent_conversation_digest(state)}\n\n"
                             "Latest user request:\n"
@@ -589,6 +676,127 @@ def selected_canvas_route(state: CanvasState) -> str:
     return state.get("canvas_route") or "direct"
 
 
+_DRAFTED_NODE_KINDS = {
+    "attivita'": ("task", "userTask", "manualTask", "serviceTask", "sendTask", "receiveTask",
+                  "businessRuleTask", "scriptTask", "subProcess", "callActivity"),
+    "decisioni": ("exclusiveGateway", "inclusiveGateway", "eventBasedGateway", "complexGateway"),
+    "ruoli": ("lane",),
+}
+_DRAFTED_NODE_SINGULAR = {"attivita'": "attivita'", "decisioni": "decisione", "ruoli": "ruolo"}
+
+
+def draft_outcome_message(result) -> str:
+    """Cosa e' stato disegnato e se coincide con le fonti, detto per quello che e'.
+
+    La frase di prima era sempre la stessa - «ho disegnato la bozza e l'ho
+    riletta dal canvas salvato» - sia davanti a un processo di quindici attivita'
+    sia davanti a un inizio e una fine senza niente in mezzo, e anche quando il
+    consulente aveva appena scritto «sul canvas non c'e' nulla». Qui i numeri si
+    contano sul disegno salvato e il verdetto e' quello del revisore.
+    """
+    from collections import Counter
+
+    try:
+        tags = Counter(
+            element.tag.rsplit("}", 1)[-1]
+            for element in ET.fromstring((result.xml or "").strip()).iter()
+        )
+    except ET.ParseError:
+        tags = Counter()
+    counts = {
+        label: sum(tags.get(kind, 0) for kind in kinds)
+        for label, kinds in _DRAFTED_NODE_KINDS.items()
+    }
+    drawn = ", ".join(
+        f"{value} {_DRAFTED_NODE_SINGULAR[label] if value == 1 else label}"
+        for label, value in counts.items()
+    )
+    content = f"Ho disegnato la bozza del processo: {drawn}."
+
+    report = result.conformance
+    if report is None:
+        # Il confronto e' partito e sta girando nel worker: dirlo e' l'unica cosa
+        # onesta adesso, e il pannello lo mostra quando arriva.
+        content += (
+            " Sto confrontando ogni passaggio con le fonti: l'esito compare nel pannello "
+            "Evidenze del canvas fra poco."
+        )
+    elif report.verdict == "conformant":
+        content += f" Confrontato con le {report.sources_audited} fonti raccolte: coincide."
+    elif report.verdict == "conformant_with_divergences":
+        content += (
+            f" Il disegno segue le fonti, ma su {len(report.divergences)} punti le voci "
+            "raccontano cose diverse: serve una tua conferma."
+        )
+    elif report.verdict == "not_conformant":
+        content += (
+            f" Il disegno non coincide ancora del tutto con le fonti: {len(report.findings)} "
+            "punti da rivedere."
+        )
+    else:
+        content += " Il confronto con le fonti non e' completo."
+
+    points = report.consultant_lines() if report is not None else []
+    open_questions = [item for item in _open_plan_questions(result) if item not in points]
+    if points:
+        content += "\n\nDa rivedere:\n" + "\n".join(f"- {item}" for item in points[:8])
+    if open_questions:
+        content += "\n\nDomande ancora aperte:\n" + "\n".join(
+            f"- {item}" for item in open_questions[:5]
+        )
+    if points or open_questions:
+        content += "\n\nIl dettaglio, con le parole delle fonti, e' nel pannello Evidenze del canvas."
+    return content
+
+
+_DRAFT_FAILURE_MESSAGES = {
+    "plan_stale": (
+        "Non ho disegnato il processo: il piano non tiene ancora conto di tutte le fonti "
+        "raccolte. Lo sto ricostruendo; riprova tra qualche minuto."
+    ),
+    "plan_synthesis_failed": (
+        "Non sono riuscito a ricostruire il piano dalle fonti raccolte, quindi non ho "
+        "disegnato niente: meglio nessun disegno che uno che non corrisponde alle "
+        "interviste. Riprova tra qualche minuto."
+    ),
+    "plan_ignores_evidence": (
+        "Non ho disegnato il processo: dal piano non risulta nessuna delle attivita' "
+        "raccontate nelle fonti. Va ricostruito dalle interviste prima di disegnarlo."
+    ),
+    "no_plan_no_evidence": (
+        "Non c'e' ancora niente da disegnare: per questo processo non ci sono fonti "
+        "raccolte ne' un piano. Registra almeno un'intervista."
+    ),
+    "write_not_allowed_in_mode": (
+        "In questa modalita' non modifico il canvas. Passa alla modalita' Agente o "
+        "Modifica per generare il disegno."
+    ),
+}
+
+
+def draft_failure_message(result) -> str:
+    """Perche' non c'e' un disegno, detto a chi deve decidere cosa fare."""
+    return _DRAFT_FAILURE_MESSAGES.get(
+        result.reason_code,
+        "Non ho salvato il disegno per un problema tecnico: niente e' stato modificato. "
+        "Riprova tra qualche minuto.",
+    )
+
+
+def _open_plan_questions(result) -> list[str]:
+    """Le domande aperte del piano, non le note interne della sua costruzione."""
+    process_id = getattr(result, "process_id", "")
+    if not process_id:
+        return []
+    try:
+        snapshot = build_process_snapshot(process_id)
+    except Exception:  # noqa: BLE001 - le domande sono un complemento, non il messaggio
+        return []
+    if snapshot is None:
+        return []
+    return [item.question for item in snapshot.open_questions if not item.answer and item.question]
+
+
 def generate_canvas_draft(state: CanvasState) -> dict:
     """«Genera BPMN» eseguito come comando: compila, valida, dispone, salva.
 
@@ -616,6 +824,10 @@ def generate_canvas_draft(state: CanvasState) -> dict:
             ],
         }
 
+    # Il disegno esce e basta: il confronto con le fonti - una chiamata per
+    # fonte, minuti - parte da solo quando il canvas viene salvato e finisce
+    # nel pannello Evidenze. Chi ha chiesto di generare vede il processo
+    # adesso, e puo' guardarlo, correggerlo e riprovare mentre gira.
     result = generate_bpmn_draft(process_id)
     log_entry = {
         "step": "draft_command",
@@ -626,13 +838,11 @@ def generate_canvas_draft(state: CanvasState) -> dict:
     }
 
     if not result.ok:
-        content = (
-            f"Non ho generato il disegno. {result.reason}"
-            if result.status == "failed"
-            else result.reason
-        )
-        if result.issues:
-            content += "\n\n" + "\n".join(f"- {item}" for item in result.issues[:5])
+        # Il consulente legge perche' non c'e' un disegno e cosa fare adesso. Le
+        # cause tecniche restano nel task log e nei log, dove qualcuno puo'
+        # usarle: hash di set di fonti e nomi di eccezioni in chat non aiutano
+        # nessuno a decidere.
+        content = draft_failure_message(result)
         return {
             "canvas_loop_status": "blocked",
             "canvas_run_status": "failed" if result.status == "failed" else "waiting_for_user",
@@ -642,14 +852,8 @@ def generate_canvas_draft(state: CanvasState) -> dict:
             "canvas_task_log": [log_entry],
         }
 
-    content = (
-        f"Ho disegnato la bozza del processo dal piano {result.snapshot_label} "
-        "e l'ho riletta dal canvas salvato."
-    )
-    if result.pending_verification:
-        content += "\n\nPunti ancora da verificare, che restano aperti sul piano:\n" + "\n".join(
-            f"- {item}" for item in result.pending_verification[:5]
-        )
+    content = draft_outcome_message(result)
+    conformance = result.conformance
 
     return {
         "saved_bpmn_xml": result.xml,
@@ -666,9 +870,10 @@ def generate_canvas_draft(state: CanvasState) -> dict:
             "objective": state.get("canvas_objective") or "Generazione bozza BPMN dal piano",
             "xml_valid": True,
             "semantic_valid": True,
-            "issues": [],
+            "issues": [item.message for item in conformance.blocking] if conformance else [],
             "warnings": result.pending_verification,
             "next_actions": [],
+            "conformance": conformance.model_dump(mode="json") if conformance else None,
         },
         "messages": [AIMessage(content=content)],
         "canvas_task_log": [log_entry],
@@ -1205,7 +1410,9 @@ def build_canvas_subgraph(tools: list, llm, llm_with_tools, build_context_messag
     workflow.add_node("ask_canvas_clarification", ask_canvas_clarification)
     workflow.add_node("generate_canvas_draft", generate_canvas_draft)
 
-    workflow.add_edge(START, "load_canvas_context")
+    workflow.add_node("ensure_current_plan", ensure_current_plan)
+    workflow.add_edge(START, "ensure_current_plan")
+    workflow.add_edge("ensure_current_plan", "load_canvas_context")
     workflow.add_edge("load_canvas_context", "canvas_router")
     workflow.add_conditional_edges(
         "canvas_router",

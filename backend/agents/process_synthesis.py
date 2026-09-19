@@ -180,7 +180,7 @@ SOURCE_EXTRACTION_CHAR_LIMIT = 120_000
 MAX_PARALLEL_EXTRACTIONS = 4
 
 
-def _source_notes(source: dict, process_name: str) -> str:
+def _source_notes(source: dict, process_name: str, reviewer_notes: list[str] | None = None) -> str:
     """Il testo di una fonte come lo legge l'estrattore: una voce sola.
 
     Le fonti restano separate perche' e' la separazione a portare
@@ -205,6 +205,17 @@ def _source_notes(source: dict, process_name: str) -> str:
         "Estrai solo cio' che questa fonte dice. Cio' che non dice non e' una "
         "lacuna del processo: e' una cosa che questa voce non copre."
     )
+    if reviewer_notes:
+        # I rilievi del revisore di conformita' sul piano precedente, con le
+        # citazioni gia' verificate nel testo di questa fonte. Non sono fatti
+        # nuovi: sono punti del testo che l'estrazione precedente non ha portato
+        # nel piano, e restano da estrarre solo se la fonte li dice davvero.
+        header.append(
+            "Verifica di conformita' sul piano precedente: in questa fonte ci sono "
+            "passaggi che quel piano non rappresentava o contraddiceva. Rileggili nel "
+            "testo e, se la fonte li afferma, estraili:"
+        )
+        header.extend(f"- {note}" for note in reviewer_notes)
     # Un taglio si dichiara sempre, anche quando e' improbabile: un testo che
     # finisce senza preavviso fa concludere che il processo finisce li'.
     tail = (
@@ -213,6 +224,27 @@ def _source_notes(source: dict, process_name: str) -> str:
         else []
     )
     return "\n".join([*header, "", content, *tail])
+
+
+def warm_provider_imports() -> None:
+    """Importa il client del modello nel thread che chiama, prima del pool.
+
+    Il client carica i suoi moduli alla prima chiamata. Con quattro estrazioni
+    partite insieme, quattro thread importavano gli stessi moduli nello stesso
+    istante e Python rompeva il ciclo con un `_DeadlockError` sul lock del
+    modulo (`openai.resources.embeddings`, coda di materializzazione,
+    2026-09-17): una fonte persa per un difetto di import, raccontata come
+    estrazione fallita. Importare qui, una volta, toglie la gara.
+
+    Idempotente e senza rete.
+    """
+    import importlib
+
+    for module in ("openai", "openai.resources", "langchain_openai"):
+        try:
+            importlib.import_module(module)
+        except ImportError:  # pragma: no cover - dipendenza opzionale assente
+            logger.debug("modulo del provider non disponibile: %s", module)
 
 
 @dataclass(frozen=True)
@@ -225,7 +257,11 @@ class CorpusExtraction:
     failures: list[str] = field(default_factory=list)
 
 
-def extract_plan_from_sources(process_name: str, sources: list[dict]) -> CorpusExtraction:
+def extract_plan_from_sources(
+    process_name: str,
+    sources: list[dict],
+    reviewer_notes: dict[str, list[str]] | None = None,
+) -> CorpusExtraction:
     """Una estrazione per fonte, a testo intero, poi un merge deterministico.
 
     L'estrazione unica leggeva un corpus tagliato a 12k caratteri per fonte e 30k
@@ -244,6 +280,8 @@ def extract_plan_from_sources(process_name: str, sources: list[dict]) -> CorpusE
     Args:
         process_name: Il nome del processo, per l'estrattore.
         sources: Le fonti del registro, con il loro testo.
+        reviewer_notes: I rilievi verificati del revisore di conformita', per id
+            di fonte, quando l'estrazione ripara un piano gia' verificato.
 
     Returns:
         Il piano fuso (o `None` se nessuna fonte ha prodotto niente), il numero
@@ -264,7 +302,11 @@ def extract_plan_from_sources(process_name: str, sources: list[dict]) -> CorpusE
         try:
             return build_process_understanding(
                 process_name,
-                _source_notes(source, process_name),
+                _source_notes(
+                    source,
+                    process_name,
+                    (reviewer_notes or {}).get(str(source.get("id") or "")),
+                ),
                 # Il giudizio di qualita' si da' sul piano intero, non su ogni
                 # pezzo: chiederlo per fonte moltiplicherebbe le chiamate per
                 # giudicare frammenti che nessuno usera' da soli.
@@ -285,10 +327,25 @@ def extract_plan_from_sources(process_name: str, sources: list[dict]) -> CorpusE
             )
 
     workers = max(1, min(MAX_PARALLEL_EXTRACTIONS, len(readable)))
+    if workers > 1:
+        warm_provider_imports()
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="plan-extract") as pool:
         # `map` conserva l'ordine dell'input: il merge resta deterministico anche
         # se le chiamate finiscono in ordine diverso.
         results = list(pool.map(_extract, readable))
+
+    # Un guasto temporaneo del provider - timeout, rate limit - non deve costare
+    # un'intervista al piano. Sul caso Esaote l'estrazione di Francesca e' andata
+    # in timeout e il piano e' nato su due voci su tre, dichiarato costruito. Un
+    # secondo tentativo, in fila per non ripetere la raffica che ha causato il
+    # guasto, e poi quello che resta fallito resta fallito.
+    retried = 0
+    for index, result in enumerate(results):
+        failure = result.failure
+        if result.status == "success" or failure is None or not failure.retryable:
+            continue
+        retried += 1
+        results[index] = _extract(readable[index])
 
     merged = None
     failures: list[str] = []
@@ -308,13 +365,17 @@ def extract_plan_from_sources(process_name: str, sources: list[dict]) -> CorpusE
 
     return CorpusExtraction(
         process=merged,
-        llm_calls=len(readable),
+        llm_calls=len(readable) + retried,
         sources_read=len(readable),
         failures=failures,
     )
 
 
-def synthesize_process_plan(process_id: str) -> PlanSynthesis:
+def synthesize_process_plan(
+    process_id: str,
+    *,
+    reviewer_notes: dict[str, list[str]] | None = None,
+) -> PlanSynthesis:
     """Costruisce il piano del processo dall'evidenza agli atti e lo persiste.
 
     Il piano che ne esce e' preliminare per costruzione: porta con se' le lacune
@@ -361,7 +422,9 @@ def synthesize_process_plan(process_id: str) -> PlanSynthesis:
     # review - e' il materiale contro cui si giudica se una domanda del piano e'
     # ancorata all'evidenza - ma non e' piu' cio' su cui si estrae: li' le fonti
     # sono tagliate per stare tutte in un prompt solo.
-    extraction = extract_plan_from_sources(process["name"], ledger.get("sources") or [])
+    extraction = extract_plan_from_sources(
+        process["name"], ledger.get("sources") or [], reviewer_notes=reviewer_notes
+    )
     llm_calls = extraction.llm_calls
     understanding = extraction.process
 
@@ -399,13 +462,19 @@ def synthesize_process_plan(process_id: str) -> PlanSynthesis:
             )
         understanding = result.process
     elif extraction.failures:
-        # Una fonte non letta non annulla le altre, ma non sparisce nemmeno: il
-        # piano nasce su meno evidenza di quella agli atti, e chi legge deve
-        # saperlo.
-        logger.warning(
-            "estrazione parziale per il processo %s: %s",
-            process_id,
-            "; ".join(extraction.failures),
+        # Una fonte con un testo che non si e' riusciti a leggere, anche dopo un
+        # secondo tentativo. Un piano costruito senza di lei e dichiarato
+        # "costruito sulle fonti" e' un piano che non coincide con le fonti: il
+        # disegno che ne esce contraddice un'intervista che il consulente ha
+        # fatto. Si chiude come guasto, e la coda riprova con il suo backoff.
+        reason = "Fonti non lette: " + "; ".join(extraction.failures)
+        logger.warning("estrazione parziale per il processo %s: %s", process_id, reason)
+        return PlanSynthesis(
+            action="synthesis_failed",
+            snapshot=build_process_snapshot(process_id),
+            reason=reason,
+            blockers=list(extraction.failures),
+            llm_calls=llm_calls,
         )
 
     result = ProcessUnderstandingResult(status="success", process=understanding)
@@ -463,17 +532,12 @@ def synthesize_process_plan(process_id: str) -> PlanSynthesis:
     # pezzo.
     llm_calls += 1
     snapshot = build_process_snapshot(process_id)
-    read_note = (
-        f" Non tutte le fonti sono state lette: {'; '.join(extraction.failures)}."
-        if extraction.failures
-        else ""
-    )
     return PlanSynthesis(
         action="synthesized",
         snapshot=snapshot,
         reason=(
             f"Piano costruito su {len(ledger.get('sources') or [])} fonti "
-            f"(set {ledger.get('source_set_id')})." + read_note
+            f"(set {ledger.get('source_set_id')})."
         ),
         llm_calls=llm_calls,
     )
@@ -552,3 +616,35 @@ def ensure_process_plan(process_id: str, *, force: bool = False) -> PlanSynthesi
         )
 
     return synthesize_process_plan(process_id)
+
+
+def repair_plan_from_audit(process_id: str, report) -> PlanSynthesis:
+    """Ricostruisce il piano portando nell'estrazione i rilievi del revisore.
+
+    E' il ritorno del loop di verifica: il revisore ha trovato in una fonte
+    passaggi che il piano non rappresenta, o che contraddice, e ne ha portato le
+    parole esatte - gia' ritrovate nel testo dal runtime. Si rilegge ogni fonte
+    intera con quei punti segnalati, e il piano che ne esce prende il posto del
+    precedente come nuova versione.
+
+    Non e' prompt tuning e non e' un secondo tentativo alla cieca: l'input nuovo
+    e' un fatto verificato sul testo, e la riparazione avviene al massimo il
+    numero di volte che chi chiama concede.
+
+    Args:
+        process_id: Il processo.
+        report: Il `ConformanceReport` con i rilievi da chiudere.
+
+    Returns:
+        L'esito della sintesi; `synthesized` quando il piano nuovo e' scritto.
+    """
+    from backend.agents.conformance_audit import reviewer_notes_by_source
+
+    notes = reviewer_notes_by_source(report)
+    if not notes:
+        return PlanSynthesis(
+            action="reused",
+            snapshot=build_process_snapshot(process_id),
+            reason="Nessun rilievo sulle fonti da riportare nel piano.",
+        )
+    return synthesize_process_plan(process_id, reviewer_notes=notes)

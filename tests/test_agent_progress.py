@@ -123,3 +123,25 @@ def test_activity_ids_are_stable_and_unique_per_update():
 
     assert first["activity_id"] != second["activity_id"]
     assert first["activity_id"].endswith("recalling")
+
+
+def test_long_work_inside_a_node_announces_its_phases():
+    """«Genera BPMN» dura minuti dentro un nodo solo: le sue fasi arrivano al narratore."""
+    from backend.services.agent_progress import (
+        COMPARING_WITH_SOURCES,
+        REBUILDING_PLAN,
+        bind_progress_sink,
+        report_progress,
+    )
+
+    heard = []
+    # Fuori da un run nessuno ascolta, e non succede niente.
+    report_progress(REBUILDING_PLAN)
+
+    with bind_progress_sink(heard.append):
+        report_progress(REBUILDING_PLAN)
+        report_progress(COMPARING_WITH_SOURCES)
+    report_progress(REBUILDING_PLAN)
+
+    assert [phase.id for phase in heard] == ["rebuilding_plan", "comparing_with_sources"]
+    assert all("_" not in phase.label for phase in heard), "le fasi si leggono, non si decodificano"

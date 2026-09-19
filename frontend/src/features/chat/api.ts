@@ -1,7 +1,12 @@
 import { http, httpStream } from "@/lib/http";
 
 import type { ApiChatAttachment, ApiChatScope, ChatMode } from "../../contracts/chat";
-import type { BpmnReview, BpmnReviewVersion, ChatSession } from "./types";
+import type {
+  BpmnReview,
+  BpmnReviewVersion,
+  ChatSession,
+  ChatSessionHit,
+} from "./types";
 import { normalizeSession, type RawSession } from "./lib/normalizeSession";
 
 /**
@@ -14,6 +19,8 @@ export const chatKeys = {
   all: ["chat"] as const,
   sessions: (scopeKey: string) => [...chatKeys.all, "sessions", scopeKey] as const,
   session: (threadId: string) => [...chatKeys.all, "session", threadId] as const,
+  sessionSearch: (scopeKey: string, query: string) =>
+    [...chatKeys.all, "session-search", scopeKey, query] as const,
   review: (bpmnModelId: string) => [...chatKeys.all, "review", bpmnModelId] as const,
   reviewVersions: (bpmnModelId: string) =>
     [...chatKeys.all, "review-versions", bpmnModelId] as const,
@@ -30,6 +37,33 @@ export async function fetchChatSessions(scopeKey: string): Promise<ChatSession[]
 export async function fetchChatSession(threadId: string): Promise<ChatSession> {
   const data = await http<RawSession>(`${SESSIONS_BASE}/${threadId}`);
   return normalizeSession(data);
+}
+
+type RawSessionHit = RawSession & {
+  snippet?: string;
+  snippet_role?: string | null;
+  match_count?: number;
+};
+
+/**
+ * Searches the conversations of a scope by title and by what was said in them.
+ *
+ * @param scopeKey - The surface the search runs inside (process, project, consultant)
+ * @param query - The words to look for; the caller decides when it is long enough to ask
+ * @returns The matching conversations, newest first, each with the line that matched
+ */
+export async function searchChatSessions(
+  scopeKey: string,
+  query: string,
+): Promise<ChatSessionHit[]> {
+  const params = new URLSearchParams({ q: query, scope_key: scopeKey });
+  const data = await http<RawSessionHit[]>(`${SESSIONS_BASE}/search?${params}`);
+  return data.map((row) => ({
+    ...normalizeSession(row),
+    snippet: row.snippet ?? "",
+    snippetRole: row.snippet_role === "assistant" ? "assistant" : row.snippet_role === "user" ? "user" : null,
+    matchCount: row.match_count ?? 0,
+  }));
 }
 
 export async function createChatSession(input: {

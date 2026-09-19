@@ -72,6 +72,9 @@ class CanvasState(ConversationState):
     # Le durate di fase dell'ultima generazione deterministica, per capire dove
     # e' stato speso il tempo senza dover leggere i log.
     canvas_draft_metrics: dict | None
+    # Se a inizio turno il piano e' stato ricostruito sulle fonti, e con che
+    # esito: il router e la risposta devono sapere su che piano lavorano.
+    plan_refresh: dict | None
     goal: str | None
     intent: str | None
     next_action: str | None

@@ -136,8 +136,12 @@ def test_a_source_that_fails_to_save_leaves_no_queued_work(empty_process, monkey
     assert "Fonte che non arriva" not in names
 
 
-def test_a_project_source_without_a_process_queues_nothing(empty_process):  # noqa: F811
-    """Una fonte di progetto non appartiene a nessun processo: niente da rifare."""
+def test_a_project_source_queues_the_processes_it_informs(empty_process):  # noqa: F811
+    """Una fonte di progetto entra nel registro dell'evidenza di ogni processo.
+
+    Prima non metteva in coda niente, mentre il registro la contava: il set di
+    fonti cambiava e il piano restava indietro senza che nessuno lo sapesse.
+    """
     wd.create_project_source(
         project_id=empty_process["project_id"],
         name="Documento di progetto",
@@ -145,7 +149,8 @@ def test_a_project_source_without_a_process_queues_nothing(empty_process):  # no
         process_id=None,
     )
 
-    assert wd.plan_materialization_for(empty_process["process_id"]) is None
+    queued = wd.plan_materialization_for(empty_process["process_id"])
+    assert queued is not None and queued["status"] == "pending"
 
 
 def test_the_worker_materializes_the_plan_inside_the_row_tenant(empty_process, monkeypatch):  # noqa: F811
@@ -292,8 +297,8 @@ def test_a_new_source_reopens_a_failed_request(empty_process):  # noqa: F811
     assert reopened["last_error"] is None
 
 
-def test_the_command_declares_a_plan_that_is_behind_the_evidence(empty_process):  # noqa: F811
-    """Disegnare un piano indietro e' onesto solo se si dice che e' indietro."""
+def test_the_command_refuses_a_plan_that_is_behind_the_evidence(empty_process):  # noqa: F811
+    """Un piano indietro rispetto alle fonti non arriva sul canvas."""
     _save_interviews(empty_process)
     _prepare_plan(empty_process)
 
@@ -309,9 +314,13 @@ def test_the_command_declares_a_plan_that_is_behind_the_evidence(empty_process):
             empty_process["process_id"], synthesize_missing_plan=False
         )
 
-    assert result.status == "drafted"
+    # Un piano indietro non si disegna "dichiarandolo": e' cosi' che il caso
+    # Esaote ha avuto sei bozze start -> end. Si rifiuta con la causa, e la
+    # ricostruzione resta in coda.
+    assert result.status == "failed"
+    assert result.reason_code == "plan_stale"
     assert result.metrics["llm_calls"] == 0
-    assert any("ultima evidenza" in item for item in result.pending_verification)
+    assert wd.plan_materialization_for(empty_process["process_id"])["status"] == "pending"
 
 
 def test_taking_a_row_hides_it_from_the_other_workers(empty_process):  # noqa: F811

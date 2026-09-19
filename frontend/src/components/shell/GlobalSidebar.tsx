@@ -7,8 +7,13 @@ import type { ShellSection } from "./types";
 
 export type GlobalSidebarProps = {
   compact?: boolean;
-  activeSection: ShellSection;
+  /** `null` quando la pagina aperta non e' una sezione (es. impostazioni). */
+  activeSection: ShellSection | null;
   onSectionChange: (section: ShellSection) => void;
+  /** Se la pagina aperta e' quella delle impostazioni. */
+  settingsActive?: boolean;
+  onOpenHelp: () => void;
+  onOpenSettings: () => void;
 };
 
 /**
@@ -23,6 +28,9 @@ export function GlobalSidebar({
   compact = false,
   activeSection,
   onSectionChange,
+  settingsActive = false,
+  onOpenHelp,
+  onOpenSettings,
 }: GlobalSidebarProps): React.JSX.Element {
   const { t } = useTranslation("common");
 
@@ -72,6 +80,8 @@ export function GlobalSidebar({
         <button
           type="button"
           title={t("nav.help")}
+          aria-haspopup="dialog"
+          onClick={onOpenHelp}
           className={cn("flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", !compact && "lg:justify-start lg:px-2.5")}
         >
           <HelpCircle className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
@@ -80,9 +90,15 @@ export function GlobalSidebar({
         <button
           type="button"
           title={t("nav.profile")}
-          className={cn("flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring", !compact && "lg:justify-start lg:px-2.5")}
+          aria-current={settingsActive ? "page" : undefined}
+          onClick={onOpenSettings}
+          className={cn(
+            "flex h-10 items-center justify-center gap-[11px] rounded-2xl text-[13.5px] text-muted-foreground hover:bg-white/70 hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring",
+            !compact && "lg:justify-start lg:px-2.5",
+            settingsActive && "font-medium text-primary",
+          )}
         >
-          <Settings className="size-[17px] shrink-0 opacity-70" strokeWidth={1.6} />
+          <Settings className={cn("size-[17px] shrink-0", settingsActive ? "opacity-100" : "opacity-70")} strokeWidth={1.6} />
           <span className={compact ? "hidden" : "hidden lg:inline"}>{t("nav.profile")}</span>
         </button>
       </div>

@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "@/lib/i18n";
+import { setupUser } from "@/test/user";
 import type { Project } from "../types";
 
 const http = vi.fn();
@@ -92,7 +92,7 @@ describe("ProjectFormDialog", () => {
   });
 
   it("saves the objective onto the project record", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockImplementation((path: string) =>
       path === "/v1/workspace/clients"
         ? Promise.resolve([])
@@ -133,7 +133,7 @@ describe("ProjectFormDialog", () => {
   });
 
   it("saves the lead and the dates onto the project record", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockImplementation((path: string) =>
       path === "/v1/workspace/clients"
         ? Promise.resolve([])
@@ -163,7 +163,7 @@ describe("ProjectFormDialog", () => {
   });
 
   it("sends an emptied field as empty, so the record can forget it", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockImplementation((path: string) =>
       path === "/v1/workspace/clients"
         ? Promise.resolve([])
@@ -186,7 +186,7 @@ describe("ProjectFormDialog", () => {
   });
 
   it("says so when the engagement ends before it starts", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockResolvedValue([]);
     renderDialog(PROJECT);
 
@@ -197,7 +197,7 @@ describe("ProjectFormDialog", () => {
   });
 
   it("refuses to create a project with no client and writes nothing", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockResolvedValue([]);
     renderDialog(null);
 

@@ -190,5 +190,19 @@
     "title": "Queued messages",
     "hint": "They go out as soon as the running turn closes.",
     "remove": "Remove from queue"
+  },
+  "search": {
+    "title": "Search history",
+    "description": "Search conversation titles and what was said in this workspace.",
+    "placeholder": "Words said in chat, or title",
+    "hint": "Type at least {{min}} characters.",
+    "searching": "Searching...",
+    "failed": "Search failed.",
+    "empty": "No conversation contains \"{{query}}\".",
+    "results": "Conversations found",
+    "current": "Open",
+    "titleMatch": "The conversation title matches.",
+    "fromUser": "Consultant",
+    "fromAssistant": "DeliR"
   }
 }

@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 
 import {
+  apiConformanceStatusSchema,
   apiBpmnModelSchema,
   apiBpmnVersionsSchema,
   apiElementReviewSchema,
@@ -13,10 +14,12 @@ import {
   apiRestoreBpmnVersionSchema,
   toBpmnModel,
   toBpmnVersion,
+  toConformanceStatus,
   toElementReviewResult,
   toProcessProvenance,
   type BpmnModel,
   type BpmnVersion,
+  type ConformanceStatus,
   type ElementReviewDecision,
   type ElementReviewResult,
   type ProcessProvenance,
@@ -40,7 +43,31 @@ export const bpmnKeys = {
 
 export const provenanceKeys = {
   process: (processId: string) => ["workspace", "provenance", processId] as const,
+  // Sotto la chiave della provenance: quando il disegno o le fonti cambiano,
+  // l'invalidazione che ricarica le evidenze ricarica anche il confronto.
+  conformance: (processId: string) =>
+    ["workspace", "provenance", processId, "conformance"] as const,
 };
+
+export async function fetchConformanceStatus(processId: string): Promise<ConformanceStatus> {
+  const raw = await http<unknown>(`/v1/workspace/processes/${processId}/conformance`, {
+    cache: "no-store",
+  });
+  return toConformanceStatus(apiConformanceStatusSchema.parse(raw));
+}
+
+export async function repairFromConformance(processId: string): Promise<void> {
+  await http<unknown>(`/v1/workspace/processes/${processId}/conformance/repair`, {
+    method: "POST",
+  });
+}
+
+export async function runConformanceAudit(processId: string): Promise<ConformanceStatus> {
+  const raw = await http<unknown>(`/v1/workspace/processes/${processId}/conformance-audit`, {
+    method: "POST",
+  });
+  return toConformanceStatus(apiConformanceStatusSchema.parse(raw));
+}
 
 export async function fetchProcessProvenance(
   processId: string,
@@ -192,6 +219,50 @@ export function useReviewProvenanceElementMutation(processId: string, bpmnModelI
         bpmnModelId,
         forceCanvasReload: input.decision === "rejected" && result.draftStatus === "drafted",
       });
+    },
+  });
+}
+
+export function useConformanceStatusQuery(
+  processId: string,
+  options: { enabled?: boolean } = {},
+): UseQueryResult<ConformanceStatus> {
+  return useQuery({
+    queryKey: provenanceKeys.conformance(processId),
+    queryFn: () => fetchConformanceStatus(processId),
+    enabled: options.enabled ?? true,
+    staleTime: 0,
+    // Il confronto gira nel worker mentre il consulente guarda il disegno:
+    // finche' e' in corso la risposta si ricarica da sola, cosi' l'esito
+    // compare senza che nessuno debba riaprire il pannello.
+    refetchInterval: (query) => (query.state.data?.running ? 5_000 : false),
+  });
+}
+
+/**
+ * Riporta nel piano i punti che le fonti dicono e il disegno non mostra.
+ *
+ * Il disegno viene rifatto: le evidenze e il canvas si ricaricano dal backend.
+ */
+export function useRepairFromConformanceMutation(processId: string, bpmnModelId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => repairFromConformance(processId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: provenanceKeys.process(processId) });
+      void queryClient.invalidateQueries({ queryKey: bpmnKeys.scope(bpmnModelId) });
+      notifyWorkspaceChanged({ bpmnModelId, forceCanvasReload: true });
+    },
+  });
+}
+
+/** Confronta adesso disegno, piano e fonti; il risultato sostituisce quello in cache. */
+export function useRunConformanceAuditMutation(processId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => runConformanceAudit(processId),
+    onSuccess: (status) => {
+      queryClient.setQueryData(provenanceKeys.conformance(processId), status);
     },
   });
 }

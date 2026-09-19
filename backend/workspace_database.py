@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 
 from backend.agents.chat_mode import assert_write_allowed
 from backend.process_understanding import (
@@ -871,6 +871,11 @@ def update_bpmn_model(
             raise ValueError("XML BPMN obbligatorio.")
 
         model.xml = clean_xml
+        # Il disegno e' cambiato: il confronto con le fonti che risultava prima
+        # non descrive piu' cio' che si vede. Va rifatto, e lo fa il worker.
+        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None and getattr(review, "tenant_id", "local") == tenant_id():
+            review.conformance_status = "pending"
         create_bpmn_version(
             session=session,
             model=model,
@@ -1359,6 +1364,7 @@ def review_to_dict(review: WorkspaceBpmnReview) -> dict:
         "open_questions": open_questions_with_answers(review),
         "answers": decode_answers(review),
         "element_decisions": decode_element_decisions(review),
+        "conformance": conformance_state(review),
         "status": getattr(review, "status", "pending"),
         "created_at": review.created_at,
         "updated_at": review.updated_at,
@@ -1542,6 +1548,9 @@ def prepare_bpmn_review(
             review.status = "pending"
             review.updated_at = timestamp
 
+        # Il piano e' cambiato: il confronto con le fonti che risultava prima
+        # descrive un altro piano. Va rifatto, e lo fa il worker.
+        review.conformance_status = "pending"
         _record_review_version(
             session,
             review,
@@ -1603,6 +1612,8 @@ def revise_bpmn_review(
         # A revision reopens the plan: an approved review that gets corrected is a
         # new proposal, not a still-approved one.
         review.status = "pending"
+        # E il confronto con le fonti descriveva il piano di prima: va rifatto.
+        review.conformance_status = "pending"
         review.updated_at = now_iso()
 
         _record_review_version(
@@ -1859,11 +1870,23 @@ def create_project_source(
         # processo senza questa fonte e' da rifare. Va in coda qui, nella stessa
         # transazione della fonte, invece di essere ricostruito quando qualcuno
         # chiede di disegnare - che e' il momento in cui nessuno puo' aspettare.
-        enqueue_plan_materialization(
-            process_id,
-            reason=f"fonte registrata: {source.name}",
-            session=session,
+        # Una fonte di progetto vale per ogni processo del progetto (e' cosi' che
+        # il registro dell'evidenza la legge): ogni loro piano e' da rifare.
+        affected = (
+            [process_id]
+            if process_id
+            else session.execute(
+                select(WorkspaceProcess.id)
+                .where(WorkspaceProcess.project_id == project_id)
+                .where(WorkspaceProcess.tenant_id == current_tenant_id)
+            ).scalars().all()
         )
+        for affected_process_id in affected:
+            enqueue_plan_materialization(
+                affected_process_id,
+                reason=f"fonte registrata: {source.name}",
+                session=session,
+            )
         return source_to_dict(source)
 
 
@@ -2033,6 +2056,212 @@ def record_element_decision(
         return decisions
 
 
+def conformance_state(review: WorkspaceBpmnReview) -> dict:
+    """Lo stato del confronto disegno-piano-fonti di questa review.
+
+    `status` dice se un confronto e' in attesa di girare; `report` e' l'ultimo
+    esito, che resta leggibile anche mentre il prossimo e' in coda: il consulente
+    continua a vedere cosa risultava, con l'avviso che le cose sono cambiate.
+    """
+    return {
+        "status": getattr(review, "conformance_status", None) or "none",
+        "report": decode_conformance_report(review),
+    }
+
+
+def decode_conformance_report(review: WorkspaceBpmnReview) -> dict | None:
+    """L'ultima verifica di conformita' registrata, se leggibile.
+
+    Un rapporto illeggibile vale come nessun rapporto: chi lo legge deve rifare
+    la verifica, non fidarsi di un dato rovinato.
+    """
+    raw = getattr(review, "conformance_json", None)
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning(
+            "rapporto di conformita' illeggibile per il modello %s: ignorato",
+            getattr(review, "bpmn_model_id", "?"),
+        )
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def record_conformance_report(bpmn_model_id: str, report: dict) -> dict | None:
+    """Registra sulla review l'esito dell'ultima verifica disegno-piano-fonti.
+
+    Non alza la versione del piano e non passa da `assert_write_allowed`: e' la
+    registrazione di un controllo, come la coda di materializzazione, non una
+    modifica del processo. Il rapporto porta lo snapshot e l'impronta del canvas
+    su cui e' stato fatto, quindi chi lo rilegge sa se vale ancora.
+
+    Returns:
+        Il rapporto registrato, o ``None`` se la review non esiste nel tenant.
+    """
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None:
+            return None
+        review.conformance_json = json.dumps(report, ensure_ascii=False)
+        review.conformance_status = "done"
+        review.conformance_leased_at = None
+        session.flush()
+        return report
+
+
+def request_conformance_check(bpmn_model_id: str) -> bool:
+    """Segna che il confronto con le fonti va rifatto.
+
+    Lo scrivono le operazioni che cambiano cio' che il confronto guarda: una
+    bozza appena disegnata, un canvas salvato, un piano rivisto. Il disegno esce
+    subito e la verifica gira dietro - il consulente itera invece di aspettare -
+    e finche' non e' finita il pannello dice che e' in corso.
+
+    Non alza la versione del piano e non passa da `assert_write_allowed`: e' la
+    registrazione di un lavoro da fare, come la coda di materializzazione.
+
+    Returns:
+        `True` se la richiesta e' stata registrata; `False` se il processo non ha
+        una review (niente piano, niente da confrontare).
+    """
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is None:
+            return False
+        review.conformance_status = "pending"
+        session.flush()
+        return True
+
+
+def due_conformance_checks(limit: int = 3, *, only_tenant_id: str | None = None) -> list[dict]:
+    """I confronti in attesa, i piu' vecchi per primi, presi in carico con una scadenza.
+
+    Come la coda dei piani: il worker gira fuori da una richiesta HTTP, quindi la
+    riga porta il proprio tenant, e chi la prende in carico lo vincola prima di
+    leggere il processo. La presa in carico marca `running` **e quando**: una
+    lettura delle fonti dura minuti, e se il processo che la stava facendo muore -
+    un riavvio, un deploy - la riga deve tornare eleggibile da sola. Senza la
+    scadenza resta `running` per sempre, nessuno la rilavora, e il pannello mostra
+    "Confronto in corso" all'infinito: sembra lavoro in corso e non lo e'.
+
+    Args:
+        limit: Quante righe prendere in carico.
+        only_tenant_id: Limita la coda a un tenant. I test drenano cosi', perche'
+            una passata che prende la riga di un altro workspace scriverebbe un
+            rapporto dentro il processo di un cliente.
+
+    Side effects:
+        Marca le righe prese in carico e ne segna l'istante.
+    """
+    expired_before = (
+        datetime.now(UTC) - timedelta(seconds=CONFORMANCE_LEASE_SECONDS)
+    ).isoformat(timespec="seconds")
+    with workspace_connection() as session:
+        statement = (
+            select(WorkspaceBpmnReview)
+            .where(
+                or_(
+                    WorkspaceBpmnReview.conformance_status == "pending",
+                    and_(
+                        WorkspaceBpmnReview.conformance_status == "running",
+                        or_(
+                            WorkspaceBpmnReview.conformance_leased_at.is_(None),
+                            WorkspaceBpmnReview.conformance_leased_at < expired_before,
+                        ),
+                    ),
+                )
+            )
+            .order_by(WorkspaceBpmnReview.updated_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
+        )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
+        rows = session.execute(statement).scalars().all()
+        claimed = [
+            {
+                "tenant_id": row.tenant_id,
+                "process_id": row.process_id,
+                "bpmn_model_id": row.bpmn_model_id,
+            }
+            for row in rows
+        ]
+        now = now_iso()
+        for row in rows:
+            row.conformance_status = "running"
+            row.conformance_leased_at = now
+        session.flush()
+        return claimed
+
+
+def enqueue_unchecked_conformance(limit: int = 20, *, only_tenant_id: str | None = None) -> list[str]:
+    """Mette in coda i processi che hanno un disegno e non sono mai stati confrontati.
+
+    La coda si riempie quando qualcuno disegna o rivede un piano. Da sola quella
+    regola coprirebbe solo i processi toccati da quando il confronto esiste: tutti
+    i disegni gia' sul tavolo - gli altri progetti, gli altri clienti - resterebbero
+    senza verifica per sempre, e il pannello direbbe "non ancora confrontato"
+    finche' qualcuno non li riapre. Qui entrano anche loro, un po' per passata.
+
+    Args:
+        limit: Quanti processi mettere in coda al massimo.
+        only_tenant_id: Limita a un tenant (amministrazione, test).
+
+    Returns:
+        Gli id dei modelli messi in coda.
+    """
+    with workspace_connection() as session:
+        statement = (
+            select(WorkspaceBpmnReview)
+            .join(WorkspaceBpmnModel, WorkspaceBpmnModel.id == WorkspaceBpmnReview.bpmn_model_id)
+            .where(WorkspaceBpmnReview.conformance_status.is_(None))
+            .where(WorkspaceBpmnModel.xml.is_not(None))
+            .order_by(WorkspaceBpmnReview.updated_at)
+            .limit(max(1, int(limit)))
+        )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
+        rows = session.execute(statement).scalars().all()
+        for row in rows:
+            row.conformance_status = "pending"
+        session.flush()
+        return [row.bpmn_model_id for row in rows]
+
+
+# Per quanto una riga presa in carico resta invisibile agli altri worker. Piu'
+# larga di quella dei piani perche' un confronto legge una fonte per volta con il
+# modello: sui processi veri sono minuti, e una scadenza stretta farebbe lavorare
+# due volte lo stesso disegno.
+CONFORMANCE_LEASE_SECONDS = 900
+
+
+def conformance_queue_stats() -> dict[str, int]:
+    """Quanti confronti sono in attesa e quanti sono stati presi in carico."""
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspaceBpmnReview.conformance_status, func.count())
+            .group_by(WorkspaceBpmnReview.conformance_status)
+        ).all()
+    counts = {str(status): int(count) for status, count in rows}
+    return {
+        "pending": counts.get("pending", 0),
+        "done": counts.get("done", 0),
+        "stuck": counts.get("running", 0),
+    }
+
+
+def release_conformance_check(bpmn_model_id: str, *, status: str = "pending") -> None:
+    """Rimette una presa in carico nello stato dato (riprova, o resa)."""
+    with workspace_connection() as session:
+        review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None:
+            review.conformance_status = status
+            review.conformance_leased_at = None
+            session.flush()
+
+
 MATERIALIZATION_MAX_ATTEMPTS = 5
 MATERIALIZATION_BACKOFF_SECONDS = 30
 # Per quanto una riga presa in carico resta invisibile agli altri worker. Non e'
@@ -2133,7 +2362,7 @@ def enqueue_plan_materialization(
         return _upsert(owned_session)
 
 
-def due_plan_materializations(limit: int = 5) -> list[dict]:
+def due_plan_materializations(limit: int = 5, *, only_tenant_id: str | None = None) -> list[dict]:
     """Prende in carico le richieste pronte, di tutti i tenant.
 
     Il worker gira fuori da una richiesta HTTP e quindi fuori da un tenant: la
@@ -2147,6 +2376,12 @@ def due_plan_materializations(limit: int = 5) -> list[dict]:
     piano due volte, e il processo si troverebbe due versioni nate dallo stesso
     evento.
 
+    Args:
+        limit: Quante righe prendere in carico.
+        only_tenant_id: Limita la coda a un tenant. I test drenano cosi': una
+            passata che prende la riga di un altro workspace lavorerebbe il
+            processo di un cliente.
+
     Side effects:
         Sposta `next_attempt_at` di ogni riga presa in carico.
     """
@@ -2155,18 +2390,19 @@ def due_plan_materializations(limit: int = 5) -> list[dict]:
         datetime.now(UTC) + timedelta(seconds=MATERIALIZATION_LEASE_SECONDS)
     ).isoformat(timespec="seconds")
     with workspace_connection() as session:
-        rows = (
-            session.execute(
-                select(WorkspacePlanMaterialization)
-                .where(WorkspacePlanMaterialization.status == "pending")
-                .where(WorkspacePlanMaterialization.next_attempt_at <= now)
-                .order_by(WorkspacePlanMaterialization.next_attempt_at)
-                .limit(max(1, int(limit)))
-                .with_for_update(skip_locked=True)
-            )
-            .scalars()
-            .all()
+        statement = (
+            select(WorkspacePlanMaterialization)
+            .where(WorkspacePlanMaterialization.status == "pending")
+            .where(WorkspacePlanMaterialization.next_attempt_at <= now)
+            .order_by(WorkspacePlanMaterialization.next_attempt_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
         )
+        if only_tenant_id:
+            statement = statement.where(
+                WorkspacePlanMaterialization.tenant_id == only_tenant_id
+            )
+        rows = session.execute(statement).scalars().all()
         claimed = [_materialization_to_dict(row) for row in rows]
         for row in rows:
             row.next_attempt_at = lease_until
@@ -2268,6 +2504,90 @@ def plan_materialization_stats() -> dict[str, int]:
         "done": counts.get("done", 0),
         "stuck": counts.get("failed", 0),
     }
+
+
+def enqueue_stale_plan_materializations(
+    limit: int = 50, *, only_tenant_id: str | None = None
+) -> list[dict]:
+    """Mette in coda i processi il cui piano descrive un altro set di fonti.
+
+    La coda si riempiva solo quando una fonte veniva creata con un processo. Due
+    strade la lasciavano vuota, e il piano indietro per sempre:
+
+    - le fonti registrate prima che la coda esistesse (il processo Esaote: tre
+      interviste agli atti, un piano V1 preparato dal titolo, nessuna riga in
+      coda, sei bozze start -> end);
+    - le fonti di progetto, che valgono per ogni processo del progetto ma non
+      nominano un processo da mettere in coda.
+
+    Qui si confronta, per ogni processo con fonti, il set su cui il piano e' nato
+    con quello che c'e' adesso, usando la stessa identita' del registro
+    dell'evidenza. Tutti i tenant: gira nel worker, e la riga porta il suo.
+
+    Una riga `failed` non si rimette in coda: e' un piano che non si riesce a
+    costruire, e riprovarlo a ogni passata nasconderebbe proprio quello. Una riga
+    `pending` c'e' gia'.
+
+    Args:
+        limit: Quante righe mettere in coda al massimo in una passata.
+        only_tenant_id: Limita lo sweep a un tenant (amministrazione, test).
+
+    Returns:
+        Le righe messe in coda.
+    """
+    from backend.graphs.process.nodes import source_set_identity
+    from backend.security import reset_current_tenant_id, set_current_tenant_id
+
+    with workspace_connection() as session:
+        statement = select(WorkspaceProcess).where(WorkspaceProcess.archived_at.is_(None))
+        if only_tenant_id:
+            statement = statement.where(WorkspaceProcess.tenant_id == only_tenant_id)
+        processes = session.execute(statement).scalars().all()
+        sources_by_project: dict[tuple[str, str], list[dict]] = {}
+        for source in session.execute(select(WorkspaceSource)).scalars():
+            sources_by_project.setdefault((source.tenant_id, source.project_id), []).append(
+                source_to_dict(source)
+            )
+        reviews = {
+            (review.tenant_id, review.bpmn_model_id): review.evidence_source_set_id
+            for review in session.execute(select(WorkspaceBpmnReview)).scalars()
+        }
+        queue = {
+            (row.tenant_id, row.process_id): row.status
+            for row in session.execute(select(WorkspacePlanMaterialization)).scalars()
+        }
+
+        stale: list[tuple[str, str]] = []
+        for process in processes:
+            key = (process.tenant_id, process.id)
+            if queue.get(key) in {"pending", "failed"}:
+                continue
+            sources = [
+                item
+                for item in sources_by_project.get((process.tenant_id, process.project_id), [])
+                if item.get("process_id") in {None, process.id}
+            ]
+            if not sources:
+                continue
+            recorded = reviews.get((process.tenant_id, process.bpmn_model_id))
+            if recorded == source_set_identity(sources):
+                continue
+            stale.append(key)
+            if len(stale) >= max(1, int(limit)):
+                break
+
+    queued: list[dict] = []
+    for owner_tenant, process_id in stale:
+        token = set_current_tenant_id(owner_tenant)
+        try:
+            row = enqueue_plan_materialization(
+                process_id, reason="piano costruito su un set di fonti diverso da quello agli atti"
+            )
+        finally:
+            reset_current_tenant_id(token)
+        if row:
+            queued.append(row)
+    return queued
 
 
 def list_project_decisions(project_id: str) -> list[dict]:

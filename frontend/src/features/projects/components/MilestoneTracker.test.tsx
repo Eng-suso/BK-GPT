@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "@/lib/i18n";
+import { setupUser } from "@/test/user";
 import type { Milestone } from "@/contracts/workspace";
 
 const http = vi.fn();
@@ -52,7 +52,7 @@ describe("MilestoneTracker", () => {
   });
 
   it("writes the milestone the consultant marks as reached", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     http.mockResolvedValue({
       id: "ciclo-ordini",
       client_id: "esaote",

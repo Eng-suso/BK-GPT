@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.schemas.workspace import (
+    ConformanceStatusResponse,
     AnswerBpmnReviewQuestionRequest,
     ApproveBpmnReviewResponse,
     ArchiveImpactResponse,
@@ -22,6 +23,7 @@ from backend.schemas.workspace import (
     ProcessProvenanceResponse,
     ProjectDecisionResponse,
     ProjectProcessResponse,
+    ModelLibraryItem,
     ProjectResponse,
     ProjectSourceResponse,
     RestoreBpmnVersionResponse,
@@ -34,7 +36,10 @@ from backend.schemas.workspace import (
     UpdateProjectRequest,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
-from backend.workspace_services.bpmn_draft import generate_bpmn_draft
+from backend.workspace_services.bpmn_draft import (
+    generate_bpmn_draft,
+    generate_verified_bpmn_draft,
+)
 from backend.workspace_database import (
     answer_bpmn_review_question,
     approve_bpmn_review,
@@ -169,6 +174,19 @@ def get_workspace_projects(include_archived: bool = False) -> list[ProjectRespon
         ProjectResponse(**project)
         for project in list_projects(include_archived=include_archived)
     ]
+
+
+@router.get("/models")
+def get_workspace_models() -> list[ModelLibraryItem]:
+    """La libreria dei modelli BPMN dei processi attivi, dal piu' recente.
+
+    Returns:
+        list[ModelLibraryItem]: Un modello per processo, con lo stato del
+        disegno, della review e del confronto con le fonti.
+    """
+    from backend.workspace_services.model_library import list_models
+
+    return [ModelLibraryItem(**model) for model in list_models()]
 
 
 # ---------------------------------------------------------------------------
@@ -656,6 +674,10 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
     Side effects:
         Scrive il modello BPMN e una sua versione.
     """
+    # Il disegno e basta: il confronto con le fonti parte da solo alla
+    # scrittura del canvas e gira nel worker, cosi' chi ha premuto il
+    # bottone vede il processo in pochi secondi invece di aspettare una
+    # chiamata per fonte.
     result = generate_bpmn_draft(process_id)
 
     if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
@@ -680,6 +702,111 @@ def generate_workspace_bpmn_draft(process_id: str) -> BpmnDraftResponse:
         issues=result.issues,
         reason=result.reason,
         metrics=dict(result.metrics or {}),
+        conformance=result.conformance.model_dump(mode="json") if result.conformance else None,
+    )
+
+
+@router.get("/processes/{process_id}/conformance")
+def get_workspace_process_conformance(process_id: str) -> ConformanceStatusResponse:
+    """L'ultima verifica disegno-piano-fonti, e se vale ancora.
+
+    Il rapporto registrato porta lo snapshot del processo e l'impronta del canvas
+    su cui e' stato fatto: se nel frattempo il piano, le fonti o il canvas sono
+    cambiati, `is_current` e' falso e il verdetto non descrive piu' cio' che il
+    consulente vede.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.agents.conformance_audit import signature_digest
+    from backend.agents.process_snapshot import build_process_snapshot
+
+    snapshot = build_process_snapshot(process_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
+    review = get_bpmn_review(snapshot.bpmn_model_id, include_approved=True) if snapshot.bpmn_model_id else None
+    state = (review or {}).get("conformance") or {}
+    report = state.get("report")
+    model = get_bpmn_model(snapshot.bpmn_model_id) if snapshot.bpmn_model_id else None
+    is_current = bool(
+        report
+        and report.get("snapshot_id") == snapshot.snapshot_id
+        and report.get("canvas_signature") == signature_digest((model or {}).get("xml"))
+    )
+    return ConformanceStatusResponse(
+        process_id=process_id,
+        snapshot_id=snapshot.snapshot_id,
+        snapshot_label=snapshot.label,
+        # In coda o in corso: il pannello lo dice, invece di mostrare come
+        # attuale un esito che descrive il disegno di prima.
+        running=state.get("status") in {"pending", "running"},
+        is_current=is_current,
+        report=report,
+    )
+
+
+@router.post("/processes/{process_id}/conformance/repair")
+def repair_workspace_process_from_conformance(process_id: str) -> BpmnDraftResponse:
+    """Riporta nel piano i punti che le fonti dicono e il disegno non mostra.
+
+    E' l'azione esplicita del consulente sui rilievi del confronto: il piano
+    viene ricostruito rileggendo le fonti con quei punti segnalati, il disegno
+    rifatto e riverificato. Non avviene da sola: cambiare il disegno mentre
+    qualcuno lo sta leggendo e' una sorpresa, non un miglioramento.
+
+    Args:
+        process_id: Identificatore del processo, non affidabile.
+
+    Returns:
+        BpmnDraftResponse: L'esito del nuovo disegno, con il confronto rifatto.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+
+    Side effects:
+        Nuova versione del piano e del canvas; chiamate al modello.
+    """
+    result = generate_verified_bpmn_draft(process_id)
+    if result.reason_code in {"process_not_found", "missing_bpmn_model", "model_disappeared"}:
+        raise HTTPException(status_code=404, detail=result.reason)
+    model = get_bpmn_model(result.bpmn_model_id) if result.ok else None
+    return BpmnDraftResponse(
+        status=result.status,
+        reason_code=result.reason_code,
+        process_id=result.process_id,
+        bpmn_model_id=result.bpmn_model_id,
+        snapshot_id=result.snapshot_id,
+        snapshot_label=result.snapshot_label,
+        bpmn_model=BpmnModelResponse(**model) if model else None,
+        pending_verification=result.pending_verification,
+        issues=result.issues,
+        reason=result.reason,
+        metrics=dict(result.metrics or {}),
+        conformance=result.conformance.model_dump(mode="json") if result.conformance else None,
+    )
+
+
+@router.post("/processes/{process_id}/conformance-audit")
+def run_workspace_process_conformance_audit(process_id: str) -> ConformanceStatusResponse:
+    """Esegue adesso la verifica disegno-piano-fonti sul canvas salvato.
+
+    Raises:
+        HTTPException: 404 quando il processo non esiste.
+    """
+    from backend.agents.conformance_audit import audit_process_conformance
+
+    # Richiesto a mano: si rifa' anche se quello registrato descrive gia' questo
+    # stato. E' il bottone «Confronta ora», e deve confrontare.
+    report = audit_process_conformance(process_id, force=True)
+    if report is None:
+        raise HTTPException(status_code=404, detail=f"Processo non trovato: {process_id}")
+    return ConformanceStatusResponse(
+        process_id=process_id,
+        snapshot_id=report.snapshot_id,
+        snapshot_label=report.snapshot_label,
+        running=False,
+        is_current=True,
+        report=report.model_dump(mode="json"),
     )
 
 

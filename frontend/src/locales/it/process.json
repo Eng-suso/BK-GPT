@@ -422,6 +422,51 @@
         "flow": "Flusso"
       },
       "rejectWarning": "Il disegno viene rigenerato dal piano: le modifiche fatte a mano sul canvas si recuperano solo dalla cronologia versioni."
+    },
+    "conformance": {
+      "title": "Confronto con le fonti",
+      "run": "Confronta ora",
+      "running": "Confronto…",
+      "runningHint": "Sto rileggendo ogni fonte e confrontandola con il disegno: può richiedere qualche minuto.",
+      "runError": "Il confronto non è riuscito. Riprova tra qualche minuto.",
+      "loadError": "Non riesco a leggere l'ultimo confronto.",
+      "retry": "Riprova",
+      "noneHint": "Il confronto parte da solo quando generi il disegno, oppure avvialo ora.",
+      "checkedOn_one": "Confrontato con {{count}} fonte · {{date}}",
+      "checkedOn_other": "Confrontato con {{count}} fonti · {{date}}",
+      "outdated": "Il disegno, il piano o le fonti sono cambiati dopo l'ultimo confronto: questo esito potrebbe non valere più.",
+      "withoutSource_one": "{{count}} elemento del disegno non ha riscontro nelle fonti: lo trovi qui sotto in «Da confermare».",
+      "withoutSource_other": "{{count}} elementi del disegno non hanno riscontro nelle fonti: li trovi qui sotto in «Da confermare».",
+      "verdict": {
+        "none": "Non ancora confrontato",
+        "conformant": "Il disegno coincide con le fonti",
+        "notConformant_one": "{{count}} punto da rivedere",
+        "notConformant_other": "{{count}} punti da rivedere",
+        "incomplete": "Confronto non completo",
+        "withDivergences_one": "Il disegno segue le fonti · {{count}} punto da chiarire",
+        "withDivergences_other": "Il disegno segue le fonti · {{count}} punti da chiarire"
+      },
+      "area": {
+        "source_contradiction": "Le fonti dicono diversamente",
+        "source_coverage": "Detto nelle fonti, assente nel disegno",
+        "plan_currency": "Piano non aggiornato alle fonti",
+        "review_plan": "Piano modificato a mano",
+        "canvas_plan": "Disegno diverso dal piano",
+        "source_divergence": "Le fonti si contraddicono fra loro"
+      },
+      "toast": {
+        "conformant": "Il disegno coincide con le fonti.",
+        "done": "Confronto completato: ci sono punti da rivedere.",
+        "repaired": "Punti integrati: il disegno è stato rifatto."
+      },
+      "inProgress": "Confronto in corso",
+      "inProgressHint": "Sto rileggendo ogni fonte e confrontandola con il disegno. Puoi continuare a lavorare: l'esito compare qui.",
+      "repairing": "Integro i punti nel disegno",
+      "repairingHint": "Rileggo le fonti sui punti aperti, aggiorno il piano e ridisegno.",
+      "repair_one": "Integra nel disegno {{count}} punto",
+      "repair_other": "Integra nel disegno {{count}} punti",
+      "repairHint": "Il piano viene aggiornato e il disegno rifatto: le modifiche fatte a mano sul canvas si recuperano dalla cronologia versioni.",
+      "repairError": "L'integrazione non è riuscita. Riprova tra qualche minuto."
     }
   }
 }

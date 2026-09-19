@@ -1,4 +1,4 @@
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, Literal, TypeAlias, TypeGuard
 
 from pydantic import BaseModel, Field
 
@@ -61,6 +61,21 @@ DEFAULT_CHAT_MODE_BY_SCOPE: dict[ChatScopeType, ChatMode] = {
 DEFAULT_CHAT_MODE: ChatMode = "conversation"
 
 
+def is_chat_scope_type(value: str | None) -> TypeGuard[ChatScopeType]:
+    """Questa stringa nomina una superficie che esiste davvero?
+
+    Lo scope arriva dalla UI, quindi e' una stringa qualunque finche' qualcuno
+    non la confronta con le superfici registrate. Il confronto stava dentro un
+    `.get()` con un default, e li' il fallback era indistinguibile da un hit:
+    `"proces"` scritto male otteneva le modalita' del consulente senza che
+    niente lo dicesse, e il tipo della chiave restava `str` mentre la mappa e'
+    indicizzata su un `Literal`. Dichiararlo come guardia rende la restrizione
+    verificabile dal type checker e riutilizzabile da chi deve sapere se lo
+    scope ricevuto era noto.
+    """
+    return value in CHAT_MODES_BY_SCOPE
+
+
 def chat_modes_for_scope(scope_type: str | None) -> tuple[ChatMode, ...]:
     """List the chat modes a scope offers.
 
@@ -71,7 +86,8 @@ def chat_modes_for_scope(scope_type: str | None) -> tuple[ChatMode, ...]:
     Returns:
         The modes available on that surface, narrowest rung first.
     """
-    return CHAT_MODES_BY_SCOPE.get(scope_type or "consultant", CHAT_MODES_BY_SCOPE["consultant"])
+    scope: ChatScopeType = scope_type if is_chat_scope_type(scope_type) else "consultant"
+    return CHAT_MODES_BY_SCOPE[scope]
 
 
 def default_chat_mode(scope_type: str | None) -> ChatMode:

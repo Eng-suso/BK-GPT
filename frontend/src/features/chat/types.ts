@@ -40,6 +40,16 @@ export interface ChatSession {
   messages: ChatMessage[];
 }
 
+/** Una conversazione trovata cercando, con il perche' e' stata trovata. */
+export interface ChatSessionHit extends ChatSession {
+  /** Il pezzo di messaggio intorno alla parola cercata; vuoto se ha corrisposto il titolo. */
+  snippet: string;
+  /** Chi aveva scritto quel messaggio. */
+  snippetRole: "user" | "assistant" | null;
+  /** Quanti messaggi corrispondono nella conversazione. */
+  matchCount: number;
+}
+
 export interface PromptSuggestion {
   icon: string;
   title: string;

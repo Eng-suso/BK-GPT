@@ -50,8 +50,54 @@
     }
   },
   "models": {
-    "description": "Template riutilizzabili per interviste, processi e deliverable.",
-    "empty": "La libreria modelli si attiverà quando l'endpoint dedicato sarà pronto."
+    "description": "Tutti i disegni BPMN dei processi in corso, con lo stato del disegno, della review e del confronto con le fonti.",
+    "searchPlaceholder": "Cerca processo o cliente",
+    "columns": {
+      "model": "Processo",
+      "client": "Cliente",
+      "stage": "Stato",
+      "diagram": "Disegno",
+      "review": "Review",
+      "conformance": "Confronto con le fonti",
+      "touched": "Ultima modifica"
+    },
+    "stage": {
+      "toDraw": "Da disegnare",
+      "noPlan": "Piano da preparare",
+      "inReview": "In revisione",
+      "toFix": "Da correggere",
+      "approved": "Approvato"
+    },
+    "diagram": {
+      "none": "Nessun disegno",
+      "versions_one": "{{count}} versione",
+      "versions_other": "{{count}} versioni"
+    },
+    "review": {
+      "none": "Piano non preparato",
+      "pending": "In revisione · prontezza {{readiness}}%",
+      "approved": "Approvata"
+    },
+    "conformance": {
+      "none": "Non ancora confrontato",
+      "pending": "Confronto in corso",
+      "conformant": "Coincide con le fonti",
+      "divergences_one": "{{count}} punto da chiarire",
+      "divergences_other": "{{count}} punti da chiarire",
+      "notConformant_one": "{{count}} punto da rivedere",
+      "notConformant_other": "{{count}} punti da rivedere",
+      "incomplete": "Confronto non completo"
+    },
+    "empty": {
+      "title": "Ancora nessun modello",
+      "description": "Ogni processo ha il suo modello: crea un progetto e un processo, poi ricostruiscilo dalle fonti.",
+      "action": "Vai ai progetti"
+    },
+    "noResults": {
+      "title": "Nessun modello trovato",
+      "description": "Nessun modello corrisponde alla ricerca o ai filtri.",
+      "reset": "Azzera ricerca e filtri"
+    }
   },
   "archive": {
     "description": "Clienti, progetti e processi chiusi. Restano leggibili e si possono riaprire.",
@@ -118,6 +164,80 @@
       "archived": "{{name}} archiviato.",
       "restored": "{{name}} ripristinato.",
       "deleted": "{{name}} eliminato."
+    }
+  },
+  "serviceStatus": {
+    "title": "Stato del servizio",
+    "description": "Dove parla il prodotto, se il backend risponde e che lavoro ha in coda.",
+    "endpoint": "Endpoint backend",
+    "sameOrigin": "Stessa origine della pagina",
+    "connection": "Connessione",
+    "checking": "Verifico...",
+    "healthy": "Il backend risponde, nessun ripiego attivo.",
+    "degraded": "Il backend risponde, ma qualcosa ha risposto da una via di ripiego.",
+    "unreachable": "Backend non raggiungibile.",
+    "queues": "Code di lavorazione",
+    "queuesUnknown": "Stato della coda non leggibile.",
+    "queuesNotConfigured": "Code non configurate in questo ambiente.",
+    "queueCounts": "{{pending}} in attesa, {{stuck}} bloccati",
+    "deadLetter": "{{count}} messi da parte: non passeranno da soli.",
+    "model": "Modello della conversazione",
+    "refresh": "Aggiorna"
+  },
+  "settings": {
+    "description": "Preferenze dell'interfaccia e stato del servizio.",
+    "language": {
+      "title": "Lingua dell'interfaccia",
+      "description": "Cambia subito tutta l'interfaccia e resta scelta al prossimo accesso da questo browser."
+    }
+  },
+  "help": {
+    "title": "Aiuto",
+    "description": "Come si porta avanti un incarico in DeliR, e cosa fare quando qualcosa non risponde.",
+    "workflow": {
+      "title": "Percorso di un incarico",
+      "start": "Vai ai progetti",
+      "project": {
+        "title": "Crea il progetto",
+        "body": "Un progetto per cliente e incarico: raccoglie processi, fonti e decisioni."
+      },
+      "sources": {
+        "title": "Aggiungi le fonti",
+        "body": "Interviste, note e documenti del processo. Il modello si costruisce solo da ciò che è agli atti."
+      },
+      "reconstruct": {
+        "title": "Ricostruisci il processo",
+        "body": "Dalla chat del processo DeliR prepara una bozza di piano e di disegno BPMN a partire dalle fonti."
+      },
+      "gaps": {
+        "title": "Chiudi le lacune",
+        "body": "Le domande aperte nascono da contraddizioni o silenzi delle fonti: rispondi o scegli fra le alternative proposte."
+      },
+      "validate": {
+        "title": "Valida il modello",
+        "body": "Confronta il disegno con le fonti e approva la review quando non restano punti bloccanti."
+      }
+    },
+    "shortcuts": {
+      "title": "Scorciatoie da tastiera",
+      "send": "Invia il messaggio in chat",
+      "newline": "Vai a capo nel messaggio",
+      "answer": "Scegli un'alternativa in una domanda aperta",
+      "search": "Scorri e apri i risultati della ricerca in cronologia",
+      "close": "Chiudi la cronologia o il pannello laterale",
+      "resize": "Ridimensiona un pannello dal suo separatore"
+    },
+    "keys": {
+      "enter": "Invio",
+      "shift": "Maiusc",
+      "esc": "Esc",
+      "home": "Home",
+      "end": "Fine"
+    },
+    "trouble": {
+      "title": "Qualcosa non risponde?",
+      "body": "Prima di riprovare, controlla se il backend risponde e se ha lavoro in coda: una conoscenza che non arriva spesso è una coda ferma, non una risposta sbagliata.",
+      "action": "Controlla lo stato del servizio"
     }
   }
 }

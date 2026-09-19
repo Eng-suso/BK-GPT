@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from contextlib import nullcontext
 from queue import Empty, Queue
 from threading import Event
@@ -22,6 +23,8 @@ from backend.services.agent_progress import (
     DRAFTING,
     UNDERSTANDING,
     ProgressNarrator,
+    ProgressPhase,
+    bind_progress_sink,
 )
 from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
@@ -50,6 +53,8 @@ THREAD_LOCK_TIMEOUT_SECONDS = 30
 # senza sentinella. Non e' piu' un battito che genera testo: il progresso esce
 # quando cambia la fase, non allo scadere di un timer.
 QUEUE_POLL_SECONDS = 1.0
+# Ogni quanto, senza altri eventi, lo stream manda un segno di vita.
+KEEPALIVE_SECONDS = 15.0
 # Agent work is visible by default. These two sets are the exceptions, so a node
 # added to a graph reports progress without anyone remembering to register it -
 # the previous allow-list of 44 node names silently swallowed every new node.
@@ -61,6 +66,7 @@ INTERNAL_AGENT_NODES = {
     "classify_and_select_context",
     "load_process_context",
     "load_canvas_context",
+    "ensure_current_plan",
     "load_context",
     "load_workspace_records",
     "consulting_router",
@@ -562,6 +568,22 @@ def stream_agent_events(
     def enqueue(event: AgentStreamEvent) -> None:
         output_queue.put(event)
 
+    narrator_lock = Lock()
+
+    def announce_phase(phase: ProgressPhase) -> None:
+        """Una fase annunciata da un lavoro lungo dentro un nodo.
+
+        Puo' arrivare da un thread dell'executor del grafo, mentre il ciclo sugli
+        eventi usa lo stesso narratore: il lock tiene coerente la fase corrente.
+        """
+        if not emit_activity:
+            return
+        with narrator_lock:
+            payload = narrator.enter(phase)
+        progress = progress_event(context=context, thread_id=thread_id, payload=payload)
+        if progress is not None:
+            enqueue(progress)
+
     def run_agent_stream() -> None:
         """Run the agent stream and enqueue node, content, usage, completion, or error events.
         
@@ -593,6 +615,7 @@ def stream_agent_events(
                 bind_active_scope(scope),
                 bind_active_mode(chat_mode),
                 bind_active_thread(checkpoint_thread_id),
+                bind_progress_sink(announce_phase),
             ):
                 events = agent.stream(
                     {
@@ -810,6 +833,7 @@ def stream_agent_events(
         if initial_activity is not None:
             yield initial_activity
 
+    last_emitted = time.monotonic()
     try:
         while True:
             try:
@@ -817,10 +841,23 @@ def stream_agent_events(
             except Empty:
                 if not worker.is_alive() and output_queue.empty():
                     break
+                if time.monotonic() - last_emitted >= KEEPALIVE_SECONDS:
+                    # Un proxy davanti all'app (Cloudflare chiude dopo 100s
+                    # senza byte) taglia la risposta mentre l'agente lavora
+                    # ancora. Il client ignora gli eventi che non conosce.
+                    last_emitted = time.monotonic()
+                    yield AgentStreamEvent(
+                        type="trace",
+                        request_id=context.request_id,
+                        trace_id=context.trace_id,
+                        thread_id=thread_id,
+                        payload={"keepalive": True},
+                    )
                 continue
 
             if queued is None:
                 break
+            last_emitted = time.monotonic()
             yield queued
     finally:
         # Vale sia per la fine normale sia per il `GeneratorExit` di un client

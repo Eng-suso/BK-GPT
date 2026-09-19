@@ -14,14 +14,25 @@ from backend.process_understanding import (
 logger = logging.getLogger(__name__)
 
 
-def _source_set_id(sources: list[dict]) -> str:
+def source_set_identity(sources: list[dict]) -> str:
     """L'identita' del set di fonti, confrontabile fra un turno e l'altro.
 
     Serve a rendere verificabile l'invariante invece di doverla dedurre: due
     fasi che dichiarano lo stesso `source_set_id` hanno letto le stesse fonti.
     Entra anche nella firma di progresso del loop, cosi' una fonte in piu' conta
     come avanzamento.
+
+    L'ordine e' fissato qui, non da chi chiama: lo sweep dei piani indietro
+    calcola la stessa identita' dai soli record delle fonti, senza caricarne i
+    testi, e due ordini diversi darebbero due set diversi per le stesse fonti.
     """
+    ordered = sorted(
+        sources,
+        key=lambda item: (
+            str(item.get("name") or "").casefold(),
+            str(item.get("id") or ""),
+        ),
+    )
     identity = [
         {
             "id": str(item.get("id") or ""),
@@ -29,7 +40,7 @@ def _source_set_id(sources: list[dict]) -> str:
             "project_id": str(item.get("project_id") or ""),
             "process_id": str(item.get("process_id") or ""),
         }
-        for item in sources
+        for item in ordered
     ]
     encoded = json.dumps(identity, ensure_ascii=False, sort_keys=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()[:20]
@@ -43,7 +54,7 @@ def _empty_evidence_snapshot() -> dict:
         "sources": [],
         "source_ids": [],
         "source_count": 0,
-        "source_set_id": _source_set_id([]),
+        "source_set_id": source_set_identity([]),
         "claims": [],
         "count": 0,
     }
@@ -157,7 +168,7 @@ def load_evidence_ledger(
         "sources": sources,
         "source_ids": source_ids,
         "source_count": len(sources),
-        "source_set_id": _source_set_id(sources),
+        "source_set_id": source_set_identity(sources),
         "claims": list(projected.get("claims") or []),
         "count": len(projected.get("claims") or []),
     }

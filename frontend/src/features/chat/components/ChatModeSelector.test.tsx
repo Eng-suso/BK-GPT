@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUser } from "@/test/user";
 
 import { ChatModeSelector } from "./ChatModeSelector";
 
@@ -34,7 +34,7 @@ describe("ChatModeSelector", () => {
   });
 
   it("offers conversation and delegated modes as a single-choice menu", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderSelector({ value: "plan" });
 
     await user.click(screen.getByRole("button"));
@@ -47,7 +47,7 @@ describe("ChatModeSelector", () => {
   });
 
   it("reports the mode the user picked", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { onChange } = renderSelector({ value: "agent" });
 
     await user.click(screen.getByRole("button"));
@@ -59,7 +59,7 @@ describe("ChatModeSelector", () => {
   });
 
   it("carries the reasoning effort in the same menu", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { onEffortChange } = renderSelector({ effort: "medium" });
 
     await user.click(screen.getByRole("button"));
@@ -75,7 +75,7 @@ describe("ChatModeSelector", () => {
   });
 
   it("cannot switch mode while the agent is answering", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { onChange } = renderSelector({ disabled: true });
 
     // Il trigger disabilitato e' il contratto: in un browser non riceve

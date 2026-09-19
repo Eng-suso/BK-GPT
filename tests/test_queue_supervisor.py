@@ -64,8 +64,12 @@ def test_queue_stats_and_prune_against_real_db():
     from backend.workers import graph_worker, mem0_worker
 
     for stats in (graph_worker.queue_stats(), mem0_worker.queue_stats()):
-        assert set(stats) == {"pending", "stuck"}
+        assert set(stats) >= {"pending", "stuck"}
         assert stats["pending"] >= 0 and stats["stuck"] >= 0
+
+    # `stuck` (guasto che puo' passare) e `dead_letter` (payload che non passera'
+    # mai) sono due allarmi diversi e vanno contati separatamente.
+    assert graph_worker.queue_stats()["dead_letter"] >= 0
 
     # prune non tocca le righe pendenti (older_than futuro impossibile -> 0)
     assert graph_worker.prune(older_than_days=36500) == 0
