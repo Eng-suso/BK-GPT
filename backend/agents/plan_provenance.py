@@ -82,6 +82,12 @@ class ElementProvenance(BaseModel):
     # all'etichetta. Mai il testo che l'estrattore dichiara: quello e' la
     # domanda, non la risposta.
     quote: str = ""
+    # Le fonti in cui si ritrova almeno una delle evidenze dichiarate, parola per
+    # parola o parafrasata. Un passaggio che due voci raccontano, e che il piano
+    # ha unificato portandosi le citazioni di entrambe, deve risultare sostenuto
+    # da due fonti: contarne una sola lo farebbe sembrare meno certo di quanto
+    # le interviste dicono.
+    corroborating_sources: list[str] = Field(default_factory=list)
     # Cosa ne ha deciso il consulente, quando l'ha rivisto. `None` significa
     # "non ancora rivisto", non "accettato".
     consultant_decision: ConsultantDecision | None = None
@@ -135,6 +141,7 @@ class ProvenanceReport(BaseModel):
             "label_grounded": self.count("label_grounded"),
             "unverified": self.count("unverified"),
             "awaiting_confirmation": len(self.awaiting_confirmation),
+            "corroborated": sum(1 for item in self.elements if len(item.corroborating_sources) > 1),
             "grounded_ratio": self.grounded_ratio,
             "sources_checked": self.sources_checked,
             "unused_sources": list(self.unused_sources),
@@ -204,12 +211,21 @@ _ELIDED_FUNCTION_WORDS = frozenset(
 )
 
 
-def _stems(text: str) -> set[str]:
+def content_stems(text: str) -> set[str]:
+    """Le radici delle parole di contenuto: la misura con cui due testi dicono la stessa cosa.
+
+    Pubblica perche' chi deve decidere se due etichette del piano parlano dello
+    stesso passaggio deve usare lo stesso metro di chi le confronta con le
+    fonti: due misure diverse darebbero due risposte diverse sullo stesso testo.
+    """
     return {
         token[:STEM_CHARS]
         for token in content_tokens(text)
         if token not in _ELIDED_FUNCTION_WORDS
     }
+
+
+_stems = content_stems
 
 
 def _best_sentence(
@@ -253,6 +269,22 @@ def _passes(
     return ratio >= min_ratio and shared >= needed
 
 
+def _source_carries_evidence(snippets: list[str], source: _IndexedSource) -> bool:
+    """Una delle evidenze dichiarate sta in questa fonte, letterale o parafrasata?
+
+    Solo le evidenze, non l'etichetta: l'etichetta di un passaggio comune
+    ("inviare la richiesta") si ritrova in ogni intervista, e contarla come
+    conferma farebbe risultare corroborato cio' che una sola voce ha detto.
+    """
+    for snippet in snippets:
+        if source.folded.locate(snippet) is not None:
+            return True
+        stems = _stems(snippet)
+        if _passes(_best_sentence(stems, [source]), PARAPHRASE_MIN_OVERLAP, stems):
+            return True
+    return False
+
+
 def _judge(
     *,
     kind: ElementKind,
@@ -272,6 +304,9 @@ def _judge(
 
     snippets = [str(item or "").strip().strip("\"'«»“”") for item in evidence]
     snippets = [item for item in snippets if item]
+    base["corroborating_sources"] = [
+        source.name for source in sources if _source_carries_evidence(snippets, source)
+    ]
 
     for snippet in snippets:
         for source in sources:

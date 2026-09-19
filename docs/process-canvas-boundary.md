@@ -354,6 +354,50 @@ Il giudizio di qualita' si da' una volta sola, sul piano fuso: chiederlo per
 fonte moltiplicherebbe le chiamate per giudicare frammenti che nessuno usera' da
 soli.
 
+## Il piano fuso diventa un piano solo
+
+Il merge per fonte lasciava due difetti, trovati dal revisore di conformita' sul
+processo reale di acquisto materiali indiretti (piano V2, tre interviste): il
+percorso principale cominciava dalla fattura, perche' la prima intervista in
+ordine alfabetico era quella dell'Amministrazione, e lo stesso passaggio
+raccontato da due voci restava due passaggi - 37 attivita' dove il processo ne
+ha una quindicina. `consolidate_plan` (`backend/agents/plan_consolidation.py`)
+li chiude dopo il merge, con due regole diverse perche' sono due problemi
+diversi.
+
+**L'ordine si deduce, non si eredita.** Nessun LLM: ordinamento topologico sui
+legami che il piano gia' dichiara - archi (non quelli di dati), esiti delle
+decisioni, eccezioni sul loro passaggio, e l'ordine in cui ogni voce racconta il
+suo pezzo. L'inizio e' quello che l'agente indica fra i candidati, se lo indica;
+altrimenti, fra gli eventi d'inizio che le voci dichiarano (le radici del grafo
+solo se nessuna ne dichiara), quello da cui si raggiunge la parte piu' grande del
+percorso. Un arco che torna indietro (una rilavorazione) resta un legame ma non
+decide l'ordine. Cio' che nessun legame collega all'inizio va in coda, e il
+piano lo dichiara in `consultant_findings` (`ordine_percorso_da_confermare`)
+invece di inventargli un posto; i suoi archi verso la parte nota non la
+trattengono. L'ordine di lettura decide solo fra elementi che nessun
+legame ordina. I confini (`start_event`, `trigger`, `success_end`) vengono dalle
+voci che raccontano l'inizio e la fine, non dall'ultima letta.
+
+**I doppioni li riconosce l'agente, li verifica il runtime.** Una chiamata
+tipizzata sul piano fuso (`PlanUnificationVerdict`) propone gruppi di elementi
+dello stesso tipo che sono lo stesso elemento. Il runtime scarta e conta
+(`discarded_groups`) un gruppo con etichette senza parole in comune, con attori
+incompatibili o di natura diversa, con elementi che il piano o una voce mettono
+uno dopo l'altro, o fatto tutto dalla stessa voce. Per i gruppi che reggono: il
+sopravvissuto e' il primo per id (una regola che non dipende dall'ordine di
+lettura), le citazioni di tutte le voci si uniscono - `plan_provenance` le conta
+in `corroborating_sources` -, i riferimenti si riscrivono, e gli id assorbiti
+restano in `unified_elements`, fuori dallo schema che l'estrattore vede. Un
+emendamento che nomina un id assorbito finisce sul sopravvissuto. Prima di
+accettare, rilettura: nessun id assorbito ancora citato nel piano, nessun
+riferimento rotto nuovo in `process_understanding_diagnostics`. Se la rilettura
+non regge, il piano resta quello di prima: un doppione visibile si corregge, un
+passaggio perso no.
+
+La chiamata sta nella sintesi del piano, che gira nel `plan_worker`: il comando
+«Genera BPMN» la paga solo nel ramo lento, quando il piano e' da rifare.
+
 ## Il piano si confronta con le fonti, non solo il disegno con il piano
 
 `validate_canvas_against_process` verificava che il canvas somigliasse al piano,

@@ -49,13 +49,17 @@ def _cases():
 
 @pytest.mark.parametrize("case", _cases() if _ENABLED else [], ids=lambda case: case.case_id)
 def test_the_extractor_maps_the_golden_case(case):
+    from backend.agents.plan_consolidation import llm_plan_unifier
     from backend.agents.plan_provenance import verify_plan_provenance
     from backend.agents.process_synthesis import extract_plan_from_sources
     from backend.bpmn import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
-    from tests.evals.graph_metrics import compare, parse_bpmn, regressions
+    from tests.evals.graph_metrics import compare, parse_bpmn, plan_shape, regressions
 
     sources = case.source_texts()
-    extraction = extract_plan_from_sources(case.process_name, sources)
+    # Lo stesso percorso della sintesi in produzione, consolidamento compreso:
+    # misurare l'estrattore senza l'unificazione dei doppioni vorrebbe dire
+    # misurare un piano che nessun consulente vede.
+    extraction = extract_plan_from_sources(case.process_name, sources, unifier=llm_plan_unifier())
     assert extraction.process is not None, (
         f"{case.case_id}: nessun piano estratto ({'; '.join(extraction.failures)})"
     )
@@ -75,6 +79,10 @@ def test_the_extractor_maps_the_golden_case(case):
         "extraction_failures": extraction.failures,
         "provenance": provenance.summary(),
         "compiler_warnings": model.model_warnings,
+        "plan": plan_shape(extraction.process.model_dump(mode="json")),
+        "consolidation": (
+            extraction.consolidation.as_log_entry() if extraction.consolidation else None
+        ),
     }
     REPORTS.mkdir(parents=True, exist_ok=True)
     (REPORTS / f"{case.case_id}.json").write_text(

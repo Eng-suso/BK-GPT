@@ -89,6 +89,8 @@ def test_the_conformance_loop_on_a_golden_case(case):
                 )
             result = generate_verified_bpmn_draft(process["id"])
 
+        from tests.evals.graph_metrics import plan_shape
+
         snapshot = build_process_snapshot(process["id"])
         report = result.conformance
         REPORTS.mkdir(parents=True, exist_ok=True)
@@ -99,6 +101,11 @@ def test_the_conformance_loop_on_a_golden_case(case):
                     "reason_code": result.reason_code,
                     "metrics": result.metrics,
                     "repairs": result.conformance_repairs,
+                    "plan": (
+                        plan_shape(snapshot.process_understanding)
+                        if snapshot and snapshot.process_understanding
+                        else None
+                    ),
                     "conformance": report.model_dump(mode="json") if report else None,
                 },
                 ensure_ascii=False,
