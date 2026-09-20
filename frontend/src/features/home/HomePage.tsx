@@ -30,7 +30,14 @@ export function HomePage(): React.JSX.Element {
     () => (projectsQ.data ?? []).filter((project) => overlapsPeriod(project, range)),
     [projectsQ.data, range],
   );
-  const clients = useMemo(() => clientsQ.data ?? [], [clientsQ.data]);
+  // I clienti seguono i progetti del periodo: un riquadro filtrato accanto a
+  // uno che conta tutto racconta due storie nella stessa schermata.
+  const clients = useMemo(() => {
+    const all = clientsQ.data ?? [];
+    if (period === "all") return all;
+    const inPeriod = new Set(projects.map((project) => project.client));
+    return all.filter((client) => inPeriod.has(client.name));
+  }, [clientsQ.data, projects, period]);
   const isLoading = projectsQ.isLoading || clientsQ.isLoading;
   const isError = projectsQ.isError || clientsQ.isError;
 

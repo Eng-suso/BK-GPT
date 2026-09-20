@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { i18n } from "@/lib/i18n";
 import { PeriodProvider } from "@/features/period/PeriodContext";
@@ -61,11 +61,19 @@ function renderHome() {
 
 beforeAll(async () => {
   await i18n.changeLanguage("it");
+  // "Quest'anno" dipende da quando gira il test: senza orologio fisso questo
+  // file diventerebbe rosso il primo gennaio.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date(2026, 4, 20));
 });
 
 afterEach(() => {
   vi.clearAllMocks();
   window.localStorage.clear();
+});
+
+afterAll(() => {
+  vi.useRealTimers();
 });
 
 describe("HomePage", () => {

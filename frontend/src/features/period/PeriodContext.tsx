@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { PeriodContext, type PeriodValue } from "./periodContextValue";
-import { DEFAULT_PERIOD, PERIOD_IDS, periodRange, type PeriodId } from "./periods";
+import { DEFAULT_PERIOD, PERIOD_IDS, periodRange, today, type PeriodId } from "./periods";
 
 const STORAGE_KEY = "delir-period";
 
@@ -24,6 +24,23 @@ function storedPeriod(): PeriodId {
  */
 export function PeriodProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [period, setPeriodState] = useState<PeriodId>(storedPeriod);
+  // Il giorno corrente fa parte dello stato: "questo mese" cambia a mezzanotte,
+  // e una sessione lasciata aperta continuerebbe a filtrare sul mese scorso.
+  const [day, setDay] = useState(() => today());
+
+  useEffect(() => {
+    const sync = () => setDay((current) => (current === today() ? current : today()));
+    // Al ritorno sulla scheda e a mezzanotte: chi lascia il prodotto aperto di
+    // notte non deve riaprirlo per vedere i numeri giusti.
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    const timer = window.setInterval(sync, 60_000);
+    return () => {
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", sync);
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const setPeriod = useCallback((next: PeriodId) => {
     setPeriodState(next);
@@ -36,7 +53,10 @@ export function PeriodProvider({ children }: { children: ReactNode }): React.JSX
 
   const value = useMemo<PeriodValue>(
     () => ({ period, range: periodRange(period), setPeriod }),
-    [period, setPeriod],
+    // `day` non si legge qui dentro: e' la sveglia che rifa' il calcolo quando
+    // il giorno cambia.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [period, day, setPeriod],
   );
 
   return <PeriodContext.Provider value={value}>{children}</PeriodContext.Provider>;

@@ -79,3 +79,19 @@ export function overlapsPeriod(
   if (range.from && end && end < range.from) return false;
   return true;
 }
+
+/**
+ * Una data `YYYY-MM-DD` come data del calendario locale.
+ *
+ * `Date.parse("2026-01-01")` la legge come mezzanotte UTC: a ovest di
+ * Greenwich il periodo risulterebbe cominciare il 31 dicembre.
+ */
+export function localDate(iso: string): Date {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
+}
+
+/** Il giorno di oggi in ISO locale: cambia a mezzanotte, non alle 01:00. */
+export function today(now: Date = new Date()): string {
+  return iso(now);
+}

@@ -136,7 +136,9 @@ test.describe('App shell', () => {
     await expect(period).toHaveText(/Tutto il lavoro/);
 
     await period.click();
-    await page.getByRole('menuitem', { name: /Quest.anno/ }).click();
+    // Voci `radio`: il menu dichiara quale periodo e' scelto, non solo quale
+    // si puo' scegliere.
+    await page.getByRole('menuitemradio', { name: /Quest.anno/ }).click();
     await expect(banner.getByRole('button', { name: /Periodo/ })).not.toHaveText(
       /Tutto il lavoro/,
     );

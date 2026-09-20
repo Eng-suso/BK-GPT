@@ -31,7 +31,9 @@ export function AppLayout(): React.JSX.Element {
   const settingsActive = isSettingsPath(location.pathname);
   // Il periodo compare solo dove cambia cio' che si vede: altrove sarebbe di
   // nuovo un comando che non fa niente.
-  const periodApplies = PERIOD_AWARE_PATHS.some((path) => location.pathname === path);
+  const periodApplies = PERIOD_AWARE_PATHS.includes(
+    location.pathname.replace(/\/+$/, "") || "/",
+  );
   const activeSection = settingsActive ? null : sectionFromPath(location.pathname);
   const isStudio = location.pathname.includes("/processes/");
   const [expandedStudioNav, setExpandedStudioNav] = useState(false);
