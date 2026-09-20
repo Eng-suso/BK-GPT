@@ -1,7 +1,8 @@
-import { Calendar, ChevronDown, Search, PanelLeft } from "lucide-react";
+import { Search, PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AccountMenu } from "@/features/identity/AccountMenu";
+import { PeriodMenu } from "@/features/period/PeriodMenu";
 import { NotificationsMenu } from "@/features/notifications/NotificationsMenu";
 import { LanguageMenu } from "./LanguageMenu";
 import { searchShortcutLabel } from "./shortcuts";
@@ -15,7 +16,7 @@ import { cn } from "@/lib/utils";
  * @param onToggleNavigation - Callback invoked when the navigation toggle is activated.
  * @returns The product header element.
  */
-export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate, onOpenSettings }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void; onOpenSettings?: () => void } = {}): React.JSX.Element {
+export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate, onOpenSettings, periodApplies = false }: { compact?: boolean; periodApplies?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void; onOpenSettings?: () => void } = {}): React.JSX.Element {
   const { t } = useTranslation("common");
 
   return (
@@ -58,11 +59,7 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
 
       <div className="flex-1" />
 
-      <div className={cn("hidden h-[34px] items-center gap-2 whitespace-nowrap ui-button-glass rounded-full px-2.5 text-[12.5px] font-medium text-muted-foreground", !compact && "xl:inline-flex")}>
-        <Calendar className="size-3.5" strokeWidth={1.7} />
-        01 mag – 31 lug 2024
-        <ChevronDown className="size-3" />
-      </div>
+      {periodApplies ? <PeriodMenu compact={compact} /> : null}
 
       <NotificationsMenu onNavigate={onNavigate ?? (() => {})} />
 

@@ -126,6 +126,28 @@ test.describe('App shell', () => {
     ).toBeVisible({ timeout: 20000 });
   });
 
+  test('the period chip is a real filter, and only where it filters', async ({ page }) => {
+    await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+
+    const banner = page.getByRole('banner');
+    const period = banner.getByRole('button', { name: /Periodo/ });
+    await expect(period).toBeVisible({ timeout: 20000 });
+    // Era una data scritta nel codice: ora dice cosa si sta guardando.
+    await expect(period).toHaveText(/Tutto il lavoro/);
+
+    await period.click();
+    await page.getByRole('menuitem', { name: /Quest.anno/ }).click();
+    await expect(banner.getByRole('button', { name: /Periodo/ })).not.toHaveText(
+      /Tutto il lavoro/,
+    );
+    // La schermata dichiara di essere filtrata, invece di mostrare numeri muti.
+    await expect(page.getByText(/Quest.anno/).first()).toBeVisible();
+
+    // Dove non cambierebbe niente, il comando non c'e'.
+    await page.goto('/archive', { waitUntil: 'domcontentloaded' });
+    await expect(banner.getByRole('button', { name: /Periodo/ })).toHaveCount(0);
+  });
+
   test('help opens and leads to the service status', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'domcontentloaded' });
     const sidebar = page.getByRole('complementary', {

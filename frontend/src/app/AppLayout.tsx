@@ -8,8 +8,12 @@ import { GlobalSearchDialog } from "@/features/search/GlobalSearchDialog";
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
 import { Toaster } from "@/ui/sonner";
 import { ROUTES, SECTION_PATH, isSettingsPath, sectionFromPath } from "@/app/routes";
+
 import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { cn } from "@/lib/utils";
+
+/** Le schermate che filtrano per periodo. */
+const PERIOD_AWARE_PATHS: string[] = [ROUTES.home, ROUTES.projects.list];
 
 /**
  * Renders the application shell with route-aware navigation, routed content, and global notifications.
@@ -25,6 +29,9 @@ export function AppLayout(): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const settingsActive = isSettingsPath(location.pathname);
+  // Il periodo compare solo dove cambia cio' che si vede: altrove sarebbe di
+  // nuovo un comando che non fa niente.
+  const periodApplies = PERIOD_AWARE_PATHS.some((path) => location.pathname === path);
   const activeSection = settingsActive ? null : sectionFromPath(location.pathname);
   const isStudio = location.pathname.includes("/processes/");
   const [expandedStudioNav, setExpandedStudioNav] = useState(false);
@@ -58,7 +65,7 @@ export function AppLayout(): React.JSX.Element {
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
       <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
-        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} />
+        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} periodApplies={periodApplies} />
         <main className="min-h-0 overflow-hidden">
           <Outlet />
         </main>

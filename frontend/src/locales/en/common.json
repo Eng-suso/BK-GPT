@@ -301,5 +301,13 @@
       "failed": "The access state could not be read."
     },
     "loading": "Loading…"
+  },
+  "period": {
+    "label": "Period: {{period}}",
+    "all": "All work",
+    "month": "This month",
+    "quarter": "This quarter",
+    "year": "This year",
+    "scoped": "{{period}}"
   }
 }

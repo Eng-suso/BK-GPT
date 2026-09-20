@@ -301,5 +301,13 @@
       "failed": "Impossibile leggere lo stato dell’accesso."
     },
     "loading": "Lettura in corso…"
+  },
+  "period": {
+    "label": "Periodo: {{period}}",
+    "all": "Tutto il lavoro",
+    "month": "Questo mese",
+    "quarter": "Questo trimestre",
+    "year": "Quest’anno",
+    "scoped": "{{period}}"
   }
 }

@@ -25,6 +25,8 @@ import { ROUTES } from "@/app/routes";
 import { usePagedList } from "@/lib/hooks/usePagedList";
 import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
 import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import { usePeriod } from "@/features/period/usePeriod";
+import { overlapsPeriod } from "@/features/period/periods";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import {
@@ -76,7 +78,14 @@ export function ProjectsListPage(): React.JSX.Element {
   const { t: tCommon } = useTranslation("common");
   const navigate = useNavigate();
 
-  const { data: projects = [], isLoading, isError, refetch } = useProjectsQuery();
+  const { data: allProjects = [], isLoading, isError, refetch } = useProjectsQuery();
+  const { period, range } = usePeriod();
+  // Il periodo scelto nella barra vale anche qui: un incarico che tocca il
+  // periodo resta, uno che gli sta tutto prima o tutto dopo no.
+  const projects = useMemo(
+    () => allProjects.filter((project) => overlapsPeriod(project, range)),
+    [allProjects, range],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // `null` = creazione, un progetto = modifica di quel record. `formSession`
   // cambia a ogni apertura e fa da `key` al dialog: la bozza riparte dai dati
@@ -232,7 +241,11 @@ export function ProjectsListPage(): React.JSX.Element {
             { label: t("breadcrumb.portfolio") },
           ]}
           title={t("list.title")}
-          description={t("list.description")}
+          description={
+            period === "all"
+              ? t("list.description")
+              : `${t("list.description")} · ${tCommon("period.scoped", { period: tCommon(`period.${period}`) })}`
+          }
           count={projects.length || undefined}
           meta={summary.length > 0 ? <ListSummary items={summary} /> : undefined}
           actions={
