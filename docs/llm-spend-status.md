@@ -286,6 +286,64 @@ P1 estende `llm_config`, non lo sostituisce.
 
 ---
 
+## ④bis Lavorare in parallelo su questo piano
+
+### Partire: un comando
+
+```
+uv run python scripts/new_agent_worktree.py <nome>
+```
+
+Crea il worktree, copia `.env` e `ops/.env`, allinea la porta di Postgres a
+quella vera del container, crea `workspace_<nome>`, ci punta
+`WORKSPACE_DATABASE_URL` e porta lo schema a head. Da zero a `pytest` verde in
+~35 secondi. `--base` per partire da un branch diverso da `main`.
+
+Senza questo si perde un'ora: `.env` e' gitignorato e un worktree nuovo nasce
+senza, e un database condiviso si rompe da solo (§⑤).
+
+### Chi fa cosa, senza pestarsi
+
+Le tappe di P1.5 **non sono tutte indipendenti**. Questa tabella dice i file, e
+la colonna delle collisioni e' la ragione per cui non si assegnano a caso.
+
+| Tappa | File | In parallelo con |
+| --- | --- | --- |
+| **t.3** compiti a basso rischio | `memory/reranker.py`, `memory/knowledge_graph/entity_resolution.py`, `memory/procedural/extraction.py` + test | tutto |
+| **t.4** embedding | `memory/embeddings.py` + **`llm/gateway.py`** (ingresso nuovo) | tutto tranne t.6 |
+| **t.5** percorso caldo | `process_understanding.py`, `agents/conformance_audit.py`, `agents/plan_consolidation.py` + molti test | tutto |
+| **t.6** `agent.py` | `agent.py` + **`llm/gateway.py`** (ingresso di streaming) | tutto tranne t.4 |
+| **L5** registro dei prompt | i prompt in tutti i moduli | **dopo t.5**: tocca gli stessi prompt |
+| **lettura del registro** | file nuovi (endpoint o SQL versionato) | tutto |
+| **P1.6** regola L1 in CI | `.coderabbit/ast-grep-rules/` | **ultima**: prima e' rossa da subito |
+
+Due agenti su **t.4 e t.6 insieme confliggono** su `llm/gateway.py`: o li fa lo
+stesso agente, o si fanno in fila. Tutto il resto e' parallelo per davvero.
+
+Il taglio piu' comodo per tre agenti: uno su **t.5** (la piu' grossa), uno su
+**t.3 + lettura del registro**, uno su **t.4 poi t.6**.
+
+### Le tre regole che evitano i guai visti finora
+
+1. **Un database per worktree.** Lo fa lo script. Non condividere `workspace`.
+2. **Chi aggiunge una migrazione Alembic lo scrive subito in §⑥.** E' l'unica
+   cosa che rompe le altre sessioni in modo invisibile: applicare una revisione
+   che gli altri branch non hanno manda in errore *tutti* i loro test, con un
+   messaggio che sembra un bug del codice. E' gia' successo il 2026-09-20.
+3. **Non due suite intere insieme.** Contention: la passata di riferimento e'
+   passata da ~19 min a 2 h 24, e un test di coda e' fallito solo per quello.
+   Durante il lavoro si girano i file toccati; la suite intera una per volta.
+
+### Chiudere un pezzo
+
+Aggiornare §① (cosa e' chiuso, distinguendo *scritto* da *verificato*), §② se il
+prossimo passo cambia, §⑥ con la riga di log. Poi merge in `main` con un commit
+di merge, che e' la convenzione del repo.
+
+Un pezzo non si dichiara fatto se i suoi test non sono verdi. E la riga di §①
+dice **quali** gate sono girati: "verificato" senza dire su cosa non serve a chi
+arriva dopo.
+
 ## ⑤ Ambiente: cose che fanno perdere un'ora
 
 **Il worktree non ha `.env`.** E' gitignorato, quindi un worktree nuovo nasce
