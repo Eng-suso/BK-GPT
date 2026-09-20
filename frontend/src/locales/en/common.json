@@ -258,5 +258,26 @@
       "process": "Processes",
       "source": "Sources"
     }
+  },
+  "notifications": {
+    "label": "Notifications",
+    "labelWithCount": "Notifications, {{count}} unread",
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "unread": "Unread",
+    "loading": "Loading notifications...",
+    "failed": "Notifications could not be loaded.",
+    "empty": {
+      "title": "No notifications",
+      "description": "When a plan, a comparison or a simulation finishes, you will find it here."
+    },
+    "kind": {
+      "plan_ready": "Plan rebuilt (V{{version}})",
+      "plan_failed": "Rebuilding the plan failed",
+      "conformance_findings_one": "{{count}} point to review in the comparison with the sources",
+      "conformance_findings_other": "{{count}} points to review in the comparison with the sources",
+      "simulation_done": "Simulation completed",
+      "simulation_failed": "Simulation failed"
+    }
   }
 }

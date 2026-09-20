@@ -19,6 +19,7 @@ from backend.schemas.workspace import (
     CreateProjectRequest,
     CreateProjectSourceRequest,
     ElementReviewRequest,
+    MarkNotificationsReadRequest,
     ElementReviewResponse,
     ProcessProvenanceResponse,
     ProjectDecisionResponse,
@@ -34,6 +35,8 @@ from backend.schemas.workspace import (
     UpdateClientRequest,
     UpdateProcessRequest,
     UpdateProjectRequest,
+    WorkspaceNotification,
+    WorkspaceNotificationsResponse,
     WorkspaceSearchHit,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
@@ -175,6 +178,53 @@ def get_workspace_projects(include_archived: bool = False) -> list[ProjectRespon
         ProjectResponse(**project)
         for project in list_projects(include_archived=include_archived)
     ]
+
+
+@router.get("/notifications")
+def get_workspace_notifications(
+    limit: int = Query(default=20, ge=1, le=50),
+) -> WorkspaceNotificationsResponse:
+    """Cosa e' successo di recente nel workspace, dal piu' recente.
+
+    Args:
+        limit: Quanti avvisi restituire.
+    """
+    from backend.workspace_services.notifications import list_notifications
+
+    result = list_notifications(limit=limit)
+    return WorkspaceNotificationsResponse(
+        items=[WorkspaceNotification(**item) for item in result["items"]],
+        unread=result["unread"],
+    )
+
+
+@router.post("/notifications/read")
+def mark_workspace_notifications_read(
+    request: MarkNotificationsReadRequest,
+    limit: int = Query(default=20, ge=1, le=50),
+) -> WorkspaceNotificationsResponse:
+    """Segna come letti gli avvisi indicati, o tutti quelli mostrati.
+
+    Returns:
+        WorkspaceNotificationsResponse: Gli avvisi aggiornati, cosi' il
+        chiamante non deve indovinare il nuovo conteggio.
+    """
+    from backend.workspace_services.notifications import (
+        list_notifications,
+        mark_all_read,
+        mark_read,
+    )
+
+    if request.ids:
+        mark_read(request.ids)
+    else:
+        mark_all_read(limit=limit)
+
+    result = list_notifications(limit=limit)
+    return WorkspaceNotificationsResponse(
+        items=[WorkspaceNotification(**item) for item in result["items"]],
+        unread=result["unread"],
+    )
 
 
 @router.get("/search")

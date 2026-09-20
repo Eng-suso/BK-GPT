@@ -1,6 +1,7 @@
-import { Bell, Building2, Calendar, ChevronDown, Search, PanelLeft } from "lucide-react";
+import { Building2, Calendar, ChevronDown, Search, PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { NotificationsMenu } from "@/features/notifications/NotificationsMenu";
 import { LanguageMenu } from "./LanguageMenu";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +19,7 @@ function searchShortcutLabel(): string {
   return mac ? "⌘K" : "Ctrl K";
 }
 
-export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void } = {}): React.JSX.Element {
+export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void } = {}): React.JSX.Element {
   const { t } = useTranslation("common");
   const user = { name: "Marco Bianchi", role: "Admin", initials: "MB" };
 
@@ -77,16 +78,7 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
         <ChevronDown className="size-3" />
       </div>
 
-      <button
-        type="button"
-        aria-label="Notifiche"
-        className="relative hidden size-[34px] shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted/60 sm:grid"
-      >
-        <Bell className="size-[17px]" strokeWidth={1.7} />
-        <span className="absolute right-0.5 top-0.5 grid min-w-[15px] place-items-center rounded-full border-2 border-card bg-[var(--color-status-danger)] px-[3px] text-[9px] font-bold text-white">
-          3
-        </span>
-      </button>
+      <NotificationsMenu onNavigate={onNavigate ?? (() => {})} />
 
       <LanguageMenu />
 

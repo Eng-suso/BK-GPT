@@ -258,5 +258,26 @@
       "process": "Processi",
       "source": "Fonti"
     }
+  },
+  "notifications": {
+    "label": "Avvisi",
+    "labelWithCount": "Avvisi, {{count}} non letti",
+    "title": "Avvisi",
+    "markAllRead": "Segna tutti come letti",
+    "unread": "Non letto",
+    "loading": "Carico gli avvisi...",
+    "failed": "Impossibile caricare gli avvisi.",
+    "empty": {
+      "title": "Nessun avviso",
+      "description": "Quando un piano, un confronto o una simulazione finiscono, li trovi qui."
+    },
+    "kind": {
+      "plan_ready": "Piano ricostruito (V{{version}})",
+      "plan_failed": "La ricostruzione del piano non è riuscita",
+      "conformance_findings_one": "{{count}} punto da rivedere nel confronto con le fonti",
+      "conformance_findings_other": "{{count}} punti da rivedere nel confronto con le fonti",
+      "simulation_done": "Simulazione completata",
+      "simulation_failed": "Simulazione non riuscita"
+    }
   }
 }

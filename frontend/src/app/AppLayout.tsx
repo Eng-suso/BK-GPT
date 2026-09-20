@@ -58,7 +58,7 @@ export function AppLayout(): React.JSX.Element {
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
       <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
-        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} />
+        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} />
         <main className="min-h-0 overflow-hidden">
           <Outlet />
         </main>

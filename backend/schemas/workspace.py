@@ -463,6 +463,49 @@ class ProjectResponse(BaseModel):
     process_items: list[ProjectProcessResponse] = Field(default_factory=list)
 
 
+class WorkspaceNotification(BaseModel):
+    """Un avviso: cosa e' successo, a quale processo, e se e' gia' stato letto.
+
+    Il testo non arriva da qui: il backend dice il fatto, la lingua la sceglie
+    l'interfaccia.
+    """
+
+    id: str
+    kind: Literal[
+        "plan_ready",
+        "plan_failed",
+        "conformance_findings",
+        "simulation_done",
+        "simulation_failed",
+    ]
+    occurred_at: str
+    read: bool = False
+    process_id: str
+    process_name: str
+    project_id: str
+    project_name: str
+    client_name: str
+    bpmn_model_id: str | None = None
+    #: Quanti rilievi ha trovato il confronto con le fonti.
+    count: int = 0
+    #: La versione del piano appena ricostruito.
+    version: int | None = None
+    #: Il perche' di un guasto, o il nome dello scenario simulato.
+    detail: str = ""
+    run_id: int | None = None
+
+
+class WorkspaceNotificationsResponse(BaseModel):
+    items: list[WorkspaceNotification] = Field(default_factory=list)
+    #: Quanti degli avvisi restituiti nessuno ha ancora letto.
+    unread: int = 0
+
+
+class MarkNotificationsReadRequest(BaseModel):
+    #: Gli avvisi da segnare come letti; vuoto significa "tutti quelli mostrati".
+    ids: list[str] = Field(default_factory=list, max_length=200)
+
+
 class WorkspaceSearchHit(BaseModel):
     """Una cosa trovata nel workspace, con dove vive e cosa serve per aprirla."""
 

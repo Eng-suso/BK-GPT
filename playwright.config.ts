@@ -21,6 +21,11 @@ export default defineConfig({
   
   /* Shared settings for all visual regression snapshots */
   expect: {
+    /* Dev-mode Vite compiles a route's module graph on first navigation, and a
+     * loaded machine makes that cost visible: i cinque secondi di default
+     * scadevano mentre la pagina stava ancora arrivando, e il rosso diceva
+     * "schermata vuota" su un'app che funzionava. */
+    timeout: 15 * 1000,
     toHaveScreenshot: {
       maxDiffPixelRatio: 0.05,
       threshold: 0.2,
