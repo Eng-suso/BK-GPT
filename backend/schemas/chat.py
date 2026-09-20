@@ -42,6 +42,27 @@ ChatMode: TypeAlias = Literal[
 
 ChatScopeType: TypeAlias = Literal["consultant", "project", "process", "canvas"]
 
+# Quanto il modello deve pensare prima di rispondere. E' il controllo che il
+# consulente ha davvero in mano nella chat: non cosa l'agente puo' toccare (la
+# modalita'), ma quanto tempo e quanti token valgono questa domanda.
+ReasoningEffort: TypeAlias = Literal["low", "medium", "high"]
+
+# Il livello piu' basso e' quello con cui il prodotto ha sempre risposto finora:
+# resta il default, cosi' un turno costa quanto costava e i livelli piu' alti si
+# pagano solo quando qualcuno li chiede.
+DEFAULT_REASONING_EFFORT: ReasoningEffort = "low"
+
+# Cio' che l'interfaccia chiama "Rapido" per il fornitore e' "nessun
+# ragionamento": e' il valore con cui l'agente ha sempre girato, ed e' anche cio'
+# che l'etichetta promette. La traduzione vive qui, in un punto solo, perche' i
+# nomi dei livelli del fornitore cambiano fra famiglie di modelli mentre il
+# controllo che il consulente vede no.
+PROVIDER_REASONING_EFFORT: dict[ReasoningEffort, str] = {
+    "low": "none",
+    "medium": "medium",
+    "high": "high",
+}
+
 CHAT_MODES_BY_SCOPE: dict[ChatScopeType, tuple[ChatMode, ...]] = {
     "consultant": ("consultant.full",),
     "project": ("project.status", "project.coordination", "project.execution"),

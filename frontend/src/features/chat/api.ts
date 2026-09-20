@@ -1,6 +1,11 @@
 import { http, httpStream } from "@/lib/http";
 
-import type { ApiChatAttachment, ApiChatScope, ChatMode } from "../../contracts/chat";
+import type {
+  ApiChatAttachment,
+  ApiChatScope,
+  ChatMode,
+  ReasoningEffort,
+} from "../../contracts/chat";
 import type {
   BpmnReview,
   BpmnReviewVersion,
@@ -125,6 +130,7 @@ export function streamChatMessage(
     modelName: string;
     scope: ApiChatScope;
     mode: ChatMode;
+    reasoningEffort: ReasoningEffort;
     attachments?: ApiChatAttachment[];
   },
   signal?: AbortSignal,
@@ -137,6 +143,7 @@ export function streamChatMessage(
       model_name: input.modelName,
       scope: input.scope,
       mode: input.mode,
+      reasoning_effort: input.reasoningEffort,
       attachments: input.attachments ?? [],
     },
   });

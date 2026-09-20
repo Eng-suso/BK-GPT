@@ -8,6 +8,7 @@ import {
   type ChatAttachment,
   type ChatMode,
   type ChatScope,
+  type ReasoningEffort,
 } from "../../../contracts/chat";
 import type { ChatMessage, ChatSession } from "../types";
 import { streamChatMessage } from "../api";
@@ -28,6 +29,8 @@ type UseChatStreamArgs = {
   selectedModel: string;
   chatMode: ChatMode;
   activeSession: ChatSession | null;
+  /** Quanto il modello deve pensare prima di rispondere, scelto per questo turno. */
+  reasoningEffort: ReasoningEffort;
   ensureThread: (firstMessage: string) => Promise<ChatSession>;
   selectThread: (threadId: string) => void;
   commitTranscript: (
@@ -93,6 +96,7 @@ export function useChatStream({
   selectedModel,
   chatMode,
   activeSession,
+  reasoningEffort,
   ensureThread,
   selectThread,
   commitTranscript,
@@ -102,6 +106,7 @@ export function useChatStream({
   const scopeRef = useRef(scope);
   const modelRef = useRef(selectedModel);
   const modeRef = useRef(chatMode);
+  const effortRef = useRef(reasoningEffort);
   const activeSessionRef = useRef(activeSession);
   // Il thread appena aperto, prima che `activeSession` lo rispecchi. Vive in due
   // posti perche' serve a due tempi diversi: lo stato fa ridisegnare il turno
@@ -119,6 +124,7 @@ export function useChatStream({
     scopeRef.current = scope;
     modelRef.current = selectedModel;
     modeRef.current = chatMode;
+    effortRef.current = reasoningEffort;
     activeSessionRef.current = activeSession;
   });
 
@@ -183,6 +189,7 @@ export function useChatStream({
       // Dedicated product actions may explicitly delegate one workflow without
       // relying on a React state update landing before the request starts.
       const modeAtSend = modeOverride ?? modeRef.current;
+      const effortAtSend = effortRef.current;
 
       await startRun({
         threadId,
@@ -197,6 +204,7 @@ export function useChatStream({
               modelName: modelAtSend,
               scope: toApiChatScope(scopeAtSend),
               mode: modeAtSend,
+              reasoningEffort: effortAtSend,
               attachments: input.attachments.map(toApiChatAttachment),
             },
             signal,

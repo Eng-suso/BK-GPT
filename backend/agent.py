@@ -15,6 +15,11 @@ from backend.graphs.consulting import build_consulting_subgraph
 from backend.graphs.process import build_process_subgraph
 from backend.graphs.project import build_project_subgraph
 from backend.bpmn import BPMNSemanticModel
+from backend.schemas.chat import (
+    DEFAULT_REASONING_EFFORT,
+    PROVIDER_REASONING_EFFORT,
+    ReasoningEffort,
+)
 from backend.process_understanding import (
     ProcessUnderstanding,
     ProcessUnderstandingDiagnostics,
@@ -283,7 +288,10 @@ def normalize_model_name(model_name: str | None = None) -> str:
     return DEFAULT_OPENAI_MODEL
 
 
-def build_agent(model_name: str | None = None):
+def build_agent(
+    model_name: str | None = None,
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
+):
     """
     Build and compile the consultant workflow for a selected language model.
     
@@ -291,6 +299,8 @@ def build_agent(model_name: str | None = None):
         model_name (str | None): Untrusted requested model identifier. It is normalized
             against the configured allowed models before use; omitted values use the
             configured or default model.
+        reasoning_effort: Quanto il modello deve pensare prima di rispondere,
+            scelto dal consulente per questo turno.
     
     Returns:
         A compiled workflow that summarizes conversations, selects context, routes
@@ -316,7 +326,7 @@ def build_agent(model_name: str | None = None):
         langsmith_model_name=effective_langsmith_model_name(selected_model),
         metadata=model_metadata,
         tags=langsmith_tags("llm", "agent-runtime"),
-        reasoning_effort="none",
+        reasoning_effort=PROVIDER_REASONING_EFFORT[reasoning_effort],
     )
 
     context_router_llm = DeliRChatOpenAI(
@@ -331,6 +341,9 @@ def build_agent(model_name: str | None = None):
         langsmith_model_name=effective_langsmith_model_name(selected_model),
         metadata=model_metadata,
         tags=langsmith_tags("llm", "context-router"),
+        # Il router sceglie una via fra quattro: non e' un compito su cui
+        # pensare di piu' cambia la risposta, e pagarlo a ogni turno sarebbe
+        # spesa che non produce informazione.
         reasoning_effort="none",
     )
 
@@ -465,11 +478,30 @@ def build_agent(model_name: str | None = None):
 _AGENT_CACHE: dict[str, Any] = {}
 
 
-def get_agent(model_name: str | None = None, scope_type: str | None = None):
+def get_agent(
+    model_name: str | None = None,
+    scope_type: str | None = None,
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
+):
+    """Il grafo compilato per questo modello e questo impegno di ragionamento.
+
+    L'impegno entra nella chiave della cache e non nella chiamata: e' una
+    proprieta' dell'LLM, fissata quando il grafo viene costruito. Le varianti
+    sono tre per modello, compilate la prima volta che qualcuno le chiede.
+
+    Args:
+        model_name: Il modello richiesto, non affidabile; viene normalizzato.
+        scope_type: Lo scope della chat, per ora non cambia il grafo.
+        reasoning_effort: Quanto pensare prima di rispondere, scelto dal
+            consulente per questo turno.
+    """
     selected_model = normalize_model_name(model_name)
-    cache_key = selected_model
+    effort: ReasoningEffort = (
+        reasoning_effort if reasoning_effort in PROVIDER_REASONING_EFFORT else DEFAULT_REASONING_EFFORT
+    )
+    cache_key = f"{selected_model}:{effort}"
 
     if cache_key not in _AGENT_CACHE:
-        _AGENT_CACHE[cache_key] = build_agent(selected_model)
+        _AGENT_CACHE[cache_key] = build_agent(selected_model, effort)
 
     return _AGENT_CACHE[cache_key]
