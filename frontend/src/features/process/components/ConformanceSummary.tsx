@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { ConformanceArea, ConformanceFinding, ConformanceStatus } from "@/contracts/workspace";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
-import { httpErrorMessage } from "@/lib/http";
+import { HttpError, httpErrorMessage } from "@/lib/http";
 import {
   useConformanceStatusQuery,
   useRepairFromConformanceMutation,
@@ -59,6 +59,9 @@ export function ConformanceSummary({ processId, bpmnModelId }: ConformanceSummar
 
   const status = query.data;
   const busy = audit.isPending || repair.isPending || Boolean(status?.running);
+  // 409: il piano salvato non si legge (estrazione fallita, o modello semantico
+  // anteriore a quello canonicale). Non e' un errore di rete.
+  const unreadablePlan = query.error instanceof HttpError && query.error.status === 409;
 
   function runAudit() {
     audit.mutate(undefined, {
@@ -100,7 +103,14 @@ export function ConformanceSummary({ processId, bpmnModelId }: ConformanceSummar
         </Button>
       </div>
 
-      {query.isError && !status ? (
+      {unreadablePlan ? (
+        // Un piano illeggibile non si riapre riprovando: la review va
+        // rigenerata. Offrire "riprova" qui e' un bottone che non puo'
+        // funzionare, e il messaggio del server dice gia' cosa serve.
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {httpErrorMessage(query.error, t("canvas.conformance.loadError"))}
+        </p>
+      ) : query.isError && !status ? (
         <p className="text-xs leading-relaxed text-muted-foreground">
           {t("canvas.conformance.loadError")}{" "}
           <button

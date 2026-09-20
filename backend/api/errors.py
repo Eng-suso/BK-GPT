@@ -112,6 +112,25 @@ def setup_api_error_handlers(app: FastAPI) -> None:
             detail=str(exc.errors()),
         )
 
+    from backend.workspace_database import UnreadableReviewError
+
+    @app.exception_handler(UnreadableReviewError)
+    async def unreadable_review_handler(request: Request, exc: UnreadableReviewError):
+        """Un piano salvato che non si legge non e' un errore del server.
+
+        E' uno stato del dato: la review esiste ma e' nata da un'estrazione
+        fallita, o e' anteriore al modello semantico canonicale. Chi la chiede
+        deve sapere che va rigenerata, non vedere un 500 e riprovare - come la
+        coda dei confronti riprovava, fino a riempire il log.
+        """
+        return api_error_response(
+            request,
+            status_code=409,
+            code="unreadable_plan",
+            message="Il piano di questo processo non e' leggibile: va rigenerato.",
+            detail=str(exc),
+        )
+
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         return api_error_response(

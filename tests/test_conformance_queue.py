@@ -175,6 +175,31 @@ def test_a_plan_that_cannot_be_read_leaves_the_queue_instead_of_looping(tenant):
     ]
 
 
+def test_the_panel_of_an_unreadable_plan_gets_a_verdict_not_a_server_error(tenant):
+    """Un piano illeggibile e' uno stato del dato, non un guasto del server.
+
+    Con il 500 il pannello mostrava "errore di caricamento, riprova", e riprovare
+    non poteva funzionare: la review va rigenerata. Il 409 lo dice, e il
+    frontend ha il messaggio da mostrare invece di un numero.
+    """
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    process = _process_with_plan("panel")
+    _unreadable_plan(process["bpmn_model_id"])
+
+    # Senza `with`: il lifespan avvia i worker di coda, che sul database di
+    # sviluppo si metterebbero a drenare le code degli altri test.
+    response = TestClient(app).get(
+        f"/v1/workspace/processes/{process['id']}/conformance",
+        headers={"X-DeliR-Tenant-Id": tenant},
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "unreadable_plan"
+
+
 def test_a_failed_reading_of_the_sources_waits_for_its_lease_before_retrying(tenant, monkeypatch):
     """Un errore di lettura delle fonti si riprova, ma non nella passata dopo.
 
