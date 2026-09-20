@@ -1132,31 +1132,51 @@ def answer_bpmn_review_question(
         return review_to_dict(review)
 
 
+class UnreadableReviewError(ValueError):
+    """La review salvata non e' leggibile, e riprovare non la rendera' tale.
+
+    Un semantic model legacy o un ProcessUnderstanding placeholder da estrazione
+    fallita restano quello che sono finche' qualcuno non rigenera il piano:
+    nessun tentativo successivo cambia l'esito. Il tipo serve a chi lavora una
+    coda, che altrimenti non puo' distinguere questo da una chiamata al modello
+    andata storta - e rimette in coda per sempre una riga che fallira' sempre.
+    """
+
+
 def _review_artifacts(review) -> tuple[dict, dict]:
     """Validate and derive artifacts from a stored BPMN review.
-    
+
     Args:
         review: Untrusted stored review row containing serialized semantic-model data.
-    
+
     Returns:
         A tuple containing the canonical semantic model and its recomputed quality
         report.
-    
+
     Raises:
-        ValueError: If the stored semantic model is invalid or lacks the required
-            compilation plan or source understanding.
-        (json.JSONDecodeError, pydantic.ValidationError): If the stored payload or
-            process understanding cannot be decoded or validated.
-    
+        UnreadableReviewError: If the stored semantic model is not canonical, or if
+            the stored process understanding cannot be validated or has no
+            applicable quality report (extraction-failure placeholder). Sempre
+            permanente: la review va rigenerata, non riletta.
+        json.JSONDecodeError: If the stored payload cannot be decoded.
+
     The function does not persist changes or otherwise modify the review.
     """
     bpmn_semantic_model = json.loads(review.bpmn_semantic_model_json or "{}")
     if not _is_canonical_semantic_model_payload(bpmn_semantic_model):
-        raise ValueError("Review BPMN legacy rifiutata: semantic model non canonicale.")
+        raise UnreadableReviewError("Review BPMN legacy rifiutata: semantic model non canonicale.")
     process_understanding = bpmn_semantic_model.get("sourceProcessUnderstanding") or {}
-    quality_report = quality_report_from_understanding(
-        ProcessUnderstanding.model_validate(process_understanding)
-    ).model_dump(mode="json")
+    try:
+        quality_report = quality_report_from_understanding(
+            ProcessUnderstanding.model_validate(process_understanding)
+        ).model_dump(mode="json")
+    except ValueError as exc:
+        # `ValidationError` di pydantic e' un `ValueError`: struttura non valida e
+        # placeholder da estrazione fallita finiscono nello stesso stato, ed e'
+        # lo stesso stato - questa review non si puo' leggere cosi' com'e'.
+        raise UnreadableReviewError(
+            f"Review BPMN non leggibile per {getattr(review, 'bpmn_model_id', '?')}: {exc}"
+        ) from exc
     return bpmn_semantic_model, quality_report
 
 
@@ -2236,9 +2256,15 @@ def enqueue_unchecked_conformance(limit: int = 20, *, only_tenant_id: str | None
 # due volte lo stesso disegno.
 CONFORMANCE_LEASE_SECONDS = 900
 
+# Lo stato di chi ha rinunciato: la review salvata non e' leggibile, e la coda
+# non la ripropone. Non e' `done` - nessun confronto e' stato fatto - e non e'
+# `pending`, altrimenti la stessa riga girerebbe per sempre. Torna in coda solo
+# quando qualcuno tocca il piano (`request_conformance_check`).
+CONFORMANCE_UNAVAILABLE = "unavailable"
+
 
 def conformance_queue_stats() -> dict[str, int]:
-    """Quanti confronti sono in attesa e quanti sono stati presi in carico."""
+    """Quanti confronti sono in attesa, presi in carico, o rinunciati."""
     with workspace_connection() as session:
         rows = session.execute(
             select(WorkspaceBpmnReview.conformance_status, func.count())
@@ -2249,6 +2275,10 @@ def conformance_queue_stats() -> dict[str, int]:
         "pending": counts.get("pending", 0),
         "done": counts.get("done", 0),
         "stuck": counts.get("running", 0),
+        # Disegni che la coda ha smesso di riprovare: il piano salvato non si
+        # legge. Contarli separatamente e' l'unico modo per accorgersene, invece
+        # di vederli sparire dentro "done" come se fossero stati confrontati.
+        "unavailable": counts.get(CONFORMANCE_UNAVAILABLE, 0),
     }
 
 
