@@ -23,7 +23,7 @@ import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from functools import wraps
 from typing import Any, TypeVar
 
@@ -117,9 +117,15 @@ def operation(
         parent_id=parent.id if parent else None,
     )
     token = _current.set(opened)
+    # Il tenant dell'operazione **e'** il tenant del lavoro: si vincola anche il
+    # contesto di sicurezza, cosi' i due non possono divergere. Senza questo, un
+    # chiamante che passa `tenant_id` esplicito attribuirebbe la spesa a un
+    # tenant e scriverebbe i dati in un altro.
+    tenant_token = set_current_tenant_id(opened.tenant_id)
     try:
         yield opened
     finally:
+        reset_current_tenant_id(tenant_token)
         _current.reset(token)
 
 
@@ -154,10 +160,13 @@ def inherit_operation(function: Callable[..., _T]) -> Callable[..., _T]:
     Non si usa `contextvars.copy_context()`: lo stesso oggetto `Context` non puo'
     essere eseguito due volte in parallelo, e un pool e' esattamente il caso in
     cui succede.
+
+    Il tenant non si cattura a parte: quello dell'operazione e' l'unico vero, e
+    `adopt` lo rimette a posto. Una versione precedente lo prendeva da
+    `get_current_tenant_id()` e sovrascriveva quello dell'operazione — cioe'
+    lasciava che l'ambiente vincesse sul lavoro, che e' la precedenza sbagliata.
     """
-    inherited = _current.get()
-    tenant_id = get_current_tenant_id()
-    carried = replace(inherited, tenant_id=tenant_id) if inherited else None
+    carried = _current.get()
 
     @wraps(function)
     def _inside_thread(*args: Any, **kwargs: Any) -> _T:
