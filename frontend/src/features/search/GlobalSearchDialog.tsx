@@ -176,17 +176,24 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
         ) : (
           <div id="workspace-search-results" role="listbox" aria-label={t("search.results")}>
             {groups.map((group) => (
-              <section key={group.kind} aria-label={t(`search.kind.${group.kind}`)}>
+              // Dentro un `listbox` le opzioni devono restare figlie del
+              // gruppo: `section`/`ul`/`li` porterebbero le proprie semantiche e
+              // spezzerebbero la parentela che lo screen reader annuncia.
+              <section
+                key={group.kind}
+                role="group"
+                aria-label={t(`search.kind.${group.kind}`)}
+              >
                 <h3 className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
                   {t(`search.kind.${group.kind}`)}
                 </h3>
-                <ul className="flex flex-col gap-0.5">
+                <ul role="presentation" className="flex flex-col gap-0.5">
                   {group.hits.map((hit) => {
                     const index = flat.indexOf(hit);
                     const isActive = index === activeIndex;
                     const Icon = KIND_ICON[hit.kind];
                     return (
-                      <li key={`${hit.kind}-${hit.id}`}>
+                      <li role="presentation" key={`${hit.kind}-${hit.id}`}>
                         <button
                           type="button"
                           id={idOf(hit)}

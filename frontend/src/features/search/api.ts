@@ -91,5 +91,9 @@ export function useWorkspaceSearch(query: string, enabled: boolean): UseQueryRes
     queryFn: () => searchWorkspace(query),
     enabled: enabled && query.length >= MIN_QUERY_LENGTH,
     staleTime: 30_000,
+    // Nessun ritentativo automatico: chi sta scrivendo aspetta una risposta
+    // adesso, e un guasto detto subito e' meglio di un pannello che gira
+    // mentre il consulente riscrive la stessa parola.
+    retry: false,
   });
 }

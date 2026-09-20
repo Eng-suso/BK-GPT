@@ -233,9 +233,7 @@
       "shift": "Maiusc",
       "esc": "Esc",
       "home": "Home",
-      "end": "Fine",
-      "ctrl": "Ctrl",
-      "cmd": "⌘"
+      "end": "Fine"
     },
     "trouble": {
       "title": "Qualcosa non risponde?",
@@ -261,7 +259,6 @@
   },
   "notifications": {
     "label": "Avvisi",
-    "labelWithCount": "Avvisi, {{count}} non letti",
     "title": "Avvisi",
     "markAllRead": "Segna tutti come letti",
     "unread": "Non letto",
@@ -278,6 +275,8 @@
       "conformance_findings_other": "{{count}} punti da rivedere nel confronto con le fonti",
       "simulation_done": "Simulazione completata",
       "simulation_failed": "Simulazione non riuscita"
-    }
+    },
+    "labelWithCount_one": "Avvisi, {{count}} non letto",
+    "labelWithCount_other": "Avvisi, {{count}} non letti"
   }
 }

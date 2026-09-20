@@ -129,6 +129,27 @@ def test_the_closest_name_comes_first(client, engagement):
 
 
 @_needs_db
+def test_the_exact_name_survives_the_cut(client, engagement):
+    from backend.workspace_services.global_search import search_workspace
+
+    marker = engagement["marker"]
+    exact = f"Ordini {marker}"
+    for name in (f"Ordini fornitori {marker}", exact, f"Ordini urgenti {marker}"):
+        created = client.post(
+            f"/v1/workspace/projects/{engagement['project']['id']}/processes",
+            json={"name": name},
+        )
+        assert created.status_code == 200
+
+    # Con un solo candidato per tipo: l'ordine di pertinenza deve stare nella
+    # query, non dopo. Ordinando per nome il processo che si chiama esattamente
+    # come la ricerca resterebbe fuori dal taglio.
+    hits = search_workspace(exact, per_kind_limit=1)
+
+    assert [hit["title"] for hit in hits if hit["kind"] == "process"] == [exact]
+
+
+@_needs_db
 def test_archived_work_never_comes_back_from_a_search(client, engagement):
     marker = engagement["marker"]
     archived = client.post(

@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, case, func, or_, select
 
-from backend.search_text import like_patterns, match_rank, search_terms
+from backend.search_text import like_escape, like_patterns, match_rank, search_terms
 from backend.security import get_current_tenant_id
 from backend.workspace_storage import (
     WorkspaceClient,
@@ -32,6 +32,24 @@ ResultKind = Literal["client", "project", "process", "source"]
 # contiene i progetti, il progetto i processi, il processo le fonti. Chi cerca
 # "Esaote" vuole prima il cliente, non la ventesima intervista che lo nomina.
 KIND_ORDER: dict[ResultKind, int] = {"client": 0, "project": 1, "process": 2, "source": 3}
+
+
+def _relevance(column, terms: list[str]):
+    """L'ordine di pertinenza, calcolato dal database.
+
+    Il taglio per tipo (`per_kind_limit`) avviene prima che i risultati arrivino
+    qui: ordinare solo in Python vorrebbe dire ordinare cio' che e' sopravvissuto
+    a un `ORDER BY name`, e su un cliente con trenta processi "Ordini" il
+    processo che si chiama esattamente cosi' poteva restare fuori. La stessa
+    regola di `match_rank`, scritta in SQL.
+    """
+    joined = " ".join(terms)
+    lowered = func.lower(column)
+    return case(
+        (lowered == joined, 0),
+        (lowered.like(f"{like_escape(joined)}%", escape="\\"), 1),
+        else_=2,
+    )
 
 
 def _terms_match(column, patterns: list[str]):
@@ -79,7 +97,7 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
             _scoped(
                 select(WorkspaceClient.id, WorkspaceClient.name, WorkspaceClient.sector)
                 .where(_terms_match(WorkspaceClient.name, patterns))
-                .order_by(WorkspaceClient.name)
+                .order_by(_relevance(WorkspaceClient.name, terms), WorkspaceClient.name)
                 .limit(per_kind_limit),
                 tenant,
                 WorkspaceClient,
@@ -115,7 +133,7 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
                         _terms_match(WorkspaceProject.objective, patterns),
                     )
                 )
-                .order_by(WorkspaceProject.name)
+                .order_by(_relevance(WorkspaceProject.name, terms), WorkspaceProject.name)
                 .limit(per_kind_limit),
                 tenant,
                 WorkspaceProject,
@@ -150,7 +168,7 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
                 .join(WorkspaceProject, WorkspaceProject.id == WorkspaceProcess.project_id)
                 .join(WorkspaceClient, WorkspaceClient.id == WorkspaceProject.client_id)
                 .where(_terms_match(WorkspaceProcess.name, patterns))
-                .order_by(WorkspaceProcess.name)
+                .order_by(_relevance(WorkspaceProcess.name, terms), WorkspaceProcess.name)
                 .limit(per_kind_limit),
                 tenant,
                 WorkspaceProcess,
@@ -196,7 +214,7 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
                 .join(WorkspaceProject, WorkspaceProject.id == WorkspaceSource.project_id)
                 .join(WorkspaceClient, WorkspaceClient.id == WorkspaceProject.client_id)
                 .where(_terms_match(WorkspaceSource.name, patterns))
-                .order_by(WorkspaceSource.name)
+                .order_by(_relevance(WorkspaceSource.name, terms), WorkspaceSource.name)
                 .limit(per_kind_limit),
                 tenant,
                 WorkspaceSource,

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Activity, ArrowRight } from "lucide-react";
 
 import { Button } from "@/ui/button";
+import { shortcutModifier } from "./shortcuts";
 import {
   Dialog,
   DialogContent,
@@ -26,8 +27,10 @@ const WORKFLOW_STEPS = ["project", "sources", "reconstruct", "gaps", "validate"]
  * Le scorciatoie che esistono davvero nel codice, non un elenco aspirazionale.
  * Chi aggiunge o toglie una scorciatoia aggiorna questa lista.
  */
+// Il modificatore si legge alla costruzione dell'elenco: l'aiuto deve dire lo
+// stesso tasto che la barra in alto stampa sul comando.
 const SHORTCUTS = [
-  { keys: ["ctrl", "K"], id: "search_global" },
+  { keys: [shortcutModifier(), "K"], id: "search_global" },
   { keys: ["enter"], id: "send" },
   { keys: ["shift", "enter"], id: "newline" },
   { keys: ["1", "…", "9"], id: "answer" },
@@ -37,7 +40,7 @@ const SHORTCUTS = [
 ] as const;
 
 /** I tasti con un nome cambiano con la lingua della tastiera; frecce e cifre no. */
-const NAMED_KEYS = new Set(["enter", "shift", "esc", "home", "end", "ctrl", "cmd"]);
+const NAMED_KEYS = new Set(["enter", "shift", "esc", "home", "end"]);
 
 /**
  * Aiuto: come si porta avanti un incarico, e cosa fare quando qualcosa non va.

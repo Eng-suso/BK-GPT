@@ -233,9 +233,7 @@
       "shift": "Shift",
       "esc": "Esc",
       "home": "Home",
-      "end": "End",
-      "ctrl": "Ctrl",
-      "cmd": "⌘"
+      "end": "End"
     },
     "trouble": {
       "title": "Something not responding?",
@@ -261,7 +259,6 @@
   },
   "notifications": {
     "label": "Notifications",
-    "labelWithCount": "Notifications, {{count}} unread",
     "title": "Notifications",
     "markAllRead": "Mark all as read",
     "unread": "Unread",
@@ -278,6 +275,8 @@
       "conformance_findings_other": "{{count}} points to review in the comparison with the sources",
       "simulation_done": "Simulation completed",
       "simulation_failed": "Simulation failed"
-    }
+    },
+    "labelWithCount_one": "Notifications, {{count}} unread",
+    "labelWithCount_other": "Notifications, {{count}} unread"
   }
 }

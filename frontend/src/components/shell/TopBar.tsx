@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { NotificationsMenu } from "@/features/notifications/NotificationsMenu";
 import { LanguageMenu } from "./LanguageMenu";
+import { searchShortcutLabel } from "./shortcuts";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,12 +14,6 @@ import { cn } from "@/lib/utils";
  * @param onToggleNavigation - Callback invoked when the navigation toggle is activated.
  * @returns The product header element.
  */
-/** `⌘K` su Mac, `Ctrl K` altrove: la scorciatoia si scrive come la tastiera di chi legge. */
-function searchShortcutLabel(): string {
-  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "");
-  return mac ? "⌘K" : "Ctrl K";
-}
-
 export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void } = {}): React.JSX.Element {
   const { t } = useTranslation("common");
   const user = { name: "Marco Bianchi", role: "Admin", initials: "MB" };

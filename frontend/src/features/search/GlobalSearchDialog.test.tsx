@@ -98,9 +98,9 @@ describe("GlobalSearchDialog", () => {
 
     await user.type(screen.getByRole("combobox"), "esaote");
 
-    const clients = await screen.findByRole("region", { name: "Clienti" }, { timeout: 5000 });
+    const clients = await screen.findByRole("group", { name: "Clienti" }, { timeout: 5000 });
     expect(within(clients).getByRole("option", { name: /Esaote/ })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Processi" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Processi" })).toBeInTheDocument();
     // Il tipo della fonte sta accanto al percorso: "Intervista" dice cos'e'
     // meglio del nome del file.
     expect(screen.getByText(/Intervista · Esaote/)).toBeInTheDocument();
