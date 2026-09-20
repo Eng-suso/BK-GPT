@@ -573,7 +573,7 @@ def build_process_understanding(
 
     try:
         raw_process = stream_to_final(
-            _understanding_llm(),
+            _understanding_llm(_timeout_bucket(len(source_text or ""))),
             [
                 SystemMessage(content=_PROCESS_UNDERSTANDING_PROMPT),
                 HumanMessage(
@@ -1190,9 +1190,30 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
     )
 
 
-@lru_cache(maxsize=1)
-def _understanding_llm() -> ChatOpenAI:
-    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(ProcessUnderstanding)
+@lru_cache(maxsize=8)
+def _understanding_llm(input_characters: int = 0) -> ChatOpenAI:
+    """Estrattore per una fascia di lunghezza dell'input.
+
+    La cache e' chiavata sui caratteri perche' il timeout ne dipende: con una
+    cache a chiave singola la prima nota corta avrebbe fissato il timeout del
+    caso breve per ogni intervista successiva. Chi chiama passa la lunghezza
+    arrotondata (`_timeout_bucket`), cosi' le fasce restano poche.
+    """
+    return ChatOpenAI(
+        **chat_openai_kwargs(input_characters=input_characters)
+    ).with_structured_output(ProcessUnderstanding)
+
+
+def _timeout_bucket(characters: int) -> int:
+    """Arrotonda la lunghezza a scaglioni di 2.000 caratteri.
+
+    Serve alla cache, non al timeout: senza arrotondamento ogni intervista
+    avrebbe la sua lunghezza esatta e ogni estrazione costruirebbe un client
+    nuovo. Arrotonda per eccesso, cosi' il timeout non scende mai sotto quello
+    che l'input meriterebbe.
+    """
+    step = 2_000
+    return ((max(0, characters) + step - 1) // step) * step
 
 
 @lru_cache(maxsize=1)

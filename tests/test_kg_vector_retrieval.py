@@ -1,8 +1,8 @@
 """P3 — retrieval ibrido su kg_chunk: arm lessicale (`ts_rank_cd`) + arm
 vettoriale (cosine), fusi RRF nel gateway.
 
-Skip senza le DSN canonical + NEO4J_PASSWORD + OPENAI_API_KEY (serve
-l'embedder reale per l'arm vettoriale / la fusione).
+Serve l'embedder reale per l'arm vettoriale / la fusione: skip senza
+DELIR_LIVE_LLM=1, o senza le DSN canonical + NEO4J_PASSWORD.
 """
 
 from __future__ import annotations
@@ -13,19 +13,18 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from backend.settings import settings
+from tests.live_llm import skip_unless_live
 
 _NEEDED = (
     settings.canonical_migrator_url,
     settings.canonical_database_url,
     settings.canonical_worker_url,
     settings.neo4j_password,
-    settings.openai_api_key,
 )
-if not all(_NEEDED):
-    pytest.skip(
-        "servono le DSN canonical + NEO4J_PASSWORD + OPENAI_API_KEY",
-        allow_module_level=True,
-    )
+
+pytestmark = pytest.mark.live_llm
+
+skip_unless_live(*_NEEDED, reason="servono le DSN canonical + NEO4J_PASSWORD")
 
 from backend.memory import gateway  # noqa: E402
 from backend.memory.knowledge_graph import canonical, neo4j_store  # noqa: E402

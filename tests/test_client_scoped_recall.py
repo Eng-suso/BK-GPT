@@ -4,7 +4,8 @@ Un episodio salvato per un progetto finisce in Mem0 con `client_id` nei
 metadata e nella riga canonical con scope 'client'. Il gateway lo restituisce
 nel contesto di quel cliente, non di un altro.
 
-Skip senza le DSN canonical + MEM0_DATABASE_URL + OPENAI_API_KEY.
+Usa l'embedder reale: skip senza DELIR_LIVE_LLM=1, o senza le DSN canonical +
+MEM0_DATABASE_URL.
 """
 
 from __future__ import annotations
@@ -15,18 +16,17 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from backend.settings import settings
+from tests.live_llm import skip_unless_live
 
 _NEEDED = (
     settings.canonical_migrator_url,
     settings.canonical_database_url,
     settings.mem0_database_url,
-    settings.openai_api_key,
 )
-if not all(_NEEDED):
-    pytest.skip(
-        "servono le DSN canonical + MEM0_DATABASE_URL + OPENAI_API_KEY",
-        allow_module_level=True,
-    )
+
+pytestmark = pytest.mark.live_llm
+
+skip_unless_live(*_NEEDED, reason="servono le DSN canonical + MEM0_DATABASE_URL")
 
 from backend import workspace_database  # noqa: E402
 from backend.memory import gateway, mem0_client  # noqa: E402

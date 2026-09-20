@@ -5,7 +5,7 @@ dal piano al disegno - e gira in ogni CI. Qui si misura il tratto che non puo'
 esserlo: dalle interviste al piano, con l'LLM vero. Spento di default, perche'
 costa chiamate e non e' deterministico:
 
-    DELIR_GOLDEN_EVAL=1 uv run pytest tests/evals/test_golden_set.py -q -s
+    DELIR_GOLDEN_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/test_golden_set.py -q -s
 
 Per ogni caso: estrazione per fonte a testo intero, compilazione, confronto col
 riferimento, verifica di provenance. Il rapporto finisce in
@@ -28,13 +28,17 @@ from pathlib import Path
 import pytest
 
 from backend.settings import settings
+from tests.live_llm import ENABLED as LIVE_LLM_ENABLED
 
 _ENABLED = os.environ.get("DELIR_GOLDEN_EVAL") == "1"
 
-pytestmark = pytest.mark.skipif(
-    not _ENABLED or not settings.openai_api_key,
-    reason="golden eval spento: serve DELIR_GOLDEN_EVAL=1 e OPENAI_API_KEY",
-)
+pytestmark = [
+    pytest.mark.live_llm,
+    pytest.mark.skipif(
+        not _ENABLED or not LIVE_LLM_ENABLED or not settings.openai_api_key,
+        reason="golden eval spento: serve DELIR_GOLDEN_EVAL=1, DELIR_LIVE_LLM=1 e OPENAI_API_KEY",
+    ),
+]
 
 GOLDEN = Path(__file__).resolve().parents[1] / "golden"
 REPORTS = GOLDEN / "reports"

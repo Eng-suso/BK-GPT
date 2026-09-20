@@ -14,18 +14,23 @@ from backend.settings import settings
 
 from backend.memory import mem0_client  # noqa: E402
 
-_NEEDED = (
+from tests.live_llm import skip_unless_live  # noqa: E402
+
+# Mem0 paga: estrae i fatti con un LLM e li indicizza con un embedder
+# (`mem0_client` si disattiva senza chiave). Prima questo modulo gateava solo
+# sulle DSN, quindi passava - e spendeva - ogni volta che la chiave c'era.
+pytestmark = pytest.mark.live_llm
+
+skip_unless_live(
     settings.canonical_migrator_url,
     settings.canonical_database_url,
     settings.canonical_worker_url,
     settings.mem0_database_url,
-)
-if not all(_NEEDED):
-    pytest.skip(
+    reason=(
         "servono CANONICAL_MIGRATOR_URL / CANONICAL_DATABASE_URL / "
-        "CANONICAL_WORKER_URL / MEM0_DATABASE_URL",
-        allow_module_level=True,
-    )
+        "CANONICAL_WORKER_URL / MEM0_DATABASE_URL"
+    ),
+)
 
 # La DSN da sola non basta: senza un client Mem0 utilizzabile il worker non
 # applica nulla e ritorna 0, e il test fallisce per una dipendenza mancante

@@ -49,7 +49,7 @@ def transcription_client() -> AsyncOpenAI:
         _transcription_client = AsyncOpenAI(
             api_key=api_key,
             timeout=settings.openai_transcription_timeout_seconds,
-            max_retries=settings.model_max_retries,
+            max_retries=settings.transcription_max_retries,
         )
         _transcription_client_key = api_key
 

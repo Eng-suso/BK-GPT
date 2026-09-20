@@ -105,8 +105,32 @@ class Settings(BaseSettings):
 
     model_temperature: float = 1.0
     model_max_tokens: int = 4096
+    # Timeout *minimo* della chiamata al modello: il pavimento per un input
+    # corto. Per gli input lunghi lo alza `llm_config.timeout_for_input`.
     model_timeout_seconds: int = 45
-    model_max_retries: int = 1
+    # Un'intervista di 4.000 caratteri non si estrae in 45 s: andava in timeout,
+    # e il timeout veniva pagato e ritentato. Il timeout cresce con l'input
+    # invece di essere una costante tarata sul caso breve.
+    model_timeout_per_1k_chars: int = 15
+    # Tetto: oltre questo non e' piu' lentezza, e' un compito che non finisce.
+    model_timeout_max_seconds: int = 300
+    # 0 = il client del provider non ritenta da solo, per i compiti task-scoped.
+    # I retry dell'SDK erano invisibili (non lasciano traccia, non si contano) e
+    # si moltiplicavano con quelli applicativi: 2 SDK x 2 per fonte x 5 di coda =
+    # 20 tentativi per fonte. Li' ogni classe di guasto e' gia' classificata e
+    # ritentata un livello piu' su, dove la si vede.
+    #
+    # La regola che divide i tre valori qui sotto: il retry dell'SDK si toglie
+    # dove esiste gia' qualcosa che ritenta (una coda, un ciclo classificato), e
+    # si tiene dove il guasto arriva direttamente a una persona che aspetta.
+    # Vedi docs/llm-gateway-plan.md.
+    model_max_retries: int = 0
+    # Il turno di chat non ha una coda dietro: un rate limit transitorio
+    # diventerebbe un errore in faccia al consulente a meta' conversazione.
+    agent_max_retries: int = 1
+    # Stessa ragione: e' una chiamata singola su un upload che l'utente sta
+    # aspettando, e rifare l'upload e' piu' caro che ritentare la chiamata.
+    transcription_max_retries: int = 1
 
     # --- budget del runtime agentico ---------------------------------------
     # L'agente decide cosa fare, il runtime decide per quanto. Senza questi

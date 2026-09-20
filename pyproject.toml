@@ -49,6 +49,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
     "agent_eval: valuta la qualita' del lavoro dell'agente con LLM reale; richiede DELIR_AGENT_EVAL=1",
+    "live_llm: puo' chiamare il provider e spendere; richiede DELIR_LIVE_LLM=1 (vedi tests/live_llm.py)",
 ]
 
 [tool.ruff]

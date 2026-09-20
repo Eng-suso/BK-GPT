@@ -136,11 +136,70 @@ def _operational_schema():
     ensure_schema()
 
 
-@pytest.fixture(autouse=False)
-def mock_env(monkeypatch):
-    """Override environment variables for testing without real API keys."""
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-fake-key-for-ci")
-    monkeypatch.setenv("TAVILY_API_KEY", "tvly-test-fake-key-for-ci")
+# Client del provider costruiti una volta e tenuti in cache. Un test live che
+# gira per primo lascerebbe in cache un client vero, e i test successivi
+# chiamerebbero il provider anche con la chiave azzerata: la cache non rilegge i
+# settings. Si svuotano a ogni test. `api/routes/audio.py` non e' in lista: la
+# sua cache e' gia' chiavata sull'api key e si invalida da sola.
+_CACHED_PROVIDER_CLIENTS: tuple[tuple[str, str], ...] = (
+    ("backend.process_understanding", "_understanding_llm"),
+    ("backend.process_understanding", "_quality_evaluator_llm"),
+    ("backend.memory.procedural.extraction", "_extract_llm"),
+    ("backend.memory.procedural.extraction", "_generalize_llm"),
+    ("backend.memory.reranker", "build_reranker"),
+    ("backend.memory.embeddings", "_client"),
+)
+
+
+def _drop_cached_provider_clients() -> None:
+    """Svuota le cache dei client, solo per i moduli gia' importati.
+
+    Il controllo su `sys.modules` evita di importare mezzo backend in un test
+    che non lo tocca: la cache di un modulo non importato e' vuota per
+    definizione.
+    """
+    import sys
+
+    for module_name, attribute in _CACHED_PROVIDER_CLIENTS:
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        builder = getattr(module, attribute, None)
+        cache_clear = getattr(builder, "cache_clear", None)
+        if cache_clear is not None:
+            cache_clear()
+
+    entity_resolution = sys.modules.get("backend.memory.knowledge_graph.entity_resolution")
+    if entity_resolution is not None:
+        # Singleton a mano, non `lru_cache`: si azzera la variabile di modulo.
+        entity_resolution._llm_singleton = None
+
+
+@pytest.fixture(autouse=True)
+def _provider_calls_are_opt_in(request, monkeypatch):
+    """Un test non paga il modello vero, a meno che non lo dichiari.
+
+    Prima i test live erano gated sulla presenza della chiave, quindi in
+    sviluppo giravano sempre: ~220 giudizi di qualita' reali in due giorni, da
+    tenant di test, fino a esaurire il credito. Qui il default e' invertito. Chi
+    vuole spendere si marca `live_llm` e si esporta `DELIR_LIVE_LLM=1`
+    (vedi `tests/live_llm.py`).
+
+    Si azzerano i settings *e* le variabili d'ambiente: `langchain_openai`, se
+    gli passi `api_key=None`, ricade su `OPENAI_API_KEY` dell'ambiente, e la
+    chiave tornerebbe dentro dalla finestra.
+    """
+    if request.node.get_closest_marker("live_llm"):
+        # Il test paga per scelta dichiarata. Ma le cache restano sue: il
+        # prossimo test non deve ereditare il suo client vero.
+        request.addfinalizer(_drop_cached_provider_clients)
+        return
+
+    monkeypatch.setattr(settings, "openai_api_key", None)
+    monkeypatch.setattr(settings, "tavily_api_key", None)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    _drop_cached_provider_clients()
 
 
 @pytest.fixture(autouse=True)
