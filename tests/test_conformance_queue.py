@@ -16,6 +16,7 @@ Serve la DSN workspace.
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import pytest
@@ -104,6 +105,132 @@ def test_a_finished_check_releases_what_it_had_taken(tenant):
     state = wd.get_bpmn_review(process["bpmn_model_id"], include_approved=True)["conformance"]
     assert state["status"] == "done"
     assert wd.due_conformance_checks(5, only_tenant_id=tenant) == []
+
+
+def _status(bpmn_model_id: str) -> str | None:
+    with wd.workspace_connection() as session:
+        return session.execute(
+            text(
+                "SELECT conformance_status FROM workspace_bpmn_reviews WHERE bpmn_model_id = :model"
+            ),
+            {"model": bpmn_model_id},
+        ).scalar()
+
+
+def _unreadable_plan(bpmn_model_id: str) -> None:
+    """Il piano salvato che nessuna rilettura sistema.
+
+    E' lo stato reale di certe review in sviluppo: il semantic model e'
+    canonicale, ma il `ProcessUnderstanding` da cui nasce e' il placeholder
+    scritto quando l'estrazione fallisce. Per quelle review il quality report non
+    esiste, quindi la review non si serializza - e finche' nessuno rigenera il
+    piano, non si serializzera' mai.
+    """
+    with wd.workspace_connection() as session:
+        raw = session.execute(
+            text(
+                "SELECT bpmn_semantic_model_json FROM workspace_bpmn_reviews "
+                "WHERE bpmn_model_id = :model"
+            ),
+            {"model": bpmn_model_id},
+        ).scalar()
+        semantic_model = json.loads(raw or "{}")
+        semantic_model["sourceProcessUnderstanding"] = ProcessUnderstanding(
+            title="Ciclo passivo",
+            scope="ProcessUnderstanding non generato: estrazione fallita.",
+        ).model_dump(mode="json")
+        session.execute(
+            text(
+                "UPDATE workspace_bpmn_reviews SET bpmn_semantic_model_json = :payload "
+                "WHERE bpmn_model_id = :model"
+            ),
+            {"payload": json.dumps(semantic_model, ensure_ascii=False), "model": bpmn_model_id},
+        )
+
+
+def test_a_plan_that_cannot_be_read_leaves_the_queue_instead_of_looping(tenant):
+    """Il difetto del 2026-09-20: la coda ha riprovato lo stesso piano rotto all'infinito.
+
+    Ogni passata rimetteva la riga a `pending`, quindi la passata dopo la
+    riprendeva subito: stesso traceback, nessuna attesa, log pieno. Un piano che
+    non si legge non si legge mai: esce dalla coda e lo dice.
+    """
+    from backend.workers import conformance_worker
+
+    process = _process_with_plan("unreadable")
+    _unreadable_plan(process["bpmn_model_id"])
+    wd.request_conformance_check(process["bpmn_model_id"])
+
+    conformance_worker.drain_once(limit=5, only_tenant_id=tenant)
+
+    assert _status(process["bpmn_model_id"]) == wd.CONFORMANCE_UNAVAILABLE
+    assert wd.due_conformance_checks(5, only_tenant_id=tenant) == [], (
+        "una review illeggibile non deve tornare in coda da sola"
+    )
+
+    # Ma non e' una condanna: chi tocca il piano rimette il confronto in coda.
+    wd.request_conformance_check(process["bpmn_model_id"])
+    assert [row["bpmn_model_id"] for row in wd.due_conformance_checks(5, only_tenant_id=tenant)] == [
+        process["bpmn_model_id"]
+    ]
+
+
+def test_the_panel_of_an_unreadable_plan_gets_a_verdict_not_a_server_error(tenant):
+    """Un piano illeggibile e' uno stato del dato, non un guasto del server.
+
+    Con il 500 il pannello mostrava "errore di caricamento, riprova", e riprovare
+    non poteva funzionare: la review va rigenerata. Il 409 lo dice, e il
+    frontend ha il messaggio da mostrare invece di un numero.
+    """
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    process = _process_with_plan("panel")
+    _unreadable_plan(process["bpmn_model_id"])
+
+    # Senza `with`: il lifespan avvia i worker di coda, che sul database di
+    # sviluppo si metterebbero a drenare le code degli altri test.
+    response = TestClient(app).get(
+        f"/v1/workspace/processes/{process['id']}/conformance",
+        headers={"X-DeliR-Tenant-Id": tenant},
+    )
+
+    assert response.status_code == 409, response.text
+    assert response.json()["error"]["code"] == "unreadable_plan"
+
+
+def test_a_failed_reading_of_the_sources_waits_for_its_lease_before_retrying(tenant, monkeypatch):
+    """Un errore di lettura delle fonti si riprova, ma non nella passata dopo.
+
+    La presa in carico resta: e' la scadenza del lease a fare da attesa. Senza,
+    il tentativo fallito tornava eleggibile immediatamente e la coda girava a
+    vuoto contro il provider.
+    """
+    from backend.agents import conformance_audit
+    from backend.workers import conformance_worker
+
+    process = _process_with_plan("transient")
+    wd.request_conformance_check(process["bpmn_model_id"])
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("provider non raggiungibile")
+
+    monkeypatch.setattr(conformance_audit, "audit_process_conformance", _boom)
+    conformance_worker.drain_once(limit=5, only_tenant_id=tenant)
+
+    assert _status(process["bpmn_model_id"]) == "running"
+    assert wd.due_conformance_checks(5, only_tenant_id=tenant) == []
+
+    _leased_at(
+        process["bpmn_model_id"],
+        (datetime.now(UTC) - timedelta(seconds=wd.CONFORMANCE_LEASE_SECONDS + 60)).isoformat(
+            timespec="seconds"
+        ),
+    )
+    assert [row["bpmn_model_id"] for row in wd.due_conformance_checks(5, only_tenant_id=tenant)] == [
+        process["bpmn_model_id"]
+    ]
 
 
 def test_a_queue_pass_stays_inside_its_own_workspace():
