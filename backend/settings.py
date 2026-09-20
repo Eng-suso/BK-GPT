@@ -132,6 +132,13 @@ class Settings(BaseSettings):
     # aspettando, e rifare l'upload e' piu' caro che ritentare la chiamata.
     transcription_max_retries: int = 1
 
+    # Listino per il costo stimato nel registro dei consumi: JSON
+    # {modello: {"input": x, "output": y, "cached_input": z}}, per **milione** di
+    # token. Vuoto = i token si registrano comunque e il costo resta NULL. Non si
+    # incolla un listino nel codice: invecchia in silenzio e produce un costo
+    # plausibile e falso, su cui poi si fanno i budget. Vedi backend/llm/prices.py.
+    llm_prices_json: str = ""
+
     # --- budget del runtime agentico ---------------------------------------
     # L'agente decide cosa fare, il runtime decide per quanto. Senza questi
     # limiti il ciclo agente -> tool -> agente finisce quando il modello decide

@@ -64,6 +64,9 @@ ignore_missing_imports = true
 explicit_package_bases = true
 follow_imports = "skip"
 files = [
+    # Il gateway e' il punto da cui passa ogni chiamata al modello: se i tipi
+    # cedono qui, cede la misura della spesa.
+    "backend/llm",
     "backend/graphs/routing_contracts.py",
     "backend/graphs/consulting/graph.py",
     "backend/graphs/project/graph.py",
