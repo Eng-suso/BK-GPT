@@ -463,6 +463,23 @@ class ProjectResponse(BaseModel):
     process_items: list[ProjectProcessResponse] = Field(default_factory=list)
 
 
+class WorkspaceSearchHit(BaseModel):
+    """Una cosa trovata nel workspace, con dove vive e cosa serve per aprirla."""
+
+    kind: Literal["client", "project", "process", "source"]
+    id: str
+    title: str
+    #: Dove si trova, gia' scritto per chi legge: "Esaote · Acquisti · As-is".
+    context: str = ""
+    client_id: str | None = None
+    client_name: str | None = None
+    project_id: str | None = None
+    project_name: str | None = None
+    process_id: str | None = None
+    #: Solo per le fonti: intervista, documento, nota.
+    source_type: str | None = None
+
+
 class ModelLibraryItem(BaseModel):
     """Un modello BPMN nella libreria, con cio' che serve per decidere se riaprirlo."""
 

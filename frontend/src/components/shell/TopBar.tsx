@@ -12,7 +12,13 @@ import { cn } from "@/lib/utils";
  * @param onToggleNavigation - Callback invoked when the navigation toggle is activated.
  * @returns The product header element.
  */
-export function TopBar({ compact = false, navigationExpanded, onToggleNavigation }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void } = {}): React.JSX.Element {
+/** `⌘K` su Mac, `Ctrl K` altrove: la scorciatoia si scrive come la tastiera di chi legge. */
+function searchShortcutLabel(): string {
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "");
+  return mac ? "⌘K" : "Ctrl K";
+}
+
+export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void } = {}): React.JSX.Element {
   const { t } = useTranslation("common");
   const user = { name: "Marco Bianchi", role: "Admin", initials: "MB" };
 
@@ -28,14 +34,40 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
         <ChevronDown className="size-3 text-muted-foreground" />
       </button>
 
-      <label className={cn("hidden h-[34px] min-w-0 max-w-[440px] flex-1 items-center gap-2 ui-field rounded-full px-3 text-muted-foreground focus-within:ring-2 focus-within:ring-ring", compact ? "xl:flex" : "md:flex")}>
-        <Search className="size-[15px]" strokeWidth={1.8} />
-        <input
-          className="w-full bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
-          placeholder={t("actions.search")}
-          aria-label={t("actions.search")}
-        />
-      </label>
+      {/* Un bottone e non un campo: la ricerca vive in un pannello che sa
+          raggruppare i risultati e si percorre da tastiera. Un input qui
+          sembrerebbe cercare nella pagina, che non e' cio' che fa. */}
+      <button
+        type="button"
+        onClick={onOpenSearch}
+        aria-haspopup="dialog"
+        aria-keyshortcuts="Control+K Meta+K"
+        className={cn(
+          "hidden h-[34px] min-w-0 max-w-[440px] flex-1 items-center gap-2 ui-field rounded-full px-3 text-left text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring",
+          compact ? "xl:flex" : "md:flex",
+        )}
+      >
+        <Search className="size-[15px] shrink-0" strokeWidth={1.8} />
+        <span className="min-w-0 flex-1 truncate text-[13px]">{t("actions.search")}</span>
+        <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] lg:block">
+          {searchShortcutLabel()}
+        </kbd>
+      </button>
+
+      {/* Sotto il breakpoint del campo resta la lente: la ricerca non sparisce
+          sui viewport stretti, dove serve di piu'. */}
+      <button
+        type="button"
+        onClick={onOpenSearch}
+        aria-haspopup="dialog"
+        aria-label={t("actions.search")}
+        className={cn(
+          "grid size-[34px] shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted/60 focus-visible:outline-2 focus-visible:outline-ring",
+          compact ? "xl:hidden" : "md:hidden",
+        )}
+      >
+        <Search className="size-[17px]" strokeWidth={1.7} />
+      </button>
 
       <div className="flex-1" />
 

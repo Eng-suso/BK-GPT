@@ -27,6 +27,7 @@ const WORKFLOW_STEPS = ["project", "sources", "reconstruct", "gaps", "validate"]
  * Chi aggiunge o toglie una scorciatoia aggiorna questa lista.
  */
 const SHORTCUTS = [
+  { keys: ["ctrl", "K"], id: "search_global" },
   { keys: ["enter"], id: "send" },
   { keys: ["shift", "enter"], id: "newline" },
   { keys: ["1", "…", "9"], id: "answer" },
@@ -36,7 +37,7 @@ const SHORTCUTS = [
 ] as const;
 
 /** I tasti con un nome cambiano con la lingua della tastiera; frecce e cifre no. */
-const NAMED_KEYS = new Set(["enter", "shift", "esc", "home", "end"]);
+const NAMED_KEYS = new Set(["enter", "shift", "esc", "home", "end", "ctrl", "cmd"]);
 
 /**
  * Aiuto: come si porta avanti un incarico, e cosa fare quando qualcosa non va.

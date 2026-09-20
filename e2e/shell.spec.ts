@@ -90,6 +90,23 @@ test.describe('App shell', () => {
     ).toBeVisible({ timeout: 15000 });
   });
 
+  test('the top bar search opens the workspace search, by click and by keyboard', async ({
+    page,
+  }) => {
+    await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+
+    await page.getByRole('banner').getByRole('button', { name: /Cerca/ }).first().click();
+    const search = page.getByRole('dialog', { name: 'Cerca nel workspace' });
+    await expect(search).toBeVisible();
+    await expect(search.getByRole('combobox')).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(search).toBeHidden();
+
+    await page.keyboard.press('Control+k');
+    await expect(page.getByRole('dialog', { name: 'Cerca nel workspace' })).toBeVisible();
+  });
+
   test('help opens and leads to the service status', async ({ page }) => {
     await page.goto('/projects', { waitUntil: 'domcontentloaded' });
     const sidebar = page.getByRole('complementary', {

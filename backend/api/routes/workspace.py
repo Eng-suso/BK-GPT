@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from backend.schemas.workspace import (
     ConformanceStatusResponse,
@@ -34,6 +34,7 @@ from backend.schemas.workspace import (
     UpdateClientRequest,
     UpdateProcessRequest,
     UpdateProjectRequest,
+    WorkspaceSearchHit,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_services.bpmn_draft import (
@@ -174,6 +175,25 @@ def get_workspace_projects(include_archived: bool = False) -> list[ProjectRespon
         ProjectResponse(**project)
         for project in list_projects(include_archived=include_archived)
     ]
+
+
+@router.get("/search")
+def search_workspace_records(
+    q: str,
+    limit: int = Query(default=20, ge=1, le=50),
+) -> list[WorkspaceSearchHit]:
+    """Cerca clienti, progetti, processi e fonti del workspace.
+
+    Args:
+        q: Il testo cercato. Vuoto restituisce una lista vuota, non tutto.
+        limit: Quanti risultati restituire.
+
+    Returns:
+        list[WorkspaceSearchHit]: I risultati, i piu' pertinenti per primi.
+    """
+    from backend.workspace_services.global_search import search_workspace
+
+    return [WorkspaceSearchHit(**hit) for hit in search_workspace(q, limit=limit)]
 
 
 @router.get("/models")

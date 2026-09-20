@@ -225,19 +225,38 @@
       "answer": "Pick an alternative in an open question",
       "search": "Move through and open history search results",
       "close": "Close the history or the side panel",
-      "resize": "Resize a panel from its divider"
+      "resize": "Resize a panel from its divider",
+      "search_global": "Open the workspace search"
     },
     "keys": {
       "enter": "Enter",
       "shift": "Shift",
       "esc": "Esc",
       "home": "Home",
-      "end": "End"
+      "end": "End",
+      "ctrl": "Ctrl",
+      "cmd": "⌘"
     },
     "trouble": {
       "title": "Something not responding?",
       "body": "Before retrying, check whether the backend answers and has queued work: knowledge that does not arrive is often a stalled queue, not a wrong answer.",
       "action": "Check service status"
+    }
+  },
+  "search": {
+    "title": "Search the workspace",
+    "description": "Clients, projects, processes and sources. Type a name and open what you need.",
+    "placeholder": "Client, project, process or source",
+    "hint": "Type at least {{min}} characters.",
+    "searching": "Searching...",
+    "failed": "Search failed.",
+    "empty": "No results for \"{{query}}\".",
+    "results": "Search results",
+    "kind": {
+      "client": "Clients",
+      "project": "Projects",
+      "process": "Processes",
+      "source": "Sources"
     }
   }
 }

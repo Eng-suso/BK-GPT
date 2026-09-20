@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { HelpDialog } from "@/components/shell/HelpDialog";
 import { TopBar } from "@/components/shell/TopBar";
+import { GlobalSearchDialog } from "@/features/search/GlobalSearchDialog";
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
 import { Toaster } from "@/ui/sonner";
 import { ROUTES, SECTION_PATH, isSettingsPath, sectionFromPath } from "@/app/routes";
@@ -30,6 +31,20 @@ export function AppLayout(): React.JSX.Element {
   const compactNav = isStudio && !expandedStudioNav;
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // La ricerca si apre da tastiera ovunque nel prodotto: e' il gesto con cui si
+  // salta a un altro incarico senza tornare a un elenco.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <>
@@ -43,7 +58,7 @@ export function AppLayout(): React.JSX.Element {
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
       <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
-        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} />
+        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} />
         <main className="min-h-0 overflow-hidden">
           <Outlet />
         </main>
@@ -62,6 +77,11 @@ export function AppLayout(): React.JSX.Element {
       onOpenServiceStatus={() => setIsStatusOpen(true)}
     />
     <ServiceStatusDialog open={isStatusOpen} onOpenChange={setIsStatusOpen} />
+    <GlobalSearchDialog
+      open={isSearchOpen}
+      onOpenChange={setIsSearchOpen}
+      onNavigate={(href) => navigate(href)}
+    />
     </>
   );
 }
