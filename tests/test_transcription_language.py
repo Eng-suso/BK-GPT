@@ -373,7 +373,10 @@ def test_async_transcription_client_is_reused_until_the_api_key_changes(monkeypa
     monkeypatch.setattr(audio, "_transcription_client_key", None)
     monkeypatch.setattr(settings, "openai_api_key", "first-key")
     monkeypatch.setattr(settings, "openai_transcription_timeout_seconds", 123.0)
-    monkeypatch.setattr(settings, "model_max_retries", 4)
+    # La trascrizione ha il suo numero di retry: non segue piu' quello dei
+    # compiti task-scoped, che e' 0 perche' dietro hanno una coda. Qui dietro
+    # c'e' un utente che ha appena caricato un file.
+    monkeypatch.setattr(settings, "transcription_max_retries", 4)
 
     first = audio.transcription_client()
     reused = audio.transcription_client()

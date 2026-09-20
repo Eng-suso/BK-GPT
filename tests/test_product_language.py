@@ -32,6 +32,7 @@ from backend.agents.product_language import (
     internal_language_leaks,
 )
 from backend.settings import settings
+from tests.live_llm import live, needs_live
 
 
 # La risposta osservata, ridotta all'essenziale. Ogni riga e' una fuga diversa.
@@ -181,7 +182,7 @@ def test_a_clean_answer_is_not_counted():
 
 # --- E2E: turno vero sulla chat di processo --------------------------------
 
-_E2E_NEEDED = (settings.workspace_database_url, settings.openai_api_key)
+_E2E_NEEDED = (settings.workspace_database_url,)
 
 STATUS_QUESTION = "A che punto siamo con questo processo?"
 PERIMETER = "Dal fabbisogno interno alla verifica della fattura fornitore."
@@ -209,9 +210,9 @@ def _thin_understanding() -> dict:
     ).model_dump(mode="json")
 
 
-@pytest.mark.skipif(
-    not all(_E2E_NEEDED), reason="serve WORKSPACE_DATABASE_URL + OPENAI_API_KEY"
-)
+@live
+@needs_live
+@pytest.mark.skipif(not all(_E2E_NEEDED), reason="serve WORKSPACE_DATABASE_URL")
 def test_the_process_chat_answers_a_status_question_in_consulting_language():
     """Il test che vale: stato interno pieno, domanda di stato, prosa reale.
 

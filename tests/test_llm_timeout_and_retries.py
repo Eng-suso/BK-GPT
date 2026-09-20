@@ -64,16 +64,33 @@ class TestTimeoutSegueInput:
 
 
 class TestRetryInUnPostoSolo:
-    def test_i_compiti_task_scoped_non_ritentano_nell_sdk(self, con_chiave):
-        """Dietro c'e' la coda, con il suo backoff, e il guasto e' classificato."""
-        assert chat_openai_kwargs()["max_retries"] == 0
-        assert settings.model_max_retries == 0
+    def test_di_default_i_compiti_task_scoped_non_ritentano_nell_sdk(self):
+        """Dietro c'e' la coda, con il suo backoff, e il guasto e' classificato.
 
-    def test_la_chat_e_la_trascrizione_ritentano_perche_nessuno_lo_fa_per_loro(self):
-        """La regola che divide i tre valori: un guasto che arriva a una persona
-        che aspetta non ha una coda che lo riprenda."""
+        Si verifica il *default dichiarato*, non il valore effettivo: `.env` puo'
+        alzarlo, ed e' esattamente cosi' che lo spreco e' nato — il default era 1,
+        la configurazione diceva 2, e nessuno guardava. Un deployment che vuole
+        ritentare nell'SDK ora lo scrive contro un default che dice di no.
+        """
+        assert type(settings).model_fields["model_max_retries"].default == 0
+
+    def test_il_task_scoped_non_ritenta_mai_piu_dei_path_interattivi(self):
+        """La regola che ordina i tre valori, qualunque sia la configurazione.
+
+        Un compito con una coda dietro non ha ragione di ritentare piu' di un
+        turno di chat, che non ha niente dietro. Se questa si rompe, la gerarchia
+        e' stata invertita per sbaglio.
+        """
+        assert settings.model_max_retries <= settings.agent_max_retries
+        assert settings.model_max_retries <= settings.transcription_max_retries
+
+    def test_i_path_interattivi_ritentano_perche_nessuno_lo_fa_per_loro(self):
         assert settings.agent_max_retries >= 1
         assert settings.transcription_max_retries >= 1
+
+    def test_i_kwargs_portano_il_numero_configurato(self, con_chiave):
+        """Il gateway non reinventa la policy: la legge dai settings."""
+        assert chat_openai_kwargs()["max_retries"] == settings.model_max_retries
 
 
 class TestFasceDellaCache:

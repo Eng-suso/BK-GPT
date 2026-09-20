@@ -1181,7 +1181,9 @@ def test_process_understanding_builder_does_not_mask_programmer_bug(monkeypatch)
             raise TypeError("bug interno")
 
     monkeypatch.setattr("backend.process_understanding.settings.openai_api_key", "sk-test")
-    monkeypatch.setattr("backend.process_understanding._understanding_llm", lambda: BrokenLLM())
+    # `*_`: il builder riceve la fascia di lunghezza dell'input, perche' il
+    # timeout scala con l'intervista (vedi `_timeout_bucket`).
+    monkeypatch.setattr("backend.process_understanding._understanding_llm", lambda *_: BrokenLLM())
 
     try:
         build_process_understanding("Processo Test", "descrizione")
