@@ -278,5 +278,27 @@
     },
     "labelWithCount_one": "Notifications, {{count}} unread",
     "labelWithCount_other": "Notifications, {{count}} unread"
+  },
+  "identity": {
+    "menuLabel": "Workspace {{workspace}} and access",
+    "unknown": "Not available",
+    "workspaceHint": "The workspace the data you are seeing belongs to.",
+    "noPersonYet": "The product does not know who you are yet: per-person sign-in comes with authentication.",
+    "access": {
+      "open": "Authentication not configured",
+      "shared": "Shared credential access"
+    },
+    "section": {
+      "title": "Access",
+      "description": "How this environment recognises who uses it.",
+      "workspace": "Workspace",
+      "mode": "Access mode",
+      "admin": "Administrative permissions",
+      "adminYes": "Yes: this session can delete and archive",
+      "adminNo": "No",
+      "caller": "Caller identifier",
+      "pending": "Per-person identity — who validated a model, who answered a question — comes with real authentication. Until then every action is recorded as the workspace, not as someone.",
+      "failed": "The access state could not be read."
+    }
   }
 }

@@ -278,5 +278,27 @@
     },
     "labelWithCount_one": "Avvisi, {{count}} non letto",
     "labelWithCount_other": "Avvisi, {{count}} non letti"
+  },
+  "identity": {
+    "menuLabel": "Spazio di lavoro {{workspace}} e accesso",
+    "unknown": "Non disponibile",
+    "workspaceHint": "Lo spazio di lavoro a cui appartengono i dati che stai vedendo.",
+    "noPersonYet": "Il prodotto non sa ancora chi sei: l’accesso per persona arriva con l’autenticazione.",
+    "access": {
+      "open": "Accesso non configurato",
+      "shared": "Accesso con credenziale condivisa"
+    },
+    "section": {
+      "title": "Accesso",
+      "description": "Come questo ambiente riconosce chi lo usa.",
+      "workspace": "Spazio di lavoro",
+      "mode": "Modalità di accesso",
+      "admin": "Permessi amministrativi",
+      "adminYes": "Sì: questa sessione può eliminare e archiviare",
+      "adminNo": "No",
+      "caller": "Identificativo del chiamante",
+      "pending": "L’identità per persona — chi ha validato un modello, chi ha risposto a una domanda — arriva con l’autenticazione vera. Finché non c’è, ogni azione risulta fatta dallo spazio di lavoro, non da qualcuno.",
+      "failed": "Impossibile leggere lo stato dell’accesso."
+    }
   }
 }

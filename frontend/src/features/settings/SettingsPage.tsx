@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { PageHeader } from "@/components/layout";
+import { useIdentityQuery } from "@/features/identity/api";
 import { ServiceStatusPanel } from "@/features/status/ServiceStatusDialog";
 import { SUPPORTED_LANGUAGES, type Language } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -91,6 +92,14 @@ export function SettingsPage(): React.JSX.Element {
       </SettingsSection>
 
       <SettingsSection
+        id="settings-access"
+        title={t("identity.section.title")}
+        description={t("identity.section.description")}
+      >
+        <AccessPanel />
+      </SettingsSection>
+
+      <SettingsSection
         id="settings-status"
         title={t("serviceStatus.title")}
         description={t("serviceStatus.description")}
@@ -103,4 +112,58 @@ export function SettingsPage(): React.JSX.Element {
 
 function StatusFooter({ children }: { children?: React.ReactNode }): React.JSX.Element {
   return <div className="mt-3 flex justify-end">{children}</div>;
+}
+
+/**
+ * Come questo ambiente riconosce chi lo usa - e cosa non sa ancora.
+ *
+ * Il prodotto mostrava un utente scritto nel codice. Qui ci sono i fatti:
+ * quale spazio di lavoro, con quale modalita' di accesso, con quali permessi.
+ * E la frase che conta per un pilot: finche' l'autenticazione vera non c'e',
+ * ogni azione risulta fatta dallo spazio di lavoro, non da una persona.
+ */
+function AccessPanel(): React.JSX.Element {
+  const { t } = useTranslation("common");
+  const identity = useIdentityQuery();
+
+  if (identity.isError) {
+    return <p className="text-[13px] text-muted-foreground">{t("identity.section.failed")}</p>;
+  }
+
+  const data = identity.data;
+  const rows: Array<[string, string]> = [
+    [t("identity.section.workspace"), data?.tenantId ?? "…"],
+    [
+      t("identity.section.mode"),
+      data
+        ? data.authEnabled
+          ? t("identity.access.shared")
+          : t("identity.access.open")
+        : "…",
+    ],
+    [
+      t("identity.section.admin"),
+      data ? (data.isAdmin ? t("identity.section.adminYes") : t("identity.section.adminNo")) : "…",
+    ],
+    [t("identity.section.caller"), data?.callerId ?? "…"],
+  ];
+
+  return (
+    <div>
+      <dl className="flex flex-col">
+        {rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border py-2 last:border-b-0"
+          >
+            <dt className="text-[12.5px] text-muted-foreground">{label}</dt>
+            <dd className="text-[13px] text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-[12.5px] leading-5 text-muted-foreground">
+        {t("identity.section.pending")}
+      </p>
+    </div>
+  );
 }

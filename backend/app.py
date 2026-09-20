@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.api.errors import setup_api_error_handlers
 from backend.api.routes.audio import router as audio_router
+from backend.api.routes.identity import router as identity_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
 from backend.api.routes.observability import router as observability_router
@@ -94,6 +95,7 @@ app.include_router(workspace_router)
 app.include_router(simulation_router)
 app.include_router(memory_router)
 app.include_router(observability_router)
+app.include_router(identity_router)
 app.include_router(chat_router)
 app.include_router(audio_router)
 

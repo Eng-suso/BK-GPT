@@ -1,6 +1,7 @@
-import { Building2, Calendar, ChevronDown, Search, PanelLeft } from "lucide-react";
+import { Calendar, ChevronDown, Search, PanelLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { AccountMenu } from "@/features/identity/AccountMenu";
 import { NotificationsMenu } from "@/features/notifications/NotificationsMenu";
 import { LanguageMenu } from "./LanguageMenu";
 import { searchShortcutLabel } from "./shortcuts";
@@ -14,22 +15,12 @@ import { cn } from "@/lib/utils";
  * @param onToggleNavigation - Callback invoked when the navigation toggle is activated.
  * @returns The product header element.
  */
-export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void } = {}): React.JSX.Element {
+export function TopBar({ compact = false, navigationExpanded, onToggleNavigation, onOpenSearch, onNavigate, onOpenSettings }: { compact?: boolean; navigationExpanded?: boolean; onToggleNavigation?: () => void; onOpenSearch?: () => void; onNavigate?: (href: string) => void; onOpenSettings?: () => void } = {}): React.JSX.Element {
   const { t } = useTranslation("common");
-  const user = { name: "Marco Bianchi", role: "Admin", initials: "MB" };
 
   return (
     <header className="app-chrome flex min-w-0 items-center gap-2 border-b px-3 sm:gap-3.5">
       {onToggleNavigation && <button type="button" onClick={onToggleNavigation} aria-label={t("nav.toggle")} aria-expanded={navigationExpanded} className="hidden size-8 shrink-0 place-items-center rounded-md hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring lg:grid"><PanelLeft className="size-4" /></button>}
-      <button
-        type="button"
-        className="ui-button-glass inline-flex h-[34px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2.5 text-[13px] font-medium focus-visible:outline-2 focus-visible:outline-ring"
-      >
-        <Building2 className="size-4 text-muted-foreground" strokeWidth={1.7} />
-        Gruppo DeliR
-        <ChevronDown className="size-3 text-muted-foreground" />
-      </button>
-
       {/* Un bottone e non un campo: la ricerca vive in un pannello che sa
           raggruppare i risultati e si percorre da tastiera. Un input qui
           sembrerebbe cercare nella pagina, che non e' cio' che fa. */}
@@ -77,22 +68,7 @@ export function TopBar({ compact = false, navigationExpanded, onToggleNavigation
 
       <LanguageMenu />
 
-      <button
-        type="button"
-        aria-label={user.name}
-        className="inline-flex shrink-0 items-center gap-2.5 rounded-lg py-[3px] pl-[3px] pr-1.5 hover:bg-muted/60"
-      >
-        <span className="grid size-[30px] place-items-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground ring-1 ring-black/5">
-          {user.initials}
-        </span>
-        <span className={cn("hidden leading-tight", !compact && "lg:block")}>
-          <span className="block text-[12.5px] font-semibold">{user.name}</span>
-          <span className="block text-[11px] text-muted-foreground">
-            {user.role}
-          </span>
-        </span>
-        <ChevronDown className="hidden size-3 text-muted-foreground sm:block" />
-      </button>
+      <AccountMenu compact={compact} onOpenSettings={onOpenSettings ?? (() => {})} />
     </header>
   );
 }

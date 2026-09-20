@@ -7,10 +7,22 @@ import { setupUser } from "@/test/user";
 import "@/lib/i18n";
 import { TopBar } from "./TopBar";
 
-// La campanella legge gli avvisi dal backend: qui interessa la barra, non il
-// feed, quindi la risposta e' vuota e silenziosa.
+// La barra legge due cose dal backend: gli avvisi e lo spazio di lavoro. Qui
+// interessa la barra, non i due feed, quindi rispondono il minimo vero.
 vi.mock("@/lib/http", () => ({
-  http: vi.fn().mockResolvedValue({ items: [], unread: 0 }),
+  http: vi.fn(async (path: string) =>
+    path.includes("/auth/me")
+      ? {
+          tenant_id: "studio-frascheri",
+          auth_mode: "bearer",
+          auth_enabled: true,
+          is_admin: false,
+          caller_id: "api-client",
+          has_user_identity: false,
+          allowed_tenants: [],
+        }
+      : { items: [], unread: 0 },
+  ),
 }));
 
 function renderTopBar(props: React.ComponentProps<typeof TopBar> = {}) {
@@ -22,9 +34,13 @@ function renderTopBar(props: React.ComponentProps<typeof TopBar> = {}) {
 }
 
 describe("TopBar", () => {
-  it("renders the tenant selector", () => {
+  it("names the real workspace, not one written in the code", async () => {
     renderTopBar();
-    expect(screen.getByText("Gruppo DeliR")).toBeInTheDocument();
+
+    // Prima diceva "Gruppo DeliR" a chiunque, compreso un cliente che si
+    // chiama diversamente.
+    expect(await screen.findByText("studio-frascheri", {}, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByText("Gruppo DeliR")).not.toBeInTheDocument();
   });
 
   it("opens the workspace search instead of pretending to be a field", async () => {
@@ -41,11 +57,11 @@ describe("TopBar", () => {
     expect(onOpenSearch).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the notifications and user buttons", () => {
+  it("renders the notifications and the account control", async () => {
     renderTopBar();
     expect(screen.getByRole("button", { name: /avvisi|notifications/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /marco bianchi/i }),
+      await screen.findByRole("button", { name: /spazio di lavoro|workspace/i }, { timeout: 5000 }),
     ).toBeInTheDocument();
   });
 });
