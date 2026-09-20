@@ -44,19 +44,39 @@ _BATCH = 2
 def _work_one(row: dict) -> bool:
     """Confronta un processo dentro il suo tenant.
 
+    Un fallimento non e' sempre lo stesso fallimento. Se il piano salvato non si
+    legge - semantic model legacy, ProcessUnderstanding placeholder - riprovare
+    dara' lo stesso errore per sempre: la riga esce dalla coda e lo dice. Se
+    invece e' andata storta la lettura delle fonti, la presa in carico **non** si
+    rilascia: la riga resta invisibile finche' il lease non scade, e quello e' il
+    tempo di attesa prima del prossimo tentativo. Rilasciarla subito a `pending`
+    la rimetteva in cima alla passata successiva, che e' come il 2026-09-20 la
+    coda ha riempito il log con lo stesso traceback centinaia di volte.
+
     Returns:
-        `True` se il confronto e' stato scritto, `False` se va riprovato.
+        `True` se il confronto e' stato scritto, `False` se no.
     """
     from backend.agents.conformance_audit import audit_process_conformance
 
     token = set_current_tenant_id(row["tenant_id"])
     try:
         report = audit_process_conformance(row["process_id"])
+    except wd.UnreadableReviewError:
+        logger.warning(
+            "confronto impossibile per il processo %s: il piano salvato non e' leggibile, "
+            "va rigenerato. Fuori dalla coda finche' qualcuno non lo tocca.",
+            row["process_id"],
+            exc_info=True,
+        )
+        wd.release_conformance_check(row["bpmn_model_id"], status=wd.CONFORMANCE_UNAVAILABLE)
+        return False
     except Exception:  # noqa: BLE001 - un processo storto non ferma la coda
         logger.warning(
-            "confronto con le fonti fallito per il processo %s", row["process_id"], exc_info=True
+            "confronto con le fonti fallito per il processo %s: riprovo alla scadenza della "
+            "presa in carico",
+            row["process_id"],
+            exc_info=True,
         )
-        wd.release_conformance_check(row["bpmn_model_id"], status="pending")
         return False
     finally:
         reset_current_tenant_id(token)
