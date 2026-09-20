@@ -150,6 +150,28 @@ def test_the_exact_name_survives_the_cut(client, engagement):
 
 
 @_needs_db
+def test_a_word_in_the_middle_of_a_name_still_ranks_first(client, engagement):
+    from backend.workspace_services.global_search import search_workspace
+
+    marker = engagement["marker"]
+    for name in (f"Anagrafica fornitori {marker}", f"Ciclo passivo {marker}"):
+        created = client.post(
+            f"/v1/workspace/projects/{engagement['project']['id']}/processes",
+            json={"name": name},
+        )
+        assert created.status_code == 200
+
+    # "passivo" apre la seconda parola, non il titolo: la regola in SQL deve
+    # essere la stessa di quella in Python, altrimenti il candidato giusto viene
+    # tagliato prima ancora di essere ordinato.
+    hits = search_workspace(f"passivo {marker}", per_kind_limit=1)
+
+    assert [hit["title"] for hit in hits if hit["kind"] == "process"] == [
+        f"Ciclo passivo {marker}"
+    ]
+
+
+@_needs_db
 def test_archived_work_never_comes_back_from_a_search(client, engagement):
     marker = engagement["marker"]
     archived = client.post(

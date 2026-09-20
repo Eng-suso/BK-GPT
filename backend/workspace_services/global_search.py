@@ -37,17 +37,28 @@ KIND_ORDER: dict[ResultKind, int] = {"client": 0, "project": 1, "process": 2, "s
 def _relevance(column, terms: list[str]):
     """L'ordine di pertinenza, calcolato dal database.
 
-    Il taglio per tipo (`per_kind_limit`) avviene prima che i risultati arrivino
-    qui: ordinare solo in Python vorrebbe dire ordinare cio' che e' sopravvissuto
-    a un `ORDER BY name`, e su un cliente con trenta processi "Ordini" il
-    processo che si chiama esattamente cosi' poteva restare fuori. La stessa
-    regola di `match_rank`, scritta in SQL.
+    E' la stessa regola di `match_rank`, scritta in SQL: esatto, poi "comincia
+    cosi'" - anche quando la parola cercata apre una parola qualunque del titolo
+    ("passivo" su "Ciclo passivo") - poi il resto.
+
+    Deve stare qui e non solo in Python perche' il taglio per tipo
+    (`per_kind_limit`) avviene nel database: ordinando per nome, su un cliente
+    con trenta processi "Ordini" quello che si chiama esattamente cosi' poteva
+    restare fuori dai candidati.
     """
     joined = " ".join(terms)
+    first = like_escape(terms[0])
     lowered = func.lower(column)
     return case(
         (lowered == joined, 0),
-        (lowered.like(f"{like_escape(joined)}%", escape="\\"), 1),
+        (
+            or_(
+                lowered.like(f"{like_escape(joined)}%", escape="\\"),
+                lowered.like(f"{first}%", escape="\\"),
+                lowered.like(f"% {first}%", escape="\\"),
+            ),
+            1,
+        ),
         else_=2,
     )
 
