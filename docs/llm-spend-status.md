@@ -34,10 +34,15 @@ Branch di lavoro: `chore/llm-spend-p0` (worktree `.claude/worktrees/llm-spend-p0
 | P0.5 | Tracing LangSmith spento | **non fatto** — una riga in `.env`, §④ |
 | P0.6 | Riferimenti rotti nel piano parziale intercettati prima del merge | **rinviato a P2** (§④) |
 
-Suite di riferimento prima dell'intervento: **1240 passed, 9 failed** (2 h 24).
-Degli 8 fallimenti diversi dalla migrazione altrui, 1 era contention fra sessioni
-e 7 erano veri: 3 moduli che pagavano senza dichiararlo, 2 test che inseguivano la
-policy vecchia, 2 conseguenze dirette. Tutti chiusi e riverificati.
+**Suite verde a P0 chiuso: 1256 passed, 14 skipped, 1 xfailed, 0 failed**
+(23 min 28, su database isolato). I conti tornano rispetto alla passata di
+partenza (1240 passed, 9 failed, 2 h 24 sotto contention): +16 test nuovi
+(1240 + 16 = 1256), e gli skip da 11 a 14 sono esattamente i tre casi live
+appena dichiarati.
+
+Dei 9 fallimenti di partenza: 1 era la migrazione di un'altra sessione sul
+database condiviso (§⑤), 1 era contention fra suite — poi verde da solo — e 7
+erano veri.
 
 **P0.1 — i test non pagano piu' (L6).** Era il buco piu' grosso e il piu'
 economico da chiudere. I test live erano gated sulla *presenza* della chiave
@@ -126,11 +131,12 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**Chiudere la verifica di P0.2 / P0.3, poi il registro dei consumi minimo.**
+**Il registro dei consumi minimo (P1).** P0 e' chiuso e verificato: quello che
+restava di P0 (§① P0.4 e P0.5) non e' codice, e' configurazione che serve da
+Sohayb (§④).
 
-1. Far girare la suite intera e sistemare cio' che il cambio di timeout e retry
-   ha mosso (`uv run pytest -q`, serve Postgres su — §⑤). Al momento della
-   scrittura e' in corso: **P0.2 e P0.3 sono scritti, non ancora verificati.**
+1. Prima una decisione da prendere una volta sola, perche' condiziona la tabella:
+   il registro copre **anche gli embedding**, non solo la chat (§③.4).
 2. Poi P1, e il taglio consigliato e' piu' corto di quanto dice il piano: i
    punti di chiamata passano gia' quasi tutti da `backend/llm_config.py`, quindi
    il gateway non e' un pezzo nuovo — e' `chat_openai_kwargs` che smette di
