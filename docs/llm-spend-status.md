@@ -7,6 +7,10 @@ qual e' il prossimo passo.
 **A chi serve:** a piu' sessioni agente in parallelo, e a Sohayb per sapere dove
 siamo senza rileggere i diff.
 
+**Se stai aprendo una sessione nuova, leggi prima §⑤:** senza un database
+tuo, i test di questo repo si rompono in modo che sembra un bug del codice e non
+lo e'.
+
 **Come si usa.** Chi prende in mano il lavoro legge §② e fa quello. Chi lo posa
 aggiorna §① (cosa ha chiuso), §② (il prossimo passo, uno solo) e §⑥ (la riga di
 log). Un passo non si dichiara fatto se i suoi test non sono verdi: §① distingue
@@ -24,11 +28,16 @@ Branch di lavoro: `chore/llm-spend-p0` (worktree `.claude/worktrees/llm-spend-p0
 | # | Cosa | Stato |
 | --- | --- | --- |
 | P0.1 | Test senza chiave del provider (invariante L6) | **fatto, verificato** |
-| P0.2 | Un solo livello di retry invisibile: SDK a 0 | **fatto**, suite in verifica |
-| P0.3 | Timeout proporzionato alla lunghezza dell'input | **fatto**, suite in verifica |
+| P0.2 | Un solo livello di retry invisibile: SDK a 0 | **fatto, verificato** |
+| P0.3 | Timeout proporzionato alla lunghezza dell'input | **fatto, verificato** |
 | P0.4 | Progetti e chiavi separati dev / eval / prod, con tetto | **non iniziato** — serve Sohayb (§④) |
 | P0.5 | Tracing LangSmith spento | **non fatto** — una riga in `.env`, §④ |
-| P0.6 | Riferimenti rotti nel piano parziale intercettati prima del merge | **rinviato a P2** (§⑤) |
+| P0.6 | Riferimenti rotti nel piano parziale intercettati prima del merge | **rinviato a P2** (§④) |
+
+Suite di riferimento prima dell'intervento: **1240 passed, 9 failed** (2 h 24).
+Degli 8 fallimenti diversi dalla migrazione altrui, 1 era contention fra sessioni
+e 7 erano veri: 3 moduli che pagavano senza dichiararlo, 2 test che inseguivano la
+policy vecchia, 2 conseguenze dirette. Tutti chiusi e riverificati.
 
 **P0.1 — i test non pagano piu' (L6).** Era il buco piu' grosso e il piu'
 economico da chiudere. I test live erano gated sulla *presenza* della chiave
@@ -53,11 +62,21 @@ Il default e' invertito. Ora:
   funzionava comunque (`settings` e' costruito all'import, cambiare le env var
   dopo non lo tocca).
 
-Convertiti a opt-in i 7 moduli che pagavano: `test_gateway_memory`,
+Convertiti a opt-in gli 11 moduli che pagavano: `test_gateway_memory`,
 `test_client_scoped_recall`, `test_kg_vector_retrieval`, `test_entity_resolution`
 (`TestVectorPath` + il test worker/Neo4j), `test_kg_ingest_queue` (E2E dal tool),
 `evals/test_golden_set`, `evals/test_canvas_modeling_eval`,
-`evals/test_conformance_eval`.
+`evals/test_conformance_eval`, `test_product_language`, `test_mem0_projection`,
+`test_semantic_episodic_mirror`.
+
+**Gli ultimi tre non nominavano la chiave, e sono i piu' istruttivi.** Cercare
+`skipif(not settings.openai_api_key)` trova solo i test che sapevano di pagare.
+`test_mem0_projection` e `test_semantic_episodic_mirror` gateavano sulle sole
+DSN, ma lo specchio passa da Mem0, che estrae i fatti con un LLM e li indicizza
+con un embedder: passavano solo perche' la chiave c'era. La spesa implicita non
+si trova con una grep: si trova azzerando la chiave e guardando cosa si rompe.
+Per il prossimo giro: **un test che si rompe quando togli la chiave era un test
+che pagava.**
 
 **P0.2 — retry.** `model_max_retries` da 1 a **0**. I retry dell'SDK erano il
 peggior tipo di spesa: invisibili (non lasciano traccia, non si contano),
@@ -77,6 +96,20 @@ guasto arriva a una persona che aspetta.** Quindi tre valori invece di uno:
 
 Gli ultimi due sono nuovi solo come nome: il comportamento di chat e
 trascrizione non cambia rispetto a prima.
+
+**I numeri veri erano peggiori di quelli del piano, e la ragione va ricordata.**
+`.env` conteneva `MODEL_MAX_RETRIES=2` e `MODEL_TIMEOUT_SECONDS=60`, cioe' il
+doppio dei retry e un timeout diverso rispetto ai default del codice (1 e 45 s).
+Il caso peggiore per fonte non era 20 tentativi ma **30** (3 SDK x 2 per fonte x
+5 di coda), e su cinque interviste 150. Il piano descriveva la configurazione
+*deployata*; chi legge solo i default del codice misura un sistema che non esiste.
+`MODEL_MAX_RETRIES` e' stato portato a 0 in `.env` (backup `.env.bak-p0`), e
+`MODEL_TIMEOUT_SECONDS=60` ora e' solo il pavimento, quindi va bene com'e'.
+
+Per questo il test sui retry non asserisce il valore effettivo ma **il default
+dichiarato piu' l'ordinamento** fra i tre livelli: il valore effettivo lo decide
+`.env`, ed e' esattamente da li' che lo spreco arrivava senza che nessuno lo
+vedesse.
 
 **P0.3 — timeout proporzionato.** `llm_config.timeout_for_input(characters)`:
 pavimento `model_timeout_seconds` (45 s) + 15 s per 1.000 caratteri, tetto 300 s.
@@ -212,6 +245,47 @@ docker ps --format '{{.Names}}\t{{.Ports}}'     # la porta vera, adesso
 
 e allinea i DSN in `.env`. Al 2026-09-20 la porta e' **55300**.
 
+### Un database per sessione, altrimenti non si lavora in parallelo
+
+Il blocco piu' duro incontrato, e vale la pena spiegarlo per intero perche'
+tornera'. Un'altra sessione ha creato la migrazione `0014_notification_reads` nel
+suo worktree e l'ha applicata al database `workspace` condiviso. Quella revisione
+non esiste in **nessun branch committato**: e' lavoro in corso. Da quel momento
+ogni altra sessione trova
+
+```
+alembic.script.revision.ResolutionError: No such revision or branch '0014_notification_reads'
+```
+
+e **tutti** i suoi test vanno in errore al fixture di sessione. Non e' un bug: e'
+una conseguenza. Un solo database + una sola storia Alembic = la prima sessione
+che migra chiude fuori le altre, e il danno appare come un guasto del codice
+altrui.
+
+La soluzione e' un database per worktree. Il pattern era gia' in uso qui — nel
+cluster c'era gia' un `workspace_planfix` — e ora c'e' anche `workspace_p0`:
+
+```
+docker exec delir-postgres psql -U delir_super -d delir \
+  -c 'CREATE DATABASE workspace_<nome> OWNER delir_workspace;'
+```
+
+poi nel `.env` **del proprio worktree** si punta `WORKSPACE_DATABASE_URL` a
+`workspace_<nome>`; `_operational_schema` lo porta a head da solo, al primo run.
+Il canonical e mem0 restano condivisi finche' nessuno li migra: al 2026-09-20 il
+canonical e' a `0017_queue_backoff` in DB e nel branch, quindi allineato. Se
+domani un canonical drifta, stessa cura.
+
+Resta comunque la contention: **due suite insieme si rallentano e si disturbano**
+(la passata di riferimento e' passata da ~19 min a 2 h 24 con un'altra suite
+attiva, e un test di coda e' fallito solo per quello, poi verde da solo). Se un
+fallimento non si riproduce da solo, prima di indagarlo guarda se c'era un'altra
+suite in corso:
+
+```
+Get-Process python | Select-Object Id, CPU, StartTime
+```
+
 **I test live si chiedono per nome.** Girano solo con `DELIR_LIVE_LLM=1`, e gli
 eval vogliono anche il loro flag:
 
@@ -231,4 +305,8 @@ trova la chiave a `None` e falla.
 | Data | Cosa | Dove |
 | --- | --- | --- |
 | 2026-09-18 | Piano scritto | `docs/llm-gateway-plan.md`, `b483c0e` |
-| 2026-09-20 | P0.1 test a opt-in, P0.2 retry SDK a 0, P0.3 timeout proporzionato | branch `chore/llm-spend-p0` |
+| 2026-09-20 | P0.1 test a opt-in (8 moduli) | `e2b61fe` |
+| 2026-09-20 | P0.2 retry in un posto solo, P0.3 timeout proporzionato | `b45b21d` |
+| 2026-09-20 | Questo documento | `01be629` |
+| 2026-09-20 | 3 moduli che pagavano senza dichiararlo + 2 test allineati alla policy nuova | `chore/llm-spend-p0` |
+| 2026-09-20 | `MODEL_MAX_RETRIES` 2 → 0 in `.env` (non committabile), backup `.env.bak-p0` | fuori da git |
