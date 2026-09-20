@@ -2,7 +2,8 @@
 
 Serve un Postgres canonical migrato (pg_trgm + pgvector). Skip senza le due
 DSN. Il livello LLM e' testato con un modello fake (deterministico); il livello
-vettoriale reale sta in `TestVectorPath`, gated anche su OPENAI_API_KEY.
+vettoriale reale sta in `TestVectorPath`, che paga e gira solo con
+DELIR_LIVE_LLM=1.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from backend.settings import settings
+from tests.live_llm import live, needs_live
 
 if not settings.canonical_migrator_url or not settings.canonical_database_url:
     pytest.skip(
@@ -277,7 +279,8 @@ def test_plan_resolution_empty_when_disabled(scope, monkeypatch):
 # --- livello vettoriale reale -------------------------------------------
 
 
-@pytest.mark.skipif(not settings.openai_api_key, reason="serve OPENAI_API_KEY")
+@live
+@needs_live
 class TestVectorPath:
     def test_semantic_synonym_via_vector_and_llm(self, scope):
         vecs = embeddings.embed_texts(
@@ -327,12 +330,13 @@ class TestVectorPath:
 _WEV_NEEDED = (
     settings.canonical_worker_url,
     settings.neo4j_password,
-    settings.openai_api_key,
 )
 
 
+@live
+@needs_live
 @pytest.mark.skipif(
-    not all(_WEV_NEEDED), reason="serve CANONICAL_WORKER_URL + NEO4J_PASSWORD + OPENAI_API_KEY"
+    not all(_WEV_NEEDED), reason="serve CANONICAL_WORKER_URL + NEO4J_PASSWORD"
 )
 class TestWriteEvidenceResolution:
     def test_second_interview_synonym_folds_into_first(self, scope):

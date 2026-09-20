@@ -27,17 +27,18 @@ import uuid
 import pytest
 
 from backend.settings import settings
+from tests.live_llm import skip_unless_live
 
 _EVAL_ENABLED = os.environ.get("DELIR_AGENT_EVAL") == "1"
 
 if not _EVAL_ENABLED:
     pytest.skip("agent eval disattivato: esporta DELIR_AGENT_EVAL=1", allow_module_level=True)
 
-if not settings.openai_api_key:
-    pytest.skip("serve OPENAI_API_KEY per l'agent eval", allow_module_level=True)
-
-if not all((settings.workspace_database_url, settings.canonical_database_url)):
-    pytest.skip("servono le DSN workspace e canonical", allow_module_level=True)
+skip_unless_live(
+    settings.workspace_database_url,
+    settings.canonical_database_url,
+    reason="servono le DSN workspace e canonical",
+)
 
 from langchain_core.messages import HumanMessage  # noqa: E402
 
@@ -48,7 +49,7 @@ from backend.process_understanding import ProcessUnderstanding  # noqa: E402
 from backend.security import reset_current_tenant_id, set_current_tenant_id  # noqa: E402
 from tests.evals.rubric import score_as_is_model  # noqa: E402
 
-pytestmark = pytest.mark.agent_eval
+pytestmark = [pytest.mark.agent_eval, pytest.mark.live_llm]
 
 
 # Le stesse tre voci degli altri test: qui pero' nessuno struttura il piano al

@@ -1,7 +1,7 @@
 """P5 — ingestione asincrona: kg_ingest_queue + ingest_worker + E2E dal tool.
 
-Skip senza le DSN canonical + NEO4J_PASSWORD. L'E2E dal tool serve anche
-WORKSPACE_DATABASE_URL + OPENAI_API_KEY.
+Skip senza le DSN canonical + NEO4J_PASSWORD. L'E2E dal tool paga l'embedder
+vero: serve anche WORKSPACE_DATABASE_URL e DELIR_LIVE_LLM=1.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from backend.settings import settings
+from tests.live_llm import live, needs_live
 
 _NEEDED = (
     settings.canonical_migrator_url,
@@ -227,12 +228,12 @@ def test_queue_stats_and_prune(scope):
 
 # --- E2E: tool -> coda -> ingest_worker -> write -> outbox -> Neo4j -> gateway --
 
-_E2E_NEEDED = (settings.workspace_database_url, settings.openai_api_key)
+_E2E_NEEDED = (settings.workspace_database_url,)
 
 
-@pytest.mark.skipif(
-    not all(_E2E_NEEDED), reason="serve WORKSPACE_DATABASE_URL + OPENAI_API_KEY"
-)
+@live
+@needs_live
+@pytest.mark.skipif(not all(_E2E_NEEDED), reason="serve WORKSPACE_DATABASE_URL")
 def test_evidence_tool_end_to_end(monkeypatch, wait_pipeline):
     """
     Verifies that process evidence is queued and becomes retrievable through the graph after the ingestion pipeline completes.

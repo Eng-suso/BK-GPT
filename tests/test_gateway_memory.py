@@ -10,9 +10,11 @@ import uuid
 import pytest
 
 from backend.settings import settings
+from tests.live_llm import skip_unless_live
 
-if not (settings.mem0_database_url and settings.openai_api_key):
-    pytest.skip("servono MEM0_DATABASE_URL + OPENAI_API_KEY", allow_module_level=True)
+pytestmark = pytest.mark.live_llm
+
+skip_unless_live(settings.mem0_database_url, reason="serve MEM0_DATABASE_URL")
 
 from backend.memory import gateway, mem0_client  # noqa: E402
 from backend.memory.semantic import semantic_store  # noqa: E402

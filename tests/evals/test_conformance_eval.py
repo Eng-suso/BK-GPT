@@ -30,15 +30,23 @@ from pathlib import Path
 import pytest
 
 from backend.settings import settings
+from tests.live_llm import ENABLED as LIVE_LLM_ENABLED
 
 _ENABLED = os.environ.get("DELIR_AGENT_EVAL") == "1"
 
-pytestmark = pytest.mark.skipif(
-    not _ENABLED
-    or not settings.openai_api_key
-    or not all((settings.workspace_database_url, settings.canonical_database_url)),
-    reason="eval di conformita' spento: servono DELIR_AGENT_EVAL=1, OPENAI_API_KEY e le DSN",
-)
+pytestmark = [
+    pytest.mark.live_llm,
+    pytest.mark.skipif(
+        not _ENABLED
+        or not LIVE_LLM_ENABLED
+        or not settings.openai_api_key
+        or not all((settings.workspace_database_url, settings.canonical_database_url)),
+        reason=(
+            "eval di conformita' spento: servono DELIR_AGENT_EVAL=1, DELIR_LIVE_LLM=1, "
+            "OPENAI_API_KEY e le DSN"
+        ),
+    ),
+]
 
 GOLDEN = Path(__file__).resolve().parents[1] / "golden"
 REPORTS = GOLDEN / "reports"
