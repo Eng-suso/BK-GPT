@@ -35,8 +35,10 @@ export function HomePage(): React.JSX.Element {
   const clients = useMemo(() => {
     const all = clientsQ.data ?? [];
     if (period === "all") return all;
-    const inPeriod = new Set(projects.map((project) => project.client));
-    return all.filter((client) => inPeriod.has(client.name));
+    // Per id e non per nome: due clienti possono chiamarsi uguale, e un nome
+    // cambiato smetterebbe di corrispondere.
+    const inPeriod = new Set(projects.map((project) => project.clientId));
+    return all.filter((client) => inPeriod.has(client.id));
   }, [clientsQ.data, projects, period]);
   const isLoading = projectsQ.isLoading || clientsQ.isLoading;
   const isError = projectsQ.isError || clientsQ.isError;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { PeriodContext, type PeriodValue } from "./periodContextValue";
-import { DEFAULT_PERIOD, PERIOD_IDS, periodRange, today, type PeriodId } from "./periods";
+import { DEFAULT_PERIOD, PERIOD_IDS, localDate, periodRange, today, type PeriodId } from "./periods";
 
 const STORAGE_KEY = "delir-period";
 
@@ -52,10 +52,9 @@ export function PeriodProvider({ children }: { children: ReactNode }): React.JSX
   }, []);
 
   const value = useMemo<PeriodValue>(
-    () => ({ period, range: periodRange(period), setPeriod }),
-    // `day` non si legge qui dentro: e' la sveglia che rifa' il calcolo quando
-    // il giorno cambia.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Il giorno entra nel calcolo, non solo nelle dipendenze: l'intervallo di
+    // "questo mese" e' quello del giorno che il prodotto sta vivendo adesso.
+    () => ({ period, range: periodRange(period, localDate(day)), setPeriod }),
     [period, day, setPeriod],
   );
 
