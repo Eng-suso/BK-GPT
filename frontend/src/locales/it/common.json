@@ -299,6 +299,7 @@
       "caller": "Identificativo del chiamante",
       "pending": "L’identità per persona — chi ha validato un modello, chi ha risposto a una domanda — arriva con l’autenticazione vera. Finché non c’è, ogni azione risulta fatta dallo spazio di lavoro, non da qualcuno.",
       "failed": "Impossibile leggere lo stato dell’accesso."
-    }
+    },
+    "loading": "Lettura in corso…"
   }
 }

@@ -68,6 +68,31 @@ def test_with_authentication_it_reports_the_workspace_of_the_request(client, mon
     assert body["has_user_identity"] is False
 
 
+def test_a_workspace_outside_the_allowlist_is_refused(client, monkeypatch):
+    from backend.security import set_current_tenant_id
+
+    monkeypatch.setattr(settings, "delir_auth_enabled", True)
+    monkeypatch.setattr(settings, "delir_api_token", "test-api-token")
+    monkeypatch.setattr(settings, "delir_allowed_tenant_ids", "studio-frascheri")
+
+    try:
+        response = client.get(
+            ME,
+            headers={
+                "Authorization": "Bearer test-api-token",
+                "X-DeliR-Tenant-ID": "studio-estraneo",
+            },
+        )
+    finally:
+        set_current_tenant_id("local")
+
+    # Lo spazio di lavoro arriva da un header che il client imposta: se
+    # l'ambiente ne dichiara uno solo, chiederne un altro non deve restituire
+    # nemmeno il nome di quello richiesto.
+    assert response.status_code == 403
+    assert "tenant_id" not in response.text
+
+
 def test_identity_requires_credentials_when_authentication_is_on(client, monkeypatch):
     from backend.security import set_current_tenant_id
 

@@ -299,6 +299,7 @@
       "caller": "Caller identifier",
       "pending": "Per-person identity — who validated a model, who answered a question — comes with real authentication. Until then every action is recorded as the workspace, not as someone.",
       "failed": "The access state could not be read."
-    }
+    },
+    "loading": "Loading…"
   }
 }

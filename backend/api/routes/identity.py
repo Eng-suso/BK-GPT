@@ -17,7 +17,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from backend.security import AuthPrincipal, allowed_tenant_ids, require_principal
+from backend.security import AuthPrincipal, require_principal
 from backend.settings import settings
 
 router = APIRouter(prefix="/v1", tags=["identity"], dependencies=[Depends(require_principal)])
@@ -38,8 +38,6 @@ class CurrentIdentity(BaseModel):
     caller_id: str
     #: Se l'identita' per persona esiste. Falso finche' Track B non e' attivo.
     has_user_identity: bool = False
-    #: Quanti spazi di lavoro sono ammessi in questo ambiente, se dichiarati.
-    allowed_tenants: list[str] = []
 
 
 @router.get("/auth/me")
@@ -56,5 +54,4 @@ def get_current_identity(
         # Nessun fornitore di identita' e' collegato: finche' e' cosi', l'unica
         # cosa vera da mostrare e' lo spazio di lavoro.
         has_user_identity=False,
-        allowed_tenants=sorted(allowed_tenant_ids()),
     )

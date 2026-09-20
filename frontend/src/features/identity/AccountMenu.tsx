@@ -32,12 +32,16 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
   const identity = useIdentityQuery();
   const data = identity.data;
 
-  const workspace = data?.tenantId ?? (identity.isError ? t("identity.unknown") : "…");
-  const accessLabel = !data
-    ? t("identity.unknown")
-    : data.authEnabled
+  const workspace = data?.tenantId ?? t(identity.isError ? "identity.unknown" : "identity.loading");
+  // Quando l'identita' non si legge, "Non disponibile" si dice una volta sola:
+  // ripeterlo sotto il nome dello spazio di lavoro non aggiunge niente.
+  const accessLabel = data
+    ? data.authEnabled
       ? t("identity.access.shared")
-      : t("identity.access.open");
+      : t("identity.access.open")
+    : identity.isError
+      ? null
+      : t("identity.loading");
 
   return (
     <DropdownMenu>
@@ -52,7 +56,9 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
           </span>
           <span className={cn("hidden max-w-[160px] leading-tight", !compact && "lg:block")}>
             <span className="block truncate text-[12.5px] font-semibold">{workspace}</span>
-            <span className="block truncate text-[11px] text-muted-foreground">{accessLabel}</span>
+            {accessLabel ? (
+              <span className="block truncate text-[11px] text-muted-foreground">{accessLabel}</span>
+            ) : null}
           </span>
         </button>
       </DropdownMenuTrigger>
@@ -83,7 +89,9 @@ export function AccountMenu({ compact = false, onOpenSettings }: AccountMenuProp
             />
           )}
           <span className="min-w-0">
-            <span className="block text-[12.5px] text-foreground">{accessLabel}</span>
+            <span className="block text-[12.5px] text-foreground">
+              {accessLabel ?? t("identity.unknown")}
+            </span>
             <span className="block text-[11.5px] text-muted-foreground">
               {t("identity.noPersonYet")}
             </span>

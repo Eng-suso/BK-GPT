@@ -18,7 +18,6 @@ const apiIdentitySchema = z.object({
   is_admin: z.boolean(),
   caller_id: z.string(),
   has_user_identity: z.boolean(),
-  allowed_tenants: z.array(z.string()),
 });
 
 export type Identity = {
@@ -31,7 +30,6 @@ export type Identity = {
   callerId: string;
   /** Falso finche' non esiste l'identita' per persona (Track B). */
   hasUserIdentity: boolean;
-  allowedTenants: string[];
 };
 
 export async function fetchIdentity(): Promise<Identity> {
@@ -44,7 +42,6 @@ export async function fetchIdentity(): Promise<Identity> {
     isAdmin: parsed.is_admin,
     callerId: parsed.caller_id,
     hasUserIdentity: parsed.has_user_identity,
-    allowedTenants: parsed.allowed_tenants,
   };
 }
 
