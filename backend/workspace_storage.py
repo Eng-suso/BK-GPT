@@ -301,6 +301,56 @@ class WorkspaceDecision(WorkspaceBase):
     status: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class WorkspaceLlmUsage(WorkspaceBase):
+    """Un evento di consumo per ogni chiamata al modello, riuscita o no.
+
+    E' la tabella che risponde a «dove sono andati i soldi ieri». Le colonne
+    sono le dimensioni con cui si legge quella risposta: per tenant, per
+    operazione, per compito, per modello.
+
+    Tre scelte che vale la pena non perdere:
+
+    - una riga anche per i guasti e per i colpi di cache (`outcome`). Un timeout
+      si paga, e una chiamata evitata e' il risultato migliore che possiamo
+      avere: se non la registriamo non possiamo dimostrare di averla evitata;
+    - `cost_estimate` puo' essere NULL, e non e' un difetto. Significa che il
+      modello non ha un prezzo configurato. I token restano comunque contati;
+    - `prompt_version` sta qui perche' un cambio di prompt cambia la spesa, e
+      senza la versione non si riesce a dire quale cambio l'ha cambiata.
+    """
+
+    __tablename__ = "workspace_llm_usage"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    # L'operazione: tipo, identita' dell'esecuzione, e il lavoro a cui appartiene.
+    operation_kind: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    operation_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    parent_operation_id: Mapped[str | None] = mapped_column(String, index=True)
+    project_id: Mapped[str | None] = mapped_column(String, index=True)
+    process_id: Mapped[str | None] = mapped_column(String, index=True)
+    # Il compito e come e' stato eseguito.
+    task: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    model: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    prompt_version: Mapped[str | None] = mapped_column(String)
+    reasoning_effort: Mapped[str | None] = mapped_column(String)
+    # I token. `reasoning` e' un sottoinsieme di `output`, non un addendo: il
+    # fornitore lo fattura come uscita. Sommarlo a parte gonfierebbe ogni stima.
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reasoning_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cached_input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # `ok`, `timeout`, `error`, `cache_hit`, `refused`.
+    outcome: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    error_kind: Mapped[str | None] = mapped_column(String)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Stringa decimale, non float: e' denaro, e un float non si somma due volte
+    # allo stesso modo. NULL = modello senza prezzo configurato.
+    cost_estimate: Mapped[str | None] = mapped_column(String)
+    created_at: Mapped[str] = mapped_column(String, nullable=False, index=True)
+
+
 def build_workspace_engine():
     return local_engine()
 

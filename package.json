@@ -14,6 +14,7 @@
     "test:lighthouse": "playwright test e2e/performance-lighthouse.spec.ts",
     "test:report": "playwright show-report",
     "test:backend": "uv run pytest tests/ -v",
+    "agent:worktree": "uv run python scripts/new_agent_worktree.py",
     "test:unit": "npm --prefix frontend run test:ci",
     "lint": "npm --prefix frontend run lint",
     "ci": "npm run lint && npm run typecheck && npm run test:unit && npm run test:e2e"

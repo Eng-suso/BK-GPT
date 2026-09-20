@@ -123,7 +123,46 @@ dell'estrattore e' chiavata su scaglioni di 2.000 caratteri
 (`process_understanding._timeout_bucket`), altrimenti la prima nota corta
 avrebbe fissato il timeout del caso breve per ogni intervista successiva.
 
-### P1–P5
+### P1 — Misurare tutto
+
+| # | Cosa | Stato |
+| --- | --- | --- |
+| P1.1 | Operazione corrente (`contextvar`), con eredita' nei thread | **fatto, verificato** |
+| P1.2 | Registro dei compiti (`TaskProfile`), 12 compiti | **fatto, verificato** |
+| P1.3 | Registro dei consumi su Postgres + costo stimato | **fatto, verificato** |
+| P1.4 | `llm.run` che rifiuta una chiamata senza operazione (L2) e registra sempre (L4) | **fatto, verificato** |
+| P1.5 | Migrazione dei punti di chiamata al gateway | **non iniziato** ← §② |
+| P1.6 | L1 in CI: `ChatOpenAI` / `openai` vietati fuori da `backend/llm/` | **non iniziato** |
+
+Il pacchetto e' `backend/llm/`: `operation.py`, `tasks.py`, `prices.py`,
+`usage.py`, `gateway.py`. `backend/llm_config.py` resta il posto della policy sui
+parametri del client e il gateway lo usa — non l'ha sostituito. 36 test in
+`tests/test_llm_gateway.py`, ruff e mypy verdi (`backend/llm` e' entrato sotto
+mypy).
+
+**Finche' P1.5 non e' fatto, il gateway non misura niente in produzione**: i punti
+di chiamata costruiscono ancora il loro client. La fondazione c'e' ed e'
+verificata; il valore arriva con la migrazione.
+
+Tre cose apprese scrivendolo, che valgono piu' del codice:
+
+1. **`with_structured_output()` perde `usage_metadata`.** Il parsato e' un oggetto
+   pydantic; i token vivono sull'`AIMessage` grezzo. Quasi tutte le nostre
+   chiamate sono strutturate: misurandole nel modo ovvio avremmo letto **zero
+   token su tutto**, e creduto di misurare. Il gateway usa `include_raw=True` e
+   tiene entrambi. Chi tocchera' quel punto: non togliere `include_raw`.
+2. **`max_retries` va al costruttore, non a `bind`.** `bind` aggiunge kwargs alla
+   chiamata API, e il fornitore rifiuta un parametro che non conosce. Il primo
+   test non lo vedeva perche' il doppio ignorava `bind`: ora c'e' un test contro
+   il costruttore vero. Un doppio piu' permissivo del vero nasconde esattamente
+   i bug che stai cercando.
+3. **`reasoning_effort="medium"` era un default, non una scelta**, applicato a
+   sette compiti diversi. Nel registro dei compiti i due che rispondono dentro
+   uno schema strict (entity resolution, rerank) sono a `none`: lo schema fa il
+   lavoro. Quanto valga si vedra' col registro, ed e' il primo esperimento da
+   fare appena P1.5 e' in piedi.
+
+### P2–P5
 
 Non iniziati. Vedi il piano.
 
@@ -131,21 +170,39 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**Il registro dei consumi minimo (P1).** P0 e' chiuso e verificato: quello che
-restava di P0 (§① P0.4 e P0.5) non e' codice, e' configurazione che serve da
-Sohayb (§④).
+**P1.5 — portare i punti di chiamata sul gateway.** E' il passo che trasforma la
+fondazione in misura vera. Da fare in quest'ordine, che va dal meno al piu'
+rischioso:
 
-1. Prima una decisione da prendere una volta sola, perche' condiziona la tabella:
-   il registro copre **anche gli embedding**, non solo la chat (§③.4).
-2. Poi P1, e il taglio consigliato e' piu' corto di quanto dice il piano: i
-   punti di chiamata passano gia' quasi tutti da `backend/llm_config.py`, quindi
-   il gateway non e' un pezzo nuovo — e' `chat_openai_kwargs` che smette di
-   restituire kwargs e inizia a eseguire. **1-2 giorni, non una settimana.**
-   Il minimo che serve per rispondere a «dove sono andati i soldi ieri»:
-   - un `contextvar` con l'operazione corrente (tipo, tenant, progetto, processo);
-   - una tabella dei consumi su Postgres;
-   - `response.usage_metadata`, che langchain **restituisce gia'**: non serve
-     telemetria nuova, serve scriverla da qualche parte.
+1. **I punti d'ingresso aprono l'operazione.** Prima di tutto il resto, perche'
+   ogni migrazione successiva dipende da questo: senza operazione aperta il
+   gateway rifiuta (L2). Sono `plan_worker`, `conformance_worker`,
+   `ingest_worker`, il turno di chat in `agent_runtime`, il comando «Genera
+   BPMN», e gli eval.
+2. **Il pool di estrazione** in `agents/process_synthesis.py`: avvolgere
+   `_extract` con `inherit_operation`. Senza questo le chiamate piu' care che
+   facciamo — una per intervista, in parallelo — risultano senza operazione.
+3. **I compiti a basso rischio**, che hanno gia' un guard sulla chiave e tornano
+   `None` quando non c'e' un LLM: `memory/reranker.py`,
+   `memory/knowledge_graph/entity_resolution.py`,
+   `memory/procedural/extraction.py`.
+4. **Gli embedding** (`memory/embeddings.py`). API diversa: i token stanno in
+   `response.usage.prompt_tokens`, non in `usage_metadata`, quindi serve un
+   ingresso suo nel gateway. Da non saltare: nell'ingestione KG il volume sta
+   qui, e il piano su questo punto parla solo di chat.
+5. **Il percorso caldo per ultimo**: `process_understanding.py` (estrazione e
+   giudizio di qualita'), `agents/conformance_audit.py`,
+   `agents/plan_consolidation.py`. Attenzione: diversi test sostituiscono
+   `_understanding_llm` con un doppio, e passare dal gateway cambia quel seam.
+   Vanno aggiornati insieme al codice, non dopo.
+6. **`agent.py`** per ultimo fra tutti: e' l'unico che fa streaming verso il
+   frontend, e il gateway oggi non strema. Serve un ingresso che ritorni
+   l'iteratore e registri alla fine (`stream_usage=True` c'e' gia').
+
+Poi **P1.6**, la regola L1 in CI: una regola ast-grep che vieta `ChatOpenAI`,
+`openai`, `OpenAIEmbeddings` fuori da `backend/llm/`. Va messa **dopo** la
+migrazione, altrimenti e' rossa da subito e la si impara a ignorare. Le regole
+stanno in `.coderabbit/ast-grep-rules/`, una per file.
 
 Prima di P3 (budget con prenotazione e saldo) servono due settimane di numeri
 veri. Non e' solo la soglia a dipendere dai dati: la *forma* del meccanismo lo e'.
@@ -228,6 +285,64 @@ P1 estende `llm_config`, non lo sostituisce.
    server.
 
 ---
+
+## ④bis Lavorare in parallelo su questo piano
+
+### Partire: un comando
+
+```
+uv run python scripts/new_agent_worktree.py <nome>
+```
+
+Crea il worktree, copia `.env` e `ops/.env`, allinea la porta di Postgres a
+quella vera del container, crea `workspace_<nome>`, ci punta
+`WORKSPACE_DATABASE_URL` e porta lo schema a head. Da zero a `pytest` verde in
+~35 secondi. `--base` per partire da un branch diverso da `main`.
+
+Senza questo si perde un'ora: `.env` e' gitignorato e un worktree nuovo nasce
+senza, e un database condiviso si rompe da solo (§⑤).
+
+### Chi fa cosa, senza pestarsi
+
+Le tappe di P1.5 **non sono tutte indipendenti**. Questa tabella dice i file, e
+la colonna delle collisioni e' la ragione per cui non si assegnano a caso.
+
+| Tappa | File | In parallelo con |
+| --- | --- | --- |
+| **t.3** compiti a basso rischio | `memory/reranker.py`, `memory/knowledge_graph/entity_resolution.py`, `memory/procedural/extraction.py` + test | tutto |
+| **t.4** embedding | `memory/embeddings.py` + **`llm/gateway.py`** (ingresso nuovo) | tutto tranne t.6 |
+| **t.5** percorso caldo | `process_understanding.py`, `agents/conformance_audit.py`, `agents/plan_consolidation.py` + molti test | tutto |
+| **t.6** `agent.py` | `agent.py` + **`llm/gateway.py`** (ingresso di streaming) | tutto tranne t.4 |
+| **L5** registro dei prompt | i prompt in tutti i moduli | **dopo t.5**: tocca gli stessi prompt |
+| **lettura del registro** | file nuovi (endpoint o SQL versionato) | tutto |
+| **P1.6** regola L1 in CI | `.coderabbit/ast-grep-rules/` | **ultima**: prima e' rossa da subito |
+
+Due agenti su **t.4 e t.6 insieme confliggono** su `llm/gateway.py`: o li fa lo
+stesso agente, o si fanno in fila. Tutto il resto e' parallelo per davvero.
+
+Il taglio piu' comodo per tre agenti: uno su **t.5** (la piu' grossa), uno su
+**t.3 + lettura del registro**, uno su **t.4 poi t.6**.
+
+### Le tre regole che evitano i guai visti finora
+
+1. **Un database per worktree.** Lo fa lo script. Non condividere `workspace`.
+2. **Chi aggiunge una migrazione Alembic lo scrive subito in §⑥.** E' l'unica
+   cosa che rompe le altre sessioni in modo invisibile: applicare una revisione
+   che gli altri branch non hanno manda in errore *tutti* i loro test, con un
+   messaggio che sembra un bug del codice. E' gia' successo il 2026-09-20.
+3. **Non due suite intere insieme.** Contention: la passata di riferimento e'
+   passata da ~19 min a 2 h 24, e un test di coda e' fallito solo per quello.
+   Durante il lavoro si girano i file toccati; la suite intera una per volta.
+
+### Chiudere un pezzo
+
+Aggiornare §① (cosa e' chiuso, distinguendo *scritto* da *verificato*), §② se il
+prossimo passo cambia, §⑥ con la riga di log. Poi merge in `main` con un commit
+di merge, che e' la convenzione del repo.
+
+Un pezzo non si dichiara fatto se i suoi test non sono verdi. E la riga di §①
+dice **quali** gate sono girati: "verificato" senza dire su cosa non serve a chi
+arriva dopo.
 
 ## ⑤ Ambiente: cose che fanno perdere un'ora
 
@@ -316,3 +431,12 @@ trova la chiave a `None` e falla.
 | 2026-09-20 | Questo documento | `01be629` |
 | 2026-09-20 | 3 moduli che pagavano senza dichiararlo + 2 test allineati alla policy nuova | `chore/llm-spend-p0` |
 | 2026-09-20 | `MODEL_MAX_RETRIES` 2 → 0 in `.env` (non committabile), backup `.env.bak-p0` | fuori da git |
+| 2026-09-20 | P0 mergiato in main | `7037004` |
+| 2026-09-20 | P1.1–P1.4: gateway, operazione, registro dei compiti e dei consumi | `a00179e` |
+
+**Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
+`0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`
+sulla stessa base, sul branch `feat/notifications-feed`: quando entrambe entrano
+in main ci saranno **due head** e servira' un `alembic merge`. Non e' un errore di
+nessuno dei due, e' il prezzo del lavoro in parallelo — ma va risolto, non
+scoperto in produzione.

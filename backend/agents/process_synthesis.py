@@ -47,6 +47,7 @@ from backend.agents.process_snapshot import (
     build_process_snapshot,
     plan_ignores_evidence,
 )
+from backend.llm import inherit_operation
 from backend.process_understanding import (
     ExtractionFailure,
     ProcessUnderstanding,
@@ -358,10 +359,15 @@ def extract_plan_from_sources(
     workers = max(1, min(MAX_PARALLEL_EXTRACTIONS, len(readable)))
     if workers > 1:
         warm_provider_imports()
+    # Un thread nuovo nasce con i `ContextVar` vuoti: senza questo, le estrazioni
+    # - una per intervista, cioe' le chiamate piu' care che facciamo - girerebbero
+    # senza operazione e senza tenant. Il gateway le rifiuterebbe, e giustamente:
+    # sarebbe spesa non attribuibile. Vedi backend/llm/operation.py.
+    extract_in_this_operation = inherit_operation(_extract)
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="plan-extract") as pool:
         # `map` conserva l'ordine dell'input: il merge resta deterministico anche
         # se le chiamate finiscono in ordine diverso.
-        results = list(pool.map(_extract, readable))
+        results = list(pool.map(extract_in_this_operation, readable))
 
     # Un guasto temporaneo del provider - timeout, rate limit - non deve costare
     # un'intervista al piano. Sul caso Esaote l'estrazione di Francesca e' andata

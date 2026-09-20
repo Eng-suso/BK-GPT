@@ -57,10 +57,18 @@ def _work_one(row: dict) -> bool:
         `True` se il confronto e' stato scritto, `False` se no.
     """
     from backend.agents.conformance_audit import audit_process_conformance
+    from backend.llm import OperationKind, operation
 
     token = set_current_tenant_id(row["tenant_id"])
     try:
-        report = audit_process_conformance(row["process_id"])
+        # Il punto d'ingresso del confronto: la spesa del revisore appartiene a
+        # questa riga di coda, non al processo in generale.
+        with operation(
+            OperationKind.CONFORMANCE_AUDIT,
+            tenant_id=row["tenant_id"],
+            process_id=row["process_id"],
+        ):
+            report = audit_process_conformance(row["process_id"])
     except wd.UnreadableReviewError:
         logger.warning(
             "confronto impossibile per il processo %s: il piano salvato non e' leggibile, "

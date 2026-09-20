@@ -58,6 +58,7 @@ def _work_one(row: dict) -> bool:
         `True` se la riga e' stata chiusa, `False` se resta da riprovare.
     """
     from backend.agents.process_synthesis import ensure_process_plan
+    from backend.llm import OperationKind, operation
 
     # Il tenant resta vincolato anche per la chiusura della riga: le transizioni
     # di coda sono scritture come le altre e controllano di stare dentro il
@@ -67,7 +68,16 @@ def _work_one(row: dict) -> bool:
     token = set_current_tenant_id(row["tenant_id"])
     try:
         try:
-            synthesis = ensure_process_plan(row["process_id"])
+            # Una passata di coda e' un punto d'ingresso: e' qui che si apre
+            # l'operazione a cui la spesa del piano appartiene. Ogni riga e' la
+            # sua operazione, cosi' due ricostruzioni dello stesso piano restano
+            # due numeri distinti - ed e' cosi' che si vede il lavoro ripetuto.
+            with operation(
+                OperationKind.PLAN_SYNTHESIS,
+                tenant_id=row["tenant_id"],
+                process_id=row["process_id"],
+            ):
+                synthesis = ensure_process_plan(row["process_id"])
         except Exception as exc:  # noqa: BLE001 - una riga storta non ferma la coda
             logger.warning(
                 "materializzazione piano fallita per il processo %s",
