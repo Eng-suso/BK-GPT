@@ -16,8 +16,8 @@ aggiorna §① (cosa ha chiuso), §② (il prossimo passo, uno solo) e §⑥ (la
 log). Un passo non si dichiara fatto se i suoi test non sono verdi: §① distingue
 *scritto* da *verificato*, ed e' la distinzione che vale.
 
-Ultimo aggiornamento: 2026-09-20.
-Branch di lavoro: `chore/llm-spend-p0` (worktree `.claude/worktrees/llm-spend-p0`).
+Ultimo aggiornamento: 2026-09-24.
+Branch di lavoro: `chore/llm-t3` (worktree `.claude/worktrees/llm-t3`).
 
 ---
 
@@ -466,6 +466,7 @@ trova la chiave a `None` e falla.
 | 2026-09-20 | `MODEL_MAX_RETRIES` 2 → 0 in `.env` (non committabile), backup `.env.bak-p0` | fuori da git |
 | 2026-09-20 | P0 mergiato in main | `7037004` |
 | 2026-09-20 | P1.1–P1.4: gateway, operazione, registro dei compiti e dei consumi | `a00179e` |
+| 2026-09-24 | P1.5 t.1 + t.3: ingressi che aprono l'operazione, rerank ed entity resolution sul gateway | `d1ea68a`, `chore/llm-t3` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`
