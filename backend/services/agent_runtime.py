@@ -9,12 +9,12 @@ from threading import Thread
 from typing import Any, Iterator
 from uuid import UUID
 
-from backend.agent import get_agent, normalize_model_name
+from backend.agent import CONTEXT_ROUTER_NODE, get_agent, normalize_model_name
 from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
 from backend.agents.run_context import bind_active_thread
 from backend.agents.scope_guard import bind_active_scope
-from backend.llm import OperationKind, adopt, new_operation
+from backend.llm import LlmTask, OperationKind, adopt, new_operation, record_streamed_usage
 from backend.llm_streaming import (
     INTERNAL_STREAM_METADATA_KEY,
     INTERNAL_STREAM_METADATA_VALUE,
@@ -64,7 +64,7 @@ KEEPALIVE_SECONDS = 15.0
 # loop evaluators. They emit nothing.
 INTERNAL_AGENT_NODES = {
     "summarize",
-    "classify_and_select_context",
+    CONTEXT_ROUTER_NODE,
     "load_process_context",
     "load_canvas_context",
     "ensure_current_plan",
@@ -135,6 +135,56 @@ def merge_usage_metadata(
                 merge_usage_metadata(nested, value)
 
     return totals
+
+
+def task_for_node(node_name: str) -> LlmTask:
+    """Quale compito ha speso, dato il nodo del grafo che stremava.
+
+    L'instradamento ha un profilo suo (512 token in uscita, nessun
+    ragionamento) e nel registro resta distinto dal turno: sommarli renderebbe
+    invisibile il piu' economico dei due proprio mentre si decide quanto farlo
+    ragionare. Il nome del nodo arriva da `backend.agent`, cosi' un rename non
+    puo' far ricadere l'instradamento dentro il turno senza che niente si rompa.
+    """
+    return LlmTask.CONTEXT_ROUTING if node_name == CONTEXT_ROUTER_NODE else LlmTask.CHAT_TURN
+
+
+def record_turn_usage(
+    usage_by_node: dict[str, dict[str, Any]],
+    *,
+    model: str,
+    elapsed_seconds: float,
+) -> None:
+    """Scrive nel registro la spesa di un turno, una riga per compito.
+
+    I nodi sono tanti ma i compiti sono due: l'instradamento e tutto il resto.
+    Si sommano per compito prima di scrivere, altrimenti un turno lascerebbe
+    una riga per nodo e "quanto costa un turno di chat" tornerebbe a essere una
+    ricostruzione invece di una somma.
+
+    Il modello e' quello che ha girato davvero: la chat e' l'unico compito in
+    cui lo sceglie il consulente, e il default del profilo sarebbe una
+    supposizione su cui poi si stima un costo.
+
+    La durata la riceve solo il turno. Di quanto sia durata la parte
+    dell'instradamento non sappiamo niente - i pezzi arrivano mescolati in un
+    solo stream - e scriverci la durata dell'intero turno sarebbe un numero
+    plausibile e falso, cioe' il tipo di numero su cui poi si fanno i budget.
+    """
+    if not usage_by_node:
+        return
+
+    per_task: dict[LlmTask, dict[str, Any]] = {}
+    for node_name, usage in usage_by_node.items():
+        merge_usage_metadata(per_task.setdefault(task_for_node(node_name), {}), usage)
+
+    for task, usage in per_task.items():
+        record_streamed_usage(
+            task,
+            usage,
+            model=model,
+            duration_ms=int(elapsed_seconds * 1000) if task is LlmTask.CHAT_TURN else 0,
+        )
 
 
 def get_thread_lock(thread_id: str) -> Lock:
@@ -474,6 +524,10 @@ def stream_agent_events(
     last_node = None
     first_token_recorded = False
     usage_totals: dict[str, Any] = {}
+    # Gli stessi token, tenuti separati per nodo: il turno e l'instradamento sono
+    # due compiti con due profili, e sommarli renderebbe invisibile il piu'
+    # economico dei due proprio mentre si decide quanto farlo ragionare.
+    usage_by_node: dict[str, dict[str, Any]] = {}
     narrator = ProgressNarrator()
     run_tags = langsmith_tags(
         "consultant-chat",
@@ -598,7 +652,8 @@ def stream_agent_events(
         queue sentinel is always emitted to signal stream termination. This function
         does not persist results.
         """
-        nonlocal last_node, first_token_recorded, usage_totals
+        nonlocal last_node, first_token_recorded, usage_totals, usage_by_node
+        started_at = time.monotonic()
         tracing_context = (
             ls.tracing_context(
                 enabled=True,
@@ -669,6 +724,22 @@ def stream_agent_events(
                     chunk, metadata = payload
 
                     node_name = metadata.get("langgraph_node")
+
+                    is_model_chunk = getattr(chunk, "type", None) in {"AIMessageChunk", "ai"}
+                    chunk_usage = getattr(chunk, "usage_metadata", None) if is_model_chunk else None
+
+                    # I token si contano **prima** del filtro sui nodi interni.
+                    # Quel filtro decide cosa il consulente vede, non cosa
+                    # abbiamo pagato: l'instradamento e' un nodo interno, e
+                    # scartarlo qui lo rendeva spesa invisibile - proprio il
+                    # compito che si vorrebbe misurare per decidere se pagargli
+                    # del ragionamento.
+                    if chunk_usage:
+                        merge_usage_metadata(
+                            usage_by_node.setdefault(node_name or "", {}),
+                            dict(chunk_usage),
+                        )
+
                     if node_name and is_internal_agent_node(node_name):
                         continue
 
@@ -699,12 +770,14 @@ def stream_agent_events(
                             )
                         )
 
-                    if getattr(chunk, "type", None) not in {"AIMessageChunk", "ai"}:
+                    if not is_model_chunk:
                         continue
 
-                    usage_metadata = getattr(chunk, "usage_metadata", None)
-                    if usage_metadata:
-                        merge_usage_metadata(usage_totals, dict(usage_metadata))
+                    # `usage_totals` e' cio' che va al frontend, e resta quello
+                    # che era: i soli nodi visibili. Il registro conta a parte,
+                    # sopra, perche' le due domande sono diverse.
+                    if chunk_usage:
+                        merge_usage_metadata(usage_totals, dict(chunk_usage))
 
                     content = message_content_to_text(getattr(chunk, "content", ""))
 
@@ -816,6 +889,15 @@ def stream_agent_events(
                 )
             )
         finally:
+            # La spesa entra nel registro qui e non sul percorso felice: un turno
+            # che fallisce a meta' ha gia' pagato i token che ha consumato, ed e'
+            # proprio la spesa che si vuole vedere - quella senza un risultato in
+            # mano. Non solleva: la contabilita' non rovina un turno.
+            record_turn_usage(
+                usage_by_node,
+                model=selected_model,
+                elapsed_seconds=time.monotonic() - started_at,
+            )
             thread_lock.release()
             output_queue.put(None)
 

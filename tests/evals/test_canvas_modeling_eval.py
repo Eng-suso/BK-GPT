@@ -167,7 +167,8 @@ def _save_interviews(scope: dict) -> None:
 
 
 def _eval_llm():
-    from backend.agent import DeliRChatOpenAI, normalize_model_name
+    from backend.agent import normalize_model_name
+    from backend.llm import DeliRChatOpenAI
 
     model = normalize_model_name(None)
     return DeliRChatOpenAI(

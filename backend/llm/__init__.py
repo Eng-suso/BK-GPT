@@ -16,7 +16,15 @@ L'uso normale e' due righe:
 questo pacchetto lo usa: non l'ha sostituito.
 """
 
-from backend.llm.gateway import GATEWAY, OperationNotOpen, embed, record_avoided_call, run
+from backend.llm.chat_client import DeliRChatOpenAI, chat_client
+from backend.llm.gateway import (
+    GATEWAY,
+    OperationNotOpen,
+    embed,
+    record_avoided_call,
+    record_streamed_usage,
+    run,
+)
 from backend.llm.operation import (
     Operation,
     OperationKind,
@@ -31,6 +39,7 @@ from backend.llm.usage import Outcome, TokenUsage
 
 __all__ = [
     "GATEWAY",
+    "DeliRChatOpenAI",
     "LlmTask",
     "Operation",
     "OperationKind",
@@ -40,6 +49,7 @@ __all__ = [
     "TokenUsage",
     "adopt",
     "all_profiles",
+    "chat_client",
     "current_operation",
     "embed",
     "inherit_operation",
@@ -47,5 +57,6 @@ __all__ = [
     "operation",
     "profile_for",
     "record_avoided_call",
+    "record_streamed_usage",
     "run",
 ]

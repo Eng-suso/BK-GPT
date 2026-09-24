@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import time
 from functools import lru_cache
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 
 from pydantic import BaseModel
 
@@ -43,8 +43,10 @@ from backend.llm.usage import (
     extract_embedding_tokens,
     extract_tokens,
     record,
+    tokens_from_usage_metadata,
 )
 from backend.llm_config import MissingProviderKey, chat_openai_kwargs, timeout_for_input
+from backend.services import degradation_counters
 from backend.settings import settings
 
 _Output = TypeVar("_Output", bound=BaseModel)
@@ -129,6 +131,28 @@ def _error_kind(exc: BaseException) -> tuple[str, str]:
     return Outcome.ERROR, name
 
 
+@overload
+def run(
+    *,
+    task: LlmTask,
+    messages: Any,
+    output: type[_Output],
+    input_characters: int | None = ...,
+    prompt_version: str | None = ...,
+) -> _Output: ...
+
+
+@overload
+def run(
+    *,
+    task: LlmTask,
+    messages: Any,
+    output: None = ...,
+    input_characters: int | None = ...,
+    prompt_version: str | None = ...,
+) -> Any: ...
+
+
 def run(
     *,
     task: LlmTask,
@@ -138,6 +162,11 @@ def run(
     prompt_version: str | None = None,
 ) -> Any:
     """Esegue un compito e lascia un evento di consumo.
+
+    Le due firme dichiarate sopra servono a chi chiama: con `output` si riceve
+    quel modello pydantic, senza si riceve il messaggio grezzo. Prima era `Any`
+    in entrambi i casi, e un errore di schema al punto di chiamata non lo
+    vedeva nessuno fino a runtime.
 
     Args:
         task: Il compito. Il profilo decide modello, ragionamento, timeout e
@@ -357,6 +386,60 @@ def embed(*, texts: list[str], dimensions: int) -> list[list[float]]:
         reasoning_effort=profile.reasoning_effort,
     )
     return [item.embedding for item in response.data]
+
+
+def record_streamed_usage(
+    task: LlmTask,
+    usage_metadata: dict[str, Any] | None,
+    *,
+    model: str | None = None,
+    duration_ms: int = 0,
+) -> None:
+    """Registra il consumo di una chiamata **stremata**, a stream finito.
+
+    E' l'altra meta' di `chat_client`: la chat non passa da `run()` perche' il
+    modello lo esegue LangGraph e il risultato esce a pezzi verso il frontend.
+    I token pero' arrivano lo stesso - `stream_usage=True` li mette
+    sull'ultimo pezzo - e il runtime li somma gia' per mandarli al frontend.
+    Questa funzione prende quella somma e la scrive nel registro.
+
+    Non solleva: un turno andato a buon fine non si rovina perche' la sua
+    contabilita' non e' riuscita. Se manca l'operazione la riga si perde, ma lo
+    dice il contatore di degradazione invece di sparire in silenzio.
+
+    Args:
+        task: `CHAT_TURN` per il turno, `CONTEXT_ROUTING` per l'instradamento.
+            Il runtime li distingue per nodo del grafo: sono due compiti con due
+            profili, e sommarli renderebbe invisibile il piu' economico dei due.
+        usage_metadata: La somma dei token nella forma di langchain.
+        model: Il modello che ha girato davvero. La chat e' l'unico compito in
+            cui lo sceglie il consulente, quindi il modello del profilo qui
+            sarebbe una supposizione - e il costo stimato verrebbe da un
+            listino che non c'entra.
+        duration_ms: Quanto e' durato lo stream.
+    """
+    if not usage_metadata:
+        return
+
+    operation = current_operation()
+    if operation is None:
+        degradation_counters.bump(
+            "llm_usage",
+            "streamed_usage_without_operation",
+            detail=task.value,
+        )
+        return
+
+    profile = profile_for(task)
+    record(
+        operation=operation,
+        task=task.value,
+        model=model or profile.model,
+        outcome=Outcome.OK,
+        tokens=tokens_from_usage_metadata(usage_metadata),
+        duration_ms=duration_ms,
+        reasoning_effort=profile.reasoning_effort,
+    )
 
 
 def record_avoided_call(task: LlmTask, *, prompt_version: str | None = None) -> None:

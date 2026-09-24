@@ -348,3 +348,154 @@ def test_il_turno_di_chat_attribuisce_la_spesa_dei_suoi_strumenti(monkeypatch, c
     assert righe, "la spesa del turno di chat non e' arrivata nel registro"
     assert righe[0].process_id == ws["process"]
     assert righe[0].input_tokens == 90
+
+
+def test_un_turno_stremato_lascia_due_righe_turno_e_instradamento(monkeypatch, ws):
+    """t.6 — la chat non passa da `run()`, ma finisce lo stesso nel registro.
+
+    Il modello della chat lo esegue LangGraph e quello che esce e' uno stream
+    di pezzi: i token arrivano sull'ultimo pezzo (`stream_usage=True`) e il
+    runtime li somma gia' per mandarli al frontend. Qui si verifica che quella
+    somma diventi righe di consumo, **divise per compito**: dentro un turno
+    gira anche l'instradamento, che ha un profilo suo. Sommarli darebbe un
+    totale giusto e due medie sbagliate.
+    """
+    from backend.agent import CONTEXT_ROUTER_NODE
+    from backend.llm import LlmTask
+    from backend.schemas.chat import ProcessChatScope
+    from backend.services import agent_runtime
+
+    class _Pezzo:
+        type = "AIMessageChunk"
+
+        def __init__(self, testo: str, input_tokens: int, output_tokens: int):
+            self.content = testo
+            self.usage_metadata = {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": input_tokens + output_tokens,
+            }
+
+    class _AgenteFinto:
+        def stream(self, *_args, **_kwargs):
+            # Prima instrada, poi risponde: due nodi, due compiti.
+            yield (_Pezzo("", 40, 5), {"langgraph_node": CONTEXT_ROUTER_NODE})
+            yield (_Pezzo("ecco", 300, 120), {"langgraph_node": "consulting_subgraph"})
+
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: _AgenteFinto())
+
+    eventi = list(
+        agent_runtime.stream_agent_events(
+            thread_id=f"t-stream-{uuid.uuid4().hex[:8]}",
+            model_name=None,
+            messages=[{"role": "user", "content": "ciao"}],
+            scope=ProcessChatScope(
+                type="process", project_id=ws["project"], process_id=ws["process"]
+            ),
+        )
+    )
+
+    assert "error" not in [e.type for e in eventi]
+
+    righe = {r.task: r for r in _righe_del_registro(ws["project"])}
+
+    assert LlmTask.CHAT_TURN.value in righe, f"nessuna riga per il turno: {list(righe)}"
+    assert LlmTask.CONTEXT_ROUTING.value in righe, "l'instradamento e' sparito dentro il turno"
+
+    turno = righe[LlmTask.CHAT_TURN.value]
+    instradamento = righe[LlmTask.CONTEXT_ROUTING.value]
+
+    assert (turno.input_tokens, turno.output_tokens) == (300, 120)
+    assert (instradamento.input_tokens, instradamento.output_tokens) == (40, 5)
+    assert turno.operation_kind == instradamento.operation_kind == "chat_turn"
+    # Stessa esecuzione: "quanto e' costato questo turno" resta una somma.
+    assert turno.operation_id == instradamento.operation_id
+
+
+def test_un_turno_che_fallisce_a_meta_ha_speso_lo_stesso(monkeypatch, ws):
+    """La spesa che conta di piu' e' quella senza un risultato in mano.
+
+    Registrare solo sul percorso felice avrebbe lasciato fuori proprio i turni
+    andati male: quelli che il consulente rifa, pagandoli due volte.
+    """
+    from backend.llm import LlmTask
+    from backend.schemas.chat import ProcessChatScope
+    from backend.services import agent_runtime
+
+    class _Pezzo:
+        type = "AIMessageChunk"
+        content = "inizio"
+        usage_metadata = {"input_tokens": 210, "output_tokens": 15, "total_tokens": 225}
+
+    class _AgenteCheSiRompe:
+        def stream(self, *_args, **_kwargs):
+            yield (_Pezzo(), {"langgraph_node": "consulting_subgraph"})
+            raise RuntimeError("il grafo si e' rotto a meta'")
+
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: _AgenteCheSiRompe())
+
+    eventi = list(
+        agent_runtime.stream_agent_events(
+            thread_id=f"t-rotto-{uuid.uuid4().hex[:8]}",
+            model_name=None,
+            messages=[{"role": "user", "content": "ciao"}],
+            scope=ProcessChatScope(
+                type="process", project_id=ws["project"], process_id=ws["process"]
+            ),
+        )
+    )
+
+    assert "error" in [e.type for e in eventi], "il turno doveva fallire"
+
+    righe = _righe_del_registro(ws["project"])
+    assert righe, "un turno fallito a meta' ha comunque pagato i token consumati"
+    assert righe[0].task == LlmTask.CHAT_TURN.value
+    assert righe[0].input_tokens == 210
+
+
+def test_il_registro_dice_il_modello_che_ha_girato(monkeypatch, ws):
+    """La chat e' l'unico compito in cui il modello lo sceglie il consulente.
+
+    Il profilo ne dichiara uno di default, ma scriverlo nel registro quando ne
+    ha girato un altro produce un costo stimato da un listino che non c'entra.
+    Oggi `ALLOWED_MODELS` ne contiene uno solo, quindi il difetto non si vede in
+    produzione: si vedrebbe il giorno che se ne aggiunge un secondo, ed e' un
+    giorno qualunque.
+    """
+    from backend.schemas.chat import ProcessChatScope
+    from backend.services import agent_runtime
+    from backend.settings import ALLOWED_MODELS, settings
+
+    altro_modello = "gpt-5.6-luna-mini"
+    monkeypatch.setattr(
+        "backend.agent.ALLOWED_MODELS", {*ALLOWED_MODELS, altro_modello}, raising=False
+    )
+
+    class _Pezzo:
+        type = "AIMessageChunk"
+        content = "ecco"
+        usage_metadata = {"input_tokens": 12, "output_tokens": 3, "total_tokens": 15}
+
+    class _AgenteFinto:
+        def stream(self, *_args, **_kwargs):
+            yield (_Pezzo(), {"langgraph_node": "consulting_subgraph"})
+
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: _AgenteFinto())
+
+    list(
+        agent_runtime.stream_agent_events(
+            thread_id=f"t-modello-{uuid.uuid4().hex[:8]}",
+            model_name=altro_modello,
+            messages=[{"role": "user", "content": "ciao"}],
+            scope=ProcessChatScope(
+                type="process", project_id=ws["project"], process_id=ws["process"]
+            ),
+        )
+    )
+
+    righe = _righe_del_registro(ws["project"])
+    assert righe
+    assert righe[0].model == altro_modello, (
+        "il registro ha scritto il modello del profilo invece di quello che ha girato"
+    )
+    assert righe[0].model != settings.openai_model
