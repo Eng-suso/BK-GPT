@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id
@@ -15,6 +17,9 @@ from backend.workspace_storage import (
     WorkspaceSimulationRunArtifact,
     workspace_connection,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def now_iso() -> str:
@@ -43,7 +48,7 @@ def _started_at(created_at: str | None) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def _expire_stale_runs(session) -> list[int]:
+def _expire_stale_runs(session: Session) -> None:
     """Chiude le simulazioni rimaste `pending` oltre il tempo massimo.
 
     Una simulazione gira in un `BackgroundTasks` dello stesso processo: un
@@ -54,9 +59,9 @@ def _expire_stale_runs(session) -> list[int]:
     "in volo" con quella chiave e rifiuta di rilanciare lo scenario: un crash
     rende quello scenario non simulabile, e nessun messaggio lo dice.
 
-    Returns:
-        list[int]: Gli id chiusi adesso. Vuota quando non c'era niente di
-            scaduto, che e' il caso normale.
+    Args:
+        session: La sessione della lettura o della scrittura in corso: la
+            potatura sta nella stessa transazione di chi l'ha provocata.
     """
     cutoff = datetime.now(UTC) - timedelta(
         seconds=settings.prosimos_timeout_seconds + STALE_RUN_MARGIN_SECONDS
@@ -80,7 +85,9 @@ def _expire_stale_runs(session) -> list[int]:
 
     if expired:
         session.flush()
-    return expired
+        # Una simulazione morta a meta' e' un fatto operativo: si e' fermato il
+        # processo mentre girava, e chi legge i log deve vederlo.
+        logger.warning("simulazioni chiuse perche' mai tornate: %s", expired)
 
 
 def simulation_run_to_dict(

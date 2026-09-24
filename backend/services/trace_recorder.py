@@ -124,28 +124,26 @@ def trace_event(
     )
 
 
-def get_trace(trace_id: str, *, tenant_id: str | None = None) -> list[AgentTraceEvent]:
+def read_trace(trace_id: str, *, tenant_id: str) -> list[AgentTraceEvent] | None:
     """Gli eventi della traccia, se e' di chi la chiede.
+
+    Lo spazio di lavoro e' obbligatorio e non ha un default: una lettura senza
+    controllo non deve essere la cosa piu' facile da scrivere.
 
     Args:
         trace_id: La traccia cercata.
-        tenant_id: Lo spazio di lavoro del chiamante. Quando c'e', una traccia di
-            un altro spazio risponde come una traccia che non esiste: chi prova
-            un `trace_id` altrui non deve nemmeno scoprire che e' valido.
+        tenant_id: Lo spazio di lavoro del chiamante.
 
     Returns:
-        list[AgentTraceEvent]: Gli eventi, o una lista vuota.
+        list[AgentTraceEvent] | None: Gli eventi, oppure `None` se la traccia non
+            esiste **o** e' di un altro spazio. I due casi rispondono uguale di
+            proposito: chi prova un `trace_id` altrui non deve nemmeno scoprire
+            che e' valido.
     """
     with _GUARD:
-        if tenant_id is not None and _TRACE_TENANTS.get(trace_id) != tenant_id:
-            return []
+        if _TRACE_TENANTS.get(trace_id) != tenant_id:
+            return None
         return list(_TRACE_EVENTS.get(trace_id, ()))
-
-
-def trace_visible(trace_id: str, *, tenant_id: str) -> bool:
-    """Se questo spazio di lavoro puo' vedere questa traccia."""
-    with _GUARD:
-        return _TRACE_TENANTS.get(trace_id) == tenant_id
 
 
 def clear_trace(trace_id: str) -> None:
@@ -156,6 +154,6 @@ def clear_trace(trace_id: str) -> None:
 
 
 def traced_count() -> int:
-    """Quante tracce sono in memoria adesso. Serve ai test e a `/observability`."""
+    """Quante tracce sono in memoria adesso. La misura del tetto di `MAX_TRACES`."""
     with _GUARD:
         return len(_TRACE_EVENTS)

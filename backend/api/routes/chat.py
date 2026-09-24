@@ -1,5 +1,6 @@
 import json
 import logging
+from collections.abc import Iterator
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -54,6 +55,14 @@ AGENT_TIMEOUT_MESSAGE = (
     "cosa per volta."
 )
 
+#: Cosa si legge sotto una risposta che non e' arrivata in fondo. Va scritto,
+#: non dedotto: riaperto domani, un pensiero troncato a meta' frase sembra un
+#: pensiero finito, e in un verbale di consulenza questo e' un danno.
+INTERRUPTED_ANSWER_MARKER = (
+    "\n\n---\n*Risposta interrotta: il collegamento si e' chiuso mentre l'agente "
+    "scriveva.*"
+)
+
 
 def log_agent_failure(exc: BaseException, *, thread_id: str, trace_id: str | None = None) -> None:
     """Manda l'eccezione vera dove si puo' leggere: i log, con come ritrovarla."""
@@ -91,35 +100,23 @@ def record_product_language(*, answer: str, asked: str, scope_type: str | None) 
     return leaks
 
 
-#: Cosa si legge sotto una risposta che non e' arrivata in fondo. Va scritto,
-#: non dedotto: riaperto domani, un pensiero troncato a meta' frase sembra un
-#: pensiero finito, e in un verbale di consulenza questo e' un danno.
-INTERRUPTED_ANSWER_MARKER = (
-    "\n\n---\n*Risposta interrotta: il collegamento si e' chiuso mentre l'agente "
-    "scriveva.*"
-)
-
-
 def persist_interrupted_answer(
     *,
     thread_id: str,
     parts: list[str],
     model_name: str | None,
-) -> bool:
+) -> None:
     """Salva quello che l'agente aveva gia' scritto quando il turno si e' rotto.
 
     Args:
         thread_id: La conversazione a cui appartiene il turno.
         parts: I pezzi di testo gia' arrivati. Vuoti o soli spazi: niente da
-            salvare, e una risposta vuota in archivio sarebbe peggio del nulla.
+            salvare, perche' una risposta vuota in archivio e' peggio del nulla.
         model_name: Il modello del turno, per la riga in archivio.
-
-    Returns:
-        bool: Se qualcosa e' stato scritto.
     """
     partial = "".join(parts).strip()
     if not partial:
-        return False
+        return
 
     append_chat_message(
         thread_id=thread_id,
@@ -127,7 +124,7 @@ def persist_interrupted_answer(
         content=f"{partial}{INTERRUPTED_ANSWER_MARKER}",
         model_name=model_name,
     )
-    return True
+    logger.info("turno interrotto: salvato il parziale (thread=%s)", thread_id)
 
 
 def ndjson_event(event_type: str, **payload) -> str:
@@ -378,8 +375,8 @@ def chat_turn_events(
     *,
     thread_id: str,
     request: SendMessageRequest,
-    fields: dict,
-):
+    fields: dict[str, str | None],
+) -> Iterator[str]:
     """Gli eventi di un turno, dall'inizio alla fine o a dove arriva.
 
     Sta fuori dalla rotta perche' il caso che conta e' quello in cui il turno

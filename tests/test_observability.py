@@ -6,7 +6,8 @@ from backend.schemas.api import AgentStreamEvent, ApiError
 from backend.agent import DeliRChatOpenAI
 from backend.services.eval_runner import run_observability_smoke_eval
 from backend.services import agent_runtime, trace_recorder
-from backend.services.trace_recorder import get_trace, new_trace_context, trace_event
+from backend.security import get_current_tenant_id
+from backend.services.trace_recorder import new_trace_context, read_trace, trace_event
 from backend.settings import effective_langsmith_model_name, langsmith_metadata, langsmith_tags, settings
 
 
@@ -46,7 +47,7 @@ def test_trace_recorder_stores_events():
     context = new_trace_context(thread_id="thread-1", scope_type="consultant", scope_key="consultant")
     event = trace_event(context, "node", node="consult_router", message="Entered router")
 
-    events = get_trace(context.trace_id)
+    events = read_trace(context.trace_id, tenant_id=get_current_tenant_id())
 
     assert events[-1].node == "consult_router"
     assert events[-1].trace_id == event.trace_id
@@ -63,7 +64,7 @@ def test_trace_recorder_forgets_the_oldest_traces_instead_of_growing():
 
     assert trace_recorder.traced_count() == trace_recorder.MAX_TRACES
     # La piu' vecchia e' uscita per prima, non una a caso.
-    assert get_trace(first.trace_id) == []
+    assert read_trace(first.trace_id, tenant_id=get_current_tenant_id()) is None
 
 
 def test_trace_recorder_keeps_the_tail_of_a_runaway_turn():
@@ -73,7 +74,7 @@ def test_trace_recorder_keeps_the_tail_of_a_runaway_turn():
     for index in range(trace_recorder.MAX_EVENTS_PER_TRACE + 25):
         trace_event(context, "node", node=f"step-{index}")
 
-    events = get_trace(context.trace_id)
+    events = read_trace(context.trace_id, tenant_id=get_current_tenant_id())
 
     assert len(events) == trace_recorder.MAX_EVENTS_PER_TRACE
     # Di un ciclo che non finisce interessa dove e' arrivato, non da dove partiva.

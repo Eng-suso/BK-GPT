@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.services import degradation_counters
 from backend.services.eval_runner import run_observability_smoke_eval
-from backend.services.trace_recorder import get_trace, trace_visible
+from backend.services.trace_recorder import read_trace
 from backend.security import get_current_tenant_id, require_principal
 
 
@@ -17,11 +17,10 @@ def get_observability_trace(trace_id: str):
     senza questo controllo bastava conoscerne uno per rileggere il turno di un
     altro spazio di lavoro. Una traccia altrui risponde come una che non esiste.
     """
-    tenant_id = get_current_tenant_id()
-    if not trace_visible(trace_id, tenant_id=tenant_id):
+    events = read_trace(trace_id, tenant_id=get_current_tenant_id())
+    if events is None:
         raise HTTPException(status_code=404, detail="Traccia non trovata.")
 
-    events = get_trace(trace_id, tenant_id=tenant_id)
     return {"trace_id": trace_id, "events": [event.model_dump() for event in events]}
 
 

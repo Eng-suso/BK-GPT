@@ -2,6 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 
 from fastapi import FastAPI, HTTPException, Request
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 GUARDED_ENVIRONMENTS = {"staging", "prod", "production"}
 
 
-def assert_environment_is_defensible() -> str:
+def assert_environment_is_defensible() -> Literal["open", "guarded"]:
     """Rifiuta di avviare un ambiente dichiarato vero senza autenticazione.
 
     Con `delir_auth_enabled` a falso il prodotto accetta qualunque chiamata, con
@@ -44,10 +45,10 @@ def assert_environment_is_defensible() -> str:
     nessuno: partiva e basta.
 
     Returns:
-        str: `"protetto"` quando una richiesta deve portare una credenziale,
-            `"aperto"` quando chiunque puo' chiamare. E' un valore e non solo
-            una riga di log, cosi' si puo' verificare in un test e, domani,
-            mostrare in `/health`.
+        Literal["open", "guarded"]: `"guarded"` quando una richiesta deve
+            portare una credenziale, `"open"` quando chiunque puo' chiamare.
+            E' un valore e non solo una riga di log, cosi' si puo' verificare
+            in un test e, domani, mostrare in `/health`.
 
     Raises:
         RuntimeError: Quando l'ambiente e' dichiarato vero e l'autenticazione e'
@@ -76,9 +77,9 @@ def assert_environment_is_defensible() -> str:
             "macchina di sviluppo.",
             environment,
         )
-        return "aperto"
+        return "open"
 
-    return "protetto"
+    return "guarded"
 
 
 @asynccontextmanager

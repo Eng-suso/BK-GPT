@@ -6,7 +6,6 @@ amministratore. In sviluppo e' il comportamento voluto. Il difetto era che un
 ambiente vero partiva esattamente allo stesso modo, senza dire niente.
 """
 
-
 import pytest
 
 from backend.app import assert_environment_is_defensible
@@ -44,7 +43,7 @@ def test_a_development_machine_starts_and_says_it_is_open(monkeypatch):
 
     # Parte, ma non fa finta di essere protetta: il verdetto e' un valore, non
     # una riga di log che nessuno legge.
-    assert assert_environment_is_defensible() == "aperto"
+    assert assert_environment_is_defensible() == "open"
 
 
 def test_a_declared_environment_with_authentication_starts(monkeypatch):
@@ -52,4 +51,4 @@ def test_a_declared_environment_with_authentication_starts(monkeypatch):
     monkeypatch.setattr(settings, "delir_auth_enabled", True)
     monkeypatch.setattr(settings, "delir_api_token", "un-token-vero")
 
-    assert assert_environment_is_defensible() == "protetto"
+    assert assert_environment_is_defensible() == "guarded"
