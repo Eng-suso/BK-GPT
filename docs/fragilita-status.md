@@ -51,7 +51,7 @@ decisione, §④).
 | --- | --- | --- | --- |
 | U1 | Nessun ErrorBoundary: un throw è schermo bianco | Bloccante | da fare |
 | U2 | Zero code splitting: `bpmn-js` e `recharts` nel bundle iniziale | Medio | da fare |
-| U3 | La Simulazione mostra `0` al posto di «nessun dato» | Bloccante | da fare |
+| U3 | La Simulazione mostra `0` al posto di «nessun dato» | Alto | da fare — **perimetro ridotto**, vedi sotto |
 | U4 | 110 stringhe italiane scritte nel codice, fuori da i18next | Alto | da fare |
 | U5 | Accessibilità verificata con axe su una pagina sola | Alto | da fare |
 | U6 | L'errore del backend si legge in interfaccia come sta | Medio | **fatto, verificato** — `3a46612`, chiuso da B9 |
@@ -157,6 +157,24 @@ Cinque decisioni. Finché non arrivano, i difetti che dipendono da loro restano
    interruzione; (b) un lock distribuito su Postgres per `thread_id`, che rende
    il prodotto scalabile davvero e tiene una connessione aperta per tutta la
    durata del turno. È una scelta di Track A, non di questo branch.
+
+---
+
+### Correzioni all'audit
+
+L'audit è la fotografia del 24 settembre e non si riscrive. Dove si è rivelato
+impreciso, la riga giusta sta qui.
+
+- **B9 non erano 20 punti, erano 3.** Gli altri diciassette sono messaggi di
+  `ValueError` sollevate apposta, in italiano, per chi le legge. Contarli
+  insieme faceva sembrare il difetto quattro volte più grande di com'era.
+- **U3 non è «la Simulazione non ha stati».** `ReplayGate` gestisce già
+  caricamento, `pending`, `failed` e assenza di artefatto, ed è condiviso fra
+  Replay e Cruscotto: l'audit contava le occorrenze file per file e non ha
+  visto il componente comune. Resta vero, e resta da fare, il pezzo più
+  stretto: `SimulationDashboardPage.tsx:194` fa `?? 0` su ogni KPI, quindi un
+  summary parziale si legge come «cycle time 0, costo 0» invece che «non
+  disponibile». Gravità scesa da Bloccante ad Alto.
 
 ---
 
