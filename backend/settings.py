@@ -155,6 +155,14 @@ class Settings(BaseSettings):
     # Vedi backend/services/agent_runtime.py::fake_agent_events.
     delir_fake_llm: bool = False
 
+    # Dove sta girando questo processo: `dev` (la macchina di chi sviluppa),
+    # `staging` o `prod`. Non cambia nessun comportamento da solo - decide
+    # soltanto quanto e' grave partire senza autenticazione (vedi
+    # `backend/app.py::assert_environment_is_defensible`). Il default e' `dev`
+    # perche' il caso normale e' una macchina di sviluppo; un ambiente vero lo
+    # dichiara, ed e' proprio quella dichiarazione a chiudere la porta.
+    delir_environment: str = "dev"
+
     delir_auth_enabled: bool = False
     delir_api_token: str | None = None
     delir_admin_token: str | None = None
