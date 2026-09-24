@@ -30,14 +30,21 @@ a chi chiama, e conta i token dal grezzo.
 from __future__ import annotations
 
 import time
+from functools import lru_cache
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
 from backend.llm.operation import current_operation
 from backend.llm.tasks import LlmTask, TaskProfile, profile_for
-from backend.llm.usage import Outcome, TokenUsage, extract_tokens, record
-from backend.llm_config import MissingProviderKey, chat_openai_kwargs
+from backend.llm.usage import (
+    Outcome,
+    TokenUsage,
+    extract_embedding_tokens,
+    extract_tokens,
+    record,
+)
+from backend.llm_config import MissingProviderKey, chat_openai_kwargs, timeout_for_input
 from backend.settings import settings
 
 _Output = TypeVar("_Output", bound=BaseModel)
@@ -232,6 +239,103 @@ def run(
         reasoning_effort=profile.reasoning_effort,
     )
     return parsed
+
+
+@lru_cache(maxsize=1)
+def _embedding_client() -> Any:
+    """Il client dell'embedding: SDK OpenAI nudo, non langchain.
+
+    Raises:
+        MissingProviderKey: Se non c'e' una chiave configurata. Stessa regola di
+            `chat_openai_kwargs`: senza chiave l'SDK ricadrebbe su
+            `OPENAI_API_KEY` dell'ambiente, e i test tornerebbero a pagare.
+    """
+    if not settings.openai_api_key:
+        raise MissingProviderKey(
+            "OPENAI_API_KEY non configurata: nessun client di embedding puo' "
+            "essere costruito."
+        )
+    from openai import OpenAI
+
+    profile = profile_for(LlmTask.EMBEDDING)
+    return OpenAI(
+        api_key=settings.openai_api_key,
+        max_retries=_max_retries(profile),
+        timeout=timeout_for_input(None),
+    )
+
+
+def embed(*, texts: list[str], dimensions: int) -> list[list[float]]:
+    """Calcola gli embedding di piu' testi, e lascia un evento di consumo.
+
+    Sta qui e non in `memory/embeddings.py` per la stessa ragione di ogni altra
+    chiamata: nell'ingestione del knowledge graph il volume sta negli embedding,
+    quindi un registro che li salta racconta una spesa che non e' quella vera.
+
+    Args:
+        texts: I testi, gia' ripuliti da chi chiama.
+        dimensions: La dimensione dei vettori. E' un contratto dello schema del
+            database, non una scelta di questa chiamata: la decide
+            `memory.embeddings`, che possiede l'invariante.
+
+    Returns:
+        Un vettore per testo, nello stesso ordine.
+
+    Raises:
+        OperationNotOpen: Se nessun punto d'ingresso ha aperto un'operazione (L2).
+        MissingProviderKey: Se non c'e' una chiave configurata.
+    """
+    operation = current_operation()
+    if operation is None:
+        raise OperationNotOpen(
+            "un embedding e' stato chiesto fuori da un'operazione: apri "
+            "`llm.operation(...)` nel punto d'ingresso. Nell'ingestione KG e' "
+            "la voce di spesa piu' grossa, e non attribuirla e' il difetto da "
+            "cui e' nato il gateway."
+        )
+
+    profile = profile_for(LlmTask.EMBEDDING)
+    model = profile.model
+
+    try:
+        client = _embedding_client()
+    except MissingProviderKey:
+        record(
+            operation=operation,
+            task=LlmTask.EMBEDDING.value,
+            model=model,
+            outcome=Outcome.REFUSED,
+            error_kind="MissingProviderKey",
+            reasoning_effort=profile.reasoning_effort,
+        )
+        raise
+
+    started = time.perf_counter()
+    try:
+        response = client.embeddings.create(model=model, input=texts, dimensions=dimensions)
+    except BaseException as exc:
+        outcome, error_kind = _error_kind(exc)
+        record(
+            operation=operation,
+            task=LlmTask.EMBEDDING.value,
+            model=model,
+            outcome=outcome,
+            error_kind=error_kind,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            reasoning_effort=profile.reasoning_effort,
+        )
+        raise
+
+    record(
+        operation=operation,
+        task=LlmTask.EMBEDDING.value,
+        model=model,
+        outcome=Outcome.OK,
+        tokens=extract_embedding_tokens(response),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        reasoning_effort=profile.reasoning_effort,
+    )
+    return [item.embedding for item in response.data]
 
 
 def record_avoided_call(task: LlmTask, *, prompt_version: str | None = None) -> None:

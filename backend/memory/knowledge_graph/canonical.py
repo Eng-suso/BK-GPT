@@ -1132,6 +1132,8 @@ def enqueue_evidence(
     source_title: str | None = None,
     source_text: str | None = None,
     source_kind: str = "note",
+    workspace_project_id: str | None = None,
+    workspace_process_id: str | None = None,
 ) -> int:
     """Accoda il pacchetto di evidenza su `kg_ingest_queue` (P5).
 
@@ -1139,6 +1141,14 @@ def enqueue_evidence(
     chiama `write_evidence(**payload)` — embedding + entity resolution + write
     atomico fuori dal giro dell'agente. Ritorna l'id del job. Stessa firma di
     `write_evidence` meno `resolver_llm` (il worker usa l'LLM reale).
+
+    `workspace_project_id` / `workspace_process_id` non servono alla scrittura e
+    infatti non stanno in `EVIDENCE_KEYS`: viaggiano nel payload perche' il
+    worker li metta nell'operazione. Il registro dei consumi ha **una** colonna
+    `project_id`, e una chat che spende sul progetto workspace `X` e
+    un'ingestione che spende sul progetto canonical `Y` — lo stesso progetto,
+    due id — renderebbero «quanto costa questo progetto» una domanda senza
+    risposta.
     """
     payload = {
         "consultant_id": str(consultant_id),
@@ -1155,6 +1165,8 @@ def enqueue_evidence(
         "source_title": source_title,
         "source_text": source_text,
         "source_kind": source_kind,
+        "workspace_project_id": str(workspace_project_id) if workspace_project_id else None,
+        "workspace_process_id": str(workspace_process_id) if workspace_process_id else None,
     }
     with canonical_session(consultant_id, client_id) as session:
         row = session.execute(

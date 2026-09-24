@@ -163,3 +163,22 @@ def extract_tokens(response: object) -> TokenUsage:
         reasoning=_count((output_details or {}).get("reasoning") if isinstance(output_details, dict) else 0),
         cached_input=_count((input_details or {}).get("cache_read") if isinstance(input_details, dict) else 0),
     )
+
+
+def extract_embedding_tokens(response: object) -> TokenUsage:
+    """Legge i token da una risposta di embedding dell'SDK OpenAI.
+
+    Forma diversa da quella di langchain, ed e' la ragione per cui questa
+    funzione esiste invece di riusare `extract_tokens`: qui i token stanno in
+    `response.usage.prompt_tokens`, non in `usage_metadata`. Leggere la risposta
+    dell'embedding col lettore della chat avrebbe dato zero token su tutto il
+    volume dell'ingestione, cioe' proprio dove il volume sta.
+
+    Un embedding non produce token in uscita: `output` resta 0, e non e' un dato
+    mancante.
+    """
+    usage = getattr(response, "usage", None)
+    prompt_tokens = getattr(usage, "prompt_tokens", None)
+    if not isinstance(prompt_tokens, int) or prompt_tokens < 0:
+        return TokenUsage()
+    return TokenUsage(input=prompt_tokens)

@@ -17,7 +17,7 @@ log). Un passo non si dichiara fatto se i suoi test non sono verdi: §① distin
 *scritto* da *verificato*, ed e' la distinzione che vale.
 
 Ultimo aggiornamento: 2026-09-24.
-Branch di lavoro: `chore/llm-t3` (worktree `.claude/worktrees/llm-t3`).
+Branch di lavoro: `chore/llm-t4` (worktree `.claude/worktrees/llm-t4`).
 
 ---
 
@@ -134,8 +134,8 @@ avrebbe fissato il timeout del caso breve per ogni intervista successiva.
 | P1.5 t.1 | I punti d'ingresso aprono l'operazione | **fatto** (chat turn da verificare, sotto) |
 | P1.5 t.2 | Il pool di estrazione la eredita nei thread | **fatto, verificato** |
 | P1.5 t.3 | reranker + entity resolution sul gateway | **fatto, verificato** |
-| P1.5 t.4 | embedding sul gateway | **non iniziato** ← §② |
-| P1.5 t.5 | percorso caldo (`process_understanding`, audit, consolidamento) | **non iniziato** |
+| P1.5 t.4 | embedding sul gateway | **fatto, verificato** |
+| P1.5 t.5 | percorso caldo (`process_understanding`, audit, consolidamento) | **non iniziato** ← §② |
 | P1.5 t.6 | `agent.py` (streaming) | **non iniziato** |
 | P1.6 | L1 in CI: `ChatOpenAI` / `openai` vietati fuori da `backend/llm/` | **non iniziato** |
 
@@ -151,10 +151,11 @@ nessuno lo chiude, resta legato. L'operazione si costruisce nella richiesta - do
 tenant e scope ci sono - e si adotta nel thread dell'agente, che e' dove il lavoro
 succede.
 
-**Buco dichiarato:** il turno di chat non ha un test di integrazione che dimostri
-l'operazione aperta dentro il thread. Le sue parti sono coperte (`new_operation`,
-`adopt`, l'eredita' nei thread), ma il percorso intero no: richiede DB +
-checkpointer + agente. Da chiudere insieme a t.6, che tocca lo stesso percorso.
+~~**Buco dichiarato:** il turno di chat non ha un test di integrazione.~~ Chiuso
+con `tests/test_llm_spend_e2e.py`: si chiama `stream_agent_events` vera, con
+l'agente sostituito da un doppio che chiede un compito al gateway, e si guarda
+se la riga compare nel registro con `operation_kind = chat_turn`. Se l'aggancio
+fra la richiesta e il thread si rompe, quel test diventa rosso.
 
 **t.3 — quello che e' *sparito* e' il risultato migliore.** Reranker ed entity
 resolution avevano ognuno un client costruito in casa, una cache globale e un
@@ -164,7 +165,64 @@ riordinare / dare un giudizio?». Il singleton `_llm_singleton` non c'e' piu', e
 con lui una fonte di stato condiviso fra test.
 
 In entrambi resta il **seam dell'iniezione**: un modello passato a mano bypassa il
-gateway, ed e' quello che usano i test. Il gateway e' il percorso normale, non
+gateway, ed e' quello che usano i test.
+
+**t.4 — l'embedding ha un ingresso suo, e non poteva non averlo.** I token di una
+risposta di embedding stanno in `response.usage.prompt_tokens`, non in
+`usage_metadata`: leggerli col lettore della chat avrebbe dato **zero token su
+tutto il volume dell'ingestione**, cioe' esattamente dove il volume sta. Quindi
+`llm.embed()` e `usage.extract_embedding_tokens()` separati da `run()`.
+
+Due cose che il piano non diceva e che qui sono state decise:
+
+- **il modello dell'embedding non e' una scelta, e' un contratto.**
+  `TaskProfile` ha ora `model_name`: per la chat resta `settings.openai_model`,
+  per l'embedding e' `text-embedding-3-small`, perche' quel nome decide la
+  dimensione dei vettori gia' scritti (INV-4). Il valore sta in due posti —
+  `tasks.py` e `memory/embeddings.py` — di proposito, per non far dipendere il
+  registro dei compiti dalla memoria, e un test tiene i due allineati;
+- **`embed_texts` non degrada piu' su tutto.** Il contratto «mai solleva, torna
+  `None`» resta per i guasti del fornitore, ma `OperationNotOpen` risale. E' lo
+  stesso ragionamento di t.3: un punto d'ingresso dimenticato spegnerebbe il
+  retrieval vettoriale in silenzio, e il sintomo arriverebbe al consulente come
+  «le risposte sono peggiorate», senza niente da guardare.
+
+Censiti tutti i percorsi che embeddano, perche' da adesso uno scoperto e' un
+errore invece di una degradazione muta: `ingest_worker` e i tool della chat
+erano gia' coperti da t.1; `scripts/kg_resolve_entities.py` no, e ora apre
+un'operazione per cliente. `mirror.mirror_evidence` arriva sempre da un tool
+dell'agente, quindi eredita il turno.
+
+**t.3bis — i playbook, la coda di t.3.** `memory/procedural/extraction.py` era
+nell'elenco della tappa e non era stato migrato: costruiva ancora due
+`ChatOpenAI` suoi, quindi l'apprendimento del prodotto era spesa senza nome.
+Ora chiede al gateway con `PLAYBOOK_EXTRACTION` e `PLAYBOOK_GENERALIZATION`.
+
+**La regola L2 vale adesso in tutti e quattro i moduli best-effort.** t.3 aveva
+risolto il problema cablando gli ingressi; restava che l'`except` largo, se un
+ingresso nuovo si dimenticava, avrebbe comunque inghiottito il rifiuto. Adesso
+`OperationNotOpen` risale in `reranker`, `entity_resolution` (in **due** punti:
+`adjudicate` e il wrapper piu' largo che lo chiama), `memory/embeddings` e
+`procedural/extraction`. Un guasto del fornitore degrada come prima; un punto
+d'ingresso dimenticato no, perche' non e' un guasto: e' un bug.
+
+### Quello che l'e2e ha trovato, e che nessun test unitario poteva trovare
+
+`tests/test_llm_spend_e2e.py` fa il percorso vero - coda, worker, embedding,
+registro su Postgres - e finge **solo il confine di rete**. Ha trovato subito un
+difetto che tutti i doppi nascondevano: **il registro aveva due spazi di id
+nella stessa colonna.** La chat e la sintesi del piano scrivono `project_id`
+con l'id *workspace*; l'ingestione lavora con l'id *canonical*, che e' un id
+diverso dello stesso progetto (`memory/scope.resolve` mappa l'uno sull'altro).
+Sommare la spesa per progetto avrebbe diviso in due ogni progetto, e il totale
+sarebbe rimasto giusto: il difetto peggiore, perche' nessun numero sembra
+sbagliato.
+
+Il pacchetto di evidenza ora viaggia con gli id workspace accanto a quelli
+canonical (`workspace_project_id` / `workspace_process_id` nel payload della
+coda, **fuori** da `EVIDENCE_KEYS` perche' alla scrittura non servono), e
+l'operazione dell'ingestione usa quelli. I job accodati prima ricadono sugli id
+canonical: meglio una riga riconoscibile che una senza progetto. Il gateway e' il percorso normale, non
 l'unico.
 
 Una cosa a cui stare attenti su questi due: sono `best-effort` con un `except`
@@ -209,33 +267,29 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**t.4 — gli embedding sul gateway** (`memory/embeddings.py`). API diversa: i token
-stanno in `response.usage.prompt_tokens`, non in `usage_metadata`, quindi serve un
-ingresso suo nel gateway. Da non saltare: nell'ingestione KG il volume sta qui, e
-il piano su questo punto parla solo di chat. L'operazione c'e' gia' (t.1 ha
-agganciato `ingest_worker`).
-
-Poi, in ordine:
-
 **t.5 — il percorso caldo**: `process_understanding.py` (estrazione e giudizio di
 qualita'), `agents/conformance_audit.py`, `agents/plan_consolidation.py`.
 Attenzione: diversi test sostituiscono `_understanding_llm` con un doppio, e
 passare dal gateway cambia quel seam. Vanno aggiornati insieme al codice, non
 dopo. Da qui si vedra' la voce di spesa piu' grossa.
 
+Poi, in ordine:
+
 **t.6 — `agent.py`**, per ultimo: e' l'unico che fa streaming verso il frontend, e
 il gateway oggi non strema. Serve un ingresso che ritorni l'iteratore e registri
 alla fine (`stream_usage=True` c'e' gia'). Chiudere qui anche il test di
 integrazione del turno di chat, che oggi manca (§①).
 
-Manca ancora un punto d'ingresso: gli **eval** (`tests/evals/`), che girano col
-modello vero e la cui spesa oggi non sarebbe attribuita. Vanno avvolti in
-un'operazione `EVAL`.
+**Le due code**, piccole e parallele: l'operazione `EVAL` attorno a
+`tests/evals/`, che girano col modello vero, e la trascrizione in
+`api/routes/audio.py` (§③.5), che e' l'unico punto di chiamata `async`.
 
 Poi **P1.6**, la regola L1 in CI: una regola ast-grep che vieta `ChatOpenAI`,
 `openai`, `OpenAIEmbeddings` fuori da `backend/llm/`. Va messa **dopo** la
-migrazione, altrimenti e' rossa da subito e la si impara a ignorare. Le regole
-stanno in `.coderabbit/ast-grep-rules/`, una per file.
+migrazione — e "dopo" vuol dire dopo le code qui sopra, non solo dopo t.6:
+finche' resta un modulo che costruisce il suo client la regola nasce rossa, e
+una regola rossa si impara a ignorare. Le regole stanno in
+`.coderabbit/ast-grep-rules/`, una per file.
 
 Prima di P3 (budget con prenotazione e saldo) servono due settimane di numeri
 veri. Non e' solo la soglia a dipendere dai dati: la *forma* del meccanismo lo e'.
@@ -257,10 +311,24 @@ veri. Non e' solo la soglia a dipendere dai dati: la *forma* del meccanismo lo e
    nei compiti di contesto, ed e' proprio dove diversi output sono schemi strict:
    li' lo schema fa il lavoro, non il ragionamento. Un `medium` per sette compiti
    diversi non e' una scelta, e' un default. Misurabile appena c'e' P1.
-4. **Gli embedding nel gateway.** Il piano li elenca fra i punti di chiamata ma
-   poi il registro dei compiti parla solo di chat. Nell'ingestione KG il volume
-   sta negli embedding. Il gateway li copre, o il registro mente.
-5. **L'evento di validazione.** Il KPI di punta del piano e' «costo per AS-IS
+4. ~~**Gli embedding nel gateway.**~~ Chiuso con t.4: `llm.embed()` ha un ingresso
+   suo perche' i token dell'embedding stanno in un altro campo, e leggerli col
+   lettore della chat avrebbe dato zero su tutto il volume dell'ingestione.
+5. **La trascrizione non e' in nessuna tappa.**
+   [`api/routes/audio.py`](../backend/api/routes/audio.py) costruisce un
+   `AsyncOpenAI` suo, e `LlmTask.TRANSCRIPTION` con
+   `OperationKind.TRANSCRIPTION` esistono gia' nel registro **senza che nessuno
+   li usi**. Finche' resta cosi', le ore di audio caricate dai consulenti sono
+   spesa invisibile, e P1.6 (la regola L1 in CI) sarebbe rossa. Serve un
+   ingresso asincrono nel gateway: e' l'unico punto di chiamata `async` che
+   abbiamo, quindi non e' una riga.
+6. **Il tenant del registro non e' il consulente.** E' il tenant *workspace*
+   (`local` finche' il prodotto e' mono-consulente), non l'id del consulente
+   canonical che possiede l'ingestione. Oggi non fa danno - c'e' un consulente
+   solo - ma con Track B (identita' per persona) «quanto costa questo cliente»
+   ha bisogno che le due cose coincidano, o di una colonna in piu'. Da decidere
+   **prima** di P3: i budget per tenant si appoggiano a questo campo.
+7. **L'evento di validazione.** Il KPI di punta del piano e' «costo per AS-IS
    validato»: presuppone che la validazione lasci una riga nel database. **Da
    verificare che esista** — se non esiste, quel KPI non e' calcolabile e va
    aggiunto a P1.
@@ -342,19 +410,21 @@ la colonna delle collisioni e' la ragione per cui non si assegnano a caso.
 
 | Tappa | File | In parallelo con |
 | --- | --- | --- |
-| **t.3** compiti a basso rischio | `memory/reranker.py`, `memory/knowledge_graph/entity_resolution.py`, `memory/procedural/extraction.py` + test | tutto |
-| **t.4** embedding | `memory/embeddings.py` + **`llm/gateway.py`** (ingresso nuovo) | tutto tranne t.6 |
+| ~~**t.3** compiti a basso rischio~~ | fatto (reranker, entity resolution) | — |
+| ~~**t.3bis** playbook~~ | fatto | — |
+| ~~**t.4** embedding~~ | fatto | — |
 | **t.5** percorso caldo | `process_understanding.py`, `agents/conformance_audit.py`, `agents/plan_consolidation.py` + molti test | tutto |
-| **t.6** `agent.py` | `agent.py` + **`llm/gateway.py`** (ingresso di streaming) | tutto tranne t.4 |
+| **t.6** `agent.py` | `agent.py` + **`llm/gateway.py`** (ingresso di streaming) | tutto |
+| **eval** operazione `EVAL` | `tests/evals/` | tutto |
 | **L5** registro dei prompt | i prompt in tutti i moduli | **dopo t.5**: tocca gli stessi prompt |
 | **lettura del registro** | file nuovi (endpoint o SQL versionato) | tutto |
 | **P1.6** regola L1 in CI | `.coderabbit/ast-grep-rules/` | **ultima**: prima e' rossa da subito |
 
-Due agenti su **t.4 e t.6 insieme confliggono** su `llm/gateway.py`: o li fa lo
-stesso agente, o si fanno in fila. Tutto il resto e' parallelo per davvero.
-
-Il taglio piu' comodo per tre agenti: uno su **t.5** (la piu' grossa), uno su
-**t.3 + lettura del registro**, uno su **t.4 poi t.6**.
+Con t.1, t.2, t.3 e t.4 chiusi la collisione su `llm/gateway.py` resta solo per
+t.6, che deve aggiungere l'ingresso di streaming: chi la prende lavora da solo
+su quel file. Il taglio per due agenti adesso: uno su **t.5** (la piu' grossa),
+uno su **t.6 + il test di integrazione del turno di chat**; la lettura del
+registro e l'operazione `EVAL` sono file nuovi, quindi vanno con chiunque.
 
 ### Le tre regole che evitano i guai visti finora
 
@@ -467,6 +537,7 @@ trova la chiave a `None` e falla.
 | 2026-09-20 | P0 mergiato in main | `7037004` |
 | 2026-09-20 | P1.1–P1.4: gateway, operazione, registro dei compiti e dei consumi | `a00179e` |
 | 2026-09-24 | P1.5 t.1 + t.3: ingressi che aprono l'operazione, rerank ed entity resolution sul gateway | `d1ea68a`, `chore/llm-t3` |
+| 2026-09-24 | P1.5 t.4 + t.3bis: embedding e playbook sul gateway, L2 che non si degrada, e2e della spesa | `chore/llm-t4` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`

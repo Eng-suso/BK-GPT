@@ -39,6 +39,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
+from backend.llm import OperationKind, operation
 from backend.memory import embeddings
 from backend.memory.knowledge_graph import entity_resolution as er
 from backend.memory.knowledge_graph import projector
@@ -383,12 +384,17 @@ def run(args: argparse.Namespace) -> Stats:
 
     for client in clients:
         print(f"cliente {client}")
-        if not args.no_backfill:
-            stats.backfilled += backfill_client(consultant, client, args.apply)
-        if llm is not None:
-            stats.merges += sweep_client(
-                consultant, client, llm, args.apply, args.limit
-            )
+        # Una passata per cliente e' un'operazione: lo sweep embedda i nomi e
+        # chiede giudizi al modello, e senza operazione aperta il gateway
+        # rifiuta. Una per cliente e non una per tutta l'esecuzione perche' la
+        # spesa si legge per tenant, ed e' la prima domanda che si fa.
+        with operation(OperationKind.KG_INGESTION, tenant_id=consultant):
+            if not args.no_backfill:
+                stats.backfilled += backfill_client(consultant, client, args.apply)
+            if llm is not None:
+                stats.merges += sweep_client(
+                    consultant, client, llm, args.apply, args.limit
+                )
     return stats
 
 

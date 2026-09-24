@@ -304,6 +304,240 @@ def test_the_ingestion_worker_opens_its_operation(monkeypatch):
     assert (vista["project_id"], vista["process_id"]) == ("proj-3", "proc-3")
 
 
+class TestGliEmbeddingPassanoDalGateway:
+    """t.4 — `memory/embeddings.py`.
+
+    Il modulo mantiene il suo contratto («mai solleva, degrada a `None`») con
+    una sola eccezione dichiarata: il rifiuto per operazione mancante. Degradare
+    anche quello spegnerebbe il retrieval vettoriale in silenzio, e il sintomo
+    arriverebbe al consulente come «le risposte sono peggiorate».
+    """
+
+    def test_l_embedding_chiede_al_gateway_con_la_dimensione_del_contratto(self, monkeypatch):
+        from backend.memory import embeddings
+
+        visto: dict = {}
+
+        def _fake_embed(*, texts, dimensions):
+            visto["texts"] = texts
+            visto["dimensions"] = dimensions
+            return [[0.5] * 3 for _ in texts]
+
+        monkeypatch.setattr(embeddings.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.memory.embeddings.embed", _fake_embed)
+
+        assert embeddings.embed_texts(["uno", "due"]) == [[0.5] * 3, [0.5] * 3]
+        assert visto["dimensions"] == embeddings.EMBED_DIM
+
+    def test_un_guasto_del_fornitore_degrada_a_none(self, monkeypatch):
+        from backend.memory import embeddings
+
+        def _esplode(**_kwargs):
+            raise RuntimeError("fornitore giu'")
+
+        monkeypatch.setattr(embeddings.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.memory.embeddings.embed", _esplode)
+
+        assert embeddings.embed_texts(["uno"]) is None
+
+    def test_ma_un_punto_d_ingresso_dimenticato_non_degrada(self, monkeypatch):
+        from backend.llm import OperationNotOpen
+        from backend.memory import embeddings
+
+        def _rifiuta(**_kwargs):
+            raise OperationNotOpen("nessuna operazione")
+
+        monkeypatch.setattr(embeddings.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.memory.embeddings.embed", _rifiuta)
+
+        with pytest.raises(OperationNotOpen):
+            embeddings.embed_texts(["uno"])
+
+    def test_senza_chiave_non_si_arriva_nemmeno_al_gateway(self, monkeypatch):
+        from backend.memory import embeddings
+
+        def _non_chiamare(**_kwargs):
+            raise AssertionError("senza chiave non si chiede niente al gateway")
+
+        monkeypatch.setattr(embeddings.settings, "openai_api_key", "")
+        monkeypatch.setattr("backend.memory.embeddings.embed", _non_chiamare)
+
+        assert embeddings.embed_texts(["uno"]) is None
+
+    def test_il_modulo_non_costruisce_piu_un_client(self):
+        from backend.memory import embeddings
+
+        assert not hasattr(embeddings, "_client")
+
+
+def test_the_entity_sweep_script_opens_its_operation(monkeypatch):
+    """Lo sweep periodico embedda e chiede giudizi: e' un punto d'ingresso.
+
+    Gira da riga di comando, fuori da ogni richiesta e da ogni worker, ed e' il
+    posto piu' facile da dimenticare proprio perche' non e' prodotto.
+    """
+    import argparse
+
+    from scripts import kg_resolve_entities as script
+
+    vista: dict = {}
+
+    def _fake_backfill(consultant, client, apply):
+        op = current_operation()
+        vista["kind"] = op.kind if op else None
+        vista["tenant_id"] = op.tenant_id if op else None
+        return 0
+
+    monkeypatch.setattr(script, "_clients", lambda *_a, **_k: ["cli-1"])
+    monkeypatch.setattr(script, "backfill_client", _fake_backfill)
+
+    args = argparse.Namespace(
+        consultant="consulente-1", client=None, apply=False,
+        no_backfill=False, no_sweep=True, limit=10,
+    )
+    script.run(args)
+
+    assert vista["kind"] == OperationKind.KG_INGESTION
+    assert vista["tenant_id"] == "consulente-1"
+
+class TestIlRifiutoL2NonSiDegradaMai:
+    """La regola che tiene in piedi tutte le tappe: `OperationNotOpen` risale.
+
+    I compiti best-effort hanno un `except` largo di proposito - un rerank
+    saltato non deve far cadere una risposta - ma quel largo inghiottiva anche
+    il rifiuto del gateway. Il risultato sarebbe il peggiore possibile: il
+    prodotto continua a funzionare *peggio*, e non lo dice nessuno. Qui si
+    verifica un modulo per volta, perche' ognuno ha il suo `except`.
+    """
+
+    def test_il_reranker_lo_lascia_passare(self, monkeypatch):
+        from backend.llm import OperationNotOpen
+        from backend.memory import reranker
+
+        def _rifiuta(**_kwargs):
+            raise OperationNotOpen("nessuna operazione")
+
+        monkeypatch.setattr("backend.memory.reranker.llm_run", _rifiuta)
+        with pytest.raises(OperationNotOpen):
+            reranker.LLMReranker().order("domanda", ["a", "b"])
+
+    def test_il_resolver_lo_lascia_passare(self, monkeypatch):
+        from backend.llm import OperationNotOpen
+        from backend.memory.knowledge_graph import entity_resolution as er
+
+        def _rifiuta(**_kwargs):
+            raise OperationNotOpen("nessuna operazione")
+
+        monkeypatch.setattr("backend.memory.knowledge_graph.entity_resolution.llm_run", _rifiuta)
+        with pytest.raises(OperationNotOpen):
+            er.adjudicate(
+                name="Ufficio crediti",
+                entity_type="other",
+                context="",
+                candidates=[
+                    er.Candidate(
+                        entity_id="e1",
+                        canonical_name="Ufficio credito",
+                        entity_type="other",
+                        trgm=0.8,
+                    )
+                ],
+                llm=er.GATEWAY,
+            )
+
+    def test_l_estrazione_dei_playbook_lo_lascia_passare(self, monkeypatch):
+        from backend.llm import OperationNotOpen
+        from backend.memory.procedural import extraction
+
+        def _rifiuta(**_kwargs):
+            raise OperationNotOpen("nessuna operazione")
+
+        monkeypatch.setattr(extraction.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.memory.procedural.extraction.llm_run", _rifiuta)
+        with pytest.raises(OperationNotOpen):
+            extraction.extract_playbook_from_episodes(
+                [{"title": "a", "summary": "x"}, {"title": "b", "summary": "y"}]
+            )
+
+
+class TestIPlaybookPassanoDalGateway:
+    """t.3bis — `memory/procedural/extraction.py`, la coda di t.3.
+
+    Era nell'elenco della tappa e non era stato migrato: costruiva ancora due
+    `ChatOpenAI` suoi, quindi il suo apprendimento era spesa senza nome.
+    """
+
+    def test_l_estrazione_chiede_al_gateway_col_compito_giusto(self, monkeypatch):
+        from backend.llm import LlmTask
+        from backend.memory.procedural import extraction
+
+        chiamate: list[dict] = []
+
+        def _fake_run(**kwargs):
+            chiamate.append(kwargs)
+            return extraction.ExtractedPlaybook(title="Metodo", body="Passi", confidence=0.5)
+
+        monkeypatch.setattr(extraction.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.memory.procedural.extraction.llm_run", _fake_run)
+
+        risultato = extraction.extract_playbook_from_episodes(
+            [{"title": "a", "summary": "x"}, {"title": "b", "summary": "y"}]
+        )
+
+        assert risultato is not None and risultato.title == "Metodo"
+        assert chiamate[0]["task"] is LlmTask.PLAYBOOK_EXTRACTION
+        assert chiamate[0]["output"] is extraction.ExtractedPlaybook
+
+    def test_la_generalizzazione_dichiara_il_compito_suo(self, monkeypatch):
+        from backend.llm import LlmTask
+        from backend.memory.procedural import extraction
+
+        chiamate: list[dict] = []
+
+        def _fake_run(**kwargs):
+            chiamate.append(kwargs)
+            return extraction.GeneralizedPlaybook(title="Generico", body="Passi")
+
+        monkeypatch.setattr(extraction.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.memory.procedural.extraction.llm_run", _fake_run)
+
+        extraction.generalize_playbook_body({"title": "t", "body": "b"}, ["Acme"])
+
+        assert chiamate[0]["task"] is LlmTask.PLAYBOOK_GENERALIZATION
+
+    def test_un_modello_iniettato_resta_il_seam_dei_test(self, monkeypatch):
+        from backend.memory.procedural import extraction
+
+        class _Finto:
+            def stream(self, *_a, **_k):
+                yield extraction.ExtractedPlaybook(title="Iniettato", body="Passi")
+
+        def _non_chiamare(**_kwargs):
+            raise AssertionError("con un modello iniettato il gateway non si tocca")
+
+        monkeypatch.setattr("backend.memory.procedural.extraction.llm_run", _non_chiamare)
+
+        risultato = extraction.extract_playbook_from_episodes(
+            [{"title": "a", "summary": "x"}, {"title": "b", "summary": "y"}],
+            llm=_Finto(),
+        )
+        assert risultato is not None and risultato.title == "Iniettato"
+
+    def test_senza_chiave_non_si_tenta(self, monkeypatch):
+        from backend.memory.procedural import extraction
+
+        monkeypatch.setattr(extraction.settings, "openai_api_key", "")
+        assert extraction.extract_playbook_from_episodes(
+            [{"title": "a", "summary": "x"}, {"title": "b", "summary": "y"}]
+        ) is None
+
+    def test_il_modulo_non_costruisce_piu_client(self):
+        from backend.memory.procedural import extraction
+
+        assert not hasattr(extraction, "_extract_llm")
+        assert not hasattr(extraction, "_generalize_llm")
+
+
 def test_a_model_call_without_an_entry_point_is_refused_not_silently_unattributed():
     """La garanzia dietro tutto: meglio un errore che una spesa senza nome."""
     from backend.llm import LlmTask, OperationNotOpen, run

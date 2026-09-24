@@ -215,7 +215,15 @@ def mirror_evidence(
     # fuori dal giro dell'agente. `kg_ingest_async=False` -> write sincrono.
     if settings.kg_ingest_async:
         try:
-            job_id = canonical.enqueue_evidence(**evidence)
+            # Gli id workspace non servono alla scrittura: servono al worker per
+            # aprire l'operazione nello stesso spazio di id in cui spende la
+            # chat, altrimenti il registro dei consumi mette due id diversi
+            # dello stesso progetto nella stessa colonna.
+            job_id = canonical.enqueue_evidence(
+                **evidence,
+                workspace_project_id=workspace_project_id,
+                workspace_process_id=process_ids[0] if process_ids else None,
+            )
         except Exception as exc:  # noqa: BLE001
             degradation_counters.bump(
                 "kg_mirror", "enqueue_failed",
