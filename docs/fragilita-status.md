@@ -18,7 +18,7 @@ vale.
 si chiudono senza una decisione di Sohayb, e provarci produce lavoro da buttare.
 
 Ultimo aggiornamento: 2026-09-24.
-Branch di lavoro: `fix/fragilita-audit`.
+Branch di lavoro: `fix/fragilita-audit`. Ondata 1 (backend) chiusa; ondata 2 (frontend) in corso.
 
 ---
 
@@ -33,16 +33,16 @@ decisione, §④).
 | ID | Difetto | Gravità | Stato |
 | --- | --- | --- | --- |
 | B1 | Il tenant arriva da un header, non dalla credenziale | Bloccante | **bloccato** — §④.1 |
-| B2 | Autenticazione spenta di default, CORS `*`, tutti admin | Bloccante | da fare |
+| B2 | Autenticazione spenta di default, CORS `*`, tutti admin | Bloccante | **fatto, verificato** — `663a670` |
 | B3 | Memoria di un consulente solo (`default_consultant_id`, 20 punti) | Bloccante | **bloccato** — §④.2 |
-| B4 | Architettura mono-processo non dichiarata né difesa | Alto | da fare |
+| B4 | Architettura mono-processo non dichiarata né difesa | Alto | **bloccato** — §④.6 |
 | B5 | 73 handler su 76 sono `def` sync: threadpool a 40 posti | Alto | da fare |
-| B6 | `_TRACE_EVENTS` mai potato: leak di memoria certo | Alto | da fare |
-| B7 | La risposta si perde se il client cade a metà stream | Bloccante | da fare |
-| B8 | Run di simulazione `pending` per sempre dopo un crash | Alto | da fare |
-| B9 | `str(exc)` verso il client in 20 punti | Medio | da fare |
+| B6 | `_TRACE_EVENTS` mai potato: leak di memoria certo | Alto | **fatto, verificato** — `d3c9544` |
+| B7 | La risposta si perde se il client cade a metà stream | Bloccante | **fatto, verificato** — `4004d7e` |
+| B8 | Run di simulazione `pending` per sempre dopo un crash | Alto | **fatto, verificato** — `549d421` |
+| B9 | `str(exc)` verso il client (3 punti reali, non 20) | Medio | **fatto, verificato** — `3a46612` |
 | B10 | Spesa LLM senza tetto | Alto | **bloccato** — §④.3 |
-| B11 | La traccia di osservabilità non è legata al tenant | Medio | da fare |
+| B11 | La traccia di osservabilità non è legata al tenant | Medio | **fatto, verificato** — `d3c9544` |
 | B12 | Liste senza `LIMIT` né paginazione | Medio | da fare |
 
 ### UI
@@ -54,7 +54,7 @@ decisione, §④).
 | U3 | La Simulazione mostra `0` al posto di «nessun dato» | Bloccante | da fare |
 | U4 | 110 stringhe italiane scritte nel codice, fuori da i18next | Alto | da fare |
 | U5 | Accessibilità verificata con axe su una pagina sola | Alto | da fare |
-| U6 | L'errore del backend si legge in interfaccia come sta | Medio | da fare |
+| U6 | L'errore del backend si legge in interfaccia come sta | Medio | **fatto, verificato** — `3a46612`, chiuso da B9 |
 | U7 | PWA dichiarata, PWA assente | Medio | **bloccato** — §④.4 |
 
 ### UX
@@ -80,13 +80,24 @@ decisione, §④).
 
 **Uno solo.** Chi prende il lavoro fa questo, poi riscrive questa sezione.
 
-> **Ondata 1 — backend, nessuna decisione di prodotto richiesta.**
-> Nell'ordine: B6 (potatura tracce), B11 (traccia per tenant), B8 (scadenza dei
-> run `pending`), B9 + U6 (errore che non espone l'eccezione), B2 (l'ambiente
-> non si avvia in silenzio senza autenticazione), B4 (più di un worker si
-> rifiuta invece di corrompere i checkpoint).
+> **Ondata 2 — frontend, le due cose che si vedono in demo.**
+> Nell'ordine: U1 (ErrorBoundary: oggi un throw è schermo bianco), U3 (la
+> Simulazione non mostra `0` al posto di «nessun dato»), X1 (conferma prima di
+> cancellare la cronologia), X3 (una pagina che dice «non c'è» invece del
+> rimando muto), X5 (tetto alle simulazioni concorrenti), U2 (code splitting),
+> U5 (axe oltre la HomePage).
 >
-> Ogni difetto è un commit. Nessuno di questi tocca il frontend.
+> Skill da caricare, le più piccole che servono: `react-ui-patterns` e
+> `frontend-dev-guidelines` per U1/U3/X1/X3; `react-best-practices` per U2;
+> `accessibility-compliance-accessibility-audit` per U5.
+>
+> Resta aperto in backend: B12 (paginazione) e B5 (handler sync). Nessuno dei
+> due si vede in demo, entrambi si vedono al secondo cliente.
+
+**Ondata 1 — backend — chiusa** il 2026-09-24: B2, B6, B7, B8, B9, B11, U6.
+Sei commit, un test per difetto. B4 è uscito dall'ondata ed è diventato una
+decisione (§④.6): il fix vero è un lock distribuito o un deploy dichiarato
+mono-processo, e la scelta appartiene a Track A.
 
 ---
 
@@ -135,6 +146,16 @@ Cinque decisioni. Finché non arrivano, i difetti che dipendono da loro restano
 5. **X2 — cos'è la schermata di un cliente.** La rotta esiste nel codice e non è
    montata. Serve sapere cosa ci si legge: progetti, storico, memoria del
    cliente, fatturato. Senza, si costruisce un contenitore vuoto.
+6. **B4 — quanti processi gira DeliR.** Non era una decisione in partenza, lo è
+   diventata guardando il codice. I lock dei turni di chat (`_THREAD_LOCKS`)
+   stanno in memoria di processo, e le simulazioni girano in `BackgroundTasks`:
+   con due worker uvicorn, due turni sullo stesso thread partono insieme e il
+   checkpoint si corrompe. Le code invece sono già sicure (`FOR UPDATE SKIP
+   LOCKED`). Due strade: (a) dichiarare il deploy mono-processo e farlo
+   rispettare, semplice ma incompatibile con un rolling deploy senza
+   interruzione; (b) un lock distribuito su Postgres per `thread_id`, che rende
+   il prodotto scalabile davvero e tiene una connessione aperta per tutta la
+   durata del turno. È una scelta di Track A, non di questo branch.
 
 ---
 
@@ -146,3 +167,9 @@ verifica.
 | Data | ID | Cosa è cambiato | Verifica |
 | --- | --- | --- | --- |
 | 2026-09-24 | — | Audit end-to-end del prodotto: 26 difetti fra backend, UI, UX e verifica. Aperto questo documento e il branch `fix/fragilita-audit`. | [`fragilita-audit.md`](fragilita-audit.md) |
+| 2026-09-24 | B6, B11 | Le tracce hanno un tetto (200 tracce, 1000 eventi) e ricordano da quale spazio di lavoro vengono. Una traccia altrui risponde 404 come una che non esiste. | `tests/test_observability.py`, 15 verdi |
+| 2026-09-24 | B8 | Una simulazione `pending` oltre il tempo massimo di Prosimos viene chiusa come fallita: il frontend smette di pollare e lo scenario si può rilanciare. | `tests/test_simulation.py::test_a_simulation_killed_mid_run_stops_being_in_flight`, rosso senza il fix |
+| 2026-09-24 | B7 | Il salvataggio del turno è passato in un `finally`: una scheda chiusa o uno Stop lasciano in archivio quello che l'agente aveva scritto, marcato come troncato. Il generatore è uscito dalla closure (`chat_turn_events`) per poterlo chiudere in un test. | `tests/test_fake_llm.py::test_a_turn_that_never_ends_still_leaves_what_the_agent_wrote` |
+| 2026-09-24 | B9, U6 | Le tre rotte di chat non mandano più `str(exc)`: l'eccezione va nei log con thread e trace, in interfaccia arriva una frase per il consulente, e un timeout (503) si distingue da un guasto (502). **Correzione all'audit:** i punti veri erano 3, non 20 — gli altri 17 sono messaggi di `ValueError` scritti apposta per chi legge. | `tests/test_chat_error_surface.py`, 3 verdi |
+| 2026-09-24 | B2 | `DELIR_ENVIRONMENT`: dichiarato `staging` o `prod` senza autenticazione, l'app si rifiuta di partire. In `dev` parte e dice cosa è aperto. | `tests/test_startup_guard.py`, 4 verdi |
+| 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.6 con le due strade e il loro costo. | — |
