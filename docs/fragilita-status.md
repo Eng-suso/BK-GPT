@@ -111,14 +111,15 @@ mono-processo, e la scelta appartiene a Track A.
    è riproducibile in test (B4, B5), lo dice §① nella riga.
 3. **Non allargare.** L'audit ha 26 righe; non se ne aggiungono altre qui senza
    passare da §⑤. Un difetto nuovo trovato strada facendo va in
-   [`bugs.md`](bugs.md), non in questo file.
+   §⑤ se esce da una review di questo lavoro, in [`bugs.md`](bugs.md) se è un
+   comportamento sbagliato riproducibile.
 4. **Frontend: si usano le skill del routing** in `CLAUDE.md`, le più piccole
    che servono. Per U1/U3: `react-ui-patterns`, `frontend-dev-guidelines`. Per
    U5: `accessibility-compliance-accessibility-audit`, `wcag-audit-patterns`.
    Per U2: `react-best-practices`.
 5. **I bloccati non si toccano.** Prima la decisione in §④, poi il codice.
    Scrivere B1 o B3 senza la decisione significa riscriverli dopo.
-6. **Chi posa il lavoro aggiorna §①, §② e §⑤ nello stesso commit del fix.** Un
+6. **Chi posa il lavoro aggiorna §①, §② e §⑥ nello stesso commit del fix.** Un
    documento vivo aggiornato in un commit a parte è un documento morto.
 
 ---
@@ -159,7 +160,23 @@ Cinque decisioni. Finché non arrivano, i difetti che dipendono da loro restano
 
 ---
 
-## ⑤ Log
+## ⑤ Trovato fuori perimetro
+
+La review del branch (CodeRabbit, 2026-09-24) ha guardato anche codice già in
+`main`. Quattro rilievi sono veri e **non appartengono a questo lavoro**: non
+si toccano qui, ma non vanno persi. Chi apre il prossimo branch su quelle aree
+parta da qui.
+
+| Dove | Cosa | Perché conta |
+| --- | --- | --- |
+| `backend/workers/conformance_worker.py:83` | I tentativi non hanno un tetto: una riga che fallisce sempre viene ripresa per sempre | La coda non avanza e il log si riempie. Serve parcheggiare dopo N tentativi e distinguere i guasti non transitori |
+| `backend/memory/reranker.py:99` | `OperationNotOpen` finisce nel gestore generico e diventa «il modello ha fallito» | Nasconde un errore di programmazione dentro un fallback che sembra normale |
+| `backend/memory/knowledge_graph/entity_resolution.py:362` | Stessa cosa del punto sopra | Stessa cura: rilanciare `OperationNotOpen` prima del gestore largo |
+| `backend/api/errors.py:126` | `unreadable_plan` manda `detail=str(exc)` al client | Stessa famiglia di B9. Qui il testo è un messaggio scritto apposta, non un'eccezione qualunque, quindi è meno grave — ma il `detail` non serve a chi legge |
+
+---
+
+## ⑥ Log
 
 Una riga per passo chiuso. Chi la scrive mette data, ID del difetto e come si
 verifica.
@@ -173,3 +190,4 @@ verifica.
 | 2026-09-24 | B9, U6 | Le tre rotte di chat non mandano più `str(exc)`: l'eccezione va nei log con thread e trace, in interfaccia arriva una frase per il consulente, e un timeout (503) si distingue da un guasto (502). **Correzione all'audit:** i punti veri erano 3, non 20 — gli altri 17 sono messaggi di `ValueError` scritti apposta per chi legge. | `tests/test_chat_error_surface.py`, 3 verdi |
 | 2026-09-24 | B2 | `DELIR_ENVIRONMENT`: dichiarato `staging` o `prod` senza autenticazione, l'app si rifiuta di partire. In `dev` parte e dice cosa è aperto. | `tests/test_startup_guard.py`, 4 verdi |
 | 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.6 con le due strade e il loro costo. | — |
+| 2026-09-24 | B2, B8 | I due rilievi della review sul mio codice: la lista degli ambienti dice dove partire scoperti è lecito (non dove è vietato), quindi un `DELIR_ENVIRONMENT` scritto male non parte; e un risultato Prosimos che arriva per una simulazione non più `pending` viene scartato invece di riportarla in vita. | `tests/test_startup_guard.py`, `tests/test_simulation.py`, 40 verdi sulle suite toccate |
