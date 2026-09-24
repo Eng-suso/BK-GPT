@@ -6,22 +6,22 @@ Il risultato e' un `procedural_memory` candidate (scope 'client' di default,
 `derived_from` = gli id degli episodi). NON diventa 'active': serve la
 promozione col guardrail (P7.1).
 
-L'LLM e' iniettabile cosi' i test restano ermetici. E' un runnable con
-`with_structured_output`: `invoke(messages)` ritorna direttamente il modello
-Pydantic (`ExtractedPlaybook` / `GeneralizedPlaybook`), stesso pattern di
-`backend/process_understanding.py`.
+Il giudizio lo chiede il gateway, che sceglie il modello dal profilo del compito
+e registra la spesa. L'LLM resta **iniettabile** perche' i test restino ermetici:
+un runnable passato a mano bypassa il gateway ed e' l'unico modo di provare
+l'estrazione senza di lui.
 """
 
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel, Field
 
+from backend.llm import LlmTask, OperationNotOpen
+from backend.llm import run as llm_run
 from backend.llm_streaming import stream_to_final
-from backend.llm_config import chat_openai_kwargs
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -45,18 +45,21 @@ class GeneralizedPlaybook(BaseModel):
     body: str = Field(description="Il metodo generalizzato, senza nomi cliente ne' dati riservati")
 
 
-@lru_cache(maxsize=1)
-def _extract_llm() -> Any:
-    from langchain_openai import ChatOpenAI
+class _Gateway:
+    """Segnaposto per «il giudizio lo fa il gateway».
 
-    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(ExtractedPlaybook)
+    Stesso pattern di `memory/knowledge_graph/entity_resolution.py`: non e' un
+    client, e serve solo perche' i chiamanti distinguono «c'e' un modello
+    disponibile» da «no», e da quella distinzione dipende se si tenta.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - solo diagnostica
+        return "<gateway>"
 
 
-@lru_cache(maxsize=1)
-def _generalize_llm() -> Any:
-    from langchain_openai import ChatOpenAI
-
-    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(GeneralizedPlaybook)
+GATEWAY = _Gateway()
 
 
 def _format_episodes(episodes: list[dict[str, Any]]) -> str:
@@ -104,14 +107,24 @@ def extract_playbook_from_episodes(
     if len(episodes) < _MIN_EPISODES:
         return None
 
-    model = llm if llm is not None else (_extract_llm() if settings.openai_api_key else None)
+    model = llm if llm is not None else (GATEWAY if settings.openai_api_key else None)
     if model is None:
         return None
 
+    prompt = _build_prompt(episodes)
     try:
-        result = stream_to_final(model, _build_prompt(episodes))
+        if model is GATEWAY:
+            result: Any = llm_run(
+                task=LlmTask.PLAYBOOK_EXTRACTION, messages=prompt, output=ExtractedPlaybook
+            )
+        else:
+            result = stream_to_final(model, prompt)
+    except OperationNotOpen:
+        # Non si degrada: e' un punto d'ingresso che non ha dichiarato il lavoro,
+        # e inghiottirlo qui spegnerebbe l'apprendimento in silenzio.
+        raise
     except Exception:  # noqa: BLE001 — l'estrazione e' best-effort
-        logger.warning("extraction: stream LLM fallito", exc_info=True)
+        logger.warning("extraction: giudizio LLM fallito", exc_info=True)
         return None
 
     if not isinstance(result, ExtractedPlaybook):
@@ -178,14 +191,22 @@ def generalize_playbook_body(
     `None` se l'LLM non e' disponibile o non resta un metodo. Il verdetto finale
     su "abbastanza generico" resta al guardrail in fase di promote.
     """
-    model = llm if llm is not None else (_generalize_llm() if settings.openai_api_key else None)
+    model = llm if llm is not None else (GATEWAY if settings.openai_api_key else None)
     if model is None:
         return None
 
+    prompt = _build_generalize_prompt(playbook, client_names)
     try:
-        result = stream_to_final(model, _build_generalize_prompt(playbook, client_names))
+        if model is GATEWAY:
+            result: Any = llm_run(
+                task=LlmTask.PLAYBOOK_GENERALIZATION, messages=prompt, output=GeneralizedPlaybook
+            )
+        else:
+            result = stream_to_final(model, prompt)
+    except OperationNotOpen:
+        raise
     except Exception:  # noqa: BLE001
-        logger.warning("generalize: stream LLM fallito", exc_info=True)
+        logger.warning("generalize: giudizio LLM fallito", exc_info=True)
         return None
 
     if not isinstance(result, GeneralizedPlaybook):

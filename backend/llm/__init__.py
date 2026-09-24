@@ -16,7 +16,7 @@ L'uso normale e' due righe:
 questo pacchetto lo usa: non l'ha sostituito.
 """
 
-from backend.llm.gateway import OperationNotOpen, record_avoided_call, run
+from backend.llm.gateway import OperationNotOpen, embed, record_avoided_call, run
 from backend.llm.operation import (
     Operation,
     OperationKind,
@@ -40,6 +40,7 @@ __all__ = [
     "adopt",
     "all_profiles",
     "current_operation",
+    "embed",
     "inherit_operation",
     "new_operation",
     "operation",

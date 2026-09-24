@@ -27,7 +27,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
-from backend.llm import LlmTask
+from backend.llm import LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
 from backend.llm_streaming import stream_to_final
 from backend.settings import settings
@@ -105,6 +105,11 @@ class LLMReranker:
                 )
             else:
                 verdict = stream_to_final(self._llm, prompt)
+        except OperationNotOpen:
+            # L'unica eccezione che non si degrada. Un rerank saltato non si
+            # vede - le risposte restano, solo peggio ordinate - quindi un punto
+            # d'ingresso dimenticato resterebbe nascosto per sempre.
+            raise
         except Exception:  # noqa: BLE001 — il rerank e' best-effort, mai fatale
             logger.warning("reranker: giudizio LLM fallito", exc_info=True)
             return list(range(n))

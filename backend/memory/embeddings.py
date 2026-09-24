@@ -11,8 +11,8 @@ Senza `OPENAI_API_KEY` l'embedding e' disattivato: `embed_texts` ritorna
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 
+from backend.llm import OperationNotOpen, embed
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -26,24 +26,26 @@ def available() -> bool:
     return bool(settings.openai_api_key)
 
 
-@lru_cache(maxsize=1)
-def _client():
-    from openai import OpenAI
-
-    return OpenAI(api_key=settings.openai_api_key)
-
-
 def embed_texts(texts: list[str]) -> list[list[float]] | None:
     """Un embedding per testo, stesso ordine. `None` se l'embedding non e'
-    disponibile o la chiamata fallisce — mai solleva."""
+    disponibile o la chiamata fallisce — mai solleva, tranne che per L2.
+
+    Il modello non si sceglie piu' qui: lo dichiara il profilo del compito
+    `EMBEDDING`, e il gateway registra la spesa. Restano qui le due cose che
+    sono davvero di questo modulo: la dimensione dei vettori, che e' un
+    contratto dello schema (INV-4), e la degradazione dichiarata.
+    """
     if not texts or not available():
         return None
     clean = [t if isinstance(t, str) and t.strip() else " " for t in texts]
     try:
-        resp = _client().embeddings.create(
-            model=EMBED_MODEL, input=clean, dimensions=EMBED_DIM
-        )
-        return [item.embedding for item in resp.data]
+        return embed(texts=clean, dimensions=EMBED_DIM)
+    except OperationNotOpen:
+        # L'unica eccezione che non si degrada. E' un punto d'ingresso che non
+        # ha dichiarato il lavoro: inghiottirla qui spegnerebbe il retrieval
+        # vettoriale in silenzio, e il sintomo arriverebbe come «le risposte
+        # sono peggiorate», senza niente da guardare.
+        raise
     except Exception as exc:  # noqa: BLE001 — l'embedding non deve far fallire il chiamante
         logger.warning("embed_texts fallito: %s", exc)
         return None

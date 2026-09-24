@@ -144,10 +144,8 @@ def _operational_schema():
 _CACHED_PROVIDER_CLIENTS: tuple[tuple[str, str], ...] = (
     ("backend.process_understanding", "_understanding_llm"),
     ("backend.process_understanding", "_quality_evaluator_llm"),
-    ("backend.memory.procedural.extraction", "_extract_llm"),
-    ("backend.memory.procedural.extraction", "_generalize_llm"),
     ("backend.memory.reranker", "build_reranker"),
-    ("backend.memory.embeddings", "_client"),
+    ("backend.llm.gateway", "_embedding_client"),
 )
 
 

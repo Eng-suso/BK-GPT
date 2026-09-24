@@ -40,7 +40,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
-from backend.llm import LlmTask
+from backend.llm import LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
 from backend.llm_streaming import stream_to_final
 from backend.memory import embeddings
@@ -369,6 +369,11 @@ def adjudicate(
             # Un modello iniettato: i test ne passano uno deterministico, e resta
             # il modo di provare il resolver senza toccare il gateway.
             raw = stream_to_final(llm, prompt)
+    except OperationNotOpen:
+        # L'unica eccezione che non si degrada: senza operazione aperta il merge
+        # fuzzy sparirebbe e il grafo accumulerebbe duplicati in silenzio, che e'
+        # il guasto peggiore perche' si vede solo mesi dopo, nei dati.
+        raise
     except Exception as exc:  # noqa: BLE001 — il resolver e' best-effort, mai fatale
         # merge fuzzy saltato: si crea una nuova entita', il merge mancato si
         # recupera con lo sweep. Ma va reso visibile: un LLM giu' = il grafo
@@ -594,6 +599,11 @@ def plan_resolution(
                     "entity resolution: %r -> %r (%s)",
                     uniq[key], hit.canonical_name, hit.method,
                 )
+    except OperationNotOpen:
+        # Anche qui: il rifiuto per operazione mancante non e' un guasto da
+        # degradare. Questo `except` e' il piu' largo dei due, e lasciarlo
+        # inghiottire L2 renderebbe inutile il `raise` dentro `adjudicate`.
+        raise
     except Exception as exc:  # noqa: BLE001
         # La resolution e' best-effort (INV: merge mancato -> sweep). Un suo
         # errore (pg_trgm assente, DB, embedder) NON deve far perdere l'intero

@@ -491,3 +491,107 @@ def test_the_ledger_row_reaches_postgres():
         assert row.prompt_version == "plan_extraction@3"
         assert row.duration_ms == 1234
         assert row.created_at
+
+
+# --------------------------------------------------------------------------- #
+# t.4 — l'embedding
+# --------------------------------------------------------------------------- #
+
+
+class _FakeEmbeddingResponse:
+    """La risposta dell'SDK OpenAI: i token stanno altrove rispetto a langchain."""
+
+    def __init__(self, *, vectors, prompt_tokens=77):
+        self.data = [type("_Item", (), {"embedding": v})() for v in vectors]
+        self.usage = type("_Usage", (), {"prompt_tokens": prompt_tokens, "total_tokens": prompt_tokens})()
+
+
+@pytest.fixture()
+def fake_embedder(monkeypatch, con_chiave):
+    state: dict = {"response": None, "raise": None, "kwargs": None}
+
+    class _FakeEmbeddings:
+        def create(self, **kwargs):
+            state["kwargs"] = kwargs
+            if state["raise"] is not None:
+                raise state["raise"]
+            n = len(kwargs.get("input") or [])
+            return state["response"] or _FakeEmbeddingResponse(vectors=[[0.1] * 3 for _ in range(n)])
+
+    class _FakeClient:
+        embeddings = _FakeEmbeddings()
+
+    monkeypatch.setattr("backend.llm.gateway._embedding_client", lambda: _FakeClient())
+    return state
+
+
+class TestLEmbeddingPassaDalGateway:
+    """t.4. Nell'ingestione KG il volume sta qui: un registro che salta gli
+    embedding racconta una spesa che non e' quella vera."""
+
+    def test_un_embedding_fuori_da_un_operazione_e_rifiutato(self, fake_embedder):
+        from backend.llm import embed
+
+        with pytest.raises(OperationNotOpen):
+            embed(texts=["a"], dimensions=1536)
+
+    def test_i_token_si_leggono_da_usage_prompt_tokens(self, fake_embedder, ledger):
+        from backend.llm import embed
+
+        with operation(OperationKind.KG_INGESTION):
+            vettori = embed(texts=["a", "b"], dimensions=1536)
+
+        assert len(vettori) == 2
+        evento = ledger[0]
+        assert evento["task"] == LlmTask.EMBEDDING.value
+        assert evento["outcome"] == Outcome.OK
+        # `extract_tokens`, il lettore della chat, qui avrebbe dato zero.
+        assert evento["tokens"] == TokenUsage(input=77)
+
+    def test_il_modello_e_quello_del_contratto_non_quello_della_chat(self, fake_embedder, ledger):
+        from backend.llm import embed
+
+        with operation(OperationKind.KG_INGESTION):
+            embed(texts=["a"], dimensions=1536)
+
+        assert fake_embedder["kwargs"]["model"] == "text-embedding-3-small"
+        assert fake_embedder["kwargs"]["dimensions"] == 1536
+        assert ledger[0]["model"] == "text-embedding-3-small"
+        assert ledger[0]["model"] != settings.openai_model
+
+    def test_il_profilo_dell_embedding_non_puo_divergere_dal_contratto(self):
+        """Il modello sta scritto in due posti: qui si verifica che dicano lo stesso.
+
+        `tasks.py` non importa `memory.embeddings` di proposito - il registro dei
+        compiti non deve dipendere dalla memoria - quindi il disallineamento lo
+        deve intercettare un test, non la lettura di chi passa.
+        """
+        from backend.memory import embeddings
+
+        assert profile_for(LlmTask.EMBEDDING).model == embeddings.EMBED_MODEL
+
+    def test_un_guasto_lascia_comunque_la_sua_riga(self, fake_embedder, ledger):
+        from backend.llm import embed
+
+        fake_embedder["raise"] = TimeoutError("troppo lento")
+        with operation(OperationKind.KG_INGESTION):
+            with pytest.raises(TimeoutError):
+                embed(texts=["a"], dimensions=1536)
+
+        assert ledger[0]["outcome"] == Outcome.TIMEOUT
+        assert ledger[0]["error_kind"] == "TimeoutError"
+
+    def test_senza_chiave_si_registra_il_rifiuto(self, monkeypatch, ledger):
+        from backend.llm import embed
+        from backend.llm_config import MissingProviderKey
+
+        monkeypatch.setattr(settings, "openai_api_key", "")
+        from backend.llm import gateway
+
+        gateway._embedding_client.cache_clear()
+        with operation(OperationKind.KG_INGESTION):
+            with pytest.raises(MissingProviderKey):
+                embed(texts=["a"], dimensions=1536)
+
+        assert ledger[0]["outcome"] == Outcome.REFUSED
+        assert ledger[0]["error_kind"] == "MissingProviderKey"

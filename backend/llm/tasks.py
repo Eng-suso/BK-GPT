@@ -57,6 +57,9 @@ class TaskProfile:
             un'intervista che il consulente sta aspettando.
         scales_with_input: Se il timeout deve seguire la lunghezza dell'input.
             Vero per le estrazioni; falso per un rerank, che legge poco.
+        model_name: Il modello, quando il compito **non** puo' usare quello di
+            conversazione. Serve all'embedding, che ha un modello suo e una
+            dimensione vincolata dallo schema del database (INV-4).
     """
 
     task: LlmTask
@@ -65,16 +68,22 @@ class TaskProfile:
     retry: bool = False
     deferrable: bool = False
     scales_with_input: bool = True
+    model_name: str | None = None
 
     @property
     def model(self) -> str:
         """Il modello del compito.
 
-        Oggi uno solo, dai settings: scegliere per compito e' P4, e va fatto con
-        gli eval in mano, non a intuito. Il punto di questo registro e' che
-        quando quel giorno arriva si cambia **qui**, e non in dieci moduli.
+        Per i compiti di conversazione oggi e' uno solo, dai settings: scegliere
+        per compito e' P4, e va fatto con gli eval in mano, non a intuito. Il
+        punto di questo registro e' che quando quel giorno arriva si cambia
+        **qui**, e non in dieci moduli.
+
+        L'embedding fa eccezione e non e' una scelta di qualita': il suo modello
+        decide la dimensione dei vettori gia' scritti, quindi e' un contratto,
+        non un parametro.
         """
-        return settings.openai_model
+        return self.model_name or settings.openai_model
 
 
 # Profili di partenza. Le note dicono *perche'* un valore e' quello: senza la
@@ -126,8 +135,16 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
         retry=True,
         scales_with_input=False,
     ),
+    # L'embedding non sceglie: il modello e la dimensione sono il contratto v1 del
+    # knowledge graph (INV-4), e cambiarli invalida i vettori gia' scritti. Il
+    # valore e' lo stesso di `backend.memory.embeddings.EMBED_MODEL`, ed e' scritto
+    # qui a mano per non far dipendere il registro dei compiti dalla memoria: un
+    # test tiene i due allineati.
     LlmTask.EMBEDDING: TaskProfile(
-        LlmTask.EMBEDDING, reasoning_effort="none", scales_with_input=False
+        LlmTask.EMBEDDING,
+        reasoning_effort="none",
+        scales_with_input=False,
+        model_name="text-embedding-3-small",
     ),
     # Come la chat: c'e' un upload in corso, e rifarlo costa piu' del retry.
     LlmTask.TRANSCRIPTION: TaskProfile(

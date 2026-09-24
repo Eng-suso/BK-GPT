@@ -118,7 +118,8 @@ def drain_once(limit: int = 20) -> int:
     done = 0
     for row in claimed:
         job_id = int(row.id)
-        payload = {k: v for k, v in dict(row.payload).items() if k in canonical.EVIDENCE_KEYS}
+        raw = dict(row.payload)
+        payload = {k: v for k, v in raw.items() if k in canonical.EVIDENCE_KEYS}
         try:
             # Punto d'ingresso dell'ingestione: qui dentro girano gli embedding e
             # il giudizio di entity resolution sui casi che il confronto
@@ -126,10 +127,18 @@ def drain_once(limit: int = 20) -> int:
             # rifiuta, l'`except` largo del resolver lo inghiotte e il grafo
             # accumula duplicati in silenzio - il guasto peggiore, perche' non si
             # vede.
+            #
+            # L'operazione porta gli id **workspace**, non quelli canonical del
+            # pacchetto: il registro dei consumi ha una colonna `project_id` sola,
+            # e la chat spende sugli id workspace. Mettercene due spazi diversi
+            # renderebbe «quanto costa questo progetto» un raggruppamento che
+            # divide in due lo stesso progetto. I job accodati prima di questo
+            # campo non li hanno: per quelli si ricade sugli id canonical, che e'
+            # meglio di niente e si riconosce a occhio (uuid canonical).
             with operation(
                 OperationKind.KG_INGESTION,
-                project_id=payload.get("project_id"),
-                process_id=payload.get("process_id"),
+                project_id=raw.get("workspace_project_id") or payload.get("project_id"),
+                process_id=raw.get("workspace_process_id") or payload.get("process_id"),
             ):
                 counts = canonical.write_evidence(**payload)
         except Exception as exc:  # noqa: BLE001 — un job storto non ferma il worker
