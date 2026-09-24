@@ -147,7 +147,15 @@ def extract_tokens(response: object) -> TokenUsage:
     chiamata avvenuta e non contata e' peggio di una contata male: la prima non
     si vede, la seconda si corregge.
     """
-    metadata = getattr(response, "usage_metadata", None)
+    return tokens_from_usage_metadata(getattr(response, "usage_metadata", None))
+
+
+def tokens_from_usage_metadata(metadata: object) -> TokenUsage:
+    """Gli stessi token, quando chi chiama ha gia' il dizionario e non la risposta.
+
+    E' il caso della chat: il runtime somma gli `usage_metadata` dei pezzi
+    mentre li manda al frontend, e alla fine ha la somma, non un messaggio.
+    """
     if not isinstance(metadata, dict):
         return TokenUsage()
 

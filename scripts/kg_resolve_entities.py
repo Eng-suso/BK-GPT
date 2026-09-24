@@ -386,9 +386,16 @@ def run(args: argparse.Namespace) -> Stats:
         print(f"cliente {client}")
         # Una passata per cliente e' un'operazione: lo sweep embedda i nomi e
         # chiede giudizi al modello, e senza operazione aperta il gateway
-        # rifiuta. Una per cliente e non una per tutta l'esecuzione perche' la
-        # spesa si legge per tenant, ed e' la prima domanda che si fa.
-        with operation(OperationKind.KG_INGESTION, tenant_id=consultant):
+        # rifiuta. Una per cliente e non una per tutta l'esecuzione, cosi' due
+        # passate sullo stesso cliente restano due numeri distinti.
+        #
+        # Il tenant **non** si passa: nel registro dei consumi quella colonna e'
+        # il tenant workspace, e il consultant_id e' un id di un altro spazio.
+        # Metterlo qui farebbe della riga dello sweep l'unica riga con un
+        # tenant che non esiste altrove - lo stesso errore che gia' abbiamo
+        # corretto su `project_id`. Il limite (lo sweep non dice per quale
+        # consulente ha speso) e' scritto in docs/llm-spend-status.md §③.
+        with operation(OperationKind.KG_INGESTION):
             if not args.no_backfill:
                 stats.backfilled += backfill_client(consultant, client, args.apply)
             if llm is not None:

@@ -378,6 +378,7 @@ def test_the_entity_sweep_script_opens_its_operation(monkeypatch):
     """
     import argparse
 
+    from backend.security import get_current_tenant_id
     from scripts import kg_resolve_entities as script
 
     vista: dict = {}
@@ -398,7 +399,10 @@ def test_the_entity_sweep_script_opens_its_operation(monkeypatch):
     script.run(args)
 
     assert vista["kind"] == OperationKind.KG_INGESTION
-    assert vista["tenant_id"] == "consulente-1"
+    # Il tenant e' quello workspace, non l'id del consulente canonical: sono due
+    # spazi di id, e mescolarli nella stessa colonna e' l'errore gia' corretto
+    # una volta su `project_id`.
+    assert vista["tenant_id"] == get_current_tenant_id()
 
 class TestIlRifiutoL2NonSiDegradaMai:
     """La regola che tiene in piedi tutte le tappe: `OperationNotOpen` risale.
@@ -682,6 +686,95 @@ def test_il_segnaposto_del_gateway_e_uno_solo():
 
     assert er.GATEWAY is GATEWAY
     assert extraction.GATEWAY is GATEWAY
+
+
+class TestLaChatCostruisceDalProfilo:
+    """t.6 — `agent.py` non decide piu' i parametri del modello.
+
+    La chat e' l'unico compito che il gateway costruisce ma non esegue: il
+    modello lo fa girare LangGraph e il risultato esce a pezzi. Restava pero'
+    che i suoi parametri fossero scritti a mano in `agent.py` - le stesse
+    decisioni del registro dei compiti, in un secondo posto.
+    """
+
+    def test_il_turno_prende_ragionamento_e_retry_dal_profilo(self, monkeypatch):
+        from backend.llm import LlmTask, chat_client, profile_for
+        from backend.settings import settings
+
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+        client = chat_client(
+            LlmTask.CHAT_TURN, model_name="gpt-x", streaming=True, tag="agent-runtime"
+        )
+
+        assert client.reasoning_effort == profile_for(LlmTask.CHAT_TURN).reasoning_effort
+        # `retry=True` nel profilo: dietro la chat non c'e' nessuna coda.
+        assert client.max_retries == settings.agent_max_retries
+        # Senza `stream_usage` i pezzi arrivano senza token e il turno
+        # risulterebbe da zero: la stessa trappola delle chiamate strutturate.
+        assert client.stream_usage is True
+
+    def test_l_instradamento_prende_il_suo_tetto_sull_uscita(self, monkeypatch):
+        from backend.llm import LlmTask, chat_client, profile_for
+        from backend.settings import settings
+
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+        client = chat_client(
+            LlmTask.CONTEXT_ROUTING, model_name="gpt-x", streaming=False, tag="context-router"
+        )
+
+        assert client.max_tokens == profile_for(LlmTask.CONTEXT_ROUTING).max_output_tokens == 512
+
+    def test_senza_chiave_il_client_della_chat_non_si_costruisce(self, monkeypatch):
+        from backend.llm import LlmTask, chat_client
+        from backend.llm_config import MissingProviderKey
+        from backend.settings import settings
+
+        monkeypatch.setattr(settings, "openai_api_key", "")
+
+        with pytest.raises(MissingProviderKey):
+            chat_client(LlmTask.CHAT_TURN, model_name="gpt-x", streaming=True, tag="t")
+
+
+class TestIlTurnoDiChatSiDivideInDueCompiti:
+    """La spesa di un turno non e' una voce sola.
+
+    Dentro un turno gira anche l'instradamento, che ha un profilo diverso
+    (512 token, nessun ragionamento). Sommarli darebbe un totale giusto e due
+    medie sbagliate, e la prima decisione che si prende col registro in mano e'
+    proprio quanto far ragionare ciascun compito.
+    """
+
+    def test_il_nodo_dell_instradamento_ha_il_compito_suo(self):
+        from backend.agent import CONTEXT_ROUTER_NODE
+        from backend.llm import LlmTask
+        from backend.services.agent_runtime import task_for_node
+
+        assert task_for_node(CONTEXT_ROUTER_NODE) is LlmTask.CONTEXT_ROUTING
+
+    def test_ogni_altro_nodo_e_il_turno(self):
+        from backend.llm import LlmTask
+        from backend.services.agent_runtime import task_for_node
+
+        for nodo in ("consulting_subgraph", "summarize", "", "process_subgraph"):
+            assert task_for_node(nodo) is LlmTask.CHAT_TURN
+
+    def test_il_nodo_esiste_davvero_nel_grafo(self, monkeypatch):
+        """Se il nodo si rinomina, la spesa dell'instradamento ricade nel turno.
+
+        Non si verifica leggendo il codice ma costruendo il grafo vero e
+        guardandoci dentro: e' l'unica prova che il nome su cui si appoggia il
+        registro sia un nodo che esiste.
+        """
+        from backend.agent import CONTEXT_ROUTER_NODE, build_agent
+        from backend.settings import settings
+
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+
+        grafo = build_agent("gpt-5.6-luna")
+
+        assert CONTEXT_ROUTER_NODE in set(grafo.get_graph().nodes)
 
 
 def test_a_model_call_without_an_entry_point_is_refused_not_silently_unattributed():

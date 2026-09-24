@@ -3,7 +3,7 @@ import pytest
 import time
 
 from backend.schemas.api import AgentStreamEvent, ApiError
-from backend.agent import DeliRChatOpenAI
+from backend.llm import DeliRChatOpenAI
 from backend.services.eval_runner import run_observability_smoke_eval
 from backend.services import agent_runtime
 from backend.services.trace_recorder import get_trace, new_trace_context, trace_event

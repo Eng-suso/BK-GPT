@@ -17,7 +17,7 @@ log). Un passo non si dichiara fatto se i suoi test non sono verdi: §① distin
 *scritto* da *verificato*, ed e' la distinzione che vale.
 
 Ultimo aggiornamento: 2026-09-24.
-Branch di lavoro: `chore/llm-t5` (worktree `.claude/worktrees/llm-t5`).
+Branch di lavoro: `chore/llm-t6` (worktree `.claude/worktrees/llm-t6`).
 
 ---
 
@@ -137,7 +137,7 @@ t.5 quella cache non esiste piu' e la lunghezza arriva al gateway esatta.
 | P1.5 t.3 | reranker + entity resolution sul gateway | **fatto, verificato** |
 | P1.5 t.4 | embedding sul gateway | **fatto, verificato** |
 | P1.5 t.5 | percorso caldo (`process_understanding`, audit, consolidamento) | **fatto, verificato** |
-| P1.5 t.6 | `agent.py` (streaming) | **non iniziato** ← §② |
+| P1.5 t.6 | `agent.py` (streaming) | **fatto, verificato** |
 | P1.6 | L1 in CI: `ChatOpenAI` / `openai` vietati fuori da `backend/llm/` | **non iniziato** |
 
 **t.1 — aprono l'operazione:** `plan_worker` (PLAN_SYNTHESIS), `conformance_worker`
@@ -228,6 +228,39 @@ resolution e playbook). Ora e' uno solo, in `backend/llm`, e un test verifica
 che i due nomi puntino allo stesso oggetto: due segnaposti che devono
 comportarsi uguale sono due cose che possono divergere.
 
+**t.6 — la chat, che il gateway costruisce ma non esegue.** E' l'unico compito
+di forma diversa: il modello lo fa girare LangGraph, dentro i nodi, e quello che
+esce e' uno stream di pezzi verso il frontend. Un `run()` che restituisce il
+risultato finale qui non serve a nessuno. Quindi il gateway si divide in due:
+`llm.chat_client()` costruisce il client dal profilo del compito, e
+`llm.record_streamed_usage()` scrive la riga quando lo stream finisce, dai token
+che il runtime **aveva gia' contati** per mandarli al frontend.
+
+Sparisce da `agent.py` tutto il blocco di parametri scritti a mano
+(`reasoning_effort="none"`, 512 token per l'instradamento, i retry della chat):
+erano le stesse decisioni del registro dei compiti, in un secondo posto e libere
+di divergere. `DeliRChatOpenAI` si sposta in `backend/llm/chat_client.py`, che
+e' anche quello che serve a L1: una sottoclasse di `ChatOpenAI` e' un client
+come gli altri.
+
+**Un turno non e' una voce sola.** Dentro ci gira anche l'instradamento, che ha
+un profilo suo. Il runtime somma i token **per nodo** del grafo e scrive una
+riga per compito: il nodo dell'instradamento e' `CONTEXT_ROUTING`, tutto il
+resto e' `CHAT_TURN`. Sommarli avrebbe dato un totale giusto e due medie
+sbagliate, e la prima decisione che si prende col registro in mano e' proprio
+quanto far ragionare ciascun compito. Il nome del nodo e' una costante in
+`backend/agent.py` che il runtime importa: un rename non puo' far ricadere
+l'instradamento dentro il turno in silenzio, e un test costruisce il grafo vero
+per verificare che quel nodo esista.
+
+**Quello che ha trovato l'e2e questa volta: i nodi interni non pagavano.** Il
+runtime scartava i chunk dei nodi interni **prima** di contarne i token, quindi
+l'instradamento — che e' un nodo interno — non compariva da nessuna parte, nemmeno
+nel totale mandato al frontend. Quel filtro decide cosa il consulente vede, non
+cosa abbiamo pagato: ora il conteggio per il registro avviene prima del filtro, e
+`usage_totals` (il numero del frontend) resta quello di sempre, sui soli nodi
+visibili. Sono due domande diverse e adesso hanno due conti diversi.
+
 **La regola L2 vale adesso in tutti e quattro i moduli best-effort.** t.3 aveva
 risolto il problema cablando gli ingressi; restava che l'`except` largo, se un
 ingresso nuovo si dimenticava, avrebbe comunque inghiottito il rifiuto. Adesso
@@ -262,14 +295,14 @@ grafo accumulerebbe duplicati senza dirlo. E' la ragione per cui t.1 doveva
 chiudersi prima di t.3, e non era ovvio nell'ordine scritto ieri.
 
 Il pacchetto e' `backend/llm/`: `operation.py`, `tasks.py`, `prices.py`,
-`usage.py`, `gateway.py`. `backend/llm_config.py` resta il posto della policy sui
+`usage.py`, `gateway.py`, `chat_client.py`. `backend/llm_config.py` resta il posto della policy sui
 parametri del client e il gateway lo usa — non l'ha sostituito. 36 test in
 `tests/test_llm_gateway.py`, ruff e mypy verdi (`backend/llm` e' entrato sotto
 mypy).
 
-**Finche' P1.5 non e' fatto, il gateway non misura niente in produzione**: i punti
-di chiamata costruiscono ancora il loro client. La fondazione c'e' ed e'
-verificata; il valore arriva con la migrazione.
+~~**Finche' P1.5 non e' fatto, il gateway non misura niente in produzione.**~~
+Con t.6 P1.5 e' chiusa: ogni punto di chiamata del prodotto passa dal gateway.
+Restano fuori solo la trascrizione (§③.5) e gli eval, che non sono prodotto.
 
 Tre cose apprese scrivendolo, che valgono piu' del codice:
 
@@ -287,7 +320,7 @@ Tre cose apprese scrivendolo, che valgono piu' del codice:
    sette compiti diversi. Nel registro dei compiti i due che rispondono dentro
    uno schema strict (entity resolution, rerank) sono a `none`: lo schema fa il
    lavoro. Quanto valga si vedra' col registro, ed e' il primo esperimento da
-   fare appena P1.5 e' in piedi.
+   fare adesso che P1.5 e' in piedi.
 
 ### P2–P5
 
@@ -297,23 +330,16 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**t.6 — `agent.py`**, l'ultimo punto di chiamata del prodotto: e' l'unico che fa
-streaming verso il frontend, e il gateway oggi non strema. Serve un ingresso che
-ritorni l'iteratore e registri alla fine (`stream_usage=True` c'e' gia'). E'
-anche l'unico file rimasto che tocca `llm/gateway.py`, quindi chi lo prende ci
-lavora da solo.
+**Le due code**, piccole e parallele, e sono l'ultima cosa prima di P1.6:
+l'operazione `EVAL` attorno a `tests/evals/`, che girano col modello vero, e la
+trascrizione in `api/routes/audio.py` (§③.5), che e' l'unico punto di chiamata
+`async` e quindi vuole un ingresso suo nel gateway.
 
-Con t.6 viene dietro anche `graphs/routing_contracts.py`, che non costruisce
-nessun client ma riceve `context_router_llm` da `agent.py`: il compito
-`CONTEXT_ROUTING` esiste gia' nel registro e oggi non lo usa nessuno. Chi fa
-t.6 deve aprire **due** ingressi, non uno, o l'instradamento resta spesa
-attribuita al modello di chat.
-
-Poi, in ordine:
-
-**Le due code**, piccole e parallele: l'operazione `EVAL` attorno a
-`tests/evals/`, che girano col modello vero, e la trascrizione in
-`api/routes/audio.py` (§③.5), che e' l'unico punto di chiamata `async`.
+Una nota su `graphs/routing_contracts.py`, che nell'elenco di ieri sembrava un
+ingresso da aprire e non lo e': non costruisce nessun client, riceve quello
+dell'instradamento da `agent.py` e gira **dentro** l'operazione del turno. Il
+problema vero non era l'operazione ma il **compito**, e si e' risolto contando i
+token per nodo del grafo (sopra, §①).
 
 Poi **P1.6**, la regola L1 in CI: una regola ast-grep che vieta `ChatOpenAI`,
 `openai`, `OpenAIEmbeddings` fuori da `backend/llm/`. Va messa **dopo** la
@@ -445,7 +471,7 @@ la colonna delle collisioni e' la ragione per cui non si assegnano a caso.
 | ~~**t.3bis** playbook~~ | fatto | — |
 | ~~**t.4** embedding~~ | fatto | — |
 | ~~**t.5** percorso caldo~~ | fatto | — |
-| **t.6** `agent.py` | `agent.py` + **`llm/gateway.py`** (ingresso di streaming) | tutto |
+| ~~**t.6** `agent.py`~~ | fatto | — |
 | **eval** operazione `EVAL` | `tests/evals/` | tutto |
 | **L5** registro dei prompt | i prompt in tutti i moduli | **dopo t.5**: tocca gli stessi prompt |
 | **lettura del registro** | file nuovi (endpoint o SQL versionato) | tutto |
@@ -570,6 +596,8 @@ trova la chiave a `None` e falla.
 | 2026-09-24 | P1.5 t.1 + t.3: ingressi che aprono l'operazione, rerank ed entity resolution sul gateway | `d1ea68a`, `chore/llm-t3` |
 | 2026-09-24 | P1.5 t.4 + t.3bis: embedding e playbook sul gateway, L2 che non si degrada, e2e della spesa | `chore/llm-t4` |
 | 2026-09-24 | P1.5 t.5: percorso caldo sul gateway, cache per fasce di timeout rimossa, segnaposto unico | `chore/llm-t5` |
+| 2026-09-24 | P1.5 t.6: chat e instradamento dal profilo, spesa dello stream nel registro, token dei nodi interni non piu' persi | `chore/llm-t6` |
+| 2026-09-24 | Review di t.6: registrazione anche sui turni falliti, modello vero nella riga, tenant dello sweep, listino cachato | `cc9163e` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`

@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from functools import lru_cache
 from decimal import Decimal, InvalidOperation
 
 from backend.settings import settings
@@ -57,7 +58,19 @@ def _decimal(value: object) -> Decimal | None:
 
 
 def _load() -> dict[str, ModelPrice]:
-    raw = (settings.llm_prices_json or "").strip()
+    """Il listino, riletto solo quando la configurazione cambia.
+
+    La cache e' chiavata sul testo grezzo e non su niente: `price_for` gira a
+    ogni riga del registro, cioe' a ogni chiamata al modello, e senza cache
+    questo modulo riparserebbe il JSON ogni volta e ripeterebbe gli stessi
+    errori nel log a ogni chiamata. Un test che cambia `llm_prices_json` vede
+    comunque il valore nuovo, perche' cambia la chiave.
+    """
+    return _parse((settings.llm_prices_json or "").strip())
+
+
+@lru_cache(maxsize=4)
+def _parse(raw: str) -> dict[str, ModelPrice]:
     if not raw:
         return {}
     try:

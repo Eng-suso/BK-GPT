@@ -4,7 +4,6 @@ from typing import Any
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
 from langgraph.graph import START, END, StateGraph, MessagesState
 
 from backend.agent_checkpoint import get_checkpointer
@@ -20,12 +19,10 @@ from backend.process_understanding import (
     ProcessUnderstandingDiagnostics,
     ProcessUnderstandingQualityReport,
 )
+from backend.llm import LlmTask, chat_client
 from backend.settings import (
     ALLOWED_MODELS,
     DEFAULT_OPENAI_MODEL,
-    effective_langsmith_model_name,
-    langsmith_metadata,
-    langsmith_tags,
     settings,
 )
 from backend.tools import tools_by_scope
@@ -38,23 +35,17 @@ from backend.memory.procedural.skill_loader import recent_user_text
 from backend.llm_streaming import stream_to_text
 
 
+# Il nodo che instrada la richiesta. E' una costante e non una stringa sparsa
+# perche' il registro dei consumi ci appoggia sopra un compito suo
+# (`CONTEXT_ROUTING`): rinominare il nodo senza accorgersene farebbe ricadere
+# la spesa dell'instradamento dentro quella del turno, in silenzio.
+CONTEXT_ROUTER_NODE = "classify_and_select_context"
+
 PROCEDURAL_MEMORY_PATH = Path(__file__).parent / "memory" / "procedural" / "how_to_act.md"
 RECENT_MESSAGE_LIMIT = 8
 RECENT_MESSAGE_SCAN_LIMIT = 24
 SUMMARY_TRIGGER_MESSAGE_COUNT = 10
 SUMMARY_KEEP_RECENT_MESSAGES = 6
-
-
-class DeliRChatOpenAI(ChatOpenAI):
-    langsmith_provider: str = "openai"
-    langsmith_model_name: str | None = None
-
-    def _get_ls_params(self, stop: list[str] | None = None, **kwargs):
-        params = super()._get_ls_params(stop=stop, **kwargs)
-        params["ls_provider"] = self.langsmith_provider or "openai"
-        if self.langsmith_model_name:
-            params["ls_model_name"] = self.langsmith_model_name
-        return params
 
 
 class ConsultantState(MessagesState):
@@ -298,40 +289,22 @@ def build_agent(model_name: str | None = None):
         configured with the application's checkpointer for state persistence.
     """
     selected_model = normalize_model_name(model_name)
-    model_metadata = langsmith_metadata(
-        selected_model,
-        delir_model_name=selected_model,
-    )
 
-    llm = DeliRChatOpenAI(
-        model=selected_model,
-        api_key=settings.openai_api_key,
-        temperature=settings.model_temperature,
-        max_tokens=settings.model_max_tokens,
-        timeout=settings.model_timeout_seconds,
-        max_retries=settings.agent_max_retries,
+    # I parametri li decide il profilo del compito, non questo file: erano le
+    # stesse scelte del registro (`reasoning_effort="none"`, 512 token per
+    # l'instradamento, i retry della chat) scritte una seconda volta, libere di
+    # divergere senza che nessuno se ne accorgesse.
+    llm = chat_client(
+        LlmTask.CHAT_TURN,
+        model_name=selected_model,
         streaming=True,
-        stream_usage=True,
-        langsmith_provider=settings.langsmith_provider,
-        langsmith_model_name=effective_langsmith_model_name(selected_model),
-        metadata=model_metadata,
-        tags=langsmith_tags("llm", "agent-runtime"),
-        reasoning_effort="none",
+        tag="agent-runtime",
     )
-
-    context_router_llm = DeliRChatOpenAI(
-        model=selected_model,
-        api_key=settings.openai_api_key,
-        temperature=settings.model_temperature,
-        max_tokens=512,
-        timeout=settings.model_timeout_seconds,
-        max_retries=settings.agent_max_retries,
+    context_router_llm = chat_client(
+        LlmTask.CONTEXT_ROUTING,
+        model_name=selected_model,
         streaming=False,
-        langsmith_provider=settings.langsmith_provider,
-        langsmith_model_name=effective_langsmith_model_name(selected_model),
-        metadata=model_metadata,
-        tags=langsmith_tags("llm", "context-router"),
-        reasoning_effort="none",
+        tag="context-router",
     )
 
     def summarize_node(state: ConsultantState, config: RunnableConfig):
@@ -403,7 +376,7 @@ def build_agent(model_name: str | None = None):
 
     workflow = StateGraph(ConsultantState)
     workflow.add_node("summarize", summarize_node)
-    workflow.add_node("classify_and_select_context", classify_and_select_context_node)
+    workflow.add_node(CONTEXT_ROUTER_NODE, classify_and_select_context_node)
     workflow.add_node(
         "consulting_subgraph",
         build_consulting_subgraph(
@@ -443,9 +416,9 @@ def build_agent(model_name: str | None = None):
     workflow.add_node("canvas_subgraph", canvas_subgraph)
 
     workflow.add_edge(START, "summarize")
-    workflow.add_edge("summarize", "classify_and_select_context")
+    workflow.add_edge("summarize", CONTEXT_ROUTER_NODE)
     workflow.add_conditional_edges(
-        "classify_and_select_context",
+        CONTEXT_ROUTER_NODE,
         route_scope,
         {
             "consultant": "consulting_subgraph",
