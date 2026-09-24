@@ -169,10 +169,9 @@ def _drop_cached_provider_clients() -> None:
         if cache_clear is not None:
             cache_clear()
 
-    entity_resolution = sys.modules.get("backend.memory.knowledge_graph.entity_resolution")
-    if entity_resolution is not None:
-        # Singleton a mano, non `lru_cache`: si azzera la variabile di modulo.
-        entity_resolution._llm_singleton = None
+    # `entity_resolution` non ha piu' niente da invalidare: da quando il giudizio
+    # passa dal gateway, `build_llm()` non costruisce e non memoizza nessun
+    # client - guarda se c'e' una chiave e restituisce un segnaposto.
 
 
 @pytest.fixture(autouse=True)

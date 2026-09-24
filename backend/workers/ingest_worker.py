@@ -25,6 +25,7 @@ import time
 from sqlalchemy import text
 
 from backend.db import canonical_session
+from backend.llm import OperationKind, operation
 from backend.memory.knowledge_graph import canonical
 from backend.services import degradation_counters
 from backend.settings import settings
@@ -119,7 +120,18 @@ def drain_once(limit: int = 20) -> int:
         job_id = int(row.id)
         payload = {k: v for k, v in dict(row.payload).items() if k in canonical.EVIDENCE_KEYS}
         try:
-            counts = canonical.write_evidence(**payload)
+            # Punto d'ingresso dell'ingestione: qui dentro girano gli embedding e
+            # il giudizio di entity resolution sui casi che il confronto
+            # deterministico non ha chiuso. Senza operazione aperta il gateway
+            # rifiuta, l'`except` largo del resolver lo inghiotte e il grafo
+            # accumula duplicati in silenzio - il guasto peggiore, perche' non si
+            # vede.
+            with operation(
+                OperationKind.KG_INGESTION,
+                project_id=payload.get("project_id"),
+                process_id=payload.get("process_id"),
+            ):
+                counts = canonical.write_evidence(**payload)
         except Exception as exc:  # noqa: BLE001 — un job storto non ferma il worker
             logger.exception("kg_ingest_queue job %s fallito", job_id)
             _fail(consultant, job_id, str(exc))

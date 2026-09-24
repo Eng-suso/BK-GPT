@@ -14,6 +14,7 @@ from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
 from backend.agents.run_context import bind_active_thread
 from backend.agents.scope_guard import bind_active_scope
+from backend.llm import OperationKind, adopt, new_operation
 from backend.llm_streaming import (
     INTERNAL_STREAM_METADATA_KEY,
     INTERNAL_STREAM_METADATA_VALUE,
@@ -818,7 +819,27 @@ def stream_agent_events(
             thread_lock.release()
             output_queue.put(None)
 
-    worker = Thread(target=run_agent_stream, name=f"delir-agent-stream-{context.request_id}", daemon=True)
+    # Il turno di chat e' un punto d'ingresso: la spesa dell'agente e di ogni
+    # strumento che chiama dentro il turno appartiene a questa operazione.
+    # Si costruisce qui, dove il tenant e lo scope della richiesta ci sono, e si
+    # adotta nel thread: `stream_agent_events` e' un generatore, e legare un
+    # ContextVar dentro un generatore lo lascia visibile al chiamante finche'
+    # qualcuno non lo chiude. Il lavoro sta comunque tutto nel thread.
+    turn = new_operation(
+        OperationKind.CHAT_TURN,
+        project_id=fields["project_id"],
+        process_id=fields["process_id"],
+    )
+
+    def run_agent_stream_in_turn() -> None:
+        with adopt(turn):
+            run_agent_stream()
+
+    worker = Thread(
+        target=run_agent_stream_in_turn,
+        name=f"delir-agent-stream-{context.request_id}",
+        daemon=True,
+    )
     worker.start()
 
     if emit_activity:

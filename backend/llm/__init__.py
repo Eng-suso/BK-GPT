@@ -23,6 +23,7 @@ from backend.llm.operation import (
     adopt,
     current_operation,
     inherit_operation,
+    new_operation,
     operation,
 )
 from backend.llm.tasks import LlmTask, TaskProfile, all_profiles, profile_for
@@ -40,6 +41,7 @@ __all__ = [
     "all_profiles",
     "current_operation",
     "inherit_operation",
+    "new_operation",
     "operation",
     "profile_for",
     "record_avoided_call",

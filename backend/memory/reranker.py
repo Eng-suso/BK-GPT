@@ -27,6 +27,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
+from backend.llm import LlmTask
+from backend.llm import run as llm_run
 from backend.llm_streaming import stream_to_final
 from backend.settings import settings
 
@@ -78,19 +80,33 @@ def _sanitize(order: Sequence[Any], n: int) -> list[int]:
 
 
 class LLMReranker:
-    """Giudice LLM: una chiamata strutturata, ordine sanificato, fallback identita'."""
+    """Giudice LLM: una chiamata strutturata, ordine sanificato, fallback identita'.
 
-    def __init__(self, llm: Any):
+    `llm=None` significa «passa dal gateway», che e' il percorso normale. Un
+    modello iniettato resta il modo di provare il riordino senza il gateway, ed e'
+    quello che usano i test.
+    """
+
+    def __init__(self, llm: Any | None = None):
         self._llm = llm
 
     def order(self, query: str, passages: Sequence[str]) -> list[int]:
         n = len(passages)
         if n <= 1:
             return list(range(n))
+        prompt = _build_prompt(query, passages)
         try:
-            verdict = stream_to_final(self._llm, _build_prompt(query, passages))
+            if self._llm is None:
+                # `RETRIEVAL_RERANK` gira a `reasoning_effort="none"`: la risposta
+                # e' una lista di indici dentro uno schema strict, e pagare
+                # ragionamento per riempire uno schema e' spesa senza ritorno.
+                verdict: Any = llm_run(
+                    task=LlmTask.RETRIEVAL_RERANK, messages=prompt, output=_RerankVerdict
+                )
+            else:
+                verdict = stream_to_final(self._llm, prompt)
         except Exception:  # noqa: BLE001 — il rerank e' best-effort, mai fatale
-            logger.warning("reranker: stream LLM fallito", exc_info=True)
+            logger.warning("reranker: giudizio LLM fallito", exc_info=True)
             return list(range(n))
         raw_order = getattr(verdict, "order", None)
         if raw_order is None and isinstance(verdict, dict):
@@ -125,19 +141,15 @@ def _build_prompt(query: str, passages: Sequence[str]) -> list:
 
 @lru_cache(maxsize=1)
 def build_reranker() -> Reranker | None:
-    """`LLMReranker` dai settings, o `None` se non c'e' un LLM."""
+    """Il riordinatore, o `None` se non c'e' una chiave.
+
+    Non costruisce piu' un client: il modello lo scegle il gateway dal profilo del
+    compito, e la spesa la registra lui. Qui resta solo la domanda «e' possibile
+    riordinare?», che e' la sola cosa che il chiamante deve sapere.
+    """
     if not settings.openai_api_key:
         return None
-    try:
-        from langchain_openai import ChatOpenAI
-
-        from backend.llm_config import chat_openai_kwargs
-
-        llm = ChatOpenAI(**chat_openai_kwargs()).with_structured_output(_RerankVerdict)
-    except Exception:  # noqa: BLE001
-        logger.warning("reranker: LLM non inizializzabile", exc_info=True)
-        return None
-    return LLMReranker(llm)
+    return LLMReranker()
 
 
 def _truncate(items: list[dict[str, Any]], top_n: int | None) -> list[dict[str, Any]]:
