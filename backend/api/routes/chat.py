@@ -65,6 +65,45 @@ def record_product_language(*, answer: str, asked: str, scope_type: str | None) 
     return leaks
 
 
+#: Cosa si legge sotto una risposta che non e' arrivata in fondo. Va scritto,
+#: non dedotto: riaperto domani, un pensiero troncato a meta' frase sembra un
+#: pensiero finito, e in un verbale di consulenza questo e' un danno.
+INTERRUPTED_ANSWER_MARKER = (
+    "\n\n---\n*Risposta interrotta: il collegamento si e' chiuso mentre l'agente "
+    "scriveva.*"
+)
+
+
+def persist_interrupted_answer(
+    *,
+    thread_id: str,
+    parts: list[str],
+    model_name: str | None,
+) -> bool:
+    """Salva quello che l'agente aveva gia' scritto quando il turno si e' rotto.
+
+    Args:
+        thread_id: La conversazione a cui appartiene il turno.
+        parts: I pezzi di testo gia' arrivati. Vuoti o soli spazi: niente da
+            salvare, e una risposta vuota in archivio sarebbe peggio del nulla.
+        model_name: Il modello del turno, per la riga in archivio.
+
+    Returns:
+        bool: Se qualcosa e' stato scritto.
+    """
+    partial = "".join(parts).strip()
+    if not partial:
+        return False
+
+    append_chat_message(
+        thread_id=thread_id,
+        role="assistant",
+        content=f"{partial}{INTERRUPTED_ANSWER_MARKER}",
+        model_name=model_name,
+    )
+    return True
+
+
 def ndjson_event(event_type: str, **payload) -> str:
     """Serialize an event and its payload as a newline-delimited JSON record.
     
@@ -296,83 +335,108 @@ def stream_consultant_chat_message(
         **fields,
     )
 
-    def generate():
-        """
-        Stream newline-delimited agent events for the chat request.
-        
-        The stream emits a start event, forwards agent events, and emits a done event
-        after persisting the assembled assistant response. Duplicate start events are
-        omitted, and an agent error event ends the stream without persisting a
-        response. Exceptions are converted into streamed error events.
-        
-        Yields:
-            str: A newline-delimited JSON event.
-        """
-        response_parts = []
-        trace_context = build_trace_context(
-            thread_id=thread_id,
-            model_name=request.model_name,
-            scope=request.scope,
-        )
-
-        try:
-            yield AgentStreamEvent(
-                type="start",
-                request_id=trace_context.request_id,
-                trace_id=trace_context.trace_id,
-                thread_id=thread_id,
-                payload={
-                    "scope": fields,
-                },
-            ).model_dump_json() + "\n"
-
-            for event in stream_agent_events(
-                thread_id=thread_id,
-                model_name=request.model_name,
-                messages=[{"role": "user", "content": request.message}],
-                scope=request.scope,
-                chat_mode=request.mode,
-            attachments=request.attachments,
-                trace_context=trace_context,
-            ):
-                if event.type == "start":
-                    continue
-
-                if event.type == "delta" and event.content:
-                    response_parts.append(event.content)
-
-                yield event.model_dump_json() + "\n"
-
-                if event.type == "error":
-                    return
-
-            response_message = "".join(response_parts)
-            record_product_language(
-                answer=response_message,
-                asked=request.message,
-                scope_type=fields.get("scope_type"),
-            )
-            append_chat_message(
-                thread_id=thread_id,
-                role="assistant",
-                content=response_message,
-                model_name=request.model_name,
-            )
-            yield AgentStreamEvent(
-                type="done",
-                request_id=trace_context.request_id,
-                trace_id=trace_context.trace_id,
-                thread_id=thread_id,
-                message=response_message,
-            ).model_dump_json() + "\n"
-        except Exception as exc:
-            yield ndjson_event("error", detail=str(exc))
-
     return StreamingResponse(
-        generate(),
+        chat_turn_events(thread_id=thread_id, request=request, fields=fields),
         media_type="application/x-ndjson",
         headers={
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def chat_turn_events(
+    *,
+    thread_id: str,
+    request: SendMessageRequest,
+    fields: dict,
+):
+    """Gli eventi di un turno, dall'inizio alla fine o a dove arriva.
+
+    Sta fuori dalla rotta perche' il caso che conta e' quello in cui il turno
+    non arriva in fondo, e un generatore con un nome si puo' chiudere in un
+    test; dentro una closure, no.
+
+    Args:
+        thread_id: La conversazione.
+        request: Messaggio, modello, scope, modalita' e allegati del turno.
+        fields: Lo scope gia' normalizzato, come lo vede l'archivio.
+
+    Yields:
+        str: Un evento JSON per riga.
+    """
+    response_parts: list[str] = []
+    persisted = False
+    trace_context = build_trace_context(
+        thread_id=thread_id,
+        model_name=request.model_name,
+        scope=request.scope,
+    )
+
+    try:
+        yield AgentStreamEvent(
+            type="start",
+            request_id=trace_context.request_id,
+            trace_id=trace_context.trace_id,
+            thread_id=thread_id,
+            payload={
+                "scope": fields,
+            },
+        ).model_dump_json() + "\n"
+
+        for event in stream_agent_events(
+            thread_id=thread_id,
+            model_name=request.model_name,
+            messages=[{"role": "user", "content": request.message}],
+            scope=request.scope,
+            chat_mode=request.mode,
+            attachments=request.attachments,
+            trace_context=trace_context,
+        ):
+            if event.type == "start":
+                continue
+
+            if event.type == "delta" and event.content:
+                response_parts.append(event.content)
+
+            yield event.model_dump_json() + "\n"
+
+            if event.type == "error":
+                return
+
+        response_message = "".join(response_parts)
+        record_product_language(
+            answer=response_message,
+            asked=request.message,
+            scope_type=fields.get("scope_type"),
+        )
+        append_chat_message(
+            thread_id=thread_id,
+            role="assistant",
+            content=response_message,
+            model_name=request.model_name,
+        )
+        persisted = True
+        yield AgentStreamEvent(
+            type="done",
+            request_id=trace_context.request_id,
+            trace_id=trace_context.trace_id,
+            thread_id=thread_id,
+            message=response_message,
+        ).model_dump_json() + "\n"
+    except Exception as exc:
+        yield ndjson_event("error", detail=str(exc))
+    finally:
+        # Il turno puo' finire senza arrivare in fondo: il consulente chiude la
+        # scheda, preme Stop, o l'agente fallisce a meta' frase. In tutti e tre
+        # i casi il salvataggio stava dopo il ciclo e non veniva eseguito - la
+        # chiusura del generatore alza `GeneratorExit`, che non e' una
+        # `Exception` e quindi non passava nemmeno di qui. Restava una domanda
+        # in archivio senza la sua risposta.
+        if not persisted:
+            persist_interrupted_answer(
+                thread_id=thread_id,
+                parts=response_parts,
+                model_name=request.model_name,
+            )
+

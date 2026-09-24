@@ -115,3 +115,49 @@ def test_streaming_endpoint_emits_delta_and_done(client: TestClient):
     assert types[-1] == "done"
     assert "error" not in types
     assert events[-1]["message"].startswith("[fake-llm]")
+
+
+@_needs_db
+def test_a_turn_that_never_ends_still_leaves_what_the_agent_wrote(client: TestClient):
+    """Chiudere la scheda a meta' risposta non deve cancellare il turno.
+
+    Il salvataggio stava dopo il ciclo dello stream: una connessione chiusa alza
+    `GeneratorExit`, il ciclo non arrivava mai in fondo, e in archivio restava la
+    domanda senza la risposta. Lo stesso valeva per il tasto Stop, perche' il
+    frontend consolida solo la sua cache e non scrive niente al backend.
+    """
+    from backend.api.routes.chat import INTERRUPTED_ANSWER_MARKER, chat_turn_events
+    from backend.database import get_chat_session
+    from backend.schemas.chat_api import SendMessageRequest
+    from backend.services.agent_runtime import scope_fields
+
+    created = client.post(
+        "/v1/consultant-chat/sessions",
+        json={"model_name": "gpt-5.6-luna", "scope": {"type": "consultant"}},
+    )
+    thread_id = created.json()["thread_id"]
+
+    request = SendMessageRequest(
+        message="analizza il processo",
+        model_name="gpt-5.6-luna",
+        scope={"type": "consultant"},
+    )
+    events = chat_turn_events(
+        thread_id=thread_id,
+        request=request,
+        fields=scope_fields(request.scope),
+    )
+
+    # Si legge finche' l'agente non ha scritto qualcosa, poi il collegamento cade.
+    for line in events:
+        if json.loads(line)["type"] == "delta":
+            break
+    events.close()
+
+    session = get_chat_session(thread_id)
+    answers = [message for message in session["messages"] if message["role"] == "assistant"]
+
+    assert answers, "il pezzo di risposta gia' scritto non e' arrivato in archivio"
+    assert answers[-1]["content"].startswith("[fake-llm]")
+    # E si vede che e' un pensiero troncato, non uno finito.
+    assert answers[-1]["content"].endswith(INTERRUPTED_ANSWER_MARKER)
