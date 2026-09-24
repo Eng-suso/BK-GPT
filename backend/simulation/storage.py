@@ -182,7 +182,9 @@ def complete_simulation_run(
         result=result,
         error=None,
     )
-    if summary is not None or replay is not None:
+    # Il risultato puo' essere stato scartato perche' arrivato dopo la chiusura:
+    # in quel caso non deve lasciare dietro di se' nemmeno l'artefatto.
+    if run["status"] == "completed" and (summary is not None or replay is not None):
         _write_simulation_artifact(run_id=run_id, summary=summary or {}, replay=replay or {})
         run["summary"] = summary
     return run
@@ -282,6 +284,19 @@ def _update_simulation_run(
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             raise ValueError(f"Simulation run non trovata: {run_id}")
+
+        if run.status != "pending":
+            # Arriva un risultato per una simulazione gia' chiusa: quasi sempre
+            # una che avevamo dichiarato morta e che invece stava ancora
+            # girando. Scriverlo adesso la riporterebbe in vita dopo che il
+            # consulente ne ha gia' lanciata un'altra, e cancellerebbe la frase
+            # che spiega cosa era successo.
+            logger.warning(
+                "risultato tardivo per la simulazione %s, gia' %s: scartato",
+                run_id,
+                run.status,
+            )
+            return simulation_run_to_dict(run, summary=_summary_for(session, run_id))
 
         run.status = status
         run.result_json = json.dumps(result.payload, ensure_ascii=False)

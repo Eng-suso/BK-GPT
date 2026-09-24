@@ -450,3 +450,19 @@ def test_a_simulation_killed_mid_run_stops_being_in_flight(client):
     closed = get_simulation_run(abandoned["id"])
     assert closed["status"] == "failed"
     assert closed["error"] == STALE_RUN_ERROR
+
+    # Se poi il vecchio processo torna in vita e consegna il suo risultato, e'
+    # tardi: il consulente ne ha gia' lanciata un'altra, e riscrivere questa
+    # riga cancellerebbe la frase che spiega cosa era successo.
+    from backend.simulation.models import ProsimosSimulationResult
+    from backend.simulation.storage import complete_simulation_run
+
+    late = complete_simulation_run(
+        run_id=abandoned["id"],
+        result=ProsimosSimulationResult(),
+        summary={"cycle": {"avg": 42}},
+    )
+
+    assert late["status"] == "failed"
+    assert late["error"] == STALE_RUN_ERROR
+    assert get_simulation_run(abandoned["id"])["summary"] is None

@@ -31,8 +31,11 @@ logger = logging.getLogger(__name__)
 
 #: Gli ambienti in cui partire senza autenticazione non e' una scelta, e' un
 #: incidente: la porta resta aperta e nessuno se ne accorge finche' non entra
-#: qualcuno.
-GUARDED_ENVIRONMENTS = {"staging", "prod", "production"}
+#: qualcuno. La lista dice dove partire scoperti e' lecito, non dove e' vietato:
+#: elencare gli ambienti da proteggere lascerebbe passare tutto il resto, e
+#: `DELIR_ENVIRONMENT=produzione` - la parola giusta, in italiano - sarebbe un
+#: deploy aperto per un refuso.
+OPEN_ENVIRONMENTS = {"dev", "local", "test"}
 
 
 def assert_environment_is_defensible() -> Literal["open", "guarded"]:
@@ -56,12 +59,14 @@ def assert_environment_is_defensible() -> Literal["open", "guarded"]:
     """
     environment = (settings.delir_environment or "dev").strip().lower()
 
-    if environment in GUARDED_ENVIRONMENTS and not settings.delir_auth_enabled:
+    if not settings.delir_auth_enabled and environment not in OPEN_ENVIRONMENTS:
+        permessi = ", ".join(sorted(OPEN_ENVIRONMENTS))
         raise RuntimeError(
             f"DELIR_ENVIRONMENT={environment} con DELIR_AUTH_ENABLED spento: "
             "il prodotto accetterebbe qualunque chiamata, da qualunque origine, "
-            "con permessi di amministratore. Accendi l'autenticazione o dichiara "
-            "DELIR_ENVIRONMENT=dev."
+            "con permessi di amministratore. Accendi l'autenticazione, oppure "
+            f"dichiara uno degli ambienti aperti ({permessi}) se questa e' "
+            "davvero una macchina di sviluppo."
         )
 
     if settings.delir_auth_enabled and not (settings.delir_api_token or "").strip():

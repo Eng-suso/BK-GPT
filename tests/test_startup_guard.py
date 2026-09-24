@@ -21,7 +21,23 @@ def test_a_declared_environment_refuses_to_start_without_authentication(monkeypa
 
     # Il messaggio dice la conseguenza e come uscirne, non solo il nome del flag.
     assert "amministratore" in str(failure.value)
-    assert "DELIR_ENVIRONMENT=dev" in str(failure.value)
+    assert "ambienti aperti (dev, local, test)" in str(failure.value)
+
+
+def test_an_environment_nobody_declared_open_is_treated_as_real(monkeypatch):
+    """Un refuso non deve essere un deploy aperto.
+
+    La lista dice dove partire scoperti e' lecito, non dove e' vietato: con
+    l'elenco degli ambienti da proteggere, `produzione` - la parola giusta, in
+    italiano - sarebbe passata.
+    """
+    monkeypatch.setattr(settings, "delir_environment", "produzione")
+    monkeypatch.setattr(settings, "delir_auth_enabled", False)
+
+    with pytest.raises(RuntimeError) as failure:
+        assert_environment_is_defensible()
+
+    assert "produzione" in str(failure.value)
 
 
 def test_authentication_without_a_token_is_configuration_not_a_fault(monkeypatch):
