@@ -16,7 +16,7 @@ L'uso normale e' due righe:
 questo pacchetto lo usa: non l'ha sostituito.
 """
 
-from backend.llm.gateway import OperationNotOpen, embed, record_avoided_call, run
+from backend.llm.gateway import GATEWAY, OperationNotOpen, embed, record_avoided_call, run
 from backend.llm.operation import (
     Operation,
     OperationKind,
@@ -30,6 +30,7 @@ from backend.llm.tasks import LlmTask, TaskProfile, all_profiles, profile_for
 from backend.llm.usage import Outcome, TokenUsage
 
 __all__ = [
+    "GATEWAY",
     "LlmTask",
     "Operation",
     "OperationKind",

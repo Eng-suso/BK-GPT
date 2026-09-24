@@ -17,7 +17,7 @@ log). Un passo non si dichiara fatto se i suoi test non sono verdi: §① distin
 *scritto* da *verificato*, ed e' la distinzione che vale.
 
 Ultimo aggiornamento: 2026-09-24.
-Branch di lavoro: `chore/llm-t4` (worktree `.claude/worktrees/llm-t4`).
+Branch di lavoro: `chore/llm-t5` (worktree `.claude/worktrees/llm-t5`).
 
 ---
 
@@ -118,10 +118,11 @@ vedesse.
 
 **P0.3 — timeout proporzionato.** `llm_config.timeout_for_input(characters)`:
 pavimento `model_timeout_seconds` (45 s) + 15 s per 1.000 caratteri, tetto 300 s.
-Un'intervista da 4.000 caratteri passa da 45 s a 105 s. La cache
-dell'estrattore e' chiavata su scaglioni di 2.000 caratteri
+Un'intervista da 4.000 caratteri passa da 45 s a 105 s. All'epoca la cache
+dell'estrattore era chiavata su scaglioni di 2.000 caratteri
 (`process_understanding._timeout_bucket`), altrimenti la prima nota corta
-avrebbe fissato il timeout del caso breve per ogni intervista successiva.
+avrebbe fissato il timeout del caso breve per ogni intervista successiva; con
+t.5 quella cache non esiste piu' e la lunghezza arriva al gateway esatta.
 
 ### P1 — Misurare tutto
 
@@ -135,8 +136,8 @@ avrebbe fissato il timeout del caso breve per ogni intervista successiva.
 | P1.5 t.2 | Il pool di estrazione la eredita nei thread | **fatto, verificato** |
 | P1.5 t.3 | reranker + entity resolution sul gateway | **fatto, verificato** |
 | P1.5 t.4 | embedding sul gateway | **fatto, verificato** |
-| P1.5 t.5 | percorso caldo (`process_understanding`, audit, consolidamento) | **non iniziato** ← §② |
-| P1.5 t.6 | `agent.py` (streaming) | **non iniziato** |
+| P1.5 t.5 | percorso caldo (`process_understanding`, audit, consolidamento) | **fatto, verificato** |
+| P1.5 t.6 | `agent.py` (streaming) | **non iniziato** ← §② |
 | P1.6 | L1 in CI: `ChatOpenAI` / `openai` vietati fuori da `backend/llm/` | **non iniziato** |
 
 **t.1 — aprono l'operazione:** `plan_worker` (PLAN_SYNTHESIS), `conformance_worker`
@@ -197,6 +198,35 @@ dell'agente, quindi eredita il turno.
 nell'elenco della tappa e non era stato migrato: costruiva ancora due
 `ChatOpenAI` suoi, quindi l'apprendimento del prodotto era spesa senza nome.
 Ora chiede al gateway con `PLAYBOOK_EXTRACTION` e `PLAYBOOK_GENERALIZATION`.
+
+**t.5 — il percorso caldo, e una cache che non serviva piu' a nessuno.**
+`process_understanding` (estrazione + giudizio di qualita'),
+`agents/conformance_audit` e `agents/plan_consolidation` chiedono il compito al
+gateway. Con loro finisce la migrazione dei compiti del prodotto: fuori restano
+solo `agent.py` (t.6) e la trascrizione.
+
+Il pezzo di pulizia piu' utile e' quello **tolto**. L'estrattore aveva
+`_understanding_llm` con `lru_cache(maxsize=8)` chiavata su `_timeout_bucket`,
+cioe' su scaglioni di 2.000 caratteri: serviva perche' il timeout dipende dalla
+lunghezza dell'input e una cache a chiave singola avrebbe fissato il timeout del
+caso breve per tutte le interviste. Col gateway il client lo costruisce chi sa
+gia' il timeout, quindi la fascia, la cache e il loro test sono spariti, e
+l'estrazione passa la **lunghezza vera** dell'intervista invece di
+un'approssimazione per eccesso.
+
+Il seam dei test cambia di conseguenza, ed e' il punto su cui il doc avvisava:
+chi sostituiva `_understanding_llm` ora sostituisce `llm_run`. Sono due test,
+`test_bpmn_semantic` e `test_no_live_llm_by_default`.
+
+Anche il giudizio di qualita' aveva un `except Exception` che degradava a
+"fallback conservativo": adesso `OperationNotOpen` risale. Degradarla avrebbe
+dato un giudizio prudente **sempre**, e un piano non valutato si sarebbe letto
+come un piano mediocre — un guasto travestito da opinione.
+
+**Pulizia:** il segnaposto `GATEWAY` era copiato in due moduli (entity
+resolution e playbook). Ora e' uno solo, in `backend/llm`, e un test verifica
+che i due nomi puntino allo stesso oggetto: due segnaposti che devono
+comportarsi uguale sono due cose che possono divergere.
 
 **La regola L2 vale adesso in tutti e quattro i moduli best-effort.** t.3 aveva
 risolto il problema cablando gli ingressi; restava che l'`except` largo, se un
@@ -267,18 +297,19 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**t.5 — il percorso caldo**: `process_understanding.py` (estrazione e giudizio di
-qualita'), `agents/conformance_audit.py`, `agents/plan_consolidation.py`.
-Attenzione: diversi test sostituiscono `_understanding_llm` con un doppio, e
-passare dal gateway cambia quel seam. Vanno aggiornati insieme al codice, non
-dopo. Da qui si vedra' la voce di spesa piu' grossa.
+**t.6 — `agent.py`**, l'ultimo punto di chiamata del prodotto: e' l'unico che fa
+streaming verso il frontend, e il gateway oggi non strema. Serve un ingresso che
+ritorni l'iteratore e registri alla fine (`stream_usage=True` c'e' gia'). E'
+anche l'unico file rimasto che tocca `llm/gateway.py`, quindi chi lo prende ci
+lavora da solo.
+
+Con t.6 viene dietro anche `graphs/routing_contracts.py`, che non costruisce
+nessun client ma riceve `context_router_llm` da `agent.py`: il compito
+`CONTEXT_ROUTING` esiste gia' nel registro e oggi non lo usa nessuno. Chi fa
+t.6 deve aprire **due** ingressi, non uno, o l'instradamento resta spesa
+attribuita al modello di chat.
 
 Poi, in ordine:
-
-**t.6 — `agent.py`**, per ultimo: e' l'unico che fa streaming verso il frontend, e
-il gateway oggi non strema. Serve un ingresso che ritorni l'iteratore e registri
-alla fine (`stream_usage=True` c'e' gia'). Chiudere qui anche il test di
-integrazione del turno di chat, che oggi manca (§①).
 
 **Le due code**, piccole e parallele: l'operazione `EVAL` attorno a
 `tests/evals/`, che girano col modello vero, e la trascrizione in
@@ -413,7 +444,7 @@ la colonna delle collisioni e' la ragione per cui non si assegnano a caso.
 | ~~**t.3** compiti a basso rischio~~ | fatto (reranker, entity resolution) | — |
 | ~~**t.3bis** playbook~~ | fatto | — |
 | ~~**t.4** embedding~~ | fatto | — |
-| **t.5** percorso caldo | `process_understanding.py`, `agents/conformance_audit.py`, `agents/plan_consolidation.py` + molti test | tutto |
+| ~~**t.5** percorso caldo~~ | fatto | — |
 | **t.6** `agent.py` | `agent.py` + **`llm/gateway.py`** (ingresso di streaming) | tutto |
 | **eval** operazione `EVAL` | `tests/evals/` | tutto |
 | **L5** registro dei prompt | i prompt in tutti i moduli | **dopo t.5**: tocca gli stessi prompt |
@@ -538,6 +569,7 @@ trova la chiave a `None` e falla.
 | 2026-09-20 | P1.1–P1.4: gateway, operazione, registro dei compiti e dei consumi | `a00179e` |
 | 2026-09-24 | P1.5 t.1 + t.3: ingressi che aprono l'operazione, rerank ed entity resolution sul gateway | `d1ea68a`, `chore/llm-t3` |
 | 2026-09-24 | P1.5 t.4 + t.3bis: embedding e playbook sul gateway, L2 che non si degrada, e2e della spesa | `chore/llm-t4` |
+| 2026-09-24 | P1.5 t.5: percorso caldo sul gateway, cache per fasce di timeout rimossa, segnaposto unico | `chore/llm-t5` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`

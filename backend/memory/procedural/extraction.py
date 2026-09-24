@@ -19,7 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from backend.llm import LlmTask, OperationNotOpen
+from backend.llm import GATEWAY, LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
 from backend.llm_streaming import stream_to_final
 from backend.settings import settings
@@ -43,23 +43,6 @@ class GeneralizedPlaybook(BaseModel):
     title: str = Field(description="Titolo generico del metodo")
     applies_when: str = Field(default="", description="Quando si applica, senza riferimenti cliente")
     body: str = Field(description="Il metodo generalizzato, senza nomi cliente ne' dati riservati")
-
-
-class _Gateway:
-    """Segnaposto per «il giudizio lo fa il gateway».
-
-    Stesso pattern di `memory/knowledge_graph/entity_resolution.py`: non e' un
-    client, e serve solo perche' i chiamanti distinguono «c'e' un modello
-    disponibile» da «no», e da quella distinzione dipende se si tenta.
-    """
-
-    __slots__ = ()
-
-    def __repr__(self) -> str:  # pragma: no cover - solo diagnostica
-        return "<gateway>"
-
-
-GATEWAY = _Gateway()
 
 
 def _format_episodes(episodes: list[dict[str, Any]]) -> str:

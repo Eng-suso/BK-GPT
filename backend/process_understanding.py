@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import json
 import re
-from functools import lru_cache
 from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
-from backend.llm_streaming import stream_to_final
-from backend.llm_config import chat_openai_kwargs
+from backend.llm import LlmTask, OperationNotOpen
+from backend.llm import run as llm_run
 from backend.settings import settings
 
 
@@ -572,9 +570,9 @@ def build_process_understanding(
         )
 
     try:
-        raw_process = stream_to_final(
-            _understanding_llm(_timeout_bucket(len(source_text or ""))),
-            [
+        raw_process = llm_run(
+            task=LlmTask.PLAN_EXTRACTION,
+            messages=[
                 SystemMessage(content=_PROCESS_UNDERSTANDING_PROMPT),
                 HumanMessage(
                     content=json.dumps(
@@ -586,6 +584,10 @@ def build_process_understanding(
                     )
                 ),
             ],
+            output=ProcessUnderstanding,
+            # La lunghezza vera dell'intervista, non una fascia: il timeout lo
+            # calcola il gateway, e non c'e' piu' un client da tenere in cache.
+            input_characters=len(source_text or ""),
         )
         process = _coerce_process_understanding(raw_process)
         return ProcessUnderstandingResult(
@@ -886,24 +888,25 @@ def evaluate_process_understanding_quality(
         try:
             payload = process.model_dump(mode="json")
             payload.pop("quality_report", None)
-            raw_report = stream_to_final(
-                _quality_evaluator_llm(),
-                [
-                    SystemMessage(content=_PROCESS_UNDERSTANDING_QUALITY_PROMPT),
-                    HumanMessage(
-                        content=json.dumps(
-                            {
-                                "source_text": source_text,
-                                "process_understanding": payload,
-                                "structural_diagnostics": process_understanding_diagnostics(process).model_dump(
-                                    mode="json"
-                                ),
-                                "bpmn_validation_warnings": bpmn_warnings or [],
-                            },
-                            ensure_ascii=False,
-                        )
+            domanda = json.dumps(
+                {
+                    "source_text": source_text,
+                    "process_understanding": payload,
+                    "structural_diagnostics": process_understanding_diagnostics(process).model_dump(
+                        mode="json"
                     ),
-                ]
+                    "bpmn_validation_warnings": bpmn_warnings or [],
+                },
+                ensure_ascii=False,
+            )
+            raw_report = llm_run(
+                task=LlmTask.PLAN_QUALITY,
+                messages=[
+                    SystemMessage(content=_PROCESS_UNDERSTANDING_QUALITY_PROMPT),
+                    HumanMessage(content=domanda),
+                ],
+                output=ProcessUnderstandingQualityReport,
+                input_characters=len(domanda),
             )
             return coherent_quality_report(
                 raw_report
@@ -911,6 +914,12 @@ def evaluate_process_understanding_quality(
                 else ProcessUnderstandingQualityReport.model_validate(raw_report),
                 process,
             )
+        except OperationNotOpen:
+            # Il fallback conservativo esiste per i guasti del giudice, non per
+            # un punto d'ingresso che non ha dichiarato il lavoro: quello
+            # darebbe un giudizio prudente **sempre**, e il piano sembrerebbe
+            # solo di qualita' mediocre invece che non valutato.
+            raise
         except Exception as exc:
             return conservative_process_quality_report(
                 process,
@@ -1187,39 +1196,6 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
         },
         blocking=blocking,
         warnings=warnings,
-    )
-
-
-@lru_cache(maxsize=8)
-def _understanding_llm(input_characters: int = 0) -> ChatOpenAI:
-    """Estrattore per una fascia di lunghezza dell'input.
-
-    La cache e' chiavata sui caratteri perche' il timeout ne dipende: con una
-    cache a chiave singola la prima nota corta avrebbe fissato il timeout del
-    caso breve per ogni intervista successiva. Chi chiama passa la lunghezza
-    arrotondata (`_timeout_bucket`), cosi' le fasce restano poche.
-    """
-    return ChatOpenAI(
-        **chat_openai_kwargs(input_characters=input_characters)
-    ).with_structured_output(ProcessUnderstanding)
-
-
-def _timeout_bucket(characters: int) -> int:
-    """Arrotonda la lunghezza a scaglioni di 2.000 caratteri.
-
-    Serve alla cache, non al timeout: senza arrotondamento ogni intervista
-    avrebbe la sua lunghezza esatta e ogni estrazione costruirebbe un client
-    nuovo. Arrotonda per eccesso, cosi' il timeout non scende mai sotto quello
-    che l'input meriterebbe.
-    """
-    step = 2_000
-    return ((max(0, characters) + step - 1) // step) * step
-
-
-@lru_cache(maxsize=1)
-def _quality_evaluator_llm() -> ChatOpenAI:
-    return ChatOpenAI(**chat_openai_kwargs()).with_structured_output(
-        ProcessUnderstandingQualityReport
     )
 
 

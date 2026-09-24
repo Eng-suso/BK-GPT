@@ -93,18 +93,27 @@ class TestRetryInUnPostoSolo:
         assert chat_openai_kwargs()["max_retries"] == settings.model_max_retries
 
 
-class TestFasceDellaCache:
-    def test_le_fasce_arrotondano_per_eccesso(self):
-        """Il timeout non deve mai scendere sotto quello che l'input meriterebbe."""
-        from backend.process_understanding import _timeout_bucket
+class TestLaCacheAFasceNonEsistePiu:
+    """Le fasce erano un rimedio a un problema che il gateway non ha.
 
-        for caratteri in (1, 999, 2_000, 2_001, 5_500):
-            assert _timeout_bucket(caratteri) >= caratteri
+    `process_understanding` cachava il client per scaglioni di 2.000 caratteri,
+    perche' il timeout dipende dalla lunghezza dell'input e una cache a chiave
+    singola avrebbe fissato il timeout del caso breve per ogni intervista
+    successiva. Da t.5 il client lo costruisce il gateway, che la lunghezza la
+    riceve a ogni chiamata: l'estrazione passa quella **vera**, non un
+    arrotondamento per eccesso.
 
-    def test_le_fasce_restano_poche(self):
-        """Senza arrotondamento ogni intervista costruirebbe un client nuovo."""
-        from backend.process_understanding import _timeout_bucket
+    Cosa copre cosa, adesso: che il timeout scali e' di `timeout_for_input`
+    (sopra); che un compito lungo riceva davvero un timeout piu' lungo e' di
+    `test_llm_gateway::test_un_compito_che_scala_riceve_un_timeout_piu_lungo`;
+    che l'estrazione dichiari la lunghezza esatta e'
+    `test_llm_operation_wiring::test_l_estrazione_dichiara_il_compito_e_la_lunghezza_vera`.
+    """
 
-        fasce = {_timeout_bucket(n) for n in range(0, 20_001, 137)}
+    def test_il_percorso_caldo_non_ha_piu_una_cache_da_invalidare(self):
+        """Una cache di client e' stato globale: rimetterla in piedi di nascosto
+        riporterebbe anche il bug del timeout congelato sul caso breve."""
+        from backend import process_understanding as pu
 
-        assert len(fasce) <= 12, f"troppe fasce, la cache non serve piu': {sorted(fasce)}"
+        assert not hasattr(pu, "_timeout_bucket")
+        assert not hasattr(pu, "_understanding_llm")
