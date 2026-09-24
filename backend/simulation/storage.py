@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -19,6 +19,68 @@ from backend.workspace_storage import (
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+#: Quanto si aspetta oltre il tempo massimo di Prosimos prima di dire che una
+#: simulazione non tornera'. Il margine copre il tempo di scrittura del
+#: risultato, non una seconda attesa.
+STALE_RUN_MARGIN_SECONDS = 120.0
+
+#: Cosa legge il consulente al posto di una rotella che gira per sempre.
+STALE_RUN_ERROR = (
+    "La simulazione non e' arrivata in fondo: il servizio si e' fermato mentre "
+    "girava. Rilanciala."
+)
+
+
+def _started_at(created_at: str | None) -> datetime | None:
+    if not created_at:
+        return None
+    try:
+        parsed = datetime.fromisoformat(created_at)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _expire_stale_runs(session) -> list[int]:
+    """Chiude le simulazioni rimaste `pending` oltre il tempo massimo.
+
+    Una simulazione gira in un `BackgroundTasks` dello stesso processo: un
+    riavvio o un crash a meta' la lascia `pending` in database, e da quel
+    momento due cose non succedono piu'. La prima e' che nessuno la fallisce,
+    quindi il frontend continua a chiedere il suo stato ogni cinque secondi,
+    per sempre. La seconda, peggiore, e' che l'idempotenza vede ancora un run
+    "in volo" con quella chiave e rifiuta di rilanciare lo scenario: un crash
+    rende quello scenario non simulabile, e nessun messaggio lo dice.
+
+    Returns:
+        list[int]: Gli id chiusi adesso. Vuota quando non c'era niente di
+            scaduto, che e' il caso normale.
+    """
+    cutoff = datetime.now(UTC) - timedelta(
+        seconds=settings.prosimos_timeout_seconds + STALE_RUN_MARGIN_SECONDS
+    )
+    pending = session.execute(
+        select(WorkspaceSimulationRun)
+        .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
+        .where(WorkspaceSimulationRun.status == "pending")
+    ).scalars().all()
+
+    expired: list[int] = []
+    for run in pending:
+        started = _started_at(run.created_at)
+        # Una data illeggibile e' gia' un run che nessuno puo' giudicare vivo.
+        if started is not None and started > cutoff:
+            continue
+        run.status = "failed"
+        run.error = STALE_RUN_ERROR
+        run.completed_at = now_iso()
+        expired.append(run.id)
+
+    if expired:
+        session.flush()
+    return expired
 
 
 def simulation_run_to_dict(
@@ -54,6 +116,8 @@ def find_active_run_by_key(
 ) -> dict[str, Any] | None:
     """Return an in-flight (pending) run with the same key, if any."""
     with workspace_connection() as session:
+        # Prima di dire "ce n'e' gia' uno in volo": uno scaduto non e' in volo.
+        _expire_stale_runs(session)
         run = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
@@ -176,6 +240,9 @@ def fail_simulation_run(*, run_id: int, error: str) -> dict[str, Any]:
 
 def get_simulation_run(run_id: int) -> dict[str, Any] | None:
     with workspace_connection() as session:
+        # E' la rotta che il frontend interroga ogni cinque secondi: e' qui che
+        # una simulazione morta deve smettere di sembrare viva.
+        _expire_stale_runs(session)
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             return None
@@ -184,6 +251,7 @@ def get_simulation_run(run_id: int) -> dict[str, Any] | None:
 
 def list_simulation_runs(bpmn_model_id: str) -> list[dict[str, Any]]:
     with workspace_connection() as session:
+        _expire_stale_runs(session)
         rows = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
