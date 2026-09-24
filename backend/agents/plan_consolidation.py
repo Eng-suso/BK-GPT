@@ -162,30 +162,30 @@ def llm_plan_unifier() -> PlanUnifier | None:
         return None
 
     from langchain_core.messages import HumanMessage, SystemMessage
-    from langchain_openai import ChatOpenAI
 
-    from backend.llm_config import chat_openai_kwargs
-    from backend.llm_streaming import stream_to_final
-
-    runnable = ChatOpenAI(**chat_openai_kwargs()).with_structured_output(PlanUnificationVerdict)
+    from backend.llm import LlmTask
+    from backend.llm import run as llm_run
 
     def _unify(request: UnificationRequest) -> PlanUnificationVerdict:
-        raw = stream_to_final(
-            runnable,
-            [
+        domanda = json.dumps(
+            {
+                "processo": request.process_name,
+                "elementi": request.elements,
+                "candidati_inizio": request.start_candidates,
+                "percorso_raccontato_da_ogni_voce": request.source_paths,
+            },
+            ensure_ascii=False,
+        )
+        raw = llm_run(
+            task=LlmTask.PLAN_UNIFICATION,
+            messages=[
                 SystemMessage(content=UNIFIER_PROMPT),
-                HumanMessage(
-                    content=json.dumps(
-                        {
-                            "processo": request.process_name,
-                            "elementi": request.elements,
-                            "candidati_inizio": request.start_candidates,
-                            "percorso_raccontato_da_ogni_voce": request.source_paths,
-                        },
-                        ensure_ascii=False,
-                    )
-                ),
+                HumanMessage(content=domanda),
             ],
+            output=PlanUnificationVerdict,
+            # L'unificazione vede tutti gli elementi di tutte le voci: e' la
+            # chiamata con l'input piu' grande dopo l'estrazione.
+            input_characters=len(domanda),
         )
         return (
             raw

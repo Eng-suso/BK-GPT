@@ -1176,14 +1176,13 @@ def test_process_understanding_builder_reports_missing_llm_without_fallback(monk
 
 
 def test_process_understanding_builder_does_not_mask_programmer_bug(monkeypatch):
-    class BrokenLLM:
-        def stream(self, *_args, **_kwargs):
-            raise TypeError("bug interno")
+    def _bug_interno(**_kwargs):
+        raise TypeError("bug interno")
 
     monkeypatch.setattr("backend.process_understanding.settings.openai_api_key", "sk-test")
-    # `*_`: il builder riceve la fascia di lunghezza dell'input, perche' il
-    # timeout scala con l'intervista (vedi `_timeout_bucket`).
-    monkeypatch.setattr("backend.process_understanding._understanding_llm", lambda *_: BrokenLLM())
+    # Il seam non e' piu' il client ma il gateway: l'estrazione dichiara il
+    # compito e non costruisce piu' niente.
+    monkeypatch.setattr("backend.process_understanding.llm_run", _bug_interno)
 
     try:
         build_process_understanding("Processo Test", "descrizione")

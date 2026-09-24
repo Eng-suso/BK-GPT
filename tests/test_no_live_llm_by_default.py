@@ -30,12 +30,21 @@ def test_costruire_un_client_senza_chiave_e_un_errore_di_configurazione():
         chat_openai_kwargs()
 
 
-def test_i_builder_task_scoped_non_chiamano_il_provider():
-    """Il percorso reale: `ChatOpenAI(**chat_openai_kwargs())` non arriva a costruire."""
-    from backend.process_understanding import _understanding_llm
+def test_il_gateway_non_costruisce_un_client_senza_chiave():
+    """Il percorso reale, da quando i compiti passano dal gateway.
 
-    with pytest.raises(MissingProviderKey):
-        _understanding_llm()
+    Prima qui si chiamava `_understanding_llm()`, il builder dell'estrazione.
+    Quel builder non esiste piu': il modello lo costruisce il gateway, e senza
+    chiave si ferma prima di uscire di processo — lasciando pero' la sua riga
+    nel registro, perche' un'installazione senza chiave non e'
+    un'installazione che spende zero perche' e' efficiente.
+    """
+    from backend.llm import LlmTask, OperationKind, operation
+    from backend.llm import run as llm_run
+
+    with operation(OperationKind.PLAN_SYNTHESIS):
+        with pytest.raises(MissingProviderKey):
+            llm_run(task=LlmTask.PLAN_EXTRACTION, messages=[])
 
 
 def test_l_estrazione_dichiara_la_configurazione_mancante_invece_di_fallire_sporco():

@@ -538,6 +538,152 @@ class TestIPlaybookPassanoDalGateway:
         assert not hasattr(extraction, "_generalize_llm")
 
 
+class TestIlPercorsoCaldoPassaDalGateway:
+    """t.5 — estrazione, giudizio di qualita', revisore, unificazione.
+
+    Sono le quattro chiamate piu' care che facciamo, e fino a qui erano le
+    uniche rimaste a costruirsi il client da sole. Quello che si verifica non e'
+    che "funzionano": e' che **dichiarano il compito giusto** e passano la
+    lunghezza dell'input, perche' e' da li' che il gateway ricava il timeout e
+    il registro ricava la riga.
+    """
+
+    def test_l_estrazione_dichiara_il_compito_e_la_lunghezza_vera(self, monkeypatch):
+        from backend.llm import LlmTask
+        from backend import process_understanding as pu
+
+        chiamate: list[dict] = []
+
+        def _fake_run(**kwargs):
+            chiamate.append(kwargs)
+            return pu.ProcessUnderstanding(
+                title="T", objective="O", scope="S",
+            )
+
+        note = "una nota di intervista" * 40
+        monkeypatch.setattr(pu.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.process_understanding.llm_run", _fake_run)
+
+        esito = pu.build_process_understanding("Processo", note, with_quality_report=False)
+
+        assert esito.status == "success"
+        assert chiamate[0]["task"] is LlmTask.PLAN_EXTRACTION
+        assert chiamate[0]["output"] is pu.ProcessUnderstanding
+        # La lunghezza vera, non una fascia arrotondata: il timeout lo calcola
+        # il gateway e la cache per scaglioni non serve piu' a nessuno.
+        assert chiamate[0]["input_characters"] == len(note)
+
+    def test_il_giudizio_di_qualita_dichiara_il_compito_suo(self, monkeypatch):
+        from backend.llm import LlmTask
+        from backend import process_understanding as pu
+
+        chiamate: list[dict] = []
+
+        def _fake_run(**kwargs):
+            chiamate.append(kwargs)
+            return pu.ProcessUnderstandingQualityReport(
+                overall_score=7, dimensions=[], blocking_gaps=[], recommendations=[],
+            )
+
+        monkeypatch.setattr(pu.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.process_understanding.llm_run", _fake_run)
+
+        pu.evaluate_process_understanding_quality(
+            pu.ProcessUnderstanding(title="T", objective="O", scope="S"),
+            source_text="note",
+        )
+
+        assert chiamate[0]["task"] is LlmTask.PLAN_QUALITY
+
+    def test_il_giudizio_di_qualita_non_degrada_su_un_ingresso_dimenticato(self, monkeypatch):
+        """Il fallback conservativo e' per i guasti del giudice, non per L2.
+
+        Degradare qui darebbe un giudizio prudente **sempre**, e il piano
+        sembrerebbe di qualita' mediocre invece che non valutato: un guasto che
+        si legge come un'opinione.
+        """
+        from backend.llm import OperationNotOpen
+        from backend import process_understanding as pu
+
+        def _rifiuta(**_kwargs):
+            raise OperationNotOpen("nessuna operazione")
+
+        monkeypatch.setattr(pu.settings, "openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.process_understanding.llm_run", _rifiuta)
+
+        with pytest.raises(OperationNotOpen):
+            pu.evaluate_process_understanding_quality(
+                pu.ProcessUnderstanding(title="T", objective="O", scope="S"),
+                source_text="note",
+            )
+
+    def test_il_revisore_di_conformita_dichiara_il_compito(self, monkeypatch):
+        from backend.llm import LlmTask
+        from backend.agents import conformance_audit as ca
+
+        chiamate: list[dict] = []
+
+        def _fake_run(**kwargs):
+            chiamate.append(kwargs)
+            return ca.SourceAuditVerdict()
+
+        monkeypatch.setattr("backend.settings.settings.openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.llm.run", _fake_run)
+
+        revisore = ca.llm_source_auditor()
+        assert revisore is not None
+        revisore(
+            ca.SourceAuditRequest(
+                process_name="P", source_id="s1", source_name="Intervista",
+                source_text="testo", plan_elements=[],
+            )
+        )
+
+        assert chiamate[0]["task"] is LlmTask.CONFORMANCE_AUDIT
+        assert chiamate[0]["input_characters"] > 0
+
+    def test_l_unificatore_dichiara_il_compito(self, monkeypatch):
+        from backend.llm import LlmTask
+        from backend.agents import plan_consolidation as pc
+
+        chiamate: list[dict] = []
+
+        def _fake_run(**kwargs):
+            chiamate.append(kwargs)
+            return pc.PlanUnificationVerdict()
+
+        monkeypatch.setattr("backend.settings.settings.openai_api_key", "sk-test")
+        monkeypatch.setattr("backend.llm.run", _fake_run)
+
+        unificatore = pc.llm_plan_unifier()
+        assert unificatore is not None
+        unificatore(
+            pc.UnificationRequest(
+                process_name="P", elements=[], start_candidates=[], source_paths={},
+            )
+        )
+
+        assert chiamate[0]["task"] is LlmTask.PLAN_UNIFICATION
+
+    def test_il_percorso_caldo_non_costruisce_piu_client(self):
+        """La verifica che tiene: i builder non esistono, quindi non tornano."""
+        from backend import process_understanding as pu
+
+        assert not hasattr(pu, "_understanding_llm")
+        assert not hasattr(pu, "_quality_evaluator_llm")
+        assert not hasattr(pu, "_timeout_bucket")
+
+
+def test_il_segnaposto_del_gateway_e_uno_solo():
+    """Pulizia: due segnaposti identici sono due cose che possono divergere."""
+    from backend.llm import GATEWAY
+    from backend.memory.knowledge_graph import entity_resolution as er
+    from backend.memory.procedural import extraction
+
+    assert er.GATEWAY is GATEWAY
+    assert extraction.GATEWAY is GATEWAY
+
+
 def test_a_model_call_without_an_entry_point_is_refused_not_silently_unattributed():
     """La garanzia dietro tutto: meglio un errore che una spesa senza nome."""
     from backend.llm import LlmTask, OperationNotOpen, run

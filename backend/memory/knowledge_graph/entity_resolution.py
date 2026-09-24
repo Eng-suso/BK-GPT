@@ -40,7 +40,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
-from backend.llm import LlmTask, OperationNotOpen
+from backend.llm import GATEWAY, LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
 from backend.llm_streaming import stream_to_final
 from backend.memory import embeddings
@@ -391,24 +391,6 @@ def adjudicate(
         method="llm",
         reason=verdict.reason[:300],
     )
-
-
-class _Gateway:
-    """Segnaposto per «il giudizio lo fa il gateway».
-
-    Non e' un client: il gateway costruisce il suo quando serve, sceglie il
-    modello dal profilo del compito e registra la spesa. Esiste perche' i
-    chiamanti distinguono «c'e' un modello disponibile» (un oggetto) da «no»
-    (`None`), e da quella distinzione dipende se il merge fuzzy si tenta.
-    """
-
-    __slots__ = ()
-
-    def __repr__(self) -> str:  # pragma: no cover - solo diagnostica
-        return "<gateway>"
-
-
-GATEWAY = _Gateway()
 
 
 def build_llm() -> Any | None:

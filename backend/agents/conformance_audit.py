@@ -315,30 +315,30 @@ def llm_source_auditor() -> SourceAuditor | None:
         return None
 
     from langchain_core.messages import HumanMessage, SystemMessage
-    from langchain_openai import ChatOpenAI
 
-    from backend.llm_config import chat_openai_kwargs
-    from backend.llm_streaming import stream_to_final
-
-    runnable = ChatOpenAI(**chat_openai_kwargs()).with_structured_output(SourceAuditVerdict)
+    from backend.llm import LlmTask
+    from backend.llm import run as llm_run
 
     def _audit(request: SourceAuditRequest) -> SourceAuditVerdict:
-        raw = stream_to_final(
-            runnable,
-            [
+        domanda = json.dumps(
+            {
+                "processo": request.process_name,
+                "fonte": request.source_name,
+                "testo_fonte": request.source_text,
+                "elementi_del_piano": request.plan_elements,
+            },
+            ensure_ascii=False,
+        )
+        raw = llm_run(
+            task=LlmTask.CONFORMANCE_AUDIT,
+            messages=[
                 SystemMessage(content=AUDITOR_PROMPT),
-                HumanMessage(
-                    content=json.dumps(
-                        {
-                            "processo": request.process_name,
-                            "fonte": request.source_name,
-                            "testo_fonte": request.source_text,
-                            "elementi_del_piano": request.plan_elements,
-                        },
-                        ensure_ascii=False,
-                    )
-                ),
+                HumanMessage(content=domanda),
             ],
+            output=SourceAuditVerdict,
+            # Il revisore legge una fonte intera: il timeout deve seguirla, o le
+            # interviste lunghe scadono proprio dove la verifica serve di piu'.
+            input_characters=len(domanda),
         )
         return raw if isinstance(raw, SourceAuditVerdict) else SourceAuditVerdict.model_validate(raw)
 

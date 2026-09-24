@@ -50,6 +50,27 @@ from backend.settings import settings
 _Output = TypeVar("_Output", bound=BaseModel)
 
 
+class _Gateway:
+    """Segnaposto per «il giudizio lo fa il gateway».
+
+    Non e' un client e non si costruisce niente: il gateway sceglie il modello
+    dal profilo del compito quando la chiamata parte. Esiste perche' diversi
+    moduli distinguono «c'e' un modello disponibile» (un oggetto) da «no»
+    (`None`), e da quella distinzione dipende se un lavoro best-effort si tenta.
+
+    Stava scritto uguale in due moduli: ora e' uno solo, perche' due segnaposti
+    che devono comportarsi allo stesso modo sono due cose che possono divergere.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - solo diagnostica
+        return "<gateway>"
+
+
+GATEWAY = _Gateway()
+
+
 class OperationNotOpen(RuntimeError):
     """Una chiamata al modello fuori da qualunque operazione (L2).
 

@@ -142,8 +142,6 @@ def _operational_schema():
 # settings. Si svuotano a ogni test. `api/routes/audio.py` non e' in lista: la
 # sua cache e' gia' chiavata sull'api key e si invalida da sola.
 _CACHED_PROVIDER_CLIENTS: tuple[tuple[str, str], ...] = (
-    ("backend.process_understanding", "_understanding_llm"),
-    ("backend.process_understanding", "_quality_evaluator_llm"),
     ("backend.memory.reranker", "build_reranker"),
     ("backend.llm.gateway", "_embedding_client"),
 )
