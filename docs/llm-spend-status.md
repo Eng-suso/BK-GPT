@@ -16,8 +16,8 @@ aggiorna §① (cosa ha chiuso), §② (il prossimo passo, uno solo) e §⑥ (la
 log). Un passo non si dichiara fatto se i suoi test non sono verdi: §① distingue
 *scritto* da *verificato*, ed e' la distinzione che vale.
 
-Ultimo aggiornamento: 2026-09-20.
-Branch di lavoro: `chore/llm-spend-p0` (worktree `.claude/worktrees/llm-spend-p0`).
+Ultimo aggiornamento: 2026-09-24.
+Branch di lavoro: `chore/llm-t3` (worktree `.claude/worktrees/llm-t3`).
 
 ---
 
@@ -131,8 +131,47 @@ avrebbe fissato il timeout del caso breve per ogni intervista successiva.
 | P1.2 | Registro dei compiti (`TaskProfile`), 12 compiti | **fatto, verificato** |
 | P1.3 | Registro dei consumi su Postgres + costo stimato | **fatto, verificato** |
 | P1.4 | `llm.run` che rifiuta una chiamata senza operazione (L2) e registra sempre (L4) | **fatto, verificato** |
-| P1.5 | Migrazione dei punti di chiamata al gateway | **non iniziato** ← §② |
+| P1.5 t.1 | I punti d'ingresso aprono l'operazione | **fatto** (chat turn da verificare, sotto) |
+| P1.5 t.2 | Il pool di estrazione la eredita nei thread | **fatto, verificato** |
+| P1.5 t.3 | reranker + entity resolution sul gateway | **fatto, verificato** |
+| P1.5 t.4 | embedding sul gateway | **non iniziato** ← §② |
+| P1.5 t.5 | percorso caldo (`process_understanding`, audit, consolidamento) | **non iniziato** |
+| P1.5 t.6 | `agent.py` (streaming) | **non iniziato** |
 | P1.6 | L1 in CI: `ChatOpenAI` / `openai` vietati fuori da `backend/llm/` | **non iniziato** |
+
+**t.1 — aprono l'operazione:** `plan_worker` (PLAN_SYNTHESIS), `conformance_worker`
+(CONFORMANCE_AUDIT), `ingest_worker` (KG_INGESTION) e il turno di chat
+(CHAT_TURN, in `agent_runtime.stream_agent_events`).
+
+Il turno di chat usa `new_operation` + `adopt` invece di `with operation(...)`, e
+la ragione va ricordata: `stream_agent_events` e' un **generatore**, e un
+`ContextVar` legato dentro il corpo di un generatore resta visibile al chiamante
+fra un `next()` e l'altro, rilasciandosi solo quando il generatore si chiude. Se
+nessuno lo chiude, resta legato. L'operazione si costruisce nella richiesta - dove
+tenant e scope ci sono - e si adotta nel thread dell'agente, che e' dove il lavoro
+succede.
+
+**Buco dichiarato:** il turno di chat non ha un test di integrazione che dimostri
+l'operazione aperta dentro il thread. Le sue parti sono coperte (`new_operation`,
+`adopt`, l'eredita' nei thread), ma il percorso intero no: richiede DB +
+checkpointer + agente. Da chiudere insieme a t.6, che tocca lo stesso percorso.
+
+**t.3 — quello che e' *sparito* e' il risultato migliore.** Reranker ed entity
+resolution avevano ognuno un client costruito in casa, una cache globale e un
+percorso d'errore per l'init fallito. Ora chiedono al gateway e nel modulo resta
+la sola domanda che il chiamante deve poter fare: «e' possibile, adesso,
+riordinare / dare un giudizio?». Il singleton `_llm_singleton` non c'e' piu', e
+con lui una fonte di stato condiviso fra test.
+
+In entrambi resta il **seam dell'iniezione**: un modello passato a mano bypassa il
+gateway, ed e' quello che usano i test. Il gateway e' il percorso normale, non
+l'unico.
+
+Una cosa a cui stare attenti su questi due: sono `best-effort` con un `except`
+largo. Se l'operazione non fosse aperta, il gateway solleverebbe, l'`except` lo
+inghiottirebbe, e si perderebbe rerank ed entity resolution **in silenzio** — il
+grafo accumulerebbe duplicati senza dirlo. E' la ragione per cui t.1 doveva
+chiudersi prima di t.3, e non era ovvio nell'ordine scritto ieri.
 
 Il pacchetto e' `backend/llm/`: `operation.py`, `tasks.py`, `prices.py`,
 `usage.py`, `gateway.py`. `backend/llm_config.py` resta il posto della policy sui
@@ -170,34 +209,28 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**P1.5 — portare i punti di chiamata sul gateway.** E' il passo che trasforma la
-fondazione in misura vera. Da fare in quest'ordine, che va dal meno al piu'
-rischioso:
+**t.4 — gli embedding sul gateway** (`memory/embeddings.py`). API diversa: i token
+stanno in `response.usage.prompt_tokens`, non in `usage_metadata`, quindi serve un
+ingresso suo nel gateway. Da non saltare: nell'ingestione KG il volume sta qui, e
+il piano su questo punto parla solo di chat. L'operazione c'e' gia' (t.1 ha
+agganciato `ingest_worker`).
 
-1. **I punti d'ingresso aprono l'operazione.** Prima di tutto il resto, perche'
-   ogni migrazione successiva dipende da questo: senza operazione aperta il
-   gateway rifiuta (L2). Sono `plan_worker`, `conformance_worker`,
-   `ingest_worker`, il turno di chat in `agent_runtime`, il comando «Genera
-   BPMN», e gli eval.
-2. **Il pool di estrazione** in `agents/process_synthesis.py`: avvolgere
-   `_extract` con `inherit_operation`. Senza questo le chiamate piu' care che
-   facciamo — una per intervista, in parallelo — risultano senza operazione.
-3. **I compiti a basso rischio**, che hanno gia' un guard sulla chiave e tornano
-   `None` quando non c'e' un LLM: `memory/reranker.py`,
-   `memory/knowledge_graph/entity_resolution.py`,
-   `memory/procedural/extraction.py`.
-4. **Gli embedding** (`memory/embeddings.py`). API diversa: i token stanno in
-   `response.usage.prompt_tokens`, non in `usage_metadata`, quindi serve un
-   ingresso suo nel gateway. Da non saltare: nell'ingestione KG il volume sta
-   qui, e il piano su questo punto parla solo di chat.
-5. **Il percorso caldo per ultimo**: `process_understanding.py` (estrazione e
-   giudizio di qualita'), `agents/conformance_audit.py`,
-   `agents/plan_consolidation.py`. Attenzione: diversi test sostituiscono
-   `_understanding_llm` con un doppio, e passare dal gateway cambia quel seam.
-   Vanno aggiornati insieme al codice, non dopo.
-6. **`agent.py`** per ultimo fra tutti: e' l'unico che fa streaming verso il
-   frontend, e il gateway oggi non strema. Serve un ingresso che ritorni
-   l'iteratore e registri alla fine (`stream_usage=True` c'e' gia').
+Poi, in ordine:
+
+**t.5 — il percorso caldo**: `process_understanding.py` (estrazione e giudizio di
+qualita'), `agents/conformance_audit.py`, `agents/plan_consolidation.py`.
+Attenzione: diversi test sostituiscono `_understanding_llm` con un doppio, e
+passare dal gateway cambia quel seam. Vanno aggiornati insieme al codice, non
+dopo. Da qui si vedra' la voce di spesa piu' grossa.
+
+**t.6 — `agent.py`**, per ultimo: e' l'unico che fa streaming verso il frontend, e
+il gateway oggi non strema. Serve un ingresso che ritorni l'iteratore e registri
+alla fine (`stream_usage=True` c'e' gia'). Chiudere qui anche il test di
+integrazione del turno di chat, che oggi manca (§①).
+
+Manca ancora un punto d'ingresso: gli **eval** (`tests/evals/`), che girano col
+modello vero e la cui spesa oggi non sarebbe attribuita. Vanno avvolti in
+un'operazione `EVAL`.
 
 Poi **P1.6**, la regola L1 in CI: una regola ast-grep che vieta `ChatOpenAI`,
 `openai`, `OpenAIEmbeddings` fuori da `backend/llm/`. Va messa **dopo** la
@@ -433,6 +466,7 @@ trova la chiave a `None` e falla.
 | 2026-09-20 | `MODEL_MAX_RETRIES` 2 → 0 in `.env` (non committabile), backup `.env.bak-p0` | fuori da git |
 | 2026-09-20 | P0 mergiato in main | `7037004` |
 | 2026-09-20 | P1.1–P1.4: gateway, operazione, registro dei compiti e dei consumi | `a00179e` |
+| 2026-09-24 | P1.5 t.1 + t.3: ingressi che aprono l'operazione, rerank ed entity resolution sul gateway | `d1ea68a`, `chore/llm-t3` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`

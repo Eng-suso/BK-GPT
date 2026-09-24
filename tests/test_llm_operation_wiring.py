@@ -181,6 +181,129 @@ class TestIPuntiDIngressoApronoLOperazione:
         assert current_operation() is None
 
 
+class TestICompitiABassoRischioPassanoDalGateway:
+    """t.3 — reranker ed entity resolution.
+
+    Entrambi avevano un client costruito in casa e una cache da invalidare.
+    Adesso chiedono al gateway, e quello che resta nel modulo e' la sola domanda
+    che il chiamante deve poter fare: «e' possibile, adesso, riordinare / dare un
+    giudizio?».
+    """
+
+    def test_il_reranker_esiste_solo_se_c_e_una_chiave(self, monkeypatch):
+        from backend.memory import reranker
+        from backend.settings import settings
+
+        reranker.build_reranker.cache_clear()
+        monkeypatch.setattr(settings, "openai_api_key", None)
+        assert reranker.build_reranker() is None
+
+        reranker.build_reranker.cache_clear()
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+        assert reranker.build_reranker() is not None
+        reranker.build_reranker.cache_clear()
+
+    def test_il_reranker_chiede_al_gateway_col_compito_giusto(self, monkeypatch):
+        """Che il gateway poi registri e' verificato in `test_llm_gateway.py`:
+        qui conta che il compito dichiarato sia quello, perche' e' il compito a
+        decidere modello, ragionamento e timeout."""
+        from backend.llm import LlmTask, operation
+        from backend.memory import reranker
+
+        chiamate: list[dict] = []
+
+        class _Verdetto:
+            order = [2, 0, 1]
+
+        def _fake_run(**kwargs):
+            chiamate.append(kwargs)
+            return _Verdetto()
+
+        monkeypatch.setattr("backend.memory.reranker.llm_run", _fake_run)
+
+        with operation(OperationKind.CHAT_TURN):
+            ordine = reranker.LLMReranker().order("domanda", ["a", "b", "c"])
+
+        assert ordine == [2, 0, 1]
+        assert chiamate[0]["task"] is LlmTask.RETRIEVAL_RERANK
+        assert chiamate[0]["output"] is reranker._RerankVerdict
+
+    def test_un_modello_iniettato_resta_il_seam_dei_test(self, monkeypatch):
+        """Il gateway non chiude la porta a un doppio deterministico."""
+        from backend.memory import reranker
+
+        class _Finto:
+            def stream(self, *_a, **_k):
+                class _V:
+                    order = [1, 0]
+
+                yield _V()
+
+        def _non_chiamare(**_kwargs):
+            raise AssertionError("con un modello iniettato il gateway non si tocca")
+
+        monkeypatch.setattr("backend.memory.reranker.llm_run", _non_chiamare)
+
+        assert reranker.LLMReranker(_Finto()).order("q", ["a", "b"]) == [1, 0]
+
+    def test_il_resolver_dichiara_il_gateway_invece_di_costruire_un_client(self, monkeypatch):
+        from backend.memory.knowledge_graph import entity_resolution as er
+        from backend.settings import settings
+
+        monkeypatch.setattr(settings, "openai_api_key", None)
+        assert er.build_llm() is None, "senza chiave non si tenta il merge fuzzy"
+
+        monkeypatch.setattr(settings, "openai_api_key", "sk-test")
+        assert er.build_llm() is er.GATEWAY
+
+    def test_il_resolver_non_ha_piu_un_singleton_da_invalidare(self):
+        """Una cache globale in meno e' una fonte di stato fra test in meno."""
+        from backend.memory.knowledge_graph import entity_resolution as er
+
+        assert not hasattr(er, "_llm_singleton")
+
+
+def test_the_ingestion_worker_opens_its_operation(monkeypatch):
+    """Dentro l'ingestione girano gli embedding e il giudizio di entity resolution.
+
+    Senza operazione aperta il gateway rifiuta, l'`except` largo del resolver lo
+    inghiotte, e il grafo accumula duplicati in silenzio: il guasto peggiore,
+    perche' non si vede.
+    """
+    from backend.memory.knowledge_graph import canonical
+    from backend.workers import ingest_worker
+
+    vista: dict = {}
+
+    class _Row:
+        id = 1
+        payload = {
+            "consultant_id": "c1",
+            "client_id": "cli-1",
+            "project_id": "proj-3",
+            "process_id": "proc-3",
+            "entities": [],
+        }
+
+    def _fake_write_evidence(**_payload):
+        op = current_operation()
+        vista["kind"] = op.kind if op else None
+        vista["project_id"] = op.project_id if op else None
+        vista["process_id"] = op.process_id if op else None
+        return {}
+
+    monkeypatch.setattr(ingest_worker, "_consultant", lambda: "c1")
+    monkeypatch.setattr(ingest_worker, "_requeue_stuck", lambda *_a, **_k: None)
+    monkeypatch.setattr(ingest_worker, "_claim", lambda *_a, **_k: [_Row()])
+    monkeypatch.setattr(ingest_worker, "_mark_done", lambda *_a, **_k: True)
+    monkeypatch.setattr(canonical, "write_evidence", _fake_write_evidence)
+    monkeypatch.setattr(ingest_worker.settings, "canonical_database_url", "postgresql://x/y")
+
+    assert ingest_worker.drain_once() == 1
+    assert vista["kind"] == OperationKind.KG_INGESTION
+    assert (vista["project_id"], vista["process_id"]) == ("proj-3", "proc-3")
+
+
 def test_a_model_call_without_an_entry_point_is_refused_not_silently_unattributed():
     """La garanzia dietro tutto: meglio un errore che una spesa senza nome."""
     from backend.llm import LlmTask, OperationNotOpen, run

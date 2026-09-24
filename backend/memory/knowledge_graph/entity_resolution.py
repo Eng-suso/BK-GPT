@@ -40,6 +40,8 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.db import canonical_session
+from backend.llm import LlmTask
+from backend.llm import run as llm_run
 from backend.llm_streaming import stream_to_final
 from backend.memory import embeddings
 from backend.services import degradation_counters
@@ -355,8 +357,18 @@ def adjudicate(
 ) -> Match | None:
     if not candidates:
         return None
+    prompt = _build_prompt(name, entity_type, context, candidates)
     try:
-        raw = stream_to_final(llm, _build_prompt(name, entity_type, context, candidates))
+        if llm is GATEWAY:
+            # Percorso normale: il gateway sceglie il modello dal profilo del
+            # compito e registra la spesa. `ENTITY_RESOLUTION` gira a
+            # `reasoning_effort="none"`: la risposta e' uno schema strict, e lo
+            # schema fa il lavoro.
+            raw: Any = llm_run(task=LlmTask.ENTITY_RESOLUTION, messages=prompt, output=_Verdict)
+        else:
+            # Un modello iniettato: i test ne passano uno deterministico, e resta
+            # il modo di provare il resolver senza toccare il gateway.
+            raw = stream_to_final(llm, prompt)
     except Exception as exc:  # noqa: BLE001 — il resolver e' best-effort, mai fatale
         # merge fuzzy saltato: si crea una nuova entita', il merge mancato si
         # recupera con lo sweep. Ma va reso visibile: un LLM giu' = il grafo
@@ -376,31 +388,35 @@ def adjudicate(
     )
 
 
-_llm_singleton: Any | None = None
+class _Gateway:
+    """Segnaposto per «il giudizio lo fa il gateway».
+
+    Non e' un client: il gateway costruisce il suo quando serve, sceglie il
+    modello dal profilo del compito e registra la spesa. Esiste perche' i
+    chiamanti distinguono «c'e' un modello disponibile» (un oggetto) da «no»
+    (`None`), e da quella distinzione dipende se il merge fuzzy si tenta.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - solo diagnostica
+        return "<gateway>"
+
+
+GATEWAY = _Gateway()
 
 
 def build_llm() -> Any | None:
-    """Costruisce (una volta) il client LLM del resolver.
+    """Il giudice del resolver: il gateway, o `None` se non c'e' una chiave.
 
-    Non usa `lru_cache`: un fallimento *transitorio* di init non deve restare
-    inchiodato per tutta la vita del processo. Il successo e' memoizzato; il
-    caso "nessuna api key" e' economico da ricontrollare.
+    Prima costruiva e memoizzava un `ChatOpenAI`, con un percorso di errore per
+    l'init fallito. Ora non c'e' niente da costruire qui: la disponibilita' e'
+    «c'e' una chiave», e il resto lo decide il gateway. Sparisce anche il
+    singleton, che era una cache di stato globale in piu' da invalidare nei test.
     """
-    global _llm_singleton
-    if _llm_singleton is not None:
-        return _llm_singleton
     if not settings.openai_api_key:
         return None
-    try:
-        from langchain_openai import ChatOpenAI
-
-        from backend.llm_config import chat_openai_kwargs
-
-        _llm_singleton = ChatOpenAI(**chat_openai_kwargs()).with_structured_output(_Verdict)
-        return _llm_singleton
-    except Exception as exc:  # noqa: BLE001
-        degradation_counters.bump("entity_resolution", "llm_init_failed", detail=str(exc))
-        return None
+    return GATEWAY
 
 
 # --------------------------------------------------------------------------- #

@@ -86,6 +86,38 @@ def current_operation() -> Operation | None:
     return _current.get()
 
 
+def new_operation(
+    kind: str,
+    *,
+    tenant_id: str | None = None,
+    project_id: str | None = None,
+    process_id: str | None = None,
+) -> Operation:
+    """Costruisce un'operazione **senza** legarla al contesto corrente.
+
+    Serve dove `with operation(...)` non va bene, e sono due casi reali:
+
+    - **un generatore**: un `ContextVar` impostato dentro il corpo di un generatore
+      resta visibile al chiamante fra un `next()` e l'altro, e si rilascia solo
+      quando il generatore si chiude. Se nessuno lo chiude, resta legato;
+    - **un thread che fa il lavoro**: il turno di chat nasce in una richiesta HTTP
+      ma l'agente gira in un thread suo. L'operazione si costruisce qui e si
+      applica là con `adopt`.
+
+    Chi la usa e' responsabile di applicarla: un'operazione costruita e mai
+    adottata non lega niente, e il gateway rifiutera' le chiamate.
+    """
+    parent = _current.get()
+    return Operation(
+        kind=kind,
+        id=uuid.uuid4().hex,
+        tenant_id=tenant_id or get_current_tenant_id(),
+        project_id=project_id,
+        process_id=process_id,
+        parent_id=parent.id if parent else None,
+    )
+
+
 @contextmanager
 def operation(
     kind: str,
@@ -107,14 +139,11 @@ def operation(
         L'operazione aperta, se serve leggerne l'id (per esempio per scriverlo
         in un log applicativo e ritrovare la spesa di quella esecuzione).
     """
-    parent = _current.get()
-    opened = Operation(
-        kind=kind,
-        id=uuid.uuid4().hex,
-        tenant_id=tenant_id or get_current_tenant_id(),
+    opened = new_operation(
+        kind,
+        tenant_id=tenant_id,
         project_id=project_id,
         process_id=process_id,
-        parent_id=parent.id if parent else None,
     )
     token = _current.set(opened)
     # Il tenant dell'operazione **e'** il tenant del lavoro: si vincola anche il
