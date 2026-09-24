@@ -5,7 +5,7 @@ import time
 from backend.schemas.api import AgentStreamEvent, ApiError
 from backend.agent import DeliRChatOpenAI
 from backend.services.eval_runner import run_observability_smoke_eval
-from backend.services import agent_runtime
+from backend.services import agent_runtime, trace_recorder
 from backend.services.trace_recorder import get_trace, new_trace_context, trace_event
 from backend.settings import effective_langsmith_model_name, langsmith_metadata, langsmith_tags, settings
 
@@ -50,6 +50,34 @@ def test_trace_recorder_stores_events():
 
     assert events[-1].node == "consult_router"
     assert events[-1].trace_id == event.trace_id
+
+
+def test_trace_recorder_forgets_the_oldest_traces_instead_of_growing():
+    """La memoria delle tracce ha un tetto: senza, il processo non lo raggiunge mai."""
+    first = new_trace_context(thread_id="thread-oldest")
+    trace_event(first, "node", node="consult_router")
+
+    for index in range(trace_recorder.MAX_TRACES):
+        context = new_trace_context(thread_id=f"thread-{index}")
+        trace_event(context, "node", node="consult_router")
+
+    assert trace_recorder.traced_count() == trace_recorder.MAX_TRACES
+    # La piu' vecchia e' uscita per prima, non una a caso.
+    assert get_trace(first.trace_id) == []
+
+
+def test_trace_recorder_keeps_the_tail_of_a_runaway_turn():
+    """Un turno che non termina non porta con se' tutta la RAM del processo."""
+    context = new_trace_context(thread_id="thread-runaway")
+
+    for index in range(trace_recorder.MAX_EVENTS_PER_TRACE + 25):
+        trace_event(context, "node", node=f"step-{index}")
+
+    events = get_trace(context.trace_id)
+
+    assert len(events) == trace_recorder.MAX_EVENTS_PER_TRACE
+    # Di un ciclo che non finisce interessa dove e' arrivato, non da dove partiva.
+    assert events[-1].node == f"step-{trace_recorder.MAX_EVENTS_PER_TRACE + 24}"
 
 
 def test_langsmith_metadata_and_tags_are_configurable(monkeypatch):
@@ -316,3 +344,25 @@ def test_observability_endpoints(client: TestClient):
     trace_response = client.get(f"/v1/observability/traces/{eval_payload['trace_id']}")
     assert trace_response.status_code == 200
     assert trace_response.json()["trace_id"] == eval_payload["trace_id"]
+
+
+def test_a_trace_does_not_leave_its_workspace(client: TestClient):
+    """Il `trace_id` arriva al client: da solo non deve bastare per leggere il turno."""
+    mine = client.post("/v1/evals/observability-smoke", headers={"X-DeliR-Tenant-ID": "studio-uno"})
+    trace_id = mine.json()["trace_id"]
+
+    same = client.get(
+        f"/v1/observability/traces/{trace_id}",
+        headers={"X-DeliR-Tenant-ID": "studio-uno"},
+    )
+    other = client.get(
+        f"/v1/observability/traces/{trace_id}",
+        headers={"X-DeliR-Tenant-ID": "studio-due"},
+    )
+
+    assert same.status_code == 200
+    assert same.json()["trace_id"] == trace_id
+    # Una traccia di un altro spazio risponde come una che non esiste: chi prova
+    # un id altrui non scopre nemmeno che e' valido.
+    assert other.status_code == 404
+    assert other.json()["error"]["message"] == "Traccia non trovata."
