@@ -1,4 +1,5 @@
 import json
+import logging
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -36,7 +37,32 @@ from backend.services.agent_runtime import (
 )
 
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(tags=["chat"], dependencies=[Depends(require_principal)])
+
+#: Cosa legge il consulente quando l'agente non ce la fa. Il perche' sta nei
+#: log, non nella schermata: `str(exc)` di un'eccezione qualunque porta in
+#: interfaccia nomi di provider, frammenti di SQL e percorsi di file, e a chi
+#: legge non dice niente che possa usare.
+AGENT_FAILED_MESSAGE = (
+    "Non sono riuscito a completare questa richiesta. Riprova; se continua, "
+    "serve un occhio ai log."
+)
+AGENT_TIMEOUT_MESSAGE = (
+    "La richiesta ha superato il tempo massimo. Riprova, magari chiedendo una "
+    "cosa per volta."
+)
+
+
+def log_agent_failure(exc: BaseException, *, thread_id: str, trace_id: str | None = None) -> None:
+    """Manda l'eccezione vera dove si puo' leggere: i log, con come ritrovarla."""
+    logger.exception(
+        "turno di chat fallito (thread=%s trace=%s): %s",
+        thread_id,
+        trace_id or "-",
+        type(exc).__name__,
+    )
 
 
 def record_product_language(*, answer: str, asked: str, scope_type: str | None) -> list[str]:
@@ -145,7 +171,8 @@ def chat(request: ChatRequest) -> ChatResponse:
             attachments=request.attachments,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        log_agent_failure(exc, thread_id=request.thread_id)
+        raise HTTPException(status_code=502, detail=AGENT_FAILED_MESSAGE) from exc
 
     return ChatResponse(
         thread_id=request.thread_id,
@@ -281,9 +308,11 @@ def send_consultant_chat_message(
             attachments=request.attachments,
         )
     except TimeoutError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        log_agent_failure(exc, thread_id=thread_id)
+        raise HTTPException(status_code=503, detail=AGENT_TIMEOUT_MESSAGE) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        log_agent_failure(exc, thread_id=thread_id)
+        raise HTTPException(status_code=502, detail=AGENT_FAILED_MESSAGE) from exc
 
     record_product_language(
         answer=response_message,
@@ -425,7 +454,12 @@ def chat_turn_events(
             message=response_message,
         ).model_dump_json() + "\n"
     except Exception as exc:
-        yield ndjson_event("error", detail=str(exc))
+        log_agent_failure(exc, thread_id=thread_id, trace_id=trace_context.trace_id)
+        yield ndjson_event(
+            "error",
+            detail=AGENT_FAILED_MESSAGE,
+            trace_id=trace_context.trace_id,
+        )
     finally:
         # Il turno puo' finire senza arrivare in fondo: il consulente chiude la
         # scheda, preme Stop, o l'agente fallisce a meta' frase. In tutti e tre
