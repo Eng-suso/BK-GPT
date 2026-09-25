@@ -16,6 +16,7 @@ import "./features/process/simulation/simulation.css";
 import "./features/chat/chat.css";
 
 import { AppProviders } from "./app/providers";
+import { warmLandingScreens } from "./app/warmScreens";
 
 const rootElement = document.getElementById("root");
 if (rootElement) {
@@ -24,4 +25,8 @@ if (rootElement) {
       <AppProviders />
     </React.StrictMode>,
   );
+  // Le schermate d'ingresso si chiedono appena il browser e' libero: caricare a
+  // richiesta non deve diventare un'attesa su `/projects`, dove si atterra
+  // sempre.
+  warmLandingScreens();
 }

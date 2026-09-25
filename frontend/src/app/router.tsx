@@ -3,24 +3,25 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { AppLayout } from "@/app/AppLayout";
 import { NotFoundPage } from "@/app/NotFoundPage";
 import { DEFAULT_ROUTE } from "@/app/routes";
-import { ArchivePage } from "@/features/archive/ArchivePage";
-import { ClientsListPage } from "@/features/clients";
-import { ConsultantPage } from "@/features/consultant/ConsultantPage";
-import { HomePage } from "@/features/home/HomePage";
-import { ModelsPage } from "@/features/models/ModelsPage";
-import { ProcessStudioPage } from "@/features/process";
 import {
+  ArchivePage,
+  ClientsListPage,
+  ComparePage,
+  ConsultantPage,
+  HeatmapPage,
+  HomePage,
+  InsightsPage,
+  ModelsPage,
+  ProcessStudioPage,
+  ProjectDetailPage,
+  ProjectsListPage,
+  ReplayPage,
+  ScenarioBuilderPage,
+  SettingsPage,
+  SimulationDashboardPage,
   SimulationLayout,
   SimulationOverviewPage,
-  ScenarioBuilderPage,
-  ReplayPage,
-  SimulationDashboardPage,
-  HeatmapPage,
-  ComparePage,
-  InsightsPage,
-} from "@/features/process/simulation";
-import { ProjectsListPage, ProjectDetailPage } from "@/features/projects";
-import { SettingsPage } from "@/features/settings/SettingsPage";
+} from "@/app/screens";
 
 /**
  * Library-mode router. Data is owned by TanStack Query, not RR loaders.

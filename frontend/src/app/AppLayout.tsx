@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { ErrorBoundary } from "@/components/feedback";
@@ -6,6 +6,7 @@ import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { HelpDialog } from "@/components/shell/HelpDialog";
 import { TopBar } from "@/components/shell/TopBar";
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
+import { Skeleton } from "@/ui/skeleton";
 import { Toaster } from "@/ui/sonner";
 import { ROUTES, SECTION_PATH, isSettingsPath, sectionFromPath } from "@/app/routes";
 import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
@@ -51,7 +52,12 @@ export function AppLayout(): React.JSX.Element {
               chiave è il percorso, così andare altrove ripulisce l'errore
               invece di lasciarlo appeso. */}
           <ErrorBoundary resetKey={location.pathname}>
-            <Outlet />
+            {/* Le schermate arrivano a richiesta: questo e' cosa si vede
+                mentre il pezzo di prodotto sta arrivando. Uno scheletro e non
+                una rotella, perche' la forma della schermata si conosce. */}
+            <Suspense fallback={<ScreenLoading />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </main>
       </div>
@@ -70,5 +76,16 @@ export function AppLayout(): React.JSX.Element {
     />
     <ServiceStatusDialog open={isStatusOpen} onOpenChange={setIsStatusOpen} />
     </>
+  );
+}
+
+/** Lo scheletro di una schermata che sta arrivando. */
+function ScreenLoading(): React.JSX.Element {
+  return (
+    <div className="flex h-full flex-col gap-4 px-7 py-6" aria-busy="true">
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-4 w-96" />
+      <Skeleton className="h-full w-full" />
+    </div>
   );
 }
