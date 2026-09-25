@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { I18nextProvider } from "react-i18next";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { render as rtlRender, screen } from "@testing-library/react";
 import { setupUser } from "@/test/user";
+import { i18n } from "@/lib/i18n";
 
 import { ModelingWorkspaceBar } from "./ModelingWorkspaceBar";
 import type { BpmnReview } from "../types";
@@ -26,7 +29,19 @@ const props = {
   onDismiss: vi.fn(),
 };
 
+/**
+ * La barra parla adesso da i18next: senza il provider, `t` restituisce la
+ * chiave e il test verificherebbe una stringa che nessuno legge.
+ */
+function render(ui: ReactNode) {
+  return rtlRender(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+}
+
 describe("ModelingWorkspaceBar", () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage("it");
+  });
+
   it("stays out of the way where the process cannot be modelled", () => {
     const { container } = render(
       <ModelingWorkspaceBar {...props} review={null} canModel={false} />,

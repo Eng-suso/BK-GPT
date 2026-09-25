@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ClipboardCheck, X } from "lucide-react";
 
 import { Button } from "@/ui/button";
@@ -50,6 +51,7 @@ export function ModelingWorkspaceBar({
   onDismiss,
   openButtonRef,
 }: ModelingWorkspaceBarProps) {
+  const { t } = useTranslation("chat");
   if (!canModel) return null;
 
   const openQuestions = (review?.open_questions ?? []).filter((item) => !item.answer);
@@ -65,33 +67,33 @@ export function ModelingWorkspaceBar({
     <div
       className="modeling-workspace-bar"
       role="region"
-      aria-label="Workspace di modellazione BPMN"
+      aria-label={t("modeling.label")}
     >
       <div className="modeling-workspace-text">
         <p className="modeling-workspace-title">
           {planStateUnknown
             ? reviewError
-              ? "Piano non leggibile"
-              : "Rileggo il piano"
+              ? t("modeling.planUnreadable")
+              : t("modeling.rereading")
             : review
               ? needsDecision
                 ? openQuestions.length === 1
-                  ? "Serve una tua decisione"
-                  : `Servono ${openQuestions.length} tue decisioni`
-                : "Workspace di modellazione disponibile"
-              : "Modellazione BPMN"}
+                  ? t("modeling.oneDecision")
+                  : t("modeling.manyDecisions", { count: openQuestions.length })
+                : t("modeling.available")
+              : t("modeling.modelling")}
         </p>
         <p className="modeling-workspace-detail">
           {planStateUnknown
             ? (reviewError ??
-              "Sto rileggendo il piano dal backend: non so ancora se questo processo ne ha uno.")
+              t("modeling.rereadingDetail"))
             : review
               ? // La versione del piano e' il dato che rende verificabile "il piano
                 // e' aggiornato": senza, e' un'affermazione senza referente, e il
                 // consulente non ha modo di sapere se sta guardando cio' che ha
                 // appena chiesto di scrivere o la versione di prima.
-                `Piano V${review.version} — review e decisioni restano fuori dalla conversazione.`
-              : "Avvia una review separata quando vuoi trasformare le evidenze in processo."}
+                t("modeling.planVersion", { version: review.version })
+              : t("modeling.startHint")}
         </p>
       </div>
 
@@ -104,7 +106,7 @@ export function ModelingWorkspaceBar({
           onClick={onOpenReview}
         >
           <ClipboardCheck aria-hidden="true" />
-          {needsDecision ? "Decidi" : "Apri review"}
+          {t(needsDecision ? "modeling.decide" : "modeling.open")}
         </Button>
       ) : (
         <Button
@@ -115,7 +117,7 @@ export function ModelingWorkspaceBar({
           onClick={onStartModeling}
         >
           <ClipboardCheck aria-hidden="true" />
-          Genera bozza
+          {t("modeling.draft")}
         </Button>
       )}
 
@@ -123,7 +125,7 @@ export function ModelingWorkspaceBar({
         type="button"
         size="sm"
         variant="ghost"
-        aria-label="Chiudi il workspace di modellazione"
+        aria-label={t("modeling.dismiss")}
         onClick={onDismiss}
       >
         <X aria-hidden="true" />

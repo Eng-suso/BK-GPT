@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowUpRight,
   BarChart3,
@@ -64,13 +65,14 @@ export function BpmnReviewCard({
   onOpen,
   isStale = false,
 }: BpmnReviewCardProps) {
+  const { t } = useTranslation("chat");
   const qualityReport = review.quality_report || {};
   const isReady = qualityReport.approval_recommendation === "ready_to_generate";
 
   return (
     <section
       className={cn("bpmn-review-card", isStale && "is-stale")}
-      aria-label={isStale ? "Piano BPMN dell'ultimo giro riuscito" : "Piano BPMN pronto"}
+      aria-label={isStale ? t("review.cardLabelStale") : t("review.cardLabel")}
     >
       <div className="bpmn-review-card-icon" aria-hidden="true">
         <ClipboardCheck className="size-4" />
@@ -79,9 +81,9 @@ export function BpmnReviewCard({
         <div className="bpmn-review-card-heading">
           <div>
             <p className="product-eyebrow">
-              {isStale ? "Piano dell'ultimo giro riuscito" : "Piano di modellazione pronto"}
+              {isStale ? t("review.eyebrowStale") : t("review.eyebrow")}
             </p>
-            <h4>Ho preparato la review BPMN</h4>
+            <h4>{t("review.cardTitle")}</h4>
           </div>
           <span className={cn("bpmn-review-status", isReady ? "is-ready" : "is-attention")}>
             {review.readiness_score}/{SCORE_MAX}
@@ -89,19 +91,19 @@ export function BpmnReviewCard({
         </div>
         <p>
           {isStale
-            ? "L'ultima richiesta non è arrivata in fondo: questo piano è quello di prima, non il risultato di quel tentativo."
-            : "Controlla cosa ho capito, cosa manca e il flusso che userò per creare il canvas."}
+            ? t("review.staleBody")
+            : t("review.body")}
         </p>
         <div className="bpmn-review-card-actions">
           <Button type="button" size="sm" onClick={onOpen}>
-            Apri review
+            {t("review.open")}
             <ArrowUpRight aria-hidden="true" />
           </Button>
-          <span>{isReady ? "Pronto per approvazione" : "Richiede chiarimenti"}</span>
+          <span>{isReady ? t("review.ready") : t("review.needsAnswers")}</span>
         </div>
       </div>
       <span className="bpmn-review-card-dot" aria-hidden="true" />
-      <span className="sr-only">Apri la review per verificare il piano prima di generare il canvas.</span>
+      <span className="sr-only">{t("review.openHint")}</span>
     </section>
   );
 }
@@ -136,6 +138,7 @@ export function BpmnReviewSheet({
   onToast,
   onReturnFocus,
 }: BpmnReviewSheetProps) {
+  const { t } = useTranslation("chat");
   const [copied, setCopied] = useState(false);
   const [activeSection, setActiveSection] = useState<ReviewSection>("overview");
   const [isEditing, setIsEditing] = useState(false);
@@ -161,11 +164,11 @@ export function BpmnReviewSheet({
   const warnings = [
     ...(qualityReport.blocking_issues || []).map((item) => ({
       label: item.message,
-      severity: "Bloccante",
+      severity: t("review.blocking"),
     })),
     ...(qualityReport.warnings || []).map((item) => ({
       label: item.message,
-      severity: "Attenzione",
+      severity: t("review.warning"),
     })),
   ];
   const hasUnsavedPlan = draftMarkdown !== review.bpmn_brief;
@@ -176,10 +179,10 @@ export function BpmnReviewSheet({
     try {
       await navigator.clipboard?.writeText(draftMarkdown || "");
       setCopied(true);
-      onToast("Piano Markdown copiato negli appunti.");
+      onToast(t("review.copiedToast"));
       window.setTimeout(() => setCopied(false), 1600);
     } catch {
-      onToast("Non è stato possibile copiare il piano.");
+      onToast(t("review.copyFailed"));
     }
   };
 
@@ -212,7 +215,7 @@ export function BpmnReviewSheet({
             </div>
             <div className="min-w-0">
               <p className="product-eyebrow">Piano generato · Review BPMN</p>
-              <DialogTitle>Review del piano di processo</DialogTitle>
+              <DialogTitle>{t("review.dialogTitle")}</DialogTitle>
               <DialogDescription id="bpmn-review-sheet-description">
                 Ho trasformato la conversazione in una bozza strutturata. Verifica il
                 significato prima di disegnare il canvas.
@@ -222,14 +225,14 @@ export function BpmnReviewSheet({
           <div className="bpmn-review-sheet-actions">
             <Button type="button" variant="outline" size="sm" onClick={() => void copyMarkdown()}>
               {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
-              <span>{copied ? "Copiato" : "Copia piano"}</span>
+              <span>{copied ? t("review.copied") : t("review.copy")}</span>
             </Button>
             <Button type="button" variant={isEditing ? "secondary" : "outline"} size="sm" onClick={() => setIsEditing((current) => !current)}>
               <Pencil aria-hidden="true" />
-              <span>{isEditing ? "Chiudi modifica" : "Modifica piano"}</span>
+              <span>{isEditing ? t("review.closeEdit") : t("review.edit")}</span>
             </Button>
             <DialogClose asChild>
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Chiudi review">
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={t("review.close")}>
                 <X aria-hidden="true" />
               </Button>
             </DialogClose>
@@ -237,18 +240,18 @@ export function BpmnReviewSheet({
         </header>
 
         <div className="bpmn-review-sheet-statusbar">
-          <span><span className={cn("bpmn-review-live-dot", hasUnsavedPlan && "is-unsaved")} aria-hidden="true" /> {hasUnsavedPlan ? "Modifiche del piano non salvate" : "Piano salvato e pronto per la tua verifica"}</span>
+          <span><span className={cn("bpmn-review-live-dot", hasUnsavedPlan && "is-unsaved")} aria-hidden="true" /> {hasUnsavedPlan ? t("review.unsaved") : t("review.saved")}</span>
           <span className={cn("bpmn-review-status", isReady ? "is-ready" : "is-attention")}>
-            {isReady ? "Pronto" : "Richiede chiarimenti"}
+            {isReady ? t("review.readyShort") : t("review.needsAnswers")}
           </span>
         </div>
 
-        <nav className="bpmn-review-sheet-nav" aria-label="Sezioni della review BPMN">
-          <ReviewNavButton active={activeSection === "overview"} icon={<FileText />} label="Cosa ho capito" onClick={() => setActiveSection("overview")} />
-          <ReviewNavButton active={activeSection === "structure"} icon={<GitBranch />} label="Come lo disegno" onClick={() => setActiveSection("structure")} />
-          <ReviewNavButton active={activeSection === "validation"} icon={<HelpCircle />} label="Da decidere" count={unansweredCount + warnings.length} onClick={() => setActiveSection("validation")} />
-          <ReviewNavButton active={activeSection === "versions"} icon={<History />} label="Versioni" count={versions.length} onClick={() => setActiveSection("versions")} />
-          <ReviewNavButton active={activeSection === "quality"} icon={<Gauge />} label="Qualità" onClick={() => setActiveSection("quality")} />
+        <nav className="bpmn-review-sheet-nav" aria-label={t("review.sectionsLabel")}>
+          <ReviewNavButton active={activeSection === "overview"} icon={<FileText />} label={t("review.navUnderstood")} onClick={() => setActiveSection("overview")} />
+          <ReviewNavButton active={activeSection === "structure"} icon={<GitBranch />} label={t("review.navDrawing")} onClick={() => setActiveSection("structure")} />
+          <ReviewNavButton active={activeSection === "validation"} icon={<HelpCircle />} label={t("review.navDecide")} count={unansweredCount + warnings.length} onClick={() => setActiveSection("validation")} />
+          <ReviewNavButton active={activeSection === "versions"} icon={<History />} label={t("review.navVersions")} count={versions.length} onClick={() => setActiveSection("versions")} />
+          <ReviewNavButton active={activeSection === "quality"} icon={<Gauge />} label={t("review.navQuality")} onClick={() => setActiveSection("quality")} />
         </nav>
 
         <div className="bpmn-review-sheet-body">
@@ -283,15 +286,15 @@ export function BpmnReviewSheet({
         <footer className="bpmn-review-sheet-footer">
           <p>L'approvazione genera il canvas BPMN e salva una nuova versione del modello.</p>
           <div className="bpmn-review-footer-actions">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Rivedi più tardi</Button>
-            {isEditing ? <Button type="button" variant="secondary" onClick={() => { setDraftMarkdown(review.bpmn_brief); setIsEditing(false); }} disabled={isSaving}>Annulla</Button> : null}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("review.later")}</Button>
+            {isEditing ? <Button type="button" variant="secondary" onClick={() => { setDraftMarkdown(review.bpmn_brief); setIsEditing(false); }} disabled={isSaving}>{t("review.cancel")}</Button> : null}
             {isEditing ? <Button type="button" onClick={() => void savePlan()} disabled={!hasUnsavedPlan || isSaving}>
               <Save aria-hidden="true" />
-              {isSaving ? "Salvo…" : "Salva piano"}
+              {isSaving ? t("review.saving") : t("review.save")}
             </Button> : null}
-            <Button type="button" onClick={onApprove} disabled={isApproving || hasUnsavedPlan || isSaving} title={hasUnsavedPlan ? "Salva prima di approvare" : undefined}>
+            <Button type="button" onClick={onApprove} disabled={isApproving || hasUnsavedPlan || isSaving} title={hasUnsavedPlan ? t("review.saveFirst") : undefined}>
               <ClipboardCheck aria-hidden="true" />
-              {isApproving ? "Genero il canvas…" : hasUnsavedPlan ? "Salva prima di approvare" : "Approva e genera BPMN"}
+              {isApproving ? t("review.generating") : hasUnsavedPlan ? t("review.saveFirst") : t("review.approve")}
             </Button>
           </div>
         </footer>
@@ -354,11 +357,12 @@ function OverviewSection({
   isEditing: boolean;
   onMarkdownChange: (value: string) => void;
 }) {
+  const { t } = useTranslation("chat");
   return (
     <>
       <section className="bpmn-review-overview-hero">
         <div>
-          <span className="bpmn-review-overview-label">Ho creato questo piano</span>
+          <span className="bpmn-review-overview-label">{t("review.overviewLabel")}</span>
           <h3>Prima controlliamo il significato.<br />Poi disegniamo il BPMN.</h3>
           <p>
             Il documento sotto è la sintesi leggibile della conversazione: descrive il
@@ -371,14 +375,14 @@ function OverviewSection({
         </div>
       </section>
       <div className="bpmn-review-overview-stats">
-        <ReviewStat label="Attori coinvolti" value={understanding.actors?.length || 0} />
-        <ReviewStat label="Lane da disegnare" value={lanes?.length || 0} />
-        <ReviewStat label="Elementi BPMN" value={flowNodes?.length || 0} />
-        <ReviewStat label="Collegamenti" value={sequenceFlows?.length || 0} />
+        <ReviewStat label={t("review.actors")} value={understanding.actors?.length || 0} />
+        <ReviewStat label={t("review.lanes")} value={lanes?.length || 0} />
+        <ReviewStat label={t("review.elements")} value={flowNodes?.length || 0} />
+        <ReviewStat label={t("review.links")} value={sequenceFlows?.length || 0} />
       </div>
       <section className="bpmn-review-document-card">
         <div className="bpmn-review-document-header">
-          <div><FileText aria-hidden="true" /><div><span>Documento di piano</span><strong>Process understanding.md</strong></div></div>
+          <div><FileText aria-hidden="true" /><div><span>{t("review.planDocument")}</span><strong>Process understanding.md</strong></div></div>
           <span>Markdown</span>
         </div>
         {isEditing ? (
@@ -408,19 +412,20 @@ function StructureSection({
   understanding: NonNullable<BpmnReview["process_understanding"]>;
   semanticModel: NonNullable<BpmnReview["bpmn_semantic_model"]>;
 }) {
+  const { t } = useTranslation("chat");
   return (
     <section className="bpmn-review-tab-section">
-      <SectionIntro icon={<GitBranch />} eyebrow="Struttura rilevata" title="Cosa entrerà nel canvas" description="Questi sono gli oggetti che il piano propone di trasformare in elementi BPMN." />
+      <SectionIntro icon={<GitBranch />} eyebrow={t("review.structureEyebrow")} title={t("review.structureTitle")} description={t("review.structureBody")} />
       <div className="bpmn-review-lane-list">
         {(semanticModel.lanes || []).map((lane) => <div className="bpmn-review-lane-row" key={lane.id}><span className="bpmn-review-lane-index">{(semanticModel.lanes || []).indexOf(lane) + 1}</span><div><strong>{lane.name}</strong><span>{lane.flowNodeRefs?.length || 0} elementi nel flusso</span></div></div>)}
       </div>
       <div className="bpmn-review-understanding-grid">
-        <ReviewGroup title="Attori e ruoli" items={(understanding.actors || []).map((item) => item.label)} />
-        <ReviewGroup title="Decisioni" items={(understanding.decisions || []).map((item) => item.outcomes?.length ? `${item.label}: ${item.outcomes.join(" / ")}` : item.label)} />
-        <ReviewGroup title="Passaggi tra ruoli" items={(understanding.handoffs || []).map((item) => item.artifact || item.trigger || "Da precisare")} />
-        <ReviewGroup title="Eccezioni" items={(understanding.exceptions || []).map((item) => item.handling ? `${item.label}: ${item.handling}` : `${item.label}: da definire`)} />
-        <ReviewGroup title="Documenti e dati" items={(understanding.data_objects || []).map((item) => item.label)} />
-        <ReviewGroup title="Percorsi alternativi" items={(understanding.alternative_paths || []).map((item) => item.is_confirmed === false ? `${item.label} · da confermare` : item.label)} />
+        <ReviewGroup title={t("review.actorsAndRoles")} items={(understanding.actors || []).map((item) => item.label)} />
+        <ReviewGroup title={t("review.decisions")} items={(understanding.decisions || []).map((item) => item.outcomes?.length ? `${item.label}: ${item.outcomes.join(" / ")}` : item.label)} />
+        <ReviewGroup title={t("review.handoffs")} items={(understanding.handoffs || []).map((item) => item.artifact || item.trigger || t("review.toClarify"))} />
+        <ReviewGroup title={t("review.exceptions")} items={(understanding.exceptions || []).map((item) => item.handling ? `${item.label}: ${item.handling}` : `${item.label}: da definire`)} />
+        <ReviewGroup title={t("review.documents")} items={(understanding.data_objects || []).map((item) => item.label)} />
+        <ReviewGroup title={t("review.alternatives")} items={(understanding.alternative_paths || []).map((item) => item.is_confirmed === false ? `${item.label} · da confermare` : item.label)} />
       </div>
     </section>
   );
@@ -451,6 +456,7 @@ function ValidationSection({
   isAnswering: boolean;
   onAnswer: (question: string, answer: string) => Promise<void>;
 }) {
+  const { t } = useTranslation("chat");
   const answered = openQuestions.filter((item) => item.answer);
   // Le lacune che il piano espone come domande si chiudono qui; il resto
   // (warning di qualità, informazioni mancanti senza una domanda) resta da leggere.
@@ -458,7 +464,7 @@ function ValidationSection({
   const otherGaps = [
     ...missingInformation
       .filter((item) => !questionTexts.has(item))
-      .map((item) => ({ label: item, severity: "Informazione mancante" })),
+      .map((item) => ({ label: item, severity: t("review.missingInfo") })),
     ...unknowns
       .filter((item) => !questionTexts.has(item.question))
       .map((item) => ({ label: item.question, severity: item.severity })),
@@ -467,7 +473,7 @@ function ValidationSection({
 
   return (
     <section className="bpmn-review-tab-section">
-      <SectionIntro icon={<HelpCircle />} eyebrow="Conversazione necessaria" title="Cosa devi decidere" description="Questi punti sono esplicitamente separati dal flusso: decidendo qui evitiamo di disegnare assunzioni nel processo." />
+      <SectionIntro icon={<HelpCircle />} eyebrow={t("review.conversationNeeded")} title={t("review.decideEyebrow")} description={t("review.decideBody")} />
 
       <ReviewQuestionsCard
         questions={openQuestions}
@@ -477,7 +483,7 @@ function ValidationSection({
 
       {answered.length ? (
         <div className="bpmn-review-answered">
-          <h4><ListChecks aria-hidden="true" />Decisioni prese</h4>
+          <h4><ListChecks aria-hidden="true" />{t("review.decisionsTaken")}</h4>
           {answered.map((item) => (
             <div key={item.question_id}>
               <strong>{item.question}</strong>
@@ -509,9 +515,10 @@ function ValidationSection({
  * @param versions - The plan versions to display in reverse chronological order
  */
 function VersionsSection({ versions }: { versions: BpmnReviewVersion[] }) {
+  const { t } = useTranslation("chat");
   return (
     <section className="bpmn-review-tab-section">
-      <SectionIntro icon={<History />} eyebrow="Storico del piano" title="Come è cambiato" description="Ogni stato del piano resta leggibile: cosa è cambiato, perché, e quanto è cambiata la struttura rispetto alla versione precedente." />
+      <SectionIntro icon={<History />} eyebrow={t("review.historyEyebrow")} title={t("review.historyTitle")} description={t("review.historyBody")} />
       {versions.length ? (
         <ol className="bpmn-review-versions">
           {versions.map((version, index) => (
@@ -540,6 +547,7 @@ function VersionRow({
   version: BpmnReviewVersion;
   previous?: BpmnReviewVersion;
 }) {
+  const { t } = useTranslation("chat");
   const nodes = version.bpmn_semantic_model?.flowNodes?.length ?? 0;
   const flows = version.bpmn_semantic_model?.sequenceFlows?.length ?? 0;
 
@@ -548,14 +556,14 @@ function VersionRow({
       <div className="bpmn-review-version-head">
         <strong>v{version.version}</strong>
         <span className={cn("bpmn-review-status", version.status === "approved" ? "is-ready" : "is-attention")}>
-          {version.status === "approved" ? "Approvata" : "Bozza"}
+          {version.status === "approved" ? t("review.approved") : t("review.draft")}
         </span>
       </div>
       <p>{version.change_summary || humanize(version.source)}</p>
       <div className="bpmn-review-version-diff">
-        <ReviewDelta label="Elementi" value={nodes} previous={previous ? (previous.bpmn_semantic_model?.flowNodes?.length ?? 0) : undefined} />
-        <ReviewDelta label="Collegamenti" value={flows} previous={previous ? (previous.bpmn_semantic_model?.sequenceFlows?.length ?? 0) : undefined} />
-        <ReviewDelta label="Readiness" value={version.readiness_score} previous={previous?.readiness_score} />
+        <ReviewDelta label={t("review.elementsShort")} value={nodes} previous={previous ? (previous.bpmn_semantic_model?.flowNodes?.length ?? 0) : undefined} />
+        <ReviewDelta label={t("review.links")} value={flows} previous={previous ? (previous.bpmn_semantic_model?.sequenceFlows?.length ?? 0) : undefined} />
+        <ReviewDelta label={t("review.readiness")} value={version.readiness_score} previous={previous?.readiness_score} />
       </div>
     </li>
   );
@@ -597,13 +605,14 @@ function ReviewDelta({
  * @param qualityReport - The quality assessment data to display.
  */
 function QualitySection({ qualityReport }: { qualityReport: NonNullable<BpmnReview["quality_report"]> }) {
+  const { t } = useTranslation("chat");
   return (
     <section className="bpmn-review-tab-section">
-      <SectionIntro icon={<BarChart3 />} eyebrow="Controllo qualità" title="Quanto è solido il piano" description="La valutazione separa completezza, chiarezza e rischio prima della generazione." />
+      <SectionIntro icon={<BarChart3 />} eyebrow={t("review.qualityEyebrow")} title={t("review.qualityTitle")} description={t("review.qualityBody")} />
       <div className="bpmn-review-quality-list">
         {(qualityReport.dimension_scores || []).map((item) => <div className="bpmn-review-quality-row" key={item.dimension}><div className="bpmn-review-quality-label"><span>{humanize(item.dimension)}</span><strong>{item.score}/{SCORE_MAX}</strong></div><div className="bpmn-review-quality-bar" aria-label={`${item.dimension}: ${item.score} su ${SCORE_MAX}`}><span style={{ width: `${Math.min(100, Math.max(0, item.score * 10))}%` }} /></div>{item.findings?.[0] ? <p>{item.findings[0]}</p> : null}</div>)}
       </div>
-      {(qualityReport.improvement_actions || []).length ? <div className="bpmn-review-actions-list"><h4><ListChecks aria-hidden="true" />Azioni suggerite</h4>{qualityReport.improvement_actions?.map((item) => <div key={item.id}><span>{humanize(item.priority || "Media")}</span><p>{item.action}</p></div>)}</div> : null}
+      {(qualityReport.improvement_actions || []).length ? <div className="bpmn-review-actions-list"><h4><ListChecks aria-hidden="true" />{t("review.suggestedActions")}</h4>{qualityReport.improvement_actions?.map((item) => <div key={item.id}><span>{humanize(item.priority || t("review.average"))}</span><p>{item.action}</p></div>)}</div> : null}
     </section>
   );
 }
@@ -622,6 +631,7 @@ function ReviewStat({ label, value }: { label: string; value: number }) {
 }
 
 function ReviewGroup({ title, items }: { title: string; items: string[] }) {
+  const { t } = useTranslation("chat");
   return (
     <div className="bpmn-review-group">
       <h4>{title}</h4>
@@ -630,7 +640,7 @@ function ReviewGroup({ title, items }: { title: string; items: string[] }) {
           {items.slice(0, 6).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
         </ul>
       ) : (
-        <p>Non rilevato nel piano</p>
+        <p>{t("review.notInPlan")}</p>
       )}
     </div>
   );
