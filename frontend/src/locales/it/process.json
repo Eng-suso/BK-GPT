@@ -105,7 +105,8 @@
       "perResource": "Utilizzo per risorsa",
       "peakQueue": "Coda massima",
       "headline": "Nel corso della run la coda si accumula fino a {{peak}} casi e {{bottleneck}} è il collo di bottiglia: il {{share}} del tempo di attraversamento è attesa.",
-      "headlineNoBottleneck": "Il processo scorre senza colli di bottiglia strutturali; l'attesa è il {{share}} del tempo di attraversamento."
+      "headlineNoBottleneck": "Il processo scorre senza colli di bottiglia strutturali; l'attesa è il {{share}} del tempo di attraversamento.",
+      "headlineNoSummary": "Questa simulazione non ha lasciato indicatori leggibili: il grafico qui sotto mostra l'andamento, i valori di sintesi no."
     },
     "compare": {
       "runA": "Scenario A",

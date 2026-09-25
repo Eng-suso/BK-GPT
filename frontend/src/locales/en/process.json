@@ -105,7 +105,8 @@
       "perResource": "Utilisation per resource",
       "peakQueue": "Peak queue",
       "headline": "Over the run the queue builds to {{peak}} cases and {{bottleneck}} is the bottleneck: {{share}} of cycle time is waiting.",
-      "headlineNoBottleneck": "The process flows with no structural bottleneck; waiting is {{share}} of cycle time."
+      "headlineNoBottleneck": "The process flows with no structural bottleneck; waiting is {{share}} of cycle time.",
+      "headlineNoSummary": "This run left no readable indicators: the chart below still shows the trend, the summary values do not."
     },
     "compare": {
       "runA": "Scenario A",
