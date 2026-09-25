@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -190,3 +191,36 @@ def extract_embedding_tokens(response: object) -> TokenUsage:
     if not isinstance(prompt_tokens, int) or prompt_tokens < 0:
         return TokenUsage()
     return TokenUsage(input=prompt_tokens)
+
+
+def extract_transcription_tokens(response: object) -> TokenUsage:
+    """Legge i token da una risposta di trascrizione, quando ci sono.
+
+    Terza forma dopo quella di langchain e quella degli embedding, e la ragione
+    e' il listino: i modelli di trascrizione a token riportano
+    `usage.input_tokens` / `usage.output_tokens`, mentre whisper si paga al
+    minuto di audio e di token non ne dichiara nessuno. Zero token qui non vuol
+    dire "gratis": vuol dire che questo modello non si misura cosi'. La riga
+    resta, col modello e l'esito, perche' un'ora di audio senza traccia e'
+    spesa invisibile.
+    """
+    usage = response.get("usage") if isinstance(response, Mapping) else getattr(response, "usage", None)
+    if usage is None:
+        return TokenUsage()
+
+    def _campo(nome: str) -> object:
+        # La rotta della trascrizione tratta gia' la risposta sia come oggetto
+        # sia come dizionario (`openai_object_to_dict`): leggerla qui in un modo
+        # solo perderebbe i token in silenzio sulla forma sbagliata, che e'
+        # esattamente il guasto che questo modulo esiste per evitare.
+        if isinstance(usage, Mapping):
+            return usage.get(nome)
+        return getattr(usage, nome, None)
+
+    def _count(value: object) -> int:
+        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+    return TokenUsage(
+        input=_count(_campo("input_tokens")),
+        output=_count(_campo("output_tokens")),
+    )

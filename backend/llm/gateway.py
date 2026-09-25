@@ -42,6 +42,7 @@ from backend.llm.usage import (
     TokenUsage,
     extract_embedding_tokens,
     extract_tokens,
+    extract_transcription_tokens,
     record,
     tokens_from_usage_metadata,
 )
@@ -386,6 +387,116 @@ def embed(*, texts: list[str], dimensions: int) -> list[list[float]]:
         reasoning_effort=profile.reasoning_effort,
     )
     return [item.embedding for item in response.data]
+
+
+_transcription_client: Any | None = None
+_transcription_client_key: str | None = None
+
+
+def _transcription_client_for(api_key: str) -> Any:
+    """Il client della trascrizione, ricostruito solo se la chiave cambia.
+
+    Riusarlo tiene in piedi il pool di connessioni, che con un upload in corso
+    conta. La chiave pero' fa parte dello stato e non e' un parametro qualunque:
+    un client costruito prima di una rotazione continuerebbe a presentare la
+    chiave vecchia per tutta la vita del processo, e il guasto si vedrebbe come
+    un 401 che non passa mai.
+    """
+    global _transcription_client, _transcription_client_key
+
+    if _transcription_client is None or _transcription_client_key != api_key:
+        from openai import AsyncOpenAI
+
+        _transcription_client = AsyncOpenAI(
+            api_key=api_key,
+            timeout=settings.openai_transcription_timeout_seconds,
+            max_retries=settings.transcription_max_retries,
+        )
+        _transcription_client_key = api_key
+    return _transcription_client
+
+
+async def transcribe(*, file: Any, options: dict[str, Any]) -> Any:
+    """Trascrive un audio e lascia un evento di consumo.
+
+    E' l'unico punto di chiamata `async` che abbiamo, e per questo ha un
+    ingresso suo invece di passare da `run()`.
+
+    Sul conteggio: non tutti i modelli di trascrizione fatturano a token -
+    whisper si paga al minuto di audio - quindi la riga puo' avere zero token.
+    Si scrive lo stesso, con il modello e l'esito: «una trascrizione e'
+    avvenuta» e' l'informazione che serve, e un'ora di audio che non lascia
+    traccia e' spesa invisibile come lo erano gli embedding.
+
+    Corollario per chi configura: un modello che fattura al minuto **non** va
+    messo in `LLM_PRICES_JSON`. A listino, zero token darebbero un costo di
+    zero - plausibile e falso, il tipo di numero su cui poi si fanno i budget.
+    Fuori listino il costo resta `NULL`, che e' la verita': lo sappiamo dalla
+    fattura, non da qui.
+
+    Args:
+        file: La tupla `(nome, contenuto, content_type)` che l'SDK si aspetta.
+        options: Le opzioni gia' costruite da chi chiama. Dipendono dal modello
+            (`response_format` e `chunking_strategy` esistono solo sui modelli
+            che diarizzano), quindi chi le costruisce ha gia' dovuto sapere quale
+            modello gira e lo lascia qui dentro: il registro scrive **quello**,
+            non quello del profilo, cosi' la riga dice cosa e' girato davvero
+            anche se le due fonti divergessero. Senza `model` si usa il profilo.
+
+    Raises:
+        OperationNotOpen: Se la rotta non ha aperto un'operazione (L2).
+        MissingProviderKey: Se non c'e' una chiave configurata.
+    """
+    operation = current_operation()
+    if operation is None:
+        raise OperationNotOpen(
+            "una trascrizione e' stata chiesta fuori da un'operazione: apri "
+            "`llm.operation(OperationKind.TRANSCRIPTION)` nella rotta."
+        )
+
+    profile = profile_for(LlmTask.TRANSCRIPTION)
+    model = str(options.get("model") or profile.model)
+    options = {**options, "model": model}
+
+    if not settings.openai_api_key:
+        record(
+            operation=operation,
+            task=LlmTask.TRANSCRIPTION.value,
+            model=model,
+            outcome=Outcome.REFUSED,
+            error_kind="MissingProviderKey",
+            reasoning_effort=profile.reasoning_effort,
+        )
+        raise MissingProviderKey("OPENAI_API_KEY non configurata: trascrizione non eseguibile.")
+
+    client = _transcription_client_for(settings.openai_api_key)
+
+    started = time.perf_counter()
+    try:
+        risposta = await client.audio.transcriptions.create(file=file, **options)
+    except BaseException as exc:
+        outcome, error_kind = _error_kind(exc)
+        record(
+            operation=operation,
+            task=LlmTask.TRANSCRIPTION.value,
+            model=model,
+            outcome=outcome,
+            error_kind=error_kind,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            reasoning_effort=profile.reasoning_effort,
+        )
+        raise
+
+    record(
+        operation=operation,
+        task=LlmTask.TRANSCRIPTION.value,
+        model=model,
+        outcome=Outcome.OK,
+        tokens=extract_transcription_tokens(risposta),
+        duration_ms=int((time.perf_counter() - started) * 1000),
+        reasoning_effort=profile.reasoning_effort,
+    )
+    return risposta
 
 
 def record_streamed_usage(

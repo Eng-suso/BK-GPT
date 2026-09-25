@@ -138,7 +138,8 @@ t.5 quella cache non esiste piu' e la lunghezza arriva al gateway esatta.
 | P1.5 t.4 | embedding sul gateway | **fatto, verificato** |
 | P1.5 t.5 | percorso caldo (`process_understanding`, audit, consolidamento) | **fatto, verificato** |
 | P1.5 t.6 | `agent.py` (streaming) | **fatto, verificato** |
-| P1.6 | L1 in CI: `ChatOpenAI` / `openai` vietati fuori da `backend/llm/` | **non iniziato** |
+| P1.5 code | trascrizione (`llm.transcribe`) + operazione `EVAL` | **fatto, verificato** |
+| P1.6 | L1 in CI: client del fornitore vietati fuori da `backend/llm/` | **fatto, verificato** (verde su `backend/`, rossa su un file di prova) |
 
 **t.1 — aprono l'operazione:** `plan_worker` (PLAN_SYNTHESIS), `conformance_worker`
 (CONFORMANCE_AUDIT), `ingest_worker` (KG_INGESTION) e il turno di chat
@@ -269,6 +270,55 @@ ingresso nuovo si dimenticava, avrebbe comunque inghiottito il rifiuto. Adesso
 `procedural/extraction`. Un guasto del fornitore degrada come prima; un punto
 d'ingresso dimenticato no, perche' non e' un guasto: e' un bug.
 
+**Le due code: la trascrizione e gli eval.** Erano gli ultimi due punti di
+chiamata fuori dal gateway, e nessuno dei due e' prodotto nel senso stretto -
+uno e' un upload, l'altro e' un test che spende.
+
+La trascrizione ha un ingresso suo, `llm.transcribe()`, perche' e' l'unico punto
+`async` che abbiamo; la rotta apre `OperationKind.TRANSCRIPTION` e non costruisce
+piu' nessun client. Due cose sono venute fuori solo scrivendolo:
+
+- **il profilo mentiva sul modello.** `profile_for(TRANSCRIPTION).model` tornava
+  il modello di *chat*, mentre la trascrizione usa
+  `settings.openai_transcription_model`. Il registro avrebbe scritto il nome di
+  un modello che non ha mai girato, e il costo stimato sarebbe uscito da un
+  listino che non c'entra. Il profilo ora sa dire «il mio modello sta in questo
+  setting» (`model_setting`), che e' il gemello configurabile del `model_name`
+  fisso dell'embedding;
+- **non tutti i modelli di trascrizione fatturano a token.** Whisper si paga al
+  minuto di audio e di token non ne dichiara nessuno. La riga si scrive lo
+  stesso, con modello ed esito: zero token non vuol dire «gratis», vuol dire
+  «non si misura cosi'», e un'ora di audio senza traccia e' spesa invisibile
+  come lo erano gli embedding. **Corollario per chi configura:** un modello al
+  minuto non va messo in `LLM_PRICES_JSON`, perche' a listino zero token danno
+  un costo di zero — plausibile e falso. Fuori listino il costo resta `NULL`,
+  che e' la verita': lo sappiamo dalla fattura, non da qui.
+
+Gli eval hanno un `conftest.py` con una fixture autouse che apre
+`OperationKind.EVAL`: una per test e non una per sessione, perche' due
+esecuzioni dello stesso eval sono due numeri distinti, ed e' cosi' che si vede
+se un cambio di prompt ha reso il giudizio piu' caro. `EVAL` esisteva nel
+registro da P1.1 senza che lo usasse nessuno. Gli eval veri sono skippati senza
+`DELIR_LIVE_LLM=1`, quindi un difetto nel conftest si sarebbe visto solo il
+giorno in cui si spende col modello vero: `tests/evals/test_operazione_eval.py`
+verifica la fixture senza chiamare nessun modello, e per questo gira sempre.
+
+**P1.6 — la regola L1 in CI, che nasce verde.**
+`.coderabbit/ast-grep-rules/python-llm-client-outside-gateway.yml` vieta
+`ChatOpenAI`, `AsyncOpenAI`, `OpenAI` e `OpenAIEmbeddings` fuori da
+`backend/llm/`. E' `severity: error` e non `warning`: L1 non e' uno stile, e' un
+invariante, e una violazione e' un difetto che il codice **oggi non ha**.
+
+Una regola verde va verificata in tutti e due i versi, altrimenti non si sa se
+e' verde perche' il codice e' a posto o perche' non matcha niente: verde su
+`backend/`, rossa su un file di prova che la viola apposta (tre match, uno per
+forma). Il comando documentato nel README della cartella era sbagliato e non
+risolveva - il pacchetto e' `ast-grep-cli`, l'eseguibile `ast-grep`:
+
+```
+uvx --from ast-grep-cli ast-grep scan --rule .coderabbit/ast-grep-rules/<regola>.yml backend/
+```
+
 ### Quello che l'e2e ha trovato, e che nessun test unitario poteva trovare
 
 `tests/test_llm_spend_e2e.py` fa il percorso vero - coda, worker, embedding,
@@ -330,26 +380,35 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**Le due code**, piccole e parallele, e sono l'ultima cosa prima di P1.6:
-l'operazione `EVAL` attorno a `tests/evals/`, che girano col modello vero, e la
-trascrizione in `api/routes/audio.py` (§③.5), che e' l'unico punto di chiamata
-`async` e quindi vuole un ingresso suo nel gateway.
+**P2 — artefatti con dipendenze** (§4.2 del piano). P1 e' chiuso: ogni punto di
+chiamata passa dal gateway e lascia una riga, la regola in CI impedisce che ne
+nascano altri fuori. Da qui in poi non si misura soltanto, si spende meno.
 
-Una nota su `graphs/routing_contracts.py`, che nell'elenco di ieri sembrava un
-ingresso da aprire e non lo e': non costruisce nessun client, riceve quello
-dell'instradamento da `agent.py` e gira **dentro** l'operazione del turno. Il
-problema vero non era l'operazione ma il **compito**, e si e' risolto contando i
-token per nodo del grafo (sopra, §①).
+P2 e' l'unica leva che cambia **l'ordine di grandezza** invece di una
+percentuale, e il lavoro concreto e' uno: portare `evidence_source_set_id` al
+livello della **singola fonte**. Oggi la chiave dell'artefatto e' l'insieme
+delle evidenze, quindi una fonte aggiunta invalida tutto quello che era gia'
+stato calcolato sulle altre - e nel lavoro vero le fonti si aggiungono una per
+volta, mentre l'intervista procede.
 
-Poi **P1.6**, la regola L1 in CI: una regola ast-grep che vieta `ChatOpenAI`,
-`openai`, `OpenAIEmbeddings` fuori da `backend/llm/`. Va messa **dopo** la
-migrazione — e "dopo" vuol dire dopo le code qui sopra, non solo dopo t.6:
-finche' resta un modulo che costruisce il suo client la regola nasce rossa, e
-una regola rossa si impara a ignorare. Le regole stanno in
-`.coderabbit/ast-grep-rules/`, una per file.
+Due cose che nascono con P2 e conviene decidere prima di scrivere codice:
 
-Prima di P3 (budget con prenotazione e saldo) servono due settimane di numeri
-veri. Non e' solo la soglia a dipendere dai dati: la *forma* del meccanismo lo e'.
+- **la granularita' dell'invalidazione** e' la stessa domanda della cache dei
+  prompt, quindi la risposta va presa una volta sola;
+- **il primo esperimento col registro in mano** e' `reasoning_effort` per
+  compito (§③.3): il default `medium` vale per sette compiti diversi, e due di
+  loro rispondono dentro uno schema strict, dove il ragionamento non ha molto da
+  fare. Ora che i numeri ci sono, e' misurabile invece che opinabile.
+
+**Non ancora P3** (budget con prenotazione e saldo): servono due settimane di
+numeri veri, e non e' solo la soglia a dipendere dai dati - la *forma* del
+meccanismo lo e'.
+
+**Due questioni aperte restano fuori dalle tappe** e sono in §③: il tenant del
+registro, che e' quello workspace e non il consulente (§③.6, da decidere prima
+di P3, perche' i budget per tenant si appoggiano a quel campo), e l'evento di
+validazione (§③.7), da cui dipende il KPI di punta del piano: se non esiste,
+«costo per AS-IS validato» non e' calcolabile.
 
 ---
 
@@ -371,14 +430,10 @@ veri. Non e' solo la soglia a dipendere dai dati: la *forma* del meccanismo lo e
 4. ~~**Gli embedding nel gateway.**~~ Chiuso con t.4: `llm.embed()` ha un ingresso
    suo perche' i token dell'embedding stanno in un altro campo, e leggerli col
    lettore della chat avrebbe dato zero su tutto il volume dell'ingestione.
-5. **La trascrizione non e' in nessuna tappa.**
-   [`api/routes/audio.py`](../backend/api/routes/audio.py) costruisce un
-   `AsyncOpenAI` suo, e `LlmTask.TRANSCRIPTION` con
-   `OperationKind.TRANSCRIPTION` esistono gia' nel registro **senza che nessuno
-   li usi**. Finche' resta cosi', le ore di audio caricate dai consulenti sono
-   spesa invisibile, e P1.6 (la regola L1 in CI) sarebbe rossa. Serve un
-   ingresso asincrono nel gateway: e' l'unico punto di chiamata `async` che
-   abbiamo, quindi non e' una riga.
+5. ~~**La trascrizione non e' in nessuna tappa.**~~ Chiusa con le code di P1.5:
+   `llm.transcribe()` e' l'ingresso asincrono, la rotta apre l'operazione, e il
+   profilo ha imparato a leggere il proprio modello dai settings invece di
+   dichiarare quello di chat.
 6. **Il tenant del registro non e' il consulente.** E' il tenant *workspace*
    (`local` finche' il prodotto e' mono-consulente), non l'id del consulente
    canonical che possiede l'ingestione. Oggi non fa danno - c'e' un consulente
@@ -472,10 +527,10 @@ la colonna delle collisioni e' la ragione per cui non si assegnano a caso.
 | ~~**t.4** embedding~~ | fatto | — |
 | ~~**t.5** percorso caldo~~ | fatto | — |
 | ~~**t.6** `agent.py`~~ | fatto | — |
-| **eval** operazione `EVAL` | `tests/evals/` | tutto |
+| ~~**eval** operazione `EVAL`~~ | fatto | — |
 | **L5** registro dei prompt | i prompt in tutti i moduli | **dopo t.5**: tocca gli stessi prompt |
 | **lettura del registro** | file nuovi (endpoint o SQL versionato) | tutto |
-| **P1.6** regola L1 in CI | `.coderabbit/ast-grep-rules/` | **ultima**: prima e' rossa da subito |
+| ~~**P1.6** regola L1 in CI~~ | fatto, e nasce verde | — |
 
 Con t.1, t.2, t.3 e t.4 chiusi la collisione su `llm/gateway.py` resta solo per
 t.6, che deve aggiungere l'ingresso di streaming: chi la prende lavora da solo
@@ -598,6 +653,8 @@ trova la chiave a `None` e falla.
 | 2026-09-24 | P1.5 t.5: percorso caldo sul gateway, cache per fasce di timeout rimossa, segnaposto unico | `chore/llm-t5` |
 | 2026-09-24 | P1.5 t.6: chat e instradamento dal profilo, spesa dello stream nel registro, token dei nodi interni non piu' persi | `chore/llm-t6` |
 | 2026-09-24 | Review di t.6: registrazione anche sui turni falliti, modello vero nella riga, tenant dello sweep, listino cachato | `cc9163e` |
+| 2026-09-25 | Code di P1.5: trascrizione su `llm.transcribe` (profilo con `model_setting`, righe anche senza token) e operazione `EVAL` negli eval | `chore/llm-code` |
+| 2026-09-25 | P1.6: regola ast-grep L1 (`severity: error`), verificata verde su `backend/` e rossa su un file di prova; comando del README corretto | `chore/llm-code` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`

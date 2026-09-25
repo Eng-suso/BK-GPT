@@ -58,8 +58,13 @@ class TaskProfile:
         scales_with_input: Se il timeout deve seguire la lunghezza dell'input.
             Vero per le estrazioni; falso per un rerank, che legge poco.
         model_name: Il modello, quando il compito **non** puo' usare quello di
-            conversazione. Serve all'embedding, che ha un modello suo e una
-            dimensione vincolata dallo schema del database (INV-4).
+            conversazione ed e' fisso. Serve all'embedding, che ha un modello
+            suo e una dimensione vincolata dallo schema del database (INV-4).
+        model_setting: Il nome del campo dei settings che porta il modello,
+            quando e' configurabile. Serve alla trascrizione, che ha un modello
+            suo scelto da chi installa: senza questo campo il profilo
+            dichiarerebbe il modello di chat, e il registro scriverebbe il nome
+            di un modello che non ha mai girato.
     """
 
     task: LlmTask
@@ -69,6 +74,7 @@ class TaskProfile:
     deferrable: bool = False
     scales_with_input: bool = True
     model_name: str | None = None
+    model_setting: str | None = None
 
     @property
     def model(self) -> str:
@@ -79,10 +85,13 @@ class TaskProfile:
         punto di questo registro e' che quando quel giorno arriva si cambia
         **qui**, e non in dieci moduli.
 
-        L'embedding fa eccezione e non e' una scelta di qualita': il suo modello
-        decide la dimensione dei vettori gia' scritti, quindi e' un contratto,
-        non un parametro.
+        Due compiti fanno eccezione e nessuno dei due e' una scelta di qualita':
+        l'embedding, il cui modello decide la dimensione dei vettori gia'
+        scritti (un contratto, non un parametro), e la trascrizione, che ha un
+        modello suo configurabile.
         """
+        if self.model_setting:
+            return str(getattr(settings, self.model_setting, "") or settings.openai_model)
         return self.model_name or settings.openai_model
 
 
@@ -146,9 +155,15 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
         scales_with_input=False,
         model_name="text-embedding-3-small",
     ),
-    # Come la chat: c'e' un upload in corso, e rifarlo costa piu' del retry.
+    # Come la chat: c'e' un upload in corso, e rifarlo costa piu' del retry. Il
+    # modello non e' quello di conversazione e lo sceglie chi installa, quindi
+    # il profilo lo legge dai settings invece di dichiararlo.
     LlmTask.TRANSCRIPTION: TaskProfile(
-        LlmTask.TRANSCRIPTION, reasoning_effort="none", retry=True, scales_with_input=False
+        LlmTask.TRANSCRIPTION,
+        reasoning_effort="none",
+        retry=True,
+        scales_with_input=False,
+        model_setting="openai_transcription_model",
     ),
 }
 

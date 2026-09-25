@@ -6,8 +6,8 @@ from typing import Any
 
 import websockets
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
-from openai import AsyncOpenAI
 
+from backend.llm import LlmTask, OperationKind, operation, profile_for, transcribe
 from backend.schemas.chat_api import TranscriptionResponse
 from backend.security import AuthPrincipal, authenticate_websocket, require_principal
 from backend.services.transcription import (
@@ -27,34 +27,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/audio", tags=["audio"])
 
 MAX_AUDIO_UPLOAD_BYTES = 25 * 1024 * 1024
-
-_transcription_client: AsyncOpenAI | None = None
-_transcription_client_key: str | None = None
-
-
-def transcription_client() -> AsyncOpenAI:
-    """Create or reuse the process-wide asynchronous transcription client.
-    
-    The client is recreated when the configured API key changes and is configured
-    with the transcription timeout and retry settings.
-    
-    Returns:
-        AsyncOpenAI: The shared asynchronous transcription client.
-    """
-    global _transcription_client, _transcription_client_key
-
-    api_key = settings.openai_api_key or ""
-
-    if _transcription_client is None or _transcription_client_key != api_key:
-        _transcription_client = AsyncOpenAI(
-            api_key=api_key,
-            timeout=settings.openai_transcription_timeout_seconds,
-            max_retries=settings.transcription_max_retries,
-        )
-        _transcription_client_key = api_key
-
-    return _transcription_client
-
 
 def openai_object_to_dict(value: Any) -> dict[str, Any]:
     """Convert a supported response object or mapping to a dictionary.
@@ -152,18 +124,29 @@ async def transcribe_audio(
     audio_file = BytesIO(audio_bytes)
     audio_file.name = filename
 
+    # Il modello si chiede al profilo del compito, non ai settings: e' la stessa
+    # fonte che il gateway usera' per eseguire. Le opzioni dipendono dal modello
+    # - `response_format`, `chunking_strategy`, `keywords` escono da
+    # `capabilities_for` - quindi due letture separate potrebbero costruire le
+    # opzioni per un modello ed eseguirne un altro: chiederebbe la diarizzazione
+    # a un modello che non la fa, e la trascrizione tornerebbe senza speaker.
     transcription_options = build_transcription_options(
-        model=settings.openai_transcription_model,
+        model=profile_for(LlmTask.TRANSCRIPTION).model,
         language=target_language,
         keywords=resolve_keywords(settings.openai_transcription_keywords),
         temperature=settings.openai_transcription_temperature,
     )
 
     try:
-        transcription = await transcription_client().audio.transcriptions.create(
-            file=(filename, audio_file, content_type),
-            **transcription_options,
-        )
+        # Caricare un audio e' un lavoro, quindi un'operazione: senza, il
+        # gateway rifiuta e le ore di audio tornerebbero a essere spesa senza
+        # nome - e sono la voce che cresce piu' in fretta quando il consulente
+        # registra le interviste.
+        with operation(OperationKind.TRANSCRIPTION):
+            transcription = await transcribe(
+                file=(filename, audio_file, content_type),
+                options=transcription_options,
+            )
     except Exception as exc:
         # The upstream message can carry request and organization identifiers.
         # It belongs in the log, not in a response body.

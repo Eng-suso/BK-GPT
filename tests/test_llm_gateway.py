@@ -12,6 +12,7 @@ tre garanzie, e sono le tre cose testate sotto:
 
 from __future__ import annotations
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -595,3 +596,149 @@ class TestLEmbeddingPassaDalGateway:
 
         assert ledger[0]["outcome"] == Outcome.REFUSED
         assert ledger[0]["error_kind"] == "MissingProviderKey"
+
+
+class _FakeTranscription:
+    """La risposta dell'SDK: `usage` c'e' solo sui modelli che fatturano a token."""
+
+    def __init__(self, *, usage=None):
+        self.text = "trascritto"
+        if usage is not None:
+            self.usage = usage
+
+
+@pytest.fixture()
+def fake_transcriber(monkeypatch, con_chiave):
+    state: dict = {"response": None, "raise": None, "kwargs": None}
+
+    class _FakeTranscriptions:
+        async def create(self, **kwargs):
+            state["kwargs"] = kwargs
+            if state["raise"] is not None:
+                raise state["raise"]
+            return state["response"] or _FakeTranscription()
+
+    class _FakeClient:
+        audio = type("_Audio", (), {"transcriptions": _FakeTranscriptions()})()
+
+    monkeypatch.setattr("backend.llm.gateway._transcription_client_for", lambda _k: _FakeClient())
+    monkeypatch.setattr(settings, "openai_transcription_model", "gpt-4o-transcribe-diarize")
+    return state
+
+
+def _trascrivi(**kwargs):
+    """La trascrizione e' l'unico ingresso `async`: qui si gira con `asyncio.run`."""
+    from backend.llm import transcribe
+
+    return asyncio.run(transcribe(**kwargs))
+
+
+class TestLaTrascrizionePassaDalGateway:
+    """Un'ora di audio e' la voce che cresce piu' in fretta quando il consulente
+    registra le interviste, ed era l'ultimo punto di chiamata senza registro."""
+
+    _FILE = ("intervista.webm", b"\x00\x01", "audio/webm")
+
+    def test_una_trascrizione_fuori_da_un_operazione_e_rifiutata(self, fake_transcriber):
+        with pytest.raises(OperationNotOpen):
+            _trascrivi(file=self._FILE, options={})
+
+    def test_il_modello_e_quello_della_trascrizione_non_quello_della_chat(
+        self, fake_transcriber, ledger
+    ):
+        """Il difetto che ha fatto nascere `model_setting`.
+
+        `profile_for(TRANSCRIPTION).model` tornava il modello di chat, cioe' il
+        registro avrebbe scritto il nome di un modello che non ha mai girato - e
+        il costo stimato sarebbe uscito da un listino che non c'entra.
+        """
+        with operation(OperationKind.TRANSCRIPTION):
+            _trascrivi(file=self._FILE, options={"language": "it"})
+
+        assert fake_transcriber["kwargs"]["model"] == "gpt-4o-transcribe-diarize"
+        assert ledger[0]["model"] == "gpt-4o-transcribe-diarize"
+        assert ledger[0]["model"] != settings.openai_model
+
+    def test_il_registro_scrive_il_modello_che_ha_girato(self, fake_transcriber, ledger):
+        """Le opzioni dipendono dal modello, quindi il modello arriva con loro.
+
+        Se le due fonti divergessero - il profilo da una parte, le opzioni gia'
+        costruite dall'altra - la riga deve dire quello che e' girato, non
+        quello che avremmo voluto: e' la stessa scelta fatta per la chat.
+        """
+        with operation(OperationKind.TRANSCRIPTION):
+            _trascrivi(file=self._FILE, options={"model": "whisper-1"})
+
+        assert fake_transcriber["kwargs"]["model"] == "whisper-1"
+        assert ledger[0]["model"] == "whisper-1"
+
+    def test_senza_modello_nelle_opzioni_decide_il_profilo(self, fake_transcriber, ledger):
+        with operation(OperationKind.TRANSCRIPTION):
+            _trascrivi(file=self._FILE, options={})
+
+        assert fake_transcriber["kwargs"]["model"] == "gpt-4o-transcribe-diarize"
+
+    def test_il_profilo_segue_il_setting_di_chi_installa(self, monkeypatch):
+        monkeypatch.setattr(settings, "openai_transcription_model", "whisper-1")
+        assert profile_for(LlmTask.TRANSCRIPTION).model == "whisper-1"
+
+    def test_un_modello_al_minuto_lascia_comunque_la_sua_riga(self, fake_transcriber, ledger):
+        """Whisper non dichiara token: zero qui non vuol dire «gratis», vuol dire
+        «non si misura cosi'». Senza la riga, l'audio sarebbe spesa invisibile."""
+        with operation(OperationKind.TRANSCRIPTION):
+            _trascrivi(file=self._FILE, options={})
+
+        assert ledger[0]["task"] == LlmTask.TRANSCRIPTION.value
+        assert ledger[0]["outcome"] == Outcome.OK
+        assert ledger[0]["tokens"] == TokenUsage()
+
+    def test_dove_i_token_ci_sono_finiscono_nella_riga(self, fake_transcriber, ledger):
+        fake_transcriber["response"] = _FakeTranscription(
+            usage=type("_U", (), {"input_tokens": 900, "output_tokens": 120})()
+        )
+        with operation(OperationKind.TRANSCRIPTION):
+            _trascrivi(file=self._FILE, options={})
+
+        assert ledger[0]["tokens"] == TokenUsage(input=900, output=120)
+
+    def test_i_token_si_leggono_anche_se_la_risposta_e_un_dizionario(
+        self, fake_transcriber, ledger
+    ):
+        """L'SDK risponde in due forme, e la rotta le tratta gia' entrambe.
+
+        Leggere i token da una sola avrebbe perso l'altra in silenzio - senza
+        errore, con una riga che dice zero e sembra vera.
+        """
+        fake_transcriber["response"] = {"text": "", "usage": {"input_tokens": 40, "output_tokens": 5}}
+        with operation(OperationKind.TRANSCRIPTION):
+            _trascrivi(file=self._FILE, options={})
+
+        assert ledger[0]["tokens"] == TokenUsage(input=40, output=5)
+
+    def test_un_guasto_lascia_comunque_la_sua_riga(self, fake_transcriber, ledger):
+        fake_transcriber["raise"] = TimeoutError("audio troppo lungo")
+        with operation(OperationKind.TRANSCRIPTION):
+            with pytest.raises(TimeoutError):
+                _trascrivi(file=self._FILE, options={})
+
+        assert ledger[0]["outcome"] == Outcome.TIMEOUT
+        assert ledger[0]["error_kind"] == "TimeoutError"
+
+    def test_senza_chiave_si_registra_il_rifiuto(self, monkeypatch, ledger):
+        from backend.llm_config import MissingProviderKey
+
+        monkeypatch.setattr(settings, "openai_api_key", "")
+        with operation(OperationKind.TRANSCRIPTION):
+            with pytest.raises(MissingProviderKey):
+                _trascrivi(file=self._FILE, options={})
+
+        assert ledger[0]["outcome"] == Outcome.REFUSED
+        assert ledger[0]["error_kind"] == "MissingProviderKey"
+
+    def test_ogni_riga_dichiara_il_ragionamento_del_profilo(self, fake_transcriber, ledger):
+        """La colonna non deve avere buchi solo per questo compito: un `NULL`
+        accanto a righe piene si legge come dato mancante, non come «none»."""
+        with operation(OperationKind.TRANSCRIPTION):
+            _trascrivi(file=self._FILE, options={})
+
+        assert ledger[0]["reasoning_effort"] == profile_for(LlmTask.TRANSCRIPTION).reasoning_effort

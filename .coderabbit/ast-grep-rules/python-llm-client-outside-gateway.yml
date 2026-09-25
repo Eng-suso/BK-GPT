@@ -1,0 +1,24 @@
+id: delir-py-llm-client-outside-gateway
+language: python
+severity: error
+message: >-
+  Client del modello costruito fuori da `backend/llm/`. Dichiara il compito al
+  gateway (`llm.run`, `llm.embed`, `llm.transcribe`, `llm.chat_client`) invece
+  di costruire un client: una chiamata fuori dal gateway non lascia nessuna
+  riga nel registro dei consumi.
+note: >-
+  Invariante L1 di docs/llm-gateway-plan.md. Il 18/09 il credito OpenAI e'
+  finito senza che si sapesse dove: la spesa partiva da una decina di moduli,
+  ognuno col suo client. Il gateway esiste perche' "dove sono andati i soldi
+  ieri" sia una query. Se serve un compito nuovo, si aggiunge al registro dei
+  compiti in `backend/llm/tasks.py`.
+files:
+  - "backend/**/*.py"
+ignores:
+  - "backend/llm/**/*.py"
+rule:
+  any:
+    - pattern: ChatOpenAI($$$)
+    - pattern: AsyncOpenAI($$$)
+    - pattern: OpenAI($$$)
+    - pattern: OpenAIEmbeddings($$$)
