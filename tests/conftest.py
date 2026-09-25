@@ -1,10 +1,28 @@
 # conftest.py — shared pytest fixtures
+import os
 import time
 from collections.abc import Callable
 
-import pytest
+# --- I test non tracciano (L6, applicato a LangSmith) ------------------------
+# Deve stare **prima** di importare `backend.settings`, che all'import esegue
+# `configure_langsmith_environment()` e accende il tracing se `.env` dice true.
+#
+# Perche'. L6 dice che i test non devono consumare risorse del fornitore, e
+# finora lo si era applicato solo a OpenAI (P0.1). LangSmith e' un fornitore
+# come gli altri e ha una quota: il 2026-09-25 il registro delle tracce mostrava
+# 5.069 tracce consumate fra l'1 e il 6 settembre, con un tetto mensile di
+# 5.000. Da quel giorno ogni traccia del **prodotto** viene rifiutata con 429,
+# cioe' i test hanno bruciato in sei giorni l'osservabilita' di tutto il mese.
+#
+# Chi vuole le tracce di una passata - gli eval col modello vero, dove vedere il
+# giudizio serve davvero - le riaccende con `DELIR_TRACE_TESTS=1`.
+if os.environ.get("DELIR_TRACE_TESTS", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    os.environ["LANGSMITH_TRACING"] = "false"
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
 
-from backend.settings import settings
+import pytest  # noqa: E402
+
+from backend.settings import settings  # noqa: E402
 
 
 def _drain_until(drains: list[Callable[[], int]], check: Callable[[], bool], tries: int, delay: float) -> bool:

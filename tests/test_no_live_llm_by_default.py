@@ -72,3 +72,28 @@ def test_un_test_marcato_live_llm_tiene_la_chiave():
     if not ENABLED:
         pytest.skip("serve DELIR_LIVE_LLM=1")
     assert settings.openai_api_key
+
+
+def test_i_test_non_consumano_la_quota_di_tracce():
+    """L6 vale anche per LangSmith, che e' un fornitore come gli altri.
+
+    Lo si era applicato solo a OpenAI. Il 2026-09-25 il registro delle tracce
+    diceva 5.069 tracce consumate fra l'1 e il 6 settembre su un tetto mensile
+    di 5.000: da quel giorno ogni traccia del **prodotto** veniva rifiutata con
+    429. I test avevano bruciato in sei giorni l'osservabilita' di tutto il mese,
+    e nessuno se n'era accorto perche' il fallimento e' silenzioso - le chiamate
+    funzionano, solo le tracce spariscono.
+
+    Il meccanismo sta in `tests/conftest.py`, che spegne il tracing **prima** di
+    importare `backend.settings` (che all'import lo accenderebbe da `.env`). Chi
+    vuole le tracce di una passata usa `DELIR_TRACE_TESTS=1`.
+    """
+    from backend.settings import langsmith_tracing_enabled
+
+    if os.environ.get("DELIR_TRACE_TESTS", "").strip().lower() in {"1", "true", "yes", "on"}:
+        pytest.skip("tracing chiesto esplicitamente per questa passata")
+
+    assert not langsmith_tracing_enabled(), (
+        "i test stanno tracciando su LangSmith: consumano la quota mensile che "
+        "serve a osservare la produzione"
+    )
