@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.services import degradation_counters
 from backend.services.eval_runner import run_observability_smoke_eval
-from backend.services.trace_recorder import get_trace
-from backend.security import require_principal
+from backend.services.trace_recorder import read_trace
+from backend.security import get_current_tenant_id, require_principal
 
 
 router = APIRouter(prefix="/v1", tags=["observability"], dependencies=[Depends(require_principal)])
@@ -11,7 +11,17 @@ router = APIRouter(prefix="/v1", tags=["observability"], dependencies=[Depends(r
 
 @router.get("/observability/traces/{trace_id}")
 def get_observability_trace(trace_id: str):
-    return {"trace_id": trace_id, "events": [event.model_dump() for event in get_trace(trace_id)]}
+    """La traccia di un turno, se appartiene a chi la chiede.
+
+    Il `trace_id` viene consegnato al client nell'evento `start` dello stream:
+    senza questo controllo bastava conoscerne uno per rileggere il turno di un
+    altro spazio di lavoro. Una traccia altrui risponde come una che non esiste.
+    """
+    events = read_trace(trace_id, tenant_id=get_current_tenant_id())
+    if events is None:
+        raise HTTPException(status_code=404, detail="Traccia non trovata.")
+
+    return {"trace_id": trace_id, "events": [event.model_dump() for event in events]}
 
 
 @router.post("/evals/observability-smoke")

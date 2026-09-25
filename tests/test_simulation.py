@@ -386,3 +386,83 @@ def test_prepare_simulation_run_dedupes_in_flight_runs(client):
     # Same key, first run still pending -> reuse, no execution.
     assert second_scenario is None
     assert second_run["id"] == first_run["id"]
+
+
+def test_a_simulation_killed_mid_run_stops_being_in_flight(client):
+    """Un crash a meta' simulazione non deve rendere lo scenario irripetibile.
+
+    Il run gira in un `BackgroundTasks` dello stesso processo: se il processo se
+    ne va, la riga resta `pending` per sempre. Da li' in poi il frontend la
+    interroga all'infinito e l'idempotenza rifiuta di rilanciare quella chiave.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from backend.schemas.workspace import BpmnModelResponse
+    from backend.settings import settings
+    from backend.simulation.service import prepare_simulation_run
+    from backend.simulation.storage import (
+        STALE_RUN_ERROR,
+        STALE_RUN_MARGIN_SECONDS,
+        get_simulation_run,
+    )
+    from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
+
+    client_payload = client.post("/v1/workspace/clients", json={"name": "Stale Client"})
+    project_payload = client.post(
+        "/v1/workspace/projects",
+        json={"client_id": client_payload.json()["id"], "name": "Stale Project"},
+    )
+    process_payload = client.post(
+        f"/v1/workspace/projects/{project_payload.json()['id']}/processes",
+        json={"name": "Stale Process"},
+    )
+
+    model = BpmnModelResponse(
+        id=process_payload.json()["bpmn_model_id"],
+        process_id=process_payload.json()["id"],
+        name="Stale Process",
+        xml=MINIMAL_BPMN,
+    )
+    request = CreateSimulationRunRequest(
+        total_cases=10,
+        current_bpmn_xml=MINIMAL_BPMN,
+        idempotency_key="stale-key-456",
+    )
+
+    abandoned, scenario, _ = prepare_simulation_run(bpmn_model=model, request=request)
+    assert scenario is not None
+
+    # Il processo se ne va mentre gira: la riga resta pending e invecchia.
+    dead_for = settings.prosimos_timeout_seconds + STALE_RUN_MARGIN_SECONDS + 60
+    with workspace_connection() as session:
+        row = session.get(WorkspaceSimulationRun, abandoned["id"])
+        row.created_at = (datetime.now(UTC) - timedelta(seconds=dead_for)).isoformat()
+        session.flush()
+
+    # Lo scenario si puo' rilanciare: il run scaduto non conta come "in volo".
+    relaunched, relaunched_scenario, _ = prepare_simulation_run(
+        bpmn_model=model, request=request
+    )
+    assert relaunched_scenario is not None
+    assert relaunched["id"] != abandoned["id"]
+
+    # E chi guarda il run abbandonato legge cosa e' successo, non una rotella.
+    closed = get_simulation_run(abandoned["id"])
+    assert closed["status"] == "failed"
+    assert closed["error"] == STALE_RUN_ERROR
+
+    # Se poi il vecchio processo torna in vita e consegna il suo risultato, e'
+    # tardi: il consulente ne ha gia' lanciata un'altra, e riscrivere questa
+    # riga cancellerebbe la frase che spiega cosa era successo.
+    from backend.simulation.models import ProsimosSimulationResult
+    from backend.simulation.storage import complete_simulation_run
+
+    late = complete_simulation_run(
+        run_id=abandoned["id"],
+        result=ProsimosSimulationResult(),
+        summary={"cycle": {"avg": 42}},
+    )
+
+    assert late["status"] == "failed"
+    assert late["error"] == STALE_RUN_ERROR
+    assert get_simulation_run(abandoned["id"])["summary"] is None

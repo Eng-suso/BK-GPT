@@ -2,6 +2,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 
 from fastapi import FastAPI, HTTPException, Request
@@ -28,8 +29,68 @@ from fastapi.staticfiles import StaticFiles
 logger = logging.getLogger(__name__)
 
 
+#: Gli ambienti in cui partire senza autenticazione non e' una scelta, e' un
+#: incidente: la porta resta aperta e nessuno se ne accorge finche' non entra
+#: qualcuno. La lista dice dove partire scoperti e' lecito, non dove e' vietato:
+#: elencare gli ambienti da proteggere lascerebbe passare tutto il resto, e
+#: `DELIR_ENVIRONMENT=produzione` - la parola giusta, in italiano - sarebbe un
+#: deploy aperto per un refuso.
+OPEN_ENVIRONMENTS = {"dev", "local", "test"}
+
+
+def assert_environment_is_defensible() -> Literal["open", "guarded"]:
+    """Rifiuta di avviare un ambiente dichiarato vero senza autenticazione.
+
+    Con `delir_auth_enabled` a falso il prodotto accetta qualunque chiamata, con
+    CORS `*` e `is_admin` acceso per tutti - cancellazioni comprese. In
+    sviluppo e' comodo ed e' il default. In un ambiente dichiarato staging o
+    prod e' un deploy senza porta, e il difetto di prima era che non lo diceva
+    nessuno: partiva e basta.
+
+    Returns:
+        Literal["open", "guarded"]: `"guarded"` quando una richiesta deve
+            portare una credenziale, `"open"` quando chiunque puo' chiamare.
+            E' un valore e non solo una riga di log, cosi' si puo' verificare
+            in un test e, domani, mostrare in `/health`.
+
+    Raises:
+        RuntimeError: Quando l'ambiente e' dichiarato vero e l'autenticazione e'
+            spenta, o e' accesa e manca il token.
+    """
+    environment = (settings.delir_environment or "dev").strip().lower()
+
+    if not settings.delir_auth_enabled and environment not in OPEN_ENVIRONMENTS:
+        permessi = ", ".join(sorted(OPEN_ENVIRONMENTS))
+        raise RuntimeError(
+            f"DELIR_ENVIRONMENT={environment} con DELIR_AUTH_ENABLED spento: "
+            "il prodotto accetterebbe qualunque chiamata, da qualunque origine, "
+            "con permessi di amministratore. Accendi l'autenticazione, oppure "
+            f"dichiara uno degli ambienti aperti ({permessi}) se questa e' "
+            "davvero una macchina di sviluppo."
+        )
+
+    if settings.delir_auth_enabled and not (settings.delir_api_token or "").strip():
+        raise RuntimeError(
+            "DELIR_AUTH_ENABLED acceso senza DELIR_API_TOKEN: ogni richiesta "
+            "riceverebbe 503, che sembra un guasto e invece e' configurazione."
+        )
+
+    if not settings.delir_auth_enabled:
+        logger.warning(
+            "Autenticazione spenta (DELIR_ENVIRONMENT=%s): CORS aperto a tutti e "
+            "permessi di amministratore a chiunque chiami. Va bene solo su una "
+            "macchina di sviluppo.",
+            environment,
+        )
+        return "open"
+
+    return "guarded"
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    assert_environment_is_defensible()
+
     from backend.local_store import ensure_schema
     from backend.workers.supervisor import run_queue_workers
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id
@@ -17,8 +19,75 @@ from backend.workspace_storage import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+#: Quanto si aspetta oltre il tempo massimo di Prosimos prima di dire che una
+#: simulazione non tornera'. Il margine copre il tempo di scrittura del
+#: risultato, non una seconda attesa.
+STALE_RUN_MARGIN_SECONDS = 120.0
+
+#: Cosa legge il consulente al posto di una rotella che gira per sempre.
+STALE_RUN_ERROR = (
+    "La simulazione non e' arrivata in fondo: il servizio si e' fermato mentre "
+    "girava. Rilanciala."
+)
+
+
+def _started_at(created_at: str | None) -> datetime | None:
+    if not created_at:
+        return None
+    try:
+        parsed = datetime.fromisoformat(created_at)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _expire_stale_runs(session: Session) -> None:
+    """Chiude le simulazioni rimaste `pending` oltre il tempo massimo.
+
+    Una simulazione gira in un `BackgroundTasks` dello stesso processo: un
+    riavvio o un crash a meta' la lascia `pending` in database, e da quel
+    momento due cose non succedono piu'. La prima e' che nessuno la fallisce,
+    quindi il frontend continua a chiedere il suo stato ogni cinque secondi,
+    per sempre. La seconda, peggiore, e' che l'idempotenza vede ancora un run
+    "in volo" con quella chiave e rifiuta di rilanciare lo scenario: un crash
+    rende quello scenario non simulabile, e nessun messaggio lo dice.
+
+    Args:
+        session: La sessione della lettura o della scrittura in corso: la
+            potatura sta nella stessa transazione di chi l'ha provocata.
+    """
+    cutoff = datetime.now(UTC) - timedelta(
+        seconds=settings.prosimos_timeout_seconds + STALE_RUN_MARGIN_SECONDS
+    )
+    pending = session.execute(
+        select(WorkspaceSimulationRun)
+        .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
+        .where(WorkspaceSimulationRun.status == "pending")
+    ).scalars().all()
+
+    expired: list[int] = []
+    for run in pending:
+        started = _started_at(run.created_at)
+        # Una data illeggibile e' gia' un run che nessuno puo' giudicare vivo.
+        if started is not None and started > cutoff:
+            continue
+        run.status = "failed"
+        run.error = STALE_RUN_ERROR
+        run.completed_at = now_iso()
+        expired.append(run.id)
+
+    if expired:
+        session.flush()
+        # Una simulazione morta a meta' e' un fatto operativo: si e' fermato il
+        # processo mentre girava, e chi legge i log deve vederlo.
+        logger.warning("simulazioni chiuse perche' mai tornate: %s", expired)
 
 
 def simulation_run_to_dict(
@@ -54,6 +123,8 @@ def find_active_run_by_key(
 ) -> dict[str, Any] | None:
     """Return an in-flight (pending) run with the same key, if any."""
     with workspace_connection() as session:
+        # Prima di dire "ce n'e' gia' uno in volo": uno scaduto non e' in volo.
+        _expire_stale_runs(session)
         run = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
@@ -111,7 +182,9 @@ def complete_simulation_run(
         result=result,
         error=None,
     )
-    if summary is not None or replay is not None:
+    # Il risultato puo' essere stato scartato perche' arrivato dopo la chiusura:
+    # in quel caso non deve lasciare dietro di se' nemmeno l'artefatto.
+    if run["status"] == "completed" and (summary is not None or replay is not None):
         _write_simulation_artifact(run_id=run_id, summary=summary or {}, replay=replay or {})
         run["summary"] = summary
     return run
@@ -176,6 +249,9 @@ def fail_simulation_run(*, run_id: int, error: str) -> dict[str, Any]:
 
 def get_simulation_run(run_id: int) -> dict[str, Any] | None:
     with workspace_connection() as session:
+        # E' la rotta che il frontend interroga ogni cinque secondi: e' qui che
+        # una simulazione morta deve smettere di sembrare viva.
+        _expire_stale_runs(session)
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             return None
@@ -184,6 +260,7 @@ def get_simulation_run(run_id: int) -> dict[str, Any] | None:
 
 def list_simulation_runs(bpmn_model_id: str) -> list[dict[str, Any]]:
     with workspace_connection() as session:
+        _expire_stale_runs(session)
         rows = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
@@ -207,6 +284,19 @@ def _update_simulation_run(
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             raise ValueError(f"Simulation run non trovata: {run_id}")
+
+        if run.status != "pending":
+            # Arriva un risultato per una simulazione gia' chiusa: quasi sempre
+            # una che avevamo dichiarato morta e che invece stava ancora
+            # girando. Scriverlo adesso la riporterebbe in vita dopo che il
+            # consulente ne ha gia' lanciata un'altra, e cancellerebbe la frase
+            # che spiega cosa era successo.
+            logger.warning(
+                "risultato tardivo per la simulazione %s, gia' %s: scartato",
+                run_id,
+                run.status,
+            )
+            return simulation_run_to_dict(run, summary=_summary_for(session, run_id))
 
         run.status = status
         run.result_json = json.dumps(result.payload, ensure_ascii=False)
