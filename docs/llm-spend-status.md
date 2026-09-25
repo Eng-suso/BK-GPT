@@ -142,8 +142,8 @@ t.5 quella cache non esiste piu' e la lunghezza arriva al gateway esatta.
 | P1.6 | L1 in CI: client del fornitore vietati fuori da `backend/llm/` | **fatto, verificato** (verde su `backend/`, rossa su un file di prova) |
 | L5 | Versione del prompt nel registro | **fatto, verificato** (10 punti di chiamata + test AST che impedisce di dimenticarla) |
 | Lettura | `llm.ledger` + `scripts/llm_spend.py` | **fatto, verificato** |
-| Listino | `LLM_PRICES_JSON` coi prezzi veri | **da fare, e non e' codice**: oggi e' vuoto, quindi ogni riga ha costo NULL |
-| Spesa vera | Una riga nata da una chiamata pagata | **bloccato**: crediti OpenAI esauriti |
+| Listino | `LLM_PRICES_JSON` coi prezzi veri | **fatto** (25/09, prezzi sotto). `.env` e' gitignored: su ogni macchina va rimesso |
+| Spesa vera | Una riga nata da una chiamata pagata | **fatto, verificato** (25/09: $0.0140, copertura 100%) |
 
 **t.1 — aprono l'operazione:** `plan_worker` (PLAN_SYNTHESIS), `conformance_worker`
 (CONFORMANCE_AUDIT), `ingest_worker` (KG_INGESTION) e il turno di chat
@@ -323,6 +323,56 @@ risolveva - il pacchetto e' `ast-grep-cli`, l'eseguibile `ast-grep`:
 uvx --from ast-grep-cli ast-grep scan --rule .coderabbit/ast-grep-rules/<regola>.yml backend/
 ```
 
+### La prima spesa vera, e le tre cose che ha detto
+
+Il 25/09 P1 ha smesso di essere verificato solo come codice.
+`scripts/llm_spend_e2e_reale.py` fa il percorso del prodotto -
+`build_process_understanding` su un'intervista, con giudizio di qualita' - col
+modello vero. Due righe nel registro, **$0.0140, copertura 100%**, ciascuna con
+la versione del suo prompt; e le versioni sono identiche fra due esecuzioni,
+che e' quello che l'hash di un template deve fare.
+
+Il listino e' configurato (`LLM_PRICES_JSON`), prezzi dalla pagina ufficiale
+`developers.openai.com/api/docs/pricing` del 25/09, standard tier, dollari per
+**milione** di token. `.env` e' gitignored, quindi questi numeri stanno qui o si
+perdono:
+
+| modello | input | cached input | output |
+| --- | --- | --- | --- |
+| `gpt-5.6-luna` | 0.20 | 0.02 | 0.75 |
+| `text-embedding-3-small` | 0.02 | — | — |
+| `gpt-4o-transcribe-diarize` | **$0.006 / minuto di audio**, non a token: fuori dal listino apposta |
+
+Tre cose che nessun test col confine di rete finto poteva dire:
+
+**1. Una stima a priori sbaglia di un ordine di grandezza.** Stimando i token
+dall'intervista (1.244 caratteri, ~311 token) veniva $0.0011. Il registro ne ha
+contati **21.386 in ingresso**: dodici volte tanto. L'input non e' la fonte,
+sono il prompt di sistema, lo schema di risposta e - per il giudizio di qualita'
+- il piano gia' estratto che si rilegge. **Per P3 questo e' un vincolo di
+progetto**: una prenotazione di budget calcolata sulla lunghezza dell'input
+sarebbe sbagliata di 12x, e va calcolata sul prompt assemblato o su una media
+misurata per compito.
+
+**2. L'esperimento su `reasoning_effort` va ripensato.** §③.3 diceva che il
+default `medium` su sette compiti e' spreco, e che il primo esperimento e'
+abbassarlo. I primi numeri veri dicono altro:
+
+    plan_extraction   effort=medium   ragionamento  2% di 21.838 token di uscita
+    plan_quality      effort=low      ragionamento 12% di  3.275 token di uscita
+
+Su `plan_extraction` il ragionamento e' **il 2%**: abbassare l'effort li' non
+libererebbe quasi niente, perche' la spesa non e' nel ragionamento - e' nei
+21.838 token di **uscita strutturata**, piu' i 21.386 in ingresso. La leva vera
+su questo compito e' la dimensione dello schema e del prompt, non l'effort.
+L'ipotesi del piano non e' falsa in generale, ma non vale dove pensavamo: va
+verificata compito per compito, ed e' proprio a questo che serve il registro.
+
+**3. Il tracing satura e va spento.** Il tenant LangSmith ha superato il limite
+mensile di 5.000 tracce: ogni chiamata produce un muro di 429. Non fa cadere il
+lavoro, ma rende illeggibile qualsiasi output ed e' latenza pagata per niente.
+E' P0.5, che era gia' in attesa, e lo script se lo spegne da solo.
+
 ### Quello che l'e2e ha trovato, e che nessun test unitario poteva trovare
 
 `tests/test_llm_spend_e2e.py` fa il percorso vero - coda, worker, embedding,
@@ -384,29 +434,27 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**Due cose che non sono codice, e poi P2.**
+**P1 e' chiuso davvero.** Non solo come codice: il 25/09 una chiamata pagata e'
+finita nel registro valorizzata al 100%, col suo compito, il suo modello e la
+versione del suo prompt. «Dove sono andati i soldi ieri» e' una query, e si fa
+cosi':
 
-**1. Il listino.** `LLM_PRICES_JSON` e' vuoto, quindi oggi ogni riga del
-registro ha `cost_estimate` a NULL: sappiamo quanto abbiamo **consumato**, non
-quanto abbiamo **speso**. E' l'ultimo pezzo che separa «dove sono andati i
-token» da «dove sono andati i soldi», ed e' una riga di `.env`. Il comando
+    uv run python scripts/llm_spend.py ieri
 
-    uv run python scripts/llm_spend.py listino
+Due cose da fare, piccole, prima di considerare il campo sgombro:
 
-elenca i modelli che hanno girato davvero, in ordine di quanto pesano, e stampa
-lo scheletro JSON da riempire coi prezzi del fornitore. I prezzi non li mette il
-codice di proposito: un listino incollato invecchia in silenzio e produce un
-costo plausibile e falso, che e' peggio di nessun costo.
+1. **Il ricalcolo sul database di produzione.** Il listino e' arrivato dopo le
+   righe, e il costo si materializza alla scrittura: tutto quello che e' girato
+   prima del 25/09 ha `cost_estimate` NULL. Si recupera con
 
-I modelli che si pagano a tempo (la trascrizione al minuto) **non** vanno a
-listino: a zero token darebbero un costo di zero. Per loro il costo resta NULL,
-e lo dice la fattura.
+       uv run python scripts/llm_spend.py ricalcola            # prova
+       uv run python scripts/llm_spend.py ricalcola --applica
 
-**2. Una riga nata da spesa vera.** Tutto e' verificato con il confine di rete
-finto. La prima chiamata davvero pagata che lascia una riga non c'e' ancora
-stata, perche' gli eval col modello vero sono fermi sui crediti OpenAI esauriti.
-Finche' non succede, P1 e' verificato come codice e non come misura: il gesto e'
-far girare `tests/evals` con `DELIR_LIVE_LLM=1` e poi `llm_spend.py ieri`.
+   Va fatto sul database **workspace di produzione**, non su quello di un
+   worktree (che e' pieno di righe di test).
+2. **Spegnere il tracing** (P0.5). Il tenant LangSmith ha superato il limite
+   mensile di 5.000 tracce e ogni chiamata prende un 429. `LANGSMITH_TRACING=false`
+   in `.env`.
 
 **Poi P2 — artefatti con dipendenze** (§4.2 del piano). E' l'unica leva che
 cambia l'ordine di grandezza invece di una percentuale, e il lavoro concreto e'
@@ -415,19 +463,21 @@ la chiave dell'artefatto e' l'insieme delle evidenze, quindi una fonte aggiunta
 invalida tutto quello che era gia' stato calcolato sulle altre - e nel lavoro
 vero le fonti si aggiungono una per volta, mentre l'intervista procede.
 
-Il primo esperimento da fare col registro in mano e' `reasoning_effort` per
-compito (§③.3), e ora si chiede:
+P2 arriva con un argomento in piu' di prima. Un'estrazione piu' giudizio su
+un'intervista corta costa $0.014 e brucia 34.000 token: il grosso e' prompt e
+schema, non la fonte. Rifarla ogni volta che si aggiunge una fonte e' esattamente
+la spesa che P2 elimina, e ora si puo' misurare prima e dopo.
 
-    uv run python scripts/llm_spend.py ragionamento
-
-Una quota alta su un compito che risponde dentro uno schema strict e' il primo
-posto dove abbassare l'effort: li' lo schema fa il lavoro.
+**Quello che P2 non e' piu':** il primo esperimento del piano era abbassare
+`reasoning_effort`. I numeri veri dicono che su `plan_extraction` il ragionamento
+e' il 2% dell'uscita (§①), quindi li' non c'e' niente da liberare. Va verificato
+compito per compito col registro in mano, invece che assunto.
 
 **Non ancora P3** (budget con prenotazione e saldo): servono due settimane di
-numeri veri, e non e' solo la soglia a dipendere dai dati - la *forma* del
-meccanismo lo e'. Prima di P3 va deciso anche il tenant del registro (§③.6), che
-e' quello workspace e non il consulente: i budget per tenant si appoggiano a
-quel campo.
+numeri veri. E ora si sa anche una cosa sulla sua forma: la prenotazione **non**
+puo' basarsi sulla lunghezza dell'input, che sottostima di 12x. Prima di P3 va
+deciso anche il tenant del registro (§③.6), che e' quello workspace e non il
+consulente.
 
 ---
 
@@ -680,6 +730,7 @@ trova la chiave a `None` e falla.
 | 2026-09-25 | P1.6: regola ast-grep L1 (`severity: error`), verificata verde su `backend/` e rossa su un file di prova; comando del README corretto | `chore/llm-code` |
 | 2026-09-25 | Lettura del registro: `llm.ledger` + `scripts/llm_spend.py`; ogni totale dichiara la sua copertura di prezzo. KPI costo-per-AS-IS calcolabile: l'evento di validazione esisteva gia' | `chore/llm-ledger-read` |
 | 2026-09-25 | L5: `prompt_version` su 10 punti di chiamata, hash del template (schema compreso), test AST che impedisce di dimenticarla | `chore/llm-ledger-read` |
+| 2026-09-25 | Listino configurato (prezzi ufficiali) e **prima spesa vera nel registro**: $0.0140, copertura 100%. Stima a priori sbagliata di 12x, ragionamento al 2% su plan_extraction | `chore/llm-ledger-read` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`
