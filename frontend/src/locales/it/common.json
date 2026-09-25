@@ -242,5 +242,10 @@
       "body": "Prima di riprovare, controlla se il backend risponde e se ha lavoro in coda: una conoscenza che non arriva spesso è una coda ferma, non una risposta sbagliata.",
       "action": "Controlla lo stato del servizio"
     }
+  },
+  "notFound": {
+    "title": "Questa pagina non esiste",
+    "body": "L'indirizzo {{path}} non porta da nessuna parte: può essere un link vecchio, o un incarico che è stato chiuso.",
+    "action": "Vai agli incarichi"
   }
 }

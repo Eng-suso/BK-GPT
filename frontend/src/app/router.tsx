@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppLayout } from "@/app/AppLayout";
+import { NotFoundPage } from "@/app/NotFoundPage";
 import { DEFAULT_ROUTE } from "@/app/routes";
 import { ArchivePage } from "@/features/archive/ArchivePage";
 import { ClientsListPage } from "@/features/clients";
@@ -61,7 +62,9 @@ export const router = createBrowserRouter([
       { path: "models", element: <ModelsPage /> },
       { path: "archive", element: <ArchivePage /> },
       { path: "settings", element: <SettingsPage /> },
-      { path: "*", element: <Navigate to={DEFAULT_ROUTE} replace /> },
+      // Non un `Navigate`: un indirizzo che non esiste lo dice, e resta nella
+      // cronologia, cosi' il tasto indietro torna da dove si veniva.
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
 ]);

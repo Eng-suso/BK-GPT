@@ -242,5 +242,10 @@
       "body": "Before retrying, check whether the backend answers and has queued work: knowledge that does not arrive is often a stalled queue, not a wrong answer.",
       "action": "Check service status"
     }
+  },
+  "notFound": {
+    "title": "This page does not exist",
+    "body": "The address {{path}} leads nowhere: it may be an old link, or a project that has been closed.",
+    "action": "Go to projects"
   }
 }
