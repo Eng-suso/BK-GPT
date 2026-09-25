@@ -13,6 +13,7 @@ from backend.schemas.workspace import BpmnModelResponse
 from backend.security import get_current_tenant_id, require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.service import (
+    SimulationCapacityError,
     execute_simulation_run,
     prepare_simulation_run,
     scenario_provenance_for_model,
@@ -48,6 +49,10 @@ async def create_workspace_simulation_run(
             bpmn_model=BpmnModelResponse(**model),
             request=request,
         )
+    except SimulationCapacityError as exc:
+        # 429 e non 400: la richiesta e' giusta, e' il momento a essere
+        # sbagliato. La stessa, fra due minuti, funziona.
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

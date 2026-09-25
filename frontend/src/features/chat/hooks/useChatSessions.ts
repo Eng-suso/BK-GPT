@@ -152,12 +152,14 @@ export function useChatSessions(
     return seeded;
   };
 
+  // Le due cancellazioni lasciano passare l'errore invece di ingoiarlo. Prima
+  // lo scrivevano in console e poi svuotavano la cache lo stesso: il backend
+  // rifiutava, la riga spariva dallo schermo, il prodotto diceva "eliminata" e
+  // la conversazione tornava al primo aggiornamento. Chi chiama decide cosa
+  // mostrare; qui si tocca la cache solo quando la cancellazione e' avvenuta.
+
   const deleteSession = async (threadId: string) => {
-    try {
-      await deleteChatSession(threadId);
-    } catch (err) {
-      console.error("[chat] delete session failed", err);
-    }
+    await deleteChatSession(threadId);
     queryClient.setQueryData<ChatSession[]>(
       chatKeys.sessions(scopeKey),
       (prev) => (prev ?? []).filter((s) => s.threadId !== threadId),
@@ -166,11 +168,7 @@ export function useChatSessions(
   };
 
   const clearHistory = async () => {
-    try {
-      await clearChatSessions(scopeKey);
-    } catch (err) {
-      console.error("[chat] clear history failed", err);
-    }
+    await clearChatSessions(scopeKey);
     queryClient.setQueryData<ChatSession[]>(chatKeys.sessions(scopeKey), []);
     setThread(null);
   };

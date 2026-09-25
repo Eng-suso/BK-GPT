@@ -20,7 +20,8 @@
     "close": "Close",
     "search": "Search",
     "clearFilter": "Clear this filter",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "retryScreen": "Retry this screen"
   },
   "pagination": {
     "previous": "Previous page",
@@ -33,7 +34,9 @@
     "errorBody": "The data could not be loaded. Try again.",
     "empty": "No data available",
     "backendUnavailable": "Backend unavailable",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "crash": "This screen stopped",
+    "crashBody": "The rest of the product still works. Try again, or move to another section from the left bar."
   },
   "home": {
     "description": "Operational overview of clients, projects and processes in the workspace.",
@@ -239,5 +242,10 @@
       "body": "Before retrying, check whether the backend answers and has queued work: knowledge that does not arrive is often a stalled queue, not a wrong answer.",
       "action": "Check service status"
     }
+  },
+  "notFound": {
+    "title": "This page does not exist",
+    "body": "The address {{path}} leads nowhere: it may be an old link, or a project that has been closed.",
+    "action": "Go to projects"
   }
 }

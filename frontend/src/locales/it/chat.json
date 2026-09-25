@@ -204,5 +204,19 @@
     "titleMatch": "Corrisponde il titolo della conversazione.",
     "fromUser": "Consulente",
     "fromAssistant": "DeliR"
+  },
+  "confirm": {
+    "deleteSession": {
+      "title": "Eliminare questa conversazione?",
+      "body": "Spariscono le domande e le risposte di questo thread. Non si torna indietro.",
+      "action": "Elimina la conversazione",
+      "done": "Conversazione eliminata."
+    },
+    "clearHistory": {
+      "title": "Svuotare tutta la cronologia?",
+      "body": "Spariscono tutte le conversazioni di questo spazio di lavoro, non solo quella aperta. Non si torna indietro.",
+      "action": "Svuota la cronologia",
+      "done": "Cronologia eliminata."
+    }
   }
 }

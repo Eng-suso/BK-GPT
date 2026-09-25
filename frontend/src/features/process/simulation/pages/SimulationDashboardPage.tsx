@@ -16,6 +16,7 @@ import {
   formatCurrencyShort,
   formatDuration,
   formatDurationShort,
+  formatOrMissing,
   formatPercent,
 } from "../simulationResults";
 
@@ -195,39 +196,45 @@ function DashboardHeadline({
   const bottleneck =
     (summary?.bottleneck as { name?: string } | null | undefined)?.name ?? null;
 
-  const cycleAvg = Number(summary?.cycle?.avg ?? 0);
-  const waitShare = Number(summary?.waiting?.share ?? 0);
-  const costPerCase = Number(summary?.cost?.perCase ?? 0);
-  const p95 = Number(summary?.cycle?.p95 ?? 0);
+  // Niente `?? 0`: un ciclo di zero secondi e un costo di zero euro sono numeri
+  // che il consulente porta davanti a un cliente. Se la simulazione non li ha
+  // prodotti, deve leggere che mancano, non leggere zero.
+  const cycleAvg = summary?.cycle?.avg;
+  const waitShare = summary?.waiting?.share;
+  const costPerCase = summary?.cost?.perCase;
+  const p95 = summary?.cycle?.p95;
+
+  const share = formatOrMissing(waitShare, formatPercent);
 
   return (
     <section className="ui-surface ui-surface-panel p-4">
       <p className="text-[13px] leading-relaxed text-foreground">
-        {bottleneck
-          ? t("simulation.dashboard.headline", {
-              bottleneck,
-              peak: peakQueue,
-              share: formatPercent(waitShare),
-            })
-          : t("simulation.dashboard.headlineNoBottleneck", {
-              share: formatPercent(waitShare),
-            })}
+        {summary === null
+          ? t("simulation.dashboard.headlineNoSummary")
+          : bottleneck
+            ? t("simulation.dashboard.headline", {
+                bottleneck,
+                peak: peakQueue,
+                share,
+              })
+            : t("simulation.dashboard.headlineNoBottleneck", { share })}
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatTile
           label={t("simulation.results.cycleTime")}
-          value={formatDuration(cycleAvg, lang)}
-          hint={t("simulation.compare.kpi.cycleP95") + ` ${formatDuration(p95, lang)}`}
+          value={formatOrMissing(cycleAvg, (v) => formatDuration(v, lang))}
+          hint={
+            t("simulation.compare.kpi.cycleP95") +
+            ` ${formatOrMissing(p95, (v) => formatDuration(v, lang))}`
+          }
         />
         <StatTile
-          label={t("simulation.results.waitingShare", {
-            share: formatPercent(waitShare),
-          })}
-          value={formatPercent(waitShare)}
+          label={t("simulation.results.waitingShare", { share })}
+          value={share}
         />
         <StatTile
           label={t("simulation.results.costPerCase")}
-          value={formatCurrency(costPerCase, lang)}
+          value={formatOrMissing(costPerCase, (v) => formatCurrency(v, lang))}
         />
         <StatTile
           label={t("simulation.dashboard.peakQueue")}

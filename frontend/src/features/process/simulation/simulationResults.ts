@@ -246,6 +246,31 @@ const DURATION_UNITS: Record<"it" | "en", { d: string; h: string; m: string; s: 
   en: { d: "d", h: "h", m: "min", s: "s" },
 };
 
+/**
+ * Cosa si legge al posto di un KPI che non c'e'.
+ *
+ * Non e' zero. Un ciclo di zero secondi e un costo di zero euro sono numeri che
+ * un consulente porta davanti a un cliente: se il dato manca, deve vedere che
+ * manca. `?? 0` li rendeva indistinguibili.
+ */
+export const MISSING_VALUE = "—";
+
+/**
+ * Formatta un KPI, oppure dice che non c'e'.
+ *
+ * @param value - Il numero, oppure `null`/`undefined`/`NaN` se la simulazione
+ *   non lo ha prodotto.
+ * @param format - Come si scrive quando c'e'.
+ */
+export function formatOrMissing(
+  value: number | null | undefined,
+  format: (value: number) => string,
+): string {
+  return typeof value === "number" && Number.isFinite(value)
+    ? format(value)
+    : MISSING_VALUE;
+}
+
 /** Compact wall-clock duration, two largest non-zero units (e.g. "2g 21h"). */
 export function formatDuration(totalSeconds: number, lang: "it" | "en" = "it"): string {
   const u = DURATION_UNITS[lang] ?? DURATION_UNITS.it;

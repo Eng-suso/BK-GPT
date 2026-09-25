@@ -204,5 +204,19 @@
     "titleMatch": "The conversation title matches.",
     "fromUser": "Consultant",
     "fromAssistant": "DeliR"
+  },
+  "confirm": {
+    "deleteSession": {
+      "title": "Delete this conversation?",
+      "body": "The questions and answers in this thread go away. There is no undo.",
+      "action": "Delete the conversation",
+      "done": "Conversation deleted."
+    },
+    "clearHistory": {
+      "title": "Clear the whole history?",
+      "body": "Every conversation in this workspace goes away, not just the open one. There is no undo.",
+      "action": "Clear the history",
+      "done": "History cleared."
+    }
   }
 }

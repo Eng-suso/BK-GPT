@@ -14,7 +14,7 @@ import { fetchSimulationExperiments } from "../simulationApi";
 import type { Experiment, SimulationSummary } from "../simulationTypes";
 import { useScenarioLab } from "../useScenarioLab";
 import { useSimulationSection } from "../useSimulationSection";
-import { formatDuration, formatPercent } from "../simulationResults";
+import { formatDuration, formatOrMissing, formatPercent } from "../simulationResults";
 
 const FACTOR_ORDER = [
   "waitingContribution",
@@ -102,7 +102,8 @@ export function InsightsPage(): React.JSX.Element {
                   bottleneckWait(summary, report.bottleneck_el),
                   lang,
                 ),
-                share: formatPercent(summary.waiting?.share ?? 0),
+                // Una quota di attesa mancante non e' una quota dello 0%.
+                share: formatOrMissing(summary.waiting?.share, formatPercent),
               })}
             </p>
             <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
