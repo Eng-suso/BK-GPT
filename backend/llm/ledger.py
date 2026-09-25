@@ -648,3 +648,47 @@ def ricalcola_costi_mancanti(
         ancora_senza_prezzo=ancora,
         costo_recuperato=recuperato,
     )
+
+
+def traccia_locale(operation_id: str, *, giorni: int = 7) -> list[dict]:
+    """Gli eventi tracciati per un'operazione, letti dai file locali.
+
+    E' il ponte fra i due sistemi. Il registro dei consumi risponde a «quanto e'
+    costata questa chiamata»; i file di `local_tracer` rispondono a «cosa le e'
+    stato mandato». Il campo che li unisce e' `operation_id`, che il tracer
+    scrive su ogni evento proprio per questo: senza, sarebbero due archivi della
+    stessa chiamata che non sanno l'uno dell'altro.
+
+    Vale solo per le chiamate avvenute con LangSmith spento - i test, e il
+    prodotto quando il servizio non c'e'. Per le altre la traccia sta su
+    LangSmith, e qui non si trova niente: e' un'assenza, non un guasto.
+
+    Args:
+        operation_id: L'id che compare nella riga del registro.
+        giorni: Quanti file giornalieri guardare all'indietro.
+
+    Returns:
+        Gli eventi in ordine di scrittura, o una lista vuota.
+    """
+    import json
+    from datetime import timedelta
+
+    from backend.llm.local_tracer import percorso_del_giorno
+
+    cartella = percorso_del_giorno().parent
+    oggi = datetime.now(UTC)
+    eventi: list[dict] = []
+    for scarto in range(max(1, giorni)):
+        file = cartella / f"{oggi - timedelta(days=scarto):%Y-%m-%d}.jsonl"
+        if not file.exists():
+            continue
+        for riga in file.read_text(encoding="utf-8").splitlines():
+            if not riga.strip() or operation_id not in riga:
+                continue
+            try:
+                evento = json.loads(riga)
+            except json.JSONDecodeError:
+                continue
+            if evento.get("operation_id") == operation_id:
+                eventi.append(evento)
+    return sorted(eventi, key=lambda e: e.get("ts", ""))

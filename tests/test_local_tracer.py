@@ -149,3 +149,85 @@ def _risposta_finta():
         }
 
     return _Risposta()
+
+
+class TestIlPonteColRegistroDeiConsumi:
+    """Il registro dice quanto e' costata una chiamata, la traccia dice cosa le
+    era stato mandato. `operation_id` e' il campo che le fa parlare: senza,
+    sarebbero due archivi della stessa chiamata che non sanno l'uno dell'altro."""
+
+    def test_ogni_evento_porta_l_operazione(self, cartella, monkeypatch):
+        from uuid import uuid4
+
+        from backend.llm import OperationKind, operation
+
+        monkeypatch.setattr("backend.settings.langsmith_tracing_enabled", lambda: False)
+        monkeypatch.delenv("DELIR_LOCAL_TRACE", raising=False)
+        h = local_tracer.local_callbacks()[0]
+
+        with operation(OperationKind.PLAN_SYNTHESIS, project_id="p-1") as op:
+            h.on_llm_start({"name": "ChatOpenAI"}, ["x"], run_id=uuid4())
+
+        evento = json.loads(next(cartella.glob("*.jsonl")).read_text(encoding="utf-8").strip())
+        assert evento["operation_id"] == op.id
+        assert evento["operation_kind"] == OperationKind.PLAN_SYNTHESIS
+        assert evento["project_id"] == "p-1"
+
+    def test_fuori_da_un_operazione_si_traccia_lo_stesso(self, cartella, monkeypatch):
+        """Uno script o un notebook non hanno un'operazione: la traccia resta
+        utile anche senza il collegamento."""
+        from uuid import uuid4
+
+        monkeypatch.setattr("backend.settings.langsmith_tracing_enabled", lambda: False)
+        monkeypatch.delenv("DELIR_LOCAL_TRACE", raising=False)
+        h = local_tracer.local_callbacks()[0]
+
+        h.on_llm_start({"name": "ChatOpenAI"}, ["x"], run_id=uuid4())
+
+        evento = json.loads(next(cartella.glob("*.jsonl")).read_text(encoding="utf-8").strip())
+        assert "operation_id" not in evento
+        assert evento["evento"] == "llm_start"
+
+    def test_si_rileggono_solo_gli_eventi_di_quella_operazione(self, cartella, monkeypatch):
+        from uuid import uuid4
+
+        from backend.llm import OperationKind, ledger, operation
+
+        monkeypatch.setattr("backend.settings.langsmith_tracing_enabled", lambda: False)
+        monkeypatch.delenv("DELIR_LOCAL_TRACE", raising=False)
+        h = local_tracer.local_callbacks()[0]
+
+        with operation(OperationKind.PLAN_SYNTHESIS) as mia:
+            h.on_llm_start({"name": "ChatOpenAI"}, ["la mia"], run_id=uuid4())
+        with operation(OperationKind.KG_INGESTION):
+            h.on_llm_start({"name": "ChatOpenAI"}, ["di un altro"], run_id=uuid4())
+
+        eventi = ledger.traccia_locale(mia.id)
+
+        assert len(eventi) == 1
+        assert eventi[0]["prompt"] == ["la mia"]
+
+    def test_un_operazione_senza_traccia_non_e_un_guasto(self, cartella, monkeypatch):
+        """La chiamata e' avvenuta con LangSmith acceso: la traccia sta li'."""
+        from backend.llm import ledger
+
+        assert ledger.traccia_locale("operazione-che-non-ha-tracce-locali") == []
+
+    def test_una_riga_illeggibile_non_fa_cadere_la_lettura(self, cartella, monkeypatch):
+        from uuid import uuid4
+
+        from backend.llm import OperationKind, ledger, operation
+
+        monkeypatch.setattr("backend.settings.langsmith_tracing_enabled", lambda: False)
+        monkeypatch.delenv("DELIR_LOCAL_TRACE", raising=False)
+        h = local_tracer.local_callbacks()[0]
+
+        with operation(OperationKind.PLAN_SYNTHESIS) as op:
+            h.on_llm_start({"name": "ChatOpenAI"}, ["buona"], run_id=uuid4())
+        file = next(cartella.glob("*.jsonl"))
+        with file.open("a", encoding="utf-8") as f:
+            f.write("{non e' json ma contiene " + op.id + "\n")
+
+        eventi = ledger.traccia_locale(op.id)
+
+        assert len(eventi) == 1

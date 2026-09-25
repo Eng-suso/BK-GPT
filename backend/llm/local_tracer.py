@@ -93,6 +93,7 @@ def _scrivi(evento: dict[str, Any]) -> None:
     """
     try:
         evento["ts"] = datetime.now(UTC).isoformat()
+        evento.update(_lavoro())
         riga = json.dumps(evento, ensure_ascii=False, default=str)
         with _GUARD:
             with percorso_del_giorno().open("a", encoding="utf-8") as f:
@@ -103,6 +104,33 @@ def _scrivi(evento: dict[str, Any]) -> None:
 
 def _chiave(run_id: UUID | None) -> str:
     return str(run_id) if run_id is not None else "?"
+
+
+def _lavoro() -> dict[str, Any]:
+    """L'operazione dentro cui questa chiamata sta avvenendo, se c'e'.
+
+    E' quello che cuce insieme i due sistemi. Il registro dei consumi dice che
+    una chiamata e' costata tanto, dentro l'operazione X; la traccia dice cosa
+    le e' stato mandato. Senza questo campo restano due file che parlano della
+    stessa chiamata senza sapere l'uno dell'altro, e la domanda naturale -
+    «questa riga cara, cosa aveva in pancia?» - non ha risposta.
+
+    Best-effort: fuori da un'operazione (uno script, un notebook) si traccia lo
+    stesso, senza il collegamento.
+    """
+    try:
+        from backend.llm.operation import current_operation
+
+        operazione = current_operation()
+        if operazione is None:
+            return {}
+        return {
+            "operation_id": operazione.id,
+            "operation_kind": operazione.kind,
+            "project_id": operazione.project_id,
+        }
+    except Exception:  # noqa: BLE001 - il collegamento e' un di piu', non un requisito
+        return {}
 
 
 def _handler_locale():

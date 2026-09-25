@@ -228,6 +228,48 @@ def _comando_ricalcola(args) -> None:
         )
 
 
+def _comando_traccia(args) -> None:
+    from sqlalchemy import select
+
+    from backend.workspace_storage import WorkspaceLlmUsage, workspace_connection
+
+    with workspace_connection() as sessione:
+        righe = sessione.execute(
+            select(WorkspaceLlmUsage).where(WorkspaceLlmUsage.operation_id == args.operation_id)
+        ).scalars().all()
+
+    print(f"\nOperazione {args.operation_id}")
+    if not righe:
+        print("  nessuna riga nel registro con questo id.")
+        return
+    for r in righe:
+        costo = "-" if r.cost_estimate is None else f"${r.cost_estimate}"
+        print(
+            f"  {r.created_at[:19]}  {r.task}  {r.model}  "
+            f"{r.input_tokens} in / {r.output_tokens} out  {costo}  esito={r.outcome}"
+        )
+        if r.prompt_version:
+            print(f"     prompt: {r.prompt_version}")
+
+    eventi = ledger.traccia_locale(args.operation_id)
+    print(f"\n  Traccia locale: {len(eventi)} eventi")
+    if not eventi:
+        print(
+            "  Nessuna: la chiamata e' avvenuta con LangSmith acceso, quindi la"
+            "\n  traccia sta li'. E' un'assenza, non un guasto."
+        )
+        return
+    for e in eventi:
+        print(f"\n  [{e.get('ts','')[:19]}] {e.get('evento')}  {e.get('modello') or ''}")
+        for campo in ("messaggi", "prompt", "risposta", "errore", "messaggio"):
+            if campo in e:
+                print(f"     {campo}: {str(e[campo])[:400]}")
+        if e.get("durata_ms"):
+            print(f"     durata: {e['durata_ms']} ms")
+        if e.get("token"):
+            print(f"     token: {e['token']}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--giorni", type=int, default=7, help="Ampiezza della finestra (default 7).")
@@ -241,6 +283,10 @@ def main() -> None:
     sub.add_parser("ragionamento", help="Quanta uscita e' ragionamento, per compito.")
     sub.add_parser("as-is", help="Il KPI: quanto costa un AS-IS validato.")
     sub.add_parser("listino", help="Quali modelli hanno girato e quali prezzi mancano.")
+    p_tr = sub.add_parser(
+        "traccia", help="Tutto su una chiamata: la riga di spesa e la traccia locale."
+    )
+    p_tr.add_argument("operation_id", help="L'id che compare nella riga del registro.")
     p_ric = sub.add_parser(
         "ricalcola", help="Da' un prezzo alle righe nate quando il listino era vuoto."
     )
@@ -259,6 +305,7 @@ def main() -> None:
         "as-is": _comando_as_is,
         "listino": _comando_listino,
         "ricalcola": _comando_ricalcola,
+        "traccia": _comando_traccia,
     }
     comandi[args.comando](args)
     print()
