@@ -17,7 +17,7 @@ vale.
 **Regole di ingaggio** (§③) prima di toccare qualcosa: ci sono difetti che non
 si chiudono senza una decisione di Sohayb, e provarci produce lavoro da buttare.
 
-Ultimo aggiornamento: 2026-09-24.
+Ultimo aggiornamento: 2026-09-25.
 Branch di lavoro: `fix/fragilita-audit`. Ondata 1 (backend) chiusa; ondata 2 (frontend) in corso.
 
 ---
@@ -37,7 +37,7 @@ decisione, §④).
 | B3 | Memoria di un consulente solo (`default_consultant_id`, 20 punti) | Bloccante | **bloccato** — §④.2 |
 | B4 | Architettura mono-processo non dichiarata né difesa | Alto | **bloccato** — §④.6 |
 | B5 | 73 handler su 76 sono `def` sync: threadpool a 40 posti | Alto | da fare |
-| B6 | `_TRACE_EVENTS` mai potato: leak di memoria certo | Alto | **fatto, verificato** — `d3c9544` |
+| B6 | `_TRACE_EVENTS` mai potato: leak di memoria certo | Alto | **fatto, verificato** — `d3c9544`, `7fc5cb5` |
 | B7 | La risposta si perde se il client cade a metà stream | Bloccante | **fatto, verificato** — `4004d7e` |
 | B8 | Run di simulazione `pending` per sempre dopo un crash | Alto | **fatto, verificato** — `549d421` |
 | B9 | `str(exc)` verso il client (3 punti reali, non 20) | Medio | **fatto, verificato** — `3a46612` |
@@ -185,6 +185,13 @@ La review del branch (CodeRabbit, 2026-09-24) ha guardato anche codice già in
 si toccano qui, ma non vanno persi. Chi apre il prossimo branch su quelle aree
 parta da qui.
 
+> **Attenzione al limite.** Il piano CodeRabbit è Free: tre review incluse, poi
+> `rate_limit`. La seconda passata ha segnalato tre rilievi minori su
+> `trace_recorder.py`, `simulation/storage.py` e su questo documento, e la terza
+> — quella che serviva per leggerne il testo — è stata rifiutata. Uno dei tre
+> l'ho poi trovato da solo ed è chiuso (`7fc5cb5`); degli altri due resta solo
+> il nome del file. Chi ha un posto assegnato li rilegga.
+
 | Dove | Cosa | Perché conta |
 | --- | --- | --- |
 | `backend/workers/conformance_worker.py:83` | I tentativi non hanno un tetto: una riga che fallisce sempre viene ripresa per sempre | La coda non avanza e il log si riempie. Serve parcheggiare dopo N tentativi e distinguere i guasti non transitori |
@@ -209,3 +216,4 @@ verifica.
 | 2026-09-24 | B2 | `DELIR_ENVIRONMENT`: dichiarato `staging` o `prod` senza autenticazione, l'app si rifiuta di partire. In `dev` parte e dice cosa è aperto. | `tests/test_startup_guard.py`, 4 verdi |
 | 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.6 con le due strade e il loro costo. | — |
 | 2026-09-24 | B2, B8 | I due rilievi della review sul mio codice: la lista degli ambienti dice dove partire scoperti è lecito (non dove è vietato), quindi un `DELIR_ENVIRONMENT` scritto male non parte; e un risultato Prosimos che arriva per una simulazione non più `pending` viene scartato invece di riportarla in vita. | `tests/test_startup_guard.py`, `tests/test_simulation.py`, 40 verdi sulle suite toccate |
+| 2026-09-25 | B6 | Rilettura del fix stesso: `_remember` serviva sia ad aprire una traccia sia a scriverci, quindi un evento in ritardo resuscitava una traccia sfrattata — senza spazio di lavoro, quindi illeggibile, e occupando un posto. Aprire e scrivere ora sono due cose diverse. | `tests/test_observability.py::test_an_evicted_trace_does_not_come_back_from_the_dead` |
