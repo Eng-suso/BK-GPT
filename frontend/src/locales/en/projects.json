@@ -126,6 +126,10 @@
     "objective": {
       "add": "Add objective",
       "empty": "No objective recorded. While it stays empty, the project chat knows the container but not the mandate."
+    },
+    "missing": {
+      "title": "This project does not exist",
+      "body": "The address points to a project that is not there: it may be an old link, or a deleted project."
     }
   },
   "state": {
