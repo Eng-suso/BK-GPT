@@ -24,6 +24,7 @@ from backend.llm.gateway import (
     record_avoided_call,
     record_streamed_usage,
     run,
+    transcribe,
 )
 from backend.llm.operation import (
     Operation,
@@ -59,4 +60,5 @@ __all__ = [
     "record_avoided_call",
     "record_streamed_usage",
     "run",
+    "transcribe",
 ]

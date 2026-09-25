@@ -248,7 +248,11 @@ def transcription_client(monkeypatch):
     class StubClient:
         audio = type("Audio", (), {"transcriptions": StubTranscriptions()})()
 
-    monkeypatch.setattr(audio, "transcription_client", lambda: StubClient())
+    # Il seam non e' piu' il client della rotta ma quello del gateway: la rotta
+    # dichiara il compito, il modello lo mette il profilo.
+    monkeypatch.setattr(
+        "backend.llm.gateway._transcription_client_for", lambda _chiave: StubClient()
+    )
     monkeypatch.setattr(settings, "openai_api_key", "test-key")
     monkeypatch.setattr(settings, "openai_transcription_model", "gpt-4o-transcribe-diarize")
     monkeypatch.setattr(settings, "openai_transcription_language", "it")
@@ -347,7 +351,9 @@ def test_route_does_not_leak_the_upstream_error_to_the_caller(monkeypatch, trans
                     raise RuntimeError("rate limit for org-SECRET123 request req-abc")
 
     client, _calls = transcription_client
-    monkeypatch.setattr(audio, "transcription_client", lambda: FailingClient())
+    monkeypatch.setattr(
+        "backend.llm.gateway._transcription_client_for", lambda _chiave: FailingClient()
+    )
 
     response = _post_audio(client)
 
@@ -357,8 +363,14 @@ def test_route_does_not_leak_the_upstream_error_to_the_caller(monkeypatch, trans
 
 
 def test_async_transcription_client_is_reused_until_the_api_key_changes(monkeypatch):
-    """Client reuse preserves the connection pool; key rotation rebuilds it."""
-    from backend.api.routes import audio
+    """Client reuse preserves the connection pool; key rotation rebuilds it.
+
+    Il client vive nel gateway da quando la trascrizione passa di li': la regola
+    pero' e' la stessa di prima, e la ragione per cui la chiave fa parte dello
+    stato non e' cambiata - un client costruito con la chiave vecchia
+    continuerebbe a usarla per tutta la vita del processo.
+    """
+    from backend.llm import gateway
     from backend.settings import settings
 
     created = []
@@ -368,9 +380,9 @@ def test_async_transcription_client_is_reused_until_the_api_key_changes(monkeypa
             self.options = options
             created.append(self)
 
-    monkeypatch.setattr(audio, "AsyncOpenAI", RecordingAsyncOpenAI)
-    monkeypatch.setattr(audio, "_transcription_client", None)
-    monkeypatch.setattr(audio, "_transcription_client_key", None)
+    monkeypatch.setattr("openai.AsyncOpenAI", RecordingAsyncOpenAI)
+    monkeypatch.setattr(gateway, "_transcription_client", None)
+    monkeypatch.setattr(gateway, "_transcription_client_key", None)
     monkeypatch.setattr(settings, "openai_api_key", "first-key")
     monkeypatch.setattr(settings, "openai_transcription_timeout_seconds", 123.0)
     # La trascrizione ha il suo numero di retry: non segue piu' quello dei
@@ -378,8 +390,8 @@ def test_async_transcription_client_is_reused_until_the_api_key_changes(monkeypa
     # c'e' un utente che ha appena caricato un file.
     monkeypatch.setattr(settings, "transcription_max_retries", 4)
 
-    first = audio.transcription_client()
-    reused = audio.transcription_client()
+    first = gateway._transcription_client_for(settings.openai_api_key)
+    reused = gateway._transcription_client_for(settings.openai_api_key)
 
     assert reused is first
     assert len(created) == 1
@@ -390,7 +402,7 @@ def test_async_transcription_client_is_reused_until_the_api_key_changes(monkeypa
     }
 
     monkeypatch.setattr(settings, "openai_api_key", "rotated-key")
-    rotated = audio.transcription_client()
+    rotated = gateway._transcription_client_for(settings.openai_api_key)
 
     assert rotated is not first
     assert len(created) == 2
