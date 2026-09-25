@@ -426,3 +426,73 @@ class TestLaVersioneDelPromptSiLegge:
         }
 
         assert voci["(nessuno)"].righe == 1
+
+
+@pytest.fixture()
+def listino(monkeypatch):
+    """Un listino che conosce `gpt-prezzato` e nient'altro."""
+    from backend.settings import settings
+
+    monkeypatch.setattr(
+        settings,
+        "llm_prices_json",
+        '{"gpt-prezzato": {"input": 1000000.0, "output": 2000000.0}}',
+    )
+
+
+class TestValorizzareCioCheEraNatoSenzaPrezzo:
+    """Il costo si calcola alla scrittura e si salva: e' giusto, ma vuol dire che
+    le righe nate col listino vuoto restano NULL per sempre. Senza una via di
+    recupero, tutto quello che gira prima che i prezzi siano configurati e'
+    perso - comprese le prime chiamate vere, che sono le piu' interessanti."""
+
+    def test_in_prova_non_scrive_niente(self, tenant, listino):
+        _scrivi(_riga(tenant, model="gpt-prezzato", input_tokens=10, output_tokens=0, cost_estimate=None))
+
+        r = ledger.ricalcola_costi_mancanti(since=DA, until=A, tenant_id=tenant, prova=True)
+
+        assert r.valorizzate == 1
+        assert ledger.totale(since=DA, until=A, tenant_id=tenant).righe_senza_prezzo == 1
+
+    def test_con_applica_le_righe_prendono_il_prezzo(self, tenant, listino):
+        _scrivi(_riga(tenant, model="gpt-prezzato", input_tokens=10, output_tokens=0, cost_estimate=None))
+
+        r = ledger.ricalcola_costi_mancanti(since=DA, until=A, tenant_id=tenant, prova=False)
+
+        assert r.valorizzate == 1
+        # 10 token a 1.000.000 per milione = 10.
+        assert r.costo_recuperato == Decimal(10)
+        dopo = ledger.totale(since=DA, until=A, tenant_id=tenant)
+        assert dopo.righe_senza_prezzo == 0
+        assert dopo.costo_noto == Decimal(10)
+
+    def test_un_costo_gia_scritto_non_si_tocca(self, tenant, listino):
+        """Quel prezzo e' il prezzo del suo tempo: sovrascriverlo con quello di
+        adesso sarebbe il falso che si vuole evitare."""
+        _scrivi(
+            _riga(tenant, model="gpt-prezzato", input_tokens=10, output_tokens=0, cost_estimate="0.0001")
+        )
+
+        r = ledger.ricalcola_costi_mancanti(since=DA, until=A, tenant_id=tenant, prova=False)
+
+        assert r.esaminate == 0
+        assert ledger.totale(since=DA, until=A, tenant_id=tenant).costo_noto == Decimal("0.0001")
+
+    def test_un_modello_fuori_listino_resta_senza_prezzo(self, tenant, listino):
+        _scrivi(_riga(tenant, model="whisper-1", input_tokens=900, output_tokens=0, cost_estimate=None))
+
+        r = ledger.ricalcola_costi_mancanti(since=DA, until=A, tenant_id=tenant, prova=False)
+
+        assert r.valorizzate == 0
+        assert r.ancora_senza_prezzo == 1
+
+    def test_una_chiamata_evitata_non_e_spesa_da_recuperare(self, tenant, listino):
+        """Il suo NULL non e' ignoranza, e' assenza di spesa."""
+        _scrivi(
+            _riga(tenant, model="gpt-prezzato", outcome="cache_hit", input_tokens=0, output_tokens=0, cost_estimate=None),
+            _riga(tenant, model="gpt-prezzato", outcome="refused", input_tokens=0, output_tokens=0, cost_estimate=None),
+        )
+
+        r = ledger.ricalcola_costi_mancanti(since=DA, until=A, tenant_id=tenant, prova=False)
+
+        assert r.esaminate == 0

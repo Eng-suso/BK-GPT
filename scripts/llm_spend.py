@@ -211,6 +211,23 @@ def _comando_listino(args) -> None:
         )
 
 
+def _comando_ricalcola(args) -> None:
+    r = ledger.ricalcola_costi_mancanti(giorni=args.giorni, prova=not args.applica)
+    modo = "APPLICATO" if args.applica else "prova (niente e' stato scritto)"
+    print(f"\nValorizzazione retroattiva, ultimi {args.giorni} giorni - {modo}")
+    print(f"  righe senza costo esaminate: {r.esaminate}")
+    print(f"  valorizzabili col listino di adesso: {r.valorizzate}")
+    print(f"  ancora senza prezzo: {r.ancora_senza_prezzo}")
+    print(f"  spesa che passa da ignota a nota: {_soldi(r.costo_recuperato)}")
+    if not args.applica and r.valorizzate:
+        print("\n  Per scrivere davvero: aggiungi --applica")
+    if r.ancora_senza_prezzo:
+        print(
+            "\n  Le righe ancora senza prezzo sono normali per i modelli che si"
+            "\n  pagano a tempo. Per gli altri, `listino` dice quali mancano."
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--giorni", type=int, default=7, help="Ampiezza della finestra (default 7).")
@@ -224,6 +241,12 @@ def main() -> None:
     sub.add_parser("ragionamento", help="Quanta uscita e' ragionamento, per compito.")
     sub.add_parser("as-is", help="Il KPI: quanto costa un AS-IS validato.")
     sub.add_parser("listino", help="Quali modelli hanno girato e quali prezzi mancano.")
+    p_ric = sub.add_parser(
+        "ricalcola", help="Da' un prezzo alle righe nate quando il listino era vuoto."
+    )
+    p_ric.add_argument(
+        "--applica", action="store_true", help="Scrive davvero (senza, e' solo una prova)."
+    )
 
     args = parser.parse_args()
     comandi = {
@@ -235,6 +258,7 @@ def main() -> None:
         "ragionamento": _comando_ragionamento,
         "as-is": _comando_as_is,
         "listino": _comando_listino,
+        "ricalcola": _comando_ricalcola,
     }
     comandi[args.comando](args)
     print()
