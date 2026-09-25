@@ -20,12 +20,22 @@ from backend.simulation.scenario_builder import (
     build_prosimos_scenario,
     describe_scenario_template,
 )
+from backend.settings import settings
 from backend.simulation.storage import (
     complete_simulation_run,
+    count_runs_in_flight,
     create_simulation_run,
     fail_simulation_run,
     find_active_run_by_key,
 )
+
+
+class SimulationCapacityError(RuntimeError):
+    """Il motore di simulazione e' pieno adesso, non e' un errore della richiesta.
+
+    Serve un tipo suo perche' la rotta deve rispondere 429 e non 400: la stessa
+    richiesta, fra due minuti, funziona.
+    """
 
 
 def _derive_idempotency_key(
@@ -117,6 +127,17 @@ def prepare_simulation_run(
     )
     if existing is not None:
         return existing, None, bpmn_xml
+
+    # Prosimos e' un servizio solo e regge un numero fisso di simulazioni
+    # insieme. Oltre quel numero non rifiuta: mette in coda, e chi aspetta vede
+    # una rotella girare per quindici minuti prima di leggere un timeout. Un
+    # rifiuto immediato e' un'informazione, un'attesa muta no.
+    in_flight = count_runs_in_flight()
+    if in_flight >= settings.simulation_max_concurrent_runs:
+        raise SimulationCapacityError(
+            f"Ci sono gia' {in_flight} simulazioni in corso, il massimo che il "
+            "motore regge insieme. Aspetta che ne finisca una e rilancia."
+        )
 
     run = create_simulation_run(
         bpmn_model_id=bpmn_model.id,

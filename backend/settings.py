@@ -171,6 +171,12 @@ class Settings(BaseSettings):
     delir_cors_origins: str = "http://127.0.0.1:3030,http://localhost:3030"
 
     prosimos_base_url: str = "http://127.0.0.1:5000"
+    # Quante simulazioni possono girare insieme. Prosimos e' un servizio solo,
+    # con sei worker gunicorn (ops/prosimos/README.md) e un worker per
+    # simulazione: oltre quel numero le richieste non vengono rifiutate, restano
+    # in coda dentro Prosimos e scadono dopo `prosimos_timeout_seconds`. Quattro
+    # lascia due posti liberi per non riempire il servizio fino all'orlo.
+    simulation_max_concurrent_runs: int = 4
     # Sync Prosimos runs the whole simulation inside the HTTP call, so this must
     # cover the slowest expected simulation, not just connect latency.
     prosimos_timeout_seconds: float = 900.0

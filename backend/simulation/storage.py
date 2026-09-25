@@ -5,7 +5,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.schemas.simulation import CreateSimulationRunRequest
@@ -48,7 +48,7 @@ def _started_at(created_at: str | None) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def _expire_stale_runs(session: Session) -> None:
+def _expire_stale_runs(session: Session, *, tenant_id: str | None) -> None:
     """Chiude le simulazioni rimaste `pending` oltre il tempo massimo.
 
     Una simulazione gira in un `BackgroundTasks` dello stesso processo: un
@@ -62,15 +62,19 @@ def _expire_stale_runs(session: Session) -> None:
     Args:
         session: La sessione della lettura o della scrittura in corso: la
             potatura sta nella stessa transazione di chi l'ha provocata.
+        tenant_id: Lo spazio di lavoro da potare. `None` pota tutto, e serve
+            quando la domanda riguarda il deploy e non un cliente: quante
+            simulazioni stanno davvero occupando Prosimos.
     """
     cutoff = datetime.now(UTC) - timedelta(
         seconds=settings.prosimos_timeout_seconds + STALE_RUN_MARGIN_SECONDS
     )
-    pending = session.execute(
-        select(WorkspaceSimulationRun)
-        .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
-        .where(WorkspaceSimulationRun.status == "pending")
-    ).scalars().all()
+    query = select(WorkspaceSimulationRun).where(
+        WorkspaceSimulationRun.status == "pending"
+    )
+    if tenant_id is not None:
+        query = query.where(WorkspaceSimulationRun.tenant_id == tenant_id)
+    pending = session.execute(query).scalars().all()
 
     expired: list[int] = []
     for run in pending:
@@ -124,7 +128,7 @@ def find_active_run_by_key(
     """Return an in-flight (pending) run with the same key, if any."""
     with workspace_connection() as session:
         # Prima di dire "ce n'e' gia' uno in volo": uno scaduto non e' in volo.
-        _expire_stale_runs(session)
+        _expire_stale_runs(session, tenant_id=get_current_tenant_id())
         run = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
@@ -134,6 +138,24 @@ def find_active_run_by_key(
             .order_by(WorkspaceSimulationRun.id.desc())
         ).scalars().first()
         return simulation_run_to_dict(run) if run is not None else None
+
+
+def count_runs_in_flight() -> int:
+    """Quante simulazioni stanno girando adesso, in tutto il deploy.
+
+    Il conto non e' per spazio di lavoro perche' il vincolo non lo e': Prosimos
+    e' un servizio solo, con un numero fisso di worker, e una simulazione di
+    chiunque occupa uno di quelli.
+    """
+    with workspace_connection() as session:
+        _expire_stale_runs(session, tenant_id=None)
+        return int(
+            session.execute(
+                select(func.count())
+                .select_from(WorkspaceSimulationRun)
+                .where(WorkspaceSimulationRun.status == "pending")
+            ).scalar_one()
+        )
 
 
 def create_simulation_run(
@@ -251,7 +273,7 @@ def get_simulation_run(run_id: int) -> dict[str, Any] | None:
     with workspace_connection() as session:
         # E' la rotta che il frontend interroga ogni cinque secondi: e' qui che
         # una simulazione morta deve smettere di sembrare viva.
-        _expire_stale_runs(session)
+        _expire_stale_runs(session, tenant_id=get_current_tenant_id())
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             return None
@@ -260,7 +282,7 @@ def get_simulation_run(run_id: int) -> dict[str, Any] | None:
 
 def list_simulation_runs(bpmn_model_id: str) -> list[dict[str, Any]]:
     with workspace_connection() as session:
-        _expire_stale_runs(session)
+        _expire_stale_runs(session, tenant_id=get_current_tenant_id())
         rows = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())

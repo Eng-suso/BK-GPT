@@ -388,6 +388,50 @@ def test_prepare_simulation_run_dedupes_in_flight_runs(client):
     assert second_run["id"] == first_run["id"]
 
 
+def test_the_engine_says_it_is_full_instead_of_making_people_wait(client, monkeypatch):
+    """Prosimos regge sei simulazioni insieme: la settima non viene rifiutata da
+    lui, viene messa in coda e scade dopo quindici minuti. Un rifiuto immediato
+    e' un'informazione, un'attesa muta no.
+    """
+    from backend.schemas.workspace import BpmnModelResponse
+    from backend.settings import settings
+    from backend.simulation import service as simulation_service
+    from backend.simulation.service import SimulationCapacityError, prepare_simulation_run
+
+    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 2)
+    monkeypatch.setattr(simulation_service, "count_runs_in_flight", lambda: 2)
+
+    client_payload = client.post("/v1/workspace/clients", json={"name": "Full Client"})
+    project_payload = client.post(
+        "/v1/workspace/projects",
+        json={"client_id": client_payload.json()["id"], "name": "Full Project"},
+    )
+    process_payload = client.post(
+        f"/v1/workspace/projects/{project_payload.json()['id']}/processes",
+        json={"name": "Full Process"},
+    )
+
+    model = BpmnModelResponse(
+        id=process_payload.json()["bpmn_model_id"],
+        process_id=process_payload.json()["id"],
+        name="Full Process",
+        xml=MINIMAL_BPMN,
+    )
+
+    with pytest.raises(SimulationCapacityError) as refused:
+        prepare_simulation_run(
+            bpmn_model=model,
+            request=CreateSimulationRunRequest(
+                total_cases=10,
+                current_bpmn_xml=MINIMAL_BPMN,
+                idempotency_key="full-key-789",
+            ),
+        )
+
+    # Il messaggio dice quante ce ne sono e cosa fare, non "errore".
+    assert "2 simulazioni in corso" in str(refused.value)
+
+
 def test_a_simulation_killed_mid_run_stops_being_in_flight(client):
     """Un crash a meta' simulazione non deve rendere lo scenario irripetibile.
 
