@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
 import { Badge } from "@/ui/badge";
@@ -25,10 +26,12 @@ export function BpmnNodeInspector({
   onDocChange,
   onClose,
 }: BpmnNodeInspectorProps) {
+  const { t } = useTranslation("process");
+
   return (
     <aside
       className="absolute right-3 bottom-3 z-20 max-h-[calc(100%-5rem)] w-[320px] max-w-[calc(100%-1.5rem)] overflow-y-auto ui-surface ui-surface-panel p-4 shadow-lg"
-      aria-label="Ispettore nodo selezionato"
+      aria-label={t("canvas.inspectorLabel")}
     >
       <div className="mb-2.5 flex items-start justify-between gap-2 border-b border-border pb-2">
         <div className="min-w-0">
@@ -47,8 +50,8 @@ export function BpmnNodeInspector({
           variant="ghost"
           size="icon-xs"
           onClick={onClose}
-          title="Chiudi ispettore"
-          aria-label="Chiudi ispettore"
+          title={t("canvas.inspectorClose")}
+          aria-label={t("canvas.inspectorClose")}
         >
           <X />
         </Button>
@@ -68,14 +71,14 @@ export function BpmnNodeInspector({
         </label>
         <label className="grid gap-1.5">
           <span className="text-[11px] font-semibold text-muted-foreground">
-            Note / Documentazione
+            {t("canvas.inspectorNotes")}
           </span>
           <Textarea
             rows={2}
             className="min-h-0 text-xs"
             value={element.documentation}
             onChange={(e) => onDocChange(e.target.value)}
-            placeholder="Aggiungi dettagli o regole per questo nodo..."
+            placeholder={t("canvas.inspectorNotesPlaceholder")}
           />
         </label>
       </div>

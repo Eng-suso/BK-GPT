@@ -91,7 +91,7 @@ export function BpmnCanvasToolbar({
   return (
     <header className="process-bpmn-toolbar">
       <div className="flex min-w-0 shrink-0 items-center gap-3">
-        <h3>Canvas processo</h3>
+        <h3>{t("canvas.toolbarLabel")}</h3>
         {(canvasChat.onToggle || properties.onToggle) && (
           <div className="flex items-center gap-1 border-l border-border pl-3">
             {canvasChat.onToggle && (
@@ -151,33 +151,33 @@ export function BpmnCanvasToolbar({
           </Button>
         )}
 
-        <div className="bpmn-zoom-group" aria-label="Controlli zoom">
+        <div className="bpmn-zoom-group" aria-label={t("canvas.zoomGroup")}>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onZoomReadable}
-            title="Apri una vista leggibile dall'inizio del processo"
+            title={t("canvas.readableTitle")}
           >
-            Leggi
+            {t("canvas.readable")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onZoomFit}
-            title="Centra e adatta diagramma"
+            title={t("canvas.fitTitle")}
           >
             <Maximize2 />
-            Centra
+            {t("canvas.fit")}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="icon-sm"
             onClick={onZoomIn}
-            title="Ingrandisci"
-            aria-label="Ingrandisci"
+            title={t("canvas.zoomIn")}
+            aria-label={t("canvas.zoomIn")}
           >
             <Plus />
           </Button>
@@ -186,8 +186,8 @@ export function BpmnCanvasToolbar({
             variant="outline"
             size="icon-sm"
             onClick={onZoomOut}
-            title="Riduci"
-            aria-label="Riduci"
+            title={t("canvas.zoomOut")}
+            aria-label={t("canvas.zoomOut")}
           >
             <Minus />
           </Button>
@@ -207,9 +207,9 @@ export function BpmnCanvasToolbar({
               type="button"
               variant={isHistoryOpen ? "secondary" : "outline"}
               size="icon-sm"
-              aria-label="Importa, esporta, cronologia"
+              aria-label={t("canvas.moreActions")}
               ref={menuButtonRef}
-              title="Importa, esporta, cronologia"
+              title={t("canvas.moreActions")}
             >
               <MoreHorizontal className="size-4" />
             </Button>
@@ -230,15 +230,15 @@ export function BpmnCanvasToolbar({
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!isReady} onClick={onImportClick}>
               <Upload />
-              Importa BPMN
+              {t("canvas.importBpmn")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!isReady} onClick={onExport}>
               <Download />
-              Esporta BPMN
+              {t("canvas.exportBpmn")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onToggleHistory}>
               <History />
-              {isHistoryOpen ? "Nascondi cronologia" : "Cronologia versioni"}
+              {t(isHistoryOpen ? "canvas.hideHistory" : "canvas.versionHistory")}
               {versionCount > 0 ? ` (${versionCount})` : ""}
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -249,10 +249,10 @@ export function BpmnCanvasToolbar({
           size="sm"
           disabled={!isReady || isSaving || !hasUnsavedChanges}
           onClick={onSave}
-          title="Salva processo (Ctrl+S)"
+          title={t("canvas.saveTitle")}
         >
           <Save />
-          {isSaving ? "Salvo…" : "Salva"}
+          {t(isSaving ? "canvas.saving" : "canvas.save")}
         </Button>
       </div>
     </header>

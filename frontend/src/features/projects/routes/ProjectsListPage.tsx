@@ -38,7 +38,8 @@ import { ProjectFormDialog } from "../components/ProjectFormDialog";
 import { projectStatusTone, type Project } from "../types";
 
 // L'ordine in cui il riepilogo mostra gli stati: prima quello che chiede
-// attenzione, per ultimo quello che non ne chiede piu'.
+// attenzione, per ultimo quello che non ne chiede piu'. I valori sono il
+// vocabolario del backend, non testo da leggere: non si traducono.
 const STATUS_ORDER: Project["status"][] = [
   "A rischio",
   "In corso",

@@ -18,6 +18,9 @@ import { useProjectQuery } from "@/features/projects/api";
 import type { ProjectProcess } from "@/contracts/workspace";
 import { ProcessWorkspace, type ProcessView } from "../ProcessWorkspace";
 
+// Le chiavi sono il vocabolario degli stati che arriva dal backend
+// (`backend/workspace_defaults.py`), non testo da leggere: restano in italiano
+// anche quando l'interfaccia e' in inglese, perche' sono valori, non parole.
 const PROCESS_STATUS_TONE: Record<ProjectProcess["status"], StatusTone> = {
   "In corso": "ok",
   "Da validare": "pending",

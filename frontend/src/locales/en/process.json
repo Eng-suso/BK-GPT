@@ -468,6 +468,28 @@
       "repair_other": "Add {{count}} points to the diagram",
       "repairHint": "The plan is updated and the diagram redrawn: hand edits on the canvas can be recovered from the version history.",
       "repairError": "Adding the points did not work. Try again in a few minutes."
-    }
+    },
+    "toolbarLabel": "Process canvas",
+    "zoomGroup": "Zoom controls",
+    "readableTitle": "Open a readable view from the start of the process",
+    "readable": "Read",
+    "fitTitle": "Centre and fit the diagram",
+    "fit": "Fit",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "moreActions": "Import, export, history",
+    "importBpmn": "Import BPMN",
+    "exportBpmn": "Export BPMN",
+    "hideHistory": "Hide history",
+    "versionHistory": "Version history",
+    "saveTitle": "Save process (Ctrl+S)",
+    "saving": "Saving…",
+    "save": "Save",
+    "unsaved": "Not saved",
+    "inspectorLabel": "Selected node inspector",
+    "inspectorClose": "Close the inspector",
+    "inspectorNotes": "Notes / Documentation",
+    "inspectorNotesPlaceholder": "Add details or rules for this node…",
+    "processChat": "Process chat"
   }
 }

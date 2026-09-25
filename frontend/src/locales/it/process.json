@@ -468,6 +468,28 @@
       "repair_other": "Integra nel disegno {{count}} punti",
       "repairHint": "Il piano viene aggiornato e il disegno rifatto: le modifiche fatte a mano sul canvas si recuperano dalla cronologia versioni.",
       "repairError": "L'integrazione non è riuscita. Riprova tra qualche minuto."
-    }
+    },
+    "toolbarLabel": "Canvas processo",
+    "zoomGroup": "Controlli zoom",
+    "readableTitle": "Apri una vista leggibile dall'inizio del processo",
+    "readable": "Leggi",
+    "fitTitle": "Centra e adatta diagramma",
+    "fit": "Centra",
+    "zoomIn": "Ingrandisci",
+    "zoomOut": "Riduci",
+    "moreActions": "Importa, esporta, cronologia",
+    "importBpmn": "Importa BPMN",
+    "exportBpmn": "Esporta BPMN",
+    "hideHistory": "Nascondi cronologia",
+    "versionHistory": "Cronologia versioni",
+    "saveTitle": "Salva processo (Ctrl+S)",
+    "saving": "Salvo…",
+    "save": "Salva",
+    "unsaved": "Non salvato",
+    "inspectorLabel": "Ispettore nodo selezionato",
+    "inspectorClose": "Chiudi ispettore",
+    "inspectorNotes": "Note / Documentazione",
+    "inspectorNotesPlaceholder": "Aggiungi dettagli o regole per questo nodo…",
+    "processChat": "Chat processo"
   }
 }
