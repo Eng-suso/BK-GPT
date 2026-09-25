@@ -149,6 +149,40 @@ def task_for_node(node_name: str) -> LlmTask:
     return LlmTask.CONTEXT_ROUTING if node_name == CONTEXT_ROUTER_NODE else LlmTask.CHAT_TURN
 
 
+def prompt_version_for(task: LlmTask) -> str | None:
+    """La versione del prompt che ha girato, per il compito dato (L5).
+
+    I due compiti di un turno hanno due prompt diversi e vanno versionati
+    separatamente. Quello del turno e' la **memoria procedurale**, cioe' un file
+    che cresce mentre il prodotto impara: e' l'unico prompt del sistema che
+    cambia senza che nessuno modifichi il codice, ed e' esattamente per questo
+    che la sua versione nel registro conta piu' delle altre.
+
+    Best-effort: se il file non si legge, la riga di consumo si scrive lo stesso
+    senza versione. La contabilita' di un turno non e' un buon motivo per non
+    rispondere al consulente.
+    """
+    from backend.llm.prompts import prompt_version
+
+    try:
+        if task is LlmTask.CONTEXT_ROUTING:
+            from backend.memory.consultant_context_classifier import SISTEMA_CLASSIFICAZIONE
+
+            return prompt_version(task.value, SISTEMA_CLASSIFICAZIONE)
+
+        from backend.agent import load_procedural_memory
+
+        return prompt_version(task.value, load_procedural_memory())
+    except Exception:  # noqa: BLE001 - una versione mancante non vale un turno
+        # Si perde la versione, non la riga - ma non in silenzio: il contatore e'
+        # lo stesso posto in cui il gateway dichiara le righe che non riesce a
+        # scrivere.
+        from backend.services import degradation_counters
+
+        degradation_counters.bump("llm_usage", "prompt_version_unavailable", detail=task.value)
+        return None
+
+
 def record_turn_usage(
     usage_by_node: dict[str, dict[str, Any]],
     *,
@@ -184,6 +218,7 @@ def record_turn_usage(
             usage,
             model=model,
             duration_ms=int(elapsed_seconds * 1000) if task is LlmTask.CHAT_TURN else 0,
+            prompt_version=prompt_version_for(task),
         )
 
 

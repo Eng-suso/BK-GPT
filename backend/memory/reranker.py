@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from backend.llm import LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
+from backend.llm.prompts import prompt_version, schema_part
 from backend.llm_streaming import stream_to_final
 from backend.settings import settings
 
@@ -101,7 +102,12 @@ class LLMReranker:
                 # e' una lista di indici dentro uno schema strict, e pagare
                 # ragionamento per riempire uno schema e' spesa senza ritorno.
                 verdict: Any = llm_run(
-                    task=LlmTask.RETRIEVAL_RERANK, messages=prompt, output=_RerankVerdict
+                    task=LlmTask.RETRIEVAL_RERANK,
+                    messages=prompt,
+                    output=_RerankVerdict,
+                    prompt_version=prompt_version(
+                        LlmTask.RETRIEVAL_RERANK.value, _SISTEMA, schema_part(_RerankVerdict)
+                    ),
                 )
             else:
                 verdict = stream_to_final(self._llm, prompt)
@@ -117,6 +123,18 @@ class LLMReranker:
         if raw_order is None and isinstance(verdict, dict):
             raw_order = verdict.get("order")
         return _sanitize(raw_order or [], n)
+
+
+# La parte stabile del prompt, separata dai dati: e' quella che si versiona per
+# il registro dei consumi (L5).
+_SISTEMA = (
+    "Sei l'analista di un consulente di processo. Ricevi una domanda "
+    "e una lista di passaggi estratti da documenti/interviste. "
+    "Riordina i passaggi per quanto ciascuno aiuta a rispondere alla "
+    "domanda: chi risponde direttamente prima, chi da' solo contesto "
+    "dopo, chi e' fuori tema per ultimo o omesso. Restituisci solo lo "
+    "schema richiesto."
+)
 
 
 def _build_prompt(query: str, passages: Sequence[str]) -> list:

@@ -165,6 +165,11 @@ def llm_plan_unifier() -> PlanUnifier | None:
 
     from backend.llm import LlmTask
     from backend.llm import run as llm_run
+    from backend.llm.prompts import prompt_version, schema_part
+
+    versione = prompt_version(
+        LlmTask.PLAN_UNIFICATION.value, UNIFIER_PROMPT, schema_part(PlanUnificationVerdict)
+    )
 
     def _unify(request: UnificationRequest) -> PlanUnificationVerdict:
         domanda = json.dumps(
@@ -186,6 +191,7 @@ def llm_plan_unifier() -> PlanUnifier | None:
             # L'unificazione vede tutti gli elementi di tutte le voci: e' la
             # chiamata con l'input piu' grande dopo l'estrazione.
             input_characters=len(domanda),
+            prompt_version=versione,
         )
         return (
             raw

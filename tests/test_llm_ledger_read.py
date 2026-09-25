@@ -384,3 +384,45 @@ class TestQualiPrezziMancano:
         ordine = [m.model for m in ledger.modelli_da_prezzare(since=DA, until=A, tenant_id=tenant)]
 
         assert ordine == ["gpt-grosso", "gpt-piccolo", "gpt-noto"]
+
+
+class TestLaVersioneDelPromptSiLegge:
+    """Il cerchio di L5: la versione si scrive, e poi si interroga.
+
+    E' la domanda per cui la colonna esiste - «quale cambio di prompt ha
+    cambiato la spesa» - e non e' una query finche' non si puo' raggruppare.
+    """
+
+    def test_due_versioni_dello_stesso_prompt_sono_due_righe_confrontabili(self, tenant):
+        from backend.llm.prompts import prompt_version
+
+        prima = prompt_version("plan_extraction", "istruzioni corte")
+        dopo = prompt_version("plan_extraction", "istruzioni molto piu' lunghe e dettagliate")
+
+        with workspace_connection() as session:
+            riga_prima = _riga(tenant, input_tokens=100, output_tokens=10, cost_estimate="0.0100")
+            riga_prima.prompt_version = prima
+            riga_dopo = _riga(tenant, input_tokens=400, output_tokens=40, cost_estimate="0.0400")
+            riga_dopo.prompt_version = dopo
+            session.add(riga_prima)
+            session.add(riga_dopo)
+
+        voci = {
+            v.chiave: v.totale
+            for v in ledger.per("prompt_version", since=DA, until=A, tenant_id=tenant)
+        }
+
+        assert voci[prima].costo_noto == Decimal("0.0100")
+        assert voci[dopo].costo_noto == Decimal("0.0400")
+
+    def test_una_riga_senza_versione_si_vede(self, tenant):
+        """Finche' qualche compito non la dichiara, «(nessuno)» dice quanto del
+        totale non e' attribuibile a un prompt."""
+        _scrivi(_riga(tenant, cost_estimate="0.0100"))
+
+        voci = {
+            v.chiave: v.totale
+            for v in ledger.per("prompt_version", since=DA, until=A, tenant_id=tenant)
+        }
+
+        assert voci["(nessuno)"].righe == 1

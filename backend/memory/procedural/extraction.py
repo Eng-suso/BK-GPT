@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from backend.llm import GATEWAY, LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
+from backend.llm.prompts import prompt_version, schema_part
 from backend.llm_streaming import stream_to_final
 from backend.settings import settings
 
@@ -57,21 +58,38 @@ def _format_episodes(episodes: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+# Le parti stabili dei due prompt, separate dai dati: sono quelle che si
+# versionano per il registro dei consumi (L5).
+_SISTEMA_ESTRAZIONE = (
+    "Sei l'analista di metodo di un consulente di processo. Ti do una "
+    "serie di episodi (interviste, decisioni, note, feedback) di uno "
+    "stesso progetto. Estrai UN metodo riutilizzabile, non un riassunto "
+    "degli episodi. Scrivi in italiano. Il campo body deve dire: quando "
+    "si applica, i passi in ordine, e cosa evitare. Se gli episodi non "
+    "contengono un metodo generalizzabile lascia title e body vuoti. "
+    "Restituisci solo lo schema strutturato richiesto."
+)
+
+# Il segnaposto resta dentro il template: i nomi cliente cambiano a ogni
+# chiamata, e versionare il testo gia' riempito darebbe una versione diversa per
+# ogni cliente invece che per ogni modifica del prompt.
+_SISTEMA_GENERALIZZAZIONE = (
+    "Sei l'analista di metodo di un consulente. Ti do un playbook nato "
+    "per un singolo cliente. Riscrivilo come metodo GENERICO, riutilizzabile "
+    "con qualsiasi cliente: togli i nomi dei clienti, i nomi di persona, i "
+    "numeri riservati (importi, percentuali contrattuali, tempi specifici), "
+    "i dettagli non trasferibili. Mantieni i passi e la logica. Non "
+    "reintrodurre questi nomi cliente: {names}. Se non resta un metodo "
+    "generalizzabile lascia title e body vuoti. Restituisci solo lo schema "
+    "strutturato richiesto."
+)
+
+
 def _build_prompt(episodes: list[dict[str, Any]]) -> list:
     from langchain_core.messages import HumanMessage, SystemMessage
 
     return [
-        SystemMessage(
-            content=(
-                "Sei l'analista di metodo di un consulente di processo. Ti do una "
-                "serie di episodi (interviste, decisioni, note, feedback) di uno "
-                "stesso progetto. Estrai UN metodo riutilizzabile, non un riassunto "
-                "degli episodi. Scrivi in italiano. Il campo body deve dire: quando "
-                "si applica, i passi in ordine, e cosa evitare. Se gli episodi non "
-                "contengono un metodo generalizzabile lascia title e body vuoti. "
-                "Restituisci solo lo schema strutturato richiesto."
-            )
-        ),
+        SystemMessage(content=_SISTEMA_ESTRAZIONE),
         HumanMessage(content=_format_episodes(episodes)[:6000]),
     ]
 
@@ -98,7 +116,14 @@ def extract_playbook_from_episodes(
     try:
         if model is GATEWAY:
             result: Any = llm_run(
-                task=LlmTask.PLAYBOOK_EXTRACTION, messages=prompt, output=ExtractedPlaybook
+                task=LlmTask.PLAYBOOK_EXTRACTION,
+                messages=prompt,
+                output=ExtractedPlaybook,
+                prompt_version=prompt_version(
+                    LlmTask.PLAYBOOK_EXTRACTION.value,
+                    _SISTEMA_ESTRAZIONE,
+                    schema_part(ExtractedPlaybook),
+                ),
             )
         else:
             result = stream_to_final(model, prompt)
@@ -147,18 +172,7 @@ def _build_generalize_prompt(playbook: dict[str, Any], client_names: list[str]) 
         if part
     )
     return [
-        SystemMessage(
-            content=(
-                "Sei l'analista di metodo di un consulente. Ti do un playbook nato "
-                "per un singolo cliente. Riscrivilo come metodo GENERICO, riutilizzabile "
-                "con qualsiasi cliente: togli i nomi dei clienti, i nomi di persona, i "
-                "numeri riservati (importi, percentuali contrattuali, tempi specifici), "
-                "i dettagli non trasferibili. Mantieni i passi e la logica. Non "
-                f"reintrodurre questi nomi cliente: {names}. Se non resta un metodo "
-                "generalizzabile lascia title e body vuoti. Restituisci solo lo schema "
-                "strutturato richiesto."
-            )
-        ),
+        SystemMessage(content=_SISTEMA_GENERALIZZAZIONE.format(names=names)),
         HumanMessage(content=source[:6000]),
     ]
 
@@ -182,7 +196,14 @@ def generalize_playbook_body(
     try:
         if model is GATEWAY:
             result: Any = llm_run(
-                task=LlmTask.PLAYBOOK_GENERALIZATION, messages=prompt, output=GeneralizedPlaybook
+                task=LlmTask.PLAYBOOK_GENERALIZATION,
+                messages=prompt,
+                output=GeneralizedPlaybook,
+                prompt_version=prompt_version(
+                    LlmTask.PLAYBOOK_GENERALIZATION.value,
+                    _SISTEMA_GENERALIZZAZIONE,
+                    schema_part(GeneralizedPlaybook),
+                ),
             )
         else:
             result = stream_to_final(model, prompt)
