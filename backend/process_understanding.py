@@ -10,6 +10,7 @@ from pydantic.json_schema import SkipJsonSchema
 
 from backend.llm import LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
+from backend.llm.prompts import prompt_version, schema_part
 from backend.settings import settings
 
 
@@ -588,6 +589,11 @@ def build_process_understanding(
             # La lunghezza vera dell'intervista, non una fascia: il timeout lo
             # calcola il gateway, e non c'e' piu' un client da tenere in cache.
             input_characters=len(source_text or ""),
+            prompt_version=prompt_version(
+                LlmTask.PLAN_EXTRACTION.value,
+                _PROCESS_UNDERSTANDING_PROMPT,
+                schema_part(ProcessUnderstanding),
+            ),
         )
         process = _coerce_process_understanding(raw_process)
         return ProcessUnderstandingResult(
@@ -907,6 +913,11 @@ def evaluate_process_understanding_quality(
                 ],
                 output=ProcessUnderstandingQualityReport,
                 input_characters=len(domanda),
+                prompt_version=prompt_version(
+                    LlmTask.PLAN_QUALITY.value,
+                    _PROCESS_UNDERSTANDING_QUALITY_PROMPT,
+                    schema_part(ProcessUnderstandingQualityReport),
+                ),
             )
             return coherent_quality_report(
                 raw_report

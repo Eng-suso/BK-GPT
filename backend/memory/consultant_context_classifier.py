@@ -69,6 +69,32 @@ def empty_classification() -> dict:
     }
 
 
+# La parte stabile del prompt dell'instradamento, separata dai dati del turno
+# (registro delle skill, testo dell'utente): e' quella che si versiona per il
+# registro dei consumi (L5). `MAX_SKILLS_PER_TURN` e' dentro apposta - se quel
+# numero cambia, cambia il prompt, e la versione deve dirlo.
+SISTEMA_CLASSIFICAZIONE = (
+    "You classify consultant context and select procedural Markdown skills for a LangGraph consultant agent. "
+    "Do not answer the user and do not save memory. "
+    "Use one category from the provided taxonomy, or 'none' if no consultant context is present. "
+    "Do not classify product-engineering direction or software constraints as consultant context unless "
+    "they directly describe Sohay's consulting method, communication, sales, delivery, process/BPMN work, "
+    "client project context, or personal work preferences. "
+    "Select procedural skills only from the provided skill registry. "
+    f"Select at most {MAX_SKILLS_PER_TURN} skills. Select no skills for ordinary chat, small talk, "
+    "or tasks that do not need a specialized consultant procedure. "
+    "Return only valid JSON with this exact shape: "
+    '{"consultant_context_category":"category_or_none",'
+    '"consultant_context_confidence":0.0,'
+    '"memory_type":"semantic|episodic|procedural|none",'
+    '"should_save_memory":false,'
+    '"suggested_memory_category":null,'
+    '"consultant_context_reason":"brief reason",'
+    '"active_skill_names":["skill_name"],'
+    '"skill_selection_reason":"brief reason"}'
+)
+
+
 def build_classification_prompt(user_text: str) -> list:
     skill_registry = [
         {
@@ -79,28 +105,7 @@ def build_classification_prompt(user_text: str) -> list:
     ]
 
     return [
-        SystemMessage(
-            content=(
-                "You classify consultant context and select procedural Markdown skills for a LangGraph consultant agent. "
-                "Do not answer the user and do not save memory. "
-                "Use one category from the provided taxonomy, or 'none' if no consultant context is present. "
-                "Do not classify product-engineering direction or software constraints as consultant context unless "
-                "they directly describe Sohay's consulting method, communication, sales, delivery, process/BPMN work, "
-                "client project context, or personal work preferences. "
-                "Select procedural skills only from the provided skill registry. "
-                f"Select at most {MAX_SKILLS_PER_TURN} skills. Select no skills for ordinary chat, small talk, "
-                "or tasks that do not need a specialized consultant procedure. "
-                "Return only valid JSON with this exact shape: "
-                '{"consultant_context_category":"category_or_none",'
-                '"consultant_context_confidence":0.0,'
-                '"memory_type":"semantic|episodic|procedural|none",'
-                '"should_save_memory":false,'
-                '"suggested_memory_category":null,'
-                '"consultant_context_reason":"brief reason",'
-                '"active_skill_names":["skill_name"],'
-                '"skill_selection_reason":"brief reason"}'
-            )
-        ),
+        SystemMessage(content=SISTEMA_CLASSIFICAZIONE),
         HumanMessage(
             content=(
                 "Taxonomy:\n"

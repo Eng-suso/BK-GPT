@@ -505,6 +505,7 @@ def record_streamed_usage(
     *,
     model: str | None = None,
     duration_ms: int = 0,
+    prompt_version: str | None = None,
 ) -> None:
     """Registra il consumo di una chiamata **stremata**, a stream finito.
 
@@ -528,6 +529,12 @@ def record_streamed_usage(
             sarebbe una supposizione - e il costo stimato verrebbe da un
             listino che non c'entra.
         duration_ms: Quanto e' durato lo stream.
+        prompt_version: La versione del prompt che ha girato. Per la chat vale
+            piu' che altrove: il suo prompt di sistema e' la memoria procedurale,
+            che **cresce da sola** man mano che il prodotto impara. Senza questa
+            colonna un turno che costa il doppio di un mese fa sembrerebbe un
+            aumento inspiegato, invece che la conseguenza visibile di un file
+            piu' lungo.
     """
     if not usage_metadata:
         return
@@ -550,6 +557,7 @@ def record_streamed_usage(
         tokens=tokens_from_usage_metadata(usage_metadata),
         duration_ms=duration_ms,
         reasoning_effort=profile.reasoning_effort,
+        prompt_version=prompt_version,
     )
 
 

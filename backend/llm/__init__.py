@@ -17,6 +17,7 @@ questo pacchetto lo usa: non l'ha sostituito.
 """
 
 from backend.llm.chat_client import DeliRChatOpenAI, chat_client
+from backend.llm import ledger
 from backend.llm.gateway import (
     GATEWAY,
     OperationNotOpen,
@@ -39,6 +40,7 @@ from backend.llm.tasks import LlmTask, TaskProfile, all_profiles, profile_for
 from backend.llm.usage import Outcome, TokenUsage
 
 __all__ = [
+    "ledger",
     "GATEWAY",
     "DeliRChatOpenAI",
     "LlmTask",

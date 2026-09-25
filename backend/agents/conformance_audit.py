@@ -318,6 +318,15 @@ def llm_source_auditor() -> SourceAuditor | None:
 
     from backend.llm import LlmTask
     from backend.llm import run as llm_run
+    from backend.llm.prompts import prompt_version, schema_part
+
+    # La versione finisce nel registro dei consumi: e' cosi' che un aumento di
+    # spesa si attribuisce a un cambio di prompt invece di restare inspiegato
+    # (L5). Lo schema entra nel conto perche' un campo in piu' nella risposta e'
+    # un cambio di prompt a tutti gli effetti: si pagano i token per riempirlo.
+    versione = prompt_version(
+        LlmTask.CONFORMANCE_AUDIT.value, AUDITOR_PROMPT, schema_part(SourceAuditVerdict)
+    )
 
     def _audit(request: SourceAuditRequest) -> SourceAuditVerdict:
         domanda = json.dumps(
@@ -339,6 +348,7 @@ def llm_source_auditor() -> SourceAuditor | None:
             # Il revisore legge una fonte intera: il timeout deve seguirla, o le
             # interviste lunghe scadono proprio dove la verifica serve di piu'.
             input_characters=len(domanda),
+            prompt_version=versione,
         )
         return raw if isinstance(raw, SourceAuditVerdict) else SourceAuditVerdict.model_validate(raw)
 

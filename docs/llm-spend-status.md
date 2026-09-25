@@ -140,6 +140,10 @@ t.5 quella cache non esiste piu' e la lunghezza arriva al gateway esatta.
 | P1.5 t.6 | `agent.py` (streaming) | **fatto, verificato** |
 | P1.5 code | trascrizione (`llm.transcribe`) + operazione `EVAL` | **fatto, verificato** |
 | P1.6 | L1 in CI: client del fornitore vietati fuori da `backend/llm/` | **fatto, verificato** (verde su `backend/`, rossa su un file di prova) |
+| L5 | Versione del prompt nel registro | **fatto, verificato** (10 punti di chiamata + test AST che impedisce di dimenticarla) |
+| Lettura | `llm.ledger` + `scripts/llm_spend.py` | **fatto, verificato** |
+| Listino | `LLM_PRICES_JSON` coi prezzi veri | **da fare, e non e' codice**: oggi e' vuoto, quindi ogni riga ha costo NULL |
+| Spesa vera | Una riga nata da una chiamata pagata | **bloccato**: crediti OpenAI esauriti |
 
 **t.1 — aprono l'operazione:** `plan_worker` (PLAN_SYNTHESIS), `conformance_worker`
 (CONFORMANCE_AUDIT), `ingest_worker` (KG_INGESTION) e il turno di chat
@@ -380,35 +384,50 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**P2 — artefatti con dipendenze** (§4.2 del piano). P1 e' chiuso: ogni punto di
-chiamata passa dal gateway e lascia una riga, la regola in CI impedisce che ne
-nascano altri fuori. Da qui in poi non si misura soltanto, si spende meno.
+**Due cose che non sono codice, e poi P2.**
 
-P2 e' l'unica leva che cambia **l'ordine di grandezza** invece di una
-percentuale, e il lavoro concreto e' uno: portare `evidence_source_set_id` al
-livello della **singola fonte**. Oggi la chiave dell'artefatto e' l'insieme
-delle evidenze, quindi una fonte aggiunta invalida tutto quello che era gia'
-stato calcolato sulle altre - e nel lavoro vero le fonti si aggiungono una per
-volta, mentre l'intervista procede.
+**1. Il listino.** `LLM_PRICES_JSON` e' vuoto, quindi oggi ogni riga del
+registro ha `cost_estimate` a NULL: sappiamo quanto abbiamo **consumato**, non
+quanto abbiamo **speso**. E' l'ultimo pezzo che separa «dove sono andati i
+token» da «dove sono andati i soldi», ed e' una riga di `.env`. Il comando
 
-Due cose che nascono con P2 e conviene decidere prima di scrivere codice:
+    uv run python scripts/llm_spend.py listino
 
-- **la granularita' dell'invalidazione** e' la stessa domanda della cache dei
-  prompt, quindi la risposta va presa una volta sola;
-- **il primo esperimento col registro in mano** e' `reasoning_effort` per
-  compito (§③.3): il default `medium` vale per sette compiti diversi, e due di
-  loro rispondono dentro uno schema strict, dove il ragionamento non ha molto da
-  fare. Ora che i numeri ci sono, e' misurabile invece che opinabile.
+elenca i modelli che hanno girato davvero, in ordine di quanto pesano, e stampa
+lo scheletro JSON da riempire coi prezzi del fornitore. I prezzi non li mette il
+codice di proposito: un listino incollato invecchia in silenzio e produce un
+costo plausibile e falso, che e' peggio di nessun costo.
+
+I modelli che si pagano a tempo (la trascrizione al minuto) **non** vanno a
+listino: a zero token darebbero un costo di zero. Per loro il costo resta NULL,
+e lo dice la fattura.
+
+**2. Una riga nata da spesa vera.** Tutto e' verificato con il confine di rete
+finto. La prima chiamata davvero pagata che lascia una riga non c'e' ancora
+stata, perche' gli eval col modello vero sono fermi sui crediti OpenAI esauriti.
+Finche' non succede, P1 e' verificato come codice e non come misura: il gesto e'
+far girare `tests/evals` con `DELIR_LIVE_LLM=1` e poi `llm_spend.py ieri`.
+
+**Poi P2 — artefatti con dipendenze** (§4.2 del piano). E' l'unica leva che
+cambia l'ordine di grandezza invece di una percentuale, e il lavoro concreto e'
+uno: portare `evidence_source_set_id` al livello della **singola fonte**. Oggi
+la chiave dell'artefatto e' l'insieme delle evidenze, quindi una fonte aggiunta
+invalida tutto quello che era gia' stato calcolato sulle altre - e nel lavoro
+vero le fonti si aggiungono una per volta, mentre l'intervista procede.
+
+Il primo esperimento da fare col registro in mano e' `reasoning_effort` per
+compito (§③.3), e ora si chiede:
+
+    uv run python scripts/llm_spend.py ragionamento
+
+Una quota alta su un compito che risponde dentro uno schema strict e' il primo
+posto dove abbassare l'effort: li' lo schema fa il lavoro.
 
 **Non ancora P3** (budget con prenotazione e saldo): servono due settimane di
 numeri veri, e non e' solo la soglia a dipendere dai dati - la *forma* del
-meccanismo lo e'.
-
-**Due questioni aperte restano fuori dalle tappe** e sono in §③: il tenant del
-registro, che e' quello workspace e non il consulente (§③.6, da decidere prima
-di P3, perche' i budget per tenant si appoggiano a quel campo), e l'evento di
-validazione (§③.7), da cui dipende il KPI di punta del piano: se non esiste,
-«costo per AS-IS validato» non e' calcolabile.
+meccanismo lo e'. Prima di P3 va deciso anche il tenant del registro (§③.6), che
+e' quello workspace e non il consulente: i budget per tenant si appoggiano a
+quel campo.
 
 ---
 
@@ -440,10 +459,14 @@ validazione (§③.7), da cui dipende il KPI di punta del piano: se non esiste,
    solo - ma con Track B (identita' per persona) «quanto costa questo cliente»
    ha bisogno che le due cose coincidano, o di una colonna in piu'. Da decidere
    **prima** di P3: i budget per tenant si appoggiano a questo campo.
-7. **L'evento di validazione.** Il KPI di punta del piano e' «costo per AS-IS
-   validato»: presuppone che la validazione lasci una riga nel database. **Da
-   verificare che esista** — se non esiste, quel KPI non e' calcolabile e va
-   aggiunto a P1.
+7. ~~**L'evento di validazione.**~~ Verificato il 25/09: **esiste**.
+   `approve_bpmn_review` lascia una riga di versione con `status="approved"`,
+   che porta `process_id` e `created_at` - tutto quello che serve per attribuire
+   la spesa. Il KPI e' calcolabile e si chiede con
+   `uv run python scripts/llm_spend.py as-is`. Il costo di un AS-IS e' la spesa
+   su quel processo **fino all'approvazione**: quello che viene dopo e'
+   manutenzione, e includerlo farebbe crescere il costo di produrre un AS-IS
+   ogni volta che si torna su un processo vecchio.
 
 ---
 
@@ -528,8 +551,8 @@ la colonna delle collisioni e' la ragione per cui non si assegnano a caso.
 | ~~**t.5** percorso caldo~~ | fatto | — |
 | ~~**t.6** `agent.py`~~ | fatto | — |
 | ~~**eval** operazione `EVAL`~~ | fatto | — |
-| **L5** registro dei prompt | i prompt in tutti i moduli | **dopo t.5**: tocca gli stessi prompt |
-| **lettura del registro** | file nuovi (endpoint o SQL versionato) | tutto |
+| ~~**L5** registro dei prompt~~ | fatto | — |
+| ~~**lettura del registro**~~ | fatto (`llm.ledger` + `scripts/llm_spend.py`) | — |
 | ~~**P1.6** regola L1 in CI~~ | fatto, e nasce verde | — |
 
 Con t.1, t.2, t.3 e t.4 chiusi la collisione su `llm/gateway.py` resta solo per
@@ -655,6 +678,8 @@ trova la chiave a `None` e falla.
 | 2026-09-24 | Review di t.6: registrazione anche sui turni falliti, modello vero nella riga, tenant dello sweep, listino cachato | `cc9163e` |
 | 2026-09-25 | Code di P1.5: trascrizione su `llm.transcribe` (profilo con `model_setting`, righe anche senza token) e operazione `EVAL` negli eval | `chore/llm-code` |
 | 2026-09-25 | P1.6: regola ast-grep L1 (`severity: error`), verificata verde su `backend/` e rossa su un file di prova; comando del README corretto | `chore/llm-code` |
+| 2026-09-25 | Lettura del registro: `llm.ledger` + `scripts/llm_spend.py`; ogni totale dichiara la sua copertura di prezzo. KPI costo-per-AS-IS calcolabile: l'evento di validazione esisteva gia' | `chore/llm-ledger-read` |
+| 2026-09-25 | L5: `prompt_version` su 10 punti di chiamata, hash del template (schema compreso), test AST che impedisce di dimenticarla | `chore/llm-ledger-read` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`

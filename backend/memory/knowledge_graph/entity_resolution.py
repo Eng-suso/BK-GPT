@@ -42,6 +42,7 @@ from sqlalchemy.orm import Session
 from backend.db import canonical_session
 from backend.llm import GATEWAY, LlmTask, OperationNotOpen
 from backend.llm import run as llm_run
+from backend.llm.prompts import prompt_version, schema_part
 from backend.llm_streaming import stream_to_final
 from backend.memory import embeddings
 from backend.services import degradation_counters
@@ -297,6 +298,23 @@ def _candidates(
 # --------------------------------------------------------------------------- #
 
 
+# La parte stabile del prompt sta qui, separata dai dati della singola chiamata,
+# perche' e' quella che si versiona: l'hash del messaggio renderizzato cambierebbe
+# a ogni entita' e la colonna del registro diventerebbe rumore (L5).
+_SISTEMA = (
+    "Sei l'analista di un consulente di processo. Devi decidere "
+    "l'IDENTITA' di due entita' di business, non la loro somiglianza. "
+    "Stessa entita': sinonimi, sigla ed estesa ('CFO' = 'Chief "
+    "Financial Officer'), traduzioni, varianti di scrittura, ruolo "
+    "e persona che lo ricopre se chiaramente coincidono. Entita' "
+    "DIVERSE: ruoli diversi della stessa area ('direttore "
+    "finanziario' != 'direttore commerciale'), sistemi diversi, "
+    "un ufficio e una persona che ci lavora, oggetti simili ma "
+    "distinti ('ordine di vendita' != 'ordine di acquisto'). Nel "
+    "dubbio, 0. Restituisci solo lo schema richiesto."
+)
+
+
 def _build_prompt(
     name: str, entity_type: str, context: str | None, candidates: list[Candidate]
 ) -> list:
@@ -315,20 +333,7 @@ def _build_prompt(
         "nessuno."
     )
     return [
-        SystemMessage(
-            content=(
-                "Sei l'analista di un consulente di processo. Devi decidere "
-                "l'IDENTITA' di due entita' di business, non la loro somiglianza. "
-                "Stessa entita': sinonimi, sigla ed estesa ('CFO' = 'Chief "
-                "Financial Officer'), traduzioni, varianti di scrittura, ruolo "
-                "e persona che lo ricopre se chiaramente coincidono. Entita' "
-                "DIVERSE: ruoli diversi della stessa area ('direttore "
-                "finanziario' != 'direttore commerciale'), sistemi diversi, "
-                "un ufficio e una persona che ci lavora, oggetti simili ma "
-                "distinti ('ordine di vendita' != 'ordine di acquisto'). Nel "
-                "dubbio, 0. Restituisci solo lo schema richiesto."
-            )
-        ),
+        SystemMessage(content=_SISTEMA),
         HumanMessage(content="\n".join(lines)),
     ]
 
@@ -364,7 +369,14 @@ def adjudicate(
             # compito e registra la spesa. `ENTITY_RESOLUTION` gira a
             # `reasoning_effort="none"`: la risposta e' uno schema strict, e lo
             # schema fa il lavoro.
-            raw: Any = llm_run(task=LlmTask.ENTITY_RESOLUTION, messages=prompt, output=_Verdict)
+            raw: Any = llm_run(
+                task=LlmTask.ENTITY_RESOLUTION,
+                messages=prompt,
+                output=_Verdict,
+                prompt_version=prompt_version(
+                    LlmTask.ENTITY_RESOLUTION.value, _SISTEMA, schema_part(_Verdict)
+                ),
+            )
         else:
             # Un modello iniettato: i test ne passano uno deterministico, e resta
             # il modo di provare il resolver senza toccare il gateway.
