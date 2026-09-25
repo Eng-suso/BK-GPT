@@ -56,6 +56,21 @@ describe("ConfirmDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("se la cancellazione fallisce resta aperto e lo dice", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn(() =>
+      Promise.reject(new Error("Permesso amministrativo richiesto.")),
+    );
+    const { onOpenChange } = setup(onConfirm);
+
+    await user.click(screen.getByRole("button", { name: "Svuota la cronologia" }));
+
+    // Chiudersi annunciando un lavoro non fatto era il difetto di prima: la
+    // riga spariva dallo schermo e tornava al primo aggiornamento.
+    expect(screen.getByText("Permesso amministrativo richiesto.")).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it("non parte due volte se si clicca due volte", async () => {
     const user = userEvent.setup();
     let resolve: () => void = () => {};

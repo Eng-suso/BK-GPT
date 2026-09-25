@@ -10,6 +10,9 @@ import {
   DialogTitle,
 } from "@/ui/dialog";
 import { Button } from "@/ui/button";
+import { httpErrorMessage } from "@/lib/http";
+
+import { InlineNotice } from "./InlineNotice";
 
 export type ConfirmDialogProps = {
   open: boolean;
@@ -46,13 +49,19 @@ export function ConfirmDialog({
 }: ConfirmDialogProps): React.JSX.Element {
   const { t } = useTranslation("common");
   const [isWorking, setIsWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const confirm = async () => {
     if (isWorking) return;
     setIsWorking(true);
+    setError(null);
     try {
       await onConfirm();
       onOpenChange(false);
+    } catch (failure) {
+      // Il dialogo resta aperto: una cancellazione che non e' avvenuta non
+      // deve chiudersi come se fosse andata bene.
+      setError(httpErrorMessage(failure, t("state.errorBody")));
     } finally {
       setIsWorking(false);
     }
@@ -65,6 +74,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {error && <InlineNotice tone="error" title={error} />}
         <DialogFooter>
           <Button
             variant="outline"

@@ -60,6 +60,9 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   /** Cosa sta per essere cancellato, finche' non c'e' una risposta. */
   const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval>(null);
+  /** Quale famiglia di testi usa il dialogo: una conversazione, o tutte. */
+  const removalCopy =
+    pendingRemoval?.kind === "history" ? "clearHistory" : "deleteSession";
   const reviewButtonRef = useRef<HTMLButtonElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -289,19 +292,20 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
           if (!open) setPendingRemoval(null);
         }}
         destructive
-        title={t(`confirm.${pendingRemoval?.kind === "history" ? "clearHistory" : "deleteSession"}.title`)}
-        description={t(`confirm.${pendingRemoval?.kind === "history" ? "clearHistory" : "deleteSession"}.body`)}
-        confirmLabel={t(`confirm.${pendingRemoval?.kind === "history" ? "clearHistory" : "deleteSession"}.action`)}
+        title={t(`confirm.${removalCopy}.title`)}
+        description={t(`confirm.${removalCopy}.body`)}
+        confirmLabel={t(`confirm.${removalCopy}.action`)}
         onConfirm={async () => {
           if (!pendingRemoval) return;
+          // Se la cancellazione fallisce l'errore sale: il dialogo resta
+          // aperto e lo dice, invece di chiudersi annunciando un lavoro che
+          // non e' stato fatto.
           if (pendingRemoval.kind === "history") {
             await sessions.clearHistory();
-            showToast(t("confirm.clearHistory.done"));
           } else {
             await sessions.deleteSession(pendingRemoval.threadId);
-            showToast(t("confirm.deleteSession.done"));
           }
-          setPendingRemoval(null);
+          showToast(t(`confirm.${removalCopy}.done`));
         }}
       />
 
