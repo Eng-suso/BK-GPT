@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { CornerDownLeft, HelpCircle, Check } from "lucide-react";
 
 import { Button } from "@/ui/button";
@@ -26,20 +27,21 @@ export function ReviewQuestionsCard({
   isAnswering,
   onAnswer,
 }: ReviewQuestionsCardProps) {
+  const { t } = useTranslation("chat");
   const open = sortQuestions(questions.filter((item) => !item.answer));
   if (open.length === 0) return null;
   const current = open[0];
 
   return (
-    <section className="review-questions-card" aria-label="Domande aperte sul piano">
+    <section className="review-questions-card" aria-label={t("questions.title")}>
       <header className="review-questions-header">
         <span className="review-questions-icon" aria-hidden="true">
           <HelpCircle className="size-4" />
         </span>
         <div>
-          <p className="product-eyebrow">Serve una tua decisione</p>
-          <h4>Una decisione alla volta</h4>
-          <p>{open.length === 1 ? "Ultimo punto aperto" : `${open.length} punti aperti`}</p>
+          <p className="product-eyebrow">{t("questions.decisionNeeded")}</p>
+          <h4>{t("questions.oneAtATime")}</h4>
+          <p>{open.length === 1 ? t("questions.lastOpen") : t("questions.openPoints", { count: open.length })}</p>
         </div>
       </header>
 
@@ -84,6 +86,7 @@ function OpenQuestion({
   isAnswering: boolean;
   onAnswer: (question: string, answer: string) => Promise<void>;
 }) {
+  const { t } = useTranslation("chat");
   const [isWritingOwn, setIsWritingOwn] = useState(false);
   const [ownAnswer, setOwnAnswer] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -137,10 +140,10 @@ function OpenQuestion({
       <p className="review-question-text" id={labelId}>
         <span className="review-question-position">
           {position}
-          <span className="sr-only"> di {total}</span>.
+          <span className="sr-only">{t("questions.ofTotal", { total })}</span>.
         </span>
         {question.severity === "blocking" ? (
-          <span className="review-question-badge">Bloccante</span>
+          <span className="review-question-badge">{t("questions.blocking")}</span>
         ) : null}
         {question.question}
       </p>
@@ -195,12 +198,12 @@ function OpenQuestion({
               <span className="review-question-option-index" aria-hidden="true">
                 {otherIndex}
               </span>
-              Altro
+              {t("questions.other")}
             </span>
             <small>
               {options.length > 0
-                ? "Nessuna di queste: scrivi la risposta giusta"
-                : "Scrivi la risposta"}
+                ? t("questions.noneOfThese")
+                : t("questions.writeAnswer")}
             </small>
           </button>
         )}
@@ -215,20 +218,20 @@ function OpenQuestion({
           }}
         >
           <label className="sr-only" htmlFor={`${labelId}-own`}>
-            Rispondi con parole tue
+            {t("questions.ownLabel")}
           </label>
           <input
             id={`${labelId}-own`}
             ref={ownInputRef}
             type="text"
             value={ownAnswer}
-            placeholder="Rispondi con parole tue…"
+            placeholder={t("questions.placeholder")}
             onChange={(event) => setOwnAnswer(event.target.value)}
             disabled={isAnswering}
           />
           <Button type="submit" size="sm" disabled={!ownAnswer.trim() || isAnswering}>
             <CornerDownLeft aria-hidden="true" />
-            <span>Rispondi</span>
+            <span>{t("questions.submit")}</span>
           </Button>
         </form>
       ) : null}

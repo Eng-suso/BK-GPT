@@ -122,7 +122,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const saveLabel = isError
     ? status
     : hasUnsavedChanges
-      ? "Non salvato"
+      ? t("canvas.unsaved")
       : "Salvato";
 
   return (

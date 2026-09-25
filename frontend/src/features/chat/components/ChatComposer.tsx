@@ -320,13 +320,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     if (!file || isLocked || !onTranscribeAudio) return;
 
     setIsTranscribing(true);
-    setAudioStatus("Trascrizione diarizzata in corso...");
+    setAudioStatus(t("composer.audio.transcribing"));
 
     try {
       const text = await onTranscribeAudio(file);
       setFinalTranscript(text);
       appendTranscription(text);
-      setAudioStatus(text ? "Transcript finale pronto." : "Nessun parlato rilevato.");
+      setAudioStatus(t(text ? "composer.audio.ready" : "composer.audio.noSpeech"));
     } catch (err) {
       console.error(err);
       // The diarized pass is the transcript of record, but losing an interview
@@ -337,9 +337,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       if (draft) {
         setFinalTranscript(draft);
         appendTranscription(draft);
-        setAudioStatus("Diarizzazione non riuscita: recuperato il draft live, senza speaker.");
+        setAudioStatus(t("composer.audio.speakersFailed"));
       } else {
-        setAudioStatus("Trascrizione finale non riuscita.");
+        setAudioStatus(t("composer.audio.failed"));
       }
     } finally {
       setIsTranscribing(false);
@@ -417,7 +417,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     stopMediaStream();
     closeLiveSocket();
     setIsRecording(false);
-    setAudioStatus("Genero transcript finale con speaker attribution...");
+    setAudioStatus(t("composer.audio.finalizing"));
   };
 
   const stopRecording = () => {
@@ -435,12 +435,12 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }
 
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setAudioStatus("Registrazione non supportata da questo browser.");
+      setAudioStatus(t("composer.audio.unsupported"));
       return;
     }
 
     try {
-      setAudioStatus("Connessione live transcription...");
+      setAudioStatus(t("composer.audio.connecting"));
       setLiveTranscript("");
       setFinalTranscript("");
       liveTranscriptRef.current = "";
@@ -462,14 +462,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       ws.onopen = () => {
         setIsLiveConnected(true);
         setIsRecording(true);
-        setAudioStatus("Live transcript attivo.");
+        setAudioStatus(t("composer.audio.liveActive"));
         startElapsedTimer();
         startLivePcmStreaming(stream, ws).catch((err) => {
           // Capture failed to start. The recording itself keeps going, so the
           // interview still gets its diarized pass on stop --- only the live
           // draft is missing.
           console.error(err);
-          setAudioStatus("Draft live non disponibile; la registrazione continua.");
+          setAudioStatus(t("composer.audio.liveUnavailable"));
         });
       };
 
@@ -517,12 +517,12 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         }
 
         if (message.type === "error") {
-          setAudioStatus(message.detail || "Errore live transcription.");
+          setAudioStatus(message.detail || t("composer.audio.liveError"));
         }
       };
 
       ws.onerror = () => {
-        setAudioStatus("Connessione live non riuscita.");
+        setAudioStatus(t("composer.audio.connectionFailed"));
       };
 
       ws.onclose = () => {
@@ -560,7 +560,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       closeLiveSocket();
       stopMediaStream();
       setIsRecording(false);
-      setAudioStatus("Permesso microfono negato o dispositivo non disponibile.");
+      setAudioStatus(t("composer.audio.micDenied"));
     }
   };
 
@@ -622,30 +622,30 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 appendTranscription(text);
               }}
               disabled={!finalTranscript && !liveTranscript}
-              title="Inserisci transcript nel messaggio"
+              title={t("composer.audio.insertTitle")}
             >
               <Check />
-              Usa transcript
+              {t("composer.audio.insertAction")}
             </Button>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-muted/40">
               <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
-                Live draft
+                {t("composer.audio.liveHeading")}
               </div>
               <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-[13px] leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
                 {liveTranscript ||
-                  "Il testo live apparira qui durante l'intervista."}
+                  t("composer.audio.livePlaceholder")}
               </div>
             </div>
             <div className="min-w-0 overflow-hidden rounded-lg border border-[var(--green-200)] bg-[var(--green-50)]">
               <div className="flex h-8 items-center border-b border-border px-3 text-[10.5px] font-semibold uppercase tracking-[0.055em] text-muted-foreground">
-                Finale diarizzato
+                {t("composer.audio.finalHeading")}
               </div>
               <div className="h-[112px] overflow-y-auto whitespace-pre-wrap p-3 text-[13px] leading-normal text-foreground @max-[540px]/composer-wrap:h-[92px]">
                 {finalTranscript ||
-                  "Dopo Stop, qui arriva il transcript definitivo con speaker attribution."}
+                  t("composer.audio.finalPlaceholder")}
               </div>
             </div>
           </div>

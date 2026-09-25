@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { I18nextProvider } from "react-i18next";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { render as rtlRender, screen } from "@testing-library/react";
 import { setupUser } from "@/test/user";
+import { i18n } from "@/lib/i18n";
 
 import { ReviewQuestionsCard } from "./ReviewQuestionsCard";
 import { sortQuestions } from "./questionOrder";
@@ -21,7 +24,19 @@ const question = (overrides: Partial<ReviewOpenQuestion> = {}): ReviewOpenQuesti
   ...overrides,
 });
 
+/**
+ * La carta parla adesso da i18next: senza il provider, `t` restituisce la
+ * chiave e il test verificherebbe una stringa che nessuno legge.
+ */
+function render(ui: ReactNode) {
+  return rtlRender(<I18nextProvider i18n={i18n}>{ui}</I18nextProvider>);
+}
+
 describe("ReviewQuestionsCard", () => {
+  beforeAll(async () => {
+    await i18n.changeLanguage("it");
+  });
+
   it("offers the alternatives the agent proposed, with what each would change", () => {
     render(
       <ReviewQuestionsCard questions={[question()]} isAnswering={false} onAnswer={vi.fn()} />,

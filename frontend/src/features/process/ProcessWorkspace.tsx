@@ -98,7 +98,7 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
             </aside>
           </div>
         ) : (
-          <section className="process-primary-panel" aria-label="Chat processo">
+          <section className="process-primary-panel" aria-label={t("canvas.processChat")}>
             <ChatExperience chrome="panel" layout="embedded" scope={{ type: "process", projectId: project.id, processId: process.id, processName: process.name, bpmnModelId: process.bpmnModelId }} />
           </section>
         )}

@@ -178,7 +178,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
             .map((m) => `${m.role}: ${m.content}`)
             .join("\n\n");
           await navigator.clipboard?.writeText(text);
-          showToast("Conversazione copiata.");
+          showToast(t("toast.copied"));
         }}
         onSelectPrompt={stream.sendMessage}
         onSendMessage={stream.sendMessage}
@@ -187,8 +187,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
           if (stream.lastUserPrompt)
             void stream.sendMessage(stream.lastUserPrompt, stream.lastUserAttachments);
         }}
-        onAttach={() => showToast("Carica un file audio da trascrivere.")}
-        onVoice={() => showToast("Registrazione vocale pronta.")}
+        onAttach={() => showToast(t("toast.attachHint"))}
+        onVoice={() => showToast(t("toast.voiceReady"))}
         onModelChange={setSelectedModel}
         workspaceSlot={turnError || historyUnavailable || showModelingSurface ? (
           <>
