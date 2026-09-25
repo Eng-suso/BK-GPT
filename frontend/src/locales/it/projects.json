@@ -126,6 +126,10 @@
     "objective": {
       "add": "Aggiungi obiettivo",
       "empty": "Nessun obiettivo registrato. Finché resta vuoto, la chat di progetto conosce il contenitore ma non il mandato."
+    },
+    "missing": {
+      "title": "Questo incarico non esiste",
+      "body": "L'indirizzo punta a un incarico che non c'è: può essere un link vecchio, o un incarico eliminato."
     }
   },
   "state": {

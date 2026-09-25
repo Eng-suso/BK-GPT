@@ -218,10 +218,101 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  e2e-fullstack:
+    name: E2E full-stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Il job che mancava. Gli altri Playwright girano sul solo frontend, con il
+    # backend sostituito da `page.route`: dicono che l'interfaccia sa disegnare
+    # una risposta, non che il prodotto la produca. Qui girano frontend,
+    # backend e Postgres insieme, su un workspace scritto dal seed.
+    env:
+      POSTGRES_PORT: "5432"
+      WORKSPACE_DATABASE_URL: postgresql+psycopg://delir_workspace:ci-workspace@127.0.0.1:5432/workspace
+      # Nessuna chiamata al modello, in nessun ramo: lo stub deterministico
+      # risponde al posto suo (invariante L6, docs/llm-spend-status.md).
+      DELIR_FAKE_LLM: "1"
+      OPENAI_API_KEY: ""
+      TAVILY_API_KEY: ""
+      MEM0_API_KEY: ""
+      LANGSMITH_TRACING: "false"
+      WORKERS_IN_PROCESS: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend --legacy-peer-deps
+
+      - name: Install Playwright chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Start Postgres
+        run: |
+          cat > ops/.env <<'EOF'
+          POSTGRES_PORT=5432
+          POSTGRES_SUPER_PASSWORD=ci-super
+          DELIR_MIGRATOR_PASSWORD=ci-migrator
+          DELIR_APP_PASSWORD=ci-app
+          DELIR_WORKER_PASSWORD=ci-worker
+          DELIR_MEM0_PASSWORD=ci-mem0
+          DELIR_WORKSPACE_PASSWORD=ci-workspace
+          NEO4J_PASSWORD=ci-neo4j
+          NEO4J_HTTP_PORT=7474
+          NEO4J_BOLT_PORT=7687
+          EOF
+          docker compose -f ops/docker-compose.yml up -d --wait --wait-timeout 240 postgres
+
+      # Lo schema lo porta a head il seed stesso, quindi qui non serve alembic:
+      # un passo in meno da tenere allineato.
+      - name: Seed the workspace
+        run: npm run seed:e2e
+
+      - name: Run full-stack e2e
+        env:
+          CI: "true"
+        run: npm run test:e2e:fullstack
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-fullstack
+          path: playwright-report-fullstack/
+          retention-days: 14
+
+      - name: Stop Postgres
+        if: always()
+        run: docker compose -f ops/docker-compose.yml down -v
+
   ci-success:
     name: All CI checks passed
     runs-on: ubuntu-latest
-    needs: [backend-quality, frontend-quality, playwright]
+    needs: [backend-quality, frontend-quality, playwright, e2e-fullstack]
     if: always()
     steps:
       - name: Check all jobs status
@@ -236,6 +327,10 @@ jobs:
           fi
           if [[ "${{ needs.playwright.result }}" != "success" ]]; then
             echo "playwright failed"
+            exit 1
+          fi
+          if [[ "${{ needs.e2e-fullstack.result }}" != "success" ]]; then
+            echo "e2e-fullstack failed"
             exit 1
           fi
           echo "All CI jobs passed"

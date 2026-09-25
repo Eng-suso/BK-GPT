@@ -19,6 +19,7 @@ import type { TFunction } from "i18next";
 import { PageHeader } from "@/components/layout";
 import { ProgressBar, NavRow, Meter } from "@/components/data";
 import { EmptyState, ErrorState } from "@/components/feedback";
+import { HttpError } from "@/lib/http";
 import { StatusIndicator } from "@/components/status";
 import {
   DetailPanel,
@@ -149,11 +150,18 @@ export function ProjectDetailPage(): React.JSX.Element {
   }
 
   if (projectQ.isError || !projectQ.data) {
+    // Un incarico che non c'e' non e' un caricamento andato storto: riprovare
+    // non lo fara' comparire mai, e offrire "Riprova" manda qualcuno a
+    // premerlo. Un indirizzo vecchio o un incarico eliminato lo dicono.
+    const missing =
+      projectQ.error instanceof HttpError && projectQ.error.status === 404;
+
     return (
       <div className="flex flex-1 items-center justify-center">
         <ErrorState
-          description={t("state.loadError")}
-          onRetry={() => void projectQ.refetch()}
+          title={missing ? t("detail.missing.title") : undefined}
+          description={missing ? t("detail.missing.body") : t("state.loadError")}
+          onRetry={missing ? undefined : () => void projectQ.refetch()}
           action={
             <Button variant="ghost" size="sm" onClick={goList}>
               {t("detail.backToList")}
