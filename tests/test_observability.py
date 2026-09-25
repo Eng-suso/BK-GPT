@@ -67,6 +67,30 @@ def test_trace_recorder_forgets_the_oldest_traces_instead_of_growing():
     assert read_trace(first.trace_id, tenant_id=get_current_tenant_id()) is None
 
 
+def test_an_evicted_trace_does_not_come_back_from_the_dead():
+    """Un evento in ritardo non deve riaprire una traccia gia' dimenticata.
+
+    Ricrearla sembrava innocuo: la riga nuova nasceva pero' senza lo spazio di
+    lavoro di chi l'aveva generata, quindi nessuno poteva piu' leggerla, e
+    intanto occupava un posto - sfrattando una traccia viva al suo posto.
+    """
+    tenant = get_current_tenant_id()
+    evicted = new_trace_context(thread_id="thread-evicted")
+
+    for index in range(trace_recorder.MAX_TRACES):
+        new_trace_context(thread_id=f"thread-filler-{index}")
+
+    assert read_trace(evicted.trace_id, tenant_id=tenant) is None
+
+    # Il turno sfrattato sta ancora girando e scrive: l'evento cade, la memoria
+    # non cresce e nessuna traccia viva viene buttata fuori per fargli posto.
+    before = trace_recorder.traced_count()
+    trace_event(evicted, "node", node="consult_router")
+
+    assert trace_recorder.traced_count() == before
+    assert read_trace(evicted.trace_id, tenant_id=tenant) is None
+
+
 def test_trace_recorder_keeps_the_tail_of_a_runaway_turn():
     """Un turno che non termina non porta con se' tutta la RAM del processo."""
     context = new_trace_context(thread_id="thread-runaway")

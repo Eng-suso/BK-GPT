@@ -46,16 +46,14 @@ _TRACE_TENANTS: dict[str, str] = {}
 _GUARD = Lock()
 
 
-def _remember(trace_id: str) -> deque[AgentTraceEvent]:
-    """Restituisce la coda eventi della traccia, creandola e facendo spazio."""
-    events = _TRACE_EVENTS.get(trace_id)
-    if events is None:
-        events = deque(maxlen=MAX_EVENTS_PER_TRACE)
-        _TRACE_EVENTS[trace_id] = events
-        while len(_TRACE_EVENTS) > MAX_TRACES:
-            evicted, _ = _TRACE_EVENTS.popitem(last=False)
-            _TRACE_STARTS.pop(evicted, None)
-            _TRACE_TENANTS.pop(evicted, None)
+def _open_trace(trace_id: str) -> deque[AgentTraceEvent]:
+    """Apre una traccia nuova, facendo posto se le tracce ricordate sono troppe."""
+    events: deque[AgentTraceEvent] = deque(maxlen=MAX_EVENTS_PER_TRACE)
+    _TRACE_EVENTS[trace_id] = events
+    while len(_TRACE_EVENTS) > MAX_TRACES:
+        evicted, _ = _TRACE_EVENTS.popitem(last=False)
+        _TRACE_STARTS.pop(evicted, None)
+        _TRACE_TENANTS.pop(evicted, None)
     return events
 
 
@@ -79,7 +77,7 @@ def new_trace_context(
         model_name=model_name,
     )
     with _GUARD:
-        _remember(trace_id)
+        _open_trace(trace_id)
         _TRACE_STARTS[trace_id] = perf_counter()
         _TRACE_TENANTS[trace_id] = get_current_tenant_id()
     return context
@@ -93,8 +91,18 @@ def elapsed_ms(trace_id: str) -> int:
 
 
 def record_trace_event(event: AgentTraceEvent) -> AgentTraceEvent:
+    """Aggiunge l'evento alla sua traccia, se quella traccia esiste ancora.
+
+    Una traccia sfrattata non torna indietro. Ricrearla qui sembrava innocuo e
+    non lo era: la riga nuova nasce senza lo spazio di lavoro di chi l'ha
+    generata, quindi nessuno puo' piu' leggerla, e intanto occupa un posto -
+    sfrattando una traccia viva al suo posto. Un turno lungo abbastanza da farsi
+    sfrattare avrebbe riempito la memoria di tracce invisibili.
+    """
     with _GUARD:
-        _remember(event.trace_id).append(event)
+        events = _TRACE_EVENTS.get(event.trace_id)
+        if events is not None:
+            events.append(event)
     return event
 
 
