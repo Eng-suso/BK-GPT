@@ -634,6 +634,14 @@ arriva dopo.
 
 ## ⑤ Ambiente: cose che fanno perdere un'ora
 
+**Le tracce non vanno su LangSmith quando giri i test, ed e' voluto.** La quota
+e' di 5.000 tracce al mese e i test ne avevano bruciate 5.069 in sei giorni,
+lasciando il prodotto senza osservabilita' per il resto del mese. Adesso i test
+scrivono su file (`data/traces/`) e LangSmith resta al prodotto. Chi cerca «dove
+sono finite le mie tracce» trova tutto in [docs/tracing.md](tracing.md),
+manopole comprese.
+
+
 **Il worktree non ha `.env`.** E' gitignorato, quindi un worktree nuovo nasce
 senza. Senza `WORKSPACE_DATABASE_URL` **ogni** test va in errore (non skip):
 `tests/conftest.py::_queues_stay_in_the_test_tenant` e' autouse e importa
@@ -731,6 +739,7 @@ trova la chiave a `None` e falla.
 | 2026-09-25 | Lettura del registro: `llm.ledger` + `scripts/llm_spend.py`; ogni totale dichiara la sua copertura di prezzo. KPI costo-per-AS-IS calcolabile: l'evento di validazione esisteva gia' | `chore/llm-ledger-read` |
 | 2026-09-25 | L5: `prompt_version` su 10 punti di chiamata, hash del template (schema compreso), test AST che impedisce di dimenticarla | `chore/llm-ledger-read` |
 | 2026-09-25 | Listino configurato (prezzi ufficiali) e **prima spesa vera nel registro**: $0.0140, copertura 100%. Stima a priori sbagliata di 12x, ragionamento al 2% su plan_extraction | `chore/llm-ledger-read` |
+| 2026-09-25 | Tracing diviso: i test scrivono su file (`local_tracer`), LangSmith resta al prodotto. I test avevano bruciato la quota mensile in sei giorni. Ponte spesa-traccia via `operation_id` | `chore/llm-ledger-read` |
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`
