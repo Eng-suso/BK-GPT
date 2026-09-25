@@ -632,6 +632,40 @@ Un pezzo non si dichiara fatto se i suoi test non sono verdi. E la riga di §①
 dice **quali** gate sono girati: "verificato" senza dire su cosa non serve a chi
 arriva dopo.
 
+## ④ter Lavorare da una PR, senza questa macchina
+
+Questo documento e' scritto per essere letto **anche da chi non ha il portatile
+di Sohayb davanti**: un agent nel cloud, o chiunque apra il repo. Vale la pena
+dire cosa trova e cosa no, perche' le due liste non sono ovvie.
+
+**C'e', nel repo:** i piani (questo file, `llm-gateway-plan.md`, `tracing.md`),
+`CLAUDE.md`, le skill in `.claude/skills/`, la configurazione di CodeRabbit con
+le regole ast-grep, tutto il codice e tutti i test. §② dice sempre il prossimo
+passo: e' il punto da cui partire, non il piano congelato.
+
+**Non c'e', ed e' voluto:**
+
+- **`.env`.** Contiene chiavi, DSN e il listino. Chi lavora da fuori non lo ha e
+  non deve averlo. I **prezzi** pero' servono a leggere il registro, quindi
+  stanno in §① di questo file: si ricopiano in `LLM_PRICES_JSON` e bastano;
+- **i database.** Postgres e Neo4j girano in container su quella macchina. Da
+  una PR non servono: **la CI li ha** (`.github/workflows/ci.yml` li alza come
+  servizi), quindi i test veri girano li'. E' la differenza fra «non posso
+  verificare» e «verifico aprendo una PR»;
+- **la memoria dell'agente.** Vive in `~/.claude/projects/.../memory/`, fuori dal
+  repo, e ci resta: il repo e' pubblico e quelle note citano clienti veri. Se un
+  fatto serve a chi continua il lavoro, il posto giusto e' questo documento -
+  che infatti e' dove sono finiti i numeri veri, le trappole d'ambiente e le
+  decisioni.
+
+**Il gesto, da remoto:** branch dal main, commit, push, PR. CI e CodeRabbit
+girano sulla PR e dicono se regge; il merge lo decide chi guarda. Quello che
+**non** si puo' fare da remoto e' l'ultima verifica di P1 - una chiamata pagata
+davvero - perche' vuole una chiave vera: quella resta un gesto su una macchina
+con `.env`.
+
+---
+
 ## ⑤ Ambiente: cose che fanno perdere un'ora
 
 **Le tracce non vanno su LangSmith quando giri i test, ed e' voluto.** La quota
