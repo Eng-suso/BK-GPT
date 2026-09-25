@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { InlineNotice } from "@/components/feedback";
+import { ConfirmDialog, InlineNotice } from "@/components/feedback";
 import { Button } from "@/ui/button";
 
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
@@ -29,6 +29,12 @@ type ChatExperienceProps = {
 
 const DEFAULT_SCOPE: ChatScope = { type: "consultant" };
 
+/** Una cancellazione in attesa di risposta: una conversazione, o tutte. */
+type PendingRemoval =
+  | { kind: "session"; threadId: string }
+  | { kind: "history" }
+  | null;
+
 /**
  * Thin container: wires the session / stream / review hooks to the presentational
  * `ChatShell`. All networking lives in `features/chat/api.ts`; all state lives in
@@ -52,6 +58,8 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
+  /** Cosa sta per essere cancellato, finche' non c'e' una risposta. */
+  const [pendingRemoval, setPendingRemoval] = useState<PendingRemoval>(null);
   const reviewButtonRef = useRef<HTMLButtonElement | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -155,14 +163,11 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         onReasoningEffortChange={setReasoningEffort}
         onNewChat={sessions.startNewThread}
         onSelectSession={sessions.selectThread}
-        onDeleteSession={async (id) => {
-          await sessions.deleteSession(id);
-          showToast("Conversazione eliminata.");
-        }}
-        onClearHistory={async () => {
-          await sessions.clearHistory();
-          showToast("Cronologia eliminata.");
-        }}
+        // Cancellare non parte dal click: `RecordLifecycleDialog` chiede
+        // conferma per archiviare un progetto, e qui un click portava via
+        // tutte le conversazioni dello spazio di lavoro.
+        onDeleteSession={(id) => setPendingRemoval({ kind: "session", threadId: id })}
+        onClearHistory={() => setPendingRemoval({ kind: "history" })}
         onSearch={() => setIsSearchOpen(true)}
         onConfig={() => setIsStatusOpen(true)}
         onShare={async () => {
@@ -276,6 +281,28 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         open={isStatusOpen}
         onOpenChange={setIsStatusOpen}
         modelName={selectedModel}
+      />
+
+      <ConfirmDialog
+        open={pendingRemoval !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemoval(null);
+        }}
+        destructive
+        title={t(`confirm.${pendingRemoval?.kind === "history" ? "clearHistory" : "deleteSession"}.title`)}
+        description={t(`confirm.${pendingRemoval?.kind === "history" ? "clearHistory" : "deleteSession"}.body`)}
+        confirmLabel={t(`confirm.${pendingRemoval?.kind === "history" ? "clearHistory" : "deleteSession"}.action`)}
+        onConfirm={async () => {
+          if (!pendingRemoval) return;
+          if (pendingRemoval.kind === "history") {
+            await sessions.clearHistory();
+            showToast(t("confirm.clearHistory.done"));
+          } else {
+            await sessions.deleteSession(pendingRemoval.threadId);
+            showToast(t("confirm.deleteSession.done"));
+          }
+          setPendingRemoval(null);
+        }}
       />
 
       {toastMessage && (
