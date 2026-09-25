@@ -123,7 +123,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   sessions = [],
   currentThreadId = null,
   messages = [],
-  activeTitle = "Chat consulente",
+  activeTitle,
   isBusy = false,
   queuedMessages = [],
   onCancelQueued,
@@ -201,7 +201,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
   if (chrome === "panel") {
     return (
-      <section className="embedded-chat-panel" aria-label="Chat contestuale">
+      <section className="embedded-chat-panel" aria-label={t("header.contextual")}>
         <header className="embedded-chat-header ui-surface-toolbar flex min-h-[var(--inspector-header-height)] items-center justify-between gap-3 border-b border-border px-4 py-2.5">
           <div className="flex min-w-0 flex-col gap-1">
             <ThreadSwitcher
@@ -305,7 +305,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
   return (
     <div className={`viewport ${isEmbedded ? "viewport-embedded" : ""}`}>
-      <section className={`shell ${isEmbedded ? "chat-shell-embedded" : ""} ${isDrawerOpen && !compactHistory ? "history-open" : "history-closed"}`} aria-label="Chat consulente">
+      <section className={`shell ${isEmbedded ? "chat-shell-embedded" : ""} ${isDrawerOpen && !compactHistory ? "history-open" : "history-closed"}`} aria-label={t("header.title")}>
         {isDrawerOpen && !compactHistory && <Sidebar
           sessions={sessions}
           currentThreadId={currentThreadId}

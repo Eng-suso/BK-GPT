@@ -1,6 +1,8 @@
 {
   "header": {
-    "eyebrow": "Assistant"
+    "eyebrow": "Assistant",
+    "title": "Consultant chat",
+    "contextual": "Contextual chat"
   },
   "actions": {
     "new": "New",
@@ -17,7 +19,8 @@
   },
   "message": {
     "you": "You",
-    "assistant": "Assistant"
+    "assistant": "Assistant",
+    "emptyAnswer": "I could not complete the request. Check the connection to the service."
   },
   "sidebar": {
     "title": "Chat",
@@ -57,7 +60,28 @@
     "stopAgent": "Stop",
     "stopAgentHint": "Stop the turn and keep the partial answer",
     "queue": "Queue",
-    "queueHint": "Add the message to the running turn queue (Enter)"
+    "queueHint": "Add the message to the running turn queue (Enter)",
+    "audio": {
+      "transcribing": "Transcribing and telling the voices apart.",
+      "ready": "Transcript ready.",
+      "noSpeech": "I heard no speech.",
+      "speakersFailed": "I could not tell the voices apart: the transcript stays, without who said what.",
+      "failed": "Transcription failed.",
+      "finalizing": "Closing the transcript and telling the voices apart.",
+      "unsupported": "This browser does not record audio.",
+      "connecting": "Connecting so I can transcribe as you speak.",
+      "liveActive": "Live transcript on.",
+      "liveUnavailable": "The live transcript is unavailable; recording continues.",
+      "liveError": "Live transcript error.",
+      "connectionFailed": "Could not connect for transcription.",
+      "micDenied": "Microphone denied or unavailable.",
+      "insertTitle": "Insert the transcript into the message",
+      "insertAction": "Use the transcript",
+      "liveHeading": "As you speak",
+      "livePlaceholder": "The text appears here as you speak.",
+      "finalHeading": "With who spoke",
+      "finalPlaceholder": "After stop, the final transcript arrives here, with who said what."
+    }
   },
   "status": {
     "historyUnavailable": "History unavailable",
@@ -218,5 +242,25 @@
       "action": "Clear the history",
       "done": "History cleared."
     }
+  },
+  "toast": {
+    "copied": "Conversation copied.",
+    "attachHint": "Upload an audio file to transcribe.",
+    "voiceReady": "Voice recording ready."
+  },
+  "questions": {
+    "title": "Open questions on the plan",
+    "lastOpen": "Last open point",
+    "noneOfThese": "None of these: write the right answer",
+    "writeAnswer": "Write the answer",
+    "placeholder": "Answer in your own words…",
+    "decisionNeeded": "Your decision is needed",
+    "oneAtATime": "One decision at a time",
+    "openPoints": "{{count}} open points",
+    "other": "Other",
+    "blocking": "Blocking",
+    "ownLabel": "Answer in your own words",
+    "submit": "Answer",
+    "ofTotal": " of {{total}}"
   }
 }

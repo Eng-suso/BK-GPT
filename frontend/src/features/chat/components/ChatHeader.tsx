@@ -20,7 +20,7 @@ interface ChatHeaderProps {
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
-  title = "Chat consulente",
+  title,
   isDrawerOpen = false,
   onMenuToggle,
   historyButtonRef,

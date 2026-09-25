@@ -1,6 +1,8 @@
 {
   "header": {
-    "eyebrow": "Assistente"
+    "eyebrow": "Assistente",
+    "title": "Chat consulente",
+    "contextual": "Chat contestuale"
   },
   "actions": {
     "new": "Nuova",
@@ -17,7 +19,8 @@
   },
   "message": {
     "you": "Tu",
-    "assistant": "Assistente"
+    "assistant": "Assistente",
+    "emptyAnswer": "Non sono riuscito a completare la richiesta. Controlla il collegamento al servizio."
   },
   "sidebar": {
     "title": "Chat",
@@ -57,7 +60,28 @@
     "stopAgent": "Ferma",
     "stopAgentHint": "Ferma il turno e tieni la risposta parziale",
     "queue": "Accoda",
-    "queueHint": "Aggiungi il messaggio alla coda del turno in corso (Invio)"
+    "queueHint": "Aggiungi il messaggio alla coda del turno in corso (Invio)",
+    "audio": {
+      "transcribing": "Sto trascrivendo e separando le voci.",
+      "ready": "Trascrizione pronta.",
+      "noSpeech": "Non ho sentito parlato.",
+      "speakersFailed": "Non sono riuscito a separare le voci: resta la trascrizione, senza chi parla.",
+      "failed": "Trascrizione non riuscita.",
+      "finalizing": "Sto chiudendo la trascrizione e separando le voci.",
+      "unsupported": "Questo browser non registra audio.",
+      "connecting": "Mi sto collegando per trascrivere mentre parli.",
+      "liveActive": "Trascrizione dal vivo attiva.",
+      "liveUnavailable": "La trascrizione dal vivo non è disponibile; la registrazione continua.",
+      "liveError": "Errore nella trascrizione dal vivo.",
+      "connectionFailed": "Collegamento per la trascrizione non riuscito.",
+      "micDenied": "Microfono negato o non disponibile.",
+      "insertTitle": "Inserisci la trascrizione nel messaggio",
+      "insertAction": "Usa la trascrizione",
+      "liveHeading": "Mentre parli",
+      "livePlaceholder": "Qui compare il testo mentre parli.",
+      "finalHeading": "Con chi parla",
+      "finalPlaceholder": "Dopo lo stop, qui arriva la trascrizione definitiva, con chi ha detto cosa."
+    }
   },
   "status": {
     "historyUnavailable": "Cronologia non disponibile",
@@ -218,5 +242,25 @@
       "action": "Svuota la cronologia",
       "done": "Cronologia eliminata."
     }
+  },
+  "toast": {
+    "copied": "Conversazione copiata.",
+    "attachHint": "Carica un file audio da trascrivere.",
+    "voiceReady": "Registrazione vocale pronta."
+  },
+  "questions": {
+    "title": "Domande aperte sul piano",
+    "lastOpen": "Ultimo punto aperto",
+    "noneOfThese": "Nessuna di queste: scrivi la risposta giusta",
+    "writeAnswer": "Scrivi la risposta",
+    "placeholder": "Rispondi con parole tue…",
+    "decisionNeeded": "Serve una tua decisione",
+    "oneAtATime": "Una decisione alla volta",
+    "openPoints": "{{count}} punti aperti",
+    "other": "Altro",
+    "blocking": "Bloccante",
+    "ownLabel": "Rispondi con parole tue",
+    "submit": "Rispondi",
+    "ofTotal": " di {{total}}"
   }
 }

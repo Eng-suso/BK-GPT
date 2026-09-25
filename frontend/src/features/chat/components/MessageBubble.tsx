@@ -244,7 +244,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <span className="flex items-center gap-2">
             <TriangleAlert className="size-4 flex-none" />
             {message.content ||
-              "Non sono riuscito a completare la richiesta. Verifica la connessione al backend."}
+              t("message.emptyAnswer")}
           </span>
           <Button
             type="button"
