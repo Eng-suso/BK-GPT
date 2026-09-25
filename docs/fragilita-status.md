@@ -71,7 +71,7 @@ decisione, §④).
 
 | ID | Difetto | Gravità | Stato |
 | --- | --- | --- | --- |
-| V1 | La suite `e2e/` non attraversa il backend: tutto mockato | Bloccante | da fare |
+| V1 | La suite `e2e/` non attraversa il backend: tutto mockato | Bloccante | **fatto, verificato** — `aa8b933` |
 | V2 | Visual regression e Lighthouse opt-in, non bloccano il merge | Medio | da fare |
 
 ---
@@ -80,17 +80,18 @@ decisione, §④).
 
 **Uno solo.** Chi prende il lavoro fa questo, poi riscrive questa sezione.
 
-> **Ondata 3 — la verifica che manca (V1).**
-> Un job CI che attraversa davvero il prodotto: Postgres, backend con
-> `DELIR_FAKE_LLM=1`, frontend, uno script di seed, e le spec Playwright senza
-> `page.route`. Senza, B7, B8, B9 e B11 restano difetti che nessun test vede —
-> e le prossime ondate aggiungono codice che nessuno attraversa.
+> **Ondata 4 — quello che resta.**
+> Nell'ordine: U4 (110 stringhe fuori da i18next: in inglese la chat resta
+> italiana), B12 (liste senza `LIMIT`), B5 (73 handler sync su 76), V2 (visual e
+> Lighthouse non bloccano il merge).
 >
-> Il piano esiste già nel ramo `chore/e2e-foundations` (seam fake-LLM, contract
-> test): manca il job e il seed.
->
-> Dopo, in ordine: U4 (110 stringhe fuori da i18next, la chat resta italiana in
-> inglese), B12 (paginazione), B5 (handler sync).
+> Nessuno dei quattro si vede in demo. Tutti e quattro si vedono al secondo
+> cliente.
+
+**Ondata 3 — la verifica — chiusa** il 2026-09-25: V1. Seed, configurazione
+full-stack, sei prove che attraversano frontend, backend e Postgres, e il job
+CI che blocca il merge. Ha trovato subito un difetto che le prove finte non
+potevano vedere (§⑤).
 
 **Ondata 2 — frontend — chiusa** il 2026-09-25: U1, U2, U3, U5, X1, X3, X5.
 Sette commit, un test per difetto. U4 non era in questa ondata e resta aperto.
@@ -114,13 +115,18 @@ mono-processo, e la scelta appartiene a Track A.
    passare da §⑤. Un difetto nuovo trovato strada facendo va in
    §⑤ se esce da una review di questo lavoro, in [`bugs.md`](bugs.md) se è un
    comportamento sbagliato riproducibile.
-4. **Frontend: si usano le skill del routing** in `CLAUDE.md`, le più piccole
+4. **L'e2e full-stack vuole un database suo.** `npm run seed:e2e` e
+   `npm run test:e2e:fullstack` scrivono davvero: si punta
+   `WORKSPACE_DATABASE_URL` a un database dedicato (`workspace_e2e`), mai a
+   quello di sviluppo, o le prove riempiono il workspace su cui stai lavorando.
+   Vale la stessa regola di [`llm-spend-status.md`](llm-spend-status.md) §⑤.
+5. **Frontend: si usano le skill del routing** in `CLAUDE.md`, le più piccole
    che servono. Per U1/U3: `react-ui-patterns`, `frontend-dev-guidelines`. Per
    U5: `accessibility-compliance-accessibility-audit`, `wcag-audit-patterns`.
    Per U2: `react-best-practices`.
-5. **I bloccati non si toccano.** Prima la decisione in §④, poi il codice.
+6. **I bloccati non si toccano.** Prima la decisione in §④, poi il codice.
    Scrivere B1 o B3 senza la decisione significa riscriverli dopo.
-6. **Chi posa il lavoro aggiorna §①, §② e §⑥ nello stesso commit del fix.** Un
+7. **Chi posa il lavoro aggiorna §①, §② e §⑥ nello stesso commit del fix.** Un
    documento vivo aggiornato in un commit a parte è un documento morto.
 
 ---
@@ -225,3 +231,5 @@ verifica.
 | 2026-09-25 | U2 | Rotte pigre: pacchetto d'ingresso da 3.218 kB (898 gzip) a 363 kB (113). Le due schermate d'ingresso si precaricano da sole; canvas e Simulazione no, di proposito. | build + 235 unit + 17 e2e in seriale |
 | 2026-09-25 | U5 | Axe su nove superfici invece di una, dialogo compreso: zero barriere gravi. Canvas e Simulazione restano scoperti finché non c'è V1. | `e2e/accessibility.spec.ts`, 9 verdi |
 | 2026-09-25 | X5 | Tetto alle simulazioni in volo (quattro, sotto i sei worker di Prosimos): oltre, 429 immediato invece di quindici minuti di rotella. | `test_simulation.py`, 13 verdi |
+| 2026-09-25 | V1 | `scripts/seed_e2e.py` + `playwright.fullstack.config.ts` + `e2e-fullstack/` + job CI. Sei prove senza `page.route`: un turno di chat che sopravvive al ricaricamento, una conversazione eliminata che non torna, il percorso cliente → incarico → processo. Il modello non viene mai chiamato (`DELIR_FAKE_LLM=1`). | 6 e2e full-stack verdi |
+| 2026-09-25 | nuovo | Trovato dalla prima passata full-stack: un incarico inesistente mostrava «errore di caricamento» con un tasto Riprova che non avrebbe funzionato mai. Un 404 ora lo dice, e il tasto non c'è. Le prove finte non potevano vederlo: il 404 lo produce il backend. | `e2e-fullstack/workspace.spec.ts` |
