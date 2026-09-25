@@ -49,11 +49,11 @@ decisione, §④).
 
 | ID | Difetto | Gravità | Stato |
 | --- | --- | --- | --- |
-| U1 | Nessun ErrorBoundary: un throw è schermo bianco | Bloccante | da fare |
-| U2 | Zero code splitting: `bpmn-js` e `recharts` nel bundle iniziale | Medio | da fare |
-| U3 | La Simulazione mostra `0` al posto di «nessun dato» | Alto | da fare — **perimetro ridotto**, vedi sotto |
+| U1 | Nessun ErrorBoundary: un throw è schermo bianco | Bloccante | **fatto, verificato** — `10b84ce` |
+| U2 | Zero code splitting: `bpmn-js` e `recharts` nel bundle iniziale | Medio | **fatto, verificato** — `09c3fb0` |
+| U3 | La Simulazione mostra `0` al posto di «nessun dato» | Alto | **fatto, verificato** — `7217075` |
 | U4 | 110 stringhe italiane scritte nel codice, fuori da i18next | Alto | da fare |
-| U5 | Accessibilità verificata con axe su una pagina sola | Alto | da fare |
+| U5 | Accessibilità verificata con axe su una pagina sola | Alto | **fatto, verificato** — `6a19b57` |
 | U6 | L'errore del backend si legge in interfaccia come sta | Medio | **fatto, verificato** — `3a46612`, chiuso da B9 |
 | U7 | PWA dichiarata, PWA assente | Medio | **bloccato** — §④.4 |
 
@@ -61,11 +61,11 @@ decisione, §④).
 
 | ID | Difetto | Gravità | Stato |
 | --- | --- | --- | --- |
-| X1 | «Cronologia eliminata» senza conferma né annulla | Alto | da fare |
+| X1 | «Cronologia eliminata» senza conferma né annulla | Alto | **fatto, verificato** — `cda5adf` |
 | X2 | Clienti è un elenco che non si apre | Alto | **bloccato** — §④.5 |
-| X3 | URL sbagliato, rimando muto a `/projects` | Medio | da fare |
+| X3 | URL sbagliato, rimando muto a `/projects` | Medio | **fatto, verificato** — `7f01a30` |
 | X4 | La ricerca globale cerca il cliente per nome, non per id | Medio | da fare |
-| X5 | Nessun tetto alle simulazioni concorrenti | Medio | da fare |
+| X5 | Nessun tetto alle simulazioni concorrenti | Medio | **fatto, verificato** — `d91ef7f` |
 
 ### Verifica
 
@@ -80,19 +80,20 @@ decisione, §④).
 
 **Uno solo.** Chi prende il lavoro fa questo, poi riscrive questa sezione.
 
-> **Ondata 2 — frontend, le due cose che si vedono in demo.**
-> Nell'ordine: U1 (ErrorBoundary: oggi un throw è schermo bianco), U3 (la
-> Simulazione non mostra `0` al posto di «nessun dato»), X1 (conferma prima di
-> cancellare la cronologia), X3 (una pagina che dice «non c'è» invece del
-> rimando muto), X5 (tetto alle simulazioni concorrenti), U2 (code splitting),
-> U5 (axe oltre la HomePage).
+> **Ondata 3 — la verifica che manca (V1).**
+> Un job CI che attraversa davvero il prodotto: Postgres, backend con
+> `DELIR_FAKE_LLM=1`, frontend, uno script di seed, e le spec Playwright senza
+> `page.route`. Senza, B7, B8, B9 e B11 restano difetti che nessun test vede —
+> e le prossime ondate aggiungono codice che nessuno attraversa.
 >
-> Skill da caricare, le più piccole che servono: `react-ui-patterns` e
-> `frontend-dev-guidelines` per U1/U3/X1/X3; `react-best-practices` per U2;
-> `accessibility-compliance-accessibility-audit` per U5.
+> Il piano esiste già nel ramo `chore/e2e-foundations` (seam fake-LLM, contract
+> test): manca il job e il seed.
 >
-> Resta aperto in backend: B12 (paginazione) e B5 (handler sync). Nessuno dei
-> due si vede in demo, entrambi si vedono al secondo cliente.
+> Dopo, in ordine: U4 (110 stringhe fuori da i18next, la chat resta italiana in
+> inglese), B12 (paginazione), B5 (handler sync).
+
+**Ondata 2 — frontend — chiusa** il 2026-09-25: U1, U2, U3, U5, X1, X3, X5.
+Sette commit, un test per difetto. U4 non era in questa ondata e resta aperto.
 
 **Ondata 1 — backend — chiusa** il 2026-09-24: B2, B6, B7, B8, B9, B11, U6.
 Sei commit, un test per difetto. B4 è uscito dall'ondata ed è diventato una
@@ -217,3 +218,10 @@ verifica.
 | 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.6 con le due strade e il loro costo. | — |
 | 2026-09-24 | B2, B8 | I due rilievi della review sul mio codice: la lista degli ambienti dice dove partire scoperti è lecito (non dove è vietato), quindi un `DELIR_ENVIRONMENT` scritto male non parte; e un risultato Prosimos che arriva per una simulazione non più `pending` viene scartato invece di riportarla in vita. | `tests/test_startup_guard.py`, `tests/test_simulation.py`, 40 verdi sulle suite toccate |
 | 2026-09-25 | B6 | Rilettura del fix stesso: `_remember` serviva sia ad aprire una traccia sia a scriverci, quindi un evento in ritardo resuscitava una traccia sfrattata — senza spazio di lavoro, quindi illeggibile, e occupando un posto. Aprire e scrivere ora sono due cose diverse. | `tests/test_observability.py::test_an_evicted_trace_does_not_come_back_from_the_dead` |
+| 2026-09-25 | U1 | Due ErrorBoundary: uno dentro la shell intorno all'`Outlet` (la navigazione sopravvive a una schermata rotta, e cambiare rotta ripulisce l'errore), uno sopra il router. | `ErrorBoundary.test.tsx`, 4 verdi |
+| 2026-09-25 | U3 | `formatOrMissing`: un KPI che manca si legge come trattino, uno zero vero resta zero. Toccati Cruscotto e Approfondimenti. | `simulationResults.missing.test.ts`, 4 verdi |
+| 2026-09-25 | X1 | `ConfirmDialog` prima di eliminare una conversazione o svuotare la cronologia; il bottone si spegne mentre l'operazione gira. | `ConfirmDialog.test.tsx`, 4 verdi |
+| 2026-09-25 | X3 | Una schermata che dice quale indirizzo non esiste, al posto del rimando muto: il tasto indietro torna dove si era. | `NotFoundPage.test.tsx`, 2 verdi |
+| 2026-09-25 | U2 | Rotte pigre: pacchetto d'ingresso da 3.218 kB (898 gzip) a 363 kB (113). Le due schermate d'ingresso si precaricano da sole; canvas e Simulazione no, di proposito. | build + 235 unit + 17 e2e in seriale |
+| 2026-09-25 | U5 | Axe su nove superfici invece di una, dialogo compreso: zero barriere gravi. Canvas e Simulazione restano scoperti finché non c'è V1. | `e2e/accessibility.spec.ts`, 9 verdi |
+| 2026-09-25 | X5 | Tetto alle simulazioni in volo (quattro, sotto i sei worker di Prosimos): oltre, 429 immediato invece di quindici minuti di rotella. | `test_simulation.py`, 13 verdi |
