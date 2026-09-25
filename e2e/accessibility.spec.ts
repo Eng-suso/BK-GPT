@@ -44,10 +44,12 @@ test.describe('Accessibilita (WCAG 2.1 AA)', () => {
   for (const surface of SURFACES) {
     test(`${surface.name} non ha barriere gravi`, async ({ page }) => {
       await page.goto(surface.path);
-      // Le schermate arrivano a richiesta: si aspetta il contenuto, non il
-      // solo `domcontentloaded`, altrimenti axe scansiona lo scheletro.
-      await page.waitForLoadState('networkidle');
+      // Le schermate arrivano a richiesta: si aspetta che il contenuto ci sia,
+      // altrimenti axe scansiona lo scheletro. Non `networkidle`: senza
+      // backend alcune schermate riprovano le chiamate e la rete non si ferma
+      // mai, quindi l'attesa scadeva invece di finire.
       await expect(page.locator('main')).toBeVisible();
+      await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
 
       expect(await seriousViolations(page)).toEqual([]);
     });
@@ -55,7 +57,7 @@ test.describe('Accessibilita (WCAG 2.1 AA)', () => {
 
   test('i dialoghi della shell restano raggiungibili da tastiera', async ({ page }) => {
     await page.goto('/projects');
-    await page.waitForLoadState('networkidle');
+    await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
 
     const sidebar = page.getByRole('complementary', { name: 'Navigazione principale' });
     await sidebar.getByRole('button', { name: 'Aiuto' }).click();
