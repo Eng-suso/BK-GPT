@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import { ErrorBoundary } from "@/components/feedback";
 import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { HelpDialog } from "@/components/shell/HelpDialog";
 import { TopBar } from "@/components/shell/TopBar";
@@ -45,7 +46,13 @@ export function AppLayout(): React.JSX.Element {
       <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
         <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} />
         <main className="min-h-0 overflow-hidden">
-          <Outlet />
+          {/* La rete sta qui dentro e non intorno alla shell: una schermata che
+              si ferma non deve portarsi via navigazione, ricerca e chat. La
+              chiave è il percorso, così andare altrove ripulisce l'errore
+              invece di lasciarlo appeso. */}
+          <ErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

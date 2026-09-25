@@ -20,7 +20,8 @@
     "close": "Chiudi",
     "search": "Cerca",
     "clearFilter": "Azzera questo filtro",
-    "clearFilters": "Azzera filtri"
+    "clearFilters": "Azzera filtri",
+    "retryScreen": "Riprova la schermata"
   },
   "pagination": {
     "previous": "Pagina precedente",
@@ -33,7 +34,9 @@
     "errorBody": "Non è stato possibile caricare i dati. Riprova.",
     "empty": "Nessun dato disponibile",
     "backendUnavailable": "Backend non raggiungibile",
-    "comingSoon": "In arrivo"
+    "comingSoon": "In arrivo",
+    "crash": "Questa schermata si è fermata",
+    "crashBody": "Il resto del prodotto continua a funzionare. Riprova, oppure passa a un'altra sezione dalla barra a sinistra."
   },
   "home": {
     "description": "Panoramica operativa di clienti, progetti e processi nel workspace.",
