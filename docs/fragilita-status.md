@@ -52,7 +52,7 @@ decisione, §④).
 | U1 | Nessun ErrorBoundary: un throw è schermo bianco | Bloccante | **fatto, verificato** — `10b84ce` |
 | U2 | Zero code splitting: `bpmn-js` e `recharts` nel bundle iniziale | Medio | **fatto, verificato** — `09c3fb0` |
 | U3 | La Simulazione mostra `0` al posto di «nessun dato» | Alto | **fatto, verificato** — `7217075` |
-| U4 | 110 stringhe italiane scritte nel codice, fuori da i18next | Alto | da fare |
+| U4 | 110 stringhe italiane scritte nel codice, fuori da i18next | Alto | **fatto, verificato** — `ae65b2e`, `ac68b95`, `1bec3b0` |
 | U5 | Accessibilità verificata con axe su una pagina sola | Alto | **fatto, verificato** — `6a19b57` |
 | U6 | L'errore del backend si legge in interfaccia come sta | Medio | **fatto, verificato** — `3a46612`, chiuso da B9 |
 | U7 | PWA dichiarata, PWA assente | Medio | **bloccato** — §④.4 |
@@ -80,13 +80,16 @@ decisione, §④).
 
 **Uno solo.** Chi prende il lavoro fa questo, poi riscrive questa sezione.
 
-> **Ondata 4 — quello che resta.**
-> Nell'ordine: U4 (110 stringhe fuori da i18next: in inglese la chat resta
-> italiana), B12 (liste senza `LIMIT`), B5 (73 handler sync su 76), V2 (visual e
-> Lighthouse non bloccano il merge).
+> **Ondata 5 — l'ultimo giro.**
+> Nell'ordine: B12 (liste senza `LIMIT`: una richiesta tira giù il workspace
+> intero), B5 (73 handler sync su 76: a ~40 turni insieme l'API si ferma, e con
+> lei `/health`), V2 (visual e Lighthouse non bloccano il merge).
 >
-> Nessuno dei quattro si vede in demo. Tutti e quattro si vedono al secondo
-> cliente.
+> Poi restano solo i sei bloccati su una decisione (§④), e l'audit è chiuso.
+
+**Ondata 4 — la lingua — chiusa** il 2026-09-25: U4. Da 110 stringhe fuori da
+i18next a zero. Le sei rimaste non sono testo d'interfaccia: un prompt per
+l'agente e due vocabolari di stato che arrivano dal backend.
 
 **Ondata 3 — la verifica — chiusa** il 2026-09-25: V1. Seed, configurazione
 full-stack, sei prove che attraversano frontend, backend e Postgres, e il job
@@ -233,3 +236,4 @@ verifica.
 | 2026-09-25 | X5 | Tetto alle simulazioni in volo (quattro, sotto i sei worker di Prosimos): oltre, 429 immediato invece di quindici minuti di rotella. | `test_simulation.py`, 13 verdi |
 | 2026-09-25 | V1 | `scripts/seed_e2e.py` + `playwright.fullstack.config.ts` + `e2e-fullstack/` + job CI. Sei prove senza `page.route`: un turno di chat che sopravvive al ricaricamento, una conversazione eliminata che non torna, il percorso cliente → incarico → processo. Il modello non viene mai chiamato (`DELIR_FAKE_LLM=1`). | 6 e2e full-stack verdi |
 | 2026-09-25 | nuovo | Trovato dalla prima passata full-stack: un incarico inesistente mostrava «errore di caricamento» con un tasto Riprova che non avrebbe funzionato mai. Un 404 ora lo dice, e il tasto non c'è. Le prove finte non potevano vederlo: il 404 lo produce il backend. | `e2e-fullstack/workspace.spec.ts` |
+| 2026-09-25 | U4 | Chat, review BPMN, barra di modellazione, barra del canvas e ispettore passano da i18next: 110 stringhe → 0. Riscritte anche dove parlavano da sistema («diarizzazione» → «separare le voci», «dal backend» → via). Due file di test ora girano dentro il provider di i18next. | 236 unit + 55 e2e verdi, chiavi it/en allineate |
