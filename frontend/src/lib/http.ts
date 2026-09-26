@@ -76,6 +76,38 @@ export async function http<T>(path: string, options: HttpOptions = {}): Promise<
   return (await response.json()) as T;
 }
 
+/** Una pagina di elenco: le righe arrivate, e quante ne esistono in tutto. */
+export type ListPage<T> = {
+  rows: T;
+  /** Quante righe esistono davvero. `null` se il backend non lo ha detto. */
+  total: number | null;
+};
+
+/**
+ * Come `http`, ma tiene anche il conteggio che il backend scrive nelle
+ * intestazioni.
+ *
+ * Le liste del workspace hanno un tetto (`X-DeliR-Total`, `X-DeliR-Returned`):
+ * senza leggerlo, un elenco tagliato sarebbe indistinguibile da un elenco
+ * completo, e chi lo guarda crederebbe di vedere tutto.
+ */
+export async function httpList<T>(
+  path: string,
+  options: HttpOptions = {},
+): Promise<ListPage<T>> {
+  const response = await buildRequest(path, options);
+
+  if (!response.ok) {
+    await raise(response);
+  }
+
+  const total = Number(response.headers.get("X-DeliR-Total"));
+  return {
+    rows: (await response.json()) as T,
+    total: Number.isFinite(total) && total >= 0 ? total : null,
+  };
+}
+
 /**
  * Streaming variant — auth and error handling stay centralised, but the caller
  * owns `response.body` (NDJSON / SSE reads). Throws `HttpError` on a non-2xx

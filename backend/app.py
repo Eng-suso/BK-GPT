@@ -154,6 +154,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Senza questa riga il browser vede le intestazioni ma non le lascia
+    # leggere al codice della pagina: l'elenco saprebbe di essere tagliato e
+    # non potrebbe dirlo.
+    expose_headers=["X-DeliR-Total", "X-DeliR-Returned", "X-DeliR-Limit", "X-Request-ID"],
 )
 
 

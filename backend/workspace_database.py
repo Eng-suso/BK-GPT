@@ -198,24 +198,60 @@ def client_to_dict(client: WorkspaceClient) -> dict:
     }
 
 
-def list_clients(include_archived: bool = False) -> list[dict]:
+
+#: Quante righe torna al massimo una lista senza che nessuno abbia chiesto un
+#: numero. Non e' una paginazione: e' il tetto che impedisce a una richiesta di
+#: tirare giu' il workspace intero, e sopra ci sta un conteggio, cosi' chi
+#: guarda sa che ne mancano.
+DEFAULT_LIST_LIMIT = 500
+MAX_LIST_LIMIT = 2000
+
+
+def capped_limit(limit: int | None) -> int:
+    """Il numero di righe da chiedere: quello voluto, dentro i confini."""
+    if limit is None:
+        return DEFAULT_LIST_LIMIT
+    return max(1, min(int(limit), MAX_LIST_LIMIT))
+
+
+def clients_statement(include_archived: bool):
+    statement = select(WorkspaceClient).where(WorkspaceClient.tenant_id == tenant_id())
+    if not include_archived:
+        statement = statement.where(WorkspaceClient.archived_at.is_(None))
+    return statement
+
+
+def count_clients(include_archived: bool = False) -> int:
+    """Quanti clienti ci sono davvero, oltre quelli che la lista restituisce."""
+    with workspace_connection() as session:
+        return int(
+            session.execute(
+                select(func.count()).select_from(
+                    clients_statement(include_archived).subquery()
+                )
+            ).scalar_one()
+        )
+
+
+def list_clients(include_archived: bool = False, limit: int | None = None) -> list[dict]:
     """List clients belonging to the current tenant in name order.
 
     Args:
         include_archived: Include closed clients. Off by default: the directory
             is the work in progress, not everything that ever happened.
+        limit: Quante righe al massimo. Senza, vale `DEFAULT_LIST_LIMIT`: la
+            query non aveva nessun tetto, quindi una sola richiesta poteva
+            tirare giu' l'intero elenco di un cliente grosso.
 
     Returns:
         list[dict]: Tenant-scoped client records sorted by name.
     """
     with workspace_connection() as session:
         statement = (
-            select(WorkspaceClient)
-            .where(WorkspaceClient.tenant_id == tenant_id())
+            clients_statement(include_archived)
             .order_by(WorkspaceClient.name)
+            .limit(capped_limit(limit))
         )
-        if not include_archived:
-            statement = statement.where(WorkspaceClient.archived_at.is_(None))
         clients = session.execute(statement).scalars().all()
         return [client_to_dict(client) for client in clients]
 
@@ -329,15 +365,38 @@ def create_client(
         return client_to_dict(client)
 
 
-def list_projects(include_archived: bool = False) -> list[dict]:
+def projects_statement(include_archived: bool):
+    statement = select(WorkspaceProject).where(WorkspaceProject.tenant_id == tenant_id())
+    if not include_archived:
+        statement = statement.where(WorkspaceProject.archived_at.is_(None))
+    return statement
+
+
+def count_projects(include_archived: bool = False) -> int:
+    """Quanti incarichi ci sono davvero, oltre quelli che la lista restituisce."""
+    with workspace_connection() as session:
+        return int(
+            session.execute(
+                select(func.count()).select_from(
+                    projects_statement(include_archived).subquery()
+                )
+            ).scalar_one()
+        )
+
+
+def list_projects(include_archived: bool = False, limit: int | None = None) -> list[dict]:
+    """Gli incarichi dello spazio di lavoro, in ordine di nome.
+
+    Args:
+        include_archived: Include gli incarichi chiusi. Spento di default.
+        limit: Quante righe al massimo. Senza, vale `DEFAULT_LIST_LIMIT`.
+    """
     with workspace_connection() as session:
         statement = (
-            select(WorkspaceProject)
-            .where(WorkspaceProject.tenant_id == tenant_id())
+            projects_statement(include_archived)
             .order_by(WorkspaceProject.name)
+            .limit(capped_limit(limit))
         )
-        if not include_archived:
-            statement = statement.where(WorkspaceProject.archived_at.is_(None))
         projects = session.execute(statement).scalars().all()
         return [project_to_dict(project) for project in projects]
 
