@@ -19,7 +19,9 @@
     "lint": "npm --prefix frontend run lint",
     "ci": "npm run lint && npm run typecheck && npm run test:unit && npm run test:e2e",
     "seed:e2e": "uv run python -m scripts.seed_e2e",
-    "test:e2e:fullstack": "playwright test --config playwright.fullstack.config.ts"
+    "test:e2e:fullstack": "playwright test --config playwright.fullstack.config.ts",
+    "check:bundle": "npm run build && node scripts/check_bundle_budget.mjs",
+    "check:bundle:update": "npm run build && node scripts/check_bundle_budget.mjs --update"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
