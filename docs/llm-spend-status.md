@@ -16,8 +16,8 @@ aggiorna §① (cosa ha chiuso), §② (il prossimo passo, uno solo) e §⑥ (la
 log). Un passo non si dichiara fatto se i suoi test non sono verdi: §① distingue
 *scritto* da *verificato*, ed e' la distinzione che vale.
 
-Ultimo aggiornamento: 2026-09-24.
-Branch di lavoro: `chore/llm-t6` (worktree `.claude/worktrees/llm-t6`).
+Ultimo aggiornamento: 2026-09-26.
+Branch di lavoro: `chore/llm-p2` (worktree `.claude/worktrees/llm-p2`).
 
 ---
 
@@ -32,7 +32,7 @@ Branch di lavoro: `chore/llm-t6` (worktree `.claude/worktrees/llm-t6`).
 | P0.3 | Timeout proporzionato alla lunghezza dell'input | **fatto, verificato** |
 | P0.4 | Progetti e chiavi separati dev / eval / prod, con tetto | **non iniziato** — serve Sohayb (§④) |
 | P0.5 | Tracing LangSmith spento | **non fatto** — una riga in `.env`, §④ |
-| P0.6 | Riferimenti rotti nel piano parziale intercettati prima del merge | **rinviato a P2** (§④) |
+| P0.6 | Riferimenti rotti nel piano parziale intercettati prima del merge | **fatto, verificato** in P2 (`f2ec891`) |
 
 **Suite verde a P0 chiuso: 1256 passed, 14 skipped, 1 xfailed, 0 failed**
 (23 min 28, su database isolato). I conti tornano rispetto alla passata di
@@ -376,7 +376,90 @@ Tre cose apprese scrivendolo, che valgono piu' del codice:
    lavoro. Quanto valga si vedra' col registro, ed e' il primo esperimento da
    fare adesso che P1.5 e' in piedi.
 
-### P2–P5
+### P2 — Eliminare il lavoro ripetuto
+
+| # | Cosa | Stato |
+| --- | --- | --- |
+| P2.1 | Impronta del testo sulla fonte, dentro l'identita' del set | **fatto, verificato** (`69d2755`) |
+| P2.2 | Piano parziale per fonte come artefatto, `cache_hit` nel registro | **fatto, verificato** (`93ff6ef`) |
+| P2.3 | Verdetto del revisore per fonte come artefatto | **fatto, verificato** (`4b553eb`) |
+| P2.4 | L9: le risposte del consulente sopravvivono alla ricostruzione | **fatto, verificato** (`8701426`) |
+| P2.5 | P0.6: riferimenti rotti corretti sul piano parziale, prima del merge | **fatto, verificato** (`f2ec891`) |
+| P2.6 | Eval con record/replay delle estrazioni | **non fatto** — vedi §② |
+
+**Criterio d'uscita del piano, verificato con i test (estrattore sostituito):**
+rieseguire sulle stesse fonti non genera estrazioni (`llm_calls == 0`,
+`reused == N`); una terza intervista ne genera una. Col modello vero non e'
+ancora misurato: va letto nel registro come righe `cache_hit` su
+`plan_extraction`.
+
+**P2.1 — l'identita' del set non guardava il testo.** `source_set_identity`
+hashava id, nome e scope: diceva *quali* fonti ci sono, non *cosa dicono*.
+Un'intervista corretta e risalvata con lo stesso titolo lasciava l'identita'
+ferma, il piano passava per aggiornato e descriveva il testo di prima. Ora
+`workspace_sources.content_hash` (migrazione `0015`) entra nell'identita'.
+
+Sta in una colonna e non si calcola dal testo per una ragione che va ricordata:
+l'identita' si calcola in **due** posti, il registro dell'evidenza (che carica
+le trascrizioni) e lo sweep dei piani indietro (che legge i soli record). Se i
+due divergessero ogni processo risulterebbe sempre indietro, cioe' una
+ricostruzione a ogni passata. Un test li confronta direttamente. La chiave entra
+nell'identita' **solo quando c'e'**: le fonti registrate prima non la hanno, e
+aggiungerla vuota avrebbe cambiato ogni identita' salvata e mandato in coda la
+risintesi di ogni processo. Entrano nel giro al primo salvataggio con impronta.
+
+**P2.2 — la quarta intervista costa una estrazione, non quattro.**
+`workspace_plan_extractions` (migrazione `0016`). La chiave e' il testo esatto
+che l'estrattore riceve (dentro ci sono gia' i rilievi del revisore, quindi una
+riparazione non riusa il parziale che sta correggendo), la versione del prompt
+con lo schema, il modello, il ragionamento e il tenant (L8: il tenant e' anche
+nel vincolo, per riusare fra clienti bisogna sbagliare due cose). Ogni fonte
+riusata lascia una riga `cache_hit` via `llm.record_avoided_call`, che esisteva
+da P1 e non la chiamava nessuno. Il riuso e' opt-in (`reuse_artifacts`): lo
+chiede `synthesize_process_plan`; i test del merge non ereditano database e
+operazione. Magazzino muto = si rilegge e si paga, come prima.
+
+**P2.3 — il revisore di conformita' non leggeva niente, in produzione.** Il
+difetto piu' grosso di questo giro, trovato scrivendo la cache e non cercandolo.
+`_audit_sources` lancia il revisore in un pool di thread **senza**
+`inherit_operation`: da quando il revisore passa dal gateway (t.5) ogni chiamata
+partiva senza operazione, il gateway la rifiutava (L2) e l'`except` del pool la
+contava come fonte non letta. Il verdetto era `failed`/`incomplete` su ogni
+processo, indistinguibile da un fornitore giu'. Nessun test lo vedeva perche' il
+revisore finto dei test non passa dal gateway. Ora il pool eredita l'operazione e
+`OperationNotOpen` risale; il test usa un revisore finto che si comporta come il
+gateway su L2. **Per il prossimo giro:** un doppio che non rispetta L2 non
+verifica il cablaggio - e' la stessa lezione di P1 sui doppi piu' permissivi del
+vero.
+
+Poi la cache: `workspace_source_audits` (migrazione `0017`), verdetto grezzo
+chiavato su fonte come la legge il revisore + elementi del piano. La verifica
+delle citazioni si rifa' anche sul verdetto riusato. Niente riuso con `force`:
+"controlla di nuovo" vuol dire rileggere. **Guadagno piu' piccolo di P2.2, e va
+detto:** un piano cambiato cambia gli elementi, quindi il riuso scatta sui
+confronti rifatti a piano fermo (canvas risalvato, verifica ripetuta, fonti
+fallite al giro prima).
+
+**P2.4 — L9.** La risposta restava salvata ma si riagganciava solo se il piano
+ricostruito riponeva la domanda con lo stesso testo; se l'intervista nuova
+spostava l'accento, o un filtro la scartava come ridondante, spariva dal
+pannello, dallo snapshot dell'agente e dal gate. Tre test su sei rossi prima del
+fix. Ora `prepare_bpmn_review` e `revise_bpmn_review` - i due punti da cui passa
+ogni ricostruzione - riportano le domande risposte e le sottraggono ai filtri.
+**Limite dichiarato:** la risposta resta e si legge, ma non modifica la
+struttura del piano; e una domanda riformulata dal modello puo' essere chiesta di
+nuovo accanto a quella risposta.
+
+**P2.5 — P0.6.** I controlli di riferimento escono dalla diagnostica in
+`plan_reference_errors` (stessi messaggi, stesso ordine). Sul parziale valgono
+solo loro: una voce che non racconta attivita' non e' un piano rotto. Un
+parziale con riferimenti rotti si rilegge **una** volta con i punti nominati; la
+correzione si verifica con lo stesso controllo e si tiene solo se li riduce;
+cio' che resta si dichiara per fonte (`unresolved_references`). La correzione e'
+contata in `llm_calls` e finisce nell'artefatto, quindi non si ripaga. Anche qui
+`OperationNotOpen` ora risale invece di diventare "fonte persa, ritentata".
+
+### P3–P5
 
 Non iniziati. Vedi il piano.
 
@@ -384,59 +467,48 @@ Non iniziati. Vedi il piano.
 
 ## ② PROSSIMO STEP
 
-**Due cose che non sono codice, e poi P2.**
+**P2 e' chiuso come codice. Il prossimo passo e' misurarlo col modello vero, e
+chiudere P2.6.**
 
-**1. Il listino.** `LLM_PRICES_JSON` e' vuoto, quindi oggi ogni riga del
-registro ha `cost_estimate` a NULL: sappiamo quanto abbiamo **consumato**, non
-quanto abbiamo **speso**. E' l'ultimo pezzo che separa «dove sono andati i
-token» da «dove sono andati i soldi», ed e' una riga di `.env`. Il comando
+**1. Il risparmio nel registro.** Tutto P2 e' verificato con l'estrattore
+sostituito. Il gesto: una ricostruzione vera su un processo con tre interviste,
+poi una quarta intervista, poi
 
-    uv run python scripts/llm_spend.py listino
+    uv run python scripts/llm_spend.py ieri
 
-elenca i modelli che hanno girato davvero, in ordine di quanto pesano, e stampa
-lo scheletro JSON da riempire coi prezzi del fornitore. I prezzi non li mette il
-codice di proposito: un listino incollato invecchia in silenzio e produce un
-costo plausibile e falso, che e' peggio di nessun costo.
+Ci si aspettano righe `cache_hit` su `plan_extraction` pari alle fonti non
+cambiate. Se non ci sono, il riuso non scatta in produzione e i test mentono.
+Stessa lettura per `conformance_audit` dopo un canvas risalvato: prima di P2.3 li'
+non c'era **nessuna** riga `ok`, perche' il revisore non leggeva.
 
-I modelli che si pagano a tempo (la trascrizione al minuto) **non** vanno a
-listino: a zero token darebbero un costo di zero. Per loro il costo resta NULL,
-e lo dice la fattura.
+**2. P2.6 — eval con record/replay.** Il criterio del piano: «un eval ripetuto
+costa una chiamata». Oggi gli eval passano da `extract_plan_from_sources` senza
+`reuse_artifacts`, quindi ripagano tutto. La via piu' corta e' chiedere il riuso
+anche dagli eval (l'operazione `EVAL` c'e' gia'), con un tenant dedicato agli eval
+cosi' gli artefatti non si mischiano col prodotto. Va deciso se un eval che deve
+misurare un **cambio di prompt** lo ottiene gratis - si', perche' il prompt e'
+nella chiave - e se ne serve uno che forzi la rilettura.
 
-**2. Una riga nata da spesa vera.** Tutto e' verificato con il confine di rete
-finto. La prima chiamata davvero pagata che lascia una riga non c'e' ancora
-stata, perche' gli eval col modello vero sono fermi sui crediti OpenAI esauriti.
-Finche' non succede, P1 e' verificato come codice e non come misura: il gesto e'
-far girare `tests/evals` con `DELIR_LIVE_LLM=1` e poi `llm_spend.py ieri`.
-
-**Poi P2 — artefatti con dipendenze** (§4.2 del piano). E' l'unica leva che
-cambia l'ordine di grandezza invece di una percentuale, e il lavoro concreto e'
-uno: portare `evidence_source_set_id` al livello della **singola fonte**. Oggi
-la chiave dell'artefatto e' l'insieme delle evidenze, quindi una fonte aggiunta
-invalida tutto quello che era gia' stato calcolato sulle altre - e nel lavoro
-vero le fonti si aggiungono una per volta, mentre l'intervista procede.
-
-Il primo esperimento da fare col registro in mano e' `reasoning_effort` per
-compito (§③.3), e ora si chiede:
-
-    uv run python scripts/llm_spend.py ragionamento
-
-Una quota alta su un compito che risponde dentro uno schema strict e' il primo
-posto dove abbassare l'effort: li' lo schema fa il lavoro.
+**Listino e spesa vera (§①, righe di P1).** Sohayb li da' chiusi il 25/09; qui
+le righe dicono ancora "da fare/bloccato" perche' la verifica non e' in questo
+branch. Le aggiorna chi ha il numero in mano.
 
 **Non ancora P3** (budget con prenotazione e saldo): servono due settimane di
 numeri veri, e non e' solo la soglia a dipendere dai dati - la *forma* del
 meccanismo lo e'. Prima di P3 va deciso anche il tenant del registro (§③.6), che
 e' quello workspace e non il consulente: i budget per tenant si appoggiano a
-quel campo.
+quel campo. P2 cambia la stima di P3: una sintesi non costa piu' N estrazioni ma
+quelle delle fonti cambiate, e il costo atteso va letto dal registro dopo P2,
+non da prima.
 
 ---
 
 ## ③ Cosa manca, in ordine di valore
 
 1. **Registro dei consumi** (P1). Senza, ogni scelta successiva e' a occhio.
-2. **Artefatti con dipendenze** (P2, §4.2 del piano). E' l'unica leva che cambia
-   l'ordine di grandezza invece di una percentuale. Il lavoro concreto:
-   `evidence_source_set_id` portato al livello della singola fonte.
+2. ~~**Artefatti con dipendenze** (P2, §4.2 del piano).~~ Chiuso come codice
+   (§①, P2): impronta per fonte, piano parziale e verdetto del revisore come
+   artefatti. Resta da misurarlo col modello vero (§②).
 3. **`reasoning_effort` per compito.** Il default di
    [`chat_openai_kwargs`](../backend/llm_config.py) e' `medium`, e vale per
    **tutti** i builder task-scoped: estrazione, giudizio di qualita', revisore di
@@ -489,7 +561,7 @@ costa quasi mai, e sopra c'e' comunque la coda con il suo backoff. Se dopo P1 i
 numeri dicono che quei secondi tentativi si pagano ancora, si togliera' allora —
 con la misura in mano.
 
-**P0.6 rinviato a P2.** «Riferimenti rotti nel piano parziale intercettati prima
+**P0.6 rinviato a P2** (chiuso li', §① P2.5). «Riferimenti rotti nel piano parziale intercettati prima
 del merge» sta in P0 nel piano, ma non e' una leva di spesa: e' qualita'. Ed e'
 la parte costosa di P0, quindi tenerla dentro affonda il resto, che si fa in
 un'ora. Appartiene a P2, dove i piani parziali diventano artefatti e
@@ -680,6 +752,15 @@ trova la chiave a `None` e falla.
 | 2026-09-25 | P1.6: regola ast-grep L1 (`severity: error`), verificata verde su `backend/` e rossa su un file di prova; comando del README corretto | `chore/llm-code` |
 | 2026-09-25 | Lettura del registro: `llm.ledger` + `scripts/llm_spend.py`; ogni totale dichiara la sua copertura di prezzo. KPI costo-per-AS-IS calcolabile: l'evento di validazione esisteva gia' | `chore/llm-ledger-read` |
 | 2026-09-25 | L5: `prompt_version` su 10 punti di chiamata, hash del template (schema compreso), test AST che impedisce di dimenticarla | `chore/llm-ledger-read` |
+| 2026-09-26 | P2.1: impronta del testo sulla fonte, identita' del set che segue il contenuto (migrazione `0015`) | `69d2755` |
+| 2026-09-26 | P2.2: piano parziale come artefatto, `cache_hit` nel registro (migrazione `0016`) | `93ff6ef` |
+| 2026-09-26 | P2.3: revisore di conformita' che eredita l'operazione (non leggeva in produzione) + verdetto come artefatto (migrazione `0017`) | `4b553eb` |
+| 2026-09-26 | P2.4: L9, risposte del consulente riportate a ogni ricostruzione | `8701426` |
+| 2026-09-26 | P2.5: P0.6, riferimenti rotti corretti sul piano parziale | `f2ec891` |
+
+**Migrazioni di P2:** `0015_source_content_hash` -> `0016_plan_extraction_artifacts`
+-> `0017_source_audit_artifacts`, in fila su `0014_llm_usage_ledger`. Chi ha un
+database di worktree fermo a `0014` lo porta a head da solo al primo run.
 
 **Attenzione alla migrazione Alembic.** `0014_llm_usage_ledger` rivede
 `0013_conformance_lease`. Un'altra sessione ha creato `0014_notification_reads`

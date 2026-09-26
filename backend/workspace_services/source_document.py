@@ -18,6 +18,7 @@ diretto e il resto non cambia.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 
@@ -26,6 +27,38 @@ from backend.memory import provenance
 from backend.memory.episodic import episodic_store
 
 logger = logging.getLogger(__name__)
+
+LUNGHEZZA_IMPRONTA = 16
+
+
+def content_digest(text: str | None) -> str:
+    """L'impronta del testo di una fonte: cambia se e solo se il testo cambia.
+
+    Una sola funzione per due domande diverse, e vale la pena tenerle distinte:
+    il record della fonte la salva come **segnale di cambiamento** (cosi' lo
+    sweep dei piani indietro se ne accorge senza aprire le interviste), e la
+    chiave dell'artefatto di estrazione la usa come **identita' di cio' che il
+    modello ha letto davvero**. Se le due divergessero - una colonna non
+    aggiornata - il peggio che puo' succedere e' una risintesi in ritardo, mai
+    il riuso di un artefatto nato da un altro testo.
+
+    Gli spazi di bordo non contano: un testo salvato con un a capo in piu' non
+    e' un'intervista diversa, e trattarlo come tale costerebbe una ricostruzione
+    del piano per niente.
+
+    Args:
+        text: Il testo, non affidabile.
+
+    Returns:
+        Un'impronta stabile di 16 caratteri, o stringa vuota per un testo
+        assente. Il vuoto non e' un'impronta: significa "questa fonte non
+        dichiara un contenuto", ed e' cio' che distingue una fonte senza
+        trascrizione da una con la trascrizione vuota.
+    """
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+    return hashlib.sha256(cleaned.encode("utf-8")).hexdigest()[:LUNGHEZZA_IMPRONTA]
 
 
 def _matching_episode(project_id: str, process_id: str | None, name: str) -> dict | None:
@@ -122,4 +155,7 @@ def source_document(source_id: str) -> dict | None:
         "episode_id": detail.get("episode_id"),
         "content": content,
         "has_content": bool(content),
+        # L'impronta del testo che si e' appena letto, non quella che il record
+        # dichiara: e' l'identita' di cio' che l'estrazione leggera' davvero.
+        "content_digest": content_digest(content),
     }

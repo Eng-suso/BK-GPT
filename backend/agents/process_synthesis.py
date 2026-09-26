@@ -31,6 +31,7 @@ risintetizzato invece di restare a descrivere un processo di tre fonti fa.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
@@ -240,6 +241,34 @@ def _source_notes(source: dict, process_name: str, reviewer_notes: list[str] | N
     return "\n".join([*header, "", content, *tail])
 
 
+# Quante volte si chiede all'estrattore di correggere i riferimenti rotti di un
+# piano parziale. Budget del runtime, non del modello (CODE_QUALITY.md): una
+# correzione che non converge al primo giro non converge al terzo, e ogni giro
+# costa quanto un'estrazione.
+REFERENCE_REPAIR_MAX_ATTEMPTS = 1
+
+
+def _with_reference_corrections(notes: str, errors: list[str]) -> str:
+    """Il testo della fonte, con i riferimenti rotti da correggere in coda.
+
+    Si rilegge la fonte intera e non si ripara il JSON a parte: un riferimento
+    rotto e' quasi sempre un elemento che la fonte nomina e l'estrazione non ha
+    definito, e per definirlo serve il testo. Se la fonte non lo nomina, il
+    riferimento va tolto - la stessa regola di sempre, niente fatti inventati.
+    """
+    return "\n".join(
+        [
+            notes,
+            "",
+            "CORREZIONE RICHIESTA. L'estrazione precedente di questa fonte conteneva "
+            "riferimenti a elementi che non definisce. Estrai di nuovo la fonte e, per "
+            "ciascun punto qui sotto, definisci l'elemento se la fonte lo nomina, "
+            "altrimenti togli il riferimento. Non aggiungere elementi che la fonte non nomina.",
+            *(f"- {error}" for error in errors),
+        ]
+    )
+
+
 def warm_provider_imports() -> None:
     """Importa il client del modello nel thread che chiama, prima del pool.
 
@@ -272,6 +301,132 @@ class CorpusExtraction:
     # Cosa e' stato unito, scartato e ordinato dopo il merge. `None` quando non
     # c'era un piano da consolidare.
     consolidation: PlanConsolidation | None = None
+    # Quante fonti sono state riusate invece che rilette dal modello. E' il
+    # numero di P2, e sta qui accanto a `llm_calls` di proposito: le due cifre
+    # insieme dicono quanto e' costata questa sintesi *e* quanto sarebbe
+    # costata senza artefatti.
+    reused: int = 0
+    # P0.6: quante fonti hanno avuto bisogno di una correzione dei riferimenti
+    # (una chiamata ciascuna, gia' contata in `llm_calls`), e cosa e' rimasto
+    # rotto dopo, per fonte. Vuoto e' il caso buono.
+    reference_repairs: int = 0
+    unresolved_references: dict[str, list[str]] = field(default_factory=dict)
+
+
+def extraction_artifact_key(
+    notes: str,
+    *,
+    prompt_version: str,
+    model: str,
+    reasoning_effort: str,
+) -> str:
+    """L'identita' di un'estrazione: cosa e' stato letto, e come.
+
+    Nella chiave entra il **testo esatto** che il modello riceve, non quello
+    della fonte: dentro ci sono gia' il nome del processo, i presenti, la
+    dichiarazione di troncamento e i rilievi del revisore di conformita'. Una
+    riparazione guidata dal revisore e' quindi un'estrazione diversa per
+    costruzione - cosa che una chiave sulla sola intervista non avrebbe visto, e
+    avrebbe riusato il piano parziale che il revisore stava correggendo.
+
+    Ci entrano anche prompt, modello e livello di ragionamento, perche' sono le
+    tre cose che cambiano il risultato a parita' di testo. Cambiarne una non
+    invalida niente: produce chiavi nuove, e gli artefatti di prima restano
+    dove sono, leggibili, senza una migrazione.
+
+    Il tenant chiude la chiave (L8). Ogni lettura filtra gia' per tenant e il
+    vincolo del database e' `(tenant, chiave)`: averlo anche qui vuol dire che
+    per riusare l'artefatto di un altro cliente non basta dimenticare un filtro,
+    bisogna sbagliare due cose.
+
+    Args:
+        notes: Il testo come lo legge l'estrattore.
+        prompt_version: La versione del prompt, schema compreso.
+        model: Il modello che eseguira' il compito.
+        reasoning_effort: Quanto ragionamento gli viene chiesto.
+
+    Returns:
+        Un'impronta stabile di 32 caratteri.
+    """
+    from backend.security import get_current_tenant_id
+
+    material = json.dumps(
+        {
+            "tenant": get_current_tenant_id(),
+            "notes": notes,
+            "prompt_version": prompt_version,
+            "model": model,
+            "reasoning_effort": reasoning_effort,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+
+
+def _stored_partial_plans(keys: list[str]) -> dict[str, ProcessUnderstanding]:
+    """I piani parziali gia' estratti, fra quelli chiesti.
+
+    Una cache che non si raggiunge non e' un guasto dell'estrazione: si rilegge
+    la fonte e si paga, che e' esattamente cio' che si faceva prima di avere gli
+    artefatti. Alzare qui vorrebbe dire far fallire una sintesi perche' un
+    risparmio non era disponibile.
+
+    Un artefatto che non si valida viene ignorato allo stesso modo. Non dovrebbe
+    succedere - lo schema di uscita e' dentro la versione del prompt, quindi un
+    campo nuovo produce chiavi nuove - ma un artefatto che non si valida non e'
+    un artefatto, e rileggere la fonte e' sempre una risposta corretta.
+    """
+    from backend import workspace_database
+
+    try:
+        rows = workspace_database.plan_extractions_by_key(keys)
+    except Exception:  # noqa: BLE001 - un risparmio mancato non e' un guasto
+        logger.warning("artefatti di estrazione non leggibili", exc_info=True)
+        return {}
+
+    plans: dict[str, ProcessUnderstanding] = {}
+    for key, row in rows.items():
+        try:
+            plans[key] = ProcessUnderstanding.model_validate(row.get("plan") or {})
+        except Exception:  # noqa: BLE001 - si rilegge la fonte
+            logger.warning("artefatto di estrazione non valido: %s", key, exc_info=True)
+    return plans
+
+
+def _remember_partial_plan(
+    key: str,
+    plan: ProcessUnderstanding,
+    *,
+    source: dict,
+    prompt_version: str,
+    model: str,
+) -> None:
+    """Mette da parte il piano parziale appena pagato.
+
+    Best-effort per la stessa ragione della lettura: l'estrazione e' riuscita e
+    il piano e' in mano: perderla perche' il database non accetta la riga
+    costerebbe una fonte al piano, cioe' molto piu' di una chiamata.
+    """
+    from backend import workspace_database
+    from backend.workspace_services.source_document import content_digest
+
+    try:
+        workspace_database.save_plan_extraction(
+            artifact_key=key,
+            plan=plan.model_dump(mode="json"),
+            source_id=str(source.get("id") or ""),
+            source_name=str(source.get("name") or ""),
+            input_digest=content_digest(str(source.get("content") or "")),
+            prompt_version=prompt_version,
+            model=model,
+        )
+    except Exception:  # noqa: BLE001 - l'estrazione e' comunque riuscita
+        logger.warning(
+            "artefatto di estrazione non salvato per la fonte %s",
+            source.get("name") or source.get("id"),
+            exc_info=True,
+        )
 
 
 def extract_plan_from_sources(
@@ -280,6 +435,7 @@ def extract_plan_from_sources(
     reviewer_notes: dict[str, list[str]] | None = None,
     *,
     unifier: PlanUnifier | None = None,
+    reuse_artifacts: bool = False,
 ) -> CorpusExtraction:
     """Una estrazione per fonte, a testo intero, poi un merge e un consolidamento.
 
@@ -303,45 +459,148 @@ def extract_plan_from_sources(
     Due ricostruzioni sulle stesse fonti danno lo stesso piano: l'ordine di
     lettura resta stabile, e decide solo dove nessun legame decide.
 
+    **Una fonte gia' letta non si rilegge.** Il piano parziale e' un artefatto
+    (`workspace_plan_extractions`), chiavato su cio' che lo determina: il testo
+    esatto, la versione del prompt, il modello, il ragionamento. Una quarta
+    intervista costa quindi una estrazione e non quattro, ed e' il caso normale
+    - nel lavoro vero le fonti si aggiungono una per volta. Il merge e il
+    consolidamento si rifanno comunque: sono deterministici, e il secondo vale
+    una chiamata sola sul piano intero.
+
     Args:
         process_name: Il nome del processo, per l'estrattore.
         sources: Le fonti del registro, con il loro testo.
         reviewer_notes: I rilievi verificati del revisore di conformita', per id
-            di fonte, quando l'estrazione ripara un piano gia' verificato.
+            di fonte, quando l'estrazione ripara un piano gia' verificato. Sono
+            dentro il testo che l'estrattore legge, quindi dentro la chiave
+            dell'artefatto: una riparazione non riusa il piano parziale che sta
+            correggendo.
         unifier: Il giudizio sui doppioni. ``None`` lascia i doppioni come sono,
             e il consolidamento lo dichiara.
+        reuse_artifacts: Se guardare in magazzino prima di estrarre, e depositare
+            cio' che si estrae. Il riuso si chiede invece di essere il default
+            perche' porta con se' due dipendenze - il database e un'operazione
+            aperta, senza la quale la riga del lavoro evitato non si puo'
+            scrivere (L2) - e chi verifica il merge non deve ereditarle, ne'
+            dipendere da cio' che un'altra esecuzione ha lasciato in magazzino.
+            Il percorso del prodotto passa da `synthesize_process_plan`, che lo
+            chiede.
 
     Returns:
         Il piano consolidato (o `None` se nessuna fonte ha prodotto niente), il
-        numero di chiamate al modello spese, i guasti per fonte e l'esito del
-        consolidamento.
+        numero di chiamate al modello spese, quante fonti sono state riusate, i
+        guasti per fonte e l'esito del consolidamento.
 
     Side effects:
-        Chiama il modello una volta per fonte, in parallelo, e una volta sul
-        piano fuso quando `unifier` c'e'.
+        Chiama il modello una volta per ogni fonte **non** gia' estratta, in
+        parallelo, e una volta sul piano fuso quando `unifier` c'e'. Salva il
+        piano parziale di ogni estrazione riuscita, e lascia nel registro dei
+        consumi una riga `cache_hit` per ogni chiamata evitata.
     """
     from concurrent.futures import ThreadPoolExecutor
 
     from backend.agents.process_plan import merge_process_understanding
+    from backend.llm import LlmTask, OperationNotOpen, profile_for, record_avoided_call
+    from backend.process_understanding import (
+        plan_extraction_prompt_version,
+        plan_reference_errors,
+    )
 
     readable = [source for source in sources if str(source.get("content") or "").strip()]
     if not readable:
         return CorpusExtraction(process=None, llm_calls=0, sources_read=0)
 
-    def _extract(source: dict) -> ProcessUnderstandingResult:
-        try:
-            return build_process_understanding(
-                process_name,
-                _source_notes(
-                    source,
+    # Il testo si compone prima del pool, perche' e' cio' che identifica
+    # l'estrazione: la chiave si calcola su quello che il modello ricevera',
+    # non su quello che la fonte contiene.
+    notes = [
+        _source_notes(
+            source,
+            process_name,
+            (reviewer_notes or {}).get(str(source.get("id") or "")),
+        )
+        for source in readable
+    ]
+    profile = profile_for(LlmTask.PLAN_EXTRACTION)
+    version = plan_extraction_prompt_version()
+    keys = [
+        extraction_artifact_key(
+            item,
+            prompt_version=version,
+            model=profile.model,
+            reasoning_effort=profile.reasoning_effort,
+        )
+        for item in notes
+    ]
+    stored = _stored_partial_plans(keys) if reuse_artifacts else {}
+
+    # Le correzioni dei riferimenti rotti: quante chiamate sono costate, e cosa e'
+    # rimasto rotto dopo. Scritte dai thread del pool; `append` e l'assegnazione
+    # di una chiave sono atomiche, e ogni thread scrive la propria fonte.
+    repairs: list[str] = []
+    unresolved: dict[str, list[str]] = {}
+
+    def _repair_references(index: int, result: ProcessUnderstandingResult) -> ProcessUnderstandingResult:
+        """P0.6: un riferimento rotto si intercetta sul piano parziale, prima del merge.
+
+        Dopo il merge il difetto e' di tutti e di nessuno: un'attivita'
+        assegnata a un attore che non esiste non dice piu' da quale intervista
+        e' arrivata, e il consulente la trova nella diagnostica del piano intero
+        senza sapere cosa rileggere. Qui si sa, e si chiede alla stessa fonte.
+
+        La correzione si **verifica** con lo stesso controllo che l'ha chiesta,
+        ed e' tenuta solo se i riferimenti rotti sono diminuiti: a parita', il
+        piano di prima resta, perche' una correzione che non corregge ha solo
+        cambiato il piano senza motivo. Cio' che resta rotto si dichiara.
+        """
+        if result.process is None:
+            return result
+        name = str(readable[index].get("name") or readable[index].get("id") or "fonte")
+        errors = plan_reference_errors(result.process)
+        best, best_errors = result, errors
+        for _ in range(REFERENCE_REPAIR_MAX_ATTEMPTS):
+            if not best_errors:
+                break
+            repairs.append(name)
+            try:
+                repaired = build_process_understanding(
                     process_name,
-                    (reviewer_notes or {}).get(str(source.get("id") or "")),
-                ),
+                    _with_reference_corrections(notes[index], best_errors),
+                    with_quality_report=False,
+                )
+            except OperationNotOpen:
+                raise
+            except Exception:  # noqa: BLE001 - la correzione mancata non costa la fonte
+                logger.warning("correzione dei riferimenti non riuscita su %s", name, exc_info=True)
+                break
+            if repaired.status != "success" or repaired.process is None:
+                break
+            remaining = plan_reference_errors(repaired.process)
+            if len(remaining) < len(best_errors):
+                best, best_errors = repaired, remaining
+        if best_errors:
+            unresolved[name] = best_errors
+            logger.warning(
+                "riferimenti rotti nel piano parziale di %s: %s", name, "; ".join(best_errors)
+            )
+        return best
+
+    def _extract(index: int) -> ProcessUnderstandingResult:
+        try:
+            result = build_process_understanding(
+                process_name,
+                notes[index],
                 # Il giudizio di qualita' si da' sul piano intero, non su ogni
                 # pezzo: chiederlo per fonte moltiplicherebbe le chiamate per
                 # giudicare frammenti che nessuno usera' da soli.
                 with_quality_report=False,
             )
+        except OperationNotOpen:
+            # Non e' un guasto della fonte: e' un punto d'ingresso che non ha
+            # aperto il lavoro (L2). Contarlo come fonte persa lo nasconderebbe
+            # dietro un "provider_error" ritentato - lo stesso difetto che
+            # teneva spento il revisore di conformita'.
+            raise
         except Exception as exc:  # noqa: BLE001
             # Una fonte che esplode e' una fonte persa, non l'estrazione persa.
             # Senza questo, un'eccezione non classificata dentro `pool.map`
@@ -355,19 +614,54 @@ def extract_plan_from_sources(
                     attempt=1,
                 ),
             )
+        if result.status == "success" and result.process is not None:
+            result = _repair_references(index, result)
+        if reuse_artifacts and result.status == "success" and result.process is not None:
+            # Si deposita il piano **corretto**, sotto la chiave della lettura
+            # originale: la prossima volta la correzione non si ripaga.
+            #
+            # Si deposita qui, nel thread che ha appena pagato: un piano parziale
+            # messo da parte solo a fine sintesi andrebbe perso ogni volta che
+            # una fonte successiva fallisce, cioe' proprio quando la coda
+            # riprovera' e lo ripagherebbe.
+            _remember_partial_plan(
+                keys[index],
+                result.process,
+                source=readable[index],
+                prompt_version=version,
+                model=profile.model,
+            )
+        return result
 
-    workers = max(1, min(MAX_PARALLEL_EXTRACTIONS, len(readable)))
-    if workers > 1:
-        warm_provider_imports()
-    # Un thread nuovo nasce con i `ContextVar` vuoti: senza questo, le estrazioni
-    # - una per intervista, cioe' le chiamate piu' care che facciamo - girerebbero
-    # senza operazione e senza tenant. Il gateway le rifiuterebbe, e giustamente:
-    # sarebbe spesa non attribuibile. Vedi backend/llm/operation.py.
-    extract_in_this_operation = inherit_operation(_extract)
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="plan-extract") as pool:
-        # `map` conserva l'ordine dell'input: il merge resta deterministico anche
-        # se le chiamate finiscono in ordine diverso.
-        results = list(pool.map(extract_in_this_operation, readable))
+    results: list[ProcessUnderstandingResult | None] = [
+        ProcessUnderstandingResult(status="success", process=stored[key])
+        if key in stored
+        else None
+        for key in keys
+    ]
+    reused = sum(1 for item in results if item is not None)
+    # La riga del lavoro evitato si scrive qui, nel thread che ha l'operazione
+    # aperta, e prima di estrarre il resto: se una sintesi fallisse a meta', le
+    # chiamate risparmiate sono comunque state risparmiate. Senza queste righe
+    # il risparmio sarebbe indistinguibile dall'inattivita'.
+    for _ in range(reused):
+        record_avoided_call(LlmTask.PLAN_EXTRACTION, prompt_version=version)
+
+    to_extract = [index for index, item in enumerate(results) if item is None]
+    if to_extract:
+        workers = max(1, min(MAX_PARALLEL_EXTRACTIONS, len(to_extract)))
+        if workers > 1:
+            warm_provider_imports()
+        # Un thread nuovo nasce con i `ContextVar` vuoti: senza questo, le estrazioni
+        # - una per intervista, cioe' le chiamate piu' care che facciamo - girerebbero
+        # senza operazione e senza tenant. Il gateway le rifiuterebbe, e giustamente:
+        # sarebbe spesa non attribuibile. Vedi backend/llm/operation.py.
+        extract_in_this_operation = inherit_operation(_extract)
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="plan-extract") as pool:
+            # `map` conserva l'ordine dell'input: il merge resta deterministico
+            # anche se le chiamate finiscono in ordine diverso.
+            for index, result in zip(to_extract, pool.map(extract_in_this_operation, to_extract)):
+                results[index] = result
 
     # Un guasto temporaneo del provider - timeout, rate limit - non deve costare
     # un'intervista al piano. Sul caso Esaote l'estrazione di Francesca e' andata
@@ -376,11 +670,16 @@ def extract_plan_from_sources(
     # guasto, e poi quello che resta fallito resta fallito.
     retried = 0
     for index, result in enumerate(results):
+        if result is None:
+            # Ne' letta ne' riusata: un posto che il pool non ha riempito. Non
+            # puo' succedere, e se succedesse ritentare alla cieca nasconderebbe
+            # il difetto - la fonte risulta persa, che e' la verita'.
+            continue
         failure = result.failure
         if result.status == "success" or failure is None or not failure.retryable:
             continue
         retried += 1
-        results[index] = _extract(readable[index])
+        results[index] = _extract(index)
 
     merged = None
     failures: list[str] = []
@@ -392,8 +691,12 @@ def extract_plan_from_sources(
     partial_boundaries: dict[str, dict] = {}
     for source, result in zip(readable, results):
         name = str(source.get("name") or source.get("id") or "fonte senza nome")
-        if result.status != "success" or result.process is None:
-            reason = result.failure.message if result.failure else "estrazione non riuscita"
+        if result is None or result.status != "success" or result.process is None:
+            reason = (
+                result.failure.message
+                if result is not None and result.failure
+                else "estrazione non riuscita"
+            )
             failures.append(f"{name}: {reason}")
             continue
         partial = result.process
@@ -443,10 +746,21 @@ def extract_plan_from_sources(
 
     return CorpusExtraction(
         process=merged,
-        llm_calls=len(readable) + retried + (consolidation.llm_calls if consolidation else 0),
+        # Le fonti riusate non si contano: `llm_calls` e' quanto questa sintesi
+        # e' costata davvero, e sommarci il lavoro evitato lo renderebbe di
+        # nuovo invisibile - al contrario.
+        llm_calls=(
+            len(to_extract)
+            + retried
+            + len(repairs)
+            + (consolidation.llm_calls if consolidation else 0)
+        ),
         sources_read=len(readable),
         failures=failures,
         consolidation=consolidation,
+        reused=len(readable) - len(to_extract),
+        reference_repairs=len(repairs),
+        unresolved_references=dict(unresolved),
     )
 
 
@@ -506,6 +820,10 @@ def synthesize_process_plan(
         ledger.get("sources") or [],
         reviewer_notes=reviewer_notes,
         unifier=llm_plan_unifier(),
+        # Il percorso del prodotto: qui l'operazione e' aperta e il magazzino
+        # e' quello del tenant, quindi una fonte che non e' cambiata dalla
+        # sintesi precedente non si rilegge.
+        reuse_artifacts=True,
     )
     llm_calls = extraction.llm_calls
     understanding = extraction.process
@@ -627,6 +945,14 @@ def synthesize_process_plan(
         reason=(
             f"Piano costruito su {len(ledger.get('sources') or [])} fonti "
             f"(set {ledger.get('source_set_id')})."
+            # Le fonti riusate si dicono: e' la differenza fra "ha ricostruito
+            # tutto" e "ha letto l'intervista nuova", e sono due fatti diversi
+            # per chi guarda una sintesi che e' durata poco.
+            + (
+                f" {extraction.reused} gia' estratte, rilette dall'artefatto."
+                if extraction.reused
+                else ""
+            )
         ),
         llm_calls=llm_calls,
         consolidation=consolidation,

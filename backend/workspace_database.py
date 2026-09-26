@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from backend.agents.chat_mode import assert_write_allowed
 from backend.process_understanding import (
     ProcessUnderstanding,
+    ProcessUnknown,
     quality_report_from_understanding,
     unknown_question_id,
 )
@@ -36,12 +37,14 @@ from backend.workspace_storage import (
     WorkspaceBpmnVersion,
     WorkspaceClient,
     WorkspaceDecision,
+    WorkspacePlanExtraction,
     WorkspacePlanMaterialization,
     WorkspaceProcess,
     WorkspaceProject,
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
     WorkspaceSource,
+    WorkspaceSourceAudit,
     workspace_connection,
 )
 
@@ -1004,6 +1007,48 @@ def decode_answers(review) -> list[dict]:
     return parsed if isinstance(parsed, list) else []
 
 
+def answered_unknowns(review) -> list[ProcessUnknown]:
+    """Le domande a cui il consulente ha risposto, da riportare nel piano nuovo.
+
+    La domanda si prende dal piano corrente quando c'e' - con il suo contesto,
+    le alternative, la gravita' - e altrimenti si ricostruisce dal testo salvato
+    insieme alla risposta: una risposta data a una versione di tre ricostruzioni
+    fa resta comunque la risposta di chi conosce il processo (L9).
+
+    Args:
+        review: La review corrente, o ``None`` per un piano che nasce adesso.
+
+    Returns:
+        Le domande risposte, nell'ordine in cui sono state risposte.
+
+    Sola lettura.
+    """
+    if review is None:
+        return []
+    answers = decode_answers(review)
+    if not answers:
+        return []
+    semantic_model = json.loads(getattr(review, "bpmn_semantic_model_json", None) or "{}")
+    understanding = semantic_model.get("sourceProcessUnderstanding") or {}
+    current = {
+        unknown_question_id(str(item.get("question") or "")): item
+        for item in understanding.get("unknowns") or []
+        if isinstance(item, dict) and item.get("question")
+    }
+    carried: list[ProcessUnknown] = []
+    for answer in answers:
+        question = " ".join(str(answer.get("question") or "").split())
+        question_id = str(answer.get("question_id") or unknown_question_id(question))
+        raw = current.get(question_id) or ({"question": question, "affects": ""} if question else None)
+        if raw is None:
+            continue
+        try:
+            carried.append(ProcessUnknown.model_validate(raw))
+        except ValueError:
+            logger.warning("domanda risposta non riportabile nel piano: %s", question_id, exc_info=True)
+    return carried
+
+
 def unanswered_questions(review) -> list[dict]:
     """Identify review questions that still require an answer.
     
@@ -1518,18 +1563,24 @@ def prepare_bpmn_review(
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
 
+        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None and getattr(review, "tenant_id", "local") != current_tenant_id:
+            review = None
+
         bpmn_process_id = f"Process_{slugify(model.process.name, 'process').replace('-', '_')}"
         review_draft = build_bpmn_review_draft(
             bpmn_process_id=bpmn_process_id,
             process_name=model.process.name,
             source_text=clean_text,
             process_understanding=process_understanding,
+            # Una ricostruzione del piano riparte dalle fonti, ma le risposte del
+            # consulente non vengono dalle fonti: si riportano, non si
+            # rigenerano (L9). E' qui e non in chi chiama perche' questo e'
+            # l'unico punto da cui passa ogni ricostruzione, presente e futura.
+            answered_questions=answered_unknowns(review),
         )
 
         timestamp = now_iso()
-        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
-        if review is not None and getattr(review, "tenant_id", "local") != current_tenant_id:
-            review = None
 
         if review is None:
             review = WorkspaceBpmnReview(
@@ -1621,6 +1672,7 @@ def revise_bpmn_review(
             process_name=model.process.name,
             source_text=review.source_text,
             process_understanding=process_understanding,
+            answered_questions=answered_unknowns(review),
         )
 
         review.version = int(getattr(review, "version", 1) or 1) + 1
@@ -1792,6 +1844,9 @@ def source_to_dict(source: WorkspaceSource) -> dict:
         "name": source.name,
         "type": source.type,
         "meta": source.meta,
+        # Stringa vuota e non `None`: chi legge confronta impronte, e un `None`
+        # fra due confronti si comporta in modo diverso da un testo assente.
+        "content_hash": getattr(source, "content_hash", None) or "",
     }
 
 
@@ -1856,12 +1911,44 @@ def _assert_source_scope(project_id: str, process_id: str | None) -> None:
     assert_process_in_scope(process_id)
 
 
+def _enqueue_plans_touched_by_source(
+    session,
+    *,
+    project_id: str,
+    process_id: str | None,
+    tenant: str,
+    reason: str,
+) -> None:
+    """Mette in coda i piani che questa fonte rende da rifare.
+
+    Una fonte di progetto vale per ogni processo del progetto - e' cosi' che il
+    registro dell'evidenza la legge - quindi il piano da rifare non e' uno solo.
+    La coda si scrive nella stessa transazione della fonte: un piano da
+    ricostruire che si perde perche' la transazione e' finita e' un piano che
+    resta indietro in silenzio.
+    """
+    affected = (
+        [process_id]
+        if process_id
+        else session.execute(
+            select(WorkspaceProcess.id)
+            .where(WorkspaceProcess.project_id == project_id)
+            .where(WorkspaceProcess.tenant_id == tenant)
+        )
+        .scalars()
+        .all()
+    )
+    for affected_process_id in affected:
+        enqueue_plan_materialization(affected_process_id, reason=reason, session=session)
+
+
 def create_project_source(
     project_id: str,
     name: str,
     type: str,
     meta: str = "",
     process_id: str | None = None,
+    content_hash: str = "",
 ) -> dict:
     _assert_source_scope(project_id, process_id)
     with workspace_connection() as session:
@@ -1883,6 +1970,7 @@ def create_project_source(
             name=name.strip(),
             type=type.strip() or "Fonte",
             meta=meta.strip(),
+            content_hash=content_hash.strip() or None,
         )
         session.add(source)
         session.flush()
@@ -1890,23 +1978,13 @@ def create_project_source(
         # processo senza questa fonte e' da rifare. Va in coda qui, nella stessa
         # transazione della fonte, invece di essere ricostruito quando qualcuno
         # chiede di disegnare - che e' il momento in cui nessuno puo' aspettare.
-        # Una fonte di progetto vale per ogni processo del progetto (e' cosi' che
-        # il registro dell'evidenza la legge): ogni loro piano e' da rifare.
-        affected = (
-            [process_id]
-            if process_id
-            else session.execute(
-                select(WorkspaceProcess.id)
-                .where(WorkspaceProcess.project_id == project_id)
-                .where(WorkspaceProcess.tenant_id == current_tenant_id)
-            ).scalars().all()
+        _enqueue_plans_touched_by_source(
+            session,
+            project_id=project_id,
+            process_id=process_id,
+            tenant=current_tenant_id,
+            reason=f"fonte registrata: {source.name}",
         )
-        for affected_process_id in affected:
-            enqueue_plan_materialization(
-                affected_process_id,
-                reason=f"fonte registrata: {source.name}",
-                session=session,
-            )
         return source_to_dict(source)
 
 
@@ -1916,14 +1994,21 @@ def ensure_project_source(
     type: str,
     meta: str = "",
     process_id: str | None = None,
+    content_hash: str = "",
 ) -> tuple[dict, bool]:
     """Registra una fonte una volta sola, per nome, dentro il suo processo.
 
     Un'intervista salvata due volte dalla chat - il consulente riformula, il
-    turno viene ripetuto - non deve diventare due voci nel pannello Fonti. La
-    fonte esistente viene restituita com'e': il record dice quando l'evidenza e'
-    entrata nel progetto, e riscriverlo a ogni salvataggio cancellerebbe quel
-    fatto.
+    turno viene ripetuto - non deve diventare due voci nel pannello Fonti. Il
+    record resta quello di prima: dice quando l'evidenza e' entrata nel
+    progetto, e riscriverlo a ogni salvataggio cancellerebbe quel fatto.
+
+    **Con una sola eccezione, ed e' il punto di questa funzione:** se il testo e'
+    cambiato, la fonte non e' piu' la stessa fonte. L'impronta si aggiorna e i
+    piani costruiti su di lei vanno in coda. Senza questo, un'intervista corretta
+    e risalvata con lo stesso titolo lasciava l'identita' del set ferma, il piano
+    risultava "costruito sulle fonti correnti" e continuava a descrivere il testo
+    di prima: un piano indietro che nessun controllo poteva vedere.
 
     Args:
         project_id: Progetto proprietario, non affidabile.
@@ -1931,20 +2016,29 @@ def ensure_project_source(
         type: Etichetta del tipo, gia' tradotta per chi legge.
         meta: Nota in prosa sulla fonte.
         process_id: Processo a cui l'evidenza appartiene, quando c'e'.
+        content_hash: L'impronta del testo salvato
+            (`source_document.content_digest`). Vuota da chi il testo non ce
+            l'ha: in quel caso l'impronta gia' registrata resta, perche'
+            cancellarla direbbe "non si sa piu' cosa contiene" a proposito di
+            una fonte che non e' cambiata.
 
     Returns:
-        La fonte e se e' stata creata adesso (``False`` se esisteva gia').
+        La fonte e se e' stata creata adesso (``False`` se esisteva gia', anche
+        quando il suo testo e' stato aggiornato: la fonte non e' nuova).
 
     Raises:
         ValueError: Se il progetto non esiste o il processo non e' suo.
         ScopeViolation: Se progetto o processo non sono quelli autorizzati per
             il turno di chat corrente.
 
-    Scrive nel workspace solo quando la fonte non esiste.
+    Scrive nel workspace quando la fonte non esiste, o quando esiste e il suo
+    testo e' cambiato.
     """
     _assert_source_scope(project_id, process_id)
     cleaned_name = name.strip()
+    cleaned_hash = content_hash.strip()
     with workspace_connection() as session:
+        current_tenant_id = tenant_id()
         if tenant_row(session, WorkspaceProject, project_id) is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
@@ -1952,7 +2046,7 @@ def ensure_project_source(
             session.execute(
                 select(WorkspaceSource)
                 .where(WorkspaceSource.project_id == project_id)
-                .where(WorkspaceSource.tenant_id == tenant_id())
+                .where(WorkspaceSource.tenant_id == current_tenant_id)
                 .where(WorkspaceSource.process_id == process_id)
                 .where(func.lower(WorkspaceSource.name) == cleaned_name.lower())
             )
@@ -1960,6 +2054,16 @@ def ensure_project_source(
             .first()
         )
         if existing is not None:
+            if cleaned_hash and cleaned_hash != (existing.content_hash or ""):
+                existing.content_hash = cleaned_hash
+                session.flush()
+                _enqueue_plans_touched_by_source(
+                    session,
+                    project_id=project_id,
+                    process_id=process_id,
+                    tenant=current_tenant_id,
+                    reason=f"testo della fonte cambiato: {existing.name}",
+                )
             return source_to_dict(existing), False
 
     return (
@@ -1969,6 +2073,7 @@ def ensure_project_source(
             type=type,
             meta=meta,
             process_id=process_id,
+            content_hash=cleaned_hash,
         ),
         True,
     )
@@ -2316,6 +2421,204 @@ def _materialization_to_dict(row: WorkspacePlanMaterialization) -> dict:
         "last_action": row.last_action,
         "plan_version": row.plan_version,
     }
+
+
+def _plan_extraction_to_dict(row: WorkspacePlanExtraction) -> dict:
+    return {
+        "id": row.id,
+        "artifact_key": row.artifact_key,
+        "source_id": row.source_id,
+        "source_name": row.source_name,
+        "input_digest": row.input_digest,
+        "prompt_version": row.prompt_version,
+        "model": row.model,
+        "plan": json.loads(row.plan_json or "{}"),
+        "created_at": row.created_at,
+    }
+
+
+def plan_extractions_by_key(keys: list[str]) -> dict[str, dict]:
+    """I piani parziali gia' estratti, fra quelli chiesti.
+
+    Una query per tutta la sintesi, non una per fonte: con cinque interviste
+    sarebbero cinque viaggi al database per rispondere a una domanda sola, e il
+    punto di questo artefatto e' rendere una ricostruzione piu' economica.
+
+    Args:
+        keys: Le chiavi degli artefatti, non affidabili.
+
+    Returns:
+        Gli artefatti trovati, per chiave. Le chiavi assenti semplicemente non
+        compaiono: non si sa distinguere "mai estratto" da "estratto e poi
+        cancellato", e non serve saperlo.
+
+    Sola lettura, dentro il tenant corrente.
+    """
+    wanted = [key for key in dict.fromkeys(keys) if key]
+    if not wanted:
+        return {}
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspacePlanExtraction)
+                .where(WorkspacePlanExtraction.tenant_id == tenant_id())
+                .where(WorkspacePlanExtraction.artifact_key.in_(wanted))
+            )
+            .scalars()
+            .all()
+        )
+        return {row.artifact_key: _plan_extraction_to_dict(row) for row in rows}
+
+
+def save_plan_extraction(
+    *,
+    artifact_key: str,
+    plan: dict,
+    source_id: str = "",
+    source_name: str = "",
+    input_digest: str = "",
+    prompt_version: str = "",
+    model: str = "",
+) -> dict:
+    """Registra il piano parziale ricavato da una fonte, una volta sola.
+
+    Non e' una scrittura sul processo e non passa da `assert_write_allowed`:
+    l'artefatto e' la registrazione di un lavoro gia' pagato, e una modalita' di
+    chat che permette di estrarre ma non di prenderne nota farebbe ripagare la
+    stessa estrazione al giro dopo.
+
+    Riscrivere un artefatto gia' presente non ha senso - la chiave contiene
+    tutto cio' che determina il risultato - quindi qui si tiene il primo. E'
+    anche cio' che rende innocua la gara fra due sintesi dello stesso processo.
+
+    Args:
+        artifact_key: L'identita' dell'estrazione, non affidabile.
+        plan: Il piano parziale, gia' serializzato in JSON.
+        source_id: La fonte da cui veniva, per leggere la tabella.
+        source_name: Il nome della fonte, idem.
+        input_digest: L'impronta del testo letto.
+        prompt_version: La versione del prompt che l'ha prodotto.
+        model: Il modello che l'ha prodotto.
+
+    Returns:
+        L'artefatto salvato, o quello che c'era gia'.
+
+    Raises:
+        ValueError: Se la chiave e' vuota. Un artefatto senza identita' non si
+            ritrova, e scriverlo riempirebbe la tabella di righe irraggiungibili.
+    """
+    key = str(artifact_key or "").strip()
+    if not key:
+        raise ValueError("Un artefatto di estrazione senza chiave non si ritrova.")
+
+    with workspace_connection() as session:
+        current_tenant_id = tenant_id()
+        existing = (
+            session.execute(
+                select(WorkspacePlanExtraction)
+                .where(WorkspacePlanExtraction.tenant_id == current_tenant_id)
+                .where(WorkspacePlanExtraction.artifact_key == key)
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return _plan_extraction_to_dict(existing)
+
+        row = WorkspacePlanExtraction(
+            tenant_id=current_tenant_id,
+            artifact_key=key,
+            source_id=str(source_id or ""),
+            source_name=str(source_name or ""),
+            input_digest=str(input_digest or ""),
+            prompt_version=str(prompt_version or ""),
+            model=str(model or ""),
+            plan_json=json.dumps(plan, ensure_ascii=False),
+            created_at=now_iso(),
+        )
+        session.add(row)
+        session.flush()
+        return _plan_extraction_to_dict(row)
+
+
+def source_audits_by_key(keys: list[str]) -> dict[str, dict]:
+    """I verdetti del revisore gia' pagati, fra quelli chiesti.
+
+    Una query per tutto il confronto, non una per fonte, per la stessa ragione
+    dei piani parziali.
+
+    Args:
+        keys: Le chiavi degli artefatti, non affidabili.
+
+    Returns:
+        I verdetti trovati, per chiave, come dizionari grezzi dell'agente.
+
+    Sola lettura, dentro il tenant corrente.
+    """
+    wanted = [key for key in dict.fromkeys(keys) if key]
+    if not wanted:
+        return {}
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspaceSourceAudit)
+                .where(WorkspaceSourceAudit.tenant_id == tenant_id())
+                .where(WorkspaceSourceAudit.artifact_key.in_(wanted))
+            )
+            .scalars()
+            .all()
+        )
+        return {row.artifact_key: json.loads(row.verdict_json or "{}") for row in rows}
+
+
+def save_source_audit(
+    *,
+    artifact_key: str,
+    verdict: dict,
+    source_id: str = "",
+    source_name: str = "",
+    prompt_version: str = "",
+    model: str = "",
+) -> None:
+    """Registra il verdetto del revisore su una fonte, una volta sola.
+
+    Come per il piano parziale: la chiave contiene tutto cio' che determina il
+    verdetto, quindi se c'e' gia' si tiene quello, e due confronti in gara sulla
+    stessa fonte non si pestano.
+
+    Raises:
+        ValueError: Se la chiave e' vuota.
+    """
+    key = str(artifact_key or "").strip()
+    if not key:
+        raise ValueError("Un verdetto del revisore senza chiave non si ritrova.")
+
+    with workspace_connection() as session:
+        current_tenant_id = tenant_id()
+        existing = (
+            session.execute(
+                select(WorkspaceSourceAudit.id)
+                .where(WorkspaceSourceAudit.tenant_id == current_tenant_id)
+                .where(WorkspaceSourceAudit.artifact_key == key)
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return
+        session.add(
+            WorkspaceSourceAudit(
+                tenant_id=current_tenant_id,
+                artifact_key=key,
+                source_id=str(source_id or ""),
+                source_name=str(source_name or ""),
+                prompt_version=str(prompt_version or ""),
+                model=str(model or ""),
+                verdict_json=json.dumps(verdict, ensure_ascii=False),
+                created_at=now_iso(),
+            )
+        )
+        session.flush()
 
 
 def enqueue_plan_materialization(

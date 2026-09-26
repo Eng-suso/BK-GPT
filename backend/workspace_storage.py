@@ -247,6 +247,15 @@ class WorkspaceSource(WorkspaceBase):
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
     meta: Mapped[str] = mapped_column(String, nullable=False)
+    # L'impronta del testo di questa fonte, dichiarata da chi l'ha scritta. Il
+    # testo vive nella memoria episodica, non qui: questa colonna e' il segnale
+    # di cambiamento, ed e' l'unica cosa che lo sweep dei piani indietro puo'
+    # leggere senza caricare ogni intervista.
+    #
+    # NULL significa "non si sa", che non e' "vuota": le fonti registrate prima
+    # di questa colonna non dichiarano niente, e l'identita' del set le tratta
+    # come prima invece di inventare un'impronta che non hanno.
+    content_hash: Mapped[str | None] = mapped_column(String)
 
 
 class WorkspacePlanMaterialization(WorkspaceBase):
@@ -287,6 +296,81 @@ class WorkspacePlanMaterialization(WorkspaceBase):
     # `ensure_process_plan` ha dichiarato (`synthesized`, `reused`, ...).
     last_action: Mapped[str | None] = mapped_column(String)
     plan_version: Mapped[int | None] = mapped_column(Integer)
+
+
+class WorkspacePlanExtraction(WorkspaceBase):
+    """Il piano parziale ricavato da una fonte: l'artefatto, non il ricordo.
+
+    L'estrazione e' la chiamata piu' cara che facciamo, una per intervista a
+    testo intero, e finora spariva dentro il merge: la quarta intervista di un
+    processo costava quattro estrazioni invece di una, e ogni ricostruzione del
+    piano rileggeva da capo anche cio' che nessuno aveva toccato.
+
+    La riga vive per la **chiave**, non per il processo: due processi che
+    leggono la stessa fonte, e una ricostruzione che ripassa sulla stessa
+    intervista, trovano lo stesso artefatto. Nella chiave c'e' il tenant per
+    costruzione (L8): due clienti con lo stesso documento non condividono mai un
+    risultato, e il vincolo sta sia nella chiave sia nella colonna, perche' un
+    riuso fra clienti dev'essere il prodotto di due difetti e non di uno.
+
+    Non c'e' un contatore dei riusi: ogni colpo di cache lascia gia' una riga
+    `cache_hit` nel registro dei consumi, ed e' li' che si legge quanto lavoro
+    e' stato evitato. Due conti della stessa cosa divergono.
+    """
+
+    __tablename__ = "workspace_plan_extractions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "artifact_key", name="uq_plan_extraction_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    # L'identita' di cio' che il modello ha letto e di come l'ha letto: testo
+    # esatto del prompt, versione del prompt, modello, livello di ragionamento.
+    artifact_key: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # Da quale fonte veniva, per poter leggere la tabella. Non e' nella chiave:
+    # la stessa intervista rinominata e' lo stesso testo.
+    source_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    source_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    # Le parti della chiave che vale la pena poter interrogare da sole: "quanto
+    # ci e' costato il cambio di prompt" e' una domanda che si fa su queste.
+    input_digest: Mapped[str] = mapped_column(String, nullable=False, default="")
+    prompt_version: Mapped[str] = mapped_column(String, nullable=False, default="")
+    model: Mapped[str] = mapped_column(String, nullable=False, default="")
+    plan_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkspaceSourceAudit(WorkspaceBase):
+    """Il giudizio del revisore su una fonte, confrontata con un piano preciso.
+
+    Stessa idea del piano parziale, un gradino dopo: il revisore di conformita'
+    legge ogni fonte per intero contro gli elementi del piano, e ogni volta che
+    il confronto si rifaceva - un canvas risalvato, una verifica chiesta di
+    nuovo - rileggeva anche le fonti che niente aveva toccato.
+
+    Si tiene il **verdetto grezzo** dell'agente, non i rilievi: la verifica delle
+    citazioni nel testo e' deterministica e si rifa' ogni volta, cosi' un
+    cambio in quella regola non lascia in magazzino rilievi verificati con la
+    regola di prima.
+    """
+
+    __tablename__ = "workspace_source_audits"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "artifact_key", name="uq_source_audit_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    # Fonte esatta come l'ha letta il revisore, elementi del piano, prompt,
+    # modello, ragionamento, tenant.
+    artifact_key: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    source_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    prompt_version: Mapped[str] = mapped_column(String, nullable=False, default="")
+    model: Mapped[str] = mapped_column(String, nullable=False, default="")
+    verdict_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class WorkspaceDecision(WorkspaceBase):
