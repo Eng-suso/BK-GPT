@@ -1096,15 +1096,26 @@ def _is_extraction_failure_placeholder(process: ProcessUnderstanding) -> bool:
     )
 
 
-def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessUnderstandingDiagnostics:
-    """
-    Validate references and structural consistency in a process understanding model.
-    
-    Parameters:
-    	process (ProcessUnderstanding): The process model to diagnose.
-    
+def plan_reference_errors(process: ProcessUnderstanding) -> list[str]:
+    """I riferimenti del piano che non puntano a niente.
+
+    Un'attivita' assegnata a un attore che il piano non definisce, un
+    collegamento che parte da un nodo che non c'e', un esito di decisione che
+    porta nel vuoto. Sono controlli che il codice fa da solo e con certezza: non
+    serve un modello per sapere che un id non esiste.
+
+    Stanno in una funzione loro, separati dal resto della diagnostica, perche'
+    servono anche **prima** del merge, sul piano parziale di una sola fonte
+    (P0.6). Li' gli altri controlli bloccanti non valgono: una fonte che non
+    racconta nessuna attivita' e' una voce che non copre quel pezzo, non un
+    piano rotto. Un riferimento rotto invece e' rotto anche su una fonte sola,
+    e dopo il merge diventa un difetto di cui nessuno sa piu' da dove viene.
+
+    Args:
+        process: Il piano, intero o parziale.
+
     Returns:
-    	ProcessUnderstandingDiagnostics: Counts of extracted elements and lists of blocking errors and warnings.
+        I riferimenti rotti, con i messaggi della diagnostica del piano.
     """
     actor_ids = {actor.id for actor in process.actors}
     step_ids = {step.id for step in process.steps}
@@ -1114,11 +1125,8 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
     path_ids = {path.id for path in [*process.alternative_paths, *process.out_of_scope_alternatives]}
     participant_ids = {participant.id for participant in process.participants}
     data_object_ids = {item.id for item in process.data_objects}
-    blocking: list[str] = []
-    warnings: list[str] = []
+    errors: list[str] = []
 
-    if not process.steps:
-        blocking.append("Nessuna attivita operativa estratta.")
     unknown_actor_refs = {
         actor_id
         for step in process.steps
@@ -1126,12 +1134,8 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
         if actor_id not in actor_ids
     }
     if unknown_actor_refs:
-        blocking.append("Attivita collegate ad attori non definiti: " + ", ".join(sorted(unknown_actor_refs)))
-    if any((len(decision.outcome_details) or len(decision.outcomes)) < 2 for decision in process.decisions):
-        warnings.append("Alcune decisioni non hanno almeno due esiti.")
+        errors.append("Attivita collegate ad attori non definiti: " + ", ".join(sorted(unknown_actor_refs)))
     for decision in process.decisions:
-        if decision.outcomes and not decision.outcome_details:
-            warnings.append(f"Decisione {decision.id} senza outcome_details strutturati.")
         for outcome in decision.outcome_details:
             has_valid_target = (
                 not outcome.target_ref
@@ -1140,7 +1144,85 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
             )
             has_valid_path = not outcome.target_path_id or outcome.target_path_id in path_ids
             if not has_valid_target or not has_valid_path:
-                blocking.append(f"Esito {outcome.id} della decisione {decision.id} punta a un target non definito.")
+                errors.append(f"Esito {outcome.id} della decisione {decision.id} punta a un target non definito.")
+    for item in process.document_requirements:
+        if item.data_object_id and item.data_object_id not in data_object_ids:
+            errors.append(f"Requisito documentale {item.id} collegato a data object non definito.")
+        for actor_ref in (item.provided_by_actor_id, item.received_by_actor_id, item.validation_owner_actor_id):
+            if actor_ref and actor_ref not in actor_ids:
+                errors.append(f"Requisito documentale {item.id} collegato ad attore non definito: {actor_ref}.")
+    for control in process.controls:
+        if control.control_owner_actor_id and control.control_owner_actor_id not in actor_ids:
+            errors.append(f"Controllo {control.id} assegnato ad attore non definito.")
+        for target_ref in (control.pass_target_ref, control.fail_target_ref):
+            if target_ref and target_ref not in known_node_ids and target_ref not in path_ids:
+                errors.append(f"Controllo {control.id} punta a target non definito: {target_ref}.")
+    if process.bpmn_topology:
+        pool_ids = {pool.id for pool in process.bpmn_topology.pools}
+        for pool in process.bpmn_topology.pools:
+            if pool.participant_id and pool.participant_id not in participant_ids:
+                errors.append(f"Pool candidato {pool.id} collegato a partecipante non definito.")
+            unknown_pool_actor_refs = [actor_id for actor_id in pool.actor_ids if actor_id not in actor_ids]
+            if unknown_pool_actor_refs:
+                errors.append(f"Pool candidato {pool.id} collegato ad attori non definiti.")
+        for lane in process.bpmn_topology.lanes:
+            if lane.pool_id not in pool_ids:
+                errors.append(f"Lane candidata {lane.id} collegata a pool non definito.")
+            if lane.participant_id and lane.participant_id not in participant_ids:
+                errors.append(f"Lane candidata {lane.id} collegata a partecipante non definito.")
+            unknown_lane_actor_refs = [actor_id for actor_id in lane.actor_ids if actor_id not in actor_ids]
+            if unknown_lane_actor_refs:
+                errors.append(f"Lane candidata {lane.id} collegata ad attori non definiti.")
+        for message_flow in process.bpmn_topology.message_flows:
+            for participant_ref in (message_flow.from_participant_id, message_flow.to_participant_id):
+                if participant_ref and participant_ref not in participant_ids:
+                    errors.append(f"Message flow {message_flow.id} collegato a partecipante non definito.")
+            for actor_ref in (message_flow.from_actor_id, message_flow.to_actor_id):
+                if actor_ref and actor_ref not in actor_ids:
+                    errors.append(f"Message flow {message_flow.id} collegato ad attore non definito.")
+    # Un arco puo' partire da un'eccezione: e' cosi' che il compilatore capisce
+    # dove il boundary event porta - `_exception_rejoin_node` cerca esattamente
+    # `flow_edges` con `source_id == exception.id`. Contarli come riferimenti
+    # rotti bloccava la bozza proprio sul modo corretto di modellare un percorso
+    # d'eccezione: il gestore restava senza attivita' propria, e quindi senza la
+    # corsia dell'attore che lo esegue.
+    edge_endpoint_ids = known_node_ids | {item.id for item in process.exceptions}
+    for edge in process.flow_edges:
+        if edge.source_id not in edge_endpoint_ids:
+            errors.append(f"Collegamento {edge.id} con sorgente non definita: {edge.source_id}.")
+        if edge.target_id not in edge_endpoint_ids:
+            errors.append(f"Collegamento {edge.id} con destinazione non definita: {edge.target_id}.")
+    return errors
+
+
+def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessUnderstandingDiagnostics:
+    """
+    Validate references and structural consistency in a process understanding model.
+
+    Parameters:
+        process (ProcessUnderstanding): The process model to diagnose.
+
+    Returns:
+        ProcessUnderstandingDiagnostics: Counts of extracted elements and lists of blocking errors and warnings.
+    """
+    step_ids = {step.id for step in process.steps}
+    event_ids = {event.id for event in process.events}
+    decision_ids = {decision.id for decision in process.decisions}
+    known_node_ids = step_ids | event_ids | decision_ids
+    blocking: list[str] = []
+    warnings: list[str] = []
+
+    if not process.steps:
+        blocking.append("Nessuna attivita operativa estratta.")
+    # I riferimenti rotti vengono dopo, nello stesso ordine di sempre: chi legge
+    # la diagnostica non deve accorgersi che il controllo si e' spostato.
+    blocking.extend(plan_reference_errors(process))
+
+    if any((len(decision.outcome_details) or len(decision.outcomes)) < 2 for decision in process.decisions):
+        warnings.append("Alcune decisioni non hanno almeno due esiti.")
+    for decision in process.decisions:
+        if decision.outcomes and not decision.outcome_details:
+            warnings.append(f"Decisione {decision.id} senza outcome_details strutturati.")
     if process.decisions and not process.alternative_paths:
         warnings.append("Decisioni presenti senza percorsi alternativi espliciti.")
     if process.alternative_paths and not process.decisions:
@@ -1151,58 +1233,14 @@ def process_understanding_diagnostics(process: ProcessUnderstanding) -> ProcessU
                 f"Eccezione {exception.id} collegata a uno step non definito: "
                 f"{exception.attached_to_step_id}."
             )
-    for item in process.document_requirements:
-        if item.data_object_id and item.data_object_id not in data_object_ids:
-            blocking.append(f"Requisito documentale {item.id} collegato a data object non definito.")
-        for actor_ref in (item.provided_by_actor_id, item.received_by_actor_id, item.validation_owner_actor_id):
-            if actor_ref and actor_ref not in actor_ids:
-                blocking.append(f"Requisito documentale {item.id} collegato ad attore non definito: {actor_ref}.")
-    for control in process.controls:
-        if control.control_owner_actor_id and control.control_owner_actor_id not in actor_ids:
-            blocking.append(f"Controllo {control.id} assegnato ad attore non definito.")
-        for target_ref in (control.pass_target_ref, control.fail_target_ref):
-            if target_ref and target_ref not in known_node_ids and target_ref not in path_ids:
-                blocking.append(f"Controllo {control.id} punta a target non definito: {target_ref}.")
     if process.bpmn_topology:
-        pool_ids = {pool.id for pool in process.bpmn_topology.pools}
-        for pool in process.bpmn_topology.pools:
-            if pool.participant_id and pool.participant_id not in participant_ids:
-                blocking.append(f"Pool candidato {pool.id} collegato a partecipante non definito.")
-            unknown_pool_actor_refs = [actor_id for actor_id in pool.actor_ids if actor_id not in actor_ids]
-            if unknown_pool_actor_refs:
-                blocking.append(f"Pool candidato {pool.id} collegato ad attori non definiti.")
-        for lane in process.bpmn_topology.lanes:
-            if lane.pool_id not in pool_ids:
-                blocking.append(f"Lane candidata {lane.id} collegata a pool non definito.")
-            if lane.participant_id and lane.participant_id not in participant_ids:
-                blocking.append(f"Lane candidata {lane.id} collegata a partecipante non definito.")
-            unknown_lane_actor_refs = [actor_id for actor_id in lane.actor_ids if actor_id not in actor_ids]
-            if unknown_lane_actor_refs:
-                blocking.append(f"Lane candidata {lane.id} collegata ad attori non definiti.")
         for message_flow in process.bpmn_topology.message_flows:
-            for participant_ref in (message_flow.from_participant_id, message_flow.to_participant_id):
-                if participant_ref and participant_ref not in participant_ids:
-                    blocking.append(f"Message flow {message_flow.id} collegato a partecipante non definito.")
-            for actor_ref in (message_flow.from_actor_id, message_flow.to_actor_id):
-                if actor_ref and actor_ref not in actor_ids:
-                    blocking.append(f"Message flow {message_flow.id} collegato ad attore non definito.")
             for node_ref in (message_flow.source_ref, message_flow.target_ref):
                 if node_ref and node_ref not in known_node_ids:
                     warnings.append(f"Message flow {message_flow.id} collegato a nodo non definito.")
-    # Un arco puo' partire da un'eccezione: e' cosi' che il compilatore capisce
-    # dove il boundary event porta - `_exception_rejoin_node` cerca esattamente
-    # `flow_edges` con `source_id == exception.id`. Contarli come riferimenti
-    # rotti bloccava la bozza proprio sul modo corretto di modellare un percorso
-    # d'eccezione: il gestore restava senza attivita' propria, e quindi senza la
-    # corsia dell'attore che lo esegue.
-    edge_endpoint_ids = known_node_ids | {item.id for item in process.exceptions}
     for edge in process.flow_edges:
         if not edge.label.strip():
             warnings.append(f"Collegamento {edge.id} senza label comprensibile.")
-        if edge.source_id not in edge_endpoint_ids:
-            blocking.append(f"Collegamento {edge.id} con sorgente non definita: {edge.source_id}.")
-        if edge.target_id not in edge_endpoint_ids:
-            blocking.append(f"Collegamento {edge.id} con destinazione non definita: {edge.target_id}.")
 
     return ProcessUnderstandingDiagnostics(
         source_schema_version=process.schema_version,

@@ -241,6 +241,34 @@ def _source_notes(source: dict, process_name: str, reviewer_notes: list[str] | N
     return "\n".join([*header, "", content, *tail])
 
 
+# Quante volte si chiede all'estrattore di correggere i riferimenti rotti di un
+# piano parziale. Budget del runtime, non del modello (CODE_QUALITY.md): una
+# correzione che non converge al primo giro non converge al terzo, e ogni giro
+# costa quanto un'estrazione.
+REFERENCE_REPAIR_MAX_ATTEMPTS = 1
+
+
+def _with_reference_corrections(notes: str, errors: list[str]) -> str:
+    """Il testo della fonte, con i riferimenti rotti da correggere in coda.
+
+    Si rilegge la fonte intera e non si ripara il JSON a parte: un riferimento
+    rotto e' quasi sempre un elemento che la fonte nomina e l'estrazione non ha
+    definito, e per definirlo serve il testo. Se la fonte non lo nomina, il
+    riferimento va tolto - la stessa regola di sempre, niente fatti inventati.
+    """
+    return "\n".join(
+        [
+            notes,
+            "",
+            "CORREZIONE RICHIESTA. L'estrazione precedente di questa fonte conteneva "
+            "riferimenti a elementi che non definisce. Estrai di nuovo la fonte e, per "
+            "ciascun punto qui sotto, definisci l'elemento se la fonte lo nomina, "
+            "altrimenti togli il riferimento. Non aggiungere elementi che la fonte non nomina.",
+            *(f"- {error}" for error in errors),
+        ]
+    )
+
+
 def warm_provider_imports() -> None:
     """Importa il client del modello nel thread che chiama, prima del pool.
 
@@ -278,6 +306,11 @@ class CorpusExtraction:
     # insieme dicono quanto e' costata questa sintesi *e* quanto sarebbe
     # costata senza artefatti.
     reused: int = 0
+    # P0.6: quante fonti hanno avuto bisogno di una correzione dei riferimenti
+    # (una chiamata ciascuna, gia' contata in `llm_calls`), e cosa e' rimasto
+    # rotto dopo, per fonte. Vuoto e' il caso buono.
+    reference_repairs: int = 0
+    unresolved_references: dict[str, list[str]] = field(default_factory=dict)
 
 
 def extraction_artifact_key(
@@ -467,8 +500,11 @@ def extract_plan_from_sources(
     from concurrent.futures import ThreadPoolExecutor
 
     from backend.agents.process_plan import merge_process_understanding
-    from backend.llm import LlmTask, profile_for, record_avoided_call
-    from backend.process_understanding import plan_extraction_prompt_version
+    from backend.llm import LlmTask, OperationNotOpen, profile_for, record_avoided_call
+    from backend.process_understanding import (
+        plan_extraction_prompt_version,
+        plan_reference_errors,
+    )
 
     readable = [source for source in sources if str(source.get("content") or "").strip()]
     if not readable:
@@ -498,6 +534,57 @@ def extract_plan_from_sources(
     ]
     stored = _stored_partial_plans(keys) if reuse_artifacts else {}
 
+    # Le correzioni dei riferimenti rotti: quante chiamate sono costate, e cosa e'
+    # rimasto rotto dopo. Scritte dai thread del pool; `append` e l'assegnazione
+    # di una chiave sono atomiche, e ogni thread scrive la propria fonte.
+    repairs: list[str] = []
+    unresolved: dict[str, list[str]] = {}
+
+    def _repair_references(index: int, result: ProcessUnderstandingResult) -> ProcessUnderstandingResult:
+        """P0.6: un riferimento rotto si intercetta sul piano parziale, prima del merge.
+
+        Dopo il merge il difetto e' di tutti e di nessuno: un'attivita'
+        assegnata a un attore che non esiste non dice piu' da quale intervista
+        e' arrivata, e il consulente la trova nella diagnostica del piano intero
+        senza sapere cosa rileggere. Qui si sa, e si chiede alla stessa fonte.
+
+        La correzione si **verifica** con lo stesso controllo che l'ha chiesta,
+        ed e' tenuta solo se i riferimenti rotti sono diminuiti: a parita', il
+        piano di prima resta, perche' una correzione che non corregge ha solo
+        cambiato il piano senza motivo. Cio' che resta rotto si dichiara.
+        """
+        if result.process is None:
+            return result
+        name = str(readable[index].get("name") or readable[index].get("id") or "fonte")
+        errors = plan_reference_errors(result.process)
+        best, best_errors = result, errors
+        for _ in range(REFERENCE_REPAIR_MAX_ATTEMPTS):
+            if not best_errors:
+                break
+            repairs.append(name)
+            try:
+                repaired = build_process_understanding(
+                    process_name,
+                    _with_reference_corrections(notes[index], best_errors),
+                    with_quality_report=False,
+                )
+            except OperationNotOpen:
+                raise
+            except Exception:  # noqa: BLE001 - la correzione mancata non costa la fonte
+                logger.warning("correzione dei riferimenti non riuscita su %s", name, exc_info=True)
+                break
+            if repaired.status != "success" or repaired.process is None:
+                break
+            remaining = plan_reference_errors(repaired.process)
+            if len(remaining) < len(best_errors):
+                best, best_errors = repaired, remaining
+        if best_errors:
+            unresolved[name] = best_errors
+            logger.warning(
+                "riferimenti rotti nel piano parziale di %s: %s", name, "; ".join(best_errors)
+            )
+        return best
+
     def _extract(index: int) -> ProcessUnderstandingResult:
         try:
             result = build_process_understanding(
@@ -508,6 +595,12 @@ def extract_plan_from_sources(
                 # giudicare frammenti che nessuno usera' da soli.
                 with_quality_report=False,
             )
+        except OperationNotOpen:
+            # Non e' un guasto della fonte: e' un punto d'ingresso che non ha
+            # aperto il lavoro (L2). Contarlo come fonte persa lo nasconderebbe
+            # dietro un "provider_error" ritentato - lo stesso difetto che
+            # teneva spento il revisore di conformita'.
+            raise
         except Exception as exc:  # noqa: BLE001
             # Una fonte che esplode e' una fonte persa, non l'estrazione persa.
             # Senza questo, un'eccezione non classificata dentro `pool.map`
@@ -521,7 +614,12 @@ def extract_plan_from_sources(
                     attempt=1,
                 ),
             )
+        if result.status == "success" and result.process is not None:
+            result = _repair_references(index, result)
         if reuse_artifacts and result.status == "success" and result.process is not None:
+            # Si deposita il piano **corretto**, sotto la chiave della lettura
+            # originale: la prossima volta la correzione non si ripaga.
+            #
             # Si deposita qui, nel thread che ha appena pagato: un piano parziale
             # messo da parte solo a fine sintesi andrebbe perso ogni volta che
             # una fonte successiva fallisce, cioe' proprio quando la coda
@@ -651,11 +749,18 @@ def extract_plan_from_sources(
         # Le fonti riusate non si contano: `llm_calls` e' quanto questa sintesi
         # e' costata davvero, e sommarci il lavoro evitato lo renderebbe di
         # nuovo invisibile - al contrario.
-        llm_calls=len(to_extract) + retried + (consolidation.llm_calls if consolidation else 0),
+        llm_calls=(
+            len(to_extract)
+            + retried
+            + len(repairs)
+            + (consolidation.llm_calls if consolidation else 0)
+        ),
         sources_read=len(readable),
         failures=failures,
         consolidation=consolidation,
         reused=len(readable) - len(to_extract),
+        reference_repairs=len(repairs),
+        unresolved_references=dict(unresolved),
     )
 
 
