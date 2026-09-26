@@ -35,7 +35,7 @@ decisione, §④).
 | B1 | Il tenant arriva da un header, non dalla credenziale | Bloccante | **bloccato** — §④.1 |
 | B2 | Autenticazione spenta di default, CORS `*`, tutti admin | Bloccante | **fatto, verificato** — `663a670` |
 | B3 | Memoria di un consulente solo (`default_consultant_id`, 20 punti) | Bloccante | **bloccato** — §④.2 |
-| B4 | Architettura mono-processo non dichiarata né difesa | Alto | **bloccato** — §④.6 |
+| B4 | Architettura mono-processo non dichiarata né difesa | Alto | **bloccato** — §④.8 |
 | B5 | 73 handler su 76 sono `def` sync: threadpool a 40 posti | Alto | da fare |
 | B6 | `_TRACE_EVENTS` mai potato: leak di memoria certo | Alto | **fatto, verificato** — `d3c9544`, `7fc5cb5` |
 | B7 | La risposta si perde se il client cade a metà stream | Bloccante | **fatto, verificato** — `4004d7e` |
@@ -105,7 +105,7 @@ Sette commit, un test per difetto. U4 non era in questa ondata e resta aperto.
 
 **Ondata 1 — backend — chiusa** il 2026-09-24: B2, B6, B7, B8, B9, B11, U6.
 Sei commit, un test per difetto. B4 è uscito dall'ondata ed è diventato una
-decisione (§④.6): il fix vero è un lock distribuito o un deploy dichiarato
+decisione (§④.8): il fix vero è un lock distribuito o un deploy dichiarato
 mono-processo, e la scelta appartiene a Track A.
 
 ---
@@ -242,7 +242,7 @@ verifica.
 | 2026-09-24 | B7 | Il salvataggio del turno è passato in un `finally`: una scheda chiusa o uno Stop lasciano in archivio quello che l'agente aveva scritto, marcato come troncato. Il generatore è uscito dalla closure (`chat_turn_events`) per poterlo chiudere in un test. | `tests/test_fake_llm.py::test_a_turn_that_never_ends_still_leaves_what_the_agent_wrote` |
 | 2026-09-24 | B9, U6 | Le tre rotte di chat non mandano più `str(exc)`: l'eccezione va nei log con thread e trace, in interfaccia arriva una frase per il consulente, e un timeout (503) si distingue da un guasto (502). **Correzione all'audit:** i punti veri erano 3, non 20 — gli altri 17 sono messaggi di `ValueError` scritti apposta per chi legge. | `tests/test_chat_error_surface.py`, 3 verdi |
 | 2026-09-24 | B2 | `DELIR_ENVIRONMENT`: dichiarato `staging` o `prod` senza autenticazione, l'app si rifiuta di partire. In `dev` parte e dice cosa è aperto. | `tests/test_startup_guard.py`, 4 verdi |
-| 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.6 con le due strade e il loro costo. | — |
+| 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.8 con le due strade e il loro costo. | — |
 | 2026-09-24 | B2, B8 | I due rilievi della review sul mio codice: la lista degli ambienti dice dove partire scoperti è lecito (non dove è vietato), quindi un `DELIR_ENVIRONMENT` scritto male non parte; e un risultato Prosimos che arriva per una simulazione non più `pending` viene scartato invece di riportarla in vita. | `tests/test_startup_guard.py`, `tests/test_simulation.py`, 40 verdi sulle suite toccate |
 | 2026-09-25 | B6 | Rilettura del fix stesso: `_remember` serviva sia ad aprire una traccia sia a scriverci, quindi un evento in ritardo resuscitava una traccia sfrattata — senza spazio di lavoro, quindi illeggibile, e occupando un posto. Aprire e scrivere ora sono due cose diverse. | `tests/test_observability.py::test_an_evicted_trace_does_not_come_back_from_the_dead` |
 | 2026-09-25 | U1 | Due ErrorBoundary: uno dentro la shell intorno all'`Outlet` (la navigazione sopravvive a una schermata rotta, e cambiare rotta ripulisce l'errore), uno sopra il router. | `ErrorBoundary.test.tsx`, 4 verdi |
