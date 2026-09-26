@@ -36,7 +36,7 @@ decisione, §④).
 | B2 | Autenticazione spenta di default, CORS `*`, tutti admin | Bloccante | **fatto, verificato** — `663a670` |
 | B3 | Memoria di un consulente solo (`default_consultant_id`, 20 punti) | Bloccante | **bloccato** — §④.2 |
 | B4 | Architettura mono-processo non dichiarata né difesa | Alto | **bloccato** — §④.8 |
-| B5 | 73 handler su 76 sono `def` sync: threadpool a 40 posti | Alto | da fare |
+| B5 | 73 handler su 76 sono `def` sync: threadpool a 40 posti | Alto | **parziale** — `f1d054d`: `/health` non si blocca più e i posti sono dichiarati; le rotte lente restano sincrone (§④.6) |
 | B6 | `_TRACE_EVENTS` mai potato: leak di memoria certo | Alto | **fatto, verificato** — `d3c9544`, `7fc5cb5` |
 | B7 | La risposta si perde se il client cade a metà stream | Bloccante | **fatto, verificato** — `4004d7e` |
 | B8 | Run di simulazione `pending` per sempre dopo un crash | Alto | **fatto, verificato** — `549d421` |
@@ -64,7 +64,7 @@ decisione, §④).
 | X1 | «Cronologia eliminata» senza conferma né annulla | Alto | **fatto, verificato** — `cda5adf` |
 | X2 | Clienti è un elenco che non si apre | Alto | **bloccato** — §④.5 |
 | X3 | URL sbagliato, rimando muto a `/projects` | Medio | **fatto, verificato** — `7f01a30` |
-| X4 | La ricerca globale cerca il cliente per nome, non per id | Medio | da fare |
+| X4 | La ricerca globale cerca il cliente per nome, non per id | Medio | **non su `main`** — la ricerca globale vive solo su `feat/notifications-feed`: va corretta lì prima del suo merge (`features/search/api.ts:56`) |
 | X5 | Nessun tetto alle simulazioni concorrenti | Medio | **fatto, verificato** — `d91ef7f` |
 
 ### Verifica
@@ -258,3 +258,4 @@ verifica.
 | 2026-09-26 | B5 | `/health` è `async`: risponde anche con tutti i posti del threadpool occupati, quindi il processo non viene più dichiarato morto mentre lavora. I posti sono un numero scelto (`DELIR_API_WORKER_THREADS`, 64) e non più il default di anyio. | `tests/test_request_capacity.py`, 5 verdi, rosso senza il fix |
 | 2026-09-26 | B12 | Tetto sulle liste di clienti e incarichi, con il conteggio vero nelle intestazioni e una riga a schermo che dice quante righe non sta mostrando. Il corpo resta un array: cambiarlo avrebbe rotto 50 chiamanti per un dato di trasporto. | `tests/test_list_limits.py`, 4 verdi |
 | 2026-09-26 | V2 | Budget sul peso del pacchetto in CI: due numeri, l'ingresso e il totale. **Correzione all'audit:** il confronto per pixel non ha immagini di riferimento committate, quindi non era un cancello in nessun ambiente — non era «opt-in», era assente. | rompendo un `lazy`, il controllo passa a rosso con +446% |
+| 2026-09-26 | X4 | Non applicabile a `main`: l'audit era stato fatto su `feat/notifications-feed`, dove esiste la ricerca globale. Su `main` non c'è. Resta un obbligo per chi mergia quel branch. | — |
