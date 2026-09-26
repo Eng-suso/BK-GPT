@@ -298,6 +298,49 @@ class WorkspacePlanMaterialization(WorkspaceBase):
     plan_version: Mapped[int | None] = mapped_column(Integer)
 
 
+class WorkspacePlanExtraction(WorkspaceBase):
+    """Il piano parziale ricavato da una fonte: l'artefatto, non il ricordo.
+
+    L'estrazione e' la chiamata piu' cara che facciamo, una per intervista a
+    testo intero, e finora spariva dentro il merge: la quarta intervista di un
+    processo costava quattro estrazioni invece di una, e ogni ricostruzione del
+    piano rileggeva da capo anche cio' che nessuno aveva toccato.
+
+    La riga vive per la **chiave**, non per il processo: due processi che
+    leggono la stessa fonte, e una ricostruzione che ripassa sulla stessa
+    intervista, trovano lo stesso artefatto. Nella chiave c'e' il tenant per
+    costruzione (L8): due clienti con lo stesso documento non condividono mai un
+    risultato, e il vincolo sta sia nella chiave sia nella colonna, perche' un
+    riuso fra clienti dev'essere il prodotto di due difetti e non di uno.
+
+    Non c'e' un contatore dei riusi: ogni colpo di cache lascia gia' una riga
+    `cache_hit` nel registro dei consumi, ed e' li' che si legge quanto lavoro
+    e' stato evitato. Due conti della stessa cosa divergono.
+    """
+
+    __tablename__ = "workspace_plan_extractions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "artifact_key", name="uq_plan_extraction_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    # L'identita' di cio' che il modello ha letto e di come l'ha letto: testo
+    # esatto del prompt, versione del prompt, modello, livello di ragionamento.
+    artifact_key: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # Da quale fonte veniva, per poter leggere la tabella. Non e' nella chiave:
+    # la stessa intervista rinominata e' lo stesso testo.
+    source_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    source_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    # Le parti della chiave che vale la pena poter interrogare da sole: "quanto
+    # ci e' costato il cambio di prompt" e' una domanda che si fa su queste.
+    input_digest: Mapped[str] = mapped_column(String, nullable=False, default="")
+    prompt_version: Mapped[str] = mapped_column(String, nullable=False, default="")
+    model: Mapped[str] = mapped_column(String, nullable=False, default="")
+    plan_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class WorkspaceDecision(WorkspaceBase):
     __tablename__ = "workspace_decisions"
 

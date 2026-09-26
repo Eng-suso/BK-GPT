@@ -36,6 +36,7 @@ from backend.workspace_storage import (
     WorkspaceBpmnVersion,
     WorkspaceClient,
     WorkspaceDecision,
+    WorkspacePlanExtraction,
     WorkspacePlanMaterialization,
     WorkspaceProcess,
     WorkspaceProject,
@@ -2369,6 +2370,124 @@ def _materialization_to_dict(row: WorkspacePlanMaterialization) -> dict:
         "last_action": row.last_action,
         "plan_version": row.plan_version,
     }
+
+
+def _plan_extraction_to_dict(row: WorkspacePlanExtraction) -> dict:
+    return {
+        "id": row.id,
+        "artifact_key": row.artifact_key,
+        "source_id": row.source_id,
+        "source_name": row.source_name,
+        "input_digest": row.input_digest,
+        "prompt_version": row.prompt_version,
+        "model": row.model,
+        "plan": json.loads(row.plan_json or "{}"),
+        "created_at": row.created_at,
+    }
+
+
+def plan_extractions_by_key(keys: list[str]) -> dict[str, dict]:
+    """I piani parziali gia' estratti, fra quelli chiesti.
+
+    Una query per tutta la sintesi, non una per fonte: con cinque interviste
+    sarebbero cinque viaggi al database per rispondere a una domanda sola, e il
+    punto di questo artefatto e' rendere una ricostruzione piu' economica.
+
+    Args:
+        keys: Le chiavi degli artefatti, non affidabili.
+
+    Returns:
+        Gli artefatti trovati, per chiave. Le chiavi assenti semplicemente non
+        compaiono: non si sa distinguere "mai estratto" da "estratto e poi
+        cancellato", e non serve saperlo.
+
+    Sola lettura, dentro il tenant corrente.
+    """
+    wanted = [key for key in dict.fromkeys(keys) if key]
+    if not wanted:
+        return {}
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspacePlanExtraction)
+                .where(WorkspacePlanExtraction.tenant_id == tenant_id())
+                .where(WorkspacePlanExtraction.artifact_key.in_(wanted))
+            )
+            .scalars()
+            .all()
+        )
+        return {row.artifact_key: _plan_extraction_to_dict(row) for row in rows}
+
+
+def save_plan_extraction(
+    *,
+    artifact_key: str,
+    plan: dict,
+    source_id: str = "",
+    source_name: str = "",
+    input_digest: str = "",
+    prompt_version: str = "",
+    model: str = "",
+) -> dict:
+    """Registra il piano parziale ricavato da una fonte, una volta sola.
+
+    Non e' una scrittura sul processo e non passa da `assert_write_allowed`:
+    l'artefatto e' la registrazione di un lavoro gia' pagato, e una modalita' di
+    chat che permette di estrarre ma non di prenderne nota farebbe ripagare la
+    stessa estrazione al giro dopo.
+
+    Riscrivere un artefatto gia' presente non ha senso - la chiave contiene
+    tutto cio' che determina il risultato - quindi qui si tiene il primo. E'
+    anche cio' che rende innocua la gara fra due sintesi dello stesso processo.
+
+    Args:
+        artifact_key: L'identita' dell'estrazione, non affidabile.
+        plan: Il piano parziale, gia' serializzato in JSON.
+        source_id: La fonte da cui veniva, per leggere la tabella.
+        source_name: Il nome della fonte, idem.
+        input_digest: L'impronta del testo letto.
+        prompt_version: La versione del prompt che l'ha prodotto.
+        model: Il modello che l'ha prodotto.
+
+    Returns:
+        L'artefatto salvato, o quello che c'era gia'.
+
+    Raises:
+        ValueError: Se la chiave e' vuota. Un artefatto senza identita' non si
+            ritrova, e scriverlo riempirebbe la tabella di righe irraggiungibili.
+    """
+    key = str(artifact_key or "").strip()
+    if not key:
+        raise ValueError("Un artefatto di estrazione senza chiave non si ritrova.")
+
+    with workspace_connection() as session:
+        current_tenant_id = tenant_id()
+        existing = (
+            session.execute(
+                select(WorkspacePlanExtraction)
+                .where(WorkspacePlanExtraction.tenant_id == current_tenant_id)
+                .where(WorkspacePlanExtraction.artifact_key == key)
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return _plan_extraction_to_dict(existing)
+
+        row = WorkspacePlanExtraction(
+            tenant_id=current_tenant_id,
+            artifact_key=key,
+            source_id=str(source_id or ""),
+            source_name=str(source_name or ""),
+            input_digest=str(input_digest or ""),
+            prompt_version=str(prompt_version or ""),
+            model=str(model or ""),
+            plan_json=json.dumps(plan, ensure_ascii=False),
+            created_at=now_iso(),
+        )
+        session.add(row)
+        session.flush()
+        return _plan_extraction_to_dict(row)
 
 
 def enqueue_plan_materialization(

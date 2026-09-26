@@ -539,6 +539,26 @@ class ProcessUnderstandingExtractionError(RuntimeError):
         super().__init__(format_extraction_failure(failure))
 
 
+def plan_extraction_prompt_version() -> str:
+    """La versione del prompt di estrazione: `nome@impronta`.
+
+    Sta in una funzione perche' ha due lettori e devono vedere lo stesso valore:
+    il registro dei consumi, che dice quale prompt ha prodotto quella spesa, e
+    la chiave dell'artefatto dell'estrazione, che decide se un piano parziale
+    gia' estratto e' ancora valido. Se i due divergessero si riuserebbe il
+    risultato di un prompt che non esiste piu'.
+
+    L'impronta comprende lo schema di uscita: un campo aggiunto a
+    `ProcessUnderstanding` e' un'estrazione diversa, e gli artefatti di prima
+    vanno lasciati dove sono.
+    """
+    return prompt_version(
+        LlmTask.PLAN_EXTRACTION.value,
+        _PROCESS_UNDERSTANDING_PROMPT,
+        schema_part(ProcessUnderstanding),
+    )
+
+
 def build_process_understanding(
     title: str,
     source_text: str,
@@ -589,11 +609,7 @@ def build_process_understanding(
             # La lunghezza vera dell'intervista, non una fascia: il timeout lo
             # calcola il gateway, e non c'e' piu' un client da tenere in cache.
             input_characters=len(source_text or ""),
-            prompt_version=prompt_version(
-                LlmTask.PLAN_EXTRACTION.value,
-                _PROCESS_UNDERSTANDING_PROMPT,
-                schema_part(ProcessUnderstanding),
-            ),
+            prompt_version=plan_extraction_prompt_version(),
         )
         process = _coerce_process_understanding(raw_process)
         return ProcessUnderstandingResult(
