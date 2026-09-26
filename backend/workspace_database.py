@@ -1792,6 +1792,9 @@ def source_to_dict(source: WorkspaceSource) -> dict:
         "name": source.name,
         "type": source.type,
         "meta": source.meta,
+        # Stringa vuota e non `None`: chi legge confronta impronte, e un `None`
+        # fra due confronti si comporta in modo diverso da un testo assente.
+        "content_hash": getattr(source, "content_hash", None) or "",
     }
 
 
@@ -1856,12 +1859,44 @@ def _assert_source_scope(project_id: str, process_id: str | None) -> None:
     assert_process_in_scope(process_id)
 
 
+def _enqueue_plans_touched_by_source(
+    session,
+    *,
+    project_id: str,
+    process_id: str | None,
+    tenant: str,
+    reason: str,
+) -> None:
+    """Mette in coda i piani che questa fonte rende da rifare.
+
+    Una fonte di progetto vale per ogni processo del progetto - e' cosi' che il
+    registro dell'evidenza la legge - quindi il piano da rifare non e' uno solo.
+    La coda si scrive nella stessa transazione della fonte: un piano da
+    ricostruire che si perde perche' la transazione e' finita e' un piano che
+    resta indietro in silenzio.
+    """
+    affected = (
+        [process_id]
+        if process_id
+        else session.execute(
+            select(WorkspaceProcess.id)
+            .where(WorkspaceProcess.project_id == project_id)
+            .where(WorkspaceProcess.tenant_id == tenant)
+        )
+        .scalars()
+        .all()
+    )
+    for affected_process_id in affected:
+        enqueue_plan_materialization(affected_process_id, reason=reason, session=session)
+
+
 def create_project_source(
     project_id: str,
     name: str,
     type: str,
     meta: str = "",
     process_id: str | None = None,
+    content_hash: str = "",
 ) -> dict:
     _assert_source_scope(project_id, process_id)
     with workspace_connection() as session:
@@ -1883,6 +1918,7 @@ def create_project_source(
             name=name.strip(),
             type=type.strip() or "Fonte",
             meta=meta.strip(),
+            content_hash=content_hash.strip() or None,
         )
         session.add(source)
         session.flush()
@@ -1890,23 +1926,13 @@ def create_project_source(
         # processo senza questa fonte e' da rifare. Va in coda qui, nella stessa
         # transazione della fonte, invece di essere ricostruito quando qualcuno
         # chiede di disegnare - che e' il momento in cui nessuno puo' aspettare.
-        # Una fonte di progetto vale per ogni processo del progetto (e' cosi' che
-        # il registro dell'evidenza la legge): ogni loro piano e' da rifare.
-        affected = (
-            [process_id]
-            if process_id
-            else session.execute(
-                select(WorkspaceProcess.id)
-                .where(WorkspaceProcess.project_id == project_id)
-                .where(WorkspaceProcess.tenant_id == current_tenant_id)
-            ).scalars().all()
+        _enqueue_plans_touched_by_source(
+            session,
+            project_id=project_id,
+            process_id=process_id,
+            tenant=current_tenant_id,
+            reason=f"fonte registrata: {source.name}",
         )
-        for affected_process_id in affected:
-            enqueue_plan_materialization(
-                affected_process_id,
-                reason=f"fonte registrata: {source.name}",
-                session=session,
-            )
         return source_to_dict(source)
 
 
@@ -1916,14 +1942,21 @@ def ensure_project_source(
     type: str,
     meta: str = "",
     process_id: str | None = None,
+    content_hash: str = "",
 ) -> tuple[dict, bool]:
     """Registra una fonte una volta sola, per nome, dentro il suo processo.
 
     Un'intervista salvata due volte dalla chat - il consulente riformula, il
-    turno viene ripetuto - non deve diventare due voci nel pannello Fonti. La
-    fonte esistente viene restituita com'e': il record dice quando l'evidenza e'
-    entrata nel progetto, e riscriverlo a ogni salvataggio cancellerebbe quel
-    fatto.
+    turno viene ripetuto - non deve diventare due voci nel pannello Fonti. Il
+    record resta quello di prima: dice quando l'evidenza e' entrata nel
+    progetto, e riscriverlo a ogni salvataggio cancellerebbe quel fatto.
+
+    **Con una sola eccezione, ed e' il punto di questa funzione:** se il testo e'
+    cambiato, la fonte non e' piu' la stessa fonte. L'impronta si aggiorna e i
+    piani costruiti su di lei vanno in coda. Senza questo, un'intervista corretta
+    e risalvata con lo stesso titolo lasciava l'identita' del set ferma, il piano
+    risultava "costruito sulle fonti correnti" e continuava a descrivere il testo
+    di prima: un piano indietro che nessun controllo poteva vedere.
 
     Args:
         project_id: Progetto proprietario, non affidabile.
@@ -1931,20 +1964,29 @@ def ensure_project_source(
         type: Etichetta del tipo, gia' tradotta per chi legge.
         meta: Nota in prosa sulla fonte.
         process_id: Processo a cui l'evidenza appartiene, quando c'e'.
+        content_hash: L'impronta del testo salvato
+            (`source_document.content_digest`). Vuota da chi il testo non ce
+            l'ha: in quel caso l'impronta gia' registrata resta, perche'
+            cancellarla direbbe "non si sa piu' cosa contiene" a proposito di
+            una fonte che non e' cambiata.
 
     Returns:
-        La fonte e se e' stata creata adesso (``False`` se esisteva gia').
+        La fonte e se e' stata creata adesso (``False`` se esisteva gia', anche
+        quando il suo testo e' stato aggiornato: la fonte non e' nuova).
 
     Raises:
         ValueError: Se il progetto non esiste o il processo non e' suo.
         ScopeViolation: Se progetto o processo non sono quelli autorizzati per
             il turno di chat corrente.
 
-    Scrive nel workspace solo quando la fonte non esiste.
+    Scrive nel workspace quando la fonte non esiste, o quando esiste e il suo
+    testo e' cambiato.
     """
     _assert_source_scope(project_id, process_id)
     cleaned_name = name.strip()
+    cleaned_hash = content_hash.strip()
     with workspace_connection() as session:
+        current_tenant_id = tenant_id()
         if tenant_row(session, WorkspaceProject, project_id) is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
@@ -1952,7 +1994,7 @@ def ensure_project_source(
             session.execute(
                 select(WorkspaceSource)
                 .where(WorkspaceSource.project_id == project_id)
-                .where(WorkspaceSource.tenant_id == tenant_id())
+                .where(WorkspaceSource.tenant_id == current_tenant_id)
                 .where(WorkspaceSource.process_id == process_id)
                 .where(func.lower(WorkspaceSource.name) == cleaned_name.lower())
             )
@@ -1960,6 +2002,16 @@ def ensure_project_source(
             .first()
         )
         if existing is not None:
+            if cleaned_hash and cleaned_hash != (existing.content_hash or ""):
+                existing.content_hash = cleaned_hash
+                session.flush()
+                _enqueue_plans_touched_by_source(
+                    session,
+                    project_id=project_id,
+                    process_id=process_id,
+                    tenant=current_tenant_id,
+                    reason=f"testo della fonte cambiato: {existing.name}",
+                )
             return source_to_dict(existing), False
 
     return (
@@ -1969,6 +2021,7 @@ def ensure_project_source(
             type=type,
             meta=meta,
             process_id=process_id,
+            content_hash=cleaned_hash,
         ),
         True,
     )

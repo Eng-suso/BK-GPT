@@ -247,6 +247,15 @@ class WorkspaceSource(WorkspaceBase):
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
     meta: Mapped[str] = mapped_column(String, nullable=False)
+    # L'impronta del testo di questa fonte, dichiarata da chi l'ha scritta. Il
+    # testo vive nella memoria episodica, non qui: questa colonna e' il segnale
+    # di cambiamento, ed e' l'unica cosa che lo sweep dei piani indietro puo'
+    # leggere senza caricare ogni intervista.
+    #
+    # NULL significa "non si sa", che non e' "vuota": le fonti registrate prima
+    # di questa colonna non dichiarano niente, e l'identita' del set le tratta
+    # come prima invece di inventare un'impronta che non hanno.
+    content_hash: Mapped[str | None] = mapped_column(String)
 
 
 class WorkspacePlanMaterialization(WorkspaceBase):

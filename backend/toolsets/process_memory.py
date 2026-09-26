@@ -272,6 +272,8 @@ def _register_evidence_source(
     if not clean_title:
         return None
 
+    from backend.workspace_services.source_document import content_digest
+
     try:
         source, _created = workspace_database.ensure_project_source(
             project_id=project_id,
@@ -279,6 +281,10 @@ def _register_evidence_source(
             name=clean_title,
             type=evidence_type_label(episode_type),
             meta=_evidence_note(summary, raw_content),
+            # Qui il testo c'e', ed e' l'unico punto in cui c'e'. La fonte lo
+            # dichiara con un'impronta, cosi' una correzione dell'intervista
+            # risulta una fonte cambiata invece di passare inosservata.
+            content_hash=content_digest(raw_content),
         )
         return source
     except Exception as exc:  # noqa: BLE001 — l'episodio e' gia' salvato

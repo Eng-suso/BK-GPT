@@ -25,6 +25,17 @@ def source_set_identity(sources: list[dict]) -> str:
     L'ordine e' fissato qui, non da chi chiama: lo sweep dei piani indietro
     calcola la stessa identita' dai soli record delle fonti, senza caricarne i
     testi, e due ordini diversi darebbero due set diversi per le stesse fonti.
+
+    **L'impronta del testo entra nell'identita', ma solo quando c'e'.** Senza,
+    l'identita' diceva quali fonti ci sono e non cosa dicono: un'intervista
+    corretta e risalvata con lo stesso titolo lasciava il set fermo e il piano
+    passava per aggiornato mentre descriveva il testo di prima. La chiave e'
+    condizionale perche' le fonti registrate prima della colonna non dichiarano
+    niente: aggiungerla vuota a tutte cambierebbe ogni identita' gia' salvata e
+    manderebbe in coda la risintesi di ogni processo, cioe' si pagherebbe una
+    ricostruzione completa del parco piani per un'informazione che non abbiamo.
+    Quelle fonti entrano nel giro al primo salvataggio che porta un'impronta -
+    che e' il momento in cui l'informazione arriva davvero.
     """
     ordered = sorted(
         sources,
@@ -39,6 +50,11 @@ def source_set_identity(sources: list[dict]) -> str:
             "name": str(item.get("name") or ""),
             "project_id": str(item.get("project_id") or ""),
             "process_id": str(item.get("process_id") or ""),
+            **(
+                {"content_hash": str(item.get("content_hash"))}
+                if item.get("content_hash")
+                else {}
+            ),
         }
         for item in ordered
     ]
