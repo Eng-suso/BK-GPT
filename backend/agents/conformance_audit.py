@@ -158,6 +158,9 @@ class ConformanceReport(BaseModel):
     llm_audit_note: str = ""
     llm_calls: int = 0
     sources_audited: int = 0
+    # Di quelle confrontate, quante con un verdetto gia' pagato. Sono comprese
+    # in `sources_audited` ed escluse da `llm_calls`.
+    sources_reused: int = 0
     sources_with_text: int = 0
     discarded_findings: int = 0
     audited_at: str = ""
@@ -302,6 +305,106 @@ def _render_plan_elements(elements: list[dict[str, Any]]) -> str:
     return json.dumps(elements, ensure_ascii=False, indent=1)
 
 
+def auditor_prompt_version() -> str:
+    """La versione del prompt del revisore: `conformance_audit@impronta`.
+
+    Due lettori, lo stesso valore: il registro dei consumi (L5) e la chiave del
+    verdetto messo da parte. Lo schema di risposta e' dentro l'impronta, quindi
+    un campo nuovo nel verdetto produce chiavi nuove invece di riusare verdetti
+    che quel campo non l'hanno.
+    """
+    from backend.llm import LlmTask
+    from backend.llm.prompts import prompt_version, schema_part
+
+    return prompt_version(
+        LlmTask.CONFORMANCE_AUDIT.value, AUDITOR_PROMPT, schema_part(SourceAuditVerdict)
+    )
+
+
+def source_audit_key(
+    request: SourceAuditRequest,
+    *,
+    prompt_version: str,
+    model: str,
+    reasoning_effort: str,
+) -> str:
+    """L'identita' di un confronto: quale fonte, contro quale piano, e come.
+
+    Ci entra tutto cio' che il revisore riceve - nome del processo, nome e testo
+    della fonte come li legge lui (gia' tagliati al limite), elementi del piano
+    - piu' prompt, modello e ragionamento. Un piano cambiato di un solo elemento
+    e' un confronto diverso per costruzione: il verdetto di prima parlava di un
+    altro piano, e riusarlo darebbe per conforme cio' che nessuno ha guardato.
+
+    Il tenant chiude la chiave (L8), come per i piani parziali.
+    """
+    from backend.security import get_current_tenant_id
+
+    material = json.dumps(
+        {
+            "tenant": get_current_tenant_id(),
+            "process_name": request.process_name,
+            "source_name": request.source_name,
+            "source_text": request.source_text,
+            "plan_elements": request.plan_elements,
+            "prompt_version": prompt_version,
+            "model": model,
+            "reasoning_effort": reasoning_effort,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+
+
+def _stored_verdicts(keys: list[str]) -> dict[str, SourceAuditVerdict]:
+    """I verdetti gia' pagati, fra quelli chiesti.
+
+    Un magazzino muto non e' un guasto del confronto: si rilegge la fonte e si
+    paga, come prima. Un verdetto che non si valida si ignora allo stesso modo.
+    """
+    from backend import workspace_database
+
+    try:
+        rows = workspace_database.source_audits_by_key(keys)
+    except Exception:  # noqa: BLE001 - un risparmio mancato non e' un guasto
+        logger.warning("verdetti del revisore non leggibili", exc_info=True)
+        return {}
+    verdicts: dict[str, SourceAuditVerdict] = {}
+    for key, raw in rows.items():
+        try:
+            verdicts[key] = SourceAuditVerdict.model_validate(raw)
+        except Exception:  # noqa: BLE001 - si rilegge la fonte
+            logger.warning("verdetto del revisore non valido: %s", key, exc_info=True)
+    return verdicts
+
+
+def _remember_verdict(
+    key: str,
+    verdict: SourceAuditVerdict,
+    request: SourceAuditRequest,
+    *,
+    prompt_version: str,
+    model: str,
+) -> None:
+    """Mette da parte il verdetto appena pagato. Best-effort: il confronto e' fatto."""
+    from backend import workspace_database
+
+    try:
+        workspace_database.save_source_audit(
+            artifact_key=key,
+            verdict=verdict.model_dump(mode="json"),
+            source_id=request.source_id,
+            source_name=request.source_name,
+            prompt_version=prompt_version,
+            model=model,
+        )
+    except Exception:  # noqa: BLE001 - il verdetto e' comunque in mano
+        logger.warning(
+            "verdetto del revisore non salvato per %s", request.source_name, exc_info=True
+        )
+
+
 def llm_source_auditor() -> SourceAuditor | None:
     """Il revisore basato sul modello, se il modello e' configurato.
 
@@ -318,15 +421,12 @@ def llm_source_auditor() -> SourceAuditor | None:
 
     from backend.llm import LlmTask
     from backend.llm import run as llm_run
-    from backend.llm.prompts import prompt_version, schema_part
 
     # La versione finisce nel registro dei consumi: e' cosi' che un aumento di
     # spesa si attribuisce a un cambio di prompt invece di restare inspiegato
     # (L5). Lo schema entra nel conto perche' un campo in piu' nella risposta e'
     # un cambio di prompt a tutti gli effetti: si pagano i token per riempirlo.
-    versione = prompt_version(
-        LlmTask.CONFORMANCE_AUDIT.value, AUDITOR_PROMPT, schema_part(SourceAuditVerdict)
-    )
+    versione = auditor_prompt_version()
 
     def _audit(request: SourceAuditRequest) -> SourceAuditVerdict:
         domanda = json.dumps(
@@ -774,12 +874,46 @@ def _verified_source_findings(
     return _SourceOutcome(findings=findings, discarded=discarded)
 
 
+@dataclass
+class _AuditOutcome:
+    findings: list[ConformanceFinding]
+    discarded: int
+    audited: int
+    failures: list[str]
+    # Fonti il cui verdetto era gia' stato pagato: confrontate, ma non rilette.
+    reused: int = 0
+
+
 def _audit_sources(
     snapshot: ProcessKnowledgeSnapshot,
     sources: list[dict],
     auditor: SourceAuditor,
-) -> tuple[list[ConformanceFinding], int, int, list[str]]:
+    *,
+    reuse_artifacts: bool = False,
+) -> _AuditOutcome:
+    """Il revisore legge ogni fonte, in parallelo, e il runtime ne verifica le prove.
+
+    **L'operazione si eredita nei thread.** Senza, ogni chiamata del revisore
+    partiva da un thread del pool con i `ContextVar` vuoti: il gateway la
+    rifiutava (L2) e l'`except` qui sotto la contava come fonte non letta. Da
+    quando il revisore passa dal gateway, in produzione **nessuna fonte veniva
+    confrontata**, e il verdetto era `failed` senza che niente lo distinguesse
+    da un fornitore giu'. Per la stessa ragione `OperationNotOpen` risale: non e'
+    un guasto della fonte, e' un punto d'ingresso che non ha aperto il lavoro.
+
+    **Un verdetto gia' pagato non si ripaga** (`reuse_artifacts`). La chiave e'
+    la fonte come la legge il revisore piu' gli elementi del piano: se il piano
+    cambia, cambia il confronto. Ogni riuso lascia una riga `cache_hit`.
+    """
     from concurrent.futures import ThreadPoolExecutor
+
+    from backend.llm import (
+        LlmTask,
+        OperationNotOpen,
+        inherit_operation,
+        profile_for,
+        record_avoided_call,
+    )
 
     elements = plan_elements_for_audit(snapshot)
     known_refs = {str(item["ref"]) for item in elements}
@@ -800,12 +934,40 @@ def _audit_sources(
         if item.status != "unverified" and item.source_name
     }
 
-    def _run(request: SourceAuditRequest) -> _SourceOutcome:
-        try:
-            verdict = auditor(request)
-        except Exception as exc:  # noqa: BLE001 - una fonte non letta non porta via le altre
-            logger.warning("verifica di conformita' non riuscita su %s", request.source_name, exc_info=True)
-            return _SourceOutcome(findings=[], discarded=0, failed=f"{request.source_name}: {type(exc).__name__}: {exc}")
+    profile = profile_for(LlmTask.CONFORMANCE_AUDIT)
+    version = auditor_prompt_version()
+    keys = [
+        source_audit_key(
+            request,
+            prompt_version=version,
+            model=profile.model,
+            reasoning_effort=profile.reasoning_effort,
+        )
+        for request in requests
+    ]
+    stored = _stored_verdicts(keys) if reuse_artifacts else {}
+    reused = sum(1 for key in keys if key in stored)
+    # Nel thread che ha l'operazione aperta, prima di leggere il resto: le
+    # chiamate evitate sono evitate anche se una fonte dopo fallisce.
+    for _ in range(reused):
+        record_avoided_call(LlmTask.CONFORMANCE_AUDIT, prompt_version=version)
+
+    def _run(index: int) -> _SourceOutcome:
+        request = requests[index]
+        verdict = stored.get(keys[index])
+        if verdict is None:
+            try:
+                verdict = auditor(request)
+            except OperationNotOpen:
+                raise
+            except Exception as exc:  # noqa: BLE001 - una fonte non letta non porta via le altre
+                logger.warning("verifica di conformita' non riuscita su %s", request.source_name, exc_info=True)
+                return _SourceOutcome(findings=[], discarded=0, failed=f"{request.source_name}: {type(exc).__name__}: {exc}")
+            if reuse_artifacts:
+                _remember_verdict(keys[index], verdict, request, prompt_version=version, model=profile.model)
+        # La verifica delle citazioni si rifa' anche sul verdetto riusato: e'
+        # deterministica, e un cambio nelle sue regole non deve restare fuori
+        # dal magazzino.
         return _verified_source_findings(request, verdict, known_refs, element_sources)
 
     workers = max(1, min(MAX_PARALLEL_AUDITS, len(requests)))
@@ -813,14 +975,18 @@ def _audit_sources(
         from backend.agents.process_synthesis import warm_provider_imports
 
         warm_provider_imports()
+    run_in_this_operation = inherit_operation(_run)
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="conformance-audit") as pool:
-        outcomes = list(pool.map(_run, requests))
+        outcomes = list(pool.map(run_in_this_operation, range(len(requests))))
 
-    findings = [item for outcome in outcomes for item in outcome.findings]
-    discarded = sum(outcome.discarded for outcome in outcomes)
     failures = [outcome.failed for outcome in outcomes if outcome.failed]
-    audited = len(requests) - len(failures)
-    return findings, discarded, audited, failures
+    return _AuditOutcome(
+        findings=[item for outcome in outcomes for item in outcome.findings],
+        discarded=sum(outcome.discarded for outcome in outcomes),
+        audited=len(requests) - len(failures),
+        failures=failures,
+        reused=reused,
+    )
 
 
 # --- la verifica ---------------------------------------------------------
@@ -856,6 +1022,7 @@ def evaluate_conformance(
     canvas_xml: str | None,
     review_brief: str | None,
     auditor: SourceAuditor | None,
+    reuse_artifacts: bool = False,
 ) -> ConformanceReport:
     """Verifica disegno, piano e fonti di uno snapshot.
 
@@ -866,6 +1033,10 @@ def evaluate_conformance(
         canvas_xml: Il canvas salvato.
         review_brief: Il documento di piano come il consulente lo legge.
         auditor: Il revisore delle fonti; ``None`` quando non e' disponibile.
+        reuse_artifacts: Se riusare i verdetti gia' pagati sulla stessa fonte
+            contro lo stesso piano. Lo chiede il percorso del prodotto; chi
+            verifica il confronto con un revisore finto non deve ereditare il
+            magazzino.
 
     Returns:
         Il rapporto. Sola lettura: la persistenza e' di chi chiama.
@@ -892,6 +1063,7 @@ def evaluate_conformance(
     note = ""
     audited = 0
     discarded = 0
+    reused = 0
     if not readable:
         # Niente testo da leggere: non c'e' nulla da verificare, e dirlo "fatto"
         # e' vero solo se non c'era evidenza con un testo.
@@ -902,8 +1074,14 @@ def evaluate_conformance(
     elif auditor is None:
         note = "il confronto con le fonti non e' disponibile in questo momento."
     else:
-        source_findings, discarded, audited, failures = _audit_sources(snapshot, readable, auditor)
-        findings += source_findings
+        outcome = _audit_sources(snapshot, readable, auditor, reuse_artifacts=reuse_artifacts)
+        findings += outcome.findings
+        discarded, audited, failures, reused = (
+            outcome.discarded,
+            outcome.audited,
+            outcome.failures,
+            outcome.reused,
+        )
         if not failures:
             llm_audit = "done"
         elif audited:
@@ -928,8 +1106,9 @@ def evaluate_conformance(
         findings=findings,
         llm_audit=llm_audit,
         llm_audit_note=note,
-        llm_calls=audited if llm_audit in {"done", "partial"} and readable else 0,
+        llm_calls=audited - reused if llm_audit in {"done", "partial"} and readable else 0,
         sources_audited=audited,
+        sources_reused=reused,
         sources_with_text=len(readable),
         discarded_findings=discarded,
         audited_at=datetime.now(UTC).isoformat(timespec="seconds"),
@@ -1014,6 +1193,10 @@ def audit_process_conformance(
         canvas_xml=(model or {}).get("xml"),
         review_brief=(review or {}).get("bpmn_brief") if review else None,
         auditor=resolved,  # type: ignore[arg-type]
+        # Si riusa solo il revisore del modello, di cui la chiave registra il
+        # prompt; e non quando il consulente chiede esplicitamente di rifare il
+        # confronto - "controlla di nuovo" vuol dire rileggere.
+        reuse_artifacts=auditor is _AUDITOR_FROM_SETTINGS and not force,
     )
     if persist and review is not None:
         try:

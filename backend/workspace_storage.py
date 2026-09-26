@@ -341,6 +341,38 @@ class WorkspacePlanExtraction(WorkspaceBase):
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class WorkspaceSourceAudit(WorkspaceBase):
+    """Il giudizio del revisore su una fonte, confrontata con un piano preciso.
+
+    Stessa idea del piano parziale, un gradino dopo: il revisore di conformita'
+    legge ogni fonte per intero contro gli elementi del piano, e ogni volta che
+    il confronto si rifaceva - un canvas risalvato, una verifica chiesta di
+    nuovo - rileggeva anche le fonti che niente aveva toccato.
+
+    Si tiene il **verdetto grezzo** dell'agente, non i rilievi: la verifica delle
+    citazioni nel testo e' deterministica e si rifa' ogni volta, cosi' un
+    cambio in quella regola non lascia in magazzino rilievi verificati con la
+    regola di prima.
+    """
+
+    __tablename__ = "workspace_source_audits"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "artifact_key", name="uq_source_audit_key"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    # Fonte esatta come l'ha letta il revisore, elementi del piano, prompt,
+    # modello, ragionamento, tenant.
+    artifact_key: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(String, nullable=False, default="")
+    source_name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    prompt_version: Mapped[str] = mapped_column(String, nullable=False, default="")
+    model: Mapped[str] = mapped_column(String, nullable=False, default="")
+    verdict_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class WorkspaceDecision(WorkspaceBase):
     __tablename__ = "workspace_decisions"
 

@@ -43,6 +43,7 @@ from backend.workspace_storage import (
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
     WorkspaceSource,
+    WorkspaceSourceAudit,
     workspace_connection,
 )
 
@@ -2488,6 +2489,86 @@ def save_plan_extraction(
         session.add(row)
         session.flush()
         return _plan_extraction_to_dict(row)
+
+
+def source_audits_by_key(keys: list[str]) -> dict[str, dict]:
+    """I verdetti del revisore gia' pagati, fra quelli chiesti.
+
+    Una query per tutto il confronto, non una per fonte, per la stessa ragione
+    dei piani parziali.
+
+    Args:
+        keys: Le chiavi degli artefatti, non affidabili.
+
+    Returns:
+        I verdetti trovati, per chiave, come dizionari grezzi dell'agente.
+
+    Sola lettura, dentro il tenant corrente.
+    """
+    wanted = [key for key in dict.fromkeys(keys) if key]
+    if not wanted:
+        return {}
+    with workspace_connection() as session:
+        rows = (
+            session.execute(
+                select(WorkspaceSourceAudit)
+                .where(WorkspaceSourceAudit.tenant_id == tenant_id())
+                .where(WorkspaceSourceAudit.artifact_key.in_(wanted))
+            )
+            .scalars()
+            .all()
+        )
+        return {row.artifact_key: json.loads(row.verdict_json or "{}") for row in rows}
+
+
+def save_source_audit(
+    *,
+    artifact_key: str,
+    verdict: dict,
+    source_id: str = "",
+    source_name: str = "",
+    prompt_version: str = "",
+    model: str = "",
+) -> None:
+    """Registra il verdetto del revisore su una fonte, una volta sola.
+
+    Come per il piano parziale: la chiave contiene tutto cio' che determina il
+    verdetto, quindi se c'e' gia' si tiene quello, e due confronti in gara sulla
+    stessa fonte non si pestano.
+
+    Raises:
+        ValueError: Se la chiave e' vuota.
+    """
+    key = str(artifact_key or "").strip()
+    if not key:
+        raise ValueError("Un verdetto del revisore senza chiave non si ritrova.")
+
+    with workspace_connection() as session:
+        current_tenant_id = tenant_id()
+        existing = (
+            session.execute(
+                select(WorkspaceSourceAudit.id)
+                .where(WorkspaceSourceAudit.tenant_id == current_tenant_id)
+                .where(WorkspaceSourceAudit.artifact_key == key)
+            )
+            .scalars()
+            .first()
+        )
+        if existing is not None:
+            return
+        session.add(
+            WorkspaceSourceAudit(
+                tenant_id=current_tenant_id,
+                artifact_key=key,
+                source_id=str(source_id or ""),
+                source_name=str(source_name or ""),
+                prompt_version=str(prompt_version or ""),
+                model=str(model or ""),
+                verdict_json=json.dumps(verdict, ensure_ascii=False),
+                created_at=now_iso(),
+            )
+        )
+        session.flush()
 
 
 def enqueue_plan_materialization(
