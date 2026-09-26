@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from backend.agents.chat_mode import assert_write_allowed
 from backend.process_understanding import (
     ProcessUnderstanding,
+    ProcessUnknown,
     quality_report_from_understanding,
     unknown_question_id,
 )
@@ -1006,6 +1007,48 @@ def decode_answers(review) -> list[dict]:
     return parsed if isinstance(parsed, list) else []
 
 
+def answered_unknowns(review) -> list[ProcessUnknown]:
+    """Le domande a cui il consulente ha risposto, da riportare nel piano nuovo.
+
+    La domanda si prende dal piano corrente quando c'e' - con il suo contesto,
+    le alternative, la gravita' - e altrimenti si ricostruisce dal testo salvato
+    insieme alla risposta: una risposta data a una versione di tre ricostruzioni
+    fa resta comunque la risposta di chi conosce il processo (L9).
+
+    Args:
+        review: La review corrente, o ``None`` per un piano che nasce adesso.
+
+    Returns:
+        Le domande risposte, nell'ordine in cui sono state risposte.
+
+    Sola lettura.
+    """
+    if review is None:
+        return []
+    answers = decode_answers(review)
+    if not answers:
+        return []
+    semantic_model = json.loads(getattr(review, "bpmn_semantic_model_json", None) or "{}")
+    understanding = semantic_model.get("sourceProcessUnderstanding") or {}
+    current = {
+        unknown_question_id(str(item.get("question") or "")): item
+        for item in understanding.get("unknowns") or []
+        if isinstance(item, dict) and item.get("question")
+    }
+    carried: list[ProcessUnknown] = []
+    for answer in answers:
+        question = " ".join(str(answer.get("question") or "").split())
+        question_id = str(answer.get("question_id") or unknown_question_id(question))
+        raw = current.get(question_id) or ({"question": question, "affects": ""} if question else None)
+        if raw is None:
+            continue
+        try:
+            carried.append(ProcessUnknown.model_validate(raw))
+        except ValueError:
+            logger.warning("domanda risposta non riportabile nel piano: %s", question_id, exc_info=True)
+    return carried
+
+
 def unanswered_questions(review) -> list[dict]:
     """Identify review questions that still require an answer.
     
@@ -1520,18 +1563,24 @@ def prepare_bpmn_review(
         if model is None:
             raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
 
+        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
+        if review is not None and getattr(review, "tenant_id", "local") != current_tenant_id:
+            review = None
+
         bpmn_process_id = f"Process_{slugify(model.process.name, 'process').replace('-', '_')}"
         review_draft = build_bpmn_review_draft(
             bpmn_process_id=bpmn_process_id,
             process_name=model.process.name,
             source_text=clean_text,
             process_understanding=process_understanding,
+            # Una ricostruzione del piano riparte dalle fonti, ma le risposte del
+            # consulente non vengono dalle fonti: si riportano, non si
+            # rigenerano (L9). E' qui e non in chi chiama perche' questo e'
+            # l'unico punto da cui passa ogni ricostruzione, presente e futura.
+            answered_questions=answered_unknowns(review),
         )
 
         timestamp = now_iso()
-        review = session.get(WorkspaceBpmnReview, bpmn_model_id)
-        if review is not None and getattr(review, "tenant_id", "local") != current_tenant_id:
-            review = None
 
         if review is None:
             review = WorkspaceBpmnReview(
@@ -1623,6 +1672,7 @@ def revise_bpmn_review(
             process_name=model.process.name,
             source_text=review.source_text,
             process_understanding=process_understanding,
+            answered_questions=answered_unknowns(review),
         )
 
         review.version = int(getattr(review, "version", 1) or 1) + 1

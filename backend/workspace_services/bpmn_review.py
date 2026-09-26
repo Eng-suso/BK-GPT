@@ -19,6 +19,7 @@ from backend.process_understanding import (
     ProcessUnderstandingExtractionError,
     ProcessUnderstandingQualityReport,
     ProcessUnderstandingResult,
+    ProcessUnknown,
     build_process_understanding,
     evaluate_process_understanding_quality,
     process_open_questions,
@@ -26,6 +27,7 @@ from backend.process_understanding import (
     raise_for_failed_understanding,
     readiness_from_understanding,
     render_process_review,
+    unknown_question_id,
 )
 
 
@@ -171,11 +173,46 @@ def _ungrounded_question_warning(dropped: list) -> str:
     )
 
 
+def carry_answered_questions(
+    process: ProcessUnderstanding, answered: list[ProcessUnknown]
+) -> set[str]:
+    """Rimette nel piano le domande a cui il consulente ha gia' risposto (L9).
+
+    Le risposte sono la fonte con la precedenza piu' alta, ma la domanda a cui
+    rispondono viene dall'estrazione, e una ricostruzione del piano non e'
+    tenuta a riporla: basta che l'intervista nuova sposti l'accento, o che il
+    modello la formuli in un altro modo. Senza questo passo la risposta restava
+    salvata ma non si agganciava piu' a niente, e spariva da tutto cio' che si
+    legge - il pannello, lo snapshot dell'agente, il gate di approvazione.
+
+    Una domanda gia' presente nel piano nuovo resta quella del piano nuovo: la
+    formulazione e il contesto aggiornati valgono piu' dei vecchi.
+
+    Args:
+        process: Il piano appena ricostruito. Modificato sul posto.
+        answered: Le domande risposte, com'erano quando il consulente ha risposto.
+
+    Returns:
+        Gli id delle domande risposte: chi filtra le domande del piano deve
+        lasciarle stare, perche' non vengono piu' chieste a nessuno.
+    """
+    present = {unknown_question_id(item.question) for item in process.unknowns}
+    carried: set[str] = set()
+    for unknown in answered:
+        question_id = unknown_question_id(unknown.question)
+        carried.add(question_id)
+        if question_id not in present:
+            process.unknowns.append(unknown)
+            present.add(question_id)
+    return carried
+
+
 def build_bpmn_review_draft(
     bpmn_process_id: str,
     process_name: str,
     source_text: str,
     process_understanding: ProcessUnderstanding | ProcessUnderstandingResult | dict | None = None,
+    answered_questions: list[ProcessUnknown] | None = None,
 ) -> BpmnReviewDraft:
     process_model: ProcessUnderstanding
     if process_understanding is None:
@@ -197,11 +234,24 @@ def build_bpmn_review_draft(
     # distinti, perche' i difetti sono distinti: chiedere un dato che il piano ha
     # gia' non e' la stessa cosa che chiedere di un tema che le fonti non hanno
     # mai nominato, e al consulente vanno spiegati per quello che sono.
+    #
+    # Le domande a cui il consulente ha gia' risposto passano senza filtro: i
+    # filtri esistono per non *chiedergli* cio' che il piano sa o che le fonti
+    # non nominano, e queste non si chiedono piu' a nessuno. Sono la traccia di
+    # una sua decisione, e scartarle la cancellerebbe (L9).
+    decided = carry_answered_questions(process_model, answered_questions or [])
     process_model.unknowns, answered_unknowns = partition_answered_unknowns(process_model)
     kept_unknowns, ungrounded_unknowns = partition_grounded_unknowns(
         process_model, source_text
     )
-    process_model.unknowns = kept_unknowns
+    spared = [
+        item
+        for item in [*answered_unknowns, *ungrounded_unknowns]
+        if unknown_question_id(item.question) in decided
+    ]
+    answered_unknowns = [item for item in answered_unknowns if item not in spared]
+    ungrounded_unknowns = [item for item in ungrounded_unknowns if item not in spared]
+    process_model.unknowns = [*kept_unknowns, *spared]
     bpmn_semantic_model = build_bpmn_semantic_model(
         process_id=bpmn_process_id,
         process_name=process_name,
