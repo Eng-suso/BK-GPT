@@ -154,8 +154,20 @@ Stile proposto: superfici operative dense, pannelli richiudibili, gerarchia chia
 
 - Requisiti di dashboard: materiale, screenshot e richieste di Sohay nella chat del 2026-10-02.
 - Perimetro del simulatore: allegato `874a9b2a-5c0b-4821-8b86-fe81c9df1889/Testo incollato.txt`, presentato da Sohay come caratteristiche del simulatore di base. I valori numerici del materiale sono esempi, non risultati misurati di DeliR.
-- [Roadmap esistente](../delir-simulation-product-roadmap.md): documento precedente proposto, non modificato.
 - [Integrazione Prosimos](../simulation-prosimos.md).
-- [Gap analysis esistente](../processmind-vs-delir-simulation-gap.md).
 
 La sintesi UX è una proposta generata dall'assistente. È materiale adatto a una futura nota di strategia prodotto nella StartupWiki, mantenendo fonte e stato di conferma; nessun aggiornamento della memoria personale o del vault è stato effettuato in questo passaggio.
+
+## Implementazione della dashboard — ottobre 2026
+
+Consegnato nel branch `codex/simulation-enterprise-ux`:
+
+- Clock condiviso fra processo e dashboard, con riproduzione, pausa, seek e reset al cambio run.
+- KPI e serie limitati all’istante selezionato; risultati dell’intero esperimento esplicitamente separati.
+- Undici tipi di widget, configurazione, sezioni, duplicazione, ordine tramite drag o tastiera e larghezza metà/intera riga.
+- Analisi associate alle attività BPMN, selezione attività da tastiera, spostamento mouse/tastiera, dimensionamento e visibilità collettiva.
+- Markdown e formule limitate: aritmetica, `round`, `formatPercentage`, `formatDuration`, `formatDate`. Le espressioni metriche devono restituire numeri non negativi nella stessa unità della metrica di origine.
+- Persistenza locale della sola configurazione per progetto/processo, con validazione e recupero visibile degli errori; nessun event log salvato in localStorage.
+- Alternative tabellari ai grafici, gestione del focus, layout responsive e verifiche WCAG con Axe.
+
+Limiti espliciti: il backend esistente calcola il run prima di produrre l’artifact di replay; non è stato aggiunto streaming live. La configurazione delle dashboard è salvata sul dispositivo, senza condivisione server. HTML eseguibile e riepiloghi AI non sono stati introdotti. Il catalogo completo del motore resta un requisito distinto da questa consegna UI.
