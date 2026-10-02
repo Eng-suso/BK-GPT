@@ -81,7 +81,10 @@
       "livePlaceholder": "The text appears here as you speak.",
       "finalHeading": "With who spoke",
       "finalPlaceholder": "After stop, the final transcript arrives here, with who said what."
-    }
+    },
+    "addHeading": "Add",
+    "uploadFile": "Upload a file",
+    "uploadUnavailable": "Open a project or process chat to upload a file."
   },
   "status": {
     "historyUnavailable": "History unavailable",
@@ -189,7 +192,15 @@
       "confirm": "Attach",
       "count": "{{count}} / {{max}} characters",
       "fallbackLabel": "Pasted text"
-    }
+    },
+    "status": {
+      "uploading": "Uploading…",
+      "pending": "Reading…",
+      "done": "Ready",
+      "partial": "Partly read",
+      "failed": "Unreadable"
+    },
+    "dismissFailed": "Remove the failed upload"
   },
   "queue": {
     "title": "Queued messages",
