@@ -59,6 +59,7 @@ def convert(
     payload: bytes,
     *,
     transport: httpx.BaseTransport | None = None,
+    do_ocr: bool = True,
 ) -> tuple[DoclingDocument, list[str]]:
     """Fa convertire il file a docling-serve, con l'API asincrona.
 
@@ -82,7 +83,9 @@ def convert(
                 files={"files": (filename, payload)},
                 data={
                     "to_formats": "json",
-                    "do_ocr": "true",
+                    # L'OCR su CPU e' la parte lenta: su un PDF digitale di 4
+                    # pagine 196 s con, 10 s senza. Si chiede solo quando serve.
+                    "do_ocr": "true" if do_ocr else "false",
                     "table_mode": "accurate",
                     "image_export_mode": "placeholder",
                     "abort_on_error": "false",
@@ -135,6 +138,35 @@ def convert(
         return DoclingDocument.model_validate(content), errors
     except ValueError as exc:
         raise DocumentServiceUnavailable(_UNEXPECTED) from exc
+
+
+# Sotto questa soglia di caratteri una pagina non ha uno strato di testo: e' una
+# scansione, o un'immagine, e il testo si legge solo con l'OCR.
+_MIN_TEXT_CHARS_PER_PAGE = 40
+
+
+def needs_ocr(payload: bytes) -> bool:
+    """Se un PDF va letto con l'OCR: almeno una pagina senza testo estraibile.
+
+    Un PDF digitale ha gia' il suo testo, e l'OCR gli costa minuti per niente.
+    Una pagina scansionata in mezzo a pagine digitali basta per accenderlo:
+    meglio lento che con una pagina vuota.
+    """
+    import pypdfium2
+
+    try:
+        document = pypdfium2.PdfDocument(payload)
+    except pypdfium2.PdfiumError:
+        return True
+    try:
+        for index in range(len(document)):
+            page = document[index]
+            text = page.get_textpage().get_text_range()
+            if len(text.strip()) < _MIN_TEXT_CHARS_PER_PAGE:
+                return True
+        return False
+    finally:
+        document.close()
 
 
 def check_pdf(payload: bytes) -> None:
