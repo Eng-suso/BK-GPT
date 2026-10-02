@@ -163,10 +163,15 @@ export function NotificationsMenu({ onNavigate }: NotificationsMenuProps): React
                             {describe(item)}
                           </span>
                           {!item.read ? (
-                            <span
-                              className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--color-status-info)]"
-                              aria-label={t("notifications.unread")}
-                            />
+                            // Un aria-label su uno span generico non viene letto:
+                            // lo stato passa come testo nascosto, il pallino e' decorazione.
+                            <>
+                              <span
+                                className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--color-status-info)]"
+                                aria-hidden="true"
+                              />
+                              <span className="sr-only">{t("notifications.unread")}</span>
+                            </>
                           ) : null}
                         </span>
                         <span className="block truncate text-[12px] text-muted-foreground">
