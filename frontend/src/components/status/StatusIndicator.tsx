@@ -19,7 +19,7 @@ export type StatusIndicatorProps = {
 
 /**
  * Status as a small dot + plain label — the enterprise-premium pattern.
- * Never a filled pill (see docs/design/).
+ * Never a filled pill (see docs/archive/design/).
  */
 export function StatusIndicator({
   tone,
