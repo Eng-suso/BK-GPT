@@ -62,10 +62,15 @@ function source(created: boolean) {
     acquisition_status: "done",
     acquisition_error: null,
     created,
+    suggested_roles: ["process_evidence", "policy"],
   };
 }
 
-async function fixture(page: Page, uploads: { path: string; body: string }[]) {
+async function fixture(
+  page: Page,
+  uploads: { path: string; body: string }[],
+  patches: unknown[] = [],
+) {
   await page.addInitScript(() => Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" }));
   await page.route(`${API}/**`, async (route: Route) => {
     const request = route.request();
@@ -80,6 +85,11 @@ async function fixture(page: Page, uploads: { path: string; body: string }[]) {
       uploads.push({ path, body: request.postData() ?? "" });
       return route.fulfill({ status: 201, json: source(true) });
     }
+    if (path === "/v1/workspace/sources/src-procedura" && request.method() === "PATCH") {
+      const body = request.postDataJSON() as { roles: string[] };
+      patches.push(body);
+      return route.fulfill({ json: { ...source(false), roles: body.roles } });
+    }
     if (path === "/v1/workspace/projects/p-acquisti/sources") {
       return route.fulfill({ json: [source(false)] });
     }
@@ -89,7 +99,8 @@ async function fixture(page: Page, uploads: { path: string; body: string }[]) {
 
 test("dalla chat del consulente un file va dove il consulente sceglie", async ({ page }) => {
   const uploads: { path: string; body: string }[] = [];
-  await fixture(page, uploads);
+  const patches: unknown[] = [];
+  await fixture(page, uploads, patches);
   await page.goto("/consultant");
 
   await page.getByRole("button", { name: /aggiungi/i }).first().click();
@@ -115,6 +126,14 @@ test("dalla chat del consulente un file va dove il consulente sceglie", async ({
   // Messo nel processo: evidenza di quel processo.
   expect(uploads[0].body).toContain("process_evidence");
   expect(uploads[0].body).toContain("proc-p2p");
+
+  // DeliR propone a cosa serve il file; il consulente accetta con un clic.
+  const role = chips.getByRole("button", { name: /procedura\.md, a cosa serve/ });
+  await expect(role).toHaveText(/Sembra: Come si lavora, Regole da rispettare/);
+  await role.click();
+  await page.getByRole("menuitem", { name: /Usa la proposta/ }).click();
+  await expect(role).toHaveText(/^Come si lavora, Regole da rispettare/);
+  expect(patches).toEqual([{ roles: ["process_evidence", "policy"] }]);
 
   // La destinazione resta, e si legge nel menu.
   await page.getByRole("button", { name: /aggiungi/i }).first().click();
