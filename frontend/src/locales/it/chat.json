@@ -439,6 +439,7 @@
     "suggested": "Sembra: {{roles}}",
     "useSuggestion": "Usa la proposta: {{roles}}",
     "keep": "Salva tra le Fonti e togli dal messaggio",
-    "menuLabel": "{{file}}, a cosa serve: {{roles}}"
+    "menuLabel": "{{file}}, a cosa serve: {{roles}}",
+    "rolesFailed": "Ruolo non salvato: riprova"
   }
 }

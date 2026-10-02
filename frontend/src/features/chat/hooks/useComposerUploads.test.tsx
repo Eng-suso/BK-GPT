@@ -143,6 +143,31 @@ describe("useComposerUploads", () => {
     expect(result.current.suggestionOf("src-procedura")).toBeNull();
   });
 
+  it("un cambio di ruolo non riuscito si vede, e il ruolo resta quello vero", async () => {
+    mutateAsync.mockResolvedValue({
+      id: "src-ko",
+      name: "b.pdf",
+      projectId: "p-1",
+      created: true,
+      roles: ["context"],
+      suggestedRoles: null,
+    });
+    updateSourceRoles.mockRejectedValueOnce(new Error("rete"));
+    const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, true));
+    await act(async () => {
+      await result.current.uploadFile(file("b.pdf"));
+    });
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.applyRoles("src-ko", ["policy"]);
+    });
+    expect(ok).toBe(false);
+    expect(result.current.roleFailed("src-ko")).toBe(true);
+    expect(result.current.rolesOf("src-ko")).toEqual(["context"]);
+    expect(result.current.isRolePending("src-ko")).toBe(false);
+  });
+
   it("Salva tra le Fonti: il file resta anche se la card esce dal messaggio", async () => {
     mutateAsync.mockResolvedValue({ id: "src-tenuta", name: "a.pdf", projectId: "p-1", created: true, roles: [] });
     const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, true));

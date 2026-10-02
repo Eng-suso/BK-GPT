@@ -102,6 +102,10 @@ export function useComposerUploads(
   // la card li mostra prima che la lista delle fonti si aggiorni.
   const [roles, setRoles] = useState<Record<string, SourceRole[]>>({});
   const [suggestions, setSuggestions] = useState<Record<string, SourceRole[]>>({});
+  // Un cambio di ruolo alla volta per file: il secondo partirebbe dai ruoli
+  // di prima e cancellerebbe il primo.
+  const [rolesPending, setRolesPending] = useState<Record<string, boolean>>({});
+  const [rolesFailed, setRolesFailed] = useState<Record<string, boolean>>({});
 
   const uploadFile = useCallback(
     async (file: File): Promise<ChatAttachment | null> => {
@@ -117,10 +121,15 @@ export function useComposerUploads(
         });
         if (source.created) createdHere.current.add(source.id);
         setRoles((current) => ({ ...current, [source.id]: source.roles }));
+        // Ogni caricamento aggiorna la proposta: lo stesso file ricaricato dopo
+        // aver scelto i ruoli non deve ripresentare quella vecchia.
         const suggested = source.suggestedRoles;
-        if (suggested && !sameRoles(suggested, source.roles)) {
-          setSuggestions((current) => ({ ...current, [source.id]: suggested }));
-        }
+        setSuggestions((current) => {
+          const next = { ...current };
+          if (suggested && !sameRoles(suggested, source.roles)) next[source.id] = suggested;
+          else delete next[source.id];
+          return next;
+        });
         setInFlight((current) => current.filter((item) => item.tempId !== tempId));
         return { kind: "source", id: source.id, label: source.name, projectId: source.projectId };
       } catch (error) {
@@ -169,7 +178,9 @@ export function useComposerUploads(
    */
   const applyRoles = useCallback(
     async (sourceId: string, next: SourceRole[]): Promise<boolean> => {
-      if (next.length === 0) return false;
+      if (next.length === 0 || rolesPending[sourceId]) return false;
+      setRolesPending((current) => ({ ...current, [sourceId]: true }));
+      setRolesFailed((current) => ({ ...current, [sourceId]: false }));
       try {
         const updated = await updateSourceRoles(sourceId, next);
         setRoles((current) => ({ ...current, [sourceId]: updated.roles }));
@@ -181,11 +192,19 @@ export function useComposerUploads(
         if (target) void queryClient.invalidateQueries({ queryKey: projectKeys.sources(target.projectId) });
         return true;
       } catch {
+        // Il ruolo sulla card resta quello vero, e la card dice che il cambio
+        // non e' passato.
+        setRolesFailed((current) => ({ ...current, [sourceId]: true }));
         return false;
+      } finally {
+        setRolesPending((current) => ({ ...current, [sourceId]: false }));
       }
     },
-    [queryClient, target],
+    [queryClient, target, rolesPending],
   );
+
+  const isRolePending = useCallback((sourceId: string) => Boolean(rolesPending[sourceId]), [rolesPending]);
+  const roleFailed = useCallback((sourceId: string) => Boolean(rolesFailed[sourceId]), [rolesFailed]);
 
   const rolesOf = useCallback(
     (sourceId: string): SourceRole[] =>
@@ -232,6 +251,8 @@ export function useComposerUploads(
     rolesOf,
     suggestionOf,
     applyRoles,
+    isRolePending,
+    roleFailed,
     keepInSources,
   };
 }

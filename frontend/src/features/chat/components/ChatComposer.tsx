@@ -761,6 +761,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                       roles={uploads.rolesOf(attachment.id)}
                       suggestion={uploads.suggestionOf(attachment.id)}
                       onApply={(roles) => void uploads.applyRoles(attachment.id, roles)}
+                      disabled={uploads.isRolePending(attachment.id)}
                       onKeep={() => {
                         // Resta tra le Fonti, esce solo dal messaggio.
                         uploads.keepInSources(attachment);
@@ -769,6 +770,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                         );
                       }}
                     />
+                  ) : null}
+                  {attachment.kind === "source" && uploads.roleFailed(attachment.id) ? (
+                    <span className="composer-chip-status is-failed" role="alert">
+                      {t("card.rolesFailed")}
+                    </span>
                   ) : null}
                   {status ? (
                     <span
