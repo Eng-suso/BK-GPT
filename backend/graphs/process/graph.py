@@ -411,6 +411,7 @@ def process_routing_state(
     }
 
     return {
+        "detected_posture": getattr(decision, "posture", None),
         "process_route": route,
         "process_mode": process_mode,
         "process_objective": process_objective,

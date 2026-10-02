@@ -23,29 +23,40 @@ AgentScopeType = Literal["consultant", "project", "process", "canvas"]
 # fa comunque rispettare (capability filtrate nel router, scritture rifiutate in
 # `agents/chat_mode.py`): questo testo serve a far spiegare bene il limite,
 # non a imporlo.
+# Le modalita' interne parlano al modello con il nome dell'autonomia che il
+# consulente ha scelto (`schemas/chat.py: AUTONOMY_TO_MODE`).
 CHAT_MODE_CONTRACTS: dict[str, str] = {
     "conversation": (
-        "Modalita' Conversazione: rispondi alla richiesta senza avviare discovery, "
-        "modeling, review o modifiche persistenti. Non creare questionari o artefatti "
-        "BPMN. Se per procedere serve una decisione, formula solo il chiarimento "
-        "necessario e attendi la risposta."
+        "Autonomia Manuale: il consulente vuole proposte, non azioni. Rispondi, "
+        "spiega e proponi i passi; non avviare discovery, modeling o review e non "
+        "creare record. Se la richiesta chiede di creare o modificare qualcosa, "
+        "di' cosa faresti e che serve Chiedi approvazione o Auto per farlo."
     ),
     "plan": (
-        "Modalita' Piano: l'utente vuole capire e decidere, non applicare. Puoi "
-        "esplorare, raccogliere evidenze, preparare e correggere il piano di "
-        "processo. Non puoi modificare il canvas ne' approvare una review: se "
-        "servisse, dillo e proponi il passaggio a Modifica o Agente."
+        "Autonomia Chiedi approvazione: puoi esplorare, raccogliere evidenze, "
+        "preparare e correggere il piano di processo. Il canvas cambia solo quando "
+        "il consulente approva la review; clienti, progetti e primo setup partono "
+        "solo dopo il suo si' esplicito (lo strumento te lo chiede da solo)."
     ),
     "edit": (
-        "Modalita' Modifica: l'utente ha gia' deciso cosa cambiare. Applica la "
-        "modifica richiesta in modo puntuale e verificala. Non rifare il piano e "
-        "non ricostruire il modello da zero."
+        "Autonomia Auto, modifica puntuale: applica la modifica richiesta e "
+        "verificala. Non rifare il piano e non ricostruire il modello da zero."
     ),
     "agent": (
-        "Modalita' Agente: l'utente ti affida il ciclo completo. Pianifica, "
-        "applica e verifica fino a chiudere la richiesta."
+        "Autonomia Auto: il consulente ti affida il lavoro. Pianifica, applica e "
+        "verifica fino a chiudere la richiesta. Le azioni distruttive chiedono "
+        "comunque conferma."
     ),
 }
+
+# Vale a ogni autonomia. Il caso che l'ha resa necessaria: "Ho registrato il
+# progetto" detto da un agente che non aveva nemmeno lo strumento per farlo.
+ACTION_HONESTY_RULE = (
+    "Non dire mai di aver creato, registrato, salvato, inoltrato o verificato "
+    "qualcosa se uno strumento non lo ha appena confermato in questo turno. Se non "
+    "hai lo strumento, o l'esito e' un rifiuto o una proposta in attesa, dillo con "
+    "quelle parole."
+)
 VALID_AGENT_SCOPE_TYPES: set[str] = {"consultant", "project", "process", "canvas"}
 MAX_CURRENT_BPMN_XML_CHARS = 80_000
 MAX_STATE_ARTIFACT_CHARS = 40_000
@@ -100,6 +111,7 @@ def agent_scope_state(
     chat_mode: ChatMode | None = None,
     attachments: list[ChatAttachment] | None = None,
     thread_id: str | None = None,
+    posture: str = "auto",
 ) -> dict:
     """Build the per-turn state used by scoped agent processing.
     
@@ -121,6 +133,8 @@ def agent_scope_state(
         "scope_type": scope_type,
         "pending_action": _open_pending_action(thread_id),
         "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
+        # Scelta dal consulente, o "auto": guida router e risposta, non le scritture.
+        "posture": posture or "auto",
         # Risolti qui, una volta per turno: i nodi a valle leggono contenuto,
         # non id da andare a cercare.
         "attachments": resolve_attachments(attachments),
@@ -163,10 +177,25 @@ def build_scope_system_prompt(state: dict) -> str:
         "",
         f"chat_mode: {chat_mode}",
         CHAT_MODE_CONTRACTS[chat_mode],
+        ACTION_HONESTY_RULE,
     ]
+
+    posture = state.get("detected_posture") or (
+        state.get("posture") if state.get("posture") not in {None, "auto"} else None
+    )
+    if posture:
+        from backend.graphs.routing_contracts import POSTURE_GUIDE
+
+        if posture in POSTURE_GUIDE:
+            lines.extend(["", f"postura: {posture}", f"Lavora con questa postura: {POSTURE_GUIDE[posture]}."])
 
     pending = state.get("pending_action")
     if pending:
+        resolver = (
+            "confirm_workspace_write"
+            if pending.get("action") == "workspace_write"
+            else "manage_consultant_memory"
+        )
         lines.extend(
             [
                 "",
@@ -175,7 +204,7 @@ def build_scope_system_prompt(state: dict) -> str:
                 "oggetto:",
                 str(pending.get("preview") or ""),
                 "Se il consulente conferma o rifiuta, chiama subito "
-                "manage_consultant_memory(operation='confirm'|'cancel'). "
+                f"{resolver}(operation='confirm'|'cancel'). "
                 "L'oggetto e' gia' congelato: non richiederlo, non ricostruirlo dal "
                 "testo e non ripetere la domanda.",
             ]
