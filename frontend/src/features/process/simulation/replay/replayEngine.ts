@@ -32,14 +32,13 @@ export type SpeedOption = { value: number; label: string };
  */
 function speedOptionsFor(durationSec: number): SpeedOption[] {
   const targets = [1800, 600, 120, 40, 12]; // wall-clock seconds to replay it all
-  return targets.map((wall) => {
-    const value = Math.max(1, Math.round(durationSec / wall));
-    const label =
-      wall >= 60 ? `≈ ${Math.round(wall / 60)} min` : `≈ ${wall} s`;
+  const values = [...new Set(targets.map((wall) => Math.max(1, Math.round(durationSec / wall))))];
+  return values.map((value) => {
+    const wall = Math.max(1, Math.round(durationSec / value));
+    const label = wall >= 60 ? `≈ ${Math.round(wall / 60)} min` : `≈ ${wall} s`;
     return { value, label };
   });
 }
-const DEFAULT_SPEED_INDEX = 2;
 
 const SAMPLE_TOKEN_CAP = 150;
 
@@ -164,7 +163,7 @@ export class ReplayEngine {
     this.focusCaseId = medianCaseId(replay);
 
     this.speedOptions = speedOptionsFor(replay.meta.durationSec);
-    this.speed = this.speedOptions[DEFAULT_SPEED_INDEX].value;
+    this.speed = Math.max(1, Math.round(replay.meta.durationSec / 120));
 
     this.elementIds = Object.keys(replay.series.byElement);
     this.resourceIds = Object.keys(replay.series.byResource);
