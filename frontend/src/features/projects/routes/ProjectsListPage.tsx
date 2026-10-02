@@ -112,7 +112,13 @@ export function ProjectsListPage(): React.JSX.Element {
   const unassigned = t("list.owner.unassigned");
   const filterDefs = useMemo<ListFilterDef<Project>[]>(
     () => [
-      { id: "client", label: t("list.filter.client"), accessor: (p) => p.client },
+      {
+        id: "client",
+        label: t("list.filter.client"),
+        // Per id: la ricerca globale porta qui con `f_client=<id>` (X4).
+        accessor: (p) => p.clientId,
+        display: (p) => p.client,
+      },
       { id: "status", label: t("list.filter.status"), accessor: (p) => p.status },
       { id: "phase", label: t("list.filter.phase"), accessor: (p) => p.phase },
       {
