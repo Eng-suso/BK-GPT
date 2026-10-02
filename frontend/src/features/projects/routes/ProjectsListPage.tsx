@@ -285,7 +285,7 @@ export function ProjectsListPage(): React.JSX.Element {
         {tagliato ? (
           <InlineNotice
             tone="warning"
-            title={tCommon("state.truncated", { shown: projects.length, total: totale })}
+            title={tCommon("state.truncated", { shown: allProjects.length, total: totale })}
           />
         ) : null}
         <ListToolbar
