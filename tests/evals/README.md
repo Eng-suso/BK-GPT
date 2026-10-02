@@ -11,7 +11,7 @@ e **quando gira**, non l'unico nome che il test puo' avere.
 | livello | cartella | cosa misura | quando gira | modello |
 | --- | --- | --- | --- | --- |
 | L0 | `l0_deterministic/` | invarianti: provenance, isolamento tenant, scope, scritture approvate, proiezioni stale, BPMN valido, compilatore sul golden set | ogni PR (CI/CD Pipeline) | no |
-| L1 | `l1_golden/` | interviste → piano → BPMN contro la mappa di riferimento; loop di conformita' | notturno (`golden-eval.yml`) o a mano | si' |
+| L1 | `l1_golden/` | interviste → piano → BPMN contro la mappa di riferimento (disegno, handoff, eccezioni) e cio' che il piano sa (evidenze, claim, conflitti); loop di conformita' | notturno (`golden-eval.yml`) o a mano | si' |
 | L1 | `l1_retrieval/` | da costruire: Recall@5, Precision@5, MRR, nDCG su query con evidence attese; memory recall | - | - |
 | L2 | `l2_semantic/` | giudizio sulla mappatura: oggi la rubrica deterministica di `rubric.py`, poi JevEval per i giudizi bounded e G-Eval per quelli soggettivi | a mano | si' |
 | L3 | `l3_trajectory/` | da costruire: tool giusto, ordine, chiamate inutili, stop prematuro, budget | - | - |
@@ -43,6 +43,7 @@ affidabile, qualunque cosa dica il resto della suite.
 | `test_kg_reproject.py` | Neo4j si ricostruisce da Postgres, e se e' indietro il retrieval lo dice |
 | `test_evidence_survives_projection_outage.py` | con Neo4j e Mem0 giu' l'evidenza resta intera |
 | `test_bpmn_soundness.py` | il BPMN e' sound: niente nodi irraggiungibili, vicoli ciechi o split impliciti |
+| `test_golden_contract.py` | il golden set cita le sue fonti alla lettera, e ogni elemento obbligatorio ha un passo che lo dice |
 | `test_golden_graph_metrics.py` | dal piano ideale il compilatore ridisegna la mappa di riferimento, a 1.0 |
 
 ## Eseguire
