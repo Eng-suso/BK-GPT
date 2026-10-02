@@ -249,6 +249,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     MAX_CHAT_ATTACHMENTS -
     attachments.length -
     uploads.inFlight.filter((upload) => !upload.error).length;
+  // Un file scelto ma non ancora caricato non e' ancora un allegato: partire
+  // adesso manderebbe il messaggio senza il file.
+  const uploading = uploads.inFlight.some((upload) => !upload.error);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -337,7 +340,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     const content = value.trim();
-    if (!content || isLocked || isRecording) return;
+    if (!content || isLocked || isRecording || uploading) return;
     setValue("");
     setAudioStatus("");
     setFinalTranscript("");
@@ -761,7 +764,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     className="composer-chip-remove"
                     aria-label={t("attach.remove", { label: attachment.label })}
                     onClick={() => {
-                      uploads.forget(attachment);
+                      uploads.forget(attachment, () => addAttachment(attachment));
                       setAttachments((prev) =>
                         prev.filter(
                           (item) =>
@@ -855,7 +858,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 {ATTACHMENT_MENU.map((attachmentKind) => (
                   <DropdownMenuItem
                     key={attachmentKind}
-                    disabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
+                    disabled={freeSlots <= 0}
                     onSelect={() => setPickerKind(attachmentKind)}
                   >
                     {ATTACHMENT_ICONS[attachmentKind]}
@@ -932,9 +935,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               variant={isBusy ? "outline" : "default"}
               size="sm"
               onClick={isBusy ? onStop : undefined}
-              disabled={isBusy ? !onStop : isLocked || isRecording || !value.trim()}
+              disabled={isBusy ? !onStop : isLocked || isRecording || uploading || !value.trim()}
               aria-label={isBusy ? t("composer.stopAgent") : t("composer.send")}
-              title={isBusy ? t("composer.stopAgentHint") : t("composer.sendHint")}
+              title={
+                isBusy
+                  ? t("composer.stopAgentHint")
+                  : uploading
+                    ? t("composer.waitForUploads")
+                    : t("composer.sendHint")
+              }
             >
               <span>{isBusy ? t("composer.stopAgent") : t("composer.send")}</span>
               {isBusy ? <Square /> : <ArrowUp />}

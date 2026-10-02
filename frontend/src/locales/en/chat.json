@@ -84,7 +84,8 @@
     },
     "addHeading": "Add",
     "uploadFile": "Upload a file",
-    "uploadUnavailable": "Open a project or process chat to upload a file."
+    "uploadUnavailable": "Open a project or process chat to upload a file.",
+    "waitForUploads": "Wait for the files to finish uploading"
   },
   "status": {
     "historyUnavailable": "History unavailable",
@@ -200,7 +201,8 @@
       "partial": "Partly read",
       "failed": "Unreadable"
     },
-    "dismissFailed": "Remove the failed upload"
+    "dismissFailed": "Remove the failed upload",
+    "uploadFailed": "The file was not uploaded."
   },
   "queue": {
     "title": "Queued messages",
