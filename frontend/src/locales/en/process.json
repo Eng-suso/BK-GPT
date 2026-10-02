@@ -386,7 +386,7 @@
       "followFilter": "Follow the activity filter",
       "filterHelp": "The filter affects per-activity metrics. Cases, costs, durations and resources keep the scope of the entire process.",
       "labelsStyle": "Labels and style",
-      "showLabels": "Show axis labels",
+      "showLabels": "Show labels and categories",
       "color": "Series color",
       "markdown": "Text and expressions",
       "text": "Markdown text",

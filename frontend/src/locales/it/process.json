@@ -386,7 +386,7 @@
       "followFilter": "Segui il filtro attività",
       "filterHelp": "Il filtro agisce sulle metriche per attività. Casi, costi, tempi e risorse conservano l’ambito dell’intero processo.",
       "labelsStyle": "Etichette e stile",
-      "showLabels": "Mostra etichette degli assi",
+      "showLabels": "Mostra etichette e categorie",
       "color": "Colore della serie",
       "markdown": "Testo ed espressioni",
       "text": "Testo Markdown",

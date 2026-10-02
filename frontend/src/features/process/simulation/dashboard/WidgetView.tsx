@@ -9,8 +9,6 @@ import { WIDGET_COLORS, formatMetric } from "./dashboardFormatting";
 import { interpolateText } from "./dashboardExpressions";
 import { resolveWidgetData, type DashboardWidget } from "./dashboardModel";
 
-const COLORS = Object.values(WIDGET_COLORS);
-
 export function WidgetView({ widget, engine, frame, activityId }: {
   widget: DashboardWidget; engine: ReplayEngine; frame: ReplayFrame; activityId: string;
 }): React.JSX.Element {
@@ -18,6 +16,7 @@ export function WidgetView({ widget, engine, frame, activityId }: {
   const lang = i18n.language.startsWith("it") ? "it" : "en";
   const data = resolveWidgetData(engine, frame, widget, activityId, lang);
   const color = WIDGET_COLORS[widget.color];
+  const colors = [color, ...Object.values(WIDGET_COLORS).filter((value) => value !== color)];
   const format = (value: number | null) => formatMetric(value, data.unit, lang);
   const clock = (seconds: number) => new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit" }).format(new Date(engine.startMs + seconds * 1000));
   const points = data.points.map((point) => ({ ...point, label: point.t === undefined ? point.label : clock(point.t) }));
@@ -65,13 +64,13 @@ export function WidgetView({ widget, engine, frame, activityId }: {
   const chartProps = { data: points, accessibilityLayer: false, margin: { top: 12, right: 12, bottom: 0, left: 0 } };
   let chart: React.ReactElement;
   if (widget.kind === "radial") {
-    const radialPoints = points.map((point, index) => ({ ...point, fill: COLORS[index % COLORS.length] }));
+    const radialPoints = points.map((point, index) => ({ ...point, fill: colors[index % colors.length] }));
     chart = <RadialBarChart data={radialPoints} accessibilityLayer={false} innerRadius="20%" outerRadius="90%" startAngle={90} endAngle={-270}>
       <RadialBar dataKey="value" background isAnimationActive={false} /><Tooltip formatter={(value) => format(typeof value === "number" ? value : null)} />
     </RadialBarChart>;
   } else if (widget.kind === "pie" || widget.kind === "donut") {
     chart = <PieChart accessibilityLayer={false}><Pie data={points.filter((point) => point.value > 0)} dataKey="value" nameKey="label" innerRadius={widget.kind === "donut" ? "55%" : 0} outerRadius="85%" isAnimationActive={false}>
-      {points.filter((point) => point.value > 0).map((point, index) => <Cell key={`${point.label}-${index}`} fill={COLORS[index % COLORS.length]} />)}
+      {points.filter((point) => point.value > 0).map((point, index) => <Cell key={`${point.label}-${index}`} fill={colors[index % colors.length]} />)}
     </Pie><Tooltip formatter={(value) => format(typeof value === "number" ? value : null)} /></PieChart>;
   } else if (widget.kind === "bar") {
     chart = <BarChart {...chartProps} layout="vertical" margin={{ left: 0, right: 16, top: 12 }}>
@@ -85,6 +84,9 @@ export function WidgetView({ widget, engine, frame, activityId }: {
 
   return <>
     <div className="sim-widget-chart" aria-hidden="true"><ResponsiveContainer width="100%" height="100%">{chart}</ResponsiveContainer></div>
+    {widget.showLabels && ["pie", "donut", "radial"].includes(widget.kind) && <ul className="sim-widget-legend">
+      {points.map((point, index) => <li key={`${point.label}-${index}`}><span aria-hidden="true" style={{ background: colors[index % colors.length] }} /><span>{point.label}</span><strong>{format(point.value)}</strong></li>)}
+    </ul>}
     <details className="sim-widget-data"><summary>{t("simulation.studio.viewData")}</summary>{table}</details>
   </>;
 }

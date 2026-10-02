@@ -129,3 +129,9 @@
 .sim-canvas-settings .sim-field { margin-block: 8px; }
 .sim-canvas-drag { padding: 8px 2px; cursor: grab; color: var(--muted-foreground); touch-action: none; }
 .sim-canvas-drag:focus-visible, .sim-canvas-settings > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.sim-widget-legend { display: grid; gap: 8px; padding-block: 10px; max-height: 130px; overflow-y: auto; list-style: none; font-size: 11px; }
+.sim-widget-legend li { display: flex; align-items: baseline; gap: 8px; }
+.sim-widget-legend li > span:first-child { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.sim-widget-legend li > span:nth-child(2) { overflow-wrap: anywhere; }
+.sim-widget-legend strong { margin-left: auto; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }

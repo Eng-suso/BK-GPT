@@ -186,3 +186,5 @@ Verifiche locali:
 - Screenshot desktop/mobile esaminati manualmente; Axe senza violazioni WCAG A/AA nel workspace testato. I test usano dati sintetici e non attestano nuove capacità del backend.
 
 La PR include la matrice Playwright nella CI già esistente. Il merge richiede la verifica dei risultati della CI sul commit finale.
+
+Verifica successiva dei grafici circolari: quattro test dedicati superati, uno per browser/viewport, con tutte le undici tipologie di widget e legende controllabili senza hover. La suite UI della simulazione comprende ora 32 test nella matrice completa.

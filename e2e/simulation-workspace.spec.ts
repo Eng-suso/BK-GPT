@@ -223,3 +223,33 @@ test("canvas analytics follow the shared clock, move with the keyboard and survi
   await widget.scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("canvas-analytics.png"), animations: "disabled" });
 });
+
+test("all chart types render and circular charts expose categories without hover", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  await page.goto(`${studio}/dashboard/42`);
+  await seek(page, 300);
+  await page.getByRole("button", { name: "Modifica dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Configura Occupazione delle risorse", exact: true }).click();
+  const inspector = page.getByRole("complementary", { name: "Impostazioni widget" });
+  const widget = page.locator('[data-widget-id="default-3"]');
+  for (const kind of ["line", "area", "bar", "column", "pie", "donut", "gauge", "radial", "kpi", "table", "text"]) {
+    await inspector.getByLabel("Tipo di grafico", { exact: true }).selectOption(kind);
+    await expect(widget).toBeVisible();
+    await expect(widget.locator(".sim-widget-empty")).toHaveCount(0);
+    if (["pie", "donut", "radial"].includes(kind)) {
+      await expect(widget.locator(".sim-widget-legend li")).toHaveCount(2);
+      await expect(widget.locator(".sim-widget-legend")).toContainText("Analisti");
+      await expect(widget.locator(".sim-widget-legend")).toContainText("50%");
+    }
+    if (kind === "table") await expect(widget.locator("tbody")).toContainText("Approvatori");
+  }
+  await inspector.getByLabel("Tipo di grafico", { exact: true }).selectOption("donut");
+  await inspector.getByText("Etichette e stile", { exact: true }).click();
+  await inspector.getByLabel("Mostra etichette e categorie", { exact: true }).uncheck();
+  await expect(widget.locator(".sim-widget-legend")).toHaveCount(0);
+  await inspector.getByLabel("Mostra etichette e categorie", { exact: true }).check();
+  await expect(widget.locator(".sim-widget-legend li")).toHaveCount(2);
+  expect(errors).toEqual([]);
+});
