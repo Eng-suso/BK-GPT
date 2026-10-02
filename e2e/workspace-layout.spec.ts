@@ -193,7 +193,7 @@ for (const [surface, path] of [
       await expect(history).toBeFocused();
     }
     await page.route("**/v1/audio/transcriptions", (route) => route.fulfill({ json: { text: "Trascrizione dimostrativa del processo." } }));
-    await composer.locator('input[type="file"]').setInputFiles({ name: "synthetic-audio.wav", mimeType: "audio/wav", buffer: Buffer.from("synthetic fixture") });
+    await composer.locator('input[type="file"][accept^="audio"]').setInputFiles({ name: "synthetic-audio.wav", mimeType: "audio/wav", buffer: Buffer.from("synthetic fixture") });
     await expect(input).toHaveValue(/Trascrizione dimostrativa del processo\./);
     await expect(composer.getByRole("button", { name: "Invia", exact: true })).toBeInViewport();
     const transcript = page.getByRole("button", { name: "Apri trascrizione", exact: true });

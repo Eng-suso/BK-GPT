@@ -81,7 +81,11 @@
       "livePlaceholder": "Qui compare il testo mentre parli.",
       "finalHeading": "Con chi parla",
       "finalPlaceholder": "Dopo lo stop, qui arriva la trascrizione definitiva, con chi ha detto cosa."
-    }
+    },
+    "addHeading": "Aggiungi",
+    "uploadFile": "Carica un file",
+    "uploadUnavailable": "Apri la chat di un progetto o di un processo per caricare un file.",
+    "waitForUploads": "Aspetta che i file finiscano di caricarsi"
   },
   "status": {
     "historyUnavailable": "Cronologia non disponibile",
@@ -189,7 +193,16 @@
       "confirm": "Allega",
       "count": "{{count}} / {{max}} caratteri",
       "fallbackLabel": "Testo incollato"
-    }
+    },
+    "status": {
+      "uploading": "Caricamento…",
+      "pending": "In lettura…",
+      "done": "Pronta",
+      "partial": "Lettura parziale",
+      "failed": "Non leggibile"
+    },
+    "dismissFailed": "Togli il caricamento non riuscito",
+    "uploadFailed": "Il file non è stato caricato."
   },
   "queue": {
     "title": "Messaggi in coda",

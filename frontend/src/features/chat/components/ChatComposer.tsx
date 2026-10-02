@@ -1,6 +1,21 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUp, Check, FileText, GitBranch, Mic, Paperclip, Plus, Square, Workflow, X } from "lucide-react";
+import {
+  ArrowUp,
+  Check,
+  FileSpreadsheet,
+  FileText,
+  GitBranch,
+  Loader2,
+  Mic,
+  Paperclip,
+  Plus,
+  Presentation,
+  Square,
+  Upload,
+  Workflow,
+  X,
+} from "lucide-react";
 
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
@@ -9,6 +24,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
@@ -25,6 +41,7 @@ import {
   type ReasoningEffort,
 } from "../../../contracts/chat";
 import type { ChatScope } from "../chatScope";
+import { COMPOSER_UPLOAD_ACCEPT, useComposerUploads } from "../hooks/useComposerUploads";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { AutonomySelector, PostureSelector, ReasoningSelector } from "./TurnControls";
 
@@ -172,6 +189,14 @@ const ATTACHMENT_ICONS: Record<ChatAttachmentKind, React.ReactNode> = {
   note: <Paperclip aria-hidden="true" />,
 };
 
+/** L'icona di una fonte caricata, dal tipo di file: si riconosce a colpo d'occhio. */
+function sourceIcon(label: string): React.ReactNode {
+  const extension = label.split(".").pop()?.toLowerCase() ?? "";
+  if (extension === "xlsx" || extension === "csv") return <FileSpreadsheet aria-hidden="true" />;
+  if (extension === "pptx") return <Presentation aria-hidden="true" />;
+  return <FileText aria-hidden="true" />;
+}
+
 const ATTACHMENT_MENU: ChatAttachmentKind[] = [
   "source",
   "process",
@@ -207,6 +232,26 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [pickerKind, setPickerKind] = useState<ChatAttachmentKind | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sourceFileInputRef = useRef<HTMLInputElement>(null);
+  const uploads = useComposerUploads(
+    scope,
+    attachments.some((attachment) => attachment.kind === "source"),
+  );
+  const addAttachment = (attachment: ChatAttachment) =>
+    setAttachments((prev) =>
+      prev.some((item) => chatAttachmentKey(item) === chatAttachmentKey(attachment))
+        ? prev
+        : [...prev, attachment].slice(0, MAX_CHAT_ATTACHMENTS),
+    );
+  // Un file in caricamento occupa gia' il suo posto: a lettura finita diventa
+  // un allegato, e il turno ne accetta al massimo MAX_CHAT_ATTACHMENTS.
+  const freeSlots =
+    MAX_CHAT_ATTACHMENTS -
+    attachments.length -
+    uploads.inFlight.filter((upload) => !upload.error).length;
+  // Un file scelto ma non ancora caricato non e' ancora un allegato: partire
+  // adesso manderebbe il messaggio senza il file.
+  const uploading = uploads.inFlight.some((upload) => !upload.error);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -295,7 +340,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     const content = value.trim();
-    if (!content || isLocked || isRecording) return;
+    if (!content || isLocked || isRecording || uploading) return;
     setValue("");
     setAudioStatus("");
     setFinalTranscript("");
@@ -304,6 +349,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     }
     const sent = attachments;
     setAttachments([]);
+    // Partito il messaggio, i file allegati sono suoi: non si scartano piu'.
+    uploads.keepAll();
     onSubmit?.(content, sent);
   };
 
@@ -667,33 +714,96 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             event.target.value = "";
           }}
         />
+        <input
+          ref={sourceFileInputRef}
+          type="file"
+          accept={COMPOSER_UPLOAD_ACCEPT}
+          multiple
+          hidden
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []).slice(0, Math.max(freeSlots, 0));
+            event.target.value = "";
+            for (const file of files) {
+              void uploads.uploadFile(file).then((attachment) => {
+                if (attachment) addAttachment(attachment);
+              });
+            }
+          }}
+        />
         {/* Sopra il testo, non dentro un menu: quello che stai per mandare deve
-            restare a vista finche' non parte, e si deve poter togliere. */}
-        {attachments.length > 0 && (
+            restare a vista finche' non parte, e si deve poter togliere. Un file
+            caricato porta la sua icona e lo stato della lettura. */}
+        {(attachments.length > 0 || uploads.inFlight.length > 0) && (
           <ul className="composer-chips" aria-label={t("attach.listLabel")}>
-            {attachments.map((attachment) => (
-              <li key={chatAttachmentKey(attachment)} className="composer-chip">
-                <span className="composer-chip-icon">
-                  {ATTACHMENT_ICONS[attachment.kind]}
+            {attachments.map((attachment) => {
+              const status = attachment.kind === "source" ? uploads.statusOf(attachment.id) : null;
+              const failure = status === "failed" ? uploads.failureOf(attachment.id) : null;
+              return (
+                <li key={chatAttachmentKey(attachment)} className="composer-chip">
+                  <span className="composer-chip-icon">
+                    {attachment.kind === "source"
+                      ? sourceIcon(attachment.label)
+                      : ATTACHMENT_ICONS[attachment.kind]}
+                  </span>
+                  <span className="composer-chip-label" title={attachment.label}>
+                    {attachment.label}
+                  </span>
+                  {status ? (
+                    <span
+                      className={cn("composer-chip-status", `is-${status}`)}
+                      role="status"
+                    >
+                      {status === "pending" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
+                      {t(`attach.status.${status}`)}
+                      {/* Il motivo, quando c'e': "Non leggibile" da solo non dice cosa fare. */}
+                      {failure ? `: ${failure}` : null}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="composer-chip-remove"
+                    aria-label={t("attach.remove", { label: attachment.label })}
+                    onClick={() => {
+                      uploads.forget(attachment, () => addAttachment(attachment));
+                      setAttachments((prev) =>
+                        prev.filter(
+                          (item) =>
+                            chatAttachmentKey(item) !== chatAttachmentKey(attachment),
+                        ),
+                      );
+                    }}
+                  >
+                    <X aria-hidden="true" />
+                  </button>
+                </li>
+              );
+            })}
+            {uploads.inFlight.map((upload) => (
+              <li key={upload.tempId} className="composer-chip">
+                <span className="composer-chip-icon">{sourceIcon(upload.name)}</span>
+                <span className="composer-chip-label" title={upload.name}>
+                  {upload.name}
                 </span>
-                <span className="composer-chip-label" title={attachment.label}>
-                  {attachment.label}
-                </span>
-                <button
-                  type="button"
-                  className="composer-chip-remove"
-                  aria-label={t("attach.remove", { label: attachment.label })}
-                  onClick={() =>
-                    setAttachments((prev) =>
-                      prev.filter(
-                        (item) =>
-                          chatAttachmentKey(item) !== chatAttachmentKey(attachment),
-                      ),
-                    )
-                  }
-                >
-                  <X aria-hidden="true" />
-                </button>
+                {upload.error ? (
+                  <>
+                    <span className="composer-chip-status is-failed" role="alert">
+                      {upload.error}
+                    </span>
+                    <button
+                      type="button"
+                      className="composer-chip-remove"
+                      aria-label={t("attach.dismissFailed")}
+                      onClick={() => uploads.dismissFailed(upload.tempId)}
+                    >
+                      <X aria-hidden="true" />
+                    </button>
+                  </>
+                ) : (
+                  <span className="composer-chip-status is-pending" role="status">
+                    <Loader2 aria-hidden="true" className="animate-spin" />
+                    {t("attach.status.uploading")}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -736,10 +846,19 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top">
+                <DropdownMenuLabel>{t("composer.addHeading")}</DropdownMenuLabel>
+                <DropdownMenuItem
+                  disabled={!uploads.canUpload || freeSlots <= 0}
+                  title={uploads.canUpload ? undefined : t("composer.uploadUnavailable")}
+                  onSelect={() => sourceFileInputRef.current?.click()}
+                >
+                  <Upload />
+                  {t("composer.uploadFile")}
+                </DropdownMenuItem>
                 {ATTACHMENT_MENU.map((attachmentKind) => (
                   <DropdownMenuItem
                     key={attachmentKind}
-                    disabled={attachments.length >= MAX_CHAT_ATTACHMENTS}
+                    disabled={freeSlots <= 0}
                     onSelect={() => setPickerKind(attachmentKind)}
                   >
                     {ATTACHMENT_ICONS[attachmentKind]}
@@ -816,9 +935,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               variant={isBusy ? "outline" : "default"}
               size="sm"
               onClick={isBusy ? onStop : undefined}
-              disabled={isBusy ? !onStop : isLocked || isRecording || !value.trim()}
+              disabled={isBusy ? !onStop : isLocked || isRecording || uploading || !value.trim()}
               aria-label={isBusy ? t("composer.stopAgent") : t("composer.send")}
-              title={isBusy ? t("composer.stopAgentHint") : t("composer.sendHint")}
+              title={
+                isBusy
+                  ? t("composer.stopAgentHint")
+                  : uploading
+                    ? t("composer.waitForUploads")
+                    : t("composer.sendHint")
+              }
             >
               <span>{isBusy ? t("composer.stopAgent") : t("composer.send")}</span>
               {isBusy ? <Square /> : <ArrowUp />}
