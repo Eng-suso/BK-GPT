@@ -39,3 +39,19 @@ describe("activity disclosure", () => {
   });
 });
 
+
+describe("allegati del messaggio", () => {
+  it("un messaggio inviato con un file lo mostra nella conversazione", () => {
+    render(
+      <MessageBubble
+        message={{
+          role: "user",
+          content: "Ecco la procedura",
+          attachments: [{ kind: "source", id: "src-1", label: "procedura.pdf" }],
+        }}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "attach.sentLabel" });
+    expect(list).toHaveTextContent("procedura.pdf");
+  });
+});
