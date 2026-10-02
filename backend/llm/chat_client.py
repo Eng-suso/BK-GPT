@@ -27,6 +27,7 @@ from typing import Any
 
 from langchain_openai import ChatOpenAI
 
+from backend.llm.local_tracer import local_callbacks
 from backend.llm.tasks import LlmTask, profile_for
 from backend.llm_config import MissingProviderKey, timeout_for_input
 from backend.settings import (
@@ -104,4 +105,9 @@ def chat_client(
         # risulterebbe da zero token: e' la stessa trappola delle chiamate
         # strutturate, in un'altra forma.
         kwargs["stream_usage"] = True
+    # Come per gli altri compiti: se LangSmith e' spento la traccia la scriviamo
+    # su file, cosi' un turno resta leggibile anche senza il servizio esterno.
+    callbacks = local_callbacks()
+    if callbacks:
+        kwargs["callbacks"] = callbacks
     return DeliRChatOpenAI(**kwargs)

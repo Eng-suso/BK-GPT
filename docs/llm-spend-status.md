@@ -142,8 +142,8 @@ t.5 quella cache non esiste piu' e la lunghezza arriva al gateway esatta.
 | P1.6 | L1 in CI: client del fornitore vietati fuori da `backend/llm/` | **fatto, verificato** (verde su `backend/`, rossa su un file di prova) |
 | L5 | Versione del prompt nel registro | **fatto, verificato** (10 punti di chiamata + test AST che impedisce di dimenticarla) |
 | Lettura | `llm.ledger` + `scripts/llm_spend.py` | **fatto, verificato** |
-| Listino | `LLM_PRICES_JSON` coi prezzi veri | **da fare, e non e' codice**: oggi e' vuoto, quindi ogni riga ha costo NULL |
-| Spesa vera | Una riga nata da una chiamata pagata | **bloccato**: crediti OpenAI esauriti |
+| Listino | `LLM_PRICES_JSON` coi prezzi veri | **fatto** (25/09, prezzi sotto). `.env` e' gitignored: su ogni macchina va rimesso |
+| Spesa vera | Una riga nata da una chiamata pagata | **fatto, verificato** (25/09: $0.0140, copertura 100%) |
 
 **t.1 — aprono l'operazione:** `plan_worker` (PLAN_SYNTHESIS), `conformance_worker`
 (CONFORMANCE_AUDIT), `ingest_worker` (KG_INGESTION) e il turno di chat
@@ -323,6 +323,56 @@ risolveva - il pacchetto e' `ast-grep-cli`, l'eseguibile `ast-grep`:
 uvx --from ast-grep-cli ast-grep scan --rule .coderabbit/ast-grep-rules/<regola>.yml backend/
 ```
 
+### La prima spesa vera, e le tre cose che ha detto
+
+Il 25/09 P1 ha smesso di essere verificato solo come codice.
+`scripts/llm_spend_e2e_reale.py` fa il percorso del prodotto -
+`build_process_understanding` su un'intervista, con giudizio di qualita' - col
+modello vero. Due righe nel registro, **$0.0140, copertura 100%**, ciascuna con
+la versione del suo prompt; e le versioni sono identiche fra due esecuzioni,
+che e' quello che l'hash di un template deve fare.
+
+Il listino e' configurato (`LLM_PRICES_JSON`), prezzi dalla pagina ufficiale
+`developers.openai.com/api/docs/pricing` del 25/09, standard tier, dollari per
+**milione** di token. `.env` e' gitignored, quindi questi numeri stanno qui o si
+perdono:
+
+| modello | input | cached input | output |
+| --- | --- | --- | --- |
+| `gpt-5.6-luna` | 0.20 | 0.02 | 0.75 |
+| `text-embedding-3-small` | 0.02 | — | — |
+| `gpt-4o-transcribe-diarize` | **$0.006 / minuto di audio**, non a token: fuori dal listino apposta |
+
+Tre cose che nessun test col confine di rete finto poteva dire:
+
+**1. Una stima a priori sbaglia di un ordine di grandezza.** Stimando i token
+dall'intervista (1.244 caratteri, ~311 token) veniva $0.0011. Il registro ne ha
+contati **21.386 in ingresso**: dodici volte tanto. L'input non e' la fonte,
+sono il prompt di sistema, lo schema di risposta e - per il giudizio di qualita'
+- il piano gia' estratto che si rilegge. **Per P3 questo e' un vincolo di
+progetto**: una prenotazione di budget calcolata sulla lunghezza dell'input
+sarebbe sbagliata di 12x, e va calcolata sul prompt assemblato o su una media
+misurata per compito.
+
+**2. L'esperimento su `reasoning_effort` va ripensato.** §③.3 diceva che il
+default `medium` su sette compiti e' spreco, e che il primo esperimento e'
+abbassarlo. I primi numeri veri dicono altro:
+
+    plan_extraction   effort=medium   ragionamento  2% di 21.838 token di uscita
+    plan_quality      effort=low      ragionamento 12% di  3.275 token di uscita
+
+Su `plan_extraction` il ragionamento e' **il 2%**: abbassare l'effort li' non
+libererebbe quasi niente, perche' la spesa non e' nel ragionamento - e' nei
+21.838 token di **uscita strutturata**, piu' i 21.386 in ingresso. La leva vera
+su questo compito e' la dimensione dello schema e del prompt, non l'effort.
+L'ipotesi del piano non e' falsa in generale, ma non vale dove pensavamo: va
+verificata compito per compito, ed e' proprio a questo che serve il registro.
+
+**3. Il tracing satura e va spento.** Il tenant LangSmith ha superato il limite
+mensile di 5.000 tracce: ogni chiamata produce un muro di 429. Non fa cadere il
+lavoro, ma rende illeggibile qualsiasi output ed e' latenza pagata per niente.
+E' P0.5, che era gia' in attesa, e lo script se lo spegne da solo.
+
 ### Quello che l'e2e ha trovato, e che nessun test unitario poteva trovare
 
 `tests/test_llm_spend_e2e.py` fa il percorso vero - coda, worker, embedding,
@@ -493,6 +543,17 @@ nella chiave - e se ne serve uno che forzi la rilettura.
 le righe dicono ancora "da fare/bloccato" perche' la verifica non e' in questo
 branch. Le aggiorna chi ha il numero in mano.
 
+**Ancora aperto da P1: il ricalcolo sul database di produzione.** Il listino e'
+arrivato dopo le prime righe, e il costo si materializza alla scrittura: tutto
+quello che e' girato prima del 25/09 ha `cost_estimate` NULL. Si recupera con
+
+    uv run python scripts/llm_spend.py ricalcola            # prova
+    uv run python scripts/llm_spend.py ricalcola --applica
+
+sul database **workspace di produzione**, non su quello di un worktree. Il
+tracing dei test invece e' risolto: scrivono su file (`local_tracer`,
+[`tracing.md`](tracing.md)), LangSmith resta al prodotto.
+
 **Non ancora P3** (budget con prenotazione e saldo): servono due settimane di
 numeri veri, e non e' solo la soglia a dipendere dai dati - la *forma* del
 meccanismo lo e'. Prima di P3 va deciso anche il tenant del registro (§③.6), che
@@ -654,7 +715,49 @@ Un pezzo non si dichiara fatto se i suoi test non sono verdi. E la riga di §①
 dice **quali** gate sono girati: "verificato" senza dire su cosa non serve a chi
 arriva dopo.
 
+## ④ter Lavorare da una PR, senza questa macchina
+
+Questo documento e' scritto per essere letto **anche da chi non ha il portatile
+di Sohayb davanti**: un agent nel cloud, o chiunque apra il repo. Vale la pena
+dire cosa trova e cosa no, perche' le due liste non sono ovvie.
+
+**C'e', nel repo:** i piani (questo file, `llm-gateway-plan.md`, `tracing.md`),
+`CLAUDE.md`, le skill in `.claude/skills/`, la configurazione di CodeRabbit con
+le regole ast-grep, tutto il codice e tutti i test. §② dice sempre il prossimo
+passo: e' il punto da cui partire, non il piano congelato.
+
+**Non c'e', ed e' voluto:**
+
+- **`.env`.** Contiene chiavi, DSN e il listino. Chi lavora da fuori non lo ha e
+  non deve averlo. I **prezzi** pero' servono a leggere il registro, quindi
+  stanno in §① di questo file: si ricopiano in `LLM_PRICES_JSON` e bastano;
+- **i database.** Postgres e Neo4j girano in container su quella macchina. Da
+  una PR non servono: **la CI li ha** (`.github/workflows/ci.yml` li alza come
+  servizi), quindi i test veri girano li'. E' la differenza fra «non posso
+  verificare» e «verifico aprendo una PR»;
+- **la memoria dell'agente.** Vive in `~/.claude/projects/.../memory/`, fuori dal
+  repo, e ci resta: il repo e' pubblico e quelle note citano clienti veri. Se un
+  fatto serve a chi continua il lavoro, il posto giusto e' questo documento -
+  che infatti e' dove sono finiti i numeri veri, le trappole d'ambiente e le
+  decisioni.
+
+**Il gesto, da remoto:** branch dal main, commit, push, PR. CI e CodeRabbit
+girano sulla PR e dicono se regge; il merge lo decide chi guarda. Quello che
+**non** si puo' fare da remoto e' l'ultima verifica di P1 - una chiamata pagata
+davvero - perche' vuole una chiave vera: quella resta un gesto su una macchina
+con `.env`.
+
+---
+
 ## ⑤ Ambiente: cose che fanno perdere un'ora
+
+**Le tracce non vanno su LangSmith quando giri i test, ed e' voluto.** La quota
+e' di 5.000 tracce al mese e i test ne avevano bruciate 5.069 in sei giorni,
+lasciando il prodotto senza osservabilita' per il resto del mese. Adesso i test
+scrivono su file (`data/traces/`) e LangSmith resta al prodotto. Chi cerca «dove
+sono finite le mie tracce» trova tutto in [docs/tracing.md](tracing.md),
+manopole comprese.
+
 
 **Il worktree non ha `.env`.** E' gitignorato, quindi un worktree nuovo nasce
 senza. Senza `WORKSPACE_DATABASE_URL` **ogni** test va in errore (non skip):
@@ -752,6 +855,8 @@ trova la chiave a `None` e falla.
 | 2026-09-25 | P1.6: regola ast-grep L1 (`severity: error`), verificata verde su `backend/` e rossa su un file di prova; comando del README corretto | `chore/llm-code` |
 | 2026-09-25 | Lettura del registro: `llm.ledger` + `scripts/llm_spend.py`; ogni totale dichiara la sua copertura di prezzo. KPI costo-per-AS-IS calcolabile: l'evento di validazione esisteva gia' | `chore/llm-ledger-read` |
 | 2026-09-25 | L5: `prompt_version` su 10 punti di chiamata, hash del template (schema compreso), test AST che impedisce di dimenticarla | `chore/llm-ledger-read` |
+| 2026-09-25 | Listino configurato (prezzi ufficiali) e **prima spesa vera nel registro**: $0.0140, copertura 100%. Stima a priori sbagliata di 12x, ragionamento al 2% su plan_extraction | `chore/llm-ledger-read` |
+| 2026-09-25 | Tracing diviso: i test scrivono su file (`local_tracer`), LangSmith resta al prodotto. I test avevano bruciato la quota mensile in sei giorni. Ponte spesa-traccia via `operation_id` | `chore/llm-ledger-read` |
 | 2026-09-26 | P2.1: impronta del testo sulla fonte, identita' del set che segue il contenuto (migrazione `0015`) | `69d2755` |
 | 2026-09-26 | P2.2: piano parziale come artefatto, `cache_hit` nel registro (migrazione `0016`) | `93ff6ef` |
 | 2026-09-26 | P2.3: revisore di conformita' che eredita l'operazione (non leggeva in produzione) + verdetto come artefatto (migrazione `0017`) | `4b553eb` |
