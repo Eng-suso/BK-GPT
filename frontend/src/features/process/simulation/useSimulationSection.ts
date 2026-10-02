@@ -48,7 +48,7 @@ export function formatRunOption(run: SimulationRun, lang: "it" | "en"): string {
         hour: "2-digit",
         minute: "2-digit",
       })}`;
-  return `${run.scenario_name}${date}`;
+  return `${run.scenario_name}${date} · #${run.id}`;
 }
 
 /**

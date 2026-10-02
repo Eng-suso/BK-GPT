@@ -9,6 +9,12 @@ export type WidgetKind = typeof KINDS[number];
 export type Metric = typeof METRICS[number];
 export type Unit = "count" | "rate" | "currency" | "duration" | "percent";
 
+export const canvasRectSchema = z.object({
+  x: z.number().finite().min(-10000).max(10000), y: z.number().finite().min(-10000).max(10000),
+  width: z.number().finite().min(280).max(2400), height: z.number().finite().min(240).max(1600),
+});
+export type CanvasRect = z.infer<typeof canvasRectSchema>;
+
 export const widgetSchema = z.object({
   id: z.string().min(1).max(80),
   title: z.string().max(120),
@@ -22,11 +28,13 @@ export const widgetSchema = z.object({
   activityId: z.string().max(200).default(""),
   showLabels: z.boolean(),
   color: z.enum(["blue", "amber", "teal", "violet"]),
+  canvas: canvasRectSchema.optional(),
 });
 export type DashboardWidget = z.infer<typeof widgetSchema>;
 export const layoutSchema = z.object({
   version: z.literal(1),
   process: z.object({
+    canvas: canvasRectSchema.optional(),
     groupId: z.string().max(80), beforeId: z.string().max(80).nullable(),
     width: z.enum(["half", "full"]), height: z.number().int().min(340).max(720),
   }).default({ groupId: "", beforeId: "__first__", width: "half", height: 440 }),
@@ -48,9 +56,9 @@ export function createWidget(kind: WidgetKind, id: string = crypto.randomUUID())
 
 export function defaultLayout(): DashboardLayout {
   const spec: [WidgetKind, Metric, DashboardWidget["color"]][] = [
-    ["area", "active", "blue"], ["line", "throughput", "teal"],
-    ["bar", "activityQueued", "amber"], ["column", "resourceBusy", "violet"],
-    ["area", "cost", "teal"], ["line", "cycle", "violet"],
+    ["area", "active", "blue"], ["line", "throughput", "blue"],
+    ["bar", "activityQueued", "amber"], ["column", "resourceBusy", "blue"],
+    ["area", "cost", "blue"], ["line", "cycle", "blue"],
   ];
   return { version: 1, process: { groupId: "operations", beforeId: "default-0", width: "half", height: 440 }, groups: [{ id: "operations", title: "", widgets: spec.map(([kind, metric, color], index) => ({
     ...createWidget(kind, `default-${index}`), metric, color,
