@@ -369,6 +369,29 @@ def test_a_file_that_kills_the_worker_does_not_come_back_forever(http: TestClien
     assert listed[created["id"]]["acquisition_status"] == "failed"
 
 
+def test_another_tenant_cannot_touch_an_uploaded_source(http: TestClient):
+    project, _ = _project(http)
+    created = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={
+            "roles": '["context"]',
+            "retention": "persistent",
+            "scopes": f'[{{"type":"project","id":"{project["id"]}"}}]',
+        },
+        files={"file": (f"riservato-{uuid.uuid4().hex[:6]}.txt", b"Dati riservati.", "text/plain")},
+    ).json()
+
+    stranger = f"ingest-{uuid.uuid4().hex[:10]}"
+    with TestClient(app, headers={"X-DeliR-Tenant-ID": stranger}) as other:
+        assert other.post(f"/v1/workspace/sources/{created['id']}/verify").status_code == 404
+        assert other.get(f"/v1/workspace/sources/{created['id']}/evidence").status_code == 404
+        assert other.get(f"/v1/workspace/sources/{created['id']}/original").status_code == 404
+        assert other.delete(f"/v1/workspace/sources/{created['id']}").status_code == 404
+
+    # e per il suo tenant la fonte c'e' ancora
+    assert http.get(f"/v1/workspace/sources/{created['id']}/evidence").status_code == 200
+
+
 def _one_paragraph():
     from docling_core.types.doc import DocItemLabel, DoclingDocument
 
