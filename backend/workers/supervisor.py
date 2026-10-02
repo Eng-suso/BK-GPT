@@ -32,7 +32,8 @@ _PRUNE_EVERY_SECONDS = 3600.0
 # con meno posti che loop, una passata lenta - la sintesi di un piano dura
 # quanto dura un LLM - terrebbe fermi gli altri worker senza che nessuno lo
 # veda, e il sintomo sarebbe una coda che non avanza.
-_LOOPS = 4
+# plan, conformance, source, ingest, graph, mem0.
+_LOOPS = 6
 _EXECUTOR = ThreadPoolExecutor(max_workers=_LOOPS, thread_name_prefix="queue-worker")
 
 _T = TypeVar("_T")
@@ -93,7 +94,7 @@ async def run_queue_workers() -> None:
         logger.info("worker in-process disattivati (workers_in_process=False)")
         return
 
-    from backend.workers import conformance_worker, plan_worker
+    from backend.workers import conformance_worker, plan_worker, source_worker
 
     # Il piano vive nel workspace operativo, non nel canonical: la sua coda deve
     # girare anche dove il knowledge graph non e' configurato. Metterla insieme
@@ -118,14 +119,24 @@ async def run_queue_workers() -> None:
         name="conformance_worker",
     )
 
+    # La lettura delle fonti caricate vive nel workspace operativo, come il
+    # piano: deve girare anche senza knowledge graph.
+    source_task = asyncio.create_task(
+        _drain_loop(
+            "source_worker", source_worker.drain_once, source_worker.queue_stats, 3.0,
+        ),
+        name="source_worker",
+    )
+
     if not settings.canonical_worker_url:
-        logger.info("canonical non configurato: avviati plan_worker e conformance_worker")
+        logger.info("canonical non configurato: avviati plan_worker, conformance_worker e source_worker")
+        workspace_tasks = [plan_task, conformance_task, source_task]
         try:
-            await asyncio.gather(plan_task, conformance_task)
+            await asyncio.gather(*workspace_tasks)
         except asyncio.CancelledError:
-            plan_task.cancel()
-            conformance_task.cancel()
-            await asyncio.gather(plan_task, conformance_task, return_exceptions=True)
+            for task in workspace_tasks:
+                task.cancel()
+            await asyncio.gather(*workspace_tasks, return_exceptions=True)
             raise
         return
 
@@ -134,6 +145,7 @@ async def run_queue_workers() -> None:
     tasks = [
         plan_task,
         conformance_task,
+        source_task,
         asyncio.create_task(
             _drain_loop(
                 "ingest_worker", ingest_worker.drain_once, ingest_worker.queue_stats,
@@ -156,7 +168,7 @@ async def run_queue_workers() -> None:
             name="mem0_worker",
         ),
     ]
-    logger.info("worker in-process avviati (plan + conformance + ingest + graph + mem0)")
+    logger.info("worker in-process avviati (plan + conformance + source + ingest + graph + mem0)")
     try:
         await asyncio.gather(*tasks)
     except asyncio.CancelledError:
