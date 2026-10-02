@@ -14,7 +14,7 @@ export function WidgetView({ widget, engine, frame, activityId }: {
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language.startsWith("it") ? "it" : "en";
-  const data = resolveWidgetData(engine, frame, widget, activityId, lang);
+  const data = resolveWidgetData(engine, frame, widget, widget.activityId || activityId, lang);
   const color = WIDGET_COLORS[widget.color];
   const colors = [color, ...Object.values(WIDGET_COLORS).filter((value) => value !== color)];
   const format = (value: number | null) => formatMetric(value, data.unit, lang);

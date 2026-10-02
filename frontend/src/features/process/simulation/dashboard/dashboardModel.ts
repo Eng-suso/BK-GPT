@@ -19,12 +19,17 @@ export const widgetSchema = z.object({
   metricExpression: z.string().max(512).default(""),
   target: z.number().positive().finite(),
   followFilter: z.boolean(),
+  activityId: z.string().max(200).default(""),
   showLabels: z.boolean(),
   color: z.enum(["blue", "amber", "teal", "violet"]),
 });
 export type DashboardWidget = z.infer<typeof widgetSchema>;
 export const layoutSchema = z.object({
   version: z.literal(1),
+  process: z.object({
+    groupId: z.string().max(80), beforeId: z.string().max(80).nullable(),
+    width: z.enum(["half", "full"]), height: z.number().int().min(340).max(720),
+  }).default({ groupId: "", beforeId: "__first__", width: "half", height: 440 }),
   groups: z.array(z.object({
     id: z.string().min(1).max(80),
     title: z.string().max(120),
@@ -38,7 +43,7 @@ export type DashboardLayout = z.infer<typeof layoutSchema>;
 
 export function createWidget(kind: WidgetKind, id: string = crypto.randomUUID()): DashboardWidget {
   return { id, title: "", kind, metric: ["bar", "column", "pie", "donut", "radial"].includes(kind) ? "activityQueued" : "completed",
-    width: "half", metricExpression: "", text: "**${metric}**", target: 100, followFilter: true, showLabels: true, color: "blue" };
+    width: "half", activityId: "", metricExpression: "", text: "**${metric}**", target: 100, followFilter: true, showLabels: true, color: "blue" };
 }
 
 export function defaultLayout(): DashboardLayout {
@@ -47,7 +52,7 @@ export function defaultLayout(): DashboardLayout {
     ["bar", "activityQueued", "amber"], ["column", "resourceBusy", "violet"],
     ["area", "cost", "teal"], ["line", "cycle", "violet"],
   ];
-  return { version: 1, groups: [{ id: "operations", title: "", widgets: spec.map(([kind, metric, color], index) => ({
+  return { version: 1, process: { groupId: "operations", beforeId: "default-0", width: "half", height: 440 }, groups: [{ id: "operations", title: "", widgets: spec.map(([kind, metric, color], index) => ({
     ...createWidget(kind, `default-${index}`), metric, color,
   })) }] };
 }
@@ -102,7 +107,7 @@ export function widgetData(engine: ReplayEngine, frame: ReplayFrame, metric: Met
 
 /** Numeric formulas keep the source metric's unit and use only observed data. */
 export function resolveWidgetData(engine: ReplayEngine, frame: ReplayFrame, widget: DashboardWidget, activityId: string, lang: "it" | "en") {
-  const data = widgetData(engine, frame, widget.metric, widget.followFilter ? activityId : "all");
+  const data = widgetData(engine, frame, widget.metric, widget.activityId || (widget.followFilter ? activityId : "all"));
   if (!widget.metricExpression.trim()) return { ...data, expressionValid: true };
   const calculate = (metric: number, bucket: number) => {
     const total = (engine.payload.series.global.wip?.[bucket] ?? 0) + (engine.payload.series.global.done?.[bucket] ?? 0);

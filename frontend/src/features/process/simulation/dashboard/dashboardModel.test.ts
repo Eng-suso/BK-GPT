@@ -66,3 +66,25 @@ it("computes numeric KPI formulas at each observed time and preserves existing l
   const legacy = { ...layout, groups: layout.groups.map((group) => ({ ...group, widgets: group.widgets.map((widget) => { const rest: Record<string, unknown> = { ...widget }; delete rest.metricExpression; return rest; }) })) };
   expect(layoutSchema.parse(legacy).groups[0].widgets[0].metricExpression).toBe("");
 });
+
+
+it("migrates a saved dashboard without losing widgets or activity settings", () => {
+  const { process: ignored, ...legacy } = defaultLayout();
+  void ignored;
+  const parsed = layoutSchema.parse({ ...legacy, groups: legacy.groups.map((group) => ({ ...group, widgets: group.widgets.map((widget) => { const { activityId: unused, ...old } = widget; void unused; return old; }) })) });
+  expect(parsed.groups[0].widgets.map((widget) => widget.id)).toEqual(legacy.groups[0].widgets.map((widget) => widget.id));
+  expect(parsed.process.beforeId).toBe("__first__");
+  expect(parsed.groups[0].widgets[0].activityId).toBe("");
+});
+
+it("keeps an explicitly bound activity independent from the current selection", () => {
+  const engine = new ReplayEngine({
+    schemaVersion: 1, meta: { start: "2026-01-01T00:00:00Z", durationSec: 100, totalCases: 4, sampledCases: 0, bucketSec: 100 },
+    elements: { A: { name: "Review" }, B: { name: "Approve" } }, cases: [], flows: {},
+    series: { t: [0, 100], global: {}, byResource: {}, byElement: { A: { queued: [2, 0], active: [0, 0], done: [0, 0] }, B: { queued: [4, 1], active: [0, 0], done: [0, 0] } } },
+  });
+  const widget = { ...createWidget("kpi"), metric: "activityQueued" as const, activityId: "A", followFilter: false };
+  expect(resolveWidgetData(engine, engine.getFrame(), widget, "B", "en").value).toBe(2);
+  engine.seek(100);
+  expect(resolveWidgetData(engine, engine.getFrame(), widget, "B", "en").value).toBe(0);
+});
