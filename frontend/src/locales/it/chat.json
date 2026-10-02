@@ -84,7 +84,6 @@
     },
     "addHeading": "Aggiungi",
     "uploadFile": "Carica un file",
-    "uploadUnavailable": "Apri la chat di un progetto o di un processo per caricare un file.",
     "waitForUploads": "Aspetta che i file finiscano di caricarsi"
   },
   "status": {
@@ -414,6 +413,24 @@
     "manual": {
       "label": "Manuale",
       "hint": "DeliR propone e spiega, non scrive niente."
+    }
+  },
+  "upload": {
+    "destination": {
+      "title": "Dove va questo file?",
+      "description": "La chat del consulente non ha un progetto: scegli dove metterlo prima di caricarlo.",
+      "project": "Progetto",
+      "chooseProject": "Scegli un progetto",
+      "loading": "Carico i progetti…",
+      "process": "Processo",
+      "wholeProject": "Tutto il progetto",
+      "asEvidence": "Diventa evidenza di questo processo, dopo la tua conferma.",
+      "asContext": "Diventa contesto del progetto.",
+      "loadFailed": "Impossibile leggere i progetti.",
+      "cancel": "Annulla",
+      "choose": "Scegli il file",
+      "change": "Cambia destinazione",
+      "label": "In: {{place}}"
     }
   }
 }

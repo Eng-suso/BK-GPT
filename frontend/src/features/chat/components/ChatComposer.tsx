@@ -41,7 +41,12 @@ import {
   type ReasoningEffort,
 } from "../../../contracts/chat";
 import type { ChatScope } from "../chatScope";
-import { COMPOSER_UPLOAD_ACCEPT, useComposerUploads } from "../hooks/useComposerUploads";
+import {
+  COMPOSER_UPLOAD_ACCEPT,
+  useComposerUploads,
+  type UploadDestination,
+} from "../hooks/useComposerUploads";
+import { UploadDestinationDialog } from "./UploadDestinationDialog";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { AutonomySelector, PostureSelector, ReasoningSelector } from "./TurnControls";
 
@@ -233,10 +238,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const [pickerKind, setPickerKind] = useState<ChatAttachmentKind | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceFileInputRef = useRef<HTMLInputElement>(null);
-  const uploads = useComposerUploads(
-    scope,
-    attachments.some((attachment) => attachment.kind === "source"),
-  );
+  // Solo nella chat del consulente: dove vanno i file, scelto prima di caricare.
+  const [destination, setDestination] = useState<UploadDestination | null>(null);
+  const [isChoosingDestination, setIsChoosingDestination] = useState(false);
+  const hasSourceAttachments = attachments.some((attachment) => attachment.kind === "source");
+  const uploads = useComposerUploads(scope, hasSourceAttachments, destination);
   const addAttachment = (attachment: ChatAttachment) =>
     setAttachments((prev) =>
       prev.some((item) => chatAttachmentKey(item) === chatAttachmentKey(attachment))
@@ -848,13 +854,28 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               <DropdownMenuContent align="start" side="top">
                 <DropdownMenuLabel>{t("composer.addHeading")}</DropdownMenuLabel>
                 <DropdownMenuItem
-                  disabled={!uploads.canUpload || freeSlots <= 0}
-                  title={uploads.canUpload ? undefined : t("composer.uploadUnavailable")}
-                  onSelect={() => sourceFileInputRef.current?.click()}
+                  disabled={freeSlots <= 0 || (!uploads.canUpload && !uploads.needsDestination)}
+                  onSelect={() =>
+                    uploads.canUpload
+                      ? sourceFileInputRef.current?.click()
+                      : setIsChoosingDestination(true)
+                  }
                 >
                   <Upload />
-                  {t("composer.uploadFile")}
+                  {destination?.label
+                    ? `${t("composer.uploadFile")} · ${t("upload.destination.label", { place: destination.label })}`
+                    : t("composer.uploadFile")}
                 </DropdownMenuItem>
+                {uploads.needsDestination && destination ? (
+                  // I file gia' allegati stanno nella destinazione di prima: finche'
+                  // ci sono, la destinazione non cambia.
+                  <DropdownMenuItem
+                    disabled={hasSourceAttachments || uploads.inFlight.length > 0}
+                    onSelect={() => setIsChoosingDestination(true)}
+                  >
+                    {t("upload.destination.change")}
+                  </DropdownMenuItem>
+                ) : null}
                 {ATTACHMENT_MENU.map((attachmentKind) => (
                   <DropdownMenuItem
                     key={attachmentKind}
@@ -951,6 +972,21 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           </div>
         </div>
       </form>
+      {uploads.needsDestination ? (
+        <UploadDestinationDialog
+          // Rimontato a ogni apertura: riparte dall'ultima scelta.
+          key={isChoosingDestination ? "open" : "closed"}
+          open={isChoosingDestination}
+          initial={destination}
+          onClose={() => setIsChoosingDestination(false)}
+          onConfirm={(chosen) => {
+            setDestination(chosen);
+            setIsChoosingDestination(false);
+            sourceFileInputRef.current?.click();
+          }}
+        />
+      ) : null}
+
       <AttachmentPicker
         kind={pickerKind}
         scope={scope}

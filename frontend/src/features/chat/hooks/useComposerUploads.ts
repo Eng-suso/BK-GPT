@@ -20,29 +20,47 @@ export const COMPOSER_UPLOAD_ACCEPT = ".pdf,.docx,.xlsx,.csv,.pptx,.txt,.md";
 
 type UploadTarget = { projectId: string; scopes: SourceScope[]; roles: SourceRole[] };
 
+/** Dove mettere un file quando la chat non lo dice: un progetto, e forse un suo processo. */
+export type UploadDestination = {
+  projectId: string;
+  processId?: string | null;
+  /** Come la destinazione si legge nel menu: "Acquisti · Procure to pay". */
+  label?: string;
+};
+
 /**
- * Dove finisce un file caricato da questa chat.
- *
- * Il ruolo non si chiede prima: in una chat di processo un file e' evidenza di
- * come si lavora, in una di progetto e' contesto. La chat del consulente non
- * ha un progetto, quindi non carica (serve scegliere dove: e' P1.16).
+ * Il ruolo non si chiede prima: un file messo in un processo e' evidenza di
+ * come si lavora, uno messo in un progetto e' contesto.
  */
-function uploadTarget(scope: ChatScope): UploadTarget | null {
-  if (scope.type === "process" || scope.type === "canvas") {
+function targetFor(destination: UploadDestination): UploadTarget {
+  if (destination.processId) {
     return {
-      projectId: scope.projectId,
-      scopes: [{ type: "process", id: scope.processId }],
+      projectId: destination.projectId,
+      scopes: [{ type: "process", id: destination.processId }],
       roles: ["process_evidence"],
     };
   }
-  if (scope.type === "project") {
-    return {
-      projectId: scope.projectId,
-      scopes: [{ type: "project", id: scope.projectId }],
-      roles: ["context"],
-    };
+  return {
+    projectId: destination.projectId,
+    scopes: [{ type: "project", id: destination.projectId }],
+    roles: ["context"],
+  };
+}
+
+/**
+ * Dove finisce un file caricato da questa chat.
+ *
+ * Le chat di progetto, processo e canvas lo sanno da sole. La chat del
+ * consulente no: li' il consulente sceglie la destinazione prima di caricare.
+ */
+function uploadTarget(scope: ChatScope, chosen: UploadDestination | null): UploadTarget | null {
+  if (scope.type === "process" || scope.type === "canvas") {
+    return targetFor({ projectId: scope.projectId, processId: scope.processId });
   }
-  return null;
+  if (scope.type === "project") {
+    return targetFor({ projectId: scope.projectId });
+  }
+  return chosen ? targetFor(chosen) : null;
 }
 
 export type ComposerUpload = { tempId: string; name: string; error: string | null };
@@ -59,9 +77,13 @@ export type ComposerUpload = { tempId: string; name: string; error: string | nul
  * Togliere la card prima dell'invio scarta il file solo se questo caricamento
  * lo ha creato: se c'era gia' tra le Fonti, resta.
  */
-export function useComposerUploads(scope: ChatScope, hasSourceAttachments: boolean) {
+export function useComposerUploads(
+  scope: ChatScope,
+  hasSourceAttachments: boolean,
+  chosen: UploadDestination | null = null,
+) {
   const { t } = useTranslation("chat");
-  const target = uploadTarget(scope);
+  const target = uploadTarget(scope, chosen);
   const upload = useUploadProjectSourceMutation(target?.projectId ?? "");
   const sources = useProjectSourcesQuery(target?.projectId ?? "", {
     enabled: Boolean(target) && hasSourceAttachments,
@@ -139,6 +161,8 @@ export function useComposerUploads(scope: ChatScope, hasSourceAttachments: boole
 
   return {
     canUpload: target !== null,
+    /** La chat non dice dove va il file: va scelto prima di caricare. */
+    needsDestination: scope.type === "consultant",
     inFlight,
     uploadFile,
     dismissFailed,

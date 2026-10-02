@@ -84,7 +84,6 @@
     },
     "addHeading": "Add",
     "uploadFile": "Upload a file",
-    "uploadUnavailable": "Open a project or process chat to upload a file.",
     "waitForUploads": "Wait for the files to finish uploading"
   },
   "status": {
@@ -414,6 +413,24 @@
     "manual": {
       "label": "Manual",
       "hint": "DeliR proposes and explains, writes nothing."
+    }
+  },
+  "upload": {
+    "destination": {
+      "title": "Where does this file go?",
+      "description": "The consultant chat has no project: choose where to put it before uploading.",
+      "project": "Project",
+      "chooseProject": "Choose a project",
+      "loading": "Loading projects…",
+      "process": "Process",
+      "wholeProject": "Whole project",
+      "asEvidence": "Becomes evidence for this process, once you confirm it.",
+      "asContext": "Becomes project context.",
+      "loadFailed": "Projects could not be loaded.",
+      "cancel": "Cancel",
+      "choose": "Choose the file",
+      "change": "Change destination",
+      "label": "In: {{place}}"
     }
   }
 }
