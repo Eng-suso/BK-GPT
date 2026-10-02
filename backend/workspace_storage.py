@@ -239,6 +239,11 @@ class WorkspaceSimulationRunArtifact(WorkspaceBase):
 
 class WorkspaceSource(WorkspaceBase):
     __tablename__ = "workspace_sources"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "project_id", "ingestion_key", name="uq_workspace_source_ingestion"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
@@ -247,6 +252,10 @@ class WorkspaceSource(WorkspaceBase):
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
     meta: Mapped[str] = mapped_column(String, nullable=False)
+    roles_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    retention: Mapped[str] = mapped_column(String, nullable=False, default="persistent")
+    scopes_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="reference")
     # L'impronta del testo di questa fonte, dichiarata da chi l'ha scritta. Il
     # testo vive nella memoria episodica, non qui: questa colonna e' il segnale
     # di cambiamento, ed e' l'unica cosa che lo sweep dei piani indietro puo'
@@ -255,7 +264,68 @@ class WorkspaceSource(WorkspaceBase):
     # NULL significa "non si sa", che non e' "vuota": le fonti registrate prima
     # di questa colonna non dichiarano niente, e l'identita' del set le tratta
     # come prima invece di inventare un'impronta che non hanno.
-    content_hash: Mapped[str | None] = mapped_column(String)
+    #
+    # Per un file caricato e' lo SHA-256 dei byte originali: lo stesso file
+    # ricaricato nello stesso progetto ritrova la sua fonte invece di duplicarla.
+    content_hash: Mapped[str | None] = mapped_column(String, index=True)
+    byte_size: Mapped[int | None] = mapped_column(Integer)
+    mime_type: Mapped[str | None] = mapped_column(String)
+    storage_key: Mapped[str | None] = mapped_column(String)
+    extracted_text: Mapped[str | None] = mapped_column(Text)
+    parser: Mapped[str | None] = mapped_column(String)
+    ingestion_key: Mapped[str | None] = mapped_column(String)
+    # L'acquisizione del file caricato, fatta dal worker (`source_worker`).
+    # `None` per le fonti senza file (create dalla chat). `pending | done |
+    # partial | failed`: niente `running`, la presa in carico e' una scadenza in
+    # `acquisition_next_attempt_at`, come nella coda dei piani.
+    acquisition_status: Mapped[str | None] = mapped_column(String)
+    acquisition_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    acquisition_next_attempt_at: Mapped[str | None] = mapped_column(String)
+    acquisition_error: Mapped[str | None] = mapped_column(Text)
+
+
+class WorkspaceSourceEvidence(WorkspaceBase):
+    """La rappresentazione canonica di una fonte: l'Evidence Bucket.
+
+    Una riga per fonte, riscritta a ogni acquisizione. `content_hash` dice da
+    quale versione del file viene: se il file cambia, queste evidenze descrivono
+    un'altra versione e vanno riacquisite.
+    """
+
+    __tablename__ = "workspace_source_evidence"
+
+    source_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_sources.id", ondelete="CASCADE"), primary_key=True
+    )
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    schema_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    format: Mapped[str] = mapped_column(String, nullable=False)
+    parser: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String, nullable=False)
+    structure_json: Mapped[str] = mapped_column(Text, nullable=False)
+    issues_json: Mapped[str] = mapped_column(Text, nullable=False)
+    acquired_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkspaceEvidenceSegment(WorkspaceBase):
+    """Una porzione citabile di una fonte, con la sua ancora (`Ordini!B7`, `#/texts/12`)."""
+
+    __tablename__ = "workspace_evidence_segments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    anchor_kind: Mapped[str] = mapped_column(String, nullable=False)
+    anchor_ref: Mapped[str] = mapped_column(String, nullable=False)
+    locator_json: Mapped[str] = mapped_column(Text, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    value_type: Mapped[str] = mapped_column(String, nullable=False)
+    value_json: Mapped[str | None] = mapped_column(Text)
+    attributes_json: Mapped[str] = mapped_column(Text, nullable=False)
 
 
 class WorkspacePlanMaterialization(WorkspaceBase):

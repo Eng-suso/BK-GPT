@@ -129,7 +129,9 @@ def source_document(source_id: str) -> dict | None:
     if source is None:
         return None
 
-    episode = _matching_episode(
+    record = workspace_database.get_project_source_record(source_id)
+    uploaded_text = (record.extracted_text or "").strip() if record else ""
+    episode = None if uploaded_text else _matching_episode(
         source["project_id"], source.get("process_id"), source["name"]
     )
     detail = (
@@ -139,7 +141,7 @@ def source_document(source_id: str) -> dict | None:
         if episode
         else None
     ) or {}
-    content = str(detail.get("source_text") or "").strip()
+    content = uploaded_text or str(detail.get("source_text") or "").strip()
 
     return {
         "id": source["id"],

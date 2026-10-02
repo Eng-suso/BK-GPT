@@ -76,6 +76,15 @@ export async function http<T>(path: string, options: HttpOptions = {}): Promise<
   return (await response.json()) as T;
 }
 
+/** Authenticated binary download using the same error handling as JSON calls. */
+export async function httpBlob(path: string, options: HttpOptions = {}): Promise<Blob> {
+  const response = await buildRequest(path, options);
+  if (!response.ok) {
+    await raise(response);
+  }
+  return response.blob();
+}
+
 /** Una pagina di elenco: le righe arrivate, e quante ne esistono in tutto. */
 export type ListPage<T> = {
   rows: T;

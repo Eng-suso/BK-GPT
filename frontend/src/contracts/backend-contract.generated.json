@@ -109,11 +109,47 @@
         "type"
       ],
       "properties": {
+        "acquisition_error": "string?",
+        "acquisition_status": "enum:pending|done|partial|failed?",
+        "byte_size": "integer?",
+        "content_hash": "string?",
         "id": "string",
         "meta": "string",
+        "mime_type": "string?",
         "name": "string",
         "process_id": "string?",
         "project_id": "string",
+        "retention": "enum:persistent|temporary",
+        "roles": "enum:context|process_evidence|policy|operational_data[]",
+        "scopes": "object[]",
+        "status": "string",
+        "type": "string"
+      }
+    },
+    "UploadedSourceResponse": {
+      "required": [
+        "id",
+        "meta",
+        "name",
+        "project_id",
+        "type"
+      ],
+      "properties": {
+        "acquisition_error": "string?",
+        "acquisition_status": "enum:pending|done|partial|failed?",
+        "byte_size": "integer?",
+        "content_hash": "string?",
+        "created": "boolean",
+        "id": "string",
+        "meta": "string",
+        "mime_type": "string?",
+        "name": "string",
+        "process_id": "string?",
+        "project_id": "string",
+        "retention": "enum:persistent|temporary",
+        "roles": "enum:context|process_evidence|policy|operational_data[]",
+        "scopes": "object[]",
+        "status": "string",
         "type": "string"
       }
     },

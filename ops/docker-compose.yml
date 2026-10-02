@@ -58,6 +58,24 @@ services:
       timeout: 5s
       retries: 15
 
+  # Lettore dei documenti (PDF, DOCX, PPTX): layout, tabelle, OCR. Immagine
+  # ufficiale di docling-serve (MIT). Sta qui e non nel backend perche' porta
+  # torch e i modelli; il backend chiama la sua API asincrona e riceve il
+  # DoclingDocument JSON (backend/workspace_services/evidence/documents.py).
+  docling:
+    image: quay.io/docling-project/docling-serve-cpu:${DOCLING_SERVE_TAG:-v1.35.0}
+    container_name: delir-docling
+    restart: unless-stopped
+    environment:
+      DOCLING_SERVE_ENABLE_UI: "0"
+    ports:
+      - "127.0.0.1:${DOCLING_PORT:-5001}:5001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5001/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
 volumes:
   delir_pgdata:
     name: delir_pgdata

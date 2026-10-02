@@ -11,6 +11,7 @@ import {
   apiProjectDecisionSchema,
   apiProjectSchema,
   apiProjectSourceSchema,
+  apiUploadedSourceSchema,
   apiRestoreBpmnVersionSchema,
 } from "./workspace";
 
@@ -39,6 +40,7 @@ const SCHEMA_BY_COMPONENT: Record<string, ZodType> = {
   MilestoneModel: apiMilestoneSchema,
   ProjectProcessResponse: apiProcessSchema,
   ProjectSourceResponse: apiProjectSourceSchema,
+  UploadedSourceResponse: apiUploadedSourceSchema,
   ProjectDecisionResponse: apiProjectDecisionSchema,
   BpmnModelResponse: apiBpmnModelSchema,
   BpmnVersionResponse: apiBpmnVersionSchema,
@@ -49,6 +51,9 @@ const SCHEMA_BY_COMPONENT: Record<string, ZodType> = {
 function sampleForToken(token: string): unknown {
   if (token.endsWith("?")) return null;
   if (token.endsWith("[]")) return [];
+  // `enum:a|b`: an allowed value, so a zod enum that drifted from the backend
+  // set fails here instead of passing on a made-up "sample".
+  if (token.startsWith("enum:")) return token.slice("enum:".length).split("|")[0];
   switch (token) {
     case "string":
       return "sample";

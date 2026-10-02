@@ -408,6 +408,44 @@ class ProjectSourceResponse(BaseModel):
     name: str
     type: str
     meta: str
+    roles: list[Literal["context", "process_evidence", "policy", "operational_data"]] = Field(
+        default_factory=list
+    )
+    retention: Literal["persistent", "temporary"] = "persistent"
+    scopes: list[dict[str, str]] = Field(default_factory=list)
+    status: str = "reference"
+    content_hash: str | None = None
+    byte_size: int | None = None
+    mime_type: str | None = None
+    # La lettura del file caricato: `pending` (in coda o in lettura), `done`,
+    # `partial` (una parte non acquisita, il motivo e' in `meta`), `failed`.
+    # `None` per le fonti senza file.
+    acquisition_status: Literal["pending", "done", "partial", "failed"] | None = None
+    acquisition_error: str | None = None
+
+
+class UploadedSourceResponse(ProjectSourceResponse):
+    """La fonte appena caricata, e se il caricamento l'ha creata adesso.
+
+    `created == False` vuol dire che lo stesso file c'era gia' tra le Fonti: la
+    card del composer, tolta prima dell'invio, non deve scartarlo.
+    """
+
+    created: bool = True
+
+
+class EvidenceSegmentResponse(BaseModel):
+    """Una porzione citabile di una fonte: `Ordini!B7`, `#/texts/12`."""
+
+    id: int
+    source_id: str
+    kind: str
+    ref: str
+    locator: dict[str, Any]
+    text: str
+    value_type: str
+    value: Any = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class SourceDocumentResponse(BaseModel):

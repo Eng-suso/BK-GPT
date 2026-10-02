@@ -91,6 +91,7 @@ def _authoritative_process_sources(project_id: str, process_id: str) -> list[dic
         item
         for item in workspace_database.list_project_sources(project_id)
         if item.get("process_id") in {None, process_id}
+        and item.get("status", "reference") in {"reference", "approved"}
     ]
     sources: list[dict] = []
     for record in sorted(

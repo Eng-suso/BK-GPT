@@ -3,10 +3,13 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowRight,
   AudioLines,
+  Download,
   FileSpreadsheet,
   FileText,
   Link2,
+  Loader2,
   MessagesSquare,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,7 +26,14 @@ import {
 } from "@/ui/dialog";
 import { useListFilters } from "@/lib/hooks/useListFilters";
 import type { ProjectProcess, ProjectSource } from "@/contracts/workspace";
-import { useSourceDocumentQuery } from "../api";
+import {
+  downloadSourceOriginal,
+  useSourceDocumentQuery,
+  useUploadProjectSourceMutation,
+  useVerifyProjectSourceMutation,
+} from "../api";
+import type { SourceAcquisitionStatus, SourceRole } from "@/contracts/workspace";
+import { HttpError, httpErrorMessage } from "@/lib/http";
 
 /**
  * Picks the icon that matches a source type.
@@ -55,17 +65,32 @@ function iconForType(type: string): LucideIcon {
  * @returns The sources tab content
  */
 export function SourcesPanel({
+  projectId,
   sources,
   processes,
   onOpenProcess,
 }: {
+  projectId: string;
   sources: ProjectSource[];
   processes: ProjectProcess[];
   onOpenProcess: (process: ProjectProcess) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("projects");
+  const roleLabel: Record<SourceRole, string> = {
+    context: t("detail.sources.roles.context"),
+    process_evidence: t("detail.sources.roles.process_evidence"),
+    policy: t("detail.sources.roles.policy"),
+    operational_data: t("detail.sources.roles.operational_data"),
+  };
   const [search, setSearch] = useState("");
   const [openSourceId, setOpenSourceId] = useState<string | null>(null);
+  const [originalError, setOriginalError] = useState("");
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [roles, setRoles] = useState<SourceRole[]>([]);
+  const [scopeValue, setScopeValue] = useState(`project:${projectId}`);
+  const upload = useUploadProjectSourceMutation(projectId);
+  const verify = useVerifyProjectSourceMutation(projectId);
 
   const processById = useMemo(
     () => new Map(processes.map((process) => [process.id, process])),
@@ -96,18 +121,56 @@ export function SourcesPanel({
     : null;
   // Il testo integrale si carica quando la fonte viene aperta: un transcript
   // per riga di elenco sarebbe traffico per qualcosa che nessuno ha chiesto.
-  const { data: document, isLoading } = useSourceDocumentQuery(openSourceId);
+  const { data: document, isLoading } = useSourceDocumentQuery(
+    openSourceId,
+    openSource?.acquisitionStatus ?? null,
+  );
 
-  if (sources.length === 0) {
-    return (
-      <EmptyState
-        variant="inline"
-        icon={FileText}
-        title={t("detail.sources.empty")}
-        description={t("detail.sources.emptyDescription")}
-      />
+  const addRole = (role: SourceRole, enabled: boolean) => {
+    setRoles((current) =>
+      enabled ? [...current.filter((item) => item !== role), role] : current.filter((item) => item !== role),
     );
-  }
+  };
+
+  const closeUpload = () => {
+    setUploadOpen(false);
+    setFile(null);
+    setRoles([]);
+    setScopeValue(`project:${projectId}`);
+    upload.reset();
+  };
+
+  const submitUpload = () => {
+    if (!file || roles.length === 0) return;
+    const [scopeType, scopeId] = scopeValue.split(":", 2) as ["project" | "process", string];
+    upload.mutate(
+      { file, roles, retention: "persistent", scopes: [{ type: scopeType, id: scopeId }] },
+      { onSuccess: closeUpload },
+    );
+  };
+
+  const downloadOriginal = async (source: ProjectSource) => {
+    setOriginalError("");
+    try {
+      const blob = await downloadSourceOriginal(source.id);
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement("a");
+      anchor.href = url;
+      anchor.download = source.name;
+      // Firefox e alcune versioni di Safari scaricano solo da un link nella
+      // pagina, e annullano il download se l'URL sparisce subito dopo il clic.
+      window.document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      setOriginalError(
+        error instanceof HttpError
+          ? httpErrorMessage(error, t("detail.sources.downloadError"))
+          : t("detail.sources.downloadError"),
+      );
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -119,15 +182,24 @@ export function SourcesPanel({
           filters={filters.menus}
           onClearFilters={filters.clear}
         />
-        <p className="text-xs text-muted-foreground tabular-nums">
-          {t("detail.sources.shown", {
-            shown: visible.length,
-            total: sources.length,
-          })}
-        </p>
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground tabular-nums">
+            {t("detail.sources.shown", { shown: visible.length, total: sources.length })}
+          </p>
+          <Button size="sm" onClick={() => setUploadOpen(true)}>
+            <Plus aria-hidden /> {t("detail.sources.add")}
+          </Button>
+        </div>
       </div>
 
-      {visible.length === 0 ? (
+      {sources.length === 0 ? (
+        <EmptyState
+          variant="inline"
+          icon={FileText}
+          title={t("detail.sources.empty")}
+          description={t("detail.sources.emptyDescription")}
+        />
+      ) : visible.length === 0 ? (
         <EmptyState
           variant="inline"
           title={t("detail.sources.noResults")}
@@ -167,8 +239,14 @@ export function SourcesPanel({
                     <span className="block truncate text-body-sm font-medium text-foreground">
                       {source.name}
                     </span>
+                    {source.acquisitionStatus && source.acquisitionStatus !== "done" ? (
+                      <AcquisitionBadge status={source.acquisitionStatus} />
+                    ) : null}
                     <span className="block truncate text-micro text-muted-foreground">
                       {source.type}
+                      {source.roles.length
+                        ? ` · ${source.roles.map((role) => roleLabel[role]).join(", ")}`
+                        : ""}
                       {source.meta ? ` · ${source.meta}` : ""}
                       {process ? ` · ${process.name}` : ""}
                     </span>
@@ -186,7 +264,12 @@ export function SourcesPanel({
 
       <Dialog
         open={openSource !== null}
-        onOpenChange={(next) => !next && setOpenSourceId(null)}
+        onOpenChange={(next) => {
+          if (!next) {
+            setOpenSourceId(null);
+            setOriginalError("");
+          }
+        }}
       >
         <DialogContent className="flex max-h-[85vh] flex-col overflow-y-auto border-border sm:max-w-2xl">
           {openSource && (
@@ -207,6 +290,28 @@ export function SourcesPanel({
                   label={t("detail.sources.linkedProcess")}
                   value={openProcess?.name ?? t("detail.sources.noLinkedProcess")}
                 />
+                {openSource.roles.length ? (
+                  <DetailRow
+                    label={t("detail.sources.sourceUse")}
+                    value={openSource.roles.map((role) => roleLabel[role]).join(", ")}
+                  />
+                ) : null}
+                {openSource.acquisitionStatus ? (
+                  <DetailRow
+                    label={t("detail.sources.state")}
+                    value={t(`detail.sources.acquisition.${openSource.acquisitionStatus}`)}
+                  />
+                ) : null}
+                {openSource.acquisitionStatus ? (
+                  <DetailRow
+                    label={t("detail.sources.evidence")}
+                    value={
+                      openSource.status === "approved"
+                        ? t("detail.sources.verified")
+                        : t("detail.sources.toVerify")
+                    }
+                  />
+                ) : null}
                 {document?.participants.length ? (
                   <DetailRow
                     label={t("detail.sources.participants")}
@@ -262,6 +367,21 @@ export function SourcesPanel({
               </p>
 
               <DialogFooter>
+                {openSource.status !== "approved" &&
+                (openSource.acquisitionStatus === "done" || openSource.acquisitionStatus === "partial") ? (
+                  <Button
+                    size="sm"
+                    disabled={verify.isPending}
+                    onClick={() => verify.mutate(openSource.id)}
+                  >
+                    {t("detail.sources.verify")}
+                  </Button>
+                ) : null}
+                {openSource.byteSize !== null ? (
+                  <Button variant="outline" size="sm" onClick={() => void downloadOriginal(openSource)}>
+                    <Download aria-hidden /> {t("detail.sources.download")}
+                  </Button>
+                ) : null}
                 {openProcess && (
                   <Button
                     size="sm"
@@ -274,11 +394,143 @@ export function SourcesPanel({
                   </Button>
                 )}
               </DialogFooter>
+              {originalError ? <p role="alert" className="text-sm text-destructive">{originalError}</p> : null}
+              {verify.isError ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {verify.error instanceof HttpError
+                    ? httpErrorMessage(verify.error, t("detail.sources.verifyError"))
+                    : t("detail.sources.verifyError")}
+                </p>
+              ) : null}
             </>
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={uploadOpen}
+        onOpenChange={(next) => {
+          if (!next && upload.isPending) return;
+          if (next) {
+            setUploadOpen(true);
+          } else {
+            closeUpload();
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("detail.sources.uploadTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("detail.sources.uploadDescription")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitUpload();
+            }}
+          >
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              {t("detail.sources.fileLabel")}
+              <input
+                type="file"
+                required
+                accept=".pdf,.docx,.xlsx,.csv,.pptx,.txt,.md"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                className="rounded-md border border-border p-2 text-sm"
+              />
+              <span className="text-xs font-normal text-muted-foreground">
+                {t("detail.sources.fileHint")}
+              </span>
+            </label>
+
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-sm font-medium">{t("detail.sources.useQuestion")}</legend>
+              {([
+                ["context", t("detail.sources.roles.contextChoice")],
+                ["process_evidence", t("detail.sources.roles.processChoice")],
+                ["policy", t("detail.sources.roles.policyChoice")],
+                ["operational_data", t("detail.sources.roles.dataChoice")],
+              ] as const).map(([value, label]) => (
+                <label key={value} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={roles.includes(value)}
+                    onChange={(event) => addRole(value, event.target.checked)}
+                  />
+                  {label}
+                </label>
+              ))}
+              {roles.length === 0 ? (
+                <p id="source-role-help" className="text-xs text-muted-foreground">
+                  {t("detail.sources.useRequired")}
+                </p>
+              ) : null}
+            </fieldset>
+
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              {t("detail.sources.scope")}
+              <select
+                value={scopeValue}
+                onChange={(event) => setScopeValue(event.target.value)}
+                className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+              >
+                <option value={`project:${projectId}`}>{t("detail.sources.wholeProject")}</option>
+                {processes.map((process) => (
+                  <option key={process.id} value={`process:${process.id}`}>{process.name}</option>
+                ))}
+              </select>
+            </label>
+
+            {upload.isError ? (
+              <p role="alert" className="text-sm text-destructive">
+                {upload.error instanceof HttpError
+                  ? httpErrorMessage(upload.error, t("detail.sources.uploadError"))
+                  : t("detail.sources.uploadError")}
+              </p>
+            ) : null}
+
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={closeUpload} disabled={upload.isPending}>
+                {t("detail.sources.cancel")}
+              </Button>
+              <Button
+                type="button"
+                onClick={submitUpload}
+                disabled={!file || roles.length === 0 || upload.isPending}
+              >
+                {upload.isPending ? t("detail.sources.uploading") : t("detail.sources.upload")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+/**
+ * Lo stato della lettura di un file caricato, quando chiede attenzione.
+ *
+ * "Pronta" non si mostra: e' il caso normale, e un'etichetta su ogni riga
+ * nasconderebbe le poche che contano.
+ */
+function AcquisitionBadge({ status }: { status: SourceAcquisitionStatus }): React.JSX.Element {
+  const { t } = useTranslation("projects");
+  const tone =
+    status === "failed"
+      ? "text-destructive"
+      : status === "partial"
+        ? "text-[var(--color-status-warning)]"
+        : "text-muted-foreground";
+  return (
+    <span className={`flex items-center gap-1 text-micro font-medium ${tone}`} role="status">
+      {status === "pending" ? <Loader2 aria-hidden className="size-3 animate-spin" /> : null}
+      {t(`detail.sources.acquisition.${status}`)}
+    </span>
   );
 }
 
