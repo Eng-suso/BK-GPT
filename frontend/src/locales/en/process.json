@@ -485,6 +485,7 @@
     "saveTitle": "Save process (Ctrl+S)",
     "saving": "Saving…",
     "save": "Save",
+    "saved": "Saved",
     "unsaved": "Not saved",
     "inspectorLabel": "Selected node inspector",
     "inspectorClose": "Close the inspector",

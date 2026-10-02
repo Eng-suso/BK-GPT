@@ -123,7 +123,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     ? status
     : hasUnsavedChanges
       ? t("canvas.unsaved")
-      : "Salvato";
+      : t("canvas.saved");
 
   return (
     <section className="process-bpmn-shell" aria-label="Canvas BPMN">
