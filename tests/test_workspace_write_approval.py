@@ -135,3 +135,35 @@ def test_a_workspace_proposal_does_not_replace_another_pending_confirmation(tena
     assert blocked["status"] == "blocked"
     still_open = pending_actions.open_action(consultant_id=settings.default_consultant_id, thread_id=thread)
     assert still_open["action"] == "forget_memory"
+
+
+def test_a_write_that_breaks_after_the_yes_is_reported_and_the_others_still_happen(tenant, monkeypatch):
+    from backend.memory import pending_actions
+    from backend.toolsets import workspace as workspace_tools
+
+    thread = f"thread-{uuid.uuid4().hex[:8]}"
+    with bind_active_mode("plan"), bind_active_thread(thread):
+        workspace_tools.manage_client_record.invoke({"operation": "create", "name": "Rotto Srl"})
+        workspace_tools.manage_client_record.invoke({"operation": "create", "name": "Sano Srl"})
+
+        real = workspace_tools._GATED_WRITE_TOOLS["manage_client_record"]
+
+        class _BreaksOnFirst:
+            calls = 0
+
+            def invoke(self, arguments):
+                _BreaksOnFirst.calls += 1
+                if _BreaksOnFirst.calls == 1:
+                    raise RuntimeError("database giu'")
+                return real.invoke(arguments)
+
+        monkeypatch.setitem(workspace_tools._GATED_WRITE_TOOLS, "manage_client_record", _BreaksOnFirst())
+        outcome = workspace_tools.confirm_workspace_write.invoke({"operation": "confirm"})
+
+    assert "Non eseguita" in outcome
+    assert "Rotto Srl" not in _client_names()
+    assert "Sano Srl" in _client_names()
+    # la proposta e' consumata: un secondo si' non la riesegue
+    assert pending_actions.open_action(
+        consultant_id=settings.default_consultant_id, thread_id=thread
+    ) is None

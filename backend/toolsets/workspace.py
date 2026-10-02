@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Literal
 
 from langchain_core.messages import ToolMessage
@@ -120,6 +121,8 @@ def enterprise_tool_result(
             "next_actions": next_actions or [],
         },
     )
+
+logger = logging.getLogger(__name__)
 
 
 class HomeDashboardUpdateInput(BaseModel):
@@ -1426,7 +1429,24 @@ def confirm_workspace_write(operation: str) -> str:
                     )
                 )
                 continue
-            results.append(str(write.invoke(item.get("arguments") or {})))
+            try:
+                results.append(str(write.invoke(item.get("arguments") or {})))
+            except Exception as exc:  # noqa: BLE001 - l'esito di ogni scrittura va detto, anche il guasto
+                # Una scrittura che si rompe non cancella le altre gia' fatte, e
+                # non puo' essere raccontata come riuscita: la proposta e' gia'
+                # consumata, quindi l'esito vero e' l'unica cosa che resta.
+                logger.exception("conferma: scrittura %s fallita", item.get("tool"))
+                results.append(
+                    enterprise_tool_result(
+                        status="error",
+                        action="confirm_workspace_write",
+                        entity_type="workspace_record",
+                        summary=(
+                            f"Non eseguita: {item.get('tool')} ({type(exc).__name__}). "
+                            "Niente e' stato creato per questa voce."
+                        ),
+                    )
+                )
     pending_actions.record_result(
         consultant_id=consultant_id,
         thread_id=thread_id,
