@@ -2110,9 +2110,10 @@ def create_ingested_source(
     )
     roles_json = json.dumps(role_values, ensure_ascii=False, separators=(",", ":"))
     scopes_json = json.dumps(scopes_value, ensure_ascii=False, separators=(",", ":"))
-    ingestion_key = hashlib.sha256(
-        "\x1f".join((content_hash, roles_json, retention, scopes_json)).encode()
-    ).hexdigest()
+    # L'identita' di un file caricato e' il suo contenuto, nel progetto: ruoli e
+    # ambiti sono attributi che si cambiano, non un'altra fonte. Prima entravano
+    # nella chiave, e lo stesso file con un ruolo diverso diventava un doppione.
+    ingestion_key = hashlib.sha256(f"file:{content_hash}".encode()).hexdigest()
     process_ids = [item["id"] for item in scopes_value if item["type"] == "process"]
     # Con due processi la fonte finirebbe a livello di progetto (`process_id`
     # vuoto) e diventerebbe evidenza anche per un terzo processo che non c'entra.
@@ -2128,11 +2129,16 @@ def create_ingested_source(
         if lock_key >= 2**63:
             lock_key -= 2**64
         session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+        # Per contenuto e non per chiave: le fonti caricate prima di questa
+        # regola hanno una chiave calcolata anche sui ruoli. Fra due doppioni
+        # gia' esistenti vale il primo.
         existing = session.execute(
             select(WorkspaceSource)
             .where(WorkspaceSource.tenant_id == tenant_id())
             .where(WorkspaceSource.project_id == project_id)
-            .where(WorkspaceSource.ingestion_key == ingestion_key)
+            .where(WorkspaceSource.content_hash == content_hash)
+            .where(WorkspaceSource.storage_key.is_not(None))
+            .order_by(WorkspaceSource.id)
         ).scalars().first()
         if existing is not None:
             # Ricaricare un file che non era stato letto e' il modo naturale di

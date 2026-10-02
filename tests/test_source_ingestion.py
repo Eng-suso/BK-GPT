@@ -184,7 +184,7 @@ def test_an_upload_belongs_to_one_process_at_most(http: TestClient):
     assert response.status_code == 400, response.text
 
 
-def test_upload_is_idempotent_for_the_same_file_and_dimensions(http: TestClient, tenant: str):
+def test_the_same_content_is_the_same_source_whatever_its_roles(http: TestClient, tenant: str):
     project, _ = _project(http)
     fields = {
         "roles": '["context"]',
@@ -206,6 +206,17 @@ def test_upload_is_idempotent_for_the_same_file_and_dimensions(http: TestClient,
     assert first.status_code == 201
     assert second.status_code == 200
     assert second.json()["id"] == first.json()["id"]
+
+    # Ruoli e ambiti non sono l'identita': lo stesso file con un altro uso e'
+    # la stessa fonte, non un doppione.
+    third = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={**fields, "roles": '["policy"]'},
+        files={"file": ("contesto-copia.txt", b"stesso contenuto", "text/plain")},
+    )
+    assert third.status_code == 200
+    assert third.json()["id"] == first.json()["id"]
+    assert third.json()["created"] is False
 
     from backend.security import reset_current_tenant_id, set_current_tenant_id
     from backend.workspace_database import create_ingested_source
