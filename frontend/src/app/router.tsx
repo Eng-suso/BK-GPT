@@ -46,7 +46,9 @@ export const router = createBrowserRouter([
         path: "projects/:projectId/processes/:processId/simulation",
         element: <SimulationLayout />,
         children: [
-          { index: true, element: <Navigate to="overview" replace /> },
+          { index: true, element: null },
+          { path: "workspace", element: null },
+          { path: "workspace/:runId", element: null },
           { path: "overview", element: <SimulationOverviewPage /> },
           { path: "scenario", element: <ScenarioBuilderPage /> },
           { path: "replay", element: <ReplayPage /> },

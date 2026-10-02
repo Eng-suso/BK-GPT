@@ -361,7 +361,7 @@
       "unsaved": "Unsaved layout changes",
       "save": "Save layout",
       "cancel": "Cancel",
-      "edit": "Edit dashboard",
+      "edit": "Edit canvas",
       "addWidget": "Add widget",
       "libraryTitle": "Add an element",
       "libraryHint": "Choose a visualization and configure its metric, size and style.",
@@ -470,7 +470,44 @@
       "metricExpression": "Metric expression",
       "metricExpressionHelp": "Optional: metric is the source value in its original unit, total is the number of cases arrived by that time. Use arithmetic and round(); the result must be a number ≥ 0.",
       "invalidMetricExpression": "Cannot calculate this expression: check the formula and denominators.",
-      "chooseActivity": "Select activity"
+      "chooseActivity": "Select activity",
+      "boundActivity": "Linked activity"
+    },
+    "unified": {
+      "title": "Simulation studio",
+      "tools": "Simulation tools",
+      "canvas": "Process and analytics canvas",
+      "details": "Details and settings",
+      "context": "Selected context",
+      "aggregateScope": "Results for the entire run",
+      "closePanel": "Close panel",
+      "startHint": "Configure a scenario and run the simulation. Process and analytics stay in the same workspace.",
+      "process": "Process",
+      "moveProcess": "Move process in the canvas",
+      "processEarlier": "Move process earlier",
+      "processLater": "Move process later",
+      "processSection": "Process section",
+      "processHeight": "Process height",
+      "expandProcess": "Expand process to full width",
+      "reduceProcess": "Reduce process width",
+      "undo": "Undo layout change",
+      "redo": "Redo layout change",
+      "selectionHint": "Selection connects the process to charts that follow the filter. Global KPIs still refer to the entire process.",
+      "editActivity": "Edit activity parameters",
+      "followSelection": "Follow canvas selection",
+      "startQuestion": "Start with the question you want to explore",
+      "tool": {
+        "scenario": "Scenario",
+        "overview": "Results",
+        "compare": "Compare",
+        "heatmap": "Heatmap",
+        "insights": "Insights"
+      },
+      "question": {
+        "activityQueued": "Where do queues build up?",
+        "resourceBusy": "Which resources are busy?",
+        "throughput": "How does throughput change?"
+      }
     }
   },
   "side": {

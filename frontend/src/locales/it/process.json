@@ -361,7 +361,7 @@
       "unsaved": "Modifiche al layout da salvare",
       "save": "Salva layout",
       "cancel": "Annulla",
-      "edit": "Modifica dashboard",
+      "edit": "Modifica canvas",
       "addWidget": "Aggiungi widget",
       "libraryTitle": "Aggiungi un elemento",
       "libraryHint": "Scegli una visualizzazione e configurane metrica, dimensioni e stile.",
@@ -470,7 +470,44 @@
       "metricExpression": "Espressione metrica",
       "metricExpressionHelp": "Facoltativa: metric è il valore nella sua unità originale, total i casi entrati fino a quell’istante. Usa aritmetica e round(); il risultato deve essere un numero ≥ 0.",
       "invalidMetricExpression": "Espressione non calcolabile: verifica la formula e i divisori.",
-      "chooseActivity": "Seleziona attività"
+      "chooseActivity": "Seleziona attività",
+      "boundActivity": "Attività associata"
+    },
+    "unified": {
+      "title": "Studio di simulazione",
+      "tools": "Strumenti della simulazione",
+      "canvas": "Canvas del processo e delle analisi",
+      "details": "Dettagli e impostazioni",
+      "context": "Contesto selezionato",
+      "aggregateScope": "Risultati dell’intera esecuzione",
+      "closePanel": "Chiudi pannello",
+      "startHint": "Configura lo scenario ed esegui la simulazione. Processo e analisi resteranno nello stesso ambiente.",
+      "process": "Processo",
+      "moveProcess": "Sposta il processo nel canvas",
+      "processEarlier": "Sposta processo prima",
+      "processLater": "Sposta processo dopo",
+      "processSection": "Sezione del processo",
+      "processHeight": "Altezza del processo",
+      "expandProcess": "Espandi processo a tutta larghezza",
+      "reduceProcess": "Riduci larghezza del processo",
+      "undo": "Annulla modifica al layout",
+      "redo": "Ripristina modifica al layout",
+      "selectionHint": "La selezione collega il processo ai grafici che seguono il filtro. I KPI generali restano riferiti all’intero processo.",
+      "editActivity": "Modifica parametri dell’attività",
+      "followSelection": "Segui la selezione del canvas",
+      "startQuestion": "Parti dalla domanda che vuoi approfondire",
+      "tool": {
+        "scenario": "Scenario",
+        "overview": "Risultati",
+        "compare": "Confronto",
+        "heatmap": "Heatmap",
+        "insights": "Insight"
+      },
+      "question": {
+        "activityQueued": "Dove si accumulano le code?",
+        "resourceBusy": "Quali risorse sono occupate?",
+        "throughput": "Come cambia il throughput?"
+      }
     }
   },
   "side": {
