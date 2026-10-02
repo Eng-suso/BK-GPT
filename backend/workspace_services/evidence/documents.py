@@ -140,17 +140,13 @@ def convert(
         raise DocumentServiceUnavailable(_UNEXPECTED) from exc
 
 
-# Sotto questa soglia di caratteri una pagina non ha uno strato di testo: e' una
-# scansione, o un'immagine, e il testo si legge solo con l'OCR.
-_MIN_TEXT_CHARS_PER_PAGE = 40
-
-
 def needs_ocr(payload: bytes) -> bool:
     """Se un PDF va letto con l'OCR: almeno una pagina senza testo estraibile.
 
     Un PDF digitale ha gia' il suo testo, e l'OCR gli costa minuti per niente.
     Una pagina scansionata in mezzo a pagine digitali basta per accenderlo:
-    meglio lento che con una pagina vuota.
+    meglio lento che con una pagina vuota. Una pagina con poco testo (una
+    copertina, un titolo) ha comunque il suo strato di testo, e non lo accende.
     """
     import pypdfium2
 
@@ -162,7 +158,7 @@ def needs_ocr(payload: bytes) -> bool:
         for index in range(len(document)):
             page = document[index]
             text = page.get_textpage().get_text_range()
-            if len(text.strip()) < _MIN_TEXT_CHARS_PER_PAGE:
+            if not text.strip():
                 return True
         return False
     finally:

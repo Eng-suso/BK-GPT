@@ -292,6 +292,8 @@ def _pdf_with_text(line: str) -> bytes:
 def test_ocr_is_asked_only_for_pdfs_without_a_text_layer():
     digital = _pdf_with_text("Il CFO approva gli ordini sopra EUR 30.000 dopo il controllo del budget.")
     assert documents.needs_ocr(digital) is False
+    # Una copertina con due parole ha il suo strato di testo: niente OCR.
+    assert documents.needs_ocr(_pdf_with_text("Procedura")) is False
     # Pagine senza testo: una scansione, si legge solo con l'OCR.
     assert documents.needs_ocr(_pdf(2)) is True
 
