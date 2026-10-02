@@ -135,7 +135,6 @@ export function useScenarioLab(): ScenarioLab {
         if (latest.status !== "pending") {
           syncSection();
           setPickedRunId(latest.id);
-          selectRun?.(latest.id);
           setPolledRun(null);
           if (latest.status === "failed" && latest.error) setError(latest.error);
           return;
@@ -143,7 +142,7 @@ export function useScenarioLab(): ScenarioLab {
       }
       setError(t("simulation.timeout"));
     },
-    [t, syncSection, selectRun],
+    [t, syncSection],
   );
 
   const handleRun = React.useCallback(async () => {

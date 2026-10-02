@@ -145,7 +145,7 @@ export function SimulationCanvas({
     if (!el) return;
     const observer = new ResizeObserver(() => {
       const viewer = viewerRef.current;
-      if (viewer && ready) window.requestAnimationFrame(() => fitCanvas(viewer));
+      if (viewer && ready) window.requestAnimationFrame(() => svc<BpmnCanvas>(viewer, "canvas")?.resized?.());
     });
     observer.observe(el);
     return () => observer.disconnect();
