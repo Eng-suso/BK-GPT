@@ -82,6 +82,13 @@ class Settings(BaseSettings):
     # graph_retrieve per rilevanza alla query. Off di default: aggiunge una
     # chiamata LLM (~1-2s) sul path di grounding dell'agente.
     retrieval_rerank_enabled: bool = False
+    # GR-02: l'espansione k-hop di graph_retrieve non attraversa un nodo con piu'
+    # archi di cosi' (come estremo del path si', come nodo intermedio no). Un hub
+    # intermedio moltiplica i path senza portare fatti vicini alla query.
+    graph_expand_degree_cap: int = 100
+    # GR-01: oltre quest'eta' della riga piu' vecchia ancora in graph_outbox, o con
+    # righe nel dead-letter, graph_retrieve dichiara che il grafo e' indietro.
+    graph_staleness_warn_seconds: float = 60.0
     # P5: il tool evidenza accoda su kg_ingest_queue e ritorna subito; il lavoro
     # pesante (embedding + entity resolution + write) lo fa
     # backend/workers/ingest_worker.py. False = write sincrono nel tool call.
