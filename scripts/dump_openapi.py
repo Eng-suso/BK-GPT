@@ -23,6 +23,7 @@ TRACKED_COMPONENTS = [
     "MilestoneModel",
     "ProjectProcessResponse",
     "ProjectSourceResponse",
+    "UploadedSourceResponse",
     "ProjectDecisionResponse",
     "BpmnModelResponse",
     "BpmnVersionResponse",
@@ -77,6 +78,12 @@ def type_token(schema: dict[str, Any]) -> str:
         nullable = len(non_null) != len(any_of)
         inner = type_token(non_null[0]) if non_null else "unknown"
         return f"{inner}?" if nullable else inner
+
+    # Un insieme chiuso di valori (`Literal` lato Pydantic) resta un insieme
+    # chiuso nel contratto: ridotto a "string", il frontend poteva dichiarare
+    # valori diversi e nessun test se ne accorgeva.
+    if "enum" in schema:
+        return "enum:" + "|".join(str(value) for value in schema["enum"])
 
     kind = schema.get("type")
     if kind == "array":

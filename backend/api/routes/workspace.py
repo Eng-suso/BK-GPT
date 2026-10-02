@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+import json
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
+from fastapi.responses import FileResponse
 
 from backend.schemas.workspace import (
     ConformanceStatusResponse,
@@ -26,7 +29,9 @@ from backend.schemas.workspace import (
     ProjectProcessResponse,
     ModelLibraryItem,
     ProjectResponse,
+    EvidenceSegmentResponse,
     ProjectSourceResponse,
+    UploadedSourceResponse,
     RestoreBpmnVersionResponse,
     ReviseBpmnReviewRequest,
     SourceDocumentResponse,
@@ -59,6 +64,8 @@ from backend.workspace_database import (
     create_project,
     create_project_decision,
     create_project_source,
+    create_ingested_source,
+    validate_source_scopes,
     delete_client,
     delete_process,
     delete_project,
@@ -569,6 +576,150 @@ def create_workspace_project_source(
         return ProjectSourceResponse(**create_project_source(project_id=project_id, **request.model_dump()))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/projects/{project_id}/sources/upload",
+    response_model=UploadedSourceResponse,
+    status_code=201,
+)
+def upload_workspace_project_source(
+    project_id: str,
+    response: Response,
+    file: UploadFile = File(...),
+    roles: str = Form(...),
+    retention: str = Form(...),
+    scopes: str = Form("[]"),
+) -> UploadedSourceResponse:
+    """Carica una fonte, conserva l'originale e la mette in coda per la lettura."""
+    from backend.workspace_services.source_ingestion import (
+        MAX_FILE_BYTES,
+        SourceFileError,
+        inspect_upload,
+        store_original,
+    )
+
+    try:
+        role_values = json.loads(roles)
+        scope_values = json.loads(scopes)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Ruoli o ambiti non sono validi.") from exc
+    allowed_roles = {"context", "process_evidence", "policy", "operational_data"}
+    if not isinstance(role_values, list) or not role_values or len(role_values) > 4 or any(
+        not isinstance(role, str) or role not in allowed_roles for role in role_values
+    ):
+        raise HTTPException(status_code=400, detail="Scegli almeno un uso valido per la fonte.")
+    if retention != "persistent":
+        raise HTTPException(
+            status_code=400,
+            detail="Il caricamento temporaneo sarà disponibile nel flusso di contesto, non in Fonti.",
+        )
+    if not isinstance(scope_values, list) or len(scope_values) > 100 or any(
+        not isinstance(scope, dict)
+        or scope.get("type") not in {"client", "project", "process"}
+        or not isinstance(scope.get("id"), str)
+        or not scope["id"].strip()
+        for scope in scope_values
+    ):
+        raise HTTPException(status_code=400, detail="Gli ambiti scelti non sono validi.")
+
+    payload = file.file.read(MAX_FILE_BYTES + 1)
+    source_name = (file.filename or "Documento").replace("\\", "/").rsplit("/", 1)[-1]
+    source_name = "".join(character for character in source_name if character.isprintable())[:255]
+    if not source_name:
+        source_name = "Documento"
+    try:
+        # Dentro la richiesta solo cio' che costa millisecondi: ambito, formato,
+        # integrita'. La lettura la fa `source_worker`, e la fonte dice che e'
+        # in lettura (`acquisition_status == "pending"`) finche' non ha finito.
+        validate_source_scopes(project_id, scope_values)
+        upload = inspect_upload(source_name, payload)
+        storage_key = store_original(upload, payload)
+        source, created = create_ingested_source(
+            project_id=project_id,
+            name=source_name,
+            roles=role_values,
+            retention=retention,
+            scopes=scope_values,
+            content_hash=upload.content_hash,
+            byte_size=upload.byte_size,
+            mime_type=upload.mime_type,
+            storage_key=storage_key,
+        )
+    except SourceFileError as exc:
+        message = str(exc)
+        status = 413 if "25 MB" in message else 415
+        raise HTTPException(status_code=status, detail=message) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not created:
+        response.status_code = 200
+    return UploadedSourceResponse(**source, created=created)
+
+
+@router.post("/sources/{source_id}/verify")
+def verify_workspace_source(source_id: str) -> ProjectSourceResponse:
+    """Il consulente conferma il file: entra nell'evidenza del processo."""
+    from backend.workspace_database import SourceNotVerifiable, verify_project_source
+
+    try:
+        source = verify_project_source(source_id)
+    except SourceNotVerifiable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
+    return ProjectSourceResponse(**source)
+
+
+@router.delete("/sources/{source_id}", status_code=204)
+def discard_workspace_source(source_id: str) -> Response:
+    """Scarta un file caricato e non ancora confermato (la card tolta prima dell'invio)."""
+    from backend.workspace_database import SourceNotDiscardable, discard_uploaded_source
+
+    try:
+        found = discard_uploaded_source(source_id)
+    except SourceNotDiscardable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
+    return Response(status_code=204)
+
+
+@router.get("/sources/{source_id}/evidence")
+def get_workspace_source_evidence(source_id: str) -> list[EvidenceSegmentResponse]:
+    """Le porzioni citabili della fonte, ognuna con la sua ancora.
+
+    Vuota finche' la fonte e' in lettura o se non ha un file: lo stato lo dice
+    `acquisition_status` sulla fonte.
+    """
+    from backend.workspace_database import get_project_source_record, list_evidence_segments
+
+    if get_project_source_record(source_id) is None:
+        raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
+    return [EvidenceSegmentResponse(**segment) for segment in list_evidence_segments(source_id)]
+
+
+@router.get("/sources/{source_id}/original")
+def get_workspace_source_original(source_id: str) -> FileResponse:
+    """Scarica il file originale solo se appartiene al tenant corrente."""
+    from backend.workspace_database import get_project_source_record
+    from backend.workspace_services.source_ingestion import SourceFileError, original_path
+
+    source = get_project_source_record(source_id)
+    if source is None or not source.storage_key:
+        raise HTTPException(status_code=404, detail="File originale non disponibile.")
+    try:
+        path = original_path(source.storage_key)
+    except SourceFileError as exc:
+        raise HTTPException(status_code=404, detail="File originale non disponibile.") from exc
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="File originale non disponibile.")
+    return FileResponse(
+        path,
+        media_type=source.mime_type,
+        filename=source.name,
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("/projects/{project_id}/decisions")
