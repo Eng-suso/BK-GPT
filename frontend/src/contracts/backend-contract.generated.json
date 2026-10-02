@@ -319,6 +319,7 @@
         "role"
       ],
       "properties": {
+        "attachments": "ChatMessageAttachmentRecord[]",
         "content": "string",
         "created_at": "string?",
         "id": "integer?",

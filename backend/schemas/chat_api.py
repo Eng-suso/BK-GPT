@@ -70,11 +70,20 @@ class CreateSessionResponse(BaseModel):
     scope_key: str | None = None
 
 
+class ChatMessageAttachmentRecord(BaseModel):
+    """Un allegato com'e' partito con il messaggio: quanto basta per mostrarlo."""
+
+    kind: str
+    id: str
+    label: str = ""
+
+
 class ChatMessageRecord(BaseModel):
     id: int | None = None
     role: str
     content: str
     created_at: str | None = None
+    attachments: list[ChatMessageAttachmentRecord] = Field(default_factory=list)
 
 
 class ChatSessionSummary(BaseModel):

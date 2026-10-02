@@ -294,6 +294,7 @@ def send_consultant_chat_message(
         role="user",
         content=request.message,
         model_name=request.model_name,
+        attachments=[attachment.model_dump() for attachment in request.attachments],
         **fields,
     )
 
@@ -362,6 +363,7 @@ def stream_consultant_chat_message(
         role="user",
         content=request.message,
         model_name=request.model_name,
+        attachments=[attachment.model_dump() for attachment in request.attachments],
         **fields,
     )
 
