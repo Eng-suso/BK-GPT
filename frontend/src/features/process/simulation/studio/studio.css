@@ -112,3 +112,7 @@
 .sim-studio-dock-body:has(.sim-config-workspace) > div:first-child { height:100%; }
 .sim-studio-empty-process { min-height:400px; }
 .sim-studio-empty-process > .simulation-bpmn-view { width:100%; }
+
+.sim-current-insights { margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:12px; }
+.sim-current-insights > summary { cursor:pointer; font-size:13px; font-weight:600; padding:8px 0; }
+.sim-current-insights > summary:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }

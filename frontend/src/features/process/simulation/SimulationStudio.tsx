@@ -4,6 +4,7 @@ import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb, X, 
 import { Button } from "@/ui/button";
 import { EmptyState } from "@/components/feedback";
 import { DashboardWorkspace } from "./dashboard/DashboardWorkspace";
+import { ReplayInsightRail } from "./replay/ReplayInsightRail";
 import { TransportBar } from "./replay/TransportBar";
 import { useReplaySession } from "./replay/useReplaySession";
 import { useSimulationSection, resolveActiveRun, type SimulationPanel } from "./useSimulationSection";
@@ -21,7 +22,7 @@ const TOOLS = [["scenario", SlidersHorizontal], ["overview", ListChecks], ["heat
 
 export function SimulationStudio(): React.JSX.Element {
   const { t } = useTranslation("process");
-  const { runs, activeRunId, bpmnXml, panel, openPanel, selectedElementId, selectElement } = useSimulationSection();
+  const { runs, activeRunId, bpmnXml, panel, openPanel, selectedElementId, selectElement, inspectedWidgetId } = useSimulationSection();
   const { engine, isLoading, noArtifact, error } = useReplaySession();
   const run = resolveActiveRun(runs, activeRunId != null ? String(activeRunId) : undefined);
   const ready = engine && run?.status === "completed";
@@ -33,13 +34,14 @@ export function SimulationStudio(): React.JSX.Element {
   React.useEffect(() => { if (aggregate) engine?.pause(); }, [aggregate, engine]);
   React.useEffect(() => {
     if (panel && !dockRef.current?.contains(document.activeElement)) {
-      triggerRef.current = document.activeElement as HTMLElement;
+      if (panel === "widget" && inspectedWidgetId) triggerRef.current = document.getElementById(inspectedWidgetId.startsWith("pin:") ? `configure-pin-${inspectedWidgetId.slice(4)}` : `configure-${inspectedWidgetId}`);
+      else if (panel === "activity") triggerRef.current = document.activeElement as HTMLElement;
       if (panel !== "widget") dockRef.current?.querySelector<HTMLElement>("[data-dock-title]")?.focus({ preventScroll: true });
       if (window.matchMedia("(max-width: 800px)").matches) dockRef.current?.scrollIntoView({ block: "start" });
     }
-  }, [panel]);
-  const show = (next: SimulationPanel | null) => {
-    if (next) triggerRef.current = document.activeElement as HTMLElement;
+  }, [panel, inspectedWidgetId]);
+  const show = (next: SimulationPanel | null, opener?: HTMLElement) => {
+    if (next) triggerRef.current = opener ?? document.activeElement as HTMLElement;
     openPanel?.(next);
   };
   const close = () => {
@@ -50,7 +52,7 @@ export function SimulationStudio(): React.JSX.Element {
   return <div className="sim-studio" data-simulation-studio>
     <div className="sim-studio-tools" role="group" aria-label={t("simulation.unified.tools")}>
       <div className="sim-studio-identity"><Workflow aria-hidden className="size-4" /><h2>{t("simulation.unified.title")}</h2></div>
-      <div className="sim-studio-tool-actions">{TOOLS.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name ? "secondary" : "ghost"} aria-pressed={panel === name} onClick={() => show(panel === name ? null : name)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
+      <div className="sim-studio-tool-actions">{TOOLS.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name ? "secondary" : "ghost"} aria-pressed={panel === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
     </div>
     {ready && <div className="sim-studio-transport"><TransportBar engine={engine} /></div>}
     <div className={`sim-studio-body ${panel ? "has-dock" : ""}`}>
@@ -70,7 +72,7 @@ export function SimulationStudio(): React.JSX.Element {
           {panel === "overview" && <SimulationWorkspace embedded />}
           {panel === "heatmap" && <HeatmapPage embedded onDecorations={setDecorations} />}
           {panel === "compare" && <ComparePage embedded onDecorations={setDecorations} />}
-          {panel === "insights" && <InsightsPage />}
+          {panel === "insights" && <div>{ready && <details className="sim-current-insights"><summary>{t("simulation.unified.currentDetails")}</summary><ReplayInsightRail engine={engine} run={run} embedded /></details>}<InsightsPage /></div>}
           {panel === "activity" && ready && <ActivityDetails engine={engine} run={run} />}
           <div ref={setHost} className="sim-studio-widget-host" />
         </div>

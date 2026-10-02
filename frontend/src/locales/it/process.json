@@ -507,7 +507,8 @@
         "activityQueued": "Dove si accumulano le code?",
         "resourceBusy": "Quali risorse sono occupate?",
         "throughput": "Come cambia il throughput?"
-      }
+      },
+      "currentDetails": "Dettagli al tempo corrente"
     }
   },
   "side": {

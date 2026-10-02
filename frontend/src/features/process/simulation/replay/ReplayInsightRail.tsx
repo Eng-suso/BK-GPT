@@ -24,6 +24,7 @@ const PRESSURE_TONE: Record<string, StatusTone> = {
 type ReplayInsightRailProps = {
   engine: ReplayEngine;
   run: SimulationRun;
+  embedded?: boolean;
 };
 
 /**
@@ -32,6 +33,7 @@ type ReplayInsightRailProps = {
 export function ReplayInsightRail({
   engine,
   run,
+  embedded = false,
 }: ReplayInsightRailProps): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
@@ -62,7 +64,7 @@ export function ReplayInsightRail({
   const hottest = pickHottest(frame, run);
 
   return (
-    <DetailPanel className="w-[300px] shrink-0 rounded-lg border">
+    <DetailPanel className={embedded ? "w-full border-0 rounded-none" : "w-[300px] shrink-0 rounded-lg border"}>
       <div className="pb-4">
         <p className="eyebrow">{t("simulation.replay.rail.clock")}</p>
         <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">
@@ -113,7 +115,7 @@ export function ReplayInsightRail({
         </DetailPanelSection>
       )}
 
-      <DetailPanelSection title={t("simulation.replay.counters")}>
+      {!embedded && <DetailPanelSection title={t("simulation.replay.counters")}>
         <DetailPanelKeyValue
           rows={[
             {
@@ -138,7 +140,7 @@ export function ReplayInsightRail({
             },
           ]}
         />
-      </DetailPanelSection>
+      </DetailPanelSection>}
 
       <DetailPanelSection title={t("simulation.replay.rail.legend")}>
         <ul className="grid gap-1.5 text-xs text-muted-foreground">

@@ -507,7 +507,8 @@
         "activityQueued": "Where do queues build up?",
         "resourceBusy": "Which resources are busy?",
         "throughput": "How does throughput change?"
-      }
+      },
+      "currentDetails": "Details at the current time"
     }
   },
   "side": {
