@@ -46,6 +46,7 @@ test("laptop tools preserve canvas space and unsaved model edits", async ({ page
   const canvas = page.locator(".process-bpmn-canvas");
   await page.locator('[data-element-id="Task_1"]').first().click();
   await page.getByRole("textbox", { name: "Etichetta / Nome" }).fill("Modifica da conservare");
+  await page.getByRole("button", { name: "Chat canvas", exact: true }).focus();
   await page.getByRole("button", { name: "Chat canvas", exact: true }).click();
   await expect(page.locator(".process-studio-chat")).toBeVisible();
   await expect.poll(async () => (await canvas.boundingBox())?.width ?? 0).toBeGreaterThan(720);
@@ -77,15 +78,9 @@ test("scenario supports long activity lists, model reference and execution", asy
   await expect(run).toBeInViewport();
   await row.getByRole("spinbutton").fill("37");
   expect((await row.getByRole("spinbutton").boundingBox())!.width).toBeGreaterThanOrEqual(100);
-  await page.getByRole("button", { name: "Mostra modello" }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  expect((await page.getByRole("dialog").boundingBox())!.width).toBeGreaterThan(1100);
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "Mostra modello" })).toBeFocused();
+  await expect(page.locator(".sim-studio-empty-process .djs-container")).toBeVisible();
+  await page.locator('.sim-studio-empty-process [data-element-id="Task_18"]').first().click();
   await expect(row.getByRole("spinbutton")).toHaveValue("37");
-  await page.getByRole("button", { name: "Mostra modello" }).click();
-  await page.getByRole("dialog").locator('[data-element-id="Task_18"]').first().click();
-  await expect(row.getByRole("spinbutton")).toBeFocused();
   const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
   await run.click();
   const body = (await request).postDataJSON();
@@ -97,6 +92,7 @@ test("mobile tools are reachable and scenario controls stay inside the viewport"
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(canvasView);
+  await page.getByRole("button", { name: "Chat canvas", exact: true }).focus();
   await page.getByRole("button", { name: "Chat canvas", exact: true }).click();
   await expect(page.locator(".process-studio-chat")).toBeVisible();
   await expect(page.getByRole("button", { name: "Chiudi i pannelli", exact: true })).toBeFocused();

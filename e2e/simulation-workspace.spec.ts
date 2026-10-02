@@ -46,6 +46,7 @@ async function fixture(page: Page): Promise<void> {
     else if (path.endsWith("/simulation-runs")) data = [run, { ...run, id: 43, scenario_name: "TO-BE · Capacità aggiuntiva" }];
     else if (path.endsWith("/replay")) data = { run_id: Number(path.split("/").at(-2)), schema_version: 1, replay: payload };
     else if (path.endsWith("/simulation-template")) data = { tasks: [{ element_id: "A", name: "Verifica documentazione", type: "task" }, { element_id: "B", name: "Approva richiesta", type: "task" }], gateways: [] };
+    else if (path.endsWith("/experiments")) data = { bottleneck_el: "A", bottleneck_name: "Verifica documentazione", factors: {}, experiments: [] };
     else if (path.endsWith("/simulation-provenance")) data = { has_discovery: false, elements: [] };
     else if (path.endsWith("/simulation-ui-model")) data = { id: "simulation-ui-model", process_id: "simulation-ui-process", name: "Modello demo", xml };
     await route.fulfill({ json: data });
@@ -66,7 +67,7 @@ test.beforeEach(async ({ page }) => { await fixture(page); });
 
 test("dashboard and process share the clock and never label final KPIs as current", async ({ page }) => {
   await page.goto(`${studio}/dashboard/42`);
-  await expect(page.getByRole("heading", { name: "Dashboard del processo" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Processo", exact: true })).toBeVisible();
   const cycle = page.locator(".sim-kpi").filter({ hasText: "Attraversamento medio" });
   await expect(cycle).toContainText("—");
   await seek(page, 200);
@@ -75,9 +76,9 @@ test("dashboard and process share the clock and never label final KPIs as curren
   await costWidget.getByText("Visualizza dati", { exact: true }).click();
   await expect(costWidget.locator("tbody tr")).toHaveCount(3);
   await expect(costWidget.locator("tbody")).not.toContainText("999");
-  await page.locator(".sim-workspace-nav").getByRole("button", { name: "Processo", exact: true }).click();
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Scenario", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("200");
-  await page.locator(".sim-workspace-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   await expect(page.locator('input[type="range"]')).toHaveValue("200");
   await page.locator(".sim-final-results > summary").click();
   await expect(page.locator(".sim-final-results")).toContainText("333");
@@ -88,7 +89,7 @@ test("dashboard and process share the clock and never label final KPIs as curren
 
 test("widget edits, duplication, keyboard reordering and sections persist after reload", async ({ page }) => {
   await page.goto(`${studio}/dashboard/42`);
-  await page.getByRole("button", { name: "Modifica dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
   await page.getByRole("button", { name: "Configura Costo accumulato", exact: true }).click();
   const inspector = page.getByRole("complementary", { name: "Impostazioni widget" });
   await expect(inspector.getByLabel("Titolo", { exact: true })).toBeFocused();
@@ -143,7 +144,7 @@ test("corrupt saved layouts and blocked storage fail visibly without losing draf
   await page.addInitScript(() => localStorage.setItem("delir:simulation:dashboard:simulation-ui-project:simulation-ui-process", '{"version":99}'));
   await page.goto(`${studio}/dashboard/42`);
   await expect(page.getByRole("alert")).toContainText("layout salvato");
-  await page.getByRole("button", { name: "Modifica dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
   await page.getByRole("button", { name: "Configura Costo accumulato", exact: true }).click();
   await page.getByLabel("Titolo", { exact: true }).fill("Bozza da conservare");
   await page.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException("Blocked", "QuotaExceededError"); }; });
@@ -158,17 +159,16 @@ test("dashboard is accessible and visually stable at desktop and mobile widths",
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   await page.goto(`${studio}/dashboard/42`);
   await seek(page, 300);
-  await expect(page.getByRole("heading", { name: "Dashboard del processo" })).toBeVisible();
-  const activeTab = page.locator('.sim-workspace-nav [aria-current="page"]');
-  const activeBox = (await activeTab.boundingBox())!;
-  expect(activeBox.x).toBeGreaterThanOrEqual(0);
-  expect(activeBox.x + activeBox.width).toBeLessThanOrEqual(page.viewportSize()!.width + 1);
+  await expect(page.getByRole("heading", { name: "Processo", exact: true })).toBeVisible();
+  await expect(page.locator(".sim-workspace-nav")).toHaveCount(0);
+  await expect(page.locator("[data-process-tile]")).toBeVisible();
+  await expect(page.locator('[data-widget-id="default-0"]')).toBeVisible();
   const scan = await new AxeBuilder({ page }).include("main").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(scan.violations).toEqual([]);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1);
   expect(overflow).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("dashboard.png"), animations: "disabled" });
-  await page.getByRole("button", { name: "Modifica dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
   await page.getByRole("button", { name: "Configura Costo accumulato", exact: true }).click();
   const editScan = await new AxeBuilder({ page }).include("main").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(editScan.violations).toEqual([]);
@@ -182,17 +182,17 @@ test("canvas analytics follow the shared clock, move with the keyboard and survi
   await page.goto(`${studio}/replay/42`);
   await page.getByLabel("Attività", { exact: true }).selectOption("A");
   await page.getByRole("button", { name: "Aggiungi analisi alla tela", exact: true }).click();
-  await page.getByRole("button", { name: "Chiudi dettaglio" }).click();
   const widget = page.locator("[data-canvas-widget]");
   await expect(widget).toHaveCount(1);
   await expect(widget.locator(".sim-widget-kpi strong")).toHaveText("2");
   await seek(page, 300);
   await expect(widget.locator(".sim-widget-kpi strong")).toHaveText("0");
-  await widget.getByText("Elemento selezionato", { exact: true }).click();
-  await widget.getByLabel("Metrica", { exact: true }).selectOption("activityDone");
+  await widget.getByRole("button", { name: /^Configura/ }).click();
+  const inspector = page.locator(".sim-studio-widget-host");
+  await inspector.getByLabel("Metrica", { exact: true }).selectOption("activityDone");
   await expect(widget.locator(".sim-widget-kpi strong")).toHaveText("2");
-  await widget.getByLabel("Titolo", { exact: true }).fill("Verifiche concluse");
-  await widget.getByText("Elemento selezionato", { exact: true }).click();
+  await inspector.getByLabel("Titolo", { exact: true }).fill("Verifiche concluse");
+  await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
   const handle = widget.getByRole("button", { name: "Sposta analisi sulla tela" });
   await handle.focus();
   await handle.press("ArrowLeft");
@@ -236,7 +236,7 @@ test("all chart types render and circular charts expose categories without hover
   } }));
   await page.goto(`${studio}/dashboard/42`);
   await seek(page, 300);
-  await page.getByRole("button", { name: "Modifica dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
   await page.getByRole("button", { name: "Configura Occupazione delle risorse", exact: true }).click();
   const inspector = page.getByRole("complementary", { name: "Impostazioni widget" });
   const widget = page.locator('[data-widget-id="default-3"]');
@@ -264,3 +264,80 @@ test("all chart types render and circular charts expose categories without hover
   await expect(widget.locator(".sim-widget-legend li")).toHaveCount(2);
   expect(errors).toEqual([]);
 });
+
+
+test("consultant investigates an activity through contextual tools without losing the canvas", async ({ page }, testInfo) => {
+  await page.goto(`${studio}/workspace/42`);
+  await seek(page, 100);
+  await page.getByLabel("Attività", { exact: true }).selectOption("A");
+  const process = page.locator("[data-process-tile]");
+  const viewer = process.locator(".djs-container");
+  await expect(viewer).toBeVisible();
+  await viewer.evaluate((element) => element.setAttribute("data-session-marker", "same-viewer"));
+  const tools = page.locator(".sim-studio-tools");
+  for (const name of ["Scenario", "Risultati", "Heatmap", "Confronto", "Insight"]) {
+    await tools.getByRole("button", { name, exact: true }).click();
+    await expect(page.getByRole("complementary", { name: "Dettagli e impostazioni", exact: true })).toBeVisible();
+    await expect(viewer).toHaveAttribute("data-session-marker", "same-viewer");
+    await expect(page.locator('input[type="range"]')).toHaveValue("100");
+    await expect(page.getByLabel("Attività", { exact: true })).toHaveValue("A");
+    await expect(page.locator("[data-process-tile]")).toHaveCount(1);
+    await expect(page.locator(".sim-kpi")).toHaveCount(6);
+    if (name === "Insight") {
+      await page.locator(".sim-current-insights > summary").click();
+      await expect(page.locator(".sim-current-insights")).toContainText("Verifica documentazione");
+    }
+    await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
+    await expect(tools.getByRole("button", { name, exact: true })).toBeFocused();
+  }
+  await expect(process.locator(".sim-token")).not.toHaveCount(0);
+  await process.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("unified-workspace.png"), animations: "disabled" });
+});
+
+test("process placement, sizing and undo are saved with the analytical layout", async ({ page }) => {
+  await page.goto(`${studio}/workspace/42`);
+  await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
+  await page.getByRole("button", { name: "Sposta processo dopo", exact: true }).click();
+  const grid = page.locator(".sim-widget-grid").first();
+  await expect(grid.locator(":scope > article").first()).toHaveAttribute("data-widget-id", "default-0");
+  await page.getByRole("button", { name: "Annulla modifica al layout", exact: true }).click();
+  await expect(grid.locator(":scope > article").first()).toHaveAttribute("data-process-tile", "true");
+  await page.getByRole("button", { name: "Ripristina modifica al layout", exact: true }).click();
+  await page.getByRole("button", { name: "Espandi processo a tutta larghezza", exact: true }).click();
+  await page.getByLabel("Altezza del processo", { exact: true }).selectOption("560");
+  await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await page.reload();
+  await expect(page.locator("[data-process-tile]")).toHaveClass(/is-full/);
+  await expect(page.locator("[data-process-tile]")).toHaveCSS("height", "560px");
+  await expect(grid.locator(":scope > article").first()).toHaveAttribute("data-widget-id", "default-0");
+});
+
+
+test("changing run retains the tool while resetting clock and activity scope", async ({ page }) => {
+  await page.goto(`${studio}/workspace/42`);
+  await seek(page, 200);
+  await page.getByLabel("Attivit\u00e0", { exact: true }).selectOption("A");
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Risultati", exact: true }).click();
+  await expect(page).toHaveURL(/panel=overview/);
+  await page.getByRole("combobox", { name: "Scegli una run" }).click();
+  await page.getByRole("option", { name: /TO-BE/ }).click();
+  await expect(page).toHaveURL(/workspace\/43\?panel=overview/);
+  await expect(page.locator('input[type="range"]')).toHaveValue("0");
+  await expect(page.getByLabel("Attivit\u00e0", { exact: true })).toHaveValue("all");
+  await expect(page.locator(".sim-studio-dock")).toContainText("TO-BE");
+  await expect(page.locator("[data-process-tile]")).toHaveCount(1);
+});
+
+for (const state of ["pending", "failed", "no-artifact"] as const) {
+  test(`${state} run keeps the process and scenario controls reachable`, async ({ page }) => {
+    if (state === "no-artifact") await page.route("http://127.0.0.1:8000/**/replay", (route) => route.fulfill({ status: 404, json: { detail: "No artifact" } }));
+    else await page.route("http://127.0.0.1:8000/**/simulation-runs", (route) => route.fulfill({ json: [{ ...run, status: state, error: state === "failed" ? "Simulation failed" : null }] }));
+    await page.goto(`${studio}/workspace/42`);
+    await expect(page.locator(".simulation-bpmn-view .djs-container")).toHaveCount(1);
+    await page.locator(".sim-studio-tools").getByRole("button", { name: "Scenario", exact: true }).click();
+    await expect(page.getByRole("complementary", { name: "Dettagli e impostazioni", exact: true })).toBeVisible();
+    await expect(page.locator(".sim-config-body")).toBeVisible();
+    await expect(page.locator(".simulation-bpmn-view .djs-container")).toHaveCount(1);
+  });
+}
