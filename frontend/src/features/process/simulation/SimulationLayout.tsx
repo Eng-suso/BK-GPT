@@ -83,6 +83,10 @@ export function SimulationLayout(): React.JSX.Element {
   const runs = React.useMemo(() => runsQ.data ?? [], [runsQ.data]);
 
   const { sub, runId } = readPath(location.pathname);
+  const navRef = React.useRef<HTMLElement>(null);
+  React.useEffect(() => {
+    navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [sub, projectQ.isLoading]);
   const activeRunId =
     runId ??
     runs.find((r) => r.status === "completed")?.id ??
@@ -213,7 +217,7 @@ export function SimulationLayout(): React.JSX.Element {
             }
           />
 
-          <nav aria-label={t("simulation.section.navLabel")} className="sim-workspace-nav">
+          <nav ref={navRef} aria-label={t("simulation.section.navLabel")} className="sim-workspace-nav">
             {NAV_TABS.map((tab) => {
               const Icon = TAB_ICONS[tab];
               return <button type="button" key={tab} onClick={() => goToTab(tab)} aria-current={sub === tab ? "page" : undefined}>

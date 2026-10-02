@@ -106,7 +106,7 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
         >
           <SelectTrigger
             size="sm"
-            className="w-[104px] shrink-0"
+            className="w-[128px] shrink-0"
             aria-label={t("simulation.replay.speed")}
           >
             <SelectValue />
