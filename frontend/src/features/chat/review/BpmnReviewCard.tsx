@@ -214,11 +214,10 @@ export function BpmnReviewSheet({
               <ClipboardCheck className="size-5" />
             </div>
             <div className="min-w-0">
-              <p className="product-eyebrow">Piano generato · Review BPMN</p>
+              <p className="product-eyebrow">{t("review.dialogEyebrow")}</p>
               <DialogTitle>{t("review.dialogTitle")}</DialogTitle>
               <DialogDescription id="bpmn-review-sheet-description">
-                Ho trasformato la conversazione in una bozza strutturata. Verifica il
-                significato prima di disegnare il canvas.
+                {t("review.dialogDescription")}
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -284,7 +283,7 @@ export function BpmnReviewSheet({
         </div>
 
         <footer className="bpmn-review-sheet-footer">
-          <p>L'approvazione genera il canvas BPMN e salva una nuova versione del modello.</p>
+          <p>{t("review.approvalHint")}</p>
           <div className="bpmn-review-footer-actions">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("review.later")}</Button>
             {isEditing ? <Button type="button" variant="secondary" onClick={() => { setDraftMarkdown(review.bpmn_brief); setIsEditing(false); }} disabled={isSaving}>{t("review.cancel")}</Button> : null}
