@@ -1,8 +1,8 @@
 import React from "react";
 
-import { useReplayEngine, type UseReplayEngine } from "./useReplay";
+import { useReplayEngine } from "./useReplay";
 
-const ReplaySessionContext = React.createContext<UseReplayEngine | null>(null);
+import { ReplaySessionContext } from "./useReplaySession";
 
 /** Owned by the workspace, so changing analysis routes keeps the same clock. */
 export function ReplaySession({ runId, enabled, children }: {
@@ -14,8 +14,3 @@ export function ReplaySession({ runId, enabled, children }: {
   return <ReplaySessionContext.Provider value={session}>{children}</ReplaySessionContext.Provider>;
 }
 
-export function useReplaySession(): UseReplayEngine {
-  const session = React.useContext(ReplaySessionContext);
-  if (!session) throw new Error("ReplaySession requires the simulation workspace");
-  return session;
-}

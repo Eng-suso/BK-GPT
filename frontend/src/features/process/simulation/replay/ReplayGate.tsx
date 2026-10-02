@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/feedback";
 
 import type { SimulationRun } from "../simulationTypes";
 import { resolveActiveRun, useSimulationSection } from "../useSimulationSection";
-import { useReplaySession } from "./ReplaySession";
+import { useReplaySession } from "./useReplaySession";
 import type { ReplayEngine } from "./replayEngine";
 
 type ReplayGateProps = {
