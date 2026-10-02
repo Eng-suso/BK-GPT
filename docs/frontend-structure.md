@@ -1,7 +1,7 @@
 # Frontend — Struttura `src/` e convenzioni
 
 Data: 2026-08-30
-Vedi [frontend-stack.md](frontend-stack.md), [frontend-audit.md](frontend-audit.md).
+Vedi [frontend-stack.md](frontend-stack.md), [frontend-audit.md](archive/frontend-audit.md).
 
 ---
 

@@ -654,7 +654,7 @@ export function toProjectDecision(
 }
 
 /* ── BPMN model + versions ─────────────────────────────────────────
- * Backend: /v1/workspace/bpmn-models/*  (see docs/frontend-audit.md).
+ * Backend: /v1/workspace/bpmn-models/*  (see docs/archive/frontend-audit.md).
  * Consumed by features/process/api.ts.
  */
 
