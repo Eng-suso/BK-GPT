@@ -266,7 +266,7 @@ test("all chart types render and circular charts expose categories without hover
 });
 
 
-test("consultant investigates an activity through contextual tools without losing the canvas", async ({ page }, testInfo) => {
+test("consultant investigates an activity through contextual tools without losing the canvas", async ({ page, isMobile }, testInfo) => {
   await page.goto(`${studio}/workspace/42`);
   await seek(page, 100);
   await page.getByLabel("Attività", { exact: true }).selectOption("A");
@@ -288,11 +288,16 @@ test("consultant investigates an activity through contextual tools without losin
       await expect(page.locator(".sim-current-insights")).toContainText("Verifica documentazione");
     }
     await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
+    await expect(page.locator(".sim-studio-dock")).toBeHidden();
     await expect(tools.getByRole("button", { name, exact: true })).toBeFocused();
   }
   await expect(process.locator(".sim-token")).not.toHaveCount(0);
-  await process.scrollIntoViewIfNeeded();
+  if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.locator(".sim-dashboard-workspace").evaluate((element) => { element.scrollTop = 0; });
   await page.screenshot({ path: testInfo.outputPath("unified-workspace.png"), animations: "disabled" });
+  await tools.getByRole("button", { name: "Heatmap", exact: true }).click();
+  await expect(page.locator(".sim-studio-dock")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("unified-heatmap.png"), animations: "disabled" });
 });
 
 test("process placement, sizing and undo are saved with the analytical layout", async ({ page }) => {

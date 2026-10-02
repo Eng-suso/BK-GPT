@@ -51,6 +51,7 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
 
   React.useEffect(() => {
     if (supportReplacesCanvas) closeRef.current?.focus();
+    else lastTrigger.current?.focus({ preventScroll: true });
   }, [supportReplacesCanvas]);
 
   const closeSupport = () => {
@@ -59,12 +60,12 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
     requestAnimationFrame(() => lastTrigger.current?.focus());
   };
   const toggleChat = () => {
-    lastTrigger.current = document.activeElement as HTMLElement | null;
+    lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("actions.toggleChat"))}"]`) ?? document.activeElement as HTMLElement | null;
     if (!showChat && propertiesOpen && !bothFit) onTogglePropertiesPanel();
     setChatOpen(!showChat);
   };
   const toggleProperties = () => {
-    lastTrigger.current = document.activeElement as HTMLElement | null;
+    lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("properties.title"))}"]`) ?? document.activeElement as HTMLElement | null;
     if (!propertiesOpen && !bothFit) setChatOpen(false);
     onTogglePropertiesPanel();
   };
