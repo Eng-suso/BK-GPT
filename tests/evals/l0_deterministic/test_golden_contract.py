@@ -98,3 +98,10 @@ def test_a_claim_or_conflict_written_in_its_own_words_is_found(case: ReferenceCa
     ]
 
     assert not unreachable, f"{case.case_id}: alias irraggiungibili: {unreachable}"
+
+
+def test_every_golden_case_is_on_the_v2_contract():
+    """Un caso v1 misura solo il disegno: evidenze, claim e conflitti resterebbero fuori."""
+    v1 = [case.case_id for case in CASES if case.schema_version < 2]
+
+    assert not v1, f"casi ancora sul contratto v1: {v1}"
