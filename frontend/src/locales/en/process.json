@@ -516,8 +516,8 @@
       "navigation": "Canvas navigation",
       "backProcess": "Back to process",
       "goTo": "Go to an element…",
-      "panHint": "Drag the background · Ctrl + wheel to zoom",
-      "composeHint": "Move and resize elements · keyboard arrows",
+      "panHint": "Drag headers to move elements · drag the background to pan",
+      "composeHint": "Drag headers · resize from the corner · save your layout",
       "zoom": "Canvas zoom",
       "showAll": "Show entire canvas",
       "workspace": "Process and analytics canvas",
@@ -533,6 +533,24 @@
       "summaryDetails": "Comparison details",
       "groups": "Canvas sections",
       "finalHint": "Replay analytics retain the saved clock. Comparison uses the final results of the selected runs."
+    },
+    "authoring": {
+      "closeLibrary": "Close element library",
+      "addHint": "Drag an element onto the canvas or click to add it.",
+      "categories": "Element categories",
+      "analysis": "Analysis",
+      "charts": "Charts",
+      "notes": "Text",
+      "metrics": "Featured KPIs",
+      "readyAnalyses": "Ready-made analyses",
+      "visualizations": "Custom visualizations",
+      "context": "Context and annotations",
+      "note": "Analysis note",
+      "noteHint": "Assumptions, observations and decisions",
+      "noteTemplate": "## Observations\n\nWrite your observations about the process here.\n\n### Next action\n\nDescribe the change to evaluate.",
+      "full": "All sections are full. Add a section to continue.",
+      "libraryFooter": "Every element follows the simulation clock.",
+      "added": "{{title}} added and centered on the canvas."
     }
   },
   "side": {

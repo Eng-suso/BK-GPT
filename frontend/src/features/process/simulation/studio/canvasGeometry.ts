@@ -41,3 +41,20 @@ export function zoomCamera(camera: Camera, factor: number, x: number, y: number)
 export function resizeRect(rect: CanvasRect, dx: number, dy: number): CanvasRect {
   return { ...rect, width: Math.max(280, Math.min(2400, rect.width + dx)), height: Math.max(240, Math.min(1600, rect.height + dy)) };
 }
+
+/** Palette drops use viewport pixels; persisted positions use scene units. */
+export function insertionRect(camera: Camera, x: number, y: number): CanvasRect {
+  return { x: Math.max(-10000, Math.min(10000, (x - camera.x) / camera.scale)), y: Math.max(-10000, Math.min(10000, (y - camera.y) / camera.scale)), width: 416, height: 290 };
+}
+
+/** Click-to-add seeks nearby free space, then the camera reveals the new object. */
+export function freeInsertionRect(start: CanvasRect, occupied: CanvasRect[]): CanvasRect {
+  const collides = (rect: CanvasRect) => occupied.some(other => rect.x < other.x + other.width + 24 && rect.x + rect.width + 24 > other.x && rect.y < other.y + other.height + 24 && rect.y + rect.height + 24 > other.y);
+  for (let row = 0; row < 50; row++) {
+    for (let column = 0; column < 4; column++) {
+      const rect = { ...start, x: Math.min(10000, start.x + column * (start.width + 24)), y: Math.min(10000, start.y + row * (start.height + 24)) };
+      if (!collides(rect)) return rect;
+    }
+  }
+  return start;
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultLayout, layoutSchema } from "../dashboard/dashboardModel";
 import { formatMetric } from "../dashboard/dashboardFormatting";
-import { bounds, fitCamera, sceneRects, zoomCamera, resizeRect } from "./canvasGeometry";
+import { bounds, fitCamera, sceneRects, zoomCamera, resizeRect, insertionRect, freeInsertionRect } from "./canvasGeometry";
 
 describe("analytical scene", () => {
   it("migrates legacy layouts without mutating or dropping analytical objects", () => {
@@ -26,6 +26,15 @@ describe("analytical scene", () => {
     expect(2000 * fitted.scale + fitted.x).toBeGreaterThan(0);
     expect(-1000 * fitted.scale + fitted.y).toBeGreaterThan(0);
     expect(resizeRect({ x: 0, y: 0, width: 400, height: 300 }, -1000, -1000)).toMatchObject({ width: 280, height: 240 });
+  });
+  it("places palette drops in world coordinates and finds free space for repeated additions", () => {
+    const drop = insertionRect({ x: -120, y: 30, scale: 0.8 }, 300, 200);
+    expect(drop).toMatchObject({ x: 525, y: 212.5 });
+    const next = freeInsertionRect(drop, [drop]);
+    expect(next.x).toBe(drop.x + drop.width + 24);
+    const third = freeInsertionRect(drop, [drop, next]);
+    expect(third.x).toBe(next.x + next.width + 24);
+    expect(insertionRect({ x: -1e8, y: 1e8, scale: 0.15 }, 0, 0)).toMatchObject({ x: 10000, y: -10000 });
   });
   it("does not round positive throughput to zero or format absent metrics as zero", () => {
     expect(formatMetric(0.0032, "rate", "it")).toBe("0,0032/h");

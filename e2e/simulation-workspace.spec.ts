@@ -120,7 +120,11 @@ test("widget edits, duplication, keyboard reordering and sections persist after 
 test("Markdown formulas follow the playhead and invalid input remains editable", async ({ page }) => {
   await page.goto(`${studio}/dashboard/42`);
   await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: /Testo e Markdown/ }).click();
+  const palette = page.getByRole("complementary", { name: "Aggiungi un elemento", exact: true });
+  await palette.getByRole("button", { name: "Testo", exact: true }).click();
+  await palette.getByRole("button", { name: /Testo e Markdown/ }).click();
+  await palette.getByRole("button", { name: "Chiudi raccolta elementi", exact: true }).click();
+  await page.getByRole("button", { name: "Configura Casi conclusi", exact: true }).click();
   await page.getByLabel("Testo Markdown", { exact: true }).fill("Casi conclusi: **${metric}**");
   await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption({ label: "Casi conclusi" });
   await seek(page, 300);
@@ -470,4 +474,97 @@ test("pointer placement commits one scene edit in world coordinates at a non-def
   await expect(object).toHaveCSS("left", "0px");
   await expect(object).toHaveCSS("top", "0px");
   await expect(page.getByRole("button", { name: "Annulla modifica al layout", exact: true })).toBeDisabled();
+});
+
+
+test("headers move process and charts directly at nondefault zoom with one undoable edit", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Mouse header dragging is covered on desktop; touch and keyboard placement have separate journeys.");
+  await page.goto(`${studio}/workspace/42`);
+  const process = page.locator('[data-scene-object="__process__"]');
+  const header = process.locator(".sim-process-tile-header");
+  await header.click();
+  await expect(page.getByRole("button", { name: "Salva layout", exact: true })).toHaveCount(0);
+  const moveHeader = async (selector: string) => {
+    const object = page.locator(selector);
+    const heading = object.locator(".sim-widget-heading,.sim-process-tile-header");
+    const box = (await heading.boundingBox())!;
+    const scale = await object.evaluate(el => el.getBoundingClientRect().width / (el as HTMLElement).offsetWidth);
+    const before = await object.evaluate(el => ({ x: parseFloat((el as HTMLElement).style.left), y: parseFloat((el as HTMLElement).style.top) }));
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 48, box.y + box.height / 2 + 36, { steps: 5 });
+    await page.mouse.up();
+    const after = await object.evaluate(el => ({ x: parseFloat((el as HTMLElement).style.left), y: parseFloat((el as HTMLElement).style.top) }));
+    expect(after.x - before.x).toBeCloseTo(48 / scale, 1);
+    expect(after.y - before.y).toBeCloseTo(36 / scale, 1);
+    return { before, after };
+  };
+  await moveHeader('[data-scene-object="__process__"]');
+  await expect(page.getByRole("button", { name: "Salva layout", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Annulla modifica al layout", exact: true }).click();
+  await expect(process).toHaveCSS("left", "0px");
+  await expect(page.getByRole("button", { name: "Annulla modifica al layout", exact: true })).toBeDisabled();
+  await jump(page, "default-0");
+  await page.getByRole("button", { name: "Zoom indietro", exact: true }).click();
+  const chart = await moveHeader('[data-scene-object="default-0"]');
+  await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await page.reload();
+  const restored = await page.locator('[data-scene-object="default-0"]').evaluate(el => parseFloat((el as HTMLElement).style.left));
+  expect(restored).toBeCloseTo(chart.after.x, 1);
+});
+
+test("palette adds consecutive visible KPIs and notes with keyboard configuration and cancel", async ({ page }, testInfo) => {
+  await page.goto(`${studio}/workspace/42`);
+  await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
+  const palette = page.getByRole("complementary", { name: "Aggiungi un elemento", exact: true });
+  await palette.getByRole("button", { name: /^KPI · Costo accumulato/ }).press("Enter");
+  const added = page.locator('[data-scene-object]:not(.is-process)').filter({ has: page.locator('[data-widget-id]:not([data-widget-id^="default-"])') });
+  await expect(added).toHaveCount(1);
+  await expect(added.first()).toBeInViewport({ ratio: 0.9 });
+  await palette.getByRole("button", { name: /^KPI · Casi in coda/ }).click();
+  await expect(added).toHaveCount(2);
+  await expect(added.last()).toBeInViewport({ ratio: 0.9 });
+  const rects = await added.evaluateAll(elements => elements.map(el => ({ x: parseFloat((el as HTMLElement).style.left), y: parseFloat((el as HTMLElement).style.top) })));
+  expect(rects[0]).not.toEqual(rects[1]);
+  await palette.getByRole("button", { name: "Testo", exact: true }).click();
+  await palette.getByRole("button", { name: /^Nota di analisi/ }).click();
+  await expect(added).toHaveCount(3);
+  await expect(added.last()).toBeInViewport({ ratio: 0.9 });
+  await expect(added.last()).toContainText("Prossima azione");
+  await palette.getByRole("button", { name: "Chiudi raccolta elementi", exact: true }).press("Escape");
+  await expect(page.getByRole("button", { name: "Aggiungi widget", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Configura Nota di analisi", exact: true }).click();
+  await expect(page.getByLabel("Titolo", { exact: true })).toBeFocused();
+  await page.getByLabel("Titolo", { exact: true }).fill("Ipotesi di miglioramento");
+  await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
+  const violations = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(violations.violations).toEqual([]);
+  await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("canvas-authoring.png"), animations: "disabled" });
+  const paletteScan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(paletteScan.violations).toEqual([]);
+  await page.getByRole("button", { name: "Annulla", exact: true }).click();
+  await expect(page.locator(".sim-widget")).toHaveCount(6);
+  await expect(palette).toHaveCount(0);
+});
+
+test("dragging a palette preset places it at the drop point in scene coordinates", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Native HTML drag/drop uses a mouse; click-to-add covers touch devices.");
+  await page.goto(`${studio}/workspace/42`);
+  await page.getByRole("button", { name: "Zoom indietro", exact: true }).click();
+  await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
+  const viewport = page.getByRole("region", { name: "Tela di processo e analisi", exact: true });
+  const camera = await page.locator(".sim-scene-world").evaluate(el => { const matrix = new DOMMatrix(getComputedStyle(el).transform); return { x: matrix.e, y: matrix.f, scale: matrix.a }; });
+  const box = (await viewport.boundingBox())!;
+  const point = { x: Math.min(480, box.width - 40), y: Math.min(160, box.height - 40) };
+  await page.getByRole("complementary", { name: "Aggiungi un elemento", exact: true }).getByRole("button", { name: /^KPI · Costo accumulato/ }).dragTo(viewport, { targetPosition: point });
+  const widget = page.locator('[data-widget-id]:not([data-widget-id^="default-"])');
+  await expect(widget).toHaveCount(1);
+  const rect = await widget.evaluate(el => { const scene = el.closest("[data-scene-object]") as HTMLElement; return { x: parseFloat(scene.style.left), y: parseFloat(scene.style.top) }; });
+  expect(Math.abs(rect.x - (point.x - camera.x) / camera.scale)).toBeLessThan(2 / camera.scale);
+  expect(Math.abs(rect.y - (point.y - camera.y) / camera.scale)).toBeLessThan(2 / camera.scale);
+  await expect(widget).toBeInViewport({ ratio: 0.9 });
+  await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await page.reload();
+  await expect(widget).toHaveCount(1);
 });
