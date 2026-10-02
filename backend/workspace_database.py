@@ -3283,8 +3283,19 @@ def restore_process(process_id: str) -> dict:
 
 
 def delete_client(client_id: str) -> dict:
-    """Elimina un cliente e tutto cio' che ne dipende. Non si torna indietro."""
+    """Elimina un cliente e tutto cio' che ne dipende. Non si torna indietro.
+
+    Prima l'evidenza nel cervello (GR-13), come in `delete_process`.
+    """
     assert_write_allowed("eliminare un cliente")
+
+    with workspace_connection() as session:
+        client = _client_or_raise(session, client_id)
+        project_ids = [project.id for project in client.projects]
+        client_name = client.name
+    from backend.memory.knowledge_graph import erase
+
+    erase.erase_client(client_name, project_ids)
 
     with workspace_connection() as session:
         client = _client_or_raise(session, client_id)
@@ -3297,8 +3308,17 @@ def delete_client(client_id: str) -> dict:
 
 
 def delete_project(project_id: str) -> dict:
-    """Elimina un progetto, i suoi processi, fonti e decisioni."""
+    """Elimina un progetto, i suoi processi, fonti e decisioni.
+
+    Prima l'evidenza nel cervello (GR-13), come in `delete_process`.
+    """
     assert_write_allowed("eliminare un progetto")
+
+    with workspace_connection() as session:
+        _project_or_raise(session, project_id)
+    from backend.memory.knowledge_graph import erase
+
+    erase.erase_project(project_id)
 
     with workspace_connection() as session:
         project = _project_or_raise(session, project_id)
@@ -3313,8 +3333,20 @@ def delete_project(project_id: str) -> dict:
 
 
 def delete_process(process_id: str) -> dict:
-    """Elimina un processo, il suo modello BPMN e le fonti che vi puntavano."""
+    """Elimina un processo, il suo modello BPMN e le fonti che vi puntavano.
+
+    Prima l'evidenza nel cervello (GR-13, `knowledge_graph.erase`), poi il
+    workspace: se la prima parte fallisce il processo resta e si puo' riprovare.
+    Nell'ordine opposto l'evidenza resterebbe senza processo, pronta a tornare
+    quando qualcuno ricrea un processo con lo stesso nome.
+    """
     assert_write_allowed("eliminare un processo")
+
+    with workspace_connection() as session:
+        project_id = _process_or_raise(session, process_id).project_id
+    from backend.memory.knowledge_graph import erase
+
+    erase.erase_process(project_id, process_id)
 
     with workspace_connection() as session:
         process = _process_or_raise(session, process_id)
