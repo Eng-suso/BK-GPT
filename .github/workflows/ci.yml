@@ -135,6 +135,14 @@ jobs:
           path: frontend/coverage/
           retention-days: 7
 
+      # Il peso del primo caricamento e' l'unica misura di prestazione che non
+      # dipende dall'hardware del runner, quindi l'unica che puo' bloccare il
+      # merge. Lighthouse e il confronto per pixel restano opt-in, e il perche'
+      # sta scritto nelle loro spec.
+      - name: Bundle budget
+        working-directory: .
+        run: npm run check:bundle
+
       - name: Storybook build
         run: npm run storybook:build
         env:

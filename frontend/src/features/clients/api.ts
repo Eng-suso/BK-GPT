@@ -14,7 +14,7 @@ import {
   type Client,
   type ClientDraft,
 } from "@/contracts/workspace";
-import { http } from "@/lib/http";
+import { http, httpList } from "@/lib/http";
 import { projectKeys } from "@/features/projects/api";
 
 export const clientKeys = {
@@ -22,19 +22,35 @@ export const clientKeys = {
   list: () => [...clientKeys.all] as const,
 };
 
+/** Le righe arrivate e quante ne esistono: la lista ha un tetto (B12). */
+export type ClientsPage = { rows: Client[]; total: number | null };
+
+/**
+ * Una sola richiesta, due viste: chi vuole solo l'elenco lo ottiene con
+ * `select`, chi deve dire che l'elenco e' tagliato legge anche il conteggio.
+ */
+function clientsPageOptions() {
+  return {
+    queryKey: clientKeys.list(),
+    queryFn: async (): Promise<ClientsPage> => {
+      const page = await httpList<unknown>("/v1/workspace/clients");
+      return { rows: apiClientsSchema.parse(page.rows).map(toClient), total: page.total };
+    },
+  };
+}
+
 /**
  * Fetches the workspace clients.
  *
  * @returns The query result containing the workspace clients
  */
 export function useClientsQuery(): UseQueryResult<Client[]> {
-  return useQuery({
-    queryKey: clientKeys.list(),
-    queryFn: async () => {
-      const raw = await http<unknown>("/v1/workspace/clients");
-      return apiClientsSchema.parse(raw).map(toClient);
-    },
-  });
+  return useQuery({ ...clientsPageOptions(), select: (page: ClientsPage) => page.rows });
+}
+
+/** Come sopra, ma con il conteggio: serve a dire che l'elenco e' tagliato. */
+export function useClientsPageQuery(): UseQueryResult<ClientsPage> {
+  return useQuery(clientsPageOptions());
 }
 
 /**

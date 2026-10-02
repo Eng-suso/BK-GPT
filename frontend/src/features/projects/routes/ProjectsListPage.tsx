@@ -12,7 +12,7 @@ import {
   ProgressBar,
   type ListSummaryItem,
 } from "@/components/data";
-import { EmptyState, ErrorState } from "@/components/feedback";
+import { EmptyState, ErrorState, InlineNotice } from "@/components/feedback";
 import { StatusIndicator } from "@/components/status";
 import {
   DetailPanel,
@@ -33,7 +33,7 @@ import {
   type LifecycleTarget,
 } from "@/features/archive/RecordLifecycleDialog";
 import { buildProjectColumns } from "../columns";
-import { useProjectsQuery } from "../api";
+import { useProjectsPageQuery } from "../api";
 import { ProjectFormDialog } from "../components/ProjectFormDialog";
 import { projectStatusTone, type Project } from "../types";
 
@@ -77,7 +77,15 @@ export function ProjectsListPage(): React.JSX.Element {
   const { t: tCommon } = useTranslation("common");
   const navigate = useNavigate();
 
-  const { data: projects = [], isLoading, isError, refetch } = useProjectsQuery();
+  const page = useProjectsPageQuery();
+  // Riferimento stabile: `?? []` creerebbe un array nuovo a ogni render e
+  // rifarebbe ogni `useMemo` che dipende da questo elenco.
+  const projects = useMemo(() => page.data?.rows ?? [], [page.data]);
+  const { isLoading, isError, refetch } = page;
+  // Le liste hanno un tetto (B12): se il backend dice che ce ne sono di piu',
+  // l'elenco lo dice invece di far credere di mostrarle tutte.
+  const totale = page.data?.total ?? null;
+  const tagliato = totale !== null && totale > projects.length;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // `null` = creazione, un progetto = modifica di quel record. `formSession`
   // cambia a ogni apertura e fa da `key` al dialog: la bozza riparte dai dati
@@ -254,6 +262,13 @@ export function ProjectsListPage(): React.JSX.Element {
         />
       }
       toolbar={
+        <>
+        {tagliato ? (
+          <InlineNotice
+            tone="warning"
+            title={tCommon("state.truncated", { shown: projects.length, total: totale })}
+          />
+        ) : null}
         <ListToolbar
           search={list.search}
           onSearchChange={list.setSearch}
@@ -261,6 +276,7 @@ export function ProjectsListPage(): React.JSX.Element {
           filters={filters.menus}
           onClearFilters={filters.clear}
         />
+        </>
       }
       detail={
         <DetailPanel className="hidden panel:flex">

@@ -35,15 +35,15 @@ decisione, §④).
 | B1 | Il tenant arriva da un header, non dalla credenziale | Bloccante | **bloccato** — §④.1 |
 | B2 | Autenticazione spenta di default, CORS `*`, tutti admin | Bloccante | **fatto, verificato** — `663a670` |
 | B3 | Memoria di un consulente solo (`default_consultant_id`, 20 punti) | Bloccante | **bloccato** — §④.2 |
-| B4 | Architettura mono-processo non dichiarata né difesa | Alto | **bloccato** — §④.6 |
-| B5 | 73 handler su 76 sono `def` sync: threadpool a 40 posti | Alto | da fare |
+| B4 | Architettura mono-processo non dichiarata né difesa | Alto | **bloccato** — §④.8 |
+| B5 | 73 handler su 76 sono `def` sync: threadpool a 40 posti | Alto | **parziale** — `f1d054d`: `/health` non si blocca più e i posti sono dichiarati; le rotte lente restano sincrone (§④.6) |
 | B6 | `_TRACE_EVENTS` mai potato: leak di memoria certo | Alto | **fatto, verificato** — `d3c9544`, `7fc5cb5` |
 | B7 | La risposta si perde se il client cade a metà stream | Bloccante | **fatto, verificato** — `4004d7e` |
 | B8 | Run di simulazione `pending` per sempre dopo un crash | Alto | **fatto, verificato** — `549d421` |
 | B9 | `str(exc)` verso il client (3 punti reali, non 20) | Medio | **fatto, verificato** — `3a46612` |
 | B10 | Spesa LLM senza tetto | Alto | **bloccato** — §④.3 |
 | B11 | La traccia di osservabilità non è legata al tenant | Medio | **fatto, verificato** — `d3c9544` |
-| B12 | Liste senza `LIMIT` né paginazione | Medio | da fare |
+| B12 | Liste senza `LIMIT` né paginazione | Medio | **fatto, verificato** — `823052f` |
 
 ### UI
 
@@ -64,7 +64,7 @@ decisione, §④).
 | X1 | «Cronologia eliminata» senza conferma né annulla | Alto | **fatto, verificato** — `cda5adf` |
 | X2 | Clienti è un elenco che non si apre | Alto | **bloccato** — §④.5 |
 | X3 | URL sbagliato, rimando muto a `/projects` | Medio | **fatto, verificato** — `7f01a30` |
-| X4 | La ricerca globale cerca il cliente per nome, non per id | Medio | da fare |
+| X4 | La ricerca globale cerca il cliente per nome, non per id | Medio | **non su `main`** — la ricerca globale vive solo su `feat/notifications-feed`: va corretta lì prima del suo merge (`features/search/api.ts:56`) |
 | X5 | Nessun tetto alle simulazioni concorrenti | Medio | **fatto, verificato** — `d91ef7f` |
 
 ### Verifica
@@ -72,7 +72,7 @@ decisione, §④).
 | ID | Difetto | Gravità | Stato |
 | --- | --- | --- | --- |
 | V1 | La suite `e2e/` non attraversa il backend: tutto mockato | Bloccante | **fatto, verificato** — `aa8b933` |
-| V2 | Visual regression e Lighthouse opt-in, non bloccano il merge | Medio | da fare |
+| V2 | Visual regression e Lighthouse opt-in, non bloccano il merge | Medio | **parziale** — `f6c9b63`: il peso del pacchetto è un cancello; pixel e Lighthouse restano opt-in (§④.7) |
 
 ---
 
@@ -80,12 +80,16 @@ decisione, §④).
 
 **Uno solo.** Chi prende il lavoro fa questo, poi riscrive questa sezione.
 
-> **Ondata 5 — l'ultimo giro.**
-> Nell'ordine: B12 (liste senza `LIMIT`: una richiesta tira giù il workspace
-> intero), B5 (73 handler sync su 76: a ~40 turni insieme l'API si ferma, e con
-> lei `/health`), V2 (visual e Lighthouse non bloccano il merge).
+> **Non c'è un prossimo passo di codice.**
+> Quello che restava senza decisioni è chiuso. Gli otto punti aperti in §④
+> aspettano una risposta di Sohayb, non una riga in più: scriverle prima
+> significherebbe riscriverle dopo.
 >
-> Poi restano solo i sei bloccati su una decisione (§④), e l'audit è chiuso.
+> Chi riprende: leggi §④, porta una decisione, e quella diventa l'ondata 6.
+
+**Ondata 5 — l'ultimo giro — chiusa** il 2026-09-26: B5 (parziale), B12, V2
+(parziale). Le due metà non chiuse non sono dimenticanze: sono diventate
+decisioni, §④.6 e §④.7, con il loro costo scritto.
 
 **Ondata 4 — la lingua — chiusa** il 2026-09-25: U4. Da 110 stringhe fuori da
 i18next a zero. Le sei rimaste non sono testo d'interfaccia: un prompt per
@@ -101,7 +105,7 @@ Sette commit, un test per difetto. U4 non era in questa ondata e resta aperto.
 
 **Ondata 1 — backend — chiusa** il 2026-09-24: B2, B6, B7, B8, B9, B11, U6.
 Sei commit, un test per difetto. B4 è uscito dall'ondata ed è diventato una
-decisione (§④.6): il fix vero è un lock distribuito o un deploy dichiarato
+decisione (§④.8): il fix vero è un lock distribuito o un deploy dichiarato
 mono-processo, e la scelta appartiene a Track A.
 
 ---
@@ -157,7 +161,21 @@ Cinque decisioni. Finché non arrivano, i difetti che dipendono da loro restano
 5. **X2 — cos'è la schermata di un cliente.** La rotta esiste nel codice e non è
    montata. Serve sapere cosa ci si legge: progetti, storico, memoria del
    cliente, fatturato. Senza, si costruisce un contenitore vuoto.
-6. **B4 — quanti processi gira DeliR.** Non era una decisione in partenza, lo è
+6. **B5 — quando le rotte lente diventano `async`.** Il tetto del threadpool
+   ora è dichiarato (`DELIR_API_WORKER_THREADS`) e `/health` non ci finisce
+   dentro, quindi il processo non viene più dichiarato morto mentre lavora. Ma
+   73 rotte su 76 restano sincrone: con abbastanza turni insieme, l'API
+   continua a fermarsi. Il fix vero è portare il percorso caldo — lo stream di
+   chat e la simulazione — su generatori asincroni, ed è una modifica delicata
+   su codice che funziona. Va fatta quando c'è un numero di utenti che la
+   giustifica, non prima.
+7. **V2 — chi possiede le immagini di riferimento.** Il confronto per pixel non
+   ha nessuna immagine committata: per renderlo un cancello serve decidere
+   quale piattaforma le genera (il CI su Linux, presumibilmente) e accettare di
+   rigenerarle a ogni cambio voluto. Lighthouse invece balla con l'hardware del
+   runner: o si accetta il rumore, o resta una misura locale. Intanto il peso
+   del pacchetto è già un cancello, ed è la parte che si misura davvero.
+8. **B4 — quanti processi gira DeliR.** Non era una decisione in partenza, lo è
    diventata guardando il codice. I lock dei turni di chat (`_THREAD_LOCKS`)
    stanno in memoria di processo, e le simulazioni girano in `BackgroundTasks`:
    con due worker uvicorn, due turni sullo stesso thread partono insieme e il
@@ -224,7 +242,7 @@ verifica.
 | 2026-09-24 | B7 | Il salvataggio del turno è passato in un `finally`: una scheda chiusa o uno Stop lasciano in archivio quello che l'agente aveva scritto, marcato come troncato. Il generatore è uscito dalla closure (`chat_turn_events`) per poterlo chiudere in un test. | `tests/test_fake_llm.py::test_a_turn_that_never_ends_still_leaves_what_the_agent_wrote` |
 | 2026-09-24 | B9, U6 | Le tre rotte di chat non mandano più `str(exc)`: l'eccezione va nei log con thread e trace, in interfaccia arriva una frase per il consulente, e un timeout (503) si distingue da un guasto (502). **Correzione all'audit:** i punti veri erano 3, non 20 — gli altri 17 sono messaggi di `ValueError` scritti apposta per chi legge. | `tests/test_chat_error_surface.py`, 3 verdi |
 | 2026-09-24 | B2 | `DELIR_ENVIRONMENT`: dichiarato `staging` o `prod` senza autenticazione, l'app si rifiuta di partire. In `dev` parte e dice cosa è aperto. | `tests/test_startup_guard.py`, 4 verdi |
-| 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.6 con le due strade e il loro costo. | — |
+| 2026-09-24 | B4 | Uscito dall'ondata 1: non è un fix, è una decisione di deploy. Spostato in §④.8 con le due strade e il loro costo. | — |
 | 2026-09-24 | B2, B8 | I due rilievi della review sul mio codice: la lista degli ambienti dice dove partire scoperti è lecito (non dove è vietato), quindi un `DELIR_ENVIRONMENT` scritto male non parte; e un risultato Prosimos che arriva per una simulazione non più `pending` viene scartato invece di riportarla in vita. | `tests/test_startup_guard.py`, `tests/test_simulation.py`, 40 verdi sulle suite toccate |
 | 2026-09-25 | B6 | Rilettura del fix stesso: `_remember` serviva sia ad aprire una traccia sia a scriverci, quindi un evento in ritardo resuscitava una traccia sfrattata — senza spazio di lavoro, quindi illeggibile, e occupando un posto. Aprire e scrivere ora sono due cose diverse. | `tests/test_observability.py::test_an_evicted_trace_does_not_come_back_from_the_dead` |
 | 2026-09-25 | U1 | Due ErrorBoundary: uno dentro la shell intorno all'`Outlet` (la navigazione sopravvive a una schermata rotta, e cambiare rotta ripulisce l'errore), uno sopra il router. | `ErrorBoundary.test.tsx`, 4 verdi |
@@ -237,3 +255,7 @@ verifica.
 | 2026-09-25 | V1 | `scripts/seed_e2e.py` + `playwright.fullstack.config.ts` + `e2e-fullstack/` + job CI. Sei prove senza `page.route`: un turno di chat che sopravvive al ricaricamento, una conversazione eliminata che non torna, il percorso cliente → incarico → processo. Il modello non viene mai chiamato (`DELIR_FAKE_LLM=1`). | 6 e2e full-stack verdi |
 | 2026-09-25 | nuovo | Trovato dalla prima passata full-stack: un incarico inesistente mostrava «errore di caricamento» con un tasto Riprova che non avrebbe funzionato mai. Un 404 ora lo dice, e il tasto non c'è. Le prove finte non potevano vederlo: il 404 lo produce il backend. | `e2e-fullstack/workspace.spec.ts` |
 | 2026-09-25 | U4 | Chat, review BPMN, barra di modellazione, barra del canvas e ispettore passano da i18next: 110 stringhe → 0. Riscritte anche dove parlavano da sistema («diarizzazione» → «separare le voci», «dal backend» → via). Due file di test ora girano dentro il provider di i18next. | 236 unit + 55 e2e verdi, chiavi it/en allineate |
+| 2026-09-26 | B5 | `/health` è `async`: risponde anche con tutti i posti del threadpool occupati, quindi il processo non viene più dichiarato morto mentre lavora. I posti sono un numero scelto (`DELIR_API_WORKER_THREADS`, 64) e non più il default di anyio. | `tests/test_request_capacity.py`, 5 verdi, rosso senza il fix |
+| 2026-09-26 | B12 | Tetto sulle liste di clienti e incarichi, con il conteggio vero nelle intestazioni e una riga a schermo che dice quante righe non sta mostrando. Il corpo resta un array: cambiarlo avrebbe rotto 50 chiamanti per un dato di trasporto. | `tests/test_list_limits.py`, 4 verdi |
+| 2026-09-26 | V2 | Budget sul peso del pacchetto in CI: due numeri, l'ingresso e il totale. **Correzione all'audit:** il confronto per pixel non ha immagini di riferimento committate, quindi non era un cancello in nessun ambiente — non era «opt-in», era assente. | rompendo un `lazy`, il controllo passa a rosso con +446% |
+| 2026-09-26 | X4 | Non applicabile a `main`: l'audit era stato fatto su `feat/notifications-feed`, dove esiste la ricerca globale. Su `main` non c'è. Resta un obbligo per chi mergia quel branch. | — |

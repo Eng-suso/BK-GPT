@@ -155,6 +155,14 @@ class Settings(BaseSettings):
     # Vedi backend/services/agent_runtime.py::fake_agent_events.
     delir_fake_llm: bool = False
 
+    # Quante richieste sincrone possono essere in lavorazione insieme. Quasi
+    # tutte le rotte sono `def` e non `async def`, quindi girano nel threadpool
+    # di anyio: il suo default e' 40, non lo dichiarava nessuno, e un turno di
+    # chat ne occupa un posto per tutta la sua durata (fino a
+    # `agent_run_deadline_seconds`). Il numero va scelto guardando quanti turni
+    # lenti si vogliono reggere insieme, non lasciato al caso.
+    api_worker_threads: int = 64
+
     # Dove sta girando questo processo: `dev` (la macchina di chi sviluppa),
     # `staging` o `prod`. Non cambia nessun comportamento da solo - decide
     # soltanto quanto e' grave partire senza autenticazione (vedi

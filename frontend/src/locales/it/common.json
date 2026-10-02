@@ -36,7 +36,8 @@
     "backendUnavailable": "Backend non raggiungibile",
     "comingSoon": "In arrivo",
     "crash": "Questa schermata si è fermata",
-    "crashBody": "Il resto del prodotto continua a funzionare. Riprova, oppure passa a un'altra sezione dalla barra a sinistra."
+    "crashBody": "Il resto del prodotto continua a funzionare. Riprova, oppure passa a un'altra sezione dalla barra a sinistra.",
+    "truncated": "Mostrati i primi {{shown}} di {{total}}. Usa i filtri o la ricerca per trovare gli altri."
   },
   "home": {
     "description": "Panoramica operativa di clienti, progetti e processi nel workspace.",

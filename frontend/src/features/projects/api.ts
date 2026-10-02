@@ -29,7 +29,7 @@ import {
   type ProjectSource,
   type ProjectDecision,
 } from "@/contracts/workspace";
-import { http } from "@/lib/http";
+import { http, httpList } from "@/lib/http";
 import type { Project } from "./types";
 
 export const projectKeys = {
@@ -42,14 +42,30 @@ export const projectKeys = {
   decisions: (id: string) => [...projectKeys.all, id, "decisions"] as const,
 };
 
-export function useProjectsQuery(): UseQueryResult<Project[]> {
-  return useQuery({
+/** Le righe arrivate e quante ne esistono: la lista ha un tetto (B12). */
+export type ProjectsPage = { rows: Project[]; total: number | null };
+
+/**
+ * Una sola richiesta, due viste: chi vuole solo l'elenco lo ottiene con
+ * `select`, chi deve dire che l'elenco e' tagliato legge anche il conteggio.
+ */
+function projectsPageOptions() {
+  return {
     queryKey: projectKeys.list(),
-    queryFn: async () => {
-      const raw = await http<unknown>("/v1/workspace/projects");
-      return apiProjectsSchema.parse(raw).map(toProject);
+    queryFn: async (): Promise<ProjectsPage> => {
+      const page = await httpList<unknown>("/v1/workspace/projects");
+      return { rows: apiProjectsSchema.parse(page.rows).map(toProject), total: page.total };
     },
-  });
+  };
+}
+
+export function useProjectsQuery(): UseQueryResult<Project[]> {
+  return useQuery({ ...projectsPageOptions(), select: (page: ProjectsPage) => page.rows });
+}
+
+/** Come sopra, ma con il conteggio: serve a dire che l'elenco e' tagliato. */
+export function useProjectsPageQuery(): UseQueryResult<ProjectsPage> {
+  return useQuery(projectsPageOptions());
 }
 
 /**
