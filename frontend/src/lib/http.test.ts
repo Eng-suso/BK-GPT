@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HttpError, http, httpErrorMessage, httpList, httpStream } from "./http";
+import { HttpError, http, httpBlob, httpErrorMessage, httpList, httpStream } from "./http";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -97,6 +97,14 @@ describe("httpStream", () => {
     );
 
     await expect(httpStream("/stream")).rejects.toBeInstanceOf(HttpError);
+  });
+});
+
+describe("httpBlob", () => {
+  it("downloads binary content through the authenticated request path", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("originale"));
+    const blob = await httpBlob("/source/original");
+    expect(await blob.text()).toBe("originale");
   });
 });
 

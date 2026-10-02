@@ -180,6 +180,30 @@ export type ProjectSource = {
   name: string;
   type: string;
   meta: string;
+  roles: SourceRole[];
+  retention: SourceRetention;
+  scopes: SourceScope[];
+  status: string;
+  byteSize: number | null;
+  /**
+   * La lettura del file caricato. `pending` mentre e' in coda o in lettura,
+   * `partial` quando una parte non e' stata acquisita (il motivo e' in `meta`),
+   * `null` per le fonti senza file.
+   */
+  acquisitionStatus: SourceAcquisitionStatus | null;
+  acquisitionError: string | null;
+};
+
+export type SourceAcquisitionStatus = "pending" | "done" | "partial" | "failed";
+
+export type SourceRole = "context" | "process_evidence" | "policy" | "operational_data";
+export type SourceRetention = "persistent" | "temporary";
+export type SourceScope = { type: "client" | "project" | "process"; id: string };
+export type SourceUpload = {
+  file: File;
+  roles: SourceRole[];
+  retention: SourceRetention;
+  scopes: SourceScope[];
 };
 
 /**
@@ -331,6 +355,23 @@ export const apiProjectSourceSchema = z.object({
   name: z.string(),
   type: z.string(),
   meta: z.string(),
+  roles: z.array(z.enum(["context", "process_evidence", "policy", "operational_data"])).default([]),
+  retention: z.enum(["persistent", "temporary"]).default("persistent"),
+  scopes: z.array(z.object({
+    type: z.enum(["client", "project", "process"]),
+    id: z.string(),
+  })).default([]),
+  status: z.string().default("reference"),
+  byte_size: z.number().nullable().default(null),
+  content_hash: z.string().nullable().default(null),
+  mime_type: z.string().nullable().default(null),
+  acquisition_status: z.enum(["pending", "done", "partial", "failed"]).nullable().default(null),
+  acquisition_error: z.string().nullable().default(null),
+});
+
+/** La risposta del caricamento: la fonte, e se e' stata creata adesso. */
+export const apiUploadedSourceSchema = apiProjectSourceSchema.extend({
+  created: z.boolean().default(true),
 });
 
 export const apiSourceDocumentSchema = z.object({
@@ -589,6 +630,13 @@ export function toProjectSource(source: z.infer<typeof apiProjectSourceSchema>):
     name: source.name,
     type: source.type,
     meta: source.meta,
+    roles: source.roles,
+    retention: source.retention,
+    scopes: source.scopes,
+    status: source.status,
+    byteSize: source.byte_size,
+    acquisitionStatus: source.acquisition_status,
+    acquisitionError: source.acquisition_error,
   };
 }
 

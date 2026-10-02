@@ -18,6 +18,8 @@ import {
   apiProjectSchema,
   apiProjectsSchema,
   apiProjectSourcesSchema,
+  apiProjectSourceSchema,
+  apiUploadedSourceSchema,
   apiProjectDecisionsSchema,
   type Milestone,
   toProject,
@@ -27,9 +29,10 @@ import {
   apiSourceDocumentSchema,
   type SourceDocument,
   type ProjectSource,
+  type SourceUpload,
   type ProjectDecision,
 } from "@/contracts/workspace";
-import { http, httpList } from "@/lib/http";
+import { http, httpBlob, httpList } from "@/lib/http";
 import type { Project } from "./types";
 
 export const projectKeys = {
@@ -228,14 +231,92 @@ export function useUpdateProcessMutation(): UseMutationResult<
  */
 export function useProjectSourcesQuery(
   id: string,
+  options: { enabled?: boolean } = {},
 ): UseQueryResult<ProjectSource[]> {
   return useQuery({
     queryKey: projectKeys.sources(id),
+    enabled: options.enabled ?? true,
     queryFn: async () => {
       const raw = await http<unknown>(`/v1/workspace/projects/${id}/sources`);
       return apiProjectSourcesSchema.parse(raw).map(toProjectSource);
     },
+    // Un file caricato viene letto dal worker dopo la risposta: finche' una
+    // fonte e' in lettura la lista si aggiorna da sola, poi smette.
+    refetchInterval: (query) =>
+      query.state.data?.some((source) => source.acquisitionStatus === "pending") ? 3000 : false,
   });
+}
+
+export type UploadedSource = ProjectSource & {
+  /** `false`: lo stesso file c'era gia' tra le Fonti. */
+  created: boolean;
+};
+
+export function useUploadProjectSourceMutation(
+  projectId: string,
+): UseMutationResult<UploadedSource, Error, SourceUpload> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, roles, retention, scopes }) => {
+      const body = sourceUploadForm({ file, roles, retention, scopes });
+      const raw = await http<unknown>(
+        `/v1/workspace/projects/${projectId}/sources/upload`,
+        { method: "POST", body },
+      );
+      const parsed = apiUploadedSourceSchema.parse(raw);
+      return { ...toProjectSource(parsed), created: parsed.created };
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.sources(projectId) });
+      void queryClient.invalidateQueries({ queryKey: projectKeys.detail(projectId) });
+    },
+  });
+}
+
+/**
+ * Conferma un file caricato come evidenza del processo.
+ *
+ * Il testo estratto da un parser non e' ancora una fonte che il consulente ha
+ * fatto propria: entra nel registro dell'evidenza solo da qui.
+ */
+export function useVerifyProjectSourceMutation(
+  projectId: string,
+): UseMutationResult<ProjectSource, Error, string> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (sourceId) => {
+      const raw = await http<unknown>(`/v1/workspace/sources/${sourceId}/verify`, {
+        method: "POST",
+      });
+      return toProjectSource(apiProjectSourceSchema.parse(raw));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: projectKeys.sources(projectId) });
+    },
+  });
+}
+
+export function sourceUploadForm({ file, roles, retention, scopes }: SourceUpload): FormData {
+  const body = new FormData();
+  body.append("file", file);
+  body.append("roles", JSON.stringify(roles));
+  body.append("retention", retention);
+  body.append("scopes", JSON.stringify(scopes));
+  return body;
+}
+
+/**
+ * Scarta un file caricato e non ancora confermato come evidenza.
+ *
+ * E' la regola della card del composer: un file nuovo tolto prima dell'invio
+ * non resta tra le Fonti.
+ */
+export async function discardSource(sourceId: string): Promise<void> {
+  await http<unknown>(`/v1/workspace/sources/${sourceId}`, { method: "DELETE" });
+}
+
+export function downloadSourceOriginal(sourceId: string): Promise<Blob> {
+  return httpBlob(`/v1/workspace/sources/${sourceId}/original`);
 }
 
 /**
@@ -249,9 +330,12 @@ export function useProjectSourcesQuery(
  */
 export function useSourceDocumentQuery(
   sourceId: string | null,
+  acquisitionStatus: string | null = null,
 ): UseQueryResult<SourceDocument> {
   return useQuery({
-    queryKey: projectKeys.sourceDocument(sourceId ?? ""),
+    // Lo stato fa parte della chiave: quando la lettura finisce, il testo
+    // aperto si ricarica invece di restare quello vuoto di prima.
+    queryKey: [...projectKeys.sourceDocument(sourceId ?? ""), acquisitionStatus],
     enabled: sourceId !== null,
     queryFn: async () => {
       const raw = await http<unknown>(
