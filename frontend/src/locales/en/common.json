@@ -229,7 +229,8 @@
       "answer": "Pick an alternative in an open question",
       "search": "Move through and open history search results",
       "close": "Close the history or the side panel",
-      "resize": "Resize a panel from its divider"
+      "resize": "Resize a panel from its divider",
+      "search_global": "Open the workspace search"
     },
     "keys": {
       "enter": "Enter",
@@ -248,5 +249,74 @@
     "title": "This page does not exist",
     "body": "The address {{path}} leads nowhere: it may be an old link, or a project that has been closed.",
     "action": "Go to projects"
+  },
+  "search": {
+    "title": "Search the workspace",
+    "description": "Clients, projects, processes and sources. Type a name and open what you need.",
+    "placeholder": "Client, project, process or source",
+    "hint": "Type at least {{min}} characters.",
+    "searching": "Searching...",
+    "failed": "Search failed.",
+    "empty": "No results for \"{{query}}\".",
+    "results": "Search results",
+    "kind": {
+      "client": "Clients",
+      "project": "Projects",
+      "process": "Processes",
+      "source": "Sources"
+    }
+  },
+  "notifications": {
+    "label": "Notifications",
+    "title": "Notifications",
+    "markAllRead": "Mark all as read",
+    "unread": "Unread",
+    "loading": "Loading notifications...",
+    "failed": "Notifications could not be loaded.",
+    "empty": {
+      "title": "No notifications",
+      "description": "When a plan, a comparison or a simulation finishes, you will find it here."
+    },
+    "kind": {
+      "plan_ready": "Plan rebuilt (V{{version}})",
+      "plan_failed": "Rebuilding the plan failed",
+      "conformance_findings_one": "{{count}} point to review in the comparison with the sources",
+      "conformance_findings_other": "{{count}} points to review in the comparison with the sources",
+      "simulation_done": "Simulation completed",
+      "simulation_failed": "Simulation failed"
+    },
+    "labelWithCount_one": "Notifications, {{count}} unread",
+    "labelWithCount_other": "Notifications, {{count}} unread"
+  },
+  "identity": {
+    "menuLabel": "Workspace {{workspace}} and access",
+    "unknown": "Not available",
+    "workspaceHint": "The workspace the data you are seeing belongs to.",
+    "noPersonYet": "The product does not know who you are yet: per-person sign-in comes with authentication.",
+    "access": {
+      "open": "Authentication not configured",
+      "shared": "Shared credential access"
+    },
+    "section": {
+      "title": "Access",
+      "description": "How this environment recognises who uses it.",
+      "workspace": "Workspace",
+      "mode": "Access mode",
+      "admin": "Administrative permissions",
+      "adminYes": "Yes: this session can delete and archive",
+      "adminNo": "No",
+      "caller": "Caller identifier",
+      "pending": "Per-person identity — who validated a model, who answered a question — comes with real authentication. Until then every action is recorded as the workspace, not as someone.",
+      "failed": "The access state could not be read."
+    },
+    "loading": "Loading…"
+  },
+  "period": {
+    "label": "Period: {{period}}",
+    "all": "All work",
+    "month": "This month",
+    "quarter": "This quarter",
+    "year": "This year",
+    "scoped": "{{period}}"
   }
 }

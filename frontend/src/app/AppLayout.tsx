@@ -1,16 +1,21 @@
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { ErrorBoundary } from "@/components/feedback";
 import { GlobalSidebar } from "@/components/shell/GlobalSidebar";
 import { HelpDialog } from "@/components/shell/HelpDialog";
 import { TopBar } from "@/components/shell/TopBar";
+import { GlobalSearchDialog } from "@/features/search/GlobalSearchDialog";
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
 import { Skeleton } from "@/ui/skeleton";
 import { Toaster } from "@/ui/sonner";
 import { ROUTES, SECTION_PATH, isSettingsPath, sectionFromPath } from "@/app/routes";
+
 import { useWorkspaceRefresh } from "@/lib/hooks/useWorkspaceRefresh";
 import { cn } from "@/lib/utils";
+
+/** Le schermate che filtrano per periodo. */
+const PERIOD_AWARE_PATHS: string[] = [ROUTES.home, ROUTES.projects.list];
 
 /**
  * Renders the application shell with route-aware navigation, routed content, and global notifications.
@@ -26,12 +31,31 @@ export function AppLayout(): React.JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const settingsActive = isSettingsPath(location.pathname);
+  // Il periodo compare solo dove cambia cio' che si vede: altrove sarebbe di
+  // nuovo un comando che non fa niente.
+  const periodApplies = PERIOD_AWARE_PATHS.includes(
+    location.pathname.replace(/\/+$/, "") || "/",
+  );
   const activeSection = settingsActive ? null : sectionFromPath(location.pathname);
   const isStudio = location.pathname.includes("/processes/");
   const [expandedStudioNav, setExpandedStudioNav] = useState(false);
   const compactNav = isStudio && !expandedStudioNav;
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // La ricerca si apre da tastiera ovunque nel prodotto: e' il gesto con cui si
+  // salta a un altro incarico senza tornare a un elenco.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <>
@@ -45,7 +69,7 @@ export function AppLayout(): React.JSX.Element {
         onOpenSettings={() => navigate(ROUTES.settings)}
       />
       <div className={cn("grid min-w-0 grid-cols-[minmax(0,1fr)] overflow-hidden", isStudio ? "grid-rows-[48px_minmax(0,1fr)]" : "grid-rows-[60px_minmax(0,1fr)]")}>
-        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} />
+        <TopBar compact={isStudio} navigationExpanded={!compactNav} onToggleNavigation={isStudio ? () => setExpandedStudioNav((value) => !value) : undefined} onOpenSearch={() => setIsSearchOpen(true)} onNavigate={(href) => navigate(href)} onOpenSettings={() => navigate(ROUTES.settings)} periodApplies={periodApplies} />
         <main className="min-h-0 overflow-hidden">
           {/* La rete sta qui dentro e non intorno alla shell: una schermata che
               si ferma non deve portarsi via navigazione, ricerca e chat. La
@@ -75,6 +99,11 @@ export function AppLayout(): React.JSX.Element {
       onOpenServiceStatus={() => setIsStatusOpen(true)}
     />
     <ServiceStatusDialog open={isStatusOpen} onOpenChange={setIsStatusOpen} />
+    <GlobalSearchDialog
+      open={isSearchOpen}
+      onOpenChange={setIsSearchOpen}
+      onNavigate={(href) => navigate(href)}
+    />
     </>
   );
 }

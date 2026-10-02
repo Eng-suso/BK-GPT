@@ -873,3 +873,7 @@ sulla stessa base, sul branch `feat/notifications-feed`: quando entrambe entrano
 in main ci saranno **due head** e servira' un `alembic merge`. Non e' un errore di
 nessuno dei due, e' il prezzo del lavoro in parallelo — ma va risolto, non
 scoperto in produzione.
+
+**Risolto il 2026-10-02** con `0018_merge_notification_reads`, che riunisce le due
+teste. L'id `0014_notification_reads` resta: il database `workspace` di sviluppo
+l'aveva gia' applicata.

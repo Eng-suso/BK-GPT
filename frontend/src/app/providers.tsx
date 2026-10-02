@@ -5,6 +5,7 @@ import { I18nextProvider } from "react-i18next";
 
 import { router } from "@/app/router";
 import { ErrorBoundary } from "@/components/feedback";
+import { PeriodProvider } from "@/features/period/PeriodContext";
 import { i18n } from "@/lib/i18n";
 import { queryClient } from "@/lib/query";
 
@@ -16,7 +17,9 @@ export const AppProviders: React.FC = () => {
             provider, il router stesso. Dentro la shell c'è già quella che
             tiene in piedi la navigazione. */}
         <ErrorBoundary>
-          <RouterProvider router={router} />
+          <PeriodProvider>
+            <RouterProvider router={router} />
+          </PeriodProvider>
         </ErrorBoundary>
       </I18nextProvider>
     </QueryClientProvider>

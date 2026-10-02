@@ -82,6 +82,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     scope,
     selectedModel,
     chatMode,
+    reasoningEffort,
     activeSession: sessions.activeSession,
     ensureThread: sessions.ensureThread,
     selectThread: sessions.selectThread,

@@ -72,10 +72,12 @@ test.describe('App shell', () => {
       'aria-current',
       'page',
     );
-    // Without a backend the status panel must say so, not render empty.
+    // With or without a backend the panel must reach a verdict, never stay on
+    // "checking": the dev server compiles on first navigation, so the window is
+    // generous on purpose.
     await expect(
       page.getByText(/Backend non raggiungibile|Il backend risponde/).first(),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20000 });
   });
 
   test('models is a real library, not a "coming soon"', async ({ page }) => {
@@ -88,6 +90,64 @@ test.describe('App shell', () => {
     await expect(
       page.getByRole('table').or(page.getByRole('button', { name: /Riprova/ })).first(),
     ).toBeVisible({ timeout: 15000 });
+  });
+
+  test('the top bar search opens the workspace search, by click and by keyboard', async ({
+    page,
+  }) => {
+    await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+
+    await page.getByRole('banner').getByRole('button', { name: /Cerca/ }).first().click();
+    const search = page.getByRole('dialog', { name: 'Cerca nel workspace' });
+    await expect(search).toBeVisible();
+    await expect(search.getByRole('combobox')).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(search).toBeHidden();
+
+    await page.keyboard.press('Control+k');
+    await expect(page.getByRole('dialog', { name: 'Cerca nel workspace' })).toBeVisible();
+  });
+
+  test('the bell shows what happened, or says it cannot load it', async ({ page }) => {
+    await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+
+    const bell = page.getByRole('banner').getByRole('button', { name: /Avvisi/ });
+    await expect(bell).toBeVisible({ timeout: 20000 });
+    // The badge is the unread count or nothing at all — never the hardcoded 3
+    // this control used to show.
+    await expect(bell).toHaveText(/^(|[1-9]|9\+)$/);
+
+    await bell.click();
+    // One of the three honest answers: a list, "nothing happened", or "could
+    // not load" — never a spinner that never resolves.
+    await expect(
+      page.getByText(/Impossibile caricare gli avvisi|Nessun avviso|da rivedere|Simulazione|Piano/).first(),
+    ).toBeVisible({ timeout: 20000 });
+  });
+
+  test('the period chip is a real filter, and only where it filters', async ({ page }) => {
+    await page.goto('/projects', { waitUntil: 'domcontentloaded' });
+
+    const banner = page.getByRole('banner');
+    const period = banner.getByRole('button', { name: /Periodo/ });
+    await expect(period).toBeVisible({ timeout: 20000 });
+    // Era una data scritta nel codice: ora dice cosa si sta guardando.
+    await expect(period).toHaveText(/Tutto il lavoro/);
+
+    await period.click();
+    // Voci `radio`: il menu dichiara quale periodo e' scelto, non solo quale
+    // si puo' scegliere.
+    await page.getByRole('menuitemradio', { name: /Quest.anno/ }).click();
+    await expect(banner.getByRole('button', { name: /Periodo/ })).not.toHaveText(
+      /Tutto il lavoro/,
+    );
+    // La schermata dichiara di essere filtrata, invece di mostrare numeri muti.
+    await expect(page.getByText(/Quest.anno/).first()).toBeVisible();
+
+    // Dove non cambierebbe niente, il comando non c'e'.
+    await page.goto('/archive', { waitUntil: 'domcontentloaded' });
+    await expect(banner.getByRole('button', { name: /Periodo/ })).toHaveCount(0);
   });
 
   test('help opens and leads to the service status', async ({ page }) => {

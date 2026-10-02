@@ -58,6 +58,7 @@ def chat_client(
     model_name: str,
     streaming: bool,
     tag: str,
+    reasoning_effort: str | None = None,
 ) -> DeliRChatOpenAI:
     """Il client di un compito di chat, costruito dal suo profilo.
 
@@ -70,6 +71,8 @@ def chat_client(
             l'unico caso in cui succede.
         streaming: Il turno strema verso il frontend, l'instradamento no.
         tag: L'etichetta LangSmith di questo client.
+        reasoning_effort: Il livello scelto dal consulente per il turno di chat.
+            `None` usa quello del profilo; l'instradamento non lo riceve mai.
 
     Raises:
         MissingProviderKey: Se non c'e' una chiave configurata. Senza,
@@ -98,7 +101,7 @@ def chat_client(
         "langsmith_model_name": effective_langsmith_model_name(model_name),
         "metadata": langsmith_metadata(model_name, delir_model_name=model_name),
         "tags": langsmith_tags("llm", tag),
-        "reasoning_effort": profile.reasoning_effort,
+        "reasoning_effort": reasoning_effort or profile.reasoning_effort,
     }
     if streaming:
         # Senza questo i pezzi arrivano senza `usage_metadata` e il turno

@@ -5,6 +5,7 @@ from sqlalchemy import ForeignKey, String, Text, and_, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.local_store import local_engine
+from backend.search_text import like_patterns, search_terms, snippet
 from backend.security import get_current_tenant_id
 
 
@@ -178,56 +179,6 @@ def list_chat_sessions(limit: int = 50, scope_key: str | None = None) -> list[di
     return [dict(row) for row in rows]
 
 
-# Quanto testo mostrare intorno alla parola trovata, da un lato e dall'altro.
-SEARCH_SNIPPET_RADIUS = 90
-# Le parole oltre la quinta non restringono piu' niente di utile e allungano solo
-# la query: una ricerca e' un modo per ritrovare una conversazione, non una
-# interrogazione full-text.
-SEARCH_MAX_TERMS = 5
-
-
-def _like_escape(value: str) -> str:
-    """Rende letterali i caratteri che LIKE interpreta.
-
-    Senza, chi cerca `100%` chiede "qualunque cosa dopo 100" e chi cerca
-    `client_id` trova anche `clientXid`.
-    """
-    for char in ("\\", "%", "_"):
-        value = value.replace(char, f"\\{char}")
-    return value
-
-
-def search_terms(query: str) -> list[str]:
-    """Le parole della ricerca, normalizzate, al piu' `SEARCH_MAX_TERMS`."""
-    return [term.lower() for term in query.split()][:SEARCH_MAX_TERMS]
-
-
-def _snippet(content: str, terms: list[str]) -> str:
-    """Il pezzo di messaggio intorno alla prima parola trovata.
-
-    Un risultato senza contesto non si distingue dagli altri: il titolo di una
-    chat e' quasi sempre la prima domanda, e dieci conversazioni sullo stesso
-    processo hanno titoli quasi identici. Cio' che dice quale riaprire e' la
-    riga in cui la parola compare.
-    """
-    compact = " ".join(content.split())
-    lowered = compact.lower()
-    position = min(
-        (found for found in (lowered.find(term) for term in terms) if found >= 0),
-        default=-1,
-    )
-    if position < 0:
-        return compact[: SEARCH_SNIPPET_RADIUS * 2].rstrip()
-
-    start = max(0, position - SEARCH_SNIPPET_RADIUS)
-    end = min(len(compact), position + SEARCH_SNIPPET_RADIUS)
-    return (
-        ("..." if start > 0 else "")
-        + compact[start:end].strip()
-        + ("..." if end < len(compact) else "")
-    )
-
-
 def search_chat_sessions(
     query: str,
     *,
@@ -260,7 +211,7 @@ def search_chat_sessions(
         return []
 
     tenant_id = get_current_tenant_id()
-    patterns = [f"%{_like_escape(term)}%" for term in terms]
+    patterns = like_patterns(terms)
 
     def _scoped(statement):
         statement = statement.where(ChatSession.tenant_id == tenant_id)
@@ -290,7 +241,7 @@ def search_chat_sessions(
             )
             hit["match_count"] += 1
             if not hit["snippet"]:
-                hit["snippet"] = _snippet(content, terms)
+                hit["snippet"] = snippet(content, terms)
                 hit["snippet_role"] = role
 
         # Una conversazione il cui titolo corrisponde e' un risultato anche se il

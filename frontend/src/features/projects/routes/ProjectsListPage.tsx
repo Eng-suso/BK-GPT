@@ -25,6 +25,8 @@ import { ROUTES } from "@/app/routes";
 import { usePagedList } from "@/lib/hooks/usePagedList";
 import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
 import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import { usePeriod } from "@/features/period/usePeriod";
+import { overlapsPeriod } from "@/features/period/periods";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import {
@@ -80,12 +82,19 @@ export function ProjectsListPage(): React.JSX.Element {
   const page = useProjectsPageQuery();
   // Riferimento stabile: `?? []` creerebbe un array nuovo a ogni render e
   // rifarebbe ogni `useMemo` che dipende da questo elenco.
-  const projects = useMemo(() => page.data?.rows ?? [], [page.data]);
+  const allProjects = useMemo(() => page.data?.rows ?? [], [page.data]);
   const { isLoading, isError, refetch } = page;
+  const { period, range } = usePeriod();
+  // Il periodo scelto nella barra vale anche qui: un incarico che tocca il
+  // periodo resta, uno che gli sta tutto prima o tutto dopo no.
+  const projects = useMemo(
+    () => allProjects.filter((project) => overlapsPeriod(project, range)),
+    [allProjects, range],
+  );
   // Le liste hanno un tetto (B12): se il backend dice che ce ne sono di piu',
   // l'elenco lo dice invece di far credere di mostrarle tutte.
   const totale = page.data?.total ?? null;
-  const tagliato = totale !== null && totale > projects.length;
+  const tagliato = totale !== null && totale > allProjects.length;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // `null` = creazione, un progetto = modifica di quel record. `formSession`
   // cambia a ogni apertura e fa da `key` al dialog: la bozza riparte dai dati
@@ -241,7 +250,11 @@ export function ProjectsListPage(): React.JSX.Element {
             { label: t("breadcrumb.portfolio") },
           ]}
           title={t("list.title")}
-          description={t("list.description")}
+          description={
+            period === "all"
+              ? t("list.description")
+              : `${t("list.description")} · ${tCommon("period.scoped", { period: tCommon(`period.${period}`) })}`
+          }
           count={projects.length || undefined}
           meta={summary.length > 0 ? <ListSummary items={summary} /> : undefined}
           actions={

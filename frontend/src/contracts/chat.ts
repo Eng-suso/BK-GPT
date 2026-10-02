@@ -42,7 +42,11 @@ export const DEFAULT_CHAT_MODE: ChatMode = "conversation";
  */
 export const REASONING_EFFORTS = ["low", "medium", "high"] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
-export const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
+// Il livello con cui il prodotto ha sempre risposto: finche' il selettore non
+// arrivava al backend ogni turno girava senza ragionamento extra. Resta il
+// default, cosi' accendere il controllo non alza il costo di ogni turno di
+// tutti - i livelli piu' alti si pagano quando qualcuno li sceglie.
+export const DEFAULT_REASONING_EFFORT: ReasoningEffort = "low";
 
 /**
  * Cosa il consulente mette sul tavolo insieme al messaggio.
