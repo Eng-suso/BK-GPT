@@ -207,3 +207,24 @@ def test_a_stale_slug_mapping_is_not_inherited_by_another_project(workspace):
 
     assert new.process_id != old.process_id
     assert new.project_id != old.project_id
+
+
+def test_deleting_a_process_leaves_alone_a_slug_mapped_to_another_project(workspace):
+    """Cancellare e' irreversibile: se lo slug porta ancora al processo canonical
+    di un altro progetto, quell'evidenza non e' di questo processo e resta."""
+    first_project = workspace["project"]["id"]
+    other_project = workspace["other"]["id"]
+    process = wd.create_process(project_id=first_project, name=workspace["process_name"])
+    old = canonical_scope.resolve(first_project, process["id"])
+    # cancellazione "alla vecchia": solo il workspace, il canonical resta
+    with wd.workspace_connection() as session:
+        session.delete(session.get(wd.WorkspaceProcess, process["id"]))
+
+    # stesso slug in un altro progetto, cancellato prima che `resolve` lo stacchi
+    again = wd.create_process(project_id=other_project, name=workspace["process_name"])
+    assert again["id"] == process["id"]
+    wd.delete_process(again["id"])
+
+    assert _count(
+        "SELECT count(*) FROM process WHERE id = CAST(:p AS uuid)", p=old.process_id
+    ) == 1

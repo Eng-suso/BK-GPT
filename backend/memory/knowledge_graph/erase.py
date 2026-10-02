@@ -107,6 +107,18 @@ def _lookup(table: str, workspace_id: str) -> Any | None:
         ).first()
 
 
+def _project_workspace_id(canonical_project_id: str) -> str | None:
+    """L'id workspace del progetto canonical, per verificare a chi appartiene un processo."""
+    with canonical_session(_consultant()) as session:
+        return session.execute(
+            text(
+                "SELECT workspace_id FROM project "
+                "WHERE consultant_id = :c AND id = CAST(:p AS uuid)"
+            ),
+            {"c": _consultant(), "p": canonical_project_id},
+        ).scalar_one_or_none()
+
+
 def _emit_node_delete(session, client_id: str, label: str, id_prop: str, node_id: str) -> None:
     canonical._emit(
         session,
@@ -242,6 +254,14 @@ def erase_process(workspace_project_id: str, workspace_process_id: str) -> Erase
         return report
     process_id, client_id = str(row.id), str(row.client_id)
     report.canonical_id = process_id
+    # Lo slug da solo non basta: se la riga canonical che lo porta e' di un
+    # altro progetto (un database workspace diverso sullo stesso canonical, o
+    # una cancellazione di prima di GR-13 non ancora staccata da `scope`),
+    # l'evidenza non e' di questo processo. Cancellare e' irreversibile: nel
+    # dubbio si lascia, e il report lo dice.
+    if _project_workspace_id(str(row.project_id)) != workspace_project_id:
+        report.skipped = "lo slug e' mappato al processo di un altro progetto"
+        return report
 
     report.memories = _forget_memories(
         client_id, "process_id = CAST(:p AS uuid)", {"p": process_id},
