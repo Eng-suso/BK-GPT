@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -82,6 +83,13 @@ class Settings(BaseSettings):
     # graph_retrieve per rilevanza alla query. Off di default: aggiunge una
     # chiamata LLM (~1-2s) sul path di grounding dell'agente.
     retrieval_rerank_enabled: bool = False
+    # GR-02: l'espansione k-hop di graph_retrieve non attraversa un nodo con piu'
+    # archi di cosi' (come estremo del path si', come nodo intermedio no). Un hub
+    # intermedio moltiplica i path senza portare fatti vicini alla query.
+    graph_expand_degree_cap: int = 100
+    # GR-01: oltre quest'eta' della riga piu' vecchia ancora in graph_outbox, o con
+    # righe nel dead-letter, graph_retrieve dichiara che il grafo e' indietro.
+    graph_staleness_warn_seconds: float = 60.0
     # P5: il tool evidenza accoda su kg_ingest_queue e ritorna subito; il lavoro
     # pesante (embedding + entity resolution + write) lo fa
     # backend/workers/ingest_worker.py. False = write sincrono nel tool call.
@@ -154,6 +162,19 @@ class Settings(BaseSettings):
     # interessato; i builder task-scoped restano gia' no-op senza `openai_api_key`.
     # Vedi backend/services/agent_runtime.py::fake_agent_events.
     delir_fake_llm: bool = False
+
+    # Quante richieste sincrone possono essere in lavorazione insieme. Quasi
+    # tutte le rotte sono `def` e non `async def`, quindi girano nel threadpool
+    # di anyio: il suo default e' 40, non lo dichiarava nessuno, e un turno di
+    # chat ne occupa un posto per tutta la sua durata (fino a
+    # `agent_run_deadline_seconds`). Il numero va scelto guardando quanti turni
+    # lenti si vogliono reggere insieme, non lasciato al caso.
+    # La variabile documentata e' DELIR_API_WORKER_THREADS; il nome del campo
+    # resta accettato per chi l'aveva gia' messo nel `.env`.
+    api_worker_threads: int = Field(
+        default=64,
+        validation_alias=AliasChoices("DELIR_API_WORKER_THREADS", "API_WORKER_THREADS"),
+    )
 
     # Dove sta girando questo processo: `dev` (la macchina di chi sviluppa),
     # `staging` o `prod`. Non cambia nessun comportamento da solo - decide

@@ -12,7 +12,7 @@ import {
   ProgressBar,
   type ListSummaryItem,
 } from "@/components/data";
-import { EmptyState, ErrorState } from "@/components/feedback";
+import { EmptyState, ErrorState, InlineNotice } from "@/components/feedback";
 import { StatusIndicator } from "@/components/status";
 import {
   DetailPanel,
@@ -25,6 +25,8 @@ import { ROUTES } from "@/app/routes";
 import { usePagedList } from "@/lib/hooks/usePagedList";
 import { useListFilters, type ListFilterDef } from "@/lib/hooks/useListFilters";
 import { useListQueryState } from "@/lib/hooks/useListQueryState";
+import { usePeriod } from "@/features/period/usePeriod";
+import { overlapsPeriod } from "@/features/period/periods";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import {
@@ -33,7 +35,7 @@ import {
   type LifecycleTarget,
 } from "@/features/archive/RecordLifecycleDialog";
 import { buildProjectColumns } from "../columns";
-import { useProjectsQuery } from "../api";
+import { useProjectsPageQuery } from "../api";
 import { ProjectFormDialog } from "../components/ProjectFormDialog";
 import { projectStatusTone, type Project } from "../types";
 
@@ -77,7 +79,22 @@ export function ProjectsListPage(): React.JSX.Element {
   const { t: tCommon } = useTranslation("common");
   const navigate = useNavigate();
 
-  const { data: projects = [], isLoading, isError, refetch } = useProjectsQuery();
+  const page = useProjectsPageQuery();
+  // Riferimento stabile: `?? []` creerebbe un array nuovo a ogni render e
+  // rifarebbe ogni `useMemo` che dipende da questo elenco.
+  const allProjects = useMemo(() => page.data?.rows ?? [], [page.data]);
+  const { isLoading, isError, refetch } = page;
+  const { period, range } = usePeriod();
+  // Il periodo scelto nella barra vale anche qui: un incarico che tocca il
+  // periodo resta, uno che gli sta tutto prima o tutto dopo no.
+  const projects = useMemo(
+    () => allProjects.filter((project) => overlapsPeriod(project, range)),
+    [allProjects, range],
+  );
+  // Le liste hanno un tetto (B12): se il backend dice che ce ne sono di piu',
+  // l'elenco lo dice invece di far credere di mostrarle tutte.
+  const totale = page.data?.total ?? null;
+  const tagliato = totale !== null && totale > allProjects.length;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // `null` = creazione, un progetto = modifica di quel record. `formSession`
   // cambia a ogni apertura e fa da `key` al dialog: la bozza riparte dai dati
@@ -95,7 +112,13 @@ export function ProjectsListPage(): React.JSX.Element {
   const unassigned = t("list.owner.unassigned");
   const filterDefs = useMemo<ListFilterDef<Project>[]>(
     () => [
-      { id: "client", label: t("list.filter.client"), accessor: (p) => p.client },
+      {
+        id: "client",
+        label: t("list.filter.client"),
+        // Per id: la ricerca globale porta qui con `f_client=<id>` (X4).
+        accessor: (p) => p.clientId,
+        display: (p) => p.client,
+      },
       { id: "status", label: t("list.filter.status"), accessor: (p) => p.status },
       { id: "phase", label: t("list.filter.phase"), accessor: (p) => p.phase },
       {
@@ -233,7 +256,11 @@ export function ProjectsListPage(): React.JSX.Element {
             { label: t("breadcrumb.portfolio") },
           ]}
           title={t("list.title")}
-          description={t("list.description")}
+          description={
+            period === "all"
+              ? t("list.description")
+              : `${t("list.description")} · ${tCommon("period.scoped", { period: tCommon(`period.${period}`) })}`
+          }
           count={projects.length || undefined}
           meta={summary.length > 0 ? <ListSummary items={summary} /> : undefined}
           actions={
@@ -254,6 +281,13 @@ export function ProjectsListPage(): React.JSX.Element {
         />
       }
       toolbar={
+        <>
+        {tagliato ? (
+          <InlineNotice
+            tone="warning"
+            title={tCommon("state.truncated", { shown: allProjects.length, total: totale })}
+          />
+        ) : null}
         <ListToolbar
           search={list.search}
           onSearchChange={list.setSearch}
@@ -261,6 +295,7 @@ export function ProjectsListPage(): React.JSX.Element {
           filters={filters.menus}
           onClearFilters={filters.clear}
         />
+        </>
       }
       detail={
         <DetailPanel className="hidden panel:flex">

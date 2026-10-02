@@ -3,9 +3,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from backend.schemas.chat import (
+    DEFAULT_REASONING_EFFORT,
     MAX_CHAT_ATTACHMENTS,
     ChatAttachment,
     ChatScope,
+    ReasoningEffort,
 )
 
 
@@ -22,6 +24,9 @@ class ChatRequest(BaseModel):
     # How much of the workflow the user is handing over this turn. Per-request, not
     # per-thread: switching mode must not fork the conversation.
     mode: RequestChatMode = "conversation"
+    # Quanto il modello deve pensare prima di rispondere. Per richiesta e non
+    # per thread, come la modalita': e' una preferenza di come lavorare adesso.
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
     attachments: list[ChatAttachment] = Field(
         default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
     )
@@ -95,6 +100,9 @@ class SendMessageRequest(BaseModel):
     model_name: str | None = None
     scope: ChatScope | None = None
     mode: RequestChatMode = "conversation"
+    # Quanto il modello deve pensare prima di rispondere. Per richiesta e non
+    # per thread, come la modalita': e' una preferenza di come lavorare adesso.
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
     # Il cap non e' difesa dal client: oltre un pugno di allegati il turno
     # diventa un dump e il modello smette di leggerli.
     attachments: list[ChatAttachment] = Field(

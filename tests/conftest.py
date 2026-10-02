@@ -1,10 +1,109 @@
 # conftest.py — shared pytest fixtures
+import os
+import socket
+import subprocess
+import sys
 import time
 from collections.abc import Callable
+from urllib.parse import urlsplit, urlunsplit
 
 import pytest
+from dotenv import dotenv_values
 
-from backend.settings import settings
+# --- I test non tracciano (L6, applicato a LangSmith) ------------------------
+# Deve stare **prima** di importare `backend.settings`, che all'import esegue
+# `configure_langsmith_environment()` e accende il tracing se `.env` dice true.
+#
+# Perche'. L6 dice che i test non devono consumare risorse del fornitore, e
+# finora lo si era applicato solo a OpenAI (P0.1). LangSmith e' un fornitore
+# come gli altri e ha una quota: il 2026-09-25 il registro delle tracce mostrava
+# 5.069 tracce consumate fra l'1 e il 6 settembre, con un tetto mensile di
+# 5.000. Da quel giorno ogni traccia del **prodotto** viene rifiutata con 429,
+# cioe' i test hanno bruciato in sei giorni l'osservabilita' di tutto il mese.
+#
+# Chi vuole le tracce di una passata - gli eval col modello vero, dove vedere il
+# giudizio serve davvero - le riaccende con `DELIR_TRACE_TESTS=1`.
+if os.environ.get("DELIR_TRACE_TESTS", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    os.environ["LANGSMITH_TRACING"] = "false"
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
+# --- I test non toccano mai lo stack di sviluppo -----------------------------
+#
+# Fino al 01/10 pytest leggeva i DSN dal `.env` di sviluppo e scriveva le sue
+# fixture nel database dell'app: 22k righe finte in `mem0_projection_log`, che
+# il worker mem0 ha poi mandato a OpenAI una per una all'avvio del prodotto.
+#
+# Regola: un DSN gia' presente nell'ambiente (CI, o chi lo esporta a mano) vince.
+# Uno che arriva dal `.env` di sviluppo viene spostato sulla porta dello stack di
+# test (`ops/docker-compose.test.yml`), che vive in tmpfs. Deve succedere qui, in
+# cima, prima che `backend.settings` legga l'ambiente.
+
+_DB_URL_KEYS = (
+    "WORKSPACE_DATABASE_URL",
+    "CANONICAL_DATABASE_URL",
+    "CANONICAL_MIGRATOR_URL",
+    "CANONICAL_WORKER_URL",
+    "MEM0_DATABASE_URL",
+)
+_TEST_PG_PORT = int(os.environ.get("DELIR_TEST_PG_PORT", "55301"))
+_TEST_NEO4J_PORT = int(os.environ.get("DELIR_TEST_NEO4J_PORT", "7688"))
+
+
+# Lo stack di test nasce dagli script di `ops/postgres/init`: i nomi dei database
+# sono i loro, non quelli che il `.env` di sviluppo puo' aver preso nel tempo.
+_TEST_DB_NAMES = {"WORKSPACE_DATABASE_URL": "workspace"}
+
+
+def _with_port(url: str, port: int, dbname: str | None = None) -> str:
+    parts = urlsplit(url)
+    userinfo, _, hostport = parts.netloc.rpartition("@")
+    host = hostport.rsplit(":", 1)[0]
+    netloc = f"{userinfo}@{host}:{port}" if userinfo else f"{host}:{port}"
+    path = f"/{dbname}" if dbname else parts.path
+    return urlunsplit(parts._replace(netloc=netloc, path=path))
+
+
+def _point_at_test_stack() -> bool:
+    """Sposta sullo stack di test i DSN presi dal `.env` di sviluppo.
+
+    Ritorna True se ha spostato qualcosa: allora tocca a noi migrare lo stack.
+    """
+    dev = dotenv_values(".env")
+    moved = False
+    for key in _DB_URL_KEYS:
+        if os.environ.get(key):
+            if os.environ[key] == dev.get(key):
+                raise pytest.UsageError(
+                    f"{key} punta al database di sviluppo: i test lo riempirebbero di fixture."
+                )
+            continue
+        if dev.get(key):
+            os.environ[key] = _with_port(dev[key], _TEST_PG_PORT, _TEST_DB_NAMES.get(key))
+            moved = True
+    if moved and not os.environ.get("NEO4J_URL"):
+        os.environ["NEO4J_URL"] = f"bolt://127.0.0.1:{_TEST_NEO4J_PORT}"
+    return moved
+
+
+_USING_LOCAL_TEST_STACK = _point_at_test_stack()
+
+from backend.settings import settings  # noqa: E402
+
+
+def pytest_sessionstart(session):
+    """Stack di test locale: deve essere acceso, e va migrato (vive in tmpfs)."""
+    if not _USING_LOCAL_TEST_STACK:
+        return
+    try:
+        socket.create_connection(("127.0.0.1", _TEST_PG_PORT), timeout=2).close()
+    except OSError:
+        pytest.exit(
+            f"Stack di test spento (Postgres :{_TEST_PG_PORT}). Avvialo con:\n"
+            "  cd ops && docker compose -f docker-compose.test.yml up -d --wait",
+            returncode=4,
+        )
+    for args in (["upgrade", "head"], ["-c", "alembic_workspace.ini", "upgrade", "head"]):
+        subprocess.run([sys.executable, "-m", "alembic", *args], check=True, env=os.environ.copy())
 
 
 def _drain_until(drains: list[Callable[[], int]], check: Callable[[], bool], tries: int, delay: float) -> bool:

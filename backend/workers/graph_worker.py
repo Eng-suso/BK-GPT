@@ -25,6 +25,8 @@ Uso:
 
 from __future__ import annotations
 
+import functools
+
 import logging
 import time
 from functools import lru_cache
@@ -72,7 +74,15 @@ def _engine():
         raise RuntimeError(
             "canonical_worker_url non configurata (DSN del ruolo delir_worker)."
         )
-    return create_engine(settings.canonical_worker_url, future=True, pool_pre_ping=True)
+    return _engine_for(settings.canonical_worker_url)
+
+
+@functools.cache
+def _engine_for(url: str):
+    # Uno per URL e per processo. Prima ne nasceva uno a ogni passata del worker
+    # e a ogni `queue_stats` - che il gateway chiama a ogni lettura del grafo -
+    # ciascuno con il suo pool, mai chiuso.
+    return create_engine(url, future=True, pool_pre_ping=True)
 
 
 def drain_once(limit: int = 200) -> int:
@@ -81,6 +91,7 @@ def drain_once(limit: int = 200) -> int:
     if driver is None:
         logger.warning("Neo4j non configurato: graph_worker non fa nulla.")
         return 0
+    neo4j_store.ensure_schema()
 
     done = 0
     with _engine().begin() as conn:
@@ -173,25 +184,42 @@ def prune(older_than_days: int = 14) -> int:
         ).rowcount
 
 
-def queue_stats() -> dict[str, int]:
+def queue_stats(client_id: str | None = None) -> dict[str, int | float]:
     """`pending` = da processare, `stuck` = falliti troppe volte, `dead_letter`
     = messi da parte perche' non applicabili (payload che nessun tentativo
     digerisce). Le due ultime non sono la stessa cosa: la prima e' un guasto che
-    puo' passare, la seconda e' un dato da guardare."""
+    puo' passare, la seconda e' un dato da guardare.
+
+    `oldest_pending_age_s`: da quanto aspetta la riga piu' vecchia non ancora
+    proiettata (0 se non ce ne sono). Il conteggio dice quanto lavoro c'e', l'eta'
+    dice se il grafo che si sta leggendo e' indietro.
+
+    `client_id`: solo le righe di quel cliente - e' la domanda che si fa il
+    gateway ("il grafo che sto leggendo e' aggiornato?")."""
+    where, params = ("", {}) if client_id is None else (
+        " WHERE client_id = CAST(:cl AS uuid)", {"cl": str(client_id)}
+    )
     with _engine().begin() as conn:
         row = conn.execute(
             text(
                 "SELECT "
                 "  count(*) FILTER (WHERE processed_at IS NULL AND attempts < :m) AS pending, "
-                "  count(*) FILTER (WHERE processed_at IS NULL AND attempts >= :m) AS stuck "
-                "FROM graph_outbox"
+                "  count(*) FILTER (WHERE processed_at IS NULL AND attempts >= :m) AS stuck, "
+                "  COALESCE(extract(epoch FROM now() - min(created_at) "
+                "    FILTER (WHERE processed_at IS NULL)), 0) AS oldest_age "
+                "FROM graph_outbox" + where
             ),
-            {"m": _MAX_ATTEMPTS},
+            {"m": _MAX_ATTEMPTS, **params},
         ).one()
         dead = conn.execute(
-            text("SELECT count(*) FROM graph_outbox_dead_letter")
+            text("SELECT count(*) FROM graph_outbox_dead_letter" + where), params
         ).scalar_one()
-    return {"pending": int(row.pending), "stuck": int(row.stuck), "dead_letter": int(dead)}
+    return {
+        "pending": int(row.pending),
+        "stuck": int(row.stuck),
+        "dead_letter": int(dead),
+        "oldest_pending_age_s": round(float(row.oldest_age), 1),
+    }
 
 
 def run_forever(idle_sleep: float = 2.0) -> None:

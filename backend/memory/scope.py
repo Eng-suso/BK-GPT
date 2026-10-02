@@ -49,6 +49,25 @@ def _upsert(session, table: str, workspace_id: str, name: str, extra_cols: dict)
     cols = ["workspace_id", "name", *extra_cols]
     placeholders = ", ".join(f":{c}" for c in cols)
     params = {"workspace_id": workspace_id, "name": name, **extra_cols}
+    # GR-13: l'id workspace e' lo slug del nome, e uno slug si riusa. Se la riga
+    # che lo porta appartiene a un altro progetto (processo) o a un altro cliente
+    # (progetto), non e' la stessa cosa: la si stacca dallo slug, e sotto se ne
+    # crea una nuova. Senza, il processo nuovo ereditava l'evidenza del vecchio.
+    owner = {"process": "project_id", "project": "client_id"}.get(table)
+    if owner:
+        detached = session.execute(
+            text(
+                f"UPDATE {table} SET workspace_id = NULL "
+                "WHERE consultant_id = :consultant_id AND workspace_id = :workspace_id "
+                f"  AND {owner} IS DISTINCT FROM CAST(:{owner} AS uuid)"
+            ),
+            params,
+        ).rowcount
+        if detached:
+            logger.warning(
+                "scope: %s %r era di un altro %s, staccato dallo slug",
+                table, workspace_id, owner.removesuffix("_id"),
+            )
     row = session.execute(
         text(
             f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) "

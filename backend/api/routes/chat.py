@@ -166,6 +166,7 @@ def chat(request: ChatRequest) -> ChatResponse:
             scope=request.scope,
             chat_mode=request.mode,
             attachments=request.attachments,
+            reasoning_effort=request.reasoning_effort,
         )
     except Exception as exc:
         log_agent_failure(exc, thread_id=request.thread_id)
@@ -303,6 +304,7 @@ def send_consultant_chat_message(
             scope=request.scope,
             chat_mode=request.mode,
             attachments=request.attachments,
+            reasoning_effort=request.reasoning_effort,
         )
     except TimeoutError as exc:
         log_agent_failure(exc, thread_id=thread_id)
@@ -417,6 +419,7 @@ def chat_turn_events(
             scope=request.scope,
             chat_mode=request.mode,
             attachments=request.attachments,
+            reasoning_effort=request.reasoning_effort,
             trace_context=trace_context,
         ):
             if event.type == "start":

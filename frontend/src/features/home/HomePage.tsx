@@ -13,6 +13,8 @@ import { ROUTES } from "@/app/routes";
 import { useProjectsQuery } from "@/features/projects/api";
 import { projectStatusTone } from "@/features/projects/types";
 import { useClientsQuery } from "@/features/clients/api";
+import { usePeriod } from "@/features/period/usePeriod";
+import { overlapsPeriod } from "@/features/period/periods";
 import { clientStatusTone } from "@/features/clients/types";
 
 export function HomePage(): React.JSX.Element {
@@ -20,9 +22,24 @@ export function HomePage(): React.JSX.Element {
 
   const projectsQ = useProjectsQuery();
   const clientsQ = useClientsQuery();
+  const { period, range } = usePeriod();
 
-  const projects = useMemo(() => projectsQ.data ?? [], [projectsQ.data]);
-  const clients = useMemo(() => clientsQ.data ?? [], [clientsQ.data]);
+  // I numeri della home sono quelli del periodo scelto nella barra: mostrarne
+  // altri accanto a un intervallo li renderebbe sbagliati anche se giusti.
+  const projects = useMemo(
+    () => (projectsQ.data ?? []).filter((project) => overlapsPeriod(project, range)),
+    [projectsQ.data, range],
+  );
+  // I clienti seguono i progetti del periodo: un riquadro filtrato accanto a
+  // uno che conta tutto racconta due storie nella stessa schermata.
+  const clients = useMemo(() => {
+    const all = clientsQ.data ?? [];
+    if (period === "all") return all;
+    // Per id e non per nome: due clienti possono chiamarsi uguale, e un nome
+    // cambiato smetterebbe di corrispondere.
+    const inPeriod = new Set(projects.map((project) => project.clientId));
+    return all.filter((client) => inPeriod.has(client.id));
+  }, [clientsQ.data, projects, period]);
   const isLoading = projectsQ.isLoading || clientsQ.isLoading;
   const isError = projectsQ.isError || clientsQ.isError;
 
@@ -42,7 +59,11 @@ export function HomePage(): React.JSX.Element {
       <PageHeader
         breadcrumbs={[{ label: t("nav.home") }]}
         title={t("nav.home")}
-        description={t("home.description")}
+        description={
+          period === "all"
+            ? t("home.description")
+            : `${t("home.description")} · ${t("period.scoped", { period: t(`period.${period}`) })}`
+        }
       />
 
       {isError ? (

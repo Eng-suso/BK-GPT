@@ -5,12 +5,14 @@ from pathlib import Path
 from typing import Literal
 
 
+from anyio import to_thread
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from backend.api.errors import setup_api_error_handlers
 from backend.api.routes.audio import router as audio_router
+from backend.api.routes.identity import router as identity_router
 from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
 from backend.api.routes.observability import router as observability_router
@@ -87,9 +89,33 @@ def assert_environment_is_defensible() -> Literal["open", "guarded"]:
     return "guarded"
 
 
+def size_request_threadpool() -> int:
+    """Dichiara quante richieste sincrone possono essere in lavorazione insieme.
+
+    Settantatre rotte su settantasei sono `def` e non `async def`: Starlette le
+    esegue nel threadpool di anyio, il cui default e' 40 e non lo aveva scelto
+    nessuno. Un turno di chat occupa un posto per tutta la sua durata (fino a
+    `agent_run_deadline_seconds`, 90 secondi), una simulazione fino a
+    `prosimos_timeout_seconds`: con quaranta turni insieme l'intera API si
+    fermava, e prima di questa versione si fermava anche `/health`.
+
+    Il numero non risolve la causa - le rotte lente restano sincrone - ma smette
+    di essere un caso: si sceglie guardando quanti turni lenti si vogliono
+    reggere, e si puo' alzare senza toccare il codice.
+
+    Returns:
+        int: I posti configurati.
+    """
+    limiter = to_thread.current_default_thread_limiter()
+    limiter.total_tokens = max(8, int(settings.api_worker_threads))
+    logger.info("threadpool delle richieste: %d posti", limiter.total_tokens)
+    return limiter.total_tokens
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     assert_environment_is_defensible()
+    size_request_threadpool()
 
     from backend.local_store import ensure_schema
     from backend.workers.supervisor import run_queue_workers
@@ -129,6 +155,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Senza questa riga il browser vede le intestazioni ma non le lascia
+    # leggere al codice della pagina: l'elenco saprebbe di essere tagliato e
+    # non potrebbe dirlo.
+    expose_headers=["X-DeliR-Total", "X-DeliR-Returned", "X-DeliR-Limit", "X-Request-ID"],
 )
 
 
@@ -155,6 +185,7 @@ app.include_router(workspace_router)
 app.include_router(simulation_router)
 app.include_router(memory_router)
 app.include_router(observability_router)
+app.include_router(identity_router)
 app.include_router(chat_router)
 app.include_router(audio_router)
 
@@ -176,7 +207,16 @@ if (FRONTEND_DIR / "src").exists():
 
 
 @app.get("/health")
-def health():
+async def health():
+    """Dice che il processo risponde, anche quando e' occupato.
+
+    `async` non e' un dettaglio: una rotta sincrona viene eseguita nel
+    threadpool, lo stesso che serve i turni di chat e le simulazioni. Con quei
+    posti tutti occupati - ed e' esattamente il momento in cui qualcuno guarda
+    `/health` - la risposta restava in coda e il controllo scadeva: il processo
+    veniva dichiarato morto mentre stava lavorando. Qui gira nell'event loop,
+    quindi risponde sempre.
+    """
     return {"status": "ok"}
 
 

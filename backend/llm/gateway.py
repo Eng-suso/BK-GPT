@@ -46,6 +46,7 @@ from backend.llm.usage import (
     record,
     tokens_from_usage_metadata,
 )
+from backend.llm.local_tracer import local_callbacks
 from backend.llm_config import MissingProviderKey, chat_openai_kwargs, timeout_for_input
 from backend.services import degradation_counters
 from backend.settings import settings
@@ -103,6 +104,12 @@ def _client(profile: TaskProfile, input_characters: int | None):
         input_characters=input_characters if profile.scales_with_input else None,
     )
     kwargs["max_retries"] = _max_retries(profile)
+    # Quando LangSmith e' spento - nei test, sempre - la traccia la scriviamo
+    # noi su file. Senza, «cosa e' stato mandato e cosa e' tornato» resterebbe
+    # senza risposta proprio dove serve di piu': dentro un test che fallisce.
+    callbacks = local_callbacks()
+    if callbacks:
+        kwargs["callbacks"] = callbacks
     return ChatOpenAI(**kwargs)
 
 

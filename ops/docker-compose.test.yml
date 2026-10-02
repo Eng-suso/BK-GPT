@@ -1,0 +1,61 @@
+# Stack dati per pytest — separato da quello di sviluppo (docker-compose.yml).
+#
+#   cd ops
+#   docker compose -f docker-compose.test.yml up -d --wait
+#
+# Perche' esiste. Fino al 01/10 i test scrivevano nel database di sviluppo: le
+# fixture (interviste, note) finivano in `mem0_projection_log` e alla prima
+# accensione dell'app il worker mem0 le mandava a OpenAI, una chiamata LLM per
+# riga. 22k righe di test = milioni di token spesi accendendo il prodotto.
+#
+# Qui i dati stanno in tmpfs: spariscono quando il container si ferma, non si
+# accumulano fra un giro di test e l'altro. Stessi script di init e stesse
+# password (ops/.env) dello stack di sviluppo, porte diverse. Le migrazioni le
+# applica `tests/conftest.py` (`_migrate_test_stack`) a ogni sessione pytest.
+
+services:
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    container_name: delir-postgres-test
+    restart: "no"
+    environment:
+      POSTGRES_USER: delir_super
+      POSTGRES_PASSWORD: ${POSTGRES_SUPER_PASSWORD:?serve POSTGRES_SUPER_PASSWORD}
+      POSTGRES_DB: delir
+      DELIR_MIGRATOR_PASSWORD: ${DELIR_MIGRATOR_PASSWORD:?serve DELIR_MIGRATOR_PASSWORD}
+      DELIR_APP_PASSWORD: ${DELIR_APP_PASSWORD:?serve DELIR_APP_PASSWORD}
+      DELIR_WORKER_PASSWORD: ${DELIR_WORKER_PASSWORD:?serve DELIR_WORKER_PASSWORD}
+      DELIR_MEM0_PASSWORD: ${DELIR_MEM0_PASSWORD:?serve DELIR_MEM0_PASSWORD}
+      DELIR_WORKSPACE_PASSWORD: ${DELIR_WORKSPACE_PASSWORD:?serve DELIR_WORKSPACE_PASSWORD}
+    ports:
+      - "127.0.0.1:${TEST_POSTGRES_PORT:-55301}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U delir_super -d delir"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  neo4j-test:
+    image: neo4j:5-community
+    container_name: delir-neo4j-test
+    restart: "no"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?serve NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 256M
+      NEO4J_server_memory_heap_max__size: 512M
+      NEO4J_server_memory_pagecache_size: 128M
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*
+    ports:
+      - "127.0.0.1:${TEST_NEO4J_BOLT_PORT:-7688}:7687"
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30

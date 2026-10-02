@@ -2,11 +2,38 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/**
+ * Il contenitore scorre in orizzontale sui viewport stretti. Quando scorre
+ * davvero deve prendere il fuoco, altrimenti da tastiera la parte nascosta
+ * non si raggiunge (WCAG 2.1.1, axe `scrollable-region-focusable`); quando non
+ * scorre resta fuori dal giro del Tab.
+ */
+function useScrollsHorizontally(ref: React.RefObject<HTMLDivElement | null>): boolean {
+  const [scrolls, setScrolls] = React.useState(false)
+  React.useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const measure = () => setScrolls(element.scrollWidth > element.clientWidth)
+    measure()
+    if (typeof ResizeObserver === "undefined") return
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    const table = element.firstElementChild
+    if (table) observer.observe(table)
+    return () => observer.disconnect()
+  }, [ref])
+  return scrolls
+}
+
 function Table({ className, ...props }: React.ComponentProps<"table">) {
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const scrolls = useScrollsHorizontally(containerRef)
   return (
     <div
+      ref={containerRef}
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-ring"
+      tabIndex={scrolls ? 0 : undefined}
     >
       <table
         data-slot="table"

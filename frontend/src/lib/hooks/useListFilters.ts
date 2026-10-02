@@ -6,6 +6,12 @@ export type ListFilterDef<T> = {
   label: string;
   /** Value(s) this row contributes to the facet. */
   accessor: (row: T) => string | string[];
+  /**
+   * Come si legge un valore nel menu, quando il valore e' un id: si filtra per
+   * id (due clienti omonimi restano due) e si mostra il nome. Solo per
+   * accessor a valore singolo.
+   */
+  display?: (row: T) => string;
 };
 
 export type ListFilterOption = { value: string; label: string; count: number };
@@ -69,13 +75,15 @@ export function useListFilters<T>(
   const menus = useMemo<ListFilterMenu[]>(() => {
     return defs.map((def) => {
       const counts = new Map<string, number>();
+      const labels = new Map<string, string>();
       for (const row of rows) {
         for (const value of toValues(def.accessor(row))) {
           counts.set(value, (counts.get(value) ?? 0) + 1);
+          if (def.display && !labels.has(value)) labels.set(value, def.display(row));
         }
       }
       const options = [...counts.entries()]
-        .map(([value, count]) => ({ value, label: value, count }))
+        .map(([value, count]) => ({ value, label: labels.get(value) ?? value, count }))
         .sort((a, b) => a.label.localeCompare(b.label));
       return {
         id: def.id,

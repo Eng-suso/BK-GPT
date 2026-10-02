@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from backend.schemas.workspace import (
     ConformanceStatusResponse,
@@ -19,6 +19,7 @@ from backend.schemas.workspace import (
     CreateProjectRequest,
     CreateProjectSourceRequest,
     ElementReviewRequest,
+    MarkNotificationsReadRequest,
     ElementReviewResponse,
     ProcessProvenanceResponse,
     ProjectDecisionResponse,
@@ -34,6 +35,9 @@ from backend.schemas.workspace import (
     UpdateClientRequest,
     UpdateProcessRequest,
     UpdateProjectRequest,
+    WorkspaceNotification,
+    WorkspaceNotificationsResponse,
+    WorkspaceSearchHit,
 )
 from backend.security import AuthPrincipal, require_admin_principal, require_principal
 from backend.workspace_services.bpmn_draft import (
@@ -41,12 +45,15 @@ from backend.workspace_services.bpmn_draft import (
     generate_verified_bpmn_draft,
 )
 from backend.workspace_database import (
+    MAX_LIST_LIMIT,
     answer_bpmn_review_question,
     approve_bpmn_review,
     archive_client,
     archive_process,
     archive_project,
     client_impact,
+    count_clients,
+    count_projects,
     create_client,
     create_process,
     create_project,
@@ -103,18 +110,62 @@ def _edit_error(exc: ValueError) -> HTTPException:
     return HTTPException(status_code=404 if missing else 400, detail=str(exc))
 
 
-@router.get("/clients")
-def get_workspace_clients(include_archived: bool = False) -> list[ClientResponse]:
-    """Retrieve the workspace clients.
+def set_list_headers(
+    response: Response,
+    *,
+    returned: int,
+    total: int,
+    limit: int | None,
+) -> None:
+    """Dice quante righe esistono, oltre a quelle che la risposta contiene.
+
+    Un elenco tagliato senza dirlo e' un elenco che mente: chi lo guarda crede
+    di vedere tutto. Le intestazioni restano fuori dal corpo di proposito - il
+    corpo e' un array, e cambiarlo in un oggetto avrebbe rotto ogni chiamante
+    per un'informazione che e' di trasporto.
 
     Args:
+        response: La risposta da annotare.
+        returned: Quante righe stanno nel corpo.
+        total: Quante ce ne sono in tutto.
+        limit: Il tetto chiesto, se qualcuno lo ha chiesto.
+    """
+    response.headers["X-DeliR-Total"] = str(total)
+    response.headers["X-DeliR-Returned"] = str(returned)
+    if limit is not None:
+        response.headers["X-DeliR-Limit"] = str(limit)
+
+
+@router.get("/clients")
+def get_workspace_clients(
+    response: Response,
+    include_archived: bool = False,
+    limit: int | None = Query(default=None, ge=1, le=MAX_LIST_LIMIT),
+) -> list[ClientResponse]:
+    """Retrieve the workspace clients.
+
+    La risposta ha un tetto: senza, una sola richiesta poteva tirare giu'
+    l'intero elenco. Quante righe esistono davvero lo dicono le intestazioni
+    `X-DeliR-Total` e `X-DeliR-Limit`, cosi' l'elenco a schermo puo' dire che
+    non le sta mostrando tutte invece di tacerlo.
+
+    Args:
+        response: La risposta, per scriverci sopra il conteggio.
         include_archived: Include closed clients. Off by default: the directory
             shows the work in progress.
+        limit: Quante righe al massimo.
 
     Returns:
         list[ClientResponse]: The workspace clients.
     """
-    return [ClientResponse(**client) for client in list_clients(include_archived=include_archived)]
+    clients = list_clients(include_archived=include_archived, limit=limit)
+    set_list_headers(
+        response,
+        returned=len(clients),
+        total=count_clients(include_archived=include_archived),
+        limit=limit,
+    )
+    return [ClientResponse(**client) for client in clients]
 
 
 @router.post("/clients")
@@ -161,19 +212,101 @@ def update_workspace_client(client_id: str, request: UpdateClientRequest) -> Cli
 
 
 @router.get("/projects")
-def get_workspace_projects(include_archived: bool = False) -> list[ProjectResponse]:
+def get_workspace_projects(
+    response: Response,
+    include_archived: bool = False,
+    limit: int | None = Query(default=None, ge=1, le=MAX_LIST_LIMIT),
+) -> list[ProjectResponse]:
     """List the workspace projects.
 
+    Come per i clienti, la risposta ha un tetto e le intestazioni dicono quante
+    righe esistono davvero.
+
     Args:
+        response: La risposta, per scriverci sopra il conteggio.
         include_archived: Include closed projects. Off by default.
+        limit: Quante righe al massimo.
 
     Returns:
         list[ProjectResponse]: The workspace projects.
     """
+    projects = list_projects(include_archived=include_archived, limit=limit)
+    set_list_headers(
+        response,
+        returned=len(projects),
+        total=count_projects(include_archived=include_archived),
+        limit=limit,
+    )
     return [
         ProjectResponse(**project)
-        for project in list_projects(include_archived=include_archived)
+        for project in projects
     ]
+
+
+@router.get("/notifications")
+def get_workspace_notifications(
+    limit: int = Query(default=20, ge=1, le=50),
+) -> WorkspaceNotificationsResponse:
+    """Cosa e' successo di recente nel workspace, dal piu' recente.
+
+    Args:
+        limit: Quanti avvisi restituire.
+    """
+    from backend.workspace_services.notifications import list_notifications
+
+    result = list_notifications(limit=limit)
+    return WorkspaceNotificationsResponse(
+        items=[WorkspaceNotification(**item) for item in result["items"]],
+        unread=result["unread"],
+    )
+
+
+@router.post("/notifications/read")
+def mark_workspace_notifications_read(
+    request: MarkNotificationsReadRequest,
+    limit: int = Query(default=20, ge=1, le=50),
+) -> WorkspaceNotificationsResponse:
+    """Segna come letti gli avvisi indicati, o tutti quelli mostrati.
+
+    Returns:
+        WorkspaceNotificationsResponse: Gli avvisi aggiornati, cosi' il
+        chiamante non deve indovinare il nuovo conteggio.
+    """
+    from backend.workspace_services.notifications import (
+        list_notifications,
+        mark_all_read,
+        mark_read,
+    )
+
+    if request.ids:
+        mark_read(request.ids)
+    else:
+        mark_all_read(limit=limit)
+
+    result = list_notifications(limit=limit)
+    return WorkspaceNotificationsResponse(
+        items=[WorkspaceNotification(**item) for item in result["items"]],
+        unread=result["unread"],
+    )
+
+
+@router.get("/search")
+def search_workspace_records(
+    q: str = Query(..., max_length=200),
+    limit: int = Query(default=20, ge=1, le=50),
+) -> list[WorkspaceSearchHit]:
+    """Cerca clienti, progetti, processi e fonti del workspace.
+
+    Args:
+        q: Il testo cercato. Vuoto restituisce una lista vuota, non tutto.
+        limit: Quanti risultati restituire.
+
+    Returns:
+        list[WorkspaceSearchHit]: I risultati, i piu' pertinenti per primi.
+    """
+    from backend.workspace_services.global_search import search_workspace
+
+    return [WorkspaceSearchHit(**hit) for hit in search_workspace(q, limit=limit)]
 
 
 @router.get("/models")

@@ -31,6 +31,7 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
+from backend.llm.prices import estimate_cost
 from backend.workspace_storage import WorkspaceLlmUsage, workspace_connection
 
 # `cache_hit` non e' una chiamata: e' una chiamata **evitata**. Tenerla dentro le
@@ -550,3 +551,144 @@ def modelli_da_prezzare(
         for r in righe
     ]
     return sorted(modelli, key=lambda m: (m.prezzato, -m.token))
+
+
+@dataclass(frozen=True, slots=True)
+class Ricalcolo:
+    """L'esito di una valorizzazione retroattiva.
+
+    Attributes:
+        esaminate: Le righe senza costo trovate nella finestra.
+        valorizzate: Quelle a cui il listino di adesso sa dare un prezzo.
+        ancora_senza_prezzo: Quelle il cui modello resta fuori dal listino. Non
+            e' un guasto: i modelli che si pagano a tempo stanno qui di diritto.
+        costo_recuperato: Quanta spesa e' passata da «ignota» a «nota».
+    """
+
+    esaminate: int = 0
+    valorizzate: int = 0
+    ancora_senza_prezzo: int = 0
+    costo_recuperato: Decimal = Decimal(0)
+
+
+def ricalcola_costi_mancanti(
+    *,
+    giorni: int | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    tenant_id: str | None = None,
+    prova: bool = True,
+) -> Ricalcolo:
+    """Da' un prezzo alle righe che sono nate senza, quando il listino arriva dopo.
+
+    Il costo si calcola **alla scrittura** e si salva: e' la scelta giusta,
+    perche' una riga deve portare il prezzo del giorno in cui la chiamata e'
+    avvenuta, e ricalcolare tutto alla lettura riscriverebbe la storia ogni volta
+    che il fornitore ritocca il listino. Ha pero' una conseguenza: ogni riga
+    scritta mentre `LLM_PRICES_JSON` e' vuoto resta a `NULL` per sempre, e
+    configurare i prezzi domani non recupera niente di oggi.
+
+    Questa funzione e' la via d'uscita, e tocca **solo** le righe con
+    `cost_estimate` nullo: quelle che un prezzo ce l'hanno gia' non si toccano,
+    perche' il loro e' il prezzo del loro tempo e sovrascriverlo con quello di
+    adesso sarebbe esattamente il falso che si vuole evitare.
+
+    Args:
+        prova: Se `True` (default) non scrive niente e dice solo cosa farebbe.
+            Una valorizzazione retroattiva cambia numeri su cui si prendono
+            decisioni: si guarda prima.
+
+    Returns:
+        Il conto di cosa e' stato (o sarebbe) valorizzato.
+    """
+    from backend.llm.prices import price_for
+
+    inizio, fine = _finestra(giorni, since, until)
+    esaminate = valorizzate = ancora = 0
+    recuperato = Decimal(0)
+
+    with workspace_connection() as session:
+        righe = (
+            session.query(WorkspaceLlmUsage)
+            .filter(
+                WorkspaceLlmUsage.created_at >= inizio,
+                WorkspaceLlmUsage.created_at < fine,
+                WorkspaceLlmUsage.cost_estimate.is_(None),
+            )
+            .all()
+        )
+        for riga in righe:
+            if tenant_id is not None and riga.tenant_id != tenant_id:
+                continue
+            # Una chiamata evitata o rifiutata non ha un costo da recuperare: il
+            # suo NULL non e' ignoranza, e' assenza di spesa.
+            if riga.outcome in (ESITO_EVITATA, ESITO_RIFIUTATA):
+                continue
+            esaminate += 1
+            if price_for(riga.model) is None:
+                ancora += 1
+                continue
+            costo = estimate_cost(
+                riga.model,
+                input_tokens=riga.input_tokens,
+                output_tokens=riga.output_tokens,
+                cached_input_tokens=riga.cached_input_tokens,
+            )
+            if costo is None:
+                ancora += 1
+                continue
+            valorizzate += 1
+            recuperato += costo
+            if not prova:
+                riga.cost_estimate = str(costo)
+
+    return Ricalcolo(
+        esaminate=esaminate,
+        valorizzate=valorizzate,
+        ancora_senza_prezzo=ancora,
+        costo_recuperato=recuperato,
+    )
+
+
+def traccia_locale(operation_id: str, *, giorni: int = 7) -> list[dict]:
+    """Gli eventi tracciati per un'operazione, letti dai file locali.
+
+    E' il ponte fra i due sistemi. Il registro dei consumi risponde a «quanto e'
+    costata questa chiamata»; i file di `local_tracer` rispondono a «cosa le e'
+    stato mandato». Il campo che li unisce e' `operation_id`, che il tracer
+    scrive su ogni evento proprio per questo: senza, sarebbero due archivi della
+    stessa chiamata che non sanno l'uno dell'altro.
+
+    Vale solo per le chiamate avvenute con LangSmith spento - i test, e il
+    prodotto quando il servizio non c'e'. Per le altre la traccia sta su
+    LangSmith, e qui non si trova niente: e' un'assenza, non un guasto.
+
+    Args:
+        operation_id: L'id che compare nella riga del registro.
+        giorni: Quanti file giornalieri guardare all'indietro.
+
+    Returns:
+        Gli eventi in ordine di scrittura, o una lista vuota.
+    """
+    import json
+    from datetime import timedelta
+
+    from backend.llm.local_tracer import percorso_del_giorno
+
+    cartella = percorso_del_giorno().parent
+    oggi = datetime.now(UTC)
+    eventi: list[dict] = []
+    for scarto in range(max(1, giorni)):
+        file = cartella / f"{oggi - timedelta(days=scarto):%Y-%m-%d}.jsonl"
+        if not file.exists():
+            continue
+        for riga in file.read_text(encoding="utf-8").splitlines():
+            if not riga.strip() or operation_id not in riga:
+                continue
+            try:
+                evento = json.loads(riga)
+            except json.JSONDecodeError:
+                continue
+            if evento.get("operation_id") == operation_id:
+                eventi.append(evento)
+    return sorted(eventi, key=lambda e: e.get("ts", ""))

@@ -7,9 +7,15 @@ grafo e' disattivato e i chiamanti degradano.
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 
+from backend.memory.knowledge_graph import catalog
 from backend.settings import settings
+
+logger = logging.getLogger(__name__)
+
+_schema_ready = False
 
 
 @lru_cache(maxsize=1)
@@ -27,6 +33,39 @@ def get_driver():
 
 def is_enabled() -> bool:
     return get_driver() is not None
+
+
+def ensure_schema() -> bool:
+    """Un vincolo di unicita' per ogni (label, id) del catalogo (GR-12).
+
+    Senza, ogni `MERGE (n:Entity {entity_id: $id})` del projector e ogni lookup
+    di un seed in `gateway._expand` e' una scansione di tutti i nodi con quella
+    label, e due MERGE concorrenti possono creare lo stesso nodo due volte. Il
+    vincolo porta con se' l'indice.
+
+    Idempotente (`IF NOT EXISTS`), una volta per processo. Se fallisce - tipico:
+    nel grafo ci sono gia' duplicati, e il vincolo non si crea - lo dice forte e
+    lascia girare la proiezione: senza indice e' lenta, non sbagliata. I
+    duplicati si tolgono con `scripts/kg_reproject.py --apply`.
+    """
+    global _schema_ready
+    if _schema_ready:
+        return True
+    driver = get_driver()
+    if driver is None:
+        return False
+    try:
+        with driver.session() as session:
+            for spec in catalog.NODES:
+                session.run(
+                    f"CREATE CONSTRAINT {spec.label.lower()}_{spec.id_prop}_unique "
+                    f"IF NOT EXISTS FOR (n:{spec.label}) REQUIRE n.{spec.id_prop} IS UNIQUE"
+                ).consume()
+    except Exception as exc:  # noqa: BLE001 — senza indice la proiezione e' lenta, non sbagliata
+        logger.error("neo4j: vincoli di unicita' non creati (duplicati nel grafo?): %s", exc)
+        return False
+    _schema_ready = True
+    return True
 
 
 class Neo4jUnavailable(RuntimeError):

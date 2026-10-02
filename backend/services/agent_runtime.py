@@ -29,9 +29,11 @@ from backend.services.agent_progress import (
 )
 from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
+    DEFAULT_REASONING_EFFORT,
     ChatAttachment,
     ChatMode,
     ChatScope,
+    ReasoningEffort,
     chat_scope_key,
 )
 from backend.services.trace_recorder import elapsed_ms, new_trace_context, trace_event
@@ -507,6 +509,7 @@ def stream_agent_events(
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
     attachments: list[ChatAttachment] | None = None,
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
     trace_context: TraceContext | None = None,
     emit_activity: bool = True,
 ) -> Iterator[AgentStreamEvent]:
@@ -525,6 +528,8 @@ def stream_agent_events(
         scope: (Untrusted input.) Optional scope used to select the agent and
             checkpoint namespace.
         chat_mode: (Untrusted input.) Optional chat mode for the agent execution.
+        reasoning_effort: (Untrusted input.) Quanto il modello deve pensare prima
+            di rispondere, scelto dal consulente per questo turno.
         attachments: (Untrusted input.) Optional attachments associated with the
             request.
         trace_context: Optional context used for emitted trace and lifecycle events.
@@ -554,7 +559,11 @@ def stream_agent_events(
         )
         return
 
-    agent = get_agent(selected_model, scope_type=fields["scope_type"])
+    agent = get_agent(
+        selected_model,
+        scope_type=fields["scope_type"],
+        reasoning_effort=reasoning_effort,
+    )
     thread_lock = get_thread_lock(checkpoint_thread_id)
     last_node = None
     first_token_recorded = False
@@ -1023,6 +1032,7 @@ def stream_agent_deltas(
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
     attachments: list[ChatAttachment] | None = None,
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
 ) -> Iterator[str]:
     """
     Stream text deltas from an agent execution.
@@ -1051,6 +1061,7 @@ def stream_agent_deltas(
         scope=scope,
         chat_mode=chat_mode,
         attachments=attachments,
+        reasoning_effort=reasoning_effort,
         emit_activity=False,
     ):
         if event.type == "delta" and event.content:
@@ -1067,6 +1078,7 @@ def stream_agent_text(
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
     attachments: list[ChatAttachment] | None = None,
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
 ) -> str:
     """Collect the agent's streamed text deltas into a complete response.
     
@@ -1095,5 +1107,6 @@ def stream_agent_text(
             scope=scope,
             chat_mode=chat_mode,
             attachments=attachments,
+            reasoning_effort=reasoning_effort,
         )
     )

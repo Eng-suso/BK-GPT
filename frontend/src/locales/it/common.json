@@ -36,7 +36,8 @@
     "backendUnavailable": "Backend non raggiungibile",
     "comingSoon": "In arrivo",
     "crash": "Questa schermata si è fermata",
-    "crashBody": "Il resto del prodotto continua a funzionare. Riprova, oppure passa a un'altra sezione dalla barra a sinistra."
+    "crashBody": "Il resto del prodotto continua a funzionare. Riprova, oppure passa a un'altra sezione dalla barra a sinistra.",
+    "truncated": "Mostrati i primi {{shown}} di {{total}}. Usa i filtri o la ricerca per trovare gli altri."
   },
   "home": {
     "description": "Panoramica operativa di clienti, progetti e processi nel workspace.",
@@ -228,7 +229,8 @@
       "answer": "Scegli un'alternativa in una domanda aperta",
       "search": "Scorri e apri i risultati della ricerca in cronologia",
       "close": "Chiudi la cronologia o il pannello laterale",
-      "resize": "Ridimensiona un pannello dal suo separatore"
+      "resize": "Ridimensiona un pannello dal suo separatore",
+      "search_global": "Apri la ricerca del workspace"
     },
     "keys": {
       "enter": "Invio",
@@ -247,5 +249,74 @@
     "title": "Questa pagina non esiste",
     "body": "L'indirizzo {{path}} non porta da nessuna parte: può essere un link vecchio, o un incarico che è stato chiuso.",
     "action": "Vai agli incarichi"
+  },
+  "search": {
+    "title": "Cerca nel workspace",
+    "description": "Clienti, progetti, processi e fonti. Scrivi un nome e apri ciò che serve.",
+    "placeholder": "Cliente, progetto, processo o fonte",
+    "hint": "Scrivi almeno {{min}} caratteri.",
+    "searching": "Cerco...",
+    "failed": "Ricerca non riuscita.",
+    "empty": "Nessun risultato per \"{{query}}\".",
+    "results": "Risultati della ricerca",
+    "kind": {
+      "client": "Clienti",
+      "project": "Progetti",
+      "process": "Processi",
+      "source": "Fonti"
+    }
+  },
+  "notifications": {
+    "label": "Avvisi",
+    "title": "Avvisi",
+    "markAllRead": "Segna tutti come letti",
+    "unread": "Non letto",
+    "loading": "Carico gli avvisi...",
+    "failed": "Impossibile caricare gli avvisi.",
+    "empty": {
+      "title": "Nessun avviso",
+      "description": "Quando un piano, un confronto o una simulazione finiscono, li trovi qui."
+    },
+    "kind": {
+      "plan_ready": "Piano ricostruito (V{{version}})",
+      "plan_failed": "La ricostruzione del piano non è riuscita",
+      "conformance_findings_one": "{{count}} punto da rivedere nel confronto con le fonti",
+      "conformance_findings_other": "{{count}} punti da rivedere nel confronto con le fonti",
+      "simulation_done": "Simulazione completata",
+      "simulation_failed": "Simulazione non riuscita"
+    },
+    "labelWithCount_one": "Avvisi, {{count}} non letto",
+    "labelWithCount_other": "Avvisi, {{count}} non letti"
+  },
+  "identity": {
+    "menuLabel": "Spazio di lavoro {{workspace}} e accesso",
+    "unknown": "Non disponibile",
+    "workspaceHint": "Lo spazio di lavoro a cui appartengono i dati che stai vedendo.",
+    "noPersonYet": "Il prodotto non sa ancora chi sei: l’accesso per persona arriva con l’autenticazione.",
+    "access": {
+      "open": "Accesso non configurato",
+      "shared": "Accesso con credenziale condivisa"
+    },
+    "section": {
+      "title": "Accesso",
+      "description": "Come questo ambiente riconosce chi lo usa.",
+      "workspace": "Spazio di lavoro",
+      "mode": "Modalità di accesso",
+      "admin": "Permessi amministrativi",
+      "adminYes": "Sì: questa sessione può eliminare e archiviare",
+      "adminNo": "No",
+      "caller": "Identificativo del chiamante",
+      "pending": "L’identità per persona — chi ha validato un modello, chi ha risposto a una domanda — arriva con l’autenticazione vera. Finché non c’è, ogni azione risulta fatta dallo spazio di lavoro, non da qualcuno.",
+      "failed": "Impossibile leggere lo stato dell’accesso."
+    },
+    "loading": "Lettura in corso…"
+  },
+  "period": {
+    "label": "Periodo: {{period}}",
+    "all": "Tutto il lavoro",
+    "month": "Questo mese",
+    "quarter": "Questo trimestre",
+    "year": "Quest’anno",
+    "scoped": "{{period}}"
   }
 }

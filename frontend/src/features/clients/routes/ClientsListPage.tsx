@@ -5,7 +5,7 @@ import { Pencil, Plus } from "lucide-react";
 
 import { PageHeader, WorkspaceListView } from "@/components/layout";
 import { DataTable, DataTablePagination, ListToolbar } from "@/components/data";
-import { EmptyState, ErrorState } from "@/components/feedback";
+import { EmptyState, ErrorState, InlineNotice } from "@/components/feedback";
 import { StatusIndicator } from "@/components/status";
 import {
   DetailPanel,
@@ -23,7 +23,7 @@ import {
   type LifecycleTarget,
 } from "@/features/archive/RecordLifecycleDialog";
 import { buildClientColumns } from "../columns";
-import { useClientsQuery } from "../api";
+import { useClientsPageQuery } from "../api";
 import { ClientFormDialog } from "../components/ClientFormDialog";
 import { clientStatusTone, type Client } from "../types";
 
@@ -47,7 +47,15 @@ export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation("clients");
   const { t: tCommon } = useTranslation("common");
 
-  const { data: clients = [], isLoading, isError, refetch } = useClientsQuery();
+  const page = useClientsPageQuery();
+  // Riferimento stabile: `?? []` creerebbe un array nuovo a ogni render e
+  // rifarebbe ogni `useMemo` che dipende da questo elenco.
+  const clients = useMemo(() => page.data?.rows ?? [], [page.data]);
+  const { isLoading, isError, refetch } = page;
+  // Le liste hanno un tetto (B12): se il backend dice che ce ne sono di piu',
+  // l'elenco lo dice invece di far credere di mostrarle tutte.
+  const totale = page.data?.total ?? null;
+  const tagliato = totale !== null && totale > clients.length;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // `null` = creazione, un cliente = modifica di quel record. `formSession`
@@ -134,6 +142,13 @@ export function ClientsListPage(): React.JSX.Element {
         />
       }
       toolbar={
+        <>
+        {tagliato ? (
+          <InlineNotice
+            tone="warning"
+            title={tCommon("state.truncated", { shown: clients.length, total: totale })}
+          />
+        ) : null}
         <ListToolbar
           search={list.search}
           onSearchChange={list.setSearch}
@@ -141,6 +156,7 @@ export function ClientsListPage(): React.JSX.Element {
           filters={filters.menus}
           onClearFilters={filters.clear}
         />
+        </>
       }
       detail={
         <DetailPanel className="hidden panel:flex">
