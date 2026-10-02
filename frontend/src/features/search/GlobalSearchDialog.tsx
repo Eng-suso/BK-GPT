@@ -173,9 +173,11 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
           <p className="px-1 py-6 text-center text-[13px] text-muted-foreground">
             {t("search.empty", { query: debounced })}
           </p>
-        ) : (
-          <div id="workspace-search-results" role="listbox" aria-label={t("search.results")}>
-            {groups.map((group) => (
+        ) : null}
+        {/* Sempre montato: il campo lo nomina in `aria-controls`, e un id che
+            sparisce lascia il combobox a puntare nel vuoto. */}
+        <div id="workspace-search-results" role="listbox" aria-label={t("search.results")}>
+            {enabled && !results.isPending && !results.isError && groups.map((group) => (
               // Dentro un `listbox` le opzioni devono restare figlie del
               // gruppo: `section`/`ul`/`li` porterebbero le proprie semantiche e
               // spezzerebbero la parentela che lo screen reader annuncia.
@@ -184,7 +186,11 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
                 role="group"
                 aria-label={t(`search.kind.${group.kind}`)}
               >
-                <h3 className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+                {/* Il gruppo e' gia' nominato da `aria-label`: il titolo e' per gli occhi. */}
+                <h3
+                  aria-hidden="true"
+                  className="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground"
+                >
                   {t(`search.kind.${group.kind}`)}
                 </h3>
                 <ul role="presentation" className="flex flex-col gap-0.5">
@@ -194,14 +200,16 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
                     const Icon = KIND_ICON[hit.kind];
                     return (
                       <li role="presentation" key={`${hit.kind}-${hit.id}`}>
-                        <button
-                          type="button"
+                        {/* Non un bottone: il fuoco resta sul campo, che indica
+                            l'opzione attiva con `aria-activedescendant`. */}
+                        <div
                           id={idOf(hit)}
                           role="option"
+                          tabIndex={-1}
                           aria-selected={isActive}
                           data-active={isActive}
                           className={cn(
-                            "flex w-full items-center gap-2.5 rounded-md border border-transparent px-3 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            "flex w-full cursor-pointer items-center gap-2.5 rounded-md border border-transparent px-3 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                             isActive && "border-border bg-accent",
                           )}
                           onMouseEnter={() => setActiveIndex(index)}
@@ -218,15 +226,14 @@ function SearchPanel({ onOpen }: { onOpen: (href: string) => void }): React.JSX.
                                 : hit.context}
                             </span>
                           </span>
-                        </button>
+                        </div>
                       </li>
                     );
                   })}
                 </ul>
               </section>
             ))}
-          </div>
-        )}
+        </div>
       </div>
     </>
   );
