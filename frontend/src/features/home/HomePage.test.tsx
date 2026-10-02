@@ -10,7 +10,11 @@ import { PeriodProvider } from "@/features/period/PeriodContext";
 
 const http = vi.fn<(path: string) => Promise<unknown>>();
 
-vi.mock("@/lib/http", () => ({ http: (path: string) => http(path) }));
+// Gli elenchi passano da `httpList` (B12: pagina con totale), il resto da `http`.
+vi.mock("@/lib/http", () => ({
+  http: (path: string) => http(path),
+  httpList: async (path: string) => ({ rows: await http(path), total: null }),
+}));
 
 const { HomePage } = await import("./HomePage");
 
