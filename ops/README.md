@@ -27,6 +27,22 @@ Al primo avvio del volume Postgres girano, come superuser:
 
 Per rieseguirli: `docker compose down -v && docker compose up -d`.
 
+## Stack di test (pytest)
+
+```bash
+cd ops
+docker compose -f docker-compose.test.yml up -d   # Postgres :55301, Neo4j :7688, in tmpfs
+```
+
+pytest non usa mai lo stack di sviluppo: `tests/conftest.py` sposta sulle porte
+di test i DSN presi dal `.env` e applica le migrazioni a inizio sessione. Senza
+lo stack di test acceso pytest si ferma con un messaggio. Prima i test
+scrivevano nel database di sviluppo, e il worker mem0 mandava poi le loro
+fixture a OpenAI all'avvio dell'app.
+
+In sviluppo i worker delle code sono spenti (`WORKERS_IN_PROCESS=false` nel
+`.env`): accenderli significa svuotare le code, e `mem0` spende token per riga.
+
 ## Ruoli Postgres (INV-6)
 
 | Ruolo | Uso | Privilegi |
