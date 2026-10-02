@@ -1,11 +1,12 @@
+import hashlib
 import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 
 from backend.agents.chat_mode import assert_write_allowed
 from backend.process_understanding import (
@@ -43,8 +44,10 @@ from backend.workspace_storage import (
     WorkspaceProject,
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
+    WorkspaceEvidenceSegment,
     WorkspaceSource,
     WorkspaceSourceAudit,
+    WorkspaceSourceEvidence,
     workspace_connection,
 )
 
@@ -1896,6 +1899,13 @@ def _assert_review_ready_for_approval(review: WorkspaceBpmnReview) -> None:
 
 
 def source_to_dict(source: WorkspaceSource) -> dict:
+    def structured(raw: str | None) -> list:
+        try:
+            value = json.loads(raw or "[]")
+        except json.JSONDecodeError:
+            return []
+        return value if isinstance(value, list) else []
+
     return {
         "id": source.id,
         "project_id": source.project_id,
@@ -1903,9 +1913,17 @@ def source_to_dict(source: WorkspaceSource) -> dict:
         "name": source.name,
         "type": source.type,
         "meta": source.meta,
+        "roles": structured(source.roles_json),
+        "retention": source.retention,
+        "scopes": structured(source.scopes_json),
+        "status": source.status,
         # Stringa vuota e non `None`: chi legge confronta impronte, e un `None`
         # fra due confronti si comporta in modo diverso da un testo assente.
         "content_hash": getattr(source, "content_hash", None) or "",
+        "byte_size": source.byte_size,
+        "mime_type": source.mime_type,
+        "acquisition_status": source.acquisition_status,
+        "acquisition_error": source.acquisition_error,
     }
 
 
@@ -1949,6 +1967,16 @@ def get_project_source(source_id: str) -> dict | None:
     with workspace_connection() as session:
         source = tenant_row(session, WorkspaceSource, source_id)
         return source_to_dict(source) if source is not None else None
+
+
+def get_project_source_record(source_id: str) -> WorkspaceSource | None:
+    """Restituisce una copia staccata della fonte, sempre limitata al tenant."""
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        session.expunge(source)
+        return source
 
 
 def _assert_source_scope(project_id: str, process_id: str | None) -> None:
@@ -2045,6 +2073,402 @@ def create_project_source(
             reason=f"fonte registrata: {source.name}",
         )
         return source_to_dict(source)
+
+
+def create_ingested_source(
+    *,
+    project_id: str,
+    name: str,
+    roles: list[str],
+    retention: str,
+    scopes: list[dict[str, str]],
+    content_hash: str,
+    byte_size: int,
+    mime_type: str,
+    storage_key: str,
+) -> tuple[dict, bool]:
+    """Registra una fonte caricata e la mette in coda per l'acquisizione.
+
+    Il file e' gia' conservato (`storage_key`); leggerlo - layout, tabelle, OCR -
+    lo fa `source_worker`, fuori dalla richiesta. Fino ad allora la fonte esiste
+    ma non ha testo, e lo dice: `acquisition_status == "pending"`.
+    """
+    role_order = {name: index for index, name in enumerate(
+        ("context", "process_evidence", "policy", "operational_data")
+    )}
+    scope_order = {"client": 0, "project": 1, "process": 2}
+    role_values = sorted(set(roles), key=role_order.__getitem__)
+    scopes_value = sorted(
+        ({"type": scope_type, "id": scope_id} for scope_type, scope_id in {
+            (item["type"], item["id"]) for item in scopes
+        }),
+        key=lambda item: (scope_order[item["type"]], item["id"]),
+    )
+    roles_json = json.dumps(role_values, ensure_ascii=False, separators=(",", ":"))
+    scopes_json = json.dumps(scopes_value, ensure_ascii=False, separators=(",", ":"))
+    ingestion_key = hashlib.sha256(
+        "\x1f".join((content_hash, roles_json, retention, scopes_json)).encode()
+    ).hexdigest()
+    process_ids = [item["id"] for item in scopes_value if item["type"] == "process"]
+    process_id = process_ids[0] if len(process_ids) == 1 else None
+    _assert_source_scope(project_id, process_id)
+
+    validate_source_scopes(project_id, scopes_value)
+
+    with workspace_connection() as session:
+        lock_key = int(ingestion_key[:16], 16)
+        if lock_key >= 2**63:
+            lock_key -= 2**64
+        session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+        existing = session.execute(
+            select(WorkspaceSource)
+            .where(WorkspaceSource.tenant_id == tenant_id())
+            .where(WorkspaceSource.project_id == project_id)
+            .where(WorkspaceSource.ingestion_key == ingestion_key)
+        ).scalars().first()
+        if existing is not None:
+            # Ricaricare un file che non era stato letto e' il modo naturale di
+            # dire "riprova": la fonte torna in coda invece di restare morta.
+            if existing.acquisition_status == "failed":
+                existing.acquisition_status = "pending"
+                existing.acquisition_attempts = 0
+                existing.acquisition_error = None
+                existing.acquisition_next_attempt_at = now_iso()
+                existing.meta = "In lettura: testo ed evidenze arrivano tra poco."
+                session.flush()
+            return source_to_dict(existing), False
+
+        source = WorkspaceSource(
+            id=unique_id(session, WorkspaceSource, f"src-{slugify(name, 'source')}"),
+            tenant_id=tenant_id(),
+            project_id=project_id,
+            process_id=process_id,
+            name=name.strip(),
+            type="File",
+            meta="In lettura: testo ed evidenze arrivano tra poco.",
+            roles_json=roles_json,
+            retention=retention,
+            scopes_json=scopes_json,
+            status="extracted",
+            content_hash=content_hash,
+            byte_size=byte_size,
+            mime_type=mime_type,
+            storage_key=storage_key,
+            ingestion_key=ingestion_key,
+            acquisition_status="pending",
+            acquisition_attempts=0,
+            acquisition_next_attempt_at=now_iso(),
+        )
+        session.add(source)
+        session.flush()
+        return source_to_dict(source), True
+
+
+ACQUISITION_MAX_ATTEMPTS = 4
+ACQUISITION_BACKOFF_SECONDS = 30
+# Un PDF lungo con OCR resta in lettura per minuti: il lease copre la
+# conversione piu' lenta attesa, non la media. Se chi l'ha presa muore, la
+# fonte torna eleggibile da sola.
+ACQUISITION_LEASE_SECONDS = 1200
+
+
+def due_source_acquisitions(limit: int = 2, *, only_tenant_id: str | None = None) -> list[dict]:
+    """Prende in carico le fonti da leggere, di tutti i tenant.
+
+    Come `due_plan_materializations`: `FOR UPDATE SKIP LOCKED` e scadenza spostata
+    in avanti, cosi' due worker non leggono lo stesso file.
+
+    Returns:
+        Per ogni fonte: id, tenant, nome, storage_key e hash del contenuto.
+    """
+    now = now_iso()
+    lease_until = (
+        datetime.now(UTC) + timedelta(seconds=ACQUISITION_LEASE_SECONDS)
+    ).isoformat(timespec="seconds")
+    with workspace_connection() as session:
+        statement = (
+            select(WorkspaceSource)
+            .where(WorkspaceSource.acquisition_status == "pending")
+            .where(WorkspaceSource.acquisition_next_attempt_at <= now)
+            .order_by(WorkspaceSource.acquisition_next_attempt_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
+        )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceSource.tenant_id == only_tenant_id)
+        rows = session.execute(statement).scalars().all()
+        claimed = [
+            {
+                "id": row.id,
+                "tenant_id": row.tenant_id,
+                "name": row.name,
+                "storage_key": row.storage_key,
+                "content_hash": row.content_hash,
+                "process_id": row.process_id,
+            }
+            for row in rows
+        ]
+        for row in rows:
+            row.acquisition_next_attempt_at = lease_until
+        session.flush()
+        return claimed
+
+
+def complete_source_acquisition(source_id: str, parsed: Any) -> dict | None:
+    """Scrive il risultato della lettura: testo, evidenze ancorate, esito.
+
+    `parsed` e' un `ParsedSource` di `source_ingestion`. Le evidenze precedenti
+    della fonte vengono sostituite, non affiancate: descrivono lo stesso file.
+    """
+    evidence = parsed.evidence
+    status = "partial" if evidence is not None and evidence.status == "partial" else "done"
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        source.extracted_text = parsed.text
+        source.parser = parsed.parser
+        source.acquisition_status = status
+        source.acquisition_error = None
+        source.acquisition_next_attempt_at = None
+        if status == "partial":
+            missing = "; ".join(
+                issue.message for issue in evidence.issues if issue.severity == "partial"
+            )
+            source.meta = f"Acquisizione parziale: {missing}"[:2000]
+        else:
+            source.meta = "Testo ed evidenze pronti per la consultazione."
+
+        session.execute(
+            delete(WorkspaceEvidenceSegment).where(WorkspaceEvidenceSegment.source_id == source_id)
+        )
+        session.execute(
+            delete(WorkspaceSourceEvidence).where(WorkspaceSourceEvidence.source_id == source_id)
+        )
+        if evidence is not None:
+            payload = evidence.to_dict()
+            session.add(
+                WorkspaceSourceEvidence(
+                    source_id=source_id,
+                    tenant_id=source.tenant_id,
+                    schema_version=payload["schema_version"],
+                    format=payload["format"],
+                    parser=payload["parser"],
+                    status=payload["status"],
+                    content_hash=parsed.content_hash,
+                    structure_json=json.dumps(payload["structure"], ensure_ascii=False),
+                    issues_json=json.dumps(payload["issues"], ensure_ascii=False),
+                    acquired_at=now_iso(),
+                )
+            )
+            session.add_all(
+                WorkspaceEvidenceSegment(
+                    tenant_id=source.tenant_id,
+                    source_id=source_id,
+                    ordinal=ordinal,
+                    anchor_kind=segment["anchor"]["kind"],
+                    anchor_ref=segment["anchor"]["ref"],
+                    locator_json=json.dumps(segment["anchor"]["locator"], ensure_ascii=False),
+                    # PostgreSQL rifiuta il byte NUL nelle colonne di testo; un
+                    # PDF o un foglio possono contenerlo.
+                    text=segment["text"].replace("\x00", ""),
+                    value_type=segment["value_type"],
+                    value_json=json.dumps(segment["value"], ensure_ascii=False),
+                    attributes_json=json.dumps(segment["attributes"], ensure_ascii=False),
+                )
+                for ordinal, segment in enumerate(payload["segments"])
+            )
+        session.flush()
+        return source_to_dict(source)
+
+
+def fail_source_acquisition(
+    source_id: str,
+    *,
+    error: str,
+    permanent: bool,
+    max_attempts: int = ACQUISITION_MAX_ATTEMPTS,
+    backoff_seconds: int = ACQUISITION_BACKOFF_SECONDS,
+) -> dict | None:
+    """Una lettura non riuscita.
+
+    `permanent`: il file non e' leggibile (formato, password, XML non sicuro),
+    riprovare dara' lo stesso esito. Altrimenti (servizio giu', timeout) si
+    riprova con backoff, ma non per sempre.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        source.acquisition_attempts += 1
+        source.acquisition_error = str(error)[:2000]
+        if permanent or source.acquisition_attempts >= max_attempts:
+            source.acquisition_status = "failed"
+            source.acquisition_next_attempt_at = None
+            source.meta = f"Non leggibile: {error}"[:2000]
+        else:
+            delay = backoff_seconds * (2 ** (source.acquisition_attempts - 1))
+            source.acquisition_next_attempt_at = (
+                datetime.now(UTC) + timedelta(seconds=delay)
+            ).isoformat(timespec="seconds")
+        session.flush()
+        return source_to_dict(source)
+
+
+class SourceNotVerifiable(ValueError):
+    """La fonte non si puo' ancora usare come evidenza (in lettura o illeggibile)."""
+
+
+def verify_project_source(source_id: str) -> dict | None:
+    """Il consulente ha controllato il file: da adesso e' evidenza del processo.
+
+    Un file caricato entra nel registro dell'evidenza solo dopo questa conferma
+    (`status == "approved"`): il testo estratto da un parser non e' ancora una
+    fonte che il consulente ha fatto propria. Come per una fonte registrata dalla
+    chat, i piani dei processi che la fonte tocca vanno ricostruiti.
+
+    Raises:
+        SourceNotVerifiable: la lettura non e' finita o non e' riuscita.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        if source.storage_key and source.acquisition_status not in {"done", "partial"}:
+            raise SourceNotVerifiable(
+                "La fonte non è ancora stata letta: si può usare come evidenza quando la lettura è finita."
+            )
+        if source.status == "approved":
+            return source_to_dict(source)
+        source.status = "approved"
+        affected = (
+            [source.process_id]
+            if source.process_id
+            else session.execute(
+                select(WorkspaceProcess.id)
+                .where(WorkspaceProcess.project_id == source.project_id)
+                .where(WorkspaceProcess.tenant_id == source.tenant_id)
+            ).scalars().all()
+        )
+        for affected_process_id in affected:
+            enqueue_plan_materialization(
+                affected_process_id,
+                reason=f"fonte verificata: {source.name}",
+                session=session,
+            )
+        session.flush()
+        return source_to_dict(source)
+
+
+class SourceNotDiscardable(ValueError):
+    """La fonte non si scarta: e' gia' evidenza del processo, o non e' un file caricato."""
+
+
+def discard_uploaded_source(source_id: str) -> bool:
+    """Scarta un file caricato che nessuno ha ancora fatto proprio.
+
+    E' la regola della card nel composer: un file nuovo, caricato dalla chat e
+    tolto prima dell'invio, non resta tra le Fonti. Una fonte confermata come
+    evidenza (`status == "approved"`) o creata dalla chat senza file non si
+    scarta da qui. Le evidenze della fonte cadono con lei (FK in cascata);
+    l'originale su disco si toglie solo se nessun'altra fonte lo usa.
+
+    Returns:
+        `False` se la fonte non esiste nel tenant.
+
+    Raises:
+        SourceNotDiscardable: la fonte e' gia' evidenza o non ha un file.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return False
+        if not source.storage_key or source.status == "approved":
+            raise SourceNotDiscardable(
+                "Questa fonte non si scarta da qui: e' gia' evidenza del processo o non e' un file caricato."
+            )
+        storage_key = source.storage_key
+        session.execute(
+            delete(WorkspaceEvidenceSegment).where(WorkspaceEvidenceSegment.source_id == source_id)
+        )
+        session.execute(
+            delete(WorkspaceSourceEvidence).where(WorkspaceSourceEvidence.source_id == source_id)
+        )
+        session.delete(source)
+        session.flush()
+        still_used = session.execute(
+            select(func.count())
+            .select_from(WorkspaceSource)
+            .where(WorkspaceSource.storage_key == storage_key)
+        ).scalar_one()
+    if not still_used:
+        from backend.workspace_services.source_ingestion import SourceFileError, original_path
+
+        try:
+            original_path(storage_key).unlink(missing_ok=True)
+        except (SourceFileError, OSError):
+            logger.warning("originale %s non rimosso", storage_key, exc_info=True)
+    return True
+
+
+def source_acquisition_stats() -> dict[str, int]:
+    """Quante fonti aspettano di essere lette e quante hanno smesso di riprovare."""
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspaceSource.acquisition_status, func.count())
+            .where(WorkspaceSource.acquisition_status.is_not(None))
+            .group_by(WorkspaceSource.acquisition_status)
+        ).all()
+    counts = {str(status): int(count) for status, count in rows}
+    return {
+        "pending": counts.get("pending", 0),
+        "done": counts.get("done", 0) + counts.get("partial", 0),
+        "stuck": counts.get("failed", 0),
+    }
+
+
+def list_evidence_segments(source_id: str) -> list[dict]:
+    """Le porzioni citabili di una fonte, nell'ordine della fonte."""
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceSource, source_id) is None:
+            return []
+        rows = session.execute(
+            select(WorkspaceEvidenceSegment)
+            .where(WorkspaceEvidenceSegment.source_id == source_id)
+            .where(WorkspaceEvidenceSegment.tenant_id == tenant_id())
+            .order_by(WorkspaceEvidenceSegment.ordinal)
+        ).scalars().all()
+        return [
+            {
+                "id": row.id,
+                "source_id": row.source_id,
+                "kind": row.anchor_kind,
+                "ref": row.anchor_ref,
+                "locator": json.loads(row.locator_json),
+                "text": row.text,
+                "value_type": row.value_type,
+                "value": json.loads(row.value_json) if row.value_json else None,
+                "attributes": json.loads(row.attributes_json),
+            }
+            for row in rows
+        ]
+
+
+def validate_source_scopes(project_id: str, scopes: list[dict[str, str]]) -> None:
+    """Impedisce che una fonte venga collegata a record di un altro incarico."""
+    with workspace_connection() as session:
+        project = tenant_row(session, WorkspaceProject, project_id)
+        if project is None:
+            raise ValueError(f"Progetto non trovato: {project_id}")
+        for scope in scopes:
+            if scope["type"] == "project" and scope["id"] != project_id:
+                raise ValueError("L'ambito progetto non appartiene a questa fonte.")
+            if scope["type"] == "client" and scope["id"] != project.client_id:
+                raise ValueError("L'ambito cliente non appartiene a questo progetto.")
+            if scope["type"] == "process":
+                process = tenant_row(session, WorkspaceProcess, scope["id"])
+                if process is None or process.project_id != project_id:
+                    raise ValueError("Il processo scelto non appartiene a questo progetto.")
 
 
 def ensure_project_source(
@@ -3289,6 +3713,7 @@ def delete_client(client_id: str) -> dict:
     """
     assert_write_allowed("eliminare un cliente")
 
+    storage_keys: list[str] = []
     with workspace_connection() as session:
         client = _client_or_raise(session, client_id)
         project_ids = [project.id for project in client.projects]
@@ -3301,10 +3726,11 @@ def delete_client(client_id: str) -> dict:
         client = _client_or_raise(session, client_id)
         removed = {"id": client.id, "name": client.name, **_record_counts(session, client=client)}
         for project in list(client.projects):
-            _purge_project(session, project)
+            storage_keys.extend(_purge_project(session, project))
         session.delete(client)
         session.flush()
-        return removed
+    _remove_unreferenced_originals(storage_keys)
+    return removed
 
 
 def delete_project(project_id: str) -> dict:
@@ -3314,6 +3740,7 @@ def delete_project(project_id: str) -> dict:
     """
     assert_write_allowed("eliminare un progetto")
 
+    storage_keys: list[str] = []
     with workspace_connection() as session:
         _project_or_raise(session, project_id)
     from backend.memory.knowledge_graph import erase
@@ -3327,9 +3754,10 @@ def delete_project(project_id: str) -> dict:
             "name": project.name,
             **_record_counts(session, project=project),
         }
-        _purge_project(session, project)
+        storage_keys.extend(_purge_project(session, project))
         session.flush()
-        return removed
+    _remove_unreferenced_originals(storage_keys)
+    return removed
 
 
 def delete_process(process_id: str) -> dict:
@@ -3342,6 +3770,7 @@ def delete_process(process_id: str) -> dict:
     """
     assert_write_allowed("eliminare un processo")
 
+    storage_keys: list[str] = []
     with workspace_connection() as session:
         project_id = _process_or_raise(session, process_id).project_id
     from backend.memory.knowledge_graph import erase
@@ -3359,14 +3788,15 @@ def delete_process(process_id: str) -> dict:
             "decisions": 0,
         }
         project = process.project
-        _purge_process(session, process)
+        storage_keys.extend(_purge_process(session, process))
         if project.archived_at is None:
             project.process_count = max(0, project.process_count - 1)
         session.flush()
-        return removed
+    _remove_unreferenced_originals(storage_keys)
+    return removed
 
 
-def _purge_process(session, process: WorkspaceProcess) -> None:
+def _purge_process(session, process: WorkspaceProcess) -> list[str]:
     """Toglie un processo e tutto cio' che lo referenzia per id."""
     bpmn_model_id = process.bpmn_model_id
 
@@ -3388,6 +3818,7 @@ def _purge_process(session, process: WorkspaceProcess) -> None:
         ).scalars():
             session.delete(artifact)
 
+    storage_keys: list[str] = []
     for model, column in (
         (WorkspaceBpmnVersion, WorkspaceBpmnVersion.bpmn_model_id),
         (WorkspaceBpmnReview, WorkspaceBpmnReview.bpmn_model_id),
@@ -3402,24 +3833,51 @@ def _purge_process(session, process: WorkspaceProcess) -> None:
         (WorkspaceDecision, WorkspaceDecision.process_id),
     ):
         for row in session.execute(select(model).where(column == process.id)).scalars():
+            if isinstance(row, WorkspaceSource) and row.storage_key:
+                storage_keys.append(row.storage_key)
             session.delete(row)
 
     session.delete(process)
+    return storage_keys
 
 
-def _purge_project(session, project: WorkspaceProject) -> None:
+def _purge_project(session, project: WorkspaceProject) -> list[str]:
     """Toglie un progetto, i suoi processi e i record che vi appartengono."""
+    storage_keys: list[str] = []
     for process in list(project.processes):
-        _purge_process(session, process)
+        storage_keys.extend(_purge_process(session, process))
 
     for model, column in (
         (WorkspaceSource, WorkspaceSource.project_id),
         (WorkspaceDecision, WorkspaceDecision.project_id),
     ):
         for row in session.execute(select(model).where(column == project.id)).scalars():
+            if isinstance(row, WorkspaceSource) and row.storage_key:
+                storage_keys.append(row.storage_key)
             session.delete(row)
 
     session.delete(project)
+    return storage_keys
+
+
+def _remove_unreferenced_originals(storage_keys: list[str]) -> None:
+    """Rimuove un blob dopo il commit, solo se nessun'altra fonte lo usa."""
+    from backend.workspace_services.source_ingestion import original_path
+
+    for storage_key in set(storage_keys):
+        with workspace_connection() as session:
+            still_used = session.execute(
+                select(WorkspaceSource.id)
+                .where(WorkspaceSource.tenant_id == tenant_id())
+                .where(WorkspaceSource.storage_key == storage_key)
+                .limit(1)
+            ).scalar_one_or_none()
+        if still_used is not None:
+            continue
+        try:
+            original_path(storage_key).unlink(missing_ok=True)
+        except OSError:
+            logger.warning("file originale non rimosso: %s", storage_key, exc_info=True)
 
 
 def list_archive() -> dict:
@@ -3453,6 +3911,7 @@ def list_archive() -> dict:
 
 
 def reset_workspace() -> None:
+    storage_keys: list[str] = []
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
         for model in (
@@ -3469,4 +3928,7 @@ def reset_workspace() -> None:
             for row in session.execute(
                 select(model).where(model.tenant_id == current_tenant_id)
             ).scalars():
+                if isinstance(row, WorkspaceSource) and row.storage_key:
+                    storage_keys.append(row.storage_key)
                 session.delete(row)
+    _remove_unreferenced_originals(storage_keys)
