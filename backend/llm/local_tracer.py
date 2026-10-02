@@ -41,6 +41,17 @@ MAX_PAYLOAD_CHARS = 2000
 
 _GUARD = threading.Lock()
 _AVVII: dict[str, float] = {}
+# Una chiamata interrotta (stream chiuso dal consulente, eccezione fuori dai
+# callback) non arriva mai a `_durata`: senza un tetto la mappa cresce per tutta
+# la vita del processo. Il dict tiene l'ordine d'inserimento: esce il piu' vecchio.
+_MAX_AVVII = 10_000
+
+
+def _segna_avvio(chiave: str) -> None:
+    with _GUARD:
+        if chiave not in _AVVII and len(_AVVII) >= _MAX_AVVII:
+            _AVVII.pop(next(iter(_AVVII)))
+        _AVVII[chiave] = perf_counter()
 
 
 def _acceso() -> bool:
@@ -153,8 +164,7 @@ def _handler_locale():
         """
 
         def on_llm_start(self, serialized, prompts, *, run_id=None, parent_run_id=None, **kw):
-            with _GUARD:
-                _AVVII[_chiave(run_id)] = perf_counter()
+            _segna_avvio(_chiave(run_id))
             evento: dict[str, Any] = {
                 "evento": "llm_start",
                 "run_id": _chiave(run_id),
@@ -167,8 +177,7 @@ def _handler_locale():
             _scrivi(evento)
 
         def on_chat_model_start(self, serialized, messages, *, run_id=None, parent_run_id=None, **kw):
-            with _GUARD:
-                _AVVII[_chiave(run_id)] = perf_counter()
+            _segna_avvio(_chiave(run_id))
             evento: dict[str, Any] = {
                 "evento": "chat_start",
                 "run_id": _chiave(run_id),

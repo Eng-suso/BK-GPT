@@ -231,3 +231,14 @@ class TestIlPonteColRegistroDeiConsumi:
         eventi = ledger.traccia_locale(op.id)
 
         assert len(eventi) == 1
+
+
+def test_the_start_times_of_calls_that_never_end_do_not_pile_up(monkeypatch):
+    from backend.llm import local_tracer
+
+    monkeypatch.setattr(local_tracer, "_MAX_AVVII", 3)
+    monkeypatch.setattr(local_tracer, "_AVVII", {})
+    for chiave in ("a", "b", "c", "d"):
+        local_tracer._segna_avvio(chiave)
+
+    assert list(local_tracer._AVVII) == ["b", "c", "d"]
