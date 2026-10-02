@@ -513,6 +513,7 @@ def record_streamed_usage(
     model: str | None = None,
     duration_ms: int = 0,
     prompt_version: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> None:
     """Registra il consumo di una chiamata **stremata**, a stream finito.
 
@@ -563,7 +564,9 @@ def record_streamed_usage(
         outcome=Outcome.OK,
         tokens=tokens_from_usage_metadata(usage_metadata),
         duration_ms=duration_ms,
-        reasoning_effort=profile.reasoning_effort,
+        # Il turno di chat ragiona quanto ha scelto il consulente: il profilo e'
+        # solo il default, e scriverlo qui misurerebbe un livello mai usato.
+        reasoning_effort=reasoning_effort or profile.reasoning_effort,
         prompt_version=prompt_version,
     )
 
