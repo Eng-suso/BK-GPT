@@ -138,10 +138,11 @@ export function SimulationLayout(): React.JSX.Element {
 
   return (
     <SimulationSectionContext.Provider value={contextValue}>
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="sim-studio-shell flex h-full min-h-0 flex-col">
         <div className="flex shrink-0 flex-col gap-2 px-4 pb-2 pt-3">
           <PageHeader
             compact
+            className="sim-studio-page-header"
             breadcrumbs={[
               { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
               { label: project.name, to: ROUTES.projects.detail(project.id) },
@@ -153,7 +154,7 @@ export function SimulationLayout(): React.JSX.Element {
             ]}
             title={process.name}
             actions={
-              <div className="flex max-w-full flex-wrap items-center gap-2">
+              <div className="sim-studio-run-actions flex max-w-full flex-wrap items-center gap-2">
                 {runs.length > 0 && (
                   <Select
                     value={activeRunId != null ? String(activeRunId) : undefined}
@@ -176,12 +177,14 @@ export function SimulationLayout(): React.JSX.Element {
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="sim-studio-return"
+                  aria-label={t("simulation.section.back")}
                   onClick={() =>
                     navigate(ROUTES.projects.process(project.id, process.id))
                   }
                 >
                   <ArrowLeft aria-hidden className="size-4" />
-                  {t("simulation.section.back")}
+                  <span>{t("simulation.section.back")}</span>
                 </Button>
               </div>
             }

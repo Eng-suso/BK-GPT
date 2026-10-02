@@ -17,8 +17,10 @@ export function AnalyticalCanvas({ objects, editing, onPlace }: {
   React.useLayoutEffect(() => { cameraRef.current = camera; }, [camera]);
   const [activeObject, setActiveObject] = React.useState(PROCESS_ID);
   const initialized = React.useRef(false);
+  const sceneRef = React.useRef(objects);
+  React.useLayoutEffect(() => { sceneRef.current = objects; }, [objects]);
   const [draft, setDraft] = React.useState<{ id: string; rect: CanvasRect } | null>(null);
-  const gesture = React.useRef<{ id?: string; resize?: boolean; x: number; y: number; camera: Camera; rect?: CanvasRect } | null>(null);
+  const gesture = React.useRef<{ id?: string; resize?: boolean; x: number; y: number; camera: Camera; rect?: CanvasRect; pendingRect?: CanvasRect } | null>(null);
   const process = objects.find(object => object.id === PROCESS_ID);
   const focus = (rect: CanvasRect) => {
     const el = viewport.current;
@@ -32,16 +34,18 @@ export function AnalyticalCanvas({ objects, editing, onPlace }: {
     const el = viewport.current;
     if (!el) return;
     const observer = new ResizeObserver(() => {
-      if (!initialized.current && el.clientWidth && el.clientHeight && process) {
+      const initialObjects = sceneRef.current;
+      const initialProcess = initialObjects.find(object => object.id === PROCESS_ID);
+      if (!initialized.current && el.clientWidth && el.clientHeight && initialProcess) {
         // Start with the process and the adjacent live charts, not a fit of every object.
-        const rect = el.clientWidth < 700 ? process.rect : bounds(objects.slice(0, 3).map(object => object.rect));
-        setCamera(el.clientWidth < 700 ? { x: (el.clientWidth - process.rect.width * 0.8) / 2 - process.rect.x * 0.8, y: 24 - process.rect.y * 0.8, scale: 0.8 } : { x: 24, y: 24, scale: Math.min(1, Math.max(0.72, (el.clientWidth - 48) / rect.width)) });
+        const rect = el.clientWidth < 700 ? initialProcess.rect : bounds(initialObjects.slice(0, 3).map(object => object.rect));
+        setCamera(el.clientWidth < 700 ? { x: (el.clientWidth - initialProcess.rect.width * 0.8) / 2 - initialProcess.rect.x * 0.8, y: 24 - initialProcess.rect.y * 0.8, scale: 0.8 } : { x: 24, y: 24, scale: Math.max(0.5, Math.min(1, (el.clientWidth - 48) / rect.width, (el.clientHeight - 48) / initialProcess.rect.height)) });
         initialized.current = true;
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [objects, process]);
+  }, []);
   React.useEffect(() => {
     const el = viewport.current;
     if (!el) return;
@@ -68,11 +72,15 @@ export function AnalyticalCanvas({ objects, editing, onPlace }: {
     const g = gesture.current;
     if (!g) return;
     const dx = event.clientX - g.x, dy = event.clientY - g.y;
-    if (g.id && g.rect) setDraft({ id: g.id, rect: g.resize ? resizeRect(g.rect, dx / g.camera.scale, dy / g.camera.scale) : { ...g.rect, x: Math.max(-10000, Math.min(10000, g.rect.x + dx / g.camera.scale)), y: Math.max(-10000, Math.min(10000, g.rect.y + dy / g.camera.scale)) } });
+    if (g.id && g.rect) {
+      g.pendingRect = g.resize ? resizeRect(g.rect, dx / g.camera.scale, dy / g.camera.scale) : { ...g.rect, x: Math.max(-10000, Math.min(10000, g.rect.x + dx / g.camera.scale)), y: Math.max(-10000, Math.min(10000, g.rect.y + dy / g.camera.scale)) };
+      setDraft({ id: g.id, rect: g.pendingRect });
+    }
     else setCamera({ ...g.camera, x: g.camera.x + dx, y: g.camera.y + dy });
   };
   const finish = () => {
-    if (draft) onPlace(draft.id, draft.rect);
+    const current = gesture.current;
+    if (current?.id && current.pendingRect) onPlace(current.id, current.pendingRect);
     setDraft(null); gesture.current = null;
   };
   const keyboardPlace = (event: React.KeyboardEvent, object: SceneObject, resize: boolean) => {

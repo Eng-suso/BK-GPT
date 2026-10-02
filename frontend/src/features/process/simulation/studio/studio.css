@@ -151,3 +151,59 @@
 .sim-process-legend { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-size:12px; margin-left:auto; }
 .sim-process-legend > span { display:flex; align-items:center; gap:4px; }
 .sim-process-legend i { display:inline-block; width:10px; height:10px; border:1px solid var(--border); border-radius:2px; }
+
+/* Compact operational controls reserve usable process space on small screens. */
+@media(max-width:800px) {
+ .sim-studio { gap:6px; }
+ .sim-studio-page-header > div { gap:6px; }
+ .sim-studio-page-header > div > div:last-child { width:100%; }
+ .sim-studio-run-actions { width:100%; flex-wrap:nowrap; gap:4px; }
+ .sim-studio-run-actions > [role="combobox"] { flex:1; min-width:0; width:auto; }
+ .sim-studio-return { width:36px; padding:0; flex-shrink:0; }
+ .sim-studio-return > span { display:none; }
+ .sim-studio-tools { padding-bottom:4px; }
+ .is-integrated .sim-dashboard-header { overflow-x:auto; min-height:38px; }
+ .is-integrated .sim-dashboard-actions { flex-wrap:nowrap; gap:4px; margin-left:auto; }
+ .is-integrated .sim-dashboard-actions > button { flex-shrink:0; padding-inline:8px; font-size:12px; }
+ .is-integrated .sim-dashboard-toolbar { padding:4px 0; min-height:40px; }
+ .is-integrated .sim-scope-badge { font-size:10px; max-width:110px; flex-shrink:0; }
+ .is-integrated .sim-filter { flex:1; min-width:145px; }
+ .is-integrated .sim-filter > span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+ .is-integrated .sim-filter select { width:100%; min-height:32px; padding:4px 8px; font-size:12px; }
+ .is-integrated .sim-kpi { padding:6px 10px; min-width:145px; }
+ .is-integrated .sim-kpi .eyebrow { min-height:14px; font-size:10px; }
+ .is-integrated .sim-kpi strong { font-size:20px; }
+ .is-integrated .sim-kpi p { font-size:10px; }
+ .sim-scene-controls { padding:4px; }
+ .sim-scene-controls > button { width:32px; padding:0; }
+ .sim-scene-jump select { width:100px; min-height:32px; }
+ .sim-scene-zoom { gap:0; }
+ .sim-scene-zoom output { width:32px; }
+ .sim-scene-zoom button { width:28px; height:32px; }
+ .sim-studio-transport .sim-transport-controls { display:grid; grid-template-columns:36px 28px minmax(0,1fr) 80px; gap:4px; }
+ .sim-studio-transport .sim-transport-controls > button:first-child { width:36px; font-size:0; padding:0; }
+ .sim-studio-transport .sim-transport-controls > button:nth-child(2) { width:28px; }
+ .sim-studio-transport .sim-transport-controls > input { grid-column:1/-1; grid-row:2; width:100%; margin:0; }
+ .sim-studio-transport .sim-transport-controls > span { grid-column:3; grid-row:1; font-size:10px; }
+ .sim-studio-transport .sim-transport-controls > [role="combobox"] { grid-column:4; grid-row:1; width:80px; padding:4px; font-size:10px; }
+ .sim-studio-transport .sim-transport { padding:6px; gap:4px; }
+ .sim-final-transport { flex-direction:row; align-items:center; padding:6px; gap:6px; }
+ .sim-final-transport > div { min-width:0; }
+ .sim-final-transport strong { display:block; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+ .sim-final-transport button { flex-shrink:0; font-size:11px; padding-inline:6px; }
+ .sim-comparison-bar { max-height:120px; overflow:auto; padding:6px; }
+ .sim-comparison-bar > div:first-child { display:grid; grid-template-columns:1fr 1fr; gap:4px; }
+ .sim-comparison-bar > div:first-child > svg { display:none; }
+ .sim-comparison-bar label { flex-direction:column; align-items:stretch; gap:2px; min-width:0; font-size:10px; }
+ .sim-comparison-bar label > [role="combobox"] { width:100%; font-size:11px; padding:4px 6px; }
+ .sim-comparison-bar [role="group"] { grid-column:1/-1; margin-left:0; justify-self:end; }
+ .sim-comparison-bar > p { font-size:11px; }
+}
+
+.sim-kpi-strip:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; }
+@media(max-width:800px) {
+ .sim-studio-shell { overflow-y:auto; }
+ .sim-studio { min-height:680px; }
+ .sim-studio:has(.sim-comparison-bar) { min-height:780px; }
+ .sim-studio-tool-actions,.is-integrated .sim-kpi-strip,.is-integrated .sim-dashboard-header,.sim-scene-controls { scrollbar-width:thin; }
+}
