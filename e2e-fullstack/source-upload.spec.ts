@@ -24,7 +24,9 @@ test('una procedura caricata diventa una fonte leggibile', async ({ page }) => {
   await expect(page.getByText('procedura-acquisti.md')).toBeVisible();
   await page.getByRole('button', { name: /Apri fonte: procedura-acquisti\.md/ }).click();
   await expect(page.getByText('Come si lavora, Regole da rispettare', { exact: true })).toBeVisible();
-  await expect(page.getByText(/Il CFO approva gli ordini sopra EUR 30\.000/)).toBeVisible();
+  // Il testo arriva dopo la lettura del worker e il giro successivo della lista:
+  // secondi, non il mezzo secondo di un render.
+  await expect(page.getByText(/Il CFO approva gli ordini sopra EUR 30\.000/)).toBeVisible({ timeout: 30_000 });
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Scarica originale' }).click();
   const download = await downloadPromise;
