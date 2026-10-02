@@ -15,7 +15,7 @@ vi.mock("../../projects/api", () => ({
   useUploadProjectSourceMutation: () => ({ mutateAsync }),
 }));
 
-import { useComposerUploads } from "./useComposerUploads";
+import { useComposerUploads, type UploadDestination } from "./useComposerUploads";
 
 const PROCESS_SCOPE = {
   type: "process" as const,
@@ -128,8 +128,33 @@ describe("useComposerUploads", () => {
     expect(result.current.failureOf("src-nuova")).toBeNull();
   });
 
-  it("la chat del consulente non carica: non sa in quale progetto", () => {
-    const { result } = renderHook(() => useComposerUploads({ type: "consultant" }, false));
+  it("la chat del consulente carica solo dopo aver scelto dove", async () => {
+    const { result, rerender } = renderHook(
+      ({ chosen }: { chosen: UploadDestination | null }) =>
+        useComposerUploads({ type: "consultant" }, false, chosen),
+      { initialProps: { chosen: null as UploadDestination | null } },
+    );
+    expect(result.current.needsDestination).toBe(true);
     expect(result.current.canUpload).toBe(false);
+
+    rerender({ chosen: { projectId: "p-9", processId: "proc-9" } });
+    expect(result.current.canUpload).toBe(true);
+    mutateAsync.mockResolvedValue({ id: "src-c", name: "nota.md", projectId: "p-9", created: true });
+    await act(async () => {
+      await result.current.uploadFile(file("nota.md"));
+    });
+    // messo in un processo: evidenza di quel processo
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ roles: ["process_evidence"], scopes: [{ type: "process", id: "proc-9" }] }),
+    );
+
+    rerender({ chosen: { projectId: "p-9" } });
+    await act(async () => {
+      await result.current.uploadFile(file("contesto.md"));
+    });
+    // messo nel progetto: contesto
+    expect(mutateAsync).toHaveBeenLastCalledWith(
+      expect.objectContaining({ roles: ["context"], scopes: [{ type: "project", id: "p-9" }] }),
+    );
   });
 });
