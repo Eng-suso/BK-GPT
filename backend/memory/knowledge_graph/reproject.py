@@ -17,7 +17,7 @@ finestra in cui chi legge trova un grafo vuoto.
 Le props sono quelle del write path (`canonical.write_*`): il catalogo dice
 quali colonne passano, e due regole che il catalogo non esprime sono replicate
 qui con il rimando al punto di `canonical` da cui vengono. Se il write path
-cambia forma, `tests/test_kg_reproject.py` lo vede: confronta un grafo scritto
+cambia forma, `tests/evals/l0_deterministic/test_kg_reproject.py` lo vede: confronta un grafo scritto
 dal write path con lo stesso grafo ricostruito da qui.
 """
 

@@ -53,11 +53,11 @@ Important constraints to preserve:
 - Read-only inspection of auth, settings, canonical RLS, workspace, memory, workers, checkpoints, tests, and the deployment handoff. No application code or tests changed or run.
 - Verdict: Track B is partially scaffolded but end-to-end tenant authorization is NOT implemented; pilot-grade cross-tenant isolation cannot be claimed.
 - Auth: `backend/security.py:76-113` uses one shared bearer token (or auth disabled by default) and gets tenant/user from request headers; no verified Supabase JWT or membership lookup found. `backend/settings.py:127` defaults auth off.
-- Canonical: `backend/db/session.py:60-90` sets RLS GUCs and migrations/versions/0005_rls_policies.py defines tenant policies; `tests/test_canonical_rls.py` has cross-tenant tests. These controls depend on a trustworthy consultant ID upstream.
+- Canonical: `backend/db/session.py:60-90` sets RLS GUCs and migrations/versions/0005_rls_policies.py defines tenant policies; `tests/evals/l0_deterministic/test_canonical_rls.py` has cross-tenant tests. These controls depend on a trustworthy consultant ID upstream.
 - Workspace: tenant_id filters exist in `backend/workspace_database.py` and `backend/database.py`, but no workspace RLS found. `backend/database.py:18` uses a bare thread_id primary key. `backend/agent_checkpoint.py` has no tenant context and `backend/services/agent_runtime.py:264-265` derives checkpoint key only from scope_key and thread_id.
 - Memory: `backend/memory/scope.py:115`, `backend/memory/semantic/semantic_store.py`, and `backend/workers/ingest_worker.py:38-39` still use default_consultant_id. `backend/memory/gateway.py:827-837` falls back to global mem0_user_id for the default consultant. Mem0 searches also occur in `backend/memory/forget.py:220` and `backend/memory/semantic/semantic_store.py:295`, outside the gateway read path.
 - Workers: graph/mem0 queues carry materialized payloads, but ingest worker drains only the default consultant. End-to-end tenant propagation for all jobs is unproven.
-- Tests: `tests/test_app.py:121-142` checks chat visibility across two headers with the same shared token; this does not verify distinct authenticated organizations. No full A/B endpoint + retrieval isolation suite found.
+- Tests: `tests/server/test_app.py:121-142` checks chat visibility across two headers with the same shared token; this does not verify distinct authenticated organizations. No full A/B endpoint + retrieval isolation suite found.
 - The infrastructure blockers in the handoff remain unchanged; this was an audit only.
 
 ## 2026-09-17 - Track B target design discussion

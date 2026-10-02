@@ -24,7 +24,7 @@ Qui lo stesso stato si ricostruisce e si attraversa per intero:
 L'estrattore e il revisore sono sostituiti da due fake deterministici: qui si
 verifica l'harness - cosa il runtime accetta, rifiuta, ripara e dichiara - non
 la bravura del modello. La stessa catena con il modello vero e' in
-`tests/evals/test_conformance_eval.py`, gated.
+`tests/evals/l1_golden/test_conformance_eval.py`, gated.
 
 Servono la DSN workspace e quelle canonical (`cd ops && docker compose up -d`).
 """
