@@ -17,6 +17,8 @@ qualunque processo:
 | gateway - recall | le decisioni del riferimento diventano punti di decisione? |
 | flussi - recall | l'ordine del riferimento si ritrova nel grafo prodotto? |
 | flussi - precision | l'ordine che il modello disegna e' quello del riferimento? |
+| handoff - recall | i passaggi di mano del riferimento restano passaggi fra corsie diverse? |
+| eccezioni - recall | i percorsi fuori dal flusso normale (urgenze, rientri) ci sono interi? |
 | violazioni | elementi che il riferimento dichiara **vietati**: cio' che le fonti non dicono e un modello tende a inventare |
 | lacune | domande che il riferimento dichiara aperte: il modello non deve chiuderle disegnando |
 
@@ -422,6 +424,8 @@ class GraphMetrics:
     gateway_recall: float
     edge_precision: float
     edge_recall: float
+    handoff_recall: float = 1.0
+    exception_recall: float = 1.0
     forbidden_hits: list[str] = field(default_factory=list)
     gap_violations: list[str] = field(default_factory=list)
     matches: dict[str, str] = field(default_factory=dict)
@@ -442,6 +446,8 @@ class GraphMetrics:
             "gateway_recall": self.gateway_recall,
             "edge_precision": self.edge_precision,
             "edge_recall": self.edge_recall,
+            "handoff_recall": self.handoff_recall,
+            "exception_recall": self.exception_recall,
             "honest": self.honest,
             "forbidden_hits": self.forbidden_hits,
             "gap_violations": self.gap_violations,
@@ -528,6 +534,29 @@ def compare(graph: ProducedGraph, case: ReferenceCase) -> GraphMetrics:
         len(produced_edges),
     )
 
+    # Un handoff regge se l'ordine c'e' e il lavoro cambia davvero corsia: due
+    # attivita' giuste nella stessa corsia cancellano il passaggio di mano, che
+    # e' proprio dove un AS-IS perde tempo e informazioni.
+    handoffs = [(a, b) for a, b in case.handoffs if a in matches and b in matches]
+    handoff_recall = _ratio(
+        sum(
+            1
+            for a, b in handoffs
+            if matches[b] in graph.next_activities(matches[a])
+            and graph.nodes[matches[a]].lane != graph.nodes[matches[b]].lane
+        ),
+        len(handoffs),
+    )
+    required_ids = {item.id for item in required}
+    exception_recall = _ratio(
+        sum(
+            1
+            for path in case.exception_paths
+            if all(ref in matches for ref in path.activities if ref in required_ids)
+        ),
+        len(case.exception_paths),
+    )
+
     labels = [node.name for node in graph.nodes.values() if node.name]
     forbidden_hits = [
         f"{rule.get('why', 'vietato')}: «{label}»"
@@ -553,6 +582,8 @@ def compare(graph: ProducedGraph, case: ReferenceCase) -> GraphMetrics:
         gateway_recall=gateway_recall,
         edge_precision=edge_precision,
         edge_recall=edge_recall,
+        handoff_recall=handoff_recall,
+        exception_recall=exception_recall,
         forbidden_hits=forbidden_hits,
         gap_violations=gap_violations,
         matches=matches,
@@ -570,6 +601,8 @@ REGRESSION_METRICS = (
     "gateway_recall",
     "edge_precision",
     "edge_recall",
+    "handoff_recall",
+    "exception_recall",
 )
 
 

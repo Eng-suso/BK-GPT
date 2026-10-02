@@ -114,7 +114,53 @@ def test_a_faithful_drawing_scores_full_marks():
     # passaggio di lavoro, e "viene dopo" lo attraversa.
     assert metrics.edge_recall == 1.0
     assert metrics.edge_precision == 1.0
+    assert metrics.handoff_recall == 1.0
+    assert metrics.exception_recall == 1.0
     assert metrics.honest
+
+
+def test_a_handoff_drawn_inside_one_lane_is_lost():
+    xml = _xml(
+        [
+            ("t1", "Apri la richiesta di acquisto", "Acquisti"),
+            ("t2", "Verifica la richiesta", "Acquisti"),
+            ("t3", "Emetti l'ordine al fornitore", "Acquisti"),
+        ],
+        [("S", "t1"), ("t1", "t2"), ("t2", "t3"), ("t3", "E")],
+    )
+
+    metrics = compare(parse_bpmn(xml), _case())
+
+    # L'ordine e' intero, ma il passaggio dall'Ufficio Tecnico agli Acquisti non
+    # c'e' piu': chi legge il disegno non vede dove il lavoro cambia mano.
+    assert metrics.edge_recall == 1.0
+    assert metrics.handoff_recall == 0.0
+
+
+def test_an_exception_path_counts_only_when_it_is_whole():
+    from tests.evals.graph_metrics import ExceptionPath
+
+    case = _case(
+        activities=[
+            *_case().activities,
+            ReferenceActivity(id="chiama_fornitore", aliases=["chiama fornitore"], lane="tecnico"),
+            ReferenceActivity(id="regolarizza_ordine", aliases=["regolarizza ordine"], lane="acquisti"),
+        ],
+        exception_paths=[
+            ExceptionPath(id="urgenza", activities=["chiama_fornitore", "regolarizza_ordine"]),
+        ],
+    )
+    half = _xml(
+        [
+            ("t1", "Apri la richiesta di acquisto", "Ufficio Tecnico"),
+            ("t2", "Verifica la richiesta", "Acquisti"),
+            ("t3", "Emetti l'ordine al fornitore", "Acquisti"),
+            ("t4", "Chiama il fornitore", "Ufficio Tecnico"),
+        ],
+        [("S", "t1"), ("t1", "t2"), ("t2", "t3"), ("t3", "E"), ("S", "t4")],
+    )
+
+    assert compare(parse_bpmn(half), case).exception_recall == 0.0
 
 
 def test_a_missing_activity_lowers_recall_not_precision():
@@ -349,6 +395,7 @@ def test_the_compiler_keeps_every_activity_lane_and_decision(case: ReferenceCase
     assert metrics.activity_precision == 1.0, report
     assert metrics.lane_accuracy == 1.0, report
     assert metrics.gateway_recall == 1.0, report
+    assert metrics.exception_recall == 1.0, report
     assert metrics.honest, report
 
 
@@ -385,6 +432,7 @@ def test_the_compiler_keeps_the_order_between_plan_and_drawing(case: ReferenceCa
     # Il compilatore non deve nemmeno aggiungere ordini che il piano non dice:
     # un arco inventato fra due passaggi e' un AS-IS diverso da quello descritto.
     assert metrics.edge_precision == 1.0, report
+    assert metrics.handoff_recall == 1.0, report
 
 
 def test_a_decision_keeps_every_branch_it_names():
