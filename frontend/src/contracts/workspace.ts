@@ -372,6 +372,11 @@ export const apiProjectSourceSchema = z.object({
 /** La risposta del caricamento: la fonte, e se e' stata creata adesso. */
 export const apiUploadedSourceSchema = apiProjectSourceSchema.extend({
   created: z.boolean().default(true),
+  // A cosa sembra servire il file, dal nome e dal formato: `null` = non si sa.
+  suggested_roles: z
+    .array(z.enum(["context", "process_evidence", "policy", "operational_data"]))
+    .nullable()
+    .default(null),
 });
 
 export const apiSourceDocumentSchema = z.object({
