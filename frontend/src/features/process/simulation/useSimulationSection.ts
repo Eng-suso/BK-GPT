@@ -3,6 +3,8 @@ import { createContext, useContext } from "react";
 import type { Project, ProjectProcess } from "../../../contracts/workspace";
 import type { SimulationRun } from "./simulationTypes";
 
+export type SimulationPanel = "scenario" | "overview" | "compare" | "heatmap" | "insights" | "widget" | "activity";
+
 export type SimulationSectionValue = {
   projectId: string;
   processId: string;
@@ -13,6 +15,15 @@ export type SimulationSectionValue = {
   runs: SimulationRun[];
   runsLoading: boolean;
   refetchRuns: () => void;
+  activeRunId?: number | null;
+  selectRun?: (id: number) => void;
+  selectedElementId?: string | null;
+  selectElement?: (id: string | null) => void;
+  inspectedWidgetId?: string | null;
+  inspectWidget?: (id: string | null) => void;
+  panel?: SimulationPanel | null;
+  openPanel?: (panel: SimulationPanel | null) => void;
+
 };
 
 export const SimulationSectionContext =

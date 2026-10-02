@@ -1,0 +1,118 @@
+/* One operational surface. Tokens remain owned by the DeliR design system. */
+.sim-studio { display:flex; flex-direction:column; height:100%; min-height:0; gap:10px; }
+.sim-studio-tools { display:flex; align-items:center; gap:12px; justify-content:space-between; flex-wrap:wrap; border-bottom:1px solid var(--border); padding-bottom:8px; }
+.sim-studio-identity { display:flex; align-items:center; gap:8px; }
+.sim-studio-identity h2 { font-size:14px; font-weight:600; }
+.sim-studio-tool-actions { display:flex; flex-wrap:wrap; gap:2px; }
+.sim-studio-transport { flex-shrink:0; border:1px solid var(--border); background:var(--card); border-radius:8px; }
+.sim-studio-transport .sim-transport { padding:8px 12px; gap:6px; }
+.sim-studio-transport .sim-transport > div:last-child > dl { display:none; } /* These counters belong to the single KPI rail. */
+.sim-studio-body { min-height:0; flex:1; display:grid; grid-template-columns:minmax(0,1fr); gap:14px; container:studio / inline-size; }
+.sim-studio-body.has-dock { grid-template-columns:minmax(0,1fr) minmax(330px,36%); }
+.sim-studio-board { min-width:0; min-height:0; height:100%; }
+.sim-studio-dock { min-width:0; min-height:0; border-left:1px solid var(--border); background:var(--card); display:flex; flex-direction:column; overflow:hidden; }
+.sim-studio-dock[hidden] { display:none; }
+.sim-studio-dock-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border-bottom:1px solid var(--border); }
+.sim-studio-dock-header h3 { font-size:14px; font-weight:600; margin-top:3px; }
+.sim-studio-dock-header h3:focus-visible { outline:2px solid var(--ring); outline-offset:3px; }
+.sim-studio-dock-body { flex:1; min-height:0; overflow:auto; padding:14px; }
+.sim-studio-widget-host:empty { display:none; }
+.sim-studio-widget-host .sim-inspector-slot { position:static; }
+.sim-studio-widget-host .sim-widget-inspector { border:0; border-radius:0; }
+.sim-studio-widget-host .sim-widget-inspector > header { display:none; }
+.sim-studio-widget-host .sim-inspector-body { min-height:0; max-height:none; overflow:visible; }
+.sim-studio-widget-host .sim-inspector-body > details { padding-inline:0; }
+.sim-studio-dock-body .sim-config-body { padding:0 0 16px; }
+.sim-studio-dock-body .sim-config-body > section { padding-block:16px; }
+.sim-studio-dock-body .sim-config-workspace { box-shadow:none; }
+.sim-studio-dock-body .sim-embedded-heatmap > aside { width:100%; }
+.sim-studio-dock-body .sim-embedded-heatmap { height:auto; }
+.sim-studio-dock-body .sim-embedded-heatmap header { padding:0 0 12px; }
+.sim-studio-dock-body > div { height:auto; }
+.sim-studio .is-integrated { padding:0 1px 20px; }
+.is-integrated .sim-dashboard-header { justify-content:flex-end; gap:8px; margin:0; }
+.is-integrated .sim-dashboard-toolbar { padding-block:8px; gap:8px; }
+.is-integrated .sim-kpi-strip { gap:0; border-block:1px solid var(--border); margin:0 0 12px; }
+.is-integrated .sim-kpi { border:0; border-radius:0; background:transparent; box-shadow:none; padding:10px 12px; border-right:1px solid var(--border); }
+.is-integrated .sim-kpi:last-child { border-right:0; }
+.is-integrated .sim-kpi .eyebrow { min-height:24px; font-size:10px; }
+.is-integrated .sim-kpi strong { font-size:20px; }
+.is-integrated .sim-section-header { min-height:26px; margin-bottom:8px; }
+.is-integrated .sim-widget-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; align-items:stretch; }
+.is-integrated .sim-widget-grid > .sim-widget { grid-column:span 4; padding:12px; border-radius:8px; box-shadow:none; }
+.is-integrated .sim-widget-grid > .sim-widget.is-full { grid-column:1 / -1; }
+.is-integrated .sim-widget-heading { min-height:32px; margin-bottom:6px; }
+.is-integrated .sim-widget-heading p { font-size:10px; }
+.is-integrated .sim-widget-grid .sim-widget-chart { height:170px; }
+.sim-process-tile { grid-column:span 8; grid-row:span 2; min-width:0; min-height:0; height:var(--process-height,440px); display:flex; flex-direction:column; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--card); }
+.sim-process-tile.is-full { grid-column:1 / -1; }
+.sim-process-tile-header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px; padding:8px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
+.sim-process-caption, .sim-process-size-controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.sim-process-caption h3 { font-size:12px; font-weight:600; }
+.sim-process-caption > span { font-size:10px; color:var(--muted-foreground); }
+.sim-process-size-controls select { max-width:120px; font-size:11px; border:1px solid var(--border); border-radius:4px; padding:4px; background:var(--card); }
+.sim-process-size-controls select:focus-visible { outline:2px solid var(--ring); }
+.sim-process-surface { flex:1; min-height:0; display:flex; flex-direction:column; }
+.sim-process-diagram { position:relative; flex:1; min-height:0; display:flex; flex-direction:column; }
+.sim-process-diagram > .simulation-bpmn-view { flex:1; width:100%; min-height:0; }
+.sim-process-diagram > div:first-child { flex:1; min-height:0; }
+.sim-process-diagram .sim-canvas-analysis-actions { flex-shrink:0; padding:6px 8px; gap:6px; }
+.sim-process-diagram .sim-canvas-analysis-actions .sim-help { font-size:10px; }
+.sim-studio-case { flex-shrink:0; height:126px; overflow:auto; padding:10px; border-top:1px solid var(--border); }
+.sim-activity-details h3 { font-size:15px; font-weight:600; }
+.sim-activity-details dl { margin:16px 0; display:grid; gap:8px; }
+.sim-activity-details dl > div { display:flex; justify-content:space-between; font-size:13px; }
+.sim-activity-details dd { font-weight:600; }
+.sim-activity-resource { padding-block:12px; border-top:1px solid var(--border); display:grid; gap:8px; font-size:12px; }
+.sim-activity-details > button { margin-top:14px; }
+.sim-library-questions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.sim-library-questions > p { width:100%; font-size:12px; color:var(--muted-foreground); }
+.sim-studio-start { height:100%; display:flex; flex-direction:column; gap:14px; overflow:auto; }
+.sim-studio-empty-process { min-height:340px; flex:1; display:flex; border:1px solid var(--border); border-radius:8px; }
+@container sim-sections (max-width:950px) {
+  .is-integrated .sim-widget-grid > .sim-widget { grid-column:span 6; }
+  .sim-process-tile { grid-column:1 / -1; grid-row:auto; }
+}
+@container sim-sections (max-width:520px) {
+  .is-integrated .sim-widget-grid > .sim-widget { grid-column:1 / -1; }
+}
+@media (max-width:1100px) {
+  .sim-studio-body.has-dock { grid-template-columns:minmax(0,1fr) minmax(300px,38%); }
+}
+@media (max-width:800px) {
+  .sim-studio-body, .sim-studio-body.has-dock { display:flex; flex-direction:column; overflow-y:auto; }
+  .sim-studio-board { height:auto; flex-shrink:0; }
+  .sim-studio .is-integrated { height:auto; overflow:visible; }
+  .sim-studio-dock { flex-shrink:0; border:1px solid var(--border); border-radius:8px; min-height:240px; max-height:70dvh; }
+  .sim-studio-dock-header { position:sticky; top:0; background:var(--card); z-index:1; }
+  .sim-studio-tools { gap:4px; }
+  .sim-studio-identity { display:none; }
+  .sim-studio-tools button { min-height:40px; padding-inline:8px; font-size:12px; }
+}
+
+/* Keep the first analytical viewport for the process, not repeated headings. */
+.is-integrated .sim-dashboard-header { height:0; position:relative; }
+.is-integrated .sim-dashboard-actions { position:absolute; right:0; top:4px; }
+.is-integrated .sim-dashboard-toolbar { padding-right:290px; min-height:44px; }
+.is-integrated .sim-dashboard-toolbar .sim-storage-status { font-size:10px; }
+.is-integrated .sim-kpi-strip { grid-template-columns:repeat(6,minmax(0,1fr)); }
+.is-integrated .sim-kpi { padding:8px; }
+.is-integrated .sim-kpi .eyebrow { min-height:24px; }
+@container sim-dashboard (max-width:900px) {
+ .is-integrated .sim-dashboard-header { height:auto; }
+ .is-integrated .sim-dashboard-actions { position:static; }
+ .is-integrated .sim-dashboard-toolbar { padding-right:0; }
+ .is-integrated .sim-kpi-strip { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@container sim-dashboard (max-width:440px) {
+ .is-integrated .sim-kpi-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+.sim-studio-dock-body:has(.sim-config-workspace) { overflow:hidden; }
+.sim-studio-dock-body:has(.sim-config-workspace) > div:first-child { height:100%; }
+.sim-studio-empty-process { min-height:400px; }
+.sim-studio-empty-process > .simulation-bpmn-view { width:100%; }
+
+.sim-current-insights { margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:12px; }
+.sim-current-insights > summary { cursor:pointer; font-size:13px; font-weight:600; padding:8px 0; }
+.sim-current-insights > summary:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }

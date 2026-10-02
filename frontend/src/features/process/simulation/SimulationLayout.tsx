@@ -1,8 +1,8 @@
 import React from "react";
-import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, SlidersHorizontal, LayoutDashboard, Workflow, GitCompareArrows, Layers, Lightbulb, ListChecks } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
 import { ErrorState } from "@/components/feedback";
@@ -20,40 +20,12 @@ import { useProjectQuery } from "@/features/projects/api";
 
 import "./dashboard/dashboard.css";
 import { useBpmnModelQuery } from "../api";
+import { SimulationStudio } from "./SimulationStudio";
 import { ReplaySession } from "./replay/ReplaySession";
 import { listProsimosSimulationRuns } from "./simulationApi";
-import { formatRunOption, SimulationSectionContext } from "./useSimulationSection";
+import { formatRunOption, SimulationSectionContext, type SimulationPanel } from "./useSimulationSection";
 
-/** Sub-screens, in order — each is a nested route segment under `.../simulation`. */
-const TABS = [
-  "overview",
-  "scenario",
-  "replay",
-  "dashboard",
-  "compare",
-  "heatmap",
-  "insights",
-] as const;
-type Tab = (typeof TABS)[number];
-
-const RUN_SCOPED = new Set<Tab>(["replay", "dashboard", "heatmap", "insights"]);
-const NAV_TABS: Tab[] = ["scenario", "overview", "replay", "dashboard", "compare", "heatmap", "insights"];
-const TAB_ICONS = { scenario: SlidersHorizontal, overview: ListChecks, replay: Workflow, dashboard: LayoutDashboard, compare: GitCompareArrows, heatmap: Layers, insights: Lightbulb };
-
-/**
- * Parses the simulation sub-route and optional run identifier from a pathname.
- *
- * @param pathname - The URL pathname containing the simulation route
- * @returns The recognized tab and numeric run ID, or `null` when the run ID is missing or invalid
- */
-function readPath(pathname: string): { sub: Tab; runId: number | null } {
-  const parts = pathname.split("/").filter(Boolean);
-  const idx = parts.indexOf("simulation");
-  const raw = (idx >= 0 && parts[idx + 1]) || "overview";
-  const sub = (TABS as readonly string[]).includes(raw) ? (raw as Tab) : "overview";
-  const rid = idx >= 0 ? parts[idx + 2] : undefined;
-  return { sub, runId: rid && /^\d+$/.test(rid) ? Number(rid) : null };
-}
+const PANELS = ["scenario", "overview", "compare", "heatmap", "insights", "widget", "activity"] as const;
 
 /**
  * Renders the simulation workspace layout with process navigation, run selection, and nested route content.
@@ -79,43 +51,37 @@ export function SimulationLayout(): React.JSX.Element {
     queryKey: ["workspace", "simulation-runs", process?.bpmnModelId],
     queryFn: () => listProsimosSimulationRuns(process!.bpmnModelId),
     enabled: Boolean(process?.bpmnModelId),
+    refetchInterval: (query) => query.state.data?.some((run) => run.status === "pending") ? 2000 : false,
   });
   const runs = React.useMemo(() => runsQ.data ?? [], [runsQ.data]);
 
-  const { sub, runId } = readPath(location.pathname);
-  const navRef = React.useRef<HTMLElement>(null);
-  React.useEffect(() => {
-    navRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [sub, projectQ.isLoading]);
-  const activeRunId =
-    runId ??
-    runs.find((r) => r.status === "completed")?.id ??
-    runs[0]?.id ??
-    null;
-
-  const goToTab = React.useCallback(
-    (next: string) => {
-      const scoped = RUN_SCOPED.has(next as Tab) && activeRunId != null;
-      navigate(
-        ROUTES.projects.simulation(
-          projectId,
-          processId,
-          scoped ? `${next}/${activeRunId}` : next,
-        ),
-      );
-    },
-    [navigate, projectId, processId, activeRunId],
-  );
-
-  const switchRun = React.useCallback(
-    (value: string) => {
-      const target = RUN_SCOPED.has(sub) ? sub : "replay";
-      navigate(
-        ROUTES.projects.simulation(projectId, processId, `${target}/${value}`),
-      );
-    },
-    [navigate, projectId, processId, sub],
-  );
+  const parts = location.pathname.split("/").filter(Boolean);
+  const index = parts.indexOf("simulation");
+  const section = parts[index + 1] ?? "workspace";
+  const params = new URLSearchParams(location.search);
+  const requestedId = Number(parts[index + 2] ?? params.get("run"));
+  const activeRunId = Number.isFinite(requestedId) && requestedId > 0
+    ? requestedId : runs.find((run) => run.status === "completed")?.id ?? runs[0]?.id ?? null;
+  const requestedPanel = params.get("panel") ?? (section === "workspace" || section === "replay" || section === "dashboard" ? null : section);
+  const panel = PANELS.includes(requestedPanel as SimulationPanel) ? requestedPanel as SimulationPanel : null;
+  const panelRef = React.useRef(panel);
+  React.useEffect(() => { panelRef.current = panel; }, [panel]);
+  const selectionScope = `${projectId}:${processId}:${activeRunId}`;
+  const [selection, setSelection] = React.useState<{ scope: string; id: string | null }>({ scope: "", id: null });
+  const selectedElementId = selection.scope === selectionScope ? selection.id : null;
+  const selectElement = React.useCallback((id: string | null) => setSelection({ scope: selectionScope, id }), [selectionScope]);
+  const navigateWorkspace = React.useCallback((nextPanel: SimulationPanel | null, id: number | null = activeRunId) => {
+    const query = new URLSearchParams(location.search);
+    query.delete("run");
+    if (nextPanel) query.set("panel", nextPanel); else query.delete("panel");
+    const search = query.toString();
+    navigate(ROUTES.projects.simulation(projectId, processId, `workspace${id != null ? `/${id}` : ""}`) + (search ? `?${search}` : ""));
+  }, [activeRunId, location.search, navigate, processId, projectId]);
+  const openPanel = React.useCallback((next: SimulationPanel | null) => { panelRef.current = next; navigateWorkspace(next); }, [navigateWorkspace]);
+  const selectRun = React.useCallback((id: number) => { setSelection({ scope: "", id: null }); navigateWorkspace(panelRef.current === "widget" || panelRef.current === "activity" ? null : panelRef.current, id); }, [navigateWorkspace]);
+  const [inspectedWidgetId, setInspectedWidgetId] = React.useState<string | null>(null);
+  const inspectWidget = (id: string | null) => { setInspectedWidgetId(id); openPanel(id ? "widget" : null); };
+  const switchRun = (value: string) => selectRun(Number(value));
 
   if (projectQ.isLoading) {
     return (
@@ -159,6 +125,7 @@ export function SimulationLayout(): React.JSX.Element {
     runs,
     runsLoading: runsQ.isLoading,
     refetchRuns: () => void runsQ.refetch(),
+    activeRunId, selectRun, selectedElementId, selectElement, panel, openPanel, inspectedWidgetId, inspectWidget,
   };
 
   return (
@@ -177,11 +144,6 @@ export function SimulationLayout(): React.JSX.Element {
               { label: t("simulation.section.title") },
             ]}
             title={process.name}
-            meta={
-              <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                {t("simulation.section.title")}
-              </span>
-            }
             actions={
               <div className="flex max-w-full flex-wrap items-center gap-2">
                 {runs.length > 0 && (
@@ -217,23 +179,14 @@ export function SimulationLayout(): React.JSX.Element {
             }
           />
 
-          <nav ref={navRef} aria-label={t("simulation.section.navLabel")} className="sim-workspace-nav">
-            {NAV_TABS.map((tab) => {
-              const Icon = TAB_ICONS[tab];
-              return <button type="button" key={tab} onClick={() => goToTab(tab)} aria-current={sub === tab ? "page" : undefined}>
-                <Icon aria-hidden className="size-4 shrink-0" />
-                {t(tab === "replay" ? "simulation.studio.processView" : tab === "dashboard" ? "simulation.studio.dashboardView" : `simulation.section.nav.${tab}`)}
-              </button>;
-            })}
-          </nav>
         </div>
 
         <div className="min-h-0 flex-1 px-4 pb-4">
           <ReplaySession
             runId={runs.find((run) => run.id === activeRunId)?.status === "completed" ? activeRunId : null}
-            enabled={RUN_SCOPED.has(sub)}
+            enabled={true}
           >
-            <Outlet />
+            <SimulationStudio />
           </ReplaySession>
         </div>
       </div>

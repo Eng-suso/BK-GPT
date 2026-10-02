@@ -188,3 +188,12 @@ Verifiche locali:
 La PR include la matrice Playwright nella CI già esistente. Il merge richiede la verifica dei risultati della CI sul commit finale.
 
 Verifica successiva dei grafici circolari: quattro test dedicati superati, uno per browser/viewport, con tutte le undici tipologie di widget e legende controllabili senza hover. La suite UI della simulazione comprende ora 32 test nella matrice completa.
+
+
+## Revisione: ambiente unico per il consulente
+
+Decisione confermata da Sohay: mantenere tutte le funzioni e riorganizzare l’interfaccia. Il processo animato, i KPI e i grafici appartengono allo stesso canvas di lavoro. Una barra di riproduzione governa l’istante; la selezione di attività collega diagramma, filtro e dettagli. Scenario, risultati, heatmap, confronto e insight diventano strumenti contestuali senza cambiare pagina.
+
+Il processo è un elemento del layout analitico, spostabile e ridimensionabile senza modificare il BPMN. I widget esistenti e le analisi già salvate sul modello restano disponibili. Le proprietà dei widget usano lo stesso dock degli strumenti; i dati aggregati finali dichiarano il proprio ambito e non diventano valori del replay.
+
+Accettazione: osservare una coda, selezionare l’attività, vedere KPI/grafici contemporaneamente, aprire parametri, confrontare esecuzioni e tornare al replay senza perdere tempo o selezione. Desktop, tablet e mobile richiedono controlli raggiungibili, focus prevedibile e nessuna sovrapposizione del dock sul processo. I piccoli schermi impilano le superfici nello stesso documento.

@@ -19,10 +19,10 @@ import { useScenarioLab } from "../useScenarioLab";
  *
  * @returns The scenario builder page.
  */
-export function ScenarioBuilderPage(): React.JSX.Element {
+export function ScenarioBuilderPage({ embedded = false }: { embedded?: boolean } = {}): React.JSX.Element {
   const { t } = useTranslation("process");
   const navigate = useNavigate();
-  const { projectId, processId } = useSimulationSection();
+  const { projectId, processId, selectedElementId, selectElement } = useSimulationSection();
   const [reference, setReference] = React.useState<"model" | "readiness" | null>(null);
   const referenceTrigger = React.useRef<HTMLElement | null>(null);
   const pendingField = React.useRef<string | null>(null);
@@ -45,7 +45,8 @@ export function ScenarioBuilderPage(): React.JSX.Element {
     activeRun,
   } = lab;
 
-  const [focusEl, setFocusEl] = React.useState<string | null>(null);
+  const [localFocusEl, setFocusEl] = React.useState<string | null>(null);
+  const focusEl = embedded ? selectedElementId ?? null : localFocusEl;
   const lowCursor = React.useRef(0);
 
   const reviewLowest = React.useCallback(() => {
@@ -54,9 +55,10 @@ export function ScenarioBuilderPage(): React.JSX.Element {
     const next = ids[lowCursor.current % ids.length];
     lowCursor.current += 1;
     setFocusEl(next);
+    selectElement?.(next);
     pendingField.current = next;
     setReference(null);
-  }, [confidence.readiness.lowConfidenceElementIds]);
+  }, [confidence.readiness.lowConfidenceElementIds, selectElement]);
 
   if (bpmnXml === null && !templateLoading) {
     return (
@@ -78,7 +80,7 @@ export function ScenarioBuilderPage(): React.JSX.Element {
           </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => openReference("model")}>{t("simulation.workspace.showModel")}</Button>
+            {!embedded && <Button size="sm" variant="outline" onClick={() => openReference("model")}>{t("simulation.workspace.showModel")}</Button>}
             <Button size="sm" variant="outline" onClick={() => openReference("readiness")}>{t("simulation.workspace.assumptions")}</Button>
             {activeRun?.status === "completed" && <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.projects.simulation(projectId, processId, "overview"))}>{t("simulation.workspace.viewResults")}</Button>}
           </div>

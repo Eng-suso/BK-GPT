@@ -8,17 +8,17 @@ import type { ReplayEngine } from "../replay/replayEngine";
 import { interpolateText } from "./dashboardExpressions";
 import { KINDS, METRICS, UNITS, resolveWidgetData, type DashboardWidget, type DashboardLayout, type Metric, type WidgetKind } from "./dashboardModel";
 
-export function WidgetInspector({ widget, layout, engine, activityId, onChange, onClose, onDelete, onDuplicate, onMove, onGroup }: {
+export function WidgetInspector({ widget, layout, engine, activityId, onChange, onClose, onDelete, onDuplicate, onMove, onGroup, pinned = false }: {
   widget: DashboardWidget; layout: DashboardLayout; engine: ReplayEngine; activityId: string;
   onChange: (patch: Partial<DashboardWidget>) => void; onClose: () => void; onDelete: () => void; onDuplicate: () => void;
-  onMove: (direction: -1 | 1) => void; onGroup: (id: string) => void;
+  onMove: (direction: -1 | 1) => void; onGroup: (id: string) => void; pinned?: boolean;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language.startsWith("it") ? "it" : "en";
   const frame = useReplayFrame(engine);
   const group = layout.groups.find((item) => item.widgets.some((item) => item.id === widget.id))!;
   const index = group.widgets.findIndex((item) => item.id === widget.id);
-  const metricData = frame ? resolveWidgetData(engine, frame, widget, activityId, lang) : null;
+  const metricData = frame ? resolveWidgetData(engine, frame, widget, widget.activityId || activityId, lang) : null;
   const value = metricData?.value ?? null;
   const expression = interpolateText(widget.text, { metric: value === null ? 0 : value * (UNITS[widget.metric] === "duration" ? 1000 : 1), total: frame ? frame.global.activeCases + frame.global.completedCases : 0, currentTime: frame?.global.clockMs ?? 0 }, lang);
   const id = React.useId();
@@ -30,11 +30,12 @@ export function WidgetInspector({ widget, layout, engine, activityId, onChange, 
       <details open><summary>{t("simulation.studio.general")}</summary><div className="sim-inspector-fields">
         {field("title", <input value={widget.title} maxLength={120} placeholder={t(`simulation.studio.metric.${widget.metric}`)} onChange={(event) => onChange({ title: event.target.value })} />)}
         {field("type", <select value={widget.kind} onChange={(event) => onChange({ kind: event.target.value as WidgetKind })}>{KINDS.map((kind) => <option key={kind} value={kind}>{t(`simulation.studio.kind.${kind}`)}</option>)}</select>)}
-        {field("section", <select value={group.id} onChange={(event) => onGroup(event.target.value)}>{layout.groups.map((item, i) => <option value={item.id} key={item.id}>{item.title || t("simulation.studio.sectionNumber", { n: i + 1 })}</option>)}</select>)}
+        {!pinned && field("section", <select value={group.id} onChange={(event) => onGroup(event.target.value)}>{layout.groups.map((item, i) => <option value={item.id} key={item.id}>{item.title || t("simulation.studio.sectionNumber", { n: i + 1 })}</option>)}</select>)}
         {field("width", <select value={widget.width} onChange={(event) => onChange({ width: event.target.value as DashboardWidget["width"] })}><option value="half">{t("simulation.studio.half")}</option><option value="full">{t("simulation.studio.full")}</option></select>)}
       </div></details>
       <details open><summary>{t("simulation.studio.metricLabel")}</summary><div className="sim-inspector-fields">
         {field("metricLabel", <select value={widget.metric} onChange={(event) => onChange({ metric: event.target.value as Metric })}>{METRICS.map((metric) => <option key={metric} value={metric}>{t(`simulation.studio.metric.${metric}`)}</option>)}</select>)}
+        {field("boundActivity", <select value={widget.activityId} onChange={(event) => onChange({ activityId: event.target.value })}><option value="">{t("simulation.unified.followSelection")}</option>{Object.entries(engine.payload.elements).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select>)}
         {widget.kind === "gauge" && field("targetLabel", <input type="number" min="0.01" step="any" value={widget.target} onChange={(event) => { const target = Number(event.target.value); if (Number.isFinite(target) && target > 0) onChange({ target }); }} />)}
         <label className="sim-field"><span>{t("simulation.studio.metricExpression")}</span><input aria-label={t("simulation.studio.metricExpression")} aria-describedby={`${id}-metric-expression`} aria-invalid={metricData?.expressionValid === false} value={widget.metricExpression} maxLength={512} placeholder="metric / total" onChange={(event) => onChange({ metricExpression: event.target.value })} /></label>
         <p id={`${id}-metric-expression`} className={metricData?.expressionValid === false ? "text-xs text-destructive" : "sim-help"}>{t(metricData?.expressionValid === false ? "simulation.studio.invalidMetricExpression" : "simulation.studio.metricExpressionHelp")}</p>
@@ -56,7 +57,7 @@ export function WidgetInspector({ widget, layout, engine, activityId, onChange, 
       </div></details>}
     </div>
     <footer><div className="flex gap-1"><Button size="icon" variant="outline" disabled={index === 0} onClick={() => onMove(-1)} aria-label={t("simulation.studio.moveUp")}><ArrowUp aria-hidden className="size-4" /></Button><Button size="icon" variant="outline" disabled={index === group.widgets.length - 1} onClick={() => onMove(1)} aria-label={t("simulation.studio.moveDown")}><ArrowDown aria-hidden className="size-4" /></Button></div>
-      <Button size="icon" variant="outline" disabled={group.widgets.length >= 24} onClick={onDuplicate} aria-label={t("simulation.studio.duplicate")}><Copy aria-hidden className="size-4" /></Button><Button size="icon" variant="ghost" onClick={onDelete} aria-label={t("simulation.studio.remove")}><Trash2 aria-hidden className="size-4" /></Button>
+      <Button size="icon" variant="outline" disabled={group.widgets.length >= (pinned ? 12 : 24)} onClick={onDuplicate} aria-label={t("simulation.studio.duplicate")}><Copy aria-hidden className="size-4" /></Button><Button size="icon" variant="ghost" onClick={onDelete} aria-label={t("simulation.studio.remove")}><Trash2 aria-hidden className="size-4" /></Button>
     </footer>
   </aside>;
 }

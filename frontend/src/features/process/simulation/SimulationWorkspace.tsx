@@ -36,17 +36,19 @@ const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
  *
  * @returns The simulation workspace element
  */
-export function SimulationWorkspace(): React.JSX.Element {
+export function SimulationWorkspace({ embedded = false }: { embedded?: boolean } = {}): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
 
-  const { projectId, processId } = useSimulationSection();
+  const { projectId, processId, selectedElementId: sharedSelection, selectElement } = useSimulationSection();
   const lab = useScenarioLab();
   const { bpmnXml, activeRun, isPending } = lab;
 
-  const [selectedElementId, setSelectedElementId] = React.useState<string | null>(null);
+  const [localSelection, setLocalSelection] = React.useState<string | null>(null);
 
+  const selectedElementId = sharedSelection !== undefined ? sharedSelection : localSelection;
+  const setSelectedElementId = selectElement ?? setLocalSelection;
   const summary = (activeRun?.summary as SimulationSummary | null) ?? null;
   const insights = React.useMemo(
     () =>
@@ -74,7 +76,7 @@ export function SimulationWorkspace(): React.JSX.Element {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 ui-surface ui-surface-panel px-4 py-3">
+      {!embedded && <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 ui-surface ui-surface-panel px-4 py-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">{t("simulation.workspace.overviewTitle")}</h2>
           <p className="mt-1 text-xs text-muted-foreground">{t(activeRun ? "simulation.workspace.resultsHint" : "simulation.workspace.startHint")}</p>
@@ -83,20 +85,22 @@ export function SimulationWorkspace(): React.JSX.Element {
           {t("simulation.workspace.configure")}
         </Button>
       </div>
+      }
       {activeRun && <RunSnapshot
         run={activeRun}
         insights={insights}
         isPending={isPending}
         lang={lang}
-        onOpenReplay={() => navigate(ROUTES.projects.simulation(projectId, processId, `replay/${activeRun.id}`))}
-        onOpenDashboard={() => navigate(ROUTES.projects.simulation(projectId, processId, `dashboard/${activeRun.id}`))}
+        onOpenReplay={embedded ? undefined : () => navigate(ROUTES.projects.simulation(projectId, processId, `replay/${activeRun.id}`))}
+        onOpenDashboard={embedded ? undefined : () => navigate(ROUTES.projects.simulation(projectId, processId, `dashboard/${activeRun.id}`))}
       />}
-      <section aria-label={t("simulation.diagram.title")} className="flex min-h-[440px] flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
+      {!embedded && <section aria-label={t("simulation.diagram.title")} className="flex min-h-[440px] flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
         <header className="shrink-0 border-b border-border px-4 py-2">
           <h2 className="text-sm font-medium">{t("simulation.diagram.title")}</h2>
         </header>
         {bpmnXml ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} overlays={overlays} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /> : <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />}
       </section>
+      }
       {activeRun && <section aria-label={t("simulation.output.eyebrow")} className="shrink-0 ui-surface ui-surface-panel">
         <details open={Boolean(selectedElementId)}>
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{t("simulation.results.summary")}</summary>
@@ -116,8 +120,8 @@ type RunSnapshotProps = {
   insights: ReturnType<typeof readSimulationInsights>;
   isPending: boolean;
   lang: "it" | "en";
-  onOpenReplay: () => void;
-  onOpenDashboard: () => void;
+  onOpenReplay?: () => void;
+  onOpenDashboard?: () => void;
 };
 
 function RunSnapshot({
@@ -162,14 +166,14 @@ function RunSnapshot({
           />
           {run.status === "completed" && (
             <>
-              <Button type="button" size="sm" variant="outline" onClick={onOpenReplay}>
+              {onOpenReplay && <Button type="button" size="sm" variant="outline" onClick={onOpenReplay}>
                 <Activity aria-hidden className="size-3.5" />
                 {t("simulation.section.nav.replay")}
-              </Button>
-              <Button type="button" size="sm" variant="outline" onClick={onOpenDashboard}>
+              </Button>}
+              {onOpenDashboard && <Button type="button" size="sm" variant="outline" onClick={onOpenDashboard}>
                 <LineChart aria-hidden className="size-3.5" />
                 {t("simulation.section.nav.dashboard")}
-              </Button>
+              </Button>}
             </>
           )}
         </div>

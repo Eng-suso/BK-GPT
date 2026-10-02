@@ -51,7 +51,7 @@ export type ScenarioLab = {
 export function useScenarioLab(): ScenarioLab {
   const { t } = useTranslation("process");
   const queryClient = useQueryClient();
-  const { process, runs: sectionRuns, refetchRuns } = useSimulationSection();
+  const { process, runs: sectionRuns, refetchRuns, activeRunId, selectRun } = useSimulationSection();
 
   const modelQuery = useBpmnModelQuery(process.bpmnModelId);
   const bpmnXml = modelQuery.data?.xml ?? null;
@@ -70,12 +70,12 @@ export function useScenarioLab(): ScenarioLab {
   }, []);
 
   const activeRun: SimulationRun | null = React.useMemo(() => {
-    if (polledRun) return polledRun;
-    if (pickedRunId != null) {
+    if (polledRun && (activeRunId == null || polledRun.id === activeRunId)) return polledRun;
+    if (activeRunId == null && pickedRunId != null) {
       return sectionRuns.find((r) => r.id === pickedRunId) ?? null;
     }
-    return resolveActiveRun(sectionRuns, undefined);
-  }, [polledRun, pickedRunId, sectionRuns]);
+    return resolveActiveRun(sectionRuns, activeRunId != null ? String(activeRunId) : undefined);
+  }, [polledRun, pickedRunId, sectionRuns, activeRunId]);
 
   const [storedDraft, setStoredDraft] = React.useState<ScenarioDraft>(() =>
     loadScenarioDraft(process.bpmnModelId),
@@ -157,15 +157,16 @@ export function useScenarioLab(): ScenarioLab {
             : `${process.bpmnModelId}-${Date.now()}`,
       });
       setPolledRun(run);
+      selectRun?.(run.id);
       syncSection();
       if (run.status === "pending") await pollRun(run.id);
-      else setPickedRunId(run.id);
+      else { setPickedRunId(run.id); selectRun?.(run.id); }
     } catch (err) {
       setError(readError(err));
     } finally {
       if (mountedRef.current) setIsRunning(false);
     }
-  }, [process.bpmnModelId, draft, bpmnXml, syncSection, pollRun]);
+  }, [process.bpmnModelId, draft, bpmnXml, syncSection, pollRun, selectRun]);
 
   return {
     bpmnXml,
