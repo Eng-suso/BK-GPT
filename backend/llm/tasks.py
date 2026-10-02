@@ -37,6 +37,7 @@ class LlmTask(StrEnum):
     CONTEXT_ROUTING = "context_routing"
     EMBEDDING = "embedding"
     TRANSCRIPTION = "transcription"
+    EVAL_JUDGE = "eval_judge"
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +165,14 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
         retry=True,
         scales_with_input=False,
         model_setting="openai_transcription_model",
+    ),
+    # Il giudice degli eval L2: legge un pezzo di lavoro dell'agente e risponde
+    # dentro uno schema. Non gira mai in produzione, ma passa dal gateway come
+    # ogni chiamata, cosi' i suoi consumi stanno nel registro sotto
+    # l'operazione EVAL. Ritenta: gira sul modello dei test, spesso un free
+    # tier, dove un 429 transitorio e' la norma e dietro non c'e' una coda.
+    LlmTask.EVAL_JUDGE: TaskProfile(
+        LlmTask.EVAL_JUDGE, reasoning_effort="low", retry=True, scales_with_input=True
     ),
 }
 
