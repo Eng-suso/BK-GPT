@@ -84,6 +84,24 @@ def _work_one(row: dict) -> bool:
         reset_current_tenant_id(token)
 
 
+def acquire_in_request(source_id: str, name: str, payload: bytes) -> dict | None:
+    """Legge subito una fonte di testo semplice, con gli stessi esiti del worker.
+
+    Il tenant e' gia' quello della richiesta. Se il worker la prende in carico
+    nello stesso istante, la legge una seconda volta e scrive lo stesso esito.
+
+    Returns:
+        La fonte aggiornata, o `None` se nel frattempo e' sparita.
+    """
+    from backend.workspace_services.source_ingestion import SourceFileError, parse_source_file
+
+    try:
+        parsed = parse_source_file(name, payload, None)
+    except SourceFileError as exc:
+        return wd.fail_source_acquisition(source_id, error=str(exc), permanent=True)
+    return wd.complete_source_acquisition(source_id, parsed)
+
+
 def drain_once(limit: int = _BATCH, *, only_tenant_id: str | None = None) -> int:
     """Una passata sulla coda.
 

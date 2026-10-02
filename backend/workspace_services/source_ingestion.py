@@ -19,6 +19,11 @@ from backend.workspace_services.evidence.xlsx import render_text as render_workb
 MAX_FILE_BYTES = 25 * 1024 * 1024
 MAX_EXTRACTED_CHARACTERS = 5_000_000
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".csv", ".txt", ".md", ".pptx"}
+# Testo semplice: leggerlo costa millisecondi, e mandarlo in coda costerebbe al
+# consulente secondi di attesa (lease, giro della lista) per niente. Si legge
+# dentro la richiesta e la fonte risponde gia' "pronta". PDF, Office ed Excel
+# restano al worker.
+READ_IN_REQUEST = {".txt", ".md", ".csv"}
 MIME_BY_EXTENSION = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

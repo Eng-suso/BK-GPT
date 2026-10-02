@@ -69,8 +69,8 @@ def test_upload_preserves_dimensions_and_makes_text_readable(http: TestClient, t
 
     assert response.status_code == 201, response.text
     source = response.json()
-    # Il caricamento non legge il file: lo conserva e lo mette in coda.
-    assert source["acquisition_status"] == "pending"
+    # Testo semplice: letto dentro la richiesta, senza passare dalla coda.
+    assert source["acquisition_status"] == "done"
     assert source["name"] == "Procedura_Acquisti.md"
     assert source["roles"] == ["process_evidence", "policy"]
     assert source["retention"] == "persistent"
@@ -82,13 +82,6 @@ def test_upload_preserves_dimensions_and_makes_text_readable(http: TestClient, t
         {"type": "process", "id": process["id"]},
     ]
 
-    from backend.workers import source_worker
-
-    # Un file non ancora letto non puo' diventare evidenza.
-    early = http.post(f"/v1/workspace/sources/{source['id']}/verify")
-    assert early.status_code == 409
-
-    _drain(source_worker, tenant)
     listed = {item["id"]: item for item in http.get(f"/v1/workspace/projects/{project['id']}/sources").json()}
     assert listed[source["id"]]["acquisition_status"] == "done"
 
@@ -303,6 +296,9 @@ def test_an_unreadable_file_fails_once_a_service_outage_is_retried(http: TestCli
         data=fields,
         files={"file": (f"proc-{uuid.uuid4().hex[:6]}.docx", stream.getvalue(), "application/octet-stream")},
     ).json()
+    # Un documento Office va in coda, e finche' non e' letto non diventa evidenza.
+    assert created["acquisition_status"] == "pending"
+    assert http.post(f"/v1/workspace/sources/{created['id']}/verify").status_code == 409
     _drain(source_worker, tenant)
 
     listed = {item["id"]: item for item in http.get(f"/v1/workspace/projects/{project['id']}/sources").json()}
@@ -338,11 +334,15 @@ def test_an_unreadable_file_fails_once_a_service_outage_is_retried(http: TestCli
     assert listed[created["id"]]["acquisition_status"] == "done"
 
 
-def test_a_file_that_kills_the_worker_does_not_come_back_forever(http: TestClient, tenant: str):
+def test_a_file_that_kills_the_worker_does_not_come_back_forever(http: TestClient, tenant: str, monkeypatch):
     """Ogni presa in carico e' un tentativo: anche quella il cui worker muore
     prima di scrivere un esito, e che torna solo per scadenza del lease."""
     from backend import workspace_database as wd
+    from backend.workspace_services import source_ingestion
     from backend.workspace_storage import WorkspaceSource
+
+    # Il testo semplice si legge nella richiesta: qui serve che vada in coda.
+    monkeypatch.setattr(source_ingestion, "READ_IN_REQUEST", set())
 
     project, _ = _project(http)
     created = http.post(

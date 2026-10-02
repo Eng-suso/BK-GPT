@@ -595,6 +595,7 @@ def upload_workspace_project_source(
     from backend.workspace_services.source_ingestion import (
         MAX_FILE_BYTES,
         SourceFileError,
+        READ_IN_REQUEST,
         SourceFileTooLarge,
         inspect_upload,
         store_original,
@@ -631,8 +632,9 @@ def upload_workspace_project_source(
         source_name = "Documento"
     try:
         # Dentro la richiesta solo cio' che costa millisecondi: ambito, formato,
-        # integrita'. La lettura la fa `source_worker`, e la fonte dice che e'
-        # in lettura (`acquisition_status == "pending"`) finche' non ha finito.
+        # integrita', e la lettura del testo semplice. PDF, Office ed Excel li
+        # legge `source_worker`, e la fonte dice che e' in lettura
+        # (`acquisition_status == "pending"`) finche' non ha finito.
         validate_source_scopes(project_id, scope_values)
         upload = inspect_upload(source_name, payload)
         storage_key = store_original(upload, payload)
@@ -654,6 +656,10 @@ def upload_workspace_project_source(
         raise HTTPException(status_code=415, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if upload.extension in READ_IN_REQUEST and source.get("acquisition_status") == "pending":
+        from backend.workers.source_worker import acquire_in_request
+
+        source = acquire_in_request(source["id"], source_name, payload) or source
     if not created:
         response.status_code = 200
     return UploadedSourceResponse(**source, created=created)
