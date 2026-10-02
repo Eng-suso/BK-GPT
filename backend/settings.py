@@ -8,6 +8,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.6-luna"
+    # Un endpoint compatibile OpenAI al posto di api.openai.com, per i client di
+    # chat. In produzione resta vuoto: lo impostano i test che girano su un
+    # modello gratuito o economico (Gemini, Ollama), vedi `tests/live_llm.py`.
+    openai_base_url: str | None = None
     openai_transcription_model: str = "gpt-4o-transcribe-diarize"
     openai_live_transcription_model: str = "gpt-realtime-whisper"
     # Lingua attesa dell'audio (ISO-639-1). Passata all'API su entrambi i path e
