@@ -8,6 +8,9 @@ Create Date: 2026-10-02
 sono nate in parallelo sulla stessa base. L'id della prima non si rinomina: il
 database `workspace` di sviluppo l'ha gia' applicata, e un id sparito lo
 lascerebbe senza una revisione da cui ripartire. Da qui in poi la fila e' una.
+
+E' una revisione di sola fusione: `upgrade` non tocca lo schema, `downgrade`
+riporta soltanto le due teste separate.
 """
 
 from __future__ import annotations
