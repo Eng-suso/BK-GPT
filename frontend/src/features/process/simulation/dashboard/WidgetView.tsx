@@ -7,7 +7,7 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, P
 import type { ReplayEngine, ReplayFrame } from "../replay/replayEngine";
 import { WIDGET_COLORS, formatMetric } from "./dashboardFormatting";
 import { interpolateText } from "./dashboardExpressions";
-import { widgetData, type DashboardWidget } from "./dashboardModel";
+import { resolveWidgetData, type DashboardWidget } from "./dashboardModel";
 
 const COLORS = Object.values(WIDGET_COLORS);
 
@@ -16,12 +16,13 @@ export function WidgetView({ widget, engine, frame, activityId }: {
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language.startsWith("it") ? "it" : "en";
-  const data = widgetData(engine, frame, widget.metric, widget.followFilter ? activityId : "all");
+  const data = resolveWidgetData(engine, frame, widget, activityId, lang);
   const color = WIDGET_COLORS[widget.color];
   const format = (value: number | null) => formatMetric(value, data.unit, lang);
   const clock = (seconds: number) => new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit" }).format(new Date(engine.startMs + seconds * 1000));
   const points = data.points.map((point) => ({ ...point, label: point.t === undefined ? point.label : clock(point.t) }));
 
+  if (!data.expressionValid) return <div className="sim-widget-empty"><span>—</span><p>{t("simulation.studio.invalidMetricExpression")}</p></div>;
   if (widget.kind === "text") {
     const result = interpolateText(widget.text, {
       metric: data.value === null ? Number.NaN : data.value * (data.unit === "duration" ? 1000 : 1),

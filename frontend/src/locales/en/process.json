@@ -465,7 +465,12 @@
       "canvasLocal": "Position and settings saved on this device.",
       "selectActivity": "Select an activity in the diagram to add analytics (up to 12).",
       "charts": "Charts",
-      "finalWaiting": "Mean wait · complete run"
+      "finalWaiting": "Mean wait · complete run",
+      "repositionCharts": "Reset chart positions",
+      "metricExpression": "Metric expression",
+      "metricExpressionHelp": "Optional: metric is the source value in its original unit, total is the number of cases arrived by that time. Use arithmetic and round(); the result must be a number ≥ 0.",
+      "invalidMetricExpression": "Cannot calculate this expression: check the formula and denominators.",
+      "chooseActivity": "Select activity"
     }
   },
   "side": {

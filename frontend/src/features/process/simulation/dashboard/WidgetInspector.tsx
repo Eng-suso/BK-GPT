@@ -6,7 +6,7 @@ import { Button } from "@/ui/button";
 import { useReplayFrame } from "../replay/useReplay";
 import type { ReplayEngine } from "../replay/replayEngine";
 import { interpolateText } from "./dashboardExpressions";
-import { KINDS, METRICS, UNITS, widgetData, type DashboardWidget, type DashboardLayout, type Metric, type WidgetKind } from "./dashboardModel";
+import { KINDS, METRICS, UNITS, resolveWidgetData, type DashboardWidget, type DashboardLayout, type Metric, type WidgetKind } from "./dashboardModel";
 
 export function WidgetInspector({ widget, layout, engine, activityId, onChange, onClose, onDelete, onDuplicate, onMove, onGroup }: {
   widget: DashboardWidget; layout: DashboardLayout; engine: ReplayEngine; activityId: string;
@@ -18,7 +18,8 @@ export function WidgetInspector({ widget, layout, engine, activityId, onChange, 
   const frame = useReplayFrame(engine);
   const group = layout.groups.find((item) => item.widgets.some((item) => item.id === widget.id))!;
   const index = group.widgets.findIndex((item) => item.id === widget.id);
-  const value = frame ? widgetData(engine, frame, widget.metric, widget.followFilter ? activityId : "all").value : null;
+  const metricData = frame ? resolveWidgetData(engine, frame, widget, activityId, lang) : null;
+  const value = metricData?.value ?? null;
   const expression = interpolateText(widget.text, { metric: value === null ? 0 : value * (UNITS[widget.metric] === "duration" ? 1000 : 1), total: frame ? frame.global.activeCases + frame.global.completedCases : 0, currentTime: frame?.global.clockMs ?? 0 }, lang);
   const id = React.useId();
   const field = (name: string, control: React.ReactElement<{ "aria-label"?: string }>) => <label className="sim-field"><span>{t(`simulation.studio.${name}`)}</span>{React.cloneElement(control, { "aria-label": t(`simulation.studio.${name}`) })}</label>;
@@ -35,6 +36,8 @@ export function WidgetInspector({ widget, layout, engine, activityId, onChange, 
       <details open><summary>{t("simulation.studio.metricLabel")}</summary><div className="sim-inspector-fields">
         {field("metricLabel", <select value={widget.metric} onChange={(event) => onChange({ metric: event.target.value as Metric })}>{METRICS.map((metric) => <option key={metric} value={metric}>{t(`simulation.studio.metric.${metric}`)}</option>)}</select>)}
         {widget.kind === "gauge" && field("targetLabel", <input type="number" min="0.01" step="any" value={widget.target} onChange={(event) => { const target = Number(event.target.value); if (Number.isFinite(target) && target > 0) onChange({ target }); }} />)}
+        <label className="sim-field"><span>{t("simulation.studio.metricExpression")}</span><input aria-label={t("simulation.studio.metricExpression")} aria-describedby={`${id}-metric-expression`} aria-invalid={metricData?.expressionValid === false} value={widget.metricExpression} maxLength={512} placeholder="metric / total" onChange={(event) => onChange({ metricExpression: event.target.value })} /></label>
+        <p id={`${id}-metric-expression`} className={metricData?.expressionValid === false ? "text-xs text-destructive" : "sim-help"}>{t(metricData?.expressionValid === false ? "simulation.studio.invalidMetricExpression" : "simulation.studio.metricExpressionHelp")}</p>
         <p className="sim-help">{t(widget.metric === "cycle" ? "simulation.studio.cycleHelp" : "simulation.studio.scopeHelp")}</p>
       </div></details>
       <details><summary>{t("simulation.studio.filters")}</summary><div className="sim-inspector-fields">

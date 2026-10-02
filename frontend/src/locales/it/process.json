@@ -465,7 +465,12 @@
       "canvasLocal": "Posizione e configurazione salvate su questo dispositivo.",
       "selectActivity": "Seleziona un’attività nel diagramma per aggiungere un’analisi (massimo 12).",
       "charts": "Grafici",
-      "finalWaiting": "Attesa media · run completo"
+      "finalWaiting": "Attesa media · run completo",
+      "repositionCharts": "Riposiziona grafici",
+      "metricExpression": "Espressione metrica",
+      "metricExpressionHelp": "Facoltativa: metric è il valore nella sua unità originale, total i casi entrati fino a quell’istante. Usa aritmetica e round(); il risultato deve essere un numero ≥ 0.",
+      "invalidMetricExpression": "Espressione non calcolabile: verifica la formula e i divisori.",
+      "chooseActivity": "Seleziona attività"
     }
   },
   "side": {

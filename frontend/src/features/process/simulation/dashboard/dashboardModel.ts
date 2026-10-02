@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { evaluateExpression } from "./dashboardExpressions";
 
 import type { ReplayEngine, ReplayFrame } from "../replay/replayEngine";
 
@@ -15,6 +16,7 @@ export const widgetSchema = z.object({
   metric: z.enum(METRICS),
   width: z.enum(["half", "full"]),
   text: z.string().max(4000),
+  metricExpression: z.string().max(512).default(""),
   target: z.number().positive().finite(),
   followFilter: z.boolean(),
   showLabels: z.boolean(),
@@ -36,7 +38,7 @@ export type DashboardLayout = z.infer<typeof layoutSchema>;
 
 export function createWidget(kind: WidgetKind, id: string = crypto.randomUUID()): DashboardWidget {
   return { id, title: "", kind, metric: ["bar", "column", "pie", "donut", "radial"].includes(kind) ? "activityQueued" : "completed",
-    width: "half", text: "**${metric}**", target: 100, followFilter: true, showLabels: true, color: "blue" };
+    width: "half", metricExpression: "", text: "**${metric}**", target: 100, followFilter: true, showLabels: true, color: "blue" };
 }
 
 export function defaultLayout(): DashboardLayout {
@@ -96,4 +98,25 @@ export function widgetData(engine: ReplayEngine, frame: ReplayFrame, metric: Met
   const points = all.filter((point) => numeric(point.value));
   const total = points.reduce((sum, point) => sum + point.value, 0);
   return { unit, categorical: true, filtered: !resource && activityId !== "all", value: points.length ? (resource ? total / points.length : total) : null, points };
+}
+
+/** Numeric formulas keep the source metric's unit and use only observed data. */
+export function resolveWidgetData(engine: ReplayEngine, frame: ReplayFrame, widget: DashboardWidget, activityId: string, lang: "it" | "en") {
+  const data = widgetData(engine, frame, widget.metric, widget.followFilter ? activityId : "all");
+  if (!widget.metricExpression.trim()) return { ...data, expressionValid: true };
+  const calculate = (metric: number, bucket: number) => {
+    const total = (engine.payload.series.global.wip?.[bucket] ?? 0) + (engine.payload.series.global.done?.[bucket] ?? 0);
+    const result = evaluateExpression(widget.metricExpression, { metric, total, currentTime: engine.startMs + engine.payload.series.t[bucket] * 1000 }, lang);
+    if (typeof result !== "number" || !Number.isFinite(result) || result < 0) throw new Error("numeric metric");
+    return result;
+  };
+  try {
+    const value = calculate(data.value ?? 0, frame.bucket);
+    const points = data.points.flatMap((point) => {
+      // A zero denominator at an earlier time is a missing observation.
+      try { return [{ ...point, value: calculate(point.value, point.t === undefined ? frame.bucket : engine.payload.series.t.indexOf(point.t)) }]; }
+      catch { return []; }
+    });
+    return { ...data, value: data.value === null ? null : value, points, expressionValid: true };
+  } catch { return { ...data, value: null, points: [], expressionValid: false }; }
 }
