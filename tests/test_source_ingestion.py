@@ -317,6 +317,37 @@ def test_an_unreadable_file_fails_once_a_service_outage_is_retried(http: TestCli
     assert listed[created["id"]]["acquisition_status"] == "done"
 
 
+def test_a_file_that_kills_the_worker_does_not_come_back_forever(http: TestClient, tenant: str):
+    """Ogni presa in carico e' un tentativo: anche quella il cui worker muore
+    prima di scrivere un esito, e che torna solo per scadenza del lease."""
+    from backend import workspace_database as wd
+    from backend.workspace_storage import WorkspaceSource
+
+    project, _ = _project(http)
+    created = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={
+            "roles": '["context"]',
+            "retention": "persistent",
+            "scopes": f'[{{"type":"project","id":"{project["id"]}"}}]',
+        },
+        files={"file": (f"nota-{uuid.uuid4().hex[:6]}.txt", b"Una nota.", "text/plain")},
+    ).json()
+
+    for _ in range(wd.ACQUISITION_MAX_ATTEMPTS):
+        claimed = wd.due_source_acquisitions(10, only_tenant_id=tenant)
+        assert [row["id"] for row in claimed] == [created["id"]]
+        # il worker muore qui: nessun esito, solo il lease che scade
+        with wd.workspace_connection() as session:
+            session.get(WorkspaceSource, created["id"]).acquisition_next_attempt_at = (
+                "1970-01-01T00:00:00+00:00"
+            )
+
+    assert wd.due_source_acquisitions(10, only_tenant_id=tenant) == []
+    listed = {item["id"]: item for item in http.get(f"/v1/workspace/projects/{project['id']}/sources").json()}
+    assert listed[created["id"]]["acquisition_status"] == "failed"
+
+
 def _one_paragraph():
     from docling_core.types.doc import DocItemLabel, DoclingDocument
 

@@ -2197,19 +2197,30 @@ def due_source_acquisitions(limit: int = 2, *, only_tenant_id: str | None = None
         if only_tenant_id:
             statement = statement.where(WorkspaceSource.tenant_id == only_tenant_id)
         rows = session.execute(statement).scalars().all()
-        claimed = [
-            {
-                "id": row.id,
-                "tenant_id": row.tenant_id,
-                "name": row.name,
-                "storage_key": row.storage_key,
-                "content_hash": row.content_hash,
-                "process_id": row.process_id,
-            }
-            for row in rows
-        ]
+        claimed = []
         for row in rows:
+            # Il tentativo si conta alla presa in carico, non all'esito: un file
+            # che fa morire il worker (memoria, processo ucciso) non arriva mai a
+            # `fail_source_acquisition`, e senza questo tornerebbe in lettura a
+            # ogni scadenza del lease, per sempre.
+            if row.acquisition_attempts >= ACQUISITION_MAX_ATTEMPTS:
+                row.acquisition_status = "failed"
+                row.acquisition_next_attempt_at = None
+                row.acquisition_error = row.acquisition_error or "La lettura si e' interrotta troppe volte."
+                row.meta = f"Non leggibile: {row.acquisition_error}"[:2000]
+                continue
+            row.acquisition_attempts += 1
             row.acquisition_next_attempt_at = lease_until
+            claimed.append(
+                {
+                    "id": row.id,
+                    "tenant_id": row.tenant_id,
+                    "name": row.name,
+                    "storage_key": row.storage_key,
+                    "content_hash": row.content_hash,
+                    "process_id": row.process_id,
+                }
+            )
         session.flush()
         return claimed
 
@@ -2300,7 +2311,7 @@ def fail_source_acquisition(
         source = tenant_row(session, WorkspaceSource, source_id)
         if source is None:
             return None
-        source.acquisition_attempts += 1
+        # Il tentativo e' gia' stato contato alla presa in carico.
         source.acquisition_error = str(error)[:2000]
         if permanent or source.acquisition_attempts >= max_attempts:
             source.acquisition_status = "failed"
