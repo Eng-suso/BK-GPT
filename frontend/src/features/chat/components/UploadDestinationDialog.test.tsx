@@ -42,6 +42,18 @@ describe("UploadDestinationDialog", () => {
     });
   });
 
+  it("un progetto scelto prima e poi sparito dall'elenco non si conferma", () => {
+    render(
+      <UploadDestinationDialog
+        open
+        initial={{ projectId: "p-archiviato" }}
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Scegli il file" })).toBeDisabled();
+  });
+
   it("cambiando progetto il processo scelto si azzera", async () => {
     const onConfirm = vi.fn();
     render(

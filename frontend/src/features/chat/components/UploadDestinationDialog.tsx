@@ -53,7 +53,8 @@ export function UploadDestinationDialog({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!projectId) return;
+            // Un progetto scelto prima e poi archiviato non c'e' piu' nell'elenco.
+            if (!project) return;
             const process = project?.processItems.find((item) => item.id === processId);
             onConfirm({
               projectId,
@@ -123,7 +124,7 @@ export function UploadDestinationDialog({
             <Button type="button" variant="ghost" onClick={onClose}>
               {t("upload.destination.cancel")}
             </Button>
-            <Button type="submit" disabled={!projectId}>
+            <Button type="submit" disabled={!project}>
               {t("upload.destination.choose")}
             </Button>
           </DialogFooter>
