@@ -142,25 +142,6 @@
       ]
     }
   },
-  "mode": {
-    "label": "Working mode",
-    "conversation": {
-      "label": "Chat",
-      "hint": "Conversation only: answers and clarifies without creating BPMN reviews, questions or artifacts."
-    },
-    "plan": {
-      "label": "Plan",
-      "hint": "Understands and proposes: prepares and reworks the process plan without touching the canvas."
-    },
-    "edit": {
-      "label": "Edit",
-      "hint": "Applies the change you asked for, narrowly, without re-planning."
-    },
-    "agent": {
-      "label": "Agent",
-      "hint": "Full loop: plans, applies and verifies until the request is closed."
-    }
-  },
   "effort": {
     "label": "Reasoning",
     "low": {
@@ -351,5 +332,72 @@
     "open": "Open review",
     "draft": "Generate draft",
     "dismiss": "Close the modelling workspace"
+  },
+  "posture": {
+    "label": "Posture",
+    "autoTag": "auto",
+    "auto": {
+      "label": "Auto",
+      "hint": "DeliR works out from your message what kind of work this is."
+    },
+    "desk": {
+      "label": "Desk",
+      "hint": "What needs your attention today: priorities, risks, news."
+    },
+    "prepare": {
+      "label": "Prepare",
+      "hint": "Get ready for a meeting: what we know, what we don't, what to ask."
+    },
+    "align": {
+      "label": "Align",
+      "hint": "Where the project stands and what doesn't add up."
+    },
+    "analyze": {
+      "label": "Analyze",
+      "hint": "What we are learning, across processes too."
+    },
+    "deliver": {
+      "label": "Deliver",
+      "hint": "Turn the work into something for the client."
+    },
+    "discover": {
+      "label": "Discover",
+      "hint": "How the process really works: evidence and contradictions."
+    },
+    "improve": {
+      "label": "Improve",
+      "hint": "How to do it better within the constraints: causes, options, To-Be."
+    },
+    "validate": {
+      "label": "Validate",
+      "hint": "Show the process holds: evidence, constraints, targets."
+    },
+    "map": {
+      "label": "Map",
+      "hint": "Build or change the model."
+    },
+    "review": {
+      "label": "Review",
+      "hint": "Check the model is well formed."
+    },
+    "compare": {
+      "label": "Compare",
+      "hint": "What changes between two versions, and why."
+    }
+  },
+  "autonomy": {
+    "label": "Autonomy",
+    "auto": {
+      "label": "Auto",
+      "hint": "DeliR writes on its own. Archiving and deleting still ask first."
+    },
+    "ask": {
+      "label": "Ask for approval",
+      "hint": "Every write becomes a proposal to approve."
+    },
+    "manual": {
+      "label": "Manual",
+      "hint": "DeliR proposes and explains, writes nothing."
+    }
   }
 }
