@@ -21,7 +21,7 @@ from backend.settings import settings
 if not settings.workspace_database_url:
     pytest.skip("serve WORKSPACE_DATABASE_URL", allow_module_level=True)
 
-FIXTURES = Path(__file__).parent / "fixtures" / "interviews"
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "interviews"
 INTERVIEW = "a2_paolo_marchetti_manutenzione.md"
 TITLE = "Intervista Paolo Marchetti - Manutenzione"
 SUMMARY = "Come nascono e come si chiudono le richieste urgenti in Manutenzione."
