@@ -1,11 +1,11 @@
 """Il golden set con l'estrattore vero: quanto DeliR mappa bene, in numeri.
 
-`tests/test_golden_graph_metrics.py` verifica il tratto che deve essere esatto -
+`tests/evals/l0_deterministic/test_golden_graph_metrics.py` verifica il tratto che deve essere esatto -
 dal piano al disegno - e gira in ogni CI. Qui si misura il tratto che non puo'
 esserlo: dalle interviste al piano, con l'LLM vero. Spento di default, perche'
 costa chiamate e non e' deterministico:
 
-    DELIR_GOLDEN_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/test_golden_set.py -q -s
+    DELIR_GOLDEN_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l1_golden/test_golden_set.py -q -s
 
 Per ogni caso: estrazione per fonte a testo intero, compilazione, confronto col
 riferimento, verifica di provenance. Il rapporto finisce in
