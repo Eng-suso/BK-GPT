@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HttpError, http, httpErrorMessage, httpStream } from "./http";
+import { HttpError, http, httpErrorMessage, httpList, httpStream } from "./http";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -111,5 +111,19 @@ describe("httpErrorMessage", () => {
       "500 err",
     );
     expect(httpErrorMessage("not an error", "fallback")).toBe("fallback");
+  });
+});
+
+describe("httpList", () => {
+  it("reads the total from the header", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse([1, 2], { headers: { "Content-Type": "application/json", "X-DeliR-Total": "40" } }),
+    );
+    await expect(httpList("/things")).resolves.toEqual({ rows: [1, 2], total: 40 });
+  });
+
+  it("says the total is unknown when the header is missing, not zero", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse([1, 2]));
+    await expect(httpList("/things")).resolves.toEqual({ rows: [1, 2], total: null });
   });
 });

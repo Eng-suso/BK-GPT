@@ -101,7 +101,10 @@ export async function httpList<T>(
     await raise(response);
   }
 
-  const total = Number(response.headers.get("X-DeliR-Total"));
+  // `Number(null)` e `Number("")` valgono 0: senza il controllo un'intestazione
+  // assente diventerebbe "zero elementi in tutto" invece di "non si sa".
+  const header = response.headers.get("X-DeliR-Total")?.trim();
+  const total = header ? Number(header) : Number.NaN;
   return {
     rows: (await response.json()) as T,
     total: Number.isFinite(total) && total >= 0 ? total : null,
