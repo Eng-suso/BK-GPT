@@ -1,8 +1,9 @@
 # Graph RAG — rimessa a posto del retrieval
 
 Stato: **aperto**. Chiusi GR-01, GR-02, GR-03, GR-12 (branch
-`fix/graph-retrieval-budget`). Trovato GR-13 applicandoli ai dati veri: e' il
-piu' grave dell'elenco e non e' un problema di retrieval (§GR-13).
+`fix/graph-retrieval-budget`) e GR-13 (branch
+`fix/process-delete-erases-evidence`, mergiato il 2026-10-02). GR-13 era il
+piu' grave dell'elenco e non era un problema di retrieval (§GR-13).
 Data apertura: 2026-09-26.
 
 Questo documento non e' una review: e' il piano di lavoro. Ogni voce ha un id
@@ -44,7 +45,7 @@ niente da guardare"): qui quella cura manca.
 | GR-10 | nessuna query globale/tematica | funzionale | 2-3 g | dopo GR-08 |
 | GR-11 | KG e Mem0 senza arbitro | decisione tua | — | aperto |
 | GR-12 | Neo4j senza indici ne' vincoli di unicita' | **alto** | 30 min | **fatto** |
-| GR-13 | cancellare un processo non cancella l'evidenza, e lo slug riusato la resuscita | **critico** | decisione + 0,5 g | aperto, **serve decisione** |
+| GR-13 | cancellare un processo non cancella l'evidenza, e lo slug riusato la resuscita | **critico** | decisione + 0,5 g | **fatto** |
 
 "Costo" = mio tempo di implementazione con i test. Non include la tua review.
 
@@ -940,6 +941,14 @@ duplicato.
 
 ## GR-13 — Cancellare un processo non cancella l'evidenza, e lo slug riusato la resuscita
 
+**Stato: fatto (2026-10-02).** Presa l'opzione (a) della decisione 1:
+cancellare un processo, un progetto o un cliente cancella la sua evidenza
+(`knowledge_graph/erase.py`, chiamato da `delete_process` / `delete_project` /
+`delete_client` prima del workspace). La decisione 2 e' coperta in parte:
+`scope._upsert` stacca dallo slug la riga canonical di un altro progetto, e
+`erase_process` non cancella niente se lo slug porta al processo di un altro
+progetto. Prove: `tests/test_process_delete_erases_evidence.py`.
+
 **Non e' un problema di retrieval, ed e' il piu' grave dell'elenco.** Trovato
 perche' `kg_reproject` ha segnalato un nodo `Process` orfano: il nodo in Neo4j
 diceva cliente `9e16…`, la riga Postgres cliente `717d…`.
@@ -1009,7 +1018,7 @@ giornata.
 | branch | contenuto | prova | stima |
 | --- | --- | --- | --- |
 | `fix/graph-retrieval-budget` | GR-03, GR-02, GR-01, GR-12 — **fatto** | unit test deterministici | 1 g |
-| da decidere | GR-13 | test di riuso slug + cancellazione | 0,5 g dopo la decisione |
+| `fix/process-delete-erases-evidence` | GR-13 — **fatto** | `tests/test_process_delete_erases_evidence.py` | 0,5 g |
 | `fix/graph-lexical-italian` | GR-05 (strada A), GR-07 | test di stemming, `EXPLAIN` allegato al PR | 0,5 g |
 | `fix/graph-vector-recall` | GR-06 | recall@k vs esatto = 1.0 | 0,5 g |
 | `feat/retrieval-eval` | GR-08 (harness) | — (e' lo strumento) | 0,5 g + **tue 3 h** |
