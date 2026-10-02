@@ -37,9 +37,9 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
       const initialObjects = sceneRef.current;
       const initialProcess = initialObjects.find(object => object.id === PROCESS_ID);
       if (!initialized.current && el.clientWidth && el.clientHeight && initialProcess) {
-        // Start with the process and the adjacent live charts, not a fit of every object.
+        // Start with legible process and chart labels; taller scenes remain navigable vertically.
         const rect = el.clientWidth < 700 ? initialProcess.rect : bounds(initialObjects.slice(0, 3).map(object => object.rect));
-        setCamera(el.clientWidth < 700 ? { x: (el.clientWidth - initialProcess.rect.width * 0.8) / 2 - initialProcess.rect.x * 0.8, y: 24 - initialProcess.rect.y * 0.8, scale: 0.8 } : { x: 24, y: 24, scale: Math.max(0.5, Math.min(1, (el.clientWidth - 48) / rect.width, (el.clientHeight - 48) / initialProcess.rect.height)) });
+        setCamera(el.clientWidth < 700 ? { x: (el.clientWidth - initialProcess.rect.width * 0.8) / 2 - initialProcess.rect.x * 0.8, y: 24 - initialProcess.rect.y * 0.8, scale: 0.8 } : { x: 24, y: 24, scale: Math.max(0.75, Math.min(1, (el.clientWidth - 48) / rect.width)) });
         initialized.current = true;
       }
     });
@@ -99,6 +99,14 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
       <label className="sim-scene-jump"><span className="sr-only">{t("simulation.scene.goTo")}</span><select aria-label={t("simulation.scene.goTo")} value="" onChange={event => { const object = objects.find(item => item.id === event.target.value); if (object) { setActiveObject(object.id); focus(object.rect); } }}><option value="">{t("simulation.scene.goTo")}</option>{objects.map(object => <option value={object.id} key={object.id}>{object.title}</option>)}</select></label>
       <span className="sim-scene-instructions"><Move aria-hidden className="size-3.5" />{t(editing ? "simulation.scene.composeHint" : "simulation.scene.panHint")}</span>
       <div className="sim-scene-extra" ref={onActionsHost} />
+      <button type="button" className="sim-scene-map" aria-label={t("simulation.scene.map")} title={t("simulation.scene.showAll")} onClick={event => {
+        const id = event.detail ? (event.target as HTMLElement).getAttribute("data-map-id") : null;
+        const object = objects.find(item => item.id === id);
+        if (object) setActiveObject(object.id);
+        focus(object?.rect ?? allBounds);
+      }}>
+        {objects.map(object => <span aria-hidden key={object.id} data-map-id={object.id} className={object.id === PROCESS_ID ? "is-process" : ""} style={{ left: `${(8 + (object.rect.x - allBounds.x) * mapScale) / 156 * 100}%`, top: `${(8 + (object.rect.y - allBounds.y) * mapScale) / 84 * 100}%`, width: `${Math.max(8, object.rect.width * mapScale) / 156 * 100}%`, height: `${Math.max(8, object.rect.height * mapScale) / 84 * 100}%` }} />)}
+      </button>
       <div className="sim-scene-zoom">
         <Button variant="ghost" size="icon" aria-label={t("simulation.diagram.zoomOut")} onClick={() => setCamera(current => zoomCamera(current, 1 / 1.2, (viewport.current?.clientWidth ?? 0) / 2, (viewport.current?.clientHeight ?? 0) / 2))}><Minus aria-hidden className="size-4" /></Button>
         <output aria-label={t("simulation.scene.zoom")}>{Math.round(camera.scale * 100)}%</output>
@@ -133,13 +141,5 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
         })}
       </div>
     </div>
-    <button type="button" className="sim-scene-map" aria-label={t("simulation.scene.map")} title={t("simulation.scene.showAll")} onClick={event => {
-      const id = event.detail ? (event.target as HTMLElement).getAttribute("data-map-id") : null;
-      const object = objects.find(item => item.id === id);
-      if (object) setActiveObject(object.id);
-      focus(object?.rect ?? allBounds);
-    }}>
-      {objects.map(object => <span aria-hidden key={object.id} data-map-id={object.id} className={object.id === PROCESS_ID ? "is-process" : ""} style={{ left: 8 + (object.rect.x - allBounds.x) * mapScale, top: 8 + (object.rect.y - allBounds.y) * mapScale, width: Math.max(8, object.rect.width * mapScale), height: Math.max(8, object.rect.height * mapScale) }} />)}
-    </button>
   </div>;
 }

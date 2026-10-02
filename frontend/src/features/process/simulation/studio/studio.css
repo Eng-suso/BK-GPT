@@ -51,7 +51,7 @@
 .sim-scene-object .sim-widget-heading { min-height:38px; margin-bottom:10px; }
 .sim-scene-object .sim-widget-heading h4 { font-size:14px; }
 .sim-scene-object .sim-widget-heading p { font-size:12px; }
-.sim-scene-object .sim-widget-chart { flex:1; min-height:150px; height:180px; }
+.sim-scene-object .sim-widget-chart { flex:1; min-height:140px; height:180px; }
 .sim-scene-object .sim-widget-kpi,.sim-scene-object .sim-widget-empty { min-height:150px; flex:1; }
 .sim-scene-object .sim-note { min-height:150px; }
 .sim-scene-object.is-composing { outline:1px dashed var(--border); outline-offset:3px; }
@@ -121,7 +121,7 @@
   .sim-scene-jump select { width:110px; }
   .sim-scene-process-label { display:none; }
   .sim-scene-zoom button { width:32px; height:36px; }
-  .sim-scene-map { width:110px; height:60px; transform:scale(.7); transform-origin:bottom right; }
+  .sim-scene-map { position:relative; bottom:auto; right:auto; width:72px; height:36px; flex-shrink:0; box-shadow:none; }
   .sim-comparison-details { position:relative; right:auto; top:auto; width:100%; }
   .sim-comparison-details[open] { width:100%; overflow:auto; }
   .sim-final-transport { align-items:flex-start; flex-direction:column; }
