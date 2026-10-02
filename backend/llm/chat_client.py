@@ -103,6 +103,8 @@ def chat_client(
         "tags": langsmith_tags("llm", tag),
         "reasoning_effort": reasoning_effort or profile.reasoning_effort,
     }
+    if settings.openai_base_url:
+        kwargs["base_url"] = settings.openai_base_url
     if streaming:
         # Senza questo i pezzi arrivano senza `usage_metadata` e il turno
         # risulterebbe da zero token: e' la stessa trappola delle chiamate

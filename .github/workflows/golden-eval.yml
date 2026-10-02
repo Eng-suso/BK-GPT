@@ -1,7 +1,11 @@
 name: Golden set eval
 
-# L'estrattore misurato con l'LLM vero sul golden set (tests/golden).
-# Notturno e non su ogni push: costa chiamate al modello e non e' deterministico.
+# L'estrattore misurato con un LLM vero sul golden set (tests/golden).
+# Notturno e non su ogni push: chiama il modello e non e' deterministico.
+# Il modello e' quello dei test (tests/live_llm.py), non OpenAI: un endpoint
+# compatibile OpenAI gratuito o economico, dichiarato da due variabili e un
+# secret del repository:
+#   vars.DELIR_TEST_LLM_BASE_URL, vars.DELIR_TEST_LLM_MODEL, secrets.DELIR_TEST_LLM_API_KEY
 # Il tratto deterministico - dal piano al disegno - gira gia' in CI/CD Pipeline.
 
 on:
@@ -43,15 +47,21 @@ jobs:
           # Il token non resta nel workspace mentre girano test e client esterni.
           persist-credentials: false
 
-      # Senza chiave i test del golden set si saltano e il job risulta verde senza
-      # aver misurato niente: un eval che passa perche' non e' partito e' peggio
-      # di un eval rosso.
-      - name: Require OpenAI key
+      # Senza modello i test del golden set si saltano e il job risulta verde
+      # senza aver misurato niente: un eval che passa perche' non e' partito e'
+      # peggio di un eval rosso.
+      - name: Require the test model
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DELIR_TEST_LLM_BASE_URL: ${{ vars.DELIR_TEST_LLM_BASE_URL }}
+          DELIR_TEST_LLM_MODEL: ${{ vars.DELIR_TEST_LLM_MODEL }}
+          DELIR_TEST_LLM_API_KEY: ${{ secrets.DELIR_TEST_LLM_API_KEY }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "::error::OPENAI_API_KEY mancante: il golden eval non misura niente senza il modello"
+          missing=""
+          [ -z "$DELIR_TEST_LLM_BASE_URL" ] && missing="$missing vars.DELIR_TEST_LLM_BASE_URL"
+          [ -z "$DELIR_TEST_LLM_MODEL" ] && missing="$missing vars.DELIR_TEST_LLM_MODEL"
+          [ -z "$DELIR_TEST_LLM_API_KEY" ] && missing="$missing secrets.DELIR_TEST_LLM_API_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::modello dei test non configurato, mancano:$missing"
             exit 1
           fi
 
@@ -89,11 +99,16 @@ jobs:
           uv run alembic upgrade head
           uv run alembic -c alembic_workspace.ini upgrade head
 
+      # DELIR_LIVE_LLM=1 e' l'opt-in che il test chiede: senza, si salterebbe.
+      # `-rs` scrive il motivo di ogni skip, cosi' un caso non misurato si vede.
       - name: Run golden eval
         env:
           DELIR_GOLDEN_EVAL: "1"
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: uv run pytest tests/evals/l1_golden/test_golden_set.py -v -s --tb=short
+          DELIR_LIVE_LLM: "1"
+          DELIR_TEST_LLM_BASE_URL: ${{ vars.DELIR_TEST_LLM_BASE_URL }}
+          DELIR_TEST_LLM_MODEL: ${{ vars.DELIR_TEST_LLM_MODEL }}
+          DELIR_TEST_LLM_API_KEY: ${{ secrets.DELIR_TEST_LLM_API_KEY }}
+        run: uv run pytest tests/evals/l1_golden/test_golden_set.py -v -s -rs --tb=short
 
       - name: Upload golden reports
         uses: actions/upload-artifact@v4
@@ -103,6 +118,11 @@ jobs:
           path: tests/golden/reports/
           retention-days: 30
 
+      # Solo se lo stack e' partito: senza ops/.env compose non sa nemmeno
+      # leggere il file, e un passo di pulizia rosso nasconde il motivo vero.
       - name: Stop data stack
         if: always()
-        run: docker compose -f ops/docker-compose.yml down -v
+        run: |
+          if [ -f ops/.env ]; then
+            docker compose -f ops/docker-compose.yml down -v
+          fi

@@ -57,7 +57,28 @@ DELIR_AGENT_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l1_golden/test_con
 DELIR_AGENT_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l2_semantic -q -s
 ```
 
-I livelli col modello spendono davvero: senza le variabili si saltano, e ogni
-eval gira dentro la sua operazione EVAL (`conftest.py`), cosi' la spesa nel
-registro non si confonde con quella del prodotto. I casi del golden set e il
+I livelli col modello non usano OpenAI: girano sul **modello dei test**, un
+endpoint compatibile OpenAI gratuito o economico (`tests/live_llm.py`). OpenAI
+resta il modello della produzione e delle prove a mano.
+
+```
+# Gemini (gratuito; le fonti del golden set sono anonimizzate, mai dati clienti)
+DELIR_TEST_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+DELIR_TEST_LLM_API_KEY=<chiave di Google AI Studio>
+DELIR_TEST_LLM_MODEL=<un modello Gemini Flash>
+
+# Ollama in locale (gratuito, i dati non escono dal PC; senza GPU e' lento)
+DELIR_TEST_LLM_BASE_URL=http://localhost:11434/v1
+DELIR_TEST_LLM_API_KEY=ollama
+DELIR_TEST_LLM_MODEL=<un modello scaricato con ollama pull>
+```
+
+Senza modello dei test un eval col modello si salta, invece di ripiegare su
+OpenAI; pagarlo resta una scelta dichiarata (`DELIR_TEST_LLM_ALLOW_OPENAI=1`).
+Sul modello dei test gli embedding sono spenti: lo schema vuole i vettori a
+1536 dimensioni di OpenAI, e il retrieval usa il solo ramo lessicale. Il job
+notturno legge le stesse variabili dalle variabili e dai secret del repository.
+
+Ogni eval gira dentro la sua operazione EVAL (`conftest.py`), cosi' i consumi
+nel registro non si confondono con quelli del prodotto. I casi del golden set e il
 loro formato sono in `tests/golden/README.md`.

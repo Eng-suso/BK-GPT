@@ -88,6 +88,8 @@ def chat_openai_kwargs(
         "streaming": False,
         "disable_streaming": True,
     }
+    if settings.openai_base_url:
+        kwargs["base_url"] = settings.openai_base_url
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     if supports_reasoning_controls(settings.openai_model):

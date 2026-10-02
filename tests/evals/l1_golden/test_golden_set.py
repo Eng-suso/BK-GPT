@@ -29,14 +29,15 @@ import pytest
 
 from backend.settings import settings
 from tests.live_llm import ENABLED as LIVE_LLM_ENABLED
+from tests.live_llm import provider_ready
 
 _ENABLED = os.environ.get("DELIR_GOLDEN_EVAL") == "1"
 
 pytestmark = [
     pytest.mark.live_llm,
     pytest.mark.skipif(
-        not _ENABLED or not LIVE_LLM_ENABLED or not settings.openai_api_key,
-        reason="golden eval spento: serve DELIR_GOLDEN_EVAL=1, DELIR_LIVE_LLM=1 e OPENAI_API_KEY",
+        not _ENABLED or not LIVE_LLM_ENABLED or not provider_ready(),
+        reason="golden eval spento: serve DELIR_GOLDEN_EVAL=1, DELIR_LIVE_LLM=1 e il modello dei test (DELIR_TEST_LLM_*)",
     ),
 ]
 

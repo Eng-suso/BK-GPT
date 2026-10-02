@@ -287,6 +287,11 @@ def _provider_calls_are_opt_in(request, monkeypatch):
         # Il test paga per scelta dichiarata. Ma le cache restano sue: il
         # prossimo test non deve ereditare il suo client vero.
         request.addfinalizer(_drop_cached_provider_clients)
+        # Sul modello dei test, non su OpenAI: vedi `tests/live_llm.py`.
+        from tests.live_llm import use_test_llm
+
+        use_test_llm(monkeypatch)
+        _drop_cached_provider_clients()
         return
 
     monkeypatch.setattr(settings, "openai_api_key", None)
