@@ -1,35 +1,56 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from backend.schemas.chat import (
+    AUTONOMY_TO_MODE,
+    DEFAULT_AUTONOMY,
     DEFAULT_REASONING_EFFORT,
-    MAX_CHAT_ATTACHMENTS,
-    ChatAttachment,
-    ChatScope,
     ReasoningEffort,
+    MAX_CHAT_ATTACHMENTS,
+    Autonomy,
+    ChatAttachment,
+    ChatMode,
+    ChatScope,
+    Posture,
+    posture_belongs_to_scope,
 )
 
 
-# Public requests must match the modes enforced by the current router and write
-# guard. Scope-specific modes are not wired through that runtime yet.
-RequestChatMode = Literal["conversation", "plan", "edit", "agent"]
+class _TurnChoices(BaseModel):
+    """Postura e autonomia del turno, come le sceglie il consulente.
+
+    Per richiesta, non per thread: cambiarle non biforca la conversazione.
+    """
+
+    posture: Posture = "auto"
+    autonomy: Autonomy = DEFAULT_AUTONOMY
+    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
+
+    @property
+    def chat_mode(self) -> ChatMode:
+        """La modalita' interna che l'autonomia scelta produce."""
+        return AUTONOMY_TO_MODE[self.autonomy]
+
+    def _check_posture(self, scope) -> None:
+        scope_type = getattr(scope, "type", None) or "consultant"
+        if not posture_belongs_to_scope(self.posture, scope_type):
+            raise ValueError(f"La postura {self.posture!r} non appartiene alla chat {scope_type}.")
 
 
-class ChatRequest(BaseModel):
+class ChatRequest(_TurnChoices):
     model_name: str | None = None
     messages: list[dict]
     thread_id: str
     scope: ChatScope | None = None
-    # How much of the workflow the user is handing over this turn. Per-request, not
-    # per-thread: switching mode must not fork the conversation.
-    mode: RequestChatMode = "conversation"
-    # Quanto il modello deve pensare prima di rispondere. Per richiesta e non
-    # per thread, come la modalita': e' una preferenza di come lavorare adesso.
-    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
     attachments: list[ChatAttachment] = Field(
         default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
     )
+
+    @model_validator(mode="after")
+    def _posture_matches_scope(self):
+        self._check_posture(self.scope)
+        return self
 
 
 class CreateSessionRequest(BaseModel):
@@ -95,19 +116,20 @@ class ChatSessionDetail(BaseModel):
     messages: list[ChatMessageRecord]
 
 
-class SendMessageRequest(BaseModel):
+class SendMessageRequest(_TurnChoices):
     message: str
     model_name: str | None = None
     scope: ChatScope | None = None
-    mode: RequestChatMode = "conversation"
-    # Quanto il modello deve pensare prima di rispondere. Per richiesta e non
-    # per thread, come la modalita': e' una preferenza di come lavorare adesso.
-    reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT
     # Il cap non e' difesa dal client: oltre un pugno di allegati il turno
     # diventa un dump e il modello smette di leggerli.
     attachments: list[ChatAttachment] = Field(
         default_factory=list, max_length=MAX_CHAT_ATTACHMENTS
     )
+
+    @model_validator(mode="after")
+    def _posture_matches_scope(self):
+        self._check_posture(self.scope)
+        return self
 
 
 class ChatResponse(BaseModel):

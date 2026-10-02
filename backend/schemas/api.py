@@ -13,6 +13,8 @@ TraceEventType = Literal[
     "route",
     "first_token",
     "usage",
+    # La postura con cui il router ha letto la richiesta; la UI la mostra.
+    "posture",
     "warning",
     "error",
 ]
