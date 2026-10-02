@@ -81,6 +81,35 @@ describe("useComposerUploads", () => {
     expect(discardSource).toHaveBeenCalledTimes(1);
   });
 
+  it("se lo scarto non riesce per un guasto la card torna, se la fonte e' confermata no", async () => {
+    const { HttpError } = await import("@/lib/http");
+    mutateAsync
+      .mockResolvedValueOnce({ id: "src-rete", name: "a.pdf", projectId: "p-1", created: true })
+      .mockResolvedValueOnce({ id: "src-confermata", name: "b.pdf", projectId: "p-1", created: true });
+    const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, true));
+    await act(async () => {
+      await result.current.uploadFile(file("a.pdf"));
+      await result.current.uploadFile(file("b.pdf"));
+    });
+
+    const restoreNetwork = vi.fn();
+    const restoreConfirmed = vi.fn();
+    discardSource.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    discardSource.mockRejectedValueOnce(new HttpError(409, "gia' confermata"));
+    await act(async () => {
+      result.current.forget({ kind: "source", id: "src-rete", label: "a.pdf", projectId: "p-1" }, restoreNetwork);
+      result.current.forget(
+        { kind: "source", id: "src-confermata", label: "b.pdf", projectId: "p-1" },
+        restoreConfirmed,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(restoreNetwork).toHaveBeenCalledOnce();
+    expect(restoreConfirmed).not.toHaveBeenCalled();
+  });
+
   it("un caricamento rifiutato resta a vista con il motivo", async () => {
     mutateAsync.mockRejectedValue(new Error("Il PDF è protetto da password."));
     const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, false));

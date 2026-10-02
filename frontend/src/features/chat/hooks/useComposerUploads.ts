@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ChatAttachment } from "../../../contracts/chat";
 import type {
@@ -6,7 +7,7 @@ import type {
   SourceRole,
   SourceScope,
 } from "../../../contracts/workspace";
-import { httpErrorMessage } from "@/lib/http";
+import { HttpError, httpErrorMessage } from "@/lib/http";
 import {
   discardSource,
   useProjectSourcesQuery,
@@ -59,6 +60,7 @@ export type ComposerUpload = { tempId: string; name: string; error: string | nul
  * lo ha creato: se c'era gia' tra le Fonti, resta.
  */
 export function useComposerUploads(scope: ChatScope, hasSourceAttachments: boolean) {
+  const { t } = useTranslation("chat");
   const target = uploadTarget(scope);
   const upload = useUploadProjectSourceMutation(target?.projectId ?? "");
   const sources = useProjectSourcesQuery(target?.projectId ?? "", {
@@ -83,27 +85,35 @@ export function useComposerUploads(scope: ChatScope, hasSourceAttachments: boole
         setInFlight((current) => current.filter((item) => item.tempId !== tempId));
         return { kind: "source", id: source.id, label: source.name, projectId: source.projectId };
       } catch (error) {
-        const message = httpErrorMessage(error, "Il file non è stato caricato.");
+        const message = httpErrorMessage(error, t("attach.uploadFailed"));
         setInFlight((current) =>
           current.map((item) => (item.tempId === tempId ? { ...item, error: message } : item)),
         );
         return null;
       }
     },
-    [target, upload],
+    [target, upload, t],
   );
 
   const dismissFailed = useCallback((tempId: string) => {
     setInFlight((current) => current.filter((item) => item.tempId !== tempId));
   }, []);
 
-  /** La card e' stata tolta prima dell'invio. */
-  const forget = useCallback((attachment: ChatAttachment) => {
+  /**
+   * La card e' stata tolta prima dell'invio.
+   *
+   * Se lo scarto non riesce per un guasto (rete, server), il file resterebbe
+   * tra le Fonti senza card che lo mostri: `restore` rimette la card. Se invece
+   * la fonte e' stata confermata nel frattempo (409) o non c'e' piu' (404), e'
+   * giusto che resti com'e'.
+   */
+  const forget = useCallback((attachment: ChatAttachment, restore?: () => void) => {
     if (attachment.kind !== "source" || !createdHere.current.has(attachment.id)) return;
     createdHere.current.delete(attachment.id);
-    void discardSource(attachment.id).catch(() => {
-      // Confermata nel frattempo, o gia' sparita: in entrambi i casi resta
-      // com'e', e niente da dire al consulente.
+    void discardSource(attachment.id).catch((error: unknown) => {
+      if (error instanceof HttpError && (error.status === 404 || error.status === 409)) return;
+      createdHere.current.add(attachment.id);
+      restore?.();
     });
   }, []);
 
