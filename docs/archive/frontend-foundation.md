@@ -2,7 +2,7 @@
 
 Data: 2026-08-30
 Branch: `frontend-enterprise-foundation`
-Vedi [frontend-stack.md](frontend-stack.md), [frontend-structure.md](frontend-structure.md).
+Vedi [frontend-stack.md](../frontend-stack.md), [frontend-structure.md](../frontend-structure.md).
 
 ---
 
