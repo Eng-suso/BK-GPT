@@ -218,6 +218,20 @@ def test_the_same_content_is_the_same_source_whatever_its_roles(http: TestClient
     assert third.json()["id"] == first.json()["id"]
     assert third.json()["created"] is False
 
+    # Un altro processo e' un'altra appartenenza: li' lo stesso file e' una
+    # fonte di quel processo, non la fonte del progetto.
+    other = http.post(
+        f"/v1/workspace/projects/{project['id']}/processes", json={"name": "Order to cash"}
+    ).json()
+    elsewhere = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={**fields, "scopes": f'[{{"type":"process","id":"{other["id"]}"}}]'},
+        files={"file": ("contesto.txt", b"stesso contenuto", "text/plain")},
+    )
+    assert elsewhere.status_code == 201
+    assert elsewhere.json()["id"] != first.json()["id"]
+    assert elsewhere.json()["process_id"] == other["id"]
+
     from backend.security import reset_current_tenant_id, set_current_tenant_id
     from backend.workspace_database import create_ingested_source
 
@@ -426,6 +440,13 @@ def test_a_role_is_proposed_on_upload_and_changed_with_one_call(http: TestClient
 
     assert http.patch(f"/v1/workspace/sources/{created['id']}", json={"roles": []}).status_code == 422
     assert http.patch("/v1/workspace/sources/src-inesistente", json={"roles": ["context"]}).status_code == 404
+
+    # Un altro tenant non vede la fonte, quindi non la cambia.
+    with TestClient(app, headers={"X-DeliR-Tenant-ID": f"ingest-{uuid.uuid4().hex[:10]}"}) as stranger:
+        refused = stranger.patch(f"/v1/workspace/sources/{created['id']}", json={"roles": ["context"]})
+    assert refused.status_code == 404
+    listed = {item["id"]: item for item in http.get(f"/v1/workspace/projects/{project['id']}/sources").json()}
+    assert listed[created["id"]]["roles"] == ["process_evidence", "policy"]
 
 
 def _one_paragraph():

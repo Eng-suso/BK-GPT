@@ -2079,6 +2079,12 @@ def create_project_source(
         return source_to_dict(source)
 
 
+def process_id_for_identity(scopes: list[dict[str, str]]) -> str:
+    """Il processo a cui un caricamento appartiene, per la sua identita'."""
+    process_ids = sorted({item["id"].strip() for item in scopes if item.get("type") == "process"})
+    return process_ids[0] if len(process_ids) == 1 else ""
+
+
 def create_ingested_source(
     *,
     project_id: str,
@@ -2110,10 +2116,15 @@ def create_ingested_source(
     )
     roles_json = json.dumps(role_values, ensure_ascii=False, separators=(",", ":"))
     scopes_json = json.dumps(scopes_value, ensure_ascii=False, separators=(",", ":"))
-    # L'identita' di un file caricato e' il suo contenuto, nel progetto: ruoli e
-    # ambiti sono attributi che si cambiano, non un'altra fonte. Prima entravano
-    # nella chiave, e lo stesso file con un ruolo diverso diventava un doppione.
-    ingestion_key = hashlib.sha256(f"file:{content_hash}".encode()).hexdigest()
+    # L'identita' di un file caricato e' il suo contenuto, nel progetto e nel
+    # processo a cui appartiene: i ruoli sono attributi che si cambiano, non
+    # un'altra fonte. Prima entravano nella chiave, e lo stesso file con un
+    # ruolo diverso diventava un doppione. Il processo invece resta: una fonte
+    # appartiene a un solo processo, e lo stesso file portato in un altro
+    # processo e' evidenza di quell'altro.
+    ingestion_key = hashlib.sha256(
+        f"file:{content_hash}:{process_id_for_identity(scopes)}".encode()
+    ).hexdigest()
     process_ids = [item["id"] for item in scopes_value if item["type"] == "process"]
     # Con due processi la fonte finirebbe a livello di progetto (`process_id`
     # vuoto) e diventerebbe evidenza anche per un terzo processo che non c'entra.
@@ -2138,6 +2149,11 @@ def create_ingested_source(
             .where(WorkspaceSource.project_id == project_id)
             .where(WorkspaceSource.content_hash == content_hash)
             .where(WorkspaceSource.storage_key.is_not(None))
+            .where(
+                WorkspaceSource.process_id == process_id
+                if process_id
+                else WorkspaceSource.process_id.is_(None)
+            )
             .order_by(WorkspaceSource.id)
         ).scalars().first()
         if existing is not None:
