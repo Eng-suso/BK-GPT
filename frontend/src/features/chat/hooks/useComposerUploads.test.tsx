@@ -7,7 +7,10 @@ const discardSource = vi.fn((_id: string) => Promise.resolve());
 vi.mock("../../projects/api", () => ({
   discardSource: (id: string) => discardSource(id),
   useProjectSourcesQuery: () => ({
-    data: [{ id: "src-nuova", acquisitionStatus: "pending" }],
+    data: [
+      { id: "src-nuova", acquisitionStatus: "pending", acquisitionError: null },
+      { id: "src-rotta", acquisitionStatus: "failed", acquisitionError: "Il PDF è protetto da password." },
+    ],
   }),
   useUploadProjectSourceMutation: () => ({ mutateAsync }),
 }));
@@ -88,6 +91,12 @@ describe("useComposerUploads", () => {
 
     expect(result.current.inFlight).toHaveLength(1);
     expect(result.current.inFlight[0].error).toBeTruthy();
+  });
+
+  it("una lettura fallita porta il suo motivo, una in corso no", () => {
+    const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, true));
+    expect(result.current.failureOf("src-rotta")).toBe("Il PDF è protetto da password.");
+    expect(result.current.failureOf("src-nuova")).toBeNull();
   });
 
   it("la chat del consulente non carica: non sa in quale progetto", () => {

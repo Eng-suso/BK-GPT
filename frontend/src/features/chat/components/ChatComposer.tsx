@@ -728,6 +728,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           <ul className="composer-chips" aria-label={t("attach.listLabel")}>
             {attachments.map((attachment) => {
               const status = attachment.kind === "source" ? uploads.statusOf(attachment.id) : null;
+              const failure = status === "failed" ? uploads.failureOf(attachment.id) : null;
               return (
                 <li key={chatAttachmentKey(attachment)} className="composer-chip">
                   <span className="composer-chip-icon">
@@ -745,6 +746,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                     >
                       {status === "pending" ? <Loader2 aria-hidden="true" className="animate-spin" /> : null}
                       {t(`attach.status.${status}`)}
+                      {/* Il motivo, quando c'e': "Non leggibile" da solo non dice cosa fare. */}
+                      {failure ? `: ${failure}` : null}
                     </span>
                   ) : null}
                   <button

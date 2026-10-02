@@ -118,6 +118,15 @@ export function useComposerUploads(scope: ChatScope, hasSourceAttachments: boole
     [sources.data],
   );
 
+  /** Perche' la lettura non e' riuscita, quando non e' riuscita: la card lo dice. */
+  const failureOf = useCallback(
+    (sourceId: string): string | null => {
+      const source = sources.data?.find((item) => item.id === sourceId);
+      return source?.acquisitionStatus === "failed" ? (source.acquisitionError ?? null) : null;
+    },
+    [sources.data],
+  );
+
   return {
     canUpload: target !== null,
     inFlight,
@@ -126,5 +135,6 @@ export function useComposerUploads(scope: ChatScope, hasSourceAttachments: boole
     forget,
     keepAll,
     statusOf,
+    failureOf,
   };
 }
