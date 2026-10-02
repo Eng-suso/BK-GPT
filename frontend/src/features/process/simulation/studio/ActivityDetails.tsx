@@ -18,7 +18,7 @@ export function ActivityDetails({ engine, run, unavailable = false }: { engine: 
   const busy = pool ? frame?.resources[pool]?.busy : undefined;
   const activity = run.summary?.byActivity?.find((item) => item.el === id);
   return <div className="sim-activity-details">
-    <h3>{id ? activity?.name ?? engine.payload.elements[id]?.name ?? id : t("simulation.studio.selectActivity")}</h3>
+    <h3>{id ? typeof activity?.name === "string" ? activity.name : engine.payload.elements[id]?.name ?? id : t("simulation.studio.selectActivity")}</h3>
     <p className="sim-help">{t(unavailable ? "simulation.replay.noArtifact" : "simulation.unified.selectionHint")}</p>
     <dl>{[["active", state?.active], ["queued", state?.queued], ["completed", state?.done]].map(([key, value]) => <div key={key}><dt>{t(`simulation.replay.${key}`)}</dt><dd>{value ?? "—"}</dd></div>)}</dl>
     {pool && <div className="sim-activity-resource"><span>{pool}</span>{busy !== undefined && <Meter label={pool} value={Math.round(busy * 100)} tone={busy >= .95 ? "danger" : busy >= .8 ? "warning" : "ok"} />}</div>}

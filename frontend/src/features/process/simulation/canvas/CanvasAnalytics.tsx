@@ -39,7 +39,7 @@ function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfig
   const patchWidget = (patch: Partial<DashboardWidget>) => onChange({ widget: { ...pin.widget, ...patch } });
   const position = (x: number, y: number) => onChange({ x: Math.max(-2000, Math.min(2000, x)), y: Math.max(-2000, Math.min(2000, y)) });
   const name = engine.payload.elements[pin.elementId]?.name ?? pin.elementId;
-  return createPortal(<article className="sim-canvas-widget sim-widget" style={{ width: pin.width, transform: `translate(${pin.x}px, ${pin.y}px)` }} data-canvas-widget={pin.widget.id} aria-label={t("simulation.studio.canvasAnalysis", { name })} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+  return createPortal(<article className="sim-canvas-widget sim-widget" style={{ width: pin.width, transform: `translate(${pin.x}px, ${pin.y}px) scale(var(--scene-ui-scale,1))`, transformOrigin: "top left" }} data-canvas-widget={pin.widget.id} aria-label={t("simulation.studio.canvasAnalysis", { name })} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
     <header className="sim-canvas-widget-heading">
       <button type="button" className="sim-canvas-drag" aria-label={t("simulation.studio.moveCanvasWidget")} title={t("simulation.studio.moveCanvasHelp")}
         onKeyDown={(event) => {
@@ -47,10 +47,10 @@ function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfig
           const offsets: Record<string, [number, number]> = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] };
           if (offsets[event.key]) { event.preventDefault(); position(pin.x + offsets[event.key][0], pin.y + offsets[event.key][1]); }
         }}
-        onPointerDown={(event) => { event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { x: event.clientX, y: event.clientY, dx: 0, dy: 0, scale: (event.currentTarget.closest("article") as HTMLElement).getBoundingClientRect().width / (event.currentTarget.closest("article") as HTMLElement).offsetWidth }; }}
-        onPointerMove={(event) => { if (!drag.current) return; drag.current.dx = (event.clientX - drag.current.x) / drag.current.scale; drag.current.dy = (event.clientY - drag.current.y) / drag.current.scale; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x + drag.current.dx}px, ${pin.y + drag.current.dy}px)`; }}
+        onPointerDown={(event) => { event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { x: event.clientX, y: event.clientY, dx: 0, dy: 0, scale: (() => { const anchor = event.currentTarget.closest(".sim-scene-object") ?? event.currentTarget.closest("article"); return (anchor as HTMLElement).getBoundingClientRect().width / (anchor as HTMLElement).offsetWidth; })() }; }}
+        onPointerMove={(event) => { if (!drag.current) return; drag.current.dx = (event.clientX - drag.current.x) / drag.current.scale; drag.current.dy = (event.clientY - drag.current.y) / drag.current.scale; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x + drag.current.dx}px, ${pin.y + drag.current.dy}px) scale(var(--scene-ui-scale,1))`; }}
         onPointerUp={() => { if (!drag.current) return; position(pin.x + drag.current.dx, pin.y + drag.current.dy); drag.current = null; }}
-        onPointerCancel={(event) => { drag.current = null; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x}px, ${pin.y}px)`; }}
+        onPointerCancel={(event) => { drag.current = null; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x}px, ${pin.y}px) scale(var(--scene-ui-scale,1))`; }}
       ><GripVertical aria-hidden className="size-4" /></button>
       <div className="min-w-0 flex-1"><h3>{pin.widget.title || t(`simulation.studio.metric.${pin.widget.metric}`)}</h3><p>{pin.widget.metric.startsWith("activity") ? name : t("simulation.studio.globalScope")}</p></div>
       {onConfigure && <Button id={`configure-pin-${pin.widget.id}`} size="icon" variant="ghost" onClick={onConfigure} aria-label={t("simulation.studio.configure", { title: pin.widget.title || t(`simulation.studio.metric.${pin.widget.metric}`) })}><Settings2 aria-hidden className="size-4" /></Button>}

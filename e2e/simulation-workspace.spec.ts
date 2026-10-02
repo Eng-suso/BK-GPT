@@ -212,7 +212,7 @@ test("canvas analytics follow the shared clock, move with the keyboard and survi
   if (!isMobile) {
     await handle.scrollIntoViewIfNeeded();
     const box = (await handle.boundingBox())!;
-    const scale = await widget.evaluate(el => el.getBoundingClientRect().width / (el as HTMLElement).offsetWidth);
+    const scale = await widget.evaluate(el => { const scene = el.closest(".sim-scene-object") as HTMLElement; return scene.getBoundingClientRect().width / scene.offsetWidth; });
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 - 40, { steps: 5 });
