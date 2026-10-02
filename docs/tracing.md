@@ -43,7 +43,7 @@ nessuno.
 `tests/conftest.py` spegne il tracing **prima** di importare `backend.settings`.
 Deve stare lì e non in una fixture: l'import è quello che accende tutto.
 
-Un test in `tests/test_no_live_llm_by_default.py` protegge l'invariante, così
+Un test in `tests/llm/test_no_live_llm_by_default.py` protegge l'invariante, così
 non torna in silenzio come la prima volta.
 
 Al posto di LangSmith scrive `backend/llm/local_tracer.py`: un JSONL sotto

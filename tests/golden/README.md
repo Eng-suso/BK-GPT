@@ -7,8 +7,8 @@ Due misure diverse, e la differenza e' il punto:
 
 | tratto | dove si misura | quando | puo' essere esatto? |
 | --- | --- | --- | --- |
-| piano → disegno (compilatore) | `tests/test_golden_graph_metrics.py` | ogni CI | si', e deve esserlo |
-| interviste → piano (estrattore LLM) | `tests/evals/test_golden_set.py` | job notturno, `DELIR_GOLDEN_EVAL=1` | no: si misura e si difende dalle regressioni |
+| piano → disegno (compilatore) | `tests/evals/l0_deterministic/test_golden_graph_metrics.py` | ogni CI | si', e deve esserlo |
+| interviste → piano (estrattore LLM) | `tests/evals/l1_golden/test_golden_set.py` | job notturno, `DELIR_GOLDEN_EVAL=1` | no: si misura e si difende dalle regressioni |
 
 ## Un caso
 
@@ -44,7 +44,7 @@ di contenuto), non con un modello: "verifico la richiesta" corrisponde a
    inventarla va fra i `forbidden`.
 3. Il piano ideale nella rappresentazione del contratto dell'estrattore:
    `main_success_path`, decisioni con `outcome_details`, `alternative_paths`.
-   `uv run pytest tests/test_golden_graph_metrics.py` deve dare 1.0 su tutte le
+   `uv run pytest tests/evals/l0_deterministic/test_golden_graph_metrics.py` deve dare 1.0 su tutte le
    metriche; se non ci arriva, o il piano e' sbagliato o il compilatore ha un
    limite, e va scritto in `compiler_known_gaps`.
 4. Un consulente rilegge `expected.json` contro le fonti e porta `status` a

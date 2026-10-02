@@ -39,7 +39,7 @@ from backend import workspace_database as wd  # noqa: E402
 from backend.agents.process_snapshot import build_process_snapshot  # noqa: E402
 from backend.workspace_services.bpmn_draft import generate_bpmn_draft  # noqa: E402
 
-from tests.test_process_canvas_handoff_e2e import (  # noqa: E402
+from tests.agents.test_process_canvas_handoff_e2e import (  # noqa: E402
     INTERVIEWS,
     OPEN_GAP,
     _bind_process_chat,
@@ -339,7 +339,7 @@ def test_the_drawing_shows_what_no_interview_said(empty_process):  # noqa: F811
     from backend.process_understanding import ProcessStep
     from backend.workspace_services.bpmn_provenance_marks import PROVENANCE_ATTRIBUTE
 
-    from tests.test_process_canvas_handoff_e2e import _supported_understanding
+    from tests.agents.test_process_canvas_handoff_e2e import _supported_understanding
 
     _save_interviews(empty_process)
     understanding = _supported_understanding()

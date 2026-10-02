@@ -1,6 +1,6 @@
 """Il loop di conformita' con il modello vero, sui casi del golden set.
 
-`tests/test_evidence_canvas_conformance_e2e.py` verifica l'harness con un
+`tests/conformance/test_evidence_canvas_conformance_e2e.py` verifica l'harness con un
 estrattore e un revisore finti. Qui gira la stessa catena con l'LLM vero, dallo
 stato che ha rotto il caso Esaote - un piano vuoto nato prima delle interviste -
 fino al canvas verificato:
@@ -10,7 +10,7 @@ fino al canvas verificato:
 
 Spento di default, perche' costa chiamate e non e' deterministico:
 
-    DELIR_AGENT_EVAL=1 uv run pytest tests/evals/test_conformance_eval.py -q -s
+    DELIR_AGENT_EVAL=1 uv run pytest tests/evals/l1_golden/test_conformance_eval.py -q -s
 
 Cosa fa fallire, senza tolleranza: un rilievo dei layer deterministici. Canvas
 diverso dal piano, piano non corrente, documento di review diverso dal piano
@@ -48,7 +48,7 @@ pytestmark = [
     ),
 ]
 
-GOLDEN = Path(__file__).resolve().parents[1] / "golden"
+GOLDEN = Path(__file__).resolve().parents[2] / "golden"
 REPORTS = GOLDEN / "reports"
 DETERMINISTIC_LAYERS = {"plan_currency", "canvas_plan", "review_plan"}
 

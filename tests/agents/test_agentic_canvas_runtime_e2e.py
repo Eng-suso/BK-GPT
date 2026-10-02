@@ -77,7 +77,7 @@ from backend.workspace_services.write_verification import (  # noqa: E402
 
 # Le stesse tre voci degli altri test sull'evidenza: qui si verifica che
 # arrivino fino al disegno.
-from tests.test_process_canvas_handoff_e2e import (  # noqa: E402
+from tests.agents.test_process_canvas_handoff_e2e import (  # noqa: E402
     INTERVIEWS,
     OPEN_GAP,
     _save_interviews,
@@ -296,7 +296,7 @@ def test_a_new_source_makes_the_plan_stale_and_it_is_rebuilt(
     ensure_process_plan(interviewed_process["process_id"])
     from backend.toolsets.process_memory import manage_process_evidence
 
-    from tests.test_process_canvas_handoff_e2e import _bind_process_chat
+    from tests.agents.test_process_canvas_handoff_e2e import _bind_process_chat
 
     with _bind_process_chat(
         interviewed_process["project_id"], interviewed_process["process_id"]

@@ -979,7 +979,7 @@ def update_workspace_process(
     readiness: int | None = None,
 ) -> str:
     # NB: docstring = prompt, non documentazione Python. Vedi
-    # `tests/test_tool_descriptions.py`.
+    # `tests/agents/test_tool_descriptions.py`.
     """
     Update an existing process record: name, stage, status, owner, readiness.
     Declare only the fields that change; an undeclared field keeps its value.

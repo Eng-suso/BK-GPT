@@ -183,7 +183,7 @@ def create_project_process(
     # l'agente decide se chiamarlo e cosa non fare dopo averlo chiamato.
     # Riscriverlo in formato `Args:/Returns:/Raises:` toglie le istruzioni di
     # comportamento e aggiunge tipi che il modello ha gia' nello schema.
-    # `tests/test_project_chat_boundaries.py` pinna le due promesse che contano.
+    # `tests/agents/test_project_chat_boundaries.py` pinna le due promesse che contano.
     """
     Register a process inside the current project. Use whenever the consultant
     says to add, create or register a process here - this is project workspace

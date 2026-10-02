@@ -12,7 +12,7 @@ e' vera:
    e qui si verifica che lo sia.
 
 Il tratto che non puo' esserlo - dalle interviste al piano - si misura con l'LLM
-vero in `tests/evals/test_golden_set.py`, spento di default.
+vero in `tests/evals/l1_golden/test_golden_set.py`, spento di default.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ from tests.evals.graph_metrics import (
     regressions,
 )
 
-GOLDEN = Path(__file__).parent / "golden"
+GOLDEN = Path(__file__).resolve().parents[2] / "golden"
 
 
 def _case(**overrides) -> ReferenceCase:

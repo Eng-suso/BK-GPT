@@ -23,7 +23,7 @@ from pathlib import Path
 
 from backend.memory import provenance
 
-FIXTURES = Path(__file__).parent / "fixtures" / "interviews"
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "interviews"
 
 
 def _source(name: str) -> str:

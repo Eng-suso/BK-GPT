@@ -61,7 +61,7 @@ Il default e' invertito. Ora:
   client vero, e i successivi chiamavano il provider malgrado i settings.
 - `backend/llm_config.py::MissingProviderKey` — costruire un client senza chiave
   e' un errore di configurazione dichiarato, non una chiamata che parte.
-- `tests/test_no_live_llm_by_default.py` — 5 test che verificano il meccanismo.
+- `tests/llm/test_no_live_llm_by_default.py` — 5 test che verificano il meccanismo.
   **4 passed, 1 skipped** (lo skip e' corretto: e' il test `live_llm`).
 - La vecchia fixture `mock_env` e' stata rimossa: nessuno la usava, e non
   funzionava comunque (`settings` e' costruito all'import, cambiare le env var
@@ -158,7 +158,7 @@ tenant e scope ci sono - e si adotta nel thread dell'agente, che e' dove il lavo
 succede.
 
 ~~**Buco dichiarato:** il turno di chat non ha un test di integrazione.~~ Chiuso
-con `tests/test_llm_spend_e2e.py`: si chiama `stream_agent_events` vera, con
+con `tests/llm/test_llm_spend_e2e.py`: si chiama `stream_agent_events` vera, con
 l'agente sostituito da un doppio che chiede un compito al gateway, e si guarda
 se la riga compare nel registro con `operation_kind = chat_turn`. Se l'aggancio
 fra la richiesta e il thread si rompe, quel test diventa rosso.
@@ -375,7 +375,7 @@ E' P0.5, che era gia' in attesa, e lo script se lo spegne da solo.
 
 ### Quello che l'e2e ha trovato, e che nessun test unitario poteva trovare
 
-`tests/test_llm_spend_e2e.py` fa il percorso vero - coda, worker, embedding,
+`tests/llm/test_llm_spend_e2e.py` fa il percorso vero - coda, worker, embedding,
 registro su Postgres - e finge **solo il confine di rete**. Ha trovato subito un
 difetto che tutti i doppi nascondevano: **il registro aveva due spazi di id
 nella stessa colonna.** La chat e la sintesi del piano scrivono `project_id`
@@ -401,7 +401,7 @@ chiudersi prima di t.3, e non era ovvio nell'ordine scritto ieri.
 Il pacchetto e' `backend/llm/`: `operation.py`, `tasks.py`, `prices.py`,
 `usage.py`, `gateway.py`, `chat_client.py`. `backend/llm_config.py` resta il posto della policy sui
 parametri del client e il gateway lo usa — non l'ha sostituito. 36 test in
-`tests/test_llm_gateway.py`, ruff e mypy verdi (`backend/llm` e' entrato sotto
+`tests/llm/test_llm_gateway.py`, ruff e mypy verdi (`backend/llm` e' entrato sotto
 mypy).
 
 ~~**Finche' P1.5 non e' fatto, il gateway non misura niente in produzione.**~~
@@ -610,7 +610,7 @@ non da prima.
 **Il retry sul timeout per fonte resta.** Il piano (P0) dice «niente retry su
 timeout per le estrazioni lunghe». Non e' stato applicato, e la ragione va
 scritta perche' e' una divergenza voluta:
-`tests/test_plan_extraction_per_source.py::test_a_source_that_times_out_once_is_read_again`
+`tests/plan/test_plan_extraction_per_source.py::test_a_source_that_times_out_once_is_read_again`
 cita il caso Esaote — un timeout sull'intervista di Francesca, il piano nato su
 due voci su tre e dichiarato costruito. Cancellare quel retry regredisce un
 incidente reale coperto da un test.
@@ -824,7 +824,7 @@ Get-Process python | Select-Object Id, CPU, StartTime
 eval vogliono anche il loro flag:
 
 ```
-DELIR_LIVE_LLM=1 DELIR_GOLDEN_EVAL=1 uv run pytest tests/evals/test_golden_set.py -q -s
+DELIR_LIVE_LLM=1 DELIR_GOLDEN_EVAL=1 uv run pytest tests/evals/l1_golden/test_golden_set.py -q -s
 ```
 
 Un test nuovo che chiama il provider ha bisogno di due cose, e servono entrambe:

@@ -2,7 +2,7 @@
 
 Writes `frontend/src/contracts/backend-contract.generated.json`: for every
 response model the frontend consumes, the required field list and a one-token
-type per property. `tests/test_api_contract.py` regenerates this in memory and
+type per property. `tests/server/test_api_contract.py` regenerates this in memory and
 fails if the committed file is stale; `frontend/src/contracts/*.contract.test.ts`
 checks the zod schemas against it.
 

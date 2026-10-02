@@ -163,5 +163,5 @@ nella pratica.
 | registro per i prompt | `backend/agents/evidence_brief.py` (`turn_evidence_ledger`, `render_ledger_lines`, `evidence_prompt_block`) — una resa sola, letta dal prompt di scope, dal router e dalla risposta |
 | risposta | `backend/graphs/process/graph.py` (`build_process_report`) |
 | migrazioni | `migrations/versions/0015_claim_provenance.py`, `0016_claim_assertion_qualifiers.py` |
-| test | `tests/test_evidence_provenance.py`, `tests/test_evidence_composition.py`, `tests/test_answer_composition.py`, `tests/test_process_evidence_provenance_e2e.py`, `tests/test_process_evidence_to_plan.py` |
+| test | `tests/evals/l0_deterministic/test_evidence_provenance.py`, `tests/evidence/test_evidence_composition.py`, `tests/agents/test_answer_composition.py`, `tests/evidence/test_process_evidence_provenance_e2e.py`, `tests/evidence/test_process_evidence_to_plan.py` |
 | fonte leggibile per intero | `backend/workspace_services/source_document.py`, `frontend/src/features/projects/components/SourcesPanel.tsx` |

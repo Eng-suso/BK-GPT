@@ -36,7 +36,7 @@ from backend.security import get_current_tenant_id  # noqa: E402
 from backend.workers import plan_worker  # noqa: E402
 from backend.workspace_services.bpmn_draft import generate_bpmn_draft  # noqa: E402
 
-from tests.test_process_canvas_handoff_e2e import (  # noqa: E402
+from tests.agents.test_process_canvas_handoff_e2e import (  # noqa: E402
     _bind_process_chat,
     _prepare_plan,
     _save_interviews,
