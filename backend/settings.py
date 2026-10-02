@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -168,7 +169,12 @@ class Settings(BaseSettings):
     # chat ne occupa un posto per tutta la sua durata (fino a
     # `agent_run_deadline_seconds`). Il numero va scelto guardando quanti turni
     # lenti si vogliono reggere insieme, non lasciato al caso.
-    api_worker_threads: int = 64
+    # La variabile documentata e' DELIR_API_WORKER_THREADS; il nome del campo
+    # resta accettato per chi l'aveva gia' messo nel `.env`.
+    api_worker_threads: int = Field(
+        default=64,
+        validation_alias=AliasChoices("DELIR_API_WORKER_THREADS", "API_WORKER_THREADS"),
+    )
 
     # Dove sta girando questo processo: `dev` (la macchina di chi sviluppa),
     # `staging` o `prod`. Non cambia nessun comportamento da solo - decide
