@@ -62,3 +62,23 @@ def test_xlsx_resolves_shared_string_indexes_into_cell_values():
     parsed = parse_source_file("registro.xlsx", _workbook("Ordine approvato"), None)
     assert "A=Ordine approvato" in parsed.text
     assert "A=0" not in parsed.text
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("Procedura_Acquisti_v3.pdf", ["process_evidence", "policy"]),
+        ("ISO 9001 manuale qualita.docx", ["process_evidence", "policy"]),
+        ("Verbale riunione COO.docx", ["process_evidence"]),
+        ("intervista-paola-rinaldi.md", ["process_evidence"]),
+        ("ordini_2026.xlsx", ["operational_data"]),
+        ("eventi.csv", ["operational_data"]),
+        ("presentazione.pptx", None),
+        ("decisione steering.docx", None),
+    ],
+)
+def test_a_role_is_proposed_from_the_name_and_the_format(name: str, expected: list[str] | None):
+    from backend.workspace_services.source_ingestion import suggest_roles
+
+    assert suggest_roles(name) == expected
+

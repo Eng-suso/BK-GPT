@@ -1,8 +1,9 @@
 {
+  "schema_version": 2,
   "case_id": "esaote_ciclo_passivo",
   "status": "draft_da_validare",
   "process_name": "Gestione acquisto materiali indiretti e servizi",
-  "notes": "Riferimento scritto dalle tre interviste in sources/. Da far validare a un consulente prima di usarlo come gate: finche' status e' draft_da_validare il job notturno lo misura ma non fallisce su di lui.",
+  "notes": "Riferimento scritto dalle tre interviste in sources/. Da far validare a un consulente prima di usarlo come gate: finche' status e' draft_da_validare il job notturno lo misura ma non fallisce su di lui. Nessun conflitto fra le voci: dove una non sa (chi regolarizza un ordine urgente, chi autorizza), un'altra lo dice o il caso lo tiene come lacuna aperta.",
   "sources": [
     "a1_laura_conti_ufficio_tecnico.md",
     "a2_paolo_marchetti_manutenzione.md",
@@ -342,6 +343,260 @@
         "delega autorizzazione"
       ],
       "why": "nessun sostituto formale esiste secondo Francesca: disegnarlo chiude una lacuna inventando"
+    }
+  ],
+  "exception_paths": [
+    {
+      "id": "urgenza_linea_ferma",
+      "activities": [
+        "chiama_fornitore_diretto",
+        "invia_riferimento_ordine_urgente",
+        "regolarizza_ordine",
+        "gestione_contabile_fattura"
+      ],
+      "why": "con la linea ferma la manutenzione ordina direttamente e la pratica si ricostruisce dopo"
+    },
+    {
+      "id": "richiesta_da_integrare",
+      "activities": [
+        "richiedi_integrazione",
+        "ricostruisci_richiesta"
+      ],
+      "why": "una richiesta non lavorabile torna indietro per essere completata: piu' della meta' delle volte, secondo Francesca"
+    },
+    {
+      "id": "spesa_da_autorizzare",
+      "activities": [
+        "richiedi_autorizzazione",
+        "autorizza_spesa"
+      ],
+      "why": "sopra una certa cifra serve l'autorizzazione del responsabile"
+    }
+  ],
+  "expected_claims": [
+    {
+      "id": "canale_unico",
+      "text": "Gli Acquisti accettano richieste solo dall'Ufficio Tecnico; e' una regola informale, non scritta",
+      "aliases": [
+        "canale unico",
+        "richieste solo da ufficio tecnico",
+        "regola informale del canale"
+      ],
+      "evidence": [
+        {
+          "source": "a3_francesca_neri_acquisti.md",
+          "quote": "Quindi la regola informale e' che il canale e' uno solo, ma e' una regola nostra, non e' scritta da nessuna parte."
+        },
+        {
+          "source": "a2_paolo_marchetti_manutenzione.md",
+          "quote": "mi hanno rimandato indietro dicendo che dovevo passare dall'Ufficio Tecnico"
+        }
+      ]
+    },
+    {
+      "id": "nessun_codice_indiretti",
+      "text": "I materiali indiretti non hanno un codice interno univoco",
+      "aliases": [
+        "codice interno univoco",
+        "materiali indiretti senza codice",
+        "manca codice materiale"
+      ],
+      "evidence": [
+        {
+          "source": "a1_laura_conti_ufficio_tecnico.md",
+          "quote": "Noi non abbiamo un codice interno univoco per i materiali indiretti."
+        },
+        {
+          "source": "a3_francesca_neri_acquisti.md",
+          "quote": "Le richieste sui materiali di produzione sono pulite perche' hanno un codice a sistema. Gli indiretti no"
+        }
+      ]
+    },
+    {
+      "id": "nessun_sostituto_autorizzazione",
+      "text": "Non esiste un sostituto formale di chi autorizza: se il responsabile non risponde la pratica resta ferma",
+      "aliases": [
+        "nessun sostituto formale",
+        "pratica resta ferma",
+        "manca sostituto autorizzazione"
+      ],
+      "evidence": [
+        {
+          "source": "a3_francesca_neri_acquisti.md",
+          "quote": "Non c'e' un sostituto formale, quindi se non risponde la pratica resta ferma."
+        }
+      ]
+    },
+    {
+      "id": "richiedente_senza_visibilita",
+      "text": "Chi fa la richiesta non sa a che punto e': nessuna conferma, nessun aggiornamento",
+      "aliases": [
+        "visibilita sullo stato della richiesta",
+        "richiedente non conosce stato",
+        "nessun aggiornamento al richiedente"
+      ],
+      "evidence": [
+        {
+          "source": "a2_paolo_marchetti_manutenzione.md",
+          "quote": "Non ricevo una conferma che la richiesta e' stata presa in carico, non ricevo una data prevista."
+        },
+        {
+          "source": "a3_francesca_neri_acquisti.md",
+          "quote": "Io non mando aggiornamenti, se non quando qualcuno me li chiede."
+        }
+      ]
+    },
+    {
+      "id": "urgenze_non_agganciate",
+      "text": "Un acquisto urgente non e' agganciato a una richiesta iniziale",
+      "aliases": [
+        "urgenze non tracciate",
+        "acquisto urgente senza richiesta",
+        "non agganciato alla richiesta iniziale"
+      ],
+      "evidence": [
+        {
+          "source": "a2_paolo_marchetti_manutenzione.md",
+          "quote": "non e' agganciata alla richiesta iniziale, perche' la richiesta iniziale non c'e' mai stata."
+        }
+      ]
+    },
+    {
+      "id": "fornitori_da_lista_personale",
+      "text": "I fornitori ricorrenti vengono da una lista personale di Francesca, non da un albo formale",
+      "aliases": [
+        "lista personale fornitori",
+        "lista fornitori costruita nel tempo"
+      ],
+      "evidence": [
+        {
+          "source": "a3_francesca_neri_acquisti.md",
+          "quote": "Non e' un albo formale, e' una lista mia costruita nel tempo."
+        }
+      ]
+    }
+  ],
+  "expected_conflicts": [],
+  "expected_evidence_bindings": [
+    {
+      "element": "rileva_fabbisogno",
+      "source": "a2_paolo_marchetti_manutenzione.md",
+      "quote": "Se durante il giro vedo che manca qualcosa, o che un componente e' da sostituire prima che diventi un problema, me lo segno."
+    },
+    {
+      "element": "rileva_fabbisogno",
+      "source": "a1_laura_conti_ufficio_tecnico.md",
+      "quote": "Un capoturno vede che sta finendo il materiale di consumo"
+    },
+    {
+      "element": "invia_richiesta_ufficio_tecnico",
+      "source": "a2_paolo_marchetti_manutenzione.md",
+      "quote": "Mail. Sempre mail, a Laura."
+    },
+    {
+      "element": "invia_richiesta_ufficio_tecnico",
+      "source": "a1_laura_conti_ufficio_tecnico.md",
+      "quote": "Poi la richiesta arriva a me, e arriva in tre modi diversi a seconda di chi la manda."
+    },
+    {
+      "element": "ricostruisci_richiesta",
+      "source": "a1_laura_conti_ufficio_tecnico.md",
+      "quote": "La prima cosa che faccio e' capire se ho abbastanza informazioni per portarla avanti."
+    },
+    {
+      "element": "ricostruisci_richiesta",
+      "source": "a1_laura_conti_ufficio_tecnico.md",
+      "quote": "Quindi comincia il giro di telefonate."
+    },
+    {
+      "element": "invia_richiesta_acquisti",
+      "source": "a1_laura_conti_ufficio_tecnico.md",
+      "quote": "La passo ad Acquisti. Gli mando una mail con quello che sono riuscita a mettere insieme"
+    },
+    {
+      "element": "verifica_lavorabilita",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Leggo e verifico se e' lavorabile."
+    },
+    {
+      "element": "richiedi_integrazione",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Se manca qualcosa richiedo, e questo e' il grosso del mio lavoro sugli indiretti: rimbalzare indietro le richieste per completarle."
+    },
+    {
+      "element": "richiedi_autorizzazione",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile"
+    },
+    {
+      "element": "autorizza_spesa",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "e' una mail che mando e una risposta che aspetto."
+    },
+    {
+      "element": "seleziona_fornitore",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Per le cose ricorrenti ho una lista di nomi con cui lavoriamo da tempo e a cui mi rivolgo per prima."
+    },
+    {
+      "element": "seleziona_fornitore",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Per le cose nuove chiedo delle quotazioni in giro e confronto."
+    },
+    {
+      "element": "emetti_ordine",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Per le cose piccole e ricorrenti ho margine per procedere da sola: emetto l'ordine e via."
+    },
+    {
+      "element": "ricevi_merce",
+      "source": "a2_paolo_marchetti_manutenzione.md",
+      "quote": "Arriva al magazzino e di solito mi avvisa il magazziniere, oppure me ne accorgo perche' passo di li'."
+    },
+    {
+      "element": "verifica_merce",
+      "source": "a2_paolo_marchetti_manutenzione.md",
+      "quote": "Apro la scatola e guardo se e' il pezzo giusto."
+    },
+    {
+      "element": "chiama_fornitore_diretto",
+      "source": "a2_paolo_marchetti_manutenzione.md",
+      "quote": "Se ho una linea ferma non posso permettermi di aspettare il giro normale, quindi chiamo direttamente il fornitore, mi faccio mandare il pezzo e poi la parte amministrativa viene sistemata dopo."
+    },
+    {
+      "element": "invia_riferimento_ordine_urgente",
+      "source": "a2_paolo_marchetti_manutenzione.md",
+      "quote": "Io mando la mail con quello che ho ordinato e il numero di riferimento che mi ha dato il fornitore"
+    },
+    {
+      "element": "regolarizza_ordine",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "A quel punto io devo ricostruire la pratica a posteriori: aprire l'ordine, agganciarlo al fornitore, sistemare la parte contabile."
+    },
+    {
+      "element": "regolarizza_ordine",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "La parte di ordine si', la faccio io."
+    },
+    {
+      "element": "gestione_contabile_fattura",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "La parte contabile la fa Amministrazione, ma per farla loro hanno bisogno che io abbia aperto l'ordine."
+    },
+    {
+      "element": "richiesta_lavorabile",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Lavorabile vuol dire che capisco cosa devo comprare e da chi posso comprarlo."
+    },
+    {
+      "element": "serve_autorizzazione",
+      "source": "a3_francesca_neri_acquisti.md",
+      "quote": "Dipende dall'importo e dal tipo di acquisto."
+    },
+    {
+      "element": "urgenza_linea_ferma",
+      "source": "a1_laura_conti_ufficio_tecnico.md",
+      "quote": "Si', quando c'e' una urgenza vera, tipo che la linea e' ferma."
     }
   ]
 }

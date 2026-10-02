@@ -1,3 +1,4 @@
+import json
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
@@ -48,6 +49,9 @@ class ChatMessage(Base):
     role: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
+    # Cosa e' partito con il messaggio: tipo, id, etichetta. Il contenuto resta
+    # nella fonte; qui quanto basta per mostrarlo nella conversazione.
+    attachments_json: Mapped[str | None] = mapped_column(Text)
 
     session: Mapped[ChatSession] = relationship(back_populates="messages")
 
@@ -331,6 +335,7 @@ def append_chat_message(
     process_id: str | None = None,
     bpmn_model_id: str | None = None,
     scope_key: str | None = None,
+    attachments: list[dict] | None = None,
 ) -> None:
     now = utc_now()
     tenant_id = get_current_tenant_id()
@@ -371,6 +376,7 @@ def append_chat_message(
                 role=role,
                 content=normalized_content,
                 created_at=now,
+                attachments_json=_attachments_json(attachments),
             )
         )
 
@@ -386,12 +392,26 @@ def append_chat_message(
             chat_session.updated_at = now
 
 
+def _attachments_json(attachments: list[dict] | None) -> str | None:
+    shown = [
+        {"kind": str(item.get("kind")), "id": str(item.get("id")), "label": str(item.get("label", ""))}
+        for item in attachments or []
+        if item.get("kind") and item.get("id")
+    ]
+    return json.dumps(shown, ensure_ascii=False) if shown else None
+
+
 def message_to_dict(message: ChatMessage) -> dict:
+    try:
+        attachments = json.loads(message.attachments_json or "[]")
+    except ValueError:
+        attachments = []
     return {
         "id": message.id,
         "role": message.role,
         "content": message.content,
         "created_at": message.created_at,
+        "attachments": attachments if isinstance(attachments, list) else [],
     }
 
 

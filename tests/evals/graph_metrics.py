@@ -17,6 +17,8 @@ qualunque processo:
 | gateway - recall | le decisioni del riferimento diventano punti di decisione? |
 | flussi - recall | l'ordine del riferimento si ritrova nel grafo prodotto? |
 | flussi - precision | l'ordine che il modello disegna e' quello del riferimento? |
+| handoff - recall | i passaggi di mano del riferimento restano passaggi fra corsie diverse? |
+| eccezioni - recall | i percorsi fuori dal flusso normale (urgenze, rientri) ci sono interi? |
 | violazioni | elementi che il riferimento dichiara **vietati**: cio' che le fonti non dicono e un modello tende a inventare |
 | lacune | domande che il riferimento dichiara aperte: il modello non deve chiuderle disegnando |
 
@@ -201,6 +203,57 @@ class ReferenceActivity:
 
 
 @dataclass(frozen=True)
+class EvidenceQuote:
+    """Un passo di una fonte, citato alla lettera: il test L0 lo cerca nel file."""
+
+    source: str
+    quote: str
+
+
+@dataclass(frozen=True)
+class EvidenceBinding:
+    """Dove le fonti dicono che un'attivita' o una decisione esiste."""
+
+    element: str
+    source: str
+    quote: str
+
+
+@dataclass(frozen=True)
+class ExceptionPath:
+    """Un percorso fuori dal flusso normale (urgenza, rientro, rifiuto)."""
+
+    id: str
+    activities: list[str]
+    why: str = ""
+
+
+@dataclass(frozen=True)
+class ExpectedClaim:
+    """Un fatto su cui il processo poggia, e che un buon piano riporta."""
+
+    id: str
+    text: str
+    aliases: list[str]
+    evidence: list[EvidenceQuote]
+
+
+@dataclass(frozen=True)
+class ExpectedConflict:
+    """Due fonti che dicono cose diverse: il piano deve dirlo, non scegliere in silenzio."""
+
+    id: str
+    about: str
+    positions: list[EvidenceQuote]
+    detected_by_aliases: list[str]
+    why: str = ""
+
+
+def _quote(item: dict[str, Any]) -> EvidenceQuote:
+    return EvidenceQuote(source=item["source"], quote=item["quote"])
+
+
+@dataclass(frozen=True)
 class ReferenceCase:
     case_id: str
     status: str
@@ -218,6 +271,24 @@ class ReferenceCase:
     # la lista non e' vuota, e fallisce anche quando il compilatore migliora e la
     # lista resta scritta - cosi' non diventa una scusa permanente.
     compiler_known_gaps: list[str] = field(default_factory=list)
+    # Contratto v2: cio' che il riferimento sa oltre al disegno. Facoltativo per
+    # un caso v1; un caso v2 deve legare ogni attivita' e decisione obbligatoria
+    # a un passo delle fonti (lo verifica il test L0 del contratto).
+    schema_version: int = 1
+    exception_paths: list[ExceptionPath] = field(default_factory=list)
+    expected_claims: list[ExpectedClaim] = field(default_factory=list)
+    expected_conflicts: list[ExpectedConflict] = field(default_factory=list)
+    evidence_bindings: list[EvidenceBinding] = field(default_factory=list)
+
+    @property
+    def handoffs(self) -> list[tuple[str, str]]:
+        """Gli archi del riferimento che passano il lavoro a un'altra corsia."""
+        lane_of = {item.id: item.lane for item in self.activities}
+        return [
+            (source, target)
+            for source, target in self.edges
+            if lane_of.get(source) and lane_of.get(target) and lane_of[source] != lane_of[target]
+        ]
 
     @classmethod
     def load(cls, folder: Path) -> "ReferenceCase":
@@ -236,6 +307,55 @@ class ReferenceCase:
             # riferimento rotto: fallire qui evita metriche calcolate su un refuso.
             if source not in activity_ids or target not in activity_ids:
                 raise ValueError(f"{folder.name}: arco su attivita' non dichiarata {source}->{target}")
+        element_ids = activity_ids | {item["id"] for item in data.get("gateways") or []}
+        source_names = set(data["sources"])
+        exception_paths = [
+            ExceptionPath(id=item["id"], activities=list(item["activities"]), why=item.get("why", ""))
+            for item in data.get("exception_paths") or []
+        ]
+        for path in exception_paths:
+            unknown = [ref for ref in path.activities if ref not in activity_ids]
+            if unknown:
+                raise ValueError(f"{folder.name}: percorso {path.id} su attivita' non dichiarata {unknown}")
+        claims = [
+            ExpectedClaim(
+                id=item["id"],
+                text=item["text"],
+                aliases=list(item["aliases"]),
+                evidence=[_quote(quote) for quote in item["evidence"]],
+            )
+            for item in data.get("expected_claims") or []
+        ]
+        conflicts = [
+            ExpectedConflict(
+                id=item["id"],
+                about=item["about"],
+                positions=[_quote(quote) for quote in item["positions"]],
+                detected_by_aliases=list(item["detected_by_aliases"]),
+                why=item.get("why", ""),
+            )
+            for item in data.get("expected_conflicts") or []
+        ]
+        for conflict in conflicts:
+            # Un conflitto e' fra fonti: due frasi della stessa persona sono
+            # un'incoerenza da chiarire con lei, non un disaccordo da riportare.
+            if len({position.source for position in conflict.positions}) < 2:
+                raise ValueError(f"{folder.name}: il conflitto {conflict.id} non mette a confronto due fonti")
+        bindings = [
+            EvidenceBinding(element=item["element"], source=item["source"], quote=item["quote"])
+            for item in data.get("expected_evidence_bindings") or []
+        ]
+        for binding in bindings:
+            if binding.element not in element_ids:
+                raise ValueError(f"{folder.name}: evidenza legata a un elemento non dichiarato {binding.element}")
+        quoted = [
+            *(binding.source for binding in bindings),
+            *(quote.source for claim in claims for quote in claim.evidence),
+            *(quote.source for conflict in conflicts for quote in conflict.positions),
+        ]
+        for name in quoted:
+            if name not in source_names:
+                raise ValueError(f"{folder.name}: citazione da una fonte non dichiarata {name}")
         return cls(
             case_id=data["case_id"],
             status=data.get("status", "draft"),
@@ -257,6 +377,11 @@ class ReferenceCase:
             open_gaps=list(data.get("open_gaps") or []),
             root=folder,
             compiler_known_gaps=list(data.get("compiler_known_gaps") or []),
+            schema_version=int(data.get("schema_version", 1)),
+            exception_paths=exception_paths,
+            expected_claims=claims,
+            expected_conflicts=conflicts,
+            evidence_bindings=bindings,
         )
 
     def source_texts(self) -> list[dict[str, str]]:
@@ -299,6 +424,8 @@ class GraphMetrics:
     gateway_recall: float
     edge_precision: float
     edge_recall: float
+    handoff_recall: float = 1.0
+    exception_recall: float = 1.0
     forbidden_hits: list[str] = field(default_factory=list)
     gap_violations: list[str] = field(default_factory=list)
     matches: dict[str, str] = field(default_factory=dict)
@@ -319,6 +446,8 @@ class GraphMetrics:
             "gateway_recall": self.gateway_recall,
             "edge_precision": self.edge_precision,
             "edge_recall": self.edge_recall,
+            "handoff_recall": self.handoff_recall,
+            "exception_recall": self.exception_recall,
             "honest": self.honest,
             "forbidden_hits": self.forbidden_hits,
             "gap_violations": self.gap_violations,
@@ -405,6 +534,29 @@ def compare(graph: ProducedGraph, case: ReferenceCase) -> GraphMetrics:
         len(produced_edges),
     )
 
+    # Un handoff regge se l'ordine c'e' e il lavoro cambia davvero corsia: due
+    # attivita' giuste nella stessa corsia cancellano il passaggio di mano, che
+    # e' proprio dove un AS-IS perde tempo e informazioni.
+    handoffs = [(a, b) for a, b in case.handoffs if a in matches and b in matches]
+    handoff_recall = _ratio(
+        sum(
+            1
+            for a, b in handoffs
+            if matches[b] in graph.next_activities(matches[a])
+            and graph.nodes[matches[a]].lane != graph.nodes[matches[b]].lane
+        ),
+        len(handoffs),
+    )
+    required_ids = {item.id for item in required}
+    exception_recall = _ratio(
+        sum(
+            1
+            for path in case.exception_paths
+            if all(ref in matches for ref in path.activities if ref in required_ids)
+        ),
+        len(case.exception_paths),
+    )
+
     labels = [node.name for node in graph.nodes.values() if node.name]
     forbidden_hits = [
         f"{rule.get('why', 'vietato')}: «{label}»"
@@ -430,6 +582,8 @@ def compare(graph: ProducedGraph, case: ReferenceCase) -> GraphMetrics:
         gateway_recall=gateway_recall,
         edge_precision=edge_precision,
         edge_recall=edge_recall,
+        handoff_recall=handoff_recall,
+        exception_recall=exception_recall,
         forbidden_hits=forbidden_hits,
         gap_violations=gap_violations,
         matches=matches,
@@ -447,6 +601,11 @@ REGRESSION_METRICS = (
     "gateway_recall",
     "edge_precision",
     "edge_recall",
+    "handoff_recall",
+    "exception_recall",
+    "evidence_coverage",
+    "claim_recall",
+    "conflict_detection_rate",
 )
 
 
@@ -470,6 +629,109 @@ def regressions(
             f"({'; '.join([*current.get('forbidden_hits', []), *current.get('gap_violations', [])][:3])})"
         )
     return found
+
+
+# --- cio' che il piano sa, oltre al disegno -----------------------------------
+
+# Un'evidenza del piano e la citazione del riferimento sono due ritagli della
+# stessa frase, scelti da due mani diverse: basta che meta' delle radici della
+# citazione stiano nell'evidenza.
+EVIDENCE_MATCH_THRESHOLD = 0.5
+
+# Campi che non sono affermazioni del piano: identificativi, e le evidenze
+# stesse - un claim "ritrovato" solo perche' il piano ha copiato la frase della
+# fonte non e' un claim che il piano afferma.
+_NOT_A_STATEMENT = re.compile(r"(^id$|_ids?$|^source_evidence$|^source_ref$)")
+
+
+def _statements(value: Any, key: str = "") -> list[str]:
+    if _NOT_A_STATEMENT.search(key):
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [text for child_key, child in value.items() for text in _statements(child, child_key)]
+    if isinstance(value, list):
+        return [text for child in value for text in _statements(child, key)]
+    return []
+
+
+def _matches_any(texts: list[str], aliases: list[str]) -> bool:
+    return any(label_score(text, aliases) >= LABEL_MATCH_THRESHOLD for text in texts)
+
+
+def knowledge_metrics(plan: dict[str, Any], case: ReferenceCase) -> dict[str, Any]:
+    """Quanto il piano sa del processo, oltre a quanto lo disegna bene.
+
+    | metrica | cosa misura |
+    | --- | --- |
+    | evidence_coverage | gli elementi legati a una fonte nel riferimento hanno, nel piano, un'evidenza che cita quel passo |
+    | claim_recall | i fatti su cui il processo poggia sono affermati nel piano |
+    | conflict_detection_rate | i disaccordi fra fonti emergono come rilievo, domanda o assunzione, invece di essere risolti in silenzio |
+
+    Un caso senza legami, claim o conflitti da' 1.0 sulla metrica relativa:
+    non c'e' niente da mancare.
+    """
+    steps = [
+        ProducedNode(id=str(item.get("id")), tag="task", name=str(item.get("label") or ""))
+        for item in plan.get("steps") or []
+    ]
+    evidence_of = {
+        str(item.get("id")): list(item.get("source_evidence") or [])
+        for name in ("steps", "decisions")
+        for item in plan.get(name) or []
+    }
+    matched = _match_activities(steps, case.activities)
+    for gateway_id, aliases in case.gateways.items():
+        decision = next(
+            (
+                item
+                for item in plan.get("decisions") or []
+                if label_score(str(item.get("label") or ""), aliases) >= LABEL_MATCH_THRESHOLD
+            ),
+            None,
+        )
+        if decision is not None:
+            matched[gateway_id] = str(decision.get("id"))
+
+    quotes_by_element: dict[str, list[str]] = {}
+    for binding in case.evidence_bindings:
+        quotes_by_element.setdefault(binding.element, []).append(binding.quote)
+    covered = [
+        element
+        for element, quotes in quotes_by_element.items()
+        if element in matched
+        and any(
+            label_score(evidence, [quote]) >= EVIDENCE_MATCH_THRESHOLD
+            for evidence in evidence_of.get(matched[element], [])
+            for quote in quotes
+        )
+    ]
+
+    statements = _statements(plan)
+    recalled = [claim.id for claim in case.expected_claims if _matches_any(statements, claim.aliases)]
+
+    surfaced = _statements(
+        {
+            "findings": plan.get("consultant_findings") or [],
+            "unknowns": plan.get("unknowns") or [],
+            "assumptions": plan.get("assumptions") or [],
+        }
+    )
+    detected = [
+        conflict.id
+        for conflict in case.expected_conflicts
+        if _matches_any(surfaced, conflict.detected_by_aliases)
+    ]
+
+    return {
+        "evidence_coverage": _ratio(len(covered), len(quotes_by_element)),
+        "claim_recall": _ratio(len(recalled), len(case.expected_claims)),
+        "conflict_detection_rate": _ratio(len(detected), len(case.expected_conflicts)),
+        "uncovered_elements": sorted(set(quotes_by_element) - set(covered)),
+        "missed_claims": [claim.id for claim in case.expected_claims if claim.id not in recalled],
+        "missed_conflicts": [item.id for item in case.expected_conflicts if item.id not in detected],
+    }
 
 
 def plan_shape(plan: dict[str, Any]) -> dict[str, Any]:

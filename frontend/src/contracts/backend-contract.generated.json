@@ -150,6 +150,7 @@
         "roles": "enum:context|process_evidence|policy|operational_data[]",
         "scopes": "object[]",
         "status": "string",
+        "suggested_roles": "enum:context|process_evidence|policy|operational_data[]?",
         "type": "string"
       }
     },
@@ -318,6 +319,7 @@
         "role"
       ],
       "properties": {
+        "attachments": "ChatMessageAttachmentRecord[]",
         "content": "string",
         "created_at": "string?",
         "id": "integer?",

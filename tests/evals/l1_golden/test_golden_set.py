@@ -57,7 +57,13 @@ def test_the_extractor_maps_the_golden_case(case):
     from backend.agents.plan_provenance import verify_plan_provenance
     from backend.agents.process_synthesis import extract_plan_from_sources
     from backend.bpmn import build_bpmn_semantic_model, semantic_model_to_bpmn_xml
-    from tests.evals.graph_metrics import compare, parse_bpmn, plan_shape, regressions
+    from tests.evals.graph_metrics import (
+        compare,
+        knowledge_metrics,
+        parse_bpmn,
+        plan_shape,
+        regressions,
+    )
 
     sources = case.source_texts()
     # Lo stesso percorso della sintesi in produzione, consolidamento compreso:
@@ -76,14 +82,18 @@ def test_the_extractor_maps_the_golden_case(case):
     metrics = compare(parse_bpmn(semantic_model_to_bpmn_xml(model)), case)
     provenance = verify_plan_provenance(extraction.process, sources)
 
+    plan = extraction.process.model_dump(mode="json")
     report = {
         **metrics.as_dict(),
+        # Oltre al disegno: il piano cita le fonti, afferma i fatti, dice i
+        # disaccordi? Contratto v2 del riferimento (tests/golden/README.md).
+        **knowledge_metrics(plan, case),
         "status": case.status,
         "llm_calls": extraction.llm_calls,
         "extraction_failures": extraction.failures,
         "provenance": provenance.summary(),
         "compiler_warnings": model.model_warnings,
-        "plan": plan_shape(extraction.process.model_dump(mode="json")),
+        "plan": plan_shape(plan),
         "consolidation": (
             extraction.consolidation.as_log_entry() if extraction.consolidation else None
         ),

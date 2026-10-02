@@ -7,20 +7,25 @@ import {
   CircleHelp,
   Copy,
   DraftingCompass,
+  FileSpreadsheet,
   FileText,
   FolderOpen,
+  GitBranch,
   GitCompare,
   Hammer,
   History,
   Map,
+  Paperclip,
   PenLine,
   PencilRuler,
+  Presentation,
   RefreshCw,
   Route,
   Search,
   SearchCheck,
   Sparkles,
   TriangleAlert,
+  Workflow,
   Wrench,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -331,9 +336,32 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           </span>
         ) : null}
       </div>
+      {message.attachments && message.attachments.length > 0 ? (
+        <ul className="mb-1.5 flex flex-wrap justify-end gap-1.5" aria-label={t("attach.sentLabel")}>
+          {message.attachments.map((attachment) => (
+            <li key={`${attachment.kind}:${attachment.id}`} className="composer-chip">
+              <span className="composer-chip-icon">{attachmentIcon(attachment.kind, attachment.label)}</span>
+              <span className="composer-chip-label" title={attachment.label}>
+                {attachment.label}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="user-message-glass whitespace-pre-wrap px-3.5 py-2.5 text-sm leading-relaxed text-foreground">
         {message.content}
       </div>
     </div>
   );
 };
+
+/** L'icona di un allegato partito: per i file, dal tipo; per gli oggetti, dal genere. */
+function attachmentIcon(kind: string, label: string): React.ReactNode {
+  if (kind === "process") return <GitBranch aria-hidden="true" />;
+  if (kind === "simulation_run") return <Workflow aria-hidden="true" />;
+  if (kind === "note") return <Paperclip aria-hidden="true" />;
+  const extension = label.split(".").pop()?.toLowerCase() ?? "";
+  if (extension === "xlsx" || extension === "csv") return <FileSpreadsheet aria-hidden="true" />;
+  if (extension === "pptx") return <Presentation aria-hidden="true" />;
+  return <FileText aria-hidden="true" />;
+}

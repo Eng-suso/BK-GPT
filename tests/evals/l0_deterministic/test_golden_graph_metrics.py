@@ -114,7 +114,53 @@ def test_a_faithful_drawing_scores_full_marks():
     # passaggio di lavoro, e "viene dopo" lo attraversa.
     assert metrics.edge_recall == 1.0
     assert metrics.edge_precision == 1.0
+    assert metrics.handoff_recall == 1.0
+    assert metrics.exception_recall == 1.0
     assert metrics.honest
+
+
+def test_a_handoff_drawn_inside_one_lane_is_lost():
+    xml = _xml(
+        [
+            ("t1", "Apri la richiesta di acquisto", "Acquisti"),
+            ("t2", "Verifica la richiesta", "Acquisti"),
+            ("t3", "Emetti l'ordine al fornitore", "Acquisti"),
+        ],
+        [("S", "t1"), ("t1", "t2"), ("t2", "t3"), ("t3", "E")],
+    )
+
+    metrics = compare(parse_bpmn(xml), _case())
+
+    # L'ordine e' intero, ma il passaggio dall'Ufficio Tecnico agli Acquisti non
+    # c'e' piu': chi legge il disegno non vede dove il lavoro cambia mano.
+    assert metrics.edge_recall == 1.0
+    assert metrics.handoff_recall == 0.0
+
+
+def test_an_exception_path_counts_only_when_it_is_whole():
+    from tests.evals.graph_metrics import ExceptionPath
+
+    case = _case(
+        activities=[
+            *_case().activities,
+            ReferenceActivity(id="chiama_fornitore", aliases=["chiama fornitore"], lane="tecnico"),
+            ReferenceActivity(id="regolarizza_ordine", aliases=["regolarizza ordine"], lane="acquisti"),
+        ],
+        exception_paths=[
+            ExceptionPath(id="urgenza", activities=["chiama_fornitore", "regolarizza_ordine"]),
+        ],
+    )
+    half = _xml(
+        [
+            ("t1", "Apri la richiesta di acquisto", "Ufficio Tecnico"),
+            ("t2", "Verifica la richiesta", "Acquisti"),
+            ("t3", "Emetti l'ordine al fornitore", "Acquisti"),
+            ("t4", "Chiama il fornitore", "Ufficio Tecnico"),
+        ],
+        [("S", "t1"), ("t1", "t2"), ("t2", "t3"), ("t3", "E"), ("S", "t4")],
+    )
+
+    assert compare(parse_bpmn(half), case).exception_recall == 0.0
 
 
 def test_a_missing_activity_lowers_recall_not_precision():
@@ -257,6 +303,165 @@ def test_a_reference_edge_on_an_undeclared_activity_is_refused(tmp_path):
         ReferenceCase.load(folder)
 
 
+def _write_case(folder: Path, **extra) -> Path:
+    (folder / "sources").mkdir(parents=True)
+    data = {
+        "case_id": folder.name,
+        "process_name": "x",
+        "sources": ["a.md", "b.md"],
+        "activities": [{"id": "a", "aliases": ["a"]}],
+        "gateways": [{"id": "g", "aliases": ["g"]}],
+        **extra,
+    }
+    (folder / "expected.json").write_text(json.dumps(data), encoding="utf-8")
+    return folder
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        (
+            {"expected_evidence_bindings": [{"element": "z", "source": "a.md", "quote": "q"}]},
+            "elemento non dichiarato",
+        ),
+        (
+            {"expected_evidence_bindings": [{"element": "a", "source": "c.md", "quote": "q"}]},
+            "fonte non dichiarata",
+        ),
+        (
+            {
+                "expected_conflicts": [
+                    {
+                        "id": "c",
+                        "about": "chi chiude",
+                        "positions": [{"source": "a.md", "quote": "io"}, {"source": "a.md", "quote": "lui"}],
+                        "detected_by_aliases": ["chi chiude"],
+                    }
+                ]
+            },
+            "due fonti",
+        ),
+        ({"exception_paths": [{"id": "p", "activities": ["z"]}]}, "non dichiarata"),
+    ],
+    ids=["binding-elemento", "binding-fonte", "conflitto-una-fonte", "percorso-eccezione"],
+)
+def test_a_contract_v2_that_cites_what_it_does_not_declare_is_refused(tmp_path, extra, message):
+    with pytest.raises(ValueError, match=message):
+        ReferenceCase.load(_write_case(tmp_path / "rotto", schema_version=2, **extra))
+
+
+def test_handoffs_are_the_reference_edges_that_change_lane():
+    case = _case()
+
+    assert case.handoffs == [("apri_richiesta", "verifica_richiesta")]
+
+
+# --- cio' che il piano sa, oltre al disegno ---------------------------------
+
+
+def _knowing_case():
+    from tests.evals.graph_metrics import (
+        EvidenceBinding,
+        EvidenceQuote,
+        ExpectedClaim,
+        ExpectedConflict,
+    )
+
+    return _case(
+        evidence_bindings=[
+            EvidenceBinding(
+                element="verifica_richiesta",
+                source="a.md",
+                quote="leggo e verifico se la richiesta e' lavorabile",
+            )
+        ],
+        expected_claims=[
+            ExpectedClaim(
+                id="canale_unico",
+                text="Le richieste arrivano agli Acquisti solo dall'Ufficio Tecnico",
+                aliases=["canale unico", "solo ufficio tecnico"],
+                evidence=[],
+            )
+        ],
+        expected_conflicts=[
+            ExpectedConflict(
+                id="chi_chiude",
+                about="chi chiude la segnalazione",
+                positions=[],
+                detected_by_aliases=["chi chiude segnalazione"],
+            )
+        ],
+    )
+
+
+def _knowing_plan(**overrides) -> dict:
+    plan = {
+        "title": "Mini",
+        "steps": [
+            {"id": "s1", "label": "Apri la richiesta"},
+            {
+                "id": "s2",
+                "label": "Verifica la richiesta",
+                "source_evidence": ["Leggo e verifico se la richiesta e' lavorabile."],
+            },
+        ],
+        "business_rules": ["Canale unico: le richieste passano solo dall'Ufficio Tecnico"],
+        "consultant_findings": [
+            {"id": "f1", "finding": "Le fonti non concordano su chi chiude la segnalazione", "category": "actor"}
+        ],
+    }
+    plan.update(overrides)
+    return plan
+
+
+def test_a_plan_that_cites_states_and_flags_scores_full_marks():
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    metrics = knowledge_metrics(_knowing_plan(), _knowing_case())
+
+    assert metrics["evidence_coverage"] == 1.0
+    assert metrics["claim_recall"] == 1.0
+    assert metrics["conflict_detection_rate"] == 1.0
+
+
+def test_a_plan_that_settles_a_conflict_in_silence_does_not_detect_it():
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    metrics = knowledge_metrics(_knowing_plan(consultant_findings=[]), _knowing_case())
+
+    assert metrics["conflict_detection_rate"] == 0.0
+    assert metrics["missed_conflicts"] == ["chi_chiude"]
+
+
+def test_a_step_without_its_evidence_is_not_covered():
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    plan = _knowing_plan(steps=[{"id": "s2", "label": "Verifica la richiesta"}])
+
+    metrics = knowledge_metrics(plan, _knowing_case())
+
+    assert metrics["evidence_coverage"] == 0.0
+    assert metrics["uncovered_elements"] == ["verifica_richiesta"]
+
+
+def test_a_claim_found_only_in_a_copied_quote_is_not_stated():
+    """Il piano che incolla la frase della fonte non afferma ancora niente."""
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    plan = _knowing_plan(
+        business_rules=[],
+        steps=[
+            {
+                "id": "s2",
+                "label": "Verifica la richiesta",
+                "source_evidence": ["canale unico, solo ufficio tecnico"],
+            }
+        ],
+    )
+
+    assert knowledge_metrics(plan, _knowing_case())["claim_recall"] == 0.0
+
+
 # --- dal piano al disegno non si perde niente --------------------------------
 
 
@@ -296,6 +501,7 @@ def test_the_compiler_keeps_every_activity_lane_and_decision(case: ReferenceCase
     assert metrics.activity_precision == 1.0, report
     assert metrics.lane_accuracy == 1.0, report
     assert metrics.gateway_recall == 1.0, report
+    assert metrics.exception_recall == 1.0, report
     assert metrics.honest, report
 
 
@@ -332,6 +538,7 @@ def test_the_compiler_keeps_the_order_between_plan_and_drawing(case: ReferenceCa
     # Il compilatore non deve nemmeno aggiungere ordini che il piano non dice:
     # un arco inventato fra due passaggi e' un AS-IS diverso da quello descritto.
     assert metrics.edge_precision == 1.0, report
+    assert metrics.handoff_recall == 1.0, report
 
 
 def test_a_decision_keeps_every_branch_it_names():

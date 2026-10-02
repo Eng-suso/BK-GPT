@@ -6,6 +6,7 @@ import csv
 import hashlib
 import io
 import os
+import re
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -33,6 +34,34 @@ MIME_BY_EXTENSION = {
     ".txt": "text/plain",
     ".md": "text/markdown",
 }
+
+
+SOURCE_ROLES = ("context", "process_evidence", "policy", "operational_data")
+
+# Parole nel nome del file che dicono a cosa serve. E' una proposta che il
+# consulente accetta o cambia con un clic sulla card, non una decisione: per
+# questo bastano regole leggibili, e nessun modello.
+# Le parole corte hanno i confini: "iso" non deve scattare dentro "decisione".
+_POLICY = re.compile(r"procedur|policy|regolament|istruzion|manual|\bnorm[ae]\b|\biso\b|linee.guida")
+_EVIDENCE = re.compile(r"intervist|verbal|riunion|meeting|\bcall\b|trascri|workshop|\bnote\b")
+
+
+def suggest_roles(filename: str) -> list[str] | None:
+    """A cosa sembra servire un file, dal nome e dal formato.
+
+    Returns:
+        I ruoli proposti, nell'ordine canonico, o `None` se il nome non dice
+        niente: allora resta il ruolo che la chat ha dato.
+    """
+    name = Path(filename).stem.lower().replace("_", " ")
+    extension = Path(filename).suffix.lower()
+    if extension in {".xlsx", ".csv"}:
+        return ["operational_data"]
+    if _POLICY.search(name):
+        return ["process_evidence", "policy"]
+    if _EVIDENCE.search(name):
+        return ["process_evidence"]
+    return None
 
 
 class SourceFileError(ValueError):
@@ -127,7 +156,9 @@ def parse_source_file(filename: str, payload: bytes, _declared_mime: str | None)
     evidence: CanonicalSource | None = None
     if extension in documents.FORMATS:
         try:
-            document, service_errors = documents.convert(filename, payload)
+            # DOCX e PPTX hanno gia' il testo; un PDF solo se non e' una scansione.
+            ocr = extension == ".pdf" and documents.needs_ocr(payload)
+            document, service_errors = documents.convert(filename, payload, do_ocr=ocr)
         except documents.DocumentUnreadable as exc:
             raise SourceFileError(str(exc)) from exc
         evidence = documents.evidence_from(

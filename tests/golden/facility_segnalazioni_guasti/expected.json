@@ -1,4 +1,5 @@
 {
+  "schema_version": 2,
   "case_id": "facility_segnalazioni_guasti",
   "status": "draft_da_validare",
   "process_name": "Gestione segnalazioni tecniche e guasti impianti sede",
@@ -310,5 +311,322 @@
   ],
   "compiler_known_gaps": [
     "Decisione dentro un ramo alternativo: il tecnico, dopo il sopralluogo, decide se risolvere o rimandare alla ditta esterna (sopralluogo -> apri_richiesta_fornitore). Il compilatore ancora le decisioni solo ai passaggi del percorso principale."
+  ],
+  "exception_paths": [
+    {
+      "id": "attivita_critica_bloccata",
+      "activities": [
+        "chiama_fornitore_urgente",
+        "apri_modulo_in_giornata",
+        "esegui_intervento_fornitore"
+      ],
+      "why": "un guasto che blocca un'attivita' critica salta il modulo: si chiama il fornitore e il modulo si apre entro la giornata"
+    },
+    {
+      "id": "intervento_sopra_soglia",
+      "activities": [
+        "raccogli_due_offerte",
+        "approva_intervento"
+      ],
+      "why": "sopra 5.000 euro servono due offerte e l'approvazione della Direzione"
+    }
+  ],
+  "expected_claims": [
+    {
+      "id": "modulo_unico_canale",
+      "text": "Il modulo standard e' l'unico canale accettato per le segnalazioni",
+      "aliases": [
+        "modulo standard unico canale",
+        "unico canale accettato",
+        "modulo standard obbligatorio"
+      ],
+      "evidence": [
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "Si', ed e' l'unico canale accettato."
+        },
+        {
+          "source": "b3_chiara_verdi_direzione.md",
+          "quote": "quando abbiamo introdotto il modulo standard obbligatorio"
+        }
+      ]
+    },
+    {
+      "id": "soglia_due_offerte",
+      "text": "Sopra la soglia di 5.000 euro servono due offerte e l'approvazione della Direzione",
+      "aliases": [
+        "soglia di 5.000 euro",
+        "due offerte sopra soglia",
+        "approvazione della direzione sopra soglia"
+      ],
+      "evidence": [
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione."
+        },
+        {
+          "source": "b2_marco_gallo_tecnico_sede.md",
+          "quote": "So che sopra la soglia di 5.000 euro serve il passaggio in Direzione con due offerte"
+        },
+        {
+          "source": "b3_chiara_verdi_direzione.md",
+          "quote": "il nostro punto di contatto e' l'approvazione degli interventi sopra la soglia di 5.000 euro."
+        }
+      ]
+    },
+    {
+      "id": "senza_offerte_non_si_discute",
+      "text": "Senza le due offerte allegate la Direzione non discute la pratica",
+      "aliases": [
+        "senza le due offerte",
+        "offerte allegate obbligatorie",
+        "pratica non discussa senza offerte"
+      ],
+      "evidence": [
+        {
+          "source": "b3_chiara_verdi_direzione.md",
+          "quote": "Se le due offerte non ci sono, il punto non viene discusso"
+        },
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "senza quelle la pratica non viene nemmeno guardata."
+        }
+      ]
+    },
+    {
+      "id": "stato_visibile",
+      "text": "Chi ha aperto la segnalazione ne vede lo stato nel registro",
+      "aliases": [
+        "stato visibile nel registro",
+        "segnalante vede lo stato",
+        "vede lo stato della segnalazione"
+      ],
+      "evidence": [
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "Chi ha aperto la segnalazione vede lo stato, quindi non mi chiama nessuno per chiedere a che punto siamo."
+        },
+        {
+          "source": "b2_marco_gallo_tecnico_sede.md",
+          "quote": "E' visibile a tutti, quindi non ricevo telefonate."
+        }
+      ]
+    },
+    {
+      "id": "preventiva_fuori_processo",
+      "text": "La manutenzione preventiva e' fuori da questo processo e gestita a parte",
+      "aliases": [
+        "preventiva fuori dal processo",
+        "preventiva gestita a parte",
+        "preventiva separata"
+      ],
+      "evidence": [
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "la manutenzione preventiva, che oggi non e' dentro questo processo"
+        },
+        {
+          "source": "b2_marco_gallo_tecnico_sede.md",
+          "quote": "Ci sono dei contratti di manutenzione periodica gestiti a parte, con scadenze loro."
+        },
+        {
+          "source": "b3_chiara_verdi_direzione.md",
+          "quote": "No, e' separata."
+        }
+      ]
+    },
+    {
+      "id": "fattura_mensile_con_numero",
+      "text": "Il fornitore abituale fattura mensilmente, e ogni riga richiama il numero della segnalazione",
+      "aliases": [
+        "fattura mensile del fornitore",
+        "fattura richiama numero segnalazione",
+        "fattura mensilmente"
+      ],
+      "evidence": [
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "Fattura mensilmente con il riepilogo degli interventi."
+        },
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "Ogni riga della fattura richiama il numero della segnalazione"
+        }
+      ]
+    },
+    {
+      "id": "doppioni_chiusi_a_mano",
+      "text": "Il modulo non controlla i doppioni: le segnalazioni duplicate si chiudono a mano",
+      "aliases": [
+        "segnalazioni duplicate",
+        "doppioni chiusi a mano",
+        "modulo non controlla doppioni"
+      ],
+      "evidence": [
+        {
+          "source": "b2_marco_gallo_tecnico_sede.md",
+          "quote": "Il modulo standard non controlla i doppioni, quindi arrivano due o tre righe per la stessa cosa."
+        }
+      ]
+    }
+  ],
+  "expected_conflicts": [
+    {
+      "id": "chi_chiude_intervento_interno",
+      "about": "Chi chiude la segnalazione di un intervento interno",
+      "positions": [
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "La chiudo quando il tecnico o la ditta esterna mi conferma che l'intervento e' terminato e io ho verificato di persona"
+        },
+        {
+          "source": "b2_marco_gallo_tecnico_sede.md",
+          "quote": "Se lo risolvo io, chiudo la riga con una nota."
+        }
+      ],
+      "detected_by_aliases": [
+        "chi chiude la segnalazione",
+        "chiusura intervento interno",
+        "chiude la riga"
+      ],
+      "why": "Laura dice di chiudere lei dopo aver verificato, Marco di chiudere lui la riga degli interventi interni. Il riferimento disegna la lettura compatibile con entrambi, ma un piano deve chiedere, non scegliere in silenzio"
+    },
+    {
+      "id": "rapporto_di_intervento",
+      "about": "Se un intervento interno chiude con un rapporto di intervento",
+      "positions": [
+        {
+          "source": "b1_laura_conti_facility.md",
+          "quote": "Poi allego il rapporto di intervento e la riga si chiude."
+        },
+        {
+          "source": "b2_marco_gallo_tecnico_sede.md",
+          "quote": "Non c'e' un rapporto di intervento formale per gli interventi interni, la nota e' quello."
+        }
+      ],
+      "detected_by_aliases": [
+        "rapporto di intervento",
+        "rapporto intervento interno",
+        "nota al posto del rapporto"
+      ],
+      "why": "per Laura la riga si chiude allegando il rapporto, per Marco negli interventi interni il rapporto non c'e' e vale la nota"
+    }
+  ],
+  "expected_evidence_bindings": [
+    {
+      "element": "compila_modulo",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "chi rileva un guasto tecnico compila il modulo standard, indica il piano, il locale e la gravita'"
+    },
+    {
+      "element": "verifica_gravita",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Verifico la gravita' e decido se e' un intervento interno o se serve una ditta esterna."
+    },
+    {
+      "element": "assegna_tecnico",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Se e' interno lo assegno al nostro tecnico di sede."
+    },
+    {
+      "element": "assegna_tecnico",
+      "source": "b2_marco_gallo_tecnico_sede.md",
+      "quote": "Laura Conti assegna e a me arriva una notifica con il numero della segnalazione"
+    },
+    {
+      "element": "sopralluogo",
+      "source": "b2_marco_gallo_tecnico_sede.md",
+      "quote": "Vado sul posto, verifico e decido se lo risolvo io o se serve la ditta esterna."
+    },
+    {
+      "element": "esegui_intervento_interno",
+      "source": "b2_marco_gallo_tecnico_sede.md",
+      "quote": "Se lo risolvo io, chiudo la riga con una nota."
+    },
+    {
+      "element": "registra_nota_chiusura",
+      "source": "b2_marco_gallo_tecnico_sede.md",
+      "quote": "Scrivo una nota di chiusura nel registro: cosa ho trovato, cosa ho sostituito, quanto ci ho messo."
+    },
+    {
+      "element": "apri_richiesta_fornitore",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Se serve una ditta esterna, apro una richiesta di intervento verso il fornitore abituale."
+    },
+    {
+      "element": "apri_richiesta_fornitore",
+      "source": "b2_marco_gallo_tecnico_sede.md",
+      "quote": "Se serve la ditta esterna, rimando a Laura Conti che apre la richiesta verso il fornitore abituale."
+    },
+    {
+      "element": "raccogli_due_offerte",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione."
+    },
+    {
+      "element": "approva_intervento",
+      "source": "b3_chiara_verdi_direzione.md",
+      "quote": "il nostro punto di contatto e' l'approvazione degli interventi sopra la soglia di 5.000 euro."
+    },
+    {
+      "element": "approva_intervento",
+      "source": "b3_chiara_verdi_direzione.md",
+      "quote": "Ce la porta Laura Conti come punto in riunione, con le due offerte allegate."
+    },
+    {
+      "element": "esegui_intervento_fornitore",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Sotto quella cifra decido io e procedo con il fornitore abituale."
+    },
+    {
+      "element": "esegui_intervento_fornitore",
+      "source": "b2_marco_gallo_tecnico_sede.md",
+      "quote": "Per elettrico e clima si', e' sempre Zentrix Impianti."
+    },
+    {
+      "element": "verifica_intervento_terminato",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "La chiudo quando il tecnico o la ditta esterna mi conferma che l'intervento e' terminato e io ho verificato di persona, oppure ho la conferma di chi aveva segnalato."
+    },
+    {
+      "element": "chiudi_segnalazione",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Poi allego il rapporto di intervento e la riga si chiude."
+    },
+    {
+      "element": "chiama_fornitore_urgente",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "In quel caso chiamo direttamente il fornitore abituale e apro il modulo standard dopo, ma entro la giornata."
+    },
+    {
+      "element": "apri_modulo_in_giornata",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "La regola interna e' che il modulo standard va comunque aperto lo stesso giorno."
+    },
+    {
+      "element": "invia_riepilogo_mensile",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "una volta al mese mando alla Direzione un riepilogo delle segnalazioni chiuse e dei tempi."
+    },
+    {
+      "element": "interno_o_esterno",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "decido se e' un intervento interno o se serve una ditta esterna."
+    },
+    {
+      "element": "sopra_soglia",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Quando l'intervento supera la soglia di 5.000 euro."
+    },
+    {
+      "element": "sopra_soglia",
+      "source": "b3_chiara_verdi_direzione.md",
+      "quote": "Sotto quella cifra il Facility Manager procede in autonomia"
+    },
+    {
+      "element": "attivita_critica",
+      "source": "b1_laura_conti_facility.md",
+      "quote": "Il caso tipico e' il guasto tecnico che blocca una attivita' critica, per esempio l'ascensore o il gruppo elettrogeno."
+    }
   ]
 }

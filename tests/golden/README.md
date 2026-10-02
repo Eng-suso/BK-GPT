@@ -30,7 +30,37 @@ tests/golden/<case_id>/
 | `edges` | l'ordine: `[a, b]` significa "b viene subito dopo a", attraversando gateway ed eventi |
 | `forbidden` | cio' che le fonti **non** dicono e un modello tende a inventare, con il perche'. Un elemento vietato rende il modello disonesto, senza tolleranza |
 | `open_gaps` | domande che le fonti lasciano aperte; `closed_by_aliases` sono le attivita' che le chiuderebbero inventando |
+| `schema_version` | `2`: il contratto descritto qui. Un caso v1 (solo disegno) non passa il test L0 |
+| `exception_paths` | percorsi fuori dal flusso normale (urgenze, rientri, autorizzazioni), come liste di attivita'. Contano solo se ci sono interi |
+| `expected_claims` | i fatti su cui il processo poggia, con `aliases` e le citazioni (`evidence`) che li dicono |
+| `expected_conflicts` | disaccordi fra **almeno due fonti**: `positions` cita ciascuna, `detected_by_aliases` riconosce il piano che li segnala |
+| `expected_evidence_bindings` | per ogni attivita' e decisione obbligatoria, almeno un passo di una fonte che la dice: `element`, `source`, `quote` |
 | `compiler_known_gaps` | cio' che il compilatore oggi non sa esprimere per questo caso. Il test del compilatore su quel caso e' `xfail` **strict**: quando il compilatore migliora il test fallisce finche' la voce non viene tolta |
+
+Le citazioni (`quote`) sono copiate **alla lettera** dalla fonte: il test
+`tests/evals/l0_deterministic/test_golden_contract.py` le cerca nel file a ogni
+PR, e rifiuta una citazione ritoccata a memoria. Gli handoff non si scrivono: sono
+gli archi di `edges` che cambiano corsia.
+
+Nel piano del DeliR Evaluation System il contratto ha altri nomi; la
+corrispondenza e':
+
+| nel piano | qui |
+| --- | --- |
+| `must_include` (attori, attivita', gateway, handoff) | `lanes`, `activities`, `gateways`, handoff ricavati da `edges` |
+| `must_not_invent` | `forbidden` e `open_gaps` |
+| `expected_claims`, `expected_conflicts`, `expected_evidence_bindings` | stessi nomi |
+
+### Cosa si misura
+
+Sul disegno (`compare`): precision e recall delle attivita', corsie, gateway,
+flussi, **handoff** (l'ordine c'e' e il lavoro cambia corsia) ed **eccezioni**
+(il percorso c'e' intero), piu' onesta' (vietati e lacune).
+
+Sul piano (`knowledge_metrics`): **evidence coverage** (gli elementi legati hanno
+un'evidenza che cita il loro passo), **claim recall** (i fatti sono affermati, non
+solo incollati dalla fonte), **conflict detection rate** (i disaccordi emergono
+come rilievo, domanda o assunzione invece di essere risolti in silenzio).
 
 Gli alias si confrontano per radice di parola (le prime 5 lettere delle parole
 di contenuto), non con un modello: "verifico la richiesta" corrisponde a

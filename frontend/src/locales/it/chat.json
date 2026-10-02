@@ -201,7 +201,8 @@
       "failed": "Non leggibile"
     },
     "dismissFailed": "Togli il caricamento non riuscito",
-    "uploadFailed": "Il file non è stato caricato."
+    "uploadFailed": "Il file non è stato caricato.",
+    "sentLabel": "Allegati inviati"
   },
   "queue": {
     "title": "Messaggi in coda",
@@ -432,5 +433,14 @@
       "change": "Cambia destinazione",
       "label": "In: {{place}}"
     }
+  },
+  "card": {
+    "rolesLabel": "A cosa serve",
+    "noRoles": "Scegli a cosa serve",
+    "suggested": "Sembra: {{roles}}",
+    "useSuggestion": "Usa la proposta: {{roles}}",
+    "keep": "Salva tra le Fonti e togli dal messaggio",
+    "menuLabel": "{{file}}, a cosa serve: {{roles}}",
+    "rolesFailed": "Ruolo non salvato: riprova"
   }
 }

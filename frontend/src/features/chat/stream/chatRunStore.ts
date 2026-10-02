@@ -149,7 +149,13 @@ export async function startRun(input: StartRunInput): Promise<void> {
   controllers.set(threadId, controller);
 
   const previous = runs.get(threadId);
-  const userMessage: ChatMessage = { role: "user", content: input.content };
+  // Gli allegati restano nel messaggio: il file caricato si vede nella
+  // conversazione, non solo nella card del composer prima dell'invio.
+  const userMessage: ChatMessage = {
+    role: "user",
+    content: input.content,
+    attachments: input.attachments.map(({ kind, id, label }) => ({ kind, id, label })),
+  };
   let messages: ChatMessage[] = [...input.base, userMessage, pendingAssistant()];
 
   runs.set(threadId, {

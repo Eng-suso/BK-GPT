@@ -184,7 +184,7 @@ def test_an_upload_belongs_to_one_process_at_most(http: TestClient):
     assert response.status_code == 400, response.text
 
 
-def test_upload_is_idempotent_for_the_same_file_and_dimensions(http: TestClient, tenant: str):
+def test_the_same_content_is_the_same_source_whatever_its_roles(http: TestClient, tenant: str):
     project, _ = _project(http)
     fields = {
         "roles": '["context"]',
@@ -206,6 +206,31 @@ def test_upload_is_idempotent_for_the_same_file_and_dimensions(http: TestClient,
     assert first.status_code == 201
     assert second.status_code == 200
     assert second.json()["id"] == first.json()["id"]
+
+    # Ruoli e ambiti non sono l'identita': lo stesso file con un altro uso e'
+    # la stessa fonte, non un doppione.
+    third = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={**fields, "roles": '["policy"]'},
+        files={"file": ("contesto-copia.txt", b"stesso contenuto", "text/plain")},
+    )
+    assert third.status_code == 200
+    assert third.json()["id"] == first.json()["id"]
+    assert third.json()["created"] is False
+
+    # Un altro processo e' un'altra appartenenza: li' lo stesso file e' una
+    # fonte di quel processo, non la fonte del progetto.
+    other = http.post(
+        f"/v1/workspace/projects/{project['id']}/processes", json={"name": "Order to cash"}
+    ).json()
+    elsewhere = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={**fields, "scopes": f'[{{"type":"process","id":"{other["id"]}"}}]'},
+        files={"file": ("contesto.txt", b"stesso contenuto", "text/plain")},
+    )
+    assert elsewhere.status_code == 201
+    assert elsewhere.json()["id"] != first.json()["id"]
+    assert elsewhere.json()["process_id"] == other["id"]
 
     from backend.security import reset_current_tenant_id, set_current_tenant_id
     from backend.workspace_database import create_ingested_source
@@ -320,7 +345,7 @@ def test_an_unreadable_file_fails_once_a_service_outage_is_retried(http: TestCli
     assert listed[created["id"]]["acquisition_status"] == "failed"
 
     # Ricaricare lo stesso file e' il "riprova": la fonte fallita torna in coda.
-    monkeypatch.setattr(documents, "convert", lambda filename, payload: (_one_paragraph(), []))
+    monkeypatch.setattr(documents, "convert", lambda filename, payload, **_options: (_one_paragraph(), []))
     retried = http.post(
         f"/v1/workspace/projects/{project['id']}/sources/upload",
         data=fields,
@@ -390,6 +415,38 @@ def test_another_tenant_cannot_touch_an_uploaded_source(http: TestClient):
 
     # e per il suo tenant la fonte c'e' ancora
     assert http.get(f"/v1/workspace/sources/{created['id']}/evidence").status_code == 200
+
+
+def test_a_role_is_proposed_on_upload_and_changed_with_one_call(http: TestClient):
+    project, process = _project(http)
+    created = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={
+            "roles": '["process_evidence"]',
+            "retention": "persistent",
+            "scopes": f'[{{"type":"process","id":"{process["id"]}"}}]',
+        },
+        files={"file": (f"Procedura_Acquisti_{uuid.uuid4().hex[:6]}.md", b"# Procedura", "text/markdown")},
+    ).json()
+    assert created["suggested_roles"] == ["process_evidence", "policy"]
+
+    changed = http.patch(
+        f"/v1/workspace/sources/{created['id']}",
+        json={"roles": ["policy", "process_evidence", "policy"]},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["roles"] == ["process_evidence", "policy"]
+    assert changed.json()["id"] == created["id"]
+
+    assert http.patch(f"/v1/workspace/sources/{created['id']}", json={"roles": []}).status_code == 422
+    assert http.patch("/v1/workspace/sources/src-inesistente", json={"roles": ["context"]}).status_code == 404
+
+    # Un altro tenant non vede la fonte, quindi non la cambia.
+    with TestClient(app, headers={"X-DeliR-Tenant-ID": f"ingest-{uuid.uuid4().hex[:10]}"}) as stranger:
+        refused = stranger.patch(f"/v1/workspace/sources/{created['id']}", json={"roles": ["context"]})
+    assert refused.status_code == 404
+    listed = {item["id"]: item for item in http.get(f"/v1/workspace/projects/{project['id']}/sources").json()}
+    assert listed[created["id"]]["roles"] == ["process_evidence", "policy"]
 
 
 def _one_paragraph():
