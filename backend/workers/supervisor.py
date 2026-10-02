@@ -141,17 +141,24 @@ async def run_queue_workers() -> None:
     )
 
     # La lettura delle fonti caricate vive nel workspace operativo, come il
-    # piano: deve girare anche senza knowledge graph.
-    source_task = asyncio.create_task(
-        _drain_loop(
-            "source_worker", source_worker.drain_once, source_worker.queue_stats, 1.0,
-        ),
-        name="source_worker",
+    # piano: deve girare anche senza knowledge graph. Spenta solo se lo dice il
+    # suo interruttore.
+    source_tasks = (
+        [
+            asyncio.create_task(
+                _drain_loop(
+                    "source_worker", source_worker.drain_once, source_worker.queue_stats, 1.0,
+                ),
+                name="source_worker",
+            )
+        ]
+        if settings.source_worker_in_process
+        else []
     )
 
     if not settings.canonical_worker_url:
         logger.info("canonical non configurato: avviati plan_worker, conformance_worker e source_worker")
-        workspace_tasks = [plan_task, conformance_task, source_task]
+        workspace_tasks = [plan_task, conformance_task, *source_tasks]
         try:
             await asyncio.gather(*workspace_tasks)
         except asyncio.CancelledError:
@@ -166,7 +173,7 @@ async def run_queue_workers() -> None:
     tasks = [
         plan_task,
         conformance_task,
-        source_task,
+        *source_tasks,
         asyncio.create_task(
             _drain_loop(
                 "ingest_worker", ingest_worker.drain_once, ingest_worker.queue_stats,

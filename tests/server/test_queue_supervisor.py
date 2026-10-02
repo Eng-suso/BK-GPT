@@ -69,6 +69,26 @@ def test_the_source_reader_runs_alone_when_the_other_workers_are_off(monkeypatch
     assert settings.source_worker_in_process is True
 
 
+@pytest.mark.parametrize("source_on", [True, False])
+def test_with_the_workers_off_only_the_source_reader_starts_and_only_if_on(monkeypatch, source_on):
+    import sys
+
+    started = {"source": 0}
+
+    async def fake_source_alone() -> None:
+        started["source"] += 1
+
+    # run_queue_workers non parte sotto pytest: qui serve che parta.
+    monkeypatch.delitem(sys.modules, "pytest")
+    monkeypatch.setattr(settings, "workers_in_process", False)
+    monkeypatch.setattr(settings, "source_worker_in_process", source_on)
+    monkeypatch.setattr(supervisor, "_run_source_worker_alone", fake_source_alone)
+
+    asyncio.run(asyncio.wait_for(supervisor.run_queue_workers(), timeout=2))
+
+    assert started["source"] == (1 if source_on else 0)
+
+
 def test_queues_endpoint_reports_status():
     from backend.app import app
 
