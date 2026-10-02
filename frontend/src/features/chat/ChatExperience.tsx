@@ -53,6 +53,13 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   // Postura e autonomia valgono per la conversazione, non per il thread:
   // cambiarle cambia il prossimo turno e non biforca la sessione.
   const [posture, setPosture] = useState<ChatPosture>(DEFAULT_CHAT_POSTURE);
+  // Le posture sono di una chat: passando da consulente a processo, "desk"
+  // non esiste piu' e il backend la rifiuterebbe. Si torna ad auto.
+  const [postureScopeType, setPostureScopeType] = useState(scope.type);
+  if (postureScopeType !== scope.type) {
+    setPostureScopeType(scope.type);
+    setPosture(DEFAULT_CHAT_POSTURE);
+  }
   const [autonomy, setAutonomy] = useState<ChatAutonomy>(DEFAULT_CHAT_AUTONOMY);
   // Stessa vita delle due scelte: e' una preferenza di come lavorare, non una
   // proprieta' del thread.
