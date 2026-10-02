@@ -22,7 +22,7 @@ from backend.memory import pending_actions
 from backend.toolsets.memory import manage_consultant_playbook
 
 
-SKILLS_DIR = Path(__file__).resolve().parents[1] / "backend" / "graphs" / "consulting" / "skills"
+SKILLS_DIR = Path(__file__).resolve().parents[2] / "backend" / "graphs" / "consulting" / "skills"
 MEMORY_GOVERNANCE = (SKILLS_DIR / "consultant_memory_governance.md").read_text(encoding="utf-8")
 
 
