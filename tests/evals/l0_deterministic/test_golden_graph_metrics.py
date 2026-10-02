@@ -257,6 +257,59 @@ def test_a_reference_edge_on_an_undeclared_activity_is_refused(tmp_path):
         ReferenceCase.load(folder)
 
 
+def _write_case(folder: Path, **extra) -> Path:
+    (folder / "sources").mkdir(parents=True)
+    data = {
+        "case_id": folder.name,
+        "process_name": "x",
+        "sources": ["a.md", "b.md"],
+        "activities": [{"id": "a", "aliases": ["a"]}],
+        "gateways": [{"id": "g", "aliases": ["g"]}],
+        **extra,
+    }
+    (folder / "expected.json").write_text(json.dumps(data), encoding="utf-8")
+    return folder
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        (
+            {"expected_evidence_bindings": [{"element": "z", "source": "a.md", "quote": "q"}]},
+            "elemento non dichiarato",
+        ),
+        (
+            {"expected_evidence_bindings": [{"element": "a", "source": "c.md", "quote": "q"}]},
+            "fonte non dichiarata",
+        ),
+        (
+            {
+                "expected_conflicts": [
+                    {
+                        "id": "c",
+                        "about": "chi chiude",
+                        "positions": [{"source": "a.md", "quote": "io"}, {"source": "a.md", "quote": "lui"}],
+                        "detected_by_aliases": ["chi chiude"],
+                    }
+                ]
+            },
+            "due fonti",
+        ),
+        ({"exception_paths": [{"id": "p", "activities": ["z"]}]}, "non dichiarata"),
+    ],
+    ids=["binding-elemento", "binding-fonte", "conflitto-una-fonte", "percorso-eccezione"],
+)
+def test_a_contract_v2_that_cites_what_it_does_not_declare_is_refused(tmp_path, extra, message):
+    with pytest.raises(ValueError, match=message):
+        ReferenceCase.load(_write_case(tmp_path / "rotto", schema_version=2, **extra))
+
+
+def test_handoffs_are_the_reference_edges_that_change_lane():
+    case = _case()
+
+    assert case.handoffs == [("apri_richiesta", "verifica_richiesta")]
+
+
 # --- dal piano al disegno non si perde niente --------------------------------
 
 

@@ -201,6 +201,57 @@ class ReferenceActivity:
 
 
 @dataclass(frozen=True)
+class EvidenceQuote:
+    """Un passo di una fonte, citato alla lettera: il test L0 lo cerca nel file."""
+
+    source: str
+    quote: str
+
+
+@dataclass(frozen=True)
+class EvidenceBinding:
+    """Dove le fonti dicono che un'attivita' o una decisione esiste."""
+
+    element: str
+    source: str
+    quote: str
+
+
+@dataclass(frozen=True)
+class ExceptionPath:
+    """Un percorso fuori dal flusso normale (urgenza, rientro, rifiuto)."""
+
+    id: str
+    activities: list[str]
+    why: str = ""
+
+
+@dataclass(frozen=True)
+class ExpectedClaim:
+    """Un fatto su cui il processo poggia, e che un buon piano riporta."""
+
+    id: str
+    text: str
+    aliases: list[str]
+    evidence: list[EvidenceQuote]
+
+
+@dataclass(frozen=True)
+class ExpectedConflict:
+    """Due fonti che dicono cose diverse: il piano deve dirlo, non scegliere in silenzio."""
+
+    id: str
+    about: str
+    positions: list[EvidenceQuote]
+    detected_by_aliases: list[str]
+    why: str = ""
+
+
+def _quote(item: dict[str, Any]) -> EvidenceQuote:
+    return EvidenceQuote(source=item["source"], quote=item["quote"])
+
+
+@dataclass(frozen=True)
 class ReferenceCase:
     case_id: str
     status: str
@@ -218,6 +269,24 @@ class ReferenceCase:
     # la lista non e' vuota, e fallisce anche quando il compilatore migliora e la
     # lista resta scritta - cosi' non diventa una scusa permanente.
     compiler_known_gaps: list[str] = field(default_factory=list)
+    # Contratto v2: cio' che il riferimento sa oltre al disegno. Facoltativo per
+    # un caso v1; un caso v2 deve legare ogni attivita' e decisione obbligatoria
+    # a un passo delle fonti (lo verifica il test L0 del contratto).
+    schema_version: int = 1
+    exception_paths: list[ExceptionPath] = field(default_factory=list)
+    expected_claims: list[ExpectedClaim] = field(default_factory=list)
+    expected_conflicts: list[ExpectedConflict] = field(default_factory=list)
+    evidence_bindings: list[EvidenceBinding] = field(default_factory=list)
+
+    @property
+    def handoffs(self) -> list[tuple[str, str]]:
+        """Gli archi del riferimento che passano il lavoro a un'altra corsia."""
+        lane_of = {item.id: item.lane for item in self.activities}
+        return [
+            (source, target)
+            for source, target in self.edges
+            if lane_of.get(source) and lane_of.get(target) and lane_of[source] != lane_of[target]
+        ]
 
     @classmethod
     def load(cls, folder: Path) -> "ReferenceCase":
@@ -236,6 +305,55 @@ class ReferenceCase:
             # riferimento rotto: fallire qui evita metriche calcolate su un refuso.
             if source not in activity_ids or target not in activity_ids:
                 raise ValueError(f"{folder.name}: arco su attivita' non dichiarata {source}->{target}")
+        element_ids = activity_ids | {item["id"] for item in data.get("gateways") or []}
+        source_names = set(data["sources"])
+        exception_paths = [
+            ExceptionPath(id=item["id"], activities=list(item["activities"]), why=item.get("why", ""))
+            for item in data.get("exception_paths") or []
+        ]
+        for path in exception_paths:
+            unknown = [ref for ref in path.activities if ref not in activity_ids]
+            if unknown:
+                raise ValueError(f"{folder.name}: percorso {path.id} su attivita' non dichiarata {unknown}")
+        claims = [
+            ExpectedClaim(
+                id=item["id"],
+                text=item["text"],
+                aliases=list(item["aliases"]),
+                evidence=[_quote(quote) for quote in item["evidence"]],
+            )
+            for item in data.get("expected_claims") or []
+        ]
+        conflicts = [
+            ExpectedConflict(
+                id=item["id"],
+                about=item["about"],
+                positions=[_quote(quote) for quote in item["positions"]],
+                detected_by_aliases=list(item["detected_by_aliases"]),
+                why=item.get("why", ""),
+            )
+            for item in data.get("expected_conflicts") or []
+        ]
+        for conflict in conflicts:
+            # Un conflitto e' fra fonti: due frasi della stessa persona sono
+            # un'incoerenza da chiarire con lei, non un disaccordo da riportare.
+            if len({position.source for position in conflict.positions}) < 2:
+                raise ValueError(f"{folder.name}: il conflitto {conflict.id} non mette a confronto due fonti")
+        bindings = [
+            EvidenceBinding(element=item["element"], source=item["source"], quote=item["quote"])
+            for item in data.get("expected_evidence_bindings") or []
+        ]
+        for binding in bindings:
+            if binding.element not in element_ids:
+                raise ValueError(f"{folder.name}: evidenza legata a un elemento non dichiarato {binding.element}")
+        quoted = [
+            *(binding.source for binding in bindings),
+            *(quote.source for claim in claims for quote in claim.evidence),
+            *(quote.source for conflict in conflicts for quote in conflict.positions),
+        ]
+        for name in quoted:
+            if name not in source_names:
+                raise ValueError(f"{folder.name}: citazione da una fonte non dichiarata {name}")
         return cls(
             case_id=data["case_id"],
             status=data.get("status", "draft"),
@@ -257,6 +375,11 @@ class ReferenceCase:
             open_gaps=list(data.get("open_gaps") or []),
             root=folder,
             compiler_known_gaps=list(data.get("compiler_known_gaps") or []),
+            schema_version=int(data.get("schema_version", 1)),
+            exception_paths=exception_paths,
+            expected_claims=claims,
+            expected_conflicts=conflicts,
+            evidence_bindings=bindings,
         )
 
     def source_texts(self) -> list[dict[str, str]]:
