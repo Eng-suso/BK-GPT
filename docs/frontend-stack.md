@@ -85,7 +85,7 @@ Regole:
 ### `app/` blueprint
 
 - Non esiste (vedi audit). Si costruisce fresh.
-- Aggiornare `README.md` + `docs/ui-architecture.md`: rimuovere ogni riferimento a `app/`.
+- Fatto: `README.md` non cita piu' `app/`; `ui-architecture.md` e' in [archive/](archive/).
 - Riferimento di struttura più vicino: pattern `.enterprise-*` in `ProjectsPage`/`ProjectWorkspace` (layout: breadcrumb + page-header + tabella + drawer). Idea buona, CSS da rifare.
 
 ---
