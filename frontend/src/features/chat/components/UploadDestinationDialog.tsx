@@ -53,7 +53,12 @@ export function UploadDestinationDialog({
           onSubmit={(event) => {
             event.preventDefault();
             if (!projectId) return;
-            onConfirm({ projectId, processId: processId || null });
+            const process = project?.processItems.find((item) => item.id === processId);
+            onConfirm({
+              projectId,
+              processId: processId || null,
+              label: process ? `${project?.name} · ${process.name}` : project?.name,
+            });
           }}
         >
           <label className="flex flex-col gap-1.5 text-sm font-medium">

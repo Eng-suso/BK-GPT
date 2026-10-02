@@ -35,7 +35,11 @@ describe("UploadDestinationDialog", () => {
     expect(screen.getByText(/evidenza di questo processo/)).toBeInTheDocument();
     await userEvent.click(choose);
 
-    expect(onConfirm).toHaveBeenCalledWith({ projectId: "p-acquisti", processId: "proc-p2p" });
+    expect(onConfirm).toHaveBeenCalledWith({
+      projectId: "p-acquisti",
+      processId: "proc-p2p",
+      label: "Riorganizzazione acquisti · Procure to pay",
+    });
   });
 
   it("cambiando progetto il processo scelto si azzera", async () => {
@@ -52,6 +56,6 @@ describe("UploadDestinationDialog", () => {
     await userEvent.selectOptions(screen.getByLabelText("Progetto"), "p-hr");
     await userEvent.click(screen.getByRole("button", { name: "Scegli il file" }));
 
-    expect(onConfirm).toHaveBeenCalledWith({ projectId: "p-hr", processId: null });
+    expect(onConfirm).toHaveBeenCalledWith({ projectId: "p-hr", processId: null, label: "Processi HR" });
   });
 });

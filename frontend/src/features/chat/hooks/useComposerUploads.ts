@@ -21,7 +21,12 @@ export const COMPOSER_UPLOAD_ACCEPT = ".pdf,.docx,.xlsx,.csv,.pptx,.txt,.md";
 type UploadTarget = { projectId: string; scopes: SourceScope[]; roles: SourceRole[] };
 
 /** Dove mettere un file quando la chat non lo dice: un progetto, e forse un suo processo. */
-export type UploadDestination = { projectId: string; processId?: string | null };
+export type UploadDestination = {
+  projectId: string;
+  processId?: string | null;
+  /** Come la destinazione si legge nel menu: "Acquisti · Procure to pay". */
+  label?: string;
+};
 
 /**
  * Il ruolo non si chiede prima: un file messo in un processo e' evidenza di

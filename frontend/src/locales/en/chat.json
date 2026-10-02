@@ -84,7 +84,6 @@
     },
     "addHeading": "Add",
     "uploadFile": "Upload a file",
-    "uploadUnavailable": "Open a project or process chat to upload a file.",
     "waitForUploads": "Wait for the files to finish uploading"
   },
   "status": {
