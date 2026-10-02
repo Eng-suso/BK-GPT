@@ -524,7 +524,7 @@ function AcquisitionBadge({ status }: { status: SourceAcquisitionStatus }): Reac
     status === "failed"
       ? "text-destructive"
       : status === "partial"
-        ? "text-amber-700 dark:text-amber-400"
+        ? "text-[var(--color-status-warning)]"
         : "text-muted-foreground";
   return (
     <span className={`flex items-center gap-1 text-micro font-medium ${tone}`} role="status">
