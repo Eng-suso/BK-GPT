@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/feedback";
 
 import type { SimulationRun } from "../simulationTypes";
 import { resolveActiveRun, useSimulationSection } from "../useSimulationSection";
-import { useReplayEngine } from "./useReplay";
+import { useReplaySession } from "./ReplaySession";
 import type { ReplayEngine } from "./replayEngine";
 
 type ReplayGateProps = {
@@ -25,9 +25,7 @@ export function ReplayGate({ children }: ReplayGateProps): React.JSX.Element {
   const { runs, bpmnXml } = useSimulationSection();
   const activeRun = resolveActiveRun(runs, runId);
 
-  const { engine, isLoading, noArtifact, error } = useReplayEngine(
-    activeRun?.status === "completed" ? activeRun.id : null,
-  );
+  const { engine, isLoading, noArtifact, error } = useReplaySession();
 
   let body: React.ReactNode;
   if (!activeRun) {

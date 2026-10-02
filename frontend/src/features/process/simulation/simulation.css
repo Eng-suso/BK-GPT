@@ -364,3 +364,13 @@
     stroke-dasharray: none;
   }
 }
+
+
+/* Reachable playback controls at narrow widths; keyboard focus stays visible. */
+.sim-scrubber { min-height: 32px; }
+.sim-scrubber:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
+@media (max-width: 640px) {
+  .sim-transport-controls .sim-scrubber { order: 5; flex-basis: 100%; }
+  .sim-transport-controls > span { margin-left: auto; font-size: 11px; }
+  .sim-transport-controls [role="combobox"] { width: 88px; }
+}

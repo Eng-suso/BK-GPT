@@ -20,6 +20,7 @@ import { ROUTES } from "@/app/routes";
 import { useProjectQuery } from "@/features/projects/api";
 
 import { useBpmnModelQuery } from "../api";
+import { ReplaySession } from "./replay/ReplaySession";
 import { listProsimosSimulationRuns } from "./simulationApi";
 import { formatRunOption, SimulationSectionContext } from "./useSimulationSection";
 
@@ -234,7 +235,12 @@ export function SimulationLayout(): React.JSX.Element {
         </div>
 
         <div className="min-h-0 flex-1 px-4 pb-4">
-          <Outlet />
+          <ReplaySession
+            runId={runs.find((run) => run.id === activeRunId)?.status === "completed" ? activeRunId : null}
+            enabled={RUN_SCOPED.has(sub)}
+          >
+            <Outlet />
+          </ReplaySession>
         </div>
       </div>
     </SimulationSectionContext.Provider>
