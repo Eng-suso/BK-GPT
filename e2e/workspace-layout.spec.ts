@@ -216,7 +216,9 @@ test("mobile heatmap preserves a readable diagram above populated metrics", asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${studio}/simulation/heatmap/1`);
   await expect(page.locator(".djs-container")).toBeVisible();
-  expect((await page.locator(".djs-container").boundingBox())!.height).toBeGreaterThan(300);
+  // This legacy run has no replay artifact: keep the static process usable alongside final metrics.
+  expect((await page.locator(".djs-container").boundingBox())!.height).toBeGreaterThan(240);
+  await expect(page.locator(".sim-studio-board")).toBeVisible();
   await page.getByRole("button", { name: /Attività 18:/ }).scrollIntoViewIfNeeded();
   await expect(page.getByRole("button", { name: /Attività 18:/ })).toBeInViewport();
   const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();

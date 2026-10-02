@@ -509,6 +509,30 @@
         "throughput": "How does throughput change?"
       },
       "currentDetails": "Details at the current time"
+    },
+    "scene": {
+      "history": "Replay history",
+      "finalValue": "Final value",
+      "navigation": "Canvas navigation",
+      "backProcess": "Back to process",
+      "goTo": "Go to an element…",
+      "panHint": "Drag the background · Ctrl + wheel to zoom",
+      "composeHint": "Move and resize elements · keyboard arrows",
+      "zoom": "Canvas zoom",
+      "showAll": "Show entire canvas",
+      "workspace": "Process and analytics canvas",
+      "move": "Move {{title}} on canvas",
+      "resize": "Resize {{title}} on canvas",
+      "keyboardHint": "Arrows: 20 units · Shift + arrows: 100 units",
+      "map": "Canvas object map",
+      "focus": "Center {{title}}",
+      "replay": "Observe",
+      "finalScope": "Final results · complete run",
+      "resume": "Resume observation",
+      "comparisonScope": "Final A → B comparison · complete runs",
+      "summaryDetails": "Comparison details",
+      "groups": "Canvas sections",
+      "finalHint": "Replay analytics retain the saved clock. Comparison uses the final results of the selected runs."
     }
   },
   "side": {
