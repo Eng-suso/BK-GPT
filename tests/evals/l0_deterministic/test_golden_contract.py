@@ -17,7 +17,12 @@ from pathlib import Path
 
 import pytest
 
-from tests.evals.graph_metrics import ReferenceCase, load_golden_cases
+from tests.evals.graph_metrics import (
+    LABEL_MATCH_THRESHOLD,
+    ReferenceCase,
+    label_score,
+    load_golden_cases,
+)
 
 GOLDEN = Path(__file__).resolve().parents[2] / "golden"
 CASES = load_golden_cases(GOLDEN)
@@ -74,3 +79,22 @@ def test_every_required_element_of_a_v2_case_has_its_evidence(case: ReferenceCas
 def test_a_v2_case_states_the_facts_the_process_rests_on(case: ReferenceCase):
     assert case.expected_claims, f"{case.case_id}: un caso v2 dichiara i suoi claim attesi"
 
+
+
+@pytest.mark.parametrize("case", V2_CASES, ids=lambda case: case.case_id)
+def test_a_claim_or_conflict_written_in_its_own_words_is_found(case: ReferenceCase):
+    """Alias che nemmeno il testo del claim soddisfa non ritroverebbero nessun piano."""
+    unreachable = [
+        *(
+            f"claim {claim.id}"
+            for claim in case.expected_claims
+            if label_score(claim.text, claim.aliases) < LABEL_MATCH_THRESHOLD
+        ),
+        *(
+            f"conflitto {conflict.id}"
+            for conflict in case.expected_conflicts
+            if label_score(conflict.about, conflict.detected_by_aliases) < LABEL_MATCH_THRESHOLD
+        ),
+    ]
+
+    assert not unreachable, f"{case.case_id}: alias irraggiungibili: {unreachable}"
