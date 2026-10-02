@@ -595,6 +595,7 @@ def upload_workspace_project_source(
     from backend.workspace_services.source_ingestion import (
         MAX_FILE_BYTES,
         SourceFileError,
+        SourceFileTooLarge,
         inspect_upload,
         store_original,
     )
@@ -646,10 +647,11 @@ def upload_workspace_project_source(
             mime_type=upload.mime_type,
             storage_key=storage_key,
         )
+    except SourceFileTooLarge as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except SourceFileError as exc:
-        message = str(exc)
-        status = 413 if "25 MB" in message else 415
-        raise HTTPException(status_code=status, detail=message) from exc
+        # Formato non accettato o contenuto che non e' quello dichiarato.
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not created:

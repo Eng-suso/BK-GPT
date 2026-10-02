@@ -34,6 +34,14 @@ class SourceFileError(ValueError):
     pass
 
 
+class SourceFileTooLarge(SourceFileError):
+    """Oltre MAX_FILE_BYTES: la risposta e' 413."""
+
+
+class SourceFileUnsupported(SourceFileError):
+    """Formato non accettato: la risposta e' 415."""
+
+
 @dataclass(frozen=True)
 class ParsedSource:
     content_hash: str
@@ -78,11 +86,11 @@ def inspect_upload(filename: str, payload: bytes) -> UploadedFile:
     """
     extension = Path(filename).suffix.lower()
     if extension not in SUPPORTED_EXTENSIONS:
-        raise SourceFileError("Formato non supportato. Usa PDF, DOCX, XLSX, CSV, PPTX, TXT o MD.")
+        raise SourceFileUnsupported("Formato non supportato. Usa PDF, DOCX, XLSX, CSV, PPTX, TXT o MD.")
     if not payload:
         raise SourceFileError("Il file è vuoto.")
     if len(payload) > MAX_FILE_BYTES:
-        raise SourceFileError("Il file supera il limite di 25 MB.")
+        raise SourceFileTooLarge("Il file supera il limite di 25 MB.")
     try:
         if extension == ".pdf":
             documents.check_pdf(payload)
