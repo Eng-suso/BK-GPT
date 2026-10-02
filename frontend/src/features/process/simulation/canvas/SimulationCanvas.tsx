@@ -72,6 +72,7 @@ export function SimulationCanvas({
   const { t } = useTranslation("process");
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const viewerRef = React.useRef<BpmnViewer | null>(null);
+  const badgeIdsRef = React.useRef<string[]>([]);
   const markedRef = React.useRef<string[]>([]);
   const onSelectRef = React.useRef(onSelectElement);
   const onReadyRef = React.useRef(onViewerReady);
@@ -113,6 +114,8 @@ export function SimulationCanvas({
     const viewer = viewerRef.current;
     if (!viewer || !bpmnXml) return;
     let cancelled = false;
+    // Imports clear diagram overlays, including analytics portals.
+    onReadyRef.current?.(null);
 
     setReady(false);
     setError(null);
@@ -158,7 +161,8 @@ export function SimulationCanvas({
     const registry = svc<BpmnElementRegistry>(viewer, "elementRegistry");
     if (!overlays || !canvas || !registry) return;
 
-    overlays.clear();
+    for (const id of badgeIdsRef.current) overlays.remove(id);
+    badgeIdsRef.current = [];
     for (const id of markedRef.current) {
       const el = registry.get(id);
       if (!el) continue;
@@ -180,7 +184,7 @@ export function SimulationCanvas({
       markedRef.current.push(item.elementId);
 
       if (item.badge) {
-        overlays.add(item.elementId, {
+        badgeIdsRef.current.push(overlays.add(item.elementId, {
           position: { top: badgeIndex % 2 === 0 ? -12 : -30, left: -4 },
           scale: { min: 1 },
           html: `<div class="sim-badge${
@@ -188,7 +192,7 @@ export function SimulationCanvas({
               ? ` is-${item.badgeTone}`
               : ""
           }">${escapeHtml(item.badge)}</div>`,
-        });
+        }));
         badgeIndex += 1;
       }
     }

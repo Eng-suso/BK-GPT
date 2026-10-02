@@ -1,4 +1,5 @@
 import path from "node:path";
+import { realpathSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -17,6 +18,8 @@ export default defineConfig({
     ],
   },
   server: {
+    // Support linked dependencies in an isolated worktree, including font assets.
+    fs: { allow: [path.resolve(__dirname), realpathSync(path.resolve(__dirname, "node_modules"))] },
     // Le schermate sono caricate a richiesta (`src/app/screens.tsx`): in
     // produzione e' il punto, in sviluppo significa che il dev server compila
     // il modulo alla prima navigazione. Con piu' schede aperte insieme - i

@@ -5,7 +5,7 @@ import { HttpError } from "@/lib/http";
 import { getSimulationReplay } from "../simulationApi";
 import { ReplayEngine, type ReplayFrame, type ReplayStatus } from "./replayEngine";
 
-type UseReplayEngine = {
+export type UseReplayEngine = {
   engine: ReplayEngine | null;
   isLoading: boolean;
   /** true when the run completed but produced no replay artifact (404). */
@@ -17,11 +17,11 @@ type UseReplayEngine = {
  * Fetch a run's replay artifact and wrap it in a {@link ReplayEngine}. The
  * engine is recreated when the run changes and torn down on unmount.
  */
-export function useReplayEngine(runId: number | null): UseReplayEngine {
+export function useReplayEngine(runId: number | null, enabled = true): UseReplayEngine {
   const query = useQuery({
     queryKey: ["workspace", "simulation-replay", runId],
     queryFn: () => getSimulationReplay(runId as number),
-    enabled: runId != null,
+    enabled: runId != null && enabled,
     staleTime: Infinity,
     retry: (count, err) =>
       !(err instanceof HttpError && err.status === 404) && count < 2,
@@ -44,7 +44,7 @@ export function useReplayEngine(runId: number | null): UseReplayEngine {
 
   return {
     engine,
-    isLoading: runId != null && query.isLoading,
+    isLoading: runId != null && enabled && query.isLoading,
     noArtifact,
     error:
       query.isError && !noArtifact
