@@ -403,6 +403,31 @@ def test_another_tenant_cannot_touch_an_uploaded_source(http: TestClient):
     assert http.get(f"/v1/workspace/sources/{created['id']}/evidence").status_code == 200
 
 
+def test_a_role_is_proposed_on_upload_and_changed_with_one_call(http: TestClient):
+    project, process = _project(http)
+    created = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={
+            "roles": '["process_evidence"]',
+            "retention": "persistent",
+            "scopes": f'[{{"type":"process","id":"{process["id"]}"}}]',
+        },
+        files={"file": (f"Procedura_Acquisti_{uuid.uuid4().hex[:6]}.md", b"# Procedura", "text/markdown")},
+    ).json()
+    assert created["suggested_roles"] == ["process_evidence", "policy"]
+
+    changed = http.patch(
+        f"/v1/workspace/sources/{created['id']}",
+        json={"roles": ["policy", "process_evidence", "policy"]},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["roles"] == ["process_evidence", "policy"]
+    assert changed.json()["id"] == created["id"]
+
+    assert http.patch(f"/v1/workspace/sources/{created['id']}", json={"roles": []}).status_code == 422
+    assert http.patch("/v1/workspace/sources/src-inesistente", json={"roles": ["context"]}).status_code == 404
+
+
 def _one_paragraph():
     from docling_core.types.doc import DocItemLabel, DoclingDocument
 

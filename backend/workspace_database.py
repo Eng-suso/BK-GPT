@@ -2344,6 +2344,25 @@ class SourceNotVerifiable(ValueError):
     """La fonte non si puo' ancora usare come evidenza (in lettura o illeggibile)."""
 
 
+def update_source_roles(source_id: str, roles: list[str]) -> dict | None:
+    """Cambia a cosa serve una fonte. Non cambia quale fonte e'.
+
+    Returns:
+        La fonte aggiornata, o `None` se non c'e' in questo tenant.
+    """
+    role_order = {name: index for index, name in enumerate(
+        ("context", "process_evidence", "policy", "operational_data")
+    )}
+    values = sorted(set(roles), key=role_order.__getitem__)
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        source.roles_json = json.dumps(values, ensure_ascii=False, separators=(",", ":"))
+        session.flush()
+        return source_to_dict(source)
+
+
 def verify_project_source(source_id: str) -> dict | None:
     """Il consulente ha controllato il file: da adesso e' evidenza del processo.
 
