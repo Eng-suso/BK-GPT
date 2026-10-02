@@ -201,7 +201,8 @@
       "failed": "Non leggibile"
     },
     "dismissFailed": "Togli il caricamento non riuscito",
-    "uploadFailed": "Il file non è stato caricato."
+    "uploadFailed": "Il file non è stato caricato.",
+    "sentLabel": "Allegati inviati"
   },
   "queue": {
     "title": "Messaggi in coda",

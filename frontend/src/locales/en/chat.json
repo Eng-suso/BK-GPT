@@ -201,7 +201,8 @@
       "failed": "Unreadable"
     },
     "dismissFailed": "Remove the failed upload",
-    "uploadFailed": "The file was not uploaded."
+    "uploadFailed": "The file was not uploaded.",
+    "sentLabel": "Attachments sent"
   },
   "queue": {
     "title": "Queued messages",

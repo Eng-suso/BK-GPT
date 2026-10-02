@@ -184,9 +184,18 @@ def test_pdfs_are_checked_locally_before_reaching_the_service(monkeypatch):
 
 
 def test_upload_parsing_uses_the_document_service(monkeypatch):
-    monkeypatch.setattr(documents, "convert", lambda filename, payload: (_procedure(), []))
+    asked: dict = {}
+
+    def fake_convert(filename, payload, **options):
+        asked.update(options)
+        return _procedure(), []
+
+    monkeypatch.setattr(documents, "convert", fake_convert)
 
     parsed = parse_source_file("procedura.pdf", _pdf(1), "application/pdf")
+
+    # Una pagina senza testo: e' una scansione, va letta con l'OCR.
+    assert asked == {"do_ocr": True}
 
     assert parsed.parser == "docling-serve"
     assert "Il CFO approva gli ordini sopra EUR 30.000." in parsed.text
@@ -253,3 +262,51 @@ def test_unsafe_office_files_never_reach_the_service(monkeypatch):
         archive.writestr("word/document.xml", '<!DOCTYPE x [<!ENTITY a "boom">]><w:document>&a;</w:document>')
     with pytest.raises(SourceFileError, match="XML non sicuro"):
         parse_source_file("procedura.docx", stream.getvalue(), None)
+
+
+def _pdf_with_text(line: str) -> bytes:
+    """Un PDF minimo con uno strato di testo vero, scritto a mano."""
+    stream = f"BT /F1 12 Tf 72 720 Td ({line}) Tj ET".encode()
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(out.tell())
+        out.write(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+    xref = out.tell()
+    out.write(f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode())
+    for offset in offsets:
+        out.write(f"{offset:010d} 00000 n \n".encode())
+    out.write(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
+    return out.getvalue()
+
+
+def test_ocr_is_asked_only_for_pdfs_without_a_text_layer():
+    digital = _pdf_with_text("Il CFO approva gli ordini sopra EUR 30.000 dopo il controllo del budget.")
+    assert documents.needs_ocr(digital) is False
+    # Una copertina con due parole ha il suo strato di testo: niente OCR.
+    assert documents.needs_ocr(_pdf_with_text("Procedura")) is False
+    # Pagine senza testo: una scansione, si legge solo con l'OCR.
+    assert documents.needs_ocr(_pdf(2)) is True
+
+
+def test_the_service_is_told_whether_to_run_ocr():
+    sent: list[str] = []
+    transport, _seen = _service(_procedure())
+
+    def recording(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/convert/file/async":
+            sent.append(request.content.decode("latin-1"))
+        return transport.handle_request(request)
+
+    documents.convert("procedura.pdf", b"%PDF-1.7", transport=httpx.MockTransport(recording), do_ocr=False)
+    assert 'name="do_ocr"\r\n\r\nfalse' in sent[0]
+

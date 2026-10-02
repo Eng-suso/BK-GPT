@@ -43,6 +43,52 @@ def test_run_queue_workers_noop_without_canonical(monkeypatch):
     asyncio.run(asyncio.wait_for(supervisor.run_queue_workers(), timeout=2))
 
 
+def test_the_source_reader_runs_alone_when_the_other_workers_are_off(monkeypatch):
+    """In sviluppo i worker sono spenti (mem0 spende token); il lettore delle
+    fonti no, e senza di lui un PDF caricato resta "In lettura" per sempre."""
+    from backend.workers import source_worker
+
+    calls = {"n": 0}
+
+    def drain() -> int:
+        calls["n"] += 1
+        return 0
+
+    monkeypatch.setattr(source_worker, "drain_once", drain)
+    monkeypatch.setattr(source_worker, "queue_stats", lambda: {"pending": 0})
+
+    async def run() -> None:
+        task = asyncio.create_task(supervisor._run_source_worker_alone())
+        await asyncio.sleep(0.2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(run())
+    assert calls["n"] >= 1
+    assert settings.source_worker_in_process is True
+
+
+@pytest.mark.parametrize("source_on", [True, False])
+def test_with_the_workers_off_only_the_source_reader_starts_and_only_if_on(monkeypatch, source_on):
+    import sys
+
+    started = {"source": 0}
+
+    async def fake_source_alone() -> None:
+        started["source"] += 1
+
+    # run_queue_workers non parte sotto pytest: qui serve che parta.
+    monkeypatch.delitem(sys.modules, "pytest")
+    monkeypatch.setattr(settings, "workers_in_process", False)
+    monkeypatch.setattr(settings, "source_worker_in_process", source_on)
+    monkeypatch.setattr(supervisor, "_run_source_worker_alone", fake_source_alone)
+
+    asyncio.run(asyncio.wait_for(supervisor.run_queue_workers(), timeout=2))
+
+    assert started["source"] == (1 if source_on else 0)
+
+
 def test_queues_endpoint_reports_status():
     from backend.app import app
 

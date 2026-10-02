@@ -6,6 +6,7 @@ export type RawMessage = {
   content?: string;
   created_at?: string;
   createdAt?: string;
+  attachments?: { kind?: string; id?: string; label?: string }[];
 };
 
 export type RawSession = {
@@ -43,6 +44,9 @@ export function normalizeSession(session: RawSession): ChatSession {
       role: (m.role as ChatMessage["role"]) || "user",
       content: m.content || "",
       createdAt: m.created_at || m.createdAt,
+      attachments: (m.attachments || [])
+        .filter((item) => item.kind && item.id)
+        .map((item) => ({ kind: item.kind ?? "", id: item.id ?? "", label: item.label ?? "" })),
     })),
   };
 }

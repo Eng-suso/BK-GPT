@@ -156,7 +156,9 @@ def parse_source_file(filename: str, payload: bytes, _declared_mime: str | None)
     evidence: CanonicalSource | None = None
     if extension in documents.FORMATS:
         try:
-            document, service_errors = documents.convert(filename, payload)
+            # DOCX e PPTX hanno gia' il testo; un PDF solo se non e' una scansione.
+            ocr = extension == ".pdf" and documents.needs_ocr(payload)
+            document, service_errors = documents.convert(filename, payload, do_ocr=ocr)
         except documents.DocumentUnreadable as exc:
             raise SourceFileError(str(exc)) from exc
         evidence = documents.evidence_from(

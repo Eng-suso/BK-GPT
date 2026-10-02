@@ -345,7 +345,7 @@ def test_an_unreadable_file_fails_once_a_service_outage_is_retried(http: TestCli
     assert listed[created["id"]]["acquisition_status"] == "failed"
 
     # Ricaricare lo stesso file e' il "riprova": la fonte fallita torna in coda.
-    monkeypatch.setattr(documents, "convert", lambda filename, payload: (_one_paragraph(), []))
+    monkeypatch.setattr(documents, "convert", lambda filename, payload, **_options: (_one_paragraph(), []))
     retried = http.post(
         f"/v1/workspace/projects/{project['id']}/sources/upload",
         data=fields,

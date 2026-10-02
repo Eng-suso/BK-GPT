@@ -16,10 +16,19 @@ export interface AgentActivity {
   endedAtMs?: number;
 }
 
+/** Un allegato com'e' partito con un messaggio: quanto basta per mostrarlo. */
+export interface MessageAttachment {
+  kind: string;
+  id: string;
+  label: string;
+}
+
 export interface ChatMessage {
   id?: number | string;
   role: MessageRole;
   content: string;
+  /** I file e gli oggetti partiti con il messaggio: restano a vista nella conversazione. */
+  attachments?: MessageAttachment[];
   createdAt?: string;
   activity?: AgentActivity[];
   /** Il consulente ha fermato il turno: la risposta e' quello che era arrivato. */

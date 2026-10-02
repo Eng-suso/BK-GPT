@@ -30,6 +30,7 @@ describe("normalizeSession", () => {
       role: "user",
       content: "ciao",
       createdAt: "2026-01-01",
+      attachments: [],
     });
   });
 
@@ -52,6 +53,25 @@ describe("normalizeSession", () => {
       ],
     });
     expect(session.messageCount).toBe(3);
+  });
+});
+
+describe("normalizeSession: allegati", () => {
+  it("riletta la sessione, il messaggio porta ancora i suoi allegati", () => {
+    const session = normalizeSession({
+      thread_id: "t",
+      messages: [
+        {
+          id: 1,
+          role: "user",
+          content: "Ecco",
+          attachments: [{ kind: "source", id: "src-1", label: "procedura.pdf" }, { kind: "source" }],
+        },
+        { id: 2, role: "assistant", content: "Ricevuto" },
+      ],
+    });
+    expect(session.messages[0].attachments).toEqual([{ kind: "source", id: "src-1", label: "procedura.pdf" }]);
+    expect(session.messages[1].attachments).toEqual([]);
   });
 });
 

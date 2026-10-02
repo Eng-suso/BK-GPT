@@ -86,12 +86,33 @@ async def _drain_loop(
         await asyncio.sleep(0.0 if processed else idle_sleep)
 
 
+async def _run_source_worker_alone() -> None:
+    from backend.workers import source_worker
+
+    task = asyncio.create_task(
+        _drain_loop("source_worker", source_worker.drain_once, source_worker.queue_stats, 1.0),
+        name="source_worker",
+    )
+    try:
+        await task
+    except asyncio.CancelledError:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        raise
+
+
 async def run_queue_workers() -> None:
     """Avvia i loop di drain e resta finche' non viene cancellato (lifespan)."""
     if "pytest" in sys.modules:  # i test drenano le code a mano
         return
     if not settings.workers_in_process:
-        logger.info("worker in-process disattivati (workers_in_process=False)")
+        if not settings.source_worker_in_process:
+            logger.info("worker in-process disattivati (workers_in_process=False)")
+            return
+        # Solo il lettore delle fonti: non spende token, e senza di lui i file
+        # caricati non vengono mai letti.
+        logger.info("worker in-process disattivati tranne source_worker")
+        await _run_source_worker_alone()
         return
 
     from backend.workers import conformance_worker, plan_worker, source_worker
@@ -120,17 +141,24 @@ async def run_queue_workers() -> None:
     )
 
     # La lettura delle fonti caricate vive nel workspace operativo, come il
-    # piano: deve girare anche senza knowledge graph.
-    source_task = asyncio.create_task(
-        _drain_loop(
-            "source_worker", source_worker.drain_once, source_worker.queue_stats, 3.0,
-        ),
-        name="source_worker",
+    # piano: deve girare anche senza knowledge graph. Spenta solo se lo dice il
+    # suo interruttore.
+    source_tasks = (
+        [
+            asyncio.create_task(
+                _drain_loop(
+                    "source_worker", source_worker.drain_once, source_worker.queue_stats, 1.0,
+                ),
+                name="source_worker",
+            )
+        ]
+        if settings.source_worker_in_process
+        else []
     )
 
     if not settings.canonical_worker_url:
         logger.info("canonical non configurato: avviati plan_worker, conformance_worker e source_worker")
-        workspace_tasks = [plan_task, conformance_task, source_task]
+        workspace_tasks = [plan_task, conformance_task, *source_tasks]
         try:
             await asyncio.gather(*workspace_tasks)
         except asyncio.CancelledError:
@@ -145,7 +173,7 @@ async def run_queue_workers() -> None:
     tasks = [
         plan_task,
         conformance_task,
-        source_task,
+        *source_tasks,
         asyncio.create_task(
             _drain_loop(
                 "ingest_worker", ingest_worker.drain_once, ingest_worker.queue_stats,
