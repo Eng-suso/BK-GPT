@@ -1,3 +1,4 @@
+from backend.toolsets.workspace import confirm_workspace_write
 from backend.toolsets.workspace import (
     create_initial_workspace_setup,
     create_workspace_project,
@@ -24,6 +25,7 @@ ongoing work belongs to the Project, Process or Canvas macro agents.
 
 
 setup_tools = [
+    confirm_workspace_write,
     get_workspace_overview,
     list_workspace_clients,
     validate_initial_workspace_setup,

@@ -151,6 +151,7 @@ def consulting_routing_state(
     }
 
     return {
+        "detected_posture": getattr(decision, "posture", None),
         "consulting_route": route,
         "consulting_mode": consulting_mode,
         "consulting_objective": consulting_objective,
@@ -250,6 +251,21 @@ def build_consulting_router(llm):
                 model=ConsultingRoutingDecision,
                 messages=[
                     SystemMessage(content=consulting_router_prompt(state.get("chat_mode"))),
+                    *(
+                        [
+                            SystemMessage(
+                                content=(
+                                    "Su questa conversazione c'e' una scrittura in attesa di "
+                                    f"approvazione: {(state.get('pending_action') or {}).get('preview') or ''}. "
+                                    "Se il messaggio la approva o la rifiuta, la rotta e' setup "
+                                    "(capability consultant.setup). Se parla d'altro, servi la "
+                                    "richiesta nuova: la proposta resta in attesa."
+                                )
+                            )
+                        ]
+                        if (state.get("pending_action") or {}).get("action") == "workspace_write"
+                        else []
+                    ),
                     HumanMessage(
                         content=(
                             "Active scope: consultant\n\n"

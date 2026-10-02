@@ -285,6 +285,110 @@ class InitialWorkspaceSetupInput(BaseModel):
     client_owner: str | None = Field(default=None, description="Client owner when the user stated it.")
 
 
+PENDING_WORKSPACE_WRITE = "workspace_write"
+
+
+def _plain(value: Any) -> Any:
+    """Argomenti di un tool resi serializzabili, per congelarli in un'azione in attesa."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    return value
+
+
+def _gate_workspace_write(tool_name: str, arguments: dict[str, Any], preview: str) -> str | None:
+    """L'autonomia scelta dal consulente decide se questa scrittura parte.
+
+    - Auto: parte (ritorna `None`).
+    - Chiedi approvazione: non parte. La chiamata viene congelata come azione in
+      attesa sul thread e il tool risponde che serve il si' del consulente; lo
+      esegue `confirm_workspace_write`.
+    - Manuale: non parte, e il tool lo dice con il motivo.
+
+    Returns:
+        Il risultato da restituire al modello al posto della scrittura, o `None`
+        se la scrittura puo' partire.
+    """
+    from backend.agents.chat_mode import (
+        WORKSPACE_RECORD_WRITE,
+        WriteNeedsApproval,
+        WriteNotAllowedInMode,
+        assert_write_allowed,
+    )
+
+    try:
+        assert_write_allowed(WORKSPACE_RECORD_WRITE)
+    except WriteNotAllowedInMode as exc:
+        return enterprise_tool_result(
+            status="blocked",
+            action=tool_name,
+            entity_type="workspace_record",
+            summary=str(exc),
+            warnings=["Niente e' stato creato: dillo al consulente con queste parole."],
+        )
+    except WriteNeedsApproval:
+        from backend.agents.run_context import active_thread_id
+        from backend.memory import pending_actions
+        from backend.settings import settings
+
+        thread_id = active_thread_id()
+        if not thread_id:
+            return enterprise_tool_result(
+                status="blocked",
+                action=tool_name,
+                entity_type="workspace_record",
+                summary="Serve l'approvazione del consulente, ma questa chiamata non appartiene a una conversazione.",
+            )
+        open_action = pending_actions.open_action(
+            consultant_id=settings.default_consultant_id, thread_id=thread_id
+        )
+        if open_action is not None and open_action.get("action") != PENDING_WORKSPACE_WRITE:
+            # Un thread ha una sola conferma aperta: una proposta nuova non deve
+            # cancellare, senza dirlo, la cancellazione di una memoria in attesa.
+            return enterprise_tool_result(
+                status="blocked",
+                action=tool_name,
+                entity_type="workspace_record",
+                summary=(
+                    "C'e' gia' un'altra conferma in attesa su questa conversazione: "
+                    f"{open_action.get('preview') or ''}. Fatti rispondere su quella prima."
+                ),
+            )
+        # Piu' scritture proposte nello stesso giro si sommano in una proposta
+        # sola: un "si'" le approva tutte, nell'ordine in cui sono state proposte.
+        previous = (open_action or {}).get("params") or {}
+        writes = [*(previous.get("writes") or []), {"tool": tool_name, "arguments": _plain(arguments)}]
+        previews = [*(previous.get("previews") or []), preview]
+        combined = "; ".join(previews)
+        action = pending_actions.propose(
+            consultant_id=settings.default_consultant_id,
+            thread_id=thread_id,
+            action=PENDING_WORKSPACE_WRITE,
+            params={"writes": writes, "previews": previews},
+            preview=combined,
+        )
+        return enterprise_tool_result(
+            status="awaiting_confirmation",
+            action=tool_name,
+            entity_type="workspace_record",
+            entity_id=action["id"],
+            summary=(
+                f"Proposta in attesa di approvazione, NON ancora eseguita: {combined}. "
+                "Mostrala al consulente e chiedi un si' esplicito. Non dire che e' stato creato."
+            ),
+            payload={
+                "pending_action_id": action["id"],
+                "preview": combined,
+                "next_step": "confirm_workspace_write(operation='confirm'|'cancel')",
+            },
+        )
+    return None
+
+
+
 @tool
 def get_workspace_overview() -> str:
     """
@@ -580,6 +684,21 @@ def manage_client_record(
 
     """
     normalized_operation = operation.strip().lower()
+    if normalized_operation == "create":
+        gated = _gate_workspace_write(
+            "manage_client_record",
+            {
+                "operation": operation,
+                "name": name,
+                "sector": sector,
+                "status": status,
+                "owner": owner,
+                "contact": contact,
+            },
+            f"creare il cliente {name}",
+        )
+        if gated is not None:
+            return gated
     clients = workspace_database.list_clients()
     existing = next(
         (
@@ -686,6 +805,24 @@ def create_workspace_project(
     update_workspace_project - nor when the client has to be created too, which
     is create_initial_workspace_setup.
     """
+    gated = _gate_workspace_write(
+        "create_workspace_project",
+        {
+            "client_id": client_id,
+            "name": name,
+            "objective": objective,
+            "phase": phase,
+            "status": status,
+            "progress": progress,
+            "next_step": next_step,
+            "milestones": milestones,
+            "open_issues": open_issues,
+            "deliverables": deliverables,
+        },
+        f"creare il progetto {name}",
+    )
+    if gated is not None:
+        return gated
     project = workspace_database.create_project(
         client_id=client_id,
         name=name,
@@ -1062,6 +1199,33 @@ def create_initial_workspace_setup(
     Stop after setup; ongoing execution belongs to Project, Process or Canvas macro agents.
 
     """
+    gated = _gate_workspace_write(
+        "create_initial_workspace_setup",
+        {
+            "client_name": client_name,
+            "project_name": project_name,
+            "project_objective": project_objective,
+            "process_name": process_name,
+            "source_name": source_name,
+            "decision_title": decision_title,
+            "reason": reason,
+            "client_sector": client_sector,
+            "client_status": client_status,
+            "client_owner": client_owner,
+        },
+        "creare "
+        + ", ".join(
+            part
+            for part in (
+                f"il cliente {client_name}",
+                f"il progetto {project_name}" if project_name else "",
+                f"il processo {process_name}" if process_name else "",
+            )
+            if part
+        ),
+    )
+    if gated is not None:
+        return gated
     warnings = []
     created_records = []
     reused_records = []
@@ -1169,6 +1333,114 @@ def create_initial_workspace_setup(
             }
         ],
     )
+
+
+@tool
+def confirm_workspace_write(operation: str) -> str:
+    """
+    Purpose: execute or cancel the workspace write this conversation is waiting on.
+    Use it the moment the consultant answers a proposal you made in Chiedi
+    approvazione (a client, a project, an initial setup): operation='confirm' when
+    they say yes, operation='cancel' when they say no.
+    The proposal is already frozen with its exact arguments: do not pass them again,
+    do not call the original tool again, and never ask what they were approving.
+    Report only what the result says was created.
+    """
+    from backend.agents.chat_mode import bind_approved_write
+    from backend.agents.run_context import active_thread_id
+    from backend.memory import pending_actions
+    from backend.settings import settings
+
+    normalized_operation = (operation or "").strip().lower()
+    consultant_id = settings.default_consultant_id
+    thread_id = active_thread_id() or "unbound"
+    pending = pending_actions.open_action(
+        consultant_id=consultant_id, thread_id=thread_id, action=PENDING_WORKSPACE_WRITE
+    )
+    if pending is None:
+        return enterprise_tool_result(
+            status="not_found",
+            action="confirm_workspace_write",
+            entity_type="workspace_record",
+            summary="Nessuna scrittura in attesa su questa conversazione: niente da confermare.",
+        )
+    if normalized_operation == "cancel":
+        pending_actions.cancel(consultant_id=consultant_id, thread_id=thread_id)
+        return enterprise_tool_result(
+            status="cancelled",
+            action="confirm_workspace_write",
+            entity_type="workspace_record",
+            entity_id=pending["id"],
+            summary=f"Annullato: {pending['preview']}. Niente e' stato creato.",
+        )
+    if normalized_operation != "confirm":
+        return enterprise_tool_result(
+            status="blocked",
+            action="confirm_workspace_write",
+            entity_type="workspace_record",
+            summary=f"Operazione non supportata: {operation}. Usa confirm o cancel.",
+        )
+    from backend.agents.chat_mode import (
+        WORKSPACE_RECORD_WRITE,
+        WriteNotAllowedInMode,
+        assert_write_allowed,
+    )
+
+    # Prima di consumare la proposta: se il consulente e' passato a Manuale, il
+    # "si'" non puo' scrivere, e la proposta deve restare per quando tornera' ad
+    # Auto o Chiedi approvazione.
+    try:
+        with bind_approved_write():
+            assert_write_allowed(WORKSPACE_RECORD_WRITE)
+    except WriteNotAllowedInMode as exc:
+        return enterprise_tool_result(
+            status="blocked",
+            action="confirm_workspace_write",
+            entity_type="workspace_record",
+            summary=f"{exc} La proposta resta in attesa.",
+        )
+
+    claimed = pending_actions.claim(
+        consultant_id=consultant_id, thread_id=thread_id, action_id=pending["id"]
+    )
+    if claimed is None:
+        return enterprise_tool_result(
+            status="noop",
+            action="confirm_workspace_write",
+            entity_type="workspace_record",
+            summary="Scrittura gia' risolta (eseguita, annullata o scaduta): non la rieseguo.",
+        )
+    params = claimed["params"] or {}
+    writes = params.get("writes") or []
+    results: list[str] = []
+    with bind_approved_write():
+        for item in writes:
+            write = _GATED_WRITE_TOOLS.get(str(item.get("tool")))
+            if write is None:
+                results.append(
+                    enterprise_tool_result(
+                        status="blocked",
+                        action="confirm_workspace_write",
+                        entity_type="workspace_record",
+                        summary=f"Scrittura non piu' eseguibile: {item.get('tool')}.",
+                    )
+                )
+                continue
+            results.append(str(write.invoke(item.get("arguments") or {})))
+    pending_actions.record_result(
+        consultant_id=consultant_id,
+        thread_id=thread_id,
+        action_id=claimed["id"],
+        result={"output": "\n".join(results)[:4000]},
+    )
+    return "\n\n".join(results)
+
+
+_GATED_WRITE_TOOLS = {
+    "manage_client_record": manage_client_record,
+    "create_workspace_project": create_workspace_project,
+    "create_initial_workspace_setup": create_initial_workspace_setup,
+}
 
 
 workspace_read_tools = [

@@ -1,5 +1,11 @@
 """Runtime enforcement della modalita di chat (plan / edit / agent).
 
+Nel prodotto il consulente sceglie l'*autonomia* - Auto, Chiedi approvazione,
+Manuale - e il runtime la traduce nelle modalita' interne qui sotto
+(`schemas/chat.py: AUTONOMY_TO_MODE`): agent, plan, conversation. I nomi interni
+restano perche' su di loro sono costruiti il router e i test; quello che il
+consulente vede sono i tre livelli.
+
 La modalita e' una scelta dell'utente, non del modello: dice quanta parte del
 lavoro sta delegando in questo turno. Vincola due cose, in due punti diversi:
 
@@ -36,6 +42,20 @@ class WriteNotAllowedInMode(RuntimeError):
     """Una scrittura vietata dalla modalita' scelta dall'utente per questo turno."""
 
 
+class WriteNeedsApproval(RuntimeError):
+    """Una scrittura permessa, ma solo dopo che il consulente l'ha approvata."""
+
+
+# Le scritture dell'agente sui record del workspace: clienti, progetti, primo
+# processo. Non toccano il modello BPMN, ma restano scritture: in Manuale non
+# partono, in Chiedi approvazione partono dopo il "si'" del consulente.
+WORKSPACE_RECORD_WRITE = "create_workspace_records"
+
+_approved_write: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "approved_workspace_write", default=False
+)
+
+
 # Le scritture che ogni modalita' rifiuta. Plan non tocca il modello di processo:
 # preparare e riscrivere la review *e'* il lavoro del plan mode, quindi quelle
 # restano permesse. Edit applica modifiche locali ma non approva una review -
@@ -51,6 +71,7 @@ FORBIDDEN_WRITES: dict[str, frozenset[str]] = {
             "create_bpmn_version",
             "restore_bpmn_version",
             "approve_bpmn_review",
+            WORKSPACE_RECORD_WRITE,
         }
     ),
     "plan": frozenset(
@@ -64,6 +85,25 @@ FORBIDDEN_WRITES: dict[str, frozenset[str]] = {
     "edit": frozenset({"approve_bpmn_review"}),
     "agent": frozenset(),
 }
+
+# Le scritture che una modalita' permette solo dopo un'approvazione esplicita,
+# legata al thread (`backend.memory.pending_actions`). In Chiedi approvazione il
+# modello BPMN cambia dal bottone Approva della review; i record del workspace
+# da qui.
+APPROVAL_WRITES: dict[str, frozenset[str]] = {
+    "plan": frozenset({WORKSPACE_RECORD_WRITE}),
+    "edit": frozenset({WORKSPACE_RECORD_WRITE}),
+}
+
+
+@contextmanager
+def bind_approved_write() -> Iterator[None]:
+    """Esegue una scrittura che il consulente ha appena approvato."""
+    token = _approved_write.set(True)
+    try:
+        yield
+    finally:
+        _approved_write.reset(token)
 
 def narrowest_mode_allowing(operation: str) -> str | None:
     """La modalita' meno ampia in cui questa scrittura passa.
@@ -94,14 +134,14 @@ def narrowest_mode_allowing(operation: str) -> str | None:
 
 MODE_REFUSALS: dict[str, str] = {
     "conversation": (
-        "Questa chat e' in modalita' Conversazione: posso rispondere e chiarire, "
-        "ma non creare o modificare artefatti BPMN. L'utente deve attivare "
-        "esplicitamente Piano, Modifica o Agente."
+        "Questa chat e' in autonomia Manuale: DeliR propone e spiega, ma non "
+        "scrive niente - ne' record del workspace ne' artefatti BPMN. Per farlo "
+        "fare a DeliR serve Chiedi approvazione o Auto."
     ),
     "plan": (
-        "Questa chat e' in modalita' Piano: posso preparare, correggere e "
-        "spiegare il piano di processo, ma non modificare il canvas. "
-        "Passa a Modifica o Agente per applicarlo."
+        "Questa chat e' in autonomia Chiedi approvazione: posso preparare e "
+        "correggere il piano di processo, ma il canvas cambia solo quando il "
+        "consulente approva la review. Per modifiche dirette serve Auto."
     ),
     "edit": (
         "Questa chat e' in modalita' Modifica: posso applicare cambiamenti "
@@ -164,6 +204,11 @@ def assert_write_allowed(operation: str) -> None:
     mode = _active_mode.get()
     if mode is None:
         return
+
+    if operation in APPROVAL_WRITES.get(mode, frozenset()) and not _approved_write.get():
+        raise WriteNeedsApproval(
+            "In Chiedi approvazione questa scrittura parte solo dopo il si' del consulente."
+        )
 
     if operation in FORBIDDEN_WRITES.get(mode, frozenset()):
         message = MODE_REFUSALS.get(
