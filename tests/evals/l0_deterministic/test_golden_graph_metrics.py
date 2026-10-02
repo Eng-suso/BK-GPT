@@ -356,6 +356,112 @@ def test_handoffs_are_the_reference_edges_that_change_lane():
     assert case.handoffs == [("apri_richiesta", "verifica_richiesta")]
 
 
+# --- cio' che il piano sa, oltre al disegno ---------------------------------
+
+
+def _knowing_case():
+    from tests.evals.graph_metrics import (
+        EvidenceBinding,
+        EvidenceQuote,
+        ExpectedClaim,
+        ExpectedConflict,
+    )
+
+    return _case(
+        evidence_bindings=[
+            EvidenceBinding(
+                element="verifica_richiesta",
+                source="a.md",
+                quote="leggo e verifico se la richiesta e' lavorabile",
+            )
+        ],
+        expected_claims=[
+            ExpectedClaim(
+                id="canale_unico",
+                text="Le richieste arrivano agli Acquisti solo dall'Ufficio Tecnico",
+                aliases=["canale unico", "solo ufficio tecnico"],
+                evidence=[],
+            )
+        ],
+        expected_conflicts=[
+            ExpectedConflict(
+                id="chi_chiude",
+                about="chi chiude la segnalazione",
+                positions=[],
+                detected_by_aliases=["chi chiude segnalazione"],
+            )
+        ],
+    )
+
+
+def _knowing_plan(**overrides) -> dict:
+    plan = {
+        "title": "Mini",
+        "steps": [
+            {"id": "s1", "label": "Apri la richiesta"},
+            {
+                "id": "s2",
+                "label": "Verifica la richiesta",
+                "source_evidence": ["Leggo e verifico se la richiesta e' lavorabile."],
+            },
+        ],
+        "business_rules": ["Canale unico: le richieste passano solo dall'Ufficio Tecnico"],
+        "consultant_findings": [
+            {"id": "f1", "finding": "Le fonti non concordano su chi chiude la segnalazione", "category": "actor"}
+        ],
+    }
+    plan.update(overrides)
+    return plan
+
+
+def test_a_plan_that_cites_states_and_flags_scores_full_marks():
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    metrics = knowledge_metrics(_knowing_plan(), _knowing_case())
+
+    assert metrics["evidence_coverage"] == 1.0
+    assert metrics["claim_recall"] == 1.0
+    assert metrics["conflict_detection_rate"] == 1.0
+
+
+def test_a_plan_that_settles_a_conflict_in_silence_does_not_detect_it():
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    metrics = knowledge_metrics(_knowing_plan(consultant_findings=[]), _knowing_case())
+
+    assert metrics["conflict_detection_rate"] == 0.0
+    assert metrics["missed_conflicts"] == ["chi_chiude"]
+
+
+def test_a_step_without_its_evidence_is_not_covered():
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    plan = _knowing_plan(steps=[{"id": "s2", "label": "Verifica la richiesta"}])
+
+    metrics = knowledge_metrics(plan, _knowing_case())
+
+    assert metrics["evidence_coverage"] == 0.0
+    assert metrics["uncovered_elements"] == ["verifica_richiesta"]
+
+
+def test_a_claim_found_only_in_a_copied_quote_is_not_stated():
+    """Il piano che incolla la frase della fonte non afferma ancora niente."""
+    from tests.evals.graph_metrics import knowledge_metrics
+
+    plan = _knowing_plan(
+        business_rules=[],
+        steps=[
+            {
+                "id": "s2",
+                "label": "Verifica la richiesta",
+                "source_evidence": ["canale unico, solo ufficio tecnico"],
+            }
+        ],
+    )
+
+    assert knowledge_metrics(plan, _knowing_case())["claim_recall"] == 0.0
+
+
 # --- dal piano al disegno non si perde niente --------------------------------
 
 

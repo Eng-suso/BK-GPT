@@ -603,6 +603,9 @@ REGRESSION_METRICS = (
     "edge_recall",
     "handoff_recall",
     "exception_recall",
+    "evidence_coverage",
+    "claim_recall",
+    "conflict_detection_rate",
 )
 
 
@@ -626,6 +629,109 @@ def regressions(
             f"({'; '.join([*current.get('forbidden_hits', []), *current.get('gap_violations', [])][:3])})"
         )
     return found
+
+
+# --- cio' che il piano sa, oltre al disegno -----------------------------------
+
+# Un'evidenza del piano e la citazione del riferimento sono due ritagli della
+# stessa frase, scelti da due mani diverse: basta che meta' delle radici della
+# citazione stiano nell'evidenza.
+EVIDENCE_MATCH_THRESHOLD = 0.5
+
+# Campi che non sono affermazioni del piano: identificativi, e le evidenze
+# stesse - un claim "ritrovato" solo perche' il piano ha copiato la frase della
+# fonte non e' un claim che il piano afferma.
+_NOT_A_STATEMENT = re.compile(r"(^id$|_ids?$|^source_evidence$|^source_ref$)")
+
+
+def _statements(value: Any, key: str = "") -> list[str]:
+    if _NOT_A_STATEMENT.search(key):
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [text for child_key, child in value.items() for text in _statements(child, child_key)]
+    if isinstance(value, list):
+        return [text for child in value for text in _statements(child, key)]
+    return []
+
+
+def _matches_any(texts: list[str], aliases: list[str]) -> bool:
+    return any(label_score(text, aliases) >= LABEL_MATCH_THRESHOLD for text in texts)
+
+
+def knowledge_metrics(plan: dict[str, Any], case: ReferenceCase) -> dict[str, Any]:
+    """Quanto il piano sa del processo, oltre a quanto lo disegna bene.
+
+    | metrica | cosa misura |
+    | --- | --- |
+    | evidence_coverage | gli elementi legati a una fonte nel riferimento hanno, nel piano, un'evidenza che cita quel passo |
+    | claim_recall | i fatti su cui il processo poggia sono affermati nel piano |
+    | conflict_detection_rate | i disaccordi fra fonti emergono come rilievo, domanda o assunzione, invece di essere risolti in silenzio |
+
+    Un caso senza legami, claim o conflitti da' 1.0 sulla metrica relativa:
+    non c'e' niente da mancare.
+    """
+    steps = [
+        ProducedNode(id=str(item.get("id")), tag="task", name=str(item.get("label") or ""))
+        for item in plan.get("steps") or []
+    ]
+    evidence_of = {
+        str(item.get("id")): list(item.get("source_evidence") or [])
+        for name in ("steps", "decisions")
+        for item in plan.get(name) or []
+    }
+    matched = _match_activities(steps, case.activities)
+    for gateway_id, aliases in case.gateways.items():
+        decision = next(
+            (
+                item
+                for item in plan.get("decisions") or []
+                if label_score(str(item.get("label") or ""), aliases) >= LABEL_MATCH_THRESHOLD
+            ),
+            None,
+        )
+        if decision is not None:
+            matched[gateway_id] = str(decision.get("id"))
+
+    quotes_by_element: dict[str, list[str]] = {}
+    for binding in case.evidence_bindings:
+        quotes_by_element.setdefault(binding.element, []).append(binding.quote)
+    covered = [
+        element
+        for element, quotes in quotes_by_element.items()
+        if element in matched
+        and any(
+            label_score(evidence, [quote]) >= EVIDENCE_MATCH_THRESHOLD
+            for evidence in evidence_of.get(matched[element], [])
+            for quote in quotes
+        )
+    ]
+
+    statements = _statements(plan)
+    recalled = [claim.id for claim in case.expected_claims if _matches_any(statements, claim.aliases)]
+
+    surfaced = _statements(
+        {
+            "findings": plan.get("consultant_findings") or [],
+            "unknowns": plan.get("unknowns") or [],
+            "assumptions": plan.get("assumptions") or [],
+        }
+    )
+    detected = [
+        conflict.id
+        for conflict in case.expected_conflicts
+        if _matches_any(surfaced, conflict.detected_by_aliases)
+    ]
+
+    return {
+        "evidence_coverage": _ratio(len(covered), len(quotes_by_element)),
+        "claim_recall": _ratio(len(recalled), len(case.expected_claims)),
+        "conflict_detection_rate": _ratio(len(detected), len(case.expected_conflicts)),
+        "uncovered_elements": sorted(set(quotes_by_element) - set(covered)),
+        "missed_claims": [claim.id for claim in case.expected_claims if claim.id not in recalled],
+        "missed_conflicts": [item.id for item in case.expected_conflicts if item.id not in detected],
+    }
 
 
 def plan_shape(plan: dict[str, Any]) -> dict[str, Any]:
