@@ -46,6 +46,7 @@ import {
   useComposerUploads,
   type UploadDestination,
 } from "../hooks/useComposerUploads";
+import { SourceCardMenu } from "./SourceCardMenu";
 import { UploadDestinationDialog } from "./UploadDestinationDialog";
 import { AttachmentPicker } from "./AttachmentPicker";
 import { AutonomySelector, PostureSelector, ReasoningSelector } from "./TurnControls";
@@ -754,6 +755,27 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                   <span className="composer-chip-label" title={attachment.label}>
                     {attachment.label}
                   </span>
+                  {attachment.kind === "source" ? (
+                    <SourceCardMenu
+                      fileName={attachment.label}
+                      roles={uploads.rolesOf(attachment.id)}
+                      suggestion={uploads.suggestionOf(attachment.id)}
+                      onApply={(roles) => void uploads.applyRoles(attachment.id, roles)}
+                      disabled={uploads.isRolePending(attachment.id)}
+                      onKeep={() => {
+                        // Resta tra le Fonti, esce solo dal messaggio.
+                        uploads.keepInSources(attachment);
+                        setAttachments((prev) =>
+                          prev.filter((item) => chatAttachmentKey(item) !== chatAttachmentKey(attachment)),
+                        );
+                      }}
+                    />
+                  ) : null}
+                  {attachment.kind === "source" && uploads.roleFailed(attachment.id) ? (
+                    <span className="composer-chip-status is-failed" role="alert">
+                      {t("card.rolesFailed")}
+                    </span>
+                  ) : null}
                   {status ? (
                     <span
                       className={cn("composer-chip-status", `is-${status}`)}

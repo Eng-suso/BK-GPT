@@ -3,9 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mutateAsync = vi.fn();
 const discardSource = vi.fn((_id: string) => Promise.resolve());
+const updateSourceRoles = vi.fn((id: string, roles: string[]) => Promise.resolve({ id, roles }));
+
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
 
 vi.mock("../../projects/api", () => ({
   discardSource: (id: string) => discardSource(id),
+  updateSourceRoles: (id: string, roles: string[]) => updateSourceRoles(id, roles),
+  projectKeys: { sources: (id: string) => ["projects", id, "sources"] },
   useProjectSourcesQuery: () => ({
     data: [
       { id: "src-nuova", acquisitionStatus: "pending", acquisitionError: null },
@@ -108,6 +116,70 @@ describe("useComposerUploads", () => {
 
     expect(restoreNetwork).toHaveBeenCalledOnce();
     expect(restoreConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("propone il ruolo che il nome suggerisce, e lo applica con una chiamata", async () => {
+    mutateAsync.mockResolvedValue({
+      id: "src-procedura",
+      name: "Procedura acquisti.pdf",
+      projectId: "p-1",
+      created: true,
+      roles: ["process_evidence"],
+      suggestedRoles: ["process_evidence", "policy"],
+    });
+    const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, true));
+    await act(async () => {
+      await result.current.uploadFile(file("Procedura acquisti.pdf"));
+    });
+
+    expect(result.current.rolesOf("src-procedura")).toEqual(["process_evidence"]);
+    expect(result.current.suggestionOf("src-procedura")).toEqual(["process_evidence", "policy"]);
+
+    await act(async () => {
+      await result.current.applyRoles("src-procedura", ["process_evidence", "policy"]);
+    });
+    expect(updateSourceRoles).toHaveBeenCalledWith("src-procedura", ["process_evidence", "policy"]);
+    expect(result.current.rolesOf("src-procedura")).toEqual(["process_evidence", "policy"]);
+    expect(result.current.suggestionOf("src-procedura")).toBeNull();
+  });
+
+  it("un cambio di ruolo non riuscito si vede, e il ruolo resta quello vero", async () => {
+    mutateAsync.mockResolvedValue({
+      id: "src-ko",
+      name: "b.pdf",
+      projectId: "p-1",
+      created: true,
+      roles: ["context"],
+      suggestedRoles: null,
+    });
+    updateSourceRoles.mockRejectedValueOnce(new Error("rete"));
+    const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, true));
+    await act(async () => {
+      await result.current.uploadFile(file("b.pdf"));
+    });
+
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.applyRoles("src-ko", ["policy"]);
+    });
+    expect(ok).toBe(false);
+    expect(result.current.roleFailed("src-ko")).toBe(true);
+    expect(result.current.rolesOf("src-ko")).toEqual(["context"]);
+    expect(result.current.isRolePending("src-ko")).toBe(false);
+  });
+
+  it("Salva tra le Fonti: il file resta anche se la card esce dal messaggio", async () => {
+    mutateAsync.mockResolvedValue({ id: "src-tenuta", name: "a.pdf", projectId: "p-1", created: true, roles: [] });
+    const { result } = renderHook(() => useComposerUploads(PROCESS_SCOPE, true));
+    await act(async () => {
+      await result.current.uploadFile(file("a.pdf"));
+    });
+    const attachment = { kind: "source" as const, id: "src-tenuta", label: "a.pdf", projectId: "p-1" };
+    act(() => {
+      result.current.keepInSources(attachment);
+      result.current.forget(attachment);
+    });
+    expect(discardSource).not.toHaveBeenCalled();
   });
 
   it("un caricamento rifiutato resta a vista con il motivo", async () => {

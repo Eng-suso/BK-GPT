@@ -29,6 +29,7 @@ import {
   apiSourceDocumentSchema,
   type SourceDocument,
   type ProjectSource,
+  type SourceRole,
   type SourceUpload,
   type ProjectDecision,
 } from "@/contracts/workspace";
@@ -250,6 +251,8 @@ export function useProjectSourcesQuery(
 export type UploadedSource = ProjectSource & {
   /** `false`: lo stesso file c'era gia' tra le Fonti. */
   created: boolean;
+  /** I ruoli che il nome e il formato suggeriscono; `null` se non dicono niente. */
+  suggestedRoles: SourceRole[] | null;
 };
 
 export function useUploadProjectSourceMutation(
@@ -264,7 +267,11 @@ export function useUploadProjectSourceMutation(
         { method: "POST", body },
       );
       const parsed = apiUploadedSourceSchema.parse(raw);
-      return { ...toProjectSource(parsed), created: parsed.created };
+      return {
+        ...toProjectSource(parsed),
+        created: parsed.created,
+        suggestedRoles: parsed.suggested_roles,
+      };
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.sources(projectId) });
@@ -311,6 +318,15 @@ export function sourceUploadForm({ file, roles, retention, scopes }: SourceUploa
  * E' la regola della card del composer: un file nuovo tolto prima dell'invio
  * non resta tra le Fonti.
  */
+/** Cambia a cosa serve una fonte: la stessa fonte, un altro attributo. */
+export async function updateSourceRoles(sourceId: string, roles: SourceRole[]): Promise<ProjectSource> {
+  const raw = await http<unknown>(`/v1/workspace/sources/${sourceId}`, {
+    method: "PATCH",
+    body: { roles },
+  });
+  return toProjectSource(apiProjectSourceSchema.parse(raw));
+}
+
 export async function discardSource(sourceId: string): Promise<void> {
   await http<unknown>(`/v1/workspace/sources/${sourceId}`, { method: "DELETE" });
 }

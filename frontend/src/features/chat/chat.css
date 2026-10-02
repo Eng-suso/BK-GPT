@@ -413,6 +413,9 @@
 .composer-chip-label {
   overflow: hidden;
   max-width: 22ch;
+  /* Il nome del file resta leggibile: e' il ruolo ad accorciarsi per primo. */
+  flex: 0 1 auto;
+  min-width: 10ch;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -445,6 +448,49 @@
   flex: 0 1 auto;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* A cosa serve un file caricato: un menu piccolo sulla card. La proposta di
+   DeliR ("Sembra: ...") si distingue dal ruolo gia' scelto. */
+.composer-chip-role {
+  display: inline-flex;
+  flex: 0 100 auto;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 14rem;
+  padding: 0 4px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+}
+
+.composer-chip-role:hover,
+.composer-chip-role:focus-visible {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+
+.composer-chip-role:focus-visible {
+  outline: var(--border-width-200) solid var(--color-border-selected);
+  outline-offset: 1px;
+}
+
+.composer-chip-role.is-suggested {
+  color: var(--color-action-primary);
+  font-weight: 500;
+}
+
+.composer-chip-role-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-chip-role svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
 }
 
 .composer-chip-remove {
