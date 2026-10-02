@@ -23,7 +23,7 @@ import { useBpmnModelQuery } from "../api";
 import { SimulationStudio } from "./SimulationStudio";
 import { ReplaySession } from "./replay/ReplaySession";
 import { listProsimosSimulationRuns } from "./simulationApi";
-import { formatRunOption, SimulationSectionContext, type SimulationPanel } from "./useSimulationSection";
+import { formatRunOption, SimulationSectionContext, type SimulationPanel, type AnalysisView } from "./useSimulationSection";
 
 const PANELS = ["scenario", "overview", "compare", "heatmap", "insights", "widget", "activity"] as const;
 
@@ -64,6 +64,9 @@ export function SimulationLayout(): React.JSX.Element {
     ? requestedId : runs.find((run) => run.status === "completed")?.id ?? runs[0]?.id ?? null;
   const requestedPanel = params.get("panel") ?? (section === "workspace" || section === "replay" || section === "dashboard" ? null : section);
   const panel = PANELS.includes(requestedPanel as SimulationPanel) ? requestedPanel as SimulationPanel : null;
+  const requestedView = params.get("view");
+  const analysisView: AnalysisView = ["replay", "final", "compare", "heatmap"].includes(requestedView ?? "") ? requestedView as AnalysisView
+    : panel === "compare" ? "compare" : panel === "heatmap" ? "heatmap" : panel === "overview" || panel === "insights" ? "final" : "replay";
   const panelRef = React.useRef(panel);
   React.useEffect(() => { panelRef.current = panel; }, [panel]);
   const selectionScope = `${projectId}:${processId}:${activeRunId}`;
@@ -73,14 +76,19 @@ export function SimulationLayout(): React.JSX.Element {
   const navigateWorkspace = React.useCallback((nextPanel: SimulationPanel | null, id: number | null = activeRunId) => {
     const query = new URLSearchParams(location.search);
     query.delete("run");
+    query.set("view", nextPanel === "compare" ? "compare" : nextPanel === "heatmap" ? "heatmap" : nextPanel === "overview" || nextPanel === "insights" ? "final" : analysisView);
     if (nextPanel) query.set("panel", nextPanel); else query.delete("panel");
     const search = query.toString();
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${id != null ? `/${id}` : ""}`) + (search ? `?${search}` : ""));
-  }, [activeRunId, location.search, navigate, processId, projectId]);
+  }, [activeRunId, analysisView, location.search, navigate, processId, projectId]);
   const openPanel = React.useCallback((next: SimulationPanel | null) => { panelRef.current = next; navigateWorkspace(next); }, [navigateWorkspace]);
   const selectRun = React.useCallback((id: number) => { setSelection({ scope: "", id: null }); navigateWorkspace(panelRef.current === "widget" || panelRef.current === "activity" ? null : panelRef.current, id); }, [navigateWorkspace]);
   const [inspectedWidgetId, setInspectedWidgetId] = React.useState<string | null>(null);
   const inspectWidget = (id: string | null) => { setInspectedWidgetId(id); openPanel(id ? "widget" : null); };
+  const setAnalysisView = (view: AnalysisView) => {
+    const query = new URLSearchParams(location.search); query.set("view", view); query.delete("panel");
+    navigate(ROUTES.projects.simulation(projectId, processId, `workspace${activeRunId != null ? `/${activeRunId}` : ""}`) + `?${query}`);
+  };
   const switchRun = (value: string) => selectRun(Number(value));
 
   if (projectQ.isLoading) {
@@ -125,7 +133,7 @@ export function SimulationLayout(): React.JSX.Element {
     runs,
     runsLoading: runsQ.isLoading,
     refetchRuns: () => void runsQ.refetch(),
-    activeRunId, selectRun, selectedElementId, selectElement, panel, openPanel, inspectedWidgetId, inspectWidget,
+    activeRunId, selectRun, selectedElementId, selectElement, analysisView, setAnalysisView, panel, openPanel, inspectedWidgetId, inspectWidget,
   };
 
   return (
@@ -151,7 +159,7 @@ export function SimulationLayout(): React.JSX.Element {
                     value={activeRunId != null ? String(activeRunId) : undefined}
                     onValueChange={switchRun}
                   >
-                    <SelectTrigger size="sm" className="w-[200px] max-w-full" aria-label={t("simulation.section.runSwitcher")}>
+                    <SelectTrigger size="sm" className="w-[280px] max-w-full" aria-label={t("simulation.section.runSwitcher")}>
                       <SelectValue
                         placeholder={t("simulation.section.runSwitcher")}
                       />

@@ -88,3 +88,17 @@ it("keeps an explicitly bound activity independent from the current selection", 
   engine.seek(100);
   expect(resolveWidgetData(engine, engine.getFrame(), widget, "B", "en").value).toBe(0);
 });
+
+it("uses canonical full-run KPIs without moving the observation engine", () => {
+  const engine = new ReplayEngine({
+    schemaVersion: 1, meta: { start: "2026-01-01T00:00:00Z", durationSec: 200, totalCases: 10, sampledCases: 0, bucketSec: 100 },
+    elements: {}, cases: [], flows: {}, series: { t: [0, 100, 200], byElement: {}, byResource: {}, global: { wip: [10, 5, 0], done: [0, 5, 10], avgCycleSec: [0, 50, 60], throughputPerHour: [0, 36, 36], costAccrued: [0, 20, 100] } },
+  });
+  engine.seek(100);
+  const summary = { casesCompleted: 10, cycle: { avg: 123, p50: 100, p90: 130, p95: 150 }, waiting: { avg: 40, p95: 60, share: 0.3 }, processing: { avg: 83 }, cost: { total: 500, perCase: 50 }, throughputPerHour: 0.0032, byActivity: [], byResource: [], bottleneck: null };
+  expect(widgetData(engine, engine.getFrame(), "cycle", "all", summary).value).toBe(123);
+  expect(widgetData(engine, engine.getFrame(), "throughput", "all", summary).value).toBe(0.0032);
+  expect(resolveWidgetData(engine, engine.getFrame(), { ...createWidget("kpi"), metric: "cost", metricExpression: "metric * 2" }, "all", "it", summary).value).toBe(1000);
+  expect(widgetData(engine, engine.getFrame(), "resourceBusy", "all", summary).value).toBeNull();
+  expect(widgetData(engine, engine.getFrame(), "cost").value).toBe(20);
+});

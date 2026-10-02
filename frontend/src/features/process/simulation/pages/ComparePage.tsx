@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/ui/table";
+import { formatMetric } from "../dashboard/dashboardFormatting";
 import { cn } from "@/lib/utils";
 
 import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanvas";
@@ -39,9 +40,9 @@ import {
 
 export type CompareMode = "a" | "b" | "delta";
 
-export function ComparePage({ embedded = false, onDecorations }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[]) => void } = {}): React.JSX.Element {
+export function ComparePage({ embedded = false, compact = false, onDecorations, onRunB }: { embedded?: boolean; compact?: boolean; onDecorations?: (items: NodeDecoration[]) => void; onRunB?: (run: SimulationRun | null) => void } = {}): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
-  const { runs } = useSimulationSection();
+  const { runs, activeRunId } = useSimulationSection();
   const [params, setParams] = useSearchParams();
 
   const candidates = React.useMemo(
@@ -51,14 +52,15 @@ export function ComparePage({ embedded = false, onDecorations }: { embedded?: bo
 
   const aId = params.get("a");
   const bId = params.get("b");
-  const runA = candidates.find((r) => String(r.id) === aId) ?? candidates[1] ?? null;
-  const runB = candidates.find((r) => String(r.id) === bId) ?? candidates[0] ?? null;
-
-  const [mode, setMode] = React.useState<CompareMode>("delta");
+  const runB = candidates.find(r => String(r.id) === bId) ?? candidates.find(r => r.id === activeRunId) ?? candidates[0] ?? null;
+  const runA = candidates.find(r => String(r.id) === aId && r.id !== runB?.id) ?? candidates.find(r => r.id !== runB?.id) ?? null;
+  const mode: CompareMode = params.get("compareMode") === "a" ? "a" : params.get("compareMode") === "b" ? "b" : "delta";
+  const setMode = (value: CompareMode) => { const next = new URLSearchParams(params); next.set("compareMode", value); setParams(next, { replace: true }); };
 
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const decorations = React.useMemo(() => runA && runB ? comparisonDecorations(runA, runB, mode, lang) : [], [runA, runB, mode, lang]);
   React.useEffect(() => { onDecorations?.(decorations); }, [decorations, onDecorations]);
+  React.useEffect(() => { onRunB?.(runA && runB ? runB : null); }, [runA, runB, onRunB]);
   if (candidates.length < 2) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -74,12 +76,13 @@ export function ComparePage({ embedded = false, onDecorations }: { embedded?: bo
   const setRun = (side: "a" | "b", id: string) => {
     const next = new URLSearchParams(params);
     next.set(side, id);
-    next.set(side === "a" ? "b" : "a", String(side === "a" ? runB.id : runA.id));
+    const other = side === "a" ? runB : runA;
+    next.set(side === "a" ? "b" : "a", String(String(other.id) === id ? (side === "a" ? runA.id : runB.id) : other.id));
     setParams(next, { replace: true });
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className={compact ? "sim-comparison-bar" : "flex h-full min-h-0 flex-col gap-3"}>
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <RunPicker
           label={t("simulation.compare.runA")}
@@ -121,7 +124,7 @@ export function ComparePage({ embedded = false, onDecorations }: { embedded?: bo
 
       <Verdict runA={runA} runB={runB} />
 
-      <div className={embedded ? "min-h-0 flex-1" : "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]"}>
+      {compact ? <details className="sim-comparison-details"><summary>{t("simulation.scene.summaryDetails")}</summary><KpiDeltaTable runA={runA} runB={runB} /></details> : <div className={embedded ? "min-h-0 flex-1" : "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]"}>
         <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
           <header className="border-b border-border px-4 py-2.5">
             <p className="eyebrow">{t("simulation.compare.kpiHeader")}</p>
@@ -147,7 +150,7 @@ export function ComparePage({ embedded = false, onDecorations }: { embedded?: bo
           </header>
           <CompareCanvas runA={runA} runB={runB} mode={mode} />
         </section>}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -169,7 +172,7 @@ function RunPicker({
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
       {label}
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger size="sm" className="w-[220px]">
+        <SelectTrigger size="sm" className="w-[220px]" aria-label={label}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -197,7 +200,7 @@ function Verdict({ runA, runB }: { runA: SimulationRun; runB: SimulationRun }) {
 
   const pct = (r: KpiDelta) =>
     r.deltaPct != null
-      ? `${r.deltaPct > 0 ? "+" : "−"}${formatPercent(Math.abs(r.deltaPct))}`
+      ? `${r.deltaPct > 0 ? "+" : r.deltaPct < 0 ? "−" : ""}${formatPercent(Math.abs(r.deltaPct))}`
       : "—";
 
   return (
@@ -224,11 +227,12 @@ function KpiDeltaTable({ runA, runB }: { runA: SimulationRun; runB: SimulationRu
   );
 
   const fmt = (value: number, kind: string) => {
+    if (!Number.isFinite(value)) return "—";
     if (kind === "duration") return formatDuration(value, lang);
     if (kind === "currency") return formatCurrency(value, lang);
     if (kind === "percent") return `${Math.round(value)}%`;
     if (kind === "rate")
-      return `${value > 0 && value < 10 ? value.toFixed(1) : Math.round(value)}/h`;
+      return formatMetric(value, "rate", lang);
     return String(Math.round(value));
   };
 
@@ -264,7 +268,7 @@ function KpiDeltaTable({ runA, runB }: { runA: SimulationRun; runB: SimulationRu
                 }
                 pct={
                   row.deltaPct != null
-                    ? `${row.deltaPct > 0 ? "+" : "−"}${formatPercent(
+                    ? `${row.deltaPct > 0 ? "+" : row.deltaPct < 0 ? "−" : ""}${formatPercent(
                         Math.abs(row.deltaPct),
                       )}`
                     : null

@@ -41,17 +41,19 @@ function get(summary: SimulationSummary | null | undefined, path: string[]): num
   let cur: unknown = summary;
   for (const key of path) {
     if (cur && typeof cur === "object") cur = (cur as Record<string, unknown>)[key];
-    else return 0;
+    else return Number.NaN;
   }
-  return num(cur);
+  return cur == null ? Number.NaN : num(cur);
 }
 
 function busiestUtilisation(summary: SimulationSummary | null | undefined): number {
   const rows = (summary?.byResource as Array<Record<string, unknown>> | undefined) ?? [];
-  return rows.reduce((max, r) => Math.max(max, num(r.utilizationPct)), 0);
+  const values = rows.flatMap(row => typeof row.utilizationPct === "number" && Number.isFinite(row.utilizationPct) ? [row.utilizationPct] : []);
+  return values.length ? Math.max(...values) : Number.NaN;
 }
 
 function direction(delta: number, base: number, betterIs: "lower" | "higher"): DeltaDirection {
+  if (!Number.isFinite(delta) || !Number.isFinite(base)) return "same";
   if (base > 0 && Math.abs(delta) / base < SAME_EPS) return "same";
   if (delta === 0) return "same";
   const bWins = betterIs === "lower" ? delta < 0 : delta > 0;
@@ -87,7 +89,7 @@ export function kpiDeltas(
       a: av,
       b: bv,
       delta,
-      deltaPct: av !== 0 ? delta / av : null,
+      deltaPct: Number.isFinite(delta) && av !== 0 ? delta / av : null,
       betterIs: spec.betterIs,
       direction: direction(delta, av, spec.betterIs),
       format: spec.format,

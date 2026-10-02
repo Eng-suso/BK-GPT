@@ -88,3 +88,10 @@ describe("elementWaitDeltas", () => {
     expect(deltas.find((d) => d.el === "C")).toMatchObject({ aWait: 0, bWait: 2000 });
   });
 });
+
+it("does not present missing resource observations as 0% utilisation", () => {
+  const row = kpiDeltas(summary(), summary({ byResource: [] })).find(row => row.key === "busiestResource")!;
+  expect(Number.isNaN(row.b)).toBe(true);
+  expect(row.deltaPct).toBeNull();
+  expect(row.direction).toBe("same");
+});
