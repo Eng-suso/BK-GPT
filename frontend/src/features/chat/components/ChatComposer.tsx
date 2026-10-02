@@ -241,8 +241,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     setAttachments((prev) =>
       prev.some((item) => chatAttachmentKey(item) === chatAttachmentKey(attachment))
         ? prev
-        : [...prev, attachment],
+        : [...prev, attachment].slice(0, MAX_CHAT_ATTACHMENTS),
     );
+  // Un file in caricamento occupa gia' il suo posto: a lettura finita diventa
+  // un allegato, e il turno ne accetta al massimo MAX_CHAT_ATTACHMENTS.
+  const freeSlots =
+    MAX_CHAT_ATTACHMENTS -
+    attachments.length -
+    uploads.inFlight.filter((upload) => !upload.error).length;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -712,7 +718,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           multiple
           hidden
           onChange={(event) => {
-            const files = Array.from(event.target.files ?? []);
+            const files = Array.from(event.target.files ?? []).slice(0, Math.max(freeSlots, 0));
             event.target.value = "";
             for (const file of files) {
               void uploads.uploadFile(file).then((attachment) => {
@@ -839,7 +845,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               <DropdownMenuContent align="start" side="top">
                 <DropdownMenuLabel>{t("composer.addHeading")}</DropdownMenuLabel>
                 <DropdownMenuItem
-                  disabled={!uploads.canUpload || attachments.length >= MAX_CHAT_ATTACHMENTS}
+                  disabled={!uploads.canUpload || freeSlots <= 0}
                   title={uploads.canUpload ? undefined : t("composer.uploadUnavailable")}
                   onSelect={() => sourceFileInputRef.current?.click()}
                 >
