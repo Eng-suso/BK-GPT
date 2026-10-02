@@ -172,7 +172,10 @@ def test_the_answering_model_thinks_as_asked_and_the_router_does_not(monkeypatch
         def __getattr__(self, name):  # pragma: no cover - il grafo non gira qui
             raise AssertionError(f"il test non costruisce il grafo: {name}")
 
-    from backend.llm import chat_client as chat_client_module
+    import importlib
+
+    # `backend.llm` esporta la funzione `chat_client`, che oscura il modulo.
+    chat_client_module = importlib.import_module("backend.llm.chat_client")
 
     # Il client si costruisce dal profilo in `backend.llm.chat_client`.
     monkeypatch.setattr(chat_client_module, "DeliRChatOpenAI", _Recorder)
