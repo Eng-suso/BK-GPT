@@ -1,0 +1,8 @@
+{
+  "lexical": {
+    "recall_at_k": 0.9062,
+    "precision_at_k": 0.325,
+    "mrr": 0.8125,
+    "ndcg_at_k": 0.7184
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "k": 5,
+  "notes": "Domande come le farebbe un consulente, non ricalcate sulle parole delle fonti. I passi attesi sono citati alla lettera dalle interviste del golden set (tests/golden/<case>/sources). Un chunk e' utile se contiene un passo atteso.",
+  "queries": [
+    {
+      "id": "esaote_chi_autorizza",
+      "case": "esaote_ciclo_passivo",
+      "query": "chi approva la spesa quando l'importo e' alto?",
+      "passages": [
+        {"source": "a3_francesca_neri_acquisti.md", "quote": "Sopra una certa cifra devo chiedere una autorizzazione al mio responsabile"},
+        {"source": "a1_laura_conti_ufficio_tecnico.md", "quote": "So che sopra una certa cifra serve un passaggio in piu', ma quale sia la cifra e chi firmi non te lo so dire."}
+      ]
+    },
+    {
+      "id": "esaote_linea_ferma",
+      "case": "esaote_ciclo_passivo",
+      "query": "cosa succede se la linea di produzione si ferma?",
+      "passages": [
+        {"source": "a2_paolo_marchetti_manutenzione.md", "quote": "Se ho una linea ferma non posso permettermi di aspettare il giro normale, quindi chiamo direttamente il fornitore, mi faccio mandare il pezzo e poi la parte amministrativa viene sistemata dopo."},
+        {"source": "a1_laura_conti_ufficio_tecnico.md", "quote": "Si', quando c'e' una urgenza vera, tipo che la linea e' ferma."}
+      ]
+    },
+    {
+      "id": "esaote_canale_richieste",
+      "case": "esaote_ciclo_passivo",
+      "query": "come arrivano le richieste di materiale all'ufficio tecnico?",
+      "passages": [
+        {"source": "a1_laura_conti_ufficio_tecnico.md", "quote": "Poi la richiesta arriva a me, e arriva in tre modi diversi a seconda di chi la manda."},
+        {"source": "a2_paolo_marchetti_manutenzione.md", "quote": "Mail. Sempre mail, a Laura."}
+      ]
+    },
+    {
+      "id": "esaote_codici_materiali",
+      "case": "esaote_ciclo_passivo",
+      "query": "esiste un codice per i materiali indiretti?",
+      "passages": [
+        {"source": "a1_laura_conti_ufficio_tecnico.md", "quote": "Noi non abbiamo un codice interno univoco per i materiali indiretti."},
+        {"source": "a2_paolo_marchetti_manutenzione.md", "quote": "Perche' il codice sta sulla targhetta del componente, e la targhetta a volte non si legge piu'."}
+      ]
+    },
+    {
+      "id": "esaote_scelta_fornitore",
+      "case": "esaote_ciclo_passivo",
+      "query": "come viene scelto il fornitore?",
+      "passages": [
+        {"source": "a3_francesca_neri_acquisti.md", "quote": "Per le cose ricorrenti ho una lista di nomi con cui lavoriamo da tempo e a cui mi rivolgo per prima."},
+        {"source": "a2_paolo_marchetti_manutenzione.md", "quote": "Per i ricambi meccanici ci sono due o tre nomi che usiamo abitualmente"}
+      ]
+    },
+    {
+      "id": "esaote_contabilita_urgenze",
+      "case": "esaote_ciclo_passivo",
+      "query": "chi sistema la contabilita' degli ordini urgenti?",
+      "passages": [
+        {"source": "a3_francesca_neri_acquisti.md", "quote": "La parte contabile la fa Amministrazione, ma per farla loro hanno bisogno che io abbia aperto l'ordine."},
+        {"source": "a3_francesca_neri_acquisti.md", "quote": "A quel punto io devo ricostruire la pratica a posteriori: aprire l'ordine, agganciarlo al fornitore, sistemare la parte contabile."}
+      ]
+    },
+    {
+      "id": "esaote_stato_richiesta",
+      "case": "esaote_ciclo_passivo",
+      "query": "chi ha fatto la richiesta sa a che punto e' l'ordine?",
+      "passages": [
+        {"source": "a2_paolo_marchetti_manutenzione.md", "quote": "Non ricevo una conferma che la richiesta e' stata presa in carico, non ricevo una data prevista."},
+        {"source": "a3_francesca_neri_acquisti.md", "quote": "Io non mando aggiornamenti, se non quando qualcuno me li chiede."},
+        {"source": "a1_laura_conti_ufficio_tecnico.md", "quote": "Non ho un posto dove guardare per sapere se hanno ordinato"}
+      ]
+    },
+    {
+      "id": "esaote_controllo_merce",
+      "case": "esaote_ciclo_passivo",
+      "query": "come si controlla il materiale quando arriva in magazzino?",
+      "passages": [
+        {"source": "a2_paolo_marchetti_manutenzione.md", "quote": "Apro la scatola e guardo se e' il pezzo giusto."},
+        {"source": "a2_paolo_marchetti_manutenzione.md", "quote": "Arriva al magazzino e di solito mi avvisa il magazziniere"}
+      ]
+    },
+    {
+      "id": "facility_soglia_offerte",
+      "case": "facility_segnalazioni_guasti",
+      "query": "quando servono due preventivi e l'ok della direzione?",
+      "passages": [
+        {"source": "b1_laura_conti_facility.md", "quote": "Sopra la soglia di 5.000 euro devo obbligatoriamente raccogliere due offerte e portarle alla Direzione per l'approvazione."},
+        {"source": "b2_marco_gallo_tecnico_sede.md", "quote": "So che sopra la soglia di 5.000 euro serve il passaggio in Direzione con due offerte"},
+        {"source": "b3_chiara_verdi_direzione.md", "quote": "il nostro punto di contatto e' l'approvazione degli interventi sopra la soglia di 5.000 euro."}
+      ]
+    },
+    {
+      "id": "facility_chiusura",
+      "case": "facility_segnalazioni_guasti",
+      "query": "chi chiude la segnalazione a lavoro finito?",
+      "passages": [
+        {"source": "b1_laura_conti_facility.md", "quote": "La chiudo quando il tecnico o la ditta esterna mi conferma che l'intervento e' terminato"},
+        {"source": "b2_marco_gallo_tecnico_sede.md", "quote": "Se lo risolvo io, chiudo la riga con una nota."}
+      ]
+    },
+    {
+      "id": "facility_guasto_critico",
+      "case": "facility_segnalazioni_guasti",
+      "query": "cosa si fa se si blocca l'ascensore?",
+      "passages": [
+        {"source": "b1_laura_conti_facility.md", "quote": "Il caso tipico e' il guasto tecnico che blocca una attivita' critica, per esempio l'ascensore o il gruppo elettrogeno."},
+        {"source": "b1_laura_conti_facility.md", "quote": "In quel caso chiamo direttamente il fornitore abituale e apro il modulo standard dopo, ma entro la giornata."}
+      ]
+    },
+    {
+      "id": "facility_preventiva",
+      "case": "facility_segnalazioni_guasti",
+      "query": "la manutenzione preventiva fa parte del processo?",
+      "passages": [
+        {"source": "b1_laura_conti_facility.md", "quote": "la manutenzione preventiva, che oggi non e' dentro questo processo"},
+        {"source": "b2_marco_gallo_tecnico_sede.md", "quote": "Ci sono dei contratti di manutenzione periodica gestiti a parte, con scadenze loro."},
+        {"source": "b3_chiara_verdi_direzione.md", "quote": "Oggi il registro dei guasti tecnici e i contratti di manutenzione periodica sono due mondi che non si parlano."}
+      ]
+    },
+    {
+      "id": "facility_fatturazione",
+      "case": "facility_segnalazioni_guasti",
+      "query": "come fattura il fornitore degli impianti?",
+      "passages": [
+        {"source": "b1_laura_conti_facility.md", "quote": "Fattura mensilmente con il riepilogo degli interventi."},
+        {"source": "b1_laura_conti_facility.md", "quote": "Ogni riga della fattura richiama il numero della segnalazione"}
+      ]
+    },
+    {
+      "id": "facility_doppioni",
+      "case": "facility_segnalazioni_guasti",
+      "query": "arrivano segnalazioni duplicate per lo stesso guasto?",
+      "passages": [
+        {"source": "b2_marco_gallo_tecnico_sede.md", "quote": "Il modulo standard non controlla i doppioni, quindi arrivano due o tre righe per la stessa cosa."},
+        {"source": "b2_marco_gallo_tecnico_sede.md", "quote": "Le chiudo come duplicato"}
+      ]
+    },
+    {
+      "id": "facility_riparare_sostituire",
+      "case": "facility_segnalazioni_guasti",
+      "query": "come si decide se riparare o sostituire un impianto che si guasta spesso?",
+      "passages": [
+        {"source": "b3_chiara_verdi_direzione.md", "quote": "Se un impianto e' tornato piu' volte, tendiamo a chiederci se ha senso ripararlo ancora o se conviene sostituirlo."},
+        {"source": "b3_chiara_verdi_direzione.md", "quote": "Non abbiamo un criterio scritto"}
+      ]
+    },
+    {
+      "id": "facility_riepilogo_mensile",
+      "case": "facility_segnalazioni_guasti",
+      "query": "che report riceve la direzione ogni mese?",
+      "passages": [
+        {"source": "b1_laura_conti_facility.md", "quote": "una volta al mese mando alla Direzione un riepilogo delle segnalazioni chiuse e dei tempi."},
+        {"source": "b3_chiara_verdi_direzione.md", "quote": "Guardiamo il numero di segnalazioni, i tempi medi di chiusura e gli impianti ricorrenti."}
+      ]
+    }
+  ]
+}
