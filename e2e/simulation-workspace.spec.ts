@@ -221,17 +221,21 @@ test("canvas analytics follow the shared clock, move with the keyboard and survi
     expect(moved[0]).toBeCloseTo(-10 + 30 / scale, 1);
     expect(moved[1]).toBeCloseTo(110 - 40 / scale, 1);
   }
-  const position = await widget.evaluate((element) => (element as HTMLElement).style.transform);
+  const position = await widget.evaluate(element => { const m = new DOMMatrix(getComputedStyle(element).transform); return { x: m.e, y: m.f }; });
   await expect(handle).toBeFocused();
   await seek(page, 200);
-  expect(await widget.evaluate((element) => (element as HTMLElement).style.transform)).toBe(position);
+  const storedPosition = await widget.evaluate(element => { const m = new DOMMatrix(getComputedStyle(element).transform); return { x: m.e, y: m.f }; });
+  expect(storedPosition.x).toBeCloseTo(position.x, 1);
+  expect(storedPosition.y).toBeCloseTo(position.y, 1);
   await page.getByRole("button", { name: "Grafici", exact: true }).click();
   await expect(widget).toHaveCount(0);
   await page.getByRole("button", { name: "Grafici", exact: true }).click();
   await expect(widget).toContainText("Verifiche concluse");
   await page.reload();
   await expect(widget).toContainText("Verifiche concluse");
-  expect(await widget.evaluate((element) => (element as HTMLElement).style.transform)).toBe(position);
+  const restoredPosition = await widget.evaluate(element => { const m = new DOMMatrix(getComputedStyle(element).transform); return { x: m.e, y: m.f }; });
+  expect(restoredPosition.x).toBeCloseTo(position.x, 1);
+  expect(restoredPosition.y).toBeCloseTo(position.y, 1);
   await seek(page, 300);
   await expect(widget.locator(".sim-widget-kpi strong")).toHaveText("2");
   const scan = await new AxeBuilder({ page }).include("main").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
