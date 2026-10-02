@@ -224,6 +224,10 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
                 )
                 .join(WorkspaceProject, WorkspaceProject.id == WorkspaceSource.project_id)
                 .join(WorkspaceClient, WorkspaceClient.id == WorkspaceProject.client_id)
+                # Una fonte di un processo archiviato sta sotto un record
+                # archiviato; quella senza processo resta.
+                .outerjoin(WorkspaceProcess, WorkspaceProcess.id == WorkspaceSource.process_id)
+                .where(WorkspaceProcess.archived_at.is_(None))
                 .where(_terms_match(WorkspaceSource.name, patterns))
                 .order_by(_relevance(WorkspaceSource.name, terms), WorkspaceSource.name)
                 .limit(per_kind_limit),

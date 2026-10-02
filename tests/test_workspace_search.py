@@ -187,6 +187,21 @@ def test_archived_work_never_comes_back_from_a_search(client, engagement):
 
 
 @_needs_db
+def test_a_source_of_an_archived_process_stays_out_of_a_search(client, engagement):
+    marker = engagement["marker"]
+    archived = client.post(
+        f"/v1/workspace/processes/{engagement['process']['id']}/archive",
+        json={"reason": "processo chiuso"},
+    )
+    assert archived.status_code == 200
+
+    kinds = {hit["kind"] for hit in _hits(client.get(SEARCH, params={"q": marker}))}
+
+    # Il progetto resta aperto; il processo e la sua fonte no.
+    assert kinds == {"client", "project"}
+
+
+@_needs_db
 def test_empty_query_returns_nothing_rather_than_the_workspace(client, engagement):
     assert _hits(client.get(SEARCH, params={"q": "   "})) == []
 
