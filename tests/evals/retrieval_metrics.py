@@ -20,9 +20,11 @@ un test L0 lo verifica come per il golden set.
 
 from __future__ import annotations
 
+import json
 import math
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 _SPACES = re.compile(r"\s+")
@@ -127,3 +129,43 @@ def retrieval_regressions(
         for name in RETRIEVAL_METRICS
         if name in baseline and current.get(name, 0.0) < baseline[name] - tolerance
     ]
+
+
+# --- il dataset ----------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Passage:
+    source: str
+    quote: str
+
+
+@dataclass(frozen=True)
+class RetrievalQuery:
+    id: str
+    case: str
+    query: str
+    passages: list[Passage]
+
+
+@dataclass(frozen=True)
+class RetrievalSet:
+    k: int
+    queries: list[RetrievalQuery]
+
+    @classmethod
+    def load(cls, path: Path) -> "RetrievalSet":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        queries = [
+            RetrievalQuery(
+                id=item["id"],
+                case=item["case"],
+                query=item["query"],
+                passages=[Passage(source=p["source"], quote=p["quote"]) for p in item["passages"]],
+            )
+            for item in data["queries"]
+        ]
+        ids = [query.id for query in queries]
+        if len(ids) != len(set(ids)):
+            raise ValueError("domande con lo stesso id nel dataset di retrieval")
+        return cls(k=int(data["k"]), queries=queries)
