@@ -244,7 +244,7 @@ export function useProjectSourcesQuery(
     // Un file caricato viene letto dal worker dopo la risposta: finche' una
     // fonte e' in lettura la lista si aggiorna da sola, poi smette.
     refetchInterval: (query) =>
-      query.state.data?.some((source) => source.acquisitionStatus === "pending") ? 3000 : false,
+      query.state.data?.some((source) => source.acquisitionStatus === "pending") ? 1500 : false,
   });
 }
 
