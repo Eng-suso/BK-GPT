@@ -103,6 +103,8 @@ def parse_xlsx(payload: bytes) -> CanonicalSource:
         cached = values[sheet.title]
         hidden_sheet = sheet.sheet_state != "visible"
         hidden_rows = sorted(row for row, dim in sheet.row_dimensions.items() if dim.hidden)
+        # Per cella si chiede l'appartenenza: un insieme, non una lista da scorrere.
+        hidden_row_set = set(hidden_rows)
         hidden_columns = _hidden_columns(sheet)
         merged = [str(item) for item in sheet.merged_cells.ranges]
         merged_top_left = {
@@ -155,7 +157,7 @@ def parse_xlsx(payload: bytes) -> CanonicalSource:
             attributes = segment.attributes
             if hidden_sheet:
                 attributes["sheet_hidden"] = True
-            if row in hidden_rows or column in hidden_columns:
+            if row in hidden_row_set or column in hidden_columns:
                 attributes["hidden"] = True
             if (row, column) in merged_top_left:
                 attributes["merged_range"] = merged_top_left[(row, column)]
@@ -193,7 +195,7 @@ def parse_xlsx(payload: bytes) -> CanonicalSource:
         segments=tuple(segments),
         structure={
             "sheets": sheets,
-            "defined_names": _defined_names(formulas),
+            "defined_names": _defined_names(formulas, issues),
             "date_system": 1904 if formulas.epoch.year == 1904 else 1900,
         },
         issues=tuple(issues),
@@ -402,13 +404,21 @@ def _table_role(table: dict[str, Any], row: int, column: int) -> tuple[str, str 
     return "data", name
 
 
-def _defined_names(workbook: Any) -> dict[str, str]:
+def _defined_names(workbook: Any, issues: list[AcquisitionIssue]) -> dict[str, str]:
     names: dict[str, str] = {}
     try:
         for name, definition in workbook.defined_names.items():
             names[name] = definition.attr_text
-    except Exception:  # noqa: BLE001 - un nome definito malformato non e' contenuto
-        pass
+    except Exception:  # noqa: BLE001 - openpyxl non ha un'eccezione sua per un nome rotto
+        # Mai una perdita silenziosa: i nomi letti restano, e la fonte dice che
+        # l'elenco non e' completo.
+        issues.append(
+            AcquisitionIssue(
+                code="defined_names_partial",
+                severity="info",
+                message="Alcuni nomi definiti del workbook non sono stati letti.",
+            )
+        )
     return names
 
 
