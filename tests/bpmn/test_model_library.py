@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.settings import settings
-from tests.test_simulation import MINIMAL_BPMN
+from tests.simulation.test_simulation import MINIMAL_BPMN
 
 
 _needs_db = pytest.mark.skipif(
