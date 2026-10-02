@@ -64,7 +64,7 @@ decisione, §④).
 | X1 | «Cronologia eliminata» senza conferma né annulla | Alto | **fatto, verificato** — `cda5adf` |
 | X2 | Clienti è un elenco che non si apre | Alto | **bloccato** — §④.5 |
 | X3 | URL sbagliato, rimando muto a `/projects` | Medio | **fatto, verificato** — `7f01a30` |
-| X4 | La ricerca globale cerca il cliente per nome, non per id | Medio | **non su `main`** — la ricerca globale vive solo su `feat/notifications-feed`: va corretta lì prima del suo merge (`features/search/api.ts:56`) |
+| X4 | La ricerca globale cerca il cliente per nome, non per id | Medio | **chiuso** — corretto nel merge di `feat/notifications-feed`: la ricerca linka `f_client=<id>` e il filtro clienti dell'elenco progetti filtra per id mostrando il nome |
 | X5 | Nessun tetto alle simulazioni concorrenti | Medio | **fatto, verificato** — `d91ef7f` |
 
 ### Verifica

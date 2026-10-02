@@ -53,7 +53,8 @@ export type SearchHit = {
 export function hitHref(hit: SearchHit): string {
   switch (hit.kind) {
     case "client":
-      return `${ROUTES.projects.list}?f_client=${encodeURIComponent(hit.title)}`;
+      // Per id, non per nome: due clienti omonimi sono due clienti (X4).
+      return `${ROUTES.projects.list}?f_client=${encodeURIComponent(hit.id)}`;
     case "project":
       return hit.projectId ? ROUTES.projects.detail(hit.projectId) : ROUTES.projects.list;
     case "process":

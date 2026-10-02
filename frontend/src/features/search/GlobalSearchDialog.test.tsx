@@ -162,7 +162,8 @@ describe("hitHref", () => {
   it("takes a client to its projects, already filtered", () => {
     // Il cliente non ha una pagina propria: mandare all'elenco completo
     // sarebbe come non aver cercato.
-    expect(hitHref({ ...base, kind: "client" })).toBe("/projects?f_client=Esaote");
+    // Per id: due clienti omonimi sono due clienti (X4).
+    expect(hitHref({ ...base, kind: "client", id: "cli-7" })).toBe("/projects?f_client=cli-7");
   });
 
   it("opens a source on the tab where sources are read", () => {
