@@ -25,6 +25,8 @@ Uso:
 
 from __future__ import annotations
 
+import functools
+
 import logging
 import time
 from functools import lru_cache
@@ -72,7 +74,15 @@ def _engine():
         raise RuntimeError(
             "canonical_worker_url non configurata (DSN del ruolo delir_worker)."
         )
-    return create_engine(settings.canonical_worker_url, future=True, pool_pre_ping=True)
+    return _engine_for(settings.canonical_worker_url)
+
+
+@functools.cache
+def _engine_for(url: str):
+    # Uno per URL e per processo. Prima ne nasceva uno a ogni passata del worker
+    # e a ogni `queue_stats` - che il gateway chiama a ogni lettura del grafo -
+    # ciascuno con il suo pool, mai chiuso.
+    return create_engine(url, future=True, pool_pre_ping=True)
 
 
 def drain_once(limit: int = 200) -> int:
