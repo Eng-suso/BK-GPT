@@ -97,6 +97,11 @@ class Settings(BaseSettings):
     # l'app drena graph_outbox + mem0_projection_log + kg_ingest_queue in task
     # di background. False se usi processi worker dedicati (`python -m backend.workers.*`).
     workers_in_process: bool = True
+    # Il lettore delle fonti caricate (docling, openpyxl) gira in locale e non
+    # spende token: resta acceso anche quando `workers_in_process` e' spento -
+    # com'e' in sviluppo, per non far spendere il worker mem0. Spento, un PDF
+    # caricato restava "In lettura" per sempre.
+    source_worker_in_process: bool = True
 
     # --- Neo4j Community (projection grafo tipizzato, P0.5+) --------------
     neo4j_url: str = "bolt://127.0.0.1:7687"
