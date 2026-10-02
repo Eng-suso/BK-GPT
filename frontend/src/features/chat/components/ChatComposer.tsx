@@ -854,7 +854,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               <DropdownMenuContent align="start" side="top">
                 <DropdownMenuLabel>{t("composer.addHeading")}</DropdownMenuLabel>
                 <DropdownMenuItem
-                  disabled={freeSlots <= 0}
+                  disabled={freeSlots <= 0 || (!uploads.canUpload && !uploads.needsDestination)}
                   onSelect={() =>
                     uploads.canUpload
                       ? sourceFileInputRef.current?.click()
