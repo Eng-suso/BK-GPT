@@ -24,7 +24,7 @@ from backend.simulation.log_processor import (
 from backend.simulation.models import ProsimosSimulationResult
 from backend.simulation.scenario_builder import build_prosimos_scenario
 
-FIXTURES = Path(__file__).parent / "fixtures" / "prosimos"
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "prosimos"
 
 MINIMAL_BPMN = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">

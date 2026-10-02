@@ -584,7 +584,7 @@ Tre punti dove il falso successo passava, chiusi:
 
 ## I test
 
-`tests/test_agentic_canvas_runtime_e2e.py` — parte dallo stato in cui il difetto
+`tests/agents/test_agentic_canvas_runtime_e2e.py` — parte dallo stato in cui il difetto
 viveva davvero: tre interviste agli atti e **nessun piano**. Il file sotto partiva
 da un processo con il piano gia' preparato, che e' lo stato giusto per verificare
 che la conoscenza attraversi e quello sbagliato per accorgersi che non c'era.
@@ -593,7 +593,7 @@ corpus e dichiari le fonti, che una quarta intervista lo renda da rifare e una
 risposta del consulente no, che la soglia della bozza si apra dove quella della
 validazione resta chiusa, e che nessun write venga dichiarato senza rilettura.
 
-`tests/test_process_canvas_handoff_e2e.py` — quattro invarianti, deterministiche,
+`tests/agents/test_process_canvas_handoff_e2e.py` — quattro invarianti, deterministiche,
 su database vero:
 
 - **handoff completeness**: Laura, Paolo e Francesca arrivano dall'altra parte

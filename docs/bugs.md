@@ -6,7 +6,7 @@ regressione e' coperta da un test, non se "sembra a posto".
 ## CLIENT-01 — Status cliente non inferito dal linguaggio
 
 - **Severity**: P2
-- **Stato**: risolto (2026-09-06) — coperto da `tests/test_client_status.py`
+- **Stato**: risolto (2026-09-06) — coperto da `tests/workspace/test_client_status.py`
 - **Input**: "Ho acquisito un nuovo cliente: Esaote S.p.A."
 - **Expected**: cliente registrato con uno stato coerente con "acquisito" (`Attivo`).
 - **Actual**: `Prospect`. L'agente rispondeva "Ho acquisito un nuovo cliente" mentre
@@ -35,7 +35,7 @@ significato di "non lo so":
 
 ### Verifica
 
-`tests/test_client_status.py` copre vocabolario, contratto dei quattro punti di
+`tests/workspace/test_client_status.py` copre vocabolario, contratto dei quattro punti di
 ingresso (il default hard-coded non puo' tornare) e comportamento reale su
 Postgres, idempotenza inclusa.
 
@@ -55,7 +55,7 @@ la descrizione del campo, non un default nuovo.
 ## PROJECT-01 — L'obiettivo dell'incarico non era un campo del progetto
 
 - **Severity**: P1
-- **Stato**: risolto (2026-09-07) — coperto da `tests/test_project_record.py` e
+- **Stato**: risolto (2026-09-07) — coperto da `tests/workspace/test_project_record.py` e
   `frontend/src/features/projects/components/ProjectFormDialog.test.tsx`
 - **Input**: "Ricostruire l'AS-IS, validarlo con gli stakeholder, simularlo e
   misurare i KPI."
@@ -99,7 +99,7 @@ nessuna parte: `toast.success` non sarebbe comparso).
 
 ### Verifica
 
-`tests/test_project_record.py` copre vocabolari (progetto e processo),
+`tests/workspace/test_project_record.py` copre vocabolari (progetto e processo),
 contratto dei punti di ingresso, persistenza dell'obiettivo, il prompt della
 Project Chat (con e senza obiettivo), la semantica della patch parziale e le
 tre PATCH su HTTP. `ProjectFormDialog.test.tsx` e `ProcessFormDialog.test.tsx`
@@ -116,7 +116,7 @@ una riga implicita, schiacciando di 125px sidebar e contenuto.
 ## PROJECT-02 — Readiness di processo su un progetto senza processi
 
 - **Severity**: P2
-- **Stato**: risolto (2026-09-07) — coperto da `tests/test_project_chat_boundaries.py`
+- **Stato**: risolto (2026-09-07) — coperto da `tests/agents/test_project_chat_boundaries.py`
 - **Input**: "Elenca i processi in scope e la loro readiness."
 - **Expected**: "Nessun processo registrato; readiness non valutabile. Prossimo
   passo: definire i processi in scope."
@@ -131,7 +131,7 @@ una riga implicita, schiacciando di 125px sidebar e contenuto.
 ## PROJECT-03 — Il progetto non poteva creare i propri processi
 
 - **Severity**: P0 sul flusso di chat
-- **Stato**: risolto (2026-09-07) — coperto da `tests/test_project_chat_boundaries.py`
+- **Stato**: risolto (2026-09-07) — coperto da `tests/agents/test_project_chat_boundaries.py`
 - **Input**: "crea questo processo nel progetto"
 - **Expected**: il `WorkspaceProcess` viene registrato, senza iniziare la
   discovery.
@@ -146,7 +146,7 @@ una riga implicita, schiacciando di 125px sidebar e contenuto.
 ## PROJECT-04 — Riferimento perso al turno dopo
 
 - **Severity**: P1 alto
-- **Stato**: risolto (2026-09-07) — coperto da `tests/test_project_chat_boundaries.py`
+- **Stato**: risolto (2026-09-07) — coperto da `tests/agents/test_project_chat_boundaries.py`
 - **Input**: nome, perimetro e tipologia del processo dichiarati dal consulente
   e *riformulati da DeliR stesso*; poi "aggiungi il processo".
 - **Expected**: usare il processo appena discusso.
@@ -160,7 +160,7 @@ una riga implicita, schiacciando di 125px sidebar e contenuto.
 ## PROJECT-05 — Workaround inventato nella UI
 
 - **Severity**: P1 alto
-- **Stato**: risolto (2026-09-07) — coperto da `tests/test_project_chat_boundaries.py`
+- **Stato**: risolto (2026-09-07) — coperto da `tests/agents/test_project_chat_boundaries.py`
 - **Actual**: mancando la capability, DeliR suggeriva comandi dell'interfaccia
   ("Aggiungi processo", "Nuovo processo") che non esistono.
 - **Causa**: nessuna regola diceva che l'interfaccia non e' materia su cui
@@ -200,7 +200,7 @@ usata per farsi creare un record.
 
 ### Verifica
 
-`tests/test_project_chat_boundaries.py`: gate di routing (rifiuto con zero
+`tests/agents/test_project_chat_boundaries.py`: gate di routing (rifiuto con zero
 processi, hint non registrato, delega sbloccata dopo la creazione), digest
 (ordine, esclusione dei tool, budget), prompt di scope, e il tool su Postgres —
 modello BPMN vuoto, perimetro salvato come fonte, idempotenza per nome.
@@ -208,7 +208,7 @@ modello BPMN vuoto, perimetro salvato come fonte, idempotenza per nome.
 ## PROJECT-06 — Il prompt prometteva un tool che nessuno scope aveva
 
 - **Severity**: P1
-- **Stato**: risolto (2026-09-07) — coperto da `tests/test_prompt_tool_contract.py`
+- **Stato**: risolto (2026-09-07) — coperto da `tests/evals/l0_deterministic/test_prompt_tool_contract.py`
 - **Input**: "L'obiettivo e' ricostruire l'AS-IS del ciclo ordini e misurare il
   lead time." in Project Chat, su un progetto senza obiettivo registrato.
 - **Expected**: l'obiettivo finisce sul record.
@@ -246,7 +246,7 @@ modello BPMN vuoto, perimetro salvato come fonte, idempotenza per nome.
 
 ### Verifica
 
-`tests/test_prompt_tool_contract.py` legge i prompt reali di ogni scope —
+`tests/evals/l0_deterministic/test_prompt_tool_contract.py` legge i prompt reali di ogni scope —
 system prompt, tool policy e skill markdown — cerca i nomi dei tool che il
 progetto definisce e verifica che ognuno sia raggiungibile da li'. La domanda
 la risponde il runtime, non un elenco da tenere aggiornato a mano: e' stato
@@ -283,7 +283,7 @@ l'XML, ed e' un'altra cosa.
 
 - **Severity**: P0
 - **Stato**: risolto (2026-09-08) — coperto da
-  `tests/test_process_evidence_to_plan.py` e
+  `tests/evidence/test_process_evidence_to_plan.py` e
   `e2e/process-evidence-to-plan.spec.ts`
 - **Input**: tre interviste raccolte in chat di processo, poi "prepara il piano".
 - **Expected**: il piano porta gli attori, le corsie e le regole che le fonti
@@ -320,7 +320,7 @@ aveva generate non le vedeva.
 
 - **Severity**: P1
 - **Stato**: risolto (2026-09-08) — coperto da
-  `tests/test_process_evidence_to_plan.py`
+  `tests/evidence/test_process_evidence_to_plan.py`
 - **Input**: le stesse tre interviste, che parlavano di ordini, approvazioni e
   urgenze.
 - **Expected**: "Paolo dice che per importi piccoli l'approvazione puo' non

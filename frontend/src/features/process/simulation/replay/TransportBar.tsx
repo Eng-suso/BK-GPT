@@ -52,8 +52,8 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
   const clock = frame ? clockFmt.format(new Date(frame.global.clockMs)) : "—";
 
   return (
-    <div className="flex flex-col gap-2 border-b border-border bg-card px-3 py-2">
-      <div className="flex items-center gap-2">
+    <div className="sim-transport flex flex-col gap-3 bg-card px-4 py-3">
+      <div className="sim-transport-controls flex flex-wrap items-center gap-2">
         <Button
           type="button"
           size="sm"
@@ -88,7 +88,7 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
 
         <input
           type="range"
-          className="sim-scrubber h-1.5 min-w-[80px] flex-1"
+          className="sim-scrubber min-w-[80px] flex-1"
           min={0}
           max={Math.max(1, Math.round(duration))}
           step={1}
@@ -106,7 +106,7 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
         >
           <SelectTrigger
             size="sm"
-            className="w-[104px] shrink-0"
+            className="w-[128px] shrink-0"
             aria-label={t("simulation.replay.speed")}
           >
             <SelectValue />
@@ -175,7 +175,6 @@ export function TransportBar({ engine }: TransportBarProps): React.JSX.Element {
 
         <dl
           className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs"
-          aria-live="polite"
           aria-label={t("simulation.replay.counters")}
         >
           <Chip label={t("simulation.replay.active")} value={numberFmt.format(frame?.global.activeCases ?? 0)} />

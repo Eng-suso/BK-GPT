@@ -50,7 +50,7 @@ from backend.memory import provenance  # noqa: E402
 from backend.memory.knowledge_graph import neo4j_store  # noqa: E402
 
 MIGRATOR = create_engine(settings.canonical_migrator_url, future=True)
-FIXTURES = Path(__file__).parent / "fixtures" / "interviews"
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "interviews"
 
 
 def _read(name: str) -> str:

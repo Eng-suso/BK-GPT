@@ -20,7 +20,7 @@ import {
  * response must accept the shape the backend actually promises.
  *
  * The shape comes from `backend-contract.generated.json`, distilled from the
- * FastAPI OpenAPI schema by `scripts/dump_openapi.py`. `tests/test_api_contract.py`
+ * FastAPI OpenAPI schema by `scripts/dump_openapi.py`. `tests/server/test_api_contract.py`
  * fails if that file is stale, so a renamed / retyped `*Response` field surfaces
  * on both sides.
  */

@@ -62,8 +62,8 @@ niente da guardare"): qui quella cura manca.
 3. **GR-05** (serve la decisione del fork multilingua), poi GR-07 e GR-06.
 
 Branch `fix/graph-retrieval-budget`: GR-01, GR-02, GR-03, GR-12, con i test
-`tests/test_graph_retrieval_budget.py` (i tre falliscono sul codice prima del
-fix) e `tests/test_kg_reproject.py`.
+`tests/knowledge_graph/test_graph_retrieval_budget.py` (i tre falliscono sul codice prima del
+fix) e `tests/evals/l0_deterministic/test_kg_reproject.py`.
 
 ---
 
@@ -152,7 +152,7 @@ per chiamata: leggerla dal cache TTL 5 s, non ad ogni retrieve.
 
 ### Test
 
-- `tests/test_kg_reproject.py`: scrivi entita' + relazione via `canonical`,
+- `tests/evals/l0_deterministic/test_kg_reproject.py`: scrivi entita' + relazione via `canonical`,
   drena la coda, `purge_client`, `--diff` deve contare la differenza esatta,
   `--apply` deve riportarla a zero, un secondo `--apply` non deve cambiare
   niente (idempotenza).
@@ -188,7 +188,7 @@ del worker per far girare lo script, e il confine dei ruoli salta.
   grafo di quel cliente e' indietro (dead-letter, bloccate, o pendente piu'
   vecchia di `graph_staleness_warn_seconds`, default 60), con cache per cliente
   di 5 s. Una risposta sana e' identica a prima.
-- Test (`tests/test_kg_reproject.py`): il grafo scritto dal write path vero
+- Test (`tests/evals/l0_deterministic/test_kg_reproject.py`): il grafo scritto dal write path vero
   confrontato con quello ricostruito risulta identico su tutte le forme (e' il
   test che si rompe se il write path cambia e `reproject` no); ricostruzione
   dopo perdita totale e idempotenza; orfani, archi duplicati e props alla
@@ -729,11 +729,11 @@ Il golden set esiste e **e' fatto bene**, ma misura un'altra cosa:
 
 | misura | dove | cosa copre |
 | --- | --- | --- |
-| piano → disegno | `tests/test_golden_graph_metrics.py` | compilatore BPMN, deterministico, ogni CI |
-| interviste → piano | `tests/evals/test_golden_set.py` | estrattore LLM, notturno |
+| piano → disegno | `tests/evals/l0_deterministic/test_golden_graph_metrics.py` | compilatore BPMN, deterministico, ogni CI |
+| interviste → piano | `tests/evals/l1_golden/test_golden_set.py` | estrattore LLM, notturno |
 | **query → contesto** | **niente** | **il retrieval** |
 
-`tests/test_kg_vector_retrieval.py` e' un test funzionale (il vettoriale gira e
+`tests/knowledge_graph/test_kg_vector_retrieval.py` e' un test funzionale (il vettoriale gira e
 torna qualcosa), non una metrica.
 
 Conseguenza diretta: **GR-04, GR-05 e GR-09 non sono dimostrabili oggi.** Posso
@@ -947,7 +947,7 @@ cancellare un processo, un progetto o un cliente cancella la sua evidenza
 `delete_client` prima del workspace). La decisione 2 e' coperta in parte:
 `scope._upsert` stacca dallo slug la riga canonical di un altro progetto, e
 `erase_process` non cancella niente se lo slug porta al processo di un altro
-progetto. Prove: `tests/test_process_delete_erases_evidence.py`.
+progetto. Prove: `tests/evidence/test_process_delete_erases_evidence.py`.
 
 **Non e' un problema di retrieval, ed e' il piu' grave dell'elenco.** Trovato
 perche' `kg_reproject` ha segnalato un nodo `Process` orfano: il nodo in Neo4j
@@ -1018,7 +1018,7 @@ giornata.
 | branch | contenuto | prova | stima |
 | --- | --- | --- | --- |
 | `fix/graph-retrieval-budget` | GR-03, GR-02, GR-01, GR-12 — **fatto** | unit test deterministici | 1 g |
-| `fix/process-delete-erases-evidence` | GR-13 — **fatto** | `tests/test_process_delete_erases_evidence.py` | 0,5 g |
+| `fix/process-delete-erases-evidence` | GR-13 — **fatto** | `tests/evidence/test_process_delete_erases_evidence.py` | 0,5 g |
 | `fix/graph-lexical-italian` | GR-05 (strada A), GR-07 | test di stemming, `EXPLAIN` allegato al PR | 0,5 g |
 | `fix/graph-vector-recall` | GR-06 | recall@k vs esatto = 1.0 | 0,5 g |
 | `feat/retrieval-eval` | GR-08 (harness) | — (e' lo strumento) | 0,5 g + **tue 3 h** |

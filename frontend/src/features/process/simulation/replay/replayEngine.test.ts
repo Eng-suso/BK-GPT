@@ -61,6 +61,12 @@ function makePayload(): Payload {
 }
 
 describe("ReplayEngine", () => {
+  it("keeps short-run speeds distinct and describes the actual replay duration", () => {
+    const engine = new ReplayEngine(makePayload());
+    expect(engine.speedOptions.map((option) => option.value)).toEqual([1, 3, 10, 33]);
+    expect(engine.speedOptions[0].label).toBe("≈ 7 min");
+    expect(engine.getStatus().speed).toBe(3);
+  });
   it("picks the median-cycle case to follow", () => {
     expect(medianCaseId(makePayload())).toBe("1");
   });

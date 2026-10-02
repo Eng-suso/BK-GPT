@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from backend.llm.prompts import prompt_version, schema_part
 
-RADICE = Path(__file__).resolve().parents[1] / "backend"
+RADICE = Path(__file__).resolve().parents[2] / "backend"
 
 
 class TestComeSiCalcolaUnaVersione:

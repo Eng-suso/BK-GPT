@@ -129,7 +129,7 @@ L'app tocca il canonical solo via `backend.db.canonical_session(consultant_id, c
 | 0013 | `kg_ingest_queue` (P5): coda di ingestione asincrona dell'evidenza (payload = kwargs di `write_evidence`) + RLS strict-client + grant CRUD a `delir_app` |
 | 0017 | backoff per riga (`next_attempt_at`, `throttled_count`) sulle due code di proiezione + CHECK `graph_outbox.payload->>'kind'` (`NOT VALID`) + `graph_outbox_dead_letter` |
 
-Test: `tests/test_canonical_rls.py` (8) + `tests/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
+Test: `tests/evals/l0_deterministic/test_canonical_rls.py` (8) + `tests/evals/l0_deterministic/test_kg_catalog.py` (lint B+ + 1 caso RLS), skip senza le due DSN.
 
 ## Mem0 OSS ✅
 
@@ -206,8 +206,8 @@ Il payload dell'outbox si valida in tre punti, con la stessa regola
 `kg_resolve_entities._emit`), nel DB (CHECK della 0017) e nel worker. `stuck` e
 `dead_letter` sono allarmi diversi: il primo puo' passare da solo, il secondo no.
 
-Test: `tests/test_graph_projection.py`, `tests/test_mem0_projection.py`,
-`tests/test_queue_supervisor.py`, `tests/test_kg_ingest_queue.py` (P5: enqueue,
+Test: `tests/knowledge_graph/test_graph_projection.py`, `tests/memory/test_mem0_projection.py`,
+`tests/server/test_queue_supervisor.py`, `tests/knowledge_graph/test_kg_ingest_queue.py` (P5: enqueue,
 worker, retry/dead-letter, requeue stuck, + **E2E** tool → coda → ingest →
 outbox → Neo4j → gateway).
 
@@ -226,7 +226,7 @@ payload sotto `"canonical_write"`.
 - `write_entity` / `write_relation` ora fanno `ON CONFLICT ... DO UPDATE`
   (idempotenti: la stessa entità/relazione menzionata più volte non duplica)
 
-Test: `tests/test_canonical_mirror.py` — chiama il tool vero, verifica i
+Test: `tests/knowledge_graph/test_canonical_mirror.py` — chiama il tool vero, verifica i
 count del mirror e che l'entità/relazione sia arrivata su Neo4j via il worker.
 
 **Semantic + episodic** (`semantic_store.py` / `episodic_store.py`): la add su
@@ -245,7 +245,7 @@ di quel cliente, mai di altri. Best-effort: senza canonical → consultant-level
 La memoria semantica del consulente resta consultant-level per natura (il
 plumbing `client_id` c'è comunque).
 
-Test: `tests/test_semantic_episodic_mirror.py`, `tests/test_client_scoped_recall.py`.
+Test: `tests/memory/test_semantic_episodic_mirror.py`, `tests/memory/test_client_scoped_recall.py`.
 Nota: i test che assertano un marker nel recall Mem0 sono fragili se il DB
 `mem0` di dev è pieno di memorie di run precedenti — `TRUNCATE delir_memories,
 delir_memories_entities` quando serve.
@@ -280,8 +280,8 @@ tool interroga Neo4j / Postgres-KG / Mem0 direttamente.
 Se canonical / Neo4j / Mem0 non sono configurati il gateway torna uno status
 esplicito e i tool restano funzionanti sul resto.
 
-Test: `tests/test_gateway.py`, `tests/test_gateway_memory.py`,
-`tests/test_gateway_workspace.py`, `tests/test_kg_vector_retrieval.py`.
+Test: `tests/knowledge_graph/test_gateway.py`, `tests/memory/test_gateway_memory.py`,
+`tests/knowledge_graph/test_gateway_workspace.py`, `tests/knowledge_graph/test_kg_vector_retrieval.py`.
 
 **Gateway INV-9 completo** (`graph_retrieve` + `memory_search` + `workspace_read`).
 
@@ -367,7 +367,7 @@ backfill dell'`embedding` sulle righe pre-P2 + **sweep** che rifonde i doppioni
 gia' nel grafo (relazioni ripuntate sul survivor, loser `deprecated` con
 `supersedes_id` → survivor, nodo rimosso da Neo4j via outbox).
 
-Test: `tests/test_entity_resolution.py` — livelli esatto/trgm/coseno/LLM
+Test: `tests/knowledge_graph/test_entity_resolution.py` — livelli esatto/trgm/coseno/LLM
 (fake), `TestWriteEvidenceResolution` (due interviste, sinonimo, un'entita'
 sola), `TestSweep` (grafo sporco → rifuso + Neo4j).
 

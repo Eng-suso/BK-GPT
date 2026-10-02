@@ -453,7 +453,7 @@ pgvector). Mem0 è il più sensibile: il recall entra nel prompt LLM.
   `backend/workspace_storage.py` (rimuovere i filtri a mano ridondanti dopo RLS).
 - **Accettazione:** una query workspace senza GUC impostato → 0 righe (non
   errore silenzioso che ritorna tutto); test cross-tenant come
-  `tests/test_canonical_rls.py`.
+  `tests/evals/l0_deterministic/test_canonical_rls.py`.
 - **Note:** _(vuoto)_
 
 ### B8 — Mem0: isolamento tenant  ⬜
@@ -625,7 +625,7 @@ pgvector). Mem0 è il più sensibile: il recall entra nel prompt LLM.
 - **Canonical** (`backend/db/session.py`): `canonical_session(consultant_id, client_id)`
   è l'unico accesso; imposta GUC `app.current_consultant_id` /
   `app.current_client_id` via `set_config(..., true)`. Pool 5+5. RLS `ENABLE`+`FORCE`
-  su tenant tables (migration 0005). `tests/test_canonical_rls.py`.
+  su tenant tables (migration 0005). `tests/evals/l0_deterministic/test_canonical_rls.py`.
 - **Workspace** (`backend/database.py`, `backend/workspace_storage.py`): **niente
   RLS**. Tabelle `workspace_*` + `chat_sessions` + `chat_messages` hanno colonna
   `tenant_id` (String, `default="local"`, indexed). `backend/database.py` filtra

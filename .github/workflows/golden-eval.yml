@@ -93,7 +93,7 @@ jobs:
         env:
           DELIR_GOLDEN_EVAL: "1"
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: uv run pytest tests/evals/test_golden_set.py -v -s --tb=short
+        run: uv run pytest tests/evals/l1_golden/test_golden_set.py -v -s --tb=short
 
       - name: Upload golden reports
         uses: actions/upload-artifact@v4
