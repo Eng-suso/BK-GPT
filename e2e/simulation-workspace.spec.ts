@@ -122,8 +122,10 @@ test("Markdown formulas follow the playhead and invalid input remains editable",
   await page.getByLabel("Testo Markdown", { exact: true }).fill("${metric / 0}");
   await expect(page.getByLabel("Testo Markdown", { exact: true })).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByLabel("Testo Markdown", { exact: true })).toHaveValue("${metric / 0}");
-  await page.getByLabel("Testo Markdown", { exact: true }).fill("**Nota operativa**");
+  await page.getByLabel("Testo Markdown", { exact: true }).fill("**Nota operativa** ![Immagine](https://example.invalid/pixel.svg)");
   await expect(page.getByLabel("Testo Markdown", { exact: true })).toHaveAttribute("aria-invalid", "false");
+  await expect(page.locator(".sim-note img")).toHaveCount(0);
+  await expect(page.locator(".sim-note strong")).toHaveText("Nota operativa");
   await page.getByRole("button", { name: "Annulla", exact: true }).click();
   await expect(page.locator(".sim-widget")).toHaveCount(6);
 });

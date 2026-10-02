@@ -171,3 +171,18 @@ Consegnato nel branch `codex/simulation-enterprise-ux`:
 - Alternative tabellari ai grafici, gestione del focus, layout responsive e verifiche WCAG con Axe.
 
 Limiti espliciti: il backend esistente calcola il run prima di produrre l’artifact di replay; non è stato aggiunto streaming live. La configurazione delle dashboard è salvata sul dispositivo, senza condivisione server. HTML eseguibile e riepiloghi AI non sono stati introdotti. Il catalogo completo del motore resta un requisito distinto da questa consegna UI.
+
+### Revisione e verifica della consegna
+
+Revisione del diff effettuata durante ogni commit e sul confronto finale con `main`: proprietà del clock e teardown, separazione dati correnti/finali, limiti del parser, migrazione dei layout precedenti, errori di storage, focus, configurazione per progetto/processo e isolamento delle sovrapposizioni BPMN. I testi Markdown non eseguono HTML né caricano immagini remote, coerentemente con le note dell’app.
+
+Verifiche locali:
+
+- `npm --prefix frontend run typecheck` e `npm --prefix frontend run lint`: superati.
+- Suite frontend: 47 file e 281 test superati prima dell’ultima estensione numerica; il modulo aggiornato delle espressioni passa tutti i suoi 7 test.
+- `npm run check:bundle`: build e budget esistente superati, senza aumentare i limiti.
+- `npx playwright test --config playwright.simulation.config.ts --project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari --workers=1`: 28 test superati.
+- Verifica aggiuntiva della navigazione attiva, accessibilità e controlli mobili: altri 8 test superati sui quattro browser/viewport.
+- Screenshot desktop/mobile esaminati manualmente; Axe senza violazioni WCAG A/AA nel workspace testato. I test usano dati sintetici e non attestano nuove capacità del backend.
+
+La PR include la matrice Playwright nella CI già esistente. Il merge richiede la verifica dei risultati della CI sul commit finale.

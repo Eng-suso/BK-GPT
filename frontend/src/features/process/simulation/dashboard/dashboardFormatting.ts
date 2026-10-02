@@ -10,4 +10,3 @@ export function formatMetric(value: number | null, unit: Unit, lang: "it" | "en"
   const number = new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 1 }).format(value);
   return unit === "percent" ? `${number}%` : unit === "rate" ? `${number}/h` : number;
 }
-

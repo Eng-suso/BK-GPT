@@ -30,7 +30,7 @@ export function WidgetView({ widget, engine, frame, activityId }: {
       currentTime: frame.global.clockMs,
     }, lang);
     return <div className="sim-note">
-      {result.valid ? <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>{result.text}</ReactMarkdown>
+      {result.valid ? <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={{ img: () => null }}>{result.text}</ReactMarkdown>
         : <p className="text-sm text-muted-foreground">{t(data.value === null ? "simulation.studio.noObservations" : "simulation.studio.invalidExpression")}</p>}
     </div>;
   }
