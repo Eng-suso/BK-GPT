@@ -432,5 +432,13 @@
       "change": "Change destination",
       "label": "In: {{place}}"
     }
+  },
+  "card": {
+    "rolesLabel": "What it is for",
+    "noRoles": "Choose what it is for",
+    "suggested": "Looks like: {{roles}}",
+    "useSuggestion": "Use the suggestion: {{roles}}",
+    "keep": "Save to Sources and remove from the message",
+    "menuLabel": "{{file}}, what it is for: {{roles}}"
   }
 }
