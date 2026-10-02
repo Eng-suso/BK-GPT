@@ -13,11 +13,12 @@ export type BpmnOverlays = {
     elementId: string,
     opts: {
       position: Record<string, number>;
-      html: string;
+      html: string | HTMLElement;
       scale?: boolean | { min?: number; max?: number };
     },
   ) => string;
   clear: () => void;
+  remove: (id: string) => void;
 };
 
 export type BpmnCanvas = {

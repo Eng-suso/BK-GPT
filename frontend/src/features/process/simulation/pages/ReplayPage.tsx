@@ -1,12 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { X } from "lucide-react";
+import { X, ChartNoAxesCombined } from "lucide-react";
 
 import { Button } from "@/ui/button";
 import { Meter } from "@/components/data";
 import { cn } from "@/lib/utils";
 
 import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanvas";
+import { CanvasAnalytics } from "../canvas/CanvasAnalytics";
 import { TokenLayer } from "../canvas/TokenLayer";
 import { TransportBar } from "../replay/TransportBar";
 import { ReplayGate } from "../replay/ReplayGate";
@@ -56,31 +57,16 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
   const [viewer, setViewer] = React.useState<BpmnViewer | null>(null);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
-  const bottleneckEl =
-    (run.summary?.bottleneck as { el?: string } | null | undefined)?.el ?? null;
+  const [chartsVisible, setChartsVisible] = React.useState(true);
 
   const systemMode = status?.granularity === "system";
 
-  const flowMarkers = React.useMemo<NodeDecoration[]>(() => {
-    if (!systemMode) return [];
-    const flows = engine.payload.flows ?? {};
-    const attributed = Object.entries(flows).filter(([, v]) => v.attributed);
-    const max = Math.max(1, ...attributed.map(([, v]) => v.count));
-    return attributed
-      .filter(([, v]) => v.count > 0)
-      .map(([id, v]) => ({
-        elementId: id,
-        markers: [`sim-flow-${Math.min(4, Math.max(1, Math.ceil((v.count / max) * 4)))}`],
-      }));
-  }, [systemMode, engine]);
-
   const decorations = React.useMemo<NodeDecoration[]>(() => {
-    if (!frame) return flowMarkers;
-    const out: NodeDecoration[] = [...flowMarkers];
+    if (!frame) return [];
+    const out: NodeDecoration[] = [];
     for (const [el, state] of Object.entries(frame.elements)) {
       const markers: string[] = [];
       if (state.pressure !== "none") markers.push(PRESSURE_MARKER[state.pressure]);
-      if (el === bottleneckEl) markers.push("sim-node-bottleneck");
       // system mode: chip every active node; otherwise only queued / pressured ones
       const chip = systemMode
         ? state.active > 0 || state.queued > 0
@@ -106,7 +92,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
       });
     }
     return out;
-  }, [frame, bottleneckEl, t, flowMarkers, systemMode]);
+  }, [frame, t, systemMode]);
 
   const activity =
     selectedId && Array.isArray(run.summary?.byActivity)
@@ -124,7 +110,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
         <TransportBar engine={engine} />
       </div>
 
-      <div className="flex min-h-[360px] shrink-0 flex-1 gap-3">
+      <div className="flex min-h-[500px] shrink-0 flex-1 gap-3">
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
           <SimulationCanvas
             className="min-h-0 flex-1"
@@ -133,8 +119,10 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
             selectedElementId={selectedId}
             onSelectElement={setSelectedId}
             onViewerReady={setViewer}
+            toolbarStart={<Button size="sm" variant="ghost" aria-pressed={chartsVisible} onClick={() => setChartsVisible((current) => !current)}><ChartNoAxesCombined aria-hidden className="size-4" />{t("simulation.studio.charts")}</Button>}
           />
           <TokenLayer viewer={viewer} engine={engine} />
+          {frame && <CanvasAnalytics viewer={viewer} engine={engine} frame={frame} selectedId={selectedId} visible={chartsVisible} onVisibilityChange={setChartsVisible} />}
 
           {selectedId && (
             <aside
@@ -165,7 +153,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
                 />
                 {activity && (
                   <Row
-                    label={t("simulation.results.table.waiting")}
+                    label={t("simulation.studio.finalWaiting")}
                     value={formatDuration(
                       Number((activity.wait as { avg?: number })?.avg ?? 0),
                       lang,

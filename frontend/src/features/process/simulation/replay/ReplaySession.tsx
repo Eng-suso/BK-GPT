@@ -13,4 +13,3 @@ export function ReplaySession({ runId, enabled, children }: {
   const session = useReplayEngine(runId, enabled);
   return <ReplaySessionContext.Provider value={session}>{children}</ReplaySessionContext.Provider>;
 }
-
