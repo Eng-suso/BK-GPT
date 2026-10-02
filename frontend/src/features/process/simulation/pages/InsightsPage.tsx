@@ -29,7 +29,7 @@ export function InsightsPage(): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
-  const { projectId, processId } = useSimulationSection();
+  const { projectId, processId, openPanel, selectElement } = useSimulationSection();
 
   const lab = useScenarioLab();
   const { activeRun, draft, updateDraft, confidence } = lab;
@@ -75,7 +75,8 @@ export function InsightsPage(): React.JSX.Element {
         r.id === targetId ? { ...r, amount: r.amount + 1 } : r,
       ),
     });
-    navigate(ROUTES.projects.simulation(projectId, processId, "scenario"));
+    if (exp.target_el) selectElement?.(exp.target_el);
+    if (openPanel) openPanel("scenario"); else navigate(ROUTES.projects.simulation(projectId, processId, "scenario"));
   };
 
   return (

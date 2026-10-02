@@ -50,16 +50,18 @@ const FACTOR_ORDER = [
  *
  * @returns The heatmap page element.
  */
-export function HeatmapPage(): React.JSX.Element {
+export function HeatmapPage({ embedded = false, onDecorations }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[]) => void } = {}): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
-  const { runs, bpmnXml } = useSimulationSection();
+  const { runs, bpmnXml, activeRunId, selectedElementId, selectElement } = useSimulationSection();
   const { runId } = useParams();
-  const activeRun = resolveActiveRun(runs, runId);
+  const activeRun = resolveActiveRun(runs, activeRunId != null ? String(activeRunId) : runId);
 
   const [metric, setMetric] = React.useState<HeatMetric>("wait");
-  const [selectedEl, setSelectedEl] = React.useState<string | null>(null);
+  const [localSelectedEl, setLocalSelectedEl] = React.useState<string | null>(null);
 
+  const selectedEl = selectedElementId !== undefined ? selectedElementId : localSelectedEl;
+  const setSelectedEl = selectElement ?? setLocalSelectedEl;
   const summary = (activeRun?.summary as SimulationSummary | null) ?? null;
   const stats = React.useMemo(() => readActivityStats(summary), [summary]);
 
@@ -100,6 +102,8 @@ export function HeatmapPage(): React.JSX.Element {
     [ranked, cfg, maxValue, bottleneckEl, lang],
   );
 
+  React.useEffect(() => { onDecorations?.(decorations); }, [decorations, onDecorations]);
+
   const selected =
     stats.find((s) => s.el === selectedEl) ??
     stats.find((s) => s.el === bottleneckEl) ??
@@ -130,8 +134,8 @@ export function HeatmapPage(): React.JSX.Element {
   const metricName = t(`simulation.heatmap.metric.${metric}`);
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:flex-row">
-      <section className="flex min-h-[440px] shrink-0 flex-1 flex-col overflow-hidden ui-surface ui-surface-panel">
+    <div className={embedded ? "sim-embedded-heatmap flex min-h-0 flex-col gap-3" : "flex h-full min-h-0 flex-col gap-3 overflow-y-auto lg:flex-row"}>
+      <section className={embedded ? "shrink-0" : "flex min-h-[440px] shrink-0 flex-1 flex-col overflow-hidden ui-surface ui-surface-panel"}>
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-2.5">
           <label className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {t("simulation.heatmap.metricLabel")}
@@ -161,13 +165,13 @@ export function HeatmapPage(): React.JSX.Element {
             <span>{t("simulation.heatmap.legendHigh")}</span>
           </div>
         </header>
-        <SimulationCanvas
+        {!embedded && <SimulationCanvas
           className="min-h-0 flex-1"
           bpmnXml={bpmnXml}
           decorations={decorations}
           selectedElementId={selectedEl}
           onSelectElement={setSelectedEl}
-        />
+        />}
       </section>
 
       <aside className="flex min-h-0 w-full shrink-0 flex-col overflow-hidden ui-surface ui-surface-panel lg:w-[336px]">

@@ -22,8 +22,8 @@ type ReplayGateProps = {
 export function ReplayGate({ children }: ReplayGateProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const { runId } = useParams();
-  const { runs, bpmnXml } = useSimulationSection();
-  const activeRun = resolveActiveRun(runs, runId);
+  const { runs, bpmnXml, activeRunId } = useSimulationSection();
+  const activeRun = resolveActiveRun(runs, activeRunId != null ? String(activeRunId) : runId);
 
   const { engine, isLoading, noArtifact, error } = useReplaySession();
 

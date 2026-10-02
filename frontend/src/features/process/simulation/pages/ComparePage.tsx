@@ -37,10 +37,10 @@ import {
   heatBucket,
 } from "../simulationResults";
 
-type Mode = "a" | "b" | "delta";
+export type CompareMode = "a" | "b" | "delta";
 
-export function ComparePage(): React.JSX.Element {
-  const { t } = useTranslation("process");
+export function ComparePage({ embedded = false, onDecorations }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[]) => void } = {}): React.JSX.Element {
+  const { t, i18n } = useTranslation("process");
   const { runs } = useSimulationSection();
   const [params, setParams] = useSearchParams();
 
@@ -54,8 +54,11 @@ export function ComparePage(): React.JSX.Element {
   const runA = candidates.find((r) => String(r.id) === aId) ?? candidates[1] ?? null;
   const runB = candidates.find((r) => String(r.id) === bId) ?? candidates[0] ?? null;
 
-  const [mode, setMode] = React.useState<Mode>("delta");
+  const [mode, setMode] = React.useState<CompareMode>("delta");
 
+  const lang = i18n.language?.startsWith("it") ? "it" : "en";
+  const decorations = React.useMemo(() => runA && runB ? comparisonDecorations(runA, runB, mode, lang) : [], [runA, runB, mode, lang]);
+  React.useEffect(() => { onDecorations?.(decorations); }, [decorations, onDecorations]);
   if (candidates.length < 2) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -96,7 +99,7 @@ export function ComparePage(): React.JSX.Element {
           role="group"
           aria-label={t("simulation.compare.modeLabel")}
         >
-          {(["a", "b", "delta"] as Mode[]).map((m) => (
+          {(["a", "b", "delta"] as CompareMode[]).map((m) => (
             <button
               key={m}
               type="button"
@@ -118,7 +121,7 @@ export function ComparePage(): React.JSX.Element {
 
       <Verdict runA={runA} runB={runB} />
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]">
+      <div className={embedded ? "min-h-0 flex-1" : "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]"}>
         <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
           <header className="border-b border-border px-4 py-2.5">
             <p className="eyebrow">{t("simulation.compare.kpiHeader")}</p>
@@ -128,7 +131,7 @@ export function ComparePage(): React.JSX.Element {
           </div>
         </section>
 
-        <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
+        {!embedded && <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
           <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
             <p className="eyebrow">{t("simulation.diagram.title")}</p>
             {mode === "delta" ? (
@@ -143,7 +146,7 @@ export function ComparePage(): React.JSX.Element {
             )}
           </header>
           <CompareCanvas runA={runA} runB={runB} mode={mode} />
-        </section>
+        </section>}
       </div>
     </div>
   );
@@ -314,13 +317,24 @@ function CompareCanvas({
 }: {
   runA: SimulationRun;
   runB: SimulationRun;
-  mode: Mode;
+  mode: CompareMode;
 }) {
   const { i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const { bpmnXml } = useSimulationSection();
 
-  const decorations = React.useMemo<NodeDecoration[]>(() => {
+  const decorations = React.useMemo(() => comparisonDecorations(runA, runB, mode, lang), [mode, runA, runB, lang]);
+
+  return (
+    <SimulationCanvas
+      className="min-h-0 flex-1"
+      bpmnXml={bpmnXml}
+      decorations={decorations}
+    />
+  );
+}
+
+function comparisonDecorations(runA: SimulationRun, runB: SimulationRun, mode: CompareMode, lang: "it" | "en"): NodeDecoration[] {
     if (mode === "delta") {
       const deltas = elementWaitDeltas(
         runA.summary as SimulationSummary,
@@ -359,15 +373,6 @@ function CompareCanvas({
       markers: [`sim-heat-${heatBucket(a.wait, maxWait)}`],
       badge: i < 4 && a.wait > 0 ? formatDuration(a.wait, lang) : undefined,
     }));
-  }, [mode, runA, runB, lang]);
-
-  return (
-    <SimulationCanvas
-      className="min-h-0 flex-1"
-      bpmnXml={bpmnXml}
-      decorations={decorations}
-    />
-  );
 }
 
 function Legend({ color, label }: { color: string; label: string }) {
