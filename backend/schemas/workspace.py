@@ -503,7 +503,9 @@ class WorkspaceNotificationsResponse(BaseModel):
 
 class MarkNotificationsReadRequest(BaseModel):
     #: Gli avvisi da segnare come letti; vuoto significa "tutti quelli mostrati".
-    ids: list[str] = Field(default_factory=list, max_length=200)
+    ids: list[Annotated[str, Field(min_length=1, max_length=256)]] = Field(
+        default_factory=list, max_length=200
+    )
 
 
 class WorkspaceSearchHit(BaseModel):

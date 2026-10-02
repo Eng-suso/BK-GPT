@@ -292,7 +292,7 @@ def mark_workspace_notifications_read(
 
 @router.get("/search")
 def search_workspace_records(
-    q: str,
+    q: str = Query(..., max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> list[WorkspaceSearchHit]:
     """Cerca clienti, progetti, processi e fonti del workspace.
