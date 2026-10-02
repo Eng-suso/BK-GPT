@@ -73,6 +73,7 @@ class OperationKind:
     PLAN_SYNTHESIS = "plan_synthesis"
     CONFORMANCE_AUDIT = "conformance_audit"
     KG_INGESTION = "kg_ingestion"
+    SOURCE_CLAIMS = "source_claims"
     MEMORY_PROJECTION = "memory_projection"
     TRANSCRIPTION = "transcription"
     EVAL = "eval"

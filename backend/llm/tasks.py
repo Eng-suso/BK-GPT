@@ -26,6 +26,7 @@ class LlmTask(StrEnum):
     """
 
     PLAN_EXTRACTION = "plan_extraction"
+    SOURCE_CLAIMS = "source_claims"
     PLAN_QUALITY = "plan_quality"
     PLAN_UNIFICATION = "plan_unification"
     CONFORMANCE_AUDIT = "conformance_audit"
@@ -103,6 +104,13 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     # il ragionamento si paga volentieri.
     LlmTask.PLAN_EXTRACTION: TaskProfile(
         LlmTask.PLAN_EXTRACTION, reasoning_effort="medium", scales_with_input=True
+    ),
+    # Le affermazioni di un file caricato, ognuna legata alla porzione da cui
+    # viene. Stesso giudizio dell'estrazione del piano, quindi stesso profilo
+    # (decisione del 2 ottobre). Parte solo dopo un gesto del consulente -
+    # conferma, o invio in chat - e nessuno la aspetta davanti allo schermo.
+    LlmTask.SOURCE_CLAIMS: TaskProfile(
+        LlmTask.SOURCE_CLAIMS, reasoning_effort="medium", scales_with_input=True, deferrable=True
     ),
     LlmTask.PLAN_QUALITY: TaskProfile(
         LlmTask.PLAN_QUALITY, reasoning_effort="low", scales_with_input=True
