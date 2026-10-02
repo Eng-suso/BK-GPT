@@ -4,23 +4,25 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, RadialBar, RadialBarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import type { SimulationSummary } from "../simulationTypes";
 import type { ReplayEngine, ReplayFrame } from "../replay/replayEngine";
 import { WIDGET_COLORS, formatMetric } from "./dashboardFormatting";
 import { interpolateText } from "./dashboardExpressions";
 import { resolveWidgetData, type DashboardWidget } from "./dashboardModel";
 
-export function WidgetView({ widget, engine, frame, activityId }: {
-  widget: DashboardWidget; engine: ReplayEngine; frame: ReplayFrame; activityId: string;
+export function WidgetView({ widget, engine, frame, activityId, summary, unavailable = false, loading = false }: {
+  widget: DashboardWidget; engine: ReplayEngine; frame: ReplayFrame; activityId: string; summary?: SimulationSummary | null; unavailable?: boolean; loading?: boolean;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language.startsWith("it") ? "it" : "en";
-  const data = resolveWidgetData(engine, frame, widget, widget.activityId || activityId, lang);
+  const data = resolveWidgetData(engine, frame, widget, widget.activityId || activityId, lang, summary);
   const color = WIDGET_COLORS[widget.color];
   const colors = [color, ...Object.values(WIDGET_COLORS).filter((value) => value !== color)];
   const format = (value: number | null) => formatMetric(value, data.unit, lang);
   const clock = (seconds: number) => new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit" }).format(new Date(engine.startMs + seconds * 1000));
   const points = data.points.map((point) => ({ ...point, label: point.t === undefined ? point.label : clock(point.t) }));
 
+  if (unavailable) return <div className="sim-widget-empty" role="status"><span>—</span><p>{t(loading ? "simulation.loading" : "simulation.replay.noArtifact")}</p></div>;
   if (!data.expressionValid) return <div className="sim-widget-empty"><span>—</span><p>{t("simulation.studio.invalidMetricExpression")}</p></div>;
   if (widget.kind === "text") {
     const result = interpolateText(widget.text, {

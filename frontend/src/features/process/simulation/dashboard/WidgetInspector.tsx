@@ -4,21 +4,22 @@ import { Copy, Trash2, X, ArrowUp, ArrowDown } from "lucide-react";
 
 import { Button } from "@/ui/button";
 import { useReplayFrame } from "../replay/useReplay";
+import type { SimulationSummary } from "../simulationTypes";
 import type { ReplayEngine } from "../replay/replayEngine";
 import { interpolateText } from "./dashboardExpressions";
 import { KINDS, METRICS, UNITS, resolveWidgetData, type DashboardWidget, type DashboardLayout, type Metric, type WidgetKind } from "./dashboardModel";
 
-export function WidgetInspector({ widget, layout, engine, activityId, onChange, onClose, onDelete, onDuplicate, onMove, onGroup, pinned = false }: {
+export function WidgetInspector({ widget, layout, engine, activityId, onChange, onClose, onDelete, onDuplicate, onMove, onGroup, summary, pinned = false }: {
   widget: DashboardWidget; layout: DashboardLayout; engine: ReplayEngine; activityId: string;
   onChange: (patch: Partial<DashboardWidget>) => void; onClose: () => void; onDelete: () => void; onDuplicate: () => void;
-  onMove: (direction: -1 | 1) => void; onGroup: (id: string) => void; pinned?: boolean;
+  onMove: (direction: -1 | 1) => void; onGroup: (id: string) => void; pinned?: boolean; summary?: SimulationSummary | null;
 }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language.startsWith("it") ? "it" : "en";
   const frame = useReplayFrame(engine);
   const group = layout.groups.find((item) => item.widgets.some((item) => item.id === widget.id))!;
   const index = group.widgets.findIndex((item) => item.id === widget.id);
-  const metricData = frame ? resolveWidgetData(engine, frame, widget, widget.activityId || activityId, lang) : null;
+  const metricData = frame ? resolveWidgetData(engine, frame, widget, widget.activityId || activityId, lang, summary) : null;
   const value = metricData?.value ?? null;
   const expression = interpolateText(widget.text, { metric: value === null ? 0 : value * (UNITS[widget.metric] === "duration" ? 1000 : 1), total: frame ? frame.global.activeCases + frame.global.completedCases : 0, currentTime: frame?.global.clockMs ?? 0 }, lang);
   const id = React.useId();

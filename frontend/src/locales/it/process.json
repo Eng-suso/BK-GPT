@@ -509,6 +509,28 @@
         "throughput": "Come cambia il throughput?"
       },
       "currentDetails": "Dettagli al tempo corrente"
+    },
+    "scene": {
+      "navigation": "Navigazione della tela",
+      "backProcess": "Torna al processo",
+      "goTo": "Vai a un elemento…",
+      "panHint": "Trascina lo sfondo · Ctrl + rotella per zoom",
+      "composeHint": "Sposta e ridimensiona gli elementi · frecce da tastiera",
+      "zoom": "Zoom della tela",
+      "showAll": "Mostra tutta la tela",
+      "workspace": "Tela di processo e analisi",
+      "move": "Sposta {{title}} sulla tela",
+      "resize": "Ridimensiona {{title}} sulla tela",
+      "keyboardHint": "Frecce: 20 unità · Maiusc + frecce: 100 unità",
+      "map": "Mappa degli elementi della tela",
+      "focus": "Centra {{title}}",
+      "replay": "Osserva",
+      "finalScope": "Risultati finali · intera esecuzione",
+      "resume": "Riprendi osservazione",
+      "comparisonScope": "Confronto finale A → B · intera esecuzione",
+      "summaryDetails": "Dettaglio del confronto",
+      "groups": "Sezioni della tela",
+      "finalHint": "Le analisi della riproduzione restano al clock conservato. Il confronto usa i risultati finali delle esecuzioni selezionate."
     }
   },
   "side": {

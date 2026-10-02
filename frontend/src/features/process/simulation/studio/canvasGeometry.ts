@@ -5,7 +5,7 @@ export const PROCESS_ID = "__process__";
 
 /** Deterministic migration: preserve every legacy widget and never write until Save. */
 export function sceneRects(layout: DashboardLayout): Record<string, CanvasRect> {
-  const process = layout.process.canvas ?? { x: 0, y: 0, width: layout.process.width === "full" ? 1284 : 900, height: Math.max(620, layout.process.height) };
+  const process = layout.process.canvas ?? { x: 0, y: 0, width: layout.process.width === "full" ? 1284 : 900, height: Math.max(480, layout.process.height) };
   const result: Record<string, CanvasRect> = { [PROCESS_ID]: process };
   let index = 0;
   for (const group of layout.groups) for (const widget of group.widgets) {
