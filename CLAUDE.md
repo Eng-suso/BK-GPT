@@ -181,3 +181,6 @@ For final frontend verification:
 - Do not store secrets, credentials, tokens, private keys, customer raw data, health data, banking data, or non-anonymized PII in `.claude`.
 - When a task spans backend, storage, security, or deployment, do not expand this file automatically. Add those routing sections only when Sohay explicitly asks for them.
 - committa sempre a mio nome sohayb raqaq e mai come co author claude (trailer) fallo per ogni pr
+- ogni volta che inizi un nuovo task, devi controllare i branch precdenti e vedere quanto sono inidetro e avanti rispetto a main. poi guardi cosa c'è che non va, fai delle code review e poi mergi su main per poi pushare su github.
+
+-devi fare tanti piccoli commit quando si fa un grande lavoro
