@@ -202,6 +202,13 @@ class Settings(BaseSettings):
     # cover the slowest expected simulation, not just connect latency.
     prosimos_timeout_seconds: float = 900.0
 
+    # docling-serve (ops/docker-compose.yml): legge PDF, DOCX e PPTX con layout,
+    # tabelle e OCR. Gira in un container perche' porta con se' torch e i
+    # modelli; il backend ne riceve solo il DoclingDocument JSON. Un PDF lungo
+    # costa minuti: il timeout copre la conversione intera, non la connessione.
+    docling_serve_url: str = "http://127.0.0.1:5001"
+    docling_timeout_seconds: float = 900.0
+
     # --- simulation replay artifact (Phase 1) -------------------------------
     # KPIs are always computed from the full Prosimos event log; these bound the
     # *display* representation only (sampled token paths + time buckets).
