@@ -4,7 +4,7 @@ Data: 2026-08-30
 
 Identità visiva aggiornata il 2026-09-08: [Satin design system](design/satin-design-system.md).
 Le ricette condivise di questa guida sostituiscono i precedenti trattamenti visivi dei controlli e delle superfici.
-Contesto: migrazione `frontend/src` a UI enterprise con design system. Vedi [frontend-audit.md](frontend-audit.md).
+Contesto: migrazione `frontend/src` a UI enterprise con design system. Vedi [frontend-audit.md](archive/frontend-audit.md) (foto del 30/08, archiviata).
 
 ---
 
@@ -85,7 +85,7 @@ Regole:
 ### `app/` blueprint
 
 - Non esiste (vedi audit). Si costruisce fresh.
-- Aggiornare `README.md` + `docs/ui-architecture.md`: rimuovere ogni riferimento a `app/`.
+- Fatto: `README.md` non cita piu' `app/`; `ui-architecture.md` e' in [archive/](archive/).
 - Riferimento di struttura più vicino: pattern `.enterprise-*` in `ProjectsPage`/`ProjectWorkspace` (layout: breadcrumb + page-header + tabella + drawer). Idea buona, CSS da rifare.
 
 ---
