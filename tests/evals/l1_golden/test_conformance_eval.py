@@ -48,7 +48,7 @@ pytestmark = [
     ),
 ]
 
-GOLDEN = Path(__file__).resolve().parents[1] / "golden"
+GOLDEN = Path(__file__).resolve().parents[2] / "golden"
 REPORTS = GOLDEN / "reports"
 DETERMINISTIC_LAYERS = {"plan_currency", "canvas_plan", "review_plan"}
 

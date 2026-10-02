@@ -40,7 +40,7 @@ from tests.evals.graph_metrics import (
     regressions,
 )
 
-GOLDEN = Path(__file__).parent / "golden"
+GOLDEN = Path(__file__).resolve().parents[2] / "golden"
 
 
 def _case(**overrides) -> ReferenceCase:

@@ -40,7 +40,7 @@ pytestmark = [
     ),
 ]
 
-GOLDEN = Path(__file__).resolve().parents[1] / "golden"
+GOLDEN = Path(__file__).resolve().parents[2] / "golden"
 REPORTS = GOLDEN / "reports"
 BASELINE = GOLDEN / "baseline.json"
 
