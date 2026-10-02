@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/ui/button";
@@ -39,6 +39,7 @@ export function UploadDestinationDialog({
   const [projectId, setProjectId] = useState(initial?.projectId ?? "");
   const [processId, setProcessId] = useState(initial?.processId ?? "");
   const project = projects.data?.find((item) => item.id === projectId) ?? null;
+  const fieldId = useId();
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
@@ -61,9 +62,12 @@ export function UploadDestinationDialog({
             });
           }}
         >
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            {t("upload.destination.project")}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={`${fieldId}-project`} className="text-sm font-medium">
+              {t("upload.destination.project")}
+            </label>
             <select
+              id={`${fieldId}-project`}
               value={projectId}
               required
               onChange={(event) => {
@@ -83,11 +87,15 @@ export function UploadDestinationDialog({
                 </option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            {t("upload.destination.process")}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor={`${fieldId}-process`} className="text-sm font-medium">
+              {t("upload.destination.process")}
+            </label>
             <select
+              id={`${fieldId}-process`}
+              aria-describedby={`${fieldId}-process-hint`}
               value={processId}
               onChange={(event) => setProcessId(event.target.value)}
               className="h-9 rounded-md border border-border bg-background px-3 text-sm"
@@ -100,10 +108,10 @@ export function UploadDestinationDialog({
                 </option>
               ))}
             </select>
-            <span className="text-xs font-normal text-muted-foreground">
+            <span id={`${fieldId}-process-hint`} className="text-xs text-muted-foreground">
               {processId ? t("upload.destination.asEvidence") : t("upload.destination.asContext")}
             </span>
-          </label>
+          </div>
 
           {projects.isError ? (
             <p role="alert" className="text-sm text-destructive">

@@ -31,7 +31,7 @@ describe("UploadDestinationDialog", () => {
     expect(choose).toBeDisabled();
 
     await userEvent.selectOptions(screen.getByLabelText("Progetto"), "p-acquisti");
-    await userEvent.selectOptions(screen.getByLabelText(/Processo/), "proc-p2p");
+    await userEvent.selectOptions(screen.getByLabelText("Processo"), "proc-p2p");
     expect(screen.getByText(/evidenza di questo processo/)).toBeInTheDocument();
     await userEvent.click(choose);
 
