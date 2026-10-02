@@ -511,6 +511,8 @@
       "currentDetails": "Details at the current time"
     },
     "scene": {
+      "history": "Replay history",
+      "finalValue": "Final value",
       "navigation": "Canvas navigation",
       "backProcess": "Back to process",
       "goTo": "Go to an element…",

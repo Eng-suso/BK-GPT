@@ -511,6 +511,8 @@
       "currentDetails": "Dettagli al tempo corrente"
     },
     "scene": {
+      "history": "Storico del replay",
+      "finalValue": "Valore finale",
       "navigation": "Navigazione della tela",
       "backProcess": "Torna al processo",
       "goTo": "Vai a un elemento…",

@@ -40,7 +40,7 @@ import {
 
 export type CompareMode = "a" | "b" | "delta";
 
-export function ComparePage({ embedded = false, compact = false, onDecorations, onRunB }: { embedded?: boolean; compact?: boolean; onDecorations?: (items: NodeDecoration[]) => void; onRunB?: (run: SimulationRun | null) => void } = {}): React.JSX.Element {
+export function ComparePage({ embedded = false, compact = false, onDecorations }: { embedded?: boolean; compact?: boolean; onDecorations?: (items: NodeDecoration[]) => void } = {}): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const { runs, activeRunId } = useSimulationSection();
   const [params, setParams] = useSearchParams();
@@ -60,7 +60,6 @@ export function ComparePage({ embedded = false, compact = false, onDecorations, 
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const decorations = React.useMemo(() => runA && runB ? comparisonDecorations(runA, runB, mode, lang) : [], [runA, runB, mode, lang]);
   React.useEffect(() => { onDecorations?.(decorations); }, [decorations, onDecorations]);
-  React.useEffect(() => { onRunB?.(runA && runB ? runB : null); }, [runA, runB, onRunB]);
   if (candidates.length < 2) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -344,7 +343,7 @@ function comparisonDecorations(runA: SimulationRun, runB: SimulationRun, mode: C
         runA.summary as SimulationSummary,
         runB.summary as SimulationSummary,
       );
-      const worst = Math.max(1, ...deltas.map((d) => Math.abs(d.deltaWait)));
+      const worst = Math.max(1, ...deltas.filter(d => Number.isFinite(d.deltaWait)).map((d) => Math.abs(d.deltaWait)));
       return deltas
         .filter((d) => d.el)
         .map((d) => ({
@@ -356,7 +355,7 @@ function comparisonDecorations(runA: SimulationRun, runB: SimulationRun, mode: C
                 ? "sim-delta-worse"
                 : "sim-delta-neutral",
           ],
-          badge:
+          badge: !Number.isFinite(d.deltaWait) ? "—" :
             Math.abs(d.deltaWait) / worst > 0.15
               ? `${d.deltaWait > 0 ? "+" : "−"}${formatDuration(Math.abs(d.deltaWait), lang)}`
               : undefined,
@@ -369,8 +368,8 @@ function comparisonDecorations(runA: SimulationRun, runB: SimulationRun, mode: C
       .filter((r) => r.el)
       .map((r) => ({
         el: String(r.el),
-        wait: Number((r.wait as { avg?: number })?.avg ?? 0),
-      }));
+        wait: Number((r.wait as { avg?: number })?.avg ?? Number.NaN),
+      })).filter(a => Number.isFinite(a.wait));
     const maxWait = Math.max(1, ...acts.map((a) => a.wait));
     return acts.map((a, i) => ({
       elementId: a.el,

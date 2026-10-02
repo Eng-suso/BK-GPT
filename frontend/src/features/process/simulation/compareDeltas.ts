@@ -33,8 +33,9 @@ export type ElementDelta = {
 const SAME_EPS = 0.02; // <2% change reads as "no material difference"
 
 function num(value: unknown): number {
+  if (value == null || value === "") return Number.NaN;
   const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? n : 0;
+  return Number.isFinite(n) ? n : Number.NaN;
 }
 
 function get(summary: SimulationSummary | null | undefined, path: string[]): number {
@@ -122,5 +123,5 @@ export function elementWaitDeltas(
       direction: direction(deltaWait, aWait || bWait, "lower"),
     });
   }
-  return out.sort((x, y) => Math.abs(y.deltaWait) - Math.abs(x.deltaWait));
+  return out.sort((x, y) => (Number.isFinite(y.deltaWait) ? Math.abs(y.deltaWait) : -1) - (Number.isFinite(x.deltaWait) ? Math.abs(x.deltaWait) : -1));
 }

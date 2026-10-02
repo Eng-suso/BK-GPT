@@ -88,7 +88,7 @@ export function SimulationStudio(): React.JSX.Element {
           {panel === "heatmap" && <HeatmapPage embedded onDecorations={setDecorations} onMetric={setHeatMetric} />}
 
           {panel === "insights" && <div>{ready && <details className="sim-current-insights"><summary>{t("simulation.unified.currentDetails")}</summary><ReplayInsightRail engine={engine} run={run} embedded /></details>}<InsightsPage /></div>}
-          {panel === "activity" && ready && <ActivityDetails engine={displayedEngine ?? engine} run={analysisRun ?? run} />}
+          {panel === "activity" && ready && <ActivityDetails engine={displayedEngine ?? engine} run={analysisRun ?? run} unavailable={unavailable} />}
           <div ref={setHost} className="sim-studio-widget-host" />
         </div>
       </aside>
