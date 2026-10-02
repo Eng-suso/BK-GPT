@@ -12,7 +12,7 @@ e **quando gira**, non l'unico nome che il test puo' avere.
 | --- | --- | --- | --- | --- |
 | L0 | `l0_deterministic/` | invarianti: provenance, isolamento tenant, scope, scritture approvate, proiezioni stale, BPMN valido, compilatore sul golden set | ogni PR (CI/CD Pipeline) | no |
 | L1 | `l1_golden/` | interviste → piano → BPMN contro la mappa di riferimento (disegno, handoff, eccezioni) e cio' che il piano sa (evidenze, claim, conflitti); loop di conformita' | notturno (`golden-eval.yml`) o a mano | si' |
-| L1 | `l1_retrieval/` | da costruire: Recall@5, Precision@5, MRR, nDCG su query con evidence attese; memory recall | - | - |
+| L1 | `l1_retrieval/` | 16 domande da consulente sulle interviste del golden set: recall@5, precision@5, MRR, nDCG@5 del ramo lessicale di `graph_retrieve`, piu' nessun chunk fuori scope. Da costruire: ramo vettoriale e memoria (recall, stale, wrong-scope) | ogni PR (deterministico) | no |
 | L2 | `l2_semantic/` | giudizio sulla mappatura: oggi la rubrica deterministica di `rubric.py`, poi JevEval per i giudizi bounded e G-Eval per quelli soggettivi | a mano | si' |
 | L3 | `l3_trajectory/` | da costruire: tool giusto, ordine, chiamate inutili, stop prematuro, budget | - | - |
 | L4 | `l4_production/` | da costruire: quality drift, costo e latenza per As-Is validato, correzioni umane | - | - |
@@ -44,12 +44,14 @@ affidabile, qualunque cosa dica il resto della suite.
 | `test_evidence_survives_projection_outage.py` | con Neo4j e Mem0 giu' l'evidenza resta intera |
 | `test_bpmn_soundness.py` | il BPMN e' sound: niente nodi irraggiungibili, vicoli ciechi o split impliciti |
 | `test_golden_contract.py` | il golden set cita le sue fonti alla lettera, e ogni elemento obbligatorio ha un passo che lo dice |
+| `test_retrieval_metrics.py`, `test_retrieval_dataset.py` | le metriche di retrieval dicono il vero, e i passi attesi stanno nelle interviste alla lettera |
 | `test_golden_graph_metrics.py` | dal piano ideale il compilatore ridisegna la mappa di riferimento, a 1.0 |
 
 ## Eseguire
 
 ```
 uv run pytest tests/evals/l0_deterministic -q                     # L0, gratis
+uv run pytest tests/evals/l1_retrieval -q -s                       # retrieval lessicale, gratis
 DELIR_GOLDEN_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l1_golden/test_golden_set.py -q -s
 DELIR_AGENT_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l1_golden/test_conformance_eval.py -q -s
 DELIR_AGENT_EVAL=1 DELIR_LIVE_LLM=1 uv run pytest tests/evals/l2_semantic -q -s
