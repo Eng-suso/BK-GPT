@@ -14,7 +14,7 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 /*
- * Premium enterprise direction (see docs/design/ + docs/frontend-audit.md).
+ * Premium enterprise direction (see docs/archive/design/ + docs/archive/frontend-audit.md).
  * The token system stays untouched; here we only re-point a few semantic
  * tokens to their premium primitives and set the control radius. These load
  * after styles/tokens/semantic.css so they win the cascade.

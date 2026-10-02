@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Right-hand context panel. Hairline-separated sections, no nested cards.
- * See docs/design/ (Main / ProjectDetail artboards).
+ * See docs/archive/design/ (Main / ProjectDetail artboards).
  */
 export function DetailPanel({
   children,

@@ -22,7 +22,7 @@ npm run build
 npm run typecheck
 ```
 
-Architecture note: [docs/ui-architecture.md](docs/ui-architecture.md)
+Frontend architecture: [docs/frontend-stack.md](docs/frontend-stack.md) (frozen decisions) and [docs/frontend-structure.md](docs/frontend-structure.md) (`src/` layout)
 
 Deployment & multi-tenancy (living handoff doc, always carries the next step):
 [docs/deployment-and-tenancy.md](docs/deployment-and-tenancy.md)
@@ -30,6 +30,5 @@ Deployment & multi-tenancy (living handoff doc, always carries the next step):
 Current source roles:
 
 - `frontend/src`: canonical active frontend and original chat UI.
-- `app`: DeliR enterprise shell/workspace blueprint, not wired into the active Vite build.
 
 Do not duplicate the chat. The chat module remains the canonical chat experience and should be reused for Consultant, Project, and Process contexts.
