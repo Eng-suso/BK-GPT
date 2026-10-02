@@ -151,14 +151,19 @@ for (const [surface, path] of [
         const rect = button.getBoundingClientRect();
         return rect.width > 0 && (rect.right > innerWidth + 1 || rect.left < 0 || rect.bottom > innerHeight + 1);
       }).length)).toBe(0);
-      // La modalita' di lavoro sta dietro un menu, non piu' su tre radio a
-      // vista: la barra dice cosa e' scelto e le alternative stanno a un click.
+      // Postura, ragionamento e autonomia stanno dietro tre menu: la barra dice
+      // cosa e' scelto e le alternative stanno a un click. Tutti e tre devono
+      // restare dentro il viewport anche a 390px.
+      const triggers = composer.locator(".chat-mode-trigger");
+      await expect(triggers).toHaveCount(3);
+      for (const trigger of await triggers.all()) {
+        await expect(trigger).toBeInViewport();
+      }
       // Il menu si apre in un portal fuori da `.composer-wrap`, e i suoi item
-      // sono `menuitemradio`. Qui conta che si apra, che stia dentro il
-      // viewport anche a 390px, e che la scelta arrivi al trigger.
-      const modeTrigger = composer.locator(".chat-mode-trigger");
-      await expect(modeTrigger).toBeInViewport();
-      await modeTrigger.click();
+      // sono `menuitemradio`. Qui conta che si apra dentro il viewport e che
+      // la scelta arrivi al trigger.
+      const autonomyTrigger = composer.getByRole("button", { name: /Autonomia/ });
+      await autonomyTrigger.click();
       const modeMenu = page.getByRole("menu");
       await expect(modeMenu).toBeVisible();
       expect(await modeMenu.evaluate((element) => {
@@ -166,13 +171,12 @@ for (const [surface, path] of [
         return rect.right > innerWidth + 1 || rect.left < -1
           || rect.bottom > innerHeight + 1 || rect.top < -1;
       })).toBe(false);
-      const chosen = modeMenu.getByRole("menuitemradio", { name: /Modifica/ });
-      await chosen.click();
+      await modeMenu.getByRole("menuitemradio", { name: /Chiedi approvazione/ }).click();
       await expect(modeMenu).toBeHidden();
-      await expect(modeTrigger).toContainText("Modifica");
+      await expect(autonomyTrigger).toContainText("Chiedi approvazione");
       // Riaperto, il menu ricorda la scelta invece di ripartire dal default.
-      await modeTrigger.click();
-      await expect(page.getByRole("menuitemradio", { name: /Modifica/ })).toBeChecked();
+      await autonomyTrigger.click();
+      await expect(page.getByRole("menuitemradio", { name: /Chiedi approvazione/ })).toBeChecked();
       await page.keyboard.press("Escape");
       await expect(page.getByRole("menu")).toBeHidden();
       const messages = page.locator(".messages, .embedded-chat-body");
