@@ -3,7 +3,7 @@ import json
 import logging
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import and_, delete, func, or_, select
@@ -50,6 +50,10 @@ from backend.workspace_storage import (
     WorkspaceSourceEvidence,
     workspace_connection,
 )
+
+
+if TYPE_CHECKING:
+    from backend.workspace_services.source_ingestion import ParsedSource
 
 
 logger = logging.getLogger(__name__)
@@ -2229,7 +2233,7 @@ def due_source_acquisitions(limit: int = 2, *, only_tenant_id: str | None = None
         return claimed
 
 
-def complete_source_acquisition(source_id: str, parsed: Any) -> dict | None:
+def complete_source_acquisition(source_id: str, parsed: "ParsedSource") -> dict | None:
     """Scrive il risultato della lettura: testo, evidenze ancorate, esito.
 
     `parsed` e' un `ParsedSource` di `source_ingestion`. Le evidenze precedenti
