@@ -17,6 +17,7 @@ import { useReplayFrame, useReplayStatus } from "../replay/useReplay";
 import type { ReplayEngine } from "../replay/replayEngine";
 import type { BpmnViewer } from "../canvas/bpmnViewer";
 import type { SimulationRun } from "../simulationTypes";
+import { useSimulationSection } from "../useSimulationSection";
 import { formatDuration } from "../simulationResults";
 
 const PRESSURE_MARKER: Record<string, string> = {
@@ -52,6 +53,7 @@ type ReplayStageProps = {
 function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
+  const { projectId, processId } = useSimulationSection();
   const frame = useReplayFrame(engine);
   const status = useReplayStatus(engine);
   const [viewer, setViewer] = React.useState<BpmnViewer | null>(null);
@@ -119,10 +121,10 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
             selectedElementId={selectedId}
             onSelectElement={setSelectedId}
             onViewerReady={setViewer}
-            toolbarStart={<Button size="sm" variant="ghost" aria-pressed={chartsVisible} onClick={() => setChartsVisible((current) => !current)}><ChartNoAxesCombined aria-hidden className="size-4" />{t("simulation.studio.charts")}</Button>}
+            toolbarStart={<div className="flex flex-wrap items-center gap-2"><label className="sim-filter"><span className="sr-only">{t("simulation.studio.activityFilter")}</span><select aria-label={t("simulation.studio.activityFilter")} value={selectedId ?? ""} onChange={(event) => setSelectedId(event.target.value || null)}><option value="">{t("simulation.studio.chooseActivity")}</option>{Object.entries(engine.payload.elements).map(([id, element]) => <option key={id} value={id}>{element.name}</option>)}</select></label><Button size="sm" variant="ghost" aria-pressed={chartsVisible} onClick={() => setChartsVisible((current) => !current)}><ChartNoAxesCombined aria-hidden className="size-4" />{t("simulation.studio.charts")}</Button></div>}
           />
           <TokenLayer viewer={viewer} engine={engine} />
-          {frame && <CanvasAnalytics viewer={viewer} engine={engine} frame={frame} selectedId={selectedId} visible={chartsVisible} onVisibilityChange={setChartsVisible} />}
+          {frame && <CanvasAnalytics key={`${projectId}:${processId}`} viewer={viewer} engine={engine} frame={frame} selectedId={selectedId} visible={chartsVisible} onVisibilityChange={setChartsVisible} />}
 
           {selectedId && (
             <aside

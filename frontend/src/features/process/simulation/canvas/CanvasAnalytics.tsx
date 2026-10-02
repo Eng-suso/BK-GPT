@@ -58,6 +58,8 @@ function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove }: {
       <label className="sim-field"><span>{t("simulation.studio.title")}</span><input aria-label={t("simulation.studio.title")} value={pin.widget.title} maxLength={120} onChange={(event) => patchWidget({ title: event.target.value })} /></label>
       <label className="sim-field"><span>{t("simulation.studio.type")}</span><select aria-label={t("simulation.studio.type")} value={pin.widget.kind} onChange={(event) => patchWidget({ kind: event.target.value as DashboardWidget["kind"] })}>{KINDS.map((kind) => <option value={kind} key={kind}>{t(`simulation.studio.kind.${kind}`)}</option>)}</select></label>
       <label className="sim-field"><span>{t("simulation.studio.metricLabel")}</span><select aria-label={t("simulation.studio.metricLabel")} value={pin.widget.metric} onChange={(event) => patchWidget({ metric: event.target.value as DashboardWidget["metric"] })}>{METRICS.map((metric) => <option value={metric} key={metric}>{t(`simulation.studio.metric.${metric}`)}</option>)}</select></label>
+      <label className="sim-field"><span>{t("simulation.studio.metricExpression")}</span><input aria-label={t("simulation.studio.metricExpression")} value={pin.widget.metricExpression} maxLength={512} onChange={(event) => patchWidget({ metricExpression: event.target.value })} /></label>
+      <p className="sim-help">{t("simulation.studio.metricExpressionHelp")}</p>
       {pin.widget.kind === "text" && <label className="sim-field"><span>{t("simulation.studio.text")}</span><textarea aria-label={t("simulation.studio.text")} rows={3} maxLength={4000} value={pin.widget.text} onChange={(event) => patchWidget({ text: event.target.value })} /></label>}
       {pin.widget.kind === "gauge" && <label className="sim-field"><span>{t("simulation.studio.targetLabel")}</span><input aria-label={t("simulation.studio.targetLabel")} type="number" min="0.01" value={pin.widget.target} onChange={(event) => { const target = Number(event.target.value); if (Number.isFinite(target) && target > 0) patchWidget({ target }); }} /></label>}
       <div className="flex items-center justify-between"><span className="sim-help">{t("simulation.studio.width")}</span><div className="flex gap-1"><Button size="icon" variant="outline" disabled={pin.width <= 220} onClick={() => onChange({ width: Math.max(220, pin.width - 40) })} aria-label={t("simulation.studio.narrowWidget")}><Minus aria-hidden className="size-4" /></Button><Button size="icon" variant="outline" disabled={pin.width >= 440} onClick={() => onChange({ width: Math.min(440, pin.width + 40) })} aria-label={t("simulation.studio.widenWidget")}><Plus aria-hidden className="size-4" /></Button></div></div>
@@ -82,11 +84,11 @@ export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, on
     } catch { return { pins: [] as Pin[], error: true }; }
   });
   const [pins, setPins] = React.useState<Pin[]>(stored.pins);
-  const [error, setError] = React.useState(stored.error);
+  const [error, setError] = React.useState<"restore" | "save" | null>(stored.error ? "restore" : null);
   const save = (next: Pin[]) => {
     setPins(next);
-    try { localStorage.setItem(key, JSON.stringify(pinsSchema.parse(next))); setError(false); }
-    catch { setError(true); }
+    try { localStorage.setItem(key, JSON.stringify(pinsSchema.parse(next))); setError(null); }
+    catch { setError("save"); }
   };
   const canAdd = Boolean(selectedId && engine.payload.elements[selectedId] && pins.length < 12);
   return <>
@@ -94,11 +96,12 @@ export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, on
       <Button size="sm" variant="outline" disabled={!canAdd} onClick={() => {
         if (!selectedId) return;
         const widget = { ...createWidget("kpi"), metric: "activityQueued" as const };
-        save([...pins, { elementId: selectedId, widget, x: 150, y: -60, width: 260 }]);
+        save([...pins, { elementId: selectedId, widget, x: 0, y: 110, width: 260 }]);
         onVisibilityChange(true);
       }}><Plus aria-hidden className="size-4" />{t("simulation.studio.addCanvasAnalysis")}</Button>
+      {pins.length > 0 && <Button size="sm" variant="ghost" onClick={() => save(pins.map((pin, index) => ({ ...pin, x: (index % 2) * 20, y: 110 + (index % 3) * 20 })))}>{t("simulation.studio.repositionCharts")}</Button>}
       <span className="sim-help">{t(canAdd ? "simulation.studio.canvasLocal" : "simulation.studio.selectActivity")}</span>
-      {error && <span role="alert" className="text-xs text-destructive">{t("simulation.studio.saveError")}</span>}
+      {error && <span role="alert" className="text-xs text-destructive">{t(error === "restore" ? "simulation.studio.restoreError" : "simulation.studio.saveError")}</span>}
     </div>
     {viewer && visible && pins.map((pin) => <PinnedWidget key={pin.widget.id} pin={pin} viewer={viewer} engine={engine} frame={frame}
       onChange={(patch) => save(pins.map((item) => item.widget.id === pin.widget.id ? { ...item, ...patch } : item))}

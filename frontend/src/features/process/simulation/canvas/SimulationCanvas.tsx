@@ -114,6 +114,8 @@ export function SimulationCanvas({
     const viewer = viewerRef.current;
     if (!viewer || !bpmnXml) return;
     let cancelled = false;
+    // Imports clear diagram overlays, including analytics portals.
+    onReadyRef.current?.(null);
 
     setReady(false);
     setError(null);
