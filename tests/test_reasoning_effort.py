@@ -197,4 +197,5 @@ def test_the_answering_model_thinks_as_asked_and_the_router_does_not(monkeypatch
     }
     assert built[0]["reasoning_effort"] == "high", "chi risponde pensa quanto richiesto"
     assert built[1]["reasoning_effort"] == "none", "il router resta al minimo"
+    assert built[2]["reasoning_effort"] == "none", "il riassunto del thread resta al profilo"
     assert efforts  # i tag distinguono i due client nel tracing

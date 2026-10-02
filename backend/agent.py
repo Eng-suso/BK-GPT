@@ -319,6 +319,14 @@ def build_agent(
         streaming=False,
         tag="context-router",
     )
+    # Il riassunto del thread e' manutenzione, non la risposta: resta al livello
+    # del profilo anche quando il consulente chiede di ragionare a fondo.
+    summary_llm = chat_client(
+        LlmTask.CHAT_TURN,
+        model_name=selected_model,
+        streaming=True,
+        tag="thread-summary",
+    )
 
     def summarize_node(state: ConsultantState, config: RunnableConfig):
         messages = state["messages"]
@@ -338,7 +346,7 @@ def build_agent(
             return {}
 
         summary_text = stream_to_text(
-            llm,
+            summary_llm,
             build_summary_prompt(
                 existing_summary=state.get("running_summary", ""),
                 messages_to_summarize=messages_to_summarize,
