@@ -69,8 +69,9 @@ export function WidgetView({ widget, engine, frame, activityId }: {
       <RadialBar dataKey="value" background isAnimationActive={false} /><Tooltip formatter={(value) => format(typeof value === "number" ? value : null)} />
     </RadialBarChart>;
   } else if (widget.kind === "pie" || widget.kind === "donut") {
-    chart = <PieChart accessibilityLayer={false}><Pie data={points.filter((point) => point.value > 0)} dataKey="value" nameKey="label" innerRadius={widget.kind === "donut" ? "55%" : 0} outerRadius="85%" isAnimationActive={false}>
-      {points.filter((point) => point.value > 0).map((point, index) => <Cell key={`${point.label}-${index}`} fill={colors[index % colors.length]} />)}
+    const slices = points.map((point, index) => ({ ...point, fill: colors[index % colors.length] })).filter((point) => point.value > 0);
+    chart = <PieChart accessibilityLayer={false}><Pie data={slices} dataKey="value" nameKey="label" innerRadius={widget.kind === "donut" ? "55%" : 0} outerRadius="85%" isAnimationActive={false}>
+      {slices.map((point, index) => <Cell key={`${point.label}-${index}`} fill={point.fill} />)}
     </Pie><Tooltip formatter={(value) => format(typeof value === "number" ? value : null)} /></PieChart>;
   } else if (widget.kind === "bar") {
     chart = <BarChart {...chartProps} layout="vertical" margin={{ left: 0, right: 16, top: 12 }}>

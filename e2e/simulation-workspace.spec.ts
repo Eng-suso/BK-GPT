@@ -228,6 +228,12 @@ test("all chart types render and circular charts expose categories without hover
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  // A zero-valued first category must retain its color in the legend.
+  await page.route("http://127.0.0.1:8000/**/replay", async (route) => route.fulfill({ json: {
+    run_id: 42, schema_version: 1, replay: { ...payload, series: { ...payload.series, byResource: {
+      Approvatori: payload.series.byResource.Approvatori, Analisti: payload.series.byResource.Analisti,
+    } } },
+  } }));
   await page.goto(`${studio}/dashboard/42`);
   await seek(page, 300);
   await page.getByRole("button", { name: "Modifica dashboard", exact: true }).click();
@@ -242,6 +248,11 @@ test("all chart types render and circular charts expose categories without hover
       await expect(widget.locator(".sim-widget-legend li")).toHaveCount(2);
       await expect(widget.locator(".sim-widget-legend")).toContainText("Analisti");
       await expect(widget.locator(".sim-widget-legend")).toContainText("50%");
+      if (kind !== "radial") {
+        const slice = await widget.locator(".recharts-pie-sector path").first().evaluate((element) => getComputedStyle(element).fill);
+        const swatch = await widget.locator(".sim-widget-legend li").filter({ hasText: "Analisti" }).locator("span").first().evaluate((element) => getComputedStyle(element).backgroundColor);
+        expect(slice).toBe(swatch);
+      }
     }
     if (kind === "table") await expect(widget.locator("tbody")).toContainText("Approvatori");
   }
