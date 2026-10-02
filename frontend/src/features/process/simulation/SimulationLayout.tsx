@@ -2,13 +2,12 @@ import React from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronDown, ChartNoAxesCombined } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal, LayoutDashboard, Workflow, GitCompareArrows, Layers, Lightbulb, ListChecks } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
 import { ErrorState } from "@/components/feedback";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -19,6 +18,7 @@ import {
 import { ROUTES } from "@/app/routes";
 import { useProjectQuery } from "@/features/projects/api";
 
+import "./dashboard/dashboard.css";
 import { useBpmnModelQuery } from "../api";
 import { ReplaySession } from "./replay/ReplaySession";
 import { listProsimosSimulationRuns } from "./simulationApi";
@@ -37,8 +37,8 @@ const TABS = [
 type Tab = (typeof TABS)[number];
 
 const RUN_SCOPED = new Set<Tab>(["replay", "dashboard", "heatmap", "insights"]);
-const PRIMARY_TABS: Tab[] = ["scenario", "overview", "compare"];
-const ANALYSIS_TABS: Tab[] = ["dashboard", "replay", "heatmap", "insights"];
+const NAV_TABS: Tab[] = ["scenario", "overview", "replay", "dashboard", "compare", "heatmap", "insights"];
+const TAB_ICONS = { scenario: SlidersHorizontal, overview: ListChecks, replay: Workflow, dashboard: LayoutDashboard, compare: GitCompareArrows, heatmap: Layers, insights: Lightbulb };
 
 /**
  * Parses the simulation sub-route and optional run identifier from a pathname.
@@ -213,24 +213,14 @@ export function SimulationLayout(): React.JSX.Element {
             }
           />
 
-          <nav aria-label={t("simulation.section.navLabel")} className="flex min-w-0 gap-1 border-b border-border">
-              {PRIMARY_TABS.map((tab) => (
-                <button type="button" key={tab} onClick={() => goToTab(tab)} aria-current={sub === tab ? "page" : undefined} className={`shrink-0 whitespace-nowrap px-2 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring sm:px-3 ${sub === tab ? "border-b-2 border-primary font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                  {t(`simulation.section.nav.${tab}`)}
-                </button>
-              ))}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" aria-label={t("simulation.workspace.analysis")} aria-current={ANALYSIS_TABS.includes(sub) ? "page" : undefined} className={`flex min-w-0 items-center gap-1 px-2 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring sm:px-3 ${ANALYSIS_TABS.includes(sub) ? "border-b-2 border-primary font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                  <ChartNoAxesCombined className="size-4 shrink-0 sm:hidden" />
-                  <span className="hidden truncate sm:inline">{t(ANALYSIS_TABS.includes(sub) ? `simulation.section.nav.${sub}` : "simulation.workspace.analysis")}</span>
-                  <ChevronDown className="size-3 shrink-0" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {ANALYSIS_TABS.map((tab) => <DropdownMenuItem key={tab} onClick={() => goToTab(tab)}>{t(`simulation.section.nav.${tab}`)}</DropdownMenuItem>)}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <nav aria-label={t("simulation.section.navLabel")} className="sim-workspace-nav">
+            {NAV_TABS.map((tab) => {
+              const Icon = TAB_ICONS[tab];
+              return <button type="button" key={tab} onClick={() => goToTab(tab)} aria-current={sub === tab ? "page" : undefined}>
+                <Icon aria-hidden className="size-4 shrink-0" />
+                {t(tab === "replay" ? "simulation.studio.processView" : tab === "dashboard" ? "simulation.studio.dashboardView" : `simulation.section.nav.${tab}`)}
+              </button>;
+            })}
           </nav>
         </div>
 

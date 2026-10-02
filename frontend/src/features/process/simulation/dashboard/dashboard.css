@@ -1,0 +1,131 @@
+/* Simulation analytics use the shared DeliR materials and semantic tokens. */
+.sim-workspace-nav { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); padding-bottom: 4px; scrollbar-width: thin; }
+.sim-workspace-nav button { display: inline-flex; align-items: center; gap: 7px; padding: 10px 12px; white-space: nowrap; font-size: 13px; color: var(--muted-foreground); border-radius: 8px; min-height: 40px; cursor: pointer; }
+.sim-workspace-nav button[aria-current="page"] { background: var(--material-selected); color: var(--foreground); font-weight: 600; box-shadow: inset 0 0 0 1px var(--border); }
+.sim-workspace-nav button:hover { color: var(--foreground); background: var(--muted); }
+.sim-workspace-nav button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.sim-dashboard-workspace { height: 100%; min-height: 0; overflow-y: auto; container: sim-dashboard / inline-size; padding: 4px 2px 24px; }
+.sim-dashboard-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.sim-dashboard-header h2 { font-size: 22px; font-weight: 650; letter-spacing: -.025em; margin-block: 3px; }
+.sim-eyebrow { color: var(--muted-foreground); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; overflow-wrap: anywhere; }
+.sim-help { color: var(--muted-foreground); font-size: 12px; line-height: 1.6; }
+.sim-dashboard-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sim-transport-surface { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; position: sticky; top: 0; z-index: 10; box-shadow: var(--shadow-control); background: var(--card); }
+.sim-dashboard-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-block: 14px; }
+.sim-scope-badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; color: var(--foreground); }
+.sim-scope-badge > span { height: 6px; width: 6px; border-radius: 50%; background: var(--sim-info); }
+.sim-storage-status { margin-left: auto; }
+.sim-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--muted-foreground); min-width: 0; }
+.sim-filter select { width: 210px; max-width: 100%; }
+.sim-filter select, .sim-field input, .sim-field select, .sim-field textarea { min-height: 38px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: var(--foreground); padding: 8px 10px; font-size: 13px; width: 100%; min-width: 0; }
+.sim-filter select { width: 210px; }
+.sim-field textarea { resize: vertical; line-height: 1.6; font-family: var(--font-mono); }
+.sim-field input:focus-visible, .sim-field select:focus-visible, .sim-field textarea:focus-visible, .sim-filter select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.sim-kpi-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 24px; }
+.sim-kpi { padding: 14px 12px; border-radius: 10px; }
+.sim-kpi strong { font-size: 22px; font-weight: 600; letter-spacing: -.02em; line-height: 1.3; }
+.sim-kpi .eyebrow { white-space: normal; min-height: 28px; font-size: 10px; line-height: 1.4; letter-spacing: .04em; }
+.sim-dashboard-body { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 20px; }
+.sim-dashboard-body.has-inspector { grid-template-columns: minmax(0, 1fr) 264px; }
+.sim-dashboard-sections { min-width: 0; container: sim-sections / inline-size; }
+.sim-widget-section + .sim-widget-section { margin-top: 26px; }
+.sim-section-header { display: flex; gap: 8px; align-items: center; justify-content: space-between; min-height: 38px; margin-bottom: 12px; }
+.sim-section-header h3 { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.sim-section-title { flex: 1; min-width: 0; }
+.sim-section-title input { width: 100%; max-width: 400px; background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-weight: 600; }
+.sim-section-title input:focus-visible { outline: 2px solid var(--ring); }
+.sim-widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.sim-widget { min-width: 0; overflow: hidden; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-control); padding: 18px; }
+.sim-widget.is-full { grid-column: 1 / -1; }
+.sim-widget.is-editing { border-style: dashed; }
+.sim-widget.is-selected { border: 1px solid var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent); }
+.sim-widget-heading { display: flex; align-items: flex-start; gap: 8px; min-height: 45px; margin-bottom: 12px; }
+.sim-widget-heading h4 { font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.sim-widget-heading p { font-size: 11px; color: var(--muted-foreground); margin-top: 3px; line-height: 1.5; }
+.sim-widget-heading > button:last-child { margin-left: auto; flex-shrink: 0; }
+.sim-drag-handle { cursor: grab; padding: 10px 3px; flex-shrink: 0; color: var(--muted-foreground); }
+.sim-drag-handle:focus-visible { outline: 2px solid var(--ring); border-radius: 4px; }
+.sim-widget-chart { height: 220px; min-width: 0; }
+.sim-widget-data { margin-top: 12px; border-top: 1px solid var(--color-border-subtle); padding-top: 10px; }
+.sim-widget-data summary { font-size: 11px; color: var(--muted-foreground); cursor: pointer; padding: 5px 0; }
+.sim-widget-data summary:focus-visible { outline: 2px solid var(--ring); border-radius: 3px; }
+.sim-data-table { overflow: auto; max-height: 280px; margin-top: 10px; }
+.sim-data-table table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.sim-data-table th { text-align: left; font-weight: 500; overflow-wrap: anywhere; }
+.sim-data-table th, .sim-data-table td { padding: 9px 8px; border-bottom: 1px solid var(--color-border-subtle); }
+.sim-data-table thead th { color: var(--muted-foreground); }
+.sim-data-table td { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sim-widget-empty, .sim-widget-kpi { display: flex; flex-direction: column; justify-content: center; min-height: 220px; text-align: center; gap: 10px; }
+.sim-widget-empty span, .sim-widget-kpi strong { font-size: 40px; font-weight: 550; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.sim-widget-empty p, .sim-widget-kpi p { font-size: 12px; color: var(--muted-foreground); }
+.sim-gauge { height: 220px; position: relative; display: grid; place-items: center; }
+.sim-gauge svg { height: 180px; width: 180px; }
+.sim-gauge > div { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; }
+.sim-gauge strong { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sim-gauge span { font-size: 11px; color: var(--muted-foreground); }
+.sim-note { min-height: 180px; padding: 12px 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.sim-note h1, .sim-note h2, .sim-note h3 { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+.sim-note ul, .sim-note ol { padding-left: 20px; list-style: revert; }
+.sim-note a { color: var(--primary); text-decoration: underline; }
+.sim-note table { display: block; max-width: 100%; overflow-x: auto; }
+.sim-note th, .sim-note td { border: 1px solid var(--border); padding: 5px 8px; }
+.sim-note img { max-width: 100%; }
+.sim-empty-section { grid-column: 1 / -1; padding: 28px; font-size: 13px; color: var(--muted-foreground); border: 1px dashed var(--border); border-radius: 10px; }
+.sim-layout-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.sim-final-results { margin-top: 24px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 14px 16px; }
+.sim-final-results > summary { font-size: 13px; font-weight: 600; cursor: pointer; padding-block: 4px; }
+.sim-final-results > .sim-help { margin-top: 12px; }
+.sim-final-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.sim-widget-inspector { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.sim-inspector-slot { position: sticky; top: 126px; }
+.sim-widget-inspector > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 16px; border-bottom: 1px solid var(--border); }
+.sim-widget-inspector h3 { font-size: 14px; font-weight: 600; margin-top: 4px; }
+.sim-inspector-body { max-height: calc(100vh - 390px); min-height: 260px; overflow-y: auto; }
+.sim-inspector-body > details { padding: 14px 16px; border-bottom: 1px solid var(--color-border-subtle); }
+.sim-inspector-body > details > summary { font-size: 12px; font-weight: 600; cursor: pointer; padding-block: 3px; }
+.sim-inspector-fields { display: grid; gap: 14px; margin-top: 16px; }
+.sim-field { display: grid; gap: 7px; font-size: 12px; font-weight: 500; color: var(--foreground); min-width: 0; }
+.sim-checkbox { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.5; cursor: pointer; }
+.sim-checkbox input { margin-top: 2px; accent-color: var(--primary); }
+.sim-expression-preview { padding: 10px; background: var(--muted); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.sim-widget-inspector > footer { display: flex; justify-content: space-between; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.sim-widget-library { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.sim-widget-library button { text-align: left; display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 6px 10px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; }
+.sim-widget-library button:hover { background: var(--muted); border-color: var(--primary); }
+.sim-widget-library button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.sim-widget-library strong { font-size: 13px; font-weight: 600; }
+.sim-widget-library span { grid-column: 2; font-size: 11px; color: var(--muted-foreground); line-height: 1.5; }
+.sim-save-error { background: var(--muted); border-left: 3px solid var(--destructive); padding: 12px; font-size: 13px; margin-bottom: 12px; }
+@container sim-dashboard (max-width: 960px) { .sim-kpi-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container sim-dashboard (max-width: 740px) {
+  .sim-dashboard-body.has-inspector { grid-template-columns: minmax(0, 1fr); }
+  .sim-inspector-slot { position: static; grid-row: 1; }
+  .sim-inspector-body { max-height: 380px; }
+  .sim-storage-status { margin-left: 0; width: 100%; }
+}
+@container sim-sections (max-width: 600px) { .sim-widget-grid { grid-template-columns: minmax(0, 1fr); } }
+@container sim-dashboard (max-width: 440px) {
+  .sim-kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .sim-kpi strong { font-size: 20px; }
+  .sim-widget { padding: 14px; }
+  .sim-dashboard-header h2 { font-size: 20px; }
+  .sim-final-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .sim-workspace-nav button { min-height: 44px; }
+  .sim-widget-library { grid-template-columns: minmax(0, 1fr); }
+  .sim-widget-inspector button { min-height: 40px; min-width: 40px; }
+}
+
+.sim-canvas-analysis-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; border-top: 1px solid var(--border); padding: 10px; }
+.sim-canvas-widget { position: relative; padding: 12px; max-height: 400px; overflow-y: auto; box-shadow: var(--shadow-panel); border-top: 2px solid var(--primary); }
+.sim-canvas-widget-heading { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
+.sim-canvas-widget-heading h3 { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.sim-canvas-widget-heading p { font-size: 10px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.sim-canvas-widget .sim-widget-kpi, .sim-canvas-widget .sim-widget-empty { min-height: 110px; }
+.sim-canvas-widget .sim-widget-chart { height: 150px; }
+.sim-canvas-widget .sim-gauge { height: 150px; }
+.sim-canvas-settings > summary { padding-block: 8px; cursor: pointer; font-size: 11px; color: var(--muted-foreground); }
+.sim-canvas-settings .sim-field { margin-block: 8px; }
+.sim-canvas-drag { padding: 8px 2px; cursor: grab; color: var(--muted-foreground); touch-action: none; }
+.sim-canvas-drag:focus-visible, .sim-canvas-settings > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
