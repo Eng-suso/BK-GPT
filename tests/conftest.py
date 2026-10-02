@@ -99,7 +99,7 @@ def pytest_sessionstart(session):
     except OSError:
         pytest.exit(
             f"Stack di test spento (Postgres :{_TEST_PG_PORT}). Avvialo con:\n"
-            "  cd ops && docker compose -f docker-compose.test.yml up -d",
+            "  cd ops && docker compose -f docker-compose.test.yml up -d --wait",
             returncode=4,
         )
     for args in (["upgrade", "head"], ["-c", "alembic_workspace.ini", "upgrade", "head"]):

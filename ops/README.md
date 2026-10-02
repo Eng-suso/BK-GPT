@@ -31,7 +31,7 @@ Per rieseguirli: `docker compose down -v && docker compose up -d`.
 
 ```bash
 cd ops
-docker compose -f docker-compose.test.yml up -d   # Postgres :55301, Neo4j :7688, in tmpfs
+docker compose -f docker-compose.test.yml up -d --wait   # Postgres :55301, Neo4j :7688, in tmpfs
 ```
 
 pytest non usa mai lo stack di sviluppo: `tests/conftest.py` sposta sulle porte
