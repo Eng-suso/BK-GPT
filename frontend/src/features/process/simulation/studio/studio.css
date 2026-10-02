@@ -1,5 +1,8 @@
+/* Short desktop and mobile screens scroll rather than collapse the analytical viewport. */
+.sim-studio-shell { overflow-y:auto; }
+.sim-studio:has(.sim-comparison-bar) { min-height:780px; }
 /* The scene owns navigation; inspectors overlay it without changing its geometry. */
-.sim-studio { display:flex; flex-direction:column; height:100%; min-height:0; gap:8px; }
+.sim-studio { display:flex; flex-direction:column; height:100%; min-height:680px; gap:8px; }
 .sim-studio-tools { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; border-bottom:1px solid var(--border); padding-bottom:8px; flex-shrink:0; }
 .sim-studio-identity { display:flex; align-items:center; gap:8px; }
 .sim-studio-identity h2 { font-size:14px; font-weight:600; }
@@ -202,9 +205,6 @@
 
 .sim-kpi-strip:focus-visible { outline:2px solid var(--ring); outline-offset:-2px; }
 @media(max-width:800px) {
- .sim-studio-shell { overflow-y:auto; }
- .sim-studio { min-height:680px; }
- .sim-studio:has(.sim-comparison-bar) { min-height:780px; }
  .sim-studio-tool-actions,.is-integrated .sim-kpi-strip,.is-integrated .sim-dashboard-header,.sim-scene-controls { scrollbar-width:thin; }
 }
 

@@ -416,7 +416,7 @@ test("a consultant observes a lane-based process and opens details without reflo
   await page.screenshot({ path: testInfo.outputPath("analytical-canvas-lanes.png"), animations: "disabled" });
 });
 
-for (const missingReplay of [false, true]) test(`comparison uses the selected B summary and preserves observation clock (missing replay: ${missingReplay})`, async ({ page }, testInfo) => {
+for (const missingReplay of [false, true]) test(`comparison uses the selected B summary and preserves observation clock (missing replay: ${missingReplay})`, async ({ page, isMobile }, testInfo) => {
   const variant = { ...run, id: 43, scenario_name: "TO-BE · Capacità aggiuntiva", summary: { ...run.summary, casesCompleted: 8, cycle: { avg: 120, p50: 110, p90: 150, p95: 160 }, cost: { total: 400, perCase: 50 }, throughputPerHour: 0.0032 } };
   await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run, variant] }));
   await page.route("http://127.0.0.1:8000/**/43/replay", route => missingReplay ? route.fulfill({ status: 404, json: { detail: "No replay" } }) : route.fulfill({ json: { run_id: 43, schema_version: 1, replay: { ...payload, series: { ...payload.series, global: { ...payload.series.global, done: [0,2,4,6,8], costAccrued: [0,100,200,300,400] } } } } }));
@@ -432,6 +432,10 @@ for (const missingReplay of [false, true]) test(`comparison uses the selected B 
   await expect(page.locator(".sim-kpi").filter({ hasText: "Throughput" })).toContainText("0,0032/h");
   await expect(page.locator(".sim-scope-badge")).toContainText("#43");
   await expect(viewer).toHaveAttribute("data-session-marker", "same-comparison");
+  if (!isMobile) {
+    expect((await page.locator(".sim-scene-viewport").boundingBox())!.height).toBeGreaterThan(260);
+    await expect(viewer.locator('[data-element-id="A"]')).toBeInViewport();
+  }
   await expect(page.locator(".sim-studio-dock")).toBeHidden();
   await expect(page.locator(".sim-token")).toHaveCount(0);
   if (missingReplay) await expect(page.locator(".sim-widget-empty").first()).toContainText("Replay non disponibile");
