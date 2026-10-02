@@ -1,11 +1,6 @@
 import { http, httpStream } from "@/lib/http";
 
-import type {
-  ApiChatAttachment,
-  ApiChatScope,
-  ChatMode,
-  ReasoningEffort,
-} from "../../contracts/chat";
+import type { ApiChatAttachment, ApiChatScope, ChatTurnChoices } from "../../contracts/chat";
 import type {
   BpmnReview,
   BpmnReviewVersion,
@@ -119,7 +114,7 @@ export async function transcribeAudio(file: File): Promise<string> {
  * Starts streaming a chat response for a thread.
  *
  * @param threadId - The thread receiving the message
- * @param input - The message, model, scope, mode, and optional attachments
+ * @param input - The message, model, scope, turn choices, and optional attachments
  * @param signal - Aborts the request when the consultant stops the turn
  * @returns The response containing the NDJSON stream
  */
@@ -129,8 +124,7 @@ export function streamChatMessage(
     message: string;
     modelName: string;
     scope: ApiChatScope;
-    mode: ChatMode;
-    reasoningEffort: ReasoningEffort;
+    choices: ChatTurnChoices;
     attachments?: ApiChatAttachment[];
   },
   signal?: AbortSignal,
@@ -142,8 +136,9 @@ export function streamChatMessage(
       message: input.message,
       model_name: input.modelName,
       scope: input.scope,
-      mode: input.mode,
-      reasoning_effort: input.reasoningEffort,
+      posture: input.choices.posture,
+      autonomy: input.choices.autonomy,
+      reasoning_effort: input.choices.reasoning,
       attachments: input.attachments ?? [],
     },
   });
