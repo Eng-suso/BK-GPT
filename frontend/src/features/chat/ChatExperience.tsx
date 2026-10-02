@@ -5,9 +5,11 @@ import { Button } from "@/ui/button";
 
 import { ServiceStatusDialog } from "@/features/status/ServiceStatusDialog";
 import {
-  DEFAULT_CHAT_MODE,
+  DEFAULT_CHAT_AUTONOMY,
+  DEFAULT_CHAT_POSTURE,
   DEFAULT_REASONING_EFFORT,
-  type ChatMode,
+  type ChatAutonomy,
+  type ChatPosture,
   type ReasoningEffort,
 } from "../../contracts/chat";
 import type { ChatScope } from "./chatScope";
@@ -46,11 +48,20 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   scope = DEFAULT_SCOPE,
 }) => {
   const { t, i18n } = useTranslation("chat");
-  const [selectedModel, setSelectedModel] = useState("gpt-5.6-luna");
-  // The working mode is per-conversation, not per-thread: switching it changes what
-  // the next message is allowed to do, and must not fork the session.
-  const [chatMode, setChatMode] = useState<ChatMode>(DEFAULT_CHAT_MODE);
-  // Stessa vita della modalita': e' una preferenza di come lavorare, non una
+  // Un solo modello disponibile: il nome si legge nel dialogo di stato.
+  const [selectedModel] = useState("gpt-5.6-luna");
+  // Postura e autonomia valgono per la conversazione, non per il thread:
+  // cambiarle cambia il prossimo turno e non biforca la sessione.
+  const [posture, setPosture] = useState<ChatPosture>(DEFAULT_CHAT_POSTURE);
+  // Le posture sono di una chat: passando da consulente a processo, "desk"
+  // non esiste piu' e il backend la rifiuterebbe. Si torna ad auto.
+  const [postureScopeType, setPostureScopeType] = useState(scope.type);
+  if (postureScopeType !== scope.type) {
+    setPostureScopeType(scope.type);
+    setPosture(DEFAULT_CHAT_POSTURE);
+  }
+  const [autonomy, setAutonomy] = useState<ChatAutonomy>(DEFAULT_CHAT_AUTONOMY);
+  // Stessa vita delle due scelte: e' una preferenza di come lavorare, non una
   // proprieta' del thread.
   const [reasoningEffort, setReasoningEffort] =
     useState<ReasoningEffort>(DEFAULT_REASONING_EFFORT);
@@ -81,8 +92,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
   const stream = useChatStream({
     scope,
     selectedModel,
-    chatMode,
-    reasoningEffort,
+    choices: { posture, autonomy, reasoning: reasoningEffort },
     activeSession: sessions.activeSession,
     ensureThread: sessions.ensureThread,
     selectThread: sessions.selectThread,
@@ -134,7 +144,6 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     canModel && !turnError && !historyUnavailable && dismissedReview !== reviewIdentity;
 
   const startModelingReview = () => {
-    setChatMode("plan");
     // Attivazione esplicita: il runtime di modellazione parte da un gesto del
     // consulente o da una richiesta scritta, mai da solo perche' il turno ha
     // toccato il processo.
@@ -142,7 +151,9 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     void stream.sendMessage(
       "Prepara una review BPMN per questo processo usando le evidenze disponibili. Non generare ancora il canvas.",
       [],
-      "plan",
+      // Solo per questo messaggio: prepara il piano senza toccare il canvas,
+      // senza cambiare l'autonomia scelta dal consulente.
+      { autonomy: "ask", posture: scope.type === "process" ? "discover" : "auto" },
     );
   };
 
@@ -160,9 +171,11 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         queuedMessages={stream.queuedMessages}
         onCancelQueued={stream.cancelQueuedMessage}
         onStop={stream.stopStreaming}
-        selectedModel={selectedModel}
-        chatMode={chatMode}
-        onChatModeChange={setChatMode}
+        posture={posture}
+        onPostureChange={setPosture}
+        detectedPosture={stream.detectedPosture}
+        autonomy={autonomy}
+        onAutonomyChange={setAutonomy}
         reasoningEffort={reasoningEffort}
         onReasoningEffortChange={setReasoningEffort}
         onNewChat={sessions.startNewThread}
@@ -190,7 +203,6 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
         }}
         onAttach={() => showToast(t("toast.attachHint"))}
         onVoice={() => showToast(t("toast.voiceReady"))}
-        onModelChange={setSelectedModel}
         workspaceSlot={turnError || historyUnavailable || showModelingSurface ? (
           <>
             {turnError ? (

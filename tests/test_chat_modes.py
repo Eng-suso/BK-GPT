@@ -73,9 +73,41 @@ def test_conversation_mode_cannot_start_process_modeling():
 
 
 def test_conversation_mode_only_exposes_direct_answers_and_clarification():
-    for owner in ("consultant", "project", "process", "canvas"):
+    for owner in ("project", "process", "canvas"):
         routes = {spec.route for spec in capabilities_for(owner, "conversation")}
         assert routes == {"direct", "clarification"}
+
+
+def test_manual_autonomy_still_routes_consultant_work_and_refuses_the_write():
+    """Il caso Barilla: in Manuale il router non vedeva setup e clienti.
+
+    Senza la rotta il consulente riceveva chiarimenti a ripetizione e, sulla
+    risposta diretta, l'annuncio di un salvataggio mai fatto. Ora la rotta c'e'
+    a ogni autonomia, ed e' la scrittura a rifiutare - dicendo perche'.
+    """
+    from backend.agents.chat_mode import WORKSPACE_RECORD_WRITE
+
+    routes = {spec.route for spec in capabilities_for("consultant", "conversation")}
+    assert {"setup", "clients", "home"} <= routes
+    with bind_active_mode("conversation"):
+        with pytest.raises(WriteNotAllowedInMode, match="Manuale"):
+            assert_write_allowed(WORKSPACE_RECORD_WRITE)
+
+
+def test_ask_autonomy_needs_an_approval_before_a_workspace_write():
+    from backend.agents.chat_mode import (
+        WORKSPACE_RECORD_WRITE,
+        WriteNeedsApproval,
+        bind_approved_write,
+    )
+
+    with bind_active_mode("plan"):
+        with pytest.raises(WriteNeedsApproval):
+            assert_write_allowed(WORKSPACE_RECORD_WRITE)
+        with bind_approved_write():
+            assert_write_allowed(WORKSPACE_RECORD_WRITE)
+    with bind_active_mode("agent"):
+        assert_write_allowed(WORKSPACE_RECORD_WRITE)
 
 
 def test_conversation_mode_refuses_bpmn_artifact_writes():
@@ -247,7 +279,9 @@ def test_the_mode_reaches_the_agent_state_and_its_contract_reaches_the_prompt():
 
     prompt = build_scope_system_prompt({**state, "scope_key": "consultant"})
     assert "chat_mode: plan" in prompt
-    assert "Modalita' Piano" in prompt
+    assert "Chiedi approvazione" in prompt
+    # Vale a ogni autonomia: nessuna azione dichiarata senza l'esito di uno strumento.
+    assert "Non dire mai di aver creato" in prompt
 
     assert agent_scope_state(None)["chat_mode"] == "conversation"
 

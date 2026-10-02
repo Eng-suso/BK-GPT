@@ -37,6 +37,9 @@ def prepare_delegation_payload(
     Purpose: create a narrow structured delegation payload for another subgraph or macro agent.
     Use when Consult Macro decides the work belongs to Home, Clients, Setup, Project, Process or Canvas.
     Do not use to execute the delegated work; this only prepares the handoff.
+    Nothing reads this payload on its own: never tell the consultant that the
+    request was forwarded, sent or that someone will get back to them. Say which
+    chat owns the work and what they can ask there.
     """
     return "Delegation payload\n" + json.dumps(
         {

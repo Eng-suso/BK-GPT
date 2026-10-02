@@ -62,6 +62,10 @@ class RoutingDecisionBase(BaseModel):
     expected_result: str = ""
     reasoning_summary: str | None = None
     reason: str = ""
+    # La postura con cui il router ha letto la richiesta (desk, discover, map...).
+    # Quando il consulente ne ha forzata una, e' quella; quando ha lasciato
+    # "auto", e' quella che il messaggio esprime. Torna alla UI.
+    posture: str | None = None
 
     @model_validator(mode="after")
     def normalize_clarification(self):
@@ -220,6 +224,9 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="home",
         target="home_subgraph",
         description="Home dashboard overview, priorities, risks, recent activity or next actions.",
+        # Raggiungibile a ogni autonomia: e' la scrittura, non la rotta, a
+        # dipendere da Manuale / Chiedi approvazione / Auto.
+        modes=ALL_CHAT_MODES,
     ),
     "consultant.clients": CapabilitySpec(
         id="consultant.clients",
@@ -227,6 +234,9 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="clients",
         target="clients_subgraph",
         description="Client record work: listing, creating, checking or maintaining clients.",
+        # Raggiungibile a ogni autonomia: e' la scrittura, non la rotta, a
+        # dipendere da Manuale / Chiedi approvazione / Auto.
+        modes=ALL_CHAT_MODES,
     ),
     "consultant.setup": CapabilitySpec(
         id="consultant.setup",
@@ -239,6 +249,9 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "optionally a first process stub, source or decision. 'Crea un progetto "
             "per <cliente>' belongs here, including when that client already exists."
         ),
+        # Raggiungibile a ogni autonomia: e' la scrittura, non la rotta, a
+        # dipendere da Manuale / Chiedi approvazione / Auto.
+        modes=ALL_CHAT_MODES,
     ),
     "consultant.project_delegation": CapabilitySpec(
         id="consultant.project_delegation",
@@ -252,6 +265,9 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "project record is not project work - a project that does not exist yet "
             "cannot be handed over, so that is setup."
         ),
+        # Raggiungibile a ogni autonomia: e' la scrittura, non la rotta, a
+        # dipendere da Manuale / Chiedi approvazione / Auto.
+        modes=ALL_CHAT_MODES,
     ),
     "consultant.process_delegation": CapabilitySpec(
         id="consultant.process_delegation",
@@ -262,6 +278,9 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
             "AS-IS/TO-BE discovery, process analysis, evidence synthesis, readiness "
             "or BPMN semantic review."
         ),
+        # Raggiungibile a ogni autonomia: e' la scrittura, non la rotta, a
+        # dipendere da Manuale / Chiedi approvazione / Auto.
+        modes=ALL_CHAT_MODES,
     ),
     "consultant.canvas_delegation": CapabilitySpec(
         id="consultant.canvas_delegation",
@@ -269,6 +288,9 @@ CAPABILITY_REGISTRY: dict[str, CapabilitySpec] = {
         route="delegate_canvas",
         target="canvas_macro",
         description="BPMN XML, canvas inspection, canvas edits, validation, layout, versions or approval.",
+        # Raggiungibile a ogni autonomia: e' la scrittura, non la rotta, a
+        # dipendere da Manuale / Chiedi approvazione / Auto.
+        modes=ALL_CHAT_MODES,
     ),
     "consultant.clarification": CapabilitySpec(
         id="consultant.clarification",
@@ -534,11 +556,14 @@ def capabilities_for(owner: Owner, mode: str | None = None) -> list[CapabilitySp
 MODE_LADDER: tuple[str, ...] = ("conversation", "plan", "edit", "agent")
 
 # Come la modalita' si chiama nel prodotto. Il consulente non legge `edit`.
+# Le modalita' interne parlano al consulente con il nome dell'autonomia che le
+# produce (`schemas/chat.py: AUTONOMY_TO_MODE`). `edit` non ha un livello suo:
+# le modifiche puntuali al canvas le fa solo Auto.
 MODE_LABEL_IT: dict[str, str] = {
-    "conversation": "Conversazione",
-    "plan": "Piano",
-    "edit": "Modifica",
-    "agent": "Agente",
+    "conversation": "Manuale",
+    "plan": "Chiedi approvazione",
+    "edit": "Auto",
+    "agent": "Auto",
 }
 
 
@@ -1318,6 +1343,53 @@ def authorize_routing_decision(
 ROUTER_REPLAN_ATTEMPTS = 1
 
 
+# Che cosa chiede ogni postura, come il router la deve leggere. Sono le frasi
+# del documento di architettura delle modalita'.
+POSTURE_GUIDE: dict[str, str] = {
+    "desk": "cosa richiede attenzione oggi: priorita', rischi, novita' dalle fonti, prossime azioni",
+    "prepare": "prepararsi a un incontro col cliente: cosa sappiamo, cosa no, contraddizioni, domande da fare",
+    "align": "dove siamo e cosa non torna nel progetto: scope, decisioni, obiettivi, incoerenze tra fonti",
+    "analyze": "cosa stiamo imparando attraverso i processi: cause ricorrenti, confronti, dati",
+    "deliver": "trasformare il lavoro in qualcosa per il cliente: report, steering, decision memo, roadmap",
+    "discover": "come funziona davvero il processo: interviste, documenti, evidenze, contraddizioni, lacune",
+    "improve": "come fare meglio il processo, dentro i vincoli: cause, alternative, To-Be, simulazione",
+    "validate": "dimostrare che il processo regge: copertura delle evidenze, conformita', vincoli, target",
+    "map": "costruire o modificare il modello sul canvas",
+    "review": "controllare che il modello sia scritto bene: errori, attori, attivita' senza evidenza",
+    "compare": "spiegare cosa cambia tra due versioni o tra As-Is e To-Be, e perche'",
+}
+
+
+def posture_prompt_block(owner: Owner, posture: str | None) -> str:
+    """Il blocco del prompt del router che parla della postura."""
+    from backend.schemas.chat import POSTURES_BY_SCOPE
+
+    available = POSTURES_BY_SCOPE.get(owner, ())
+    if posture and posture != "auto" and posture in available:
+        return (
+            f"Postura scelta dal consulente: {posture} ({POSTURE_GUIDE[posture]}). "
+            "Leggi la richiesta con questa postura e scegli la capability che la serve. "
+            f"Metti posture='{posture}'. La postura orienta il lavoro, non toglie "
+            "capability: se la richiesta chiede altro, servila comunque."
+        )
+    options = "\n".join(f"- {name}: {POSTURE_GUIDE[name]}" for name in available)
+    return (
+        "Postura: automatica. Scegli quella che il messaggio esprime e scrivila nel "
+        f"campo posture, tra:\n{options}"
+    )
+
+
+def _settle_posture(decision: RoutingDecisionBase, owner: Owner, posture: str | None) -> None:
+    """La postura forzata vince; quella rilevata vale solo se e' di questa chat."""
+    from backend.schemas.chat import POSTURES_BY_SCOPE
+
+    available = POSTURES_BY_SCOPE.get(owner, ())
+    if posture and posture != "auto" and posture in available:
+        decision.posture = posture
+    elif decision.posture not in available:
+        decision.posture = None
+
+
 def resolve_routing_decision(
     *,
     owner: Owner,
@@ -1350,6 +1422,8 @@ def resolve_routing_decision(
         unauthorized.
     """
     chat_mode = (state or {}).get("chat_mode")
+    posture = (state or {}).get("posture")
+    messages = [*messages, SystemMessage(content=posture_prompt_block(owner, posture))]
     decision, parse_source, parse_error = invoke_structured_router(
         llm,
         model,
@@ -1434,4 +1508,5 @@ def resolve_routing_decision(
             invalid_factory=invalid_factory,
         )
 
+    _settle_posture(decision, owner, posture)
     return decision, parse_source, parse_error

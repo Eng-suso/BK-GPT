@@ -20,19 +20,21 @@ import {
   chatAttachmentKey,
   type ChatAttachment,
   type ChatAttachmentKind,
-  type ChatMode,
+  type ChatAutonomy,
+  type ChatPosture,
   type ReasoningEffort,
 } from "../../../contracts/chat";
 import type { ChatScope } from "../chatScope";
 import { AttachmentPicker } from "./AttachmentPicker";
-import { ChatModeSelector } from "./ChatModeSelector";
-import { ModelSelector } from "./ModelSelector";
+import { AutonomySelector, PostureSelector, ReasoningSelector } from "./TurnControls";
 
 interface ChatComposerProps {
   scope: ChatScope;
-  selectedModel?: string;
-  chatMode: ChatMode;
-  onChatModeChange: (mode: ChatMode) => void;
+  posture: ChatPosture;
+  onPostureChange: (posture: ChatPosture) => void;
+  detectedPosture: string | null;
+  autonomy: ChatAutonomy;
+  onAutonomyChange: (autonomy: ChatAutonomy) => void;
   reasoningEffort: ReasoningEffort;
   onReasoningEffortChange: (effort: ReasoningEffort) => void;
   isBusy?: boolean;
@@ -42,7 +44,6 @@ interface ChatComposerProps {
   onTranscribeAudio?: (file: File) => Promise<string>;
   onAttach?: () => void;
   onVoice?: () => void;
-  onModelChange?: (model: string) => void;
 }
 
 const LIVE_TRANSCRIPTION_SAMPLE_RATE = 24000;
@@ -180,9 +181,11 @@ const ATTACHMENT_MENU: ChatAttachmentKind[] = [
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   scope,
-  selectedModel = "gpt-5.6-luna",
-  chatMode,
-  onChatModeChange,
+  posture,
+  onPostureChange,
+  detectedPosture,
+  autonomy,
+  onAutonomyChange,
   reasoningEffort,
   onReasoningEffortChange,
   isBusy = false,
@@ -191,7 +194,6 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onTranscribeAudio,
   onAttach,
   onVoice,
-  onModelChange,
 }) => {
   const { t } = useTranslation("chat");
   const [value, setValue] = useState("");
@@ -760,17 +762,24 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <ChatModeSelector
-              value={chatMode}
-              onChange={onChatModeChange}
-              effort={reasoningEffort}
-              onEffortChange={onReasoningEffortChange}
+            <PostureSelector
+              scopeType={scope.type}
+              value={posture}
+              detected={(detectedPosture as ChatPosture | null) ?? null}
+              onChange={onPostureChange}
               disabled={isBusy}
             />
-            <ModelSelector selectedModel={selectedModel} onChange={onModelChange} />
+            <ReasoningSelector
+              value={reasoningEffort}
+              onChange={onReasoningEffortChange}
+              disabled={isBusy}
+            />
           </div>
 
           <div className="composer-actions">
+            {/* L'autonomia sta accanto all'invio: e' la scelta che decide cosa
+                succede quando premi il pulsante. */}
+            <AutonomySelector value={autonomy} onChange={onAutonomyChange} disabled={isBusy} />
             {/* In registrazione il microfono diventa Stop con il tempo a vista:
                 uno stato attivo deve essere fermabile in un click. */}
             {isRecording ? (

@@ -30,6 +30,7 @@ from backend.services.agent_progress import (
 from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
     DEFAULT_REASONING_EFFORT,
+    PROVIDER_REASONING_EFFORT,
     ChatAttachment,
     ChatMode,
     ChatScope,
@@ -190,6 +191,7 @@ def record_turn_usage(
     *,
     model: str,
     elapsed_seconds: float,
+    reasoning_effort: str | None = None,
 ) -> None:
     """Scrive nel registro la spesa di un turno, una riga per compito.
 
@@ -221,6 +223,7 @@ def record_turn_usage(
             model=model,
             duration_ms=int(elapsed_seconds * 1000) if task is LlmTask.CHAT_TURN else 0,
             prompt_version=prompt_version_for(task),
+            reasoning_effort=reasoning_effort if task is LlmTask.CHAT_TURN else None,
         )
 
 
@@ -501,6 +504,24 @@ def fake_agent_events(
     )
 
 
+def detected_posture(update: Any) -> str | None:
+    """La postura rilevata dal router, se questo aggiornamento di stato la porta.
+
+    Gli aggiornamenti arrivano come `{nodo: stato}`; i sotto-grafi restituiscono
+    il loro stato intero, quindi la chiave puo' stare un livello sotto.
+    """
+    if not isinstance(update, dict):
+        return None
+    value = update.get("detected_posture")
+    if isinstance(value, str) and value:
+        return value
+    for nested in update.values():
+        if isinstance(nested, dict):
+            value = nested.get("detected_posture")
+            if isinstance(value, str) and value:
+                return value
+    return None
+
 def stream_agent_events(
     *,
     thread_id: str,
@@ -508,6 +529,7 @@ def stream_agent_events(
     messages: list[dict],
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
+    posture: str = "auto",
     attachments: list[ChatAttachment] | None = None,
     reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
     trace_context: TraceContext | None = None,
@@ -604,6 +626,7 @@ def stream_agent_events(
             "scope_type": fields["scope_type"],
             "scope_key": fields["scope_key"],
             "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
+            "posture": posture,
             "checkpoint_thread_id": checkpoint_thread_id,
         },
     )
@@ -717,6 +740,7 @@ def stream_agent_events(
                 bind_active_thread(checkpoint_thread_id),
                 bind_progress_sink(announce_phase),
             ):
+                announced_posture: str | None = None
                 events = agent.stream(
                     {
                         "messages": messages,
@@ -725,6 +749,7 @@ def stream_agent_events(
                             chat_mode,
                             attachments,
                             thread_id=checkpoint_thread_id,
+                            posture=posture,
                         ),
                     },
                     config={
@@ -752,6 +777,25 @@ def stream_agent_events(
                     stream_mode_name, payload = normalize_stream_event(event)
 
                     if stream_mode_name == "updates":
+                        posture_seen = detected_posture(payload)
+                        if posture_seen and posture_seen != announced_posture:
+                            # La postura con cui il router ha letto la richiesta:
+                            # la UI la mostra nel selettore ("Discover · auto").
+                            announced_posture = posture_seen
+                            enqueue(
+                                AgentStreamEvent(
+                                    type="trace",
+                                    request_id=context.request_id,
+                                    trace_id=context.trace_id,
+                                    thread_id=thread_id,
+                                    payload=trace_event(
+                                        context,
+                                        "posture",
+                                        message=f"Postura: {posture_seen}",
+                                        payload={"posture": posture_seen, "requested": posture},
+                                    ).model_dump(),
+                                )
+                            )
                         if emit_activity:
                             for call in tool_calls_in_update(payload):
                                 progress = progress_event(
@@ -941,6 +985,8 @@ def stream_agent_events(
                 usage_by_node,
                 model=selected_model,
                 elapsed_seconds=time.monotonic() - started_at,
+                # Nel registro il livello come l'ha ricevuto il fornitore.
+                reasoning_effort=PROVIDER_REASONING_EFFORT.get(reasoning_effort),
             )
             thread_lock.release()
             output_queue.put(None)
@@ -1031,6 +1077,7 @@ def stream_agent_deltas(
     messages: list[dict],
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
+    posture: str = "auto",
     attachments: list[ChatAttachment] | None = None,
     reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
 ) -> Iterator[str]:
@@ -1060,6 +1107,7 @@ def stream_agent_deltas(
         messages=messages,
         scope=scope,
         chat_mode=chat_mode,
+        posture=posture,
         attachments=attachments,
         reasoning_effort=reasoning_effort,
         emit_activity=False,
@@ -1077,6 +1125,7 @@ def stream_agent_text(
     messages: list[dict],
     scope: ChatScope | None = None,
     chat_mode: ChatMode | None = None,
+    posture: str = "auto",
     attachments: list[ChatAttachment] | None = None,
     reasoning_effort: ReasoningEffort = DEFAULT_REASONING_EFFORT,
 ) -> str:
@@ -1106,6 +1155,7 @@ def stream_agent_text(
             messages=messages,
             scope=scope,
             chat_mode=chat_mode,
+            posture=posture,
             attachments=attachments,
             reasoning_effort=reasoning_effort,
         )

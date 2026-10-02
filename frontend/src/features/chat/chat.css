@@ -303,6 +303,10 @@
 
 .composer-bottom-bar {
   display: flex;
+  /* Allegati, postura e ragionamento a sinistra, autonomia e invio a destra:
+     quando non stanno su una riga la barra va a capo invece di sovrapporre i
+     controlli (a 390px il ragionamento finiva sotto l'autonomia). */
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-300);
@@ -2361,9 +2365,9 @@ body:has(.bpmn-review-sheet-content[data-state="open"]) .bjs-powered-by {
   overflow-y: auto;
   box-shadow: none;
 }
-/* La barra restava a riga sola solo sopra i 640px perche' portava cinque
-   controlli. Ora ne porta tre: niente impilamento, solo target piu' generosi
-   al tocco e testo a 16px per non far zoomare iOS. */
+/* Su composer stretto: target piu' generosi al tocco e testo a 16px per non
+   far zoomare iOS. Se i controlli non stanno su una riga, la barra va a capo
+   (vedi `.composer-bottom-bar`). */
 @container composer-wrap (max-width: 640px) {
   .composer-bottom-bar { gap: var(--space-200); }
   .chat-mode-trigger { min-height: 32px; }

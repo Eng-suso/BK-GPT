@@ -142,25 +142,6 @@
       ]
     }
   },
-  "mode": {
-    "label": "Modalità di lavoro",
-    "conversation": {
-      "label": "Chat",
-      "hint": "Solo conversazione: risponde e chiarisce senza creare review, domande o artefatti BPMN."
-    },
-    "plan": {
-      "label": "Piano",
-      "hint": "Capisce e propone: prepara e corregge il piano di processo, senza toccare il canvas."
-    },
-    "edit": {
-      "label": "Modifica",
-      "hint": "Applica la modifica che chiedi, in modo puntuale, senza rifare il piano."
-    },
-    "agent": {
-      "label": "Agente",
-      "hint": "Ciclo completo: pianifica, applica e verifica fino a chiudere la richiesta."
-    }
-  },
   "effort": {
     "label": "Ragionamento",
     "low": {
@@ -354,5 +335,72 @@
     "open": "Apri review",
     "draft": "Genera bozza",
     "dismiss": "Chiudi il workspace di modellazione"
+  },
+  "posture": {
+    "label": "Postura",
+    "autoTag": "auto",
+    "auto": {
+      "label": "Auto",
+      "hint": "DeliR capisce dal messaggio che lavoro stai facendo."
+    },
+    "desk": {
+      "label": "Desk",
+      "hint": "Cosa richiede la tua attenzione oggi: priorità, rischi, novità."
+    },
+    "prepare": {
+      "label": "Prepare",
+      "hint": "Preparati a un incontro: cosa sappiamo, cosa no, domande da fare."
+    },
+    "align": {
+      "label": "Align",
+      "hint": "Dove siamo e cosa non torna nel progetto."
+    },
+    "analyze": {
+      "label": "Analyze",
+      "hint": "Cosa stiamo imparando, anche tra più processi."
+    },
+    "deliver": {
+      "label": "Deliver",
+      "hint": "Trasforma il lavoro in qualcosa per il cliente."
+    },
+    "discover": {
+      "label": "Discover",
+      "hint": "Come funziona davvero il processo: evidenze e contraddizioni."
+    },
+    "improve": {
+      "label": "Improve",
+      "hint": "Come farlo meglio, dentro i vincoli: cause, alternative, To-Be."
+    },
+    "validate": {
+      "label": "Validate",
+      "hint": "Dimostra che il processo regge: evidenze, vincoli, target."
+    },
+    "map": {
+      "label": "Map",
+      "hint": "Costruisci o modifica il modello."
+    },
+    "review": {
+      "label": "Review",
+      "hint": "Controlla che il modello sia scritto bene."
+    },
+    "compare": {
+      "label": "Compare",
+      "hint": "Cosa cambia tra due versioni, e perché."
+    }
+  },
+  "autonomy": {
+    "label": "Autonomia",
+    "auto": {
+      "label": "Auto",
+      "hint": "DeliR scrive da solo. Archiviare ed eliminare chiedono comunque conferma."
+    },
+    "ask": {
+      "label": "Chiedi approvazione",
+      "hint": "Ogni scrittura diventa una proposta da approvare."
+    },
+    "manual": {
+      "label": "Manuale",
+      "hint": "DeliR propone e spiega, non scrive niente."
+    }
   }
 }

@@ -107,6 +107,33 @@ describe("il turno vive fuori dal componente", () => {
   });
 });
 
+describe("la postura del turno", () => {
+  it("tiene la postura con cui DeliR ha letto la richiesta", async () => {
+    const pipe = controllableStream();
+    const run = startRun({
+      threadId: "t-posture",
+      base: [],
+      content: "Questo To-Be regge con due operatori?",
+      attachments: [],
+      transport: () => Promise.resolve(new Response(pipe.stream)),
+      commit: async () => {},
+    });
+
+    await vi.waitFor(() => expect(isRunning("t-posture")).toBe(true));
+    pipe.push(
+      ndjson({
+        type: "trace",
+        payload: { event_type: "posture", payload: { posture: "validate", requested: "auto" } },
+      }),
+    );
+    pipe.push(ndjson({ type: "done", message: "Regge, con un vincolo." }));
+    pipe.close();
+    await run;
+
+    expect(getRun("t-posture")?.detectedPosture).toBe("validate");
+  });
+});
+
 describe("fermare il turno", () => {
   it("tiene la risposta parziale invece di buttarla", async () => {
     const pipe = controllableStream();

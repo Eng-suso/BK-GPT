@@ -240,6 +240,10 @@ class ConversationState(MessagesState):
     # UI with the request, never from the model, and narrows which capabilities the
     # router may propose.
     chat_mode: str
+    # La postura scelta dal consulente ("auto" se lascia fare a DeliR) e quella
+    # che il router ha usato davvero: la UI mostra la seconda.
+    posture: str
+    detected_posture: str | None
     # L'azione distruttiva in attesa di conferma su questo thread (o None).
     # Precaricata dal runtime: il subgrafo la vede prima di leggere il "si'"
     # dell'utente, invece di dover indovinare a cosa si riferisse.

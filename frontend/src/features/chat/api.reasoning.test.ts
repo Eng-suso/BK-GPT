@@ -25,8 +25,7 @@ describe("streamChatMessage", () => {
       message: "Analizza le contraddizioni fra le interviste",
       modelName: "gpt-5.6-luna",
       scope: { type: "consultant" },
-      mode: "conversation",
-      reasoningEffort: "high",
+      choices: { posture: "auto", autonomy: "auto", reasoning: "high" },
     });
 
     expect(bodyOf().reasoning_effort).toBe("high");
@@ -39,8 +38,7 @@ describe("streamChatMessage", () => {
       message: "E adesso riassumi",
       modelName: "gpt-5.6-luna",
       scope: { type: "consultant" },
-      mode: "conversation",
-      reasoningEffort: "low",
+      choices: { posture: "auto", autonomy: "auto", reasoning: "low" },
     });
 
     expect(bodyOf().reasoning_effort).toBe("low");

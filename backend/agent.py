@@ -62,6 +62,10 @@ class ConsultantState(MessagesState):
     # thread ha lasciato in sospeso, ed e' il motivo per cui una conferma non
     # va piu' ricostruita dal testo del turno.
     chat_mode: str
+    # La postura scelta dal consulente ("auto" se lascia fare a DeliR) e quella
+    # che il router ha usato davvero: la UI mostra la seconda.
+    posture: str
+    detected_posture: str | None
     attachments: list
     pending_action: dict | None
     project_id: str | None

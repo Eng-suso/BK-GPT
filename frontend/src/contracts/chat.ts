@@ -23,17 +23,38 @@ export const apiChatScopeSchema = z.discriminatedUnion("type", [
 export type ApiChatScope = z.infer<typeof apiChatScopeSchema>;
 
 /**
- * How much of the workflow the user hands to the agent for one turn. It is the
- * user's choice, sent with the request; the backend narrows which capabilities
- * the router may propose and refuses the writes the mode excludes.
+ * Due scelte del consulente per ogni turno, su due assi separati.
+ *
+ * - La *postura*: che tipo di lavoro sta facendo. Diversa per chat; "auto"
+ *   lascia a DeliR capirla dal messaggio, e la UI mostra quella rilevata.
+ *   Orienta il lavoro, non vieta niente.
+ * - L'*autonomia*: quanto DeliR puo' fare da solo. Uguale ovunque. Decide se
+ *   una scrittura parte (Auto), aspetta un si' (Chiedi approvazione) o non
+ *   parte (Manuale).
  */
-export const CHAT_MODES = ["conversation", "plan", "edit", "agent"] as const;
-export type ChatMode = (typeof CHAT_MODES)[number];
-/**
- * A chat starts as a conversation. Planning or changing a BPMN artifact is an
- * explicit delegation choice, never a side effect of opening a process chat.
- */
-export const DEFAULT_CHAT_MODE: ChatMode = "conversation";
+export const CHAT_POSTURES_BY_SCOPE = {
+  consultant: ["desk", "prepare"],
+  project: ["align", "analyze", "deliver"],
+  process: ["discover", "improve", "validate"],
+  canvas: ["map", "review", "compare"],
+} as const;
+export type ChatScopeType = keyof typeof CHAT_POSTURES_BY_SCOPE;
+export type ChatPosture =
+  | "auto"
+  | (typeof CHAT_POSTURES_BY_SCOPE)[ChatScopeType][number];
+export const DEFAULT_CHAT_POSTURE: ChatPosture = "auto";
+
+export const CHAT_AUTONOMIES = ["auto", "ask", "manual"] as const;
+export type ChatAutonomy = (typeof CHAT_AUTONOMIES)[number];
+/** Auto: la chat che crea un cliente quando glielo chiedi, invece di girarci intorno. */
+export const DEFAULT_CHAT_AUTONOMY: ChatAutonomy = "auto";
+
+/** Le scelte del turno, come viaggiano con la richiesta. */
+export type ChatTurnChoices = {
+  posture: ChatPosture;
+  autonomy: ChatAutonomy;
+  reasoning: ReasoningEffort;
+};
 
 /**
  * Quanto il modello deve ragionare prima di rispondere. Ortogonale alla

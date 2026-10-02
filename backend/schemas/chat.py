@@ -3,42 +3,41 @@ from typing import Annotated, Literal, TypeAlias, TypeGuard
 from pydantic import BaseModel, Field
 
 
-# How much of the workflow the user is handing to the agent this turn. The user
-# picks it in the UI; it is not inferred from the message and not chosen by the
-# model.
+# Due scelte del consulente per ogni turno, su due assi separati
+# (docs: "DeliR - Architettura delle modalita' di lavoro"):
 #
-# The modes are namespaced per surface because the same three words did not mean
-# the same thing in four different chats. `plan / edit / agent` describe work on
-# a BPMN canvas; in the consultant and project chats they constrained nothing at
-# all - no `consultant.*` or `project.*` capability declared a mode, and no write
-# they could reach was in `FORBIDDEN_WRITES` - so the selector promised a limit
-# the runtime never applied. Each surface now names the modes its own work has,
-# and every one of them narrows something real: the capabilities the router may
-# propose, and the writes the guard refuses.
+# - la *postura*: che tipo di lavoro sta facendo. Diversa per chat, e "auto"
+#   per default: DeliR la ricava dal messaggio. Guida il router e il modo di
+#   rispondere; non vieta mai una scrittura.
+# - l'*autonomia*: quanto DeliR puo' fare da solo. Uguale in ogni chat. E' lei a
+#   decidere se una scrittura parte (Auto), aspetta un si' (Chiedi
+#   approvazione) o non parte (Manuale).
 #
-# Each surface's delegated modes are a ladder: every rung allows what the rung
-# before it allows, plus more. Conversation sits outside that ladder and is the
-# safe default until the user explicitly delegates workflow work.
-ChatMode: TypeAlias = Literal[
-    # Compatibility with the frontend and runtime during the scoped-mode migration.
-    "conversation",
-    "plan",
-    "edit",
-    "agent",
-    # The consultant chat has one mode: portfolio work has no narrower rung that
-    # means anything, and the control the consultant actually wants there is how
-    # hard the model thinks (reasoning effort), not what it may touch.
-    "consultant.full",
-    "project.status",
-    "project.coordination",
-    "project.execution",
-    "process.interview",
-    "process.analysis",
-    "process.modeling",
-    "canvas.plan",
-    "canvas.edit",
-    "canvas.agent",
-]
+# Prima le due cose erano una sola scala - Conversazione / Piano / Modifica /
+# Agente - pensata per il BPMN e applicata a tutte le chat: nella chat del
+# consulente "Conversazione", il default, toglieva al router la creazione di
+# clienti e progetti, e l'agente finiva per annunciare salvataggi mai fatti.
+
+# La modalita' interna, su cui sono costruiti router (`CapabilitySpec.modes`) e
+# guard delle scritture (`agents/chat_mode.py`). Non arriva piu' dal client:
+# la produce l'autonomia, con `AUTONOMY_TO_MODE`.
+ChatMode: TypeAlias = Literal["conversation", "plan", "edit", "agent"]
+
+# Chi chiama il runtime senza una richiesta HTTP (eval, script) e non dice
+# niente parte dalla modalita' che non scrive.
+DEFAULT_CHAT_MODE: ChatMode = "conversation"
+
+Autonomy: TypeAlias = Literal["auto", "ask", "manual"]
+DEFAULT_AUTONOMY: Autonomy = "auto"
+AUTONOMY_TO_MODE: dict[str, ChatMode] = {
+    # Scrive da solo; le azioni distruttive chiedono comunque conferma.
+    "auto": "agent",
+    # Il modello BPMN cambia dal bottone Approva della review, i record del
+    # workspace dopo il si' del consulente (`confirm_workspace_write`).
+    "ask": "plan",
+    # Propone e spiega, non scrive.
+    "manual": "conversation",
+}
 
 ChatScopeType: TypeAlias = Literal["consultant", "project", "process", "canvas"]
 
@@ -63,80 +62,50 @@ PROVIDER_REASONING_EFFORT: dict[ReasoningEffort, str] = {
     "high": "high",
 }
 
-CHAT_MODES_BY_SCOPE: dict[ChatScopeType, tuple[ChatMode, ...]] = {
-    "consultant": ("consultant.full",),
-    "project": ("project.status", "project.coordination", "project.execution"),
-    "process": ("process.interview", "process.analysis", "process.modeling"),
-    "canvas": ("canvas.plan", "canvas.edit", "canvas.agent"),
-}
+Posture: TypeAlias = Literal[
+    "auto",
+    "desk",
+    "prepare",
+    "align",
+    "analyze",
+    "deliver",
+    "discover",
+    "improve",
+    "validate",
+    "map",
+    "review",
+    "compare",
+]
 
-ALL_CHAT_MODES: frozenset[str] = frozenset(
-    {"conversation", *(mode for modes in CHAT_MODES_BY_SCOPE.values() for mode in modes)}
-)
-
-# Conversation is the safe baseline for callers that do not explicitly hand a
-# workflow over to the agent.
-DEFAULT_CHAT_MODE_BY_SCOPE: dict[ChatScopeType, ChatMode] = {
-    scope: "conversation" for scope in CHAT_MODES_BY_SCOPE
+POSTURES_BY_SCOPE: dict[ChatScopeType, tuple[str, ...]] = {
+    "consultant": ("desk", "prepare"),
+    "project": ("align", "analyze", "deliver"),
+    "process": ("discover", "improve", "validate"),
+    "canvas": ("map", "review", "compare"),
 }
-DEFAULT_CHAT_MODE: ChatMode = "conversation"
 
 
 def is_chat_scope_type(value: str | None) -> TypeGuard[ChatScopeType]:
-    """Questa stringa nomina una superficie che esiste davvero?
-
-    Lo scope arriva dalla UI, quindi e' una stringa qualunque finche' qualcuno
-    non la confronta con le superfici registrate. Il confronto stava dentro un
-    `.get()` con un default, e li' il fallback era indistinguibile da un hit:
-    `"proces"` scritto male otteneva le modalita' del consulente senza che
-    niente lo dicesse, e il tipo della chiave restava `str` mentre la mappa e'
-    indicizzata su un `Literal`. Dichiararlo come guardia rende la restrizione
-    verificabile dal type checker e riutilizzabile da chi deve sapere se lo
-    scope ricevuto era noto.
-    """
-    return value in CHAT_MODES_BY_SCOPE
+    """Questa stringa nomina una superficie che esiste davvero?"""
+    return value in POSTURES_BY_SCOPE
 
 
-def chat_modes_for_scope(scope_type: str | None) -> tuple[ChatMode, ...]:
-    """List the chat modes a scope offers.
+def postures_for_scope(scope_type: str | None) -> tuple[str, ...]:
+    """Le posture che una chat offre, senza "auto".
 
     Args:
-        scope_type: Untrusted scope type; unknown values fall back to the
-            consultant surface.
-
-    Returns:
-        The modes available on that surface, narrowest rung first.
+        scope_type: Tipo di scope non affidabile; un valore sconosciuto vale
+            come chat del consulente.
     """
     scope: ChatScopeType = scope_type if is_chat_scope_type(scope_type) else "consultant"
-    return CHAT_MODES_BY_SCOPE[scope]
+    return POSTURES_BY_SCOPE[scope]
 
 
-def default_chat_mode(scope_type: str | None) -> ChatMode:
-    """Return the mode a turn runs as when the caller chose none.
-
-    Args:
-        scope_type: Untrusted scope type; unknown values fall back to the
-            consultant surface.
-
-    Returns:
-        Conversation mode, the safe non-workflow baseline.
-    """
-    return "conversation"
-
-
-def chat_mode_belongs_to_scope(mode: str | None, scope_type: str | None) -> bool:
-    """Check whether a mode is one this surface actually offers.
-
-    Args:
-        mode: Untrusted mode identifier, or `None` for "no choice made".
-        scope_type: Untrusted scope type.
-
-    Returns:
-        True when the mode is absent or belongs to the scope's ladder.
-    """
-    if mode is None:
+def posture_belongs_to_scope(posture: str | None, scope_type: str | None) -> bool:
+    """`auto` vale ovunque; le altre posture solo nella chat che le offre."""
+    if posture is None or posture == "auto":
         return True
-    return mode == "conversation" or mode in chat_modes_for_scope(scope_type)
+    return posture in postures_for_scope(scope_type)
 
 
 class ConsultantChatScope(BaseModel):

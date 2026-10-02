@@ -6,9 +6,8 @@ import {
   toApiChatAttachment,
   toApiChatScope,
   type ChatAttachment,
-  type ChatMode,
   type ChatScope,
-  type ReasoningEffort,
+  type ChatTurnChoices,
 } from "../../../contracts/chat";
 import type { ChatMessage, ChatSession } from "../types";
 import { streamChatMessage } from "../api";
@@ -27,10 +26,9 @@ import {
 type UseChatStreamArgs = {
   scope: ChatScope;
   selectedModel: string;
-  chatMode: ChatMode;
+  /** Postura e autonomia scelte dal consulente per il prossimo turno. */
+  choices: ChatTurnChoices;
   activeSession: ChatSession | null;
-  /** Quanto il modello deve pensare prima di rispondere, scelto per questo turno. */
-  reasoningEffort: ReasoningEffort;
   ensureThread: (firstMessage: string) => Promise<ChatSession>;
   selectThread: (threadId: string) => void;
   commitTranscript: (
@@ -52,10 +50,12 @@ export type UseChatStream = {
   streamError: string | null;
   /** Da quando l'agente sta lavorando, per il cronometro. */
   startedAtMs: number | null;
+  /** La postura con cui DeliR ha letto l'ultima richiesta, se l'ha scelta lui. */
+  detectedPosture: string | null;
   sendMessage: (
     content: string,
     attachments?: ChatAttachment[],
-    modeOverride?: ChatMode,
+    choicesOverride?: Partial<ChatTurnChoices>,
   ) => Promise<void>;
   /** Ferma il turno in corso tenendo la risposta parziale. */
   stopStreaming: () => void;
@@ -83,7 +83,7 @@ function notifyChatWorkspaceChanged(scope: ChatScope) {
  *
  * @param scope - Ambito di lavoro della conversazione
  * @param selectedModel - Modello usato per generare la risposta
- * @param chatMode - Modalita' di lavoro della richiesta
+ * @param choices - Postura e autonomia del turno
  * @param activeSession - Sessione attiva
  * @param ensureThread - Crea o recupera il thread del messaggio
  * @param selectThread - Seleziona un thread
@@ -94,9 +94,8 @@ function notifyChatWorkspaceChanged(scope: ChatScope) {
 export function useChatStream({
   scope,
   selectedModel,
-  chatMode,
+  choices,
   activeSession,
-  reasoningEffort,
   ensureThread,
   selectThread,
   commitTranscript,
@@ -105,8 +104,7 @@ export function useChatStream({
   // Latest values for the async send flow without re-memoising `sendMessage`.
   const scopeRef = useRef(scope);
   const modelRef = useRef(selectedModel);
-  const modeRef = useRef(chatMode);
-  const effortRef = useRef(reasoningEffort);
+  const choicesRef = useRef(choices);
   const activeSessionRef = useRef(activeSession);
   // Il thread appena aperto, prima che `activeSession` lo rispecchi. Vive in due
   // posti perche' serve a due tempi diversi: lo stato fa ridisegnare il turno
@@ -123,8 +121,7 @@ export function useChatStream({
   useEffect(() => {
     scopeRef.current = scope;
     modelRef.current = selectedModel;
-    modeRef.current = chatMode;
-    effortRef.current = reasoningEffort;
+    choicesRef.current = choices;
     activeSessionRef.current = activeSession;
   });
 
@@ -141,7 +138,7 @@ export function useChatStream({
     async (
       content: string,
       attachments: ChatAttachment[] = [],
-      modeOverride?: ChatMode,
+      choicesOverride?: Partial<ChatTurnChoices>,
     ) => {
       const currentThreadId = activeSessionRef.current?.threadId ?? liveThreadRef.current;
       const currentRun = getRun(currentThreadId);
@@ -188,8 +185,7 @@ export function useChatStream({
       const modelAtSend = modelRef.current;
       // Dedicated product actions may explicitly delegate one workflow without
       // relying on a React state update landing before the request starts.
-      const modeAtSend = modeOverride ?? modeRef.current;
-      const effortAtSend = effortRef.current;
+      const choicesAtSend = { ...choicesRef.current, ...choicesOverride };
 
       await startRun({
         threadId,
@@ -203,8 +199,7 @@ export function useChatStream({
               message: input.message,
               modelName: modelAtSend,
               scope: toApiChatScope(scopeAtSend),
-              mode: modeAtSend,
-              reasoningEffort: effortAtSend,
+              choices: choicesAtSend,
               attachments: input.attachments.map(toApiChatAttachment),
             },
             signal,
@@ -239,6 +234,7 @@ export function useChatStream({
     queuedMessages: run?.queued ?? [],
     streamError: run?.error ?? null,
     startedAtMs: run?.status === "streaming" ? run.startedAtMs : null,
+    detectedPosture: run?.detectedPosture ?? null,
     sendMessage,
     stopStreaming,
     cancelQueuedMessage,

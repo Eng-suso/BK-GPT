@@ -196,6 +196,7 @@ def project_routing_state(
     }
 
     return {
+        "detected_posture": getattr(decision, "posture", None),
         "project_route": route,
         "project_mode": project_mode,
         "project_objective": project_objective,

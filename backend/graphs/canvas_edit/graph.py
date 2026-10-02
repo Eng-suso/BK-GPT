@@ -481,6 +481,7 @@ def canvas_routing_state(
     }
 
     return {
+        "detected_posture": getattr(decision, "posture", None),
         "canvas_route": route,
         # La route del run, che non cambia. `canvas_route` invece si riscrive
         # durante il loop di correzione, e i controlli che devono sapere *come il

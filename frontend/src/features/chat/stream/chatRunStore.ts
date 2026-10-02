@@ -30,6 +30,8 @@ export type QueuedMessage = {
 };
 
 export type ChatRun = {
+  /** La postura con cui DeliR ha letto la richiesta, quando il consulente ha lasciato "auto". */
+  detectedPosture?: string;
   threadId: string;
   status: ChatRunStatus;
   /** Trascritto vivo: base della sessione + turno in corso. */
@@ -253,6 +255,15 @@ export async function startRun(input: StartRunInput): Promise<void> {
               };
               return next;
             });
+          }
+        }
+
+        if (event.type === "trace") {
+          const trace = event.payload as
+            | { event_type?: string; payload?: { posture?: string } }
+            | undefined;
+          if (trace?.event_type === "posture" && trace.payload?.posture) {
+            write(threadId, { detectedPosture: trace.payload.posture });
           }
         }
 

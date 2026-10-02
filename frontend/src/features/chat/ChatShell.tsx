@@ -12,7 +12,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
-import type { ChatAttachment, ChatMode, ReasoningEffort } from "../../contracts/chat";
+import type {
+  ChatAttachment,
+  ChatAutonomy,
+  ChatPosture,
+  ReasoningEffort,
+} from "../../contracts/chat";
 import type { ChatMessage, ChatSession } from "./types";
 import type { ChatScope } from "./chatScope";
 import { subjectForScope } from "./chatScope";
@@ -36,9 +41,12 @@ interface ChatShellProps {
   queuedMessages?: { content: string }[];
   onCancelQueued?: (index: number) => void;
   onStop?: () => void;
-  selectedModel?: string;
-  chatMode: ChatMode;
-  onChatModeChange: (mode: ChatMode) => void;
+  posture: ChatPosture;
+  onPostureChange: (posture: ChatPosture) => void;
+  /** La postura usata da DeliR per l'ultima risposta, quando era "auto". */
+  detectedPosture: string | null;
+  autonomy: ChatAutonomy;
+  onAutonomyChange: (autonomy: ChatAutonomy) => void;
   reasoningEffort: ReasoningEffort;
   onReasoningEffortChange: (effort: ReasoningEffort) => void;
   onNewChat?: () => void;
@@ -54,7 +62,6 @@ interface ChatShellProps {
   onRetry?: () => void;
   onAttach?: () => void;
   onVoice?: () => void;
-  onModelChange?: (model: string) => void;
   /** A separate workspace control rendered outside the conversation stream. */
   workspaceSlot?: React.ReactNode;
 }
@@ -128,9 +135,11 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   queuedMessages = [],
   onCancelQueued,
   onStop,
-  selectedModel = "gpt-5.6-luna",
-  chatMode,
-  onChatModeChange,
+  posture,
+  onPostureChange,
+  detectedPosture,
+  autonomy,
+  onAutonomyChange,
   reasoningEffort,
   onReasoningEffortChange,
   onNewChat,
@@ -146,7 +155,6 @@ export const ChatShell: React.FC<ChatShellProps> = ({
   onRetry,
   onAttach,
   onVoice,
-  onModelChange,
   workspaceSlot,
 }) => {
   const { t, i18n } = useTranslation("chat");
@@ -286,9 +294,11 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
         <ChatComposer
           scope={scope ?? { type: "consultant" }}
-          selectedModel={selectedModel}
-          chatMode={chatMode}
-          onChatModeChange={onChatModeChange}
+          posture={posture}
+          onPostureChange={onPostureChange}
+          detectedPosture={detectedPosture}
+          autonomy={autonomy}
+          onAutonomyChange={onAutonomyChange}
           reasoningEffort={reasoningEffort}
           onReasoningEffortChange={onReasoningEffortChange}
           isBusy={isBusy}
@@ -297,7 +307,6 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           onTranscribeAudio={onTranscribeAudio}
           onAttach={onAttach}
           onVoice={onVoice}
-          onModelChange={onModelChange}
         />
       </section>
     );
@@ -358,9 +367,11 @@ export const ChatShell: React.FC<ChatShellProps> = ({
 
           <ChatComposer
             scope={scope ?? { type: "consultant" }}
-            selectedModel={selectedModel}
-            chatMode={chatMode}
-            onChatModeChange={onChatModeChange}
+            posture={posture}
+            onPostureChange={onPostureChange}
+            detectedPosture={detectedPosture}
+            autonomy={autonomy}
+            onAutonomyChange={onAutonomyChange}
             reasoningEffort={reasoningEffort}
             onReasoningEffortChange={onReasoningEffortChange}
             isBusy={isBusy}
@@ -369,7 +380,6 @@ export const ChatShell: React.FC<ChatShellProps> = ({
             onTranscribeAudio={onTranscribeAudio}
             onAttach={onAttach}
             onVoice={onVoice}
-            onModelChange={onModelChange}
           />
         </section>
       </section>
