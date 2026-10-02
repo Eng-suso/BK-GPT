@@ -174,6 +174,7 @@ def _eval_llm():
     return DeliRChatOpenAI(
         model=model,
         api_key=settings.openai_api_key,
+        base_url=settings.openai_base_url,
         temperature=settings.model_temperature,
         max_tokens=settings.model_max_tokens,
         timeout=settings.model_timeout_seconds,
