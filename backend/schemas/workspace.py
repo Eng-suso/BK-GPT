@@ -401,6 +401,9 @@ class ConformanceStatusResponse(BaseModel):
     report: dict[str, Any] | None = None
 
 
+SourceRole = Literal["context", "process_evidence", "policy", "operational_data"]
+
+
 class ProjectSourceResponse(BaseModel):
     id: str
     project_id: str
@@ -432,6 +435,17 @@ class UploadedSourceResponse(ProjectSourceResponse):
     """
 
     created: bool = True
+    # A cosa sembra servire il file, dal nome e dal formato: una proposta che
+    # la card mostra se e' diversa dai ruoli che la fonte ha. `None` = il nome
+    # non dice niente.
+    suggested_roles: list[SourceRole] | None = None
+
+
+class UpdateSourceRolesRequest(BaseModel):
+    """A cosa serve una fonte: un attributo che si cambia, non la sua identita'."""
+
+    roles: list[SourceRole] = Field(min_length=1, max_length=4)
+
 
 
 class EvidenceSegmentResponse(BaseModel):

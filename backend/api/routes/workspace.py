@@ -32,6 +32,7 @@ from backend.schemas.workspace import (
     EvidenceSegmentResponse,
     ProjectSourceResponse,
     UploadedSourceResponse,
+    UpdateSourceRolesRequest,
     RestoreBpmnVersionResponse,
     ReviseBpmnReviewRequest,
     SourceDocumentResponse,
@@ -597,6 +598,7 @@ def upload_workspace_project_source(
         SourceFileError,
         READ_IN_REQUEST,
         SourceFileTooLarge,
+        suggest_roles,
         inspect_upload,
         store_original,
     )
@@ -662,7 +664,20 @@ def upload_workspace_project_source(
         source = acquire_in_request(source["id"], source_name, payload) or source
     if not created:
         response.status_code = 200
-    return UploadedSourceResponse(**source, created=created)
+    return UploadedSourceResponse(**source, created=created, suggested_roles=suggest_roles(source_name))
+
+
+@router.patch("/sources/{source_id}")
+def update_workspace_source_roles(
+    source_id: str, request: UpdateSourceRolesRequest
+) -> ProjectSourceResponse:
+    """Cambia a cosa serve una fonte: dalla card del composer o dal pannello Fonti."""
+    from backend.workspace_database import update_source_roles
+
+    source = update_source_roles(source_id, list(request.roles))
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
+    return ProjectSourceResponse(**source)
 
 
 @router.post("/sources/{source_id}/verify")

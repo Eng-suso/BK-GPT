@@ -432,5 +432,14 @@
       "change": "Cambia destinazione",
       "label": "In: {{place}}"
     }
+  },
+  "card": {
+    "rolesLabel": "A cosa serve",
+    "noRoles": "Scegli a cosa serve",
+    "suggested": "Sembra: {{roles}}",
+    "useSuggestion": "Usa la proposta: {{roles}}",
+    "keep": "Salva tra le Fonti e togli dal messaggio",
+    "menuLabel": "{{file}}, a cosa serve: {{roles}}",
+    "rolesFailed": "Ruolo non salvato: riprova"
   }
 }

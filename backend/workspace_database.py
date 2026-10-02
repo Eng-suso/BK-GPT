@@ -2079,6 +2079,12 @@ def create_project_source(
         return source_to_dict(source)
 
 
+def process_id_for_identity(scopes: list[dict[str, str]]) -> str:
+    """Il processo a cui un caricamento appartiene, per la sua identita'."""
+    process_ids = sorted({item["id"].strip() for item in scopes if item.get("type") == "process"})
+    return process_ids[0] if len(process_ids) == 1 else ""
+
+
 def create_ingested_source(
     *,
     project_id: str,
@@ -2110,8 +2116,14 @@ def create_ingested_source(
     )
     roles_json = json.dumps(role_values, ensure_ascii=False, separators=(",", ":"))
     scopes_json = json.dumps(scopes_value, ensure_ascii=False, separators=(",", ":"))
+    # L'identita' di un file caricato e' il suo contenuto, nel progetto e nel
+    # processo a cui appartiene: i ruoli sono attributi che si cambiano, non
+    # un'altra fonte. Prima entravano nella chiave, e lo stesso file con un
+    # ruolo diverso diventava un doppione. Il processo invece resta: una fonte
+    # appartiene a un solo processo, e lo stesso file portato in un altro
+    # processo e' evidenza di quell'altro.
     ingestion_key = hashlib.sha256(
-        "\x1f".join((content_hash, roles_json, retention, scopes_json)).encode()
+        f"file:{content_hash}:{process_id_for_identity(scopes)}".encode()
     ).hexdigest()
     process_ids = [item["id"] for item in scopes_value if item["type"] == "process"]
     # Con due processi la fonte finirebbe a livello di progetto (`process_id`
@@ -2128,11 +2140,21 @@ def create_ingested_source(
         if lock_key >= 2**63:
             lock_key -= 2**64
         session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+        # Per contenuto e non per chiave: le fonti caricate prima di questa
+        # regola hanno una chiave calcolata anche sui ruoli. Fra due doppioni
+        # gia' esistenti vale il primo.
         existing = session.execute(
             select(WorkspaceSource)
             .where(WorkspaceSource.tenant_id == tenant_id())
             .where(WorkspaceSource.project_id == project_id)
-            .where(WorkspaceSource.ingestion_key == ingestion_key)
+            .where(WorkspaceSource.content_hash == content_hash)
+            .where(WorkspaceSource.storage_key.is_not(None))
+            .where(
+                WorkspaceSource.process_id == process_id
+                if process_id
+                else WorkspaceSource.process_id.is_(None)
+            )
+            .order_by(WorkspaceSource.id)
         ).scalars().first()
         if existing is not None:
             # Ricaricare un file che non era stato letto e' il modo naturale di
@@ -2336,6 +2358,25 @@ def fail_source_acquisition(
 
 class SourceNotVerifiable(ValueError):
     """La fonte non si puo' ancora usare come evidenza (in lettura o illeggibile)."""
+
+
+def update_source_roles(source_id: str, roles: list[str]) -> dict | None:
+    """Cambia a cosa serve una fonte. Non cambia quale fonte e'.
+
+    Returns:
+        La fonte aggiornata, o `None` se non c'e' in questo tenant.
+    """
+    role_order = {name: index for index, name in enumerate(
+        ("context", "process_evidence", "policy", "operational_data")
+    )}
+    values = sorted(set(roles), key=role_order.__getitem__)
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        source.roles_json = json.dumps(values, ensure_ascii=False, separators=(",", ":"))
+        session.flush()
+        return source_to_dict(source)
 
 
 def verify_project_source(source_id: str) -> dict | None:

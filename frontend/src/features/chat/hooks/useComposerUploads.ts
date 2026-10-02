@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type { ChatAttachment } from "../../../contracts/chat";
@@ -10,6 +11,8 @@ import type {
 import { HttpError, httpErrorMessage } from "@/lib/http";
 import {
   discardSource,
+  projectKeys,
+  updateSourceRoles,
   useProjectSourcesQuery,
   useUploadProjectSourceMutation,
 } from "../../projects/api";
@@ -65,6 +68,10 @@ function uploadTarget(scope: ChatScope, chosen: UploadDestination | null): Uploa
 
 export type ComposerUpload = { tempId: string; name: string; error: string | null };
 
+function sameRoles(left: SourceRole[], right: SourceRole[]): boolean {
+  return left.length === right.length && left.every((role) => right.includes(role));
+}
+
 /**
  * I file caricati dal `+` del composer.
  *
@@ -90,6 +97,15 @@ export function useComposerUploads(
   });
   const [inFlight, setInFlight] = useState<ComposerUpload[]>([]);
   const createdHere = useRef(new Set<string>());
+  const queryClient = useQueryClient();
+  // I ruoli di ogni file caricato da qui, e la proposta quando e' diversa:
+  // la card li mostra prima che la lista delle fonti si aggiorni.
+  const [roles, setRoles] = useState<Record<string, SourceRole[]>>({});
+  const [suggestions, setSuggestions] = useState<Record<string, SourceRole[]>>({});
+  // Un cambio di ruolo alla volta per file: il secondo partirebbe dai ruoli
+  // di prima e cancellerebbe il primo.
+  const [rolesPending, setRolesPending] = useState<Record<string, boolean>>({});
+  const [rolesFailed, setRolesFailed] = useState<Record<string, boolean>>({});
 
   const uploadFile = useCallback(
     async (file: File): Promise<ChatAttachment | null> => {
@@ -104,6 +120,16 @@ export function useComposerUploads(
           scopes: target.scopes,
         });
         if (source.created) createdHere.current.add(source.id);
+        setRoles((current) => ({ ...current, [source.id]: source.roles }));
+        // Ogni caricamento aggiorna la proposta: lo stesso file ricaricato dopo
+        // aver scelto i ruoli non deve ripresentare quella vecchia.
+        const suggested = source.suggestedRoles;
+        setSuggestions((current) => {
+          const next = { ...current };
+          if (suggested && !sameRoles(suggested, source.roles)) next[source.id] = suggested;
+          else delete next[source.id];
+          return next;
+        });
         setInFlight((current) => current.filter((item) => item.tempId !== tempId));
         return { kind: "source", id: source.id, label: source.name, projectId: source.projectId };
       } catch (error) {
@@ -139,6 +165,58 @@ export function useComposerUploads(
     });
   }, []);
 
+  /**
+   * "Salva tra le Fonti": il file resta, anche se la card esce dal messaggio.
+   */
+  const keepInSources = useCallback((attachment: ChatAttachment) => {
+    if (attachment.kind === "source") createdHere.current.delete(attachment.id);
+  }, []);
+
+  /**
+   * Cambia a cosa serve un file. E' la stessa fonte con un altro attributo:
+   * niente doppioni. Torna `false` se il server non l'ha accettato.
+   */
+  const applyRoles = useCallback(
+    async (sourceId: string, next: SourceRole[]): Promise<boolean> => {
+      if (next.length === 0 || rolesPending[sourceId]) return false;
+      setRolesPending((current) => ({ ...current, [sourceId]: true }));
+      setRolesFailed((current) => ({ ...current, [sourceId]: false }));
+      try {
+        const updated = await updateSourceRoles(sourceId, next);
+        setRoles((current) => ({ ...current, [sourceId]: updated.roles }));
+        setSuggestions((current) => {
+          const rest = { ...current };
+          delete rest[sourceId];
+          return rest;
+        });
+        if (target) void queryClient.invalidateQueries({ queryKey: projectKeys.sources(target.projectId) });
+        return true;
+      } catch {
+        // Il ruolo sulla card resta quello vero, e la card dice che il cambio
+        // non e' passato.
+        setRolesFailed((current) => ({ ...current, [sourceId]: true }));
+        return false;
+      } finally {
+        setRolesPending((current) => ({ ...current, [sourceId]: false }));
+      }
+    },
+    [queryClient, target, rolesPending],
+  );
+
+  const isRolePending = useCallback((sourceId: string) => Boolean(rolesPending[sourceId]), [rolesPending]);
+  const roleFailed = useCallback((sourceId: string) => Boolean(rolesFailed[sourceId]), [rolesFailed]);
+
+  const rolesOf = useCallback(
+    (sourceId: string): SourceRole[] =>
+      roles[sourceId] ?? sources.data?.find((source) => source.id === sourceId)?.roles ?? [],
+    [roles, sources.data],
+  );
+
+  const suggestionOf = useCallback(
+    (sourceId: string): SourceRole[] | null => suggestions[sourceId] ?? null,
+    [suggestions],
+  );
+
   /** Il messaggio e' partito: i file allegati sono suoi, non si scartano piu'. */
   const keepAll = useCallback(() => {
     createdHere.current.clear();
@@ -170,5 +248,11 @@ export function useComposerUploads(
     keepAll,
     statusOf,
     failureOf,
+    rolesOf,
+    suggestionOf,
+    applyRoles,
+    isRolePending,
+    roleFailed,
+    keepInSources,
   };
 }
