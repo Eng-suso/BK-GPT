@@ -229,7 +229,7 @@ needs_db = pytest.mark.skipif(
 def drafted_process_with_an_inference():
     from backend.process_understanding import ProcessStep as Step
     from backend.workspace_services.bpmn_draft import generate_bpmn_draft
-    from tests.test_process_canvas_handoff_e2e import (
+    from tests.agents.test_process_canvas_handoff_e2e import (
         _bind_process_chat,
         _prepare_plan,
         _save_interviews,

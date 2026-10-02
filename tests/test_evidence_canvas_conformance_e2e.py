@@ -69,7 +69,7 @@ from backend.workspace_services.bpmn_draft import (  # noqa: E402
     generate_verified_bpmn_draft,
 )
 
-from tests.test_process_canvas_handoff_e2e import (  # noqa: E402
+from tests.agents.test_process_canvas_handoff_e2e import (  # noqa: E402
     INTERVIEWS,
     _bind_process_chat,
     _save_interviews,

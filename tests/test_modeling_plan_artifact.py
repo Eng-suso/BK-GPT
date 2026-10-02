@@ -64,7 +64,7 @@ from backend.process_understanding import (  # noqa: E402
     ProcessUnderstanding,
 )
 
-from tests.test_process_canvas_handoff_e2e import (  # noqa: E402
+from tests.agents.test_process_canvas_handoff_e2e import (  # noqa: E402
     _bind_process_chat,
     _save_interviews,
     _supported_understanding,
