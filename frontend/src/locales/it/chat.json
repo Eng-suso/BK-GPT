@@ -81,7 +81,10 @@
       "livePlaceholder": "Qui compare il testo mentre parli.",
       "finalHeading": "Con chi parla",
       "finalPlaceholder": "Dopo lo stop, qui arriva la trascrizione definitiva, con chi ha detto cosa."
-    }
+    },
+    "addHeading": "Aggiungi",
+    "uploadFile": "Carica un file",
+    "waitForUploads": "Aspetta che i file finiscano di caricarsi"
   },
   "status": {
     "historyUnavailable": "Cronologia non disponibile",
@@ -189,7 +192,16 @@
       "confirm": "Allega",
       "count": "{{count}} / {{max}} caratteri",
       "fallbackLabel": "Testo incollato"
-    }
+    },
+    "status": {
+      "uploading": "Caricamento…",
+      "pending": "In lettura…",
+      "done": "Pronta",
+      "partial": "Lettura parziale",
+      "failed": "Non leggibile"
+    },
+    "dismissFailed": "Togli il caricamento non riuscito",
+    "uploadFailed": "Il file non è stato caricato."
   },
   "queue": {
     "title": "Messaggi in coda",
@@ -401,6 +413,24 @@
     "manual": {
       "label": "Manuale",
       "hint": "DeliR propone e spiega, non scrive niente."
+    }
+  },
+  "upload": {
+    "destination": {
+      "title": "Dove va questo file?",
+      "description": "La chat del consulente non ha un progetto: scegli dove metterlo prima di caricarlo.",
+      "project": "Progetto",
+      "chooseProject": "Scegli un progetto",
+      "loading": "Carico i progetti…",
+      "process": "Processo",
+      "wholeProject": "Tutto il progetto",
+      "asEvidence": "Diventa evidenza di questo processo, dopo la tua conferma.",
+      "asContext": "Diventa contesto del progetto.",
+      "loadFailed": "Impossibile leggere i progetti.",
+      "cancel": "Annulla",
+      "choose": "Scegli il file",
+      "change": "Cambia destinazione",
+      "label": "In: {{place}}"
     }
   }
 }

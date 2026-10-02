@@ -417,6 +417,36 @@
   white-space: nowrap;
 }
 
+/* Lo stato della lettura di un file caricato: a vista sulla card finche' il
+   messaggio non parte. "Pronta" e' il caso normale e resta discreto. */
+.composer-chip-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-100);
+  white-space: nowrap;
+}
+
+.composer-chip-status svg {
+  width: 12px;
+  height: 12px;
+}
+
+.composer-chip-status.is-partial {
+  color: var(--color-warning);
+}
+
+.composer-chip-status.is-failed {
+  color: var(--color-danger);
+  white-space: normal;
+  /* Il motivo puo' essere lungo: si stringe e va a capo, la x resta a vista. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .composer-chip-remove {
   display: grid;
   place-items: center;
