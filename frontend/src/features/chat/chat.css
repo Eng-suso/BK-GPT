@@ -413,6 +413,9 @@
 .composer-chip-label {
   overflow: hidden;
   max-width: 22ch;
+  /* Il nome del file resta leggibile: e' il ruolo ad accorciarsi per primo. */
+  flex: 0 1 auto;
+  min-width: 10ch;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -451,6 +454,7 @@
    DeliR ("Sembra: ...") si distingue dal ruolo gia' scelto. */
 .composer-chip-role {
   display: inline-flex;
+  flex: 0 100 auto;
   align-items: center;
   gap: 2px;
   min-width: 0;
@@ -473,7 +477,7 @@
 }
 
 .composer-chip-role.is-suggested {
-  color: var(--color-accent);
+  color: var(--color-action-primary);
   font-weight: 500;
 }
 
