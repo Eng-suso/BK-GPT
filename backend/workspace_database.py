@@ -2100,7 +2100,7 @@ def create_ingested_source(
     role_values = sorted(set(roles), key=role_order.__getitem__)
     scopes_value = sorted(
         ({"type": scope_type, "id": scope_id} for scope_type, scope_id in {
-            (item["type"], item["id"]) for item in scopes
+            (item["type"], item["id"].strip()) for item in scopes
         }),
         key=lambda item: (scope_order[item["type"]], item["id"]),
     )
@@ -2110,7 +2110,11 @@ def create_ingested_source(
         "\x1f".join((content_hash, roles_json, retention, scopes_json)).encode()
     ).hexdigest()
     process_ids = [item["id"] for item in scopes_value if item["type"] == "process"]
-    process_id = process_ids[0] if len(process_ids) == 1 else None
+    # Con due processi la fonte finirebbe a livello di progetto (`process_id`
+    # vuoto) e diventerebbe evidenza anche per un terzo processo che non c'entra.
+    if len(process_ids) > 1:
+        raise ValueError("Una fonte caricata appartiene a un solo processo.")
+    process_id = process_ids[0] if process_ids else None
     _assert_source_scope(project_id, process_id)
 
     validate_source_scopes(project_id, scopes_value)

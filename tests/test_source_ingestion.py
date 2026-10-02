@@ -170,6 +170,27 @@ def test_upload_rejects_unsupported_files_and_foreign_process_scope(http: TestCl
     assert malformed_roles.status_code == 400
 
 
+def test_an_upload_belongs_to_one_process_at_most(http: TestClient):
+    project, process = _project(http)
+    other = http.post(
+        f"/v1/workspace/projects/{project['id']}/processes", json={"name": "Order to cash"}
+    ).json()
+
+    response = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={
+            "roles": '["process_evidence"]',
+            "retention": "persistent",
+            "scopes": f'[{{"type":"process","id":"{process["id"]}"}},'
+            f'{{"type":"process","id":"{other["id"]}"}}]',
+        },
+        files={"file": ("due-processi.txt", b"Un testo.", "text/plain")},
+    )
+
+    # Con due processi sarebbe diventata evidenza di tutto il progetto.
+    assert response.status_code == 400, response.text
+
+
 def test_upload_is_idempotent_for_the_same_file_and_dimensions(http: TestClient, tenant: str):
     project, _ = _project(http)
     fields = {
