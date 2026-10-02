@@ -7,8 +7,8 @@ import { bounds, fitCamera, PROCESS_ID, resizeRect, zoomCamera, type Camera } fr
 
 export type SceneObject = { id: string; title: string; rect: CanvasRect; content: React.ReactNode };
 
-export function AnalyticalCanvas({ objects, editing, onPlace }: {
-  objects: SceneObject[]; editing: boolean; onPlace: (id: string, rect: CanvasRect) => void;
+export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
+  objects: SceneObject[]; editing: boolean; onPlace: (id: string, rect: CanvasRect) => void; onActionsHost?: (host: HTMLDivElement | null) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const viewport = React.useRef<HTMLDivElement>(null);
@@ -98,6 +98,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace }: {
       <Button variant="outline" size="sm" aria-label={t("simulation.scene.backProcess")} onClick={() => process && focus(process.rect)}><Workflow aria-hidden className="size-4" /><span className="sim-scene-process-label">{t("simulation.scene.backProcess")}</span></Button>
       <label className="sim-scene-jump"><span className="sr-only">{t("simulation.scene.goTo")}</span><select aria-label={t("simulation.scene.goTo")} value="" onChange={event => { const object = objects.find(item => item.id === event.target.value); if (object) { setActiveObject(object.id); focus(object.rect); } }}><option value="">{t("simulation.scene.goTo")}</option>{objects.map(object => <option value={object.id} key={object.id}>{object.title}</option>)}</select></label>
       <span className="sim-scene-instructions"><Move aria-hidden className="size-3.5" />{t(editing ? "simulation.scene.composeHint" : "simulation.scene.panHint")}</span>
+      <div className="sim-scene-extra" ref={onActionsHost} />
       <div className="sim-scene-zoom">
         <Button variant="ghost" size="icon" aria-label={t("simulation.diagram.zoomOut")} onClick={() => setCamera(current => zoomCamera(current, 1 / 1.2, (viewport.current?.clientWidth ?? 0) / 2, (viewport.current?.clientHeight ?? 0) / 2))}><Minus aria-hidden className="size-4" /></Button>
         <output aria-label={t("simulation.scene.zoom")}>{Math.round(camera.scale * 100)}%</output>

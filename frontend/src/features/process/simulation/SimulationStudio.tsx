@@ -31,6 +31,7 @@ export function SimulationStudio(): React.JSX.Element {
   const ready = engine && run?.status === "completed";
   const [heatMetric, setHeatMetric] = React.useState<HeatMetric>("wait");
   const [decorations, setDecorations] = React.useState<NodeDecoration[]>([]);
+  const [actionsHost, setActionsHost] = React.useState<HTMLDivElement | null>(null);
   const [host, setHost] = React.useState<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLElement | null>(null);
   const dockRef = React.useRef<HTMLElement>(null);
@@ -72,8 +73,8 @@ export function SimulationStudio(): React.JSX.Element {
     {view === "compare" && <ComparePage compact embedded onDecorations={setDecorations} />}
     <div className={`sim-studio-body ${dockOpen ? "has-dock" : ""}`}>
       <section className="sim-studio-board" aria-label={t("simulation.unified.canvas")}>
-        {ready && displayedEngine && analysisRun ? <DashboardWorkspace engine={displayedEngine} run={analysisRun} final={aggregate} unavailable={unavailable} artifactLoading={finalReplay.isLoading} integrated inspectorHost={host}
-          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : view === "heatmap" ? { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} decorations={view === "compare" || view === "heatmap" ? decorations : aggregate ? [] : undefined} />}
+        {ready && displayedEngine && analysisRun ? <DashboardWorkspace engine={displayedEngine} run={analysisRun} final={aggregate} unavailable={unavailable} artifactLoading={finalReplay.isLoading} integrated inspectorHost={host} onProcessActionsHost={setActionsHost}
+          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : view === "heatmap" ? { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={view === "compare" || view === "heatmap" ? decorations : aggregate ? [] : undefined} />}
           processScope={scope} />
           : <div className="sim-studio-start"><div className="sim-studio-empty-process"><SimulationCanvas bpmnXml={bpmnXml} selectedElementId={selectedElementId} onSelectElement={selectElement} /></div>
             <EmptyState title={t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "pending" ? "simulation.running" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? t("simulation.unified.startHint")}

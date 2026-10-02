@@ -12,8 +12,8 @@ import { CaseTimeline } from "../replay/CaseTimeline";
 import { useReplayStatus } from "../replay/useReplay";
 import { useSimulationSection } from "../useSimulationSection";
 
-export function ProcessSurface({ engine, decorations, aggregate, inspectorHost, unavailable = false, summary, legend }: {
-  engine: ReplayEngine; decorations?: NodeDecoration[]; aggregate: boolean; unavailable?: boolean; summary?: SimulationSummary | null; legend?: { label: string; delta?: boolean }; inspectorHost?: HTMLElement | null;
+export function ProcessSurface({ engine, decorations, aggregate, inspectorHost, unavailable = false, summary, legend, actionsHost }: {
+  engine: ReplayEngine; decorations?: NodeDecoration[]; aggregate: boolean; unavailable?: boolean; summary?: SimulationSummary | null; legend?: { label: string; delta?: boolean }; inspectorHost?: HTMLElement | null; actionsHost?: HTMLElement | null;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const { bpmnXml, selectedElementId, selectElement, openPanel } = useSimulationSection();
@@ -31,9 +31,9 @@ export function ProcessSurface({ engine, decorations, aggregate, inspectorHost, 
     <div className="sim-process-diagram">
       <SimulationCanvas sharedCanvas bpmnXml={bpmnXml} decorations={decorations ?? pressure} selectedElementId={selectedElementId} onViewerReady={setViewer}
         onSelectElement={(id) => { selectElement?.(id); if (id && engine.payload.elements[id]) openPanel?.("activity"); }}
-        toolbarStart={<><Button size="sm" variant="ghost" aria-pressed={visible} onClick={() => setVisible((current) => !current)}>{t("simulation.studio.charts")}</Button>{legend && <div className="sim-process-legend"><span>{legend.label}</span>{legend.delta ? <><span><i aria-hidden style={{ background: "var(--color-status-success)" }} />{t("simulation.compare.better")}</span><span><i aria-hidden style={{ background: "var(--color-status-danger)" }} />{t("simulation.compare.worse")}</span></> : <><span>{t("simulation.heatmap.legendLow")}</span><span className="sim-heat-legend" aria-hidden>{[0,1,2,3,4].map(level => <i key={level} style={{ background: `var(--sim-heat-${level})` }} />)}</span><span>{t("simulation.heatmap.legendHigh")}</span></>}</div>}</>} />
+        toolbarStart={!actionsHost || legend ? <>{!actionsHost && <Button size="sm" variant="ghost" aria-pressed={visible} onClick={() => setVisible((current) => !current)}>{t("simulation.studio.charts")}</Button>}{legend && <div className="sim-process-legend"><span>{legend.label}</span>{legend.delta ? <><span><i aria-hidden style={{ background: "var(--color-status-success)" }} />{t("simulation.compare.better")}</span><span><i aria-hidden style={{ background: "var(--color-status-danger)" }} />{t("simulation.compare.worse")}</span></> : <><span>{t("simulation.heatmap.legendLow")}</span><span className="sim-heat-legend" aria-hidden>{[0,1,2,3,4].map(level => <i key={level} style={{ background: `var(--sim-heat-${level})` }} />)}</span><span>{t("simulation.heatmap.legendHigh")}</span></>}</div>}</> : null} />
       {!aggregate && <TokenLayer viewer={viewer} engine={engine} />}
-      {frame && !unavailable && <CanvasAnalytics viewer={viewer} engine={engine} frame={frame} summary={summary} selectedId={selectedElementId ?? null} visible={visible} inspectorHost={inspectorHost} onVisibilityChange={setVisible} />}
+      {frame && !unavailable && <CanvasAnalytics viewer={viewer} engine={engine} frame={frame} summary={summary} selectedId={selectedElementId ?? null} visible={visible} inspectorHost={inspectorHost} actionsHost={actionsHost} onVisibilityChange={setVisible} />}
     </div>
     {status?.granularity === "case" && !aggregate && <div className="sim-studio-case"><CaseTimeline engine={engine} /></div>}
   </div>;

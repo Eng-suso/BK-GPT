@@ -71,9 +71,9 @@ function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfig
   </article>, host);
 }
 
-export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, onVisibilityChange, inspectorHost, summary }: {
+export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, onVisibilityChange, inspectorHost, summary, actionsHost }: {
   viewer: BpmnViewer | null; engine: ReplayEngine; frame: ReplayFrame; selectedId: string | null; visible: boolean;
-  onVisibilityChange: (visible: boolean) => void; inspectorHost?: HTMLElement | null; summary?: SimulationSummary | null;
+  onVisibilityChange: (visible: boolean) => void; actionsHost?: HTMLElement | null; inspectorHost?: HTMLElement | null; summary?: SimulationSummary | null;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const { projectId, processId, panel, inspectedWidgetId, inspectWidget } = useSimulationSection();
@@ -104,18 +104,21 @@ export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, on
     inspectWidget?.(null); opener?.focus({ preventScroll: true });
   };
   const canAdd = Boolean(selectedId && engine.payload.elements[selectedId] && pins.length < 12);
-  return <>
-    <div className="sim-canvas-analysis-actions">
-      <Button size="sm" variant="outline" disabled={!canAdd} onClick={() => {
+  const hintId = React.useId();
+  const actions = <div className="sim-canvas-analysis-actions">
+      {actionsHost && <Button size="sm" variant="ghost" aria-pressed={visible} onClick={() => onVisibilityChange(!visible)}>{t("simulation.studio.charts")}</Button>}
+      <Button size="sm" variant="outline" disabled={!canAdd} aria-describedby={hintId} title={t(canAdd ? "simulation.studio.canvasLocal" : "simulation.studio.selectActivity")} onClick={() => {
         if (!selectedId) return;
         const widget = { ...createWidget("kpi"), metric: "activityQueued" as const, activityId: selectedId };
         save([...pins, { elementId: selectedId, widget, x: 0, y: 110, width: 260 }]);
         onVisibilityChange(true);
       }}><Plus aria-hidden className="size-4" />{t("simulation.studio.addCanvasAnalysis")}</Button>
       {pins.length > 0 && <Button size="sm" variant="ghost" onClick={() => save(pins.map((pin, index) => ({ ...pin, x: (index % 2) * 20, y: 110 + (index % 3) * 20 })))}>{t("simulation.studio.repositionCharts")}</Button>}
-      <span className="sim-help">{t(canAdd ? "simulation.studio.canvasLocal" : "simulation.studio.selectActivity")}</span>
+      <span id={hintId} className="sim-help">{t(canAdd ? "simulation.studio.canvasLocal" : "simulation.studio.selectActivity")}</span>
       {error && <span role="alert" className="text-xs text-destructive">{t(error === "restore" ? "simulation.studio.restoreError" : "simulation.studio.saveError")}</span>}
-    </div>
+    </div>;
+  return <>
+    {actionsHost ? createPortal(actions, actionsHost) : actions}
     {viewer && visible && pins.map((pin) => <PinnedWidget key={pin.widget.id} pin={pin} viewer={viewer} engine={engine} frame={frame} summary={summary}
       onConfigure={inspectorHost && inspectWidget ? () => inspectWidget(`pin:${pin.widget.id}`) : undefined}
       onChange={(patch) => save(pins.map((item) => item.widget.id === pin.widget.id ? { ...item, ...patch } : item))}

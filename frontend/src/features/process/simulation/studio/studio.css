@@ -207,3 +207,22 @@
  .sim-studio:has(.sim-comparison-bar) { min-height:780px; }
  .sim-studio-tool-actions,.is-integrated .sim-kpi-strip,.is-integrated .sim-dashboard-header,.sim-scene-controls { scrollbar-width:thin; }
 }
+
+.sim-scene-controls { overflow-x:auto; }
+.sim-scene-instructions { flex:1; min-width:0; overflow:hidden; white-space:nowrap; }
+.sim-scene-extra:empty { display:none; }
+.sim-scene-extra { flex-shrink:0; }
+.sim-scene-extra .sim-canvas-analysis-actions { display:flex; align-items:center; gap:6px; padding:0; border:0; }
+.sim-scene-extra .sim-help { display:none; }
+@media(max-width:800px) {
+ .sim-studio-dock { bottom:44px; }
+ .sim-scene-sections { flex-wrap:nowrap; overflow:auto; min-height:38px; scrollbar-width:thin; }
+ .sim-scene-sections .sim-layout-actions { flex-wrap:nowrap; }
+ .sim-scene-sections .sim-final-results[open] { position:fixed; left:76px; right:16px; bottom:16px; width:auto; z-index:60; }
+}
+
+@media(max-width:800px) {
+ .is-integrated .sim-dashboard-header { justify-content:flex-start; }
+ .is-integrated .sim-dashboard-actions { margin-left:0; }
+ .sim-comparison-details[open] { position:fixed; left:76px; right:16px; top:160px; width:auto; max-height:calc(100dvh - 180px); overflow:auto; }
+}

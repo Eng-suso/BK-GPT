@@ -229,7 +229,7 @@ export function SimulationCanvas({
 
   return (
     <div className={cn("simulation-bpmn-view relative flex min-h-0 flex-col", className)}>
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2.5 py-2">
+      {(!sharedCanvas || toolbarStart) && <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2.5 py-2">
         {toolbarStart}
         <div hidden={sharedCanvas} className="ml-auto flex items-center gap-1">
           <Button
@@ -266,7 +266,7 @@ export function SimulationCanvas({
             <Maximize2 aria-hidden className="size-3.5" />
           </Button>
         </div>
-      </div>
+      </div>}
 
       <div ref={containerRef} className="min-h-0 w-full flex-1 overflow-hidden bg-card" />
 
