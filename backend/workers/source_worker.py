@@ -135,8 +135,8 @@ def _extract_one(row: dict) -> bool:
 
     token = set_current_tenant_id(row["tenant_id"])
     try:
-        segments = wd.list_evidence_segments(row["id"])
         try:
+            segments = wd.list_evidence_segments(row["id"])
             # L2: la spesa dell'estrazione appartiene a questa fonte, nel suo
             # progetto e processo.
             with operation(

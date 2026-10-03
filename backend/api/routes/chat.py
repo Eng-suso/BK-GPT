@@ -82,15 +82,18 @@ def confirm_files_sent(attachments: list) -> None:
     database non risponde il messaggio parte lo stesso, e la conferma si puo'
     dare dal pannello Fonti.
     """
-    source_ids = [item.id for item in attachments if getattr(item, "kind", None) == "source"]
+    source_ids = [item.id for item in attachments if item.kind == "source"]
     if not source_ids:
         return
     from backend.workspace_database import confirm_sources_sent_in_chat
 
     try:
         confirm_sources_sent_in_chat(source_ids)
-    except Exception:  # noqa: BLE001 - la conferma non deve far cadere il turno
+    except Exception as exc:  # noqa: BLE001 - la conferma non deve far cadere il turno
         logger.warning("conferma dei file inviati in chat non riuscita", exc_info=True)
+        degradation_counters.bump(
+            "chat_attachments", "confirm_failed", detail=f"{type(exc).__name__} sources={len(source_ids)}"
+        )
 
 
 def record_product_language(*, answer: str, asked: str, scope_type: str | None) -> list[str]:

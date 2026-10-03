@@ -106,6 +106,25 @@ def test_nothing_is_extracted_until_the_consultant_confirms(http: TestClient, te
     assert claim["quote_verified"] is True
 
 
+def test_confirming_again_does_not_pay_twice_and_another_tenant_sees_nothing(
+    http: TestClient, tenant: str, model
+):
+    project, process = _project(http)
+    created = _upload(http, project, process, f"procedura-{uuid.uuid4().hex[:6]}.md", PROCEDURA)
+    http.post(f"/v1/workspace/sources/{created['id']}/verify")
+    _drain(tenant)
+    assert len(model) == 1
+
+    # Una seconda conferma non rimette in coda un'estrazione gia' fatta.
+    assert http.post(f"/v1/workspace/sources/{created['id']}/verify").status_code == 200
+    assert _source(http, project, created["id"])["claims_status"] == "done"
+    _drain(tenant)
+    assert len(model) == 1
+
+    with TestClient(app, headers={"X-DeliR-Tenant-ID": f"claims-{uuid.uuid4().hex[:10]}"}) as stranger:
+        assert stranger.get(f"/v1/workspace/sources/{created['id']}/claims").status_code == 404
+
+
 def test_sending_a_file_in_chat_confirms_it_even_while_it_is_being_read(
     http: TestClient, tenant: str, model, monkeypatch
 ):

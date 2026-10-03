@@ -54,6 +54,7 @@ from backend.workspace_storage import (
 
 
 if TYPE_CHECKING:
+    from backend.workspace_services.evidence.claims import ClaimsResult
     from backend.workspace_services.source_ingestion import ParsedSource
 
 
@@ -2578,7 +2579,7 @@ def due_source_claims(limit: int = 1, *, only_tenant_id: str | None = None) -> l
         return claimed
 
 
-def complete_source_claims(source_id: str, result: Any, *, content_hash: str) -> int | None:
+def complete_source_claims(source_id: str, result: "ClaimsResult", *, content_hash: str) -> int | None:
     """Scrive le affermazioni estratte, al posto di quelle di prima.
 
     `result` e' un `ClaimsResult` di `evidence.claims`.
