@@ -35,10 +35,10 @@
 .sim-section-title input { width: 100%; max-width: 400px; background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 14px; font-weight: 600; }
 .sim-section-title input:focus-visible { outline: 2px solid var(--ring); }
 .sim-widget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.sim-widget { min-width: 0; overflow: hidden; background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-control); padding: 18px; }
+.sim-widget { min-width: 0; overflow: hidden; padding: 18px; }
 .sim-widget.is-full { grid-column: 1 / -1; }
 .sim-widget.is-editing { border-style: dashed; }
-.sim-widget.is-selected { border: 1px solid var(--primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 14%, transparent); }
+.sim-widget.is-selected { outline:2px solid var(--primary); outline-offset:2px; }
 .sim-widget-heading { display: flex; align-items: flex-start; gap: 8px; min-height: 45px; margin-bottom: 12px; }
 .sim-widget-heading h4 { font-size: 13px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
 .sim-widget-heading p { font-size: 11px; color: var(--muted-foreground); margin-top: 3px; line-height: 1.5; }

@@ -1,13 +1,19 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { GripVertical, Move, Maximize2, Minus, Plus, Workflow, Scaling } from "lucide-react";
+import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import type { CanvasRect } from "../dashboard/dashboardModel";
-import { bounds, fitCamera, PROCESS_ID, resizeRect, zoomCamera, type Camera } from "./canvasGeometry";
+import { bounds, fitCamera, PROCESS_ID, resizeRect, zoomCamera, freeInsertionRect, insertionRect, type Camera } from "./canvasGeometry";
+
+import { PALETTE_DRAG_TYPE, parsePaletteItem, type PaletteItem } from "./canvasPaletteModel";
+
+import { CanvasPalette } from "./CanvasPalette";
 
 export type SceneObject = { id: string; title: string; rect: CanvasRect; content: React.ReactNode };
 
-export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
+export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, library = false, onCloseLibrary, onAdd, full = false }: {
+  library?: boolean; onCloseLibrary?: () => void; onAdd?: (item: PaletteItem, rect: CanvasRect) => string | null; full?: boolean;
   objects: SceneObject[]; editing: boolean; onPlace: (id: string, rect: CanvasRect) => void; onActionsHost?: (host: HTMLDivElement | null) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
@@ -21,6 +27,10 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
   React.useLayoutEffect(() => { sceneRef.current = objects; }, [objects]);
   const [draft, setDraft] = React.useState<{ id: string; rect: CanvasRect } | null>(null);
   const gesture = React.useRef<{ id?: string; resize?: boolean; x: number; y: number; camera: Camera; rect?: CanvasRect; pendingRect?: CanvasRect } | null>(null);
+  const [addedTitle, setAddedTitle] = React.useState("");
+  const [dropping, setDropping] = React.useState(false);
+  const insertionFrame = React.useRef<number | null>(null);
+  React.useEffect(() => () => { if (insertionFrame.current !== null) cancelAnimationFrame(insertionFrame.current); }, []);
   const process = objects.find(object => object.id === PROCESS_ID);
   const focus = (rect: CanvasRect) => {
     const el = viewport.current;
@@ -29,6 +39,21 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
       const scale = rect.width < 700 ? Math.max(0.75, fitted.scale) : fitted.scale;
       setCamera({ scale, x: (el.clientWidth - rect.width * scale) / 2 - rect.x * scale, y: Math.max(24, (el.clientHeight - rect.height * scale) / 2) - rect.y * scale });
     }
+  };
+  const insert = (item: PaletteItem, point?: { x: number; y: number }) => {
+    const el = viewport.current;
+    if (!el || !onAdd) return;
+    const start = insertionRect(cameraRef.current, point?.x ?? Math.max(24, (el.clientWidth - 416 * cameraRef.current.scale) / 2), point?.y ?? 24);
+    const rect = point ? start : freeInsertionRect(start, objects.map(object => object.rect));
+    const id = onAdd(item, rect);
+    if (id) {
+      if (insertionFrame.current !== null) cancelAnimationFrame(insertionFrame.current);
+      insertionFrame.current = requestAnimationFrame(() => {
+        setCamera(fitCamera(rect, el.clientWidth, el.clientHeight));
+        el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+        insertionFrame.current = null;
+      });
+      setActiveObject(id); setAddedTitle(item.note ? t("simulation.authoring.note") : t(`simulation.studio.metric.${item.metric ?? (["bar", "column", "pie", "donut", "radial"].includes(item.kind) ? "activityQueued" : "completed")}`)); }
   };
   React.useEffect(() => {
     const el = viewport.current;
@@ -61,7 +86,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
   }, []);
   const begin = (event: React.PointerEvent<HTMLElement>, id?: string, resize = false) => {
     if (event.button !== 0) return;
-    if (id && !editing) return;
+    if (id) setActiveObject(id);
     if (!id && (event.target as Element).closest("button,input,select,textarea,summary,.sim-scene-object:not(.is-process),.djs-shape,.djs-connection,.sim-canvas-widget")) return;
     const object = id ? objects.find(item => item.id === id) : null;
     event.preventDefault(); event.stopPropagation();
@@ -73,6 +98,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
     if (!g) return;
     const dx = event.clientX - g.x, dy = event.clientY - g.y;
     if (g.id && g.rect) {
+      if (!g.pendingRect && Math.hypot(dx, dy) < 4) return;
       g.pendingRect = g.resize ? resizeRect(g.rect, dx / g.camera.scale, dy / g.camera.scale) : { ...g.rect, x: Math.max(-10000, Math.min(10000, g.rect.x + dx / g.camera.scale)), y: Math.max(-10000, Math.min(10000, g.rect.y + dy / g.camera.scale)) };
       setDraft({ id: g.id, rect: g.pendingRect });
     }
@@ -93,20 +119,20 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
   };
   const allBounds = bounds(objects.map(object => object.rect));
   const mapScale = Math.min(140 / Math.max(allBounds.width, 1), 68 / Math.max(allBounds.height, 1));
-  return <div className="sim-analytical-canvas">
-    <div className="sim-scene-controls" role="group" aria-label={t("simulation.scene.navigation")}>
+  return <Surface asChild variant="panel"><div className={`sim-analytical-canvas ${editing ? "is-authoring" : ""}`}>
+    <div className="sim-scene-controls ui-surface-toolbar" role="group" aria-label={t("simulation.scene.navigation")}>
       <Button variant="outline" size="sm" aria-label={t("simulation.scene.backProcess")} onClick={() => process && focus(process.rect)}><Workflow aria-hidden className="size-4" /><span className="sim-scene-process-label">{t("simulation.scene.backProcess")}</span></Button>
-      <label className="sim-scene-jump"><span className="sr-only">{t("simulation.scene.goTo")}</span><select aria-label={t("simulation.scene.goTo")} value="" onChange={event => { const object = objects.find(item => item.id === event.target.value); if (object) { setActiveObject(object.id); focus(object.rect); } }}><option value="">{t("simulation.scene.goTo")}</option>{objects.map(object => <option value={object.id} key={object.id}>{object.title}</option>)}</select></label>
+      <label className="sim-scene-jump"><span className="sr-only">{t("simulation.scene.goTo")}</span><select className="ui-field" aria-label={t("simulation.scene.goTo")} value="" onChange={event => { const object = objects.find(item => item.id === event.target.value); if (object) { setActiveObject(object.id); focus(object.rect); } }}><option value="">{t("simulation.scene.goTo")}</option>{objects.map(object => <option value={object.id} key={object.id}>{object.title}</option>)}</select></label>
       <span className="sim-scene-instructions"><Move aria-hidden className="size-3.5" />{t(editing ? "simulation.scene.composeHint" : "simulation.scene.panHint")}</span>
       <div className="sim-scene-extra" ref={onActionsHost} />
-      <button type="button" className="sim-scene-map" aria-label={t("simulation.scene.map")} title={t("simulation.scene.showAll")} onClick={event => {
+      <Button variant="outline" type="button" className="sim-scene-map" aria-label={t("simulation.scene.map")} title={t("simulation.scene.showAll")} onClick={event => {
         const id = event.detail ? (event.target as HTMLElement).getAttribute("data-map-id") : null;
         const object = objects.find(item => item.id === id);
         if (object) setActiveObject(object.id);
         focus(object?.rect ?? allBounds);
       }}>
         {objects.map(object => <span aria-hidden key={object.id} data-map-id={object.id} className={object.id === PROCESS_ID ? "is-process" : ""} style={{ left: `${(8 + (object.rect.x - allBounds.x) * mapScale) / 156 * 100}%`, top: `${(8 + (object.rect.y - allBounds.y) * mapScale) / 84 * 100}%`, width: `${Math.max(8, object.rect.width * mapScale) / 156 * 100}%`, height: `${Math.max(8, object.rect.height * mapScale) / 84 * 100}%` }} />)}
-      </button>
+      </Button>
       <div className="sim-scene-zoom">
         <Button variant="ghost" size="icon" aria-label={t("simulation.diagram.zoomOut")} onClick={() => setCamera(current => zoomCamera(current, 1 / 1.2, (viewport.current?.clientWidth ?? 0) / 2, (viewport.current?.clientHeight ?? 0) / 2))}><Minus aria-hidden className="size-4" /></Button>
         <output aria-label={t("simulation.scene.zoom")}>{Math.round(camera.scale * 100)}%</output>
@@ -114,7 +140,17 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
         <Button variant="ghost" size="icon" aria-label={t("simulation.scene.showAll")} onClick={() => focus(allBounds)}><Maximize2 aria-hidden className="size-4" /></Button>
       </div>
     </div>
-    <div ref={viewport} className="sim-scene-viewport" tabIndex={0} role="region" aria-label={t("simulation.scene.workspace")} onPointerDown={event => begin(event)} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setDraft(null); }} onKeyDown={event => {
+    <span className="sr-only" role="status">{addedTitle && t("simulation.authoring.added", { title: addedTitle })}</span>
+    <div className="sim-scene-body">
+    {library && onCloseLibrary && <CanvasPalette onAdd={item => insert(item)} onClose={onCloseLibrary} full={full} />}
+    <div ref={viewport} className={`sim-scene-viewport ${dropping ? "is-dropping" : ""}`} tabIndex={0} role="region" aria-label={t("simulation.scene.workspace")} onDragOver={event => { if (event.dataTransfer.types.includes(PALETTE_DRAG_TYPE) && !full) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; setDropping(true); } }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false); }} onDrop={event => {
+      const item = parsePaletteItem(event.dataTransfer.getData(PALETTE_DRAG_TYPE));
+      setDropping(false);
+      if (!item || full) return;
+      event.preventDefault(); event.stopPropagation();
+      const box = event.currentTarget.getBoundingClientRect();
+      insert(item, { x: event.clientX - box.left, y: event.clientY - box.top });
+    }} onPointerDown={event => begin(event)} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setDraft(null); }} onKeyDown={event => {
       if (event.target !== event.currentTarget) return;
       const directions: Record<string, [number, number]> = { ArrowLeft: [60, 0], ArrowRight: [-60, 0], ArrowUp: [0, 60], ArrowDown: [0, -60] };
       const direction = directions[event.key];
@@ -125,7 +161,11 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
       <div className="sim-scene-world" style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})`, "--scene-ui-scale": 1 / camera.scale } as React.CSSProperties}>
         {objects.map(object => {
           const rect = draft?.id === object.id ? draft.rect : object.rect;
-          return <div key={object.id} className={`sim-scene-object ${object.id === PROCESS_ID ? "is-process" : ""} ${editing ? "is-composing" : ""}`} data-scene-object={object.id} onFocusCapture={event => {
+          return <div key={object.id} className={`sim-scene-object ${object.id === PROCESS_ID ? "is-process" : ""} ${editing ? "is-composing" : ""} ${activeObject === object.id ? "is-active" : ""}`} data-scene-object={object.id} onPointerDownCapture={event => {
+            setActiveObject(object.id);
+            const target = event.target as Element;
+            if (target.closest(".sim-widget-heading,.sim-process-tile-header") && !target.closest("button,input,select,textarea,a")) begin(event, object.id);
+          }} onFocusCapture={event => {
             if (editing) setActiveObject(object.id);
             if (!(event.target as Element).matches(":focus-visible")) return;
             const el = viewport.current;
@@ -134,12 +174,13 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost }: {
             const left = rect.x * c.scale + c.x, top = rect.y * c.scale + c.y;
             if (left < 0 || top < 0 || left + rect.width * c.scale > el.clientWidth || top + rect.height * c.scale > el.clientHeight) focus(rect);
           }} style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}>
-            {editing && activeObject === object.id && <button type="button" className="sim-scene-move" aria-label={t("simulation.scene.move", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id)} onKeyDown={event => keyboardPlace(event, object, false)}><GripVertical aria-hidden className="size-4" /></button>}
+            {<Button variant="ghost" size="icon" type="button" className="sim-scene-move" aria-label={t("simulation.scene.move", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id)} onKeyDown={event => keyboardPlace(event, object, false)}><GripVertical aria-hidden className="size-4" /></Button>}
             {object.content}
-            {editing && activeObject === object.id && <button type="button" className="sim-scene-resize" aria-label={t("simulation.scene.resize", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id, true)} onKeyDown={event => keyboardPlace(event, object, true)}><Scaling aria-hidden className="size-4" /></button>}
+            {editing && activeObject === object.id && <Button variant="outline" size="icon" type="button" className="sim-scene-resize" aria-label={t("simulation.scene.resize", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id, true)} onKeyDown={event => keyboardPlace(event, object, true)}><Scaling aria-hidden className="size-4" /></Button>}
           </div>;
         })}
       </div>
     </div>
-  </div>;
+    </div>
+  </div></Surface>;
 }
