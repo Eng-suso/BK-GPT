@@ -20,6 +20,7 @@ import json
 import logging
 import secrets
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import text
@@ -491,6 +492,7 @@ def write_claim(
     scope_label: str = "",
     scope_level: str = "stated_scope",
     epistemic_status: str = "reported",
+    evidence_id: str | None = None,
     tx: Session | None = None,
 ) -> str:
     """Scrive un `kg_claim` con la sua provenance (0015).
@@ -500,6 +502,8 @@ def write_claim(
     possa dimostrare "claim -> fonte -> estratto" invece di risintetizzarlo.
     `quote_verified` lo decide il chiamante (`write_evidence`) confrontando la
     citazione col testo sorgente; qui si registra il verdetto.
+    `evidence_id` e' la porzione di un file che lo sostiene (0018): da li'
+    l'arco `Evidence -SUPPORTS-> Claim`.
     """
     process_area = _enum(process_area, _PROCESS_AREAS, "other")
     claim_status = _enum(claim_status, _CLAIM_STATUS, "partial")
@@ -514,11 +518,11 @@ def write_claim(
                     " statement, process_area, claim_status, linked_element_hint, "
                     " confidence, source_ids, attributed_to, source_name, topic, "
                     " assertion, qualifiers, quote, quote_verified, scope_label, "
-                    " scope_level, epistemic_status, created_by) "
+                    " scope_level, epistemic_status, evidence_id, created_by) "
                     "VALUES (:c,:cl,:p,:pr,'client',:st,:pa,:cs,:hint,:conf,"
                     "        CAST(:src AS uuid[]),:att,:sname,:topic,:assertion,"
                     "        CAST(:quals AS text[]),:quote,:qver,"
-                    "        :slabel,:slevel,:epi,'agent') RETURNING id"
+                    "        :slabel,:slevel,:epi,CAST(:ev AS uuid),'agent') RETURNING id"
                 ),
                 {
                     "c": str(consultant_id), "cl": str(client_id),
@@ -533,6 +537,7 @@ def write_claim(
                     "quote": quote or "",
                     "qver": bool(quote_verified), "slabel": scope_label or "",
                     "slevel": scope_level, "epi": epistemic_status,
+                    "ev": str(evidence_id) if evidence_id else None,
                 },
             ).one().id
         )
@@ -556,6 +561,14 @@ def write_claim(
                 session, aggregate_type="claim", aggregate_id=claim_id,
                 edge_label="HAS_CLAIM",
                 source=("Process", "process_id", str(process_id)),
+                target=("Claim", "claim_id", claim_id),
+                consultant_id=consultant_id, client_id=client_id,
+            )
+        if evidence_id:
+            _emit_structural_edge(
+                session, aggregate_type="claim", aggregate_id=claim_id,
+                edge_label="SUPPORTS",
+                source=("Evidence", "evidence_id", str(evidence_id)),
                 target=("Claim", "claim_id", claim_id),
                 consultant_id=consultant_id, client_id=client_id,
             )
@@ -831,7 +844,8 @@ def write_source_chunks(
         existing = session.execute(
             text(
                 "SELECT id FROM kg_source "
-                "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h"
+                "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h "
+                "  AND workspace_source_id IS NULL"
             ),
             {"c": str(consultant_id), "cl": str(client_id), "h": content_hash},
         ).first()
@@ -845,7 +859,7 @@ def write_source_chunks(
                 " title, content_hash, byte_size) "
                 "VALUES (:c,:cl,:p,:pr,'client',:k,:t,:h,:bs) "
                 "ON CONFLICT (consultant_id, client_id, content_hash) "
-                "WHERE client_id IS NOT NULL DO NOTHING "
+                "WHERE client_id IS NOT NULL AND workspace_source_id IS NULL DO NOTHING "
                 "RETURNING id"
             ),
             {
@@ -860,12 +874,17 @@ def write_source_chunks(
             row = session.execute(
                 text(
                     "SELECT id FROM kg_source "
-                    "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h"
+                    "WHERE consultant_id = :c AND client_id = :cl AND content_hash = :h "
+                    "  AND workspace_source_id IS NULL"
                 ),
                 {"c": str(consultant_id), "cl": str(client_id), "h": content_hash},
             ).first()
             return (str(row.id), 0) if row else (None, 0)
         source_id = str(inserted.id)
+        _emit_source_node(
+            session, source_id=source_id, kind=kind, consultant_id=consultant_id,
+            client_id=client_id, project_id=project_id,
+        )
 
         for ordinal, chunk in enumerate(chunks):
             vec = embeddings.to_pgvector(vectors[ordinal]) if vectors else None
@@ -887,6 +906,203 @@ def write_source_chunks(
                 },
             )
         return source_id, len(chunks)
+
+
+def _emit_source_node(
+    session: Session,
+    *,
+    source_id: str,
+    kind: str,
+    consultant_id: str,
+    client_id: str,
+    project_id: str | None,
+) -> None:
+    _emit_node(
+        session, aggregate_type="source", node_id=source_id, label="Source",
+        id_prop="source_id", consultant_id=consultant_id, client_id=client_id,
+        props={
+            "source_id": source_id, "client_id": str(client_id),
+            "project_id": str(project_id) if project_id else None,
+            "layer": "L1", "status": "active", "confidence": 1.0, "kind": kind,
+        },
+    )
+
+
+# --- le affermazioni di un file del workspace (0018) ----------------------
+
+@dataclass(frozen=True)
+class SourceSegment:
+    """Una porzione citabile del file: dove sta, non cosa dice."""
+
+    ordinal: int
+    anchor: str
+    locator: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class SourceClaim:
+    statement: str
+    segment_ordinal: int
+    quote: str
+    quote_verified: bool
+
+
+def write_source_claims(
+    *,
+    consultant_id: str,
+    client_id: str,
+    workspace_source_id: str,
+    title: str,
+    content_hash: str,
+    segments: list[SourceSegment],
+    claims: list[SourceClaim],
+    project_id: str | None = None,
+    process_id: str | None = None,
+    kind: str = "document",
+    byte_size: int | None = None,
+) -> dict[str, int]:
+    """Porta nel grafo le affermazioni di un file: Source -> Evidence -> Claim.
+
+    Sostituisce quello che la stessa fonte workspace aveva scritto prima (una
+    nuova estrazione rimpiazza la vecchia), quindi ripeterla non duplica: la
+    fonte e' identificata da `workspace_source_id`, non dal contenuto. Tutto in
+    una transazione, outbox compreso (INV-7).
+
+    Entrano solo le porzioni citate da almeno un'affermazione: una porzione che
+    nessuno cita non sostiene niente.
+    """
+    kind = _enum(kind, _SOURCE_KINDS, "document")
+    by_ordinal = {segment.ordinal: segment for segment in segments}
+    anchored = [claim for claim in claims if claim.segment_ordinal in by_ordinal]
+    with canonical_session(consultant_id, client_id) as session:
+        existing = session.execute(
+            text(
+                "SELECT id FROM kg_source "
+                "WHERE consultant_id = :c AND client_id = :cl AND workspace_source_id = :ws"
+            ),
+            {"c": str(consultant_id), "cl": str(client_id), "ws": workspace_source_id},
+        ).first()
+        params = {
+            "c": str(consultant_id), "cl": str(client_id), "ws": workspace_source_id,
+            "p": str(project_id) if project_id else None,
+            "pr": str(process_id) if process_id else None,
+            "k": kind, "t": title or "(senza titolo)", "h": content_hash, "bs": byte_size,
+        }
+        if existing is None:
+            source_id = str(
+                session.execute(
+                    text(
+                        "INSERT INTO kg_source "
+                        "(consultant_id, client_id, project_id, process_id, scope, kind, "
+                        " title, content_hash, byte_size, workspace_source_id) "
+                        "VALUES (:c,:cl,:p,:pr,'client',:k,:t,:h,:bs,:ws) RETURNING id"
+                    ),
+                    params,
+                ).one().id
+            )
+        else:
+            source_id = str(existing.id)
+            _drop_source_claims(session, source_id, consultant_id=consultant_id, client_id=client_id)
+            session.execute(
+                text(
+                    "UPDATE kg_source SET project_id = :p, process_id = :pr, kind = :k, "
+                    "  title = :t, content_hash = :h, byte_size = :bs "
+                    "WHERE id = CAST(:sid AS uuid)"
+                ),
+                {**params, "sid": source_id},
+            )
+        _emit_source_node(
+            session, source_id=source_id, kind=kind, consultant_id=consultant_id,
+            client_id=client_id, project_id=project_id,
+        )
+        if process_id and anchored:
+            # L'arco HAS_CLAIM fa MERGE anche sul Process: senza il suo nodo
+            # nascerebbe un Process vuoto, senza client_id, che `purge_client`
+            # non vedrebbe mai.
+            process_name = session.execute(
+                text("SELECT name FROM process WHERE id = CAST(:pr AS uuid)"),
+                {"pr": str(process_id)},
+            ).scalar_one()
+            write_process_node(
+                consultant_id, client_id, str(process_id), process_name,
+                project_id=project_id, tx=session,
+            )
+
+        evidence_ids: dict[int, str] = {}
+        for ordinal in sorted({claim.segment_ordinal for claim in anchored}):
+            segment = by_ordinal[ordinal]
+            evidence_id = str(
+                session.execute(
+                    text(
+                        "INSERT INTO kg_evidence "
+                        "(source_id, consultant_id, client_id, project_id, process_id, "
+                        " ordinal, anchor, locator) "
+                        "VALUES (CAST(:sid AS uuid),:c,:cl,:p,:pr,:ord,:anchor,"
+                        "        CAST(:loc AS jsonb)) RETURNING id"
+                    ),
+                    {**params, "sid": source_id, "ord": ordinal,
+                     "anchor": segment.anchor, "loc": _json(segment.locator or {})},
+                ).one().id
+            )
+            evidence_ids[ordinal] = evidence_id
+            _emit_node(
+                session, aggregate_type="evidence", node_id=evidence_id, label="Evidence",
+                id_prop="evidence_id", consultant_id=consultant_id, client_id=client_id,
+                props={
+                    "evidence_id": evidence_id, "client_id": str(client_id),
+                    "project_id": str(project_id) if project_id else None,
+                    "layer": "L1", "status": "active", "confidence": 1.0,
+                    "anchor": segment.anchor, "ordinal": ordinal,
+                },
+            )
+            _emit_structural_edge(
+                session, aggregate_type="evidence", aggregate_id=evidence_id,
+                edge_label="HAS_EVIDENCE",
+                source=("Source", "source_id", source_id),
+                target=("Evidence", "evidence_id", evidence_id),
+                consultant_id=consultant_id, client_id=client_id,
+            )
+
+        for claim in anchored:
+            write_claim(
+                consultant_id, client_id, claim.statement, "other",
+                project_id=project_id, process_id=process_id,
+                source_ids=[source_id], source_name=title, quote=claim.quote,
+                quote_verified=claim.quote_verified,
+                evidence_id=evidence_ids[claim.segment_ordinal], tx=session,
+            )
+    return {"source": 1, "evidence": len(evidence_ids), "claims": len(anchored)}
+
+
+def _drop_source_claims(session: Session, source_id: str, *, consultant_id: str, client_id: str) -> int:
+    """Toglie porzioni e affermazioni di una fonte, Neo4j compreso.
+
+    In Postgres le affermazioni vanno via in cascata con la porzione; in Neo4j
+    il DETACH DELETE del nodo toglie anche gli archi.
+
+    Returns:
+        Quanti nodi sono stati tolti.
+    """
+    claims = session.execute(
+        text(
+            "SELECT c.id FROM kg_claim c JOIN kg_evidence e ON e.id = c.evidence_id "
+            "WHERE e.source_id = CAST(:sid AS uuid)"
+        ),
+        {"sid": source_id},
+    ).all()
+    evidence = session.execute(
+        text("DELETE FROM kg_evidence WHERE source_id = CAST(:sid AS uuid) RETURNING id"),
+        {"sid": source_id},
+    ).all()
+    for label, id_prop, rows in (("Claim", "claim_id", claims), ("Evidence", "evidence_id", evidence)):
+        for row in rows:
+            _emit(
+                session, aggregate_type=label.lower(), aggregate_id=str(row.id),
+                consultant_id=consultant_id, client_id=client_id, op="delete",
+                payload={"kind": "node_delete", "label": label, "id_prop": id_prop,
+                         "id_value": str(row.id)},
+            )
+    return len(claims) + len(evidence)
 
 
 # --- pacchetto di evidenza (atomico) -----------------------------------
