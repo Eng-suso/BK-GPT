@@ -440,6 +440,7 @@ for (const missingReplay of [false, true]) test(`comparison uses the selected B 
   await expect(viewer).toHaveAttribute("data-session-marker", "same-comparison");
   if (!isMobile) {
     expect((await page.locator(".sim-scene-viewport").boundingBox())!.height).toBeGreaterThan(260);
+    await page.locator(".sim-scene-viewport").scrollIntoViewIfNeeded();
     await expect(viewer.locator('[data-element-id="A"]')).toBeInViewport();
   }
   await expect(page.locator(".sim-studio-dock")).toBeHidden();
@@ -646,4 +647,24 @@ test("different model versions do not paint unmatched activities as comparable",
   await page.goto(`${studio}/workspace/42?view=compare&a=42&b=43`);
   await expect(page.locator(".sim-comparison-bar > .sim-comparison-compatibility")).toContainText("mappatura");
   await expect(page.locator(".sim-delta-better,.sim-delta-worse,.sim-heat-1,.sim-heat-2,.sim-heat-3,.sim-heat-4,.sim-heat-5")).toHaveCount(0);
+});
+
+
+test("inspecting a matrix alternative preserves an implicit reference and labels unavailable data", async ({ page }) => {
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run,
+    { ...run, id: 43, scenario_name: "TO-BE · Riferimento" },
+    { ...run, id: 44, scenario_name: "TO-BE · Alternativa", summary: { ...run.summary, cycle: { ...run.summary.cycle, avg: null } } },
+  ] }));
+  await page.goto(`${studio}/workspace/42?view=compare&panel=compare`);
+  await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("Riferimento");
+  await page.locator(".sim-multi-comparison > summary").click();
+  await page.getByRole("checkbox", { name: "TO-BE · Alternativa · #44", exact: true }).click();
+  const matrix = page.getByRole("region", { name: "Matrice di confronto degli scenari", exact: true });
+  await expect(matrix.locator("thead th")).toHaveCount(4);
+  await expect(matrix.locator("tbody tr").filter({ hasText: "Attraversamento medio" }).locator("td").last()).toContainText("Dati non disponibili");
+  await matrix.locator("thead th").filter({ hasText: "TO-BE · Alternativa" }).getByRole("button", { name: "Osserva nel canvas", exact: true }).click();
+  await expect(page).toHaveURL(/a=43/);
+  await expect(page).toHaveURL(/b=44/);
+  await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("Riferimento");
+  await expect(matrix.locator("thead th")).toHaveCount(4);
 });

@@ -1,14 +1,14 @@
 /* Short desktop and mobile screens scroll rather than collapse the analytical viewport. */
 .sim-studio-shell { overflow-y:auto; }
-.sim-studio:has(.sim-comparison-bar) { min-height:780px; }
+.sim-studio:has(.sim-comparison-bar) { min-height:900px; }
 /* Canvas, context and decisions occupy distinct tracks in the same workspace. */
 .sim-studio { display:flex; flex-direction:column; height:100%; min-height:680px; gap:8px; }
 .sim-studio-tools { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; border-bottom:1px solid var(--border); padding-bottom:8px; flex-shrink:0; }
 .sim-studio-identity { display:flex; align-items:center; gap:8px; }
 .sim-studio-identity h2 { font-size:14px; font-weight:600; }
 .sim-studio-tool-actions { display:flex; flex-wrap:wrap; gap:2px; }
-.sim-studio-body { position:relative; flex:1; min-height:0; display:flex; gap:12px; }
-.sim-studio-board { flex:1; min-width:0; min-height:0; height:100%; }
+.sim-studio-body { position:relative; flex:1; min-height:560px; display:flex; gap:12px; }
+.sim-studio-board { flex:1; min-width:0; min-height:560px; display:flex; flex-direction:column; }
 .sim-studio-dock { position:relative; inset:auto; width:400px; max-width:100%; flex-shrink:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
 .sim-studio-dock[hidden] { display:none; }
 .sim-studio-dock-header { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
@@ -29,7 +29,7 @@
 .sim-studio-dock-body .sim-embedded-heatmap header { padding:0 0 12px; }
 .sim-studio-dock-body:has(.sim-config-workspace) { overflow:hidden; }
 .sim-studio-dock-body:has(.sim-config-workspace) > div:first-child { height:100%; }
-.sim-studio .is-integrated { display:flex; flex-direction:column; min-height:0; padding:0; overflow:hidden; }
+.sim-studio .is-integrated { flex:1; display:flex; flex-direction:column; min-height:0; padding:0; overflow:hidden; }
 .is-integrated .sim-dashboard-header { display:flex; justify-content:flex-end; margin:0; gap:8px; flex-shrink:0; }
 .is-integrated .sim-dashboard-actions { display:flex; gap:6px; position:static; }
 .is-integrated .sim-dashboard-toolbar { padding:6px 0; min-height:44px; gap:8px; flex-shrink:0; }
@@ -92,7 +92,8 @@
 .sim-comparison-bar > p { padding:0; background:transparent; }
 .sim-comparison-details { position:relative; background:var(--card); border-top:1px solid var(--border); }
 .sim-comparison-details > summary { padding:6px 10px; cursor:pointer; font-size:12px; }
-.sim-comparison-details[open] { width:100%; max-height:280px; overflow:auto; }
+.sim-comparison-details[open] { width:100%; }
+.sim-comparison-table { max-height:240px; overflow:auto; }
 .sim-comparison-details[open] table { width:100%; }
 .sim-comparison-details summary:focus-visible { outline:2px solid var(--ring); }
 .sim-activity-details h3 { font-size:15px; font-weight:600; }
@@ -125,7 +126,7 @@
   .sim-scene-zoom button { width:32px; height:36px; }
   .sim-scene-map { position:relative; bottom:auto; right:auto; width:72px; height:36px; flex-shrink:0; box-shadow:none; }
   .sim-comparison-details { position:relative; right:auto; top:auto; width:100%; }
-  .sim-comparison-details[open] { width:100%; overflow:auto; }
+  .sim-comparison-details[open] { width:100%; overflow:visible; }
   .sim-final-transport { align-items:flex-start; flex-direction:column; }
   .sim-final-transport p { display:none; }
 }
@@ -278,10 +279,14 @@
  .sim-palette-content { min-height:72px; }
  .sim-palette-item { min-height:48px; }
  .sim-palette-categories { margin-bottom:4px; }
- .sim-scene-body > .sim-scene-viewport { min-height:220px; }
+ .sim-scene-body > .sim-scene-viewport { min-height:280px; flex-shrink:0; }
+ .sim-analytical-canvas { min-height:330px; }
+ .sim-analytical-canvas:has(.sim-canvas-palette) { min-height:570px; }
+ .sim-studio-body:has(.sim-canvas-palette),.sim-studio-board:has(.sim-canvas-palette) { min-height:860px; }
 }
 
 /* Context panels never cover canvas controls or the global KPI strip. */
+.sim-studio-dock-body .sim-snapshot-kpis { grid-template-columns:repeat(auto-fit,minmax(min(100%,140px),1fr)); }
 .sim-studio-dock-body .sim-snapshot-kpis > div { min-width:0; }
 .sim-studio-dock-body .sim-snapshot-kpis > div strong { white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
 .sim-studio-identity > svg { color:var(--primary); }
@@ -323,7 +328,7 @@
 }
 @media(max-width:800px) {
  .sim-studio-body.has-dock .sim-studio-board { height:620px; }
- .sim-comparison-bar { max-height:360px; }
+ .sim-comparison-bar { max-height:none; overflow:visible; }
  .sim-studio:has(.sim-multi-comparison[open]) { min-height:980px; }
 }
 

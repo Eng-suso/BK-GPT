@@ -562,6 +562,7 @@
       "reference": "Riferimento A",
       "alternative": "Alternativa",
       "inspect": "Osserva nel canvas",
+      "notComparable": "Dati non disponibili",
       "unchanged": "Invariato",
       "modelMismatch": "Queste esecuzioni usano modelli BPMN diversi. Le differenze delle attività richiedono una mappatura fra le versioni; verifica anche la comparabilità dei KPI."
     }

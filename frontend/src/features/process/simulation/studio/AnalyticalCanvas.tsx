@@ -29,6 +29,8 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
   const gesture = React.useRef<{ id?: string; resize?: boolean; x: number; y: number; camera: Camera; rect?: CanvasRect; pendingRect?: CanvasRect } | null>(null);
   const [addedTitle, setAddedTitle] = React.useState("");
   const [dropping, setDropping] = React.useState(false);
+  const insertionFrame = React.useRef<number | null>(null);
+  React.useEffect(() => () => { if (insertionFrame.current !== null) cancelAnimationFrame(insertionFrame.current); }, []);
   const process = objects.find(object => object.id === PROCESS_ID);
   const focus = (rect: CanvasRect) => {
     const el = viewport.current;
@@ -44,7 +46,14 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
     const start = insertionRect(cameraRef.current, point?.x ?? Math.max(24, (el.clientWidth - 416 * cameraRef.current.scale) / 2), point?.y ?? 24);
     const rect = point ? start : freeInsertionRect(start, objects.map(object => object.rect));
     const id = onAdd(item, rect);
-    if (id) { focus(rect); setActiveObject(id); setAddedTitle(item.note ? t("simulation.authoring.note") : t(`simulation.studio.metric.${item.metric ?? (["bar", "column", "pie", "donut", "radial"].includes(item.kind) ? "activityQueued" : "completed")}`)); }
+    if (id) {
+      if (insertionFrame.current !== null) cancelAnimationFrame(insertionFrame.current);
+      insertionFrame.current = requestAnimationFrame(() => {
+        setCamera(fitCamera(rect, el.clientWidth, el.clientHeight));
+        el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+        insertionFrame.current = null;
+      });
+      setActiveObject(id); setAddedTitle(item.note ? t("simulation.authoring.note") : t(`simulation.studio.metric.${item.metric ?? (["bar", "column", "pie", "donut", "radial"].includes(item.kind) ? "activityQueued" : "completed")}`)); }
   };
   React.useEffect(() => {
     const el = viewport.current;

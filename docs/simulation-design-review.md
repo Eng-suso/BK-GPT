@@ -9,7 +9,7 @@ Il consulente deve capire cosa rallenta il processo, formulare un’alternativa 
 | Criticità osservata | Conseguenza | Intervento |
 | --- | --- | --- |
 | Pannelli assoluti sopra KPI, comandi e canvas | Il contesto sparisce quando si apre il dettaglio | Pannello in una colonna dedicata; disposizione verticale su schermi stretti |
-| Sei KPI in un pannello di circa 370 px | Etichette spezzate, valori troncati | Griglia a due colonne per il contenuto incorporato |
+| Sei KPI in un pannello di circa 370 px | Etichette spezzate, valori troncati | Griglia adattiva: due colonne nel pannello desktop, una quando lo spazio non basta |
 | Proposte in due colonne basate sulla larghezza della finestra | Ogni proposta diventa una striscia | Una colonna nel pannello, spazio per ipotesi e impatti |
 | Intestazioni e spostamento separati | Il canvas sembra un dashboard statico | Intestazioni trascinabili, maniglie visibili e alternativa da tastiera |
 | Nuovi elementi fuori dalla vista | L’utente non sa se l’aggiunta è riuscita | Raccolta accanto alla tela, coordinate del rilascio, centratura del nuovo elemento |
@@ -63,3 +63,5 @@ Sono quindi distinti: confronto KPI fra esecuzioni disponibile; confronto strutt
 Percorsi richiesti: spostare processo e grafico a zoom diverso; annullare una sola modifica; aggiungere più elementi senza perderli; configurare una nota; salvare e ricaricare; aprire risultati/heatmap/insight senza intersezioni fra pannello e board; confrontare più esecuzioni; preservare il clock tornando all’osservazione. Verificare desktop, telefono, tastiera, contrasto, trasparenza ridotta e fallback del materiale.
 
 I test automatici e la revisione visiva non sostituiscono una sessione di lavoro con consulenti. Il prossimo riscontro utile è chiedere a un consulente di preparare una raccomandazione AS-IS/TO-BE usando la pagina, osservando dove perde il contesto.
+
+Verifica incrementale del 3 ottobre: corretti il collasso della tela con la raccolta aperta su telefono, la larghezza minima dei KPI e lo scorrimento del riepilogo A/B. Il riferimento della matrice resta fissato anche quando era selezionato implicitamente; i dati assenti sono indicati come non disponibili e non come invariati.

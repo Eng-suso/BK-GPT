@@ -124,7 +124,7 @@ export function ComparePage({ embedded = false, compact = false, onDecorations }
       {!sameModel && <p className="sim-comparison-compatibility" role="status">{t("simulation.decision.modelMismatch")}</p>}
       {compact && <ScenarioMatrix baseline={runA} alternative={runB} candidates={candidates} />}
 
-      {compact ? <details className="sim-comparison-details"><summary>{t("simulation.scene.summaryDetails")}</summary><KpiDeltaTable runA={runA} runB={runB} /></details> : <div className={embedded ? "min-h-0 flex-1" : "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]"}>
+      {compact ? <details className="sim-comparison-details"><summary>{t("simulation.scene.summaryDetails")}</summary><div className="sim-comparison-table"><KpiDeltaTable runA={runA} runB={runB} /></div></details> : <div className={embedded ? "min-h-0 flex-1" : "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]"}>
         <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
           <header className="border-b border-border px-4 py-2.5">
             <p className="eyebrow">{t("simulation.compare.kpiHeader")}</p>
