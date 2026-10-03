@@ -200,6 +200,32 @@ def test_the_panel_of_an_unreadable_plan_gets_a_verdict_not_a_server_error(tenan
     assert response.json()["error"]["code"] == "unreadable_plan"
 
 
+def test_an_unreadable_plan_does_not_send_its_validation_error_to_the_client(tenant):
+    """Rilievo CodeRabbit del 2026-09-24 (errors.py:126), famiglia di B9.
+
+    Il `detail` era `str(exc)`, e l'eccezione porta dentro il testo della
+    ValidationError di Pydantic: nomi di campo e valori del piano salvato.
+    Al consulente serve il messaggio; il resto sta nel log del server.
+    """
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    process = _process_with_plan("detail")
+    _unreadable_plan(process["bpmn_model_id"])
+
+    response = TestClient(app).get(
+        f"/v1/workspace/processes/{process['id']}/conformance",
+        headers={"X-DeliR-Tenant-Id": tenant},
+    )
+
+    assert response.status_code == 409, response.text
+    error = response.json()["error"]
+    assert error["message"] == "Il piano di questo processo non e' leggibile: va rigenerato."
+    assert not error.get("detail")
+    assert "validation error" not in response.text.lower()
+
+
 def test_a_failed_reading_of_the_sources_waits_for_its_lease_before_retrying(tenant, monkeypatch):
     """Un errore di lettura delle fonti si riprova, ma non nella passata dopo.
 
