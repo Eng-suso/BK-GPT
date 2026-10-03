@@ -12,7 +12,11 @@ zod schemas against the same file.
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.dump_openapi import OUTPUT_PATH, build_contract, render
+
+pytestmark = pytest.mark.smoke
 
 
 def test_committed_contract_matches_openapi():

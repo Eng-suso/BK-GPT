@@ -7,6 +7,9 @@ Run with: uv run pytest tests/ -v
 import pytest
 from fastapi.testclient import TestClient
 
+# Suite smoke: se l'app non parte, non risponde o non si difende, nient'altro conta.
+pytestmark = pytest.mark.smoke
+
 
 @pytest.fixture(scope="module")
 def client():
