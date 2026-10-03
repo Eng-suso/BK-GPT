@@ -34,6 +34,7 @@ quello di prima: un doppione visibile si corregge, un passaggio perso no.
 
 from __future__ import annotations
 
+from itertools import pairwise
 import heapq
 import json
 import logging
@@ -443,7 +444,7 @@ def _linked_pairs(data: dict[str, Any], source_paths: dict[str, list[str]]) -> s
     for edge in data.get("flow_edges") or []:
         pairs.add(frozenset((edge.get("source_id"), edge.get("target_id"))))
     for path in source_paths.values():
-        for before, after in zip(path, path[1:]):
+        for before, after in pairwise(path):
             pairs.add(frozenset((before, after)))
     return pairs
 
@@ -700,7 +701,7 @@ def _build_graph(data: dict[str, Any], members: list[str], source_paths: dict[st
         *((path.get("sequence") or []) for path in data.get("alternative_paths") or []),
     ]
     for path in sequences:
-        for before, after in zip(path, path[1:]):
+        for before, after in pairwise(path):
             link(before, after)
     for node in nodes:
         successors[node].sort(key=lambda item: (rank[item], item))
