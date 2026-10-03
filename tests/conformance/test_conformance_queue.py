@@ -300,3 +300,73 @@ def test_the_worker_pass_of_a_test_cannot_reach_another_workspace():
             {"model": outsider["bpmn_model_id"]},
         ).scalar()
     assert status == "pending", "la coda di un altro workspace non si tocca"
+
+
+def _expire_lease(bpmn_model_id: str) -> None:
+    _leased_at(
+        bpmn_model_id,
+        (datetime.now(UTC) - timedelta(seconds=wd.CONFORMANCE_LEASE_SECONDS + 60)).isoformat(
+            timespec="seconds"
+        ),
+    )
+
+
+def _fail_every_reading(monkeypatch) -> None:
+    from backend.agents import conformance_audit
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("provider non raggiungibile")
+
+    monkeypatch.setattr(conformance_audit, "audit_process_conformance", _boom)
+
+
+def test_a_check_that_always_fails_leaves_the_queue_after_its_attempts(tenant, monkeypatch):
+    """Rilievo CodeRabbit del 2026-09-24 (conformance_worker.py:83).
+
+    Una riga che fallisce sempre veniva ripresa per sempre, un tentativo ogni
+    scadenza del lease: la coda non si svuotava mai e il log si riempiva. Dopo
+    `CONFORMANCE_MAX_ATTEMPTS` prese in carico la riga esce, contata a parte.
+    """
+    from backend.workers import conformance_worker
+
+    process = _process_with_plan("tetto")
+    wd.request_conformance_check(process["bpmn_model_id"])
+    _fail_every_reading(monkeypatch)
+
+    for _ in range(wd.CONFORMANCE_MAX_ATTEMPTS):
+        assert conformance_worker.drain_once(limit=5, only_tenant_id=tenant) == 1
+        _expire_lease(process["bpmn_model_id"])
+
+    assert wd.due_conformance_checks(5, only_tenant_id=tenant) == []
+    assert _status(process["bpmn_model_id"]) == wd.CONFORMANCE_FAILED
+
+
+def test_a_check_that_gave_up_is_counted_not_hidden(tenant, monkeypatch):
+    from backend.workers import conformance_worker
+
+    process = _process_with_plan("conto")
+    wd.request_conformance_check(process["bpmn_model_id"])
+    _fail_every_reading(monkeypatch)
+    for _ in range(wd.CONFORMANCE_MAX_ATTEMPTS):
+        conformance_worker.drain_once(limit=5, only_tenant_id=tenant)
+        _expire_lease(process["bpmn_model_id"])
+    wd.due_conformance_checks(5, only_tenant_id=tenant)
+
+    assert wd.conformance_queue_stats(only_tenant_id=tenant)["failed"] == 1
+
+
+def test_a_new_drawing_gives_a_check_that_gave_up_a_fresh_start(tenant, monkeypatch):
+    from backend.workers import conformance_worker
+
+    process = _process_with_plan("ripartenza")
+    wd.request_conformance_check(process["bpmn_model_id"])
+    _fail_every_reading(monkeypatch)
+    for _ in range(wd.CONFORMANCE_MAX_ATTEMPTS):
+        conformance_worker.drain_once(limit=5, only_tenant_id=tenant)
+        _expire_lease(process["bpmn_model_id"])
+    wd.due_conformance_checks(5, only_tenant_id=tenant)
+
+    wd.request_conformance_check(process["bpmn_model_id"])
+
+    taken = wd.due_conformance_checks(5, only_tenant_id=tenant)
+    assert [row["bpmn_model_id"] for row in taken] == [process["bpmn_model_id"]]
