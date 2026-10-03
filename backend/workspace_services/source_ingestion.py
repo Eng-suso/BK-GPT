@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from backend.security import get_current_tenant_id
-from backend.workspace_services.evidence import documents
+from backend.workspace_services.evidence import documents, plaintext
 from backend.workspace_services.evidence.canonical import CanonicalSource
 from backend.workspace_services.evidence.xlsx import WorkbookUnreadable, check_ooxml_archive, parse_xlsx
 from backend.workspace_services.evidence.xlsx import render_text as render_workbook_text
@@ -183,7 +183,10 @@ def parse_source_file(filename: str, payload: bytes, _declared_mime: str | None)
                 # e' il file a non essere un CSV valido, non il server a rompersi.
                 raise SourceFileError("Il CSV non è valido: controlla virgolette e separatori.") from exc
             text = "\n".join("\t".join(cell.strip() for cell in row) for row in rows)
-        parser = "text"
+            evidence = plaintext.csv_rows(rows)
+        else:
+            evidence = plaintext.paragraphs(text.replace("\x00", ""), format=extension.lstrip("."))
+        parser = evidence.parser
 
     cleaned = text.replace("\x00", "").strip()
     if not cleaned:

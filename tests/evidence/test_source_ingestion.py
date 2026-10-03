@@ -87,7 +87,10 @@ def test_upload_preserves_dimensions_and_makes_text_readable(http: TestClient, t
 
     evidence = http.get(f"/v1/workspace/sources/{source['id']}/evidence")
     assert evidence.status_code == 200
-    assert evidence.json() == []  # Markdown non ha ancora un parser strutturale
+    # Anche il Markdown ha le sue porzioni: un paragrafo ciascuna, ancora "§n".
+    segments = evidence.json()
+    assert [segment["ref"] for segment in segments] == ["§1"]
+    assert "Il CFO approva" in segments[0]["text"]
 
     document = http.get(f"/v1/workspace/sources/{source['id']}/document")
     assert document.status_code == 200
