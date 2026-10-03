@@ -47,6 +47,7 @@ from backend.workspace_storage import (
     WorkspaceEvidenceSegment,
     WorkspaceSource,
     WorkspaceSourceAudit,
+    WorkspaceSourceClaim,
     WorkspaceSourceEvidence,
     workspace_connection,
 )
@@ -1928,6 +1929,8 @@ def source_to_dict(source: WorkspaceSource) -> dict:
         "mime_type": source.mime_type,
         "acquisition_status": source.acquisition_status,
         "acquisition_error": source.acquisition_error,
+        "claims_status": source.claims_status,
+        "claims_error": source.claims_error,
     }
 
 
@@ -2272,6 +2275,9 @@ def complete_source_acquisition(source_id: str, parsed: "ParsedSource") -> dict 
         source.acquisition_status = status
         source.acquisition_error = None
         source.acquisition_next_attempt_at = None
+        if source.confirm_when_read and source.status != "approved":
+            # Era partito in chat mentre era in lettura: la conferma scatta ora.
+            _approve_source(session, source, reason=f"fonte inviata in chat: {source.name}")
         if status == "partial":
             missing = "; ".join(
                 issue.message for issue in evidence.issues if issue.severity == "partial"
@@ -2400,24 +2406,61 @@ def verify_project_source(source_id: str) -> dict | None:
             )
         if source.status == "approved":
             return source_to_dict(source)
-        source.status = "approved"
-        affected = (
-            [source.process_id]
-            if source.process_id
-            else session.execute(
-                select(WorkspaceProcess.id)
-                .where(WorkspaceProcess.project_id == source.project_id)
-                .where(WorkspaceProcess.tenant_id == source.tenant_id)
-            ).scalars().all()
-        )
-        for affected_process_id in affected:
-            enqueue_plan_materialization(
-                affected_process_id,
-                reason=f"fonte verificata: {source.name}",
-                session=session,
-            )
+        _approve_source(session, source, reason=f"fonte verificata: {source.name}")
         session.flush()
         return source_to_dict(source)
+
+
+def _approve_source(session: Any, source: WorkspaceSource, *, reason: str) -> None:
+    """La fonte diventa evidenza: piani da ricostruire, affermazioni da estrarre.
+
+    Il chiamante ha gia' controllato che la lettura sia finita.
+    """
+    source.status = "approved"
+    source.confirm_when_read = False
+    affected = (
+        [source.process_id]
+        if source.process_id
+        else session.execute(
+            select(WorkspaceProcess.id)
+            .where(WorkspaceProcess.project_id == source.project_id)
+            .where(WorkspaceProcess.tenant_id == source.tenant_id)
+        ).scalars().all()
+    )
+    for affected_process_id in affected:
+        enqueue_plan_materialization(affected_process_id, reason=reason, session=session)
+    if source.storage_key and source.claims_status != "done":
+        # P1.12: l'estrazione delle affermazioni parte da un gesto del
+        # consulente - questa conferma - e mai da sola.
+        source.claims_status = "pending"
+        source.claims_attempts = 0
+        source.claims_error = None
+        source.claims_next_attempt_at = now_iso()
+
+
+def confirm_sources_sent_in_chat(source_ids: list[str]) -> list[str]:
+    """Mandare un file in chat vale come confermarlo.
+
+    Un file gia' letto diventa evidenza subito; uno ancora in lettura lo
+    diventa quando la lettura finisce (`confirm_when_read`). Uno non leggibile
+    resta com'e'.
+
+    Returns:
+        Gli id delle fonti confermate adesso.
+    """
+    confirmed: list[str] = []
+    with workspace_connection() as session:
+        for source_id in dict.fromkeys(source_ids):
+            source = tenant_row(session, WorkspaceSource, source_id)
+            if source is None or not source.storage_key or source.status == "approved":
+                continue
+            if source.acquisition_status in {"done", "partial"}:
+                _approve_source(session, source, reason=f"fonte inviata in chat: {source.name}")
+                confirmed.append(source.id)
+            elif source.acquisition_status == "pending":
+                source.confirm_when_read = True
+        session.flush()
+    return confirmed
 
 
 class SourceNotDiscardable(ValueError):
@@ -2485,6 +2528,140 @@ def source_acquisition_stats() -> dict[str, int]:
         "done": counts.get("done", 0) + counts.get("partial", 0),
         "stuck": counts.get("failed", 0),
     }
+
+
+CLAIMS_MAX_ATTEMPTS = 3
+CLAIMS_BACKOFF_SECONDS = 60
+# Un'estrazione lunga dura quanto il modello: il lease la copre intera.
+CLAIMS_LEASE_SECONDS = 900
+
+
+def due_source_claims(limit: int = 1, *, only_tenant_id: str | None = None) -> list[dict]:
+    """Prende in carico le fonti di cui estrarre le affermazioni.
+
+    Come la lettura: il tentativo si conta alla presa in carico, cosi' una
+    estrazione che fa cadere il worker non torna in coda per sempre.
+    """
+    now = now_iso()
+    lease_until = (datetime.now(UTC) + timedelta(seconds=CLAIMS_LEASE_SECONDS)).isoformat(timespec="seconds")
+    with workspace_connection() as session:
+        statement = (
+            select(WorkspaceSource)
+            .where(WorkspaceSource.claims_status == "pending")
+            .where(WorkspaceSource.claims_next_attempt_at <= now)
+            .order_by(WorkspaceSource.claims_next_attempt_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
+        )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceSource.tenant_id == only_tenant_id)
+        claimed = []
+        for row in session.execute(statement).scalars().all():
+            if row.claims_attempts >= CLAIMS_MAX_ATTEMPTS:
+                row.claims_status = "failed"
+                row.claims_next_attempt_at = None
+                row.claims_error = row.claims_error or "L'estrazione si e' interrotta troppe volte."
+                continue
+            row.claims_attempts += 1
+            row.claims_next_attempt_at = lease_until
+            claimed.append(
+                {
+                    "id": row.id,
+                    "tenant_id": row.tenant_id,
+                    "name": row.name,
+                    "project_id": row.project_id,
+                    "process_id": row.process_id,
+                    "content_hash": row.content_hash,
+                }
+            )
+        session.flush()
+        return claimed
+
+
+def complete_source_claims(source_id: str, result: Any, *, content_hash: str) -> int | None:
+    """Scrive le affermazioni estratte, al posto di quelle di prima.
+
+    `result` e' un `ClaimsResult` di `evidence.claims`.
+
+    Returns:
+        Quante affermazioni sono state scritte, o `None` se la fonte non c'e'.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        session.execute(delete(WorkspaceSourceClaim).where(WorkspaceSourceClaim.source_id == source_id))
+        now = now_iso()
+        session.add_all(
+            WorkspaceSourceClaim(
+                tenant_id=source.tenant_id,
+                source_id=source_id,
+                ordinal=ordinal,
+                statement=claim.statement,
+                segment_ordinal=claim.segment_ordinal,
+                anchor_ref=claim.anchor_ref,
+                quote=claim.quote.replace("\x00", ""),
+                quote_verified=claim.quote_verified,
+                content_hash=content_hash,
+                prompt_version=result.prompt_version,
+                extracted_at=now,
+            )
+            for ordinal, claim in enumerate(result.claims)
+        )
+        source.claims_status = "done"
+        source.claims_next_attempt_at = None
+        # Fatto, ma non tutto: lo si dice invece di farlo credere completo.
+        source.claims_error = (
+            f"Lette le prime porzioni: {result.segments_left_out} rimaste fuori per la lunghezza."
+            if result.segments_left_out
+            else None
+        )
+        session.flush()
+        return len(result.claims)
+
+
+def fail_source_claims(source_id: str, *, error: str, permanent: bool) -> None:
+    """Un'estrazione non riuscita: si riprova con backoff, ma non per sempre."""
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return
+        source.claims_error = str(error)[:2000]
+        if permanent or source.claims_attempts >= CLAIMS_MAX_ATTEMPTS:
+            source.claims_status = "failed"
+            source.claims_next_attempt_at = None
+        else:
+            delay = CLAIMS_BACKOFF_SECONDS * (2 ** max(0, source.claims_attempts - 1))
+            source.claims_next_attempt_at = (datetime.now(UTC) + timedelta(seconds=delay)).isoformat(
+                timespec="seconds"
+            )
+        session.flush()
+
+
+def list_source_claims(source_id: str) -> list[dict]:
+    """Le affermazioni di una fonte, nell'ordine in cui sono state estratte."""
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceSource, source_id) is None:
+            return []
+        rows = session.execute(
+            select(WorkspaceSourceClaim)
+            .where(WorkspaceSourceClaim.source_id == source_id)
+            .where(WorkspaceSourceClaim.tenant_id == tenant_id())
+            .order_by(WorkspaceSourceClaim.ordinal)
+        ).scalars().all()
+        return [
+            {
+                "id": row.id,
+                "source_id": row.source_id,
+                "statement": row.statement,
+                "segment_ordinal": row.segment_ordinal,
+                "anchor_ref": row.anchor_ref,
+                "quote": row.quote,
+                "quote_verified": row.quote_verified,
+                "extracted_at": row.extracted_at,
+            }
+            for row in rows
+        ]
 
 
 def list_evidence_segments(source_id: str) -> list[dict]:
