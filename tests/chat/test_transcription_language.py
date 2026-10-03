@@ -335,7 +335,6 @@ def test_route_authentication_failure_never_reaches_transcription_service(
 
 def test_route_does_not_leak_the_upstream_error_to_the_caller(monkeypatch, transcription_client):
     """Upstream messages carry request and organization identifiers."""
-    from backend.api.routes import audio
 
     class FailingClient:
         class audio:  # noqa: N801 - mirrors the SDK's attribute layout

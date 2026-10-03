@@ -362,7 +362,6 @@ def test_handoffs_are_the_reference_edges_that_change_lane():
 def _knowing_case():
     from tests.evals.graph_metrics import (
         EvidenceBinding,
-        EvidenceQuote,
         ExpectedClaim,
         ExpectedConflict,
     )

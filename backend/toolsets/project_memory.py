@@ -245,7 +245,7 @@ def _graph_index_lines(
     roi_impacts: list[ProjectROIImpact] | None,
 ) -> list[str]:
     lines = [
-        f"graph_scope: project",
+        "graph_scope: project",
         f"project_id: {project_id}",
     ]
 

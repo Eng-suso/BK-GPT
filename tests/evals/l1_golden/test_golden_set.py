@@ -27,7 +27,6 @@ from pathlib import Path
 
 import pytest
 
-from backend.settings import settings
 from tests.live_llm import ENABLED as LIVE_LLM_ENABLED
 from tests.live_llm import provider_ready
 
