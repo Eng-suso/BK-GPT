@@ -104,3 +104,5 @@ def test_a_long_document_says_how_many_segments_were_left_out():
     _rendered, shown, left_out = render_segments(long_segments)
     assert left_out > 0
     assert len(shown) + left_out == len(long_segments)
+    # Un tratto continuo dall'inizio: niente buchi nel mezzo.
+    assert sorted(shown) == list(range(len(shown)))

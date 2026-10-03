@@ -103,20 +103,18 @@ def render_segments(segments: list[dict[str, Any]]) -> tuple[str, dict[int, dict
     shown: dict[int, dict[str, Any]] = {}
     lines: list[str] = []
     used = 0
-    left_out = 0
-    for segment in segments:
-        text = str(segment.get("text") or "").strip()
-        if not text:
-            continue
-        clipped = text[:MAX_SEGMENT_CHARS]
+    readable = [segment for segment in segments if str(segment.get("text") or "").strip()]
+    for position, segment in enumerate(readable):
+        clipped = str(segment.get("text") or "").strip()[:MAX_SEGMENT_CHARS]
         line = f"[S{segment['ordinal']}] ({segment.get('ref') or segment.get('anchor_ref')}) {clipped}"
         if used + len(line) > MAX_INPUT_CHARS:
-            left_out += 1
-            continue
+            # Si smette qui: le porzioni mostrate restano un tratto continuo del
+            # documento, senza buchi che il modello non saprebbe di avere.
+            return "\n".join(lines), shown, len(readable) - position
         used += len(line) + 1
         lines.append(line)
         shown[int(segment["ordinal"])] = segment
-    return "\n".join(lines), shown, left_out
+    return "\n".join(lines), shown, 0
 
 
 def extract_claims(

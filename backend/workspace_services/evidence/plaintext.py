@@ -59,19 +59,20 @@ def csv_rows(rows: list[list[str]]) -> CanonicalSource:
     (_, header), *data = numbered
     segments: list[EvidenceSegment] = []
     for number, row in data:
-        pairs = [
-            f"{header[index] if index < len(header) and header[index] else f'colonna {index + 1}'}: {value}"
+        cells = {
+            (header[index] if index < len(header) and header[index] else f"colonna {index + 1}"): value
             for index, value in enumerate(row)
             if value
-        ]
-        if not pairs:
+        }
+        if not cells:
             continue
+        pairs = [f"{name}: {value}" for name, value in cells.items()]
         segments.append(
             EvidenceSegment(
                 anchor=Anchor(kind="row", ref=f"R{number}", locator={"row": number}),
                 text="; ".join(pairs),
                 value_type="row",
-                value=dict(zip(header, row, strict=False)),
+                value=cells,
             )
         )
     return CanonicalSource(

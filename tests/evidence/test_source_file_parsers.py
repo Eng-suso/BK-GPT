@@ -105,3 +105,10 @@ def test_a_csv_row_carries_its_header():
         "R4": "ordine: O-2; importo: 45000; approvatore: CFO",
     }
 
+
+def test_a_csv_cell_without_header_keeps_the_same_name_in_text_and_value():
+    parsed = parse_source_file("ordini.csv", b"ordine,importo\nO-1,1200,urgente", None)
+    [row] = parsed.evidence.segments
+    assert row.text == "ordine: O-1; importo: 1200; colonna 3: urgente"
+    assert row.value == {"ordine": "O-1", "importo": "1200", "colonna 3": "urgente"}
+
