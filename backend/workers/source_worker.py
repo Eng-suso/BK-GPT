@@ -26,6 +26,7 @@ import time
 
 from backend import workspace_database as wd
 from backend.security import reset_current_tenant_id, set_current_tenant_id
+from backend.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +120,10 @@ def drain_once(limit: int = _BATCH, *, only_tenant_id: str | None = None) -> int
             break
         _work_one(rows[0])
         processed += 1
-    # Prima si legge, poi si estrae: una fonte confermata in chat mentre era in
-    # lettura entra in coda proprio alla fine della sua lettura.
-    return processed + drain_claims_once(1, only_tenant_id=only_tenant_id)
+    # Prima si legge, poi si estrae, poi si porta nel grafo: una fonte confermata
+    # in chat mentre era in lettura entra in coda proprio alla fine della lettura.
+    processed += drain_claims_once(1, only_tenant_id=only_tenant_id)
+    return processed + drain_graph_once(1, only_tenant_id=only_tenant_id)
 
 
 def _extract_one(row: dict) -> bool:
@@ -168,6 +170,76 @@ def drain_claims_once(limit: int = 1, *, only_tenant_id: str | None = None) -> i
         if not rows:
             break
         _extract_one(rows[0])
+        processed += 1
+    return processed
+
+
+def _graph_one(row: dict) -> bool:
+    """Porta nel grafo le affermazioni di una fonte: Source -> Evidence -> Claim.
+
+    Returns:
+        `True` se il grafo e' stato scritto.
+    """
+    from backend.memory import scope as canonical_scope
+    from backend.memory.knowledge_graph import canonical
+
+    token = set_current_tenant_id(row["tenant_id"])
+    try:
+        try:
+            ids = canonical_scope.resolve(row["project_id"], row["process_id"])
+        except RuntimeError as exc:
+            # Progetto senza cliente o sparito: riprovare non cambia la risposta.
+            wd.fail_source_graph(row["id"], error=str(exc), permanent=True)
+            return False
+        try:
+            counts = canonical.write_source_claims(
+                consultant_id=ids.consultant_id,
+                client_id=ids.client_id,
+                project_id=ids.project_id,
+                process_id=ids.process_id,
+                workspace_source_id=row["id"],
+                title=row["name"],
+                content_hash=row["content_hash"] or "",
+                byte_size=row["byte_size"],
+                segments=[
+                    canonical.SourceSegment(segment["ordinal"], segment["ref"], segment["locator"])
+                    for segment in wd.list_evidence_segments(row["id"])
+                ],
+                claims=[
+                    canonical.SourceClaim(
+                        claim["statement"], claim["segment_ordinal"], claim["quote"], claim["quote_verified"]
+                    )
+                    for claim in wd.list_source_claims(row["id"])
+                ],
+            )
+        except Exception as exc:  # noqa: BLE001 - un grafo non scritto non ferma la coda
+            logger.exception("fonte %s: affermazioni non portate nel grafo", row["id"])
+            wd.fail_source_graph(row["id"], error=f"Grafo non scritto: {type(exc).__name__}", permanent=False)
+            return False
+        logger.info("fonte %s nel grafo: %s", row["id"], counts)
+        wd.complete_source_graph(row["id"])
+        return True
+    finally:
+        reset_current_tenant_id(token)
+
+
+def drain_graph_once(limit: int = 1, *, only_tenant_id: str | None = None) -> int:
+    """Una passata sulla coda del grafo (P1.14).
+
+    Senza canonical configurato la coda resta ferma, non fallisce: le fonti in
+    attesa ci arrivano quando il canonical c'e'.
+
+    Returns:
+        Quante fonti sono state lavorate. Zero significa coda vuota.
+    """
+    if not settings.canonical_database_url:
+        return 0
+    processed = 0
+    for _ in range(max(1, limit)):
+        rows = wd.due_source_graph(1, only_tenant_id=only_tenant_id)
+        if not rows:
+            break
+        _graph_one(rows[0])
         processed += 1
     return processed
 
