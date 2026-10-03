@@ -19,6 +19,8 @@ import {
   apiProjectsSchema,
   apiProjectSourcesSchema,
   apiProjectSourceSchema,
+  apiSourceClaimsSchema,
+  toSourceClaims,
   apiUploadedSourceSchema,
   apiProjectDecisionsSchema,
   type Milestone,
@@ -29,6 +31,7 @@ import {
   apiSourceDocumentSchema,
   type SourceDocument,
   type ProjectSource,
+  type SourceClaim,
   type SourceRole,
   type SourceUpload,
   type ProjectDecision,
@@ -41,6 +44,7 @@ export const projectKeys = {
   list: () => [...projectKeys.all] as const,
   detail: (id: string) => [...projectKeys.all, id] as const,
   sources: (id: string) => [...projectKeys.all, id, "sources"] as const,
+  sourceClaims: (sourceId: string) => ["sources", sourceId, "claims"] as const,
   sourceDocument: (sourceId: string) =>
     [...projectKeys.all, "source", sourceId, "document"] as const,
   decisions: (id: string) => [...projectKeys.all, id, "decisions"] as const,
@@ -243,8 +247,14 @@ export function useProjectSourcesQuery(
     },
     // Un file caricato viene letto dal worker dopo la risposta: finche' una
     // fonte e' in lettura la lista si aggiorna da sola, poi smette.
+    // Anche mentre DeliR estrae le affermazioni: il dettaglio della fonte le
+    // mostra appena ci sono.
     refetchInterval: (query) =>
-      query.state.data?.some((source) => source.acquisitionStatus === "pending") ? 1500 : false,
+      query.state.data?.some(
+        (source) => source.acquisitionStatus === "pending" || source.claimsStatus === "pending",
+      )
+        ? 1500
+        : false,
   });
 }
 
@@ -358,6 +368,26 @@ export function useSourceDocumentQuery(
         `/v1/workspace/sources/${sourceId}/document`,
       );
       return toSourceDocument(apiSourceDocumentSchema.parse(raw));
+    },
+  });
+}
+
+/**
+ * Le affermazioni di una fonte, quando l'estrazione e' finita.
+ *
+ * Lo stato fa parte della chiave: quando l'estrazione passa a `done` la lista
+ * si ricarica invece di restare quella vuota di prima.
+ */
+export function useSourceClaimsQuery(
+  sourceId: string | null,
+  claimsStatus: string | null,
+): UseQueryResult<SourceClaim[]> {
+  return useQuery({
+    queryKey: [...projectKeys.sourceClaims(sourceId ?? ""), claimsStatus],
+    enabled: sourceId !== null && claimsStatus === "done",
+    queryFn: async () => {
+      const raw = await http<unknown>(`/v1/workspace/sources/${sourceId}/claims`);
+      return toSourceClaims(apiSourceClaimsSchema.parse(raw));
     },
   });
 }
