@@ -189,10 +189,11 @@ def test_claim_gap_impact_reach_neo4j_with_structural_edges(scope, wait_projecte
 
 def test_write_evidence_is_atomic(scope):
     from sqlalchemy import create_engine, text
+    from sqlalchemy.exc import DataError
     from backend.memory.knowledge_graph import canonical
 
     # process_id malformato: l'INSERT dell'entita' fallira' a meta' pacchetto
-    with pytest.raises(Exception):
+    with pytest.raises(DataError):
         canonical.write_evidence(
             consultant_id=scope["consultant"],
             client_id=scope["client"],
