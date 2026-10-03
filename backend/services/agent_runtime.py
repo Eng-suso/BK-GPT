@@ -12,7 +12,7 @@ from uuid import UUID
 from backend.agent import CONTEXT_ROUTER_NODE, get_agent, normalize_model_name
 from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
-from backend.agents.run_context import bind_active_thread
+from backend.agents.run_context import bind_active_thread, bind_turn_writes
 from backend.agents.scope_guard import bind_active_scope
 from backend.llm import LlmTask, OperationKind, adopt, new_operation, record_streamed_usage
 from backend.llm_streaming import (
@@ -738,6 +738,8 @@ def stream_agent_events(
                 bind_active_scope(scope),
                 bind_active_mode(chat_mode),
                 bind_active_thread(checkpoint_thread_id),
+                # Un salvataggio del consulente a meta' turno non va sovrascritto.
+                bind_turn_writes(),
                 bind_progress_sink(announce_phase),
             ):
                 announced_posture: str | None = None
