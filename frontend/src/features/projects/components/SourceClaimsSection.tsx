@@ -77,7 +77,7 @@ export function SourceClaimsSection({ source }: { source: ProjectSource }): Reac
   }
 
   return (
-    <section className="flex flex-col gap-1.5" aria-labelledby={`claims-${source.id}`}>
+    <section className="flex shrink-0 flex-col gap-1.5" aria-labelledby={`claims-${source.id}`}>
       <h3
         id={`claims-${source.id}`}
         className="text-micro font-medium tracking-wide text-muted-foreground uppercase"

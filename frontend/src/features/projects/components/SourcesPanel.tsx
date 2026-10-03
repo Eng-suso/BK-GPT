@@ -338,7 +338,7 @@ export function SourcesPanel({
 
               <SourceClaimsSection source={openSource} />
 
-              <section className="flex min-h-0 flex-col gap-1.5">
+              <section className="flex shrink-0 flex-col gap-1.5">
                 <h3 className="text-micro font-medium tracking-wide text-muted-foreground uppercase">
                   {t("detail.sources.contentHeading")}
                 </h3>
