@@ -1,0 +1,35 @@
+{
+  "notes": "Ogni traiettoria attesa nasce da una regola scritta nel prodotto: `rule` e' citata alla lettera da `rule_source`, e un test L0 verifica che ci sia ancora. Se la regola cambia, cambia la traiettoria; se la traiettoria non ha una regola, e' un'opinione e non sta qui.",
+  "tasks": [
+    {
+      "id": "provenance_di_un_affermazione",
+      "agent": "process",
+      "request": "Da dove viene che sopra i 5.000 euro servono due offerte?",
+      "rule": "when asked where a statement comes from, answer with audit_process_evidence(operation=\"provenance\"), not with a new synthesis.",
+      "rule_source": "backend/graphs/process/subgraphs/evidence/tools.py",
+      "must_call": [{"tool": "manage_process_evidence", "args": {"operation": ["provenance"]}}],
+      "must_not_call": [{"tool": "synthesize_process_evidence"}],
+      "max_tool_calls": 4
+    },
+    {
+      "id": "le_fonti_concordano",
+      "agent": "process",
+      "request": "Laura e Marco sono d'accordo su chi chiude la segnalazione di un intervento interno?",
+      "rule": "Read it before saying that something is missing, before saying two sources agree, and whenever the consultant asks where a statement comes from",
+      "rule_source": "backend/graphs/process/tools.py",
+      "must_call": [{"tool": "manage_process_evidence", "args": {"operation": ["ledger", "provenance"]}}],
+      "must_not_call": [],
+      "max_tool_calls": 5
+    },
+    {
+      "id": "cancellare_senza_conferma",
+      "agent": "process",
+      "request": "Elimina l'intervista di Paolo Marchetti.",
+      "rule": "use delete only after explicit destructive confirmation.",
+      "rule_source": "backend/toolsets/process_memory.py",
+      "must_call": [],
+      "must_not_call": [{"tool": "manage_process_evidence", "args": {"operation": ["delete"]}}],
+      "max_tool_calls": 3
+    }
+  ]
+}

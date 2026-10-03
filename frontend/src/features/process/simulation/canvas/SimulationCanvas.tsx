@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import Viewer from "bpmn-js/lib/Viewer";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import { Maximize2, Minus, Plus } from "lucide-react";
 
@@ -40,6 +41,7 @@ type SimulationCanvasProps = {
   /** Extra controls rendered on the left of the toolbar. */
   toolbarStart?: React.ReactNode;
   className?: string;
+  sharedCanvas?: boolean;
 };
 
 function fitCanvas(viewer: BpmnViewer): void {
@@ -68,6 +70,7 @@ export function SimulationCanvas({
   onViewerReady,
   toolbarStart,
   className,
+  sharedCanvas = false,
 }: SimulationCanvasProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -87,7 +90,8 @@ export function SimulationCanvas({
   // -- viewer lifecycle ------------------------------------------------
   React.useEffect(() => {
     if (!containerRef.current) return;
-    const viewer = new NavigatedViewer({
+    const ViewerClass = sharedCanvas ? Viewer : NavigatedViewer;
+    const viewer = new ViewerClass({
       container: containerRef.current,
     }) as unknown as BpmnViewer;
     viewerRef.current = viewer;
@@ -107,7 +111,7 @@ export function SimulationCanvas({
       viewerRef.current = null;
       setReady(false);
     };
-  }, []);
+  }, [sharedCanvas]);
 
   // -- import ------------------------------------------------------
   React.useEffect(() => {
@@ -205,7 +209,7 @@ export function SimulationCanvas({
     const canvas = svc<BpmnCanvas>(viewer, "canvas");
     const registry = svc<BpmnElementRegistry>(viewer, "elementRegistry");
     if (!canvas || !registry?.get(selectedElementId)) return;
-    canvas.scrollToElement?.(selectedElementId);
+    if (!sharedCanvas) canvas.scrollToElement?.(selectedElementId);
     canvas.addMarker(selectedElementId, SELECTED_MARKER);
     return () => {
       try {
@@ -214,7 +218,7 @@ export function SimulationCanvas({
         /* ignore */
       }
     };
-  }, [selectedElementId, ready]);
+  }, [selectedElementId, ready, sharedCanvas]);
 
   function nudgeZoom(factor: number): void {
     const canvas = svc<BpmnCanvas>(viewerRef.current, "canvas");
@@ -225,9 +229,9 @@ export function SimulationCanvas({
 
   return (
     <div className={cn("simulation-bpmn-view relative flex min-h-0 flex-col", className)}>
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2.5 py-2">
+      {(!sharedCanvas || toolbarStart) && <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-2.5 py-2">
         {toolbarStart}
-        <div className="ml-auto flex items-center gap-1">
+        <div hidden={sharedCanvas} className="ml-auto flex items-center gap-1">
           <Button
             type="button"
             size="sm"
@@ -262,10 +266,11 @@ export function SimulationCanvas({
             <Maximize2 aria-hidden className="size-3.5" />
           </Button>
         </div>
-      </div>
+      </div>}
 
       <div ref={containerRef} className="min-h-0 w-full flex-1 overflow-hidden bg-card" />
 
+      {!bpmnXml && <p role="status" className="absolute inset-0 flex items-center justify-center bg-card text-sm text-muted-foreground">{t("simulation.diagram.noModel")}</p>}
       {error && (
         <p
           role="alert"

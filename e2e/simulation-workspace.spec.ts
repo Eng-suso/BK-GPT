@@ -63,6 +63,10 @@ async function seek(page: Page, value: number): Promise<void> {
   await expect(page.locator('input[type="range"]')).toHaveValue(String(value));
 }
 
+async function jump(page: Page, id: string): Promise<void> {
+  await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption(id);
+}
+
 test.beforeEach(async ({ page }) => { await fixture(page); });
 
 test("dashboard and process share the clock and never label final KPIs as current", async ({ page }) => {
@@ -73,6 +77,7 @@ test("dashboard and process share the clock and never label final KPIs as curren
   await seek(page, 200);
   await expect(page.locator(".sim-kpi").filter({ hasText: "Costo accumulato" })).toContainText("20");
   const costWidget = page.locator('[data-widget-id="default-4"]');
+  await jump(page, "default-4");
   await costWidget.getByText("Visualizza dati", { exact: true }).click();
   await expect(costWidget.locator("tbody tr")).toHaveCount(3);
   await expect(costWidget.locator("tbody")).not.toContainText("999");
@@ -90,11 +95,13 @@ test("dashboard and process share the clock and never label final KPIs as curren
 test("widget edits, duplication, keyboard reordering and sections persist after reload", async ({ page }) => {
   await page.goto(`${studio}/dashboard/42`);
   await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
+  await jump(page, "default-4");
   await page.getByRole("button", { name: "Configura Costo accumulato", exact: true }).click();
   const inspector = page.getByRole("complementary", { name: "Impostazioni widget" });
   await expect(inspector.getByLabel("Titolo", { exact: true })).toBeFocused();
   await inspector.getByLabel("Titolo", { exact: true }).fill("Costi del run");
   await inspector.getByLabel("Larghezza").selectOption("full");
+  await expect(page.locator('[data-widget-id="default-4"]')).toHaveClass(/is-full/);
   await inspector.getByRole("button", { name: "Duplica widget", exact: true }).click();
   await inspector.getByLabel("Titolo", { exact: true }).fill("Costi confronto");
   await inspector.getByRole("button", { name: "Sposta widget prima" }).click();
@@ -102,7 +109,9 @@ test("widget edits, duplication, keyboard reordering and sections persist after 
   await inspector.getByLabel("Sezione", { exact: true }).selectOption({ label: "Sezione 2" });
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
   await page.reload();
+  await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption({ label: "Costi del run" });
   await expect(page.getByRole("heading", { name: "Costi del run", exact: true })).toBeVisible();
+  await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption({ label: "Costi confronto" });
   await expect(page.getByRole("heading", { name: "Costi confronto", exact: true })).toBeVisible();
   await expect(page.locator(".sim-widget-section")).toHaveCount(2);
   await expect(page.locator(".sim-widget").filter({ hasText: "Costi del run" })).toHaveClass(/is-full/);
@@ -113,6 +122,7 @@ test("Markdown formulas follow the playhead and invalid input remains editable",
   await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: /Testo e Markdown/ }).click();
   await page.getByLabel("Testo Markdown", { exact: true }).fill("Casi conclusi: **${metric}**");
+  await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption({ label: "Casi conclusi" });
   await seek(page, 300);
   await expect(page.locator(".sim-note strong")).toHaveText("2");
   await page.getByLabel("Espressione metrica", { exact: true }).fill("metric * 2");
@@ -145,6 +155,7 @@ test("corrupt saved layouts and blocked storage fail visibly without losing draf
   await page.goto(`${studio}/dashboard/42`);
   await expect(page.getByRole("alert")).toContainText("layout salvato");
   await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
+  await jump(page, "default-4");
   await page.getByRole("button", { name: "Configura Costo accumulato", exact: true }).click();
   await page.getByLabel("Titolo", { exact: true }).fill("Bozza da conservare");
   await page.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException("Blocked", "QuotaExceededError"); }; });
@@ -153,7 +164,7 @@ test("corrupt saved layouts and blocked storage fail visibly without losing draf
   await expect(page.getByLabel("Titolo", { exact: true })).toHaveValue("Bozza da conservare");
 });
 
-test("dashboard is accessible and visually stable at desktop and mobile widths", async ({ page }, testInfo) => {
+test("dashboard is accessible and visually stable at desktop and mobile widths", async ({ page, isMobile }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
@@ -162,6 +173,7 @@ test("dashboard is accessible and visually stable at desktop and mobile widths",
   await expect(page.getByRole("heading", { name: "Processo", exact: true })).toBeVisible();
   await expect(page.locator(".sim-workspace-nav")).toHaveCount(0);
   await expect(page.locator("[data-process-tile]")).toBeVisible();
+  if (isMobile) expect((await page.locator(".sim-scene-viewport").boundingBox())!.height).toBeGreaterThan(220);
   await expect(page.locator('[data-widget-id="default-0"]')).toBeVisible();
   const scan = await new AxeBuilder({ page }).include("main").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(scan.violations).toEqual([]);
@@ -169,6 +181,7 @@ test("dashboard is accessible and visually stable at desktop and mobile widths",
   expect(overflow).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("dashboard.png"), animations: "disabled" });
   await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
+  await jump(page, "default-4");
   await page.getByRole("button", { name: "Configura Costo accumulato", exact: true }).click();
   const editScan = await new AxeBuilder({ page }).include("main").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(editScan.violations).toEqual([]);
@@ -199,23 +212,30 @@ test("canvas analytics follow the shared clock, move with the keyboard and survi
   if (!isMobile) {
     await handle.scrollIntoViewIfNeeded();
     const box = (await handle.boundingBox())!;
+    const scale = await widget.evaluate(el => { const scene = el.closest(".sim-scene-object") as HTMLElement; return scene.getBoundingClientRect().width / scene.offsetWidth; });
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 - 40, { steps: 5 });
     await page.mouse.up();
-    await expect(widget).toHaveCSS("transform", "matrix(1, 0, 0, 1, 20, 70)");
+    const moved = await widget.evaluate(el => new DOMMatrix(getComputedStyle(el).transform).toFloat64Array().slice(12, 14));
+    expect(moved[0]).toBeCloseTo(-10 + 30 / scale, 1);
+    expect(moved[1]).toBeCloseTo(110 - 40 / scale, 1);
   }
-  const position = await widget.evaluate((element) => (element as HTMLElement).style.transform);
+  const position = await widget.evaluate(element => { const m = new DOMMatrix(getComputedStyle(element).transform); return { x: m.e, y: m.f }; });
   await expect(handle).toBeFocused();
   await seek(page, 200);
-  expect(await widget.evaluate((element) => (element as HTMLElement).style.transform)).toBe(position);
+  const storedPosition = await widget.evaluate(element => { const m = new DOMMatrix(getComputedStyle(element).transform); return { x: m.e, y: m.f }; });
+  expect(storedPosition.x).toBeCloseTo(position.x, 1);
+  expect(storedPosition.y).toBeCloseTo(position.y, 1);
   await page.getByRole("button", { name: "Grafici", exact: true }).click();
   await expect(widget).toHaveCount(0);
   await page.getByRole("button", { name: "Grafici", exact: true }).click();
   await expect(widget).toContainText("Verifiche concluse");
   await page.reload();
   await expect(widget).toContainText("Verifiche concluse");
-  expect(await widget.evaluate((element) => (element as HTMLElement).style.transform)).toBe(position);
+  const restoredPosition = await widget.evaluate(element => { const m = new DOMMatrix(getComputedStyle(element).transform); return { x: m.e, y: m.f }; });
+  expect(restoredPosition.x).toBeCloseTo(position.x, 1);
+  expect(restoredPosition.y).toBeCloseTo(position.y, 1);
   await seek(page, 300);
   await expect(widget.locator(".sim-widget-kpi strong")).toHaveText("2");
   const scan = await new AxeBuilder({ page }).include("main").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
@@ -237,6 +257,7 @@ test("all chart types render and circular charts expose categories without hover
   await page.goto(`${studio}/dashboard/42`);
   await seek(page, 300);
   await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
+  await jump(page, "default-3");
   await page.getByRole("button", { name: "Configura Occupazione delle risorse", exact: true }).click();
   const inspector = page.getByRole("complementary", { name: "Impostazioni widget" });
   const widget = page.locator('[data-widget-id="default-3"]');
@@ -267,6 +288,7 @@ test("all chart types render and circular charts expose categories without hover
 
 
 test("consultant investigates an activity through contextual tools without losing the canvas", async ({ page, isMobile }, testInfo) => {
+  test.setTimeout(120_000);
   await page.goto(`${studio}/workspace/42`);
   await seek(page, 100);
   await page.getByLabel("Attività", { exact: true }).selectOption("A");
@@ -277,9 +299,11 @@ test("consultant investigates an activity through contextual tools without losin
   const tools = page.locator(".sim-studio-tools");
   for (const name of ["Scenario", "Risultati", "Heatmap", "Confronto", "Insight"]) {
     await tools.getByRole("button", { name, exact: true }).click();
-    await expect(page.getByRole("complementary", { name: "Dettagli e impostazioni", exact: true })).toBeVisible();
+    if (name === "Confronto") await expect(page.locator(".sim-comparison-bar")).toBeVisible();
+    else await expect(page.getByRole("complementary", { name: "Dettagli e impostazioni", exact: true })).toBeVisible();
     await expect(viewer).toHaveAttribute("data-session-marker", "same-viewer");
-    await expect(page.locator('input[type="range"]')).toHaveValue("100");
+    if (name === "Scenario") await expect(page.locator('input[type="range"]')).toHaveValue("100");
+    else await expect(page.locator(".sim-final-transport")).toBeVisible();
     await expect(page.getByLabel("Attività", { exact: true })).toHaveValue("A");
     await expect(page.locator("[data-process-tile]")).toHaveCount(1);
     await expect(page.locator(".sim-kpi")).toHaveCount(6);
@@ -287,9 +311,13 @@ test("consultant investigates an activity through contextual tools without losin
       await page.locator(".sim-current-insights > summary").click();
       await expect(page.locator(".sim-current-insights")).toContainText("Verifica documentazione");
     }
-    await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
-    await expect(page.locator(".sim-studio-dock")).toBeHidden();
-    await expect(tools.getByRole("button", { name, exact: true })).toBeFocused();
+    if (name !== "Confronto") {
+      await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
+      await expect(page.locator(".sim-studio-dock")).toBeHidden();
+      await expect(tools.getByRole("button", { name, exact: true })).toBeFocused();
+    }
+    await tools.getByRole("button", { name: "Osserva", exact: true }).click();
+    await expect(page.locator('input[type="range"]')).toHaveValue("100");
   }
   await expect(process.locator(".sim-token")).not.toHaveCount(0);
   if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
@@ -303,20 +331,25 @@ test("consultant investigates an activity through contextual tools without losin
 test("process placement, sizing and undo are saved with the analytical layout", async ({ page }) => {
   await page.goto(`${studio}/workspace/42`);
   await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
-  await page.getByRole("button", { name: "Sposta processo dopo", exact: true }).click();
-  const grid = page.locator(".sim-widget-grid").first();
-  await expect(grid.locator(":scope > article").first()).toHaveAttribute("data-widget-id", "default-0");
+  const object = page.locator('[data-scene-object="__process__"]');
+  const viewer = object.locator(".djs-container");
+  await viewer.evaluate(el => el.setAttribute("data-session-marker", "same-viewer"));
+  const handle = page.getByRole("button", { name: "Sposta Processo sulla tela", exact: true });
+  await handle.press("ArrowRight");
+  await expect(object).toHaveCSS("left", "20px");
   await page.getByRole("button", { name: "Annulla modifica al layout", exact: true }).click();
-  await expect(grid.locator(":scope > article").first()).toHaveAttribute("data-process-tile", "true");
+  await expect(object).toHaveCSS("left", "0px");
   await page.getByRole("button", { name: "Ripristina modifica al layout", exact: true }).click();
-  await page.getByRole("button", { name: "Espandi processo a tutta larghezza", exact: true }).click();
-  await page.getByLabel("Altezza del processo", { exact: true }).selectOption("560");
+  await expect(object).toHaveCSS("left", "20px");
+  await page.getByRole("button", { name: "Ridimensiona Processo sulla tela", exact: true }).press("ArrowRight");
+  await expect(object).toHaveCSS("width", "920px");
+  await expect(viewer).toHaveAttribute("data-session-marker", "same-viewer");
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
   await page.reload();
-  await expect(page.locator("[data-process-tile]")).toHaveClass(/is-full/);
-  await expect(page.locator("[data-process-tile]")).toHaveCSS("height", "560px");
-  await expect(grid.locator(":scope > article").first()).toHaveAttribute("data-widget-id", "default-0");
+  await expect(object).toHaveCSS("left", "20px");
+  await expect(object).toHaveCSS("width", "920px");
 });
+
 
 
 test("changing run retains the tool while resetting clock and activity scope", async ({ page }) => {
@@ -327,11 +360,13 @@ test("changing run retains the tool while resetting clock and activity scope", a
   await expect(page).toHaveURL(/panel=overview/);
   await page.getByRole("combobox", { name: "Scegli una run" }).click();
   await page.getByRole("option", { name: /TO-BE/ }).click();
-  await expect(page).toHaveURL(/workspace\/43\?panel=overview/);
-  await expect(page.locator('input[type="range"]')).toHaveValue("0");
+  await expect(page).toHaveURL(/workspace\/43.*panel=overview/);
+  await expect(page.locator(".sim-final-transport")).toBeVisible();
   await expect(page.getByLabel("Attivit\u00e0", { exact: true })).toHaveValue("all");
   await expect(page.locator(".sim-studio-dock")).toContainText("TO-BE");
   await expect(page.locator("[data-process-tile]")).toHaveCount(1);
+  await page.getByRole("button", { name: "Riprendi osservazione", exact: true }).click();
+  await expect(page.locator('input[type="range"]')).toHaveValue("0");
 });
 
 for (const state of ["pending", "failed", "no-artifact"] as const) {
@@ -346,3 +381,93 @@ for (const state of ["pending", "failed", "no-artifact"] as const) {
     await expect(page.locator(".simulation-bpmn-view .djs-container")).toHaveCount(1);
   });
 }
+
+
+const complexXml = (() => {
+  const nodes = ["Start", "A", "Gateway", "C", "B", "D", "E", "End"];
+  const names = ["Ricevi richiesta", "Verifica documentazione", "Completa?", "Richiedi integrazione", "Approva richiesta", "Controlla disponibilità", "Emetti ordine", "Ordine emesso"];
+  const positions = [[80, 130], [180, 108], [380, 125], [490, 108], [180, 320], [380, 320], [580, 320], [790, 342]];
+  const tags = nodes.map((id, i) => `<bpmn:${i === 0 ? "startEvent" : i === 7 ? "endEvent" : i === 2 ? "exclusiveGateway" : "task"} id="${id}" name="${names[i]}"/>`).join("");
+  const flows = [[0,1],[1,2],[2,3],[3,1],[2,4],[4,5],[5,6],[6,7]].map(([from,to], i) => `<bpmn:sequenceFlow id="Flow_${i}" sourceRef="${nodes[from]}" targetRef="${nodes[to]}"/>`).join("");
+  const shapes = nodes.map((id, i) => `<bpmndi:BPMNShape id="${id}_di" bpmnElement="${id}"><dc:Bounds x="${positions[i][0]}" y="${positions[i][1]}" width="${i === 0 || i === 7 ? 36 : i === 2 ? 50 : 140}" height="${i === 0 || i === 7 ? 36 : i === 2 ? 50 : 80}"/></bpmndi:BPMNShape>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definition_complex" targetNamespace="https://example.test/simulation"><bpmn:process id="Process_complex" isExecutable="false"><bpmn:laneSet id="Lanes"><bpmn:lane id="Operations" name="Operations"><bpmn:flowNodeRef>Start</bpmn:flowNodeRef><bpmn:flowNodeRef>A</bpmn:flowNodeRef><bpmn:flowNodeRef>Gateway</bpmn:flowNodeRef><bpmn:flowNodeRef>C</bpmn:flowNodeRef></bpmn:lane><bpmn:lane id="Finance" name="Finance"><bpmn:flowNodeRef>B</bpmn:flowNodeRef><bpmn:flowNodeRef>D</bpmn:flowNodeRef><bpmn:flowNodeRef>E</bpmn:flowNodeRef><bpmn:flowNodeRef>End</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>${tags}${flows}</bpmn:process><bpmndi:BPMNDiagram id="Diagram_complex"><bpmndi:BPMNPlane id="Plane_complex" bpmnElement="Process_complex"><bpmndi:BPMNShape id="Operations_di" bpmnElement="Operations" isHorizontal="true"><dc:Bounds x="30" y="70" width="860" height="210"/></bpmndi:BPMNShape><bpmndi:BPMNShape id="Finance_di" bpmnElement="Finance" isHorizontal="true"><dc:Bounds x="30" y="280" width="860" height="210"/></bpmndi:BPMNShape>${shapes}${[[0,1],[1,2],[2,3],[3,1],[2,4],[4,5],[5,6],[6,7]].map(([from,to],i) => `<bpmndi:BPMNEdge id="Flow_${i}_di" bpmnElement="Flow_${i}"><di:waypoint x="${positions[from][0] + 36}" y="${positions[from][1]+40}"/><di:waypoint x="${positions[to][0]}" y="${positions[to][1]+40}"/></bpmndi:BPMNEdge>`).join("")}</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
+})();
+
+test("a consultant observes a lane-based process and opens details without reflowing it", async ({ page, isMobile }, testInfo) => {
+  await page.route("http://127.0.0.1:8000/**/simulation-ui-model", route => route.fulfill({ json: { id: "simulation-ui-model", process_id: "simulation-ui-process", name: "Acquisti", xml: complexXml } }));
+  if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${studio}/workspace/42`);
+  await seek(page, 100);
+  const process = page.locator('[data-scene-object="__process__"]');
+  const viewer = process.locator(".djs-container");
+  await expect(viewer.locator('[data-element-id="Operations"]')).toBeVisible();
+  await expect(viewer.locator('[data-element-id="Gateway"]')).toBeVisible();
+  await expect(process.locator(".sim-token")).not.toHaveCount(0);
+  await viewer.evaluate(el => el.setAttribute("data-session-marker", "same-lanes"));
+  const size = await process.boundingBox();
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Scenario", exact: true }).click();
+  await expect(viewer).toHaveAttribute("data-session-marker", "same-lanes");
+  expect((await process.boundingBox())!.width).toBeCloseTo(size!.width, 1);
+  expect((await process.boundingBox())!.height).toBeCloseTo(size!.height, 1);
+  await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
+  await expect(page.locator(".sim-studio-dock")).toBeHidden();
+  await expect(page.locator('input[type="range"]')).toHaveValue("100");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
+  await page.screenshot({ path: testInfo.outputPath("analytical-canvas-lanes.png"), animations: "disabled" });
+});
+
+for (const missingReplay of [false, true]) test(`comparison uses the selected B summary and preserves observation clock (missing replay: ${missingReplay})`, async ({ page, isMobile }, testInfo) => {
+  const variant = { ...run, id: 43, scenario_name: "TO-BE · Capacità aggiuntiva", summary: { ...run.summary, casesCompleted: 8, cycle: { avg: 120, p50: 110, p90: 150, p95: 160 }, cost: { total: 400, perCase: 50 }, throughputPerHour: 0.0032 } };
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run, variant] }));
+  await page.route("http://127.0.0.1:8000/**/43/replay", route => missingReplay ? route.fulfill({ status: 404, json: { detail: "No replay" } }) : route.fulfill({ json: { run_id: 43, schema_version: 1, replay: { ...payload, series: { ...payload.series, global: { ...payload.series.global, done: [0,2,4,6,8], costAccrued: [0,100,200,300,400] } } } } }));
+  await page.goto(`${studio}/workspace/42`);
+  await seek(page, 200);
+  const viewer = page.locator("[data-process-tile] .djs-container");
+  await viewer.evaluate(el => el.setAttribute("data-session-marker", "same-comparison"));
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Confronto", exact: true }).click();
+  await page.locator(".sim-comparison-bar").getByRole("combobox").last().click();
+  await page.getByRole("option", { name: /TO-BE/ }).click();
+  await expect(page.locator(".sim-kpi").filter({ hasText: "Attraversamento medio" })).toContainText("2 min");
+  await expect(page.locator(".sim-kpi").filter({ hasText: "Costo accumulato" })).toContainText("400");
+  await expect(page.locator(".sim-kpi").filter({ hasText: "Throughput" })).toContainText("0,0032/h");
+  await expect(page.locator(".sim-scope-badge")).toContainText("#43");
+  await expect(viewer).toHaveAttribute("data-session-marker", "same-comparison");
+  if (!isMobile) {
+    expect((await page.locator(".sim-scene-viewport").boundingBox())!.height).toBeGreaterThan(260);
+    await expect(viewer.locator('[data-element-id="A"]')).toBeInViewport();
+  }
+  await expect(page.locator(".sim-studio-dock")).toBeHidden();
+  await expect(page.locator(".sim-token")).toHaveCount(0);
+  if (missingReplay) await expect(page.locator(".sim-widget-empty").first()).toContainText("Replay non disponibile");
+  await page.locator(".sim-comparison-details > summary").click();
+  await expect(page.locator(".sim-comparison-details")).toContainText("0,0032/h");
+  await page.locator(".sim-comparison-details > summary").click();
+  await page.screenshot({ path: testInfo.outputPath("analytical-canvas-comparison.png"), animations: "disabled" });
+  await page.getByRole("button", { name: "Riprendi osservazione", exact: true }).click();
+  await expect(page.locator('input[type="range"]')).toHaveValue("200");
+  await expect(page.locator(".sim-kpi").filter({ hasText: "Costo accumulato" })).toContainText("20");
+  await expect(viewer).toHaveAttribute("data-session-marker", "same-comparison");
+});
+
+
+test("pointer placement commits one scene edit in world coordinates at a non-default zoom", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Keyboard and touch targets are covered by the mobile journeys.");
+  await page.goto(`${studio}/workspace/42`);
+  await page.getByRole("button", { name: "Modifica canvas", exact: true }).click();
+  const object = page.locator('[data-scene-object="__process__"]');
+  const handle = page.getByRole("button", { name: "Sposta Processo sulla tela", exact: true });
+  await page.locator(".sim-scene-controls").getByRole("button", { name: "Zoom indietro", exact: true }).click();
+  const scale = await object.evaluate(el => el.getBoundingClientRect().width / (el as HTMLElement).offsetWidth);
+  const box = (await handle.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 48, box.y + box.height / 2 + 32, { steps: 4 });
+  await page.mouse.up();
+  const moved = await object.evaluate(el => ({ x: parseFloat((el as HTMLElement).style.left), y: parseFloat((el as HTMLElement).style.top) }));
+  expect(moved.x).toBeCloseTo(48 / scale, 1);
+  expect(moved.y).toBeCloseTo(32 / scale, 1);
+  await page.getByRole("button", { name: "Annulla modifica al layout", exact: true }).click();
+  await expect(object).toHaveCSS("left", "0px");
+  await expect(object).toHaveCSS("top", "0px");
+  await expect(page.getByRole("button", { name: "Annulla modifica al layout", exact: true })).toBeDisabled();
+});

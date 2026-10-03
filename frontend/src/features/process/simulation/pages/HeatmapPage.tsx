@@ -50,7 +50,7 @@ const FACTOR_ORDER = [
  *
  * @returns The heatmap page element.
  */
-export function HeatmapPage({ embedded = false, onDecorations }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[]) => void } = {}): React.JSX.Element {
+export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[]) => void; onMetric?: (metric: HeatMetric) => void } = {}): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const { runs, bpmnXml, activeRunId, selectedElementId, selectElement } = useSimulationSection();
@@ -71,6 +71,7 @@ export function HeatmapPage({ embedded = false, onDecorations }: { embedded?: bo
     (summary?.bottleneck as { factors?: Record<string, number> } | null | undefined)
       ?.factors ?? null;
 
+  React.useEffect(() => { onMetric?.(metric); }, [metric, onMetric]);
   const cfg = HEAT_METRICS[metric];
   const ranked = React.useMemo(
     () =>

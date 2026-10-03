@@ -234,6 +234,11 @@ export function withDiagnosticBottleneck(
   insights: SimulationInsights,
   summary: SimulationSummary | null | undefined,
 ): SimulationInsights {
+  // Final cards and comparisons share the full-log summary, not a second raw-result average.
+  if (summary) insights = { ...insights, hasData: true, casesCompleted: summary.casesCompleted,
+    avgCycleSec: summary.cycle.avg, avgProcessingSec: summary.processing.avg,
+    avgWaitingSec: summary.waiting.avg, waitingShare: summary.waiting.share,
+    totalCost: summary.cost.total, avgCostPerCase: summary.cost.perCase };
   const el = (summary?.bottleneck as { el?: string } | null | undefined)?.el;
   if (!el || !insights.hasData) return insights;
   const task = insights.tasks.find((candidate) => candidate.elementId === el);

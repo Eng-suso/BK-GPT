@@ -11,6 +11,8 @@ import pytest
 from backend.app import assert_environment_is_defensible
 from backend.settings import settings
 
+pytestmark = pytest.mark.smoke
+
 
 def test_a_declared_environment_refuses_to_start_without_authentication(monkeypatch):
     monkeypatch.setattr(settings, "delir_environment", "prod")

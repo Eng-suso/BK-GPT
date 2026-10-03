@@ -85,6 +85,26 @@ describe("elementWaitDeltas", () => {
       ],
     });
     const deltas = elementWaitDeltas(a, b);
-    expect(deltas.find((d) => d.el === "C")).toMatchObject({ aWait: 0, bWait: 2000 });
+    const missing = deltas.find((d) => d.el === "C")!;
+    expect(missing).toMatchObject({ bWait: 2000, direction: "same" });
+    expect(Number.isNaN(missing.aWait)).toBe(true);
+    expect(Number.isNaN(missing.deltaWait)).toBe(true);
   });
+});
+
+it("does not present missing resource observations as 0% utilisation", () => {
+  const row = kpiDeltas(summary(), summary({ byResource: [] })).find(row => row.key === "busiestResource")!;
+  expect(Number.isNaN(row.b)).toBe(true);
+  expect(row.deltaPct).toBeNull();
+  expect(row.direction).toBe("same");
+});
+
+
+it("keeps observed zero waiting distinct from missing waiting", () => {
+  const a = summary({ byActivity: [{ el: "A", wait: { avg: 100 } }, { el: "B", wait: { avg: 100 } }] });
+  const b = summary({ byActivity: [{ el: "A", wait: { avg: 0 } }, { el: "B", wait: { avg: null } }] });
+  const deltas = elementWaitDeltas(a, b);
+  expect(deltas.find(row => row.el === "A")).toMatchObject({ deltaWait: -100, direction: "better" });
+  expect(deltas.find(row => row.el === "B")?.direction).toBe("same");
+  expect(Number.isNaN(deltas.find(row => row.el === "B")?.deltaWait)).toBe(true);
 });
