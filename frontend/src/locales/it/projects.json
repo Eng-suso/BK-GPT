@@ -150,7 +150,8 @@
         "loading": "Carico le affermazioni…",
         "none": "Il documento non afferma niente su come si lavora.",
         "verified": "citazione verificata",
-        "unverified": "citazione da controllare"
+        "unverified": "citazione da controllare",
+        "loadFailed": "Impossibile leggere le affermazioni: riprova."
       }
     },
     "decisions": {

@@ -150,7 +150,8 @@
         "loading": "Loading claims…",
         "none": "The document says nothing about how the work is done.",
         "verified": "quote verified",
-        "unverified": "quote to check"
+        "unverified": "quote to check",
+        "loadFailed": "Claims could not be loaded: try again."
       }
     },
     "decisions": {

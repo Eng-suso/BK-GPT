@@ -37,6 +37,13 @@ export function SourceClaimsSection({ source }: { source: ProjectSource }): Reac
         {t("detail.sources.claims.failed", { reason: source.claimsError ?? "" })}
       </p>
     );
+  } else if (claims.isError) {
+    // Una lettura fallita non e' "nessuna affermazione".
+    body = (
+      <p className="text-body-sm text-destructive" role="alert">
+        {t("detail.sources.claims.loadFailed")}
+      </p>
+    );
   } else if (claims.isLoading) {
     body = <p className="text-body-sm text-muted-foreground">{t("detail.sources.claims.loading")}</p>;
   } else if (!claims.data?.length) {

@@ -44,7 +44,7 @@ export const projectKeys = {
   list: () => [...projectKeys.all] as const,
   detail: (id: string) => [...projectKeys.all, id] as const,
   sources: (id: string) => [...projectKeys.all, id, "sources"] as const,
-  sourceClaims: (sourceId: string) => ["sources", sourceId, "claims"] as const,
+  sourceClaims: (sourceId: string) => [...projectKeys.all, "source", sourceId, "claims"] as const,
   sourceDocument: (sourceId: string) =>
     [...projectKeys.all, "source", sourceId, "document"] as const,
   decisions: (id: string) => [...projectKeys.all, id, "decisions"] as const,

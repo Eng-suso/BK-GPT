@@ -67,6 +67,21 @@ describe("SourceClaimsSection", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("provider giu'");
   });
 
+  it("estrazione finita: caricamento, nessuna affermazione, lettura fallita e avviso di documento lungo", () => {
+    claimsQuery.mockReturnValue({ isLoading: true, isError: false, data: undefined });
+    const { rerender } = render(<SourceClaimsSection source={SOURCE} />);
+    expect(screen.getByText("Carico le affermazioni…")).toBeInTheDocument();
+
+    claimsQuery.mockReturnValue({ isLoading: false, isError: false, data: [] });
+    rerender(<SourceClaimsSection source={{ ...SOURCE, claimsError: "Lette le prime porzioni: 4 rimaste fuori." }} />);
+    expect(screen.getByText(/non afferma niente/)).toBeInTheDocument();
+    expect(screen.getByText(/4 rimaste fuori/)).toBeInTheDocument();
+
+    claimsQuery.mockReturnValue({ isLoading: false, isError: true, data: undefined });
+    rerender(<SourceClaimsSection source={SOURCE} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Impossibile leggere le affermazioni");
+  });
+
   it("una fonte senza file non ha la sezione", () => {
     claimsQuery.mockReturnValue({ isLoading: false, data: undefined });
     const { container } = render(
