@@ -74,6 +74,25 @@ def log_agent_failure(exc: BaseException, *, thread_id: str, trace_id: str | Non
     )
 
 
+def confirm_files_sent(attachments: list) -> None:
+    """Un file mandato con un messaggio e' confermato come evidenza.
+
+    Decisione del 2 ottobre: premere Invio vale come "Usa come evidenza", e fa
+    partire l'estrazione delle affermazioni. Non blocca il turno: se il
+    database non risponde il messaggio parte lo stesso, e la conferma si puo'
+    dare dal pannello Fonti.
+    """
+    source_ids = [item.id for item in attachments if getattr(item, "kind", None) == "source"]
+    if not source_ids:
+        return
+    from backend.workspace_database import confirm_sources_sent_in_chat
+
+    try:
+        confirm_sources_sent_in_chat(source_ids)
+    except Exception:  # noqa: BLE001 - la conferma non deve far cadere il turno
+        logger.warning("conferma dei file inviati in chat non riuscita", exc_info=True)
+
+
 def record_product_language(*, answer: str, asked: str, scope_type: str | None) -> list[str]:
     """Segna quando la risposta al consulente parla ancora da sistema.
 
@@ -297,6 +316,7 @@ def send_consultant_chat_message(
         attachments=[attachment.model_dump() for attachment in request.attachments],
         **fields,
     )
+    confirm_files_sent(request.attachments)
 
     try:
         response_message = stream_agent_text(
@@ -366,6 +386,7 @@ def stream_consultant_chat_message(
         attachments=[attachment.model_dump() for attachment in request.attachments],
         **fields,
     )
+    confirm_files_sent(request.attachments)
 
     return StreamingResponse(
         chat_turn_events(thread_id=thread_id, request=request, fields=fields),
