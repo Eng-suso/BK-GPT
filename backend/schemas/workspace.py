@@ -138,6 +138,9 @@ class CreateProjectDecisionRequest(BaseModel):
 
 class UpdateBpmnModelRequest(BaseModel):
     xml: str
+    # La versione da cui il canvas e' partito. Se nel frattempo ne e' nata
+    # un'altra, il salvataggio risponde 409 invece di sovrascriverla.
+    expected_version_id: int | None = None
 
 
 class UpdateBpmnReviewRequest(BaseModel):
@@ -194,6 +197,8 @@ class BpmnModelResponse(BaseModel):
     process_id: str
     name: str
     xml: str | None = None
+    # L'ultima versione salvata: il canvas la rimanda al salvataggio successivo.
+    version_id: int | None = None
 
 
 class BpmnVersionResponse(BaseModel):

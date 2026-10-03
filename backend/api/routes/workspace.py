@@ -92,6 +92,7 @@ from backend.workspace_database import (
     restore_process,
     restore_project,
     update_bpmn_model,
+    BpmnVersionConflict,
     revise_bpmn_review,
     update_bpmn_review_brief,
     update_client,
@@ -847,7 +848,13 @@ def update_workspace_bpmn_model(
     request: UpdateBpmnModelRequest,
 ) -> BpmnModelResponse:
     try:
-        model = update_bpmn_model(bpmn_model_id, request.xml)
+        model = update_bpmn_model(
+            bpmn_model_id,
+            request.xml,
+            expected_version_id=request.expected_version_id,
+        )
+    except BpmnVersionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
