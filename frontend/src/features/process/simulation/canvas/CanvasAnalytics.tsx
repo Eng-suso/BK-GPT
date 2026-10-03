@@ -5,6 +5,7 @@ import { GripVertical, Minus, Plus, Trash2, Settings2 } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/ui/button";
+import type { SimulationSummary } from "../simulationTypes";
 import type { ReplayEngine, ReplayFrame } from "../replay/replayEngine";
 import { useSimulationSection } from "../useSimulationSection";
 import { KINDS, METRICS, createWidget, widgetSchema, defaultLayout, type DashboardWidget } from "../dashboard/dashboardModel";
@@ -22,13 +23,13 @@ const pinsSchema = z.array(z.object({
 type Pin = z.infer<typeof pinsSchema>[number];
 
 /** Each host belongs to its own overlay; replay badges must not clear these. */
-function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfigure }: {
+function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfigure, summary }: {
   pin: Pin; viewer: BpmnViewer; engine: ReplayEngine; frame: ReplayFrame;
-  onChange: (patch: Partial<Pin>) => void; onRemove: () => void; onConfigure?: () => void;
+  onChange: (patch: Partial<Pin>) => void; onRemove: () => void; onConfigure?: () => void; summary?: SimulationSummary | null;
 }): React.JSX.Element | null {
   const { t } = useTranslation("process");
   const [host] = React.useState(() => document.createElement("div"));
-  const drag = React.useRef<{ x: number; y: number; dx: number; dy: number } | null>(null);
+  const drag = React.useRef<{ x: number; y: number; dx: number; dy: number; scale: number } | null>(null);
   React.useEffect(() => {
     const overlays = svc<BpmnOverlays>(viewer, "overlays");
     if (!overlays || !svc<BpmnElementRegistry>(viewer, "elementRegistry")?.get(pin.elementId)) return;
@@ -38,7 +39,7 @@ function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfig
   const patchWidget = (patch: Partial<DashboardWidget>) => onChange({ widget: { ...pin.widget, ...patch } });
   const position = (x: number, y: number) => onChange({ x: Math.max(-2000, Math.min(2000, x)), y: Math.max(-2000, Math.min(2000, y)) });
   const name = engine.payload.elements[pin.elementId]?.name ?? pin.elementId;
-  return createPortal(<article className="sim-canvas-widget sim-widget" style={{ width: pin.width, transform: `translate(${pin.x}px, ${pin.y}px)` }} data-canvas-widget={pin.widget.id} aria-label={t("simulation.studio.canvasAnalysis", { name })} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
+  return createPortal(<article className="sim-canvas-widget sim-widget" style={{ width: pin.width, transform: `translate(${pin.x}px, ${pin.y}px) scale(var(--scene-ui-scale,1))`, transformOrigin: "top left" }} data-canvas-widget={pin.widget.id} aria-label={t("simulation.studio.canvasAnalysis", { name })} onPointerDown={(event) => event.stopPropagation()} onWheel={(event) => event.stopPropagation()}>
     <header className="sim-canvas-widget-heading">
       <button type="button" className="sim-canvas-drag" aria-label={t("simulation.studio.moveCanvasWidget")} title={t("simulation.studio.moveCanvasHelp")}
         onKeyDown={(event) => {
@@ -46,16 +47,16 @@ function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfig
           const offsets: Record<string, [number, number]> = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] };
           if (offsets[event.key]) { event.preventDefault(); position(pin.x + offsets[event.key][0], pin.y + offsets[event.key][1]); }
         }}
-        onPointerDown={(event) => { event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { x: event.clientX, y: event.clientY, dx: 0, dy: 0 }; }}
-        onPointerMove={(event) => { if (!drag.current) return; drag.current.dx = event.clientX - drag.current.x; drag.current.dy = event.clientY - drag.current.y; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x + drag.current.dx}px, ${pin.y + drag.current.dy}px)`; }}
+        onPointerDown={(event) => { event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); drag.current = { x: event.clientX, y: event.clientY, dx: 0, dy: 0, scale: (() => { const anchor = event.currentTarget.closest(".sim-scene-object") ?? event.currentTarget.closest("article"); return (anchor as HTMLElement).getBoundingClientRect().width / (anchor as HTMLElement).offsetWidth; })() }; }}
+        onPointerMove={(event) => { if (!drag.current) return; drag.current.dx = (event.clientX - drag.current.x) / drag.current.scale; drag.current.dy = (event.clientY - drag.current.y) / drag.current.scale; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x + drag.current.dx}px, ${pin.y + drag.current.dy}px) scale(var(--scene-ui-scale,1))`; }}
         onPointerUp={() => { if (!drag.current) return; position(pin.x + drag.current.dx, pin.y + drag.current.dy); drag.current = null; }}
-        onPointerCancel={(event) => { drag.current = null; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x}px, ${pin.y}px)`; }}
+        onPointerCancel={(event) => { drag.current = null; (event.currentTarget.closest("article") as HTMLElement).style.transform = `translate(${pin.x}px, ${pin.y}px) scale(var(--scene-ui-scale,1))`; }}
       ><GripVertical aria-hidden className="size-4" /></button>
       <div className="min-w-0 flex-1"><h3>{pin.widget.title || t(`simulation.studio.metric.${pin.widget.metric}`)}</h3><p>{pin.widget.metric.startsWith("activity") ? name : t("simulation.studio.globalScope")}</p></div>
       {onConfigure && <Button id={`configure-pin-${pin.widget.id}`} size="icon" variant="ghost" onClick={onConfigure} aria-label={t("simulation.studio.configure", { title: pin.widget.title || t(`simulation.studio.metric.${pin.widget.metric}`) })}><Settings2 aria-hidden className="size-4" /></Button>}
       <Button size="icon" variant="ghost" onClick={onRemove} aria-label={t("simulation.studio.remove")}><Trash2 aria-hidden className="size-4" /></Button>
     </header>
-    <WidgetView widget={pin.widget} engine={engine} frame={frame} activityId={pin.elementId} />
+    <WidgetView widget={pin.widget} engine={engine} frame={frame} activityId={pin.elementId} summary={summary} />
     {!onConfigure && <details className="sim-canvas-settings"><summary>{t("simulation.studio.settings")}</summary>
       <label className="sim-field"><span>{t("simulation.studio.title")}</span><input aria-label={t("simulation.studio.title")} value={pin.widget.title} maxLength={120} onChange={(event) => patchWidget({ title: event.target.value })} /></label>
       <label className="sim-field"><span>{t("simulation.studio.type")}</span><select aria-label={t("simulation.studio.type")} value={pin.widget.kind} onChange={(event) => patchWidget({ kind: event.target.value as DashboardWidget["kind"] })}>{KINDS.map((kind) => <option value={kind} key={kind}>{t(`simulation.studio.kind.${kind}`)}</option>)}</select></label>
@@ -70,9 +71,9 @@ function PinnedWidget({ pin, viewer, engine, frame, onChange, onRemove, onConfig
   </article>, host);
 }
 
-export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, onVisibilityChange, inspectorHost }: {
+export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, onVisibilityChange, inspectorHost, summary, actionsHost }: {
   viewer: BpmnViewer | null; engine: ReplayEngine; frame: ReplayFrame; selectedId: string | null; visible: boolean;
-  onVisibilityChange: (visible: boolean) => void; inspectorHost?: HTMLElement | null;
+  onVisibilityChange: (visible: boolean) => void; actionsHost?: HTMLElement | null; inspectorHost?: HTMLElement | null; summary?: SimulationSummary | null;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const { projectId, processId, panel, inspectedWidgetId, inspectWidget } = useSimulationSection();
@@ -103,24 +104,27 @@ export function CanvasAnalytics({ viewer, engine, frame, selectedId, visible, on
     inspectWidget?.(null); opener?.focus({ preventScroll: true });
   };
   const canAdd = Boolean(selectedId && engine.payload.elements[selectedId] && pins.length < 12);
-  return <>
-    <div className="sim-canvas-analysis-actions">
-      <Button size="sm" variant="outline" disabled={!canAdd} onClick={() => {
+  const hintId = React.useId();
+  const actions = <div className="sim-canvas-analysis-actions">
+      {actionsHost && <Button size="sm" variant="ghost" aria-pressed={visible} onClick={() => onVisibilityChange(!visible)}>{t("simulation.studio.charts")}</Button>}
+      <Button size="sm" variant="outline" disabled={!canAdd} aria-describedby={hintId} title={t(canAdd ? "simulation.studio.canvasLocal" : "simulation.studio.selectActivity")} onClick={() => {
         if (!selectedId) return;
         const widget = { ...createWidget("kpi"), metric: "activityQueued" as const, activityId: selectedId };
         save([...pins, { elementId: selectedId, widget, x: 0, y: 110, width: 260 }]);
         onVisibilityChange(true);
       }}><Plus aria-hidden className="size-4" />{t("simulation.studio.addCanvasAnalysis")}</Button>
       {pins.length > 0 && <Button size="sm" variant="ghost" onClick={() => save(pins.map((pin, index) => ({ ...pin, x: (index % 2) * 20, y: 110 + (index % 3) * 20 })))}>{t("simulation.studio.repositionCharts")}</Button>}
-      <span className="sim-help">{t(canAdd ? "simulation.studio.canvasLocal" : "simulation.studio.selectActivity")}</span>
+      <span id={hintId} className="sim-help">{t(canAdd ? "simulation.studio.canvasLocal" : "simulation.studio.selectActivity")}</span>
       {error && <span role="alert" className="text-xs text-destructive">{t(error === "restore" ? "simulation.studio.restoreError" : "simulation.studio.saveError")}</span>}
-    </div>
-    {viewer && visible && pins.map((pin) => <PinnedWidget key={pin.widget.id} pin={pin} viewer={viewer} engine={engine} frame={frame}
+    </div>;
+  return <>
+    {actionsHost ? createPortal(actions, actionsHost) : actions}
+    {viewer && visible && pins.map((pin) => <PinnedWidget key={pin.widget.id} pin={pin} viewer={viewer} engine={engine} frame={frame} summary={summary}
       onConfigure={inspectorHost && inspectWidget ? () => inspectWidget(`pin:${pin.widget.id}`) : undefined}
       onChange={(patch) => save(pins.map((item) => item.widget.id === pin.widget.id ? { ...item, ...patch } : item))}
       onRemove={() => save(pins.filter((item) => item.widget.id !== pin.widget.id))} />)}
     {inspectorHost && selectedPin && createPortal(<div ref={inspectorRef} className="sim-inspector-slot"><WidgetInspector pinned widget={selectedPin.widget}
-      layout={{ ...defaultLayout(), groups: [{ id: "pins", title: "", widgets: pins.map((pin) => pin.widget) }] }} engine={engine} activityId={selectedPin.elementId}
+      layout={{ ...defaultLayout(), groups: [{ id: "pins", title: "", widgets: pins.map((pin) => pin.widget) }] }} engine={engine} activityId={selectedPin.elementId} summary={summary}
       onClose={closeInspector} onGroup={() => {}}
       onChange={(patch) => save(pins.map((pin) => pin.widget.id === selectedPin.widget.id ? { ...pin, width: patch.width ? patch.width === "full" ? 440 : 260 : pin.width, widget: { ...pin.widget, ...patch } } : pin))}
       onDelete={() => { save(pins.filter((pin) => pin.widget.id !== selectedPin.widget.id)); closeInspector(); }}

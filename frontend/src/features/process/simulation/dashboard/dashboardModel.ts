@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { evaluateExpression } from "./dashboardExpressions";
 
+import type { SimulationSummary } from "../simulationTypes";
 import type { ReplayEngine, ReplayFrame } from "../replay/replayEngine";
 
 export const KINDS = ["line", "area", "bar", "column", "pie", "donut", "gauge", "radial", "kpi", "table", "text"] as const;
@@ -8,6 +9,12 @@ export const METRICS = ["active", "queued", "completed", "throughput", "cost", "
 export type WidgetKind = typeof KINDS[number];
 export type Metric = typeof METRICS[number];
 export type Unit = "count" | "rate" | "currency" | "duration" | "percent";
+
+export const canvasRectSchema = z.object({
+  x: z.number().finite().min(-10000).max(10000), y: z.number().finite().min(-10000).max(10000),
+  width: z.number().finite().min(280).max(2400), height: z.number().finite().min(240).max(1600),
+});
+export type CanvasRect = z.infer<typeof canvasRectSchema>;
 
 export const widgetSchema = z.object({
   id: z.string().min(1).max(80),
@@ -22,11 +29,13 @@ export const widgetSchema = z.object({
   activityId: z.string().max(200).default(""),
   showLabels: z.boolean(),
   color: z.enum(["blue", "amber", "teal", "violet"]),
+  canvas: canvasRectSchema.optional(),
 });
 export type DashboardWidget = z.infer<typeof widgetSchema>;
 export const layoutSchema = z.object({
   version: z.literal(1),
   process: z.object({
+    canvas: canvasRectSchema.optional(),
     groupId: z.string().max(80), beforeId: z.string().max(80).nullable(),
     width: z.enum(["half", "full"]), height: z.number().int().min(340).max(720),
   }).default({ groupId: "", beforeId: "__first__", width: "half", height: 440 }),
@@ -48,9 +57,9 @@ export function createWidget(kind: WidgetKind, id: string = crypto.randomUUID())
 
 export function defaultLayout(): DashboardLayout {
   const spec: [WidgetKind, Metric, DashboardWidget["color"]][] = [
-    ["area", "active", "blue"], ["line", "throughput", "teal"],
-    ["bar", "activityQueued", "amber"], ["column", "resourceBusy", "violet"],
-    ["area", "cost", "teal"], ["line", "cycle", "violet"],
+    ["area", "active", "blue"], ["line", "throughput", "blue"],
+    ["bar", "activityQueued", "amber"], ["column", "resourceBusy", "blue"],
+    ["area", "cost", "blue"], ["line", "cycle", "blue"],
   ];
   return { version: 1, process: { groupId: "operations", beforeId: "default-0", width: "half", height: 440 }, groups: [{ id: "operations", title: "", widgets: spec.map(([kind, metric, color], index) => ({
     ...createWidget(kind, `default-${index}`), metric, color,
@@ -78,14 +87,15 @@ export const UNITS: Record<Metric, Unit> = {
 };
 export type DashboardPoint = { label: string; value: number; t?: number };
 
-export function widgetData(engine: ReplayEngine, frame: ReplayFrame, metric: Metric, activityId = "all") {
+export function widgetData(engine: ReplayEngine, frame: ReplayFrame, metric: Metric, activityId = "all", summary?: SimulationSummary | null) {
   const field = SERIES[metric];
   const unit = UNITS[metric];
   const numeric = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
   if (field) {
     const series = engine.payload.series.global[field];
-    const value = series?.[frame.bucket];
-    const observed = metric !== "cycle" || frame.global.completedCases > 0;
+    const finalValues: Partial<Record<Metric, number>> = summary ? { completed: summary.casesCompleted, cycle: summary.cycle.avg, cost: summary.cost.total, throughput: summary.throughputPerHour } : {};
+    const value = metric in finalValues ? finalValues[metric] : series?.[frame.bucket];
+    const observed = metric !== "cycle" || (summary?.casesCompleted ?? frame.global.completedCases) > 0;
     const points: DashboardPoint[] = engine.payload.series.t.slice(0, frame.bucket + 1).flatMap((t, index) => {
       const v = series?.[index];
       const done = engine.payload.series.global.done?.[index] ?? 0;
@@ -95,7 +105,7 @@ export function widgetData(engine: ReplayEngine, frame: ReplayFrame, metric: Met
   }
   const resource = metric === "resourceBusy";
   const all: DashboardPoint[] = resource
-    ? Object.entries(frame.resources).map(([label, state]) => ({ label, value: state.busy * 100 }))
+    ? summary ? summary.byResource.flatMap(item => typeof item.utilizationPct === "number" && Number.isFinite(item.utilizationPct) ? [{ label: String(item.name ?? item.pool ?? item.id ?? "—"), value: item.utilizationPct }] : []) : Object.entries(frame.resources).map(([label, state]) => ({ label, value: state.busy * 100 }))
     : Object.entries(frame.elements).filter(([id]) => activityId === "all" || id === activityId).map(([id, state]) => ({
       label: engine.payload.elements[id]?.name ?? id,
       value: metric === "activityQueued" ? state.queued : metric === "activityDone" ? state.done : state.active,
@@ -106,8 +116,8 @@ export function widgetData(engine: ReplayEngine, frame: ReplayFrame, metric: Met
 }
 
 /** Numeric formulas keep the source metric's unit and use only observed data. */
-export function resolveWidgetData(engine: ReplayEngine, frame: ReplayFrame, widget: DashboardWidget, activityId: string, lang: "it" | "en") {
-  const data = widgetData(engine, frame, widget.metric, widget.activityId || (widget.followFilter ? activityId : "all"));
+export function resolveWidgetData(engine: ReplayEngine, frame: ReplayFrame, widget: DashboardWidget, activityId: string, lang: "it" | "en", summary?: SimulationSummary | null) {
+  const data = widgetData(engine, frame, widget.metric, widget.activityId || (widget.followFilter ? activityId : "all"), summary);
   if (!widget.metricExpression.trim()) return { ...data, expressionValid: true };
   const calculate = (metric: number, bucket: number) => {
     const total = (engine.payload.series.global.wip?.[bucket] ?? 0) + (engine.payload.series.global.done?.[bucket] ?? 0);

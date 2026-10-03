@@ -17,7 +17,7 @@ export type UseReplayEngine = {
  * Fetch a run's replay artifact and wrap it in a {@link ReplayEngine}. The
  * engine is recreated when the run changes and torn down on unmount.
  */
-export function useReplayEngine(runId: number | null, enabled = true): UseReplayEngine {
+export function useReplayEngine(runId: number | null, enabled = true, atEnd = false): UseReplayEngine {
   const query = useQuery({
     queryKey: ["workspace", "simulation-replay", runId],
     queryFn: () => getSimulationReplay(runId as number),
@@ -31,8 +31,13 @@ export function useReplayEngine(runId: number | null, enabled = true): UseReplay
   // computes stats — no rAF / listeners until `.play()`), so build it in a memo
   // and dispose it in an effect keyed on the instance.
   const engine = React.useMemo(
-    () => (query.data ? new ReplayEngine(query.data.replay) : null),
-    [query.data],
+    () => {
+      if (!query.data) return null;
+      const instance = new ReplayEngine(query.data.replay);
+      if (atEnd) instance.seek(instance.durationSec);
+      return instance;
+    },
+    [query.data, atEnd],
   );
   React.useEffect(() => {
     if (!engine) return;

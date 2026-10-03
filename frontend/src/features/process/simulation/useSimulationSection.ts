@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 import type { Project, ProjectProcess } from "../../../contracts/workspace";
 import type { SimulationRun } from "./simulationTypes";
 
+export type AnalysisView = "replay" | "final" | "compare" | "heatmap";
 export type SimulationPanel = "scenario" | "overview" | "compare" | "heatmap" | "insights" | "widget" | "activity";
 
 export type SimulationSectionValue = {
@@ -21,6 +22,8 @@ export type SimulationSectionValue = {
   selectElement?: (id: string | null) => void;
   inspectedWidgetId?: string | null;
   inspectWidget?: (id: string | null) => void;
+  analysisView?: AnalysisView;
+  setAnalysisView?: (view: AnalysisView) => void;
   panel?: SimulationPanel | null;
   openPanel?: (panel: SimulationPanel | null) => void;
 
@@ -48,7 +51,7 @@ export function formatRunOption(run: SimulationRun, lang: "it" | "en"): string {
         hour: "2-digit",
         minute: "2-digit",
       })}`;
-  return `${run.scenario_name}${date}`;
+  return `${run.scenario_name}${date} · #${run.id}`;
 }
 
 /**
