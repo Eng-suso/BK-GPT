@@ -44,6 +44,8 @@ const SOURCE: ProjectSource = {
   byteSize: null,
   acquisitionStatus: null,
   acquisitionError: null,
+  claimsStatus: null,
+  claimsError: null,
 };
 
 const TRANSCRIPT = [

@@ -425,6 +425,9 @@ class ProjectSourceResponse(BaseModel):
     # `None` per le fonti senza file.
     acquisition_status: Literal["pending", "done", "partial", "failed"] | None = None
     acquisition_error: str | None = None
+    # L'estrazione delle affermazioni (P1.12): `None` finche' nessuno l'ha chiesta.
+    claims_status: Literal["pending", "done", "failed"] | None = None
+    claims_error: str | None = None
 
 
 class UploadedSourceResponse(ProjectSourceResponse):
@@ -448,11 +451,27 @@ class UpdateSourceRolesRequest(BaseModel):
 
 
 
+class SourceClaimResponse(BaseModel):
+    """Un'affermazione di una fonte, con la porzione che la sostiene."""
+
+    id: int
+    source_id: str
+    statement: str
+    segment_ordinal: int
+    anchor_ref: str
+    quote: str
+    # La citazione e' stata ritrovata parola per parola nella porzione.
+    quote_verified: bool
+    extracted_at: str
+
+
 class EvidenceSegmentResponse(BaseModel):
     """Una porzione citabile di una fonte: `Ordini!B7`, `#/texts/12`."""
 
     id: int
     source_id: str
+    # La posizione nella fonte: e' il numero che un'affermazione cita.
+    ordinal: int = 0
     kind: str
     ref: str
     locator: dict[str, Any]

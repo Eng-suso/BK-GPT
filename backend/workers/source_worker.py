@@ -119,6 +119,56 @@ def drain_once(limit: int = _BATCH, *, only_tenant_id: str | None = None) -> int
             break
         _work_one(rows[0])
         processed += 1
+    # Prima si legge, poi si estrae: una fonte confermata in chat mentre era in
+    # lettura entra in coda proprio alla fine della sua lettura.
+    return processed + drain_claims_once(1, only_tenant_id=only_tenant_id)
+
+
+def _extract_one(row: dict) -> bool:
+    """Estrae le affermazioni di una fonte, dentro il suo tenant e la sua operazione.
+
+    Returns:
+        `True` se le affermazioni sono state scritte.
+    """
+    from backend.llm import OperationKind, operation
+    from backend.workspace_services.evidence.claims import extract_claims
+
+    token = set_current_tenant_id(row["tenant_id"])
+    try:
+        try:
+            segments = wd.list_evidence_segments(row["id"])
+            # L2: la spesa dell'estrazione appartiene a questa fonte, nel suo
+            # progetto e processo.
+            with operation(
+                OperationKind.SOURCE_CLAIMS,
+                tenant_id=row["tenant_id"],
+                project_id=row["project_id"],
+                process_id=row["process_id"],
+            ):
+                result = extract_claims(segments, source_name=row["name"])
+        except Exception as exc:  # noqa: BLE001 - un'estrazione storta non ferma la coda
+            logger.exception("fonte %s: estrazione delle affermazioni fallita", row["id"])
+            wd.fail_source_claims(row["id"], error=f"Estrazione non riuscita: {type(exc).__name__}", permanent=False)
+            return False
+        wd.complete_source_claims(row["id"], result, content_hash=row["content_hash"] or "")
+        return True
+    finally:
+        reset_current_tenant_id(token)
+
+
+def drain_claims_once(limit: int = 1, *, only_tenant_id: str | None = None) -> int:
+    """Una passata sulla coda delle affermazioni (P1.12).
+
+    Returns:
+        Quante fonti sono state lavorate. Zero significa coda vuota.
+    """
+    processed = 0
+    for _ in range(max(1, limit)):
+        rows = wd.due_source_claims(1, only_tenant_id=only_tenant_id)
+        if not rows:
+            break
+        _extract_one(rows[0])
+        processed += 1
     return processed
 
 
