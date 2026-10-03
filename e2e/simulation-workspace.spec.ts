@@ -653,7 +653,7 @@ test("different model versions do not paint unmatched activities as comparable",
 test("inspecting a matrix alternative preserves an implicit reference and labels unavailable data", async ({ page }) => {
   await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run,
     { ...run, id: 43, scenario_name: "TO-BE · Riferimento" },
-    { ...run, id: 44, scenario_name: "TO-BE · Alternativa", summary: { ...run.summary, cycle: { ...run.summary.cycle, avg: null } } },
+    { ...run, id: 44, scenario_name: "TO-BE · Alternativa", summary: { ...run.summary, byResource: [] } },
   ] }));
   await page.goto(`${studio}/workspace/42?view=compare&panel=compare`);
   await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("Riferimento");
@@ -661,7 +661,7 @@ test("inspecting a matrix alternative preserves an implicit reference and labels
   await page.getByRole("checkbox", { name: "TO-BE · Alternativa · #44", exact: true }).click();
   const matrix = page.getByRole("region", { name: "Matrice di confronto degli scenari", exact: true });
   await expect(matrix.locator("thead th")).toHaveCount(4);
-  await expect(matrix.locator("tbody tr").filter({ hasText: "Attraversamento medio" }).locator("td").last()).toContainText("Dati non disponibili");
+  await expect(matrix.locator("tbody tr").filter({ hasText: "Risorsa più carica" }).locator("td").last()).toContainText("Dati non disponibili");
   await matrix.locator("thead th").filter({ hasText: "TO-BE · Alternativa" }).getByRole("button", { name: "Osserva nel canvas", exact: true }).click();
   await expect(page).toHaveURL(/a=43/);
   await expect(page).toHaveURL(/b=44/);
