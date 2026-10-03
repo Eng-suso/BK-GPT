@@ -453,6 +453,8 @@ class EvidenceSegmentResponse(BaseModel):
 
     id: int
     source_id: str
+    # La posizione nella fonte: e' il numero che un'affermazione cita.
+    ordinal: int = 0
     kind: str
     ref: str
     locator: dict[str, Any]

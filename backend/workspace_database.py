@@ -2502,6 +2502,7 @@ def list_evidence_segments(source_id: str) -> list[dict]:
             {
                 "id": row.id,
                 "source_id": row.source_id,
+                "ordinal": row.ordinal,
                 "kind": row.anchor_kind,
                 "ref": row.anchor_ref,
                 "locator": json.loads(row.locator_json),
