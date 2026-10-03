@@ -34,6 +34,7 @@ import {
 } from "../api";
 import type { SourceAcquisitionStatus, SourceRole } from "@/contracts/workspace";
 import { HttpError, httpErrorMessage } from "@/lib/http";
+import { SourceClaimsSection } from "./SourceClaimsSection";
 
 /**
  * Picks the icon that matches a source type.
@@ -334,6 +335,8 @@ export function SourcesPanel({
                   {document?.summary || openSource.meta || t("detail.sources.noNotes")}
                 </p>
               </section>
+
+              <SourceClaimsSection source={openSource} />
 
               <section className="flex min-h-0 flex-col gap-1.5">
                 <h3 className="text-micro font-medium tracking-wide text-muted-foreground uppercase">

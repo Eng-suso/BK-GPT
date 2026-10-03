@@ -141,7 +141,17 @@
       "verify": "Usa come evidenza",
       "verified": "Confermata dal consulente",
       "toVerify": "Da confermare",
-      "verifyError": "Non è stato possibile confermare la fonte."
+      "verifyError": "Non è stato possibile confermare la fonte.",
+      "claims": {
+        "heading": "Affermazioni",
+        "notRequested": "Le affermazioni si estraggono quando usi il file come evidenza, o lo mandi in chat.",
+        "pending": "DeliR sta estraendo le affermazioni…",
+        "failed": "Estrazione non riuscita: {{reason}}",
+        "loading": "Carico le affermazioni…",
+        "none": "Il documento non afferma niente su come si lavora.",
+        "verified": "citazione verificata",
+        "unverified": "citazione da controllare"
+      }
     },
     "decisions": {
       "empty": "Nessuna decisione registrata"

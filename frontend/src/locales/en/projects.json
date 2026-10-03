@@ -141,7 +141,17 @@
       "verify": "Use as evidence",
       "verified": "Confirmed by the consultant",
       "toVerify": "To be confirmed",
-      "verifyError": "The source could not be confirmed."
+      "verifyError": "The source could not be confirmed.",
+      "claims": {
+        "heading": "Claims",
+        "notRequested": "Claims are extracted when you use the file as evidence, or send it in chat.",
+        "pending": "DeliR is extracting the claims…",
+        "failed": "Extraction failed: {{reason}}",
+        "loading": "Loading claims…",
+        "none": "The document says nothing about how the work is done.",
+        "verified": "quote verified",
+        "unverified": "quote to check"
+      }
     },
     "decisions": {
       "empty": "No decisions recorded"
