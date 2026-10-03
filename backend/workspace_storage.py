@@ -291,6 +291,12 @@ class WorkspaceSource(WorkspaceBase):
     claims_error: Mapped[str | None] = mapped_column(Text)
     # Inviato in chat mentre era ancora in lettura: la conferma scatta a lettura finita.
     confirm_when_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Le affermazioni estratte vanno nel grafo (P1.14): Source -> Evidence ->
+    # Claim nel canonical. Stessa coda a scadenza. `None` finche' non ce ne sono.
+    graph_status: Mapped[str | None] = mapped_column(String)
+    graph_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    graph_next_attempt_at: Mapped[str | None] = mapped_column(String)
+    graph_error: Mapped[str | None] = mapped_column(Text)
 
 
 class WorkspaceSourceEvidence(WorkspaceBase):

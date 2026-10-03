@@ -2611,6 +2611,11 @@ def complete_source_claims(source_id: str, result: "ClaimsResult", *, content_ha
         )
         source.claims_status = "done"
         source.claims_next_attempt_at = None
+        # P1.14: le affermazioni nuove sostituiscono nel grafo quelle di prima.
+        source.graph_status = "pending"
+        source.graph_attempts = 0
+        source.graph_error = None
+        source.graph_next_attempt_at = now
         # Fatto, ma non tutto: lo si dice invece di farlo credere completo.
         source.claims_error = (
             f"Lette le prime porzioni: {result.segments_left_out} rimaste fuori per la lunghezza."
@@ -2634,6 +2639,82 @@ def fail_source_claims(source_id: str, *, error: str, permanent: bool) -> None:
         else:
             delay = CLAIMS_BACKOFF_SECONDS * (2 ** max(0, source.claims_attempts - 1))
             source.claims_next_attempt_at = (datetime.now(UTC) + timedelta(seconds=delay)).isoformat(
+                timespec="seconds"
+            )
+        session.flush()
+
+
+GRAPH_MAX_ATTEMPTS = 3
+GRAPH_BACKOFF_SECONDS = 60
+GRAPH_LEASE_SECONDS = 120
+
+
+def due_source_graph(limit: int = 1, *, only_tenant_id: str | None = None) -> list[dict]:
+    """Prende in carico le fonti le cui affermazioni vanno portate nel grafo.
+
+    Il tentativo si conta alla presa in carico, come nelle altre code.
+    """
+    now = now_iso()
+    lease_until = (datetime.now(UTC) + timedelta(seconds=GRAPH_LEASE_SECONDS)).isoformat(timespec="seconds")
+    with workspace_connection() as session:
+        statement = (
+            select(WorkspaceSource)
+            .where(WorkspaceSource.graph_status == "pending")
+            .where(WorkspaceSource.graph_next_attempt_at <= now)
+            .order_by(WorkspaceSource.graph_next_attempt_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
+        )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceSource.tenant_id == only_tenant_id)
+        claimed = []
+        for row in session.execute(statement).scalars().all():
+            if row.graph_attempts >= GRAPH_MAX_ATTEMPTS:
+                row.graph_status = "failed"
+                row.graph_next_attempt_at = None
+                row.graph_error = row.graph_error or "Il passaggio nel grafo si e' interrotto troppe volte."
+                continue
+            row.graph_attempts += 1
+            row.graph_next_attempt_at = lease_until
+            claimed.append(
+                {
+                    "id": row.id,
+                    "tenant_id": row.tenant_id,
+                    "name": row.name,
+                    "project_id": row.project_id,
+                    "process_id": row.process_id,
+                    "content_hash": row.content_hash,
+                    "byte_size": row.byte_size,
+                }
+            )
+        session.flush()
+        return claimed
+
+
+def complete_source_graph(source_id: str) -> None:
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return
+        source.graph_status = "done"
+        source.graph_next_attempt_at = None
+        source.graph_error = None
+        session.flush()
+
+
+def fail_source_graph(source_id: str, *, error: str, permanent: bool) -> None:
+    """Un passaggio nel grafo non riuscito: si riprova con backoff, ma non per sempre."""
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return
+        source.graph_error = str(error)[:2000]
+        if permanent or source.graph_attempts >= GRAPH_MAX_ATTEMPTS:
+            source.graph_status = "failed"
+            source.graph_next_attempt_at = None
+        else:
+            delay = GRAPH_BACKOFF_SECONDS * (2 ** max(0, source.graph_attempts - 1))
+            source.graph_next_attempt_at = (datetime.now(UTC) + timedelta(seconds=delay)).isoformat(
                 timespec="seconds"
             )
         session.flush()
