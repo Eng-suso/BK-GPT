@@ -112,6 +112,21 @@ NODES: tuple[NodeSpec, ...] = (
         pg_only=("canonical_name", "aliases", "attributes", "embedding", "source_ids"),
     ),
     NodeSpec(
+        table="kg_source",
+        label="Source",
+        id_prop="source_id",
+        props=("kind",),
+        pg_only=("title", "blob_uri", "content_hash", "byte_size", "workspace_source_id"),
+    ),
+    NodeSpec(
+        table="kg_evidence",
+        label="Evidence",
+        id_prop="evidence_id",
+        # L'ancora dice dove sta la porzione ("p.3", "R4"), non cosa dice.
+        props=("anchor", "ordinal"),
+        pg_only=("locator", "source_id"),
+    ),
+    NodeSpec(
         table="kg_claim",
         label="Claim",
         id_prop="claim_id",
@@ -178,7 +193,9 @@ EDGES: tuple[EdgeSpec, ...] = (
 )
 
 STRUCTURAL_EDGES: tuple[StructuralEdge, ...] = (
+    StructuralEdge("kg_evidence", "HAS_EVIDENCE", "Source", "Evidence", via="source_id"),
     StructuralEdge("kg_claim", "HAS_CLAIM", "Process", "Claim", via="process_id"),
+    StructuralEdge("kg_claim", "SUPPORTS", "Evidence", "Claim", via="evidence_id"),
     StructuralEdge("kg_gap", "BLOCKS", "Gap", "Process", via="affected_process_ids", array=True),
     StructuralEdge("kg_contradiction", "AFFECTS", "Contradiction", "Process", via="affected_process_ids", array=True),
     StructuralEdge("kg_contradiction", "BETWEEN", "Contradiction", "Claim", via="conflicting_claim_ids", array=True),
@@ -191,6 +208,8 @@ NODE_BY_TABLE: dict[str, NodeSpec] = {n.table: n for n in NODES}
 OUTBOX_AGGREGATE_TYPES: tuple[str, ...] = (
     "entity",
     "process",
+    "source",
+    "evidence",
     "claim",
     "gap",
     "contradiction",
