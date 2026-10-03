@@ -48,7 +48,7 @@ jobs:
         run: uv sync --locked
 
       - name: Ruff check
-        run: uv run ruff check backend/graphs backend/schemas backend/services tests
+        run: uv run ruff check backend tests
 
       - name: Mypy check
         run: uv run mypy
