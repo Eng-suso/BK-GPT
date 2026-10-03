@@ -356,7 +356,6 @@ def run_canvas_drawing_agent(state: CanvasState) -> dict:
             ],
         }
     report = optimization.get("selected_report") or {}
-    attempts = optimization.get("attempts") or []
     status = "completed" if optimization.get("valid") else "blocked"
     saved_model = workspace_database.update_bpmn_model(
         bpmn_model_id,

@@ -26,7 +26,6 @@ if not all(_NEEDED):
     )
 
 from backend.memory.knowledge_graph import canonical, neo4j_store  # noqa: E402
-from backend.workers.graph_worker import drain_once  # noqa: E402
 
 MIGRATOR = create_engine(settings.canonical_migrator_url, future=True)
 
