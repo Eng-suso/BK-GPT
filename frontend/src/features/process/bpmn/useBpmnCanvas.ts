@@ -27,7 +27,7 @@ import {
   keepSequenceConnectionsDocked,
 } from "./viewport";
 import { applyProvenanceMarkers, splitTraceability, withTraceability } from "./provenance";
-import { assertBpmnXml, downloadBpmn, loadInitialXml } from "./xml";
+import { assertBpmnXml, downloadBpmn, loadInitialModel } from "./xml";
 import type {
   BpmnCanvasService,
   BpmnElementRegistry,
@@ -96,6 +96,9 @@ export function useBpmnCanvas({
   const changeCheckTimerRef = useRef<number | null>(null);
   const fitTimerRef = useRef<number | null>(null);
   const lastSavedXmlRef = useRef<string | null>(null);
+  // The saved version the canvas started from: a save sends it back, and the
+  // backend refuses (409) if someone saved a newer one in the meantime.
+  const savedVersionIdRef = useRef<number | null>(null);
   const onCurrentXmlChangeRef = useRef(onCurrentXmlChange);
   // Riferimento di tracciabilita' -> nodi del disegno. Si ricostruisce a ogni
   // import: un disegno nuovo puo' rappresentare lo stesso passaggio altrove.
@@ -246,7 +249,9 @@ export function useBpmnCanvas({
         keepSequenceConnectionsDocked(modeler);
 
         const localDraft = readLocalBpmnDraft(bpmnModelId);
-        const xml = localDraft ?? (await loadInitialXml(bpmnModelId, processName));
+        const initial = await loadInitialModel(bpmnModelId, processName);
+        const xml = localDraft ?? initial.xml;
+        savedVersionIdRef.current = initial.versionId;
         lastSavedXmlRef.current = localDraft ? null : xml;
         isImportingRef.current = true;
         await modeler.importXML(xml);
@@ -354,7 +359,8 @@ export function useBpmnCanvas({
           markUnsaved(false);
         }
 
-        const xml = await loadInitialXml(bpmnModelId, processName);
+        const { xml, versionId } = await loadInitialModel(bpmnModelId, processName);
+        savedVersionIdRef.current = versionId;
         isImportingRef.current = true;
         await modelerRef.current.importXML(xml);
         onCurrentXmlChangeRef.current?.(xml);
@@ -391,7 +397,12 @@ export function useBpmnCanvas({
       if (!xml) throw new Error("Il canvas non ha restituito XML BPMN.");
       onCurrentXmlChangeRef.current?.(xml);
 
-      await saveBpmnModelXml(bpmnModelId, xml);
+      const saved = await saveBpmnModelXml(
+        bpmnModelId,
+        xml,
+        savedVersionIdRef.current,
+      );
+      savedVersionIdRef.current = saved.versionId;
 
       clearDraftTimer();
       clearLocalBpmnDraft(bpmnModelId);
@@ -426,6 +437,7 @@ export function useBpmnCanvas({
 
       try {
         const model = await restoreBpmnVersionRequest(bpmnModelId, versionId);
+        savedVersionIdRef.current = model.versionId;
         const xml = model.xml;
         if (!xml) throw new Error("La versione ripristinata non contiene XML BPMN.");
 

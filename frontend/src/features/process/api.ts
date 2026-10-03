@@ -113,14 +113,21 @@ export async function fetchBpmnVersions(
   return apiBpmnVersionsSchema.parse(raw).map(toBpmnVersion);
 }
 
+/**
+ * Save the canvas. `expectedVersionId` is the version the canvas was loaded
+ * from: if someone saved a newer one meanwhile, the backend answers 409 and
+ * nothing is overwritten.
+ */
 export async function saveBpmnModelXml(
   bpmnModelId: string,
   xml: string,
-): Promise<void> {
-  await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}`, {
+  expectedVersionId: number | null = null,
+): Promise<BpmnModel> {
+  const raw = await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}`, {
     method: "PUT",
-    body: { xml },
+    body: { xml, expected_version_id: expectedVersionId },
   });
+  return toBpmnModel(apiBpmnModelSchema.parse(raw));
 }
 
 /** Restore a stored version; returns the model the backend rewound to. */

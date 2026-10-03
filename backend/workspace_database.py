@@ -1096,6 +1096,7 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
                 "process_id": model.process_id,
                 "name": model.name,
                 "xml": model.xml,
+                "version_id": restored.id,
             },
             "restored_from": bpmn_version_to_dict(version),
             "created_version": bpmn_version_to_dict(restored),

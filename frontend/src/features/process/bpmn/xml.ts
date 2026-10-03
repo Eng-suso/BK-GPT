@@ -38,17 +38,23 @@ export function formatVersionDate(value: string): string {
 }
 
 /** The model's stored XML, or a fresh starter diagram if it can't be loaded. */
-export async function loadInitialXml(
+export type InitialBpmnModel = {
+  xml: string;
+  /** The saved version the XML comes from; `null` for the starter diagram. */
+  versionId: number | null;
+};
+
+export async function loadInitialModel(
   bpmnModelId: string,
   processName: string,
-): Promise<string> {
+): Promise<InitialBpmnModel> {
   const fallbackXml = buildInitialProcessDiagram(processName);
 
   try {
     const model = await fetchBpmnModel(bpmnModelId);
-    return model.xml?.trim() || fallbackXml;
+    return { xml: model.xml?.trim() || fallbackXml, versionId: model.versionId };
   } catch (err) {
     console.warn("[bpmn] model load failed, using starter diagram", err);
-    return fallbackXml;
+    return { xml: fallbackXml, versionId: null };
   }
 }
