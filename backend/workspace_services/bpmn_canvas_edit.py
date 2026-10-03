@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import pairwise
 from dataclasses import asdict, dataclass, replace
 from collections.abc import Iterable
 import xml.etree.ElementTree as ET
@@ -832,8 +833,8 @@ def layout_bpmn_di(
         for point in points:
             ET.SubElement(edge, _di_tag("waypoint"), {"x": str(point["x"]), "y": str(point["y"])})
         if flow.attrib.get("name") and len(points) >= 3:
-            vertical = max((abs(a["y"] - b["y"]) for a, b in zip(points, points[1:])), default=0)
-            horizontal = max((abs(a["x"] - b["x"]) for a, b in zip(points, points[1:])), default=0)
+            vertical = max((abs(a["y"] - b["y"]) for a, b in pairwise(points)), default=0)
+            horizontal = max((abs(a["x"] - b["x"]) for a, b in pairwise(points)), default=0)
             if vertical > 150 and vertical > horizontal:
                 label = ET.SubElement(edge, _bpmndi_tag("BPMNLabel"))
                 ET.SubElement(label, _dc_tag("Bounds"), {
@@ -967,7 +968,7 @@ def _avoid_node_label_collisions(
             if any(overlaps(candidate, other) for label_id, _, other in labels if label_id != owner_id):
                 continue
             if any(_segment_crosses_box(start, end, candidate)
-                   for points in edges for start, end in zip(points, points[1:])):
+                   for points in edges for start, end in pairwise(points)):
                 continue
             current["x"], current["y"] = candidate["x"], candidate["y"]
             bounds_element.set("x", str(candidate["x"]))
@@ -985,7 +986,7 @@ def _avoid_node_label_collisions(
                                     for key in ("x", "y", "width", "height")}, points))
 
     for bounds_element, current, points in edge_labels:
-        verticals = [(a, b) for a, b in zip(points, points[1:]) if abs(a[0] - b[0]) < 2]
+        verticals = [(a, b) for a, b in pairwise(points) if abs(a[0] - b[0]) < 2]
         if not verticals:
             continue
         longest = max(verticals, key=lambda segment: abs(segment[0][1] - segment[1][1]))
@@ -1004,7 +1005,7 @@ def _avoid_node_label_collisions(
                    if other_bounds is not bounds_element):
                 continue
             if any(_segment_crosses_box(start, end, candidate)
-                   for route in edges for start, end in zip(route, route[1:])):
+                   for route in edges for start, end in pairwise(route)):
                 continue
             current["x"], current["y"] = candidate["x"], candidate["y"]
             bounds_element.set("x", str(candidate["x"]))
@@ -1220,7 +1221,7 @@ def _edge_waypoints(
 
     crossing_boxes = [box for box in blockers if any(
         _segment_crosses_box((a["x"], a["y"]), (b["x"], b["y"]), box)
-        for a, b in zip(direct, direct[1:])
+        for a, b in pairwise(direct)
     )]
     if not crossing_boxes:
         return direct
@@ -1246,7 +1247,7 @@ def _edge_waypoints(
         ]
         if not any(
             _segment_crosses_box((a["x"], a["y"]), (b["x"], b["y"]), box)
-            for box in blockers for a, b in zip(points, points[1:])
+            for box in blockers for a, b in pairwise(points)
         ):
             candidates.append((abs(start_y - route_y) + abs(sx - tx) + abs(end_y - route_y), points))
     return min(candidates, key=lambda candidate: candidate[0])[1] if candidates else direct
@@ -1564,7 +1565,7 @@ def _edge_shape_crossings(
         for node_id, bounds in node_shapes.items():
             if node_id in {source_id, target_id}:
                 continue
-            if any(_segment_crosses_box(start, end, bounds) for start, end in zip(points, points[1:])):
+            if any(_segment_crosses_box(start, end, bounds) for start, end in pairwise(points)):
                 crossings.append((edge_id, node_id))
     return crossings
 
@@ -1585,8 +1586,8 @@ def _edge_edge_crossings(root: ET.Element) -> list[tuple[str, str]]:
         for right_id, right_points in edges[index + 1:]:
             if any(
                 _segments_overlap_interior(a, b, c, d)
-                for a, b in zip(left_points, left_points[1:])
-                for c, d in zip(right_points, right_points[1:])
+                for a, b in pairwise(left_points)
+                for c, d in pairwise(right_points)
             ):
                 crossings.append((left_id, right_id))
     return crossings
