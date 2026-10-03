@@ -19,6 +19,7 @@ from backend.app import health, size_request_threadpool
 from backend.settings import settings
 
 
+@pytest.mark.smoke
 def test_health_does_not_queue_behind_the_slow_routes():
     """`/health` gira nell'event loop, non nel threadpool delle rotte lente."""
     assert inspect.iscoroutinefunction(health), (
@@ -27,6 +28,7 @@ def test_health_does_not_queue_behind_the_slow_routes():
     )
 
 
+@pytest.mark.smoke
 def test_health_answers_while_every_worker_thread_is_busy():
     """La prova vera: tutti i posti occupati, e la risposta arriva lo stesso."""
 
