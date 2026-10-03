@@ -108,6 +108,7 @@ test("widget edits, duplication, keyboard reordering and sections persist after 
   await page.getByRole("button", { name: "Aggiungi sezione", exact: true }).click();
   await inspector.getByLabel("Sezione", { exact: true }).selectOption({ label: "Sezione 2" });
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
   await page.reload();
   await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption({ label: "Costi del run" });
   await expect(page.getByRole("heading", { name: "Costi del run", exact: true })).toBeVisible();
@@ -349,6 +350,7 @@ test("process placement, sizing and undo are saved with the analytical layout", 
   await expect(object).toHaveCSS("width", "920px");
   await expect(viewer).toHaveAttribute("data-session-marker", "same-viewer");
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
   await page.reload();
   await expect(object).toHaveCSS("left", "20px");
   await expect(object).toHaveCSS("width", "920px");
@@ -508,6 +510,7 @@ test("headers move process and charts directly at nondefault zoom with one undoa
   await page.getByRole("button", { name: "Zoom indietro", exact: true }).click();
   const chart = await moveHeader('[data-scene-object="default-0"]');
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
   await page.reload();
   const restored = await page.locator('[data-scene-object="default-0"]').evaluate(el => parseFloat((el as HTMLElement).style.left));
   expect(restored).toBeCloseTo(chart.after.x, 1);
@@ -565,6 +568,82 @@ test("dragging a palette preset places it at the drop point in scene coordinates
   expect(Math.abs(rect.y - (point.y - camera.y) / camera.scale)).toBeLessThan(2 / camera.scale);
   await expect(widget).toBeInViewport({ ratio: 0.9 });
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
   await page.reload();
   await expect(widget).toHaveCount(1);
+});
+
+
+test("results panels have dedicated space and readable metrics on desktop and phone", async ({ page, isMobile }, testInfo) => {
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [{ ...run, result: {
+    OverallScenarioStatistics: [{ KPI: "cycle_time", Average: 267, "Trace Ocurrences": 3 }, { KPI: "waiting_time", Average: 90 }, { KPI: "processing_time", Average: 177 }],
+    ResourceUtilization: [{ "Resource ID": "Analisti", "Resource name": "Analisti", "Utilization": 0.8 }],
+    IndividualTaskStatistics: [{ Name: "Verifica documentazione", Count: 3, "Waiting Time": 90, "Processing Time": 177, "Cycle Time": 267 }],
+  } }, { ...run, id: 43, scenario_name: "TO-BE · Capacità aggiuntiva" }] }));
+  if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${studio}/workspace/42`);
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Risultati", exact: true }).click();
+  const dock = page.locator(".sim-studio-dock");
+  const board = page.locator(".sim-studio-board");
+  const metrics = dock.locator(".sim-snapshot-kpis");
+  await expect(metrics.locator("strong")).toHaveCount(6);
+  const positions = await page.evaluate(() => {
+    const box = (selector: string) => { const r = document.querySelector(selector)!.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+    return { board: box(".sim-studio-board"), dock: box(".sim-studio-dock") };
+  });
+  if (isMobile) expect(positions.dock.top).toBeGreaterThanOrEqual(positions.board.bottom);
+  else expect(positions.dock.left).toBeGreaterThanOrEqual(positions.board.right);
+  expect(await metrics.locator("strong").evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth))).toBe(true);
+  expect(await metrics.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(board.getByRole("button", { name: "Aggiungi widget", exact: true })).toBeVisible();
+  await metrics.scrollIntoViewIfNeeded();
+  const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(scan.violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("satin-results.png"), animations: "disabled" });
+});
+
+test("multiple alternatives compare against one reference and preserve the replay session", async ({ page, isMobile }, testInfo) => {
+  const names = ["TO-BE · Capacità", "TO-BE · Automazione", "TO-BE · Turni", "TO-BE · Priorità", "TO-BE · Calendario"];
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run, ...names.map((name, index) => ({ ...run, id: 43 + index, scenario_name: name, summary: { ...run.summary, cycle: { ...run.summary.cycle, avg: 200 - index * 10 }, cost: { total: 1200 + index * 100, perCase: 400 + index * 10 } } }))] }));
+  if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${studio}/workspace/42`);
+  await seek(page, 200);
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Confronto", exact: true }).click();
+  await page.getByRole("combobox", { name: "Scenario A", exact: true }).click();
+  await page.getByRole("option", { name: /AS-IS/ }).click();
+  await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("AS-IS");
+  await page.getByRole("combobox", { name: "Scenario B", exact: true }).click();
+  await page.getByRole("option", { name: /TO-BE · Capacità/ }).click();
+  await expect(page.getByRole("combobox", { name: "Scenario B", exact: true })).toContainText("TO-BE · Capacità");
+  await page.locator(".sim-multi-comparison > summary").click();
+  const matrix = page.getByRole("region", { name: "Matrice di confronto degli scenari", exact: true });
+  await page.getByRole("checkbox", { name: "TO-BE · Automazione · #44", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Automazione · #44", exact: true })).toBeChecked();
+  await page.getByRole("checkbox", { name: "TO-BE · Turni · #45", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Turni · #45", exact: true })).toBeChecked();
+  await expect(matrix.locator("thead th")).toHaveCount(5);
+  const cycle = matrix.locator("tbody tr").filter({ hasText: "Attraversamento medio" });
+  await expect(cycle.locator("td").nth(0)).toContainText("4 min");
+  await expect(cycle.locator("td").nth(1)).toContainText("3 min");
+  await expect(cycle.locator("td").nth(2)).toContainText("Migliora");
+  await expect(matrix.locator("tbody tr").filter({ hasText: "Costo per caso" })).toContainText("Peggiora");
+  await page.getByRole("checkbox", { name: "TO-BE · Priorità · #46", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Priorità · #46", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Calendario · #47", exact: true })).toBeDisabled();
+  await matrix.locator("thead th").filter({ hasText: "TO-BE · Turni" }).getByRole("button", { name: "Osserva nel canvas", exact: true }).click();
+  await expect(page).toHaveURL(/b=45/);
+  await expect(page).toHaveURL(/compareMode=b/);
+  await expect(matrix.locator("thead th")).toHaveCount(6);
+  const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(scan.violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("scenario-matrix.png"), animations: "disabled" });
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Osserva", exact: true }).click();
+  await expect(page.locator('input[type="range"]')).toHaveValue("200");
+});
+
+test("different model versions do not paint unmatched activities as comparable", async ({ page }) => {
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run, { ...run, id: 43, bpmn_model_id: "different-model", scenario_name: "TO-BE · Modello diverso" }] }));
+  await page.goto(`${studio}/workspace/42?view=compare&a=42&b=43`);
+  await expect(page.locator(".sim-comparison-bar > .sim-comparison-compatibility")).toContainText("mappatura");
+  await expect(page.locator(".sim-delta-better,.sim-delta-worse,.sim-heat-1,.sim-heat-2,.sim-heat-3,.sim-heat-4,.sim-heat-5")).toHaveCount(0);
 });

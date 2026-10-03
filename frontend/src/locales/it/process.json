@@ -551,6 +551,19 @@
       "full": "Tutte le sezioni sono piene. Aggiungi una sezione per continuare.",
       "libraryFooter": "Ogni elemento segue il tempo della simulazione.",
       "added": "{{title}} aggiunto e centrato sulla tela."
+    },
+    "decision": {
+      "title": "Confronto degli scenari",
+      "pairHint": "A è il riferimento. B è l’alternativa osservata nel canvas.",
+      "multiTitle": "Confronta più scenari",
+      "chooseAlternatives": "Alternative da confrontare",
+      "matrix": "Matrice di confronto degli scenari",
+      "matrixHint": "Risultati finali simulati · variazioni rispetto al riferimento A · fino a 4 alternative.",
+      "reference": "Riferimento A",
+      "alternative": "Alternativa",
+      "inspect": "Osserva nel canvas",
+      "unchanged": "Invariato",
+      "modelMismatch": "Queste esecuzioni usano modelli BPMN diversi. Le differenze delle attività richiedono una mappatura fra le versioni; verifica anche la comparabilità dei KPI."
     }
   },
   "side": {

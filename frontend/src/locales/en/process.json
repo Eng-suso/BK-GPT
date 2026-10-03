@@ -551,6 +551,19 @@
       "full": "All sections are full. Add a section to continue.",
       "libraryFooter": "Every element follows the simulation clock.",
       "added": "{{title}} added and centered on the canvas."
+    },
+    "decision": {
+      "title": "Scenario comparison",
+      "pairHint": "A is the reference. B is the alternative shown on the canvas.",
+      "multiTitle": "Compare multiple scenarios",
+      "chooseAlternatives": "Alternatives to compare",
+      "matrix": "Scenario comparison matrix",
+      "matrixHint": "Final simulated results · changes relative to reference A · up to 4 alternatives.",
+      "reference": "Reference A",
+      "alternative": "Alternative",
+      "inspect": "Inspect on canvas",
+      "unchanged": "Unchanged",
+      "modelMismatch": "These runs use different BPMN models. Comparing activity differences requires a mapping between model versions; review KPI comparability as well."
     }
   },
   "side": {

@@ -21,6 +21,7 @@ import {
 } from "@/ui/table";
 import { formatMetric } from "../dashboard/dashboardFormatting";
 import { cn } from "@/lib/utils";
+import { Button } from "@/ui/button";
 
 import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanvas";
 import { formatRunOption, useSimulationSection } from "../useSimulationSection";
@@ -37,6 +38,8 @@ import {
   formatPercent,
   heatBucket,
 } from "../simulationResults";
+
+import { ScenarioMatrix } from "./ScenarioMatrix";
 
 export type CompareMode = "a" | "b" | "delta";
 
@@ -58,7 +61,8 @@ export function ComparePage({ embedded = false, compact = false, onDecorations }
   const setMode = (value: CompareMode) => { const next = new URLSearchParams(params); next.set("compareMode", value); setParams(next, { replace: true }); };
 
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
-  const decorations = React.useMemo(() => runA && runB ? comparisonDecorations(runA, runB, mode, lang) : [], [runA, runB, mode, lang]);
+  const sameModel = runA?.bpmn_model_id === runB?.bpmn_model_id;
+  const decorations = React.useMemo(() => runA && runB && sameModel ? comparisonDecorations(runA, runB, mode, lang) : [], [runA, runB, mode, lang, sameModel]);
   React.useEffect(() => { onDecorations?.(decorations); }, [decorations, onDecorations]);
   if (candidates.length < 2) {
     return (
@@ -81,7 +85,8 @@ export function ComparePage({ embedded = false, compact = false, onDecorations }
   };
 
   return (
-    <div className={compact ? "sim-comparison-bar" : "flex h-full min-h-0 flex-col gap-3"}>
+    <div className={compact ? "sim-comparison-bar ui-surface ui-surface-panel" : "flex h-full min-h-0 flex-col gap-3"}>
+      {compact && <header className="sim-compare-context"><div><h3>{t("simulation.decision.title")}</h3><p>{t("simulation.decision.pairHint")}</p></div><span className="sim-eyebrow">{t("simulation.scene.finalScope")}</span></header>}
       <div className="flex shrink-0 flex-wrap items-center gap-3">
         <RunPicker
           label={t("simulation.compare.runA")}
@@ -97,31 +102,27 @@ export function ComparePage({ embedded = false, compact = false, onDecorations }
           onChange={(v) => setRun("b", v)}
         />
         <div
-          className="ml-auto flex items-center rounded-md border border-border p-0.5"
+          className="ml-auto flex items-center gap-1 ui-surface ui-surface-inset p-1"
           role="group"
           aria-label={t("simulation.compare.modeLabel")}
         >
           {(["a", "b", "delta"] as CompareMode[]).map((m) => (
-            <button
+            <Button
               key={m}
-              type="button"
+              size="sm"
+              variant={mode === m ? "secondary" : "ghost"}
               aria-pressed={mode === m}
               onClick={() => setMode(m)}
-              className={cn(
-                "rounded px-2.5 py-1 text-xs font-medium transition-colors",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--sim-info)]",
-                mode === m
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
             >
               {m === "a" ? "A" : m === "b" ? "B" : "Δ"}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
 
       <Verdict runA={runA} runB={runB} />
+      {!sameModel && <p className="sim-comparison-compatibility" role="status">{t("simulation.decision.modelMismatch")}</p>}
+      {compact && <ScenarioMatrix baseline={runA} alternative={runB} candidates={candidates} />}
 
       {compact ? <details className="sim-comparison-details"><summary>{t("simulation.scene.summaryDetails")}</summary><KpiDeltaTable runA={runA} runB={runB} /></details> : <div className={embedded ? "min-h-0 flex-1" : "grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(340px,0.82fr)_minmax(0,1.18fr)]"}>
         <section className="flex min-h-0 flex-col overflow-hidden ui-surface ui-surface-panel">
@@ -338,6 +339,7 @@ function CompareCanvas({
 }
 
 function comparisonDecorations(runA: SimulationRun, runB: SimulationRun, mode: CompareMode, lang: "it" | "en"): NodeDecoration[] {
+    if (runA.bpmn_model_id !== runB.bpmn_model_id) return [];
     if (mode === "delta") {
       const deltas = elementWaitDeltas(
         runA.summary as SimulationSummary,

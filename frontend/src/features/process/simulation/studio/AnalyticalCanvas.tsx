@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { GripVertical, Move, Maximize2, Minus, Plus, Workflow, Scaling } from "lucide-react";
+import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import type { CanvasRect } from "../dashboard/dashboardModel";
 import { bounds, fitCamera, PROCESS_ID, resizeRect, zoomCamera, freeInsertionRect, insertionRect, type Camera } from "./canvasGeometry";
@@ -109,20 +110,20 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
   };
   const allBounds = bounds(objects.map(object => object.rect));
   const mapScale = Math.min(140 / Math.max(allBounds.width, 1), 68 / Math.max(allBounds.height, 1));
-  return <div className={`sim-analytical-canvas ${editing ? "is-authoring" : ""}`}>
-    <div className="sim-scene-controls" role="group" aria-label={t("simulation.scene.navigation")}>
+  return <Surface asChild variant="panel"><div className={`sim-analytical-canvas ${editing ? "is-authoring" : ""}`}>
+    <div className="sim-scene-controls ui-surface-toolbar" role="group" aria-label={t("simulation.scene.navigation")}>
       <Button variant="outline" size="sm" aria-label={t("simulation.scene.backProcess")} onClick={() => process && focus(process.rect)}><Workflow aria-hidden className="size-4" /><span className="sim-scene-process-label">{t("simulation.scene.backProcess")}</span></Button>
-      <label className="sim-scene-jump"><span className="sr-only">{t("simulation.scene.goTo")}</span><select aria-label={t("simulation.scene.goTo")} value="" onChange={event => { const object = objects.find(item => item.id === event.target.value); if (object) { setActiveObject(object.id); focus(object.rect); } }}><option value="">{t("simulation.scene.goTo")}</option>{objects.map(object => <option value={object.id} key={object.id}>{object.title}</option>)}</select></label>
+      <label className="sim-scene-jump"><span className="sr-only">{t("simulation.scene.goTo")}</span><select className="ui-field" aria-label={t("simulation.scene.goTo")} value="" onChange={event => { const object = objects.find(item => item.id === event.target.value); if (object) { setActiveObject(object.id); focus(object.rect); } }}><option value="">{t("simulation.scene.goTo")}</option>{objects.map(object => <option value={object.id} key={object.id}>{object.title}</option>)}</select></label>
       <span className="sim-scene-instructions"><Move aria-hidden className="size-3.5" />{t(editing ? "simulation.scene.composeHint" : "simulation.scene.panHint")}</span>
       <div className="sim-scene-extra" ref={onActionsHost} />
-      <button type="button" className="sim-scene-map" aria-label={t("simulation.scene.map")} title={t("simulation.scene.showAll")} onClick={event => {
+      <Button variant="outline" type="button" className="sim-scene-map" aria-label={t("simulation.scene.map")} title={t("simulation.scene.showAll")} onClick={event => {
         const id = event.detail ? (event.target as HTMLElement).getAttribute("data-map-id") : null;
         const object = objects.find(item => item.id === id);
         if (object) setActiveObject(object.id);
         focus(object?.rect ?? allBounds);
       }}>
         {objects.map(object => <span aria-hidden key={object.id} data-map-id={object.id} className={object.id === PROCESS_ID ? "is-process" : ""} style={{ left: `${(8 + (object.rect.x - allBounds.x) * mapScale) / 156 * 100}%`, top: `${(8 + (object.rect.y - allBounds.y) * mapScale) / 84 * 100}%`, width: `${Math.max(8, object.rect.width * mapScale) / 156 * 100}%`, height: `${Math.max(8, object.rect.height * mapScale) / 84 * 100}%` }} />)}
-      </button>
+      </Button>
       <div className="sim-scene-zoom">
         <Button variant="ghost" size="icon" aria-label={t("simulation.diagram.zoomOut")} onClick={() => setCamera(current => zoomCamera(current, 1 / 1.2, (viewport.current?.clientWidth ?? 0) / 2, (viewport.current?.clientHeight ?? 0) / 2))}><Minus aria-hidden className="size-4" /></Button>
         <output aria-label={t("simulation.scene.zoom")}>{Math.round(camera.scale * 100)}%</output>
@@ -164,13 +165,13 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
             const left = rect.x * c.scale + c.x, top = rect.y * c.scale + c.y;
             if (left < 0 || top < 0 || left + rect.width * c.scale > el.clientWidth || top + rect.height * c.scale > el.clientHeight) focus(rect);
           }} style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}>
-            {<button type="button" className="sim-scene-move" aria-label={t("simulation.scene.move", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id)} onKeyDown={event => keyboardPlace(event, object, false)}><GripVertical aria-hidden className="size-4" /></button>}
+            {<Button variant="ghost" size="icon" type="button" className="sim-scene-move" aria-label={t("simulation.scene.move", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id)} onKeyDown={event => keyboardPlace(event, object, false)}><GripVertical aria-hidden className="size-4" /></Button>}
             {object.content}
-            {editing && activeObject === object.id && <button type="button" className="sim-scene-resize" aria-label={t("simulation.scene.resize", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id, true)} onKeyDown={event => keyboardPlace(event, object, true)}><Scaling aria-hidden className="size-4" /></button>}
+            {editing && activeObject === object.id && <Button variant="outline" size="icon" type="button" className="sim-scene-resize" aria-label={t("simulation.scene.resize", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id, true)} onKeyDown={event => keyboardPlace(event, object, true)}><Scaling aria-hidden className="size-4" /></Button>}
           </div>;
         })}
       </div>
     </div>
     </div>
-  </div>;
+  </div></Surface>;
 }

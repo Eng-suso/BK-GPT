@@ -4,6 +4,7 @@ import type { HeatMetric } from "./simulationResults";
 import { useReplayEngine } from "./replay/useReplay";
 import { useTranslation } from "react-i18next";
 import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb, X, Workflow } from "lucide-react";
+import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import { EmptyState } from "@/components/feedback";
 import { DashboardWorkspace } from "./dashboard/DashboardWorkspace";
@@ -66,7 +67,7 @@ export function SimulationStudio(): React.JSX.Element {
   };
   const title = panel === "widget" ? t("simulation.studio.inspector") : panel === "activity" ? t("simulation.replay.nodeInspector") : t(`simulation.unified.tool.${panel}`);
   return <div className="sim-studio" data-simulation-studio>
-    <div className="sim-studio-tools" role="group" aria-label={t("simulation.unified.tools")}>
+    <div className="sim-studio-tools ui-surface ui-surface-toolbar" role="group" aria-label={t("simulation.unified.tools")}>
       <div className="sim-studio-identity"><Workflow aria-hidden className="size-4" /><h2>{t("simulation.unified.title")}</h2></div>
       <div className="sim-studio-tool-actions"><Button size="sm" variant={view === "replay" ? "secondary" : "ghost"} aria-pressed={view === "replay"} onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.replay")}</Button>{TOOLS.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name || view === name ? "secondary" : "ghost"} aria-pressed={panel === name || view === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
     </div>
@@ -81,19 +82,19 @@ export function SimulationStudio(): React.JSX.Element {
               action={<Button onClick={() => show("scenario")}>{t("simulation.unified.tool.scenario")}</Button>} />
           </div>}
       </section>
-      <aside ref={dockRef} className="sim-studio-dock" hidden={!dockOpen} aria-label={t("simulation.unified.details")} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
-        <header className="sim-studio-dock-header"><div><p className="sim-eyebrow">{t(aggregate || panel === "overview" || panel === "insights" ? "simulation.unified.aggregateScope" : "simulation.unified.context")}</p><h3 data-dock-title tabIndex={-1}>{title}</h3></div><Button size="icon" variant="ghost" onClick={close} aria-label={t("simulation.unified.closePanel")}><X aria-hidden className="size-4" /></Button></header>
+      <Surface asChild variant="panel"><aside ref={dockRef} className="sim-studio-dock" hidden={!dockOpen} aria-label={t("simulation.unified.details")} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
+        <header className="sim-studio-dock-header ui-surface-toolbar"><div><p className="sim-eyebrow">{t(aggregate || panel === "overview" || panel === "insights" ? "simulation.unified.aggregateScope" : "simulation.unified.context")}</p><h3 data-dock-title tabIndex={-1}>{title}</h3></div><Button size="icon" variant="ghost" onClick={close} aria-label={t("simulation.unified.closePanel")}><X aria-hidden className="size-4" /></Button></header>
         <div className="sim-studio-dock-body">
           {panel === "scenario" && <ScenarioBuilderPage embedded />}
           {panel === "overview" && <SimulationWorkspace embedded />}
           {panel === "heatmap" && <HeatmapPage embedded onDecorations={setDecorations} onMetric={setHeatMetric} />}
 
-          {panel === "insights" && <div>{ready && <details className="sim-current-insights"><summary>{t("simulation.unified.currentDetails")}</summary><ReplayInsightRail engine={engine} run={run} embedded /></details>}<InsightsPage /></div>}
+          {panel === "insights" && <div>{ready && <details className="sim-current-insights"><summary>{t("simulation.unified.currentDetails")}</summary><ReplayInsightRail engine={engine} run={run} embedded /></details>}<InsightsPage embedded /></div>}
           {panel === "activity" && ready && <ActivityDetails engine={displayedEngine ?? engine} run={analysisRun ?? run} unavailable={unavailable} />}
           <div ref={setHost} className="sim-studio-widget-host" />
         </div>
-      </aside>
+      </aside></Surface>
     </div>
-    {ready && <div className="sim-studio-transport">{aggregate ? <div className="sim-final-transport"><div><strong>{t(view === "compare" ? "simulation.scene.comparisonScope" : "simulation.scene.finalScope")}</strong><p>{t("simulation.scene.finalHint")}</p></div><Button variant="outline" size="sm" onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.resume")}</Button></div> : <TransportBar engine={engine} />}</div>}
+    {ready && <div className="sim-studio-transport ui-surface ui-surface-toolbar">{aggregate ? <div className="sim-final-transport"><div><strong>{t(view === "compare" ? "simulation.scene.comparisonScope" : "simulation.scene.finalScope")}</strong><p>{t("simulation.scene.finalHint")}</p></div><Button variant="outline" size="sm" onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.resume")}</Button></div> : <TransportBar engine={engine} />}</div>}
   </div>;
 }

@@ -88,6 +88,7 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
       }
       {activeRun && <RunSnapshot
         run={activeRun}
+        compact={embedded}
         insights={insights}
         isPending={isPending}
         lang={lang}
@@ -117,6 +118,7 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
 
 type RunSnapshotProps = {
   run: SimulationRun | null;
+  compact?: boolean;
   insights: ReturnType<typeof readSimulationInsights>;
   isPending: boolean;
   lang: "it" | "en";
@@ -126,6 +128,7 @@ type RunSnapshotProps = {
 
 function RunSnapshot({
   run,
+  compact = false,
   insights,
   isPending,
   lang,
@@ -217,7 +220,7 @@ function RunSnapshot({
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+          <div className={compact ? "sim-snapshot-kpis grid grid-cols-2 gap-3" : "grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6"}>
             <StatTile
               label={t("simulation.results.cases")}
               value={new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US").format(
