@@ -85,6 +85,15 @@ files = [
     "backend/graphs/process/graph.py",
     "backend/graphs/canvas_edit/graph.py",
     "backend/schemas",
+    # Confine d'ingresso e orchestrazione: autenticazione, rotte, runtime
+    # dell'agente, code di lavoro.
+    "backend/security.py",
+    "backend/api",
+    "backend/services",
+    "backend/workers",
+    # Fuori copertura per ora, con gli errori contati il 2026-10-03:
+    # backend/memory (25), backend/toolsets (9), backend/agents (4).
+    # Entrano uno per volta, a zero errori; questa lista puo' solo accorciarsi.
 ]
 
 [tool.uv.sources]
