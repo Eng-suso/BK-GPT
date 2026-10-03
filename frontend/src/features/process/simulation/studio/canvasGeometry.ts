@@ -7,18 +7,35 @@ export const PROCESS_ID = "__process__";
 export function sceneRects(layout: DashboardLayout): Record<string, CanvasRect> {
   const process = layout.process.canvas ?? { x: 0, y: 0, width: layout.process.width === "full" ? 1284 : 900, height: Math.max(480, layout.process.height) };
   const result: Record<string, CanvasRect> = { [PROCESS_ID]: process };
-  let index = 0;
-  for (const group of layout.groups) for (const widget of group.widgets) {
-    const top = index < 2 && process.width === 900;
-    const slot = top ? index : index - (process.width === 900 ? 2 : 0);
-    result[widget.id] = widget.canvas ?? {
-      x: top ? 924 : (slot % 3) * 440,
-      y: top ? slot * 314 : process.height + 24 + Math.floor(slot / 3) * 314,
-      width: widget.width === "full" ? 1284 : top ? 360 : 416, height: 290,
+  const widgets = layout.groups.flatMap(group => group.widgets);
+  const sideCount = process.width === 900 && widgets.slice(0, 2).every(widget => widget.width !== "full") ? Math.min(2, widgets.length) : 0;
+  const bottom = process.y + Math.max(process.height, sideCount * 314 - 24) + 24;
+  let column = 0, row = 0;
+  const occupied = [process, ...widgets.flatMap(widget => widget.canvas ? [widget.canvas] : [])];
+  widgets.forEach((widget, index) => {
+    if (widget.canvas) { result[widget.id] = widget.canvas; return; }
+    const side = index < sideCount;
+    if (!side && widget.width === "full" && column) { row++; column = 0; }
+    const preferred = {
+      x: process.x + (side ? 924 : column * 440),
+      y: side ? process.y + index * 314 : bottom + row * 314,
+      width: widget.width === "full" ? 1284 : side ? 360 : 416, height: 290,
     };
-    index++;
-  }
+    const rect = freeInsertionRect(preferred, occupied);
+    result[widget.id] = rect;
+    occupied.push(rect);
+    if (!side) {
+      column += widget.width === "full" ? 3 : 1;
+      if (column >= 3) { row++; column = 0; }
+    }
+  });
   return result;
+}
+
+/** Freeze fallback positions before editing one object, so unrelated objects stay put. */
+export function materializeScene(layout: DashboardLayout): DashboardLayout {
+  const rects = sceneRects(layout);
+  return { ...layout, process: { ...layout.process, canvas: rects[PROCESS_ID] }, groups: layout.groups.map(group => ({ ...group, widgets: group.widgets.map(widget => ({ ...widget, canvas: rects[widget.id] })) })) };
 }
 
 export function bounds(rects: CanvasRect[]): CanvasRect {

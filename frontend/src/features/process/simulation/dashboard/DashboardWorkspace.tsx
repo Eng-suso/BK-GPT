@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ChartNoAxesCombined, Plus, Settings2, GripVertical, Check, RotateCcw, X, Workflow, ArrowUp, ArrowDown, Expand, Shrink, Undo2, Redo2 } from "lucide-react";
 
+import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/ui/dialog";
 import { StatTile } from "@/components/data";
@@ -16,7 +17,7 @@ import { KINDS, createWidget, defaultLayout, layoutSchema, moveWidget, widgetDat
 import { WidgetView } from "./WidgetView";
 import { formatMetric } from "./dashboardFormatting";
 import { AnalyticalCanvas, type SceneObject } from "../studio/AnalyticalCanvas";
-import { sceneRects, PROCESS_ID } from "../studio/canvasGeometry";
+import { sceneRects, materializeScene, PROCESS_ID } from "../studio/canvasGeometry";
 import type { PaletteItem } from "../studio/canvasPaletteModel";
 import { WidgetInspector } from "./WidgetInspector";
 
@@ -66,7 +67,8 @@ function DashboardBody({ engine, run, storageKey, integrated = false, process, p
     history.current.past.push(layout);
     history.current.past = history.current.past.slice(-30);
     history.current.future = [];
-    setLayout(update); refreshHistory();
+    const current = integrated ? materializeScene(layout) : layout;
+    setLayout(typeof update === "function" ? update(current) : update); refreshHistory();
   };
   const undo = (redo = false) => {
     const source = redo ? history.current.future : history.current.past;
@@ -145,7 +147,7 @@ function DashboardBody({ engine, run, storageKey, integrated = false, process, p
     const next = Math.max(0, Math.min(group.widgets.length, index + direction));
     updateProcess({ groupId: group.id, beforeId: group.widgets[next]?.id ?? null });
   };
-  const processTile = process && <article className={`sim-process-tile ${layout.process.width === "full" ? "is-full" : ""}`} data-process-tile
+  const processTile = process && <Surface asChild variant="panel"><article className={`sim-process-tile ${layout.process.width === "full" ? "is-full" : ""}`} data-process-tile
     style={{ "--process-height": `${layout.process.height}px` } as React.CSSProperties}
     onDragOver={(event) => { if (editing && event.dataTransfer.types.includes(DRAG_TYPE)) event.preventDefault(); }}
     onDrop={(event) => { if (!editing) return; const id = event.dataTransfer.getData(DRAG_TYPE); if (!id || id === "__process__") return; event.preventDefault(); changeLayout((current) => moveWidget(current, id, processGroupId, current.process.beforeId ?? undefined)); }}>
@@ -159,7 +161,7 @@ function DashboardBody({ engine, run, storageKey, integrated = false, process, p
       {!integrated && <Button size="icon" variant="ghost" onClick={() => { if (!editing) setEditing(true); updateProcess({ width: layout.process.width === "full" ? "half" : "full" }); }} aria-label={t(layout.process.width === "full" ? "simulation.unified.reduceProcess" : "simulation.unified.expandProcess")}>
         {layout.process.width === "full" ? <Shrink aria-hidden className="size-4" /> : <Expand aria-hidden className="size-4" />}
       </Button>}</div></header>{process}
-  </article>;
+  </article></Surface>;
   const inspector = editing && selectedWidget && (!integrated || inspectedWidgetId === selected) && <div className="sim-inspector-slot" ref={editorRef}><WidgetInspector widget={selectedWidget} layout={layout} engine={engine} activityId={activityId} summary={final ? run.summary : undefined} unavailable={unavailable} onChange={patchWidget} onClose={closeInspector} onDelete={remove} onDuplicate={duplicate} onMove={move} onGroup={(id) => changeLayout((current) => moveWidget(current, selectedWidget.id, id))} /></div>;
   if (!frame) return <div />;
 
@@ -172,10 +174,10 @@ function DashboardBody({ engine, run, storageKey, integrated = false, process, p
     ...layout.groups.flatMap(group => group.widgets.map(widget => {
       const title = widget.title || t(`simulation.studio.metric.${widget.metric}`);
       const data = widgetData(engine, frame, widget.metric, widget.activityId || (widget.followFilter ? activityId : "all"));
-      return { id: widget.id, title, rect: rects[widget.id], content: <article className={`sim-widget ${widget.width === "full" ? "is-full" : ""} ${editing ? "is-editing" : ""} ${selected === widget.id ? "is-selected" : ""}`} data-widget-id={widget.id}>
+      return { id: widget.id, title, rect: rects[widget.id], content: <Surface asChild variant="panel"><article className={`sim-widget ui-surface ui-surface-panel ${widget.width === "full" ? "is-full" : ""} ${editing ? "is-editing" : ""} ${selected === widget.id ? "is-selected" : ""}`} data-widget-id={widget.id}>
         <header className="sim-widget-heading"><div className="sim-widget-caption"><span className="sim-object-kind">{t(`simulation.studio.kind.${widget.kind}`)}</span><h4>{title}</h4><p>{t(data.filtered ? "simulation.studio.filteredScope" : "simulation.studio.globalScope")}{final && ` · ${t(data.categorical || ["kpi", "gauge", "text"].includes(widget.kind) ? "simulation.scene.finalValue" : "simulation.scene.history")} · #${run.id}`}</p></div>
           {(editing || integrated) && <Button id={`configure-${widget.id}`} size="icon" variant="ghost" onClick={() => { setEditing(true); setSelected(widget.id); }} aria-label={t("simulation.studio.configure", { title })}><Settings2 aria-hidden className="size-4" /></Button>}
-        </header><WidgetView widget={widget} engine={engine} frame={frame} activityId={activityId} unavailable={unavailable} loading={artifactLoading} summary={final ? run.summary : undefined} /></article> };
+        </header><WidgetView widget={widget} engine={engine} frame={frame} activityId={activityId} unavailable={unavailable} loading={artifactLoading} summary={final ? run.summary : undefined} /></article></Surface> };
     })),
   ];
   const kpis = ["active", "queued", "completed", "throughput", "cycle", "cost"] as const;
@@ -190,7 +192,7 @@ function DashboardBody({ engine, run, storageKey, integrated = false, process, p
     </header>
     {!integrated && <div className="sim-transport-surface"><TransportBar engine={engine} /></div>}
     <div className="sim-dashboard-toolbar"><span className="sim-scope-badge"><span aria-hidden />{processScope ?? t("simulation.studio.currentTime")}</span>
-      <label className="sim-filter"><span>{t("simulation.studio.activityFilter")}</span><select aria-label={t("simulation.studio.activityFilter")} value={activityId} onChange={(event) => setActivityId(event.target.value)}><option value="all">{t("simulation.studio.allActivities")}</option>{Object.entries(engine.payload.elements).map(([id, element]) => <option key={id} value={id}>{element.name}</option>)}</select></label>
+      <label className="sim-filter"><span>{t("simulation.studio.activityFilter")}</span><select className="ui-field" aria-label={t("simulation.studio.activityFilter")} value={activityId} onChange={(event) => setActivityId(event.target.value)}><option value="all">{t("simulation.studio.allActivities")}</option>{Object.entries(engine.payload.elements).map(([id, element]) => <option key={id} value={id}>{element.name}</option>)}</select></label>
       {activityId !== "all" && <Button variant="ghost" size="sm" onClick={() => setActivityId("all")}><X aria-hidden className="size-3" />{t("simulation.studio.clearFilter")}</Button>}
       <span className="sim-help sim-storage-status" role="status">{t(editing ? "simulation.studio.unsaved" : saved.stored ? "simulation.studio.savedDevice" : "simulation.studio.defaultLayout")}</span>
     </div>
@@ -212,7 +214,7 @@ function DashboardBody({ engine, run, storageKey, integrated = false, process, p
               const data = widgetData(engine, frame, widget.metric, widget.activityId || (widget.followFilter ? activityId : "all"));
               const title = widget.title || t(`simulation.studio.metric.${widget.metric}`);
               const beforeProcess = process && group.id === processGroupId && processBeforeId === widget.id;
-              return <React.Fragment key={widget.id}>{beforeProcess && processTile}<article className={`sim-widget ${widget.width === "full" ? "is-full" : ""} ${editing ? "is-editing" : ""} ${selected === widget.id ? "is-selected" : ""}`} data-widget-id={widget.id}
+              return <React.Fragment key={widget.id}>{beforeProcess && processTile}<article className={`sim-widget ui-surface ui-surface-panel ${widget.width === "full" ? "is-full" : ""} ${editing ? "is-editing" : ""} ${selected === widget.id ? "is-selected" : ""}`} data-widget-id={widget.id}
                 onDragOver={(event) => { if (editing && event.dataTransfer.types.includes(DRAG_TYPE)) event.preventDefault(); }}
                 onDrop={(event) => { if (!editing || !event.dataTransfer.types.includes(DRAG_TYPE)) return; event.preventDefault(); const id = event.dataTransfer.getData(DRAG_TYPE); if (id === "__process__") updateProcess({ groupId: group.id, beforeId: widget.id }); else changeLayout((current) => moveWidget(current, id, group.id, widget.id)); }}>
                 <header className="sim-widget-heading">

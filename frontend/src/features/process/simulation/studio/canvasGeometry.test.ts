@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultLayout, layoutSchema } from "../dashboard/dashboardModel";
 import { formatMetric } from "../dashboard/dashboardFormatting";
-import { bounds, fitCamera, sceneRects, zoomCamera, resizeRect, insertionRect, freeInsertionRect } from "./canvasGeometry";
+import { bounds, fitCamera, sceneRects, materializeScene, zoomCamera, resizeRect, insertionRect, freeInsertionRect } from "./canvasGeometry";
 
 describe("analytical scene", () => {
   it("migrates legacy layouts without mutating or dropping analytical objects", () => {
@@ -10,6 +10,25 @@ describe("analytical scene", () => {
     expect(Object.keys(rects)).toHaveLength(7);
     expect(layout).toEqual(original);
     expect(bounds(Object.values(rects)).height).toBeGreaterThan(rects.__process__.height);
+  });
+  it("never overlaps generated positions for half, full or resized process layouts", () => {
+    for (const width of [900, 920, 1284]) for (const fullWidgets of [false, true]) {
+      const layout = defaultLayout();
+      layout.process.canvas = { x: 120, y: -70, width, height: 480 };
+      if (fullWidgets) layout.groups[0].widgets[2].width = "full";
+      const rects = Object.values(sceneRects(layout));
+      for (let a = 0; a < rects.length; a++) for (let b = a + 1; b < rects.length; b++) {
+        const left = rects[a], right = rects[b];
+        expect(left.x < right.x + right.width && left.x + left.width > right.x && left.y < right.y + right.height && left.y + left.height > right.y).toBe(false);
+      }
+    }
+  });
+  it("keeps other objects fixed when a migrated process is moved or resized", () => {
+    const original = sceneRects(defaultLayout());
+    const layout = materializeScene(defaultLayout());
+    layout.process.canvas = { ...layout.process.canvas!, x: 1000, y: -300, width: 920 };
+    const moved = sceneRects(layout);
+    for (const widget of layout.groups.flatMap(group => group.widgets)) expect(moved[widget.id]).toEqual(original[widget.id]);
   });
   it("round trips explicit placement and rejects invalid persisted coordinates", () => {
     const layout = defaultLayout();
