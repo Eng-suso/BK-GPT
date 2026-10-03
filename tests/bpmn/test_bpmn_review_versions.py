@@ -24,7 +24,6 @@ from backend.process_understanding import (  # noqa: E402
     ProcessDecision,
     ProcessStep,
     ProcessUnderstanding,
-    ProcessUnderstandingQualityReport,
     ProcessUnknown,
     ProcessUnknownOption,
 )

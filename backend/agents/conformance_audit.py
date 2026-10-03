@@ -528,7 +528,7 @@ def canvas_plan_findings(canvas_xml: str | None, expected_xml: str | None) -> li
         ]
     try:
         actual = flow_signature(canvas_xml)
-    except ET.ParseError as exc:
+    except ET.ParseError:
         return [
             ConformanceFinding(
                 layer="canvas_plan",

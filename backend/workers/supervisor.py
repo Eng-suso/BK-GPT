@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypeVar
 
@@ -46,7 +46,7 @@ async def _run(fn: Callable[[], _T]) -> _T:
 async def _drain_loop(
     name: str,
     drain_once: Callable[[], int],
-    stats: Callable[[], dict[str, int]],
+    stats: Callable[[], Mapping[str, float]],
     idle_sleep: float,
     prune: Callable[[], int] | None = None,
 ) -> None:

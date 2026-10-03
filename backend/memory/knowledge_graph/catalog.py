@@ -12,7 +12,7 @@ Nessun codice di proiezione qui: solo la mappa dichiarativa + un lint.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # --- INV-5: campi che non devono MAI raggiungere Neo4j -------------------
 # `name` generico NON e' qui: i nomi di processo/progetto sono etichette di

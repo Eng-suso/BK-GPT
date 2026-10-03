@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
 from dataclasses import dataclass, field
 
 from backend.bpmn._helpers import source_ref_id, xml_id
@@ -122,7 +123,7 @@ class FlowRegistry:
         Args:
             chain: An ordered list of node IDs to connect sequentially.
         """
-        for source, target in zip(chain, chain[1:]):
+        for source, target in pairwise(chain):
             self.add(source, target)
 
     def reroute_source(self, from_id: str, to_id: str) -> list[BPMNSequenceFlow]:

@@ -22,7 +22,7 @@ if not settings.canonical_migrator_url or not settings.canonical_database_url:
         allow_module_level=True,
     )
 
-from backend.memory import canonical_memory, gateway  # noqa: E402
+from backend.memory import canonical_memory  # noqa: E402
 from backend.memory.procedural import playbook_context  # noqa: E402
 
 MIGRATOR = create_engine(settings.canonical_migrator_url, future=True)
