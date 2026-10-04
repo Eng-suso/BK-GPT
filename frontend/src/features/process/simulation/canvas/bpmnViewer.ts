@@ -22,6 +22,7 @@ export type BpmnOverlays = {
 };
 
 export type BpmnCanvas = {
+  scroll: (delta: { dx: number; dy: number }) => void;
   zoom: (mode?: "fit-viewport" | number, center?: unknown) => number;
   resized?: () => void;
   addMarker: (elementId: string, marker: string) => void;

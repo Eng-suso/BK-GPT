@@ -10,6 +10,7 @@ import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
 
 import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
+import { useDiagramNavigation } from "./useDiagramNavigation";
 
 import {
   svc,
@@ -86,6 +87,8 @@ export function SimulationCanvas({
     onSelectRef.current = onSelectElement;
     onReadyRef.current = onViewerReady;
   });
+
+  useDiagramNavigation(containerRef, viewerRef, sharedCanvas && ready);
 
   // -- viewer lifecycle ------------------------------------------------
   React.useEffect(() => {
@@ -268,7 +271,7 @@ export function SimulationCanvas({
         </div>
       </div>}
 
-      <div ref={containerRef} className="min-h-0 w-full flex-1 overflow-hidden bg-card" />
+      <div ref={containerRef} tabIndex={sharedCanvas ? 0 : undefined} role={sharedCanvas ? "region" : undefined} aria-label={sharedCanvas ? t("simulation.diagram.title") : undefined} className="min-h-0 w-full flex-1 overflow-hidden bg-card" />
 
       {!bpmnXml && <p role="status" className="absolute inset-0 flex items-center justify-center bg-card text-sm text-muted-foreground">{t("simulation.diagram.noModel")}</p>}
       {error && (
