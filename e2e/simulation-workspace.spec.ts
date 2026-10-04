@@ -811,3 +811,64 @@ test("desktop containers and canvas objects resize quietly without changing the 
   expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
   await expect(world).toHaveAttribute("style", camera!);
 });
+
+
+test("embedded process navigates independently and keeps clicks and workspace gestures", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Desktop pointer and wheel gestures");
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${studio}/workspace/42?view=compare&panel=compare`);
+  const process = page.locator('[data-scene-object="__process__"]');
+  const diagram = process.locator(".simulation-bpmn-view");
+  const inner = diagram.locator(".viewport");
+  await expect(inner).toBeVisible();
+  // Test under a transformed parent: inner navigation must use local coordinates.
+  await page.getByRole("button", { name: "Centra processo", exact: true }).click();
+  await page.getByRole("button", { name: "Zoom indietro", exact: true }).click();
+  const world = page.locator(".sim-scene-world");
+  const worldBefore = await world.getAttribute("style");
+  const layoutBefore = await process.getAttribute("style");
+  const initial = await inner.getAttribute("transform");
+  const task = diagram.locator('.djs-shape[data-element-id="A"]');
+  const taskBefore = await task.boundingBox();
+  await page.mouse.move(taskBefore!.x + 30, taskBefore!.y + 25);
+  await page.mouse.down();
+  await page.mouse.move(taskBefore!.x + 90, taskBefore!.y + 55, { steps: 6 });
+  await page.mouse.up();
+  await expect(inner).not.toHaveAttribute("transform", initial!);
+  const taskAfter = await task.boundingBox();
+  expect(taskAfter!.x - taskBefore!.x).toBeCloseTo(60, 0);
+  expect(taskAfter!.y - taskBefore!.y).toBeCloseTo(30, 0);
+  await expect(world).toHaveAttribute("style", worldBefore!);
+  await expect(process).toHaveAttribute("style", layoutBefore!);
+  await expect(page).toHaveURL(/panel=compare/); // Dragging must not open the activity inspector.
+  const afterDrag = await inner.getAttribute("transform");
+  await page.mouse.move(taskAfter!.x + 30, taskAfter!.y + 25);
+  await page.mouse.wheel(25, 40);
+  await expect(inner).not.toHaveAttribute("transform", afterDrag!);
+  await expect(world).toHaveAttribute("style", worldBefore!);
+  const afterWheel = await inner.getAttribute("transform");
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -80);
+  await page.keyboard.up("Control");
+  await expect(inner).not.toHaveAttribute("transform", afterWheel!);
+  await expect(world).toHaveAttribute("style", worldBefore!);
+  await task.click();
+  await expect(page).toHaveURL(/panel=activity/);
+  const diagramRegion = diagram.getByRole("region");
+  const beforeKeyboard = await inner.getAttribute("transform");
+  await diagramRegion.press("ArrowRight");
+  await expect(inner).not.toHaveAttribute("transform", beforeKeyboard!);
+  await diagramRegion.press("Home");
+  await expect(world).toHaveAttribute("style", worldBefore!);
+  const afterSelection = await inner.getAttribute("transform");
+  const selectedBox = await task.boundingBox();
+  await page.mouse.move(selectedBox!.x + 30, selectedBox!.y + 25);
+  await page.keyboard.down("Space");
+  await page.mouse.down();
+  await page.mouse.move(selectedBox!.x + 90, selectedBox!.y + 55, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up("Space");
+  await expect(world).not.toHaveAttribute("style", worldBefore!);
+  await expect(inner).toHaveAttribute("transform", afterSelection!);
+  await expect(page.getByRole("button", { name: "Salva layout", exact: true })).toHaveCount(0);
+});
