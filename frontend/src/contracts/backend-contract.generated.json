@@ -187,6 +187,7 @@
         "id": "string",
         "name": "string",
         "process_id": "string",
+        "version_id": "integer?",
         "xml": "string?"
       }
     },

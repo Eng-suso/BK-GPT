@@ -806,6 +806,8 @@ export type BpmnModel = {
   processId: string;
   name: string;
   xml: string | null;
+  /** Last saved version; sent back on save so a newer one is never overwritten. */
+  versionId: number | null;
 };
 
 export type BpmnVersion = {
@@ -822,6 +824,7 @@ export const apiBpmnModelSchema = z.object({
   process_id: z.string(),
   name: z.string(),
   xml: z.string().nullable(),
+  version_id: z.number().nullable().optional(),
 });
 
 // `xml` is present on the wire but intentionally not carried into the client
@@ -849,6 +852,7 @@ export function toBpmnModel(model: z.infer<typeof apiBpmnModelSchema>): BpmnMode
     processId: model.process_id,
     name: model.name,
     xml: model.xml,
+    versionId: model.version_id ?? null,
   };
 }
 

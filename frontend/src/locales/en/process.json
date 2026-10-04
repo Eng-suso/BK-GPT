@@ -753,6 +753,11 @@
         "participant-expanded": "Pool or participant",
         "group": "Group"
       }
+    },
+    "conflict": {
+      "reloadLatest": "Load the latest version",
+      "reloaded": "Latest version loaded",
+      "reloadFailed": "Could not load the latest version"
     }
   }
 }

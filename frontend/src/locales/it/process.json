@@ -753,6 +753,11 @@
         "participant-expanded": "Pool o partecipante",
         "group": "Gruppo"
       }
+    },
+    "conflict": {
+      "reloadLatest": "Carica l'ultima versione",
+      "reloaded": "Ultima versione caricata",
+      "reloadFailed": "Caricamento dell'ultima versione non riuscito"
     }
   }
 }
