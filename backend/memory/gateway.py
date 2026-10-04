@@ -56,8 +56,6 @@ from __future__ import annotations
 
 import logging
 import re
-import threading
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -68,6 +66,7 @@ from backend.memory import embeddings, forget, mem0_client, provenance
 from backend.memory.knowledge_graph import neo4j_store
 from backend.memory.mem0_client import Mem0Disabled
 from backend.services import degradation_counters
+from backend.memory.projection_health import projection_report
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -85,53 +84,6 @@ def memory_available() -> bool:
 
 def procedural_available() -> bool:
     return bool(settings.canonical_database_url)
-
-
-# --------------------------------------------------------------------------- #
-# staleness della proiezione (GR-01)
-# --------------------------------------------------------------------------- #
-
-_STALENESS_TTL_S = 5.0
-_staleness_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
-_staleness_lock = threading.Lock()
-
-
-def _projection_staleness(client_id: str) -> dict[str, Any] | None:
-    """Il grafo di questo cliente e' indietro rispetto a Postgres? `None` = no,
-    oppure non si puo' sapere (DSN del worker assente: il gateway gira come
-    delir_app, che su graph_outbox ha solo INSERT).
-
-    Indietro vuol dire: righe in dead-letter (archi che non arriveranno mai
-    finche' qualcuno non ripara, `scripts/kg_reproject.py`), righe bloccate, o
-    una riga pendente piu' vecchia della soglia. Il conteggio delle pendenti da
-    solo no: una coda con lavoro fresco e' una coda che funziona.
-
-    Cache per cliente di pochi secondi: e' una lettura sulle code a ogni
-    retrieve, e la risposta non cambia alla velocita' delle chiamate.
-    """
-    if not settings.canonical_worker_url:
-        return None
-    now = time.monotonic()
-    with _staleness_lock:
-        hit = _staleness_cache.get(client_id)
-    if hit and now - hit[0] < _STALENESS_TTL_S:
-        return hit[1]
-    from backend.workers import graph_worker
-
-    try:
-        stats = graph_worker.queue_stats(client_id)
-    except Exception as exc:  # noqa: BLE001 — la staleness e' un segnale, non un requisito
-        logger.warning("staleness proiezione non leggibile: %s", exc)
-        return None
-    lagging = (
-        stats["dead_letter"] > 0
-        or stats["stuck"] > 0
-        or stats["oldest_pending_age_s"] > settings.graph_staleness_warn_seconds
-    )
-    value = stats if lagging else None
-    with _staleness_lock:
-        _staleness_cache[client_id] = (now, value)
-    return value
 
 
 @dataclass(frozen=True)
@@ -508,6 +460,114 @@ def _expand(
     return rows[:limit], len(rows) > limit
 
 
+# L'espansione su Postgres quando la proiezione non e' verificata fresca. Copre
+# le relazioni fra entita' (`kg_relation`, la verita'); gli archi strutturali
+# verso claim, lacune e contraddizioni esistono solo nella proiezione, e qui non
+# si inventano. Non direzionata, come il pattern Cypher: un arco si attraversa
+# da entrambi gli estremi. `rels` evita di ripercorrere lo stesso arco.
+_CANONICAL_EXPAND_SQL = """
+WITH RECURSIVE walk(entity_id, depth, rel_id, rels) AS (
+    SELECT seed, 0, NULL::uuid, ARRAY[]::uuid[]
+    FROM unnest(CAST(:seeds AS uuid[])) AS seed
+  UNION ALL
+    SELECT CASE WHEN r.source_entity_id = w.entity_id
+                THEN r.target_entity_id ELSE r.source_entity_id END,
+           w.depth + 1, r.id, w.rels || r.id
+    FROM walk w
+    JOIN kg_relation r
+      ON r.source_entity_id = w.entity_id OR r.target_entity_id = w.entity_id
+    WHERE w.depth < :hops
+      AND r.client_id = CAST(:cl AS uuid)
+      AND r.status = 'active'
+      AND NOT r.id = ANY(w.rels)
+      AND (CAST(:allowed AS uuid[]) IS NULL
+           OR (r.source_entity_id = ANY(CAST(:allowed AS uuid[]))
+               AND r.target_entity_id = ANY(CAST(:allowed AS uuid[]))))
+)
+SELECT r.relation, r.confidence, r.confirmed,
+       r.source_entity_id, r.target_entity_id, hop.depth
+FROM (SELECT rel_id, min(depth) AS depth FROM walk
+      WHERE rel_id IS NOT NULL GROUP BY rel_id) AS hop
+JOIN kg_relation r ON r.id = hop.rel_id
+ORDER BY hop.depth, r.confidence DESC, r.id
+LIMIT :lim
+"""
+
+# Senza seed di entita' ma con un processo: le entita' che le sue relazioni
+# toccano, come in Neo4j il nodo Process e' il seed dell'espansione.
+_PROCESS_SEEDS_SQL = """
+SELECT DISTINCT e FROM (
+  SELECT source_entity_id AS e FROM kg_relation
+   WHERE process_id = CAST(:pid AS uuid) AND client_id = CAST(:cl AS uuid) AND status = 'active'
+  UNION
+  SELECT target_entity_id FROM kg_relation
+   WHERE process_id = CAST(:pid AS uuid) AND client_id = CAST(:cl AS uuid) AND status = 'active'
+) AS seeds
+LIMIT 40
+"""
+
+
+def _expand_canonical(
+    consultant_id: str,
+    client_id: str,
+    seed_entity_ids: list[str],
+    process_id: str | None,
+    max_hops: int,
+    limit: int,
+    allowed_node_ids: list[str] | None,
+) -> tuple[list[dict], bool]:
+    """Come `_expand`, ma leggendo la verita' invece della proiezione.
+
+    Restituisce triple nella stessa forma di Neo4j, cosi' l'idratazione - che
+    resta il confine di scope - non cambia. Massimo due salti: e' un ripiego,
+    e una CTE ricorsiva su un hub a tre salti costa piu' della risposta.
+    """
+    seeds = list(dict.fromkeys(seed_entity_ids))
+    with canonical_session(consultant_id, client_id) as session:
+        if not seeds and process_id:
+            seeds = [
+                str(row.e)
+                for row in session.execute(
+                    text(_PROCESS_SEEDS_SQL), {"pid": str(process_id), "cl": str(client_id)}
+                ).all()
+            ]
+        if not seeds:
+            return [], False
+        rows = session.execute(
+            text(_CANONICAL_EXPAND_SQL),
+            {
+                "seeds": seeds,
+                "hops": max(1, min(2, max_hops)),
+                "cl": str(client_id),
+                "allowed": allowed_node_ids,
+                "lim": limit + 1,
+            },
+        ).all()
+    triples = [
+        {
+            "rt": row.relation,
+            "rp": {"confidence": row.confidence, "confirmed": row.confirmed},
+            "la": ["Entity"],
+            "ap": {"entity_id": str(row.source_entity_id)},
+            "lb": ["Entity"],
+            "bp": {"entity_id": str(row.target_entity_id)},
+        }
+        for row in rows
+    ]
+    return triples[:limit], len(triples) > limit
+
+
+def _expand_canonical_for(consultant_id: str):
+    """`_expand_canonical` con la firma di `_expand`, per sceglierle allo stesso modo."""
+
+    def expand(client_id, seeds, process_id, max_hops, limit, allowed_node_ids):
+        return _expand_canonical(
+            consultant_id, client_id, seeds, process_id, max_hops, limit, allowed_node_ids
+        )
+
+    return expand
+
+
 _ID_PROP = {
     "Entity": "entity_id",
     "Process": "process_id",
@@ -794,7 +854,12 @@ def graph_retrieve(
             }
 
         allowed_nodes = _in_scope_node_ids(consultant_id, scope, authorized_sources)
-        triples, truncated = _expand(
+        # Una proiezione non verificata fresca non si serve: ne' quella indietro
+        # ne' quella di cui non si sa. Si legge la verita' su Postgres, con
+        # meno archi ma nessuno falso.
+        projection = projection_report(scope.client_id)
+        expand = _expand if projection.readable else _expand_canonical_for(consultant_id)
+        triples, truncated = expand(
             client_id, seeds, process_id, max_hops, limit, allowed_nodes
         )
         matches = (
@@ -818,13 +883,21 @@ def graph_retrieve(
         "chunks": chunks,
         "truncated": truncated,
     }
-    # `staleness` compare solo quando c'e' qualcosa da dire: una risposta sana
-    # resta identica. Quando c'e', le triple mancanti non sono "il grafo non lo
-    # sa" ma "il grafo non l'ha ancora (o mai) ricevuto".
-    staleness = _projection_staleness(scope.client_id)
-    if staleness:
-        degradation_counters.bump("graph_retrieve", "stale_projection")
-        out["staleness"] = staleness
+    # Da dove viene la risposta, sempre: chi la legge (l'agente) sa se ha
+    # davanti il grafo completo o il ripiego sulle sole relazioni fra entita'.
+    out["projection"] = {
+        "health": projection.health.value,
+        "served_from": "neo4j" if projection.readable else "postgres",
+    }
+    if not projection.readable:
+        degradation_counters.bump("graph_retrieve", f"projection_{projection.health.value}")
+        out["projection"]["reason"] = projection.reason
+        out["projection"]["coverage"] = (
+            "solo relazioni fra entita': i collegamenti a claim, lacune e "
+            "contraddizioni arrivano quando la proiezione torna allineata"
+        )
+    if projection.stats and not projection.readable:
+        out["staleness"] = projection.stats
     return out
 
 
