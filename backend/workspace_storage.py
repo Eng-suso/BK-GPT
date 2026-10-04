@@ -297,6 +297,12 @@ class WorkspaceSource(WorkspaceBase):
     graph_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     graph_next_attempt_at: Mapped[str | None] = mapped_column(String)
     graph_error: Mapped[str | None] = mapped_column(Text)
+    # Il confronto con gli altri file del processo (P1.13), fra l'estrazione e
+    # il grafo: le contraddizioni entrano nel grafo insieme alle affermazioni.
+    reconcile_status: Mapped[str | None] = mapped_column(String)
+    reconcile_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    reconcile_next_attempt_at: Mapped[str | None] = mapped_column(String)
+    reconcile_error: Mapped[str | None] = mapped_column(Text)
 
 
 class WorkspaceSourceEvidence(WorkspaceBase):
@@ -346,6 +352,39 @@ class WorkspaceSourceClaim(WorkspaceBase):
     content_hash: Mapped[str] = mapped_column(String, nullable=False)
     prompt_version: Mapped[str] = mapped_column(String, nullable=False)
     extracted_at: Mapped[str] = mapped_column(String, nullable=False)
+    # Il suo Claim nel grafo canonical, scritto dalla coda del grafo (P1.14).
+    kg_claim_id: Mapped[str | None] = mapped_column(String)
+
+
+class WorkspaceClaimRelation(WorkspaceBase):
+    """Due affermazioni di file diversi sullo stesso fatto (P1.13).
+
+    `corroboration`: dicono la stessa cosa. `divergence`: dicono altro, e
+    `divergence_type` e' quello che le regole lasciano. Nessuna relazione si
+    risolve da sola: resta visibile con le due affermazioni e le loro porzioni.
+    """
+
+    __tablename__ = "workspace_claim_relations"
+    __table_args__ = (UniqueConstraint("claim_id", "other_claim_id", name="uq_claim_relations_pair"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    project_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    process_id: Mapped[str | None] = mapped_column(String, index=True)
+    claim_id: Mapped[int] = mapped_column(
+        ForeignKey("workspace_source_claims.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    other_claim_id: Mapped[int] = mapped_column(
+        ForeignKey("workspace_source_claims.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind: Mapped[str] = mapped_column(String, nullable=False)
+    declared_type: Mapped[str | None] = mapped_column(String)
+    divergence_type: Mapped[str | None] = mapped_column(String)
+    reasons_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    explanation: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    prompt_version: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    kg_contradiction_id: Mapped[str | None] = mapped_column(String)
 
 
 class WorkspaceEvidenceSegment(WorkspaceBase):
