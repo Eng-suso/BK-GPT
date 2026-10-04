@@ -101,7 +101,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
   const begin = (event: React.PointerEvent<HTMLElement>, id?: string, resize = false, forcePan = false) => {
     if (gesture.current || (event.button !== 0 && !(forcePan && event.button === 1))) return;
     if (id) setActiveObject(id);
-    if (!id && !forcePan && (event.target as Element).closest("button,input,select,textarea,summary,.sim-scene-object:not(.is-process),.djs-shape,.djs-connection,.sim-canvas-widget")) return;
+    if (!id && !forcePan && (event.target as Element).closest("button,input,select,textarea,summary,.simulation-bpmn-view,.sim-scene-object:not(.is-process),.djs-shape,.djs-connection,.sim-canvas-widget")) return;
     const object = id ? objects.find(item => item.id === id) : null;
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
