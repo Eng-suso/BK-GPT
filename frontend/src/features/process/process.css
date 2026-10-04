@@ -548,7 +548,6 @@
 .process-studio-canvas { container: process-canvas / inline-size; }
 .process-bpmn-body--elements { grid-template-columns: 248px minmax(0, 1fr); }
 .process-element-navigator { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--material-divider); }
-.process-bpmn-shell:has(.process-bpmn-legend) { grid-template-rows: auto minmax(0, 1fr) auto; }
 .process-bpmn-legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--material-divider); color: var(--color-text-secondary); font-size: var(--font-size-100); }
 .process-bpmn-legend > span { display: flex; align-items: center; gap: 6px; }
 .process-bpmn-legend i { width: 10px; height: 10px; border: 1px solid currentColor; border-radius: 3px; }
@@ -680,3 +679,36 @@
 .process-creation-tools { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; overflow-y: auto; padding: 8px 4px; border-right: 1px solid var(--material-divider); }
 .process-creation-tools > button { flex-shrink: 0; }
 .process-creation-glyph { font-size: 20px; }
+
+/* Process studio adopts the shared workspace hierarchy; materials stay in Satin. */
+.process-studio-header { margin: 0; border-radius: 0; min-height: 52px; padding-block: 6px; }
+.process-workspace--embedded { padding: 8px 12px 12px; }
+.process-bpmn-toolbar { min-height: 44px; padding: 6px 10px; gap: 8px; }
+.process-bpmn-stage { position: relative; }
+.process-canvas-navigation { position: absolute; bottom: 12px; right: 80px; z-index: 6; display: flex; align-items: center; gap: 2px; padding: 4px; }
+.process-canvas-legend-popover { top: auto; bottom: calc(100% + 8px); }
+.process-canvas-legend-popover .process-bpmn-legend { border: 0; padding: 0; gap: 12px; }
+.process-document-details { z-index: 40; }
+@media (max-width: 620px) {
+  .process-studio-header { gap: 4px; padding-inline: 8px; }
+  .process-studio-header h1 { font-size: var(--font-size-200); }
+  .process-view-label { display: none; }
+  .process-workspace--embedded { padding: 6px; }
+  .process-canvas-navigation { right: 8px; bottom: 40px; }
+  .process-canvas-navigation > button:not([aria-label]) { display: none; }
+}
+
+.process-studio-properties.ui-workspace-inspector { display: flex; margin-left: 12px; }
+.process-studio-properties[hidden], .process-detail-host[hidden], .process-bpmn-properties-host[hidden] { display: none; }
+.process-inspector-body { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.process-detail-host, .process-bpmn-properties-host { min-height: 0; flex: 1; overflow: auto; }
+.process-detail-host > .process-bpmn-node-inspector, .process-detail-host > .process-evidence-panel { height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.process-detail-host .process-bpmn-node-inspector { background: transparent; }
+.process-studio-properties--compact { width: 100%; flex: 1; margin-left: 0 !important; }
+.process-studio-flex--stacked { flex-direction: column; gap: 8px; }
+.process-studio-flex--stacked > .process-studio-properties { flex: 0 1 46%; max-height: 46%; }
+.process-chat-resize { position: relative; width: 12px; flex: 0 0 12px; }
+.process-chat-resize .ui-workspace-splitter { inset-inline-start: 0; }
+
+.process-studio-properties:not(.process-studio-properties--compact) { width: var(--workspace-inspector-width, 360px); }
+.process-studio-properties .process-bpmn-properties-host .bio-properties-panel { background: transparent; }

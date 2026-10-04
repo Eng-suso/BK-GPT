@@ -1,7 +1,8 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import type { RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import { MessagesSquare, Upload } from "lucide-react";
+import { MessagesSquare, Upload, Maximize2, Plus, Minus } from "lucide-react";
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
@@ -12,6 +13,7 @@ import type { StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
 import { useElementWidth } from "@/lib/useElementWidth";
 import { Surface } from "@/ui/surface";
+import { WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
 import { BpmnCreationTools } from "./components/BpmnCreationTools";
 import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
 import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
@@ -30,6 +32,8 @@ type ProcessBpmnCanvasProps = {
   processId?: string;
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
+  inspectorHost?: RefObject<HTMLDivElement | null>;
+  onInspectorChange?: (inspector: { title: string; closeLabel: string; close: () => void } | null) => void;
   onCurrentXmlChange?: (xml: string) => void;
   onBaseVersionChange?: (versionId: number | null) => void;
   /** Sends the consultant to the discussion, where the model is reconstructed. */
@@ -52,6 +56,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   processId,
   processName,
   propertiesPanelRef,
+  inspectorHost,
+  onInspectorChange,
   onCurrentXmlChange,
   onBaseVersionChange,
   onOpenDiscussion,
@@ -137,6 +143,17 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     onBaseVersionChange,
   });
 
+  const inspectorTitle = isEvidenceOpen ? t("canvas.evidence.title") : selectedElement ? t("canvas.inspectorLabel") : null;
+  React.useLayoutEffect(() => {
+    onInspectorChange?.(!isPropertiesOpen && inspectorTitle ? { title: inspectorTitle, closeLabel: isEvidenceOpen ? t("canvas.evidence.close") : t("canvas.inspectorClose"), close: () => { setIsEvidenceOpen(false); clearSelection(); } } : null);
+  }, [onInspectorChange, isPropertiesOpen, inspectorTitle, isEvidenceOpen, clearSelection, t]);
+  React.useEffect(() => () => onInspectorChange?.(null), [onInspectorChange]);
+  const inspectorContent = !isPropertiesOpen && (processId && isEvidenceOpen ? (
+    <EvidenceReviewPanel embedded={Boolean(inspectorHost)} processId={processId} bpmnModelId={bpmnModelId} hasUnsavedChanges={hasUnsavedChanges} onLocate={focusSourceRef} onClose={() => setIsEvidenceOpen(false)} />
+  ) : selectedElement ? (
+    <BpmnNodeInspector element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onClose={clearSelection} />
+  ) : null);
+
   const isError = status.toLowerCase().startsWith("errore");
   const saveTone: StatusTone = isError
     ? "danger"
@@ -177,7 +194,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           processId
             ? {
                 isOpen: isEvidenceOpen,
-                onToggle: () => { setElementsOpen(false); setIsEvidenceOpen((prev) => !prev); },
+                onToggle: () => { setElementsOpen(false); if (isPropertiesOpen) onTogglePropertiesPanel?.(); setIsEvidenceOpen((prev) => !prev); },
                 awaitingCount: provenanceQuery.data?.awaitingConfirmation ?? 0,
               }
             : undefined
@@ -229,28 +246,17 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
+        <Surface variant="floating" className="process-canvas-navigation" role="group" aria-label={t("canvas.zoomGroup")}>
+          {coloursEnabled && <WorkspaceDisclosure label={t("canvas.colours")} contentClassName="process-canvas-legend-popover"><div className="process-bpmn-legend">{(["task", "automation", "gateway", "start", "end"] as const).map((kind) => <span key={kind}><i aria-hidden className={`process-element-swatch--${kind}`} />{t(`canvas.legend.${kind}`)}</span>)}</div></WorkspaceDisclosure>}
+          <Button variant="ghost" size="sm" onClick={zoomReadable} title={t("canvas.readableTitle")}>{t("canvas.readable")}</Button>
+          <Button variant="ghost" size="sm" onClick={zoomFit} title={t("canvas.fitTitle")}><Maximize2 aria-hidden />{t("canvas.fit")}</Button>
+          <Button variant="ghost" size="icon-sm" onClick={zoomOut} aria-label={t("canvas.zoomOut")}><Minus aria-hidden /></Button>
+          <Button variant="ghost" size="icon-sm" onClick={zoomIn} aria-label={t("canvas.zoomIn")}><Plus aria-hidden /></Button>
+        </Surface>
         </div>
-        {processId && isEvidenceOpen && (
-          <EvidenceReviewPanel
-            processId={processId}
-            bpmnModelId={bpmnModelId}
-            hasUnsavedChanges={hasUnsavedChanges}
-            onLocate={focusSourceRef}
-            onClose={() => setIsEvidenceOpen(false)}
-          />
-        )}
-          {selectedElement && !isPropertiesOpen && !isEvidenceOpen && (
-            <BpmnNodeInspector
-              element={selectedElement}
-              onNameChange={updateSelectedNodeName}
-              onDocChange={updateSelectedNodeDoc}
-              onClose={clearSelection}
-            />
-          )}
+        {inspectorContent && (inspectorHost?.current ? createPortal(inspectorContent, inspectorHost.current) : inspectorContent)}
       </div>
-      {coloursEnabled && <div className="process-bpmn-legend" aria-label={t("canvas.colours")}>
-        {(["task", "automation", "gateway", "start", "end"] as const).map((kind) => <span key={kind}><i aria-hidden className={`process-element-swatch--${kind}`} />{t(`canvas.legend.${kind}`)}</span>)}
-      </div>}
+
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
         <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); menuButtonRef.current?.focus(); }} className="flex max-h-[85dvh] flex-col overflow-hidden border-border sm:max-w-xl">
           <DialogTitle>Cronologia versioni</DialogTitle>

@@ -27,6 +27,7 @@ type EvidenceReviewPanelProps = {
   /** Porta in vista il nodo dell'elemento; `false` se il disegno non lo contiene. */
   onLocate: (sourceRef: string) => boolean;
   onClose: () => void;
+  embedded?: boolean;
 };
 
 const STATUS_TONE: Record<ProvenanceMarkStatus, string> = {
@@ -52,6 +53,7 @@ export function EvidenceReviewPanel({
   hasUnsavedChanges,
   onLocate,
   onClose,
+  embedded = false,
 }: EvidenceReviewPanelProps) {
   const { t } = useTranslation("process");
   const query = useProcessProvenanceQuery(processId);
@@ -64,7 +66,7 @@ export function EvidenceReviewPanel({
 
   if (query.isError && !provenance) {
     return (
-      <PanelFrame t={t} onClose={onClose}>
+      <PanelFrame t={t} embedded={embedded} onClose={onClose}>
         <ErrorState
           description={httpErrorMessage(query.error, t("canvas.evidence.loadError"))}
           onRetry={() => void query.refetch()}
@@ -75,7 +77,7 @@ export function EvidenceReviewPanel({
 
   if (!provenance) {
     return (
-      <PanelFrame t={t} onClose={onClose}>
+      <PanelFrame t={t} embedded={embedded} onClose={onClose}>
         <div className="grid gap-2 p-3" aria-busy="true">
           <Skeleton className="h-4 w-40" />
           <Skeleton className="h-16 w-full" />
@@ -87,7 +89,7 @@ export function EvidenceReviewPanel({
 
   if (!provenance.hasPlan) {
     return (
-      <PanelFrame t={t} onClose={onClose}>
+      <PanelFrame t={t} embedded={embedded} onClose={onClose}>
         <p className="p-3 text-xs leading-relaxed text-muted-foreground">
           {t("canvas.evidence.noPlan")}
         </p>
@@ -245,7 +247,7 @@ export function EvidenceReviewPanel({
   };
 
   return (
-    <PanelFrame t={t} onClose={onClose} snapshotLabel={provenance.snapshotLabel}>
+    <PanelFrame t={t} embedded={embedded} onClose={onClose} snapshotLabel={provenance.snapshotLabel}>
       <p className="sr-only" role="status" aria-live="polite">
         {liveMessage}
       </p>
@@ -289,19 +291,21 @@ export function EvidenceReviewPanel({
 type TFunction = ReturnType<typeof useTranslation>["t"];
 
 function PanelFrame({
+  embedded,
   t,
   onClose,
   snapshotLabel,
   children,
 }: {
   t: TFunction;
+  embedded?: boolean;
   onClose: () => void;
   snapshotLabel?: string;
   children: React.ReactNode;
 }) {
   return (
     <aside className="process-evidence-panel" aria-labelledby="process-evidence-title">
-      <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+      {embedded ? <><h3 id="process-evidence-title" className="sr-only">{t("canvas.evidence.title")}</h3>{snapshotLabel && <p className="border-b border-border px-3 py-2 text-xs text-muted-foreground">{t("canvas.evidence.plan", { label: snapshotLabel })}</p>}</> : <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="min-w-0">
           <h3 id="process-evidence-title" className="text-sm font-semibold text-foreground">
             {t("canvas.evidence.title")}
@@ -322,8 +326,8 @@ function PanelFrame({
         >
           <X />
         </Button>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      </header>}
+      <div className="ui-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
     </aside>
   );
 }
