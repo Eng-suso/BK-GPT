@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
 import {
   newResourceId,
+  resourceParametersValid,
+  scenarioResourceIssues,
   type ScenarioDraft,
   type TaskDraft,
 } from "./simulationScenario";
@@ -109,6 +111,10 @@ export function SimulationConfigRail({
   const patch = (partial: Partial<ScenarioDraft>) =>
     onDraftChange({ ...draft, ...partial });
   const num = (raw: string) => (raw === "" ? 0 : Number(raw));
+  const resourceIssues = scenarioResourceIssues(draft);
+  const canRun = Boolean(template) && !templateLoading && resourceIssues.ready;
+  const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
+    patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
 
   return (
     <div
@@ -137,7 +143,7 @@ export function SimulationConfigRail({
             type="button"
             size="sm"
             className="shrink-0"
-            disabled={isRunning}
+            disabled={isRunning || !canRun}
             onClick={onRun}
           >
             {isRunning ? t("simulation.running") : t("simulation.run")}
@@ -225,7 +231,8 @@ export function SimulationConfigRail({
                     {
                       id: newResourceId(draft.resources),
                       name: `${t("simulation.fields.resourcePool")} ${draft.resources.length + 1}`,
-                      costPerHour: 35,
+                      costPerHour: 0,
+                      parametersConfirmed: false,
                       amount: 1,
                     },
                   ],
@@ -237,93 +244,53 @@ export function SimulationConfigRail({
             </Button>
           }
         >
-          {provenance && (
-            <div className="pb-2">
-              <ProvenanceChip field={provenance.resources} />
-            </div>
-          )}
-          <div className="sim-resource-head grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5 px-0.5 pb-1 text-xs font-medium text-muted-foreground">
-            <span>{t("simulation.config.role")}</span>
-            <span>€/h</span>
-            <span>{t("simulation.config.qty")}</span>
-            <span />
+          <div className="mb-3 grid gap-2">
+            <p className="text-sm leading-relaxed text-muted-foreground">{t("simulation.config.resourceOriginHint")}</p>
+            {provenance && <ProvenanceChip field={provenance.resources} />}
           </div>
-          <ul className="grid gap-1.5">
-            {draft.resources.map((resource, index) => (
-              <li
-                key={resource.id}
-                className="sim-resource-row grid grid-cols-[minmax(0,1fr)_76px_60px_32px] items-center gap-1.5"
-              >
-                <Input
-                  aria-label={t("simulation.config.role")}
-                  className="h-8"
-                  value={resource.name}
-                  onChange={(e) =>
-                    patch({
-                      resources: draft.resources.map((r, i) =>
-                        i === index ? { ...r, name: e.target.value } : r,
-                      ),
-                    })
-                  }
-                />
-                <Input
-                  aria-label={t("simulation.fields.costPerHour")}
-                  className="h-8"
-                  type="number"
-                  min={0}
-                  value={resource.costPerHour}
-                  onChange={(e) =>
-                    patch({
-                      resources: draft.resources.map((r, i) =>
-                        i === index ? { ...r, costPerHour: num(e.target.value) } : r,
-                      ),
-                    })
-                  }
-                />
-                <Input
-                  aria-label={t("simulation.config.qty")}
-                  className="h-8"
-                  type="number"
-                  min={1}
-                  max={1000}
-                  value={resource.amount}
-                  onChange={(e) =>
-                    patch({
-                      resources: draft.resources.map((r, i) =>
-                        i === index ? { ...r, amount: num(e.target.value) } : r,
-                      ),
-                    })
-                  }
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="size-8 p-0 text-muted-foreground"
-                  disabled={draft.resources.length <= 1}
-                  onClick={() => {
-                    const fallback =
-                      draft.resources.find((_, i) => i !== index)?.id ??
-                      draft.resources[0].id;
-                    patch({
-                      resources: draft.resources.filter((_, i) => i !== index),
-                      tasks: Object.fromEntries(
-                        Object.entries(draft.tasks).map(([id, task]) => [
-                          id,
-                          task.resourceId === resource.id
-                            ? { ...task, resourceId: fallback }
-                            : task,
-                        ]),
-                      ),
-                    });
-                  }}
-                  title={t("simulation.config.removeResource")}
-                >
-                  <X className="size-3.5" />
-                </Button>
-              </li>
-            ))}
+          {draft.resources.length === 0 && (
+            <EmptyState variant="inline" title={t("simulation.config.noResources")} description={t("simulation.config.noResourcesHint")} />
+          )}
+          <ul className="grid gap-3">
+            {draft.resources.map((resource) => {
+              const assigned = Object.values(draft.tasks).filter((task) => task.resourceId === resource.id).length;
+              const confirmed = resource.parametersConfirmed !== false && resourceParametersValid(resource);
+              const context = [resource.source?.pool_name, resource.source?.parent_name].filter(Boolean).join(" / ");
+              return (
+                <li key={resource.id} data-resource-id={resource.id} className="min-w-0 rounded-lg border border-border bg-card p-3">
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0 grid gap-1">
+                      <p className="text-xs font-medium text-muted-foreground">{t(`simulation.config.resourceSource.${resource.source?.kind ?? "manual"}`)}</p>
+                      {context && <p className="break-words text-xs text-muted-foreground">{context}</p>}
+                      <StatusIndicator tone={confirmed ? "ok" : "pending"} label={t(confirmed ? "simulation.config.resourceConfirmed" : "simulation.config.resourcePending")} />
+                    </div>
+                    <Button type="button" size="icon" variant="ghost" aria-label={`${t("simulation.config.removeResource")} ${resource.name}`} onClick={() => patch({
+                      resources: draft.resources.filter((r) => r.id !== resource.id),
+                      excludedResourceIds: resource.source ? [...(draft.excludedResourceIds ?? []), resource.id] : draft.excludedResourceIds,
+                      tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, task.resourceId === resource.id ? { ...task, resourceId: "" } : task])),
+                    })}><X aria-hidden className="size-4" /></Button>
+                  </div>
+                  <FieldLabel label={t("simulation.config.role")}>
+                    <Input value={resource.name} onChange={(e) => updateResource(resource.id, { name: e.target.value, parametersConfirmed: false })} />
+                  </FieldLabel>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <NumberField label={t("simulation.fields.costPerHour")} value={resource.costPerHour} min={0} onChange={(value) => updateResource(resource.id, { costPerHour: value, parametersConfirmed: false })} />
+                    <NumberField label={t("simulation.config.capacity")} value={resource.amount} min={1} max={1000} onChange={(value) => updateResource(resource.id, { amount: value, parametersConfirmed: false })} />
+                  </div>
+                  <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}
+                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" onClick={() => patch({ tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, draft.resources.some((r) => r.id === task.resourceId) ? task : { ...task, resourceId: resource.id }])) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
+          {!canRun && <div role="status" className="mt-3 grid gap-1 text-sm text-muted-foreground">
+            <p>{t("simulation.config.resourceSetupRequired")}</p>
+            {resourceIssues.pending > 0 && <p>{t("simulation.config.pendingResources", { count: resourceIssues.pending })}</p>}
+            {resourceIssues.unassigned > 0 && <p>{t("simulation.config.unassignedActivities", { count: resourceIssues.unassigned })}</p>}
+          </div>}
         </DetailPanelSection>
 
         <DetailPanelSection
@@ -393,7 +360,7 @@ export function SimulationConfigRail({
                           }
                         >
                           <SelectTrigger size="sm" className="w-full">
-                            <SelectValue />
+                            <SelectValue placeholder={t("simulation.config.selectResource")} />
                           </SelectTrigger>
                           <SelectContent>
                             {DISTRIBUTIONS.map((d) => (
@@ -419,12 +386,12 @@ export function SimulationConfigRail({
                           }
                         >
                           <SelectTrigger size="sm" className="w-full">
-                            <SelectValue />
+                            <SelectValue placeholder={t("simulation.config.selectResource")} />
                           </SelectTrigger>
                           <SelectContent>
                             {draft.resources.map((r) => (
                               <SelectItem key={r.id} value={r.id}>
-                                {r.name}
+                                {r.source?.pool_name && r.source.kind === "lane" ? `${r.source.pool_name} / ${r.name}` : r.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -545,7 +512,7 @@ export function SimulationConfigRail({
       {(!embedded || (error && !workspace)) && (
       <div className="border-t border-border p-3">
         {!embedded && (
-          <Button type="button" className="w-full" disabled={isRunning} onClick={onRun}>
+          <Button type="button" className="w-full" disabled={isRunning || !canRun} onClick={onRun}>
             {isRunning ? t("simulation.running") : t("simulation.run")}
           </Button>
         )}

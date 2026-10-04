@@ -17,7 +17,7 @@ def describe_bpmn_resources(xml: str, task_ids: set[str]) -> list[ScenarioTempla
     for process in root.iter(NS + "process"):
         pools = participants.get(process.get("id", ""), [])
         pool = pools[0] if len(pools) == 1 else None
-        pool_name = pool.get("name") or pool.get("id") if pool is not None else None
+        pool_name = (pool.get("name") or pool.get("id")) if pool is not None else None
         parent = {child: node for node in process.iter() for child in node}
         lanes = list(process.iter(NS + "lane"))
 

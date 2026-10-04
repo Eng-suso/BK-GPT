@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   DEFAULT_SCENARIO,
+  loadScenarioDraft,
+  saveScenarioDraft,
+  scenarioResourceIssues,
   scenarioToInput,
   seedDraftFromTemplate,
   type ScenarioDraft,
@@ -31,7 +34,8 @@ describe("seedDraftFromTemplate", () => {
     const seeded = seedDraftFromTemplate(structuredClone(DEFAULT_SCENARIO), TEMPLATE);
     expect(Object.keys(seeded.tasks)).toEqual(["Task_A", "Task_B"]);
     expect(seeded.tasks.Task_A.meanMinutes).toBe(DEFAULT_SCENARIO.defaultTaskMinutes);
-    expect(seeded.tasks.Task_A.resourceId).toBe("res-1");
+    expect(seeded.tasks.Task_A.resourceId).toBe("");
+    expect(seeded.resources).toEqual([]);
     const branches = seeded.gateways.Gw_1;
     expect(Object.keys(branches)).toEqual(["f_ok", "f_ko"]);
     expect(branches.f_ok + branches.f_ko).toBe(100);
@@ -54,10 +58,10 @@ describe("seedDraftFromTemplate", () => {
 });
 
 describe("scenarioToInput", () => {
-  it("stays flat when nothing per-element is set", () => {
+  it("always sends explicit resources so an empty draft cannot invoke legacy defaults", () => {
     const input = scenarioToInput(structuredClone(DEFAULT_SCENARIO), "<xml/>");
-    expect(input.tasks).toBeUndefined();
-    expect(input.resources).toBeUndefined();
+    expect(input.tasks).toEqual([]);
+    expect(input.resources).toEqual([]);
     expect(input.defaultTaskDurationSeconds).toBe(15 * 60);
   });
 
@@ -70,5 +74,58 @@ describe("scenarioToInput", () => {
     expect(a?.meanSeconds).toBe(1200);
     expect(a?.distribution).toBe("expon");
     expect(input.gateways?.[0].branches[0].probability).toBeCloseTo(0.5);
+  });
+});
+
+const lane = { id: "bpmn-lane-demo", bpmn_id: "Lane_demo", name: "Operations", kind: "lane" as const,
+  pool_name: "Company", parent_name: null, task_ids: ["Task_A"] };
+
+describe("resource membership and confirmation", () => {
+  afterEach(() => localStorage.clear());
+  it("uses exact lane membership, leaving tasks outside lanes unassigned", () => {
+    const draft = seedDraftFromTemplate(structuredClone(DEFAULT_SCENARIO), { ...TEMPLATE, resources: [lane] });
+    expect(draft.resources[0].source).toEqual(lane);
+    expect(draft.resources[0].parametersConfirmed).toBe(false);
+    expect(draft.tasks.Task_A.resourceId).toBe(lane.id);
+    expect(draft.tasks.Task_B.resourceId).toBe("");
+    expect(scenarioResourceIssues(draft)).toMatchObject({ pending: 1, unassigned: 1, ready: false });
+    draft.resources[0].parametersConfirmed = true;
+    draft.tasks.Task_B.resourceId = lane.id;
+    expect(scenarioResourceIssues(draft).ready).toBe(true);
+  });
+  it("preserves manual assignments, edits, and intentionally removed model candidates", () => {
+    const draft = seedDraftFromTemplate({ ...structuredClone(DEFAULT_SCENARIO), excludedResourceIds: [lane.id],
+      resources: [{ id: "manual", name: "Support", amount: 2, costPerHour: 40, parametersConfirmed: true }],
+      tasks: { Task_A: { meanMinutes: 30, distribution: "fixed", resourceId: "manual" } },
+    }, { ...TEMPLATE, resources: [lane] });
+    expect(draft.resources).toHaveLength(1);
+    expect(draft.tasks.Task_A.resourceId).toBe("manual");
+    expect(draft.tasks.Task_B.resourceId).toBe("");
+  });
+  it("does not replace an invalid resource with the first manual role", () => {
+    const draft = seedDraftFromTemplate({ ...structuredClone(DEFAULT_SCENARIO),
+      resources: [{ id: "manual", name: "Support", amount: 1, costPerHour: 0 }],
+      tasks: { Task_A: { meanMinutes: 10, distribution: "fixed", resourceId: "deleted" } },
+    }, TEMPLATE);
+    expect(draft.tasks.Task_A.resourceId).toBe("");
+    expect(scenarioToInput(draft, null).tasks?.[0].resourceId).toBe("");
+  });
+  it("migrates only the pristine old operator and preserves custom or confirmed resources", () => {
+    const draft = { ...structuredClone(DEFAULT_SCENARIO), resources: [{ id: "res-1", name: "Operatore", amount: 1, costPerHour: 35 }] };
+    saveScenarioDraft("legacy", draft);
+    expect(loadScenarioDraft("legacy").resources).toEqual([]);
+    saveScenarioDraft("explicit", { ...draft, resources: [{ ...draft.resources[0], parametersConfirmed: true }] });
+    expect(loadScenarioDraft("explicit").resources).toHaveLength(1);
+    saveScenarioDraft("custom", { ...draft, resources: [{ ...draft.resources[0], name: "Finance" }] });
+    expect(loadScenarioDraft("custom").resources[0].name).toBe("Finance");
+    saveScenarioDraft("empty", structuredClone(DEFAULT_SCENARIO));
+    expect(loadScenarioDraft("empty").resources).toEqual([]);
+  });
+  it("rejects non-finite costs, fractional capacity and pending confirmations", () => {
+    const draft = seedDraftFromTemplate(structuredClone(DEFAULT_SCENARIO), { ...TEMPLATE, resources: [{ ...lane, task_ids: ["Task_A", "Task_B"] }] });
+    draft.resources[0] = { ...draft.resources[0], parametersConfirmed: true, amount: 1.5 };
+    expect(scenarioResourceIssues(draft).ready).toBe(false);
+    draft.resources[0] = { ...draft.resources[0], amount: 2, costPerHour: NaN };
+    expect(scenarioResourceIssues(draft).ready).toBe(false);
   });
 });

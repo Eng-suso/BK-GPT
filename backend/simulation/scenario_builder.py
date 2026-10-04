@@ -224,13 +224,6 @@ def _resource_profiles(
                     "assignedTasks": assigned,
                 }
             )
-        # Any task not explicitly assigned falls to the first resource.
-        assigned_all = {tid for r in resource_list for tid in r["assignedTasks"]}
-        leftover = [tid for tid in task_ids if tid not in assigned_all]
-        if leftover and resource_list:
-            resource_list[0]["assignedTasks"] = list(
-                dict.fromkeys(resource_list[0]["assignedTasks"] + leftover)
-            )
         return [{"id": _DEFAULT_PROFILE_ID, "name": "Risorse", "resource_list": resource_list}]
 
     name = request.resource_name.strip() or "Operatore"
