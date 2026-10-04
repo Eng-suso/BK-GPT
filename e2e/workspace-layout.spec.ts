@@ -228,6 +228,9 @@ test("mobile heatmap preserves a readable diagram above populated metrics", asyn
 
 
 test("process elements follow imports, selection and properties without rewriting BPMN colours", async ({ page }, testInfo) => {
+  // This complete import/edit/export journey mounts two modelers and both docks;
+  // keep its budget separate from the shorter interaction tests on mobile WebKit.
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(canvasView);
   await expect(page.locator('[data-element-id="Task_1"]').first()).toBeVisible();
@@ -254,7 +257,10 @@ test("process elements follow imports, selection and properties without rewritin
   await expect(navigator).toContainText("Automazione importata");
   await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue("Automazione importata");
-  await navigator.getByRole("textbox", { name: "Cerca nel processo" }).fill("");
+  const search = navigator.getByRole("textbox", { name: "Cerca nel processo" });
+  await search.press("ControlOrMeta+A");
+  await search.press("Backspace");
+  await expect(search).toHaveValue("");
   await expect(navigator.locator("li")).toHaveCount(18);
   await expect(page.locator('[data-element-id="Task_1"]')).toHaveCount(0);
   await testInfo.attach("Process desktop", { body: await page.screenshot({ path: process.env.DELIR_UI_PROOF_DIR ? join(process.env.DELIR_UI_PROOF_DIR, "process-desktop.png") : undefined }), contentType: "image/png" });
