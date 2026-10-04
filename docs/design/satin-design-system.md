@@ -88,6 +88,8 @@ composizioni stabiliscono responsabilità, priorità, collocazione e comportamen
 | Informazione secondaria | `WorkspaceDisclosure` | Metriche, filtri e organizzazione richiamabili |
 | Tempo | Slot playback della shell | Un solo clock e una scelta esplicita dell'ambito temporale |
 
+`WorkspaceDisclosure` limita larghezza e allineamento del pannello al workspace. I contenuti restano montati quando il menu si chiude: le bozze non si perdono e i comandi restano entro l’area operativa anche quando il canvas viene ristretto.
+
 Implementazione: `frontend/src/components/layout/CanvasWorkspace.tsx`.
 Catalogo: Storybook **Design System / Workspace hierarchy**. Questi componenti
 compongono `Surface`, `Button` e gli altri controlli esistenti; non introducono

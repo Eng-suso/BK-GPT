@@ -67,6 +67,16 @@ async function jump(page: Page, id: string): Promise<void> {
   await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption(id);
 }
 
+async function expectDisclosureWithinWorkspace(page: Page, label: string): Promise<void> {
+  const menu = page.getByRole("region", { name: label, exact: true });
+  await expect(menu).toBeVisible();
+  await expect.poll(async () => {
+    const box = await menu.boundingBox();
+    const workspace = await page.locator('[data-workspace-layer="workspace"]').boundingBox();
+    return Boolean(box && workspace && box.x >= workspace.x && box.x + box.width <= workspace.x + workspace.width + 1);
+  }).toBe(true);
+}
+
 test.beforeEach(async ({ page }) => { await fixture(page); });
 
 test("dashboard and process share the clock and never label final KPIs as current", async ({ page }) => {
@@ -107,6 +117,7 @@ test("widget edits, duplication, keyboard reordering and sections persist after 
   await inspector.getByLabel("Titolo", { exact: true }).fill("Costi confronto");
   await inspector.getByRole("button", { name: "Sposta widget prima" }).click();
   await page.getByRole("button", { name: "Organizza tela", exact: true }).click();
+  await expectDisclosureWithinWorkspace(page, "Organizza tela");
   await page.getByRole("button", { name: "Aggiungi sezione", exact: true }).click();
   await inspector.getByLabel("Sezione", { exact: true }).selectOption({ label: "Sezione 2" });
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
@@ -237,6 +248,7 @@ test("canvas analytics follow the shared clock, move with the keyboard and survi
   expect(storedPosition.x).toBeCloseTo(position.x, 1);
   expect(storedPosition.y).toBeCloseTo(position.y, 1);
   await page.getByRole("button", { name: "Navigazione", exact: true }).click();
+  await expectDisclosureWithinWorkspace(page, "Navigazione");
   await page.getByRole("button", { name: "Grafici", exact: true }).click();
   await expect(widget).toHaveCount(0);
   await page.getByRole("button", { name: "Grafici", exact: true }).click();

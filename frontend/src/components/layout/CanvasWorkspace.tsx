@@ -102,6 +102,31 @@ export function WorkspaceDisclosure({ label, children, className, contentClassNa
   const ref = React.useRef<HTMLDetailsElement>(null);
   const [expanded, setExpanded] = React.useState(false);
   const contentId = React.useId();
+  const content = React.useRef<HTMLDivElement>(null);
+  const alignmentRef = React.useRef(0);
+  const [alignment, setAlignment] = React.useState<{ x: number; width?: number }>({ x: 0 });
+  React.useLayoutEffect(() => {
+    if (!expanded || !ref.current || !content.current) return;
+    const workspace = ref.current.closest('[data-workspace-layer="workspace"]');
+    const measure = () => {
+      if (!content.current) return;
+      const boundary = workspace?.getBoundingClientRect();
+      const left = Math.max(8, (boundary?.left ?? 0) + 8);
+      const right = Math.min(window.innerWidth - 8, (boundary?.right ?? window.innerWidth) - 8);
+      const width = Math.max(1, right - left);
+      const rect = content.current.getBoundingClientRect();
+      const naturalRight = rect.right - alignmentRef.current;
+      const actualWidth = Math.min(rect.width, width);
+      const x = Math.max(left - naturalRight + actualWidth, Math.min(0, right - naturalRight));
+      alignmentRef.current = x;
+      setAlignment(previous => previous.x === x && previous.width === width ? previous : { x, width });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(content.current);
+    if (workspace) observer.observe(workspace);
+    measure();
+    return () => observer.disconnect();
+  }, [expanded]);
   React.useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
       if (ref.current?.open && event.target instanceof Node && !ref.current.contains(event.target)) ref.current.open = false;
@@ -117,7 +142,7 @@ export function WorkspaceDisclosure({ label, children, className, contentClassNa
   }} data-workspace-layer="disclosure" className={cn("relative shrink-0", className)} onKeyDown={event => {
     if (event.key === "Escape" && ref.current?.open) { event.stopPropagation(); ref.current.open = false; ref.current.querySelector("summary")?.focus(); }
   }}><Button asChild size="sm" variant="ghost"><summary role="button" aria-expanded={expanded} aria-controls={contentId} className="list-none [&::-webkit-details-marker]:hidden">{label}</summary></Button>
-    <Surface asChild variant="floating"><div id={contentId} className={cn("absolute right-0 top-full z-30 mt-2 max-h-[70vh] w-80 max-w-[calc(100vw-2rem)] overflow-auto p-4", contentClassName)}>{children}</div></Surface>
+    <Surface asChild variant="floating"><div ref={content} id={contentId} role="region" aria-label={label} style={{ maxWidth: alignment.width, transform: `translateX(${alignment.x}px)` }} className={cn("absolute right-0 top-full z-30 mt-2 max-h-[70vh] w-80 max-w-[calc(100vw-2rem)] overflow-auto p-4", contentClassName)}>{children}</div></Surface>
   </details>;
 }
 
