@@ -390,10 +390,10 @@
 .process-bpmn-properties-host input[type="text"]:focus,
 .process-bpmn-properties-host select:focus,
 .process-bpmn-properties-host textarea:focus {
-  border-color: var(--blue-300);
-  outline: none;
+  border-color: var(--color-focus-ring);
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
   background: var(--color-surface-primary);
-  box-shadow: 0 0 0 2px var(--blue-100);
 }
 
 .process-studio-chat .embedded-chat-body {
@@ -712,3 +712,12 @@
 
 .process-studio-properties:not(.process-studio-properties--compact) { width: var(--workspace-inspector-width, 360px); }
 .process-studio-properties .process-bpmn-properties-host .bio-properties-panel { background: transparent; }
+
+.process-bpmn-properties-host .bio-properties-panel {
+  --header-background-color: var(--material-toolbar);
+  --header-icon-fill-color: var(--color-icon-secondary);
+  --header-bottom-border-color: var(--material-divider);
+  --group-background-color: transparent;
+}
+
+@media (max-width: 620px) { .process-stage-badge { display: none; } }

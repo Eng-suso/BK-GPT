@@ -478,6 +478,7 @@ for (const width of [1440, 1920]) {
     await page.getByRole("textbox", { name: "Etichetta / Nome" }).fill("Bozza da conservare");
     const inspector = page.locator(".process-studio-properties");
     await expect(inspector).toBeVisible();
+    await expect(page.getByRole("button", { name: "Chiudi ispettore", exact: true })).toHaveCount(1);
     const camera = await viewport.getAttribute("transform");
     const initialWidth = (await inspector.boundingBox())!.width;
     const resize = page.getByRole("separator", { name: "Ridimensiona ispettore", exact: true });

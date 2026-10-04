@@ -151,7 +151,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const inspectorContent = !isPropertiesOpen && (processId && isEvidenceOpen ? (
     <EvidenceReviewPanel embedded={Boolean(inspectorHost)} processId={processId} bpmnModelId={bpmnModelId} hasUnsavedChanges={hasUnsavedChanges} onLocate={focusSourceRef} onClose={() => setIsEvidenceOpen(false)} />
   ) : selectedElement ? (
-    <BpmnNodeInspector element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onClose={clearSelection} />
+    <BpmnNodeInspector embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onClose={clearSelection} />
   ) : null);
 
   const isError = status.toLowerCase().startsWith("errore");
