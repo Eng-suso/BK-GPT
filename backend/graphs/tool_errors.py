@@ -50,6 +50,8 @@ def report_tool_error(exc: Exception) -> str:
     logger.warning("tool fallito, esito restituito al modello: %s", exc, exc_info=True)
     return (
         f"Il tool non e' andato a buon fine: {exc} "
-        "Correggi la richiesta se puoi; altrimenti dillo al consulente con parole "
-        "sue. Non ripetere la stessa chiamata con gli stessi argomenti."
+        "Il dettaglio qui sopra serve a te per correggere la richiesta. Se non puoi, "
+        "di' al consulente cosa non e' riuscito e cosa puo' fare, in linguaggio di "
+        "consulenza: senza nomi di tool, id, campi o messaggi tecnici. Non ripetere "
+        "la stessa chiamata con gli stessi argomenti."
     )
