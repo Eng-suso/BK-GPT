@@ -10,6 +10,7 @@ from backend.schemas.simulation import (
     ScenarioTemplateResponse,
     ScenarioTemplateTask,
 )
+from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
 
 
@@ -96,9 +97,10 @@ def build_prosimos_scenario(
     )
 
 
-def describe_scenario_template(bpmn_xml: str) -> ScenarioTemplateResponse:
+def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> ScenarioTemplateResponse:
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     return ScenarioTemplateResponse(
+        resources=describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks}),
         tasks=[
             ScenarioTemplateTask(element_id=task.id, name=task.name, type=task.type)
             for task in tasks
@@ -195,7 +197,16 @@ def _resource_profiles(
     task_ids = [task.id for task in tasks]
     task_overrides = {cfg.element_id: cfg for cfg in (request.tasks or [])}
 
-    if request.resources:
+    if request.resources is not None:
+        if not request.resources:
+            raise ValueError("Definisci almeno una risorsa per simulare il processo.")
+        ids = [cfg.id for cfg in request.resources]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Le risorse devono avere identificativi distinti.")
+        if any(not cfg.name.strip() for cfg in request.resources):
+            raise ValueError("Assegna un nome alle risorse.")
+        if any(not task_overrides.get(task.id) or task_overrides[task.id].resource_id not in ids for task in tasks):
+            raise ValueError("Assegna una risorsa valida a ogni attività prima di simulare.")
         resource_list = []
         for cfg in request.resources:
             assigned = [
