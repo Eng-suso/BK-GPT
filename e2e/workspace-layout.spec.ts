@@ -86,7 +86,7 @@ test("scenario supports long activity lists, model reference and execution", asy
   await page.getByRole("button", { name: "Aggiungi ruolo", exact: true }).click();
   const resource = page.locator("[data-resource-id]");
   await resource.getByRole("textbox", { name: "Ruolo", exact: true }).fill("Team Operations");
-  await resource.getByRole("spinbutton", { name: "Costo ora", exact: true }).fill("40");
+  await resource.getByRole("spinbutton", { name: "Costo ora (€/h)", exact: true }).fill("40");
   await resource.getByRole("spinbutton", { name: "Unità disponibili", exact: true }).fill("2");
   await resource.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
   await expect(run).toBeDisabled();

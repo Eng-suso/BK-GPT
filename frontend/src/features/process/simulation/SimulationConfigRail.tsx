@@ -274,7 +274,7 @@ export function SimulationConfigRail({
                     <Input value={resource.name} onChange={(e) => updateResource(resource.id, { name: e.target.value, parametersConfirmed: false })} />
                   </FieldLabel>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <NumberField label={t("simulation.fields.costPerHour")} value={resource.costPerHour} min={0} onChange={(value) => updateResource(resource.id, { costPerHour: value, parametersConfirmed: false })} />
+                    <NumberField label={`${t("simulation.fields.costPerHour")} (€/h)`} value={resource.costPerHour} min={0} onChange={(value) => updateResource(resource.id, { costPerHour: value, parametersConfirmed: false })} />
                     <NumberField label={t("simulation.config.capacity")} value={resource.amount} min={1} max={1000} onChange={(value) => updateResource(resource.id, { amount: value, parametersConfirmed: false })} />
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
