@@ -755,7 +755,9 @@
       }
     },
     "conflict": {
-      "reloadLatest": "Load the latest version"
+      "reloadLatest": "Load the latest version",
+      "reloaded": "Latest version loaded",
+      "reloadFailed": "Could not load the latest version"
     }
   }
 }

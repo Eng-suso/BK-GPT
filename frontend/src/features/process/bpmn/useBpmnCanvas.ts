@@ -8,6 +8,7 @@ import {
 
 import { readCanvasElements, readCreationTools, type CanvasElement, type CreationTool, type PaletteService } from "./elements";
 import { HttpError, httpErrorMessage } from "@/lib/http";
+import { i18n } from "@/lib/i18n";
 import type { BpmnVersion } from "@/contracts/workspace";
 import { onWorkspaceChanged } from "@/lib/workspaceEvents";
 import {
@@ -506,9 +507,11 @@ export function useBpmnCanvas({
     clearChangeCheckTimer();
     try {
       const loaded = await loadInitialModel(bpmnModelId, processName);
-      clearLocalBpmnDraft(bpmnModelId);
       isImportingRef.current = true;
       await modelerRef.current.importXML(loaded.xml);
+      // Solo adesso: se l'import fallisce, le modifiche in conflitto restano
+      // nella bozza e si possono ancora recuperare.
+      clearLocalBpmnDraft(bpmnModelId);
       onCurrentXmlChangeRef.current?.(loaded.xml);
       isImportingRef.current = false;
       syncEmptiness();
@@ -517,12 +520,12 @@ export function useBpmnCanvas({
       setBaseVersion(loaded.versionId);
       markUnsaved(false);
       setHasConflict(false);
-      setStatus("Ultima versione caricata");
+      setStatus(i18n.t("process:canvas.conflict.reloaded"));
       setError(null);
       void loadVersions();
     } catch (err) {
       isImportingRef.current = false;
-      setError(err instanceof Error ? err.message : "Caricamento non riuscito");
+      setError(err instanceof Error ? err.message : i18n.t("process:canvas.conflict.reloadFailed"));
     }
   }, [bpmnModelId, processName, loadVersions, scheduleCanvasFit, syncEmptiness]);
 

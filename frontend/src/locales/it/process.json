@@ -755,7 +755,9 @@
       }
     },
     "conflict": {
-      "reloadLatest": "Carica l'ultima versione"
+      "reloadLatest": "Carica l'ultima versione",
+      "reloaded": "Ultima versione caricata",
+      "reloadFailed": "Caricamento dell'ultima versione non riuscito"
     }
   }
 }
