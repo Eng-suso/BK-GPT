@@ -163,6 +163,10 @@ class Settings(BaseSettings):
     agent_max_decision_steps: int = 8
     agent_max_tool_calls: int = 12
     agent_run_deadline_seconds: float = 90.0
+    # Token del prompt di scope (regole + artefatti). Oltre, gli artefatti meno
+    # importanti si troncano o restano fuori, dichiarato al modello
+    # (backend/agents/context_budget.py).
+    agent_scope_context_budget_tokens: int = 48_000
 
     tavily_max_results: int = 5
 

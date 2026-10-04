@@ -81,3 +81,41 @@ def test_the_same_context_has_the_same_fingerprint():
     assert first == again
     assert first != other.report.fingerprint
 
+
+def test_the_canvas_prompt_does_not_send_the_same_xml_twice():
+    from backend.agents.primary_scope import build_scope_system_prompt
+
+    xml = "<definitions>" + _words(500, "task") + "</definitions>"
+    prompt = build_scope_system_prompt(
+        {
+            "scope_type": "canvas",
+            "chat_mode": "conversation",
+            "current_bpmn_xml": xml,
+            "effective_bpmn_xml": xml,
+            "effective_bpmn_xml_source": "live_canvas",
+        }
+    )
+
+    assert prompt.count(xml) == 1
+    assert "effective_bpmn_xml: identico a current_bpmn_xml" in prompt
+
+
+def test_the_scope_prompt_stays_inside_its_budget(monkeypatch):
+    from backend.agents.primary_scope import build_scope_system_prompt
+    from backend.settings import settings
+
+    monkeypatch.setattr(settings, "agent_scope_context_budget_tokens", 6_000)
+    artifact = {"steps": [_words(40, f"passo{i}_") for i in range(400)]}
+    prompt = build_scope_system_prompt(
+        {
+            "scope_type": "process",
+            "chat_mode": "conversation",
+            "process_understanding": artifact,
+            "process_understanding_diagnostics": artifact,
+            "process_quality_report": artifact,
+            "bpmn_semantic_model": artifact,
+        }
+    )
+
+    assert count_tokens(prompt) <= 6_000
+    assert "omesso dal budget del contesto" in prompt or "troncato dal budget" in prompt
