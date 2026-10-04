@@ -77,6 +77,15 @@ def test_the_result_keeps_the_seed_and_engine_that_produced_it(monkeypatch):
     assert result.payload["OverallScenarioStatistics"] == [{"KPI": "cycle_time"}]
 
 
+def test_the_result_keeps_the_start_date_used_when_the_request_had_none(monkeypatch):
+    """Il seed da solo non basta: il calendario dipende dalla data di inizio."""
+    sent, result = _run(monkeypatch, 7)
+
+    start = result.payload["StartDate"]
+    assert start
+    assert f'name="startDate"\r\n\r\n{start}\r\n' in sent["body"]
+
+
 def _key(**request):
     return _derive_idempotency_key(
         bpmn_model_id="m",

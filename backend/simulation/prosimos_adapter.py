@@ -58,7 +58,7 @@ async def run_prosimos_simulation(
                     )
         except httpx.HTTPError as exc:
             raise ProsimosError(
-                f"Prosimos non raggiungibile su {base_url}. Avvia prosimos-microservice."
+                f"Prosimos non raggiungibile su {base_url}. Avvia il runner (ops/prosimos/runner)."
             ) from exc
 
     if response.status_code >= 400:
@@ -74,6 +74,9 @@ async def run_prosimos_simulation(
     if not isinstance(payload, dict):
         payload = {"result": payload}
 
+    # Seed e data di inizio insieme rifanno lo stesso log: senza una data nella
+    # richiesta si usa "adesso", quindi va conservata quella effettivamente usata.
+    payload.setdefault("StartDate", start)
     event_log_csv = await _fetch_event_log(base_url, payload)
 
     return ProsimosSimulationResult(
