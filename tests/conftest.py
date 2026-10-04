@@ -111,6 +111,15 @@ def _point_at_test_stack() -> bool:
 
 _USING_LOCAL_TEST_STACK = _point_at_test_stack()
 
+# --- I test non chiamano il motore di simulazione vero ----------------------
+#
+# Con il `.env` di sviluppo i test che non sostituiscono l'adapter mandavano i
+# run al Prosimos acceso in locale: run "in corso" per tutta la sessione, che
+# riempivano il limite di simulazioni contemporanee e facevano fallire i test
+# successivi con 429. In CI il motore non c'e' e il problema non si vedeva.
+# Una porta chiusa fa fallire subito il run. Chi vuole il motore vero lo dice.
+os.environ["PROSIMOS_BASE_URL"] = os.environ.get("DELIR_TEST_PROSIMOS_URL", "http://127.0.0.1:9")
+
 from backend.settings import settings  # noqa: E402
 
 
