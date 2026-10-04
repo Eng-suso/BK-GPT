@@ -31,6 +31,7 @@ from backend.schemas.chat import (
     DEFAULT_CHAT_MODE,
     DEFAULT_REASONING_EFFORT,
     PROVIDER_REASONING_EFFORT,
+    CanvasChatScope,
     ChatAttachment,
     ChatMode,
     ChatScope,
@@ -111,6 +112,17 @@ def is_internal_agent_node(node_name: str) -> bool:
             `False` otherwise.
     """
     return node_name in INTERNAL_AGENT_NODES or node_name.endswith("_tools")
+
+
+def _canvas_base_versions(scope: ChatScope | None) -> dict[str, int]:
+    """La versione da cui viene l'XML del canvas mandato con il messaggio."""
+    if (
+        isinstance(scope, CanvasChatScope)
+        and scope.current_bpmn_xml
+        and scope.current_bpmn_version_id is not None
+    ):
+        return {scope.bpmn_model_id: scope.current_bpmn_version_id}
+    return {}
 
 
 _THREAD_LOCKS: dict[str, Lock] = {}
@@ -739,7 +751,7 @@ def stream_agent_events(
                 bind_active_mode(chat_mode),
                 bind_active_thread(checkpoint_thread_id),
                 # Un salvataggio del consulente a meta' turno non va sovrascritto.
-                bind_turn_writes(),
+                bind_turn_writes(_canvas_base_versions(scope)),
                 bind_progress_sink(announce_phase),
             ):
                 announced_posture: str | None = None

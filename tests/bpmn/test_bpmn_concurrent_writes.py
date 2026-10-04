@@ -146,6 +146,77 @@ def test_a_save_made_before_the_turn_does_not_block_the_agent(model_id):
     assert "agente" in wd.get_bpmn_model(model_id)["xml"]
 
 
+
+def test_an_agent_working_on_a_stale_canvas_does_not_overwrite_the_newer_save(model_id):
+    """Rilievo CodeRabbit sulla PR #54: una scheda rimasta aperta su una versione
+    vecchia manda quell'XML all'agente. Il salvataggio del collega e' arrivato
+    prima del turno, quindi l'istante da solo non lo vede: serve la versione da
+    cui viene l'XML."""
+    from backend import workspace_database as wd
+    from backend.agents.run_context import bind_turn_writes
+
+    wd.update_bpmn_model(model_id, _XML.format(task="primo"))
+    stale = wd.get_bpmn_model(model_id)["version_id"]
+    _save_elsewhere(model_id, "collega")
+
+    with bind_turn_writes({model_id: stale}):
+        with pytest.raises(wd.BpmnVersionConflict):
+            wd.update_bpmn_model(model_id, _XML.format(task="agente"), source="agent")
+
+    assert "collega" in wd.get_bpmn_model(model_id)["xml"]
+
+
+def test_an_agent_working_on_the_current_canvas_moves_its_base_as_it_writes(model_id):
+    from backend import workspace_database as wd
+    from backend.agents.run_context import bind_turn_writes
+
+    wd.update_bpmn_model(model_id, _XML.format(task="primo"))
+    current = wd.get_bpmn_model(model_id)["version_id"]
+
+    with bind_turn_writes({model_id: current}):
+        wd.update_bpmn_model(model_id, _XML.format(task="agente_uno"), source="agent")
+        wd.update_bpmn_model(model_id, _XML.format(task="agente_due"), source="agent")
+
+    assert "agente_due" in wd.get_bpmn_model(model_id)["xml"]
+
+
+def test_a_restore_inside_a_turn_does_not_overwrite_a_save_made_meanwhile(model_id):
+    from backend import workspace_database as wd
+    from backend.agents.run_context import bind_turn_writes
+
+    wd.update_bpmn_model(model_id, _XML.format(task="primo"))
+    first = wd.get_bpmn_model(model_id)["version_id"]
+    with bind_turn_writes():
+        _save_elsewhere(model_id, "consulente")
+        with pytest.raises(wd.BpmnVersionConflict):
+            wd.restore_bpmn_version(model_id, first)
+
+    assert "consulente" in wd.get_bpmn_model(model_id)["xml"]
+
+
+def test_the_save_route_answers_409_and_writes_nothing_on_a_stale_version(model_id):
+    from fastapi.testclient import TestClient
+
+    from backend import workspace_database as wd
+    from backend.app import app
+    from backend.security import get_current_tenant_id
+
+    wd.update_bpmn_model(model_id, _XML.format(task="primo"))
+    seen = wd.get_bpmn_model(model_id)["version_id"]
+    wd.update_bpmn_model(model_id, _XML.format(task="secondo"))
+    versions_before = len(wd.list_bpmn_versions(model_id))
+
+    # Senza `with`: il lifespan avvierebbe i worker di coda.
+    response = TestClient(app).put(
+        f"/v1/workspace/bpmn-models/{model_id}",
+        json={"xml": _XML.format(task="terzo"), "expected_version_id": seen},
+        headers={"X-DeliR-Tenant-Id": get_current_tenant_id()},
+    )
+
+    assert response.status_code == 409, response.text
+    assert len(wd.list_bpmn_versions(model_id)) == versions_before
+    assert "secondo" in wd.get_bpmn_model(model_id)["xml"]
+
 # --- l'esito arriva al modello ------------------------------------------------
 
 

@@ -893,17 +893,30 @@ def _assert_bpmn_not_changed_underneath(
         )
 
     turn = active_turn_writes()
-    if (
-        turn is not None
-        and latest is not None
-        and latest.id not in turn.written_version_ids
-        and latest.created_at > turn.started_at
-    ):
+    if turn is None or latest is None:
+        return
+    base = turn.base_version_by_model.get(bpmn_model_id)
+    if base is not None:
+        # L'XML su cui lavora l'agente viene da una versione nota: vale quella,
+        # anche se l'altra scrittura e' arrivata prima dell'inizio del turno
+        # (una scheda rimasta aperta su una versione vecchia).
+        changed = latest.id != base
+    else:
+        changed = latest.id not in turn.written_version_ids and latest.created_at > turn.started_at
+    if changed:
         raise BpmnVersionConflict(
             "Il consulente ha salvato il diagramma mentre lavoravi: la tua modifica "
             "lo sovrascriverebbe. Non e' stata salvata. Prima rileggi il canvas "
             "salvato, poi rifai la modifica su quella versione."
         )
+
+
+def _remember_turn_write(bpmn_model_id: str, version_id: int) -> None:
+    """La versione appena scritta dal turno diventa la sua nuova base."""
+    turn = active_turn_writes()
+    if turn is not None:
+        turn.written_version_ids.add(version_id)
+        turn.base_version_by_model[bpmn_model_id] = version_id
 
 
 def bpmn_version_to_dict(version: WorkspaceBpmnVersion) -> dict:
@@ -1020,9 +1033,7 @@ def update_bpmn_model(
             source=source,
         )
         session.flush()
-        turn = active_turn_writes()
-        if turn is not None:
-            turn.written_version_ids.add(version.id)
+        _remember_turn_write(model.id, version.id)
         return {
             "id": model.id,
             "process_id": model.process_id,
@@ -1081,6 +1092,10 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
         ):
             raise ValueError(f"Versione BPMN non trovata: {version_id}")
 
+        # Come ogni scrittura del disegno: in fila dietro le altre, e mai sopra
+        # una versione che chi ripristina (dentro un turno) non ha visto.
+        session.refresh(model, with_for_update=True)
+        _assert_bpmn_not_changed_underneath(session, model.id, None)
         model.xml = version.xml
         restored = create_bpmn_version(
             session=session,
@@ -1090,6 +1105,7 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
             source="restore",
         )
         session.flush()
+        _remember_turn_write(model.id, restored.id)
         return {
             "bpmn_model": {
                 "id": model.id,
