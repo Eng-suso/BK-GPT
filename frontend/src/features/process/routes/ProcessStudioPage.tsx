@@ -6,11 +6,14 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, ArrowLeft, Users, MessagesSquare, Workflow } from "lucide-react";
 
 import { PageHeader } from "@/components/layout";
 import { ErrorState } from "@/components/feedback";
 import { StatusIndicator, type StatusTone } from "@/components/status";
+import { Surface } from "@/ui/surface";
+import { Badge } from "@/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/ui/tabs";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 import { ROUTES } from "@/app/routes";
@@ -138,10 +141,11 @@ export function ProcessStudioPage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-col gap-2 px-4 pb-2 pt-3">
+    <Tabs value={view} onValueChange={setView} className="h-full min-h-0 gap-0">
+      <Surface variant="chrome" className="process-studio-header mx-4 mb-3 mt-3 flex shrink-0 flex-col gap-3 rounded-xl p-4">
         <PageHeader
           compact
+          className="[&_h1]:text-xl"
           breadcrumbs={[
             { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
             { label: project.name, to: ROUTES.projects.detail(project.id) },
@@ -154,14 +158,9 @@ export function ProcessStudioPage(): React.JSX.Element {
                 tone={PROCESS_STATUS_TONE[process.status] ?? "neutral"}
                 label={process.status}
               />
-              <span aria-hidden>·</span>
-              <span>{process.owner}</span>
-              <span aria-hidden>·</span>
-              <span>{process.stage}</span>
-              <span aria-hidden>·</span>
-              <span className="tabular-nums">
-                {t("side.summary.readiness")} {process.readiness}%
-              </span>
+              <Badge variant="secondary">{process.stage}</Badge>
+              <span className="inline-flex min-w-0 items-center gap-1.5" title={`${t("side.summary.ownerLabel")}: ${process.owner}`}><Users aria-hidden className="size-3.5 shrink-0" /><span className="break-words">{process.owner}</span></span>
+              <Badge variant="outline" className="tabular-nums">{t("side.summary.readiness")} {process.readiness}%</Badge>
             </>
           }
           actions={
@@ -179,21 +178,17 @@ export function ProcessStudioPage(): React.JSX.Element {
                 {t("simulation.section.title")}
               </Button>
               <Button variant="ghost" size="sm" onClick={backToProject}>
-                {t("actions.backToProject")}
+                <ArrowLeft aria-hidden className="size-4" />{t("actions.backToProject")}
               </Button>
             </>
           }
         />
-        <nav aria-label={t("actions.views")} className="flex gap-1 border-b border-border">
-              {VIEWS.map((v) => (
-                <button type="button" key={v} onClick={() => setView(v)} aria-current={view === v ? "page" : undefined} className={`px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring ${view === v ? "border-b-2 border-primary font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                  {t(`tabs.${v}`)}
-                </button>
-              ))}
-        </nav>
-      </div>
+        <TabsList aria-label={t("actions.views")}>
+          {VIEWS.map((v) => <TabsTrigger key={v} value={v}>{v === "chat" ? <MessagesSquare aria-hidden /> : <Workflow aria-hidden />}{t(`tabs.${v}`)}</TabsTrigger>)}
+        </TabsList>
+      </Surface>
 
-      <div className="min-h-0 flex-1">
+      <TabsContent value={view} className="min-h-0 flex-1">
         <ProcessWorkspace
           project={project}
           process={process}
@@ -202,7 +197,7 @@ export function ProcessStudioPage(): React.JSX.Element {
           onTogglePropertiesPanel={togglePropertiesPanel}
           onOpenDiscussion={() => setView("chat")}
         />
-      </div>
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 }
