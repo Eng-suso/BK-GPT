@@ -6,6 +6,7 @@ import {
   BpmnPropertiesProviderModule,
 } from "bpmn-js-properties-panel";
 
+import { readCanvasElements, type CanvasElement } from "./elements";
 import { httpErrorMessage } from "@/lib/http";
 import type { BpmnVersion } from "@/contracts/workspace";
 import { onWorkspaceChanged } from "@/lib/workspaceEvents";
@@ -50,6 +51,9 @@ export type UseBpmnCanvas = {
   containerRef: RefObject<HTMLDivElement | null>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   isReady: boolean;
+  elements: CanvasElement[];
+  selectElement: (id: string) => boolean;
+  retryLoad: () => void;
   /** The model has no elements yet: a process recorded but not reconstructed. */
   isEmptyModel: boolean;
   status: string;
@@ -89,6 +93,7 @@ export function useBpmnCanvas({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modelerRef = useRef<BpmnModeler | null>(null);
+  const focusedElementIdRef = useRef<string | null>(null);
   const hasUnsavedChangesRef = useRef(false);
   const isImportingRef = useRef(false);
   const isSavingRef = useRef(false);
@@ -101,6 +106,8 @@ export function useBpmnCanvas({
   // import: un disegno nuovo puo' rappresentare lo stesso passaggio altrove.
   const provenanceIndexRef = useRef<Map<string, string[]>>(new Map());
 
+  const [elements, setElements] = useState<CanvasElement[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const [status, setStatus] = useState("Caricamento canvas...");
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -199,12 +206,19 @@ export function useBpmnCanvas({
       fitTimerRef.current = null;
       if (document.hidden || !modelerRef.current) return;
       frameCanvasForReading(modelerRef.current);
+      if (focusedElementIdRef.current) {
+        const registry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
+        const element = registry.get?.(focusedElementIdRef.current);
+        const service = modelerRef.current.get("canvas") as { scrollToElement?: (element: unknown, padding?: number) => void };
+        if (element) service.scrollToElement?.(element, 40);
+      }
     }, 100);
   }, []);
 
   const syncEmptiness = useCallback(() => {
     if (!modelerRef.current) return;
     setIsEmptyModel(!hasDiagramContent(modelerRef.current));
+    setElements(readCanvasElements(modelerRef.current));
     // Ogni punto che importa un XML passa di qui: e' il momento in cui i segni
     // di provenance vanno riletti dal disegno appena caricato.
     try {
@@ -217,7 +231,9 @@ export function useBpmnCanvas({
 
   const loadVersions = useCallback(async () => {
     try {
-      setVersions(await fetchBpmnVersions(bpmnModelId));
+      const owner = modelerRef.current;
+      const loaded = await fetchBpmnVersions(bpmnModelId);
+      if (modelerRef.current === owner) setVersions(loaded);
     } catch (err) {
       console.warn("[bpmn] version history load failed", err);
     }
@@ -229,7 +245,10 @@ export function useBpmnCanvas({
     let isMounted = true;
     let ownedModeler: BpmnModeler | null = null;
     setIsReady(false);
+    focusedElementIdRef.current = null;
+    setVersions([]);
     setSelectedElement(null);
+    setElements([]);
     setError(null);
     async function mountCanvas() {
       try {
@@ -300,6 +319,7 @@ export function useBpmnCanvas({
         }
         void loadVersions();
       } catch (err) {
+        if (!isMounted) return;
         isImportingRef.current = false;
         if (isMounted) {
           setError(
@@ -323,6 +343,7 @@ export function useBpmnCanvas({
   }, [
     bpmnModelId,
     processName,
+    reloadKey,
     propertiesPanelRef,
     loadVersions,
     scheduleUnsavedCheck,
@@ -361,9 +382,12 @@ export function useBpmnCanvas({
           markUnsaved(false);
         }
 
+        const owner = modelerRef.current;
         const xml = await loadInitialXml(bpmnModelId, processName);
+        if (modelerRef.current !== owner) return;
         isImportingRef.current = true;
-        await modelerRef.current.importXML(xml);
+        await owner.importXML(xml);
+        if (modelerRef.current !== owner) return;
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
         syncEmptiness();
@@ -588,10 +612,9 @@ export function useBpmnCanvas({
 
   const clearSelection = useCallback(() => setSelectedElement(null), []);
 
-  const focusSourceRef = useCallback((sourceRef: string) => {
+  const selectElement = useCallback((elementId: string) => {
     const modeler = modelerRef.current;
-    const elementId = provenanceIndexRef.current.get(sourceRef)?.[0];
-    if (!modeler || !elementId) return false;
+    if (!modeler) return false;
     const registry = modeler.get("elementRegistry") as BpmnElementRegistry;
     const element = registry.get?.(elementId);
     if (!element) return false;
@@ -599,12 +622,21 @@ export function useBpmnCanvas({
     const canvasService = modeler.get("canvas") as {
       scrollToElement?: (element: unknown, padding?: number) => void;
     };
+    focusedElementIdRef.current = elementId;
     selection.select(element);
-    canvasService.scrollToElement?.(element, 120);
+    canvasService.scrollToElement?.(element, 40);
     return true;
   }, []);
 
+  const focusSourceRef = useCallback((sourceRef: string) => {
+    const id = provenanceIndexRef.current.get(sourceRef)?.[0];
+    return id ? selectElement(id) : false;
+  }, [selectElement]);
+
   return {
+    elements,
+    selectElement,
+    retryLoad: () => setReloadKey((value) => value + 1),
     containerRef,
     fileInputRef,
     isReady,

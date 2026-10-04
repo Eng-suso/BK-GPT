@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 
 import { PanelShellHeader } from "@/components/panel";
 import { ResizeHandle } from "@/components/layout";
+import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import { usePanelSize } from "@/lib/usePanelSize";
 import { useElementWidth } from "@/lib/useElementWidth";
@@ -65,7 +66,7 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
     setChatOpen(!showChat);
   };
   const toggleProperties = () => {
-    lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("properties.title"))}"]`) ?? document.activeElement as HTMLElement | null;
+    lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("actions.toggleProperties"))}"]`) ?? document.activeElement as HTMLElement | null;
     if (!propertiesOpen && !bothFit) setChatOpen(false);
     onTogglePropertiesPanel();
   };
@@ -92,11 +93,11 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
             <section className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas} aria-label="Canvas BPMN">
               <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} onCurrentXmlChange={setCurrentCanvasXml} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
             </section>
-            <aside className="process-studio-properties" style={{ width: inline ? 360 : "100%", flex: inline ? "0 0 360px" : "1", marginLeft: inline ? 12 : 0 }} aria-label={t("properties.title")} hidden={!propertiesOpen}>
+            <Surface asChild variant="panel"><aside className="process-studio-properties" style={{ width: inline ? 360 : "100%", flex: inline ? "0 0 360px" : "1", marginLeft: inline ? 12 : 0 }} aria-label={t("properties.title")} hidden={!propertiesOpen}>
               <PanelShellHeader title={t("properties.title")} actions={<Button ref={propertiesOpen ? closeRef : undefined} variant="ghost" size="icon-sm" aria-label={t("actions.closeOverlays")} onClick={closeSupport}><X className="size-4" /></Button>} />
               {/* The host must remain mounted for the modeler's properties provider. */}
               <div className="process-bpmn-properties-host" ref={propertiesPanelRef} />
-            </aside>
+            </aside></Surface>
           </div>
         ) : (
           <section className="process-primary-panel" aria-label={t("canvas.processChat")}>
