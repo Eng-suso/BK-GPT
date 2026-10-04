@@ -227,6 +227,10 @@ export function useBpmnCanvas({
     if (!containerRef.current) return;
 
     let isMounted = true;
+    let ownedModeler: BpmnModeler | null = null;
+    setIsReady(false);
+    setSelectedElement(null);
+    setError(null);
     async function mountCanvas() {
       try {
         if (!isMounted || !containerRef.current) return;
@@ -242,14 +246,17 @@ export function useBpmnCanvas({
           ],
         }) as BpmnModeler;
 
+        ownedModeler = modeler;
         modelerRef.current = modeler;
         keepSequenceConnectionsDocked(modeler);
 
         const localDraft = readLocalBpmnDraft(bpmnModelId);
         const xml = localDraft ?? (await loadInitialXml(bpmnModelId, processName));
+        if (!isMounted || modelerRef.current !== modeler) return;
         lastSavedXmlRef.current = localDraft ? null : xml;
         isImportingRef.current = true;
         await modeler.importXML(xml);
+        if (!isMounted || modelerRef.current !== modeler) return;
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
         syncEmptiness();
@@ -309,8 +316,8 @@ export function useBpmnCanvas({
       isMounted = false;
       clearChangeCheckTimer();
       clearFitTimer();
-      modelerRef.current?.destroy();
-      modelerRef.current = null;
+      ownedModeler?.destroy();
+      if (modelerRef.current === ownedModeler) modelerRef.current = null;
       setIsReady(false);
     };
   }, [

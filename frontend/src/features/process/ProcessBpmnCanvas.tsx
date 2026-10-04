@@ -6,7 +6,7 @@ import { MessagesSquare, Upload } from "lucide-react";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
-// Note: bpmn-js-properties-panel bundles its styles internally; no separate CSS import needed.
+import "@bpmn-io/properties-panel/dist/assets/properties-panel.css";
 
 import type { StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
