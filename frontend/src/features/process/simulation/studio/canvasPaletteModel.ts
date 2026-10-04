@@ -17,4 +17,3 @@ export function parsePaletteItem(raw: string): PaletteItem | null {
     return { kind: item.kind as WidgetKind, metric: item.metric as Metric | undefined, note: item.note as true | undefined };
   } catch { return null; }
 }
-
