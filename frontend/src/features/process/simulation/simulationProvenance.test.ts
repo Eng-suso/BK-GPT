@@ -139,7 +139,8 @@ describe("buildInputConfidence", () => {
     draft.gateways.Decision_1 = { f1: 70, f2: 30 };
     draft.totalCases = 400;
     draft.arrivalIntervalMinutes = 12;
-    draft.resources = [{ id: "res-1", name: "Team", costPerHour: 40, amount: 3 }];
+    draft.resources = [{ id: "res-1", name: "Team", costPerHour: 40, amount: 3, parametersConfirmed: true }];
+    draft.tasks = Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, { ...task, resourceId: "res-1" }]));
     const strong = provenance({
       elements: provenance().elements.map((e) => ({
         ...e,
@@ -150,4 +151,14 @@ describe("buildInputConfidence", () => {
     const ic = buildInputConfidence(draft, TEMPLATE, strong);
     expect(ic.readiness.overall).toBe("high");
   });
+  it("adding a role alone does not confirm its parameters or incomplete assignments", () => {
+    const draft = seeded();
+    draft.resources = [{ id: "manual", name: "Team", costPerHour: 0, amount: 1, parametersConfirmed: false }];
+    expect(buildInputConfidence(draft, TEMPLATE, null).resources.confidence).toBe("low");
+    draft.resources[0].parametersConfirmed = true;
+    expect(buildInputConfidence(draft, TEMPLATE, null).resources.confidence).toBe("low");
+    draft.tasks = Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, { ...task, resourceId: "manual" }]));
+    expect(buildInputConfidence(draft, TEMPLATE, null).resources).toMatchObject({ source: "confirmed", confidence: "high" });
+  });
+
 });

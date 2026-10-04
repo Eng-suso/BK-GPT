@@ -37,13 +37,22 @@ export function formatVersionDate(value: string): string {
   });
 }
 
-/** The model's stored XML, or a fresh starter diagram if it can't be loaded. */
-export async function loadInitialXml(
+export type InitialBpmnModel = {
+  xml: string;
+  /** The saved version the XML comes from; `null` for the starter diagram. */
+  versionId: number | null;
+};
+
+/** The model's stored XML and version, or a starter diagram for an empty model. */
+export async function loadInitialModel(
   bpmnModelId: string,
   processName: string,
-): Promise<string> {
+): Promise<InitialBpmnModel> {
   // A failed request is not an empty process. Let the canvas show the error
   // instead of presenting an editable starter model over an existing diagram.
   const model = await fetchBpmnModel(bpmnModelId);
-  return model.xml?.trim() || buildInitialProcessDiagram(processName);
+  return {
+    xml: model.xml?.trim() || buildInitialProcessDiagram(processName),
+    versionId: model.versionId,
+  };
 }

@@ -2,9 +2,11 @@ import React from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FolderTree } from "lucide-react";
 
-import { PageHeader } from "@/components/layout";
+import { WorkspaceContextBar } from "@/components/layout";
+import { Link } from "react-router-dom";
+import { Popover, PopoverTrigger, PopoverContent } from "@/ui/popover";
 import { ErrorState } from "@/components/feedback";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
@@ -62,11 +64,13 @@ export function SimulationLayout(): React.JSX.Element {
   const requestedId = Number(parts[index + 2] ?? params.get("run"));
   const activeRunId = Number.isFinite(requestedId) && requestedId > 0
     ? requestedId : runs.find((run) => run.status === "completed")?.id ?? runs[0]?.id ?? null;
-  const requestedPanel = params.get("panel") ?? (section === "workspace" || section === "replay" || section === "dashboard" ? null : section);
+  const requestedPanel = params.get("panel") ?? (params.get("view") === "compare" ? "compare" : section === "workspace" || section === "replay" || section === "dashboard" ? null : section);
   const panel = PANELS.includes(requestedPanel as SimulationPanel) ? requestedPanel as SimulationPanel : null;
   const requestedView = params.get("view");
   const analysisView: AnalysisView = ["replay", "final", "compare", "heatmap"].includes(requestedView ?? "") ? requestedView as AnalysisView
     : panel === "compare" ? "compare" : panel === "heatmap" ? "heatmap" : panel === "overview" || panel === "insights" ? "final" : "replay";
+  const analysisViewRef = React.useRef(analysisView);
+  React.useEffect(() => { analysisViewRef.current = analysisView; }, [analysisView]);
   const panelRef = React.useRef(panel);
   React.useEffect(() => { panelRef.current = panel; }, [panel]);
   const selectionScope = `${projectId}:${processId}:${activeRunId}`;
@@ -76,17 +80,18 @@ export function SimulationLayout(): React.JSX.Element {
   const navigateWorkspace = React.useCallback((nextPanel: SimulationPanel | null, id: number | null = activeRunId) => {
     const query = new URLSearchParams(location.search);
     query.delete("run");
-    query.set("view", nextPanel === "compare" ? "compare" : nextPanel === "heatmap" ? "heatmap" : nextPanel === "overview" || nextPanel === "insights" ? "final" : analysisView);
-    if (nextPanel) query.set("panel", nextPanel); else query.delete("panel");
+    query.set("view", nextPanel === "compare" ? "compare" : analysisViewRef.current);
+    if (nextPanel) query.set("panel", nextPanel); else query.set("panel", "none");
     const search = query.toString();
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${id != null ? `/${id}` : ""}`) + (search ? `?${search}` : ""));
-  }, [activeRunId, analysisView, location.search, navigate, processId, projectId]);
+  }, [activeRunId, location.search, navigate, processId, projectId]);
   const openPanel = React.useCallback((next: SimulationPanel | null) => { panelRef.current = next; navigateWorkspace(next); }, [navigateWorkspace]);
   const selectRun = React.useCallback((id: number) => { setSelection({ scope: "", id: null }); navigateWorkspace(panelRef.current === "widget" || panelRef.current === "activity" ? null : panelRef.current, id); }, [navigateWorkspace]);
   const [inspectedWidgetId, setInspectedWidgetId] = React.useState<string | null>(null);
   const inspectWidget = (id: string | null) => { setInspectedWidgetId(id); openPanel(id ? "widget" : null); };
   const setAnalysisView = (view: AnalysisView) => {
-    const query = new URLSearchParams(location.search); query.set("view", view); query.delete("panel");
+    analysisViewRef.current = view;
+    const query = new URLSearchParams(location.search); query.set("view", view); if (panel === "compare" && view !== "compare") query.delete("panel");
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${activeRunId != null ? `/${activeRunId}` : ""}`) + `?${query}`);
   };
   const switchRun = (value: string) => selectRun(Number(value));
@@ -139,21 +144,9 @@ export function SimulationLayout(): React.JSX.Element {
   return (
     <SimulationSectionContext.Provider value={contextValue}>
       <div className="sim-studio-shell flex h-full min-h-0 flex-col">
-        <div className="flex shrink-0 flex-col gap-2 px-4 pb-2 pt-3">
-          <PageHeader
-            compact
-            className="sim-studio-page-header"
-            breadcrumbs={[
-              { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
-              { label: project.name, to: ROUTES.projects.detail(project.id) },
-              {
-                label: process.name,
-                to: ROUTES.projects.process(project.id, process.id),
-              },
-              { label: t("simulation.section.title") },
-            ]}
-            title={process.name}
-            actions={
+        <WorkspaceContextBar className="sim-studio-page-header" title={process.name}
+          navigation={<Popover><PopoverTrigger asChild><Button size="icon" variant="ghost" aria-label={t("simulation.workspaceHierarchy.path")}><FolderTree aria-hidden className="size-4" /></Button></PopoverTrigger><PopoverContent align="start"><nav aria-label="Breadcrumb"><ol className="space-y-2 text-sm"><li><Link to={ROUTES.projects.list}>{t("breadcrumb.projects")}</Link></li><li><Link to={ROUTES.projects.detail(project.id)}>{project.name}</Link></li><li><Link to={ROUTES.projects.process(project.id, process.id)}>{process.name}</Link></li><li aria-current="page" className="text-muted-foreground">{t("simulation.section.title")}</li></ol></nav></PopoverContent></Popover>}
+          actions={
               <div className="sim-studio-run-actions flex max-w-full flex-wrap items-center gap-2">
                 {runs.length > 0 && (
                   <Select
@@ -187,12 +180,10 @@ export function SimulationLayout(): React.JSX.Element {
                   <span>{t("simulation.section.back")}</span>
                 </Button>
               </div>
-            }
-          />
+          }
+        />
 
-        </div>
-
-        <div className="min-h-0 flex-1 px-4 pb-4">
+        <div className="min-h-0 flex-1 p-2">
           <ReplaySession
             runId={runs.find((run) => run.id === activeRunId)?.status === "completed" ? activeRunId : null}
             enabled={true}

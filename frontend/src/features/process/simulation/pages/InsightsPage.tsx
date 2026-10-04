@@ -58,13 +58,12 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
   const applyExperiment = (exp: Experiment) => {
     const servingId = exp.target_el
       ? draft.tasks[exp.target_el]?.resourceId
-      : draft.resources[0]?.id;
+      : undefined;
     const targetId =
       draft.resources.find(
         (r) => r.name.toLowerCase() === exp.pool_name.toLowerCase(),
       )?.id ??
-      servingId ??
-      draft.resources[0]?.id;
+      servingId;
     updateDraft({
       ...draft,
       scenarioName: t("simulation.insights.scenarioName", {
@@ -72,7 +71,7 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
         pool: exp.pool_name,
       }),
       resources: draft.resources.map((r) =>
-        r.id === targetId ? { ...r, amount: r.amount + 1 } : r,
+        r.id === targetId ? { ...r, amount: r.amount + 1, parametersConfirmed: false } : r,
       ),
     });
     if (exp.target_el) selectElement?.(exp.target_el);

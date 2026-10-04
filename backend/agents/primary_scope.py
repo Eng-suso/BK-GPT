@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Literal
 
 from pydantic import BaseModel
 
 from backend.agents.attachments import build_attachments_prompt, resolve_attachments
+from backend.agents.context_budget import ContextBlock, assemble
 from backend.agents.evidence_brief import evidence_prompt_block
 from backend.agents.product_language import PRODUCT_LANGUAGE_CONTRACT
 from backend.schemas.chat import (
@@ -15,6 +17,9 @@ from backend.schemas.chat import (
     ChatScope,
     chat_scope_key,
 )
+from backend.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 AgentScopeType = Literal["consultant", "project", "process", "canvas"]
@@ -169,7 +174,7 @@ def build_scope_system_prompt(state: dict) -> str:
     """
     scope_type = str(state.get("scope_type") or "consultant")
     chat_mode = str(state.get("chat_mode") or "conversation")
-    lines = [
+    lines: list[str | ContextBlock] = [
         "Contesto operativo del thread.",
         "Lo scope arriva dalla UI/backend: non dedurlo dal testo utente.",
         f"chat_scope: {scope_type}",
@@ -255,7 +260,9 @@ def build_scope_system_prompt(state: dict) -> str:
     # primo - apriva la sua passata senza vederlo, e ricominciava dal nome del
     # processo come se le interviste non fossero mai state fatte. Sta qui perche'
     # qui lo leggono tutti: e' il prompt di scope, non il prompt di un nodo.
-    lines.extend(evidence_prompt_block(state))
+    evidence = evidence_prompt_block(state)
+    if evidence:
+        lines.append(ContextBlock("registro dell'evidenza", "\n".join(evidence), priority=82))
 
     if scope_type == "project":
         processes = state.get("project_processes") or []
@@ -266,12 +273,13 @@ def build_scope_system_prompt(state: dict) -> str:
             "deliverables": state.get("project_deliverables") or [],
             "open_issues": state.get("project_open_issues") or [],
         }
-        lines.extend(
-            [
-                "",
-                "Snapshot progetto corrente precaricato dal workspace DB:",
+        lines.append(
+            ContextBlock(
+                "snapshot del progetto",
                 _state_value_to_text(project_snapshot, MAX_STATE_ARTIFACT_CHARS),
-            ]
+                priority=70,
+                header=("", "Snapshot progetto corrente precaricato dal workspace DB:"),
+            )
         )
         if not processes:
             # PROJECT-02: senza processi registrati la chat elencava le lacune di
@@ -325,8 +333,12 @@ def build_scope_system_prompt(state: dict) -> str:
         lines.append(f"readiness_score: {state['readiness_score']}")
     if state.get("missing_information"):
         lines.append(
-            "missing_information: "
-            + _state_value_to_text(state["missing_information"], MAX_STATE_ARTIFACT_CHARS)
+            ContextBlock(
+                "missing_information",
+                _state_value_to_text(state["missing_information"], MAX_STATE_ARTIFACT_CHARS),
+                priority=65,
+                header=("missing_information:",),
+            )
         )
 
     open_questions = state.get("review_open_questions") or []
@@ -358,14 +370,9 @@ def build_scope_system_prompt(state: dict) -> str:
     # li riceve, invece di dover indovinare cosa non andava.
     plan_review = state.get("plan_review")
     if plan_review and (plan_review.get("issues") or plan_review.get("warnings")):
-        lines.extend(
-            [
-                "",
-                "Review del piano, sulla versione riletta dal database "
-                f"({plan_review.get('plan_snapshot_label') or 'senza versione'}). "
-                "Correggi i difetti elencati amendando il piano - non ricostruirlo da "
-                "capo, e non togliere cio' che il piano gia' sa per far sparire un "
-                "difetto.",
+        lines.append(
+            ContextBlock(
+                "review del piano",
                 _state_value_to_text(
                     {
                         "issues": plan_review.get("issues") or [],
@@ -376,7 +383,16 @@ def build_scope_system_prompt(state: dict) -> str:
                     },
                     MAX_STATE_ARTIFACT_CHARS,
                 ),
-            ]
+                priority=85,
+                header=(
+                    "",
+                    "Review del piano, sulla versione riletta dal database "
+                    f"({plan_review.get('plan_snapshot_label') or 'senza versione'}). "
+                    "Correggi i difetti elencati amendando il piano - non ricostruirlo da "
+                    "capo, e non togliere cio' che il piano gia' sa per far sparire un "
+                    "difetto.",
+                ),
+            )
         )
 
     # Le due soglie, dichiarate come due. "Non ancora validato" non e' "non
@@ -396,57 +412,75 @@ def build_scope_system_prompt(state: dict) -> str:
             ]
         )
 
-    lines.extend(build_attachments_prompt(state.get("attachments")))
+    attachments = build_attachments_prompt(state.get("attachments"))
+    if attachments:
+        # Il consulente li ha mandati apposta con questo messaggio.
+        lines.append(ContextBlock("allegati del messaggio", "\n".join(attachments), priority=88))
 
     if state.get("process_understanding"):
-        lines.extend(
-            [
-                "",
-                "ProcessUnderstanding corrente nello state:",
+        lines.append(
+            ContextBlock(
+                "ProcessUnderstanding",
                 _state_value_to_text(state["process_understanding"], MAX_STATE_ARTIFACT_CHARS),
-            ]
+                priority=75,
+                header=("", "ProcessUnderstanding corrente nello state:"),
+            )
         )
     if state.get("process_understanding_diagnostics"):
-        lines.extend(
-            [
-                "",
-                "Diagnostica ProcessUnderstanding corrente:",
+        lines.append(
+            ContextBlock(
+                "diagnostica del ProcessUnderstanding",
                 _state_value_to_text(state["process_understanding_diagnostics"], MAX_STATE_ARTIFACT_CHARS),
-            ]
+                priority=40,
+                header=("", "Diagnostica ProcessUnderstanding corrente:"),
+            )
         )
     if state.get("process_quality_report"):
-        lines.extend(
-            [
-                "",
-                "Quality report ProcessUnderstanding corrente:",
+        lines.append(
+            ContextBlock(
+                "quality report",
                 _state_value_to_text(state["process_quality_report"], MAX_STATE_ARTIFACT_CHARS),
-            ]
+                priority=50,
+                header=("", "Quality report ProcessUnderstanding corrente:"),
+            )
         )
 
     if state.get("bpmn_semantic_model"):
-        lines.extend(
-            [
-                "",
-                "BPMNSemanticModel corrente nello state:",
+        lines.append(
+            ContextBlock(
+                "BPMNSemanticModel",
                 _state_value_to_text(state["bpmn_semantic_model"], MAX_STATE_ARTIFACT_CHARS),
-            ]
+                priority=60,
+                header=("", "BPMNSemanticModel corrente nello state:"),
+            )
         )
 
     effective_bpmn_xml = state.get("effective_bpmn_xml")
+    current_bpmn_xml = state.get("current_bpmn_xml")
     if scope_type == "canvas" and effective_bpmn_xml:
         xml = str(effective_bpmn_xml)
-        truncated = len(xml) > MAX_CURRENT_BPMN_XML_CHARS
-        if truncated:
-            xml = xml[:MAX_CURRENT_BPMN_XML_CHARS]
-        lines.extend(
-            [
-                "",
-                f"effective_bpmn_xml_source: {state.get('effective_bpmn_xml_source') or 'unknown'}",
-                "effective_bpmn_xml:",
-                xml,
-                f"effective_bpmn_xml_truncated: {str(truncated).lower()}",
-            ]
+        source_line = (
+            f"effective_bpmn_xml_source: {state.get('effective_bpmn_xml_source') or 'unknown'}"
         )
+        if current_bpmn_xml and xml == str(current_bpmn_xml):
+            # Lo stesso XML due volte e' il doppio dei token per la stessa
+            # informazione: e' il caso normale, quando la UI manda il canvas.
+            lines.extend(
+                ["", source_line, "effective_bpmn_xml: identico a current_bpmn_xml, qui sotto."]
+            )
+        else:
+            truncated = len(xml) > MAX_CURRENT_BPMN_XML_CHARS
+            if truncated:
+                xml = xml[:MAX_CURRENT_BPMN_XML_CHARS]
+            lines.append(
+                ContextBlock(
+                    "effective_bpmn_xml",
+                    xml,
+                    priority=80,
+                    header=("", source_line, "effective_bpmn_xml:"),
+                )
+            )
+            lines.append(f"effective_bpmn_xml_truncated: {str(truncated).lower()}")
 
     if scope_type == "canvas" and state.get("canvas_loop_status"):
         loop_snapshot = {
@@ -458,31 +492,38 @@ def build_scope_system_prompt(state: dict) -> str:
             "latest_validation": state.get("canvas_last_validation") or state.get("validation_report"),
             "task_log": state.get("canvas_task_log") or [],
         }
-        lines.extend(
-            [
-                "",
-                "Canvas completion loop corrente.",
-                "Se lo status e' needs_fix, correggi solo i problemi indicati dalla latest_validation e poi lascia verificare di nuovo il canvas.",
+        lines.append(
+            ContextBlock(
+                "canvas completion loop",
                 _state_value_to_text(loop_snapshot, MAX_STATE_ARTIFACT_CHARS),
-            ]
+                priority=78,
+                header=(
+                    "",
+                    "Canvas completion loop corrente.",
+                    "Se lo status e' needs_fix, correggi solo i problemi indicati dalla latest_validation e poi lascia verificare di nuovo il canvas.",
+                ),
+            )
         )
 
-    current_bpmn_xml = state.get("current_bpmn_xml")
     if scope_type == "canvas" and current_bpmn_xml:
         xml = str(current_bpmn_xml)
         truncated = len(xml) > MAX_CURRENT_BPMN_XML_CHARS
         if truncated:
             xml = xml[:MAX_CURRENT_BPMN_XML_CHARS]
-        lines.extend(
-            [
-                "",
-                "BPMN XML corrente del canvas, letto dalla UI prima dell'invio del messaggio.",
-                "Questo XML e' transiente e puo' includere modifiche non ancora salvate nel backend.",
-                "Usalo come sorgente primaria quando l'utente chiede di leggere o interpretare il canvas corrente.",
-                f"current_bpmn_xml_truncated: {str(truncated).lower()}",
-                "current_bpmn_xml:",
+        lines.append(
+            ContextBlock(
+                "current_bpmn_xml",
                 xml,
-            ]
+                priority=90,
+                header=(
+                    "",
+                    "BPMN XML corrente del canvas, letto dalla UI prima dell'invio del messaggio.",
+                    "Questo XML e' transiente e puo' includere modifiche non ancora salvate nel backend.",
+                    "Usalo come sorgente primaria quando l'utente chiede di leggere o interpretare il canvas corrente.",
+                    f"current_bpmn_xml_truncated: {str(truncated).lower()}",
+                    "current_bpmn_xml:",
+                ),
+            )
         )
 
     lines.extend(
@@ -507,7 +548,9 @@ def build_scope_system_prompt(state: dict) -> str:
             PRODUCT_LANGUAGE_CONTRACT,
         ]
     )
-    return "\n".join(lines)
+    assembled = assemble(lines, settings.agent_scope_context_budget_tokens)
+    logger.info("contesto di scope %s: %s", scope_type, assembled.report.as_log())
+    return assembled.text
 
 
 def tool_scope_type(scope_type: str | None) -> AgentScopeType:

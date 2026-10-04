@@ -168,6 +168,24 @@
       "defaultDuration": "Durata default, min",
       "defaultDurationMin": "Durata def., min",
       "resources": "Risorse",
+      "resourceOriginHint": "Le lane identificano i gruppi operativi; la pool ne indica il contesto. Capacità e costo sono ipotesi dello scenario da verificare.",
+      "noResources": "Nessuna risorsa configurata",
+      "noResourcesHint": "Il modello non definisce gruppi operativi utilizzabili. Aggiungi una risorsa e assegnala alle attività.",
+      "resourceSource": {
+        "lane": "Lane BPMN",
+        "pool": "Pool BPMN",
+        "manual": "Risorsa manuale"
+      },
+      "resourceConfirmed": "Capacità e costo confermati",
+      "resourcePending": "Capacità e costo da confermare",
+      "capacity": "Unità disponibili",
+      "assignedActivities": "Attività assegnate: {{count}}",
+      "confirmResource": "Conferma capacità e costo",
+      "assignUnassigned": "Assegna alle attività senza risorsa ({{count}})",
+      "resourceSetupRequired": "Per simulare, conferma le risorse e assegna tutte le attività.",
+      "pendingResources": "Risorse da verificare: {{count}}",
+      "unassignedActivities": "Attività senza risorsa: {{count}}",
+      "selectResource": "Seleziona una risorsa",
       "addResource": "Aggiungi ruolo",
       "removeResource": "Rimuovi ruolo",
       "activities": "Attività",
@@ -565,6 +583,18 @@
       "notComparable": "Dati non disponibili",
       "unchanged": "Invariato",
       "modelMismatch": "Queste esecuzioni usano modelli BPMN diversi. Le differenze delle attività richiedono una mappatura fra le versioni; verifica anche la comparabilità dei KPI."
+    },
+    "workspaceHierarchy": {
+      "path": "Percorso del processo",
+      "final": "Intera esecuzione",
+      "metrics": "Metriche",
+      "layout": "Organizza tela",
+      "center": "Centra processo",
+      "applyFinalHeatmap": "Applica heatmap dell’intera esecuzione",
+      "navigation": "Navigazione",
+      "gestureHint": "Spazio + trascina per muoverti; Ctrl/Cmd + rotella per zoomare",
+      "resizeCanvas": "Ridimensiona area canvas",
+      "resizeInspector": "Ridimensiona pannello di dettagli"
     }
   },
   "side": {
@@ -753,6 +783,11 @@
         "participant-expanded": "Pool o partecipante",
         "group": "Gruppo"
       }
+    },
+    "conflict": {
+      "reloadLatest": "Carica l'ultima versione",
+      "reloaded": "Ultima versione caricata",
+      "reloadFailed": "Caricamento dell'ultima versione non riuscito"
     }
   }
 }

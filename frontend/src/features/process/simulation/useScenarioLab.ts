@@ -15,6 +15,7 @@ import {
   loadScenarioDraft,
   saveScenarioDraft,
   scenarioToInput,
+  scenarioResourceIssues,
   seedDraftFromTemplate,
   type ScenarioDraft,
 } from "./simulationScenario";
@@ -88,7 +89,7 @@ export function useScenarioLab(): ScenarioLab {
     staleTime: 60_000,
   });
   const template = templateQuery.data ?? null;
-  const templateLoading = templateQuery.isLoading && bpmnXml !== null;
+  const templateLoading = modelQuery.isLoading || (templateQuery.isLoading && bpmnXml !== null);
 
   const draft = React.useMemo(
     () => (template ? seedDraftFromTemplate(storedDraft, template) : storedDraft),
@@ -146,6 +147,10 @@ export function useScenarioLab(): ScenarioLab {
   );
 
   const handleRun = React.useCallback(async () => {
+    if (!template || templateLoading || !bpmnXml || !scenarioResourceIssues(draft).ready) {
+      setError(t("simulation.config.resourceSetupRequired"));
+      return;
+    }
     setIsRunning(true);
     setError(null);
     try {
@@ -166,7 +171,7 @@ export function useScenarioLab(): ScenarioLab {
     } finally {
       if (mountedRef.current) setIsRunning(false);
     }
-  }, [process.bpmnModelId, draft, bpmnXml, syncSection, pollRun, selectRun]);
+  }, [process.bpmnModelId, draft, bpmnXml, template, templateLoading, t, syncSection, pollRun, selectRun]);
 
   return {
     bpmnXml,

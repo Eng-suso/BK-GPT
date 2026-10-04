@@ -1,0 +1,122 @@
+{
+  "casi_per_run": 200,
+  "motore": "servizio http://127.0.0.1:5000",
+  "capacita": {
+    "baseline": {
+      "esito": "ok",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "resource",
+        "start_time"
+      ],
+      "dettaglio": null
+    },
+    "calendari_per_pool": {
+      "esito": "ok",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "resource",
+        "start_time"
+      ],
+      "dettaglio": null
+    },
+    "distribuzioni_uniform_lognorm_gamma": {
+      "esito": "ok",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "resource",
+        "start_time"
+      ],
+      "dettaglio": null
+    },
+    "distribuzione_triangolare": {
+      "esito": "errore",
+      "dettaglio": "HTTPStatusError: Client error '400 BAD REQUEST' for url 'http://127.0.0.1:5000/api/simulate'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400"
+    },
+    "attributi_caso": {
+      "esito": "ok",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "importo",
+        "resource",
+        "start_time",
+        "tipo"
+      ],
+      "dettaglio": null
+    },
+    "routing_condizionale": {
+      "esito": "effetto_assente",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "importo",
+        "resource",
+        "start_time",
+        "tipo"
+      ],
+      "dettaglio": "96 casi instradati contro la regola"
+    },
+    "priorita_coda": {
+      "esito": "ok",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "importo",
+        "resource",
+        "start_time",
+        "tipo"
+      ],
+      "dettaglio": null
+    },
+    "attributi_evento_espressione": {
+      "esito": "effetto_assente",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "importo",
+        "resource",
+        "start_time",
+        "tipo"
+      ],
+      "dettaglio": "attributo rischio assente dal log"
+    },
+    "batch": {
+      "esito": "ok",
+      "casi": 200,
+      "colonne_log": [
+        "activity",
+        "case_id",
+        "enable_time",
+        "end_time",
+        "resource",
+        "start_time"
+      ],
+      "dettaglio": null
+    }
+  }
+}
