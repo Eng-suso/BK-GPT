@@ -15,6 +15,7 @@ Changing ``sim_replay_max_cases`` must not move a single number in ``summary``.
 """
 from __future__ import annotations
 
+from itertools import pairwise
 import csv
 import io
 import math
@@ -723,7 +724,7 @@ def _flow_volumes(
     transitions: dict[tuple[str, str], int] = defaultdict(int)
     for evs in by_case.values():
         ordered = sorted(evs, key=lambda e: e.start)
-        for a, b in zip(ordered, ordered[1:]):
+        for a, b in pairwise(ordered):
             src = id_by_name.get(a.activity)
             dst = id_by_name.get(b.activity)
             if src and dst:

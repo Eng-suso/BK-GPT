@@ -1,4 +1,3 @@
-from typing import Literal
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field

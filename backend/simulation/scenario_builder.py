@@ -314,7 +314,7 @@ def _gateway_probability(gateway: BpmnGateway, override) -> dict:
         "gateway_id": gateway.id,
         "probabilities": [
             {"path_id": flow_id, "value": str(value)}
-            for flow_id, value in zip(flow_ids, values)
+            for flow_id, value in zip(flow_ids, values, strict=True)
         ],
     }
 

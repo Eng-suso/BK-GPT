@@ -1204,7 +1204,7 @@ def authorize_routing_decision(
     results rather than raising exceptions.
     """
     state = state or {}
-    proposed_route = str(getattr(decision, "route"))
+    proposed_route = str(decision.route)
     capability_id = decision.suggested_capability or DEFAULT_CAPABILITY_BY_OWNER_ROUTE.get((owner, proposed_route))
     status = "authorized"
     blocking_conditions = [*decision.blocking_conditions]
