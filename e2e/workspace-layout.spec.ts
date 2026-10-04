@@ -420,3 +420,25 @@ for (const mobile of [false, true]) {
     await expect(page.locator('[data-resource-id="bpmn-front"]').getByText("Capacità e costo confermati", { exact: true })).toBeVisible();
   });
 }
+
+
+test("resource configuration waits for the BPMN before claiming the model is empty", async ({ page }, testInfo) => {
+  test.setTimeout(Math.max(testInfo.timeout, 90_000));
+  let releaseModel!: () => void;
+  let signalRequest!: () => void;
+  const requestSeen = new Promise<void>((resolve) => { signalRequest = resolve; });
+  const modelReady = new Promise<void>((resolve) => { releaseModel = resolve; });
+  await page.route("http://127.0.0.1:8000/**/layout-model", async (route) => {
+    signalRequest();
+    await modelReady;
+    await route.fulfill({ json: { id: "layout-model", process_id: "layout-process", name: "Modello demo", xml } });
+  });
+  await page.goto(`${studio}/simulation/workspace?panel=scenario`);
+  await requestSeen;
+  const dock = page.locator(".sim-studio-dock");
+  await expect(dock.getByRole("heading", { name: "Costruttore scenario", exact: true })).toBeVisible();
+  await expect(dock.getByText("Nessun BPMN da simulare. Genera o salva un modello nel canvas.", { exact: true })).toHaveCount(0);
+  await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toHaveCount(0);
+  releaseModel();
+  await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
+});

@@ -89,7 +89,7 @@ export function useScenarioLab(): ScenarioLab {
     staleTime: 60_000,
   });
   const template = templateQuery.data ?? null;
-  const templateLoading = templateQuery.isLoading && bpmnXml !== null;
+  const templateLoading = modelQuery.isLoading || (templateQuery.isLoading && bpmnXml !== null);
 
   const draft = React.useMemo(
     () => (template ? seedDraftFromTemplate(storedDraft, template) : storedDraft),
