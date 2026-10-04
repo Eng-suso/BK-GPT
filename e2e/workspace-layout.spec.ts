@@ -82,6 +82,16 @@ test("scenario supports long activity lists, model reference and execution", asy
   await expect(page.locator(".sim-studio-empty-process .djs-container")).toBeVisible();
   await page.locator('.sim-studio-empty-process [data-element-id="Task_18"]').first().click();
   await expect(row.getByRole("spinbutton")).toHaveValue("37");
+  await expect(run).toBeDisabled();
+  await page.getByRole("button", { name: "Aggiungi ruolo", exact: true }).click();
+  const resource = page.locator("[data-resource-id]");
+  await resource.getByRole("textbox", { name: "Ruolo", exact: true }).fill("Team Operations");
+  await resource.getByRole("spinbutton", { name: "Costo ora (€/h)", exact: true }).fill("40");
+  await resource.getByRole("spinbutton", { name: "Unità disponibili", exact: true }).fill("2");
+  await resource.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
+  await expect(run).toBeDisabled();
+  await resource.getByRole("button", { name: /Assegna alle attività senza risorsa/ }).click();
+  await expect(run).toBeEnabled();
   const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
   await run.click();
   const body = (await request).postDataJSON();
@@ -328,4 +338,107 @@ test("reserved BPMN tools create elements through the modeler without covering i
   expect(toolsBox.x + toolsBox.width).toBeLessThanOrEqual(modelBox.x + 1);
   await page.getByRole("button", { name: "Elementi", exact: true }).click();
   await expect(page.getByRole("complementary", { name: "Elementi" }).locator("li")).toHaveCount(19);
+});
+
+
+for (const mobile of [false, true]) {
+ test(`unpooled resources require explicit assignment and remain empty after removal and reload on ${mobile ? "mobile" : "desktop"}`, async ({ page }, testInfo) => {
+  test.setTimeout(Math.max(testInfo.timeout, 90_000));
+  await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1366, height: 900 });
+  await page.goto(`${studio}/simulation/workspace?panel=scenario`);
+  const run = page.getByRole("button", { name: "Avvia simulazione", exact: true });
+  await expect(page.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Ruolo", exact: true })).toHaveCount(0);
+  await expect(run).toBeDisabled();
+  await page.getByRole("button", { name: "Aggiungi ruolo", exact: true }).click();
+  const resource = page.locator("[data-resource-id]");
+  await resource.getByRole("textbox", { name: "Ruolo", exact: true }).fill("Support");
+  await resource.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
+  await expect(run).toBeDisabled();
+  const assign = resource.getByRole("button", { name: /Assegna alle attività senza risorsa/ });
+  await assign.scrollIntoViewIfNeeded();
+  const assignBounds = (await assign.boundingBox())!;
+  expect(assignBounds.x).toBeGreaterThanOrEqual(0);
+  expect(assignBounds.x + assignBounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await assign.click();
+  await expect(run).toBeEnabled();
+  await resource.getByRole("button", { name: "Rimuovi ruolo Support", exact: true }).click();
+  await expect(run).toBeDisabled();
+  await expect(page.locator("[data-resource-id]")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
+  await expect(run).toBeDisabled();
+ });
+}
+
+for (const mobile of [false, true]) {
+  test(`BPMN lane resource origin, capacity review and stable layout on ${mobile ? "mobile" : "desktop"}`, async ({ page }, testInfo) => {
+    test.setTimeout(Math.max(testInfo.timeout, 90_000));
+    await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1366, height: 900 });
+    const resources = [
+      { id: "bpmn-front", bpmn_id: "Lane_front", kind: "lane", name: "Operations", pool_name: "Company", parent_name: "Service delivery", task_ids: tasks.slice(0, 9).map((task) => task.element_id) },
+      { id: "bpmn-back", bpmn_id: "Lane_back", kind: "lane", name: "Finance", pool_name: "Company", parent_name: null, task_ids: tasks.slice(9).map((task) => task.element_id) },
+    ];
+    await page.route("http://127.0.0.1:8000/**/simulation-template", (route) => route.fulfill({ json: { tasks, gateways: [], resources } }));
+    await page.goto(`${studio}/simulation/workspace?panel=scenario`);
+    const run = page.getByRole("button", { name: "Avvia simulazione", exact: true });
+    await expect(page.locator("[data-resource-id]")).toHaveCount(2);
+    const front = page.locator('[data-resource-id="bpmn-front"]');
+    const back = page.locator('[data-resource-id="bpmn-back"]');
+    await expect(front.getByText("Company / Service delivery", { exact: true })).toBeVisible();
+    await expect(front.getByText("Attività assegnate: 9", { exact: true })).toBeVisible();
+    await expect(back.getByText("Attività assegnate: 9", { exact: true })).toBeVisible();
+    await expect(run).toBeDisabled();
+    await front.getByRole("spinbutton", { name: "Unità disponibili", exact: true }).fill("2");
+    await front.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
+    await expect(run).toBeDisabled();
+    await back.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
+    await expect(run).toBeEnabled();
+    const task1 = page.locator('[data-sim-el="Task_1"]');
+    await expect(task1.getByRole("combobox").last()).toHaveText("Company / Operations");
+    const task18 = page.locator('[data-sim-el="Task_18"]');
+    await expect(task18.getByRole("combobox").last()).toHaveText("Company / Finance");
+    await back.getByRole("spinbutton", { name: "Unità disponibili", exact: true }).fill("1.5");
+    await expect(back.getByRole("button", { name: "Conferma capacità e costo", exact: true })).toBeDisabled();
+    await expect(run).toBeDisabled();
+    await back.getByRole("spinbutton", { name: "Unità disponibili", exact: true }).fill("3");
+    await back.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
+    await front.scrollIntoViewIfNeeded();
+    const overflow = await page.locator("[data-resource-id] input, [data-resource-id] button").evaluateAll((nodes) => nodes.filter((node) => {
+      const r = node.getBoundingClientRect(); return r.width > 0 && (r.right > innerWidth + 1 || r.left < 0);
+    }).length);
+    expect(overflow).toBe(0);
+    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`resources-${mobile ? "mobile" : "desktop"}.png`) });
+    const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+    await run.click();
+    const body = (await request).postDataJSON();
+    expect(body.resources.map((r: { name: string }) => r.name)).toEqual(["Operations", "Finance"]);
+    expect(body.tasks.find((t: { element_id: string }) => t.element_id === "Task_1").resource_id).toBe("bpmn-front");
+    expect(body.tasks.find((t: { element_id: string }) => t.element_id === "Task_18").resource_id).toBe("bpmn-back");
+    await page.reload();
+    await expect(page.locator('[data-resource-id="bpmn-front"]').getByText("Capacità e costo confermati", { exact: true })).toBeVisible();
+  });
+}
+
+
+test("resource configuration waits for the BPMN before claiming the model is empty", async ({ page }, testInfo) => {
+  test.setTimeout(Math.max(testInfo.timeout, 90_000));
+  let releaseModel!: () => void;
+  let signalRequest!: () => void;
+  const requestSeen = new Promise<void>((resolve) => { signalRequest = resolve; });
+  const modelReady = new Promise<void>((resolve) => { releaseModel = resolve; });
+  await page.route("http://127.0.0.1:8000/**/layout-model", async (route) => {
+    signalRequest();
+    await modelReady;
+    await route.fulfill({ json: { id: "layout-model", process_id: "layout-process", name: "Modello demo", xml } });
+  });
+  await page.goto(`${studio}/simulation/workspace?panel=scenario`);
+  await requestSeen;
+  const dock = page.locator(".sim-studio-dock");
+  await expect(dock.getByRole("heading", { name: "Costruttore scenario", exact: true })).toBeVisible();
+  await expect(dock.getByText("Nessun BPMN da simulare. Genera o salva un modello nel canvas.", { exact: true })).toHaveCount(0);
+  await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toHaveCount(0);
+  releaseModel();
+  await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
 });

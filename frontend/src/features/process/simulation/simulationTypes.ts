@@ -100,7 +100,15 @@ export const simulationRunsSchema = z.array(simulationRunSchema);
 
 export type SimulationRun = z.infer<typeof simulationRunSchema>;
 
+export const scenarioTemplateResourceSchema = z.object({
+  id: z.string(), name: z.string(), kind: z.enum(["pool", "lane"]),
+  bpmn_id: z.string(), pool_name: z.string().nullable().optional(),
+  parent_name: z.string().nullable().optional(), task_ids: z.array(z.string()),
+});
+export type ScenarioTemplateResource = z.infer<typeof scenarioTemplateResourceSchema>;
+
 export const scenarioTemplateSchema = z.object({
+  resources: z.array(scenarioTemplateResourceSchema).optional(),
   tasks: z.array(
     z.object({ element_id: z.string(), name: z.string(), type: z.string() }),
   ),

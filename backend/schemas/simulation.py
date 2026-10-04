@@ -75,7 +75,18 @@ class ScenarioTemplateGateway(BaseModel):
     branches: list[ScenarioTemplateBranch]
 
 
+class ScenarioTemplateResource(BaseModel):
+    id: str
+    name: str
+    kind: Literal["pool", "lane"]
+    bpmn_id: str
+    pool_name: str | None = None
+    parent_name: str | None = None
+    task_ids: list[str] = Field(default_factory=list)
+
+
 class ScenarioTemplateResponse(BaseModel):
+    resources: list[ScenarioTemplateResource] = Field(default_factory=list)
     tasks: list[ScenarioTemplateTask] = Field(default_factory=list)
     gateways: list[ScenarioTemplateGateway] = Field(default_factory=list)
 
