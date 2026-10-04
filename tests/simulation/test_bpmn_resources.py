@@ -58,3 +58,11 @@ def test_standalone_lane_does_not_require_a_participant():
 def test_explicit_resources_never_fall_back_to_an_operator(resources, tasks):
     with pytest.raises(ValueError):
         build_prosimos_scenario(bpmn_xml=normalize_bpmn_for_prosimos(model()), request=CreateSimulationRunRequest(resources=resources, tasks=tasks))
+
+
+def test_namespace_qualified_bpmn_references_are_resolved():
+    xml = model('<lane id="L" name="Team"><flowNodeRef>demo:A</flowNodeRef></lane>')
+    xml = xml.replace('processRef="P"', 'processRef="demo:P"').replace('<definitions ', '<definitions xmlns:demo="http://www.omg.org/spec/BPMN/20100524/MODEL" ')
+    resource = template(xml).resources[0]
+    assert resource.pool_name == "Company"
+    assert resource.task_ids == ["A"]

@@ -8,12 +8,17 @@ from backend.schemas.simulation import ScenarioTemplateResource
 NS = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"
 
 
+def _reference(value: str) -> str:
+    """BPMN references may use namespace-qualified QNames."""
+    return value.strip().rsplit(":", 1)[-1]
+
+
 def describe_bpmn_resources(xml: str, task_ids: set[str]) -> list[ScenarioTemplateResource]:
     root = ET.fromstring(xml)
     result = []
     participants: dict[str, list[ET.Element]] = {}
     for participant in root.iter(NS + "participant"):
-        participants.setdefault(participant.get("processRef", ""), []).append(participant)
+        participants.setdefault(_reference(participant.get("processRef", "")), []).append(participant)
     for process in root.iter(NS + "process"):
         pools = participants.get(process.get("id", ""), [])
         pool = pools[0] if len(pools) == 1 else None
@@ -32,7 +37,7 @@ def describe_bpmn_resources(xml: str, task_ids: set[str]) -> list[ScenarioTempla
 
         assigned: set[str] = set()
         for lane in sorted(lanes, key=lambda item: len(ancestry(item)), reverse=True):
-            members = [ref.text.strip() for ref in lane.findall(NS + "flowNodeRef") if ref.text and ref.text.strip() in task_ids and ref.text.strip() not in assigned]
+            members = [_reference(ref.text) for ref in lane.findall(NS + "flowNodeRef") if ref.text and _reference(ref.text) in task_ids and _reference(ref.text) not in assigned]
             members = list(dict.fromkeys(members))
             lane_id = lane.get("id")
             if not lane_id or not members:

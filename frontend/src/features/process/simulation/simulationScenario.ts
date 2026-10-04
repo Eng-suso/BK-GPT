@@ -56,7 +56,7 @@ export function scenarioResourceIssues(draft: ScenarioDraft) {
   const ids = new Set(draft.resources.map((r) => r.id));
   const unassigned = Object.values(draft.tasks).filter((task) => !ids.has(task.resourceId)).length;
   return { missingResources, pending, unassigned,
-    ready: !missingResources && pending === 0 && unassigned === 0 && Object.keys(draft.tasks).length > 0 };
+    ready: !missingResources && ids.size === draft.resources.length && pending === 0 && unassigned === 0 && Object.keys(draft.tasks).length > 0 };
 }
 
 export function scenarioToInput(

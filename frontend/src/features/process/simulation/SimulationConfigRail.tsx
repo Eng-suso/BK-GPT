@@ -249,7 +249,7 @@ export function SimulationConfigRail({
             {provenance && <ProvenanceChip field={provenance.resources} />}
           </div>
           {draft.resources.length === 0 && (
-            <EmptyState variant="inline" title={t("simulation.config.noResources")} description={t("simulation.config.noResourcesHint")} />
+            <EmptyState variant="inline" title={t(templateLoading ? "simulation.loading" : "simulation.config.noResources")} description={template ? t("simulation.config.noResourcesHint") : undefined} />
           )}
           <ul className="grid gap-3">
             {draft.resources.map((resource) => {
