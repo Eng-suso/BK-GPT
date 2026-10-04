@@ -755,7 +755,7 @@ test("desktop containers and canvas objects resize quietly without changing the 
   const grip = await handle.boundingBox();
   await page.mouse.move(grip!.x + grip!.width / 2, grip!.y + grip!.height / 2);
   await page.mouse.down();
-  await page.mouse.move(grip!.x + grip!.width / 2 + 40, grip!.y + grip!.height / 2 + 20, { steps: 5 });
+  await page.mouse.move(grip!.x + grip!.width / 2 + 40, grip!.y + grip!.height / 2, { steps: 5 });
   await page.mouse.up();
   expect((await chart.boundingBox())!.width).toBeGreaterThan(before!.width);
   await expect(chart).toHaveCSS("outline-style", "none");
@@ -790,4 +790,10 @@ test("desktop containers and canvas objects resize quietly without changing the 
   await page.screenshot({ path: ".tmp/canvas-resize-containers.png", animations: "disabled" });
   await resizeStage.press("Home");
   expect((await stage.boundingBox())!.height).toBeCloseTo(stageBefore!.height, 0);
+  await splitter.press("End");
+  const controls = page.locator(".sim-scene-controls > .sim-scene-navigation");
+  const left = await controls.nth(0).boundingBox();
+  const right = await controls.nth(1).boundingBox();
+  expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
+  await expect(world).toHaveAttribute("style", camera!);
 });

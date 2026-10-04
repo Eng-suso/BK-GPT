@@ -39,7 +39,7 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
     if (panel) observer.observe(panel);
     return () => observer.disconnect();
   }, []);
-  const clamp = (next: { width: number; height: number }) => ({ width: Math.max(Math.min(320, available.width), Math.min(available.width, next.width)), height: Math.max(Math.min(280, available.height), Math.min(available.height, next.height)) });
+  const clamp = (next: { width: number; height: number }) => ({ width: Math.max(Math.min(480, available.width), Math.min(available.width, next.width)), height: Math.max(Math.min(280, available.height), Math.min(available.height, next.height)) });
   const current = size ? clamp(size) : available;
   return <section data-workspace-layer="workspace" aria-label={label} className={cn("ui-scrollbar flex h-full min-h-0 min-w-0 flex-col gap-2", className)}>
     <h2 className="sr-only">{label}</h2>{commands}<div ref={body} data-workspace-layer="body" className={cn("flex min-h-0 min-w-0 flex-1 gap-3", bodyClassName)}>

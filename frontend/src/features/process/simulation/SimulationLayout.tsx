@@ -84,7 +84,7 @@ export function SimulationLayout(): React.JSX.Element {
     if (nextPanel) query.set("panel", nextPanel); else query.set("panel", "none");
     const search = query.toString();
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${id != null ? `/${id}` : ""}`) + (search ? `?${search}` : ""));
-  }, [activeRunId, analysisView, location.search, navigate, processId, projectId]);
+  }, [activeRunId, location.search, navigate, processId, projectId]);
   const openPanel = React.useCallback((next: SimulationPanel | null) => { panelRef.current = next; navigateWorkspace(next); }, [navigateWorkspace]);
   const selectRun = React.useCallback((id: number) => { setSelection({ scope: "", id: null }); navigateWorkspace(panelRef.current === "widget" || panelRef.current === "activity" ? null : panelRef.current, id); }, [navigateWorkspace]);
   const [inspectedWidgetId, setInspectedWidgetId] = React.useState<string | null>(null);

@@ -411,3 +411,15 @@
 .sim-scene-object:hover > .sim-widget,.sim-scene-object:hover > .sim-process-tile { border-color:var(--color-border-subtle); }
 
 .sim-scene-object > .sim-widget.is-selected { outline:none; }
+
+/* Container geometry follows the panel split, independently of screen width. */
+.sim-analytical-canvas { container:sim-canvas / inline-size; }
+@container sim-canvas (max-width:600px) {
+ .sim-scene-map { display:none; }
+ .sim-scene-jump select { width:100px; }
+ .sim-scene-navigation { gap:0; }
+}
+@container sim-canvas (max-width:460px) {
+ .sim-scene-controls { flex-direction:column; align-items:flex-start; gap:4px; }
+ .sim-scene-controls > .sim-scene-navigation:last-child { align-self:flex-end; }
+}
