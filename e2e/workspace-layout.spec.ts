@@ -260,10 +260,10 @@ test("process elements follow imports, selection and properties without rewritin
   await expect(navigator.locator("li")).toHaveCount(1);
   await page.getByRole("button", { name: "Proprietà", exact: true }).click();
   const properties = page.locator(".process-bpmn-properties-host");
-  const nameInput = properties.getByRole("textbox", { name: "Name", exact: true });
+  const nameInput = properties.getByRole("textbox", { name: "Nome", exact: true });
   if (!await nameInput.isVisible()) await properties.locator('[data-group-id="group-general"]').getByRole("button", { name: "Toggle section" }).click();
-  await expect(properties.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(tasks[1].name);
-  await properties.getByRole("textbox", { name: "Name", exact: true }).fill("Automazione importata");
+  await expect(properties.getByRole("textbox", { name: "Nome", exact: true })).toHaveValue(tasks[1].name);
+  await properties.getByRole("textbox", { name: "Nome", exact: true }).fill("Automazione importata");
   await expect(navigator).toContainText("Automazione importata");
   await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
   await expect(page.getByRole("button", { name: "Proprietà", exact: true })).toBeFocused();
@@ -496,6 +496,12 @@ for (const width of [1440, 1920]) {
     await expect(page.locator(".process-studio-chat")).toBeVisible();
     expect((await canvas.boundingBox())!.width).toBeGreaterThanOrEqual(720);
     await expect(viewport).toHaveAttribute("transform", camera!);
+    // Explicit centering uses the current stage bounds after the inspector resize.
+    await page.getByRole("button", { name: "Centra", exact: true }).click();
+    await expect.poll(async () => canvas.locator(".djs-shape").evaluateAll(nodes => nodes.filter(node => {
+      const rect = node.getBoundingClientRect(), bounds = node.closest(".process-bpmn-canvas")!.getBoundingClientRect();
+      return rect.width > 0 && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1);
+    }).length)).toBe(0);
     const scan = await new AxeBuilder({ page }).include(".process-workspace").include(".process-studio-header").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
     expect(scan.violations).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`process-canvas-hierarchy-${width}.png`) });
