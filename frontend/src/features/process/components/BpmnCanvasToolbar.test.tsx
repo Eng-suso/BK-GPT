@@ -49,9 +49,13 @@ describe("BpmnCanvasToolbar", () => {
     expect(onSave).toHaveBeenCalledOnce();
   });
 
-  it("exposes zoom controls with accessible names", () => {
-    renderToolbar();
-    expect(screen.getByRole("button", { name: /ingrandisci/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /riduci/i })).toBeInTheDocument();
+  it("exposes the contextual inspector action with its accessible name", async () => {
+    const onToggle = vi.fn();
+    renderToolbar({ properties: { isOpen: false, onToggle } });
+    const inspector = screen.getByRole("button", { name: "Proprietà", exact: true });
+    expect(inspector).toHaveAttribute("aria-pressed", "false");
+    inspector.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(onToggle).toHaveBeenCalledOnce();
   });
 });
