@@ -1,3 +1,4 @@
+import logging
 from time import perf_counter
 from uuid import uuid4
 
@@ -7,6 +8,8 @@ from fastapi.responses import JSONResponse
 
 from backend.schemas.api import ApiEnvelope, ApiError, ApiMeta
 
+
+logger = logging.getLogger(__name__)
 
 REQUEST_ID_HEADER = "X-Request-ID"
 
@@ -123,12 +126,17 @@ def setup_api_error_handlers(app: FastAPI) -> None:
         deve sapere che va rigenerata, non vedere un 500 e riprovare - come la
         coda dei confronti riprovava, fino a riempire il log.
         """
+        # Il testo dell'eccezione porta l'errore di validazione del piano salvato:
+        # serve a chi indaga, non a chi legge il pannello. Va nel log, con la
+        # richiesta per ritrovarlo.
+        logger.warning(
+            "piano non leggibile (request_id=%s): %s", _request_id(request), exc
+        )
         return api_error_response(
             request,
             status_code=409,
             code="unreadable_plan",
             message="Il piano di questo processo non e' leggibile: va rigenerato.",
-            detail=str(exc),
         )
 
     @app.exception_handler(Exception)

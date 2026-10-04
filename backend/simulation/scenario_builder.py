@@ -11,6 +11,7 @@ from backend.schemas.simulation import (
     ScenarioTemplateTask,
 )
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
+from backend.simulation.validation import validate_simulation_bpmn
 
 
 TASK_TYPES = {
@@ -40,6 +41,7 @@ def build_prosimos_scenario(
     bpmn_xml: str,
     request: CreateSimulationRunRequest,
 ) -> ProsimosScenario:
+    validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     if not tasks:
         raise ValueError("Il BPMN non contiene task simulabili.")
@@ -314,7 +316,7 @@ def _gateway_probability(gateway: BpmnGateway, override) -> dict:
         "gateway_id": gateway.id,
         "probabilities": [
             {"path_id": flow_id, "value": str(value)}
-            for flow_id, value in zip(flow_ids, values)
+            for flow_id, value in zip(flow_ids, values, strict=True)
         ],
     }
 

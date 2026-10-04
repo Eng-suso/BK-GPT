@@ -7,6 +7,7 @@ import {
   Minus,
   MoreHorizontal,
   PanelLeft,
+  ListTree,
   PanelRight,
   Plus,
   Save,
@@ -14,11 +15,13 @@ import {
   Upload,
 } from "lucide-react";
 
+import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
@@ -35,6 +38,11 @@ type EvidenceToggle = PanelToggle & {
 };
 
 type BpmnCanvasToolbarProps = {
+  elements?: PanelToggle;
+  elementsButtonRef?: RefObject<HTMLButtonElement | null>;
+  elementCount?: number;
+  coloursEnabled?: boolean;
+  onToggleColours?: () => void;
   saveTone: StatusTone;
   saveLabel: string;
   isReady: boolean;
@@ -64,6 +72,11 @@ type BpmnCanvasToolbarProps = {
  * @param menuButtonRef - Optional ref assigned to the overflow-menu trigger button
  */
 export function BpmnCanvasToolbar({
+  elements,
+  elementsButtonRef,
+  elementCount,
+  coloursEnabled,
+  onToggleColours,
   saveTone,
   saveLabel,
   isReady,
@@ -89,9 +102,10 @@ export function BpmnCanvasToolbar({
   const { t } = useTranslation("process");
 
   return (
-    <header className="process-bpmn-toolbar">
-      <div className="flex min-w-0 shrink-0 items-center gap-3">
+    <Surface asChild variant="toolbar"><header className="process-bpmn-toolbar">
+      <div className="bpmn-toolbar-context flex min-w-0 items-center gap-3">
         <h3>{t("canvas.toolbarLabel")}</h3>
+        {elements?.onToggle && <Button ref={elementsButtonRef} variant={elements.isOpen ? "secondary" : "outline"} size="sm" onClick={elements.onToggle} aria-pressed={elements.isOpen} aria-label={t("canvas.elements.title")}><ListTree aria-hidden /><span className="bpmn-toolbar-label">{t("canvas.elements.title")}</span><span aria-hidden className="bpmn-toolbar-label text-xs tabular-nums text-muted-foreground">{elementCount}</span></Button>}
         {(canvasChat.onToggle || properties.onToggle) && (
           <div className="flex items-center gap-1 border-l border-border pl-3">
             {canvasChat.onToggle && (
@@ -104,7 +118,7 @@ export function BpmnCanvasToolbar({
                 title={t("actions.toggleChat")}
                 aria-label={t("actions.toggleChat")}
               >
-                <PanelLeft className="size-4" />
+                <PanelLeft aria-hidden className="size-4" />
               </Button>
             )}
             {properties.onToggle && (
@@ -117,7 +131,7 @@ export function BpmnCanvasToolbar({
                 title={t("actions.toggleProperties")}
                 aria-label={t("actions.toggleProperties")}
               >
-                <PanelRight className="size-4" />
+                <PanelRight aria-hidden className="size-4" />
               </Button>
             )}
           </div>
@@ -215,6 +229,7 @@ export function BpmnCanvasToolbar({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {onToggleColours && <><DropdownMenuCheckboxItem checked={coloursEnabled} onCheckedChange={onToggleColours}>{t("canvas.colours")}</DropdownMenuCheckboxItem><DropdownMenuSeparator /></>}
             <DropdownMenuItem disabled={!isReady} onClick={onZoomReadable}>
               Leggi il processo dall'inizio
             </DropdownMenuItem>
@@ -255,6 +270,6 @@ export function BpmnCanvasToolbar({
           {t(isSaving ? "canvas.saving" : "canvas.save")}
         </Button>
       </div>
-    </header>
+    </header></Surface>
   );
 }

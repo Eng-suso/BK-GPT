@@ -222,10 +222,10 @@ parta da qui.
 
 | Dove | Cosa | Perché conta |
 | --- | --- | --- |
-| `backend/workers/conformance_worker.py:83` | I tentativi non hanno un tetto: una riga che fallisce sempre viene ripresa per sempre | La coda non avanza e il log si riempie. Serve parcheggiare dopo N tentativi e distinguere i guasti non transitori |
-| `backend/memory/reranker.py:99` | `OperationNotOpen` finisce nel gestore generico e diventa «il modello ha fallito» | Nasconde un errore di programmazione dentro un fallback che sembra normale |
-| `backend/memory/knowledge_graph/entity_resolution.py:362` | Stessa cosa del punto sopra | Stessa cura: rilanciare `OperationNotOpen` prima del gestore largo |
-| `backend/api/errors.py:126` | `unreadable_plan` manda `detail=str(exc)` al client | Stessa famiglia di B9. Qui il testo è un messaggio scritto apposta, non un'eccezione qualunque, quindi è meno grave — ma il `detail` non serve a chi legge |
+| `backend/workers/conformance_worker.py:83` | I tentativi non hanno un tetto: una riga che fallisce sempre viene ripresa per sempre | La coda non avanza e il log si riempie. **Chiuso** in `fix/code-tetto-tentativi` (PR #55): dopo 5 prese in carico la riga passa a `failed`, contata in `conformance_queue_stats` |
+| `backend/memory/reranker.py:99` | `OperationNotOpen` finisce nel gestore generico e diventa «il modello ha fallito» | Nasconde un errore di programmazione dentro un fallback che sembra normale. **Chiuso** prima del 2026-10-03: `except OperationNotOpen: raise` davanti al gestore largo |
+| `backend/memory/knowledge_graph/entity_resolution.py:362` | Stessa cosa del punto sopra | Stessa cura: rilanciare `OperationNotOpen` prima del gestore largo. **Chiuso** come il punto sopra |
+| `backend/api/errors.py:126` | `unreadable_plan` manda `detail=str(exc)` al client | Stessa famiglia di B9. Qui il testo è un messaggio scritto apposta, non un'eccezione qualunque, quindi è meno grave — ma il `detail` non serve a chi legge. **Chiuso** in PR #55: niente `detail`, l'eccezione va nel log con il `request_id` |
 
 ---
 

@@ -573,7 +573,8 @@
       "status": "Stato",
       "owner": "Owner",
       "phase": "Fase",
-      "readiness": "Readiness"
+      "readiness": "Readiness",
+      "ownerLabel": "Responsabile"
     },
     "quality": {
       "title": "Qualità",
@@ -716,6 +717,43 @@
     "inspectorNotes": "Note / Documentazione",
     "inspectorNotesPlaceholder": "Aggiungi dettagli o regole per questo nodo…",
     "processChat": "Chat processo",
+    "elements": {
+      "title": "Elementi",
+      "search": "Cerca nel processo",
+      "close": "Chiudi elenco elementi",
+      "loading": "Caricamento degli elementi…",
+      "empty": "Nessun elemento nel modello. Importa un BPMN o usa gli strumenti di creazione.",
+      "noMatches": "Nessun elemento corrisponde alla ricerca.",
+      "unnamed": "{{type}} senza nome"
+    },
+    "retryLoad": "Riprova caricamento",
+    "colours": "Colori per tipo",
+    "legend": {
+      "task": "Attività",
+      "automation": "Automazione",
+      "gateway": "Decisione",
+      "start": "Inizio",
+      "end": "Fine"
+    },
+    "tools": {
+      "title": "Strumenti BPMN",
+      "hand-tool": "Sposta la tela",
+      "lasso-tool": "Seleziona più elementi",
+      "space-tool": "Crea o rimuovi spazio",
+      "global-connect-tool": "Collega elementi",
+      "create": {
+        "start-event": "Evento di inizio",
+        "intermediate-event": "Evento intermedio",
+        "end-event": "Evento di fine",
+        "exclusive-gateway": "Decisione esclusiva",
+        "task": "Crea attività",
+        "subprocess-expanded": "Sottoprocesso espanso",
+        "data-object": "Oggetto dati",
+        "data-store": "Archivio dati",
+        "participant-expanded": "Pool o partecipante",
+        "group": "Gruppo"
+      }
+    },
     "conflict": {
       "reloadLatest": "Carica l'ultima versione"
     }

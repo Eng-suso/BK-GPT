@@ -6,6 +6,7 @@ import {
   BpmnPropertiesProviderModule,
 } from "bpmn-js-properties-panel";
 
+import { readCanvasElements, readCreationTools, type CanvasElement, type CreationTool, type PaletteService } from "./elements";
 import { HttpError, httpErrorMessage } from "@/lib/http";
 import type { BpmnVersion } from "@/contracts/workspace";
 import { onWorkspaceChanged } from "@/lib/workspaceEvents";
@@ -53,6 +54,11 @@ export type UseBpmnCanvas = {
   containerRef: RefObject<HTMLDivElement | null>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   isReady: boolean;
+  elements: CanvasElement[];
+  creationTools: CreationTool[];
+  activateTool: (id: string, action: "click" | "dragstart", event: Event) => void;
+  selectElement: (id: string) => boolean;
+  retryLoad: () => void;
   /** The model has no elements yet: a process recorded but not reconstructed. */
   isEmptyModel: boolean;
   status: string;
@@ -96,6 +102,7 @@ export function useBpmnCanvas({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const modelerRef = useRef<BpmnModeler | null>(null);
+  const focusedElementIdRef = useRef<string | null>(null);
   const hasUnsavedChangesRef = useRef(false);
   const isImportingRef = useRef(false);
   const isSavingRef = useRef(false);
@@ -106,15 +113,15 @@ export function useBpmnCanvas({
   // The saved version the canvas started from: a save sends it back, and the
   // backend refuses (409) if someone saved a newer one in the meantime.
   const savedVersionIdRef = useRef<number | null>(null);
-  // The saved diagram did not load: the canvas shows the starter diagram, and
-  // saving it would replace the real one. Saving waits for a reload.
-  const loadFailedRef = useRef(false);
   const onCurrentXmlChangeRef = useRef(onCurrentXmlChange);
   const onBaseVersionChangeRef = useRef(onBaseVersionChange);
   // Riferimento di tracciabilita' -> nodi del disegno. Si ricostruisce a ogni
   // import: un disegno nuovo puo' rappresentare lo stesso passaggio altrove.
   const provenanceIndexRef = useRef<Map<string, string[]>>(new Map());
 
+  const [creationTools, setCreationTools] = useState<CreationTool[]>([]);
+  const [elements, setElements] = useState<CanvasElement[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
   const [status, setStatus] = useState("Caricamento canvas...");
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -223,12 +230,27 @@ export function useBpmnCanvas({
       fitTimerRef.current = null;
       if (document.hidden || !modelerRef.current) return;
       frameCanvasForReading(modelerRef.current);
+      if (focusedElementIdRef.current) {
+        const registry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
+        const element = registry.get?.(focusedElementIdRef.current);
+        const service = modelerRef.current.get("canvas") as { scrollToElement?: (element: unknown, padding?: number) => void };
+        if (element) service.scrollToElement?.(element, 40);
+      }
     }, 100);
   }, []);
 
   const syncEmptiness = useCallback(() => {
     if (!modelerRef.current) return;
     setIsEmptyModel(!hasDiagramContent(modelerRef.current));
+    setElements(readCanvasElements(modelerRef.current));
+    setCreationTools(readCreationTools(modelerRef.current));
+    const registry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
+    setSelectedElement((previous) => {
+      if (!previous) return null;
+      const current = registry.get?.(previous.id) as BpmnElementSelection | undefined;
+      if (!current) return null;
+      return { ...previous, name: current.businessObject?.name || "", documentation: splitTraceability(current.businessObject?.documentation?.[0]?.text).notes };
+    });
     // Ogni punto che importa un XML passa di qui: e' il momento in cui i segni
     // di provenance vanno riletti dal disegno appena caricato.
     try {
@@ -241,7 +263,9 @@ export function useBpmnCanvas({
 
   const loadVersions = useCallback(async () => {
     try {
-      setVersions(await fetchBpmnVersions(bpmnModelId));
+      const owner = modelerRef.current;
+      const loaded = await fetchBpmnVersions(bpmnModelId);
+      if (modelerRef.current === owner) setVersions(loaded);
     } catch (err) {
       console.warn("[bpmn] version history load failed", err);
     }
@@ -251,6 +275,14 @@ export function useBpmnCanvas({
     if (!containerRef.current) return;
 
     let isMounted = true;
+    let ownedModeler: BpmnModeler | null = null;
+    setIsReady(false);
+    focusedElementIdRef.current = null;
+    setVersions([]);
+    setSelectedElement(null);
+    setElements([]);
+    setCreationTools([]);
+    setError(null);
     async function mountCanvas() {
       try {
         if (!isMounted || !containerRef.current) return;
@@ -266,19 +298,31 @@ export function useBpmnCanvas({
           ],
         }) as BpmnModeler;
 
+        ownedModeler = modeler;
         modelerRef.current = modeler;
         keepSequenceConnectionsDocked(modeler);
 
         const localDraft = readLocalBpmnDraft(bpmnModelId);
-        const initial = await loadInitialModel(bpmnModelId, processName);
-        const xml = localDraft?.xml ?? initial.xml;
-        loadFailedRef.current = initial.loadFailed;
-        setBaseVersion(
-          localDraft ? draftBaseVersion(localDraft.baseVersionId, initial.versionId) : initial.versionId,
-        );
+        let xml: string;
+        if (localDraft) {
+          // Una bozza con la sua base non ha bisogno del server; senza base
+          // dimostrabile salva contro una base che nessuna versione ha.
+          const serverVersion =
+            localDraft.baseVersionId === null
+              ? (await loadInitialModel(bpmnModelId, processName)).versionId
+              : null;
+          xml = localDraft.xml;
+          setBaseVersion(draftBaseVersion(localDraft.baseVersionId, serverVersion));
+        } else {
+          const initial = await loadInitialModel(bpmnModelId, processName);
+          xml = initial.xml;
+          setBaseVersion(initial.versionId);
+        }
+        if (!isMounted || modelerRef.current !== modeler) return;
         lastSavedXmlRef.current = localDraft ? null : xml;
         isImportingRef.current = true;
         await modeler.importXML(xml);
+        if (!isMounted || modelerRef.current !== modeler) return;
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
         syncEmptiness();
@@ -322,6 +366,7 @@ export function useBpmnCanvas({
         }
         void loadVersions();
       } catch (err) {
+        if (!isMounted) return;
         isImportingRef.current = false;
         if (isMounted) {
           setError(
@@ -338,13 +383,14 @@ export function useBpmnCanvas({
       isMounted = false;
       clearChangeCheckTimer();
       clearFitTimer();
-      modelerRef.current?.destroy();
-      modelerRef.current = null;
+      ownedModeler?.destroy();
+      if (modelerRef.current === ownedModeler) modelerRef.current = null;
       setIsReady(false);
     };
   }, [
     bpmnModelId,
     processName,
+    reloadKey,
     propertiesPanelRef,
     loadVersions,
     scheduleUnsavedCheck,
@@ -383,18 +429,15 @@ export function useBpmnCanvas({
           markUnsaved(false);
         }
 
+        const owner = modelerRef.current;
         const loaded = await loadInitialModel(bpmnModelId, processName);
-        if (loaded.loadFailed) {
-          throw new Error(
-            "Aggiornamento canvas non riuscito: il diagramma salvato non si e' caricato.",
-          );
-        }
+        if (modelerRef.current !== owner) return;
         const { xml } = loaded;
-        loadFailedRef.current = false;
         setBaseVersion(loaded.versionId);
         setHasConflict(false);
         isImportingRef.current = true;
-        await modelerRef.current.importXML(xml);
+        await owner.importXML(xml);
+        if (modelerRef.current !== owner) return;
         onCurrentXmlChangeRef.current?.(xml);
         isImportingRef.current = false;
         syncEmptiness();
@@ -417,14 +460,6 @@ export function useBpmnCanvas({
 
   const save = useCallback(async () => {
     if (!modelerRef.current) return;
-    if (loadFailedRef.current) {
-      setError(
-        "Il diagramma salvato non si e' caricato: ricarica la pagina prima di salvare, " +
-          "altrimenti sostituiresti la versione sul server.",
-      );
-      setStatus("Errore salvataggio");
-      return;
-    }
 
     isSavingRef.current = true;
     clearDraftTimer();
@@ -471,9 +506,6 @@ export function useBpmnCanvas({
     clearChangeCheckTimer();
     try {
       const loaded = await loadInitialModel(bpmnModelId, processName);
-      if (loaded.loadFailed) {
-        throw new Error("Il diagramma salvato non si e' caricato: riprova tra poco.");
-      }
       clearLocalBpmnDraft(bpmnModelId);
       isImportingRef.current = true;
       await modelerRef.current.importXML(loaded.xml);
@@ -482,7 +514,6 @@ export function useBpmnCanvas({
       syncEmptiness();
       scheduleCanvasFit();
       lastSavedXmlRef.current = loaded.xml;
-      loadFailedRef.current = false;
       setBaseVersion(loaded.versionId);
       markUnsaved(false);
       setHasConflict(false);
@@ -666,12 +697,16 @@ export function useBpmnCanvas({
     if (modelerRef.current) frameCanvasForReading(modelerRef.current);
   }, []);
 
-  const clearSelection = useCallback(() => setSelectedElement(null), []);
+  const clearSelection = useCallback(() => {
+    focusedElementIdRef.current = null;
+    const selection = modelerRef.current?.get("selection") as { select: (elements: unknown[]) => void } | undefined;
+    selection?.select([]);
+    setSelectedElement(null);
+  }, []);
 
-  const focusSourceRef = useCallback((sourceRef: string) => {
+  const selectElement = useCallback((elementId: string) => {
     const modeler = modelerRef.current;
-    const elementId = provenanceIndexRef.current.get(sourceRef)?.[0];
-    if (!modeler || !elementId) return false;
+    if (!modeler) return false;
     const registry = modeler.get("elementRegistry") as BpmnElementRegistry;
     const element = registry.get?.(elementId);
     if (!element) return false;
@@ -679,12 +714,28 @@ export function useBpmnCanvas({
     const canvasService = modeler.get("canvas") as {
       scrollToElement?: (element: unknown, padding?: number) => void;
     };
+    focusedElementIdRef.current = elementId;
     selection.select(element);
-    canvasService.scrollToElement?.(element, 120);
+    canvasService.scrollToElement?.(element, 40);
     return true;
   }, []);
 
+  const focusSourceRef = useCallback((sourceRef: string) => {
+    const id = provenanceIndexRef.current.get(sourceRef)?.[0];
+    return id ? selectElement(id) : false;
+  }, [selectElement]);
+
+  const activateTool = useCallback((id: string, action: "click" | "dragstart", event: Event) => {
+    const palette = modelerRef.current?.get("palette") as PaletteService | undefined;
+    palette?.triggerEntry(id, action, event);
+  }, []);
+
   return {
+    creationTools,
+    activateTool,
+    elements,
+    selectElement,
+    retryLoad: () => setReloadKey((value) => value + 1),
     containerRef,
     fileInputRef,
     isReady,

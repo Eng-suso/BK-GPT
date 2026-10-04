@@ -37,34 +37,22 @@ export function formatVersionDate(value: string): string {
   });
 }
 
-/** The model's stored XML, or a fresh starter diagram if it can't be loaded. */
 export type InitialBpmnModel = {
   xml: string;
   /** The saved version the XML comes from; `null` for the starter diagram. */
   versionId: number | null;
-  /**
-   * The saved model could not be read (network, 5xx). The starter diagram is
-   * shown, but saving it would replace the diagram on the server: the canvas
-   * must reload first.
-   */
-  loadFailed: boolean;
 };
 
+/** The model's stored XML and version, or a starter diagram for an empty model. */
 export async function loadInitialModel(
   bpmnModelId: string,
   processName: string,
 ): Promise<InitialBpmnModel> {
-  const fallbackXml = buildInitialProcessDiagram(processName);
-
-  try {
-    const model = await fetchBpmnModel(bpmnModelId);
-    return {
-      xml: model.xml?.trim() || fallbackXml,
-      versionId: model.versionId,
-      loadFailed: false,
-    };
-  } catch (err) {
-    console.warn("[bpmn] model load failed, using starter diagram", err);
-    return { xml: fallbackXml, versionId: null, loadFailed: true };
-  }
+  // A failed request is not an empty process. Let the canvas show the error
+  // instead of presenting an editable starter model over an existing diagram.
+  const model = await fetchBpmnModel(bpmnModelId);
+  return {
+    xml: model.xml?.trim() || buildInitialProcessDiagram(processName),
+    versionId: model.versionId,
+  };
 }
