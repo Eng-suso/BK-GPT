@@ -425,3 +425,7 @@
 
 /* Active objects stay reachable when a consultant intentionally overlaps the scene. */
 .sim-scene-object.is-active { z-index:2; }
+
+.sim-scene-move { opacity:0; pointer-events:none; }
+.sim-scene-object:hover > .sim-scene-move,.sim-scene-object:focus-within > .sim-scene-move { opacity:1; pointer-events:auto; }
+@media(forced-colors:active) { .sim-scene-move { opacity:1; pointer-events:auto; } }
