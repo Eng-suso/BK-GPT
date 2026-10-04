@@ -69,6 +69,8 @@ export function SimulationLayout(): React.JSX.Element {
   const requestedView = params.get("view");
   const analysisView: AnalysisView = ["replay", "final", "compare", "heatmap"].includes(requestedView ?? "") ? requestedView as AnalysisView
     : panel === "compare" ? "compare" : panel === "heatmap" ? "heatmap" : panel === "overview" || panel === "insights" ? "final" : "replay";
+  const analysisViewRef = React.useRef(analysisView);
+  React.useEffect(() => { analysisViewRef.current = analysisView; }, [analysisView]);
   const panelRef = React.useRef(panel);
   React.useEffect(() => { panelRef.current = panel; }, [panel]);
   const selectionScope = `${projectId}:${processId}:${activeRunId}`;
@@ -78,7 +80,7 @@ export function SimulationLayout(): React.JSX.Element {
   const navigateWorkspace = React.useCallback((nextPanel: SimulationPanel | null, id: number | null = activeRunId) => {
     const query = new URLSearchParams(location.search);
     query.delete("run");
-    query.set("view", nextPanel === "compare" ? "compare" : analysisView);
+    query.set("view", nextPanel === "compare" ? "compare" : analysisViewRef.current);
     if (nextPanel) query.set("panel", nextPanel); else query.set("panel", "none");
     const search = query.toString();
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${id != null ? `/${id}` : ""}`) + (search ? `?${search}` : ""));
@@ -88,6 +90,7 @@ export function SimulationLayout(): React.JSX.Element {
   const [inspectedWidgetId, setInspectedWidgetId] = React.useState<string | null>(null);
   const inspectWidget = (id: string | null) => { setInspectedWidgetId(id); openPanel(id ? "widget" : null); };
   const setAnalysisView = (view: AnalysisView) => {
+    analysisViewRef.current = view;
     const query = new URLSearchParams(location.search); query.set("view", view); if (panel === "compare" && view !== "compare") query.delete("panel");
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${activeRunId != null ? `/${activeRunId}` : ""}`) + `?${query}`);
   };
