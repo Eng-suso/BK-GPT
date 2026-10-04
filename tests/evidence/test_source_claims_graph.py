@@ -198,15 +198,15 @@ def test_extracting_again_replaces_instead_of_duplicating(
     created = _confirmed_source(http, tenant, workspace)
     ids = _scope(tenant, workspace)
     segment = canonical.SourceSegment(1, "§2", {"paragraph": 2})
-    claim = canonical.SourceClaim(STATEMENT, 1, SOGLIA, True)
+    claim = canonical.SourceClaim(0, STATEMENT, 1, SOGLIA, True)
     for _ in range(2):
-        counts = canonical.write_source_claims(
+        written = canonical.write_source_claims(
             consultant_id=ids.consultant_id, client_id=ids.client_id,
             project_id=ids.project_id, process_id=ids.process_id,
             workspace_source_id=created["id"], title="procedura.md", content_hash="h",
             segments=[segment], claims=[claim],
         )
-        assert counts == {"source": 1, "evidence": 1, "claims": 1}
+        assert written.evidence == 1 and len(written.claim_ids) == 1
 
     for table in ("kg_evidence", "kg_claim"):
         [row] = _rows(
@@ -220,14 +220,14 @@ def test_extracting_again_replaces_instead_of_duplicating(
 def test_a_claim_on_a_segment_that_does_not_exist_stays_out(tenant: str, http, model, workspace):
     created = _confirmed_source(http, tenant, workspace)
     ids = _scope(tenant, workspace)
-    counts = canonical.write_source_claims(
+    written = canonical.write_source_claims(
         consultant_id=ids.consultant_id, client_id=ids.client_id,
         project_id=ids.project_id, process_id=ids.process_id,
         workspace_source_id=created["id"], title="procedura.md", content_hash="h",
         segments=[canonical.SourceSegment(1, "§2", {})],
-        claims=[canonical.SourceClaim(STATEMENT, 7, SOGLIA, True)],
+        claims=[canonical.SourceClaim(0, STATEMENT, 7, SOGLIA, True)],
     )
-    assert counts == {"source": 1, "evidence": 0, "claims": 0}
+    assert written.evidence == 0 and written.claim_ids == {}
 
 
 def test_deleting_the_process_takes_the_file_out_of_the_graph(
