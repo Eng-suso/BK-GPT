@@ -250,7 +250,10 @@ class WorkspaceSource(WorkspaceBase):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("workspace_projects.id"), nullable=False, index=True)
+    # Vuoto per le fonti del cliente (P1.16), che valgono per tutti i suoi progetti.
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("workspace_projects.id"), index=True)
+    # Il cliente a cui la fonte appartiene: il suo, o quello del suo progetto.
+    client_id: Mapped[str | None] = mapped_column(ForeignKey("workspace_clients.id"), index=True)
     process_id: Mapped[str | None] = mapped_column(String, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
@@ -372,7 +375,7 @@ class WorkspaceClaimRelation(WorkspaceBase):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    project_id: Mapped[str | None] = mapped_column(String, index=True)
     process_id: Mapped[str | None] = mapped_column(String, index=True)
     claim_id: Mapped[int] = mapped_column(
         ForeignKey("workspace_source_claims.id", ondelete="CASCADE"), nullable=False, index=True

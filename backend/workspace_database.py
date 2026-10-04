@@ -2051,7 +2051,8 @@ def create_project_source(
     _assert_source_scope(project_id, process_id)
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
-        if tenant_row(session, WorkspaceProject, project_id) is None:
+        project = tenant_row(session, WorkspaceProject, project_id)
+        if project is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
         if process_id:
@@ -2064,6 +2065,7 @@ def create_project_source(
             id=source_id,
             tenant_id=current_tenant_id,
             project_id=project_id,
+            client_id=project.client_id,
             process_id=process_id,
             name=name.strip(),
             type=type.strip() or "Fonte",
@@ -2094,7 +2096,8 @@ def process_id_for_identity(scopes: list[dict[str, str]]) -> str:
 
 def create_ingested_source(
     *,
-    project_id: str,
+    project_id: str | None = None,
+    client_id: str | None = None,
     name: str,
     roles: list[str],
     retention: str,
@@ -2109,7 +2112,15 @@ def create_ingested_source(
     Il file e' gia' conservato (`storage_key`); leggerlo - layout, tabelle, OCR -
     lo fa `source_worker`, fuori dalla richiesta. Fino ad allora la fonte esiste
     ma non ha testo, e lo dice: `acquisition_status == "pending"`.
+
+    Una fonte appartiene a un progetto (`project_id`) o al cliente
+    (`client_id`, P1.16): quella del cliente vale per tutti i suoi progetti, non
+    ha processo, e il suo ambito e' il cliente.
     """
+    if (project_id is None) == (client_id is None):
+        raise ValueError("Una fonte appartiene a un progetto o a un cliente, non a entrambi.")
+    if client_id is not None:
+        scopes = [{"type": "client", "id": client_id}]
     role_order = {name: index for index, name in enumerate(
         ("context", "process_evidence", "policy", "operational_data")
     )}
@@ -2138,11 +2149,19 @@ def create_ingested_source(
     if len(process_ids) > 1:
         raise ValueError("Una fonte caricata appartiene a un solo processo.")
     process_id = process_ids[0] if process_ids else None
-    _assert_source_scope(project_id, process_id)
-
-    validate_source_scopes(project_id, scopes_value)
+    if project_id is not None:
+        _assert_source_scope(project_id, process_id)
+        validate_source_scopes(project_id, scopes_value)
 
     with workspace_connection() as session:
+        if project_id is not None:
+            owner_client_id = tenant_row(session, WorkspaceProject, project_id).client_id
+            owned = WorkspaceSource.project_id == project_id
+        else:
+            if tenant_row(session, WorkspaceClient, client_id) is None:
+                raise ValueError(f"Cliente non trovato: {client_id}")
+            owner_client_id = client_id
+            owned = and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == client_id)
         lock_key = int(ingestion_key[:16], 16)
         if lock_key >= 2**63:
             lock_key -= 2**64
@@ -2153,7 +2172,7 @@ def create_ingested_source(
         existing = session.execute(
             select(WorkspaceSource)
             .where(WorkspaceSource.tenant_id == tenant_id())
-            .where(WorkspaceSource.project_id == project_id)
+            .where(owned)
             .where(WorkspaceSource.content_hash == content_hash)
             .where(WorkspaceSource.storage_key.is_not(None))
             .where(
@@ -2179,6 +2198,7 @@ def create_ingested_source(
             id=unique_id(session, WorkspaceSource, f"src-{slugify(name, 'source')}"),
             tenant_id=tenant_id(),
             project_id=project_id,
+            client_id=owner_client_id,
             process_id=process_id,
             name=name.strip(),
             type="File",
