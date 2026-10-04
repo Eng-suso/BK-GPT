@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Defs_spike" targetNamespace="http://delir.local/spike">
+  <process id="P2P_mini" isExecutable="false">
+    <startEvent id="S" name="Richiesta"/>
+    <task id="T_receive" name="Ricevi"/>
+    <exclusiveGateway id="G_split" name="Importo"/>
+    <task id="T_approve" name="Approva"/>
+    <exclusiveGateway id="G_join"/>
+    <task id="T_pay" name="Paga"/>
+    <endEvent id="E" name="Pagato"/>
+    <sequenceFlow id="F_start" sourceRef="S" targetRef="T_receive"/>
+    <sequenceFlow id="F_split" sourceRef="T_receive" targetRef="G_split"/>
+    <sequenceFlow id="F_high" sourceRef="G_split" targetRef="T_approve"/>
+    <sequenceFlow id="F_low" sourceRef="G_split" targetRef="G_join"/>
+    <sequenceFlow id="F_back" sourceRef="T_approve" targetRef="G_join"/>
+    <sequenceFlow id="F_pay" sourceRef="G_join" targetRef="T_pay"/>
+    <sequenceFlow id="F_end" sourceRef="T_pay" targetRef="E"/>
+  </process>
+</definitions>
