@@ -50,15 +50,19 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
   const lastTrigger = React.useRef<HTMLElement | null>(null);
   const closeRef = React.useRef<HTMLButtonElement | null>(null);
 
-  React.useEffect(() => {
+  const restoreSupportFocus = React.useRef(false);
+  React.useLayoutEffect(() => {
     if (supportReplacesCanvas) closeRef.current?.focus();
-    else lastTrigger.current?.focus({ preventScroll: true });
-  }, [supportReplacesCanvas]);
+    else if (restoreSupportFocus.current && !propertiesOpen && !showChat) {
+      restoreSupportFocus.current = false;
+      lastTrigger.current?.focus({ preventScroll: true });
+    }
+  }, [supportReplacesCanvas, propertiesOpen, showChat]);
 
   const closeSupport = () => {
+    restoreSupportFocus.current = true;
     setChatOpen(false);
     if (propertiesOpen) onTogglePropertiesPanel();
-    requestAnimationFrame(() => lastTrigger.current?.focus());
   };
   const toggleChat = () => {
     lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("actions.toggleChat"))}"]`) ?? document.activeElement as HTMLElement | null;

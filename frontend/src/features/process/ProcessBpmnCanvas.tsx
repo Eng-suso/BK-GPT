@@ -63,7 +63,14 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   const elementsButtonRef = React.useRef<HTMLButtonElement>(null);
   const [elementsOpen, setElementsOpen] = React.useState(false);
   const [coloursEnabled, setColoursEnabled] = React.useState(true);
-  const closeElements = () => { setElementsOpen(false); requestAnimationFrame(() => elementsButtonRef.current?.focus()); };
+  const restoreElementsFocus = React.useRef(false);
+  React.useLayoutEffect(() => {
+    if (!elementsOpen && restoreElementsFocus.current) {
+      restoreElementsFocus.current = false;
+      elementsButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [elementsOpen]);
+  const closeElements = () => { restoreElementsFocus.current = true; setElementsOpen(false); };
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   const [isEvidenceOpen, setIsEvidenceOpen] = React.useState(false);
   // Un pannello aperto su un processo non resta aperto sul successivo: le
