@@ -450,6 +450,31 @@ def _erase_scope_rows(client_id: str, where: str, params: dict[str, Any], rows: 
     return graph
 
 
+def erase_client_sources(client_name: str, workspace_source_ids: list[str]) -> EraseReport:
+    """Le fonti caricate per tutto il cliente (P1.16) escono dal grafo.
+
+    Non stanno sotto nessun progetto, quindi `erase_project` non le vede; e la
+    cancellazione del cliente canonical salta quando un altro cliente workspace
+    porta lo stesso nome. Qui si tolgono una per una, per id workspace.
+    """
+    from backend.memory.scope import _slug
+
+    workspace_id = f"client:{_slug(client_name)}"
+    report = EraseReport(scope="client_sources", workspace_id=workspace_id)
+    if not settings.canonical_database_url:
+        report.skipped = "canonical non configurato"
+        return report
+    row = _lookup("client", workspace_id)
+    if row is None:
+        report.skipped = "cliente mai materializzato nel canonical"
+        return report
+    report.canonical_id = str(row.id)
+    report.graph_deletes = canonical.erase_workspace_sources(
+        _consultant(), str(row.id), workspace_source_ids
+    )
+    return report
+
+
 def erase_client(client_name: str, workspace_project_ids: list[str]) -> list[EraseReport]:
     """Ogni progetto del cliente, poi il cliente canonical se non gli resta
     niente. Il cliente canonical e' identificato dal nome (`client:<slug>`,

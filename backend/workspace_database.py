@@ -4224,6 +4224,14 @@ def _record_counts(session, *, client=None, project=None) -> dict[str, int]:
             .where(WorkspaceSource.project_id.in_(project_ids))
             .where(WorkspaceSource.tenant_id == tenant_id())
         ).scalar_one()
+    if client is not None:
+        sources += session.execute(
+            select(func.count())
+            .select_from(WorkspaceSource)
+            .where(WorkspaceSource.project_id.is_(None))
+            .where(WorkspaceSource.client_id == client.id)
+            .where(WorkspaceSource.tenant_id == tenant_id())
+        ).scalar_one()
         decisions = session.execute(
             select(func.count())
             .select_from(WorkspaceDecision)
@@ -4433,8 +4441,17 @@ def delete_client(client_id: str) -> dict:
         client = _client_or_raise(session, client_id)
         project_ids = [project.id for project in client.projects]
         client_name = client.name
+        client_source_ids = list(
+            session.execute(
+                select(WorkspaceSource.id)
+                .where(WorkspaceSource.tenant_id == tenant_id())
+                .where(WorkspaceSource.project_id.is_(None))
+                .where(WorkspaceSource.client_id == client_id)
+            ).scalars()
+        )
     from backend.memory.knowledge_graph import erase
 
+    erase.erase_client_sources(client_name, client_source_ids)
     erase.erase_client(client_name, project_ids)
 
     with workspace_connection() as session:
@@ -4442,6 +4459,17 @@ def delete_client(client_id: str) -> dict:
         removed = {"id": client.id, "name": client.name, **_record_counts(session, client=client)}
         for project in list(client.projects):
             storage_keys.extend(_purge_project(session, project))
+        # Le fonti del cliente (P1.16): non stanno sotto nessun progetto.
+        for source in session.execute(
+            select(WorkspaceSource)
+            .where(WorkspaceSource.tenant_id == tenant_id())
+            .where(WorkspaceSource.project_id.is_(None))
+            .where(WorkspaceSource.client_id == client_id)
+        ).scalars():
+            if source.storage_key:
+                storage_keys.append(source.storage_key)
+            session.delete(source)
+        session.flush()
         session.delete(client)
         session.flush()
     _remove_unreferenced_originals(storage_keys)
