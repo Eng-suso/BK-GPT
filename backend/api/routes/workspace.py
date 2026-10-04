@@ -595,6 +595,51 @@ def upload_workspace_project_source(
     scopes: str = Form("[]"),
 ) -> UploadedSourceResponse:
     """Carica una fonte, conserva l'originale e la mette in coda per la lettura."""
+    return _ingest_upload(
+        response, file, roles, retention, scopes, project_id=project_id, client_id=None
+    )
+
+
+@router.get("/clients/{client_id}/sources")
+def list_workspace_client_sources(client_id: str) -> list[ProjectSourceResponse]:
+    """Le fonti del cliente: quelle che valgono per tutti i suoi progetti (P1.16)."""
+    from backend.workspace_database import list_client_sources
+
+    sources = list_client_sources(client_id)
+    if sources is None:
+        raise HTTPException(status_code=404, detail=f"Cliente non trovato: {client_id}")
+    return [ProjectSourceResponse(**source) for source in sources]
+
+
+@router.post(
+    "/clients/{client_id}/sources/upload",
+    response_model=UploadedSourceResponse,
+    status_code=201,
+)
+def upload_workspace_client_source(
+    client_id: str,
+    response: Response,
+    file: UploadFile = File(...),
+    roles: str = Form(...),
+    retention: str = Form(...),
+) -> UploadedSourceResponse:
+    """Carica un file per tutto il cliente: compare nelle Fonti di ogni suo progetto."""
+    return _ingest_upload(
+        response, file, roles, retention, "[]", project_id=None, client_id=client_id
+    )
+
+
+def _ingest_upload(
+    response: Response,
+    file: UploadFile,
+    roles: str,
+    retention: str,
+    scopes: str,
+    *,
+    project_id: str | None,
+    client_id: str | None,
+) -> UploadedSourceResponse:
+    """Il caricamento, per un progetto o per il cliente: stesse regole, stessa coda."""
     from backend.workspace_services.source_ingestion import (
         MAX_FILE_BYTES,
         SourceFileError,
@@ -639,11 +684,13 @@ def upload_workspace_project_source(
         # integrita', e la lettura del testo semplice. PDF, Office ed Excel li
         # legge `source_worker`, e la fonte dice che e' in lettura
         # (`acquisition_status == "pending"`) finche' non ha finito.
-        validate_source_scopes(project_id, scope_values)
+        if project_id is not None:
+            validate_source_scopes(project_id, scope_values)
         upload = inspect_upload(source_name, payload)
         storage_key = store_original(upload, payload)
         source, created = create_ingested_source(
             project_id=project_id,
+            client_id=client_id,
             name=source_name,
             roles=role_values,
             retention=retention,
