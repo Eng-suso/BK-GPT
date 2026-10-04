@@ -237,6 +237,7 @@ def test_build_prosimos_scenario_applies_per_element_overrides():
             tasks=[
                 SimTaskConfig(element_id="Task_A", mean_seconds=1200, distribution="fixed", resource_id="r_front"),
                 SimTaskConfig(element_id="Task_B", mean_seconds=600, resource_id="r_back"),
+                SimTaskConfig(element_id="Task_C", mean_seconds=300, resource_id="r_front"),
             ],
             gateways=[
                 SimGatewayConfig(
@@ -255,7 +256,7 @@ def test_build_prosimos_scenario_applies_per_element_overrides():
     by_id = {r["id"]: r for r in pool}
     assert "Task_A" in by_id["r_front"]["assignedTasks"]
     assert by_id["r_back"]["assignedTasks"] == ["Task_B"]
-    # Task_C had no config → falls to the first resource.
+    # Task_C is explicitly assigned; no first-resource fallback.
     assert "Task_C" in by_id["r_front"]["assignedTasks"]
 
     dist = {d["task_id"]: d["resources"][0] for d in payload["task_resource_distribution"]}

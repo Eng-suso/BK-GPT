@@ -168,6 +168,24 @@
       "defaultDuration": "Default duration, min",
       "defaultDurationMin": "Def. duration, min",
       "resources": "Resources",
+      "resourceOriginHint": "Lanes identify operational groups; the pool provides their context. Capacity and cost are scenario assumptions to review.",
+      "noResources": "No resources configured",
+      "noResourcesHint": "The model does not define usable operational groups. Add a resource and assign it to activities.",
+      "resourceSource": {
+        "lane": "BPMN lane",
+        "pool": "BPMN pool",
+        "manual": "Manual resource"
+      },
+      "resourceConfirmed": "Capacity and cost confirmed",
+      "resourcePending": "Capacity and cost need confirmation",
+      "capacity": "Available units",
+      "assignedActivities": "Assigned activities: {{count}}",
+      "confirmResource": "Confirm capacity and cost",
+      "assignUnassigned": "Assign to activities without resources ({{count}})",
+      "resourceSetupRequired": "Confirm resources and assign every activity before running.",
+      "pendingResources": "Resources to review: {{count}}",
+      "unassignedActivities": "Activities without resources: {{count}}",
+      "selectResource": "Select a resource",
       "addResource": "Add role",
       "removeResource": "Remove role",
       "activities": "Activities",
@@ -565,6 +583,18 @@
       "notComparable": "Data unavailable",
       "unchanged": "Unchanged",
       "modelMismatch": "These runs use different BPMN models. Comparing activity differences requires a mapping between model versions; review KPI comparability as well."
+    },
+    "workspaceHierarchy": {
+      "path": "Process location",
+      "final": "Whole run",
+      "metrics": "Metrics",
+      "layout": "Organize canvas",
+      "center": "Center process",
+      "applyFinalHeatmap": "Apply whole-run heatmap",
+      "navigation": "Navigation",
+      "gestureHint": "Space + drag to pan; Ctrl/Cmd + wheel to zoom",
+      "resizeCanvas": "Resize canvas area",
+      "resizeInspector": "Resize details panel"
     }
   },
   "side": {
@@ -753,6 +783,11 @@
         "participant-expanded": "Pool or participant",
         "group": "Group"
       }
+    },
+    "conflict": {
+      "reloadLatest": "Load the latest version",
+      "reloaded": "Latest version loaded",
+      "reloadFailed": "Could not load the latest version"
     }
   }
 }

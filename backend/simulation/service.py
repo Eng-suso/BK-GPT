@@ -78,7 +78,7 @@ def scenario_template_for_model(
     bpmn_xml = (current_bpmn_xml or bpmn_model.xml or "").strip()
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
-    return describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml))
+    return describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml), source_bpmn_xml=bpmn_xml)
 
 
 def scenario_provenance_for_model(

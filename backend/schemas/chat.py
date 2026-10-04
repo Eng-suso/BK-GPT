@@ -129,6 +129,9 @@ class CanvasChatScope(BaseModel):
     process_id: str
     bpmn_model_id: str
     current_bpmn_xml: str | None = None
+    # La versione salvata da cui viene `current_bpmn_xml`. Il turno la usa come
+    # base: se nel frattempo qualcuno ha salvato, l'agente non ci scrive sopra.
+    current_bpmn_version_id: int | None = None
 
 
 ChatScope: TypeAlias = Annotated[

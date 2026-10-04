@@ -31,6 +31,7 @@ type ProcessBpmnCanvasProps = {
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
   onCurrentXmlChange?: (xml: string) => void;
+  onBaseVersionChange?: (versionId: number | null) => void;
   /** Sends the consultant to the discussion, where the model is reconstructed. */
   onOpenDiscussion?: () => void;
   /** Canvas-chat rail toggle (owned by ProcessWorkspace). */
@@ -52,6 +53,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   processName,
   propertiesPanelRef,
   onCurrentXmlChange,
+  onBaseVersionChange,
   onOpenDiscussion,
   isCanvasChatOpen,
   onToggleCanvasChat,
@@ -117,6 +119,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     updateSelectedNodeName,
     updateSelectedNodeDoc,
     save,
+    hasConflict,
+    reloadLatest,
     restoreVersion,
     exportXml,
     importFile,
@@ -130,6 +134,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     processName,
     propertiesPanelRef,
     onCurrentXmlChange,
+    onBaseVersionChange,
   });
 
   const isError = status.toLowerCase().startsWith("errore");
@@ -259,7 +264,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           />
         </DialogContent>
       </Dialog>
-      {error && <Surface variant="floating" className="process-bpmn-load-error" role="alert"><p>{error}</p>{!isReady && <Button size="sm" variant="outline" onClick={retryLoad}>{t("canvas.retryLoad")}</Button>}</Surface>}
+      {error && <Surface variant="floating" className="process-bpmn-load-error" role="alert"><p>{error}</p>{!isReady && <Button size="sm" variant="outline" onClick={retryLoad}>{t("canvas.retryLoad")}</Button>}{hasConflict && <Button size="sm" variant="outline" onClick={reloadLatest}>{t("canvas.conflict.reloadLatest")}</Button>}</Surface>}
     </section>
   );
 };

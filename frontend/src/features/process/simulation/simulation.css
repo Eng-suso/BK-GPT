@@ -40,15 +40,10 @@
 .sim-config-body .eyebrow { font-size: 13px; color: var(--foreground); }
 .sim-config-body input, .sim-config-body [role="combobox"] { min-height: 38px; font-size: 14px; }
 .sim-config-body .sim-general-fields { max-width: 720px; }
-.sim-config-body .sim-resource-head, .sim-config-body .sim-resource-row {
-  max-width: 960px;
-  grid-template-columns: minmax(180px, 1fr) 120px 100px 40px;
-  gap: 12px;
-}
 .sim-config-body .sim-task-row { padding: 16px; background: var(--card); }
 .sim-config-body .sim-task-name { min-width: 0; gap: 8px; }
 .sim-config-body .sim-task-name p { white-space: normal; }
-.sim-config-body [data-sim-el] { scroll-margin-top: 100px; }
+.sim-config-body [data-sim-el], .sim-config-body [data-resource-id] { scroll-margin-top: 100px; }
 @container scenario (min-width: 850px) {
   .sim-config-body .sim-task-row {
     display: grid;
@@ -62,10 +57,6 @@
 }
 @container scenario (max-width: 560px) {
   .sim-config-body { padding-inline: 12px; }
-  .sim-config-body .sim-resource-head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px; }
-  .sim-resource-head > span:first-child { grid-column: 1 / -1; }
-  .sim-config-body .sim-resource-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px; gap: 8px; padding-block: 8px; }
-  .sim-resource-row > input:first-child { grid-column: 1 / -1; }
   .sim-config-body .sim-task-row { padding: 12px; }
   .sim-config-body .sim-task-timing { grid-template-columns: 1fr; }
 }

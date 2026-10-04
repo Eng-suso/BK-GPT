@@ -17,7 +17,7 @@ import type {
   ScenarioProvenance,
   ScenarioTemplate,
 } from "./simulationTypes";
-import { DEFAULT_SCENARIO, type ScenarioDraft } from "./simulationScenario";
+import { DEFAULT_SCENARIO, scenarioResourceIssues, type ScenarioDraft } from "./simulationScenario";
 
 export type ProvenanceSource =
   | "interview" // structure + parameter both grounded in discovery
@@ -169,21 +169,10 @@ function globalField(changed: boolean, whenSet: Confidence): FieldProvenance {
 }
 
 function resourcesField(draft: ScenarioDraft): FieldProvenance {
-  const base = DEFAULT_SCENARIO.resources;
-  const untouched =
-    draft.resources.length === base.length &&
-    draft.resources.every((r, i) => {
-      const b = base[i];
-      return (
-        b &&
-        r.costPerHour === b.costPerHour &&
-        r.amount === b.amount &&
-        r.name === b.name
-      );
-    });
-  return untouched
-    ? { source: "default", confidence: "low" }
-    : { source: "confirmed", confidence: "high" };
+  const issues = scenarioResourceIssues(draft);
+  if (issues.missingResources) return { source: "default", confidence: "low" };
+  if (issues.pending > 0 || issues.unassigned > 0) return { source: draft.resources.some((r) => r.source) ? "inferred" : "estimated", confidence: "low" };
+  return { source: "confirmed", confidence: "high" };
 }
 
 export function buildInputConfidence(

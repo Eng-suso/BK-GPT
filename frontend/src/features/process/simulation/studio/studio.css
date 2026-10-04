@@ -9,7 +9,7 @@
 .sim-studio-tool-actions { display:flex; flex-wrap:wrap; gap:2px; }
 .sim-studio-body { position:relative; flex:1; min-height:560px; display:flex; gap:12px; }
 .sim-studio-board { flex:1; min-width:0; min-height:560px; display:flex; flex-direction:column; }
-.sim-studio-dock { position:relative; inset:auto; width:400px; max-width:100%; flex-shrink:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.sim-studio-dock { position:relative; inset:auto; max-width:100%; flex-shrink:0; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
 .sim-studio-dock[hidden] { display:none; }
 .sim-studio-dock-header { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
 .sim-studio-dock-header h3 { font-size:15px; font-weight:600; margin-top:3px; }
@@ -230,7 +230,7 @@
 /* Authoring stays beside the scene: dragging never crosses a modal barrier. */
 .sim-scene-body { display:flex; flex:1; min-height:0; min-width:0; }
 .sim-scene-body > .sim-scene-viewport { min-width:0; }
-.sim-analytical-canvas.is-authoring { border-color:color-mix(in srgb,var(--primary) 40%,var(--border)); }
+.sim-analytical-canvas.is-authoring { border-color:var(--material-edge); }
 .sim-scene-object > .sim-widget { padding:0; }
 .sim-scene-object .sim-widget-heading { position:relative; margin:0; padding:12px 14px 12px 34px; border-bottom:1px solid var(--border);  cursor:grab; user-select:none; touch-action:none;  }
 .sim-scene-object .sim-widget-heading:active,.sim-scene-object .sim-process-tile-header:active { cursor:grabbing; }
@@ -243,7 +243,7 @@
 .sim-scene-object .sim-widget-kpi { padding:20px; align-items:flex-start; text-align:left; }
 .sim-scene-object .sim-widget-kpi strong { font-variant-numeric:tabular-nums; letter-spacing:-.04em; }
 .sim-scene-object.is-composing { outline:none; }
-.sim-scene-object.is-composing.is-active { outline:2px solid var(--primary); outline-offset:3px; }
+.sim-scene-object.is-composing.is-active { outline:none; }
 .sim-scene-move { top:14px; left:2px; color:var(--muted-foreground); }
 
 .sim-scene-resize { color:var(--primary); }
@@ -353,3 +353,79 @@
  .is-integrated .sim-kpi-strip { display:flex; overflow-x:auto; }
  .is-integrated .sim-kpi { flex:1; min-width:145px; }
 }
+
+/* Workspace hierarchy: domain geometry only, materials remain shared Satin recipes. */
+.sim-studio-dashboard-commands { margin-left:auto; min-width:0; }
+.sim-dashboard-commands { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.sim-dashboard-commands .sim-filter > span { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.sim-dashboard-commands .sim-filter select { width:160px; max-width:100%; min-height:32px; padding:4px 8px; font-size:12px; }
+.sim-metrics-panel { width:560px; }
+.sim-metrics-panel .sim-kpi-strip { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.sim-organization-panel { width:360px; }
+.sim-organization-panel .sim-scene-sections { display:flex; flex-direction:column; align-items:stretch; gap:12px; overflow:visible; padding:0; }
+.sim-organization-panel .sim-layout-actions { margin:0; flex-wrap:wrap; }
+.sim-scene-controls { position:absolute; left:12px; right:12px; bottom:12px; z-index:10; display:flex; justify-content:space-between; align-items:flex-end; gap:12px; padding:0; border:0; overflow:visible; pointer-events:none; }
+.sim-scene-navigation { display:flex; align-items:center; gap:4px; padding:4px; pointer-events:auto; }
+.sim-scene-zoom { margin-left:0; }
+.sim-scene-map { width:72px; height:32px; }
+.sim-scene-viewport.is-panning,.sim-scene-viewport.is-panning * { cursor:grab !important; }
+.sim-scene-navigation .sim-scene-extra { margin-top:12px; }
+
+.sim-studio-dock .sim-comparison-bar { display:flex; flex-direction:column; max-height:none; padding:0; border:0; }
+.sim-studio-dock .sim-compare-context { display:none; }
+.sim-studio-dock .sim-comparison-bar > div:first-of-type { align-items:stretch; }
+.sim-studio-dock .sim-comparison-bar label { width:100%; justify-content:space-between; }
+.sim-studio-dock .sim-comparison-bar label > [role="combobox"] { width:280px; max-width:75%; }
+.sim-studio-dock .sim-comparison-bar > div > svg { display:none; }
+.sim-studio-dock .sim-scenario-matrix { max-height:none; }
+.sim-studio-dock .sim-comparison-table { max-height:none; }
+@media(min-width:1200px) {
+ .sim-studio-shell { overflow:hidden; }
+ .sim-studio,.sim-studio:has(.sim-comparison-bar),.sim-studio:has(.sim-multi-comparison[open]) { min-height:0; }
+ .sim-studio-body,.sim-studio-board { min-height:0; }
+ .sim-studio-tools { justify-content:flex-start; padding:6px 8px; gap:8px; }
+ .sim-studio-dock { height:100%; }
+ .sim-studio-transport .sim-transport { padding:6px 10px; gap:4px; }
+ .sim-studio-transport .sim-transport > div:nth-child(2) { flex-wrap:nowrap; }
+ .sim-studio-transport .sim-final-transport { min-height:40px; padding:4px 10px; }
+}
+@media(max-width:1199px) {
+ .sim-studio-page-header { flex-wrap:wrap; }
+ .sim-studio-page-header > h1 { min-width:120px; }
+ .sim-studio-page-header > div { max-width:100%; }
+ .sim-studio-dashboard-commands { margin-left:0; width:100%; }
+ .sim-scene-controls { left:4px; right:4px; bottom:4px; gap:4px; }
+ .sim-scene-jump select { width:110px; }
+ .sim-scene-map { display:none; }
+ .sim-scene-navigation { gap:0; }
+ .sim-studio-dock.is-comparison { width:100%; }
+}
+
+/* Canvas resizing uses a shared, quiet handle with a stable pointer target. */
+.sim-scene-resize { right:2px; bottom:2px; color:var(--color-icon-secondary); }
+.sim-scene-object:hover > .ui-canvas-resize,
+.sim-scene-object:focus-within > .ui-canvas-resize { opacity:1; pointer-events:auto; }
+.sim-scene-object.is-composing.is-active { outline:none; }
+
+.sim-scene-object:hover > .sim-widget,.sim-scene-object:hover > .sim-process-tile { border-color:var(--color-border-subtle); }
+
+.sim-scene-object > .sim-widget.is-selected { outline:none; }
+
+/* Container geometry follows the panel split, independently of screen width. */
+.sim-analytical-canvas { container:sim-canvas / inline-size; }
+@container sim-canvas (max-width:600px) {
+ .sim-scene-map { display:none; }
+ .sim-scene-jump select { width:100px; }
+ .sim-scene-navigation { gap:0; }
+}
+@container sim-canvas (max-width:460px) {
+ .sim-scene-controls { flex-direction:column; align-items:flex-start; gap:4px; }
+ .sim-scene-controls > .sim-scene-navigation:last-child { align-self:flex-end; }
+}
+
+/* Active objects stay reachable when a consultant intentionally overlaps the scene. */
+.sim-scene-object.is-active { z-index:2; }
+
+.sim-scene-move { opacity:0; pointer-events:none; }
+.sim-scene-object:hover > .sim-scene-move,.sim-scene-object:focus-within > .sim-scene-move { opacity:1; pointer-events:auto; }
+@media(forced-colors:active) { .sim-scene-move { opacity:1; pointer-events:auto; } }

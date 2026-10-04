@@ -1,6 +1,7 @@
 import type {
   CreateSimulationRunInput,
   ScenarioTemplate,
+  ScenarioTemplateResource,
 } from "./simulationTypes";
 
 export type ResourceDraft = {
@@ -8,12 +9,15 @@ export type ResourceDraft = {
   name: string;
   costPerHour: number;
   amount: number;
+  source?: ScenarioTemplateResource;
+  parametersConfirmed?: boolean;
 };
 
 export type TaskDraft = {
   meanMinutes: number;
   distribution: "norm" | "expon" | "fixed";
   resourceId: string;
+  assignmentSource?: "bpmn" | "manual";
 };
 
 /** element_id -> flow_id -> probability (0–100) */
@@ -26,6 +30,7 @@ export type ScenarioDraft = {
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
+  excludedResourceIds?: string[];
   tasks: Record<string, TaskDraft>;
   gateways: Record<string, GatewayDraft>;
 };
@@ -35,36 +40,41 @@ export const DEFAULT_SCENARIO: ScenarioDraft = {
   totalCases: 100,
   arrivalIntervalMinutes: 30,
   defaultTaskMinutes: 15,
-  resources: [{ id: "res-1", name: "Operatore", costPerHour: 35, amount: 1 }],
+  resources: [],
   tasks: {},
   gateways: {},
 };
 
-function isStructured(draft: ScenarioDraft): boolean {
-  return (
-    draft.resources.length > 1 ||
-    Object.keys(draft.tasks).length > 0 ||
-    Object.keys(draft.gateways).length > 0
-  );
+export function resourceParametersValid(resource: ResourceDraft): boolean {
+  return Boolean(resource.id) && Boolean(resource.name.trim()) && Number.isFinite(resource.costPerHour) &&
+    resource.costPerHour >= 0 && Number.isInteger(resource.amount) &&
+    resource.amount >= 1 && resource.amount <= 1000;
+}
+
+export function scenarioResourceIssues(draft: ScenarioDraft) {
+  const missingResources = draft.resources.length === 0;
+  const pending = draft.resources.filter((r) => r.parametersConfirmed === false || !resourceParametersValid(r)).length;
+  const ids = new Set(draft.resources.map((r) => r.id));
+  const unassigned = Object.values(draft.tasks).filter((task) => !ids.has(task.resourceId)).length;
+  return { missingResources, pending, unassigned,
+    ready: !missingResources && ids.size === draft.resources.length && pending === 0 && unassigned === 0 && Object.keys(draft.tasks).length > 0 };
 }
 
 export function scenarioToInput(
   draft: ScenarioDraft,
   currentBpmnXml: string | null,
 ): Omit<CreateSimulationRunInput, "idempotencyKey"> {
-  const primary = draft.resources[0] ?? DEFAULT_SCENARIO.resources[0];
+  const primary = draft.resources[0];
   const base = {
     scenarioName: draft.scenarioName,
     totalCases: draft.totalCases,
     currentBpmnXml,
     arrivalIntervalSeconds: Math.max(1, Math.round(draft.arrivalIntervalMinutes * 60)),
     defaultTaskDurationSeconds: Math.max(1, Math.round(draft.defaultTaskMinutes * 60)),
-    defaultCostPerHour: primary.costPerHour,
-    resourceAmount: primary.amount,
-    resourceName: primary.name,
+    defaultCostPerHour: primary?.costPerHour ?? 0,
+    resourceAmount: primary?.amount ?? 1,
+    resourceName: primary?.name ?? "",
   };
-
-  if (!isStructured(draft)) return base;
 
   return {
     ...base,
@@ -78,7 +88,7 @@ export function scenarioToInput(
       elementId,
       meanSeconds: Math.max(1, Math.round(task.meanMinutes * 60)),
       distribution: task.distribution,
-      resourceId: task.resourceId || primary.id,
+      resourceId: task.resourceId,
     })),
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
@@ -95,17 +105,35 @@ export function seedDraftFromTemplate(
   draft: ScenarioDraft,
   template: ScenarioTemplate,
 ): ScenarioDraft {
-  const primaryId = draft.resources[0]?.id ?? DEFAULT_SCENARIO.resources[0].id;
+  const candidates = template.resources ?? [];
+  // Model membership is evidence, never evidence of staffing or hourly rates.
+  const resources = draft.resources.map((r) => {
+    const source = candidates.find((candidate) => candidate.id === r.id);
+    return source ? { ...r, source, name: r.name === r.source?.name ? source.name : r.name } : r.source ? { ...r, source: undefined, parametersConfirmed: false } : r;
+  });
+  for (const source of candidates) {
+    if (!resources.some((r) => r.id === source.id) && !draft.excludedResourceIds?.includes(source.id)) {
+      resources.push({ id: source.id, name: source.name, costPerHour: 0, amount: 1,
+        source, parametersConfirmed: false });
+    }
+  }
 
   const tasks: Record<string, TaskDraft> = {};
   for (const task of template.tasks) {
-    tasks[task.element_id] = draft.tasks[task.element_id] ?? {
+    const modelResourceId = candidates.find((r) => r.task_ids.includes(task.element_id) && resources.some((resource) => resource.id === r.id))?.id ?? "";
+    const existing = draft.tasks[task.element_id];
+    const cfg = existing ?? {
       meanMinutes: draft.defaultTaskMinutes,
-      distribution: "norm",
-      resourceId: primaryId,
+      distribution: "norm" as const,
+      resourceId: modelResourceId,
+      assignmentSource: "bpmn" as const,
     };
-    if (!draft.resources.some((r) => r.id === tasks[task.element_id].resourceId)) {
-      tasks[task.element_id] = { ...tasks[task.element_id], resourceId: primaryId };
+    if (cfg.assignmentSource === "bpmn") {
+      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId };
+    } else if (cfg.resourceId && !resources.some((r) => r.id === cfg.resourceId)) {
+      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId, assignmentSource: "bpmn" };
+    } else {
+      tasks[task.element_id] = cfg;
     }
   }
 
@@ -128,7 +156,7 @@ export function seedDraftFromTemplate(
     }
   }
 
-  return { ...draft, tasks, gateways };
+  return { ...draft, resources, tasks, gateways };
 }
 
 // --- localStorage persistence (best-effort, per bpmn model) ------------------
@@ -140,13 +168,18 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
     const raw = window.localStorage.getItem(KEY(bpmnModelId));
     if (!raw) return structuredClone(DEFAULT_SCENARIO);
     const parsed = JSON.parse(raw) as Partial<ScenarioDraft>;
+    const resources = Array.isArray(parsed.resources) ? parsed.resources : [];
+    // Migrate the old untouched, generated operator; retain explicit custom roles.
+    const legacyDefault = (resource: ResourceDraft) => resource.id === "res-1" &&
+      resource.name === "Operatore" && resource.amount === 1 && resource.costPerHour === 35 &&
+      resource.parametersConfirmed === undefined && !resource.source;
+    const migratedResources = resources.filter((r) => !legacyDefault(r)).map((r) => ({
+      ...r, parametersConfirmed: r.parametersConfirmed ?? false,
+    }));
     return {
       ...structuredClone(DEFAULT_SCENARIO),
       ...parsed,
-      resources:
-        Array.isArray(parsed.resources) && parsed.resources.length > 0
-          ? parsed.resources
-          : structuredClone(DEFAULT_SCENARIO.resources),
+      resources: migratedResources,
       tasks: parsed.tasks ?? {},
       gateways: parsed.gateways ?? {},
     };
