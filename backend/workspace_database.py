@@ -1934,6 +1934,7 @@ def source_to_dict(source: WorkspaceSource) -> dict:
         "acquisition_error": source.acquisition_error,
         "claims_status": source.claims_status,
         "claims_error": source.claims_error,
+        "reconcile_status": source.reconcile_status,
     }
 
 
