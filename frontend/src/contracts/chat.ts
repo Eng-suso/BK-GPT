@@ -17,6 +17,7 @@ export const apiChatScopeSchema = z.discriminatedUnion("type", [
     process_id: z.string().min(1),
     bpmn_model_id: z.string().min(1),
     current_bpmn_xml: z.string().nullable().optional(),
+    current_bpmn_version_id: z.number().nullable().optional(),
   }),
 ]);
 
@@ -195,6 +196,8 @@ export type ChatScope =
       processName: string;
       bpmnModelId: string;
       currentBpmnXml?: string | null;
+      /** The saved version `currentBpmnXml` comes from: the agent's writes build on it. */
+      currentBpmnVersionId?: number | null;
     };
 
 export function toApiChatScope(
@@ -214,7 +217,10 @@ export function toApiChatScope(
               process_id: scope.processId,
               bpmn_model_id: scope.bpmnModelId,
               ...(includeTransient && scope.currentBpmnXml
-                ? { current_bpmn_xml: scope.currentBpmnXml }
+                ? {
+                    current_bpmn_xml: scope.currentBpmnXml,
+                    current_bpmn_version_id: scope.currentBpmnVersionId ?? null,
+                  }
                 : {}),
             }
           : { type: "consultant" };

@@ -39,6 +39,7 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
   const [chatWidth, setChatWidth] = usePanelSize("process-chat", 360, 320, 480);
   const dragStart = React.useRef(0);
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(null);
+  const [currentCanvasVersionId, setCurrentCanvasVersionId] = React.useState<number | null>(null);
   const propertiesPanelRef = React.useRef<HTMLDivElement | null>(null);
   // A support pane is inline only when at least 720 px remain for the model.
   const inline = width >= 1090;
@@ -84,13 +85,13 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
                   <Button ref={!propertiesOpen ? closeRef : undefined} variant="ghost" size="icon-sm" aria-label={t("actions.closeOverlays")} onClick={closeSupport}><X className="size-4" /></Button>
                 </div>
                 <div className="min-h-0 flex-1">
-                  <ChatExperience chrome="panel" layout="embedded" scope={{ type: "canvas", projectId: project.id, processId: process.id, bpmnModelId: process.bpmnModelId, processName: process.name, currentBpmnXml: currentCanvasXml }} />
+                  <ChatExperience chrome="panel" layout="embedded" scope={{ type: "canvas", projectId: project.id, processId: process.id, bpmnModelId: process.bpmnModelId, processName: process.name, currentBpmnXml: currentCanvasXml, currentBpmnVersionId: currentCanvasVersionId }} />
                 </div>
               </section>
               {inline && <ResizeHandle ariaLabel={t("actions.toggleChat")} onResizeStart={() => (dragStart.current = availableChatWidth)} onDelta={(dx) => setChatWidth(Math.min(dragStart.current + dx, width - 730))} onStep={(dx) => setChatWidth(Math.min(availableChatWidth + dx, width - 730))} valueNow={availableChatWidth} valueMin={320} valueMax={Math.min(480, width - 730)} />}
             </>}
             <section className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas} aria-label="Canvas BPMN">
-              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} onCurrentXmlChange={setCurrentCanvasXml} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
+              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} onCurrentXmlChange={setCurrentCanvasXml} onBaseVersionChange={setCurrentCanvasVersionId} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
             </section>
             <aside className="process-studio-properties" style={{ width: inline ? 360 : "100%", flex: inline ? "0 0 360px" : "1", marginLeft: inline ? 12 : 0 }} aria-label={t("properties.title")} hidden={!propertiesOpen}>
               <PanelShellHeader title={t("properties.title")} actions={<Button ref={propertiesOpen ? closeRef : undefined} variant="ghost" size="icon-sm" aria-label={t("actions.closeOverlays")} onClick={closeSupport}><X className="size-4" /></Button>} />
