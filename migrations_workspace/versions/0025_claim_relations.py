@@ -1,7 +1,7 @@
 """Le affermazioni di file diversi, messe a confronto.
 
-Revision ID: 0024_claim_relations
-Revises: 0023_source_graph
+Revision ID: 0025_claim_relations
+Revises: 0024_conformance_attempts
 Create Date: 2026-10-04
 
 P1.13 del piano, il Reconciliation Layer. Un file appena estratto si confronta
@@ -23,8 +23,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0024_claim_relations"
-down_revision = "0023_source_graph"
+revision = "0025_claim_relations"
+down_revision = "0024_conformance_attempts"
 branch_labels = None
 depends_on = None
 
