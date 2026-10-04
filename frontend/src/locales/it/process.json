@@ -8,6 +8,7 @@
     "simulation": "Simulazione"
   },
   "actions": {
+    "resizeInspector": "Ridimensiona ispettore",
     "backToProject": "Torna al progetto",
     "toggleChat": "Chat canvas",
     "toggleProperties": "Proprietà",
@@ -612,11 +613,31 @@
     }
   },
   "properties": {
+    "vendor": {
+      "general": "Generale",
+      "documentation": "Documentazione",
+      "name": "Nome",
+      "id": "ID",
+      "executable": "Eseguibile",
+      "process": "Processo",
+      "participant": "Partecipante",
+      "userTask": "Attività utente",
+      "serviceTask": "Attività automatizzata",
+      "task": "Attività",
+      "start": "Evento di inizio",
+      "end": "Evento di fine",
+      "gateway": "Decisione esclusiva",
+      "lane": "Corsia",
+      "toggleSection": "Espandi o riduci sezione",
+      "addDocumentation": "Aggiungi documentazione",
+      "noSelection": "Nessun elemento selezionato"
+},
     "eyebrow": "BPMN 2.0",
     "title": "Pannello proprietà",
     "hint": "Elemento selezionato"
   },
   "canvas": {
+    "documentDetails": "Dettagli",
     "blank": {
       "title": "Il modello è ancora vuoto",
       "description": "Questo processo è registrato ma non ancora ricostruito. Il canvas nasce dalla discussione: raccontala all'agente e ti proporrà il BPMN. In alternativa importa un file .bpmn o disegnalo a mano dalla palette qui a sinistra.",

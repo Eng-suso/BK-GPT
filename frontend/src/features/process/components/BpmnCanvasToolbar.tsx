@@ -15,7 +15,7 @@ import {
   Upload,
 } from "lucide-react";
 
-import { Surface } from "@/ui/surface";
+import { WorkspaceCommandBar } from "@/components/layout/CanvasWorkspace";
 import { Button } from "@/ui/button";
 import {
   DropdownMenu,
@@ -102,9 +102,9 @@ export function BpmnCanvasToolbar({
   const { t } = useTranslation("process");
 
   return (
-    <Surface asChild variant="toolbar"><header className="process-bpmn-toolbar">
+    <WorkspaceCommandBar label={t("canvas.toolbarLabel")} className="process-bpmn-toolbar">
       <div className="bpmn-toolbar-context flex min-w-0 items-center gap-3">
-        <h3>{t("canvas.toolbarLabel")}</h3>
+        <h2 className="sr-only">{t("canvas.toolbarLabel")}</h2>
         {elements?.onToggle && <Button ref={elementsButtonRef} variant={elements.isOpen ? "secondary" : "outline"} size="sm" onClick={elements.onToggle} aria-pressed={elements.isOpen} aria-label={t("canvas.elements.title")}><ListTree aria-hidden /><span className="bpmn-toolbar-label">{t("canvas.elements.title")}</span><span aria-hidden className="bpmn-toolbar-label text-xs tabular-nums text-muted-foreground">{elementCount}</span></Button>}
         {(canvasChat.onToggle || properties.onToggle) && (
           <div className="flex items-center gap-1 border-l border-border pl-3">
@@ -112,26 +112,26 @@ export function BpmnCanvasToolbar({
               <Button
                 type="button"
                 variant={canvasChat.isOpen ? "secondary" : "ghost"}
-                size="icon-sm"
+                size="sm"
                 onClick={canvasChat.onToggle}
                 aria-pressed={canvasChat.isOpen}
                 title={t("actions.toggleChat")}
                 aria-label={t("actions.toggleChat")}
               >
-                <PanelLeft aria-hidden className="size-4" />
+                <PanelLeft aria-hidden className="size-4" /><span className="bpmn-toolbar-label">{t("actions.toggleChat")}</span>
               </Button>
             )}
             {properties.onToggle && (
               <Button
                 type="button"
                 variant={properties.isOpen ? "secondary" : "ghost"}
-                size="icon-sm"
+                size="sm"
                 onClick={properties.onToggle}
                 aria-pressed={properties.isOpen}
                 title={t("actions.toggleProperties")}
                 aria-label={t("actions.toggleProperties")}
               >
-                <PanelRight aria-hidden className="size-4" />
+                <PanelRight aria-hidden className="size-4" /><span className="bpmn-toolbar-label">{t("actions.toggleProperties")}</span>
               </Button>
             )}
           </div>
@@ -165,47 +165,6 @@ export function BpmnCanvasToolbar({
           </Button>
         )}
 
-        <div className="bpmn-zoom-group" aria-label={t("canvas.zoomGroup")}>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onZoomReadable}
-            title={t("canvas.readableTitle")}
-          >
-            {t("canvas.readable")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onZoomFit}
-            title={t("canvas.fitTitle")}
-          >
-            <Maximize2 />
-            {t("canvas.fit")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={onZoomIn}
-            title={t("canvas.zoomIn")}
-            aria-label={t("canvas.zoomIn")}
-          >
-            <Plus />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            onClick={onZoomOut}
-            title={t("canvas.zoomOut")}
-            aria-label={t("canvas.zoomOut")}
-          >
-            <Minus />
-          </Button>
-        </div>
 
         <input
           ref={fileInputRef}
@@ -270,6 +229,6 @@ export function BpmnCanvasToolbar({
           {t(isSaving ? "canvas.saving" : "canvas.save")}
         </Button>
       </div>
-    </header></Surface>
+    </WorkspaceCommandBar>
   );
 }

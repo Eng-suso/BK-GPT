@@ -112,3 +112,18 @@ Nessun bordo blu accompagna lo spostamento: un hover neutro segnala l'elemento,
 mentre il focus accessibile resta riservato all'interazione da tastiera.
 La ricetta condivisa `ui-scrollbar` usa tracce trasparenti e un cursore sottile,
 derivato dai token semantici esistenti, senza disabilitare lo scorrimento.
+
+## Adozione nel canvas di modellazione
+
+Il canvas normale usa `WorkspaceContextBar` per nome e viste del documento,
+`WorkspaceCommandBar` per strumenti e azioni, e `WorkspaceInspector` per un
+solo pannello contestuale di proprietà, selezione o evidenze. La chat è
+opzionale: le aperture concorrenti proteggono lo spazio del diagramma. I host
+del provider BPMN e delle informazioni selezionate restano montati mentre si
+alternano i contenuti. Il resize non ricrea il modeler e non modifica la camera.
+
+L'ispettore può specificare `minimumStageWidth` e `maximumWidth`; lo splitter
+condivide gli stessi stati neutri su entrambi i lati (`edge="start"` o `"end"`).
+Nel canvas normale la legenda è una disclosure, i comandi di zoom si trovano
+al bordo della tela e il primo caricamento mostra il processo intero. Leggi e
+Centra restano azioni esplicite; aprire pannelli conserva pan, zoom e bozze.
