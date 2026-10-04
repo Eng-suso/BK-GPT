@@ -691,7 +691,6 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]
   await expect(page.locator('[data-scene-object="default-0"]')).toBeInViewport({ ratio: 0.99 });
   await expect(page.locator('[data-scene-object="default-1"]')).toBeInViewport({ ratio: 0.99 });
   await expect(page.locator(".sim-kpi-strip")).toBeHidden();
-  await page.screenshot({ path: `.tmp/canvas-hierarchy-initial-${size.width}-${browserName}.png`, animations: "disabled" });
   await page.getByRole("button", { name: "Metriche", exact: true }).click();
   await expect(page.locator(".sim-kpi-strip")).toBeVisible();
   await page.getByRole("button", { name: "Organizza tela", exact: true }).click();
@@ -699,6 +698,8 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1920, height: 1080 }]
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Organizza tela", exact: true })).toBeFocused();
   await seek(page, 100);
+  await page.screenshot({ path: `.tmp/canvas-hierarchy-initial-${size.width}-${browserName}.png`, animations: "disabled" });
+  await viewport.focus();
   const world = page.locator(".sim-scene-world");
   const camera = await world.getAttribute("style");
   const rect = await page.locator('[data-widget-id="default-0"] .sim-widget-chart').boundingBox();

@@ -165,7 +165,10 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
       event.preventDefault(); event.stopPropagation();
       const box = event.currentTarget.getBoundingClientRect();
       insert(item, { x: event.clientX - box.left, y: event.clientY - box.top });
-    }} onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; }} onPointerDownCapture={event => { if (spaceHeld.current || event.button === 1) begin(event, undefined, false, true); }} onPointerDown={event => begin(event)} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setDraft(null); }} onKeyDown={event => {
+    }} onPointerEnter={() => { hovering.current = true; }} onPointerLeave={() => { hovering.current = false; }} onPointerDownCapture={event => {
+      if (!(event.target as Element).closest("button,input,select,textarea,summary,a,[contenteditable=true]")) viewport.current?.focus({ preventScroll: true });
+      if (spaceHeld.current || event.button === 1) begin(event, undefined, false, true);
+    }} onPointerDown={event => begin(event)} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setDraft(null); }} onKeyDown={event => {
       if (event.target !== event.currentTarget) return;
       const directions: Record<string, [number, number]> = { ArrowLeft: [60, 0], ArrowRight: [-60, 0], ArrowUp: [0, 60], ArrowDown: [0, -60] };
       const direction = directions[event.key];
