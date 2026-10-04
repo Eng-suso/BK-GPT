@@ -345,7 +345,7 @@ for (const mobile of [false, true]) {
  test(`unpooled resources require explicit assignment and remain empty after removal and reload on ${mobile ? "mobile" : "desktop"}`, async ({ page }, testInfo) => {
   test.setTimeout(Math.max(testInfo.timeout, 90_000));
   await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1366, height: 900 });
-  await page.goto(`${studio}/simulation/scenario`);
+  await page.goto(`${studio}/simulation/workspace?panel=scenario`);
   const run = page.getByRole("button", { name: "Avvia simulazione", exact: true });
   await expect(page.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Ruolo", exact: true })).toHaveCount(0);
