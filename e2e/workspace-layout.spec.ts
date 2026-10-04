@@ -297,6 +297,9 @@ test("process chrome and element navigation remain accessible without overlap on
   await expect(page.getByRole("button", { name: "Elementi", exact: true })).toBeFocused();
   await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue(tasks[17].name);
   await testInfo.attach("Process mobile", { body: await page.screenshot({ path: process.env.DELIR_UI_PROOF_DIR ? join(process.env.DELIR_UI_PROOF_DIR, "process-mobile.png") : undefined }), contentType: "image/png" });
+  const diagramBox = (await page.locator(".process-bpmn-canvas").boundingBox())!;
+  const inspectorBox = (await page.locator(".process-bpmn-node-inspector").boundingBox())!;
+  expect(diagramBox.y + diagramBox.height).toBeLessThanOrEqual(inspectorBox.y + 1);
   const controls = page.locator(".process-bpmn-toolbar button, .process-studio-header button");
   const overflow = await controls.evaluateAll((els) => els.filter((el) => { const box = el.getBoundingClientRect(); return box.width && (box.right > innerWidth + 1 || box.left < 0); }).length);
   expect(overflow).toBe(0);
