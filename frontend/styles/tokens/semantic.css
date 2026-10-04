@@ -537,6 +537,8 @@
   --domain-process-task-text: var(--domain-role-blue-text);
   --domain-process-task-border: var(--domain-role-blue-border);
   --domain-process-task-icon: var(--domain-role-blue-icon);
+  --domain-process-automation-surface: color-mix(in srgb, var(--data-categorical-4) 8%, var(--color-surface-primary));
+  --domain-process-automation-icon: var(--data-categorical-4);
   --domain-process-gateway-surface: var(--domain-role-violet-surface);
   --domain-process-gateway-text: var(--domain-role-violet-text);
   --domain-process-gateway-border: var(--domain-role-violet-border);

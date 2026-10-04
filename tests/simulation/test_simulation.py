@@ -352,6 +352,27 @@ def test_simulation_endpoint_uses_prosimos_adapter_contract(client, monkeypatch)
     assert finished_body["outputs"] == ["stats_test.csv", "events_test.csv"]
 
 
+def test_simulation_endpoint_rejects_disconnected_end_before_creating_run(client, monkeypatch):
+    from unittest.mock import Mock
+
+    engine = Mock(side_effect=AssertionError("Invalid BPMN reached Prosimos"))
+    monkeypatch.setattr("backend.simulation.service.run_prosimos_simulation", engine)
+    client_id = client.post("/v1/workspace/clients", json={"name": "Preflight"}).json()["id"]
+    project_id = client.post(
+        "/v1/workspace/projects", json={"client_id": client_id, "name": "Preflight"},
+    ).json()["id"]
+    model_id = client.post(
+        f"/v1/workspace/projects/{project_id}/processes", json={"name": "Preflight"},
+    ).json()["bpmn_model_id"]
+    broken = MINIMAL_BPMN.replace('targetRef="EndEvent_1"', 'targetRef="Task_A"')
+    url = f"/v1/workspace/bpmn-models/{model_id}/simulation-runs"
+    response = client.post(url, json={"total_cases": 2, "current_bpmn_xml": broken})
+    assert response.status_code == 400
+    assert "Nessun evento di fine" in response.json()["error"]["message"]
+    assert client.get(url).json() == []
+    engine.assert_not_called()
+
+
 def test_prepare_simulation_run_dedupes_in_flight_runs(client):
     from backend.schemas.workspace import BpmnModelResponse
     from backend.simulation.service import prepare_simulation_run
