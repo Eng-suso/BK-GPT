@@ -11,6 +11,7 @@ from backend.schemas.simulation import (
     ScenarioTemplateTask,
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
+from backend.simulation.ir import compile_for_prosimos, model_from_request
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
 from backend.simulation.validation import validate_simulation_bpmn
 
@@ -32,68 +33,22 @@ BRANCHING_GATEWAY_TYPES = {
     "inclusiveGateway",
 }
 
-_DEFAULT_CALENDAR_ID = "delir-calendar-standard"
-_DEFAULT_RESOURCE_ID = "delir-resource-operator"
-_DEFAULT_PROFILE_ID = "delir-profile-operator"
-
-
 def build_prosimos_scenario(
     *,
     bpmn_xml: str,
     request: CreateSimulationRunRequest,
 ) -> ProsimosScenario:
+    """Lo scenario Prosimos della richiesta, passando dal Simulation IR.
+
+    La richiesta diventa un modello esplicito (`model_from_request`), il modello
+    diventa lo scenario del motore (`compile_for_prosimos`). Il JSON e' lo
+    stesso del builder storico: lo garantiscono gli scenari golden nei test.
+    """
     validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
-    if not tasks:
-        raise ValueError("Il BPMN non contiene task simulabili.")
-
-    resources = _resource_profiles(request, tasks)
-    resource_ids = {r["id"] for pool in resources for r in pool["resource_list"]}
-    default_resource_id = next(iter(resource_ids), _DEFAULT_RESOURCE_ID)
-    task_overrides = {cfg.element_id: cfg for cfg in (request.tasks or [])}
-    gateway_overrides = {cfg.element_id: cfg for cfg in (request.gateways or [])}
-
-    arrival_mean = max(1.0, float(request.arrival_interval_seconds))
-
-    payload = {
-        "resource_profiles": resources,
-        "arrival_time_distribution": {
-            # pix-framework expon contract: [mean, min(loc), max]. scale = mean - min.
-            "distribution_name": "expon",
-            "distribution_params": [
-                {"value": arrival_mean},
-                {"value": 0.0},
-                {"value": arrival_mean * 10.0},
-            ],
-        },
-        "arrival_time_calendar": [_standard_week_calendar()],
-        "gateway_branching_probabilities": [
-            _gateway_probability(gateway, gateway_overrides.get(gateway.id))
-            for gateway in gateways
-        ],
-        "task_resource_distribution": [
-            _task_distribution(
-                task=task,
-                override=task_overrides.get(task.id),
-                default_seconds=float(request.default_task_duration_seconds),
-                default_resource_id=default_resource_id,
-                resource_ids=resource_ids,
-            )
-            for task in tasks
-        ],
-        "resource_calendars": [
-            {
-                "id": _DEFAULT_CALENDAR_ID,
-                "name": "Standard office calendar",
-                "time_periods": [_standard_week_calendar()],
-            }
-        ],
-        "batch_processing": [],
-        "case_attributes": [],
-    }
-
+    model = model_from_request(request, tasks, gateways)
     return ProsimosScenario(
-        payload=payload,
+        payload=compile_for_prosimos(model),
         task_count=len(tasks),
         gateway_count=len(gateways),
     )
@@ -187,151 +142,6 @@ def parse_bpmn_for_simulation(bpmn_xml: str) -> tuple[list[BpmnTask], list[BpmnG
         )
 
     return tasks, gateways
-
-
-# --- scenario assembly helpers -------------------------------------------------
-
-
-def _resource_profiles(
-    request: CreateSimulationRunRequest,
-    tasks: list[BpmnTask],
-) -> list[dict]:
-    task_ids = [task.id for task in tasks]
-    task_overrides = {cfg.element_id: cfg for cfg in (request.tasks or [])}
-
-    if request.resources is not None:
-        if not request.resources:
-            raise ValueError("Definisci almeno una risorsa per simulare il processo.")
-        ids = [cfg.id for cfg in request.resources]
-        if len(set(ids)) != len(ids):
-            raise ValueError("Le risorse devono avere identificativi distinti.")
-        if any(not cfg.name.strip() for cfg in request.resources):
-            raise ValueError("Assegna un nome alle risorse.")
-        if any(not task_overrides.get(task.id) or task_overrides[task.id].resource_id not in ids for task in tasks):
-            raise ValueError("Assegna una risorsa valida a ogni attività prima di simulare.")
-        resource_list = []
-        for cfg in request.resources:
-            assigned = [
-                task.id
-                for task in tasks
-                if (task_overrides.get(task.id) and task_overrides[task.id].resource_id == cfg.id)
-            ]
-            resource_list.append(
-                {
-                    "id": cfg.id,
-                    "name": cfg.name,
-                    "cost_per_hour": str(float(cfg.cost_per_hour)),
-                    "amount": int(cfg.amount),
-                    "calendar": _DEFAULT_CALENDAR_ID,
-                    "assignedTasks": assigned,
-                }
-            )
-        return [{"id": _DEFAULT_PROFILE_ID, "name": "Risorse", "resource_list": resource_list}]
-
-    name = request.resource_name.strip() or "Operatore"
-    return [
-        {
-            "id": _DEFAULT_PROFILE_ID,
-            "name": name,
-            "resource_list": [
-                {
-                    "id": _DEFAULT_RESOURCE_ID,
-                    "name": name,
-                    "cost_per_hour": str(float(request.default_cost_per_hour)),
-                    "amount": int(request.resource_amount),
-                    "calendar": _DEFAULT_CALENDAR_ID,
-                    "assignedTasks": task_ids,
-                }
-            ],
-        }
-    ]
-
-
-def _task_distribution(
-    *,
-    task: BpmnTask,
-    override,
-    default_seconds: float,
-    default_resource_id: str,
-    resource_ids: set[str],
-) -> dict:
-    mean = float(override.mean_seconds) if override else default_seconds
-    distribution = override.distribution if override else "norm"
-    resource_id = (
-        override.resource_id
-        if override and override.resource_id in resource_ids
-        else default_resource_id
-    )
-    return {
-        "task_id": task.id,
-        "resources": [
-            {
-                "resource_id": resource_id,
-                **_duration_params(distribution, mean),
-            }
-        ],
-    }
-
-
-def _duration_params(distribution: str, mean: float) -> dict:
-    mean = max(1.0, mean)
-    if distribution == "fixed":
-        # pix-framework "fix": single param.
-        return {
-            "distribution_name": "fix",
-            "distribution_params": [{"value": mean}],
-        }
-    if distribution == "expon":
-        return {
-            "distribution_name": "expon",
-            "distribution_params": [
-                {"value": mean},
-                {"value": 0.0},
-                {"value": mean * 10.0},
-            ],
-        }
-    std = max(1.0, mean * 0.1)
-    return {
-        "distribution_name": "norm",
-        "distribution_params": [
-            {"value": mean},
-            {"value": std},
-            {"value": max(0.0, mean - 3.0 * std)},
-            {"value": mean + 3.0 * std},
-        ],
-    }
-
-
-def _gateway_probability(gateway: BpmnGateway, override) -> dict:
-    flow_ids = [flow.id for flow in gateway.outgoing_flows]
-    if override and override.branches:
-        by_flow = {b.flow_id: float(b.probability) for b in override.branches}
-        raw = [max(0.0, by_flow.get(flow_id, 0.0)) for flow_id in flow_ids]
-        total = sum(raw)
-        values = (
-            [value / total for value in raw]
-            if total > 0
-            else [1 / len(flow_ids)] * len(flow_ids)
-        )
-    else:
-        values = [1 / len(flow_ids)] * len(flow_ids)
-
-    return {
-        "gateway_id": gateway.id,
-        "probabilities": [
-            {"path_id": flow_id, "value": str(value)}
-            for flow_id, value in zip(flow_ids, values, strict=True)
-        ],
-    }
-
-
-def _standard_week_calendar() -> dict:
-    return {
-        "from": "MONDAY",
-        "to": "FRIDAY",
-        "beginTime": "09:00:00.000",
-        "endTime": "17:00:00.000",
-    }
 
 
 def _local_name(tag: str) -> str:
