@@ -120,9 +120,11 @@ def drain_once(limit: int = _BATCH, *, only_tenant_id: str | None = None) -> int
             break
         _work_one(rows[0])
         processed += 1
-    # Prima si legge, poi si estrae, poi si porta nel grafo: una fonte confermata
-    # in chat mentre era in lettura entra in coda proprio alla fine della lettura.
+    # Prima si legge, poi si estrae, poi si confronta con gli altri file, poi si
+    # porta nel grafo: una fonte confermata in chat mentre era in lettura entra in
+    # coda proprio alla fine della lettura.
     processed += drain_claims_once(1, only_tenant_id=only_tenant_id)
+    processed += drain_reconcile_once(1, only_tenant_id=only_tenant_id)
     return processed + drain_graph_once(1, only_tenant_id=only_tenant_id)
 
 
@@ -174,6 +176,52 @@ def drain_claims_once(limit: int = 1, *, only_tenant_id: str | None = None) -> i
     return processed
 
 
+def _reconcile_one(row: dict) -> bool:
+    """Confronta le affermazioni di una fonte con gli altri file, nel suo tenant.
+
+    Returns:
+        `True` se le relazioni sono state scritte.
+    """
+    from backend.llm import OperationKind, operation
+    from backend.workspace_services.evidence.reconcile import reconcile_claims
+
+    token = set_current_tenant_id(row["tenant_id"])
+    try:
+        try:
+            new, existing = wd.reconcile_inputs(row["id"])
+            with operation(
+                OperationKind.SOURCE_RECONCILE,
+                tenant_id=row["tenant_id"],
+                project_id=row["project_id"],
+                process_id=row["process_id"],
+            ):
+                result = reconcile_claims(new, existing)
+        except Exception as exc:  # noqa: BLE001 - un confronto storto non ferma la coda
+            logger.exception("fonte %s: confronto con gli altri file fallito", row["id"])
+            wd.fail_source_reconcile(row["id"], error=f"Confronto non riuscito: {type(exc).__name__}", permanent=False)
+            return False
+        wd.complete_source_reconcile(row["id"], result)
+        return True
+    finally:
+        reset_current_tenant_id(token)
+
+
+def drain_reconcile_once(limit: int = 1, *, only_tenant_id: str | None = None) -> int:
+    """Una passata sulla coda del confronto (P1.13).
+
+    Returns:
+        Quante fonti sono state lavorate. Zero significa coda vuota.
+    """
+    processed = 0
+    for _ in range(max(1, limit)):
+        rows = wd.due_source_reconcile(1, only_tenant_id=only_tenant_id)
+        if not rows:
+            break
+        _reconcile_one(rows[0])
+        processed += 1
+    return processed
+
+
 def _graph_one(row: dict) -> bool:
     """Porta nel grafo le affermazioni di una fonte: Source -> Evidence -> Claim.
 
@@ -192,7 +240,7 @@ def _graph_one(row: dict) -> bool:
             wd.fail_source_graph(row["id"], error=str(exc), permanent=True)
             return False
         try:
-            counts = canonical.write_source_claims(
+            written = canonical.write_source_claims(
                 consultant_id=ids.consultant_id,
                 client_id=ids.client_id,
                 project_id=ids.project_id,
@@ -207,16 +255,39 @@ def _graph_one(row: dict) -> bool:
                 ],
                 claims=[
                     canonical.SourceClaim(
-                        claim["statement"], claim["segment_ordinal"], claim["quote"], claim["quote_verified"]
+                        claim["ordinal"],
+                        claim["statement"],
+                        claim["segment_ordinal"],
+                        claim["quote"],
+                        claim["quote_verified"],
                     )
                     for claim in wd.list_source_claims(row["id"])
+                ],
+                divergences=[
+                    canonical.SourceDivergence(
+                        key=item["relation_id"],
+                        ordinal=item["ordinal"],
+                        other_claim_id=item["other_kg_claim_id"],
+                        divergence_type=item["divergence_type"],
+                        statement=item["statement"],
+                        other_statement=item["other_statement"],
+                        source_name=item["source_name"],
+                        other_source_name=item["other_source_name"],
+                    )
+                    for item in wd.graph_divergences(row["id"])
                 ],
             )
         except Exception as exc:  # noqa: BLE001 - un grafo non scritto non ferma la coda
             logger.exception("fonte %s: affermazioni non portate nel grafo", row["id"])
             wd.fail_source_graph(row["id"], error=f"Grafo non scritto: {type(exc).__name__}", permanent=False)
             return False
-        logger.info("fonte %s nel grafo: %s", row["id"], counts)
+        logger.info(
+            "fonte %s nel grafo: %d affermazioni, %d contraddizioni",
+            row["id"], len(written.claim_ids), len(written.contradiction_ids),
+        )
+        wd.record_graph_ids(
+            row["id"], claim_ids=written.claim_ids, contradiction_ids=written.contradiction_ids
+        )
         wd.complete_source_graph(row["id"])
         return True
     finally:

@@ -3017,6 +3017,7 @@ def list_source_claims(source_id: str) -> list[dict]:
             {
                 "id": row.id,
                 "source_id": row.source_id,
+                "ordinal": row.ordinal,
                 "statement": row.statement,
                 "segment_ordinal": row.segment_ordinal,
                 "anchor_ref": row.anchor_ref,
