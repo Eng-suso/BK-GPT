@@ -35,14 +35,26 @@ def describe_bpmn_resources(xml: str, task_ids: set[str]) -> list[ScenarioTempla
                 node = parents.get(node)
             return list(reversed(names))
 
-        assigned: set[str] = set()
-        for lane in sorted(lanes, key=lambda item: len(ancestry(item)), reverse=True):
-            members = [_reference(ref.text) for ref in lane.findall(NS + "flowNodeRef") if ref.text and _reference(ref.text) in task_ids and _reference(ref.text) not in assigned]
-            members = list(dict.fromkeys(members))
+        # Parent/child overlap selects the deepest lane. Sibling conflicts are
+        # ambiguous organisational evidence and require manual assignment.
+        memberships: dict[str, list[ET.Element]] = {}
+        for lane in lanes:
+            for ref in lane.findall(NS + "flowNodeRef"):
+                task_id = _reference(ref.text or "")
+                if task_id in task_ids and lane.get("id"):
+                    if lane not in memberships.setdefault(task_id, []):
+                        memberships[task_id].append(lane)
+        owners: dict[str, ET.Element] = {}
+        for task_id, members in memberships.items():
+            deepest = max(len(ancestry(lane)) for lane in members)
+            leaves = [lane for lane in members if len(ancestry(lane)) == deepest]
+            if len(leaves) == 1:
+                owners[task_id] = leaves[0]
+        for lane in lanes:
+            members = [task_id for task_id, owner in owners.items() if owner is lane]
             lane_id = lane.get("id")
             if not lane_id or not members:
                 continue
-            assigned.update(members)
             result.append(ScenarioTemplateResource(
                 id="bpmn-lane-" + sha256(lane_id.encode()).hexdigest()[:16],
                 bpmn_id=lane_id, name=lane.get("name") or lane_id, kind="lane",

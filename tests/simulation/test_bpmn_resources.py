@@ -66,3 +66,11 @@ def test_namespace_qualified_bpmn_references_are_resolved():
     resource = template(xml).resources[0]
     assert resource.pool_name == "Company"
     assert resource.task_ids == ["A"]
+
+
+def test_conflicting_sibling_membership_is_not_assigned_to_the_first_lane():
+    lanes = '<lane id="L1"><flowNodeRef>A</flowNodeRef></lane><lane id="L2"><flowNodeRef>A</flowNodeRef><flowNodeRef>B</flowNodeRef></lane>'
+    resources = template(model(lanes)).resources
+    assert len(resources) == 1
+    assert resources[0].bpmn_id == "L2"
+    assert resources[0].task_ids == ["B"]

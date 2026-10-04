@@ -43,7 +43,7 @@
 .sim-config-body .sim-task-row { padding: 16px; background: var(--card); }
 .sim-config-body .sim-task-name { min-width: 0; gap: 8px; }
 .sim-config-body .sim-task-name p { white-space: normal; }
-.sim-config-body [data-sim-el] { scroll-margin-top: 100px; }
+.sim-config-body [data-sim-el], .sim-config-body [data-resource-id] { scroll-margin-top: 100px; }
 @container scenario (min-width: 850px) {
   .sim-config-body .sim-task-row {
     display: grid;

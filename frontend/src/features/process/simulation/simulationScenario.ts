@@ -45,7 +45,7 @@ export const DEFAULT_SCENARIO: ScenarioDraft = {
 };
 
 export function resourceParametersValid(resource: ResourceDraft): boolean {
-  return Boolean(resource.name.trim()) && Number.isFinite(resource.costPerHour) &&
+  return Boolean(resource.id) && Boolean(resource.name.trim()) && Number.isFinite(resource.costPerHour) &&
     resource.costPerHour >= 0 && Number.isInteger(resource.amount) &&
     resource.amount >= 1 && resource.amount <= 1000;
 }
@@ -163,13 +163,14 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
     const parsed = JSON.parse(raw) as Partial<ScenarioDraft>;
     const resources = Array.isArray(parsed.resources) ? parsed.resources : [];
     // Migrate the old untouched, generated operator; retain explicit custom roles.
-    const legacy = resources.length === 1 && resources[0].id === "res-1" &&
-      resources[0].name === "Operatore" && resources[0].amount === 1 &&
-      resources[0].costPerHour === 35 && resources[0].parametersConfirmed === undefined && !resources[0].source;
+    const legacyDefault = (resource: ResourceDraft) => resource.id === "res-1" &&
+      resource.name === "Operatore" && resource.amount === 1 && resource.costPerHour === 35 &&
+      resource.parametersConfirmed === undefined && !resource.source;
+    const legacy = resources.length === 1 && legacyDefault(resources[0]);
     return {
       ...structuredClone(DEFAULT_SCENARIO),
       ...parsed,
-      resources: legacy ? [] : resources,
+      resources: legacy ? [] : resources.map((r) => legacyDefault(r) ? { ...r, parametersConfirmed: false } : r),
       tasks: parsed.tasks ?? {},
       gateways: parsed.gateways ?? {},
     };
