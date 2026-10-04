@@ -19,19 +19,31 @@ from __future__ import annotations
 
 import logging
 
+from langgraph.prebuilt.tool_node import ToolInvocationError
+
 from backend.agents.run_context import BpmnVersionConflict
 
 logger = logging.getLogger(__name__)
 
 
-def report_tool_error(exc: ValueError) -> str:
-    """Esito del tool per un `ValueError`: il messaggio, e cosa farne.
+def report_tool_error(exc: Exception) -> str:
+    """Esito del tool per un `ValueError` o per argomenti non validi.
 
-    LangGraph ricava dal tipo dell'argomento quali eccezioni gestire: solo i
-    `ValueError` (e le sottoclassi, come le `ValidationError` di Pydantic)
-    diventano un messaggio; il resto si propaga.
+    Come il gestore di default di LangGraph, riceve ogni eccezione e rilancia
+    quelle che non gestisce: cosi' il confine e' scritto qui, non dedotto da
+    un'annotazione. Diventano un messaggio per il modello i `ValueError` (e le
+    sottoclassi, come le `ValidationError` di Pydantic) e le
+    `ToolInvocationError` - argomenti fuori dallo schema del tool, che il
+    gestore di default gia' restituiva e che sostituendolo non vanno perse.
+    Il resto, `RuntimeError` compresi, si propaga e ferma il turno.
     """
+    if isinstance(exc, ToolInvocationError):
+        logger.info("argomenti del tool non validi, esito restituito al modello: %s", exc.message)
+        return exc.message
+    if not isinstance(exc, ValueError):
+        raise exc
     if isinstance(exc, BpmnVersionConflict):
+        logger.info("scrittura BPMN rifiutata per conflitto di versione: %s", exc)
         return f"Modifica non salvata: {exc}"
     # Un ValueError puo' anche essere un difetto del codice: resta nel log con
     # la traccia, anche se il turno prosegue.

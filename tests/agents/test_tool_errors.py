@@ -59,3 +59,18 @@ def test_a_write_the_mode_forbids_still_stops_the_turn():
 
     with pytest.raises(WriteNotAllowedInMode):
         _run(scrivi)
+
+
+def test_arguments_outside_the_tool_schema_still_reach_the_model():
+    """Rilievo CodeRabbit sulla PR #62: il gestore di default di LangGraph
+    restituiva gia' al modello gli argomenti non validi (ToolInvocationError).
+    Sostituendolo, quel caso non deve tornare a far cadere il turno."""
+
+    def rinomina_elemento(element_id: str, name: str) -> str:
+        """Rinomina un elemento del canvas."""
+        return f"{element_id} -> {name}"
+
+    message = _run(rinomina_elemento)  # chiamata senza argomenti: schema violato
+
+    assert "element_id" in message.content
+
