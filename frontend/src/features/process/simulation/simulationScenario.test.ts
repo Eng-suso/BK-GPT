@@ -131,4 +131,15 @@ describe("resource membership and confirmation", () => {
     draft.resources[0] = { ...draft.resources[0], amount: 2, costPerHour: NaN };
     expect(scenarioResourceIssues(draft).ready).toBe(false);
   });
+  it("follows updated BPMN membership while preserving explicit consultant overrides", () => {
+    const first = seedDraftFromTemplate(structuredClone(DEFAULT_SCENARIO), { ...TEMPLATE, resources: [lane] });
+    const nextLane = { ...lane, id: "bpmn-other", bpmn_id: "Lane_other", name: "Finance", task_ids: ["Task_A", "Task_B"] };
+    const updated = seedDraftFromTemplate(first, { ...TEMPLATE, resources: [nextLane] });
+    expect(updated.tasks.Task_A.resourceId).toBe(nextLane.id);
+    expect(updated.resources.find((r) => r.id === lane.id)?.source).toBeUndefined();
+    first.resources.push({ id: "manual", name: "Support", amount: 2, costPerHour: 0, parametersConfirmed: true });
+    first.tasks.Task_A = { ...first.tasks.Task_A, resourceId: "manual", assignmentSource: "manual" };
+    expect(seedDraftFromTemplate(first, { ...TEMPLATE, resources: [nextLane] }).tasks.Task_A.resourceId).toBe("manual");
+  });
+
 });

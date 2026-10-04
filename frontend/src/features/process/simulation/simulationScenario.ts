@@ -17,6 +17,7 @@ export type TaskDraft = {
   meanMinutes: number;
   distribution: "norm" | "expon" | "fixed";
   resourceId: string;
+  assignmentSource?: "bpmn" | "manual";
 };
 
 /** element_id -> flow_id -> probability (0–100) */
@@ -108,7 +109,7 @@ export function seedDraftFromTemplate(
   // Model membership is evidence, never evidence of staffing or hourly rates.
   const resources = draft.resources.map((r) => {
     const source = candidates.find((candidate) => candidate.id === r.id);
-    return source ? { ...r, source, name: r.name === r.source?.name ? source.name : r.name } : r;
+    return source ? { ...r, source, name: r.name === r.source?.name ? source.name : r.name } : r.source ? { ...r, source: undefined, parametersConfirmed: false } : r;
   });
   for (const source of candidates) {
     if (!resources.some((r) => r.id === source.id) && !draft.excludedResourceIds?.includes(source.id)) {
@@ -119,14 +120,20 @@ export function seedDraftFromTemplate(
 
   const tasks: Record<string, TaskDraft> = {};
   for (const task of template.tasks) {
-    tasks[task.element_id] = draft.tasks[task.element_id] ?? {
+    const modelResourceId = candidates.find((r) => r.task_ids.includes(task.element_id) && resources.some((resource) => resource.id === r.id))?.id ?? "";
+    const existing = draft.tasks[task.element_id];
+    const cfg = existing ?? {
       meanMinutes: draft.defaultTaskMinutes,
-      distribution: "norm",
-      resourceId: candidates.find((r) => r.task_ids.includes(task.element_id) && resources.some((resource) => resource.id === r.id))?.id ?? "",
+      distribution: "norm" as const,
+      resourceId: modelResourceId,
+      assignmentSource: "bpmn" as const,
     };
-    if (!resources.some((r) => r.id === tasks[task.element_id].resourceId)) {
-      tasks[task.element_id] = { ...tasks[task.element_id], resourceId:
-        tasks[task.element_id].resourceId ? candidates.find((r) => r.task_ids.includes(task.element_id) && resources.some((resource) => resource.id === r.id))?.id ?? "" : "" };
+    if (cfg.assignmentSource === "bpmn") {
+      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId };
+    } else if (cfg.resourceId && !resources.some((r) => r.id === cfg.resourceId)) {
+      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId, assignmentSource: "bpmn" };
+    } else {
+      tasks[task.element_id] = cfg;
     }
   }
 

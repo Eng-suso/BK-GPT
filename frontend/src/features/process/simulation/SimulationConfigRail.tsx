@@ -267,7 +267,7 @@ export function SimulationConfigRail({
                     <Button type="button" size="icon" variant="ghost" aria-label={`${t("simulation.config.removeResource")} ${resource.name}`} onClick={() => patch({
                       resources: draft.resources.filter((r) => r.id !== resource.id),
                       excludedResourceIds: resource.source ? [...(draft.excludedResourceIds ?? []), resource.id] : draft.excludedResourceIds,
-                      tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, task.resourceId === resource.id ? { ...task, resourceId: "" } : task])),
+                      tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, task.resourceId === resource.id ? { ...task, resourceId: "", assignmentSource: "manual" as const } : task])),
                     })}><X aria-hidden className="size-4" /></Button>
                   </div>
                   <FieldLabel label={t("simulation.config.role")}>
@@ -280,7 +280,7 @@ export function SimulationConfigRail({
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}
-                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" onClick={() => patch({ tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, draft.resources.some((r) => r.id === task.resourceId) ? task : { ...task, resourceId: resource.id }])) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
+                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" onClick={() => patch({ tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, draft.resources.some((r) => r.id === task.resourceId) ? task : { ...task, resourceId: resource.id, assignmentSource: "manual" as const }])) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
                   </div>
                 </li>
               );
@@ -380,7 +380,7 @@ export function SimulationConfigRail({
                             patch({
                               tasks: {
                                 ...draft.tasks,
-                                [task.element_id]: { ...cfg, resourceId: value },
+                                [task.element_id]: { ...cfg, resourceId: value, assignmentSource: "manual" },
                               },
                             })
                           }
