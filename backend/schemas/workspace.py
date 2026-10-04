@@ -428,6 +428,8 @@ class ProjectSourceResponse(BaseModel):
     # L'estrazione delle affermazioni (P1.12): `None` finche' nessuno l'ha chiesta.
     claims_status: Literal["pending", "done", "failed"] | None = None
     claims_error: str | None = None
+    # Il confronto con gli altri file del processo (P1.13).
+    reconcile_status: Literal["pending", "done", "failed"] | None = None
 
 
 class UploadedSourceResponse(ProjectSourceResponse):
@@ -463,6 +465,47 @@ class SourceClaimResponse(BaseModel):
     # La citazione e' stata ritrovata parola per parola nella porzione.
     quote_verified: bool
     extracted_at: str
+
+
+class ClaimRelationSide(BaseModel):
+    """Un lato di una relazione: l'affermazione, il suo file e la sua porzione."""
+
+    claim_id: int
+    source_id: str
+    source_name: str
+    statement: str
+    anchor_ref: str
+    quote: str
+    quote_verified: bool
+
+
+DivergenceType = Literal[
+    "incompatible",
+    "scope_difference",
+    "formalization_difference",
+    "knowledge_gap",
+    "complementary",
+    "tension_to_explore",
+]
+
+
+class ClaimRelationResponse(BaseModel):
+    """Due affermazioni di file diversi sullo stesso fatto (P1.13).
+
+    `claim` e' l'affermazione della fonte richiesta, `other` quella dell'altro
+    file. `divergence_type` e' quello che le regole lasciano: puo' solo essere
+    piu' debole di `declared_type`, e `reasons` dice perche'.
+    """
+
+    id: int
+    kind: Literal["corroboration", "divergence"]
+    divergence_type: DivergenceType | None = None
+    divergence_label: str | None = None
+    declared_type: DivergenceType | None = None
+    reasons: list[str] = Field(default_factory=list)
+    explanation: str = ""
+    claim: ClaimRelationSide
+    other: ClaimRelationSide
 
 
 class EvidenceSegmentResponse(BaseModel):

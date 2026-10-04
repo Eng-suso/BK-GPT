@@ -36,6 +36,7 @@ from backend.workspace_storage import (
     WorkspaceBpmnReview,
     WorkspaceBpmnReviewVersion,
     WorkspaceBpmnVersion,
+    WorkspaceClaimRelation,
     WorkspaceClient,
     WorkspaceDecision,
     WorkspacePlanExtraction,
@@ -55,6 +56,7 @@ from backend.workspace_storage import (
 
 if TYPE_CHECKING:
     from backend.workspace_services.evidence.claims import ClaimsResult
+    from backend.workspace_services.evidence.reconcile import ReconcileResult
     from backend.workspace_services.source_ingestion import ParsedSource
 
 
@@ -1932,6 +1934,7 @@ def source_to_dict(source: WorkspaceSource) -> dict:
         "acquisition_error": source.acquisition_error,
         "claims_status": source.claims_status,
         "claims_error": source.claims_error,
+        "reconcile_status": source.reconcile_status,
     }
 
 
@@ -2611,11 +2614,12 @@ def complete_source_claims(source_id: str, result: "ClaimsResult", *, content_ha
         )
         source.claims_status = "done"
         source.claims_next_attempt_at = None
-        # P1.14: le affermazioni nuove sostituiscono nel grafo quelle di prima.
-        source.graph_status = "pending"
-        source.graph_attempts = 0
-        source.graph_error = None
-        source.graph_next_attempt_at = now
+        # P1.13: prima di andare nel grafo, le affermazioni nuove si
+        # confrontano con quelle degli altri file del processo.
+        source.reconcile_status = "pending"
+        source.reconcile_attempts = 0
+        source.reconcile_error = None
+        source.reconcile_next_attempt_at = now
         # Fatto, ma non tutto: lo si dice invece di farlo credere completo.
         source.claims_error = (
             f"Lette le prime porzioni: {result.segments_left_out} rimaste fuori per la lunghezza."
@@ -2642,6 +2646,285 @@ def fail_source_claims(source_id: str, *, error: str, permanent: bool) -> None:
                 timespec="seconds"
             )
         session.flush()
+
+
+RECONCILE_MAX_ATTEMPTS = 3
+RECONCILE_BACKOFF_SECONDS = 60
+RECONCILE_LEASE_SECONDS = 900
+
+
+def _queue_graph(source: WorkspaceSource) -> None:
+    """La fonte entra nella coda del grafo (P1.14), che sostituisce cio' che c'era."""
+    source.graph_status = "pending"
+    source.graph_attempts = 0
+    source.graph_error = None
+    source.graph_next_attempt_at = now_iso()
+
+
+def due_source_reconcile(limit: int = 1, *, only_tenant_id: str | None = None) -> list[dict]:
+    """Prende in carico le fonti da confrontare con gli altri file del processo.
+
+    Il tentativo si conta alla presa in carico, come nelle altre code.
+    """
+    now = now_iso()
+    lease_until = (datetime.now(UTC) + timedelta(seconds=RECONCILE_LEASE_SECONDS)).isoformat(timespec="seconds")
+    with workspace_connection() as session:
+        statement = (
+            select(WorkspaceSource)
+            .where(WorkspaceSource.reconcile_status == "pending")
+            .where(WorkspaceSource.reconcile_next_attempt_at <= now)
+            .order_by(WorkspaceSource.reconcile_next_attempt_at)
+            .limit(max(1, int(limit)))
+            .with_for_update(skip_locked=True)
+        )
+        if only_tenant_id:
+            statement = statement.where(WorkspaceSource.tenant_id == only_tenant_id)
+        claimed = []
+        for row in session.execute(statement).scalars().all():
+            if row.reconcile_attempts >= RECONCILE_MAX_ATTEMPTS:
+                row.reconcile_status = "failed"
+                row.reconcile_next_attempt_at = None
+                row.reconcile_error = row.reconcile_error or "Il confronto si e' interrotto troppe volte."
+                # Il grafo non aspetta un confronto che non arrivera'.
+                _queue_graph(row)
+                continue
+            row.reconcile_attempts += 1
+            row.reconcile_next_attempt_at = lease_until
+            claimed.append(
+                {
+                    "id": row.id,
+                    "tenant_id": row.tenant_id,
+                    "project_id": row.project_id,
+                    "process_id": row.process_id,
+                }
+            )
+        session.flush()
+        return claimed
+
+
+def _claims_as_input(session, sources: list[WorkspaceSource]) -> list[dict]:
+    names = {source.id: source.name for source in sources}
+    if not names:
+        return []
+    rows = session.execute(
+        select(WorkspaceSourceClaim)
+        .where(WorkspaceSourceClaim.source_id.in_(list(names)))
+        .order_by(WorkspaceSourceClaim.source_id, WorkspaceSourceClaim.ordinal)
+    ).scalars().all()
+    return [
+        {"id": row.id, "statement": row.statement, "source_id": row.source_id, "source_name": names[row.source_id]}
+        for row in rows
+    ]
+
+
+def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
+    """Le affermazioni della fonte e quelle degli altri file con cui confrontarle.
+
+    Gli altri file sono quelli confermati, gia' estratti, dello stesso progetto e
+    dello stesso processo. Un file a livello di progetto (senza processo) si
+    confronta con tutti i file del progetto, e tutti con lui.
+
+    Returns:
+        `(nuove, gia' presenti)`, entrambe con `id`, `statement`, `source_id`,
+        `source_name`.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return [], []
+        others = (
+            select(WorkspaceSource)
+            .where(WorkspaceSource.tenant_id == source.tenant_id)
+            .where(WorkspaceSource.project_id == source.project_id)
+            .where(WorkspaceSource.id != source.id)
+            .where(WorkspaceSource.status == "approved")
+            .where(WorkspaceSource.claims_status == "done")
+        )
+        if source.process_id:
+            others = others.where(
+                or_(WorkspaceSource.process_id.is_(None), WorkspaceSource.process_id == source.process_id)
+            )
+        return (
+            _claims_as_input(session, [source]),
+            _claims_as_input(session, list(session.execute(others).scalars().all())),
+        )
+
+
+def complete_source_reconcile(source_id: str, result: "ReconcileResult") -> int | None:
+    """Scrive le relazioni trovate, al posto di quelle di prima, e passa al grafo.
+
+    Returns:
+        Quante relazioni sono state scritte, o `None` se la fonte non c'e'.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return None
+        own = select(WorkspaceSourceClaim.id).where(WorkspaceSourceClaim.source_id == source_id)
+        session.execute(delete(WorkspaceClaimRelation).where(WorkspaceClaimRelation.claim_id.in_(own)))
+        now = now_iso()
+        session.add_all(
+            WorkspaceClaimRelation(
+                tenant_id=source.tenant_id,
+                project_id=source.project_id,
+                process_id=source.process_id,
+                claim_id=relation.claim_id,
+                other_claim_id=relation.other_claim_id,
+                kind=relation.kind,
+                declared_type=relation.declared_type,
+                divergence_type=relation.divergence_type,
+                reasons_json=json.dumps(list(relation.reasons), ensure_ascii=False),
+                explanation=relation.explanation,
+                prompt_version=result.prompt_version,
+                created_at=now,
+            )
+            for relation in result.relations
+        )
+        source.reconcile_status = "done"
+        source.reconcile_next_attempt_at = None
+        source.reconcile_error = (
+            f"Confrontata con le prime affermazioni: {result.existing_left_out} rimaste fuori per la lunghezza."
+            if result.existing_left_out
+            else None
+        )
+        _queue_graph(source)
+        session.flush()
+        return len(result.relations)
+
+
+def fail_source_reconcile(source_id: str, *, error: str, permanent: bool) -> None:
+    """Un confronto non riuscito: si riprova con backoff, ma non per sempre.
+
+    Quando si smette di riprovare, le affermazioni vanno comunque nel grafo:
+    senza confronto, ma non ferme.
+    """
+    with workspace_connection() as session:
+        source = tenant_row(session, WorkspaceSource, source_id)
+        if source is None:
+            return
+        source.reconcile_error = str(error)[:2000]
+        if permanent or source.reconcile_attempts >= RECONCILE_MAX_ATTEMPTS:
+            source.reconcile_status = "failed"
+            source.reconcile_next_attempt_at = None
+            _queue_graph(source)
+        else:
+            delay = RECONCILE_BACKOFF_SECONDS * (2 ** max(0, source.reconcile_attempts - 1))
+            source.reconcile_next_attempt_at = (datetime.now(UTC) + timedelta(seconds=delay)).isoformat(
+                timespec="seconds"
+            )
+        session.flush()
+
+
+def _relations_touching(session, source_id: str) -> list[WorkspaceClaimRelation]:
+    own = select(WorkspaceSourceClaim.id).where(WorkspaceSourceClaim.source_id == source_id)
+    return list(
+        session.execute(
+            select(WorkspaceClaimRelation)
+            .where(or_(WorkspaceClaimRelation.claim_id.in_(own), WorkspaceClaimRelation.other_claim_id.in_(own)))
+            .order_by(WorkspaceClaimRelation.id)
+        ).scalars().all()
+    )
+
+
+def _sides(session, relation: WorkspaceClaimRelation, source_id: str):
+    """Le due affermazioni della relazione: prima quella di `source_id`."""
+    claim = session.get(WorkspaceSourceClaim, relation.claim_id)
+    other = session.get(WorkspaceSourceClaim, relation.other_claim_id)
+    return (claim, other) if claim.source_id == source_id else (other, claim)
+
+
+def graph_divergences(source_id: str) -> list[dict]:
+    """Le divergenze di questa fonte da portare nel grafo come contraddizioni.
+
+    Una divergenza tocca due file: la scrive la coda del grafo del file che ci
+    arriva per secondo, quando il Claim dell'altro esiste gia'. Per questo si
+    guardano le relazioni in tutte e due le direzioni.
+
+    Returns:
+        Per ogni divergenza: `relation_id`, `ordinal` (l'affermazione di questa
+        fonte), `other_kg_claim_id`, `divergence_type`, gli enunciati e i nomi
+        dei due file.
+    """
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceSource, source_id) is None:
+            return []
+        out = []
+        for relation in _relations_touching(session, source_id):
+            if relation.kind != "divergence":
+                continue
+            mine, theirs = _sides(session, relation, source_id)
+            if not theirs.kg_claim_id:
+                continue
+            out.append(
+                {
+                    "relation_id": relation.id,
+                    "ordinal": mine.ordinal,
+                    "other_kg_claim_id": theirs.kg_claim_id,
+                    "divergence_type": relation.divergence_type or "tension_to_explore",
+                    "statement": mine.statement,
+                    "other_statement": theirs.statement,
+                    "source_name": session.get(WorkspaceSource, mine.source_id).name,
+                    "other_source_name": session.get(WorkspaceSource, theirs.source_id).name,
+                }
+            )
+        return out
+
+
+def record_graph_ids(source_id: str, *, claim_ids: dict[int, str], contradiction_ids: dict[int, str]) -> None:
+    """Annota i Claim e le contraddizioni che la coda del grafo ha scritto."""
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceSource, source_id) is None:
+            return
+        for claim in session.execute(
+            select(WorkspaceSourceClaim).where(WorkspaceSourceClaim.source_id == source_id)
+        ).scalars():
+            claim.kg_claim_id = claim_ids.get(claim.ordinal)
+        for relation_id, contradiction_id in contradiction_ids.items():
+            relation = session.get(WorkspaceClaimRelation, relation_id)
+            if relation is not None:
+                relation.kg_contradiction_id = contradiction_id
+        session.flush()
+
+
+def list_claim_relations(source_id: str) -> list[dict]:
+    """Corroborazioni e divergenze di una fonte, ognuna con le due affermazioni.
+
+    Ogni lato porta la sua porzione e la sua citazione: un conflitto si guarda
+    con le due evidenze davanti, non con un riassunto.
+    """
+    from backend.memory.provenance import DIVERGENCE_LABEL_IT
+
+    def side(claim: WorkspaceSourceClaim, source: WorkspaceSource) -> dict:
+        return {
+            "claim_id": claim.id,
+            "source_id": source.id,
+            "source_name": source.name,
+            "statement": claim.statement,
+            "anchor_ref": claim.anchor_ref,
+            "quote": claim.quote,
+            "quote_verified": claim.quote_verified,
+        }
+
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceSource, source_id) is None:
+            return []
+        out = []
+        for relation in _relations_touching(session, source_id):
+            mine, theirs = _sides(session, relation, source_id)
+            out.append(
+                {
+                    "id": relation.id,
+                    "kind": relation.kind,
+                    "divergence_type": relation.divergence_type,
+                    "divergence_label": DIVERGENCE_LABEL_IT.get(relation.divergence_type or ""),
+                    "declared_type": relation.declared_type,
+                    "reasons": json.loads(relation.reasons_json or "[]"),
+                    "explanation": relation.explanation,
+                    "claim": side(mine, session.get(WorkspaceSource, mine.source_id)),
+                    "other": side(theirs, session.get(WorkspaceSource, theirs.source_id)),
+                }
+            )
+        return out
 
 
 GRAPH_MAX_ATTEMPTS = 3
@@ -2735,6 +3018,7 @@ def list_source_claims(source_id: str) -> list[dict]:
             {
                 "id": row.id,
                 "source_id": row.source_id,
+                "ordinal": row.ordinal,
                 "statement": row.statement,
                 "segment_ordinal": row.segment_ordinal,
                 "anchor_ref": row.anchor_ref,

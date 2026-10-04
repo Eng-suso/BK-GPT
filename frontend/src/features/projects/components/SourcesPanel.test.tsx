@@ -46,6 +46,7 @@ const SOURCE: ProjectSource = {
   acquisitionError: null,
   claimsStatus: null,
   claimsError: null,
+  reconcileStatus: null,
 };
 
 const TRANSCRIPT = [

@@ -31,6 +31,7 @@ from backend.schemas.workspace import (
     ProjectResponse,
     EvidenceSegmentResponse,
     SourceClaimResponse,
+    ClaimRelationResponse,
     ProjectSourceResponse,
     UploadedSourceResponse,
     UpdateSourceRolesRequest,
@@ -721,6 +722,20 @@ def get_workspace_source_evidence(source_id: str) -> list[EvidenceSegmentRespons
     if get_project_source_record(source_id) is None:
         raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
     return [EvidenceSegmentResponse(**segment) for segment in list_evidence_segments(source_id)]
+
+
+@router.get("/sources/{source_id}/relations")
+def get_workspace_source_relations(source_id: str) -> list[ClaimRelationResponse]:
+    """Le affermazioni della fonte che altri file confermano o contraddicono.
+
+    Ogni relazione porta le due affermazioni con le loro porzioni: un conflitto
+    si guarda con le due evidenze davanti.
+    """
+    from backend.workspace_database import get_project_source_record, list_claim_relations
+
+    if get_project_source_record(source_id) is None:
+        raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
+    return [ClaimRelationResponse(**relation) for relation in list_claim_relations(source_id)]
 
 
 @router.get("/sources/{source_id}/claims")

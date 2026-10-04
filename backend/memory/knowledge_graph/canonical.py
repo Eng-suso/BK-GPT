@@ -941,10 +941,41 @@ class SourceSegment:
 
 @dataclass(frozen=True)
 class SourceClaim:
+    ordinal: int
     statement: str
     segment_ordinal: int
     quote: str
     quote_verified: bool
+
+
+@dataclass(frozen=True)
+class SourceDivergence:
+    """Un'affermazione di questo file che diverge da quella di un altro (P1.13).
+
+    `other_claim_id` e' il Claim dell'altro file, gia' nel grafo.
+    """
+
+    key: int
+    ordinal: int
+    other_claim_id: str
+    divergence_type: str
+    statement: str
+    other_statement: str
+    source_name: str
+    other_source_name: str
+
+
+@dataclass(frozen=True)
+class SourceGraph:
+    """Cio' che `write_source_claims` ha scritto."""
+
+    evidence: int
+    claim_ids: dict[int, str]
+    # chiave della divergenza -> contraddizione scritta
+    contradiction_ids: dict[int, str]
+
+
+_DIVERGENCE_SEVERITY = {"incompatible": "high", "tension_to_explore": "medium"}
 
 
 def write_source_claims(
@@ -960,7 +991,8 @@ def write_source_claims(
     process_id: str | None = None,
     kind: str = "document",
     byte_size: int | None = None,
-) -> dict[str, int]:
+    divergences: list[SourceDivergence] | None = None,
+) -> SourceGraph:
     """Porta nel grafo le affermazioni di un file: Source -> Evidence -> Claim.
 
     Sostituisce quello che la stessa fonte workspace aveva scritto prima (una
@@ -970,6 +1002,11 @@ def write_source_claims(
 
     Entrano solo le porzioni citate da almeno un'affermazione: una porzione che
     nessuno cita non sostiene niente.
+
+    Le `divergences` con un altro file diventano contraddizioni fra i due Claim
+    (`Contradiction -BETWEEN-> Claim`), nella stessa transazione: un conflitto
+    entra nel grafo con le due affermazioni, non da solo. Se il Claim dell'altro
+    file non c'e' piu', la contraddizione non si scrive.
     """
     kind = _enum(kind, _SOURCE_KINDS, "document")
     by_ordinal = {segment.ordinal: segment for segment in segments}
@@ -1063,22 +1100,56 @@ def write_source_claims(
                 consultant_id=consultant_id, client_id=client_id,
             )
 
+        claim_ids: dict[int, str] = {}
         for claim in anchored:
-            write_claim(
+            claim_ids[claim.ordinal] = write_claim(
                 consultant_id, client_id, claim.statement, "other",
                 project_id=project_id, process_id=process_id,
                 source_ids=[source_id], source_name=title, quote=claim.quote,
                 quote_verified=claim.quote_verified,
                 evidence_id=evidence_ids[claim.segment_ordinal], tx=session,
             )
-    return {"source": 1, "evidence": len(evidence_ids), "claims": len(anchored)}
+
+        contradiction_ids: dict[int, str] = {}
+        wanted = [d for d in divergences or () if d.ordinal in claim_ids]
+        alive = {
+            str(row.id)
+            for row in session.execute(
+                text("SELECT id FROM kg_claim WHERE id = ANY(CAST(:ids AS uuid[]))"),
+                {"ids": _pg_uuid_array([d.other_claim_id for d in wanted])},
+            )
+        } if wanted else set()
+        for divergence in wanted:
+            if divergence.other_claim_id not in alive:
+                continue
+            contradiction_ids[divergence.key] = write_contradiction(
+                consultant_id, client_id,
+                f"{divergence.source_name} e {divergence.other_source_name} divergono",
+                project_id=project_id, process_id=process_id,
+                conflicting_claim_ids=[claim_ids[divergence.ordinal], divergence.other_claim_id],
+                conflicting_statements=[divergence.statement, divergence.other_statement],
+                resolution_question=(
+                    f"Quale vale: «{divergence.statement}» ({divergence.source_name}) "
+                    f"o «{divergence.other_statement}» ({divergence.other_source_name})?"
+                ),
+                severity=_DIVERGENCE_SEVERITY.get(divergence.divergence_type, "low"),
+                divergence_type=divergence.divergence_type,
+                affected_process_ids=[str(process_id)] if process_id else None,
+                source_ids=[source_id],
+                tx=session,
+            )
+    return SourceGraph(
+        evidence=len(evidence_ids), claim_ids=claim_ids, contradiction_ids=contradiction_ids
+    )
 
 
 def _drop_source_claims(session: Session, source_id: str, *, consultant_id: str, client_id: str) -> int:
     """Toglie porzioni e affermazioni di una fonte, Neo4j compreso.
 
     In Postgres le affermazioni vanno via in cascata con la porzione; in Neo4j
-    il DETACH DELETE del nodo toglie anche gli archi.
+    il DETACH DELETE del nodo toglie anche gli archi. Una contraddizione con un
+    lato tolto non e' piu' una contraddizione: va via anche lei, e la riscrive il
+    prossimo confronto se vale ancora.
 
     Returns:
         Quanti nodi sono stati tolti.
@@ -1090,6 +1161,20 @@ def _drop_source_claims(session: Session, source_id: str, *, consultant_id: str,
         ),
         {"sid": source_id},
     ).all()
+    contradictions = session.execute(
+        text(
+            "DELETE FROM kg_contradiction "
+            "WHERE conflicting_claim_ids && CAST(:claims AS uuid[]) RETURNING id"
+        ),
+        {"claims": [str(row.id) for row in claims]},
+    ).all() if claims else []
+    for row in contradictions:
+        _emit(
+            session, aggregate_type="contradiction", aggregate_id=str(row.id),
+            consultant_id=consultant_id, client_id=client_id, op="delete",
+            payload={"kind": "node_delete", "label": "Contradiction",
+                     "id_prop": "contradiction_id", "id_value": str(row.id)},
+        )
     evidence = session.execute(
         text("DELETE FROM kg_evidence WHERE source_id = CAST(:sid AS uuid) RETURNING id"),
         {"sid": source_id},
@@ -1102,7 +1187,7 @@ def _drop_source_claims(session: Session, source_id: str, *, consultant_id: str,
                 payload={"kind": "node_delete", "label": label, "id_prop": id_prop,
                          "id_value": str(row.id)},
             )
-    return len(claims) + len(evidence)
+    return len(claims) + len(evidence) + len(contradictions)
 
 
 # --- pacchetto di evidenza (atomico) -----------------------------------

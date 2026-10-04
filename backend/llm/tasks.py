@@ -27,6 +27,7 @@ class LlmTask(StrEnum):
 
     PLAN_EXTRACTION = "plan_extraction"
     SOURCE_CLAIMS = "source_claims"
+    SOURCE_RECONCILE = "source_reconcile"
     PLAN_QUALITY = "plan_quality"
     PLAN_UNIFICATION = "plan_unification"
     CONFORMANCE_AUDIT = "conformance_audit"
@@ -112,6 +113,13 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     # conferma, o invio in chat - e nessuno la aspetta davanti allo schermo.
     LlmTask.SOURCE_CLAIMS: TaskProfile(
         LlmTask.SOURCE_CLAIMS, reasoning_effort="medium", scales_with_input=True, deferrable=True
+    ),
+    # Il confronto fra le affermazioni di due file: stesso fatto, o divergenza?
+    # E' giudizio, come l'estrazione; le regole di `classify_divergence` possono
+    # solo indebolire il verdetto, quindi un errore del modello costa al piu' un
+    # conflitto da guardare, non un conflitto nascosto. Nessuno lo aspetta.
+    LlmTask.SOURCE_RECONCILE: TaskProfile(
+        LlmTask.SOURCE_RECONCILE, reasoning_effort="medium", scales_with_input=True, deferrable=True
     ),
     LlmTask.PLAN_QUALITY: TaskProfile(
         LlmTask.PLAN_QUALITY, reasoning_effort="low", scales_with_input=True

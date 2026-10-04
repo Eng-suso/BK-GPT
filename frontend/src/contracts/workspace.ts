@@ -195,6 +195,8 @@ export type ProjectSource = {
   /** L'estrazione delle affermazioni: `null` finche' nessuno l'ha chiesta. */
   claimsStatus: SourceClaimsStatus | null;
   claimsError: string | null;
+  /** Il confronto con gli altri file del processo: `null` finche' non parte. */
+  reconcileStatus: SourceClaimsStatus | null;
 };
 
 export type SourceClaimsStatus = "pending" | "done" | "failed";
@@ -230,6 +232,97 @@ export function toSourceClaims(raw: z.infer<typeof apiSourceClaimsSchema>): Sour
     anchorRef: claim.anchor_ref,
     quote: claim.quote,
     quoteVerified: claim.quote_verified,
+  }));
+}
+
+export type DivergenceType =
+  | "incompatible"
+  | "scope_difference"
+  | "formalization_difference"
+  | "knowledge_gap"
+  | "complementary"
+  | "tension_to_explore";
+
+/** Un lato di una relazione: l'affermazione, il suo file, la sua porzione. */
+export type ClaimRelationSide = {
+  claimId: number;
+  sourceId: string;
+  sourceName: string;
+  statement: string;
+  anchorRef: string;
+  quote: string;
+  quoteVerified: boolean;
+};
+
+/**
+ * Due affermazioni di file diversi sullo stesso fatto. `claim` e' quella della
+ * fonte aperta, `other` quella dell'altro file.
+ */
+export type ClaimRelation = {
+  id: number;
+  kind: "corroboration" | "divergence";
+  divergenceType: DivergenceType | null;
+  /** Il tipo era piu' forte, e le regole l'hanno indebolito: ecco perche'. */
+  reasons: string[];
+  explanation: string;
+  claim: ClaimRelationSide;
+  other: ClaimRelationSide;
+};
+
+const divergenceTypeSchema = z.enum([
+  "incompatible",
+  "scope_difference",
+  "formalization_difference",
+  "knowledge_gap",
+  "complementary",
+  "tension_to_explore",
+]);
+
+const apiRelationSideSchema = z.object({
+  claim_id: z.number(),
+  source_id: z.string(),
+  source_name: z.string(),
+  statement: z.string(),
+  anchor_ref: z.string(),
+  quote: z.string(),
+  quote_verified: z.boolean(),
+});
+
+export const apiClaimRelationsSchema = z.array(
+  z.object({
+    id: z.number(),
+    kind: z.enum(["corroboration", "divergence"]),
+    divergence_type: divergenceTypeSchema.nullable().default(null),
+    divergence_label: z.string().nullable().default(null),
+    declared_type: divergenceTypeSchema.nullable().default(null),
+    reasons: z.array(z.string()).default([]),
+    explanation: z.string().default(""),
+    claim: apiRelationSideSchema,
+    other: apiRelationSideSchema,
+  }),
+);
+
+function toRelationSide(raw: z.infer<typeof apiRelationSideSchema>): ClaimRelationSide {
+  return {
+    claimId: raw.claim_id,
+    sourceId: raw.source_id,
+    sourceName: raw.source_name,
+    statement: raw.statement,
+    anchorRef: raw.anchor_ref,
+    quote: raw.quote,
+    quoteVerified: raw.quote_verified,
+  };
+}
+
+export function toClaimRelations(raw: z.infer<typeof apiClaimRelationsSchema>): ClaimRelation[] {
+  return raw.map((relation) => ({
+    id: relation.id,
+    kind: relation.kind,
+    divergenceType: relation.divergence_type,
+    reasons: relation.reasons,
+    explanation: relation.explanation,
+    claim: toRelationSide(relation.claim),
+    other: toRelationSide(relation.other),
   }));
 }
 
@@ -408,6 +501,7 @@ export const apiProjectSourceSchema = z.object({
   acquisition_error: z.string().nullable().default(null),
   claims_status: z.enum(["pending", "done", "failed"]).nullable().default(null),
   claims_error: z.string().nullable().default(null),
+  reconcile_status: z.enum(["pending", "done", "failed"]).nullable().default(null),
 });
 
 /** La risposta del caricamento: la fonte, e se e' stata creata adesso. */
@@ -685,6 +779,7 @@ export function toProjectSource(source: z.infer<typeof apiProjectSourceSchema>):
     acquisitionError: source.acquisition_error,
     claimsStatus: source.claims_status,
     claimsError: source.claims_error,
+    reconcileStatus: source.reconcile_status,
   };
 }
 
