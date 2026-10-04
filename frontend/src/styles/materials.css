@@ -121,8 +121,27 @@
     color: var(--primary);
   }
 
+  .ui-workspace-stage-resize { position:absolute; right:-8px; bottom:-8px; z-index:12; width:24px; height:24px; cursor:nwse-resize; touch-action:none; }
+  .ui-workspace-stage:hover > .ui-canvas-resize,.ui-workspace-stage:focus-within > .ui-canvas-resize { opacity:1; }
+  .ui-workspace-splitter { position:absolute; left:0; top:0; bottom:0; width:12px; z-index:12; cursor:col-resize; touch-action:none; outline:none; }
+  .ui-workspace-splitter > span { position:absolute; width:2px; height:36px; top:calc(50% - 18px); left:3px; border-radius:var(--radius-pill); background:var(--color-border-strong); }
+  .ui-workspace-splitter:hover > span { background:var(--color-icon-secondary); }
+  .ui-workspace-splitter:focus-visible { outline:2px solid var(--color-focus-ring); outline-offset:-2px; }
+  @media (min-width:1200px) { .ui-workspace-inspector { width:var(--workspace-inspector-width,400px); } }
+  @media (max-width:1199px) { .ui-workspace-splitter,.ui-workspace-stage-resize { display:none; } }
+
+  /* Transparent tracks keep scrolling inside the material instead of adding a rail. */
+  .ui-scrollbar, .ui-scrollbar * { scrollbar-width: thin; scrollbar-color: var(--color-icon-secondary) transparent; }
+  .ui-scrollbar::-webkit-scrollbar, .ui-scrollbar *::-webkit-scrollbar { width: var(--space-200); height: var(--space-200); background: transparent; }
+  .ui-scrollbar::-webkit-scrollbar-track, .ui-scrollbar *::-webkit-scrollbar-track,
+  .ui-scrollbar::-webkit-scrollbar-corner, .ui-scrollbar *::-webkit-scrollbar-corner { background: transparent; }
+  .ui-scrollbar::-webkit-scrollbar-thumb, .ui-scrollbar *::-webkit-scrollbar-thumb { background-color: var(--color-icon-secondary); border: 2px solid transparent; background-clip: padding-box; border-radius: var(--radius-pill); }
+  .ui-canvas-resize { opacity: 0; color: var(--color-icon-secondary); transition: opacity var(--motion-duration-micro); }
+  .ui-canvas-resize:focus-visible, .ui-canvas-resize:hover { opacity: 1; }
+  @media (hover: none), (forced-colors: active) { .ui-canvas-resize { opacity: 1; } }
+
   @media (prefers-reduced-motion: reduce) {
-    .ui-field { transition: none; }
+    .ui-field, .ui-canvas-resize { transition: none; }
   }
   @media (prefers-reduced-transparency: reduce) {
     .ui-surface, .ui-field, .app-chrome { background: var(--color-surface-primary); }

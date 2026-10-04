@@ -592,7 +592,9 @@
       "center": "Center process",
       "applyFinalHeatmap": "Apply whole-run heatmap",
       "navigation": "Navigation",
-      "gestureHint": "Space + drag to pan; Ctrl/Cmd + wheel to zoom"
+      "gestureHint": "Space + drag to pan; Ctrl/Cmd + wheel to zoom",
+      "resizeCanvas": "Resize canvas area",
+      "resizeInspector": "Resize details panel"
     }
   },
   "side": {

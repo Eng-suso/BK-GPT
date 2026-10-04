@@ -592,7 +592,9 @@
       "center": "Centra processo",
       "applyFinalHeatmap": "Applica heatmap dell’intera esecuzione",
       "navigation": "Navigazione",
-      "gestureHint": "Spazio + trascina per muoverti; Ctrl/Cmd + rotella per zoomare"
+      "gestureHint": "Spazio + trascina per muoverti; Ctrl/Cmd + rotella per zoomare",
+      "resizeCanvas": "Ridimensiona area canvas",
+      "resizeInspector": "Ridimensiona pannello di dettagli"
     }
   },
   "side": {

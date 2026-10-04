@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { GripVertical, Maximize2, Minus, Plus, Workflow, Scaling } from "lucide-react";
-import { WorkspaceDisclosure } from "@/components/layout";
+import { GripVertical, Maximize2, Minus, Plus, Workflow } from "lucide-react";
+import { WorkspaceDisclosure, CanvasResizeHandle } from "@/components/layout";
 import { Surface } from "@/ui/surface";
 import { Button } from "@/ui/button";
 import type { CanvasRect } from "../dashboard/dashboardModel";
@@ -194,7 +194,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
           }} style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}>
             {<Button variant="ghost" size="icon" type="button" className="sim-scene-move" aria-label={t("simulation.scene.move", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id)} onKeyDown={event => keyboardPlace(event, object, false)}><GripVertical aria-hidden className="size-4" /></Button>}
             {object.content}
-            {editing && activeObject === object.id && <Button variant="outline" size="icon" type="button" className="sim-scene-resize" aria-label={t("simulation.scene.resize", { title: object.title })} title={t("simulation.scene.keyboardHint")} onPointerDown={event => begin(event, object.id, true)} onKeyDown={event => keyboardPlace(event, object, true)}><Scaling aria-hidden className="size-4" /></Button>}
+            <CanvasResizeHandle className="sim-scene-resize" label={t("simulation.scene.resize", { title: object.title })} hint={`${Math.round(rect.width)} × ${Math.round(rect.height)} px · ${t("simulation.scene.keyboardHint")}`} onPointerDown={event => begin(event, object.id, true)} onKeyDown={event => keyboardPlace(event, object, true)} />
           </div>;
         })}
       </div>

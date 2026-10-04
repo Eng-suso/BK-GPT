@@ -99,3 +99,14 @@ oltre alle scorciatoie visibili. Aprire un ispettore conserva camera e clock.
 Il fit iniziale considera entrambe le dimensioni del viewport; fit successivi
 richiedono un comando dell'utente. La composizione iniziale mostra il processo
 intero e le analisi principali; le altre restano raggiungibili sulla tela libera.
+
+Ridimensionamento: `CanvasResizeHandle` è l'affordance condivisa per processo,
+grafici, testo e contenitore del canvas. `WorkspaceResizeSeparator` regola il
+binario dell'ispettore. Il canvas conserva camera e clock durante il resize;
+le dimensioni dei contenitori restano entro lo spazio disponibile. Le frecce
+consentono il resize da tastiera; Home ripristina la superficie principale.
+L'area del puntatore resta stabile anche quando il segno visivo è piccolo.
+Nessun bordo blu accompagna lo spostamento: un hover neutro segnala l'elemento,
+mentre il focus accessibile resta riservato all'interazione da tastiera.
+La ricetta condivisa `ui-scrollbar` usa tracce trasparenti e un cursore sottile,
+derivato dai token semantici esistenti, senza disabilitare lo scorrimento.
