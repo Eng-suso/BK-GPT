@@ -870,15 +870,24 @@ def _latest_bpmn_version_id(session, bpmn_model_id: str) -> int | None:
     return latest.id if latest is not None else None
 
 
+class _NoPrecondition:
+    """Chi scrive non ha detto da quale versione parte (chiamanti interni)."""
+
+
+NO_PRECONDITION = _NoPrecondition()
+
+
 def _assert_bpmn_not_changed_underneath(
     session,
     bpmn_model_id: str,
-    expected_version_id: int | None,
+    expected_version_id: int | None | _NoPrecondition,
 ) -> None:
     """Rifiuta una scrittura che cancellerebbe una versione che chi scrive non ha visto.
 
     Due controlli, indipendenti:
-    - `expected_version_id`: chi salva a mano dice da quale versione e' partito;
+    - `expected_version_id`: chi salva a mano dice da quale versione e' partito.
+      `None` vuol dire "da nessuna": il modello non aveva ancora versioni, e se
+      ora ne ha una e' di qualcun altro. `NO_PRECONDITION` salta il controllo;
     - il registro del turno: dentro un agent run, una versione nata dopo
       l'inizio del turno e non scritta dal turno e' di qualcun altro.
 
@@ -886,7 +895,8 @@ def _assert_bpmn_not_changed_underneath(
     scritture concorrenti passerebbero entrambe il controllo.
     """
     latest = _latest_bpmn_version(session, bpmn_model_id)
-    if expected_version_id is not None and (latest is None or latest.id != expected_version_id):
+    latest_id = latest.id if latest is not None else None
+    if not isinstance(expected_version_id, _NoPrecondition) and latest_id != expected_version_id:
         raise BpmnVersionConflict(
             "Il diagramma e' stato salvato da un'altra parte dopo che lo hai aperto. "
             "Ricarica il canvas per vedere l'ultima versione prima di salvare."
@@ -895,12 +905,12 @@ def _assert_bpmn_not_changed_underneath(
     turn = active_turn_writes()
     if turn is None or latest is None:
         return
-    base = turn.base_version_by_model.get(bpmn_model_id)
-    if base is not None:
-        # L'XML su cui lavora l'agente viene da una versione nota: vale quella,
-        # anche se l'altra scrittura e' arrivata prima dell'inizio del turno
-        # (una scheda rimasta aperta su una versione vecchia).
-        changed = latest.id != base
+    if bpmn_model_id in turn.base_version_by_model:
+        # L'XML su cui lavora l'agente viene da una versione nota - o da
+        # nessuna, il diagramma iniziale: vale quella, anche se l'altra
+        # scrittura e' arrivata prima dell'inizio del turno (una scheda rimasta
+        # aperta su una versione vecchia, o due canvas su un processo nuovo).
+        changed = latest.id != turn.base_version_by_model[bpmn_model_id]
     else:
         changed = latest.id not in turn.written_version_ids and latest.created_at > turn.started_at
     if changed:
@@ -975,7 +985,7 @@ def update_bpmn_model(
     xml: str,
     change_summary: str = "Salvataggio canvas",
     source: str = "manual_save",
-    expected_version_id: int | None = None,
+    expected_version_id: int | None | _NoPrecondition = NO_PRECONDITION,
 ) -> dict | None:
     """
     Persist an authorized BPMN model update and create a version snapshot.
@@ -987,8 +997,9 @@ def update_bpmn_model(
         change_summary (str): Untrusted description of the change.
         source (str): Untrusted origin label for the version snapshot.
         expected_version_id (int | None): Untrusted id of the version the
-            writer started from. When given, the save is refused if a newer
-            version exists.
+            writer started from; `None` means the model had no version yet.
+            When given, the save is refused if the latest version differs.
+            Omitted (`NO_PRECONDITION`) for internal callers.
     
     Returns:
         dict | None: The updated model data, or `None` when the model does not
@@ -1095,7 +1106,7 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
         # Come ogni scrittura del disegno: in fila dietro le altre, e mai sopra
         # una versione che chi ripristina (dentro un turno) non ha visto.
         session.refresh(model, with_for_update=True)
-        _assert_bpmn_not_changed_underneath(session, model.id, None)
+        _assert_bpmn_not_changed_underneath(session, model.id, NO_PRECONDITION)
         model.xml = version.xml
         restored = create_bpmn_version(
             session=session,

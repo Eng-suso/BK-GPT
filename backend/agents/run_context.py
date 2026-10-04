@@ -102,7 +102,8 @@ class TurnWrites:
     # La versione salvata da cui parte il lavoro su ciascun modello: quella
     # dell'XML che la UI ha mandato col messaggio, poi l'ultima scritta dal
     # turno. Se c'e', una scrittura passa solo se l'ultima versione e' questa.
-    base_version_by_model: dict[str, int] = field(default_factory=dict)
+    # `None` = l'XML e' il diagramma iniziale di un modello senza versioni.
+    base_version_by_model: dict[str, int | None] = field(default_factory=dict)
 
 
 _turn_writes: contextvars.ContextVar[TurnWrites | None] = contextvars.ContextVar(
@@ -111,7 +112,7 @@ _turn_writes: contextvars.ContextVar[TurnWrites | None] = contextvars.ContextVar
 
 
 @contextmanager
-def bind_turn_writes(base_versions: dict[str, int] | None = None) -> Iterator[TurnWrites]:
+def bind_turn_writes(base_versions: dict[str, int | None] | None = None) -> Iterator[TurnWrites]:
     """Apre il registro delle scritture BPMN del turno, con l'istante d'inizio.
 
     Args:

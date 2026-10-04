@@ -217,6 +217,54 @@ def test_the_save_route_answers_409_and_writes_nothing_on_a_stale_version(model_
     assert len(wd.list_bpmn_versions(model_id)) == versions_before
     assert "secondo" in wd.get_bpmn_model(model_id)["xml"]
 
+
+def test_two_canvases_on_a_new_process_do_not_overwrite_each_other(model_id):
+    """Rilievo CodeRabbit sulla PR #54: `null` esplicito vuol dire "il modello
+    non aveva versioni quando l'ho aperto". Il secondo canvas aperto sul
+    diagramma iniziale non scrive sopra il primo salvataggio."""
+    from backend import workspace_database as wd
+
+    wd.update_bpmn_model(model_id, _XML.format(task="primo_canvas"), expected_version_id=None)
+
+    with pytest.raises(wd.BpmnVersionConflict):
+        wd.update_bpmn_model(model_id, _XML.format(task="secondo_canvas"), expected_version_id=None)
+
+    assert "primo_canvas" in wd.get_bpmn_model(model_id)["xml"]
+
+
+def test_an_agent_on_the_starter_diagram_does_not_overwrite_a_first_save(model_id):
+    from backend import workspace_database as wd
+    from backend.agents.run_context import bind_turn_writes
+
+    _save_elsewhere(model_id, "collega")
+
+    with bind_turn_writes({model_id: None}):
+        with pytest.raises(wd.BpmnVersionConflict):
+            wd.update_bpmn_model(model_id, _XML.format(task="agente"), source="agent")
+
+    assert "collega" in wd.get_bpmn_model(model_id)["xml"]
+
+
+def test_the_save_route_keeps_old_clients_working_and_honours_an_explicit_null(model_id):
+    from fastapi.testclient import TestClient
+
+    from backend import workspace_database as wd
+    from backend.app import app
+    from backend.security import get_current_tenant_id
+
+    headers = {"X-DeliR-Tenant-Id": get_current_tenant_id()}
+    client = TestClient(app)
+    url = f"/v1/workspace/bpmn-models/{model_id}"
+    wd.update_bpmn_model(model_id, _XML.format(task="primo"))
+
+    legacy = client.put(url, json={"xml": _XML.format(task="vecchio_client")}, headers=headers)
+    stale_new = client.put(
+        url, json={"xml": _XML.format(task="nuovo"), "expected_version_id": None}, headers=headers
+    )
+
+    assert legacy.status_code == 200, legacy.text
+    assert stale_new.status_code == 409, stale_new.text
+
 # --- l'esito arriva al modello ------------------------------------------------
 
 

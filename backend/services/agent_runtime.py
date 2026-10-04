@@ -114,12 +114,16 @@ def is_internal_agent_node(node_name: str) -> bool:
     return node_name in INTERNAL_AGENT_NODES or node_name.endswith("_tools")
 
 
-def _canvas_base_versions(scope: ChatScope | None) -> dict[str, int]:
-    """La versione da cui viene l'XML del canvas mandato con il messaggio."""
+def _canvas_base_versions(scope: ChatScope | None) -> dict[str, int | None]:
+    """La versione da cui viene l'XML del canvas mandato con il messaggio.
+
+    `null` esplicito vale "nessuna versione": il diagramma iniziale. Un client
+    che il campo non lo manda resta sul solo controllo dell'istante.
+    """
     if (
         isinstance(scope, CanvasChatScope)
         and scope.current_bpmn_xml
-        and scope.current_bpmn_version_id is not None
+        and "current_bpmn_version_id" in scope.model_fields_set
     ):
         return {scope.bpmn_model_id: scope.current_bpmn_version_id}
     return {}
