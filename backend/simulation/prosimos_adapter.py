@@ -9,6 +9,7 @@ import httpx
 
 from backend.settings import settings
 from backend.simulation.models import ProsimosSimulationRequest, ProsimosSimulationResult
+from backend.simulation.validation import validate_simulation_bpmn
 
 
 class ProsimosError(RuntimeError):
@@ -18,6 +19,10 @@ class ProsimosError(RuntimeError):
 async def run_prosimos_simulation(
     request: ProsimosSimulationRequest,
 ) -> ProsimosSimulationResult:
+    try:
+        validate_simulation_bpmn(request.bpmn_xml)
+    except ValueError as exc:
+        raise ProsimosError(str(exc)) from exc
     base_url = settings.prosimos_base_url.rstrip("/")
     simulate_url = f"{base_url}/api/simulate"
     start = request.start_date or datetime.now(UTC).isoformat()
