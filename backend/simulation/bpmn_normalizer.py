@@ -106,11 +106,12 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
         changed |= _strip_noise(process)
         changed |= _downcast_activities(process)
         changed |= _rewrite_gateways(process)
+        exception_nodes = _exception_branch_ids(process)
         changed |= _drop_boundary_events(process)
         changed |= _splice_passthrough_events(process)
         changed |= _collapse_start_events(process)
         changed |= _collapse_end_events(process)
-        changed |= _drop_unreachable(process)
+        changed |= _drop_unreachable(process, exception_nodes)
 
     if not changed:
         return bpmn_xml
@@ -119,9 +120,25 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
     return ElementTree.tostring(root, encoding="unicode", xml_declaration=True)
 
 
-def _drop_unreachable(process: ElementTree.Element) -> bool:
+def _exception_branch_ids(process: ElementTree.Element) -> set[str]:
+    """Only exception branches intentionally removed by normalization may be pruned."""
+    pending = [event.get("id") for event in process.findall(_q(BPMN_MODEL_NS, "boundaryEvent"))]
+    successors: dict[str, list[str]] = {}
+    for flow in _seq_flows(process):
+        successors.setdefault(flow.get("sourceRef", ""), []).append(flow.get("targetRef", ""))
+    reached: set[str] = set()
+    while pending:
+        node = pending.pop()
+        if node and node not in reached:
+            reached.add(node)
+            pending.extend(successors.get(node, []))
+    return reached
+
+
+def _drop_unreachable(process: ElementTree.Element, candidates: set[str]) -> bool:
     """
-    Remove flow nodes and sequence flows that cannot be reached from a start event.
+    Remove unreachable exception branches, preserving unrelated disconnected nodes
+    so preflight can report them instead of silently simulating a partial model.
     
     Parameters:
         process (ElementTree.Element): BPMN process element to update.
@@ -161,15 +178,16 @@ def _drop_unreachable(process: ElementTree.Element) -> bool:
         reachable.add(node)
         queue.extend(successors.get(node, []))
 
+    dropped = candidates - reachable
     removed = False
     for element in list(process):
         local = _local(element.tag)
         element_id = element.get("id")
-        if local in flow_node_tags and element_id and element_id not in reachable:
+        if local in flow_node_tags and element_id in dropped:
             process.remove(element)
             removed = True
         elif local == "sequenceFlow" and (
-            element.get("sourceRef") not in reachable or element.get("targetRef") not in reachable
+            element.get("sourceRef") in dropped or element.get("targetRef") in dropped
         ):
             process.remove(element)
             removed = True
