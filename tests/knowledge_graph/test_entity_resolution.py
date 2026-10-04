@@ -276,6 +276,19 @@ def test_plan_resolution_empty_when_disabled(scope, monkeypatch):
     assert llm.calls == []  # nessuna chiamata: feature spenta
 
 
+def test_plan_resolution_propagates_embedding_count_mismatch(monkeypatch):
+    """Meno vettori che nomi e' una risposta rotta del provider, non un'assenza.
+
+    Con `zip(..., strict=True)` l'errore sale fino a chi scrive l'evidenza;
+    prima `zip` troncava e attribuiva i vettori ai nomi sbagliati in silenzio.
+    """
+    monkeypatch.setattr(settings, "canonical_entity_resolution", True)
+    monkeypatch.setattr(er.embeddings, "embed_texts", lambda _texts: [[0.0]])
+
+    with pytest.raises(ValueError):
+        er.plan_resolution("consultant", "client", ["nome uno", "nome due"])
+
+
 # --- livello vettoriale reale -------------------------------------------
 
 
