@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import pytest
@@ -63,12 +64,35 @@ def _with_port(url: str, port: int, dbname: str | None = None) -> str:
     return urlunsplit(parts._replace(netloc=netloc, path=path))
 
 
+def _development_env() -> dict[str, str | None]:
+    """Il `.env` di sviluppo: quello della cartella corrente o, in un worktree
+    che non ne ha uno, quello del checkout principale.
+
+    Il secondo caso conta. In un worktree senza `.env` il confronto qui sotto
+    non vedeva nulla da confrontare: chi caricava a mano il `.env` principale
+    prima di pytest (il 2026-10-04) faceva girare i test sul database di
+    sviluppo, tenant `local`, senza nessun avviso.
+    """
+    here = dotenv_values(".env")
+    if here:
+        return here
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            capture_output=True, text=True, timeout=5, check=False,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    main_env = Path(common).resolve().parent / ".env" if common else None
+    return dotenv_values(main_env) if main_env and main_env.is_file() else {}
+
+
 def _point_at_test_stack() -> bool:
     """Sposta sullo stack di test i DSN presi dal `.env` di sviluppo.
 
     Ritorna True se ha spostato qualcosa: allora tocca a noi migrare lo stack.
     """
-    dev = dotenv_values(".env")
+    dev = _development_env()
     moved = False
     for key in _DB_URL_KEYS:
         if os.environ.get(key):
@@ -86,6 +110,15 @@ def _point_at_test_stack() -> bool:
 
 
 _USING_LOCAL_TEST_STACK = _point_at_test_stack()
+
+# --- I test non chiamano il motore di simulazione vero ----------------------
+#
+# Con il `.env` di sviluppo i test che non sostituiscono l'adapter mandavano i
+# run al Prosimos acceso in locale: run "in corso" per tutta la sessione, che
+# riempivano il limite di simulazioni contemporanee e facevano fallire i test
+# successivi con 429. In CI il motore non c'e' e il problema non si vedeva.
+# Una porta chiusa fa fallire subito il run. Chi vuole il motore vero lo dice.
+os.environ["PROSIMOS_BASE_URL"] = os.environ.get("DELIR_TEST_PROSIMOS_URL", "http://127.0.0.1:9")
 
 from backend.settings import settings  # noqa: E402
 
