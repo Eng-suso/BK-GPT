@@ -50,6 +50,9 @@ class CreateSimulationRunRequest(BaseModel):
     # from the scenario inputs so a duplicate submit while a run is still
     # in flight returns the existing run instead of launching a second one.
     idempotency_key: str | None = Field(default=None, max_length=128)
+    # Seed del motore. Con lo stesso seed e lo stesso scenario il runner rifa'
+    # lo stesso log; senza, ne sceglie uno e lo restituisce nel risultato.
+    seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
 
 
 class ScenarioTemplateRequest(BaseModel):

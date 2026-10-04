@@ -37,6 +37,7 @@ class ProsimosSimulationRequest(BaseModel):
     scenario: ProsimosScenario
     total_cases: int
     start_date: str | None = None
+    seed: int | None = None
 
 
 class ProsimosSimulationResult(BaseModel):

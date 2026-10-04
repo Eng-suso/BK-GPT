@@ -26,6 +26,10 @@ async def run_prosimos_simulation(
     base_url = settings.prosimos_base_url.rstrip("/")
     simulate_url = f"{base_url}/api/simulate"
     start = request.start_date or datetime.now(UTC).isoformat()
+    form = {"startDate": start, "numProcesses": str(request.total_cases)}
+    if request.seed is not None:
+        # Il runner DeliR lo usa e restituisce `Seed`; il microservizio 1.2.6 lo ignora.
+        form["seed"] = str(request.seed)
 
     with tempfile.TemporaryDirectory(prefix="delir-prosimos-") as tmp_dir:
         tmp_path = Path(tmp_dir)
@@ -42,10 +46,7 @@ async def run_prosimos_simulation(
                 with bpmn_path.open("rb") as bpmn_file, scenario_path.open("rb") as scenario_file:
                     response = await client.post(
                         simulate_url,
-                        data={
-                            "startDate": start,
-                            "numProcesses": str(request.total_cases),
-                        },
+                        data=form,
                         files={
                             "modelFile": ("process.bpmn", bpmn_file, "application/xml"),
                             "simScenarioFile": (
