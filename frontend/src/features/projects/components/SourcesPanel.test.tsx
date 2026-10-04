@@ -32,6 +32,7 @@ const PROCESS: ProjectProcess = {
 const SOURCE: ProjectSource = {
   id: "src-1",
   projectId: PROCESS.projectId,
+  clientId: null,
   processId: PROCESS.id,
   name: "Intervista Paolo Marchetti - Manutenzione",
   type: "Intervista",
