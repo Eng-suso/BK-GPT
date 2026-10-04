@@ -59,4 +59,6 @@ def ensure_schema() -> None:
     from alembic.config import Config
 
     cfg = Config(str(_ALEMBIC_INI))
+    # I log restano quelli dell'app: vedi `migrations_workspace/env.py`.
+    cfg.attributes["configure_logger"] = False
     command.upgrade(cfg, "head")
