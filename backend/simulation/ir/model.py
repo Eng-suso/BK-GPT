@@ -138,7 +138,11 @@ _TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,3})?$")
 
 
 class CalendarPeriod(_Strict):
-    """Da un giorno a un altro (inclusi), fra due orari dello stesso giorno."""
+    """Da un giorno a un altro (inclusi), fra due orari dello stesso giorno.
+
+    Un turno notturno sono due periodi (22:00-23:59:59 e 00:00-06:00 del giorno
+    dopo); la giornata intera e' 00:00:00-23:59:59, perche' 24:00 non e' un orario.
+    """
 
     from_day: Weekday
     to_day: Weekday
