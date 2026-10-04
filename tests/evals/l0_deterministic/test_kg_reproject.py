@@ -33,7 +33,7 @@ if not all(_NEEDED):
         allow_module_level=True,
     )
 
-from backend.memory import gateway  # noqa: E402
+from backend.memory import gateway, projection_health  # noqa: E402
 from backend.memory.knowledge_graph import canonical, neo4j_store, reproject  # noqa: E402
 from backend.workers.graph_worker import drain_once  # noqa: E402
 from scripts import kg_reproject  # noqa: E402
@@ -96,7 +96,7 @@ def world():
         )
         conn.execute(text("DELETE FROM consultant WHERE id = :i"), {"i": consultant})
     neo4j_store.purge_client(str(client))
-    gateway._staleness_cache.clear()
+    projection_health.clear_cache()
 
 
 def _write_every_shape(w) -> dict[str, str]:
@@ -210,7 +210,7 @@ def test_graph_retrieve_says_when_the_projection_is_behind(world):
         )
 
     def _retrieve():
-        gateway._staleness_cache.clear()
+        projection_health.clear_cache()
         return gateway.graph_retrieve(
             consultant_id=world["consultant"], client_id=world["client"],
             entity_names=["CFO"], scope_project_id=world["project"],
@@ -219,7 +219,12 @@ def test_graph_retrieve_says_when_the_projection_is_behind(world):
 
     stale = _retrieve()
     assert stale["staleness"]["dead_letter"] == 1, stale
-    assert not any(m["relation"] == "APPROVES" for m in stale["matches"])
+    # Prima il grafo indietro si serviva lo stesso, e la risposta diceva che il
+    # CFO non approva niente. Ora una proiezione non fresca non si legge: la
+    # relazione arriva da Postgres, dove c'e'.
+    assert stale["projection"]["health"] == "stale", stale
+    assert stale["projection"]["served_from"] == "postgres", stale
+    assert any(m["relation"] == "APPROVES" for m in stale["matches"]), stale
 
     report = reproject.apply(world["consultant"], world["client"])
     assert report.after.clean
@@ -227,7 +232,38 @@ def test_graph_retrieve_says_when_the_projection_is_behind(world):
 
     healed = _retrieve()
     assert "staleness" not in healed, healed
+    assert healed["projection"] == {"health": "fresh", "served_from": "neo4j"}, healed
     assert any(m["relation"] == "APPROVES" for m in healed["matches"])
+
+
+def test_a_projection_nobody_can_verify_is_not_read_as_fresh(world, monkeypatch):
+    """`UNKNOWN != FRESH`. Se la coda di proiezione non si legge, prima il
+    gateway taceva e serviva Neo4j come se fosse allineato."""
+    from backend.workers import graph_worker
+
+    ids = _write_every_shape(world)
+    _drain_all()
+    with neo4j_store.get_driver().session() as neo:
+        neo.run(
+            "MATCH (:Entity {entity_id: $s})-[r:APPROVES]->(:Entity {entity_id: $t}) DELETE r",
+            s=ids["cfo"], t=ids["fattura"],
+        ).consume()
+
+    def _unreadable(*_args, **_kwargs):
+        raise RuntimeError("graph_outbox non leggibile")
+
+    monkeypatch.setattr(graph_worker, "queue_stats", _unreadable)
+    projection_health.clear_cache()
+
+    out = gateway.graph_retrieve(
+        consultant_id=world["consultant"], client_id=world["client"],
+        entity_names=["CFO"], scope_project_id=world["project"],
+        scope_process_id=world["process"], max_hops=1,
+    )
+
+    assert out["projection"]["health"] == "unknown", out
+    assert out["projection"]["served_from"] == "postgres", out
+    assert any(m["relation"] == "APPROVES" for m in out["matches"]), out
 
 
 def test_uniqueness_constraints_exist_after_a_drain(world):
