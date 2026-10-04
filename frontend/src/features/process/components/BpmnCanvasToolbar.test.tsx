@@ -52,7 +52,7 @@ describe("BpmnCanvasToolbar", () => {
   it("exposes the contextual inspector action with its accessible name", async () => {
     const onToggle = vi.fn();
     renderToolbar({ properties: { isOpen: false, onToggle } });
-    const inspector = screen.getByRole("button", { name: "Proprietà", exact: true });
+    const inspector = screen.getByRole("button", { name: "Proprietà" });
     expect(inspector).toHaveAttribute("aria-pressed", "false");
     inspector.focus();
     await userEvent.keyboard("{Enter}");
