@@ -21,11 +21,13 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    import tiktoken
 
 logger = logging.getLogger(__name__)
 
@@ -36,35 +38,47 @@ MIN_TRUNCATED_TOKENS = 400
 Fate = Literal["included", "truncated", "omitted"]
 
 
+class ContextBudgetExceeded(RuntimeError):
+    """Le sole righe fisse (regole, id, contratti) superano il budget.
+
+    Non si tagliano: sono il contratto del turno. Succede solo con un budget
+    configurato piu' piccolo delle regole stesse, ed e' un errore di
+    configurazione da vedere, non un prompt da mandare fuori misura.
+    """
+
+
 @lru_cache(maxsize=1)
-def _encoding():
+def _encoding() -> tiktoken.Encoding | None:
     try:
         import tiktoken
 
         return tiktoken.get_encoding("o200k_base")
-    except Exception:  # noqa: BLE001 - senza tokenizer si stima, non si fallisce
-        logger.warning("tokenizer o200k_base non disponibile: stima a caratteri", exc_info=True)
+    except (ImportError, OSError, ValueError):
+        # Pacchetto assente, o file della codifica non scaricabile (la rete
+        # passa da OSError): si stima per eccesso, e si dice.
+        logger.warning("tokenizer o200k_base non disponibile: stima per eccesso in byte", exc_info=True)
         return None
 
 
 def count_tokens(text: str) -> int:
     """Token del testo per la famiglia di modelli in uso (o200k).
 
-    Senza tokenizer (pacchetto o file di codifica mancanti) stima per eccesso,
-    un token ogni tre caratteri: il budget deve sbagliare dalla parte sicura.
+    Senza tokenizer (pacchetto o file di codifica mancanti) conta i byte UTF-8:
+    un token o200k e' almeno un byte, quindi il conto non sta mai sotto quello
+    vero. Il budget deve sbagliare dalla parte sicura, anche di molto.
     """
     if not text:
         return 0
     encoding = _encoding()
     if encoding is None:
-        return math.ceil(len(text) / 3)
+        return len(text.encode("utf-8"))
     return len(encoding.encode(text, disallowed_special=()))
 
 
 def _truncate_to_tokens(text: str, max_tokens: int) -> str:
     encoding = _encoding()
     if encoding is None:
-        return text[: max_tokens * 3]
+        return text.encode("utf-8")[:max_tokens].decode("utf-8", errors="ignore")
     return encoding.decode(encoding.encode(text, disallowed_special=())[:max_tokens])
 
 
@@ -130,7 +144,12 @@ def assemble(parts: Sequence[str | ContextBlock], budget_tokens: int) -> Assembl
     # Primo giro, a stima: le righe fisse prima, poi i blocchi per priorita'.
     # `allowance[i]` = token di corpo concessi: tutti, una parte, o zero.
     fixed = "\n".join(part for part in parts if isinstance(part, str))
-    remaining = max(0, budget_tokens - count_tokens(fixed))
+    fixed_tokens = count_tokens(fixed)
+    if fixed_tokens > budget_tokens:
+        raise ContextBudgetExceeded(
+            f"le righe fisse del contesto sono {fixed_tokens} token, il budget {budget_tokens}"
+        )
+    remaining = budget_tokens - fixed_tokens
     allowance: dict[int, int] = {}
     for i in order:
         if full_tokens[i] <= remaining:

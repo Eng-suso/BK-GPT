@@ -119,3 +119,52 @@ def test_the_scope_prompt_stays_inside_its_budget(monkeypatch):
 
     assert count_tokens(prompt) <= 6_000
     assert "omesso dal budget del contesto" in prompt or "troncato dal budget" in prompt
+
+
+# --- i rami di ripiego e di confine (rilievi CodeRabbit sulla PR #61) -------
+
+
+def test_without_the_tokenizer_the_count_never_falls_below_the_real_one(monkeypatch):
+    from backend.agents import context_budget
+
+    text = "Il CFO approva le fatture sopra soglia; àèìòù ✓ " * 50
+    real = count_tokens(text)
+    monkeypatch.setattr(context_budget, "_encoding", lambda: None)
+
+    assert context_budget.count_tokens(text) >= real
+
+
+def test_without_the_tokenizer_the_assembled_context_stays_in_budget(monkeypatch):
+    from backend.agents import context_budget
+
+    monkeypatch.setattr(context_budget, "_encoding", lambda: None)
+    big = _words(3_000)
+    out = context_budget.assemble(
+        ["regole", ContextBlock("piano", big, priority=50), ContextBlock("xml", big, priority=90)],
+        budget_tokens=20_000,
+    )
+
+    assert len(out.text.encode("utf-8")) <= 20_000
+    assert out.report.total_tokens <= 20_000
+
+
+def test_fixed_rules_larger_than_the_budget_are_a_configuration_error():
+    import pytest
+
+    from backend.agents.context_budget import ContextBudgetExceeded
+
+    with pytest.raises(ContextBudgetExceeded):
+        assemble([_words(2_000), ContextBlock("piano", "x", priority=1)], budget_tokens=100)
+
+
+def test_a_block_with_too_little_room_left_is_omitted_not_cut_to_a_stub():
+    from backend.agents.context_budget import MIN_TRUNCATED_TOKENS
+
+    big = _words(3_000)
+    fixed = "regole"
+    # Spazio per meno di MIN_TRUNCATED_TOKENS di corpo, note comprese.
+    budget = count_tokens(fixed) + MIN_TRUNCATED_TOKENS // 2
+
+    out = assemble([fixed, ContextBlock("piano", big, priority=50)], budget_tokens=budget)
+
+    assert [b.fate for b in out.report.blocks] == ["omitted"]

@@ -260,7 +260,9 @@ def build_scope_system_prompt(state: dict) -> str:
     # primo - apriva la sua passata senza vederlo, e ricominciava dal nome del
     # processo come se le interviste non fossero mai state fatte. Sta qui perche'
     # qui lo leggono tutti: e' il prompt di scope, non il prompt di un nodo.
-    lines.extend(evidence_prompt_block(state))
+    evidence = evidence_prompt_block(state)
+    if evidence:
+        lines.append(ContextBlock("registro dell'evidenza", "\n".join(evidence), priority=82))
 
     if scope_type == "project":
         processes = state.get("project_processes") or []
@@ -410,7 +412,10 @@ def build_scope_system_prompt(state: dict) -> str:
             ]
         )
 
-    lines.extend(build_attachments_prompt(state.get("attachments")))
+    attachments = build_attachments_prompt(state.get("attachments"))
+    if attachments:
+        # Il consulente li ha mandati apposta con questo messaggio.
+        lines.append(ContextBlock("allegati del messaggio", "\n".join(attachments), priority=88))
 
     if state.get("process_understanding"):
         lines.append(
