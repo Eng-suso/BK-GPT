@@ -181,14 +181,6 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       <div className={`process-bpmn-body ${elementsOpen ? "process-bpmn-body--elements" : ""}`}>
         {elementsOpen && <BpmnElementNavigator elements={elements} selectedId={selectedElement?.id} isReady={isReady} onClose={closeElements} onSelect={(id) => { if (selectElement(id) && shellWidth < 820) closeElements(); }} />}
         <div className="process-bpmn-canvas" ref={containerRef}>
-          {selectedElement && !isPropertiesOpen && !isEvidenceOpen && (
-            <BpmnNodeInspector
-              element={selectedElement}
-              onNameChange={updateSelectedNodeName}
-              onDocChange={updateSelectedNodeDoc}
-              onClose={clearSelection}
-            />
-          )}
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
               tela resta vuota e dice da dove si parte — la palette bpmn-js
@@ -229,6 +221,14 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             onClose={() => setIsEvidenceOpen(false)}
           />
         )}
+          {selectedElement && !isPropertiesOpen && !isEvidenceOpen && (
+            <BpmnNodeInspector
+              element={selectedElement}
+              onNameChange={updateSelectedNodeName}
+              onDocChange={updateSelectedNodeDoc}
+              onClose={clearSelection}
+            />
+          )}
       </div>
       {coloursEnabled && <div className="process-bpmn-legend" aria-label={t("canvas.colours")}>
         {(["task", "automation", "gateway", "start", "end"] as const).map((kind) => <span key={kind}><i aria-hidden className={`process-element-swatch--${kind}`} />{t(`canvas.legend.${kind}`)}</span>)}

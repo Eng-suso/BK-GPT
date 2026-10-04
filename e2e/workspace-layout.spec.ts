@@ -227,7 +227,7 @@ test("mobile heatmap preserves a readable diagram above populated metrics", asyn
 });
 
 
-test("process elements follow imports, selection and properties without rewriting BPMN colours", async ({ page }) => {
+test("process elements follow imports, selection and properties without rewriting BPMN colours", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(canvasView);
   await expect(page.locator('[data-element-id="Task_1"]').first()).toBeVisible();
@@ -247,14 +247,17 @@ test("process elements follow imports, selection and properties without rewritin
   await expect(navigator.locator("li")).toHaveCount(1);
   await page.getByRole("button", { name: "Proprietà", exact: true }).click();
   const properties = page.locator(".process-bpmn-properties-host");
+  const nameInput = properties.getByRole("textbox", { name: "Name", exact: true });
+  if (!await nameInput.isVisible()) await properties.locator('[data-group-id="group-general"]').getByRole("button", { name: "Toggle section" }).click();
   await expect(properties.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(tasks[1].name);
   await properties.getByRole("textbox", { name: "Name", exact: true }).fill("Automazione importata");
   await expect(navigator).toContainText("Automazione importata");
   await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue("Automazione importata");
   await navigator.getByRole("textbox", { name: "Cerca nel processo" }).fill("");
   await expect(navigator.locator("li")).toHaveCount(18);
   await expect(page.locator('[data-element-id="Task_1"]')).toHaveCount(0);
-  if (process.env.DELIR_UI_PROOF_DIR) await page.screenshot({ path: join(process.env.DELIR_UI_PROOF_DIR, "process-desktop.png") });
+  await testInfo.attach("Process desktop", { body: await page.screenshot({ path: process.env.DELIR_UI_PROOF_DIR ? join(process.env.DELIR_UI_PROOF_DIR, "process-desktop.png") : undefined }), contentType: "image/png" });
   const shape = page.locator('.delir-type-automation .djs-visual > rect').first();
   const tint = await shape.evaluate((el) => getComputedStyle(el).fill);
   await page.getByRole("button", { name: "Importa, esporta, cronologia" }).click();
@@ -281,7 +284,7 @@ test("process loading failures are recoverable and never look like a new empty m
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
-test("process chrome and element navigation remain accessible without overlap on mobile", async ({ page }) => {
+test("process chrome and element navigation remain accessible without overlap on mobile", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(canvasView);
   await expect(page.locator('[data-element-id="Task_1"]').first()).toBeVisible();
@@ -293,7 +296,7 @@ test("process chrome and element navigation remain accessible without overlap on
   await expect(page.locator(".process-bpmn-canvas")).toBeVisible();
   await expect(page.getByRole("button", { name: "Elementi", exact: true })).toBeFocused();
   await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue(tasks[17].name);
-  if (process.env.DELIR_UI_PROOF_DIR) await page.screenshot({ path: join(process.env.DELIR_UI_PROOF_DIR, "process-mobile.png") });
+  await testInfo.attach("Process mobile", { body: await page.screenshot({ path: process.env.DELIR_UI_PROOF_DIR ? join(process.env.DELIR_UI_PROOF_DIR, "process-mobile.png") : undefined }), contentType: "image/png" });
   const controls = page.locator(".process-bpmn-toolbar button, .process-studio-header button");
   const overflow = await controls.evaluateAll((els) => els.filter((el) => { const box = el.getBoundingClientRect(); return box.width && (box.right > innerWidth + 1 || box.left < 0); }).length);
   expect(overflow).toBe(0);

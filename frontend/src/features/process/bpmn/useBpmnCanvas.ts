@@ -219,6 +219,13 @@ export function useBpmnCanvas({
     if (!modelerRef.current) return;
     setIsEmptyModel(!hasDiagramContent(modelerRef.current));
     setElements(readCanvasElements(modelerRef.current));
+    const registry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
+    setSelectedElement((previous) => {
+      if (!previous) return null;
+      const current = registry.get?.(previous.id) as BpmnElementSelection | undefined;
+      if (!current) return null;
+      return { ...previous, name: current.businessObject?.name || "", documentation: splitTraceability(current.businessObject?.documentation?.[0]?.text).notes };
+    });
     // Ogni punto che importa un XML passa di qui: e' il momento in cui i segni
     // di provenance vanno riletti dal disegno appena caricato.
     try {
@@ -610,7 +617,12 @@ export function useBpmnCanvas({
     if (modelerRef.current) frameCanvasForReading(modelerRef.current);
   }, []);
 
-  const clearSelection = useCallback(() => setSelectedElement(null), []);
+  const clearSelection = useCallback(() => {
+    focusedElementIdRef.current = null;
+    const selection = modelerRef.current?.get("selection") as { select: (elements: unknown[]) => void } | undefined;
+    selection?.select([]);
+    setSelectedElement(null);
+  }, []);
 
   const selectElement = useCallback((elementId: string) => {
     const modeler = modelerRef.current;

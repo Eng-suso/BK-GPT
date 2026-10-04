@@ -655,3 +655,17 @@
 
 .process-studio-header { border-radius: var(--material-radius-panel); }
 .process-studio-header [data-slot="tabs-list"] { flex-shrink: 0; }
+
+/* Selection has an allocated dock; it never floats over the model. */
+.process-bpmn-body:has(> .process-bpmn-node-inspector) { grid-template-columns: minmax(0, 1fr) 320px; }
+.process-bpmn-body--elements:has(> .process-bpmn-node-inspector) { grid-template-columns: 248px minmax(0, 1fr) 320px; }
+.process-bpmn-node-inspector { border-radius: 0; border-left: 1px solid var(--material-divider); }
+.process-bpmn-canvas { overflow: hidden; }
+.process-bpmn-canvas .djs-palette { max-height: calc(100% - 24px); overflow-y: auto; }
+@container process-canvas (max-width: 820px) {
+  .process-bpmn-body:has(> .process-bpmn-node-inspector) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 46%); }
+  .process-bpmn-node-inspector { border-left: 0; border-top: 1px solid var(--material-divider); }
+  .process-bpmn-body--elements:has(> .process-bpmn-node-inspector) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .process-bpmn-body--elements > .process-bpmn-node-inspector { display: none; }
+}
+@media (max-width: 620px) { .process-back-label { display: none; } }

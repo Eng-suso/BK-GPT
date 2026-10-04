@@ -177,8 +177,8 @@ export function ProcessStudioPage(): React.JSX.Element {
                 <FlaskConical aria-hidden className="size-4" />
                 {t("simulation.section.title")}
               </Button>
-              <Button variant="ghost" size="sm" onClick={backToProject}>
-                <ArrowLeft aria-hidden className="size-4" />{t("actions.backToProject")}
+              <Button variant="ghost" size="sm" onClick={backToProject} aria-label={t("actions.backToProject")} title={t("actions.backToProject")}>
+                <ArrowLeft aria-hidden className="size-4" /><span className="process-back-label">{t("actions.backToProject")}</span>
               </Button>
             </>
           }
