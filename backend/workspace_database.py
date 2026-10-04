@@ -4657,6 +4657,10 @@ def _purge_process(session, process: WorkspaceProcess) -> list[str]:
             )
         ).scalars():
             session.delete(artifact)
+        # Fra run e artefatto non c'e' una relationship mappata: l'unita' di
+        # lavoro non sa che l'artefatto va cancellato prima e puo' invertire
+        # l'ordine, fermandosi sulla FK. Il flush fissa l'ordine.
+        session.flush()
 
     storage_keys: list[str] = []
     for model, column in (

@@ -12,6 +12,7 @@ type BpmnNodeInspectorProps = {
   onNameChange: (name: string) => void;
   onDocChange: (doc: string) => void;
   onClose: () => void;
+  embedded?: boolean;
 };
 
 /**
@@ -25,6 +26,7 @@ export function BpmnNodeInspector({
   onNameChange,
   onDocChange,
   onClose,
+  embedded = false,
 }: BpmnNodeInspectorProps) {
   const { t } = useTranslation("process");
 
@@ -45,7 +47,7 @@ export function BpmnNodeInspector({
             {element.name || element.id}
           </strong>
         </div>
-        <Button
+        {!embedded && <Button
           type="button"
           variant="ghost"
           size="icon-xs"
@@ -54,7 +56,7 @@ export function BpmnNodeInspector({
           aria-label={t("canvas.inspectorClose")}
         >
           <X />
-        </Button>
+        </Button>}
       </div>
       <div className="grid gap-2.5">
         <label className="grid gap-1.5">

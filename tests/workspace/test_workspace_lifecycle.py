@@ -198,6 +198,53 @@ def test_deleting_a_process_leaves_its_project_standing(engagement):
     assert project["process_items"] == []
 
 
+def _simulate_with_replay(process: dict) -> int:
+    """Un run completato con il suo artefatto di replay, come dopo una simulazione vera."""
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
+    from backend.simulation.storage import complete_simulation_run, create_simulation_run
+
+    run = create_simulation_run(
+        bpmn_model_id=process["bpmn_model_id"],
+        process_id=process["id"],
+        scenario_name="Baseline AS-IS",
+        request=CreateSimulationRunRequest(),
+        scenario=ProsimosScenario(payload={}, task_count=1, gateway_count=0),
+    )
+    complete_simulation_run(
+        run_id=run["id"],
+        result=ProsimosSimulationResult(payload={}),
+        summary={"cases": 1},
+        replay={"cases": []},
+    )
+    return run["id"]
+
+
+def test_a_simulated_process_can_be_deleted_with_its_replay(engagement):
+    """Il run e il suo artefatto stanno in due tabelle senza relazione mappata:
+    se l'unita' di lavoro cancella il run per primo, la FK dell'artefatto la
+    ferma e il processo non si cancella piu'."""
+    from backend import workspace_database as wd
+    from backend.simulation.storage import get_simulation_run
+
+    run_id = _simulate_with_replay(engagement["process"])
+
+    wd.delete_process(engagement["process"]["id"])
+
+    assert wd.get_process(engagement["process"]["id"]) is None
+    assert get_simulation_run(run_id) is None
+
+
+def test_a_simulated_project_can_be_deleted_with_its_replay(engagement):
+    from backend import workspace_database as wd
+
+    _simulate_with_replay(engagement["process"])
+
+    wd.delete_project(engagement["project"]["id"])
+
+    assert wd.get_project(engagement["project"]["id"]) is None
+
+
 def test_a_record_that_is_not_there_says_so(tenant):
     from backend import workspace_database as wd
 
