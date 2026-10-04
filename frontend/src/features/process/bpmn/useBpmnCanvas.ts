@@ -6,7 +6,7 @@ import {
   BpmnPropertiesProviderModule,
 } from "bpmn-js-properties-panel";
 
-import { httpErrorMessage } from "@/lib/http";
+import { HttpError, httpErrorMessage } from "@/lib/http";
 import type { BpmnVersion } from "@/contracts/workspace";
 import { onWorkspaceChanged } from "@/lib/workspaceEvents";
 import {
@@ -16,6 +16,7 @@ import {
 } from "../api";
 import {
   clearLocalBpmnDraft,
+  draftBaseVersion,
   readLocalBpmnDraft,
   writeLocalBpmnDraft,
 } from "./draft";
@@ -44,6 +45,8 @@ type UseBpmnCanvasArgs = {
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
   onCurrentXmlChange?: (xml: string) => void;
+  /** The saved version the canvas XML comes from, for the canvas chat. */
+  onBaseVersionChange?: (versionId: number | null) => void;
 };
 
 export type UseBpmnCanvas = {
@@ -65,6 +68,9 @@ export type UseBpmnCanvas = {
   updateSelectedNodeName: (name: string) => void;
   updateSelectedNodeDoc: (doc: string) => void;
   save: () => void;
+  /** The last save hit a newer version (409): `reloadLatest` loads it. */
+  hasConflict: boolean;
+  reloadLatest: () => void;
   restoreVersion: (versionId: number) => void;
   exportXml: () => void;
   importFile: (file: File | undefined) => void;
@@ -85,6 +91,7 @@ export function useBpmnCanvas({
   processName,
   propertiesPanelRef,
   onCurrentXmlChange,
+  onBaseVersionChange,
 }: UseBpmnCanvasArgs): UseBpmnCanvas {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -99,7 +106,11 @@ export function useBpmnCanvas({
   // The saved version the canvas started from: a save sends it back, and the
   // backend refuses (409) if someone saved a newer one in the meantime.
   const savedVersionIdRef = useRef<number | null>(null);
+  // The saved diagram did not load: the canvas shows the starter diagram, and
+  // saving it would replace the real one. Saving waits for a reload.
+  const loadFailedRef = useRef(false);
   const onCurrentXmlChangeRef = useRef(onCurrentXmlChange);
+  const onBaseVersionChangeRef = useRef(onBaseVersionChange);
   // Riferimento di tracciabilita' -> nodi del disegno. Si ricostruisce a ogni
   // import: un disegno nuovo puo' rappresentare lo stesso passaggio altrove.
   const provenanceIndexRef = useRef<Map<string, string[]>>(new Map());
@@ -115,12 +126,22 @@ export function useBpmnCanvas({
   const [versions, setVersions] = useState<BpmnVersion[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [hasConflict, setHasConflict] = useState(false);
   const [selectedElement, setSelectedElement] =
     useState<SelectedBpmnElement | null>(null);
 
   useEffect(() => {
     onCurrentXmlChangeRef.current = onCurrentXmlChange;
   }, [onCurrentXmlChange]);
+
+  useEffect(() => {
+    onBaseVersionChangeRef.current = onBaseVersionChange;
+  }, [onBaseVersionChange]);
+
+  function setBaseVersion(versionId: number | null) {
+    savedVersionIdRef.current = versionId;
+    onBaseVersionChangeRef.current?.(versionId);
+  }
 
   function markUnsaved(value: boolean) {
     hasUnsavedChangesRef.current = value;
@@ -156,7 +177,7 @@ export function useBpmnCanvas({
       try {
         const { xml } = await modelerRef.current.saveXML({ format: true });
         if (xml) {
-          writeLocalBpmnDraft(bpmnModelId, xml);
+          writeLocalBpmnDraft(bpmnModelId, xml, savedVersionIdRef.current);
           onCurrentXmlChangeRef.current?.(xml);
         }
       } catch (err) {
@@ -250,8 +271,11 @@ export function useBpmnCanvas({
 
         const localDraft = readLocalBpmnDraft(bpmnModelId);
         const initial = await loadInitialModel(bpmnModelId, processName);
-        const xml = localDraft ?? initial.xml;
-        savedVersionIdRef.current = initial.versionId;
+        const xml = localDraft?.xml ?? initial.xml;
+        loadFailedRef.current = initial.loadFailed;
+        setBaseVersion(
+          localDraft ? draftBaseVersion(localDraft.baseVersionId, initial.versionId) : initial.versionId,
+        );
         lastSavedXmlRef.current = localDraft ? null : xml;
         isImportingRef.current = true;
         await modeler.importXML(xml);
@@ -359,8 +383,16 @@ export function useBpmnCanvas({
           markUnsaved(false);
         }
 
-        const { xml, versionId } = await loadInitialModel(bpmnModelId, processName);
-        savedVersionIdRef.current = versionId;
+        const loaded = await loadInitialModel(bpmnModelId, processName);
+        if (loaded.loadFailed) {
+          throw new Error(
+            "Aggiornamento canvas non riuscito: il diagramma salvato non si e' caricato.",
+          );
+        }
+        const { xml } = loaded;
+        loadFailedRef.current = false;
+        setBaseVersion(loaded.versionId);
+        setHasConflict(false);
         isImportingRef.current = true;
         await modelerRef.current.importXML(xml);
         onCurrentXmlChangeRef.current?.(xml);
@@ -385,6 +417,14 @@ export function useBpmnCanvas({
 
   const save = useCallback(async () => {
     if (!modelerRef.current) return;
+    if (loadFailedRef.current) {
+      setError(
+        "Il diagramma salvato non si e' caricato: ricarica la pagina prima di salvare, " +
+          "altrimenti sostituiresti la versione sul server.",
+      );
+      setStatus("Errore salvataggio");
+      return;
+    }
 
     isSavingRef.current = true;
     clearDraftTimer();
@@ -402,7 +442,8 @@ export function useBpmnCanvas({
         xml,
         savedVersionIdRef.current,
       );
-      savedVersionIdRef.current = saved.versionId;
+      setBaseVersion(saved.versionId);
+      setHasConflict(false);
 
       clearDraftTimer();
       clearLocalBpmnDraft(bpmnModelId);
@@ -411,6 +452,7 @@ export function useBpmnCanvas({
       setStatus("Salvato");
       void loadVersions();
     } catch (err) {
+      if (err instanceof HttpError && err.status === 409) setHasConflict(true);
       setError(httpErrorMessage(err, "Salvataggio BPMN non riuscito"));
       setStatus("Errore salvataggio");
     } finally {
@@ -420,6 +462,38 @@ export function useBpmnCanvas({
       }, 250);
     }
   }, [bpmnModelId, loadVersions]);
+
+  // After a 409 the local edits are behind a newer saved version: the way
+  // out is to load that version, dropping the local draft.
+  const reloadLatest = useCallback(async () => {
+    if (!modelerRef.current) return;
+    clearDraftTimer();
+    clearChangeCheckTimer();
+    try {
+      const loaded = await loadInitialModel(bpmnModelId, processName);
+      if (loaded.loadFailed) {
+        throw new Error("Il diagramma salvato non si e' caricato: riprova tra poco.");
+      }
+      clearLocalBpmnDraft(bpmnModelId);
+      isImportingRef.current = true;
+      await modelerRef.current.importXML(loaded.xml);
+      onCurrentXmlChangeRef.current?.(loaded.xml);
+      isImportingRef.current = false;
+      syncEmptiness();
+      scheduleCanvasFit();
+      lastSavedXmlRef.current = loaded.xml;
+      loadFailedRef.current = false;
+      setBaseVersion(loaded.versionId);
+      markUnsaved(false);
+      setHasConflict(false);
+      setStatus("Ultima versione caricata");
+      setError(null);
+      void loadVersions();
+    } catch (err) {
+      isImportingRef.current = false;
+      setError(err instanceof Error ? err.message : "Caricamento non riuscito");
+    }
+  }, [bpmnModelId, processName, loadVersions, scheduleCanvasFit, syncEmptiness]);
 
   const restoreVersion = useCallback(
     async (versionId: number) => {
@@ -437,7 +511,8 @@ export function useBpmnCanvas({
 
       try {
         const model = await restoreBpmnVersionRequest(bpmnModelId, versionId);
-        savedVersionIdRef.current = model.versionId;
+        setBaseVersion(model.versionId);
+        setHasConflict(false);
         const xml = model.xml;
         if (!xml) throw new Error("La versione ripristinata non contiene XML BPMN.");
 
@@ -489,7 +564,7 @@ export function useBpmnCanvas({
         syncEmptiness();
         scheduleCanvasFit();
         markUnsaved(true);
-        writeLocalBpmnDraft(bpmnModelId, xml);
+        writeLocalBpmnDraft(bpmnModelId, xml, savedVersionIdRef.current);
         setStatus("Importato, non salvato");
         setError(null);
       } catch (err) {
@@ -627,6 +702,8 @@ export function useBpmnCanvas({
     updateSelectedNodeName,
     updateSelectedNodeDoc,
     save: () => void save(),
+    hasConflict,
+    reloadLatest: () => void reloadLatest(),
     restoreVersion: (versionId: number) => void restoreVersion(versionId),
     exportXml: () => void exportXml(),
     importFile: (file: File | undefined) => void importFile(file),

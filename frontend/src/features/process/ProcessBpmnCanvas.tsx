@@ -27,6 +27,7 @@ type ProcessBpmnCanvasProps = {
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
   onCurrentXmlChange?: (xml: string) => void;
+  onBaseVersionChange?: (versionId: number | null) => void;
   /** Sends the consultant to the discussion, where the model is reconstructed. */
   onOpenDiscussion?: () => void;
   /** Canvas-chat rail toggle (owned by ProcessWorkspace). */
@@ -48,6 +49,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   processName,
   propertiesPanelRef,
   onCurrentXmlChange,
+  onBaseVersionChange,
   onOpenDiscussion,
   isCanvasChatOpen,
   onToggleCanvasChat,
@@ -96,6 +98,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     updateSelectedNodeName,
     updateSelectedNodeDoc,
     save,
+    hasConflict,
+    reloadLatest,
     restoreVersion,
     exportXml,
     importFile,
@@ -109,6 +113,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     processName,
     propertiesPanelRef,
     onCurrentXmlChange,
+    onBaseVersionChange,
   });
 
   const isError = status.toLowerCase().startsWith("errore");
@@ -226,7 +231,19 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           />
         </DialogContent>
       </Dialog>
-      {error && <p className="process-bpmn-error">{error}</p>}
+      {error && (
+        <p className="process-bpmn-error" role="alert">
+          {error}
+          {hasConflict && (
+            <>
+              {" "}
+              <button type="button" className="process-bpmn-error-action" onClick={reloadLatest}>
+                {t("canvas.conflict.reloadLatest")}
+              </button>
+            </>
+          )}
+        </p>
+      )}
     </section>
   );
 };

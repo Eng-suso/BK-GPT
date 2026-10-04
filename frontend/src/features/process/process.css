@@ -334,6 +334,22 @@
   font-weight: 700;
 }
 
+.process-bpmn-error-action {
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.process-bpmn-error-action:focus-visible {
+  outline: 2px solid var(--red-800);
+  outline-offset: 2px;
+}
+
 .process-bpmn-properties-host {
   width: 100%;
   min-height: 0;

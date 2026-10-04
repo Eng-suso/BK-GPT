@@ -715,6 +715,9 @@
     "inspectorClose": "Close the inspector",
     "inspectorNotes": "Notes / Documentation",
     "inspectorNotesPlaceholder": "Add details or rules for this node…",
-    "processChat": "Process chat"
+    "processChat": "Process chat",
+    "conflict": {
+      "reloadLatest": "Load the latest version"
+    }
   }
 }

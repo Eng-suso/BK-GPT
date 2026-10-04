@@ -42,6 +42,12 @@ export type InitialBpmnModel = {
   xml: string;
   /** The saved version the XML comes from; `null` for the starter diagram. */
   versionId: number | null;
+  /**
+   * The saved model could not be read (network, 5xx). The starter diagram is
+   * shown, but saving it would replace the diagram on the server: the canvas
+   * must reload first.
+   */
+  loadFailed: boolean;
 };
 
 export async function loadInitialModel(
@@ -52,9 +58,13 @@ export async function loadInitialModel(
 
   try {
     const model = await fetchBpmnModel(bpmnModelId);
-    return { xml: model.xml?.trim() || fallbackXml, versionId: model.versionId };
+    return {
+      xml: model.xml?.trim() || fallbackXml,
+      versionId: model.versionId,
+      loadFailed: false,
+    };
   } catch (err) {
     console.warn("[bpmn] model load failed, using starter diagram", err);
-    return { xml: fallbackXml, versionId: null };
+    return { xml: fallbackXml, versionId: null, loadFailed: true };
   }
 }

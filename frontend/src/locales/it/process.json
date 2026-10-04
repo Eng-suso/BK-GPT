@@ -715,6 +715,9 @@
     "inspectorClose": "Chiudi ispettore",
     "inspectorNotes": "Note / Documentazione",
     "inspectorNotesPlaceholder": "Aggiungi dettagli o regole per questo nodo…",
-    "processChat": "Chat processo"
+    "processChat": "Chat processo",
+    "conflict": {
+      "reloadLatest": "Carica l'ultima versione"
+    }
   }
 }
