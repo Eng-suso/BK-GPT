@@ -1,5 +1,8 @@
 """Simulation IR: validazione, compilazione verso Prosimos, ponte dalla richiesta."""
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -38,6 +41,12 @@ from backend.simulation.ir.model import (
     Uniform,
 )
 from backend.simulation.scenario_builder import build_prosimos_scenario, parse_bpmn_for_simulation
+
+# Gli scenari del builder storico, congelati prima che il builder passasse
+# dall'IR: il confronto resta contro il comportamento di prima, non contro se stesso.
+GOLDEN = json.loads(
+    (Path(__file__).parents[1] / "fixtures" / "simulation" / "builder_scenarios_golden.json").read_text(encoding="utf-8")
+)
 
 NS = "http://www.omg.org/spec/BPMN/20100524/MODEL"
 BPMN = (
@@ -105,7 +114,8 @@ def test_the_ir_compiles_to_the_scenario_the_builder_produced(name):
 
     compiled = compile_for_prosimos(model_from_request(request, tasks, gateways))
 
-    assert compiled == build_prosimos_scenario(bpmn_xml=BPMN, request=request).payload
+    assert compiled == GOLDEN[name]
+    assert build_prosimos_scenario(bpmn_xml=BPMN, request=request).payload == GOLDEN[name]
 
 
 @pytest.mark.parametrize(

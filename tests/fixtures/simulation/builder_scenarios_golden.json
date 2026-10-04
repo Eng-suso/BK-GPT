@@ -1,0 +1,726 @@
+{
+  "default": {
+    "resource_profiles": [
+      {
+        "id": "delir-profile-operator",
+        "name": "Operatore",
+        "resource_list": [
+          {
+            "id": "delir-resource-operator",
+            "name": "Operatore",
+            "cost_per_hour": "35.0",
+            "amount": 1,
+            "calendar": "delir-calendar-standard",
+            "assignedTasks": [
+              "T_receive",
+              "T_approve",
+              "T_pay"
+            ]
+          }
+        ]
+      }
+    ],
+    "arrival_time_distribution": {
+      "distribution_name": "expon",
+      "distribution_params": [
+        {
+          "value": 1800.0
+        },
+        {
+          "value": 0.0
+        },
+        {
+          "value": 18000.0
+        }
+      ]
+    },
+    "arrival_time_calendar": [
+      {
+        "from": "MONDAY",
+        "to": "FRIDAY",
+        "beginTime": "09:00:00.000",
+        "endTime": "17:00:00.000"
+      }
+    ],
+    "gateway_branching_probabilities": [
+      {
+        "gateway_id": "G",
+        "probabilities": [
+          {
+            "path_id": "F_high",
+            "value": "0.5"
+          },
+          {
+            "path_id": "F_low",
+            "value": "0.5"
+          }
+        ]
+      }
+    ],
+    "task_resource_distribution": [
+      {
+        "task_id": "T_receive",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 90.0
+              },
+              {
+                "value": 630.0
+              },
+              {
+                "value": 1170.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_approve",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 90.0
+              },
+              {
+                "value": 630.0
+              },
+              {
+                "value": 1170.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_pay",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 90.0
+              },
+              {
+                "value": 630.0
+              },
+              {
+                "value": 1170.0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "resource_calendars": [
+      {
+        "id": "delir-calendar-standard",
+        "name": "Standard office calendar",
+        "time_periods": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00.000",
+            "endTime": "17:00:00.000"
+          }
+        ]
+      }
+    ],
+    "batch_processing": [],
+    "case_attributes": []
+  },
+  "globali": {
+    "resource_profiles": [
+      {
+        "id": "delir-profile-operator",
+        "name": "Buyer",
+        "resource_list": [
+          {
+            "id": "delir-resource-operator",
+            "name": "Buyer",
+            "cost_per_hour": "48.5",
+            "amount": 3,
+            "calendar": "delir-calendar-standard",
+            "assignedTasks": [
+              "T_receive",
+              "T_approve",
+              "T_pay"
+            ]
+          }
+        ]
+      }
+    ],
+    "arrival_time_distribution": {
+      "distribution_name": "expon",
+      "distribution_params": [
+        {
+          "value": 600.0
+        },
+        {
+          "value": 0.0
+        },
+        {
+          "value": 6000.0
+        }
+      ]
+    },
+    "arrival_time_calendar": [
+      {
+        "from": "MONDAY",
+        "to": "FRIDAY",
+        "beginTime": "09:00:00.000",
+        "endTime": "17:00:00.000"
+      }
+    ],
+    "gateway_branching_probabilities": [
+      {
+        "gateway_id": "G",
+        "probabilities": [
+          {
+            "path_id": "F_high",
+            "value": "0.5"
+          },
+          {
+            "path_id": "F_low",
+            "value": "0.5"
+          }
+        ]
+      }
+    ],
+    "task_resource_distribution": [
+      {
+        "task_id": "T_receive",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 1200.0
+              },
+              {
+                "value": 120.0
+              },
+              {
+                "value": 840.0
+              },
+              {
+                "value": 1560.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_approve",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 1200.0
+              },
+              {
+                "value": 120.0
+              },
+              {
+                "value": 840.0
+              },
+              {
+                "value": 1560.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_pay",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 1200.0
+              },
+              {
+                "value": 120.0
+              },
+              {
+                "value": 840.0
+              },
+              {
+                "value": 1560.0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "resource_calendars": [
+      {
+        "id": "delir-calendar-standard",
+        "name": "Standard office calendar",
+        "time_periods": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00.000",
+            "endTime": "17:00:00.000"
+          }
+        ]
+      }
+    ],
+    "batch_processing": [],
+    "case_attributes": []
+  },
+  "override_attivita_e_gateway": {
+    "resource_profiles": [
+      {
+        "id": "delir-profile-operator",
+        "name": "Operatore",
+        "resource_list": [
+          {
+            "id": "delir-resource-operator",
+            "name": "Operatore",
+            "cost_per_hour": "35.0",
+            "amount": 1,
+            "calendar": "delir-calendar-standard",
+            "assignedTasks": [
+              "T_receive",
+              "T_approve",
+              "T_pay"
+            ]
+          }
+        ]
+      }
+    ],
+    "arrival_time_distribution": {
+      "distribution_name": "expon",
+      "distribution_params": [
+        {
+          "value": 1800.0
+        },
+        {
+          "value": 0.0
+        },
+        {
+          "value": 18000.0
+        }
+      ]
+    },
+    "arrival_time_calendar": [
+      {
+        "from": "MONDAY",
+        "to": "FRIDAY",
+        "beginTime": "09:00:00.000",
+        "endTime": "17:00:00.000"
+      }
+    ],
+    "gateway_branching_probabilities": [
+      {
+        "gateway_id": "G",
+        "probabilities": [
+          {
+            "path_id": "F_high",
+            "value": "0.25"
+          },
+          {
+            "path_id": "F_low",
+            "value": "0.7499999999999999"
+          }
+        ]
+      }
+    ],
+    "task_resource_distribution": [
+      {
+        "task_id": "T_receive",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "fix",
+            "distribution_params": [
+              {
+                "value": 300.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_approve",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "expon",
+            "distribution_params": [
+              {
+                "value": 1.0
+              },
+              {
+                "value": 0.0
+              },
+              {
+                "value": 10.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_pay",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 90.0
+              },
+              {
+                "value": 630.0
+              },
+              {
+                "value": 1170.0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "resource_calendars": [
+      {
+        "id": "delir-calendar-standard",
+        "name": "Standard office calendar",
+        "time_periods": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00.000",
+            "endTime": "17:00:00.000"
+          }
+        ]
+      }
+    ],
+    "batch_processing": [],
+    "case_attributes": []
+  },
+  "gateway_a_zero": {
+    "resource_profiles": [
+      {
+        "id": "delir-profile-operator",
+        "name": "Operatore",
+        "resource_list": [
+          {
+            "id": "delir-resource-operator",
+            "name": "Operatore",
+            "cost_per_hour": "35.0",
+            "amount": 1,
+            "calendar": "delir-calendar-standard",
+            "assignedTasks": [
+              "T_receive",
+              "T_approve",
+              "T_pay"
+            ]
+          }
+        ]
+      }
+    ],
+    "arrival_time_distribution": {
+      "distribution_name": "expon",
+      "distribution_params": [
+        {
+          "value": 1800.0
+        },
+        {
+          "value": 0.0
+        },
+        {
+          "value": 18000.0
+        }
+      ]
+    },
+    "arrival_time_calendar": [
+      {
+        "from": "MONDAY",
+        "to": "FRIDAY",
+        "beginTime": "09:00:00.000",
+        "endTime": "17:00:00.000"
+      }
+    ],
+    "gateway_branching_probabilities": [
+      {
+        "gateway_id": "G",
+        "probabilities": [
+          {
+            "path_id": "F_high",
+            "value": "0.5"
+          },
+          {
+            "path_id": "F_low",
+            "value": "0.5"
+          }
+        ]
+      }
+    ],
+    "task_resource_distribution": [
+      {
+        "task_id": "T_receive",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 90.0
+              },
+              {
+                "value": 630.0
+              },
+              {
+                "value": 1170.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_approve",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 90.0
+              },
+              {
+                "value": 630.0
+              },
+              {
+                "value": 1170.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_pay",
+        "resources": [
+          {
+            "resource_id": "delir-resource-operator",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 90.0
+              },
+              {
+                "value": 630.0
+              },
+              {
+                "value": 1170.0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "resource_calendars": [
+      {
+        "id": "delir-calendar-standard",
+        "name": "Standard office calendar",
+        "time_periods": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00.000",
+            "endTime": "17:00:00.000"
+          }
+        ]
+      }
+    ],
+    "batch_processing": [],
+    "case_attributes": []
+  },
+  "risorse_esplicite": {
+    "resource_profiles": [
+      {
+        "id": "delir-profile-operator",
+        "name": "Risorse",
+        "resource_list": [
+          {
+            "id": "ops",
+            "name": "Operatori",
+            "cost_per_hour": "30.0",
+            "amount": 2,
+            "calendar": "delir-calendar-standard",
+            "assignedTasks": [
+              "T_receive",
+              "T_pay"
+            ]
+          },
+          {
+            "id": "appr",
+            "name": "Approvatori",
+            "cost_per_hour": "60.0",
+            "amount": 1,
+            "calendar": "delir-calendar-standard",
+            "assignedTasks": [
+              "T_approve"
+            ]
+          }
+        ]
+      }
+    ],
+    "arrival_time_distribution": {
+      "distribution_name": "expon",
+      "distribution_params": [
+        {
+          "value": 1800.0
+        },
+        {
+          "value": 0.0
+        },
+        {
+          "value": 18000.0
+        }
+      ]
+    },
+    "arrival_time_calendar": [
+      {
+        "from": "MONDAY",
+        "to": "FRIDAY",
+        "beginTime": "09:00:00.000",
+        "endTime": "17:00:00.000"
+      }
+    ],
+    "gateway_branching_probabilities": [
+      {
+        "gateway_id": "G",
+        "probabilities": [
+          {
+            "path_id": "F_high",
+            "value": "0.5"
+          },
+          {
+            "path_id": "F_low",
+            "value": "0.5"
+          }
+        ]
+      }
+    ],
+    "task_resource_distribution": [
+      {
+        "task_id": "T_receive",
+        "resources": [
+          {
+            "resource_id": "ops",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 600.0
+              },
+              {
+                "value": 60.0
+              },
+              {
+                "value": 420.0
+              },
+              {
+                "value": 780.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_approve",
+        "resources": [
+          {
+            "resource_id": "appr",
+            "distribution_name": "norm",
+            "distribution_params": [
+              {
+                "value": 1800.0
+              },
+              {
+                "value": 180.0
+              },
+              {
+                "value": 1260.0
+              },
+              {
+                "value": 2340.0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "task_id": "T_pay",
+        "resources": [
+          {
+            "resource_id": "ops",
+            "distribution_name": "expon",
+            "distribution_params": [
+              {
+                "value": 900.0
+              },
+              {
+                "value": 0.0
+              },
+              {
+                "value": 9000.0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "resource_calendars": [
+      {
+        "id": "delir-calendar-standard",
+        "name": "Standard office calendar",
+        "time_periods": [
+          {
+            "from": "MONDAY",
+            "to": "FRIDAY",
+            "beginTime": "09:00:00.000",
+            "endTime": "17:00:00.000"
+          }
+        ]
+      }
+    ],
+    "batch_processing": [],
+    "case_attributes": []
+  }
+}
