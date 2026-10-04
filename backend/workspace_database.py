@@ -2476,15 +2476,20 @@ def _approve_source(session: Any, source: WorkspaceSource, *, reason: str) -> No
     """
     source.status = "approved"
     source.confirm_when_read = False
-    affected = (
-        [source.process_id]
-        if source.process_id
-        else session.execute(
-            select(WorkspaceProcess.id)
-            .where(WorkspaceProcess.project_id == source.project_id)
-            .where(WorkspaceProcess.tenant_id == source.tenant_id)
-        ).scalars().all()
-    )
+    if source.process_id:
+        affected = [source.process_id]
+    elif source.project_id:
+        affected = list(
+            session.execute(
+                select(WorkspaceProcess.id)
+                .where(WorkspaceProcess.project_id == source.project_id)
+                .where(WorkspaceProcess.tenant_id == source.tenant_id)
+            ).scalars().all()
+        )
+    else:
+        # Una fonte del cliente (P1.16) non e' ancora nel set di fonti dei
+        # piani: confermarla non li rende vecchi.
+        affected = []
     for affected_process_id in affected:
         enqueue_plan_materialization(affected_process_id, reason=reason, session=session)
     if source.storage_key and source.claims_status != "done":
@@ -2776,7 +2781,9 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
 
     Gli altri file sono quelli confermati, gia' estratti, dello stesso progetto e
     dello stesso processo. Un file a livello di progetto (senza processo) si
-    confronta con tutti i file del progetto, e tutti con lui.
+    confronta con tutti i file del progetto, e tutti con lui. Le fonti del cliente
+    (P1.16) valgono per tutti i suoi progetti: entrano nel confronto di ogni file
+    del cliente, e una fonte del cliente si confronta con tutti.
 
     Returns:
         `(nuove, gia' presenti)`, entrambe con `id`, `statement`, `source_id`,
@@ -2786,18 +2793,24 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
         source = tenant_row(session, WorkspaceSource, source_id)
         if source is None:
             return [], []
+        client_wide = and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == source.client_id)
         others = (
             select(WorkspaceSource)
             .where(WorkspaceSource.tenant_id == source.tenant_id)
-            .where(WorkspaceSource.project_id == source.project_id)
             .where(WorkspaceSource.id != source.id)
             .where(WorkspaceSource.status == "approved")
             .where(WorkspaceSource.claims_status == "done")
         )
-        if source.process_id:
-            others = others.where(
-                or_(WorkspaceSource.process_id.is_(None), WorkspaceSource.process_id == source.process_id)
-            )
+        if source.project_id is None:
+            others = others.where(WorkspaceSource.client_id == source.client_id)
+        else:
+            same_project = WorkspaceSource.project_id == source.project_id
+            if source.process_id:
+                same_project = and_(
+                    same_project,
+                    or_(WorkspaceSource.process_id.is_(None), WorkspaceSource.process_id == source.process_id),
+                )
+            others = others.where(or_(same_project, client_wide))
         return (
             _claims_as_input(session, [source]),
             _claims_as_input(session, list(session.execute(others).scalars().all())),
@@ -3019,6 +3032,7 @@ def due_source_graph(limit: int = 1, *, only_tenant_id: str | None = None) -> li
                     "tenant_id": row.tenant_id,
                     "name": row.name,
                     "project_id": row.project_id,
+                    "client_id": row.client_id,
                     "process_id": row.process_id,
                     "content_hash": row.content_hash,
                     "byte_size": row.byte_size,
@@ -4155,6 +4169,13 @@ def create_project_decision(
 # toglie; `delete` e' l'unica operazione che perde davvero qualcosa, e per questo
 # dichiara prima cosa porta con se'.
 # ---------------------------------------------------------------------------
+
+
+def get_client_name(client_id: str) -> str | None:
+    """Il nome del cliente, dentro il tenant corrente: e' la sua identita' nel canonical."""
+    with workspace_connection() as session:
+        client = tenant_row(session, WorkspaceClient, client_id)
+        return client.name if client is not None else None
 
 
 def _client_or_raise(session, client_id: str) -> WorkspaceClient:
