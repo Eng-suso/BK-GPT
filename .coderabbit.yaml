@@ -150,7 +150,7 @@ reviews:
         tool I/O, config, and external data must be strict Pydantic with explicit
         types, Literal/Enum for finite states, and discriminated unions for variant
         payloads. Flag optional-everything models and `extra = "allow"`.
-    - path: "{migrations,migrations_workspace}/**/*.py"
+    - path: "{migrations,migrations_workspace}/versions/*.py"
       instructions: >-
         Alembic migration. Require a real `upgrade()` and a real `downgrade()`
         (not `pass`) unless the module docstring explicitly documents it as
@@ -258,10 +258,11 @@ reviews:
       - name: Alembic migration is reversible
         mode: error
         instructions: >-
-          If the diff adds or edits a file under migrations/ or
-          migrations_workspace/, fail unless both upgrade() and downgrade()
-          contain real operations, or the module docstring explicitly states the
-          migration is irreversible and why.
+          If the diff adds or edits a revision file under migrations/versions/
+          or migrations_workspace/versions/, fail unless both upgrade() and
+          downgrade() contain real operations, or the module docstring
+          explicitly states the migration is irreversible and why. env.py and
+          other Alembic plumbing are not revisions: this check does not apply.
       - name: No secrets in diff
         mode: error
         instructions: >-
