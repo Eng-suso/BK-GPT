@@ -734,6 +734,25 @@
       "gateway": "Decisione",
       "start": "Inizio",
       "end": "Fine"
+    },
+    "tools": {
+      "title": "Strumenti BPMN",
+      "hand-tool": "Sposta la tela",
+      "lasso-tool": "Seleziona più elementi",
+      "space-tool": "Crea o rimuovi spazio",
+      "global-connect-tool": "Collega elementi",
+      "create": {
+        "start-event": "Evento di inizio",
+        "intermediate-event": "Evento intermedio",
+        "end-event": "Evento di fine",
+        "exclusive-gateway": "Decisione esclusiva",
+        "task": "Crea attività",
+        "subprocess-expanded": "Sottoprocesso espanso",
+        "data-object": "Oggetto dati",
+        "data-store": "Archivio dati",
+        "participant-expanded": "Pool o partecipante",
+        "group": "Gruppo"
+      }
     }
   }
 }

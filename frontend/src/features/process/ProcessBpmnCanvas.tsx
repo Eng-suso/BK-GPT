@@ -12,6 +12,7 @@ import type { StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
 import { useElementWidth } from "@/lib/useElementWidth";
 import { Surface } from "@/ui/surface";
+import { BpmnCreationTools } from "./components/BpmnCreationTools";
 import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
 import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
 import { BpmnCanvasToolbar } from "./components/BpmnCanvasToolbar";
@@ -88,6 +89,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   }, [bpmnModelId, processId, queryClient]);
   const {
     elements,
+    creationTools,
+    activateTool,
     selectElement,
     retryLoad,
     containerRef,
@@ -180,6 +183,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
 
       <div className={`process-bpmn-body ${elementsOpen ? "process-bpmn-body--elements" : ""}`}>
         {elementsOpen && <BpmnElementNavigator elements={elements} selectedId={selectedElement?.id} isReady={isReady} onClose={closeElements} onSelect={(id) => { if (selectElement(id) && shellWidth < 820) closeElements(); }} />}
+        <div className="process-bpmn-stage">
+        <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={activateTool} />
         <div className="process-bpmn-canvas" ref={containerRef}>
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
@@ -211,6 +216,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
               </div>
             </div>
           )}
+        </div>
         </div>
         {processId && isEvidenceOpen && (
           <EvidenceReviewPanel

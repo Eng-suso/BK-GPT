@@ -306,3 +306,18 @@ test("process chrome and element navigation remain accessible without overlap on
   const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(scan.violations).toEqual([]);
 });
+
+
+test("reserved BPMN tools create elements through the modeler without covering its viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto(canvasView);
+  await page.getByRole("button", { name: "Crea attività", exact: true }).click();
+  const canvas = page.locator(".process-bpmn-canvas");
+  await canvas.click({ position: { x: 300, y: 280 } });
+  await expect(page.locator('.delir-type-task')).toHaveCount(19);
+  const toolsBox = (await page.getByRole("navigation", { name: "Strumenti BPMN" }).boundingBox())!;
+  const modelBox = (await canvas.boundingBox())!;
+  expect(toolsBox.x + toolsBox.width).toBeLessThanOrEqual(modelBox.x + 1);
+  await page.getByRole("button", { name: "Elementi", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Elementi" }).locator("li")).toHaveCount(19);
+});

@@ -734,6 +734,25 @@
       "gateway": "Decision",
       "start": "Start",
       "end": "End"
+    },
+    "tools": {
+      "title": "BPMN tools",
+      "hand-tool": "Pan canvas",
+      "lasso-tool": "Select multiple elements",
+      "space-tool": "Create or remove space",
+      "global-connect-tool": "Connect elements",
+      "create": {
+        "start-event": "Start event",
+        "intermediate-event": "Intermediate event",
+        "end-event": "End event",
+        "exclusive-gateway": "Exclusive decision",
+        "task": "Create activity",
+        "subprocess-expanded": "Expanded subprocess",
+        "data-object": "Data object",
+        "data-store": "Data store",
+        "participant-expanded": "Pool or participant",
+        "group": "Group"
+      }
     }
   }
 }

@@ -566,7 +566,7 @@
   .bpmn-toolbar-context > div { border: 0; padding: 0; }
   .bpmn-save-status, .bpmn-zoom-group, .bpmn-toolbar-label { display: none; }
   .process-bpmn-body--elements { grid-template-columns: minmax(0, 1fr); }
-  .process-bpmn-body--elements > .process-bpmn-canvas { display: none; }
+  .process-bpmn-body--elements > .process-bpmn-stage { display: none; }
   .process-bpmn-load-error { left: 12px; max-width: calc(100% - 24px); }
 }
 /* Type tints remain subordinate to provenance outlines and never change BPMN DI. */
@@ -661,7 +661,7 @@
 .process-bpmn-body--elements:has(> .process-bpmn-node-inspector) { grid-template-columns: 248px minmax(0, 1fr) 320px; }
 .process-bpmn-node-inspector { border-radius: 0; border-left: 1px solid var(--material-divider); }
 .process-bpmn-canvas { overflow: hidden; }
-.process-bpmn-canvas .djs-palette { max-height: calc(100% - 24px); overflow-y: auto; }
+.process-bpmn-canvas .djs-palette { display: none; }
 @container process-canvas (max-width: 1100px) {
   .process-bpmn-body:has(> .process-bpmn-node-inspector) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 46%); }
   .process-bpmn-body--elements:has(> .process-bpmn-node-inspector) { grid-template-columns: 248px minmax(0, 1fr); }
@@ -675,3 +675,8 @@
   .process-back-label { display: none; }
   .process-studio-chat .composer-wrap textarea { max-height: 96px; }
 }
+
+.process-bpmn-stage { display: grid; grid-template-columns: 52px minmax(0, 1fr); min-width: 0; min-height: 0; }
+.process-creation-tools { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; overflow-y: auto; padding: 8px 4px; border-right: 1px solid var(--material-divider); }
+.process-creation-tools > button { flex-shrink: 0; }
+.process-creation-glyph { font-size: 20px; }

@@ -6,7 +6,7 @@ import {
   BpmnPropertiesProviderModule,
 } from "bpmn-js-properties-panel";
 
-import { readCanvasElements, type CanvasElement } from "./elements";
+import { readCanvasElements, readCreationTools, type CanvasElement, type CreationTool, type PaletteService } from "./elements";
 import { httpErrorMessage } from "@/lib/http";
 import type { BpmnVersion } from "@/contracts/workspace";
 import { onWorkspaceChanged } from "@/lib/workspaceEvents";
@@ -52,6 +52,8 @@ export type UseBpmnCanvas = {
   fileInputRef: RefObject<HTMLInputElement | null>;
   isReady: boolean;
   elements: CanvasElement[];
+  creationTools: CreationTool[];
+  activateTool: (id: string, action: "click" | "dragstart", event: Event) => void;
   selectElement: (id: string) => boolean;
   retryLoad: () => void;
   /** The model has no elements yet: a process recorded but not reconstructed. */
@@ -106,6 +108,7 @@ export function useBpmnCanvas({
   // import: un disegno nuovo puo' rappresentare lo stesso passaggio altrove.
   const provenanceIndexRef = useRef<Map<string, string[]>>(new Map());
 
+  const [creationTools, setCreationTools] = useState<CreationTool[]>([]);
   const [elements, setElements] = useState<CanvasElement[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
   const [status, setStatus] = useState("Caricamento canvas...");
@@ -219,6 +222,7 @@ export function useBpmnCanvas({
     if (!modelerRef.current) return;
     setIsEmptyModel(!hasDiagramContent(modelerRef.current));
     setElements(readCanvasElements(modelerRef.current));
+    setCreationTools(readCreationTools(modelerRef.current));
     const registry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
     setSelectedElement((previous) => {
       if (!previous) return null;
@@ -256,6 +260,7 @@ export function useBpmnCanvas({
     setVersions([]);
     setSelectedElement(null);
     setElements([]);
+    setCreationTools([]);
     setError(null);
     async function mountCanvas() {
       try {
@@ -645,7 +650,14 @@ export function useBpmnCanvas({
     return id ? selectElement(id) : false;
   }, [selectElement]);
 
+  const activateTool = useCallback((id: string, action: "click" | "dragstart", event: Event) => {
+    const palette = modelerRef.current?.get("palette") as PaletteService | undefined;
+    palette?.triggerEntry(id, action, event);
+  }, []);
+
   return {
+    creationTools,
+    activateTool,
     elements,
     selectElement,
     retryLoad: () => setReloadKey((value) => value + 1),

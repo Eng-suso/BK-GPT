@@ -24,3 +24,10 @@ export function readCanvasElements(modeler: BpmnModeler): CanvasElement[] {
     return { id: el.id, name: el.businessObject?.name?.trim() || "", type: el.type.replace(/^bpmn:/, ""), kind };
   });
 }
+
+export type CreationTool = { id: string; title: string; className?: string; group?: string; separator?: boolean };
+export type PaletteService = { getEntries: () => Record<string, Omit<CreationTool, "id">>; triggerEntry: (id: string, action: string, event: Event) => void };
+export function readCreationTools(modeler: BpmnModeler): CreationTool[] {
+  const palette = modeler.get("palette") as PaletteService;
+  return Object.entries(palette.getEntries()).map(([id, entry]) => ({ ...entry, id }));
+}
