@@ -2606,10 +2606,10 @@ def discard_uploaded_source(source_id: str) -> bool:
             .where(WorkspaceSource.storage_key == storage_key)
         ).scalar_one()
     if not still_used:
-        from backend.workspace_services.source_ingestion import SourceFileError, original_path
+        from backend.workspace_services.source_ingestion import SourceFileError, delete_original
 
         try:
-            original_path(storage_key).unlink(missing_ok=True)
+            delete_original(storage_key)
         except (SourceFileError, OSError):
             logger.warning("originale %s non rimosso", storage_key, exc_info=True)
     return True
@@ -4603,7 +4603,7 @@ def _purge_project(session, project: WorkspaceProject) -> list[str]:
 
 def _remove_unreferenced_originals(storage_keys: list[str]) -> None:
     """Rimuove un blob dopo il commit, solo se nessun'altra fonte lo usa."""
-    from backend.workspace_services.source_ingestion import original_path
+    from backend.workspace_services.source_ingestion import SourceFileError, delete_original
 
     for storage_key in set(storage_keys):
         with workspace_connection() as session:
@@ -4616,8 +4616,8 @@ def _remove_unreferenced_originals(storage_keys: list[str]) -> None:
         if still_used is not None:
             continue
         try:
-            original_path(storage_key).unlink(missing_ok=True)
-        except OSError:
+            delete_original(storage_key)
+        except (SourceFileError, OSError):
             logger.warning("file originale non rimosso: %s", storage_key, exc_info=True)
 
 

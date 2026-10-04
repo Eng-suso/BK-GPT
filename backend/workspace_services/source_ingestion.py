@@ -5,13 +5,17 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
-import os
 import re
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
 from backend.security import get_current_tenant_id
+from backend.workspace_services.blob_store import (
+    BlobKeyError,
+    BlobNotFound,
+    source_blob_store,
+    source_key,
+)
 from backend.workspace_services.evidence import documents, plaintext
 from backend.workspace_services.evidence.canonical import CanonicalSource
 from backend.workspace_services.evidence.xlsx import WorkbookUnreadable, check_ooxml_archive, parse_xlsx
@@ -205,29 +209,25 @@ def parse_source_file(filename: str, payload: bytes, _declared_mime: str | None)
 
 
 def store_original(parsed: UploadedFile | ParsedSource, payload: bytes) -> str:
-    tenant_key = hashlib.sha256(get_current_tenant_id().encode()).hexdigest()[:20]
-    relative = Path("source_uploads") / tenant_key / f"{parsed.content_hash}{parsed.extension}"
-    destination = Path("data") / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    # Il nome e' l'hash del contenuto: un file gia' presente e integro non si
-    # riscrive. Uno troncato da un crash o da un disco pieno si', altrimenti ogni
-    # caricamento successivo dello stesso file servirebbe i byte rotti.
-    if destination.exists() and hashlib.sha256(destination.read_bytes()).hexdigest() == parsed.content_hash:
-        return relative.as_posix()
-    # Scrittura atomica: chi legge vede il file vecchio o quello completo, mai
-    # uno a meta', anche con due caricamenti dello stesso file in parallelo.
-    temporary = destination.with_name(f"{destination.name}.{uuid.uuid4().hex}.tmp")
+    """Conserva l'originale nell'archivio delle fonti e ne restituisce la chiave."""
+    key = source_key(get_current_tenant_id(), parsed.content_hash, parsed.extension)
+    source_blob_store().put(key, payload, content_hash=parsed.content_hash)
+    return key
+
+
+def read_original(storage_key: str) -> bytes:
+    """I byte dell'originale. `SourceFileError` se la chiave non vale o il file manca."""
     try:
-        temporary.write_bytes(payload)
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
-    return relative.as_posix()
+        return source_blob_store().get(storage_key)
+    except BlobKeyError as exc:
+        raise SourceFileError("Percorso della fonte non valido.") from exc
+    except BlobNotFound as exc:
+        raise SourceFileError("File originale non trovato.") from exc
 
 
-def original_path(storage_key: str) -> Path:
-    root = (Path("data") / "source_uploads").resolve()
-    candidate = (Path("data") / storage_key).resolve()
-    if root not in candidate.parents:
-        raise SourceFileError("Percorso della fonte non valido.")
-    return candidate
+def delete_original(storage_key: str) -> None:
+    """Rimuove l'originale; un file gia' assente non e' un errore."""
+    try:
+        source_blob_store().delete(storage_key)
+    except BlobKeyError as exc:
+        raise SourceFileError("Percorso della fonte non valido.") from exc
