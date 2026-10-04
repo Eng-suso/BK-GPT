@@ -105,7 +105,6 @@
         "id",
         "meta",
         "name",
-        "project_id",
         "type"
       ],
       "properties": {
@@ -114,13 +113,14 @@
         "byte_size": "integer?",
         "claims_error": "string?",
         "claims_status": "enum:pending|done|failed?",
+        "client_id": "string?",
         "content_hash": "string?",
         "id": "string",
         "meta": "string",
         "mime_type": "string?",
         "name": "string",
         "process_id": "string?",
-        "project_id": "string",
+        "project_id": "string?",
         "reconcile_status": "enum:pending|done|failed?",
         "retention": "enum:persistent|temporary",
         "roles": "enum:context|process_evidence|policy|operational_data[]",
@@ -134,7 +134,6 @@
         "id",
         "meta",
         "name",
-        "project_id",
         "type"
       ],
       "properties": {
@@ -143,6 +142,7 @@
         "byte_size": "integer?",
         "claims_error": "string?",
         "claims_status": "enum:pending|done|failed?",
+        "client_id": "string?",
         "content_hash": "string?",
         "created": "boolean",
         "id": "string",
@@ -150,7 +150,7 @@
         "mime_type": "string?",
         "name": "string",
         "process_id": "string?",
-        "project_id": "string",
+        "project_id": "string?",
         "reconcile_status": "enum:pending|done|failed?",
         "retention": "enum:persistent|temporary",
         "roles": "enum:context|process_evidence|policy|operational_data[]",

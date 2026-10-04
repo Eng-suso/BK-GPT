@@ -536,7 +536,8 @@ class SourceDocumentResponse(BaseModel):
     """
 
     id: str
-    project_id: str
+    # Vuoto per una fonte del cliente (P1.16).
+    project_id: str | None = None
     process_id: str | None = None
     name: str
     type: str
