@@ -28,6 +28,7 @@ const SOURCE: ProjectSource = {
   acquisitionError: null,
   claimsStatus: "done",
   claimsError: null,
+  reconcileStatus: null,
 };
 
 const CLAIMS: SourceClaim[] = [
