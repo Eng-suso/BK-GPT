@@ -1,3 +1,5 @@
+import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +10,7 @@ from langgraph.graph import START, END, StateGraph, MessagesState
 
 from backend.agent_checkpoint import get_checkpointer
 
+from backend.agents.context_budget import count_tokens
 from backend.agents.primary_scope import build_scope_system_prompt, tool_scope_type
 from backend.graphs.canvas_edit import build_canvas_subgraph
 from backend.graphs.consulting import build_consulting_subgraph
@@ -24,7 +27,7 @@ from backend.process_understanding import (
     ProcessUnderstandingDiagnostics,
     ProcessUnderstandingQualityReport,
 )
-from backend.llm import LlmTask, chat_client
+from backend.llm import LlmTask, OperationNotOpen, chat_client
 from backend.settings import (
     ALLOWED_MODELS,
     DEFAULT_OPENAI_MODEL,
@@ -51,6 +54,15 @@ RECENT_MESSAGE_LIMIT = 8
 RECENT_MESSAGE_SCAN_LIMIT = 24
 SUMMARY_TRIGGER_MESSAGE_COUNT = 10
 SUMMARY_KEEP_RECENT_MESSAGES = 6
+# Anche pochi messaggi possono pesare molto (il risultato di un tool): oltre
+# questi token di storia il riassunto parte comunque.
+SUMMARY_TRIGGER_TOKENS = 24_000
+# Il ripiego quando il modello di riassunto non risponde: un estratto, non un
+# riassunto, e con un tetto, perche' finisce in ogni prompt successivo.
+FALLBACK_LINE_CHARS = 300
+FALLBACK_TOTAL_CHARS = 4_000
+
+logger = logging.getLogger(__name__)
 
 
 class ConsultantState(MessagesState):
@@ -271,6 +283,75 @@ def build_summary_prompt(existing_summary: str, messages_to_summarize: list) -> 
         ),
     ]
 
+def _history_tokens(messages: list) -> int:
+    return sum(count_tokens(message_to_summary_line(message)) for message in messages)
+
+
+def _extract_summary(existing_summary: str, messages: list) -> str:
+    """Il ripiego deterministico: le righe dei messaggi tolti, accorciate.
+
+    Dichiara di essere un estratto: il modello del turno dopo non deve
+    leggerlo come una sintesi ragionata.
+    """
+    lines = []
+    for message in messages:
+        line = message_to_summary_line(message)
+        lines.append(line if len(line) <= FALLBACK_LINE_CHARS else line[:FALLBACK_LINE_CHARS] + "...")
+    extract = "\n".join(lines)
+    if len(extract) > FALLBACK_TOTAL_CHARS:
+        extract = "..." + extract[-FALLBACK_TOTAL_CHARS:]
+    parts = [existing_summary.strip()] if existing_summary.strip() else []
+    parts.append(
+        "[Riassunto automatico non disponibile in questo turno: segue un estratto "
+        f"dei {len(messages)} messaggi piu' vecchi, non una sintesi.]\n" + extract
+    )
+    return "\n\n".join(parts)
+
+
+def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dict:
+    """Comprime la storia del thread quando e' troppo lunga, in numero o in token.
+
+    `summarize(riassunto_esistente, messaggi)` produce il nuovo riassunto col
+    modello. Se fallisce, il turno non cade: il riassunto diventa un estratto
+    dichiarato e i messaggi vecchi escono comunque dallo stato, che altrimenti
+    crescerebbe a ogni turno. `OperationNotOpen` no: e' un difetto del punto
+    d'ingresso, e si propaga.
+    """
+    messages = state["messages"]
+    too_many = len(messages) > SUMMARY_TRIGGER_MESSAGE_COUNT
+    if not too_many and _history_tokens(messages) <= SUMMARY_TRIGGER_TOKENS:
+        return {}
+
+    cutoff = max(len(messages) - SUMMARY_KEEP_RECENT_MESSAGES, 0)
+    summarized_message_count = state.get("summarized_message_count", 0)
+    if cutoff <= summarized_message_count:
+        return {}
+    messages_to_summarize = messages[summarized_message_count:cutoff]
+    if not messages_to_summarize:
+        return {}
+
+    existing = state.get("running_summary", "") or ""
+    try:
+        summary_text = summarize(existing, messages_to_summarize)
+    except OperationNotOpen:
+        raise
+    except Exception:
+        # Il riassunto e' manutenzione: un suo guasto non fa cadere il turno.
+        logger.warning("riassunto del thread fallito: ripiego su un estratto", exc_info=True)
+        summary_text = _extract_summary(existing, messages_to_summarize)
+    if not summary_text.strip():
+        summary_text = _extract_summary(existing, messages_to_summarize)
+
+    # Dopo il riassunto i messaggi vecchi escono dal checkpoint: il loro
+    # contenuto vive in running_summary, e lo stato non cresce senza limite.
+    remove_ops = [RemoveMessage(id=m.id) for m in messages[:cutoff] if getattr(m, "id", None)]
+    return {
+        "running_summary": summary_text.strip(),
+        "summarized_message_count": 0,
+        **({"messages": remove_ops} if remove_ops else {}),
+    }
+
+
 def normalize_model_name(model_name: str | None = None) -> str:
     if not model_name:
         return settings.openai_model
@@ -333,47 +414,17 @@ def build_agent(
     )
 
     def summarize_node(state: ConsultantState, config: RunnableConfig):
-        messages = state["messages"]
+        def summarize(existing_summary: str, messages_to_summarize: list) -> str:
+            return stream_to_text(
+                summary_llm,
+                build_summary_prompt(
+                    existing_summary=existing_summary,
+                    messages_to_summarize=messages_to_summarize,
+                ),
+                config=config,
+            )
 
-        if len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT:
-            return {}
-
-        cutoff = max(len(messages) - SUMMARY_KEEP_RECENT_MESSAGES, 0)
-        summarized_message_count = state.get("summarized_message_count", 0)
-
-        if cutoff <= summarized_message_count:
-            return {}
-
-        messages_to_summarize = messages[summarized_message_count:cutoff]
-
-        if not messages_to_summarize:
-            return {}
-
-        summary_text = stream_to_text(
-            summary_llm,
-            build_summary_prompt(
-                existing_summary=state.get("running_summary", ""),
-                messages_to_summarize=messages_to_summarize,
-            ),
-            config=config,
-        )
-
-        # Trim old messages from the checkpoint to prevent unbounded growth.
-        # After summarization, the content of old messages is captured in
-        # running_summary, so we can safely remove them from state.
-        remove_ops = [
-            RemoveMessage(id=m.id)
-            for m in messages[:cutoff]
-            if hasattr(m, "id") and m.id
-        ]
-
-        return {
-            "running_summary": summary_text.strip(),
-            "summarized_message_count": 0,
-            **({
-                "messages": remove_ops,
-            } if remove_ops else {}),
-        }
+        return summarize_history(state, summarize)
 
     def classify_and_select_context_node(state: ConsultantState, config: RunnableConfig):
         result = classify_and_select_context(
