@@ -119,8 +119,9 @@ describe("resource membership and confirmation", () => {
     saveScenarioDraft("custom", { ...draft, resources: [{ ...draft.resources[0], name: "Finance" }] });
     expect(loadScenarioDraft("custom").resources[0].name).toBe("Finance");
     saveScenarioDraft("mixed", { ...draft, resources: [...draft.resources, { id: "res-2", name: "Finance", amount: 2, costPerHour: 40 }] });
+    expect(loadScenarioDraft("mixed").resources).toHaveLength(1);
+    expect(loadScenarioDraft("mixed").resources[0].name).toBe("Finance");
     expect(loadScenarioDraft("mixed").resources[0].parametersConfirmed).toBe(false);
-    expect(loadScenarioDraft("mixed").resources[1].name).toBe("Finance");
     saveScenarioDraft("empty", structuredClone(DEFAULT_SCENARIO));
     expect(loadScenarioDraft("empty").resources).toEqual([]);
   });

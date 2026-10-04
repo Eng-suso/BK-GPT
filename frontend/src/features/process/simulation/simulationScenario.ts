@@ -173,11 +173,13 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
     const legacyDefault = (resource: ResourceDraft) => resource.id === "res-1" &&
       resource.name === "Operatore" && resource.amount === 1 && resource.costPerHour === 35 &&
       resource.parametersConfirmed === undefined && !resource.source;
-    const legacy = resources.length === 1 && legacyDefault(resources[0]);
+    const migratedResources = resources.filter((r) => !legacyDefault(r)).map((r) => ({
+      ...r, parametersConfirmed: r.parametersConfirmed ?? false,
+    }));
     return {
       ...structuredClone(DEFAULT_SCENARIO),
       ...parsed,
-      resources: legacy ? [] : resources.map((r) => legacyDefault(r) ? { ...r, parametersConfirmed: false } : r),
+      resources: migratedResources,
       tasks: parsed.tasks ?? {},
       gateways: parsed.gateways ?? {},
     };
