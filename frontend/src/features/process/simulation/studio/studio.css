@@ -404,8 +404,7 @@
 /* Canvas resizing uses a shared, quiet handle with a stable pointer target. */
 .sim-scene-resize { right:2px; bottom:2px; color:var(--color-icon-secondary); }
 .sim-scene-object:hover > .ui-canvas-resize,
-.sim-scene-object:focus-within > .ui-canvas-resize,
-.sim-scene-object.is-active > .ui-canvas-resize { opacity:1; }
+.sim-scene-object:focus-within > .ui-canvas-resize { opacity:1; pointer-events:auto; }
 .sim-scene-object.is-composing.is-active { outline:none; }
 
 .sim-scene-object:hover > .sim-widget,.sim-scene-object:hover > .sim-process-tile { border-color:var(--color-border-subtle); }
@@ -423,3 +422,6 @@
  .sim-scene-controls { flex-direction:column; align-items:flex-start; gap:4px; }
  .sim-scene-controls > .sim-scene-navigation:last-child { align-self:flex-end; }
 }
+
+/* Active objects stay reachable when a consultant intentionally overlaps the scene. */
+.sim-scene-object.is-active { z-index:2; }

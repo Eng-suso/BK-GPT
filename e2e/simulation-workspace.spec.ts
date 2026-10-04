@@ -119,6 +119,8 @@ test("widget edits, duplication, keyboard reordering and sections persist after 
   await page.getByRole("button", { name: "Organizza tela", exact: true }).click();
   await expectDisclosureWithinWorkspace(page, "Organizza tela");
   await page.getByRole("button", { name: "Aggiungi sezione", exact: true }).click();
+  await page.getByRole("button", { name: "Aggiungi sezione", exact: true }).press("Escape");
+  await expect(page.getByRole("region", { name: "Organizza tela", exact: true })).toBeHidden();
   await inspector.getByLabel("Sezione", { exact: true }).selectOption({ label: "Sezione 2" });
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
   await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
@@ -796,7 +798,7 @@ test("desktop containers and canvas objects resize quietly without changing the 
   await expect(world).toHaveAttribute("style", camera!);
   await expect(page.locator('input[type="range"]')).toHaveValue("100");
   await expect(viewer).toHaveAttribute("data-resize-marker", "same-viewer");
-  expect(await dock.locator(".sim-studio-dock-body").evaluate(element => getComputedStyle(element).scrollbarColor)).toMatch(/transparent|rgba\(0, 0, 0, 0\)/);
+  expect(await dock.locator(".sim-studio-dock-body").evaluate(element => getComputedStyle(element).getPropertyValue("scrollbar-color") || getComputedStyle(element, "::-webkit-scrollbar-track").backgroundColor)).toMatch(/transparent|rgba\(0, 0, 0, 0\)/);
   const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(scan.violations).toEqual([]);
   await page.screenshot({ path: ".tmp/canvas-resize-containers.png", animations: "disabled" });
