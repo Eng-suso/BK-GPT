@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import pytest
@@ -63,12 +64,35 @@ def _with_port(url: str, port: int, dbname: str | None = None) -> str:
     return urlunsplit(parts._replace(netloc=netloc, path=path))
 
 
+def _development_env() -> dict[str, str | None]:
+    """Il `.env` di sviluppo: quello della cartella corrente o, in un worktree
+    che non ne ha uno, quello del checkout principale.
+
+    Il secondo caso conta. In un worktree senza `.env` il confronto qui sotto
+    non vedeva nulla da confrontare: chi caricava a mano il `.env` principale
+    prima di pytest (il 2026-10-04) faceva girare i test sul database di
+    sviluppo, tenant `local`, senza nessun avviso.
+    """
+    here = dotenv_values(".env")
+    if here:
+        return here
+    try:
+        common = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            capture_output=True, text=True, timeout=5, check=False,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    main_env = Path(common).resolve().parent / ".env" if common else None
+    return dotenv_values(main_env) if main_env and main_env.is_file() else {}
+
+
 def _point_at_test_stack() -> bool:
     """Sposta sullo stack di test i DSN presi dal `.env` di sviluppo.
 
     Ritorna True se ha spostato qualcosa: allora tocca a noi migrare lo stack.
     """
-    dev = dotenv_values(".env")
+    dev = _development_env()
     moved = False
     for key in _DB_URL_KEYS:
         if os.environ.get(key):
