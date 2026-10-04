@@ -1917,6 +1917,7 @@ def source_to_dict(source: WorkspaceSource) -> dict:
     return {
         "id": source.id,
         "project_id": source.project_id,
+        "client_id": source.client_id,
         "process_id": source.process_id,
         "name": source.name,
         "type": source.type,
@@ -1949,18 +1950,51 @@ def decision_to_dict(decision: WorkspaceDecision) -> dict:
     }
 
 
-def list_project_sources(project_id: str) -> list[dict]:
+def list_project_sources(project_id: str, *, include_client: bool = False) -> list[dict]:
+    """Le fonti di un progetto e, con `include_client`, quelle del suo cliente.
+
+    Una fonte del cliente (P1.16) vale per tutti i suoi progetti: compare nelle
+    Fonti di ognuno, con `project_id` vuoto, e nel contesto degli agenti. Il
+    default resta il solo progetto: il set di fonti di un piano di processo non
+    le legge ancora, e cambiarlo qui l'avrebbe cambiato in silenzio.
+    """
     with workspace_connection() as session:
-        if tenant_row(session, WorkspaceProject, project_id) is None:
+        project = tenant_row(session, WorkspaceProject, project_id)
+        if project is None:
             return []
 
+        owned = WorkspaceSource.project_id == project_id
+        if include_client:
+            owned = or_(
+                owned,
+                and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == project.client_id),
+            )
         statement = (
             select(WorkspaceSource)
-            .where(WorkspaceSource.project_id == project_id)
+            .where(owned)
             .where(WorkspaceSource.tenant_id == tenant_id())
             .order_by(WorkspaceSource.name)
         )
         sources = session.execute(statement).scalars().all()
+        return [source_to_dict(source) for source in sources]
+
+
+def list_client_sources(client_id: str) -> list[dict] | None:
+    """Le fonti del cliente: quelle che valgono per tutti i suoi progetti.
+
+    Returns:
+        Le fonti, o `None` se il cliente non esiste in questo tenant.
+    """
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceClient, client_id) is None:
+            return None
+        sources = session.execute(
+            select(WorkspaceSource)
+            .where(WorkspaceSource.tenant_id == tenant_id())
+            .where(WorkspaceSource.project_id.is_(None))
+            .where(WorkspaceSource.client_id == client_id)
+            .order_by(WorkspaceSource.name)
+        ).scalars().all()
         return [source_to_dict(source) for source in sources]
 
 

@@ -552,7 +552,7 @@ def create_workspace_process(
 
 @router.get("/projects/{project_id}/sources")
 def get_workspace_project_sources(project_id: str) -> list[ProjectSourceResponse]:
-    return [ProjectSourceResponse(**source) for source in list_project_sources(project_id)]
+    return [ProjectSourceResponse(**source) for source in list_project_sources(project_id, include_client=True)]
 
 
 @router.get("/sources/{source_id}/document")
