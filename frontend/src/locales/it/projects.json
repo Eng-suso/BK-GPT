@@ -152,6 +152,27 @@
         "verified": "citazione verificata",
         "unverified": "citazione da controllare",
         "loadFailed": "Impossibile leggere le affermazioni: riprova."
+      },
+      "relations": {
+        "heading": "Confronto con gli altri file",
+        "pending": "DeliR confronta queste affermazioni con gli altri file del processo…",
+        "failed": "Confronto non riuscito: le affermazioni restano, senza confronto.",
+        "loading": "Carico il confronto…",
+        "loadFailed": "Impossibile leggere il confronto: riprova.",
+        "none": "Nessun altro file dice la stessa cosa o il contrario.",
+        "divergences": "Divergenze ({{count}})",
+        "corroborations": "Confermate da altri file ({{count}})",
+        "thisFile": "Questo file",
+        "confirmedBy": "Confermata da {{source}}",
+        "weakened": "Il modello la riteneva più grave: {{reasons}}",
+        "types": {
+          "incompatible": "Incompatibili",
+          "tension_to_explore": "Da approfondire",
+          "formalization_difference": "Formalizzazione diversa",
+          "scope_difference": "Ambiti diversi",
+          "knowledge_gap": "Una parte non sa",
+          "complementary": "Complementari"
+        }
       }
     },
     "decisions": {

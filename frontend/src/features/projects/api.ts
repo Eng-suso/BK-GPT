@@ -20,6 +20,9 @@ import {
   apiProjectSourcesSchema,
   apiProjectSourceSchema,
   apiSourceClaimsSchema,
+  apiClaimRelationsSchema,
+  toClaimRelations,
+  type ClaimRelation,
   toSourceClaims,
   apiUploadedSourceSchema,
   apiProjectDecisionsSchema,
@@ -45,6 +48,7 @@ export const projectKeys = {
   detail: (id: string) => [...projectKeys.all, id] as const,
   sources: (id: string) => [...projectKeys.all, id, "sources"] as const,
   sourceClaims: (sourceId: string) => [...projectKeys.all, "source", sourceId, "claims"] as const,
+  sourceRelations: (sourceId: string) => [...projectKeys.all, "source", sourceId, "relations"] as const,
   sourceDocument: (sourceId: string) =>
     [...projectKeys.all, "source", sourceId, "document"] as const,
   decisions: (id: string) => [...projectKeys.all, id, "decisions"] as const,
@@ -251,7 +255,10 @@ export function useProjectSourcesQuery(
     // mostra appena ci sono.
     refetchInterval: (query) =>
       query.state.data?.some(
-        (source) => source.acquisitionStatus === "pending" || source.claimsStatus === "pending",
+        (source) =>
+          source.acquisitionStatus === "pending" ||
+          source.claimsStatus === "pending" ||
+          source.reconcileStatus === "pending",
       )
         ? 1500
         : false,
@@ -388,6 +395,28 @@ export function useSourceClaimsQuery(
     queryFn: async () => {
       const raw = await http<unknown>(`/v1/workspace/sources/${sourceId}/claims`);
       return toSourceClaims(apiSourceClaimsSchema.parse(raw));
+    },
+  });
+}
+
+/**
+ * Le affermazioni di una fonte che altri file confermano o contraddicono.
+ *
+ * Una relazione puo' nascere anche dal confronto di un altro file, arrivato
+ * dopo: per questo la lista si rilegge ogni volta che il dettaglio si apre.
+ */
+export function useSourceRelationsQuery(
+  sourceId: string | null,
+  reconcileStatus: string | null,
+): UseQueryResult<ClaimRelation[]> {
+  return useQuery({
+    queryKey: [...projectKeys.sourceRelations(sourceId ?? ""), reconcileStatus],
+    enabled: sourceId !== null && (reconcileStatus === "done" || reconcileStatus === "failed"),
+    staleTime: 0,
+    refetchOnMount: "always",
+    queryFn: async () => {
+      const raw = await http<unknown>(`/v1/workspace/sources/${sourceId}/relations`);
+      return toClaimRelations(apiClaimRelationsSchema.parse(raw));
     },
   });
 }

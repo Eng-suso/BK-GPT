@@ -152,6 +152,27 @@
         "verified": "quote verified",
         "unverified": "quote to check",
         "loadFailed": "Claims could not be loaded: try again."
+      },
+      "relations": {
+        "heading": "Comparison with other files",
+        "pending": "DeliR is comparing these claims with the other files of the process…",
+        "failed": "Comparison failed: the claims stay, without comparison.",
+        "loading": "Loading the comparison…",
+        "loadFailed": "The comparison could not be loaded: try again.",
+        "none": "No other file says the same thing or the opposite.",
+        "divergences": "Divergences ({{count}})",
+        "corroborations": "Confirmed by other files ({{count}})",
+        "thisFile": "This file",
+        "confirmedBy": "Confirmed by {{source}}",
+        "weakened": "The model rated it more serious: {{reasons}}",
+        "types": {
+          "incompatible": "Incompatible",
+          "tension_to_explore": "To explore",
+          "formalization_difference": "Different formalization",
+          "scope_difference": "Different scopes",
+          "knowledge_gap": "One side does not know",
+          "complementary": "Complementary"
+        }
       }
     },
     "decisions": {
