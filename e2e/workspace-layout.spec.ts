@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 
 const studio = "/projects/layout-project/processes/layout-process";
@@ -221,6 +222,81 @@ test("mobile heatmap preserves a readable diagram above populated metrics", asyn
   await expect(page.locator(".sim-studio-board")).toBeVisible();
   await page.getByRole("button", { name: /Attività 18:/ }).scrollIntoViewIfNeeded();
   await expect(page.getByRole("button", { name: /Attività 18:/ })).toBeInViewport();
+  const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
+  expect(scan.violations).toEqual([]);
+});
+
+
+test("process elements follow imports, selection and properties without rewriting BPMN colours", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(canvasView);
+  await expect(page.locator('[data-element-id="Task_1"]').first()).toBeVisible();
+  await page.getByRole("button", { name: "Elementi", exact: true }).click();
+  const navigator = page.getByRole("complementary", { name: "Elementi", exact: true });
+  await expect(navigator.locator("li")).toHaveCount(18);
+  await navigator.getByRole("textbox", { name: "Cerca nel processo" }).fill("Attività 18:");
+  await navigator.getByRole("button", { name: /Attività 18:/ }).click();
+  await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue(tasks[17].name);
+  await page.getByRole("button", { name: "Chiudi elenco elementi" }).click();
+
+  const imported = xml.replaceAll("Task_", "Imported_").replace('bpmn:userTask id="Imported_2"', 'bpmn:serviceTask id="Imported_2"').replace('bpmn:userTask id="Imported_3"', 'bpmn:exclusiveGateway id="Imported_3"');
+  await page.locator('.process-bpmn-file-input').setInputFiles({ name: "synthetic-import.bpmn", mimeType: "application/xml", buffer: Buffer.from(imported) });
+  await page.getByRole("button", { name: "Elementi", exact: true }).click();
+  await navigator.getByRole("textbox", { name: "Cerca nel processo" }).fill("Imported_2");
+  await navigator.getByRole("button", { name: /ServiceTask/ }).click();
+  await expect(navigator.locator("li")).toHaveCount(1);
+  await page.getByRole("button", { name: "Proprietà", exact: true }).click();
+  const properties = page.locator(".process-bpmn-properties-host");
+  await expect(properties.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(tasks[1].name);
+  await properties.getByRole("textbox", { name: "Name", exact: true }).fill("Automazione importata");
+  await expect(navigator).toContainText("Automazione importata");
+  await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
+  await navigator.getByRole("textbox", { name: "Cerca nel processo" }).fill("");
+  await expect(navigator.locator("li")).toHaveCount(18);
+  await expect(page.locator('[data-element-id="Task_1"]')).toHaveCount(0);
+  if (process.env.DELIR_UI_PROOF_DIR) await page.screenshot({ path: join(process.env.DELIR_UI_PROOF_DIR, "process-desktop.png") });
+  const shape = page.locator('.delir-type-automation .djs-visual > rect').first();
+  const tint = await shape.evaluate((el) => getComputedStyle(el).fill);
+  await page.getByRole("button", { name: "Importa, esporta, cronologia" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Colori per tipo" }).click();
+  await expect.poll(() => shape.evaluate((el) => getComputedStyle(el).fill)).not.toBe(tint);
+  const saved = page.waitForRequest((req) => req.method() === "PUT" && req.url().endsWith("/layout-model"));
+  await page.getByRole("button", { name: "Salva", exact: true }).click();
+  const savedXml = (await saved).postDataJSON().xml as string;
+  expect(savedXml).toContain("Automazione importata");
+  expect(savedXml).not.toContain("bioc:fill");
+  expect(savedXml).not.toContain("delir-type");
+});
+
+test("process loading failures are recoverable and never look like a new empty model", async ({ page }) => {
+  let failed = true;
+  await page.route("**/v1/workspace/bpmn-models/layout-model", (route) => route.fulfill(failed ? { status: 503, json: { detail: "Synthetic model unavailable" } } : { json: { id: "layout-model", process_id: "layout-process", name: "Modello demo", xml } }));
+  await page.goto(canvasView);
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("Il modello è ancora vuoto", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Salva", exact: true })).toBeDisabled();
+  failed = false;
+  await page.getByRole("button", { name: "Riprova caricamento" }).click();
+  await expect(page.locator('[data-element-id="Task_1"]').first()).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("process chrome and element navigation remain accessible without overlap on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(canvasView);
+  await expect(page.locator('[data-element-id="Task_1"]').first()).toBeVisible();
+  await page.getByRole("button", { name: "Elementi", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Elementi" })).toBeVisible();
+  await expect(page.locator(".process-bpmn-canvas")).toBeHidden();
+  await page.getByRole("textbox", { name: "Cerca nel processo" }).fill("Attività 18:");
+  await page.getByRole("button", { name: /Attività 18:/ }).click();
+  await expect(page.locator(".process-bpmn-canvas")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Elementi", exact: true })).toBeFocused();
+  await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue(tasks[17].name);
+  if (process.env.DELIR_UI_PROOF_DIR) await page.screenshot({ path: join(process.env.DELIR_UI_PROOF_DIR, "process-mobile.png") });
+  const controls = page.locator(".process-bpmn-toolbar button, .process-studio-header button");
+  const overflow = await controls.evaluateAll((els) => els.filter((el) => { const box = el.getBoundingClientRect(); return box.width && (box.right > innerWidth + 1 || box.left < 0); }).length);
+  expect(overflow).toBe(0);
   const scan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
   expect(scan.violations).toEqual([]);
 });
