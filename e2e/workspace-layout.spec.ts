@@ -260,10 +260,10 @@ test("process elements follow imports, selection and properties without rewritin
   await expect(navigator.locator("li")).toHaveCount(1);
   await page.getByRole("button", { name: "Proprietà", exact: true }).click();
   const properties = page.locator(".process-bpmn-properties-host");
-  const nameInput = properties.getByRole("textbox", { name: "Name", exact: true });
+  const nameInput = properties.getByRole("textbox", { name: "Nome", exact: true });
   if (!await nameInput.isVisible()) await properties.locator('[data-group-id="group-general"]').getByRole("button", { name: "Toggle section" }).click();
-  await expect(properties.getByRole("textbox", { name: "Name", exact: true })).toHaveValue(tasks[1].name);
-  await properties.getByRole("textbox", { name: "Name", exact: true }).fill("Automazione importata");
+  await expect(properties.getByRole("textbox", { name: "Nome", exact: true })).toHaveValue(tasks[1].name);
+  await properties.getByRole("textbox", { name: "Nome", exact: true }).fill("Automazione importata");
   await expect(navigator).toContainText("Automazione importata");
   await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
   await expect(page.getByRole("button", { name: "Proprietà", exact: true })).toBeFocused();
@@ -328,10 +328,15 @@ test("process chrome and element navigation remain accessible without overlap on
 test("reserved BPMN tools create elements through the modeler without covering its viewport", async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto(canvasView);
-  await page.getByRole("button", { name: "Crea attività", exact: true }).click();
   const canvas = page.locator(".process-bpmn-canvas");
-  // Place in the gap between rows: dropping on an existing task is rejected by BPMN rules.
-  await canvas.click({ position: { x: 300, y: 160 } });
+  await expect(canvas.locator('[data-element-id="Task_7"]').first()).toBeVisible();
+  await page.getByRole("button", { name: "Centra", exact: true }).click();
+  const first = (await canvas.locator('[data-element-id="Task_1"]').first().boundingBox())!;
+  const nextRow = (await canvas.locator('[data-element-id="Task_7"]').first().boundingBox())!;
+  const surface = (await canvas.boundingBox())!;
+  await page.getByRole("button", { name: "Crea attività", exact: true }).click();
+  // Derive the blank gap from the rendered rows, independent of overview scale.
+  await canvas.click({ position: { x: first.x + first.width / 2 - surface.x, y: (first.y + first.height + nextRow.y) / 2 - surface.y } });
   await expect(page.locator('.delir-type-task')).toHaveCount(19);
   const toolsBox = (await page.getByRole("navigation", { name: "Strumenti BPMN" }).boundingBox())!;
   const modelBox = (await canvas.boundingBox())!;
@@ -442,3 +447,63 @@ test("resource configuration waits for the BPMN before claiming the model is emp
   releaseModel();
   await expect(dock.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
 });
+
+for (const width of [1440, 1920]) {
+  test(`process canvas hierarchy preserves camera, edits and one inspector at ${width}`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name.startsWith("mobile"), "Desktop composition");
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(canvasView);
+    const canvas = page.locator(".process-bpmn-canvas");
+    const viewport = canvas.locator(".viewport");
+    await expect(page.getByRole("button", { name: "Elementi", exact: true })).toBeEnabled();
+    const header = await page.locator(".process-studio-header").boundingBox();
+    expect(header!.height).toBeLessThanOrEqual(64);
+    await expect.poll(async () => (await canvas.boundingBox())!.height).toBeGreaterThan(760);
+    await page.getByRole("button", { name: "Dettagli", exact: true }).click();
+    await expect(page.getByText("Team Operations", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // The initial overview includes the entire process, even with eighteen tasks.
+    await expect.poll(async () => canvas.locator(".djs-shape").evaluateAll(nodes => nodes.filter(node => {
+      const rect = node.getBoundingClientRect(), bounds = node.closest(".process-bpmn-canvas")!.getBoundingClientRect();
+      return rect.width > 0 && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1);
+    }).length)).toBe(0);
+    const originalCamera = await viewport.getAttribute("transform");
+    const diagramBox = (await canvas.boundingBox())!;
+    await page.mouse.move(diagramBox.x + 20, diagramBox.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(diagramBox.x + 60, diagramBox.y + 50, { steps: 5 });
+    await page.mouse.up();
+    await expect(viewport).not.toHaveAttribute("transform", originalCamera!);
+    await canvas.locator('[data-element-id="Task_1"]').first().click();
+    await page.getByRole("textbox", { name: "Etichetta / Nome" }).fill("Bozza da conservare");
+    const inspector = page.locator(".process-studio-properties");
+    await expect(inspector).toBeVisible();
+    await expect(page.getByRole("button", { name: "Chiudi ispettore", exact: true })).toHaveCount(1);
+    const camera = await viewport.getAttribute("transform");
+    const initialWidth = (await inspector.boundingBox())!.width;
+    const resize = page.getByRole("separator", { name: "Ridimensiona ispettore", exact: true });
+    await resize.press("ArrowLeft");
+    await expect.poll(async () => (await inspector.boundingBox())!.width).toBeGreaterThan(initialWidth);
+    await expect(viewport).toHaveAttribute("transform", camera!);
+    expect((await canvas.boundingBox())!.width).toBeGreaterThanOrEqual(720);
+    await page.getByRole("button", { name: "Proprietà", exact: true }).click();
+    await expect(inspector.locator(".process-bpmn-properties-host")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toBeHidden();
+    await expect(viewport).toHaveAttribute("transform", camera!);
+    await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue("Bozza da conservare");
+    await page.getByRole("button", { name: "Chat canvas", exact: true }).click();
+    await expect(page.locator(".process-studio-chat")).toBeVisible();
+    expect((await canvas.boundingBox())!.width).toBeGreaterThanOrEqual(720);
+    await expect(viewport).toHaveAttribute("transform", camera!);
+    // Explicit centering uses the current stage bounds after the inspector resize.
+    await page.getByRole("button", { name: "Centra", exact: true }).click();
+    await expect.poll(async () => canvas.locator(".djs-shape").evaluateAll(nodes => nodes.filter(node => {
+      const rect = node.getBoundingClientRect(), bounds = node.closest(".process-bpmn-canvas")!.getBoundingClientRect();
+      return rect.width > 0 && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1);
+    }).length)).toBe(0);
+    const scan = await new AxeBuilder({ page }).include(".process-workspace").include(".process-studio-header").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+    expect(scan.violations).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`process-canvas-hierarchy-${width}.png`) });
+  });
+}

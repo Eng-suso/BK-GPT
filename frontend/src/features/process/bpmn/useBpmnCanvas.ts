@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
+import { translateBpmnLabel } from "./translate";
 import {
   BpmnPropertiesPanelModule,
   BpmnPropertiesProviderModule,
@@ -222,15 +223,13 @@ export function useBpmnCanvas({
     }, 120);
   }, [scheduleLocalDraftSave]);
 
-  // Debounced: one fit after the layout settles. Collapses the burst of
-  // ResizeObserver callbacks fired while the user drags the chat splitter, and
-  // the double mount/import fit, into a single reframe.
+  // Fit after importing a document. Resizing panes preserves the user camera.
   const scheduleCanvasFit = useCallback(() => {
     if (fitTimerRef.current) window.clearTimeout(fitTimerRef.current);
     fitTimerRef.current = window.setTimeout(() => {
       fitTimerRef.current = null;
       if (document.hidden || !modelerRef.current) return;
-      frameCanvasForReading(modelerRef.current);
+      fitCanvas(modelerRef.current);
       if (focusedElementIdRef.current) {
         const registry = modelerRef.current.get("elementRegistry") as BpmnElementRegistry;
         const element = registry.get?.(focusedElementIdRef.current);
@@ -296,6 +295,7 @@ export function useBpmnCanvas({
           additionalModules: [
             BpmnPropertiesPanelModule,
             BpmnPropertiesProviderModule,
+            { translate: ["value", translateBpmnLabel] },
           ],
         }) as BpmnModeler;
 
@@ -403,7 +403,7 @@ export function useBpmnCanvas({
     if (!containerRef.current) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      scheduleCanvasFit();
+      if (modelerRef.current) canvas(modelerRef.current).resized?.();
     });
     resizeObserver.observe(containerRef.current);
 
@@ -411,7 +411,7 @@ export function useBpmnCanvas({
       resizeObserver.disconnect();
       clearFitTimer();
     };
-  }, [scheduleCanvasFit]);
+  }, []);
 
   useEffect(() => {
     return onWorkspaceChanged(async (detail) => {

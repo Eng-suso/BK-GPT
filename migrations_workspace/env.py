@@ -20,8 +20,11 @@ _MIGRATION_LOCK_KEY = 0x44454C4952_5753  # "DELIR_WS"
 
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Dalla CLI Alembic configura i propri log. Dentro l'app (`ensure_schema` allo
+# startup) no: i log sono dell'app, e `fileConfig` con il default
+# `disable_existing_loggers=True` spegneva ogni logger del backend gia' creato.
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = None
 
