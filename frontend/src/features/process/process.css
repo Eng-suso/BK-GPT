@@ -540,25 +540,43 @@
 
 /* Simulation styles now live in features/process/simulation/simulation.css */
 
-/* The editor keeps a stable toolbar; its tools never wrap into the model. */
-.process-bpmn-toolbar {
-  container-type: inline-size;
-  flex-wrap: nowrap;
-  min-height: 52px;
-  padding: 8px 12px;
-}
+/* Geometry only: the toolbar and docks use shared Satin Surface variants. */
+.process-bpmn-toolbar { flex-wrap: nowrap; min-height: 56px; padding: 10px 14px; }
 .process-bpmn-toolbar-actions { flex-wrap: nowrap; gap: 6px; }
+.bpmn-zoom-group { display: flex; align-items: center; gap: 4px; border-inline: 1px solid var(--material-divider); padding-inline: 8px; }
 .process-studio-canvas[hidden], .process-studio-properties[hidden] { display: none; }
 .process-studio-canvas { container: process-canvas / inline-size; }
-@container process-canvas (max-width: 680px) {
+.process-bpmn-body--elements { grid-template-columns: 248px minmax(0, 1fr); }
+.process-element-navigator { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--material-divider); }
+.process-bpmn-shell:has(.process-bpmn-legend) { grid-template-rows: auto minmax(0, 1fr) auto; }
+.process-bpmn-legend { display: flex; flex-wrap: wrap; gap: 16px; padding: 8px 14px; border-top: 1px solid var(--material-divider); color: var(--color-text-secondary); font-size: var(--font-size-100); }
+.process-bpmn-legend > span { display: flex; align-items: center; gap: 6px; }
+.process-bpmn-legend i { width: 10px; height: 10px; border: 1px solid currentColor; border-radius: 3px; }
+.process-element-icon--task, .process-element-swatch--task { color: var(--domain-process-task-icon); }
+.process-element-icon--automation, .process-element-swatch--automation { color: var(--domain-process-automation-icon); }
+.process-element-icon--gateway, .process-element-swatch--gateway { color: var(--domain-process-gateway-icon); }
+.process-element-icon--start, .process-element-swatch--start { color: var(--domain-process-start-icon); }
+.process-element-icon--end, .process-element-swatch--end { color: var(--domain-process-end-icon); }
+.process-bpmn-load-error { position: absolute; bottom: 48px; left: 80px; max-width: min(440px, calc(100% - 96px)); z-index: 8; display: grid; gap: 12px; padding: 16px; font-size: var(--font-size-200); }
+@container process-canvas (max-width: 1000px) {
   .process-bpmn-toolbar h3 { display: none; }
-  .process-bpmn-toolbar > div:first-child { gap: 0; }
-  .process-bpmn-toolbar > div:first-child > div { border: 0; padding: 0; }
-  .process-bpmn-toolbar-actions > .bpmn-save-status { display: none; }
-  .bpmn-zoom-group { display: none; }
-  /* Su una tela stretta il bottone resta icona + contatore: col testo le azioni
-     scavalcavano i toggle dei pannelli e "Proprieta'" non si poteva cliccare. */
-  .process-bpmn-toolbar-actions .bpmn-toolbar-label { display: none; }
+}
+@container process-canvas (max-width: 820px) {
+  .bpmn-toolbar-context { gap: 4px; }
+  .bpmn-toolbar-context > div { border: 0; padding: 0; }
+  .bpmn-save-status, .bpmn-zoom-group, .bpmn-toolbar-label { display: none; }
+  .process-bpmn-body--elements { grid-template-columns: minmax(0, 1fr); }
+  .process-bpmn-body--elements > .process-bpmn-stage { display: none; }
+  .process-bpmn-load-error { left: 12px; max-width: calc(100% - 24px); }
+}
+/* Type tints remain subordinate to provenance outlines and never change BPMN DI. */
+.process-bpmn--colours .delir-type-task .djs-visual > rect:first-child { fill: var(--domain-process-task-surface) !important; }
+.process-bpmn--colours .delir-type-automation .djs-visual > rect:first-child { fill: var(--domain-process-automation-surface) !important; }
+.process-bpmn--colours .delir-type-gateway .djs-visual > polygon:first-child { fill: var(--domain-process-gateway-surface) !important; }
+.process-bpmn--colours .delir-type-start .djs-visual > circle:first-child { fill: var(--domain-process-start-surface) !important; }
+.process-bpmn--colours .delir-type-end .djs-visual > circle:first-child { fill: var(--domain-process-end-surface) !important; }
+@media (forced-colors: active) {
+  .process-bpmn--colours .djs-visual > :is(rect, circle, polygon):first-child { fill: Canvas !important; }
 }
 
 /*
@@ -634,3 +652,31 @@
 .process-bpmn-canvas .djs-connection.delir-provenance-confirmed .djs-visual > path {
   stroke: var(--color-success) !important;
 }
+
+.process-studio-header { border-radius: var(--material-radius-panel); }
+.process-studio-header [data-slot="tabs-list"] { flex-shrink: 0; }
+
+/* Selection has an allocated dock; it never floats over the model. */
+.process-bpmn-body:has(> .process-bpmn-node-inspector) { grid-template-columns: minmax(0, 1fr) 320px; }
+.process-bpmn-body--elements:has(> .process-bpmn-node-inspector) { grid-template-columns: 248px minmax(0, 1fr) 320px; }
+.process-bpmn-node-inspector { border-radius: 0; border-left: 1px solid var(--material-divider); }
+.process-bpmn-canvas { overflow: hidden; }
+.process-bpmn-canvas .djs-palette { display: none; }
+@container process-canvas (max-width: 1100px) {
+  .process-bpmn-body:has(> .process-bpmn-node-inspector) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 46%); }
+  .process-bpmn-body--elements:has(> .process-bpmn-node-inspector) { grid-template-columns: 248px minmax(0, 1fr); }
+  .process-bpmn-node-inspector { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--material-divider); }
+}
+@container process-canvas (max-width: 820px) {
+  .process-bpmn-body--elements:has(> .process-bpmn-node-inspector) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .process-bpmn-body--elements > .process-bpmn-node-inspector { display: none; }
+}
+@media (max-width: 620px) {
+  .process-back-label { display: none; }
+  .process-studio-chat .composer-wrap textarea { max-height: 96px; }
+}
+
+.process-bpmn-stage { display: grid; grid-template-columns: 52px minmax(0, 1fr); min-width: 0; min-height: 0; }
+.process-creation-tools { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 0; overflow-y: auto; padding: 8px 4px; border-right: 1px solid var(--material-divider); }
+.process-creation-tools > button { flex-shrink: 0; }
+.process-creation-glyph { font-size: 20px; }

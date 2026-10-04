@@ -573,7 +573,8 @@
       "status": "Status",
       "owner": "Owner",
       "phase": "Phase",
-      "readiness": "Readiness"
+      "readiness": "Readiness",
+      "ownerLabel": "Owner"
     },
     "quality": {
       "title": "Quality",
@@ -715,6 +716,43 @@
     "inspectorClose": "Close the inspector",
     "inspectorNotes": "Notes / Documentation",
     "inspectorNotesPlaceholder": "Add details or rules for this node…",
-    "processChat": "Process chat"
+    "processChat": "Process chat",
+    "elements": {
+      "title": "Elements",
+      "search": "Search process",
+      "close": "Close element list",
+      "loading": "Loading elements…",
+      "empty": "No elements in this model. Import BPMN or use the creation tools.",
+      "noMatches": "No matching elements.",
+      "unnamed": "Unnamed {{type}}"
+    },
+    "retryLoad": "Retry loading",
+    "colours": "Colours by type",
+    "legend": {
+      "task": "Activity",
+      "automation": "Automation",
+      "gateway": "Decision",
+      "start": "Start",
+      "end": "End"
+    },
+    "tools": {
+      "title": "BPMN tools",
+      "hand-tool": "Pan canvas",
+      "lasso-tool": "Select multiple elements",
+      "space-tool": "Create or remove space",
+      "global-connect-tool": "Connect elements",
+      "create": {
+        "start-event": "Start event",
+        "intermediate-event": "Intermediate event",
+        "end-event": "End event",
+        "exclusive-gateway": "Exclusive decision",
+        "task": "Create activity",
+        "subprocess-expanded": "Expanded subprocess",
+        "data-object": "Data object",
+        "data-store": "Data store",
+        "participant-expanded": "Pool or participant",
+        "group": "Group"
+      }
+    }
   }
 }

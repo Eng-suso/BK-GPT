@@ -42,13 +42,8 @@ export async function loadInitialXml(
   bpmnModelId: string,
   processName: string,
 ): Promise<string> {
-  const fallbackXml = buildInitialProcessDiagram(processName);
-
-  try {
-    const model = await fetchBpmnModel(bpmnModelId);
-    return model.xml?.trim() || fallbackXml;
-  } catch (err) {
-    console.warn("[bpmn] model load failed, using starter diagram", err);
-    return fallbackXml;
-  }
+  // A failed request is not an empty process. Let the canvas show the error
+  // instead of presenting an editable starter model over an existing diagram.
+  const model = await fetchBpmnModel(bpmnModelId);
+  return model.xml?.trim() || buildInitialProcessDiagram(processName);
 }

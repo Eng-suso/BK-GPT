@@ -6,10 +6,14 @@ import { MessagesSquare, Upload } from "lucide-react";
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
-// Note: bpmn-js-properties-panel bundles its styles internally; no separate CSS import needed.
+import "@bpmn-io/properties-panel/dist/assets/properties-panel.css";
 
 import type { StatusTone } from "@/components/status";
 import { Button } from "@/ui/button";
+import { useElementWidth } from "@/lib/useElementWidth";
+import { Surface } from "@/ui/surface";
+import { BpmnCreationTools } from "./components/BpmnCreationTools";
+import { BpmnElementNavigator } from "./components/BpmnElementNavigator";
 import { useBpmnCanvas } from "./bpmn/useBpmnCanvas";
 import { BpmnCanvasToolbar } from "./components/BpmnCanvasToolbar";
 import { BpmnNodeInspector } from "./components/BpmnNodeInspector";
@@ -55,6 +59,18 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   onTogglePropertiesPanel,
 }) => {
   const { t } = useTranslation("process");
+  const { ref: shellRef, width: shellWidth } = useElementWidth<HTMLElement>();
+  const elementsButtonRef = React.useRef<HTMLButtonElement>(null);
+  const [elementsOpen, setElementsOpen] = React.useState(false);
+  const [coloursEnabled, setColoursEnabled] = React.useState(true);
+  const restoreElementsFocus = React.useRef(false);
+  React.useLayoutEffect(() => {
+    if (!elementsOpen && restoreElementsFocus.current) {
+      restoreElementsFocus.current = false;
+      elementsButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [elementsOpen]);
+  const closeElements = () => { restoreElementsFocus.current = true; setElementsOpen(false); };
   const menuButtonRef = React.useRef<HTMLButtonElement>(null);
   const [isEvidenceOpen, setIsEvidenceOpen] = React.useState(false);
   // Un pannello aperto su un processo non resta aperto sul successivo: le
@@ -79,6 +95,11 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     });
   }, [bpmnModelId, processId, queryClient]);
   const {
+    elements,
+    creationTools,
+    activateTool,
+    selectElement,
+    retryLoad,
     containerRef,
     fileInputRef,
     isReady,
@@ -126,8 +147,13 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
       : t("canvas.saved");
 
   return (
-    <section className="process-bpmn-shell" aria-label="Canvas BPMN">
+    <section ref={shellRef} className={`process-bpmn-shell ${coloursEnabled ? "process-bpmn--colours" : ""}`} aria-label="Canvas BPMN" onKeyDown={(event) => { if (event.key === "Escape" && elementsOpen) { event.preventDefault(); closeElements(); } }}>
       <BpmnCanvasToolbar
+        elements={{ isOpen: elementsOpen, onToggle: () => { setIsEvidenceOpen(false); setElementsOpen((prev) => !prev); } }}
+        elementsButtonRef={elementsButtonRef}
+        elementCount={elements.length}
+        coloursEnabled={coloursEnabled}
+        onToggleColours={() => setColoursEnabled((value) => !value)}
         saveTone={saveTone}
         saveLabel={saveLabel}
         isReady={isReady}
@@ -146,7 +172,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           processId
             ? {
                 isOpen: isEvidenceOpen,
-                onToggle: () => setIsEvidenceOpen((prev) => !prev),
+                onToggle: () => { setElementsOpen(false); setIsEvidenceOpen((prev) => !prev); },
                 awaitingCount: provenanceQuery.data?.awaitingConfirmation ?? 0,
               }
             : undefined
@@ -162,16 +188,11 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         onToggleHistory={() => setIsHistoryOpen((prev) => !prev)}
       />
 
-      <div className="process-bpmn-body">
+      <div className={`process-bpmn-body ${elementsOpen ? "process-bpmn-body--elements" : ""}`}>
+        {elementsOpen && <BpmnElementNavigator elements={elements} selectedId={selectedElement?.id} isReady={isReady} onClose={closeElements} onSelect={(id) => { if (selectElement(id) && shellWidth < 820) closeElements(); }} />}
+        <div className="process-bpmn-stage">
+        <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={activateTool} />
         <div className="process-bpmn-canvas" ref={containerRef}>
-          {selectedElement && !isPropertiesOpen && !isEvidenceOpen && (
-            <BpmnNodeInspector
-              element={selectedElement}
-              onNameChange={updateSelectedNodeName}
-              onDocChange={updateSelectedNodeDoc}
-              onClose={clearSelection}
-            />
-          )}
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
               tela resta vuota e dice da dove si parte — la palette bpmn-js
@@ -203,6 +224,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             </div>
           )}
         </div>
+        </div>
         {processId && isEvidenceOpen && (
           <EvidenceReviewPanel
             processId={processId}
@@ -212,7 +234,18 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
             onClose={() => setIsEvidenceOpen(false)}
           />
         )}
+          {selectedElement && !isPropertiesOpen && !isEvidenceOpen && (
+            <BpmnNodeInspector
+              element={selectedElement}
+              onNameChange={updateSelectedNodeName}
+              onDocChange={updateSelectedNodeDoc}
+              onClose={clearSelection}
+            />
+          )}
       </div>
+      {coloursEnabled && <div className="process-bpmn-legend" aria-label={t("canvas.colours")}>
+        {(["task", "automation", "gateway", "start", "end"] as const).map((kind) => <span key={kind}><i aria-hidden className={`process-element-swatch--${kind}`} />{t(`canvas.legend.${kind}`)}</span>)}
+      </div>}
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
         <DialogContent onCloseAutoFocus={(event) => { event.preventDefault(); menuButtonRef.current?.focus(); }} className="flex max-h-[85dvh] flex-col overflow-hidden border-border sm:max-w-xl">
           <DialogTitle>Cronologia versioni</DialogTitle>
@@ -226,7 +259,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
           />
         </DialogContent>
       </Dialog>
-      {error && <p className="process-bpmn-error">{error}</p>}
+      {error && <Surface variant="floating" className="process-bpmn-load-error" role="alert"><p>{error}</p>{!isReady && <Button size="sm" variant="outline" onClick={retryLoad}>{t("canvas.retryLoad")}</Button>}</Surface>}
     </section>
   );
 };
