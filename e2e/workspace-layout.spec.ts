@@ -313,7 +313,8 @@ test("reserved BPMN tools create elements through the modeler without covering i
   await page.goto(canvasView);
   await page.getByRole("button", { name: "Crea attività", exact: true }).click();
   const canvas = page.locator(".process-bpmn-canvas");
-  await canvas.click({ position: { x: 300, y: 280 } });
+  // Place in the gap between rows: dropping on an existing task is rejected by BPMN rules.
+  await canvas.click({ position: { x: 300, y: 160 } });
   await expect(page.locator('.delir-type-task')).toHaveCount(19);
   const toolsBox = (await page.getByRole("navigation", { name: "Strumenti BPMN" }).boundingBox())!;
   const modelBox = (await canvas.boundingBox())!;
