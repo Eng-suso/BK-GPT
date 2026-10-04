@@ -26,13 +26,13 @@ def describe_bpmn_resources(xml: str, task_ids: set[str]) -> list[ScenarioTempla
         parent = {child: node for node in process.iter() for child in node}
         lanes = list(process.iter(NS + "lane"))
 
-        def ancestry(lane: ET.Element) -> list[str]:
+        def ancestry(lane: ET.Element, parents: dict[ET.Element, ET.Element] = parent) -> list[str]:
             names = []
-            node = parent.get(lane)
+            node = parents.get(lane)
             while node is not None:
                 if node.tag == NS + "lane":
                     names.append(node.get("name") or node.get("id", ""))
-                node = parent.get(node)
+                node = parents.get(node)
             return list(reversed(names))
 
         assigned: set[str] = set()
