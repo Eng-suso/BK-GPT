@@ -26,6 +26,7 @@ class LlmTask(StrEnum):
     """
 
     PLAN_EXTRACTION = "plan_extraction"
+    SOURCE_CLAIMS = "source_claims"
     PLAN_QUALITY = "plan_quality"
     PLAN_UNIFICATION = "plan_unification"
     CONFORMANCE_AUDIT = "conformance_audit"
@@ -37,6 +38,7 @@ class LlmTask(StrEnum):
     CONTEXT_ROUTING = "context_routing"
     EMBEDDING = "embedding"
     TRANSCRIPTION = "transcription"
+    EVAL_JUDGE = "eval_judge"
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +106,13 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
     LlmTask.PLAN_EXTRACTION: TaskProfile(
         LlmTask.PLAN_EXTRACTION, reasoning_effort="medium", scales_with_input=True
     ),
+    # Le affermazioni di un file caricato, ognuna legata alla porzione da cui
+    # viene. Stesso giudizio dell'estrazione del piano, quindi stesso profilo
+    # (decisione del 2 ottobre). Parte solo dopo un gesto del consulente -
+    # conferma, o invio in chat - e nessuno la aspetta davanti allo schermo.
+    LlmTask.SOURCE_CLAIMS: TaskProfile(
+        LlmTask.SOURCE_CLAIMS, reasoning_effort="medium", scales_with_input=True, deferrable=True
+    ),
     LlmTask.PLAN_QUALITY: TaskProfile(
         LlmTask.PLAN_QUALITY, reasoning_effort="low", scales_with_input=True
     ),
@@ -164,6 +173,14 @@ _PROFILES: dict[LlmTask, TaskProfile] = {
         retry=True,
         scales_with_input=False,
         model_setting="openai_transcription_model",
+    ),
+    # Il giudice degli eval L2: legge un pezzo di lavoro dell'agente e risponde
+    # dentro uno schema. Non gira mai in produzione, ma passa dal gateway come
+    # ogni chiamata, cosi' i suoi consumi stanno nel registro sotto
+    # l'operazione EVAL. Ritenta: gira sul modello dei test, spesso un free
+    # tier, dove un 429 transitorio e' la norma e dietro non c'e' una coda.
+    LlmTask.EVAL_JUDGE: TaskProfile(
+        LlmTask.EVAL_JUDGE, reasoning_effort="low", retry=True, scales_with_input=True
     ),
 }
 

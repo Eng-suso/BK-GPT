@@ -13,8 +13,8 @@ e **quando gira**, non l'unico nome che il test puo' avere.
 | L0 | `l0_deterministic/` | invarianti: provenance, isolamento tenant, scope, scritture approvate, proiezioni stale, BPMN valido, compilatore sul golden set | ogni PR (CI/CD Pipeline) | no |
 | L1 | `l1_golden/` | interviste → piano → BPMN contro la mappa di riferimento (disegno, handoff, eccezioni) e cio' che il piano sa (evidenze, claim, conflitti); loop di conformita' | notturno (`golden-eval.yml`) o a mano | si' |
 | L1 | `l1_retrieval/` | 16 domande da consulente sulle interviste del golden set: recall@5, precision@5, MRR, nDCG@5 del ramo lessicale di `graph_retrieve`, piu' nessun chunk fuori scope. Da costruire: ramo vettoriale e memoria (recall, stale, wrong-scope) | ogni PR (deterministico) | no |
-| L2 | `l2_semantic/` | giudizio sulla mappatura: oggi la rubrica deterministica di `rubric.py`, poi JevEval per i giudizi bounded e G-Eval per quelli soggettivi | a mano | si' |
-| L3 | `l3_trajectory/` | da costruire: tool giusto, ordine, chiamate inutili, stop prematuro, budget | - | - |
+| L2 | `l2_semantic/` | giudizio dove una regola non basta. Il giudice (`judge.py`, compito `eval_judge` sul modello dei test) risponde a domande chiuse si'/no con confidenza, o da' un voto 1-5 seguendo i passi scritti di un criterio. Prima di giudicare l'agente si calibra contro un umano (`calibration_discovery.json`: 18 domande di discovery "necessarie?", accuracy e kappa). La rubrica deterministica di `rubric.py` resta per la mappatura | a mano | si' |
+| L3 | `l3_trajectory/` | il percorso dell'agente, non la risposta: tool che deve chiamare (anche con l'operazione giusta), tool vietati, chiamate ripetute, budget (`trajectory_metrics.py`). Tre traiettorie attese dell'agente di processo, ognuna con la regola del prodotto che la impone citata alla lettera. Da costruire: il runner che fa girare l'agente sul modello dei test e le misura | - | - |
 | L4 | `l4_production/` | da costruire: quality drift, costo e latenza per As-Is validato, correzioni umane | - | - |
 | security | `security/promptfoo/` | da costruire: injection diretta e indiretta (PDF, Excel), jailbreak, tool malevoli, exfiltration, cross-tenant | - | - |
 
@@ -45,6 +45,8 @@ affidabile, qualunque cosa dica il resto della suite.
 | `test_bpmn_soundness.py` | il BPMN e' sound: niente nodi irraggiungibili, vicoli ciechi o split impliciti |
 | `test_golden_contract.py` | il golden set cita le sue fonti alla lettera, e ogni elemento obbligatorio ha un passo che lo dice |
 | `test_retrieval_metrics.py`, `test_retrieval_dataset.py` | le metriche di retrieval dicono il vero, e i passi attesi stanno nelle interviste alla lettera |
+| `test_trajectory_metrics.py`, `test_trajectory_specs.py` | le metriche di traiettoria dicono il vero, e ogni traiettoria attesa si regge su una regola ancora scritta nel prodotto, con tool e argomenti che esistono |
+| `test_judge.py`, `test_judge_calibration_set.py` | il giudice L2 passa dal gateway col suo compito, l'accordo con un umano si calcola giusto, il set di calibrazione e' utilizzabile |
 | `test_golden_graph_metrics.py` | dal piano ideale il compilatore ridisegna la mappa di riferimento, a 1.0 |
 
 ## Eseguire

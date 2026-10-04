@@ -192,7 +192,46 @@ export type ProjectSource = {
    */
   acquisitionStatus: SourceAcquisitionStatus | null;
   acquisitionError: string | null;
+  /** L'estrazione delle affermazioni: `null` finche' nessuno l'ha chiesta. */
+  claimsStatus: SourceClaimsStatus | null;
+  claimsError: string | null;
 };
+
+export type SourceClaimsStatus = "pending" | "done" | "failed";
+
+/** Un'affermazione di una fonte, con la porzione che la sostiene. */
+export type SourceClaim = {
+  id: number;
+  statement: string;
+  /** L'ancora della porzione: `§3`, `R7`, `Ordini!B7`, `#/texts/12`. */
+  anchorRef: string;
+  quote: string;
+  /** La citazione e' stata ritrovata parola per parola nella porzione. */
+  quoteVerified: boolean;
+};
+
+export const apiSourceClaimsSchema = z.array(
+  z.object({
+    id: z.number(),
+    source_id: z.string(),
+    statement: z.string(),
+    segment_ordinal: z.number(),
+    anchor_ref: z.string(),
+    quote: z.string(),
+    quote_verified: z.boolean(),
+    extracted_at: z.string(),
+  }),
+);
+
+export function toSourceClaims(raw: z.infer<typeof apiSourceClaimsSchema>): SourceClaim[] {
+  return raw.map((claim) => ({
+    id: claim.id,
+    statement: claim.statement,
+    anchorRef: claim.anchor_ref,
+    quote: claim.quote,
+    quoteVerified: claim.quote_verified,
+  }));
+}
 
 export type SourceAcquisitionStatus = "pending" | "done" | "partial" | "failed";
 
@@ -367,6 +406,8 @@ export const apiProjectSourceSchema = z.object({
   mime_type: z.string().nullable().default(null),
   acquisition_status: z.enum(["pending", "done", "partial", "failed"]).nullable().default(null),
   acquisition_error: z.string().nullable().default(null),
+  claims_status: z.enum(["pending", "done", "failed"]).nullable().default(null),
+  claims_error: z.string().nullable().default(null),
 });
 
 /** La risposta del caricamento: la fonte, e se e' stata creata adesso. */
@@ -642,6 +683,8 @@ export function toProjectSource(source: z.infer<typeof apiProjectSourceSchema>):
     byteSize: source.byte_size,
     acquisitionStatus: source.acquisition_status,
     acquisitionError: source.acquisition_error,
+    claimsStatus: source.claims_status,
+    claimsError: source.claims_error,
   };
 }
 

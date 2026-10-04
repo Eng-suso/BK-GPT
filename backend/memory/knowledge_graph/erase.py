@@ -56,6 +56,8 @@ _NODE_TABLES = {
     "kg_contradiction": ("Contradiction", "contradiction_id"),
     "kg_impact": ("Impact", "impact_id"),
     "kg_entity": ("Entity", "entity_id"),
+    "kg_evidence": ("Evidence", "evidence_id"),
+    "kg_source": ("Source", "source_id"),
 }
 _SOURCED_TABLES = ("kg_entity", "kg_relation", "kg_claim", "kg_gap", "kg_contradiction", "kg_impact")
 _AFFECTING_TABLES = ("kg_gap", "kg_contradiction", "kg_impact")
@@ -377,9 +379,24 @@ def _erase_process_kg(process_id: str, client_id: str) -> tuple[dict[str, int], 
                 p,
             )
 
+        # le porzioni dei file vanno via in cascata con la fonte: in Neo4j no
+        evidence = session.execute(
+            text(
+                "SELECT e.id FROM kg_evidence e JOIN kg_source s ON s.id = e.source_id "
+                "WHERE s.process_id = CAST(:p AS uuid)"
+            ),
+            p,
+        ).all()
+        for r in evidence:
+            _emit_node_delete(session, client_id, "Evidence", "evidence_id", str(r.id))
+        rows["kg_evidence"] = len(evidence)
+        for source_id in sources:
+            _emit_node_delete(session, client_id, "Source", "source_id", source_id)
+        graph += len(evidence) + len(sources)
+
         rows["kg_source"] = session.execute(
             text("DELETE FROM kg_source WHERE process_id = CAST(:p AS uuid)"), p
-        ).rowcount  # kg_chunk va via in cascata
+        ).rowcount  # kg_chunk e kg_evidence vanno via in cascata
     return rows, graph
 
 

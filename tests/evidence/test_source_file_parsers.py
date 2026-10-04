@@ -82,3 +82,33 @@ def test_a_role_is_proposed_from_the_name_and_the_format(name: str, expected: li
 
     assert suggest_roles(name) == expected
 
+
+def test_a_text_file_is_cut_into_citable_paragraphs():
+    parsed = parse_source_file(
+        "verbale.md",
+        "# Verbale\n\nIl CFO approva sopra i 30.000 EUR.\nSotto approva il buyer.\n\n\nProssima riunione: venerdi'.".encode(),
+        None,
+    )
+    refs = [segment.anchor.ref for segment in parsed.evidence.segments]
+    assert refs == ["§1", "§2", "§3"]
+    second = parsed.evidence.segment("§2")
+    assert second.text == "Il CFO approva sopra i 30.000 EUR.\nSotto approva il buyer."
+    assert second.anchor.locator == {"paragraph": 2, "line": 3}
+
+
+def test_a_csv_row_carries_its_header():
+    parsed = parse_source_file("ordini.csv", b"ordine,importo,approvatore\nO-1,1200,buyer\n,,\nO-2,45000,CFO", None)
+    rows = {segment.anchor.ref: segment.text for segment in parsed.evidence.segments}
+    # La riga vuota resta fuori, ma i numeri di riga sono quelli del file.
+    assert rows == {
+        "R2": "ordine: O-1; importo: 1200; approvatore: buyer",
+        "R4": "ordine: O-2; importo: 45000; approvatore: CFO",
+    }
+
+
+def test_a_csv_cell_without_header_keeps_the_same_name_in_text_and_value():
+    parsed = parse_source_file("ordini.csv", b"ordine,importo\nO-1,1200,urgente", None)
+    [row] = parsed.evidence.segments
+    assert row.text == "ordine: O-1; importo: 1200; colonna 3: urgente"
+    assert row.value == {"ordine": "O-1", "importo": "1200", "colonna 3": "urgente"}
+

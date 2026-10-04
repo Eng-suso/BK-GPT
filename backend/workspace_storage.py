@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.local_store import local_engine
@@ -282,6 +282,21 @@ class WorkspaceSource(WorkspaceBase):
     acquisition_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     acquisition_next_attempt_at: Mapped[str | None] = mapped_column(String)
     acquisition_error: Mapped[str | None] = mapped_column(Text)
+    # L'estrazione delle affermazioni ancorate (P1.12), dopo un gesto del
+    # consulente: la conferma, o l'invio del file in chat. Stessa coda a scadenza
+    # della lettura. `None` finche' nessuno l'ha chiesta.
+    claims_status: Mapped[str | None] = mapped_column(String)
+    claims_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    claims_next_attempt_at: Mapped[str | None] = mapped_column(String)
+    claims_error: Mapped[str | None] = mapped_column(Text)
+    # Inviato in chat mentre era ancora in lettura: la conferma scatta a lettura finita.
+    confirm_when_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Le affermazioni estratte vanno nel grafo (P1.14): Source -> Evidence ->
+    # Claim nel canonical. Stessa coda a scadenza. `None` finche' non ce ne sono.
+    graph_status: Mapped[str | None] = mapped_column(String)
+    graph_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    graph_next_attempt_at: Mapped[str | None] = mapped_column(String)
+    graph_error: Mapped[str | None] = mapped_column(Text)
 
 
 class WorkspaceSourceEvidence(WorkspaceBase):
@@ -306,6 +321,31 @@ class WorkspaceSourceEvidence(WorkspaceBase):
     structure_json: Mapped[str] = mapped_column(Text, nullable=False)
     issues_json: Mapped[str] = mapped_column(Text, nullable=False)
     acquired_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkspaceSourceClaim(WorkspaceBase):
+    """Un'affermazione di un file caricato, con la porzione che la sostiene.
+
+    Senza porzione non esiste: e' la regola del Semantic Layer. La citazione e'
+    controllata parola per parola sul testo della porzione (`quote_verified`).
+    """
+
+    __tablename__ = "workspace_source_claims"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    segment_ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
+    anchor_ref: Mapped[str] = mapped_column(String, nullable=False)
+    quote: Mapped[str] = mapped_column(Text, nullable=False)
+    quote_verified: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String, nullable=False)
+    extracted_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class WorkspaceEvidenceSegment(WorkspaceBase):

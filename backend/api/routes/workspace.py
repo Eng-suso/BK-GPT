@@ -30,6 +30,7 @@ from backend.schemas.workspace import (
     ModelLibraryItem,
     ProjectResponse,
     EvidenceSegmentResponse,
+    SourceClaimResponse,
     ProjectSourceResponse,
     UploadedSourceResponse,
     UpdateSourceRolesRequest,
@@ -720,6 +721,19 @@ def get_workspace_source_evidence(source_id: str) -> list[EvidenceSegmentRespons
     if get_project_source_record(source_id) is None:
         raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
     return [EvidenceSegmentResponse(**segment) for segment in list_evidence_segments(source_id)]
+
+
+@router.get("/sources/{source_id}/claims")
+def get_workspace_source_claims(source_id: str) -> list[SourceClaimResponse]:
+    """Le affermazioni della fonte, ognuna con la porzione che la sostiene.
+
+    Vuota finche' l'estrazione non e' finita: lo stato lo dice `claims_status`.
+    """
+    from backend.workspace_database import get_project_source_record, list_source_claims
+
+    if get_project_source_record(source_id) is None:
+        raise HTTPException(status_code=404, detail=f"Fonte non trovata: {source_id}")
+    return [SourceClaimResponse(**claim) for claim in list_source_claims(source_id)]
 
 
 @router.get("/sources/{source_id}/original")
