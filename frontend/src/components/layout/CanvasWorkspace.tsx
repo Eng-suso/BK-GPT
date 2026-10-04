@@ -60,7 +60,7 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
   </section>;
 }
 
-export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, hidden, resizeLabel, initialWidth = 400, className, bodyClassName }, forwardedRef) => {
+export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; minimumStageWidth?: number; maximumWidth?: number; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, hidden, resizeLabel, initialWidth = 400, minimumStageWidth = 492, maximumWidth = 760, className, bodyClassName }, forwardedRef) => {
   const element = React.useRef<HTMLElement | null>(null);
   const [width, setWidth] = React.useState<number | null>(null);
   const [maximum, setMaximum] = React.useState(760);
@@ -71,10 +71,10 @@ export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string;
   React.useLayoutEffect(() => {
     const parent = element.current?.parentElement;
     if (!parent) return;
-    const observer = new ResizeObserver(() => setMaximum(Math.max(320, Math.min(760, parent.clientWidth - 492))));
+    const observer = new ResizeObserver(() => setMaximum(Math.max(320, Math.min(maximumWidth, parent.clientWidth - minimumStageWidth))));
     observer.observe(parent);
     return () => observer.disconnect();
-  }, []);
+  }, [minimumStageWidth, maximumWidth]);
   const current = Math.max(320, Math.min(maximum, width ?? initialWidth));
   return <Surface asChild variant="panel"><aside ref={setRef} hidden={hidden} aria-label={label} data-workspace-layer="inspector" style={resizeLabel ? { "--workspace-inspector-width": `${current}px` } as React.CSSProperties : undefined} className={cn("ui-workspace-inspector relative flex min-h-0 shrink-0 flex-col overflow-hidden", className)} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
     {resizeLabel && <WorkspaceResizeSeparator label={resizeLabel} value={current} minimum={320} maximum={maximum} onResize={setWidth} />}
@@ -85,14 +85,14 @@ export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string;
 WorkspaceInspector.displayName = "WorkspaceInspector";
 
 /** A keyboard-accessible splitter, with a quiet visual rail and a stable hit area. */
-export function WorkspaceResizeSeparator({ label, value, minimum, maximum, onResize }: { label: string; value: number; minimum: number; maximum: number; onResize: (value: number) => void }): React.JSX.Element {
+export function WorkspaceResizeSeparator({ label, value, minimum, maximum, onResize, edge = "start" }: { label: string; value: number; minimum: number; maximum: number; onResize: (value: number) => void; edge?: "start" | "end" }): React.JSX.Element {
   const gesture = React.useRef<{ x: number; value: number } | null>(null);
   const change = (next: number) => onResize(Math.max(minimum, Math.min(maximum, next)));
   return <div role="separator" tabIndex={0} aria-label={label} aria-orientation="vertical" aria-valuemin={minimum} aria-valuemax={maximum} aria-valuenow={value} aria-valuetext={`${Math.round(value)} px`} className="ui-workspace-splitter" onPointerDown={event => {
     if (event.button !== 0) return;
     event.preventDefault(); gesture.current = { x: event.clientX, value }; event.currentTarget.setPointerCapture(event.pointerId);
-  }} onPointerMove={event => { const start = gesture.current; if (start) change(start.value + start.x - event.clientX); }} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} onKeyDown={event => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); change(value + (event.key === "ArrowLeft" ? 20 : -20)); }
+  }} onPointerMove={event => { const start = gesture.current; if (start) change(start.value + (start.x - event.clientX) * (edge === "start" ? 1 : -1)); }} onPointerUp={() => { gesture.current = null; }} onPointerCancel={() => { gesture.current = null; }} onKeyDown={event => {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); change(value + (event.key === "ArrowLeft" ? 20 : -20) * (edge === "start" ? 1 : -1)); }
     if (event.key === "Home" || event.key === "End") { event.preventDefault(); change(event.key === "Home" ? minimum : maximum); }
   }}><span aria-hidden /></div>;
 }
