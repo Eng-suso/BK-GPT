@@ -74,3 +74,12 @@ def test_arguments_outside_the_tool_schema_still_reach_the_model():
 
     assert "element_id" in message.content
 
+
+def test_a_version_conflict_is_logged_before_it_reaches_the_model(caplog):
+    from backend.agents.run_context import BpmnVersionConflict
+
+    with caplog.at_level("INFO", logger="backend.graphs.tool_errors"):
+        result = report_tool_error(BpmnVersionConflict("rileggi il canvas salvato"))
+
+    assert result.startswith("Modifica non salvata")
+    assert any("conflitto di versione" in record.getMessage() for record in caplog.records)
