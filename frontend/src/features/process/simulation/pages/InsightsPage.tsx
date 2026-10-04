@@ -25,7 +25,7 @@ const FACTOR_ORDER = [
   "persistence",
 ] as const;
 
-export function InsightsPage(): React.JSX.Element {
+export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
@@ -140,7 +140,7 @@ export function InsightsPage(): React.JSX.Element {
         </p>
       )}
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className={embedded ? "grid gap-3" : "grid gap-3 lg:grid-cols-2"}>
         {(report?.experiments ?? []).map((exp, i) => (
           <ExperimentCard key={i} exp={exp} onApply={() => applyExperiment(exp)} />
         ))}

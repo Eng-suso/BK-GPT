@@ -165,6 +165,9 @@ class WorkspaceBpmnReview(WorkspaceBase):
     # e' il modo in cui una coda si blocca in silenzio: se chi lavorava muore, la
     # riga deve tornare eleggibile da sola.
     conformance_leased_at: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Quante volte la riga e' stata presa in carico per lo stesso disegno. Oltre
+    # il tetto la coda smette (`failed`); un disegno nuovo la riporta a zero.
+    conformance_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)

@@ -529,7 +529,7 @@ def _embed_names(display_names: list[str]) -> dict[str, str]:
     if not vectors:
         return {}
     out: dict[str, str] = {}
-    for name, vec in zip(display_names, vectors):
+    for name, vec in zip(display_names, vectors, strict=True):
         literal = embeddings.to_pgvector(vec)
         if literal is not None:
             out[name] = literal

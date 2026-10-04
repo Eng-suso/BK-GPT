@@ -108,6 +108,7 @@ test("widget edits, duplication, keyboard reordering and sections persist after 
   await page.getByRole("button", { name: "Aggiungi sezione", exact: true }).click();
   await inspector.getByLabel("Sezione", { exact: true }).selectOption({ label: "Sezione 2" });
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
   await page.reload();
   await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption({ label: "Costi del run" });
   await expect(page.getByRole("heading", { name: "Costi del run", exact: true })).toBeVisible();
@@ -120,7 +121,11 @@ test("widget edits, duplication, keyboard reordering and sections persist after 
 test("Markdown formulas follow the playhead and invalid input remains editable", async ({ page }) => {
   await page.goto(`${studio}/dashboard/42`);
   await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
-  await page.getByRole("dialog").getByRole("button", { name: /Testo e Markdown/ }).click();
+  const palette = page.getByRole("complementary", { name: "Aggiungi un elemento", exact: true });
+  await palette.getByRole("button", { name: "Testo", exact: true }).click();
+  await palette.getByRole("button", { name: /Testo e Markdown/ }).click();
+  await palette.getByRole("button", { name: "Chiudi raccolta elementi", exact: true }).click();
+  await page.getByRole("button", { name: "Configura Casi conclusi", exact: true }).click();
   await page.getByLabel("Testo Markdown", { exact: true }).fill("Casi conclusi: **${metric}**");
   await page.getByLabel("Vai a un elemento…", { exact: true }).selectOption({ label: "Casi conclusi" });
   await seek(page, 300);
@@ -345,6 +350,7 @@ test("process placement, sizing and undo are saved with the analytical layout", 
   await expect(object).toHaveCSS("width", "920px");
   await expect(viewer).toHaveAttribute("data-session-marker", "same-viewer");
   await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
   await page.reload();
   await expect(object).toHaveCSS("left", "20px");
   await expect(object).toHaveCSS("width", "920px");
@@ -434,6 +440,7 @@ for (const missingReplay of [false, true]) test(`comparison uses the selected B 
   await expect(viewer).toHaveAttribute("data-session-marker", "same-comparison");
   if (!isMobile) {
     expect((await page.locator(".sim-scene-viewport").boundingBox())!.height).toBeGreaterThan(260);
+    await page.locator(".sim-scene-viewport").scrollIntoViewIfNeeded();
     await expect(viewer.locator('[data-element-id="A"]')).toBeInViewport();
   }
   await expect(page.locator(".sim-studio-dock")).toBeHidden();
@@ -470,4 +477,194 @@ test("pointer placement commits one scene edit in world coordinates at a non-def
   await expect(object).toHaveCSS("left", "0px");
   await expect(object).toHaveCSS("top", "0px");
   await expect(page.getByRole("button", { name: "Annulla modifica al layout", exact: true })).toBeDisabled();
+});
+
+
+test("headers move process and charts directly at nondefault zoom with one undoable edit", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Mouse header dragging is covered on desktop; touch and keyboard placement have separate journeys.");
+  await page.goto(`${studio}/workspace/42`);
+  const process = page.locator('[data-scene-object="__process__"]');
+  const header = process.locator(".sim-process-tile-header");
+  await header.click();
+  await expect(page.getByRole("button", { name: "Salva layout", exact: true })).toHaveCount(0);
+  const moveHeader = async (selector: string) => {
+    const object = page.locator(selector);
+    const heading = object.locator(".sim-widget-heading,.sim-process-tile-header");
+    const box = (await heading.boundingBox())!;
+    const scale = await object.evaluate(el => el.getBoundingClientRect().width / (el as HTMLElement).offsetWidth);
+    const before = await object.evaluate(el => ({ x: parseFloat((el as HTMLElement).style.left), y: parseFloat((el as HTMLElement).style.top) }));
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 48, box.y + box.height / 2 + 36, { steps: 5 });
+    await page.mouse.up();
+    const after = await object.evaluate(el => ({ x: parseFloat((el as HTMLElement).style.left), y: parseFloat((el as HTMLElement).style.top) }));
+    expect(after.x - before.x).toBeCloseTo(48 / scale, 1);
+    expect(after.y - before.y).toBeCloseTo(36 / scale, 1);
+    return { before, after };
+  };
+  await moveHeader('[data-scene-object="__process__"]');
+  await expect(page.getByRole("button", { name: "Salva layout", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Annulla modifica al layout", exact: true }).click();
+  await expect(process).toHaveCSS("left", "0px");
+  await expect(page.getByRole("button", { name: "Annulla modifica al layout", exact: true })).toBeDisabled();
+  await jump(page, "default-0");
+  await page.getByRole("button", { name: "Zoom indietro", exact: true }).click();
+  const chart = await moveHeader('[data-scene-object="default-0"]');
+  await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
+  await page.reload();
+  const restored = await page.locator('[data-scene-object="default-0"]').evaluate(el => parseFloat((el as HTMLElement).style.left));
+  expect(restored).toBeCloseTo(chart.after.x, 1);
+});
+
+test("palette adds consecutive visible KPIs and notes with keyboard configuration and cancel", async ({ page }, testInfo) => {
+  await page.goto(`${studio}/workspace/42`);
+  await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
+  const palette = page.getByRole("complementary", { name: "Aggiungi un elemento", exact: true });
+  await palette.getByRole("button", { name: /^KPI · Costo accumulato/ }).press("Enter");
+  const added = page.locator('[data-scene-object]:not(.is-process)').filter({ has: page.locator('[data-widget-id]:not([data-widget-id^="default-"])') });
+  await expect(added).toHaveCount(1);
+  await expect(added.first()).toBeInViewport({ ratio: 0.9 });
+  await palette.getByRole("button", { name: /^KPI · Casi in coda/ }).click();
+  await expect(added).toHaveCount(2);
+  await expect(added.last()).toBeInViewport({ ratio: 0.9 });
+  const rects = await added.evaluateAll(elements => elements.map(el => ({ x: parseFloat((el as HTMLElement).style.left), y: parseFloat((el as HTMLElement).style.top) })));
+  expect(rects[0]).not.toEqual(rects[1]);
+  await palette.getByRole("button", { name: "Testo", exact: true }).click();
+  await palette.getByRole("button", { name: /^Nota di analisi/ }).click();
+  await expect(added).toHaveCount(3);
+  await expect(added.last()).toBeInViewport({ ratio: 0.9 });
+  await expect(added.last()).toContainText("Prossima azione");
+  await palette.getByRole("button", { name: "Chiudi raccolta elementi", exact: true }).press("Escape");
+  await expect(page.getByRole("button", { name: "Aggiungi widget", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Configura Nota di analisi", exact: true }).click();
+  await expect(page.getByLabel("Titolo", { exact: true })).toBeFocused();
+  await page.getByLabel("Titolo", { exact: true }).fill("Ipotesi di miglioramento");
+  await page.getByRole("button", { name: "Chiudi pannello", exact: true }).click();
+  const violations = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(violations.violations).toEqual([]);
+  await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("canvas-authoring.png"), animations: "disabled" });
+  const paletteScan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(paletteScan.violations).toEqual([]);
+  await page.getByRole("button", { name: "Annulla", exact: true }).click();
+  await expect(page.locator(".sim-widget")).toHaveCount(6);
+  await expect(palette).toHaveCount(0);
+});
+
+test("dragging a palette preset places it at the drop point in scene coordinates", async ({ page, isMobile }) => {
+  test.skip(isMobile, "Native HTML drag/drop uses a mouse; click-to-add covers touch devices.");
+  await page.goto(`${studio}/workspace/42`);
+  await page.getByRole("button", { name: "Zoom indietro", exact: true }).click();
+  await page.getByRole("button", { name: "Aggiungi widget", exact: true }).click();
+  const viewport = page.getByRole("region", { name: "Tela di processo e analisi", exact: true });
+  const camera = await page.locator(".sim-scene-world").evaluate(el => { const matrix = new DOMMatrix(getComputedStyle(el).transform); return { x: matrix.e, y: matrix.f, scale: matrix.a }; });
+  const box = (await viewport.boundingBox())!;
+  const point = { x: Math.min(480, box.width - 40), y: Math.min(160, box.height - 40) };
+  await page.getByRole("complementary", { name: "Aggiungi un elemento", exact: true }).getByRole("button", { name: /^KPI · Costo accumulato/ }).dragTo(viewport, { targetPosition: point });
+  const widget = page.locator('[data-widget-id]:not([data-widget-id^="default-"])');
+  await expect(widget).toHaveCount(1);
+  const rect = await widget.evaluate(el => { const scene = el.closest("[data-scene-object]") as HTMLElement; return { x: parseFloat(scene.style.left), y: parseFloat(scene.style.top) }; });
+  expect(Math.abs(rect.x - (point.x - camera.x) / camera.scale)).toBeLessThan(2 / camera.scale);
+  expect(Math.abs(rect.y - (point.y - camera.y) / camera.scale)).toBeLessThan(2 / camera.scale);
+  await expect(widget).toBeInViewport({ ratio: 0.9 });
+  await page.getByRole("button", { name: "Salva layout", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Modifica canvas", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(widget).toHaveCount(1);
+});
+
+
+test("results panels have dedicated space and readable metrics on desktop and phone", async ({ page, isMobile }, testInfo) => {
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [{ ...run, result: {
+    OverallScenarioStatistics: [{ KPI: "cycle_time", Average: 267, "Trace Ocurrences": 3 }, { KPI: "waiting_time", Average: 90 }, { KPI: "processing_time", Average: 177 }],
+    ResourceUtilization: [{ "Resource ID": "Analisti", "Resource name": "Analisti", "Utilization": 0.8 }],
+    IndividualTaskStatistics: [{ Name: "Verifica documentazione", Count: 3, "Waiting Time": 90, "Processing Time": 177, "Cycle Time": 267 }],
+  } }, { ...run, id: 43, scenario_name: "TO-BE · Capacità aggiuntiva" }] }));
+  if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${studio}/workspace/42`);
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Risultati", exact: true }).click();
+  const dock = page.locator(".sim-studio-dock");
+  const board = page.locator(".sim-studio-board");
+  const metrics = dock.locator(".sim-snapshot-kpis");
+  await expect(metrics.locator("strong")).toHaveCount(6);
+  const positions = await page.evaluate(() => {
+    const box = (selector: string) => { const r = document.querySelector(selector)!.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+    return { board: box(".sim-studio-board"), dock: box(".sim-studio-dock") };
+  });
+  if (isMobile) expect(positions.dock.top).toBeGreaterThanOrEqual(positions.board.bottom);
+  else expect(positions.dock.left).toBeGreaterThanOrEqual(positions.board.right);
+  expect(await metrics.locator("strong").evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth))).toBe(true);
+  expect(await metrics.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await expect(board.getByRole("button", { name: "Aggiungi widget", exact: true })).toBeVisible();
+  await metrics.scrollIntoViewIfNeeded();
+  const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(scan.violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("satin-results.png"), animations: "disabled" });
+});
+
+test("multiple alternatives compare against one reference and preserve the replay session", async ({ page, isMobile }, testInfo) => {
+  const names = ["TO-BE · Capacità", "TO-BE · Automazione", "TO-BE · Turni", "TO-BE · Priorità", "TO-BE · Calendario"];
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run, ...names.map((name, index) => ({ ...run, id: 43 + index, scenario_name: name, summary: { ...run.summary, cycle: { ...run.summary.cycle, avg: 200 - index * 10 }, cost: { total: 1200 + index * 100, perCase: 400 + index * 10 } } }))] }));
+  if (!isMobile) await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(`${studio}/workspace/42`);
+  await seek(page, 200);
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Confronto", exact: true }).click();
+  await page.getByRole("combobox", { name: "Scenario A", exact: true }).click();
+  await page.getByRole("option", { name: /AS-IS/ }).click();
+  await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("AS-IS");
+  await page.getByRole("combobox", { name: "Scenario B", exact: true }).click();
+  await page.getByRole("option", { name: /TO-BE · Capacità/ }).click();
+  await expect(page.getByRole("combobox", { name: "Scenario B", exact: true })).toContainText("TO-BE · Capacità");
+  await page.locator(".sim-multi-comparison > summary").click();
+  const matrix = page.getByRole("region", { name: "Matrice di confronto degli scenari", exact: true });
+  await page.getByRole("checkbox", { name: "TO-BE · Automazione · #44", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Automazione · #44", exact: true })).toBeChecked();
+  await page.getByRole("checkbox", { name: "TO-BE · Turni · #45", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Turni · #45", exact: true })).toBeChecked();
+  await expect(matrix.locator("thead th")).toHaveCount(5);
+  const cycle = matrix.locator("tbody tr").filter({ hasText: "Attraversamento medio" });
+  await expect(cycle.locator("td").nth(0)).toContainText("4 min");
+  await expect(cycle.locator("td").nth(1)).toContainText("3 min");
+  await expect(cycle.locator("td").nth(2)).toContainText("Migliora");
+  await expect(matrix.locator("tbody tr").filter({ hasText: "Costo per caso" })).toContainText("Peggiora");
+  await page.getByRole("checkbox", { name: "TO-BE · Priorità · #46", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Priorità · #46", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "TO-BE · Calendario · #47", exact: true })).toBeDisabled();
+  await matrix.locator("thead th").filter({ hasText: "TO-BE · Turni" }).getByRole("button", { name: "Osserva nel canvas", exact: true }).click();
+  await expect(page).toHaveURL(/b=45/);
+  await expect(page).toHaveURL(/compareMode=b/);
+  await expect(matrix.locator("thead th")).toHaveCount(6);
+  const scan = await new AxeBuilder({ page }).include(".sim-studio").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(scan.violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("scenario-matrix.png"), animations: "disabled" });
+  await page.locator(".sim-studio-tools").getByRole("button", { name: "Osserva", exact: true }).click();
+  await expect(page.locator('input[type="range"]')).toHaveValue("200");
+});
+
+test("different model versions do not paint unmatched activities as comparable", async ({ page }) => {
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run, { ...run, id: 43, bpmn_model_id: "different-model", scenario_name: "TO-BE · Modello diverso" }] }));
+  await page.goto(`${studio}/workspace/42?view=compare&a=42&b=43`);
+  await expect(page.locator(".sim-comparison-bar > .sim-comparison-compatibility")).toContainText("mappatura");
+  await expect(page.locator(".sim-delta-better,.sim-delta-worse,.sim-heat-1,.sim-heat-2,.sim-heat-3,.sim-heat-4,.sim-heat-5")).toHaveCount(0);
+});
+
+
+test("inspecting a matrix alternative preserves an implicit reference and labels unavailable data", async ({ page }) => {
+  await page.route("http://127.0.0.1:8000/**/simulation-runs", route => route.fulfill({ json: [run,
+    { ...run, id: 43, scenario_name: "TO-BE · Riferimento" },
+    { ...run, id: 44, scenario_name: "TO-BE · Alternativa", summary: { ...run.summary, byResource: [] } },
+  ] }));
+  await page.goto(`${studio}/workspace/42?view=compare&panel=compare`);
+  await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("Riferimento");
+  await page.locator(".sim-multi-comparison > summary").click();
+  await page.getByRole("checkbox", { name: "TO-BE · Alternativa · #44", exact: true }).click();
+  const matrix = page.getByRole("region", { name: "Matrice di confronto degli scenari", exact: true });
+  await expect(matrix.locator("thead th")).toHaveCount(4);
+  await expect(matrix.locator("tbody tr").filter({ hasText: "Risorsa più carica" }).locator("td").last()).toContainText("Dati non disponibili");
+  await matrix.locator("thead th").filter({ hasText: "TO-BE · Alternativa" }).getByRole("button", { name: "Osserva nel canvas", exact: true }).click();
+  await expect(page).toHaveURL(/a=43/);
+  await expect(page).toHaveURL(/b=44/);
+  await expect(page.getByRole("combobox", { name: "Scenario A", exact: true })).toContainText("Riferimento");
+  await expect(matrix.locator("thead th")).toHaveCount(4);
 });

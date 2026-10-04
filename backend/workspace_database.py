@@ -948,7 +948,7 @@ def update_bpmn_model(
         # non descrive piu' cio' che si vede. Va rifatto, e lo fa il worker.
         review = session.get(WorkspaceBpmnReview, bpmn_model_id)
         if review is not None and getattr(review, "tenant_id", "local") == tenant_id():
-            review.conformance_status = "pending"
+            _queue_conformance(review)
         create_bpmn_version(
             session=session,
             model=model,
@@ -1691,7 +1691,7 @@ def prepare_bpmn_review(
 
         # Il piano e' cambiato: il confronto con le fonti che risultava prima
         # descrive un altro piano. Va rifatto, e lo fa il worker.
-        review.conformance_status = "pending"
+        _queue_conformance(review)
         _record_review_version(
             session,
             review,
@@ -1755,7 +1755,7 @@ def revise_bpmn_review(
         # new proposal, not a still-approved one.
         review.status = "pending"
         # E il confronto con le fonti descriveva il piano di prima: va rifatto.
-        review.conformance_status = "pending"
+        _queue_conformance(review)
         review.updated_at = now_iso()
 
         _record_review_version(
@@ -3342,9 +3342,19 @@ def request_conformance_check(bpmn_model_id: str) -> bool:
         review = tenant_row(session, WorkspaceBpmnReview, bpmn_model_id)
         if review is None:
             return False
-        review.conformance_status = "pending"
+        _queue_conformance(review)
         session.flush()
         return True
+
+
+def _queue_conformance(review: WorkspaceBpmnReview) -> None:
+    """Rimette in coda il confronto di un disegno nuovo, con i tentativi a zero.
+
+    I tentativi contano i fallimenti dello stesso disegno: quando il disegno o
+    il piano cambiano, il confronto e' un altro e riparte da capo.
+    """
+    review.conformance_status = "pending"
+    review.conformance_attempts = 0
 
 
 def due_conformance_checks(limit: int = 3, *, only_tenant_id: str | None = None) -> list[dict]:
@@ -3392,18 +3402,30 @@ def due_conformance_checks(limit: int = 3, *, only_tenant_id: str | None = None)
         if only_tenant_id:
             statement = statement.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
         rows = session.execute(statement).scalars().all()
-        claimed = [
-            {
-                "tenant_id": row.tenant_id,
-                "process_id": row.process_id,
-                "bpmn_model_id": row.bpmn_model_id,
-            }
-            for row in rows
-        ]
+        claimed = []
         now = now_iso()
         for row in rows:
+            if (row.conformance_attempts or 0) >= CONFORMANCE_MAX_ATTEMPTS:
+                # Ha gia' avuto i suoi tentativi e nessuno e' arrivato in fondo:
+                # esce dalla coda invece di girare per sempre, e resta contata.
+                logger.warning(
+                    "confronto con le fonti abbandonato per il processo %s dopo %s tentativi",
+                    row.process_id,
+                    row.conformance_attempts,
+                )
+                row.conformance_status = CONFORMANCE_FAILED
+                row.conformance_leased_at = None
+                continue
             row.conformance_status = "running"
             row.conformance_leased_at = now
+            row.conformance_attempts = (row.conformance_attempts or 0) + 1
+            claimed.append(
+                {
+                    "tenant_id": row.tenant_id,
+                    "process_id": row.process_id,
+                    "bpmn_model_id": row.bpmn_model_id,
+                }
+            )
         session.flush()
         return claimed
 
@@ -3437,7 +3459,7 @@ def enqueue_unchecked_conformance(limit: int = 20, *, only_tenant_id: str | None
             statement = statement.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
         rows = session.execute(statement).scalars().all()
         for row in rows:
-            row.conformance_status = "pending"
+            _queue_conformance(row)
         session.flush()
         return [row.bpmn_model_id for row in rows]
 
@@ -3447,6 +3469,11 @@ def enqueue_unchecked_conformance(limit: int = 20, *, only_tenant_id: str | None
 # modello: sui processi veri sono minuti, e una scadenza stretta farebbe lavorare
 # due volte lo stesso disegno.
 CONFORMANCE_LEASE_SECONDS = 900
+# Prese in carico per lo stesso disegno prima di smettere. Con il lease da 15
+# minuti sono piu' di un'ora di tentativi: abbastanza per un provider che torna,
+# non abbastanza per riempire il log di un errore che non passera'.
+CONFORMANCE_MAX_ATTEMPTS = 5
+CONFORMANCE_FAILED = "failed"
 
 # Lo stato di chi ha rinunciato: la review salvata non e' leggibile, e la coda
 # non la ripropone. Non e' `done` - nessun confronto e' stato fatto - e non e'
@@ -3455,13 +3482,19 @@ CONFORMANCE_LEASE_SECONDS = 900
 CONFORMANCE_UNAVAILABLE = "unavailable"
 
 
-def conformance_queue_stats() -> dict[str, int]:
-    """Quanti confronti sono in attesa, presi in carico, o rinunciati."""
+def conformance_queue_stats(*, only_tenant_id: str | None = None) -> dict[str, int]:
+    """Quanti confronti sono in attesa, presi in carico, o rinunciati.
+
+    Args:
+        only_tenant_id: Limita il conto a un tenant (amministrazione, test).
+    """
+    statement = select(WorkspaceBpmnReview.conformance_status, func.count()).group_by(
+        WorkspaceBpmnReview.conformance_status
+    )
+    if only_tenant_id:
+        statement = statement.where(WorkspaceBpmnReview.tenant_id == only_tenant_id)
     with workspace_connection() as session:
-        rows = session.execute(
-            select(WorkspaceBpmnReview.conformance_status, func.count())
-            .group_by(WorkspaceBpmnReview.conformance_status)
-        ).all()
+        rows = session.execute(statement).all()
     counts = {str(status): int(count) for status, count in rows}
     return {
         "pending": counts.get("pending", 0),
@@ -3471,6 +3504,9 @@ def conformance_queue_stats() -> dict[str, int]:
         # legge. Contarli separatamente e' l'unico modo per accorgersene, invece
         # di vederli sparire dentro "done" come se fossero stati confrontati.
         "unavailable": counts.get(CONFORMANCE_UNAVAILABLE, 0),
+        # Disegni che hanno esaurito i tentativi: errori ripetuti, non un
+        # piano illeggibile. Anche questi vanno guardati da una persona.
+        "failed": counts.get(CONFORMANCE_FAILED, 0),
     }
 
 

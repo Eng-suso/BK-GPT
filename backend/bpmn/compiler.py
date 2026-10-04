@@ -20,7 +20,6 @@ from backend.bpmn._helpers import (
     xml_id,
 )
 from backend.bpmn.collaboration import (
-    CollaborationLayer,
     build_collaboration_layer,
     finalize_message_flows,
     lane_for_step,
