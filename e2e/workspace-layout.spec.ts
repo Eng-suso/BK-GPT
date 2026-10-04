@@ -341,7 +341,10 @@ test("reserved BPMN tools create elements through the modeler without covering i
 });
 
 
-test("unpooled resources require explicit assignment and remain empty after removal and reload", async ({ page }) => {
+for (const mobile of [false, true]) {
+ test(`unpooled resources require explicit assignment and remain empty after removal and reload on ${mobile ? "mobile" : "desktop"}`, async ({ page }, testInfo) => {
+  test.setTimeout(Math.max(testInfo.timeout, 90_000));
+  await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1366, height: 900 });
   await page.goto(`${studio}/simulation/scenario`);
   const run = page.getByRole("button", { name: "Avvia simulazione", exact: true });
   await expect(page.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
@@ -352,7 +355,12 @@ test("unpooled resources require explicit assignment and remain empty after remo
   await resource.getByRole("textbox", { name: "Ruolo", exact: true }).fill("Support");
   await resource.getByRole("button", { name: "Conferma capacità e costo", exact: true }).click();
   await expect(run).toBeDisabled();
-  await resource.getByRole("button", { name: /Assegna alle attività senza risorsa/ }).click();
+  const assign = resource.getByRole("button", { name: /Assegna alle attività senza risorsa/ });
+  await assign.scrollIntoViewIfNeeded();
+  const assignBounds = (await assign.boundingBox())!;
+  expect(assignBounds.x).toBeGreaterThanOrEqual(0);
+  expect(assignBounds.x + assignBounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await assign.click();
   await expect(run).toBeEnabled();
   await resource.getByRole("button", { name: "Rimuovi ruolo Support", exact: true }).click();
   await expect(run).toBeDisabled();
@@ -360,7 +368,8 @@ test("unpooled resources require explicit assignment and remain empty after remo
   await page.reload();
   await expect(page.getByText("Nessuna risorsa configurata", { exact: true })).toBeVisible();
   await expect(run).toBeDisabled();
-});
+ });
+}
 
 for (const mobile of [false, true]) {
   test(`BPMN lane resource origin, capacity review and stable layout on ${mobile ? "mobile" : "desktop"}`, async ({ page }, testInfo) => {
