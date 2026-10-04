@@ -660,7 +660,7 @@ def extract_plan_from_sources(
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="plan-extract") as pool:
             # `map` conserva l'ordine dell'input: il merge resta deterministico
             # anche se le chiamate finiscono in ordine diverso.
-            for index, result in zip(to_extract, pool.map(extract_in_this_operation, to_extract)):
+            for index, result in zip(to_extract, pool.map(extract_in_this_operation, to_extract), strict=True):
                 results[index] = result
 
     # Un guasto temporaneo del provider - timeout, rate limit - non deve costare
@@ -689,7 +689,7 @@ def extract_plan_from_sources(
     origins: dict[str, list[str]] = {}
     source_paths: dict[str, list[str]] = {}
     partial_boundaries: dict[str, dict] = {}
-    for source, result in zip(readable, results):
+    for source, result in zip(readable, results, strict=True):
         name = str(source.get("name") or source.get("id") or "fonte senza nome")
         if result is None or result.status != "success" or result.process is None:
             reason = (
