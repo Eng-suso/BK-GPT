@@ -26,6 +26,10 @@ async def run_prosimos_simulation(
     base_url = settings.prosimos_base_url.rstrip("/")
     simulate_url = f"{base_url}/api/simulate"
     start = request.start_date or datetime.now(UTC).isoformat()
+    form = {"startDate": start, "numProcesses": str(request.total_cases)}
+    if request.seed is not None:
+        # Il runner DeliR lo usa e restituisce `Seed`; il microservizio 1.2.6 lo ignora.
+        form["seed"] = str(request.seed)
 
     with tempfile.TemporaryDirectory(prefix="delir-prosimos-") as tmp_dir:
         tmp_path = Path(tmp_dir)
@@ -42,10 +46,7 @@ async def run_prosimos_simulation(
                 with bpmn_path.open("rb") as bpmn_file, scenario_path.open("rb") as scenario_file:
                     response = await client.post(
                         simulate_url,
-                        data={
-                            "startDate": start,
-                            "numProcesses": str(request.total_cases),
-                        },
+                        data=form,
                         files={
                             "modelFile": ("process.bpmn", bpmn_file, "application/xml"),
                             "simScenarioFile": (
@@ -57,7 +58,7 @@ async def run_prosimos_simulation(
                     )
         except httpx.HTTPError as exc:
             raise ProsimosError(
-                f"Prosimos non raggiungibile su {base_url}. Avvia prosimos-microservice."
+                f"Prosimos non raggiungibile su {base_url}. Avvia il runner (ops/prosimos/runner)."
             ) from exc
 
     if response.status_code >= 400:
@@ -73,6 +74,9 @@ async def run_prosimos_simulation(
     if not isinstance(payload, dict):
         payload = {"result": payload}
 
+    # Seed e data di inizio insieme rifanno lo stesso log: senza una data nella
+    # richiesta si usa "adesso", quindi va conservata quella effettivamente usata.
+    payload.setdefault("StartDate", start)
     event_log_csv = await _fetch_event_log(base_url, payload)
 
     return ProsimosSimulationResult(
