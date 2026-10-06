@@ -51,6 +51,24 @@ def test_a_missing_file_is_reported_not_returned_empty(tmp_path: Path):
         LocalBlobStore(tmp_path).get(_key())
 
 
+def test_a_stream_comes_back_in_chunks_and_whole(tmp_path: Path, monkeypatch):
+    from backend.workspace_services import blob_store
+
+    monkeypatch.setattr(blob_store, "STREAM_CHUNK_BYTES", 8)
+    store = LocalBlobStore(tmp_path)
+    store.put(_key(), _PAYLOAD, content_hash=_HASH)
+
+    chunks = list(store.stream(_key()))
+
+    assert len(chunks) > 1
+    assert b"".join(chunks) == _PAYLOAD
+
+
+def test_a_missing_file_fails_before_the_stream_starts(tmp_path: Path):
+    with pytest.raises(BlobNotFound):
+        LocalBlobStore(tmp_path).stream(_key())
+
+
 def test_deleting_twice_is_not_an_error(tmp_path: Path):
     store = LocalBlobStore(tmp_path)
     store.put(_key(), _PAYLOAD, content_hash=_HASH)
@@ -96,3 +114,16 @@ def test_the_root_can_be_configured(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(settings, "source_storage_root", str(tmp_path / "archivio"))
 
     assert storage_root() == tmp_path / "archivio"
+
+
+def test_a_relative_root_is_read_from_the_project_not_the_working_directory(monkeypatch, tmp_path: Path):
+    from backend.settings import settings
+
+    monkeypatch.setattr(settings, "source_storage_root", "archivio")
+    monkeypatch.chdir(tmp_path)
+
+    root = storage_root()
+
+    assert root.is_absolute()
+    assert tmp_path not in root.parents
+    assert root.name == "archivio"

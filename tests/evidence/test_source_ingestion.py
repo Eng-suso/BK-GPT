@@ -516,4 +516,6 @@ def test_the_original_downloads_byte_for_byte_from_the_store(http: TestClient, t
     assert response.status_code == 200, response.text
     assert response.content == payload
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert "attachment" in response.headers["content-disposition"]
+    assert response.headers["content-disposition"] == (
+        "attachment; filename*=utf-8''Procedura%20acquisti%20%C3%A8.md"
+    )

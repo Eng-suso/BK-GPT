@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import os
 import uuid
+from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
 from typing import Protocol
@@ -30,6 +31,9 @@ from backend.settings import settings
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # Tutte le chiavi delle fonti vivono qui sotto: e' il confine dei percorsi.
 _SOURCES_PREFIX = "source_uploads"
+# Il download legge e manda a pezzi: piu' download insieme non tengono in
+# memoria un file intero ciascuno.
+STREAM_CHUNK_BYTES = 1024 * 1024
 
 
 class BlobKeyError(ValueError):
@@ -47,6 +51,10 @@ class SourceBlobStore(Protocol):
 
     def get(self, key: str) -> bytes:
         """I byte del file; `BlobNotFound` se non c'e'."""
+        ...
+
+    def stream(self, key: str) -> Iterator[bytes]:
+        """Il file a pezzi. `BlobNotFound` subito, prima del primo pezzo."""
         ...
 
     def delete(self, key: str) -> None:
@@ -97,14 +105,37 @@ class LocalBlobStore:
         except FileNotFoundError as exc:
             raise BlobNotFound(key) from exc
 
+    def stream(self, key: str) -> Iterator[bytes]:
+        path = self._path(key)
+        try:
+            handle = path.open("rb")
+        except FileNotFoundError as exc:
+            raise BlobNotFound(key) from exc
+
+        def chunks() -> Iterator[bytes]:
+            with handle:
+                while chunk := handle.read(STREAM_CHUNK_BYTES):
+                    yield chunk
+
+        return chunks()
+
     def delete(self, key: str) -> None:
         self._path(key).unlink(missing_ok=True)
 
 
 def storage_root() -> Path:
-    """La radice dei file: configurata, o `data/` nella radice del progetto."""
+    """La radice dei file: configurata, o `data/` nella radice del progetto.
+
+    Un valore relativo si legge dalla radice del progetto, mai dalla cartella
+    di lavoro: API e worker partiti da cartelle diverse devono vedere lo stesso
+    archivio. Chi prima avviava l'app da un'altra cartella aveva i file in
+    `<quella cartella>/data`: per ritrovarli basta indicarla qui, assoluta.
+    """
     configured = settings.source_storage_root
-    return Path(configured) if configured else _PROJECT_ROOT / "data"
+    if not configured:
+        return _PROJECT_ROOT / "data"
+    root = Path(configured)
+    return root if root.is_absolute() else _PROJECT_ROOT / root
 
 
 @lru_cache(maxsize=1)

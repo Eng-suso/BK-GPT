@@ -6,6 +6,7 @@ import csv
 import hashlib
 import io
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -219,6 +220,16 @@ def read_original(storage_key: str) -> bytes:
     """I byte dell'originale. `SourceFileError` se la chiave non vale o il file manca."""
     try:
         return source_blob_store().get(storage_key)
+    except BlobKeyError as exc:
+        raise SourceFileError("Percorso della fonte non valido.") from exc
+    except BlobNotFound as exc:
+        raise SourceFileError("File originale non trovato.") from exc
+
+
+def stream_original(storage_key: str) -> Iterator[bytes]:
+    """L'originale a pezzi, per il download. `SourceFileError` subito se manca."""
+    try:
+        return source_blob_store().stream(storage_key)
     except BlobKeyError as exc:
         raise SourceFileError("Percorso della fonte non valido.") from exc
     except BlobNotFound as exc:
