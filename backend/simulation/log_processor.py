@@ -288,6 +288,40 @@ def process_prosimos_log(
     return summary, replay
 
 
+def summarize_log_events(
+    events: list[LogEvent],
+    *,
+    name_to_element_id: dict[str, str],
+) -> dict:
+    """I KPI di un log qualsiasi, senza le statistiche di Prosimos.
+
+    Stesso calcolo dei run simulati (``_build_summary``), cosi' un log reale e
+    uno simulato si confrontano sulla stessa definizione di ogni numero. Le
+    cifre che solo Prosimos sa (utilizzo con i calendari, costi del motore)
+    restano a chi chiama: un log reale non le ha.
+    """
+    if not events:
+        raise ProsimosLogError("Nessun evento da riassumere.")
+    by_case: dict[str, list[LogEvent]] = defaultdict(list)
+    by_activity: dict[str, list[LogEvent]] = defaultdict(list)
+    for ev in events:
+        by_case[ev.case_id].append(ev)
+        by_activity[ev.activity].append(ev)
+    run_start = min(ev.enable for ev in events)
+    run_end = max(ev.end for ev in events)
+    return _build_summary(
+        events=events,
+        by_case=by_case,
+        by_activity=by_activity,
+        name_to_element_id=name_to_element_id,
+        prosimos_stats={},
+        pools={},
+        run_start=run_start,
+        run_end=run_end,
+        duration=max(1.0, run_end - run_start),
+    )
+
+
 # --------------------------------------------------------------------------- #
 # (1) summary — full-log KPIs
 # --------------------------------------------------------------------------- #
