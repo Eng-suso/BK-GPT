@@ -89,7 +89,12 @@ class ParsedSource:
     evidence: CanonicalSource | None = None
 
 
-def _plain_text(payload: bytes) -> str:
+def decode_plain_text(payload: bytes) -> str:
+    """Il testo di un file, nella prima codifica che lo legge: utf-8 (con o senza BOM), poi cp1252.
+
+    Raises:
+        SourceFileError: Nessuna delle codifiche supportate legge il file.
+    """
     for encoding in ("utf-8-sig", "utf-8", "cp1252"):
         try:
             return payload.decode(encoding)
@@ -174,7 +179,7 @@ def parse_source_file(filename: str, payload: bytes, _declared_mime: str | None)
         text = render_workbook_text(evidence)
         parser = evidence.parser
     else:
-        text = _plain_text(payload)
+        text = decode_plain_text(payload)
         if extension == ".csv":
             try:
                 rows = list(csv.reader(io.StringIO(text)))
