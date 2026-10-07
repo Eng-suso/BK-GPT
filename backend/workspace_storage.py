@@ -280,11 +280,14 @@ class WorkspaceEventLog(WorkspaceBase):
     )
     # Le attivita' abbinate dal consulente; NULL = solo il suggerimento automatico.
     activity_matches_json: Mapped[str | None] = mapped_column(Text)
+    # Le risorse del log abbinate dal consulente alle risorse del modello.
+    resource_matches_json: Mapped[str | None] = mapped_column(Text)
     # La versione del BPMN su cui e' stato calcolato l'abbinamento.
     bpmn_version_id: Mapped[int | None] = mapped_column(Integer)
     quality_json: Mapped[str | None] = mapped_column(Text)
     summary_json: Mapped[str | None] = mapped_column(Text)
     match_json: Mapped[str | None] = mapped_column(Text)
+    resource_match_json: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     mapped_at: Mapped[str | None] = mapped_column(String)
 

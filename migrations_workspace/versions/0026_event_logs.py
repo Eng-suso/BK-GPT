@@ -8,8 +8,8 @@ SIM-15, secondo sotto-blocco: l'import degli event log diventa persistente.
 
 - `workspace_event_logs`: un file caricato su un processo, con l'anteprima
   (formato, separatore, colonne, righe) e l'esito dell'ultimo mapping (mapping,
-  template, qualita', KPI, abbinamento al BPMN). Unico per tenant, processo e
-  impronta del file. Cade con il suo processo.
+  template, qualita', KPI, abbinamento di attivita' e risorse al modello).
+  Unico per tenant, processo e impronta del file. Cade con il suo processo.
 - `workspace_event_log_payloads`: i byte del file, fuori dalla riga del log.
 - `workspace_event_log_templates`: i mapping salvati, una riga per versione.
 """
@@ -76,10 +76,12 @@ def upgrade() -> None:
                 nullable=True,
             ),
             sa.Column("activity_matches_json", sa.Text(), nullable=True),
+            sa.Column("resource_matches_json", sa.Text(), nullable=True),
             sa.Column("bpmn_version_id", sa.Integer(), nullable=True),
             sa.Column("quality_json", sa.Text(), nullable=True),
             sa.Column("summary_json", sa.Text(), nullable=True),
             sa.Column("match_json", sa.Text(), nullable=True),
+            sa.Column("resource_match_json", sa.Text(), nullable=True),
             sa.Column("created_at", sa.String(), nullable=False),
             sa.Column("mapped_at", sa.String(), nullable=True),
             sa.UniqueConstraint("tenant_id", "process_id", "content_hash", name="uq_workspace_event_log_file"),
