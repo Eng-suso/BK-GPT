@@ -10,7 +10,11 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import UTC, datetime
+
 from backend.memory import projection_health
+from backend.memory.knowledge_graph.projection_state import ProjectionState
+from backend.memory.knowledge_graph.projector import PROJECTOR_VERSION
 from backend.memory.projection_health import ProjectionHealth, projection_report
 from backend.settings import settings
 
@@ -25,7 +29,13 @@ def _worker_dsn(monkeypatch):
     projection_health.clear_cache()
 
 
-def _queue(monkeypatch, stats=None, error: Exception | None = None) -> None:
+def _queue(
+    monkeypatch,
+    stats=None,
+    error: Exception | None = None,
+    state: ProjectionState | None = None,
+    state_error: Exception | None = None,
+) -> None:
     from backend.workers import graph_worker
 
     def queue_stats(_client_id=None):
@@ -33,7 +43,25 @@ def _queue(monkeypatch, stats=None, error: Exception | None = None) -> None:
             raise error
         return stats
 
+    def client_projection_state(_client_id):
+        if state_error is not None:
+            raise state_error
+        return state
+
     monkeypatch.setattr(graph_worker, "queue_stats", queue_stats)
+    monkeypatch.setattr(graph_worker, "client_projection_state", client_projection_state)
+
+
+def _state(**change) -> ProjectionState:
+    fields = {
+        "watermark": 42,
+        "projector_version": PROJECTOR_VERSION,
+        "corrupt_since": None,
+        "corrupt_reason": None,
+        "verified_at": None,
+        **change,
+    }
+    return ProjectionState(**fields)
 
 
 def test_a_healthy_queue_is_fresh(monkeypatch):
@@ -70,6 +98,60 @@ def test_an_unreadable_queue_is_unknown_not_fresh(monkeypatch):
 
 def test_without_the_worker_dsn_nobody_can_verify(monkeypatch):
     monkeypatch.setattr(settings, "canonical_worker_url", None)
+
+    report = projection_report("client-1")
+
+    assert report.health is ProjectionHealth.UNKNOWN
+    assert not report.readable
+
+
+def test_the_watermark_and_projector_travel_with_a_fresh_report(monkeypatch):
+    _queue(monkeypatch, _HEALTHY, state=_state())
+
+    report = projection_report("client-1")
+
+    assert report.health is ProjectionHealth.FRESH
+    assert report.stats is not None
+    assert report.stats["watermark"] == 42
+    assert report.stats["projector_version"] == PROJECTOR_VERSION
+
+
+def test_a_graph_the_reconciliation_found_wrong_is_corrupt(monkeypatch):
+    # Una coda sana non lo salva: il grafo e' gia' diverso da Postgres.
+    _queue(
+        monkeypatch,
+        _HEALTHY,
+        state=_state(corrupt_since=datetime(2026, 10, 7, tzinfo=UTC), corrupt_reason="missing_edges=3"),
+    )
+
+    report = projection_report("client-1")
+
+    assert report.health is ProjectionHealth.CORRUPT
+    assert not report.readable
+    assert report.reason is not None and "missing_edges=3" in report.reason
+
+
+def test_corrupt_wins_over_a_lagging_queue(monkeypatch):
+    _queue(
+        monkeypatch,
+        {**_HEALTHY, "dead_letter": 4},
+        state=_state(corrupt_since=datetime(2026, 10, 7, tzinfo=UTC), corrupt_reason="extra_nodes=1"),
+    )
+
+    assert projection_report("client-1").health is ProjectionHealth.CORRUPT
+
+
+def test_a_graph_written_by_another_projector_is_stale(monkeypatch):
+    _queue(monkeypatch, _HEALTHY, state=_state(projector_version="0"))
+
+    report = projection_report("client-1")
+
+    assert report.health is ProjectionHealth.STALE
+    assert report.reason is not None and "kg_reproject" in report.reason
+
+
+def test_an_unreadable_state_is_unknown_not_fresh(monkeypatch):
+    _queue(monkeypatch, _HEALTHY, state_error=RuntimeError("relation graph_projection_state does not exist"))
 
     report = projection_report("client-1")
 

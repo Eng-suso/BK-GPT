@@ -2,6 +2,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
@@ -317,6 +318,41 @@ export function useVerifyProjectSourceMutation(
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: projectKeys.sources(projectId) });
     },
+  });
+}
+
+/**
+ * Carica un file per tutto il cliente (P1.16): appartiene al cliente e compare
+ * nelle Fonti di ogni suo progetto. Per questo si rileggono le Fonti di tutti
+ * i progetti in cache, non solo quelle del progetto aperto.
+ */
+export function useUploadClientSourceMutation(
+  clientId: string,
+): UseMutationResult<UploadedSource, Error, Omit<SourceUpload, "scopes">> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ file, roles, retention }) => {
+      const body = sourceUploadForm({ file, roles, retention, scopes: [] });
+      const raw = await http<unknown>(`/v1/workspace/clients/${clientId}/sources/upload`, {
+        method: "POST",
+        body,
+      });
+      const parsed = apiUploadedSourceSchema.parse(raw);
+      return {
+        ...toProjectSource(parsed),
+        created: parsed.created,
+        suggestedRoles: parsed.suggested_roles,
+      };
+    },
+    onSuccess: () => invalidateEverySourcesList(queryClient),
+  });
+}
+
+/** Rilegge le Fonti di ogni progetto in cache: una fonte del cliente sta in tutte. */
+export function invalidateEverySourcesList(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({
+    predicate: (query) =>
+      query.queryKey[0] === projectKeys.all[0] && query.queryKey.at(-1) === "sources",
   });
 }
 
