@@ -20,6 +20,7 @@ from backend.llm.chat_client import DeliRChatOpenAI, chat_client
 from backend.llm import ledger
 from backend.llm.gateway import (
     GATEWAY,
+    TRANSIENT_PROVIDER_ERRORS,
     OperationNotOpen,
     embed,
     record_avoided_call,
@@ -49,6 +50,7 @@ __all__ = [
     "OperationNotOpen",
     "Outcome",
     "TaskProfile",
+    "TRANSIENT_PROVIDER_ERRORS",
     "TokenUsage",
     "adopt",
     "all_profiles",
