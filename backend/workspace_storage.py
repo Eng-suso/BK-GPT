@@ -99,11 +99,35 @@ class WorkspaceProcess(WorkspaceBase):
     archive_reason: Mapped[str | None] = mapped_column(Text)
 
     project: Mapped[WorkspaceProject] = relationship(back_populates="processes")
+    review_actions: Mapped[list["WorkspaceImpactReviewAction"]] = relationship(
+        cascade="all, delete-orphan",
+    )
     bpmn_model: Mapped["WorkspaceBpmnModel"] = relationship(
         back_populates="process",
         cascade="all, delete-orphan",
         uselist=False,
     )
+
+
+class WorkspaceImpactReviewAction(WorkspaceBase):
+    """Consultant hypotheses and follow-ups, separate from the As-Is authority."""
+
+    __tablename__ = "workspace_impact_review_actions"
+    __table_args__ = (
+        CheckConstraint("kind IN ('candidate', 'clarification', 'deferred')", name="ck_impact_review_kind"),
+        Index("ix_impact_review_process_tenant", "process_id", "tenant_id"),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False)
+    process_id: Mapped[str] = mapped_column(ForeignKey("workspace_processes.id", ondelete="CASCADE"), nullable=False)
+    node_id: Mapped[str] = mapped_column(String, nullable=False)
+    node_name: Mapped[str] = mapped_column(String, nullable=False)
+    base_revision: Mapped[str] = mapped_column(String, nullable=False)
+    kind: Mapped[str] = mapped_column(String, nullable=False)
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    created_by: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class WorkspaceBpmnModel(WorkspaceBase):
