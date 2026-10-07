@@ -249,6 +249,20 @@
       "completed": "Completata",
       "failed": "Fallita"
     },
+    "activityInspector": {
+      "title": "Parametri simulati",
+      "duration": "Durata media",
+      "defaultDuration": "durata di default dello scenario",
+      "distribution": "Distribuzione",
+      "normalStd": "dev. std {{pct}}% della media, assunzione fissa",
+      "resource": "Risorsa",
+      "resourceValue": "{{name}} × {{amount}} · {{cost}}/h",
+      "origin": "Origine",
+      "confidence": "confidenza {{level}}",
+      "provenanceLoading": "Provenienza in caricamento",
+      "provenanceError": "Provenienza non disponibile: il valore resta senza origine.",
+      "notActivity": "Seleziona un'attività: decisioni ed eventi non hanno durata né risorsa."
+    },
     "provenance": {
       "label": "Origine",
       "sourceLabel": "Origine: {{source}} · confidenza {{confidence}}",

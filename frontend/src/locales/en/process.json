@@ -249,6 +249,20 @@
       "completed": "Completed",
       "failed": "Failed"
     },
+    "activityInspector": {
+      "title": "Simulated parameters",
+      "duration": "Mean duration",
+      "defaultDuration": "scenario default duration",
+      "distribution": "Distribution",
+      "normalStd": "std. dev. {{pct}}% of the mean, fixed assumption",
+      "resource": "Resource",
+      "resourceValue": "{{name}} × {{amount}} · {{cost}}/h",
+      "origin": "Origin",
+      "confidence": "{{level}} confidence",
+      "provenanceLoading": "Loading provenance",
+      "provenanceError": "Provenance unavailable: the value has no origin.",
+      "notActivity": "Select an activity: decisions and events have no duration or resource."
+    },
     "provenance": {
       "label": "Source",
       "sourceLabel": "Source: {{source}} · {{confidence}} confidence",
