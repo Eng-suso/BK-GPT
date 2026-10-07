@@ -134,10 +134,18 @@ def agent_scope_state(
     thread identifiers are represented by defaults or `None` values.
     """
     scope_type = agent_scope_type(scope)
+    review_context = None
+    if getattr(scope, "review_node_id", None):
+        from backend.schemas.chat import CanvasChatScope
+        from backend.workspace_services.task_review_context import read_task_review_context
+
+        if isinstance(scope, CanvasChatScope):
+            review_context = read_task_review_context(scope)
     return {
         "scope_type": scope_type,
+        "review_task_context": review_context,
         "pending_action": _open_pending_action(thread_id),
-        "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
+        "chat_mode": "conversation" if review_context else chat_mode or DEFAULT_CHAT_MODE,
         # Scelta dal consulente, o "auto": guida router e risposta, non le scritture.
         "posture": posture or "auto",
         # Risolti qui, una volta per turno: i nodi a valle leggono contenuto,
@@ -147,7 +155,7 @@ def agent_scope_state(
         "project_id": getattr(scope, "project_id", None),
         "process_id": getattr(scope, "process_id", None),
         "bpmn_model_id": getattr(scope, "bpmn_model_id", None),
-        "current_bpmn_xml": getattr(scope, "current_bpmn_xml", None),
+        "current_bpmn_xml": None if review_context else getattr(scope, "current_bpmn_xml", None),
     }
 
 
@@ -184,6 +192,13 @@ def build_scope_system_prompt(state: dict) -> str:
         CHAT_MODE_CONTRACTS[chat_mode],
         ACTION_HONESTY_RULE,
     ]
+    if state.get("review_task_context"):
+        lines.append(ContextBlock(
+            "task in review",
+            _state_value_to_text(state["review_task_context"], MAX_STATE_ARTIFACT_CHARS),
+            priority=95,
+            header=("", "Task selezionato nella Process Review, verificato dal backend:"),
+        ))
 
     posture = state.get("detected_posture") or (
         state.get("posture") if state.get("posture") not in {None, "auto"} else None

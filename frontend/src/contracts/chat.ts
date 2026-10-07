@@ -18,6 +18,8 @@ export const apiChatScopeSchema = z.discriminatedUnion("type", [
     bpmn_model_id: z.string().min(1),
     current_bpmn_xml: z.string().nullable().optional(),
     current_bpmn_version_id: z.number().nullable().optional(),
+    review_node_id: z.string().min(1).max(256).optional(),
+    review_base_revision: z.string().length(64).optional(),
   }),
 ]);
 
@@ -198,6 +200,8 @@ export type ChatScope =
       currentBpmnXml?: string | null;
       /** The saved version `currentBpmnXml` comes from: the agent's writes build on it. */
       currentBpmnVersionId?: number | null;
+      reviewNodeId?: string;
+      reviewBaseRevision?: string;
     };
 
 export function toApiChatScope(
@@ -216,6 +220,7 @@ export function toApiChatScope(
               project_id: scope.projectId,
               process_id: scope.processId,
               bpmn_model_id: scope.bpmnModelId,
+              ...(scope.reviewNodeId ? { review_node_id: scope.reviewNodeId, review_base_revision: scope.reviewBaseRevision } : {}),
               ...(includeTransient && scope.currentBpmnXml
                 ? {
                     current_bpmn_xml: scope.currentBpmnXml,
@@ -232,5 +237,6 @@ export function chatScopeKey(scope: ApiChatScope): string {
   if (scope.type === "consultant") return "consultant";
   if (scope.type === "project") return `project:${scope.project_id}`;
   if (scope.type === "process") return `process:${scope.project_id}:${scope.process_id}`;
-  return `canvas:${scope.project_id}:${scope.process_id}:${scope.bpmn_model_id}`;
+  const key = `canvas:${scope.project_id}:${scope.process_id}:${scope.bpmn_model_id}`;
+  return scope.review_node_id ? `${key}:review:${scope.review_node_id}` : key;
 }

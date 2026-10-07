@@ -1,6 +1,6 @@
 from typing import Annotated, Literal, TypeAlias, TypeGuard
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # Due scelte del consulente per ogni turno, su due assi separati
@@ -132,6 +132,14 @@ class CanvasChatScope(BaseModel):
     # La versione salvata da cui viene `current_bpmn_xml`. Il turno la usa come
     # base: se nel frattempo qualcuno ha salvato, l'agente non ci scrive sopra.
     current_bpmn_version_id: int | None = None
+    review_node_id: str | None = Field(default=None, min_length=1, max_length=256)
+    review_base_revision: str | None = Field(default=None, min_length=64, max_length=64)
+
+    @model_validator(mode="after")
+    def review_target_is_complete(self):
+        if bool(self.review_node_id) != bool(self.review_base_revision):
+            raise ValueError("La chat di review richiede task e revisione insieme.")
+        return self
 
 
 ChatScope: TypeAlias = Annotated[
@@ -197,4 +205,5 @@ def chat_scope_key(scope: ChatScope | None) -> str:
         return f"project:{scope.project_id}"
     if scope.type == "process":
         return f"process:{scope.project_id}:{scope.process_id}"
-    return f"canvas:{scope.project_id}:{scope.process_id}:{scope.bpmn_model_id}"
+    key = f"canvas:{scope.project_id}:{scope.process_id}:{scope.bpmn_model_id}"
+    return f"{key}:review:{scope.review_node_id}" if scope.review_node_id else key

@@ -12,6 +12,7 @@ from backend.schemas.chat import (
     ChatAttachment,
     ChatMode,
     ChatScope,
+    CanvasChatScope,
     Posture,
     posture_belongs_to_scope,
 )
@@ -30,6 +31,9 @@ class _TurnChoices(BaseModel):
     @property
     def chat_mode(self) -> ChatMode:
         """La modalita' interna che l'autonomia scelta produce."""
+        scope = getattr(self, "scope", None)
+        if isinstance(scope, CanvasChatScope) and scope.review_node_id:
+            return "conversation"
         return AUTONOMY_TO_MODE[self.autonomy]
 
     def _check_posture(self, scope) -> None:
