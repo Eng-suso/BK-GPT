@@ -1,0 +1,5 @@
+# Ambiente dei test del runner e dell'IR eseguito su Prosimos 2.1 (Python 3.12).
+# pydantic serve a `backend.simulation.ir`; versione allineata a uv.lock.
+-r requirements.txt
+pydantic==2.13.4
+pytest==9.1.1
