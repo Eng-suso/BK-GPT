@@ -43,7 +43,8 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P1.5 | Suite security: injection indiretta da PDF/Excel/trascrizioni, cross-tenant, esfiltrazione (job notturno, modello dei test) | 5 | **da fare** |
 | P0.6a | Le migrazioni allo startup spegnevano tutti i logger del backend | 6 | **fatto** — #64 |
 | P0.6b | Audit log append-only, OpenTelemetry, Sentry, backup con restore provato, cancellazione GDPR end-to-end | 6 | **bloccato** — D4 (infra) |
-| P2.1 | Spezzare `memory/gateway.py` e `workspace_database.py` dietro una facciata | 7 | **da fare** |
+| P2.1a | `backend/memory/gateway.py` diviso nel pacchetto `backend/memory/gateway/` (scope, ricerca testuale, grafo, ledger, memoria, procedurale, workspace) dietro la stessa facciata | 7 | **fatto** — #85 |
+| P2.1b | Spezzare `workspace_database.py` per aggregato dietro la stessa facciata | 7 | **da fare** |
 | P2.2 | `SourceBlobStore`: file originali dietro un'interfaccia, radice assoluta, download a pezzi | 7 | **fatto** — #68 |
 
 ---
@@ -52,8 +53,8 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 
 In quest'ordine, senza decisioni da aspettare:
 
-1. **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata — #85;
-2. **P1.4**, seguito: uno scenario dell'harness sullo stato derivato (grafo `STALE`/`CORRUPT` servito da Postgres).
+1. **P1.4**, seguito: uno scenario dell'harness sullo stato derivato (grafo `STALE`/`CORRUPT` servito da Postgres);
+2. **P2.1b** spezzare `workspace_database.py` per aggregato dietro la stessa facciata.
 
 ---
 
@@ -95,6 +96,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
+| 2026-10-07 | P2.1a | #85: `backend/memory/gateway/` con `__init__` come facciata (`__all__` invariato per i chiamanti); la riga di #72 su `list_project_sources` portata in `gateway/workspace.py` | stessi nomi importabili da `backend.memory.gateway`; equivalenza AST delle funzioni spostate; suite backend verde |
 | 2026-10-07 | P1.4 | #84: `tests/evals/outcome_harness.py` (turno vero con `build_tool_chat_subgraph`, tool veri, modello a copione) e 4 scenari L0 + un controllo | `tests/evals/l0_deterministic/test_agent_outcomes.py`: 6 verdi; mutazione del confine di scope presa |
 | 2026-10-07 | P1.1b | #83: `graph_projection_state` (watermark avanzato dal worker nella stessa transazione, `PROJECTOR_VERSION` conservata finche' non si ricostruisce, `corrupt_since`/`corrupt_reason`); `ProjectionHealth.CORRUPT`; `kg_reproject` scrive l'esito | `tests/memory/test_projection_state.py` (11, su Postgres canonical), `tests/memory/test_projection_health.py`; migrazione 0019 su e giu' |
 | 2026-10-07 | — | Due teste workspace dopo #72 e #80: `0026_usage_context_print` ripuntata su `0026_client_sources` | `alembic heads` una testa; upgrade, downgrade a 0025 e di nuovo upgrade su Postgres locale |
