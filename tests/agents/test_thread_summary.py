@@ -15,10 +15,12 @@ import openai
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 
+import backend.agent as agent_module
 from backend.agent import (
     FALLBACK_TOTAL_CHARS,
     SUMMARY_KEEP_RECENT_MESSAGES,
     SUMMARY_TRIGGER_MESSAGE_COUNT,
+    _history_tokens,
     summarize_history,
 )
 from backend.llm import OperationNotOpen
@@ -193,3 +195,63 @@ def test_messages_without_id_are_not_summarized_twice():
 
     assert seen, "il secondo giro deve riassumere i messaggi usciti dalla coda"
     assert not [m for m in seen if m.id is None]
+
+
+def test_a_blank_summary_falls_back_to_the_extract():
+    degradation_counters.reset()
+    messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)
+
+    out = summarize_history({"messages": messages, "running_summary": "prima"}, lambda e, o: "  \n ")
+
+    assert out["running_summary"].startswith("prima")
+    assert "non una sintesi" in out["running_summary"]
+    assert degradation_counters.snapshot() == {"thread_summary:empty_summary": 1}
+
+
+def test_a_repeated_call_summarizes_only_what_is_new():
+    messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 4)
+    seen: list = []
+
+    out = summarize_history(
+        {"messages": messages, "summarized_message_count": 3, "running_summary": "prima"},
+        lambda existing, old: seen.append((existing, old)) or "dopo",
+    )
+
+    cutoff = len(messages) - SUMMARY_KEEP_RECENT_MESSAGES
+    assert seen == [("prima", messages[3:cutoff])]
+    assert out["running_summary"] == "dopo"
+
+
+def test_nothing_new_to_summarize_is_a_no_op():
+    messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)
+    cutoff = len(messages) - SUMMARY_KEEP_RECENT_MESSAGES
+    calls = []
+
+    out = summarize_history(
+        {"messages": messages, "summarized_message_count": cutoff},
+        lambda s, m: calls.append(m) or "x",
+    )
+
+    assert out == {}
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("count", "summarized"),
+    [(SUMMARY_TRIGGER_MESSAGE_COUNT, False), (SUMMARY_TRIGGER_MESSAGE_COUNT + 1, True)],
+)
+def test_the_message_count_threshold_is_exclusive(count, summarized):
+    out = summarize_history({"messages": _thread(count)}, lambda existing, old: "sintesi")
+
+    assert ("running_summary" in out) is summarized
+
+
+@pytest.mark.parametrize(("margin", "summarized"), [(0, False), (1, True)])
+def test_the_token_threshold_is_exclusive(monkeypatch, margin, summarized):
+    messages = _thread(SUMMARY_KEEP_RECENT_MESSAGES + 2)
+    region_tokens = _history_tokens(messages[:2])
+    monkeypatch.setattr(agent_module, "SUMMARY_TRIGGER_TOKENS", region_tokens - margin)
+
+    out = summarize_history({"messages": messages}, lambda existing, old: "sintesi")
+
+    assert ("running_summary" in out) is summarized
