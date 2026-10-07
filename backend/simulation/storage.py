@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.schemas.simulation import CreateSimulationRunRequest
+from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import get_current_tenant_id
 from backend.settings import settings
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
@@ -163,7 +164,7 @@ def create_simulation_run(
     bpmn_model_id: str,
     process_id: str,
     scenario_name: str,
-    request: CreateSimulationRunRequest,
+    request: CreateSimulationRunRequest | CreateSimulationModelRunRequest,
     scenario: ProsimosScenario,
     idempotency_key: str | None = None,
 ) -> dict[str, Any]:

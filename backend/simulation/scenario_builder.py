@@ -14,7 +14,10 @@ from backend.schemas.simulation import (
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
+from backend.simulation.ir.baseline import baseline_model
+from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
+from backend.simulation.ir.model import SimulationModel
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
 from backend.simulation.validation import validate_simulation_bpmn
 
@@ -50,6 +53,29 @@ def build_prosimos_scenario(
     validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     model = model_from_request(request, tasks, gateways)
+    return ProsimosScenario(
+        payload=compile_for_prosimos(model),
+        task_count=len(tasks),
+        gateway_count=len(gateways),
+    )
+
+
+def baseline_for_bpmn(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> SimulationModel:
+    """L'IR di partenza del BPMN normalizzato, con le risorse dei suoi pool e lane.
+
+    ``source_bpmn_xml`` e' il BPMN prima della normalizzazione: pool e lane si
+    leggono da li', come fa il template della configurazione.
+    """
+    tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
+    resources = describe_bpmn_resources(source_bpmn_xml or bpmn_xml, {task.id for task in tasks})
+    return baseline_model(tasks, gateways, resources)
+
+
+def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel) -> ProsimosScenario:
+    """Lo scenario Prosimos di un IR dato, dopo aver verificato che parli del BPMN."""
+    validate_simulation_bpmn(bpmn_xml)
+    tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
+    check_model_against_bpmn(model, tasks, gateways)
     return ProsimosScenario(
         payload=compile_for_prosimos(model),
         task_count=len(tasks),

@@ -10,9 +10,10 @@ equivalenza).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import ValidationError
 
-from backend.schemas.simulation import CreateSimulationRunRequest, SimCalendarConfig, SimTaskConfig
 from backend.simulation.ir.model import (
     Activity,
     Arrival,
@@ -34,6 +35,11 @@ from backend.simulation.ir.model import (
     Uniform,
 )
 from backend.simulation.models import BpmnGateway, BpmnTask
+
+if TYPE_CHECKING:
+    # Solo per i tipi: lo schema HTTP importa il modello dell'IR (richiesta v2),
+    # e un import a runtime qui chiuderebbe il cerchio.
+    from backend.schemas.simulation import CreateSimulationRunRequest, SimCalendarConfig, SimTaskConfig
 
 STANDARD_CALENDAR_ID = "delir-calendar-standard"
 DEFAULT_RESOURCE_ID = "delir-resource-operator"
