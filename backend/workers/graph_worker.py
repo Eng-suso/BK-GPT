@@ -1,8 +1,9 @@
 """Worker che drena graph_outbox e proietta su Neo4j (INV-7).
 
 Gira come ruolo delir_worker (`canonical_worker_url`): SELECT/UPDATE solo sulle
-due code, nessun accesso alle tabelle di dominio. Il payload e' gia' completo,
-il worker non rilegge Postgres.
+due code e su `graph_projection_state` (il watermark per cliente), nessun
+accesso alle tabelle di dominio. Il payload e' gia' completo, il worker non
+rilegge Postgres.
 
 MVP: worker singolo, ordine globale per `id`. L'ordinamento per-aggregate resta
 un refinement di P5/P8.
@@ -33,7 +34,7 @@ from functools import lru_cache
 
 from sqlalchemy import create_engine, text
 
-from backend.memory.knowledge_graph import neo4j_store, projector
+from backend.memory.knowledge_graph import neo4j_store, projection_state, projector
 from backend.memory.knowledge_graph.projector import InvalidGraphPayload
 from backend.settings import settings
 from backend.workers import retry
@@ -97,7 +98,7 @@ def drain_once(limit: int = 200) -> int:
     with _engine().begin() as conn:
         rows = conn.execute(
             text(
-                "SELECT id, payload, attempts, throttled_count FROM graph_outbox "
+                "SELECT id, client_id, payload, attempts, throttled_count FROM graph_outbox "
                 "WHERE processed_at IS NULL AND attempts < :maxa "
                 "  AND next_attempt_at <= now() "
                 "ORDER BY id FOR UPDATE SKIP LOCKED LIMIT :lim"
@@ -117,16 +118,24 @@ def drain_once(limit: int = 200) -> int:
                 savepoint = conn.begin_nested()
                 try:
                     projector.apply(neo, row.payload)
-                    conn.execute(
-                        text("UPDATE graph_outbox SET processed_at = now() WHERE id = :id"),
-                        {"id": row.id},
-                    )
+                    _mark_applied(conn, row.id, row.client_id)
                     savepoint.commit()
                     done += 1
                 except Exception as exc:  # noqa: BLE001 — registra e va avanti
                     savepoint.rollback()
                     _handle_failure(conn, row, exc)
     return done
+
+
+def _mark_applied(conn, outbox_id: int, client_id: str | None) -> None:
+    """La riga e' nel grafo: si segna processata e il watermark del suo cliente
+    avanza, nella stessa transazione. Una riga senza cliente non ne ha uno."""
+    conn.execute(
+        text("UPDATE graph_outbox SET processed_at = now() WHERE id = :id"),
+        {"id": outbox_id},
+    )
+    if client_id is not None:
+        projection_state.advance_watermark(conn, str(client_id), outbox_id)
 
 
 def _handle_failure(conn, row, exc: Exception) -> None:
@@ -220,6 +229,12 @@ def queue_stats(client_id: str | None = None) -> dict[str, int | float]:
         "dead_letter": int(dead),
         "oldest_pending_age_s": round(float(row.oldest_age), 1),
     }
+
+
+def client_projection_state(client_id: str) -> projection_state.ProjectionState | None:
+    """Watermark, versione del projector e guasti dichiarati del grafo di un cliente."""
+    with _engine().begin() as conn:
+        return projection_state.read(conn, client_id)
 
 
 def run_forever(idle_sleep: float = 2.0) -> None:
