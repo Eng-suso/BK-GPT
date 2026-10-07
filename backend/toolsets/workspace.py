@@ -1042,7 +1042,7 @@ def list_workspace_project_sources(project_id: str) -> str:
     """
     return format_workspace_result(
         "Fonti progetto workspace",
-        workspace_database.list_project_sources(project_id),
+        workspace_database.list_project_sources(project_id, include_client=True),
     )
 
 

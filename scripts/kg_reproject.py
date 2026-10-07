@@ -16,10 +16,16 @@ che avevano lasciato e' chiuso, e restando in tabella terrebbero acceso per
 sempre il segnale `staleness` di `graph_retrieve`. Vengono cancellate SOLO se il
 confronto dopo `--apply` e' pulito, e prima vengono elencate con il motivo.
 
+Ogni esito finisce nello stato della proiezione del cliente
+(`graph_projection_state`), che `projection_health` legge prima di servire il
+grafo: un confronto o una riparazione che lascia differenze lo segna `CORRUPT`;
+un confronto pulito toglie il segno; una ricostruzione pulita porta anche la
+versione del projector a quella in uso.
+
 Ruoli. La lettura del dominio passa da `canonical_session` (delir_app, con RLS:
 per questo serve il consulente - default `DEFAULT_CONSULTANT_ID`). Il dead-letter
 si cancella come `delir_migrator` (`CANONICAL_MIGRATOR_URL`), come in
-`scripts/queue_admin.py`. Non far girare questo script con la DSN del worker:
+`scripts/queue_admin.py`, e cosi' lo stato della proiezione. Non far girare questo script con la DSN del worker:
 `delir_worker` non legge il dominio, ed e' giusto che resti cosi'.
 """
 
@@ -30,7 +36,7 @@ import sys
 
 from sqlalchemy import create_engine, text
 
-from backend.memory.knowledge_graph import reproject
+from backend.memory.knowledge_graph import projection_state, reproject
 from backend.settings import settings
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -47,6 +53,21 @@ def _print_diff(title: str, d: reproject.GraphDiff) -> None:
     for name in ("missing_edges", "extra_edges", "duplicate_edges", "drifted_edges"):
         for label, source, target in getattr(d, name)[:5]:
             print(f"    {name}: {source[0]} {source[1]} -[{label}]-> {target[0]} {target[1]}")
+
+
+def _record_outcome(client_id: str, d: reproject.GraphDiff, *, rebuilt: bool) -> None:
+    """Scrive l'esito nello stato della proiezione, che il gateway legge."""
+    if not settings.canonical_migrator_url:
+        print("CANONICAL_MIGRATOR_URL non configurata: stato della proiezione non aggiornato",
+              file=sys.stderr)
+        return
+    engine = create_engine(settings.canonical_migrator_url, future=True)
+    with engine.begin() as conn:
+        if d.clean:
+            projection_state.mark_verified(conn, client_id, rebuilt=rebuilt)
+        else:
+            projection_state.mark_corrupt(conn, client_id, d.differences())
+    print(f"stato della proiezione: {'verificato' if d.clean else 'CORRUPT'}")
 
 
 def _resolve_dead_letter(client_id: str) -> int:
@@ -87,6 +108,7 @@ def main() -> int:
     if not args.apply:
         d = reproject.diff(args.consultant, args.client)
         _print_diff("confronto", d)
+        _record_outcome(args.client, d, rebuilt=False)
         return 0 if d.clean else 1
 
     report = reproject.apply(args.consultant, args.client)
@@ -94,6 +116,7 @@ def main() -> int:
     print(f"rimossi {report.deleted_nodes} nodi / {report.deleted_edges} archi, "
           f"riapplicati {report.applied_nodes} nodi / {report.applied_edges} archi")
     _print_diff("dopo", report.after)
+    _record_outcome(args.client, report.after, rebuilt=True)
     if not report.after.clean:
         return 1
     if args.resolve_dead_letter:

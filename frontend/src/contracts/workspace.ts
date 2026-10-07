@@ -175,7 +175,10 @@ export type ProjectDraft = {
 
 export type ProjectSource = {
   id: string;
-  projectId: string;
+  /** `null` per una fonte del cliente, che vale per tutti i suoi progetti. */
+  projectId: string | null;
+  /** Il cliente a cui la fonte appartiene: il suo, o quello del suo progetto. */
+  clientId: string | null;
   processId: string | null;
   name: string;
   type: string;
@@ -347,7 +350,7 @@ export type SourceUpload = {
  */
 export type SourceDocument = {
   id: string;
-  projectId: string;
+  projectId: string | null;
   processId: string | null;
   name: string;
   type: string;
@@ -482,7 +485,8 @@ export const apiArchiveSchema = z.object({
 
 export const apiProjectSourceSchema = z.object({
   id: z.string(),
-  project_id: z.string(),
+  project_id: z.string().nullable(),
+  client_id: z.string().nullable().default(null),
   process_id: z.string().nullable(),
   name: z.string(),
   type: z.string(),
@@ -516,7 +520,7 @@ export const apiUploadedSourceSchema = apiProjectSourceSchema.extend({
 
 export const apiSourceDocumentSchema = z.object({
   id: z.string(),
-  project_id: z.string(),
+  project_id: z.string().nullable(),
   process_id: z.string().nullable(),
   name: z.string(),
   type: z.string(),
@@ -766,6 +770,7 @@ export function toProjectSource(source: z.infer<typeof apiProjectSourceSchema>):
   return {
     id: source.id,
     projectId: source.project_id,
+    clientId: source.client_id,
     processId: source.process_id,
     name: source.name,
     type: source.type,

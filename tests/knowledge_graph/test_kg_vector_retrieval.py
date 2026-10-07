@@ -298,7 +298,7 @@ def test_rerank_reorders_context_chunks_when_enabled(scope, wait_projected, monk
             return list(range(len(passages) - 1, -1, -1))
 
     monkeypatch.setattr(reranker, "build_reranker", lambda: ReverseReranker())
-    monkeypatch.setattr(gateway.settings, "retrieval_rerank_enabled", True)
+    monkeypatch.setattr(settings, "retrieval_rerank_enabled", True)
 
     reranked = _q()["chunks"]
     assert [c["content"] for c in reranked] == list(reversed(baseline))

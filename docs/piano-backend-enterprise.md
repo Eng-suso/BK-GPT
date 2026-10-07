@@ -14,7 +14,7 @@ piano, e a Sohayb per sapere dove siamo senza rileggere i diff.
 aggiorna §① (riga dell'intervento), §② (il prossimo passo) e §⑥ (log), nello
 stesso commit o nella stessa PR del lavoro.
 
-Ultimo aggiornamento: 2026-10-06.
+Ultimo aggiornamento: 2026-10-07.
 
 ---
 
@@ -30,32 +30,31 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P1.2a | Coda dei confronti: tetto di 5 tentativi, stato `failed` contato | 1 | **fatto** — #55 |
 | P1.2b | Quarantena per fonte | 1 | **fatto** (già su main: tentativi per fase, `failed`, errore leggibile, le altre fonti proseguono) |
 | — | I `ValueError` dei tool tornano al modello invece di far cadere il turno; argomenti fuori schema gestiti; confini (`RuntimeError`) invariati | 1 | **fatto** — #62 |
-| P1.4 | Agent Outcome Harness (stato canonico e derivato prima/dopo, tool chiesti ed eseguiti, scenari stale / tenant / injection / crash) | 1 | **da fare** |
+| P1.4 | Agent Outcome Harness (stato prima/dopo, tool chiesti ed eseguiti, scenari stale / tenant / injection / crash); lo stato derivato della proiezione negli scenari resta da aggiungere | 1 | **fatto** — #84 |
 | P0.1 | Identità per persona (JWT), membership, tenant risolto dal server, fine di `default_consultant_id` | 2 | **bloccato** — D1 |
 | P0.2 | RLS sul workspace DB | 2 | **bloccato** — dopo D1 |
 | P0.3 | Lock dei turni su Postgres per `thread_id`; simulazioni in coda Postgres | 3 | **bloccato** — D2 |
 | P0.4 | Tetto di spesa LLM per tenant e ambiente; rate limit API | 3 | **bloccato** — D3 |
 | P1.1a | `ProjectionHealth` FRESH / STALE / UNKNOWN; grafo non verificato fresco servito da Postgres (`kg_relation`) | 4 | **fatto** — #56 |
-| P1.1b | Watermark per cliente, versione del projector, stato `CORRUPT` dalla riconciliazione | 4 | **da fare** |
+| P1.1b | Watermark per cliente, versione del projector, stato `CORRUPT` dalla riconciliazione (`graph_projection_state`, migrazione canonical 0019) | 4 | **fatto** — #83 |
 | P1.3a | Budget in token del prompt di scope (48.000), blocchi con priorità, omissioni dichiarate al modello, XML non duplicato, impronta sha256 | 5 | **fatto** — #61 |
-| P1.3b | Riassunto del thread a soglia di token, con ripiego deterministico se il modello fallisce | 5 | **in corso** — #71 |
-| P1.3c | Impronta del contesto nel registro dei consumi LLM | 5 | **da fare** |
+| P1.3b | Riassunto del thread a soglia di token (misurata sulla sola fetta riassumibile, tool call compresi), riassunto del modello validato (vuoto o oltre 2.000 token → estratto), ripiego deterministico solo sui guasti transitori del provider, contato | 5 | **fatto** — #71 |
+| P1.3c | Impronta del contesto nel registro dei consumi LLM: colonna `context_fingerprint` (migrazione workspace 0026), la riga `chat_turn` porta l'ultima impronta assemblata nel turno | 5 | **fatto** — #80 |
 | P1.5 | Suite security: injection indiretta da PDF/Excel/trascrizioni, cross-tenant, esfiltrazione (job notturno, modello dei test) | 5 | **da fare** |
 | P0.6a | Le migrazioni allo startup spegnevano tutti i logger del backend | 6 | **fatto** — #64 |
 | P0.6b | Audit log append-only, OpenTelemetry, Sentry, backup con restore provato, cancellazione GDPR end-to-end | 6 | **bloccato** — D4 (infra) |
-| P2.1 | Spezzare `memory/gateway.py` e `workspace_database.py` dietro una facciata | 7 | **da fare** |
-| P2.2 | `SourceBlobStore`: file originali dietro un'interfaccia, radice assoluta, download a pezzi | 7 | **in corso** — #68 |
+| P2.1a | `backend/memory/gateway.py` diviso nel pacchetto `backend/memory/gateway/` (scope, ricerca testuale, grafo, ledger, memoria, procedurale, workspace) dietro la stessa facciata | 7 | **fatto** — #85 |
+| P2.1b | Spezzare `workspace_database.py` per aggregato dietro la stessa facciata | 7 | **da fare** |
+| P2.2 | `SourceBlobStore`: file originali dietro un'interfaccia, radice assoluta, download a pezzi | 7 | **fatto** — #68 |
 
 ---
 
 ## ② Prossimo passo
 
-1. Portare a merge **#71** e **#68**: CI verde, review CodeRabbit (vedi §③.4), risposta a ogni rilievo nel suo thread, merge.
-2. Poi, in quest'ordine, senza decisioni da aspettare:
-   - **P1.3c** impronta del contesto nel registro dei consumi (`backend/llm/ledger.py`): una colonna e il valore che `assemble()` già calcola;
-   - **P1.1b** watermark e stato `CORRUPT` della proiezione (`backend/memory/projection_health.py`, `scripts/kg_reproject.py`);
-   - **P1.4** Agent Outcome Harness, partendo dagli scenari già coperti a pezzi (`tests/evals/l0_deterministic`, `tests/bpmn/test_bpmn_concurrent_writes.py`);
-   - **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata.
+In quest'ordine, senza decisioni da aspettare:
+
+1. **P1.4**, seguito: uno scenario dell'harness sullo stato derivato (grafo `STALE`/`CORRUPT` servito da Postgres);
+2. **P2.1b** spezzare `workspace_database.py` per aggregato dietro la stessa facciata.
 
 ---
 
@@ -87,6 +86,7 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 
 | Dove | Cosa | Stato |
 | --- | --- | --- |
+| `migrations_workspace/versions/0026_*` | `0026_usage_context_print` (#80) e `0026_client_sources` (#72) partivano entrambe da `0025`: con due teste `alembic upgrade head` falliva | risolto: la `0026_usage_context_print` ora segue la `0026_client_sources` |
 | `e2e/simulation-workspace.spec.ts:381` | "changing run retains the tool…" fallisce a volte su chromium in CI (3 tentativi su 3 il 2026-10-04, verde al rilancio) | instabile, da guardare con chi lavora sulla simulazione |
 | Macchina di sviluppo | Con più sessioni, stack Docker e dev server insieme la RAM libera è scesa a 150 MB su 16 GB e Docker Desktop è andato in errore 500 | riavviato; tenere al minimo gli stack di test accesi |
 
@@ -96,6 +96,12 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
+| 2026-10-07 | P2.1a | #85: `backend/memory/gateway/` con `__init__` come facciata (`__all__` invariato per i chiamanti); la riga di #72 su `list_project_sources` portata in `gateway/workspace.py` | stessi nomi importabili da `backend.memory.gateway`; equivalenza AST delle funzioni spostate; suite backend verde |
+| 2026-10-07 | P1.4 | #84: `tests/evals/outcome_harness.py` (turno vero con `build_tool_chat_subgraph`, tool veri, modello a copione) e 4 scenari L0 + un controllo | `tests/evals/l0_deterministic/test_agent_outcomes.py`: 6 verdi; mutazione del confine di scope presa |
+| 2026-10-07 | P1.1b | #83: `graph_projection_state` (watermark avanzato dal worker nella stessa transazione, `PROJECTOR_VERSION` conservata finche' non si ricostruisce, `corrupt_since`/`corrupt_reason`); `ProjectionHealth.CORRUPT`; `kg_reproject` scrive l'esito | `tests/memory/test_projection_state.py` (11, su Postgres canonical), `tests/memory/test_projection_health.py`; migrazione 0019 su e giu' |
+| 2026-10-07 | — | Due teste workspace dopo #72 e #80: `0026_usage_context_print` ripuntata su `0026_client_sources` | `alembic heads` una testa; upgrade, downgrade a 0025 e di nuovo upgrade su Postgres locale |
+| 2026-10-07 | P1.3c | #80: `context_fingerprint` nel registro dei consumi; `build_scope_system_prompt` annota l'impronta in un raccoglitore del turno (ContextVar, arriva ai nodi LangGraph), il runtime la passa alla riga `chat_turn` | `tests/agents/test_context_fingerprint_trace.py`, `test_the_ledger_row_reaches_postgres`; migrazione 0026 su e giù su Postgres locale |
+| 2026-10-07 | P1.3b | #71: i 6 rilievi CodeRabbit chiusi — tool call nel conto dei token, soglia sulla sola fetta riassumibile, ripiego solo su `TRANSIENT_PROVIDER_ERRORS` (log error, `degradation_counters`), messaggi senza id non riassunti due volte, test su vuoto, giro ripetuto e confini; dal controllo pre-merge, il riassunto del modello validato (`ThreadSummary`, Pydantic) prima di entrare nello stato, un tetto al riassunto con ripieghi consecutivi, gli esiti dei tool fuori dall'estratto | `tests/agents/test_thread_summary.py`: 22 verdi; `tests/agents` + `tests/llm`: 527 verdi |
 | 2026-10-06 | P2.2 | #68: download a pezzi, radice relativa ancorata al progetto, nome file verificato (rilievi CodeRabbit) | `tests/workspace/test_blob_store.py`, `tests/evidence/test_source_ingestion.py`: 26 verdi |
 | 2026-10-06 | — | #62 mergiata: i `ValueError` dei tool tornano al modello; istruzione esplicita di non riportare al consulente nomi di tool, id o messaggi tecnici | `tests/agents/test_tool_errors.py` |
 | 2026-10-04 | P0.6a | #64 mergiata: `ensure_schema` non riconfigura più i log; `env.py` non spegne i logger esistenti | `tests/server/test_logging_survives_migrations.py`, rosso senza il fix |

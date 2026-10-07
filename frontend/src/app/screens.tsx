@@ -30,6 +30,10 @@ export const ClientsListPage = lazy(() =>
   import("@/features/clients").then((m) => ({ default: m.ClientsListPage })),
 );
 
+export const ClientDetailPage = lazy(() =>
+  import("@/features/clients").then((m) => ({ default: m.ClientDetailPage })),
+);
+
 export const ProjectsListPage = lazy(() =>
   import("@/features/projects").then((m) => ({ default: m.ProjectsListPage })),
 );

@@ -411,7 +411,9 @@ SourceRole = Literal["context", "process_evidence", "policy", "operational_data"
 
 class ProjectSourceResponse(BaseModel):
     id: str
-    project_id: str
+    # Vuoto per una fonte del cliente (P1.16), che vale per tutti i suoi progetti.
+    project_id: str | None = None
+    client_id: str | None = None
     process_id: str | None = None
     name: str
     type: str
@@ -539,7 +541,8 @@ class SourceDocumentResponse(BaseModel):
     """
 
     id: str
-    project_id: str
+    # Vuoto per una fonte del cliente (P1.16).
+    project_id: str | None = None
     process_id: str | None = None
     name: str
     type: str

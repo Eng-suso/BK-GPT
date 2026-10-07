@@ -40,7 +40,8 @@
     "documents": "Documenti recenti",
     "selectPrompt": "Seleziona un cliente per vederne il dettaglio.",
     "actions": {
-      "edit": "Modifica"
+      "edit": "Modifica",
+      "open": "Apri scheda"
     }
   },
   "state": {
@@ -81,6 +82,19 @@
       "Attivo": "Cliente già acquisito o attivamente seguito.",
       "Da seguire": "Relazione esistente, in attesa di un follow-up.",
       "Prospect": "Ancora da acquisire: lead, offerta inviata, trattativa aperta."
+    }
+  },
+  "page": {
+    "backToList": "Torna ai clienti",
+    "openProjects": "Progetti del cliente",
+    "missing": {
+      "title": "Cliente non trovato",
+      "body": "Questo cliente non c'è più, o è stato archiviato. Lo trovi nell'Archivio, se è stato chiuso."
+    },
+    "sources": {
+      "title": "Fonti del cliente",
+      "description": "File che valgono per tutti i progetti del cliente: compaiono nelle Fonti di ognuno.",
+      "loadError": "Non è stato possibile caricare le fonti del cliente."
     }
   }
 }

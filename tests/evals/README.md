@@ -49,6 +49,7 @@ affidabile, qualunque cosa dica il resto della suite.
 | `test_trajectory_metrics.py`, `test_trajectory_specs.py` | le metriche di traiettoria dicono il vero, e ogni traiettoria attesa si regge su una regola ancora scritta nel prodotto, con tool e argomenti che esistono |
 | `test_judge.py`, `test_judge_calibration_set.py` | il giudice L2 passa dal gateway col suo compito, l'accordo con un umano si calcola giusto, il set di calibrazione e' utilizzabile |
 | `test_golden_graph_metrics.py` | dal piano ideale il compilatore ridisegna la mappa di riferimento, a 1.0 |
+| `test_agent_outcomes.py` | un turno vero dell'agente (`outcome_harness.py`) con un modello che sbaglia: injection, progetto fuori scope, disegno cambiato da un collega, database giu'. Lo stato cambia solo quando deve, e nessun esito finto arriva al modello |
 
 ## Eseguire
 

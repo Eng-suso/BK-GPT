@@ -33,6 +33,7 @@ import time
 from functools import lru_cache
 from typing import Any, TypeVar, overload
 
+import openai
 from pydantic import BaseModel
 
 from backend.llm.operation import current_operation
@@ -85,6 +86,20 @@ class OperationNotOpen(RuntimeError):
     Se succede dentro un `ThreadPoolExecutor`, la causa e' quasi sempre un'altra:
     i thread non ereditano i `ContextVar`. Vedi `operation.inherit_operation`.
     """
+
+
+# I guasti del provider che passano da soli: rete, timeout, 429, 5xx. Chi ha
+# un ripiego lo usa solo per questi; un 4xx o un difetto nostro (`TypeError`,
+# `KeyError`) non sono un guasto del provider e si propagano. Il 429 copre
+# anche il credito finito: il ripiego regge il lavoro accessorio, e la
+# chiamata principale del turno lo dira' comunque.
+TRANSIENT_PROVIDER_ERRORS: tuple[type[BaseException], ...] = (
+    openai.APIConnectionError,  # comprende APITimeoutError
+    openai.RateLimitError,
+    openai.InternalServerError,
+    TimeoutError,
+    ConnectionError,
+)
 
 
 def _client(profile: TaskProfile, input_characters: int | None):
@@ -514,6 +529,7 @@ def record_streamed_usage(
     duration_ms: int = 0,
     prompt_version: str | None = None,
     reasoning_effort: str | None = None,
+    context_fingerprint: str | None = None,
 ) -> None:
     """Registra il consumo di una chiamata **stremata**, a stream finito.
 
@@ -543,6 +559,9 @@ def record_streamed_usage(
             colonna un turno che costa il doppio di un mese fa sembrerebbe un
             aumento inspiegato, invece che la conseguenza visibile di un file
             piu' lungo.
+        context_fingerprint: L'impronta del contesto di scope che il turno ha
+            mandato al modello. Solo per `CHAT_TURN`: l'instradamento non lo
+            riceve.
     """
     if not usage_metadata:
         return
@@ -568,6 +587,7 @@ def record_streamed_usage(
         # solo il default, e scriverlo qui misurerebbe un livello mai usato.
         reasoning_effort=reasoning_effort or profile.reasoning_effort,
         prompt_version=prompt_version,
+        context_fingerprint=context_fingerprint,
     )
 
 
