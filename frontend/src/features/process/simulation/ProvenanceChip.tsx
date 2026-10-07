@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
-import type { Confidence, FieldProvenance } from "./simulationProvenance";
+import { provenanceTip, type Confidence, type FieldProvenance } from "./simulationProvenance";
 
 // Evidence tokens (semantic.css): confirmed, partial, missing — one per confidence.
 const DOT: Record<Confidence, string> = {
@@ -18,25 +18,6 @@ type ProvenanceChipProps = {
   hideNote?: boolean;
   className?: string;
 };
-
-/** Tooltip text: discovery evidence, else the sources, else why there is none. */
-export function provenanceTip(
-  field: FieldProvenance,
-  t: (key: string, options?: Record<string, unknown>) => string,
-): string {
-  if (field.evidence && field.evidence.length > 0) {
-    return `${t("simulation.provenance.evidenceTitle")}: ${field.evidence.join(" · ")}`;
-  }
-  if (field.sources && field.sources.length > 0) {
-    const refs = field.sources.map(
-      (ref) => `${t(`simulation.provenance.sourceKind.${ref.kind}`)} ${ref.label ?? ref.id}`,
-    );
-    return `${t("simulation.provenance.sourcesTitle")}: ${refs.join(" · ")}`;
-  }
-  return field.origin === "estimated"
-    ? t("simulation.provenance.aiInferredHint")
-    : t("simulation.provenance.noEvidence");
-}
 
 /**
  * Inline badge: a confidence dot + the origin word, on the Simulation IR's

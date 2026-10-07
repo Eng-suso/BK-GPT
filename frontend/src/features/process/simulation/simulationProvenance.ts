@@ -116,6 +116,25 @@ function isEvenSplit(values: number[]): boolean {
   return values.every((v) => Math.abs(v - even) <= 0.75);
 }
 
+/** Tooltip text: discovery evidence, else the sources, else why there is none. */
+export function provenanceTip(
+  field: FieldProvenance,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  if (field.evidence && field.evidence.length > 0) {
+    return `${t("simulation.provenance.evidenceTitle")}: ${field.evidence.join(" · ")}`;
+  }
+  if (field.sources && field.sources.length > 0) {
+    const refs = field.sources.map(
+      (ref) => `${t(`simulation.provenance.sourceKind.${ref.kind}`)} ${ref.label ?? ref.id}`,
+    );
+    return `${t("simulation.provenance.sourcesTitle")}: ${refs.join(" · ")}`;
+  }
+  return field.origin === "estimated"
+    ? t("simulation.provenance.aiInferredHint")
+    : t("simulation.provenance.noEvidence");
+}
+
 /** Discovery or data back the element; `estimated` means the model made it up. */
 function isGrounded(el: ScenarioElementProvenance | undefined): el is ScenarioElementProvenance {
   return el != null && el.provenance.origin !== "estimated";
