@@ -43,18 +43,18 @@ function SimulatedParameters({ run, elementId, isActivity }: { run: SimulationRu
   const provenance = useScenarioProvenance(run.bpmn_model_id, isActivity);
   const element = provenance.data?.elements.find((el) => el.element_id === elementId && el.kind === "activity");
   const params = isActivity ? activityParameters(run.request, elementId, element) : null;
-  const titleId = `sim-params-${elementId}`;
+  const title = t("simulation.activityInspector.title");
 
   if (!params) {
-    return <section className="sim-activity-params" aria-labelledby={titleId}>
-      <h4 id={titleId}>{t("simulation.activityInspector.title")}</h4>
+    return <section className="sim-activity-params" aria-label={title}>
+      <h4>{title}</h4>
       <p className="sim-help">{t("simulation.activityInspector.notActivity")}</p>
     </section>;
   }
 
   const confidence = t(`simulation.provenance.confidence.${params.provenance.confidence}`);
-  return <section className="sim-activity-params" aria-labelledby={titleId}>
-    <h4 id={titleId}>{t("simulation.activityInspector.title")}</h4>
+  return <section className="sim-activity-params" aria-label={title}>
+    <h4>{title}</h4>
     <dl>
       <div><dt>{t("simulation.activityInspector.duration")}</dt><dd>{formatDuration(params.meanSeconds, lang)}{params.usesDefault && <span className="sim-param-note">{t("simulation.activityInspector.defaultDuration")}</span>}</dd></div>
       <div><dt>{t("simulation.activityInspector.distribution")}</dt><dd>{t(`simulation.config.dist.${params.distribution}`)}{params.stdShareOfMean != null && <span className="sim-param-note">{t("simulation.activityInspector.normalStd", { pct: Math.round(params.stdShareOfMean * 100) })}</span>}</dd></div>
