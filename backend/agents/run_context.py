@@ -70,18 +70,9 @@ class BpmnVersionConflict(ValueError):
     Il messaggio e' scritto per chi lo riceve: il consulente (409 sul
     salvataggio manuale) o il modello (esito del tool), e dice cosa fare.
     Sta qui e non in `workspace_database` perche' il nodo dei tool deve
-    poterlo riconoscere senza importare il database.
+    poterlo riconoscere senza importare il database
+    (`backend/graphs/tool_errors.py`).
     """
-
-
-def report_bpmn_version_conflict(exc: BpmnVersionConflict) -> str:
-    """Esito del tool quando il canvas e' cambiato sotto l'agente.
-
-    LangGraph ricava dal tipo dell'argomento quali eccezioni gestire: solo il
-    conflitto diventa un messaggio per il modello, ogni altro errore del tool
-    si propaga come prima.
-    """
-    return f"Modifica non salvata: {exc}"
 
 
 @dataclass
