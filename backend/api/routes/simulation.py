@@ -9,15 +9,22 @@ from backend.schemas.simulation import (
     SimulationReplayResponse,
     SimulationRunResponse,
 )
+from backend.schemas.simulation_model import (
+    CreateSimulationModelRunRequest,
+    SimulationModelRequest,
+    SimulationModelResponse,
+)
 from backend.schemas.workspace import BpmnModelResponse
 from backend.security import get_current_tenant_id, require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.service import (
     SimulationCapacityError,
     execute_simulation_run,
+    prepare_simulation_model_run,
     prepare_simulation_run,
     scenario_provenance_for_model,
     scenario_template_for_model,
+    simulation_model_for_bpmn,
 )
 from backend.simulation.storage import (
     get_simulation_replay,
@@ -68,6 +75,61 @@ async def create_workspace_simulation_run(
         )
 
     return SimulationRunResponse(**run)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-model-runs")
+async def create_workspace_simulation_model_run(
+    bpmn_model_id: str,
+    request: CreateSimulationModelRunRequest,
+    background_tasks: BackgroundTasks,
+) -> SimulationRunResponse:
+    """Run descritto dall'IR (SIM-37): modello intero, patch sulla baseline, o baseline."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+
+    try:
+        run, scenario, bpmn_xml = prepare_simulation_model_run(
+            bpmn_model=BpmnModelResponse(**model),
+            request=request,
+        )
+    except SimulationCapacityError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    except ValueError as exc:
+        # Comprende la ValidationError di una patch che rompe un riferimento.
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if scenario is not None:
+        background_tasks.add_task(
+            execute_simulation_run,
+            run_id=run["id"],
+            tenant_id=get_current_tenant_id(),
+            bpmn_xml=bpmn_xml,
+            scenario=scenario,
+            request=request,
+        )
+
+    return SimulationRunResponse(**run)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-model")
+def get_workspace_simulation_model(
+    bpmn_model_id: str,
+    request: SimulationModelRequest,
+) -> SimulationModelResponse:
+    """La baseline IR del processo: il punto di partenza che la UI mostra e una patch modifica."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+
+    try:
+        baseline = simulation_model_for_bpmn(
+            bpmn_model=BpmnModelResponse(**model),
+            current_bpmn_xml=request.current_bpmn_xml,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SimulationModelResponse(bpmn_model_id=bpmn_model_id, model=baseline)
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/simulation-template")

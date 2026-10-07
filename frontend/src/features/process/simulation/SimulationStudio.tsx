@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import type { HeatMetric } from "./simulationResults";
 import { useReplayEngine } from "./replay/useReplay";
 import { useTranslation } from "react-i18next";
-import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb } from "lucide-react";
+import { SlidersHorizontal, ListChecks, GitCompareArrows, Layers, Lightbulb, FileSpreadsheet } from "lucide-react";
 import { CanvasWorkspaceShell, WorkspaceCommandBar, WorkspaceInspector } from "@/components/layout";
 import { Button } from "@/ui/button";
 import { EmptyState } from "@/components/feedback";
@@ -17,12 +17,13 @@ import { SimulationWorkspace } from "./SimulationWorkspace";
 import { ComparePage } from "./pages/ComparePage";
 import { HeatmapPage } from "./pages/HeatmapPage";
 import { InsightsPage } from "./pages/InsightsPage";
+import { EventLogPanel } from "./eventlog/EventLogPanel";
 import { ProcessSurface } from "./studio/ProcessSurface";
 import { ActivityDetails } from "./studio/ActivityDetails";
 import { SimulationCanvas, type NodeDecoration } from "./canvas/SimulationCanvas";
 import "./studio/studio.css";
 
-const TOOLS = [["scenario", SlidersHorizontal], ["overview", ListChecks], ["heatmap", Layers], ["compare", GitCompareArrows], ["insights", Lightbulb]] as const;
+const TOOLS = [["scenario", SlidersHorizontal], ["overview", ListChecks], ["heatmap", Layers], ["compare", GitCompareArrows], ["insights", Lightbulb], ["eventLog", FileSpreadsheet]] as const;
 
 export function SimulationStudio(): React.JSX.Element {
   const { t } = useTranslation("process");
@@ -72,12 +73,13 @@ export function SimulationStudio(): React.JSX.Element {
       <div className="sim-studio-tool-actions"><Button size="sm" variant={view === "replay" ? "secondary" : "ghost"} aria-pressed={view === "replay"} onClick={() => setAnalysisView?.("replay")}>{t("simulation.scene.replay")}</Button><Button size="sm" variant={aggregate ? "secondary" : "ghost"} aria-pressed={aggregate} onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.final")}</Button>{TOOLS.map(([name, Icon]) => <Button key={name} size="sm" variant={panel === name || view === name ? "secondary" : "ghost"} aria-pressed={panel === name || view === name} onClick={(event) => show(panel === name ? null : name, event.currentTarget)}><Icon aria-hidden className="size-4" />{t(`simulation.unified.tool.${name}`)}</Button>)}</div>
       <div className="sim-studio-dashboard-commands" ref={setCommandsHost} />
     </WorkspaceCommandBar>}
-    inspector={<WorkspaceInspector resizeLabel={t("simulation.workspaceHierarchy.resizeInspector")} initialWidth={panel === "compare" ? 480 : 400} bodyClassName="sim-studio-dock-body" ref={dockRef} className={`sim-studio-dock ${panel === "compare" ? "is-comparison" : ""}`} hidden={!dockOpen} label={t("simulation.unified.details")} title={title} scope={t(aggregate || panel === "overview" || panel === "insights" || panel === "compare" ? "simulation.unified.aggregateScope" : "simulation.unified.context")} closeLabel={t("simulation.unified.closePanel")} onClose={close}>
+    inspector={<WorkspaceInspector resizeLabel={t("simulation.workspaceHierarchy.resizeInspector")} initialWidth={panel === "compare" || panel === "eventLog" ? 480 : 400} bodyClassName="sim-studio-dock-body" ref={dockRef} className={`sim-studio-dock ${panel === "compare" ? "is-comparison" : ""}`} hidden={!dockOpen} label={t("simulation.unified.details")} title={title} scope={t(aggregate || panel === "overview" || panel === "insights" || panel === "compare" ? "simulation.unified.aggregateScope" : "simulation.unified.context")} closeLabel={t("simulation.unified.closePanel")} onClose={close}>
       {panel === "compare" && <ComparePage compact embedded onDecorations={setDecorations} />}
       {panel === "scenario" && <ScenarioBuilderPage embedded />}
       {panel === "overview" && <SimulationWorkspace embedded />}
       {panel === "heatmap" && <>{!aggregate && <Button size="sm" variant="outline" onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.applyFinalHeatmap")}</Button>}<HeatmapPage embedded onDecorations={setDecorations} onMetric={setHeatMetric} /></>}
       {panel === "insights" && <div>{ready && <details className="sim-current-insights"><summary>{t("simulation.unified.currentDetails")}</summary><ReplayInsightRail engine={engine} run={run} embedded /></details>}<InsightsPage embedded /></div>}
+      {panel === "eventLog" && <EventLogPanel />}
       {panel === "activity" && ready && <ActivityDetails engine={displayedEngine ?? engine} run={analysisRun ?? run} unavailable={unavailable} />}
       <div ref={setHost} className="sim-studio-widget-host" />
     </WorkspaceInspector>}
