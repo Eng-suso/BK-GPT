@@ -2286,7 +2286,10 @@ def create_ingested_source(
 
     with workspace_connection() as session:
         if project_id is not None:
-            owner_client_id = tenant_row(session, WorkspaceProject, project_id).client_id
+            project = tenant_row(session, WorkspaceProject, project_id)
+            if project is None:
+                raise ValueError(f"Progetto non trovato: {project_id}")
+            owner_client_id = project.client_id
             owned = WorkspaceSource.project_id == project_id
         else:
             if tenant_row(session, WorkspaceClient, client_id) is None:
