@@ -454,7 +454,7 @@ export function SourcesPanel({
           </DialogHeader>
 
           <form
-            className="flex flex-col gap-4"
+            className="flex min-w-0 flex-col gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               submitUpload();
@@ -467,7 +467,7 @@ export function SourcesPanel({
                 required
                 accept=".pdf,.docx,.xlsx,.csv,.pptx,.txt,.md"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                className="rounded-md border border-border p-2 text-sm"
+                className="w-full min-w-0 rounded-md border border-border p-2 text-sm"
               />
               <span className="text-xs font-normal text-muted-foreground">
                 {t("detail.sources.fileHint")}
@@ -503,7 +503,7 @@ export function SourcesPanel({
               <select
                 value={scopeValue}
                 onChange={(event) => setScopeValue(event.target.value)}
-                className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+                className="h-9 w-full min-w-0 rounded-md border border-border bg-background px-3 text-sm"
               >
                 <option value={`client:${client.id}`}>
                   {t("detail.sources.wholeClient", { name: client.name })}
