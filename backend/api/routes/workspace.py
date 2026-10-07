@@ -1,7 +1,7 @@
 import json
 
+from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
-from fastapi.responses import FileResponse
 
 from backend.schemas.workspace import (
     ConformanceStatusResponse,
@@ -754,25 +754,27 @@ def get_workspace_source_claims(source_id: str) -> list[SourceClaimResponse]:
 
 
 @router.get("/sources/{source_id}/original")
-def get_workspace_source_original(source_id: str) -> FileResponse:
+def get_workspace_source_original(source_id: str) -> StreamingResponse:
     """Scarica il file originale solo se appartiene al tenant corrente."""
+    from urllib.parse import quote
+
     from backend.workspace_database import get_project_source_record
-    from backend.workspace_services.source_ingestion import SourceFileError, original_path
+    from backend.workspace_services.source_ingestion import SourceFileError, stream_original
 
     source = get_project_source_record(source_id)
     if source is None or not source.storage_key:
         raise HTTPException(status_code=404, detail="File originale non disponibile.")
     try:
-        path = original_path(source.storage_key)
+        chunks = stream_original(source.storage_key)
     except SourceFileError as exc:
         raise HTTPException(status_code=404, detail="File originale non disponibile.") from exc
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="File originale non disponibile.")
-    return FileResponse(
-        path,
+    return StreamingResponse(
+        chunks,
         media_type=source.mime_type,
-        filename=source.name,
-        headers={"X-Content-Type-Options": "nosniff"},
+        headers={
+            "Content-Disposition": f"attachment; filename*=utf-8''{quote(source.name)}",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
