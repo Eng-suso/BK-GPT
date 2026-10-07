@@ -27,6 +27,12 @@ _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 PAYLOAD_KINDS = ("node", "edge", "node_delete", "edge_delete")
 
+# La forma del grafo che questo projector scrive. Si alza quando cambia come un
+# payload diventa nodi e archi: un grafo scritto in parte dalla versione prima
+# ha nodi di due forme, e `projection_health` lo dichiara indietro finche'
+# `scripts/kg_reproject.py --apply` non lo riscrive tutto.
+PROJECTOR_VERSION = "1"
+
 
 class InvalidGraphPayload(ValueError):
     """Il payload non e' applicabile a Neo4j, e non lo sara' mai."""
