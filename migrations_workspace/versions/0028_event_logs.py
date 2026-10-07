@@ -1,7 +1,7 @@
 """Gli event log reali caricati sui processi e i template di mapping versionati.
 
-Revision ID: 0026_event_logs
-Revises: 0025_claim_relations
+Revision ID: 0028_event_logs
+Revises: 0027_merge_client_sources_usage
 Create Date: 2026-10-07
 
 SIM-15, secondo sotto-blocco: l'import degli event log diventa persistente.
@@ -12,6 +12,12 @@ SIM-15, secondo sotto-blocco: l'import degli event log diventa persistente.
   Unico per tenant, processo e impronta del file. Cade con il suo processo.
 - `workspace_event_log_payloads`: i byte del file, fuori dalla riga del log.
 - `workspace_event_log_templates`: i mapping salvati, una riga per versione.
+
+Nata come `0026_event_logs` su `0025_claim_relations`; rinumerata prima del
+merge perche' main nel frattempo aveva gia' unito le sue due 0026 nella 0027.
+Le tabelle si creano solo se mancano: un database locale rimasto su
+`0026_event_logs` si riallinea con `alembic stamp 0027_merge_client_sources_usage`
+seguito da `alembic upgrade head`.
 """
 
 from __future__ import annotations
@@ -19,8 +25,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0026_event_logs"
-down_revision = "0025_claim_relations"
+revision = "0028_event_logs"
+down_revision = "0027_merge_client_sources_usage"
 branch_labels = None
 depends_on = None
 
