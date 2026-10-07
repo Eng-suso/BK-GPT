@@ -34,7 +34,27 @@ git clone https://github.com/AutomatedProcessImprovement/Simod.git
 Use `prosimos-microservice` first. Use `Prosimos` as the schema/example reference.
 Use `Simod` later for event-log based discovery.
 
-## Local Prosimos Service
+## Runner Prosimos 2.1.0 (dal 2026-10-04)
+
+Il gate G1 ([spike](./simulation-prosimos-2x-spike.md)) ha scelto Prosimos
+2.1.0: la 1.2.6 accetta routing condizionale e attributi evento ma li ignora.
+Il motore nuovo è un runner DeliR, [`ops/prosimos/runner/`](../ops/prosimos/runner/README.md):
+stessa API usata dall'adapter (`/api/simulate`, `/api/simulationFile`), Python
+3.12, e un `seed` che il runner restituisce sempre (`Seed`, `EngineVersion` nel
+risultato del run). `CreateSimulationRunRequest.seed` lo fa arrivare dalla
+richiesta al motore.
+
+```powershell
+cd ops/prosimos
+docker build -f runner/Dockerfile -t delir-prosimos-runner .
+docker run --rm -p 5000:5000 delir-prosimos-runner
+```
+
+`PROSIMOS_BASE_URL` resta lo stesso. Il microservizio patchato qui sotto è il
+percorso precedente: resta finché il runner non è il default dell'avvio locale,
+poi `sync-mode.patch` si dismette.
+
+## Local Prosimos Service (precedente, 1.2.6)
 
 The sync-mode changes DeliR needs (see below) are versioned as a patch:
 [`ops/prosimos/`](../ops/prosimos/) — patch file, pinned upstream commit

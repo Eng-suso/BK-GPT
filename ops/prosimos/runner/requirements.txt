@@ -1,0 +1,9 @@
+# Versioni provate dallo spike G1 (docs/simulation-prosimos-2x-spike.md).
+# Prosimos 2.1.0 richiede Python >=3.11,<3.13.
+prosimos==2.1.0
+pix-framework==0.15.0
+numpy==2.5.3
+pandas==2.3.3
+scipy==1.18.1
+flask==3.1.2
+gunicorn==23.0.0
