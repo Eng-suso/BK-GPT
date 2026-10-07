@@ -68,6 +68,9 @@ class ApplyEventLogMappingRequest(BaseModel):
     # Attivita' del log -> elemento BPMN (None = ignorata). Assente: il
     # suggerimento automatico per nomi identici.
     activity_matches: dict[str, str | None] | None = None
+    # Risorsa del log -> risorsa del modello (None = ignorata). Assente: solo
+    # nomi identici.
+    resource_matches: dict[str, str | None] | None = None
 
     @model_validator(mode="after")
     def _one_source(self):
@@ -119,10 +122,34 @@ class ActivityMatchReportResponse(BaseModel):
     unobserved_elements: list[ModelElementResponse]
 
 
+class ResourceMatchResponse(BaseModel):
+    resource: str
+    events: int
+    model_resource_id: str | None
+    reason: MatchReason
+
+
+class ModelResourceResponse(BaseModel):
+    resource_id: str
+    name: str
+
+
+class ResourceMatchReportResponse(BaseModel):
+    """Le risorse del log (persone, utenti) e le risorse del modello (pool e lane)."""
+
+    confirmed: bool
+    matches: list[ResourceMatchResponse]
+    unmatched_resources: list[str]
+    unobserved_model_resources: list[ModelResourceResponse]
+    # Eventi senza risorsa nel log: non si abbinano a niente, si contano.
+    events_without_resource: int
+
+
 class EventLogAnalysisResponse(BaseModel):
     event_log: EventLogResponse
     quality: QualityReportResponse
     activities: ActivityMatchReportResponse
+    resources: ResourceMatchReportResponse
     # Gli stessi KPI di un run simulato; None se nessun evento e' valido.
     summary: dict[str, Any] | None
 
