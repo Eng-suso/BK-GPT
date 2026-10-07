@@ -8,7 +8,8 @@ identico allo scenario che il builder produceva (test di equivalenza).
 
 from __future__ import annotations
 
-from backend.schemas.simulation import CreateSimulationRunRequest
+from typing import TYPE_CHECKING
+
 from backend.simulation.ir.model import (
     Activity,
     Arrival,
@@ -26,6 +27,11 @@ from backend.simulation.ir.model import (
     SimulationModel,
 )
 from backend.simulation.models import BpmnGateway, BpmnTask
+
+if TYPE_CHECKING:
+    # Solo per i tipi: lo schema HTTP importa il modello dell'IR (richiesta v2),
+    # e un import a runtime qui chiuderebbe il cerchio.
+    from backend.schemas.simulation import CreateSimulationRunRequest
 
 STANDARD_CALENDAR_ID = "delir-calendar-standard"
 DEFAULT_RESOURCE_ID = "delir-resource-operator"
