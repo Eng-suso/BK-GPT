@@ -21,7 +21,8 @@ e **quando gira**, non l'unico nome che il test puo' avere.
 Una cartella nasce con il suo primo test, mai vuota.
 
 Il piano completo (stack, metriche, fasi) e' nel doc "DeliR Evaluation System +
-Jev — Piano".
+Jev — Piano". Dove siamo arrivati, cosa manca e chi lo sblocca:
+`docs/eval-system-stato.md`.
 
 ## L0: le invarianti
 
