@@ -241,3 +241,31 @@ def test_a_client_file_outlives_a_project_and_leaves_with_the_client(
         assert wd.get_project_source(policy["id"]) is None
     finally:
         reset_current_tenant_id(token)
+
+
+def test_deleting_a_client_keeps_the_client_files_of_another_tenant_with_the_same_name(models):
+    # Il cliente canonical e' identificato dal nome: due tenant con un cliente
+    # omonimo lo condividono. Se l'altro ha solo fonti del cliente, nessun
+    # progetto, il cliente canonical e' ancora suo e non si cancella.
+    name = f"Cliente {uuid.uuid4().hex[:8]}"
+    keeper, leaver = f"cliente-{uuid.uuid4().hex[:10]}", f"cliente-{uuid.uuid4().hex[:10]}"
+    canonical_client = None
+    with TestClient(app, headers={"X-DeliR-Tenant-ID": keeper}) as http_keeper, \
+            TestClient(app, headers={"X-DeliR-Tenant-ID": leaver}) as http_leaver:
+        try:
+            kept = http_keeper.post("/v1/workspace/clients", json={"name": name}).json()
+            policy = _upload_to_client(http_keeper, kept["id"], f"# Policy\n\n{POLICY}").json()
+            http_keeper.post(f"/v1/workspace/sources/{policy['id']}/verify")
+            _drain(keeper)
+            canonical_client = _resolve(name)
+            assert _rows("SELECT id FROM kg_source WHERE workspace_source_id = :ws", canonical_client, ws=policy["id"])
+
+            gone = http_leaver.post("/v1/workspace/clients", json={"name": name}).json()
+            assert http_leaver.delete(f"/v1/workspace/clients/{gone['id']}").status_code in (200, 204)
+
+            assert _rows("SELECT id FROM kg_source WHERE workspace_source_id = :ws", canonical_client, ws=policy["id"])
+        finally:
+            if canonical_client:
+                with MIGRATOR.begin() as conn:
+                    conn.execute(text("DELETE FROM client WHERE id = :i"), {"i": canonical_client})
+                neo4j_store.purge_client(canonical_client)
