@@ -181,6 +181,10 @@ def delete_event_log(event_log_id: str) -> bool:
         payload = session.get(WorkspaceEventLogPayload, event_log_id)
         if payload is not None:
             session.delete(payload)
+            # Fra log e file non c'e' una relationship mappata: senza il flush
+            # l'unita' di lavoro puo' cancellare prima il log, e la FK in
+            # cascata porta via il file sotto i suoi piedi.
+            session.flush()
         session.delete(row)
         return True
 
