@@ -38,7 +38,7 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P1.1a | `ProjectionHealth` FRESH / STALE / UNKNOWN; grafo non verificato fresco servito da Postgres (`kg_relation`) | 4 | **fatto** — #56 |
 | P1.1b | Watermark per cliente, versione del projector, stato `CORRUPT` dalla riconciliazione | 4 | **da fare** |
 | P1.3a | Budget in token del prompt di scope (48.000), blocchi con priorità, omissioni dichiarate al modello, XML non duplicato, impronta sha256 | 5 | **fatto** — #61 |
-| P1.3b | Riassunto del thread a soglia di token (misurata sulla sola fetta riassumibile, tool call compresi), ripiego deterministico solo sui guasti transitori del provider, contato | 5 | **fatto** — #71 |
+| P1.3b | Riassunto del thread a soglia di token (misurata sulla sola fetta riassumibile, tool call compresi), riassunto del modello validato (vuoto o oltre 2.000 token → estratto), ripiego deterministico solo sui guasti transitori del provider, contato | 5 | **fatto** — #71 |
 | P1.3c | Impronta del contesto nel registro dei consumi LLM | 5 | **da fare** |
 | P1.5 | Suite security: injection indiretta da PDF/Excel/trascrizioni, cross-tenant, esfiltrazione (job notturno, modello dei test) | 5 | **da fare** |
 | P0.6a | Le migrazioni allo startup spegnevano tutti i logger del backend | 6 | **fatto** — #64 |
@@ -96,7 +96,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
-| 2026-10-07 | P1.3b | #71: i 6 rilievi CodeRabbit chiusi — tool call nel conto dei token, soglia sulla sola fetta riassumibile, ripiego solo su `TRANSIENT_PROVIDER_ERRORS` (log error, `degradation_counters`), messaggi senza id non riassunti due volte, test su vuoto, giro ripetuto e confini | `tests/agents/test_thread_summary.py`: 18 verdi; `tests/agents` + `tests/llm`: 527 verdi |
+| 2026-10-07 | P1.3b | #71: i 6 rilievi CodeRabbit chiusi — tool call nel conto dei token, soglia sulla sola fetta riassumibile, ripiego solo su `TRANSIENT_PROVIDER_ERRORS` (log error, `degradation_counters`), messaggi senza id non riassunti due volte, test su vuoto, giro ripetuto e confini; dal controllo pre-merge, il riassunto del modello validato prima di entrare nello stato | `tests/agents/test_thread_summary.py`: 19 verdi; `tests/agents` + `tests/llm`: 527 verdi |
 | 2026-10-06 | P2.2 | #68: download a pezzi, radice relativa ancorata al progetto, nome file verificato (rilievi CodeRabbit) | `tests/workspace/test_blob_store.py`, `tests/evidence/test_source_ingestion.py`: 26 verdi |
 | 2026-10-06 | — | #62 mergiata: i `ValueError` dei tool tornano al modello; istruzione esplicita di non riportare al consulente nomi di tool, id o messaggi tecnici | `tests/agents/test_tool_errors.py` |
 | 2026-10-04 | P0.6a | #64 mergiata: `ensure_schema` non riconfigura più i log; `env.py` non spegne i logger esistenti | `tests/server/test_logging_survives_migrations.py`, rosso senza il fix |
