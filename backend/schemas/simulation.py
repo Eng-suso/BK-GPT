@@ -138,14 +138,36 @@ class ProvenanceRef(BaseModel):
     label: str | None = None
 
 
+class ParameterSourceRef(BaseModel):
+    """Mirror of the IR ``SourceRef`` (``backend/simulation/ir/model.py``).
+
+    Kept as a plain schema: importing the IR from here would close an import
+    cycle (``ir.from_request`` reads this module). A test pins the literals.
+    """
+
+    kind: Literal["claim", "source", "event_log", "document", "interview", "user"]
+    id: str
+    label: str | None = None
+
+
+class ParameterProvenance(BaseModel):
+    """Mirror of the IR ``Provenance``: the five-level origin (SIM-07)."""
+
+    origin: Literal["observed", "inferred", "declared", "estimated", "manual"]
+    confidence: Literal["high", "medium", "low"] | None = None
+    sources: list[ParameterSourceRef] = Field(default_factory=list)
+    note: str | None = None
+
+
 class ScenarioElementProvenance(BaseModel):
     element_id: str
     kind: Literal["activity", "gateway"]
     name: str
     # Which scenario parameter the consultant sets for this element.
     parameter: Literal["duration", "branching"]
-    # Where the element itself came from — discovery evidence or a model inference.
-    origin: Literal["interview", "ai_inferred"]
+    # Where the element came from, on the IR scale (SIM-38): ``declared`` when
+    # discovery grounds it, ``estimated`` when the model invented it.
+    provenance: ParameterProvenance
     # How well grounded the parameter is, before the consultant confirms it.
     confidence: Literal["high", "medium", "low"]
     # Short verbatim snippets from the interview / discovery notes.
