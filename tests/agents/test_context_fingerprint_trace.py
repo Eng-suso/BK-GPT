@@ -63,3 +63,48 @@ def test_turns_do_not_share_a_collector():
         note_context_fingerprint("b" * 64)
 
     assert (first, second) == (["a" * 64], ["b" * 64])
+
+
+def test_the_turn_ledger_row_carries_the_last_context_fingerprint(monkeypatch):
+    from backend.llm import LlmTask
+    from backend.services import agent_runtime
+
+    class _Chunk:
+        type = "AIMessageChunk"
+
+        def __init__(self, usage_metadata):
+            self.content = ""
+            self.usage_metadata = usage_metadata
+
+    class _Agent:
+        # Due chiamate al modello nello stesso turno: il contesto della seconda
+        # e' quello su cui il modello ha scritto la risposta.
+        def stream(self, _input, *, config, stream_mode):
+            usage = {"input_tokens": 5, "output_tokens": 1, "total_tokens": 6}
+            note_context_fingerprint("1" * 64)
+            yield _Chunk(usage), {"langgraph_node": "consult_macro_agent"}
+            note_context_fingerprint("2" * 64)
+            yield _Chunk(usage), {"langgraph_node": "consult_macro_agent"}
+            yield _Chunk(usage), {"langgraph_node": "classify_and_select_context"}
+
+    recorded: dict = {}
+
+    def _record(task, usage, **kwargs):
+        recorded[task] = kwargs
+
+    monkeypatch.setattr(agent_runtime, "get_agent", lambda *_a, **_k: _Agent())
+    monkeypatch.setattr(agent_runtime, "langsmith_tracing_enabled", lambda: False)
+    monkeypatch.setattr(agent_runtime, "record_streamed_usage", _record)
+
+    list(
+        agent_runtime.stream_agent_events(
+            thread_id="thread-fingerprint",
+            model_name="gpt-5.6-luna",
+            messages=[{"role": "user", "content": "ciao"}],
+            scope=None,
+        )
+    )
+
+    assert recorded[LlmTask.CHAT_TURN]["context_fingerprint"] == "2" * 64
+    # L'instradamento non riceve il contesto di scope: niente impronta.
+    assert recorded[LlmTask.CONTEXT_ROUTING]["context_fingerprint"] is None

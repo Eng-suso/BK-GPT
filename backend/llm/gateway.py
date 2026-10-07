@@ -514,6 +514,7 @@ def record_streamed_usage(
     duration_ms: int = 0,
     prompt_version: str | None = None,
     reasoning_effort: str | None = None,
+    context_fingerprint: str | None = None,
 ) -> None:
     """Registra il consumo di una chiamata **stremata**, a stream finito.
 
@@ -543,6 +544,9 @@ def record_streamed_usage(
             colonna un turno che costa il doppio di un mese fa sembrerebbe un
             aumento inspiegato, invece che la conseguenza visibile di un file
             piu' lungo.
+        context_fingerprint: L'impronta del contesto di scope che il turno ha
+            mandato al modello. Solo per `CHAT_TURN`: l'instradamento non lo
+            riceve.
     """
     if not usage_metadata:
         return
@@ -568,6 +572,7 @@ def record_streamed_usage(
         # solo il default, e scriverlo qui misurerebbe un livello mai usato.
         reasoning_effort=reasoning_effort or profile.reasoning_effort,
         prompt_version=prompt_version,
+        context_fingerprint=context_fingerprint,
     )
 
 

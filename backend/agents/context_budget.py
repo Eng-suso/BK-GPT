@@ -214,6 +214,12 @@ def note_context_fingerprint(fingerprint: str) -> None:
         seen.append(fingerprint)
 
 
+def latest_context_fingerprint() -> str | None:
+    """L'ultima impronta annotata nel turno: il contesto della risposta finale."""
+    seen = _turn_fingerprints.get()
+    return seen[-1] if seen else None
+
+
 # Quanto costa la riga che dichiara un taglio o un'omissione, per eccesso.
 _NOTE_TOKENS = 60
 
