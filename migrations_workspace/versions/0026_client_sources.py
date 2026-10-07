@@ -51,16 +51,21 @@ def upgrade() -> None:
     if _INDEX not in indexes:
         op.create_index(_INDEX, _SOURCES, ["client_id"])
     op.alter_column(_SOURCES, "project_id", existing_type=sa.String(), nullable=True)
-    op.create_check_constraint(_CHECK, _SOURCES, "project_id IS NOT NULL OR client_id IS NOT NULL")
+    # Su un database nuovo la 0001 crea lo schema dai modelli, che dichiarano
+    # gia' vincolo e indice: qui si aggiungono solo se mancano.
+    checks = {check["name"] for check in sa.inspect(bind).get_check_constraints(_SOURCES)}
+    if _CHECK not in checks:
+        op.create_check_constraint(_CHECK, _SOURCES, "project_id IS NOT NULL OR client_id IS NOT NULL")
     # Il vincolo per progetto non vede le fonti senza progetto (NULL e' sempre
     # diverso da NULL): per loro vale il cliente.
-    op.create_index(
-        _CLIENT_UNIQUE,
-        _SOURCES,
-        ["tenant_id", "client_id", "ingestion_key"],
-        unique=True,
-        postgresql_where=sa.text("project_id IS NULL"),
-    )
+    if _CLIENT_UNIQUE not in indexes:
+        op.create_index(
+            _CLIENT_UNIQUE,
+            _SOURCES,
+            ["tenant_id", "client_id", "ingestion_key"],
+            unique=True,
+            postgresql_where=sa.text("project_id IS NULL"),
+        )
     op.alter_column("workspace_claim_relations", "project_id", existing_type=sa.String(), nullable=True)
 
 
