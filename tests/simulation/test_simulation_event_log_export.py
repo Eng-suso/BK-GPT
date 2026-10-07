@@ -54,7 +54,7 @@ def test_the_csv_export_carries_seed_engine_and_a_hash_of_its_bytes(client, monk
     assert response.headers["x-simulation-seed"] == "42"
     assert response.headers["x-simulation-engine-version"] == "2.1.0"
     assert response.headers["x-content-sha256"] == hashlib.sha256(response.content).hexdigest()
-    assert response.text.splitlines()[0] == "case_id,activity,start_time,end_time,resource,role"
+    assert response.text.splitlines()[0] == "case_id,activity,enable_time,start_time,end_time,resource,role"
     assert len(response.text.splitlines()) == len(LOG.strip().splitlines())
 
 
@@ -101,3 +101,33 @@ def test_deleting_the_process_removes_the_stored_log(client, monkeypatch):
     assert client.delete(f"/v1/workspace/processes/{process_id}").status_code in (200, 204)
 
     assert client.get(f"/v1/workspace/simulation-runs/{run_id}/event-log").status_code == 404
+
+
+def test_the_downloaded_log_is_reimported_by_the_wizard_with_the_same_kpis(client, monkeypatch):
+    process_id, model_id = _model(client, "ExpRoundTrip")
+    run_id = _run(client, monkeypatch, model_id, log=LOG)
+    simulated = client.get(f"/v1/workspace/simulation-runs/{run_id}").json()["summary"]
+    exported = client.get(f"/v1/workspace/simulation-runs/{run_id}/event-log")
+
+    uploaded = client.post(
+        f"/v1/workspace/processes/{process_id}/event-logs",
+        files={"file": ("simulation-run.csv", exported.content, "text/csv")},
+    ).json()
+    mapping = {
+        "case_id": ["case_id"],
+        "activity": ["activity"],
+        "enable": "enable_time",
+        "start": "start_time",
+        "end": "end_time",
+        "resource": "resource",
+        "role": "role",
+        "timestamps": {"timezone": "UTC"},
+    }
+    analysis = client.post(f"/v1/workspace/event-logs/{uploaded['id']}/mapping", json={"mapping": mapping})
+
+    assert analysis.status_code == 200, analysis.text
+    real = analysis.json()["summary"]
+    assert real["source"] == "real"
+    for kpi in ("casesCompleted", "cycle", "waiting", "processing", "throughputPerHour"):
+        assert kpi in simulated, kpi
+        assert real[kpi] == simulated[kpi], kpi

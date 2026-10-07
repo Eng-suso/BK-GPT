@@ -16,13 +16,13 @@ SAMPLE = (Path(__file__).resolve().parents[1] / "fixtures" / "prosimos" / "sim_l
 )
 
 CSV_MAPPING = ColumnMapping(
-    case_id=("case_id",), activity=("activity",), start="start_time", end="end_time", resource="resource", role="role"
+    case_id=("case_id",), activity=("activity",), enable="enable_time", start="start_time", end="end_time", resource="resource", role="role"
 )
 
 
 def _kpis(log):
     summary = summarize(log)
-    return {key: summary[key] for key in ("cases", "events", "cycleTime", "waitingTime", "processingTime") if key in summary}
+    return {key: summary[key] for key in ("casesCompleted", "cycle", "waiting", "processing", "throughputPerHour")}
 
 
 def test_the_prosimos_log_becomes_a_simulated_canonical_log():
@@ -60,6 +60,7 @@ def test_xes_export_is_reimported_with_the_same_kpis():
         case_id=("case:concept:name",),
         activity=("concept:name",),
         timestamp="time:timestamp",
+        enable="deliR:enabled",
         lifecycle="lifecycle:transition",
         resource="org:resource",
         role="org:role",
@@ -85,3 +86,17 @@ def test_xes_escapes_names_with_markup():
 
     assert "&lt;" in xes and "<\"A&B\">" not in xes
     read_xes(xes.encode("utf-8"))
+
+
+def test_a_mapped_enable_column_feeds_the_waiting_time_and_a_bad_one_excludes_the_row():
+    csv_text = (
+        "case,act,enabled,start,end\n"
+        "1,A,2026-01-05T09:00:00Z,2026-01-05T09:30:00Z,2026-01-05T10:00:00Z\n"
+        "2,A,ieri,2026-01-05T09:30:00Z,2026-01-05T10:00:00Z\n"
+    )
+    mapping = ColumnMapping(case_id=("case",), activity=("act",), enable="enabled", start="start", end="end")
+
+    log, report = apply_mapping(read_csv(csv_text.encode()), mapping)
+
+    assert len(log.events) == 1 and report.rows_excluded == 1
+    assert summarize(log)["waiting"]["avg"] == 1800

@@ -16,7 +16,7 @@ from xml.sax.saxutils import quoteattr
 
 from backend.eventlog.model import CanonicalEvent, EventLog
 
-CSV_COLUMNS = ("case_id", "activity", "start_time", "end_time", "resource", "role")
+CSV_COLUMNS = ("case_id", "activity", "enable_time", "start_time", "end_time", "resource", "role")
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +35,7 @@ def to_csv(log: EventLog) -> Exported:
         writer.writerow([
             event.case_id,
             event.activity,
+            _iso(event.enabled) if event.enabled else "",
             _iso(event.start) if event.start else "",
             _iso(event.end),
             event.resource or "",
@@ -79,6 +80,8 @@ def _xes_event(event: CanonicalEvent, transition: str, moment: datetime) -> list
         f'      <string key="lifecycle:transition" value="{transition}"/>',
         f'      <date key="time:timestamp" value="{_iso(moment)}"/>',
     ]
+    if event.enabled:
+        out.append(f'      <date key="deliR:enabled" value="{_iso(event.enabled)}"/>')
     if event.resource:
         out.append(f'      <string key="org:resource" value={quoteattr(event.resource)}/>')
     if event.role:
