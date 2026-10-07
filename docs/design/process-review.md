@@ -61,7 +61,7 @@ registro delle azioni. `POST .../impact-review/actions` aggiunge un'azione
 tenant-scoped con UUID idempotente, autore e revisione della base. Una base
 modificata restituisce 409 e conserva il testo nel dialog per la consultazione.
 Il salvataggio blocca le righe della base durante la verifica e non aggiorna
-XML o piano. La migrazione workspace `0028_impact_review_actions` aggiunge la
+XML o piano. La migrazione workspace `0029_impact_review_actions` aggiunge la
 tabella con cancellazione a cascata del processo.
 
 ## Schermate del prodotto
