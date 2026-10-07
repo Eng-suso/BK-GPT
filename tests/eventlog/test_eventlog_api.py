@@ -10,6 +10,15 @@ from tests.eventlog.test_eventlog_import import ERP_CSV
 BPMN = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Defs">
   <bpmn:process id="P2P" isExecutable="false">
+    <bpmn:laneSet id="Lanes">
+      <bpmn:lane id="Lane_Anna" name="Anna">
+        <bpmn:flowNodeRef>T1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>T3</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_Dir" name="Direzione">
+        <bpmn:flowNodeRef>T2</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
     <bpmn:startEvent id="Start" />
     <bpmn:task id="T1" name="Ricevi richiesta" />
     <bpmn:task id="T2" name="Approvazione ordine" />
@@ -179,6 +188,59 @@ def test_mapping_returns_quality_matches_and_kpis_and_is_saved(client):
     assert stored.json()["quality"] == body["quality"]
 
 
+def _model_resources(client, headers, process_id) -> dict[str, str]:
+    process = client.get(f"/v1/workspace/processes/{process_id}", headers=headers).json()
+    template = client.post(
+        f"/v1/workspace/bpmn-models/{process['bpmn_model_id']}/simulation-template", json={}, headers=headers
+    ).json()
+    return {resource["name"]: resource["id"] for resource in template["resources"]}
+
+
+def test_log_resources_match_the_model_resources_by_identical_name(client):
+    headers = _tenant()
+    process_id = _process(client, headers)
+    log_id = _upload(client, headers, process_id).json()["id"]
+    lanes = _model_resources(client, headers, process_id)
+
+    body = client.post(f"/v1/workspace/event-logs/{log_id}/mapping", json={"mapping": MAPPING}, headers=headers).json()
+
+    resources = body["resources"]
+    assert resources["confirmed"] is False
+    assert {m["resource"]: m["model_resource_id"] for m in resources["matches"]} == {
+        "anna": lanes["Anna"], "luca": None, "marco": None,
+    }
+    assert sorted(resources["unmatched_resources"]) == ["luca", "marco"]
+    assert [r["name"] for r in resources["unobserved_model_resources"]] == ["Direzione"]
+    assert resources["events_without_resource"] == 0
+
+
+def test_the_consultant_confirms_the_resource_matches(client):
+    headers = _tenant()
+    process_id = _process(client, headers)
+    log_id = _upload(client, headers, process_id).json()["id"]
+    lanes = _model_resources(client, headers, process_id)
+    confirmed = {"anna": lanes["Anna"], "marco": lanes["Direzione"], "luca": None}
+
+    body = client.post(
+        f"/v1/workspace/event-logs/{log_id}/mapping",
+        json={"mapping": MAPPING, "resource_matches": confirmed},
+        headers=headers,
+    ).json()
+
+    assert body["resources"]["confirmed"] is True
+    assert {m["resource"]: m["model_resource_id"] for m in body["resources"]["matches"]} == confirmed
+    assert body["resources"]["unobserved_model_resources"] == []
+    stored = client.get(f"/v1/workspace/event-logs/{log_id}/analysis", headers=headers).json()
+    assert stored["resources"] == body["resources"]
+
+    unknown = client.post(
+        f"/v1/workspace/event-logs/{log_id}/mapping",
+        json={"mapping": MAPPING, "resource_matches": {"anna": "bpmn-lane-inesistente"}},
+        headers=headers,
+    )
+    assert unknown.status_code == 400
+
+
 def test_the_consultant_confirms_the_activity_matches(client):
     headers = _tenant()
     process_id = _process(client, headers)
@@ -245,6 +307,7 @@ def test_a_process_without_bpmn_leaves_every_activity_unmatched(client):
 
     assert body["activities"]["bpmn_version_id"] is None
     assert len(body["activities"]["unmatched_activities"]) == 3
+    assert len(body["resources"]["unmatched_resources"]) == 3
     assert body["summary"] is not None
 
 
