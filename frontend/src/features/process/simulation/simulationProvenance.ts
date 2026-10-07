@@ -125,7 +125,8 @@ function sourcesOf(el: ScenarioElementProvenance | undefined): ParameterSourceRe
   return el?.provenance.sources.length ? el.provenance.sources : undefined;
 }
 
-function activityProvenance(
+/** Provenance of one activity's duration: `custom` = moved off the default. */
+export function activityProvenance(
   custom: boolean,
   el: ScenarioElementProvenance | undefined,
 ): FieldProvenance {
