@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     # DSN come ruolo delir_workspace (owner del database `workspace`).
     # OBBLIGATORIA: senza, l'app non parte. Niente fallback SQLite.
     workspace_database_url: str | None = None
+    # Dove stanno i file originali delle fonti. Vuoto: `data/` nella radice
+    # del progetto, qualunque sia la cartella da cui parte il processo
+    # (backend/workspace_services/blob_store.py).
+    source_storage_root: str | None = None
 
     # --- canonical Postgres (piano "Cervello DeliR", P0) ------------------
     # DSN come ruolo delir_app (solo DML, NOBYPASSRLS, non-owner). Usata dall'app.

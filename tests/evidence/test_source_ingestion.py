@@ -498,3 +498,24 @@ def test_a_source_already_used_as_evidence_is_not_discarded(http: TestClient, te
 
     refused = http.delete(f"/v1/workspace/sources/{created['id']}")
     assert refused.status_code == 409
+
+
+def test_the_original_downloads_byte_for_byte_from_the_store(http: TestClient, tenant: str):
+    """Il download passa dall'archivio delle fonti (`SourceBlobStore`), non da un
+    percorso costruito a mano: stessi byte, nome per esteso, niente sniffing."""
+    project, _ = _project(http)
+    payload = "# Acquisti\nL'ufficio acquisti verifica la congruità.".encode()
+
+    source = http.post(
+        f"/v1/workspace/projects/{project['id']}/sources/upload",
+        data={"roles": '["process_evidence"]', "retention": "persistent"},
+        files={"file": ("Procedura acquisti è.md", payload, "text/markdown")},
+    ).json()
+    response = http.get(f"/v1/workspace/sources/{source['id']}/original")
+
+    assert response.status_code == 200, response.text
+    assert response.content == payload
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["content-disposition"] == (
+        "attachment; filename*=utf-8''Procedura%20acquisti%20%C3%A8.md"
+    )
