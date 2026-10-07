@@ -83,6 +83,15 @@ class GraphDiff:
             "unkeyed": self.unkeyed,
         }
 
+    def differences(self) -> str:
+        """Le sole voci diverse da zero, in una riga: il motivo di un CORRUPT."""
+        counts = self.summary()
+        return ", ".join(
+            f"{key}={value}"
+            for key, value in sorted(counts.items())
+            if value and key not in ("expected_nodes", "expected_edges")
+        )
+
 
 # --------------------------------------------------------------------------- #
 # atteso: da Postgres

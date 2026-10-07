@@ -8,8 +8,16 @@ con un avviso accanto, e chi lo leggeva (l'agente) non aveva modo di pesarlo.
 Qui la domanda ha tre risposte, e la terza conta quanto le altre:
 
 - `FRESH`: la coda di proiezione di quel cliente e' sana, il grafo si legge;
-- `STALE`: righe in dead-letter, bloccate, o una pendente oltre la soglia;
-- `UNKNOWN`: non si puo' verificare (DSN del worker assente, coda illeggibile).
+- `STALE`: righe in dead-letter, bloccate, una pendente oltre la soglia, o un
+  grafo scritto da un projector diverso da quello in uso;
+- `CORRUPT`: la riconciliazione (`scripts/kg_reproject.py`) ha trovato il
+  grafo diverso da Postgres. Non e' un ritardo che la coda recupera: resta
+  finche' un confronto pulito non lo smentisce;
+- `UNKNOWN`: non si puo' verificare (DSN del worker assente, coda o stato
+  illeggibili).
+
+Lo stato per cliente (watermark, versione del projector, guasto) sta in
+`graph_projection_state`: vedi `knowledge_graph.projection_state`.
 
 `UNKNOWN` non e' `FRESH`. Chi legge decide cosa fare di uno stato non
 verificato, ma non lo scambia mai per uno verificato: il gateway, in entrambi
@@ -33,6 +41,7 @@ logger = logging.getLogger(__name__)
 class ProjectionHealth(StrEnum):
     FRESH = "fresh"
     STALE = "stale"
+    CORRUPT = "corrupt"
     UNKNOWN = "unknown"
 
 
@@ -92,15 +101,39 @@ def projection_report(client_id: str) -> ProjectionReport:
 
 
 def _measure(client_id: str) -> ProjectionReport:
+    from backend.memory.knowledge_graph.projector import PROJECTOR_VERSION
     from backend.workers import graph_worker
 
     try:
-        stats = dict(graph_worker.queue_stats(client_id))
+        stats: dict[str, Any] = dict(graph_worker.queue_stats(client_id))
+        state = graph_worker.client_projection_state(client_id)
     except Exception as exc:  # noqa: BLE001 - lo stato si dichiara sconosciuto, non si indovina
         logger.warning("stato della proiezione non leggibile per il cliente %s: %s", client_id, exc)
         return ProjectionReport(
-            ProjectionHealth.UNKNOWN, reason="coda di proiezione non leggibile"
+            ProjectionHealth.UNKNOWN, reason="coda o stato della proiezione non leggibili"
         )
+
+    if state is not None:
+        stats["watermark"] = state.watermark
+        stats["projector_version"] = state.projector_version
+        if state.corrupt:
+            return ProjectionReport(
+                ProjectionHealth.CORRUPT,
+                stats=stats,
+                reason=(
+                    "la riconciliazione ha trovato il grafo diverso da Postgres "
+                    f"({state.corrupt_reason}): va ricostruito con scripts/kg_reproject.py --apply"
+                ),
+            )
+        if state.projector_version != PROJECTOR_VERSION:
+            return ProjectionReport(
+                ProjectionHealth.STALE,
+                stats=stats,
+                reason=(
+                    f"grafo scritto dal projector {state.projector_version}, quello in uso e' "
+                    f"{PROJECTOR_VERSION}: va ricostruito con scripts/kg_reproject.py --apply"
+                ),
+            )
 
     if stats["dead_letter"] > 0:
         reason = f"{stats['dead_letter']} righe in dead-letter: non arriveranno senza riparazione"

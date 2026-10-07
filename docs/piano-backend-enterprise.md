@@ -36,7 +36,7 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P0.3 | Lock dei turni su Postgres per `thread_id`; simulazioni in coda Postgres | 3 | **bloccato** — D2 |
 | P0.4 | Tetto di spesa LLM per tenant e ambiente; rate limit API | 3 | **bloccato** — D3 |
 | P1.1a | `ProjectionHealth` FRESH / STALE / UNKNOWN; grafo non verificato fresco servito da Postgres (`kg_relation`) | 4 | **fatto** — #56 |
-| P1.1b | Watermark per cliente, versione del projector, stato `CORRUPT` dalla riconciliazione | 4 | **da fare** |
+| P1.1b | Watermark per cliente, versione del projector, stato `CORRUPT` dalla riconciliazione (`graph_projection_state`, migrazione canonical 0019) | 4 | **fatto** — #83 |
 | P1.3a | Budget in token del prompt di scope (48.000), blocchi con priorità, omissioni dichiarate al modello, XML non duplicato, impronta sha256 | 5 | **fatto** — #61 |
 | P1.3b | Riassunto del thread a soglia di token (misurata sulla sola fetta riassumibile, tool call compresi), riassunto del modello validato (vuoto o oltre 2.000 token → estratto), ripiego deterministico solo sui guasti transitori del provider, contato | 5 | **fatto** — #71 |
 | P1.3c | Impronta del contesto nel registro dei consumi LLM: colonna `context_fingerprint` (migrazione workspace 0026), la riga `chat_turn` porta l'ultima impronta assemblata nel turno | 5 | **fatto** — #80 |
@@ -52,9 +52,8 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 
 In quest'ordine, senza decisioni da aspettare:
 
-1. **P1.1b** watermark e stato `CORRUPT` della proiezione — #83;
-2. **P1.4** Agent Outcome Harness — #84;
-3. **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata — #85.
+1. **P1.4** Agent Outcome Harness — #84;
+2. **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata — #85.
 
 ---
 
@@ -96,6 +95,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
+| 2026-10-07 | P1.1b | #83: `graph_projection_state` (watermark avanzato dal worker nella stessa transazione, `PROJECTOR_VERSION` conservata finche' non si ricostruisce, `corrupt_since`/`corrupt_reason`); `ProjectionHealth.CORRUPT`; `kg_reproject` scrive l'esito | `tests/memory/test_projection_state.py` (11, su Postgres canonical), `tests/memory/test_projection_health.py`; migrazione 0019 su e giu' |
 | 2026-10-07 | — | Due teste workspace dopo #72 e #80: `0026_usage_context_print` ripuntata su `0026_client_sources` | `alembic heads` una testa; upgrade, downgrade a 0025 e di nuovo upgrade su Postgres locale |
 | 2026-10-07 | P1.3c | #80: `context_fingerprint` nel registro dei consumi; `build_scope_system_prompt` annota l'impronta in un raccoglitore del turno (ContextVar, arriva ai nodi LangGraph), il runtime la passa alla riga `chat_turn` | `tests/agents/test_context_fingerprint_trace.py`, `test_the_ledger_row_reaches_postgres`; migrazione 0026 su e giù su Postgres locale |
 | 2026-10-07 | P1.3b | #71: i 6 rilievi CodeRabbit chiusi — tool call nel conto dei token, soglia sulla sola fetta riassumibile, ripiego solo su `TRANSIENT_PROVIDER_ERRORS` (log error, `degradation_counters`), messaggi senza id non riassunti due volte, test su vuoto, giro ripetuto e confini; dal controllo pre-merge, il riassunto del modello validato (`ThreadSummary`, Pydantic) prima di entrare nello stato, un tetto al riassunto con ripieghi consecutivi, gli esiti dei tool fuori dall'estratto | `tests/agents/test_thread_summary.py`: 22 verdi; `tests/agents` + `tests/llm`: 527 verdi |
