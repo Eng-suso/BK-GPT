@@ -1,7 +1,17 @@
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.local_store import local_engine
@@ -245,6 +255,15 @@ class WorkspaceSource(WorkspaceBase):
     __table_args__ = (
         UniqueConstraint(
             "tenant_id", "project_id", "ingestion_key", name="uq_workspace_source_ingestion"
+        ),
+        # Migrazione 0026 (P1.16): una fonte e' di un progetto o del cliente, e
+        # le fonti del cliente si deduplicano dentro il cliente.
+        CheckConstraint("project_id IS NOT NULL OR client_id IS NOT NULL", name="ck_workspace_sources_owner"),
+        Index(
+            "uq_workspace_source_client_ingestion",
+            "tenant_id", "client_id", "ingestion_key",
+            unique=True,
+            postgresql_where=text("project_id IS NULL"),
         ),
     )
 
