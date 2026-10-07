@@ -518,7 +518,7 @@ def test_process_facade_tools_return_standard_payloads(monkeypatch):
     monkeypatch.setattr(
         process_tools_module.workspace_database,
         "list_project_sources",
-        lambda project_id: [
+        lambda project_id, **_: [
             {"id": "src-1", "project_id": project_id, "process_id": "proc-1", "name": "Interview Ops"}
         ],
     )
@@ -760,7 +760,7 @@ def test_modeling_readiness_reports_missing_review(monkeypatch):
         "get_bpmn_review",
         lambda bpmn_model_id, include_approved=False: None,
     )
-    monkeypatch.setattr(process_tools_module.workspace_database, "list_project_sources", lambda project_id: [])
+    monkeypatch.setattr(process_tools_module.workspace_database, "list_project_sources", lambda project_id, **_: [])
     monkeypatch.setattr(process_tools_module.workspace_database, "list_project_decisions", lambda project_id: [])
 
     result = tool_result_text(

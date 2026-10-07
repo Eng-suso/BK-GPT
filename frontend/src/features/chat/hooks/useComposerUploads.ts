@@ -131,7 +131,7 @@ export function useComposerUploads(
           return next;
         });
         setInFlight((current) => current.filter((item) => item.tempId !== tempId));
-        return { kind: "source", id: source.id, label: source.name, projectId: source.projectId };
+        return { kind: "source", id: source.id, label: source.name, projectId: source.projectId ?? target.projectId };
       } catch (error) {
         const message = httpErrorMessage(error, t("attach.uploadFailed"));
         setInFlight((current) =>

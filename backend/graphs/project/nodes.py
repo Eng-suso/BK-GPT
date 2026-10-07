@@ -52,7 +52,7 @@ def load_project_context(state: dict) -> dict:
         "progress": project["progress"],
         "next_step": project["next_step"],
         "project_processes": project.get("process_items") or [],
-        "project_sources": workspace_database.list_project_sources(project_id),
+        "project_sources": workspace_database.list_project_sources(project_id, include_client=True),
         "project_decisions": workspace_database.list_project_decisions(project_id),
         "project_deliverables": project.get("deliverables") or [],
         "project_open_issues": project.get("open_issues") or [],

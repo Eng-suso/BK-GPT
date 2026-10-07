@@ -1,7 +1,17 @@
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from backend.local_store import local_engine
@@ -246,11 +256,23 @@ class WorkspaceSource(WorkspaceBase):
         UniqueConstraint(
             "tenant_id", "project_id", "ingestion_key", name="uq_workspace_source_ingestion"
         ),
+        # Migrazione 0026 (P1.16): una fonte e' di un progetto o del cliente, e
+        # le fonti del cliente si deduplicano dentro il cliente.
+        CheckConstraint("project_id IS NOT NULL OR client_id IS NOT NULL", name="ck_workspace_sources_owner"),
+        Index(
+            "uq_workspace_source_client_ingestion",
+            "tenant_id", "client_id", "ingestion_key",
+            unique=True,
+            postgresql_where=text("project_id IS NULL"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
-    project_id: Mapped[str] = mapped_column(ForeignKey("workspace_projects.id"), nullable=False, index=True)
+    # Vuoto per le fonti del cliente (P1.16), che valgono per tutti i suoi progetti.
+    project_id: Mapped[str | None] = mapped_column(ForeignKey("workspace_projects.id"), index=True)
+    # Il cliente a cui la fonte appartiene: il suo, o quello del suo progetto.
+    client_id: Mapped[str | None] = mapped_column(ForeignKey("workspace_clients.id"), index=True)
     process_id: Mapped[str | None] = mapped_column(String, index=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)
@@ -372,7 +394,7 @@ class WorkspaceClaimRelation(WorkspaceBase):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    project_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    project_id: Mapped[str | None] = mapped_column(String, index=True)
     process_id: Mapped[str | None] = mapped_column(String, index=True)
     claim_id: Mapped[int] = mapped_column(
         ForeignKey("workspace_source_claims.id", ondelete="CASCADE"), nullable=False, index=True
@@ -585,6 +607,9 @@ class WorkspaceLlmUsage(WorkspaceBase):
     # allo stesso modo. NULL = modello senza prezzo configurato.
     cost_estimate: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # L'impronta sha256 del contesto di scope che il modello ha visto
+    # (`context_budget.assemble`). NULL per i compiti che non lo ricevono.
+    context_fingerprint: Mapped[str | None] = mapped_column(String, index=True)
 
 
 def build_workspace_engine():

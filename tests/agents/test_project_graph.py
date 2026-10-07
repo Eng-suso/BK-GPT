@@ -175,7 +175,7 @@ def test_project_facade_tools_return_standard_payloads(monkeypatch):
     monkeypatch.setattr(
         project_tools_module.workspace_database,
         "list_project_sources",
-        lambda project_id: [{"id": "src-1", "project_id": project_id, "name": "Intervista", "type": "Note", "meta": ""}],
+        lambda project_id, **_: [{"id": "src-1", "project_id": project_id, "name": "Intervista", "type": "Note", "meta": ""}],
     )
     monkeypatch.setattr(
         project_tools_module.workspace_database,
@@ -375,7 +375,7 @@ def test_project_graph_context_is_scoped_to_project(monkeypatch):
     monkeypatch.setattr(
         project_memory_module.workspace_database,
         "list_project_sources",
-        lambda project_id: [{"id": "src-1", "project_id": project_id, "name": "Intervista CFO"}],
+        lambda project_id, **_: [{"id": "src-1", "project_id": project_id, "name": "Intervista CFO"}],
     )
     monkeypatch.setattr(
         project_memory_module.workspace_database,
