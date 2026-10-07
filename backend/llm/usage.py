@@ -68,6 +68,7 @@ def record(
     reasoning_effort: str | None = None,
     error_kind: str | None = None,
     attempt: int = 1,
+    context_fingerprint: str | None = None,
 ) -> None:
     """Scrive un evento di consumo. Non solleva mai.
 
@@ -88,6 +89,11 @@ def record(
         error_kind: La classe del guasto, quando `outcome` non e' `ok`.
         attempt: Quale tentativo era. Un secondo tentativo e' una riga sua: e'
             cosi' che «quanto costano i retry» diventa una query.
+        context_fingerprint: L'impronta del contesto di scope che il modello ha
+            ricevuto. `prompt_version` dice quale prompt fisso ha girato; questa
+            dice quale contesto: due turni con la stessa impronta hanno visto la
+            stessa cosa, e un turno che costa il doppio si spiega guardando cosa
+            gli e' stato mandato.
     """
     counted = tokens or TokenUsage()
     cost = estimate_cost(
@@ -124,6 +130,7 @@ def record(
                     attempt=attempt,
                     cost_estimate=str(cost) if cost is not None else None,
                     created_at=datetime.now(UTC).isoformat(),
+                    context_fingerprint=context_fingerprint,
                 )
             )
     except Exception as exc:  # noqa: BLE001

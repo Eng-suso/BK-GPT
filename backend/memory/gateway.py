@@ -1329,7 +1329,7 @@ def workspace_read(
         return [r for r in rows if not r.get("process_id") or r.get("process_id") in wanted]
 
     if "sources" in include:
-        out["sources"] = _scoped(workspace_database.list_project_sources(project_id))
+        out["sources"] = _scoped(workspace_database.list_project_sources(project_id, include_client=True))
     if "decisions" in include:
         out["decisions"] = _scoped(workspace_database.list_project_decisions(project_id))
 

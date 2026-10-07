@@ -103,7 +103,7 @@ def process_workspace_payload(process_id: str) -> dict:
     project = workspace_database.get_project(process["project_id"])
     bpmn_model = workspace_database.get_bpmn_model(process["bpmn_model_id"])
     review = workspace_database.get_bpmn_review(process["bpmn_model_id"], include_approved=True)
-    project_sources = workspace_database.list_project_sources(process["project_id"])
+    project_sources = workspace_database.list_project_sources(process["project_id"], include_client=True)
     project_decisions = workspace_database.list_project_decisions(process["project_id"])
 
     return {

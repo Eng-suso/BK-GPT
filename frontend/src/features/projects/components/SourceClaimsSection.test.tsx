@@ -15,6 +15,7 @@ const { SourceClaimsSection } = await import("./SourceClaimsSection");
 const SOURCE: ProjectSource = {
   id: "src-procedura",
   projectId: "p-1",
+  clientId: null,
   processId: "proc-1",
   name: "procedura.md",
   type: "File",

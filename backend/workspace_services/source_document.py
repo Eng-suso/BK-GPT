@@ -131,7 +131,9 @@ def source_document(source_id: str) -> dict | None:
 
     record = workspace_database.get_project_source_record(source_id)
     uploaded_text = (record.extracted_text or "").strip() if record else ""
-    episode = None if uploaded_text else _matching_episode(
+    # Una fonte del cliente (P1.16) e' sempre un file caricato: non viene da
+    # un episodio della chat, che appartiene a un progetto.
+    episode = None if uploaded_text or not source["project_id"] else _matching_episode(
         source["project_id"], source.get("process_id"), source["name"]
     )
     detail = (

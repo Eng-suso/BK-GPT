@@ -1,13 +1,18 @@
+import json
+import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph, MessagesState
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from backend.agent_checkpoint import get_checkpointer
 
+from backend.agents.context_budget import count_tokens
 from backend.agents.primary_scope import build_scope_system_prompt, tool_scope_type
 from backend.graphs.canvas_edit import build_canvas_subgraph
 from backend.graphs.consulting import build_consulting_subgraph
@@ -24,7 +29,7 @@ from backend.process_understanding import (
     ProcessUnderstandingDiagnostics,
     ProcessUnderstandingQualityReport,
 )
-from backend.llm import LlmTask, chat_client
+from backend.llm import TRANSIENT_PROVIDER_ERRORS, LlmTask, chat_client
 from backend.settings import (
     ALLOWED_MODELS,
     DEFAULT_OPENAI_MODEL,
@@ -38,6 +43,7 @@ from backend.memory.consultant_context_classifier import (
 from backend.memory.procedural.playbook_context import build_playbook_context
 from backend.memory.procedural.skill_loader import recent_user_text
 from backend.llm_streaming import stream_to_text
+from backend.services import degradation_counters
 
 
 # Il nodo che instrada la richiesta. E' una costante e non una stringa sparsa
@@ -51,6 +57,23 @@ RECENT_MESSAGE_LIMIT = 8
 RECENT_MESSAGE_SCAN_LIMIT = 24
 SUMMARY_TRIGGER_MESSAGE_COUNT = 10
 SUMMARY_KEEP_RECENT_MESSAGES = 6
+# Anche pochi messaggi possono pesare molto (il risultato di un tool): oltre
+# questi token di storia il riassunto parte comunque.
+SUMMARY_TRIGGER_TOKENS = 24_000
+# Il ripiego quando il modello di riassunto non risponde: un estratto, non un
+# riassunto, e con un tetto, perche' finisce in ogni prompt successivo.
+FALLBACK_LINE_CHARS = 300
+FALLBACK_TOTAL_CHARS = 4_000
+# Il tetto del riassunto intero quando ci si aggiunge un estratto: con il
+# provider giu' per piu' turni gli estratti si accumulerebbero senza fine.
+FALLBACK_SUMMARY_MAX_CHARS = 12_000
+_OMITTED_EXTRACTS = "\n[... estratti precedenti omessi ...]"
+# Il tetto del riassunto del modello: finisce in ogni prompt successivo, e un
+# testo oltre questa misura non e' un riassunto (il modello che ripete la
+# trascrizione). Oltre, si ripiega sull'estratto.
+SUMMARY_MAX_TOKENS = 2_000
+
+logger = logging.getLogger(__name__)
 
 
 class ConsultantState(MessagesState):
@@ -223,8 +246,7 @@ def build_context_messages(state: ConsultantState):
     return messages + recent_context_messages(state["messages"])
 
 
-def message_to_summary_line(message) -> str:
-    role = getattr(message, "type", None) or getattr(message, "role", "message")
+def _message_content_text(message) -> str:
     content = getattr(message, "content", "")
 
     if isinstance(content, list):
@@ -235,7 +257,12 @@ def message_to_summary_line(message) -> str:
             for item in content
         )
 
-    return f"{role}: {str(content).strip()}"
+    return str(content).strip()
+
+
+def message_to_summary_line(message) -> str:
+    role = getattr(message, "type", None) or getattr(message, "role", "message")
+    return f"{role}: {_message_content_text(message)}"
 
 
 def build_summary_prompt(existing_summary: str, messages_to_summarize: list) -> list:
@@ -270,6 +297,147 @@ def build_summary_prompt(existing_summary: str, messages_to_summarize: list) -> 
             )
         ),
     ]
+
+def _message_tokens(message) -> int:
+    """Token che il messaggio pesa nel prompt: testo e argomenti dei tool call.
+
+    `additional_kwargs["tool_calls"]` e' la forma grezza degli stessi tool call:
+    si conta solo quando manca quella interpretata, per non contarli due volte.
+    """
+    tokens = count_tokens(message_to_summary_line(message))
+    tool_calls = getattr(message, "tool_calls", None) or (
+        (getattr(message, "additional_kwargs", None) or {}).get("tool_calls")
+    )
+    if tool_calls:
+        tokens += count_tokens(json.dumps(tool_calls, ensure_ascii=False, default=str))
+    return tokens
+
+
+def _history_tokens(messages: list) -> int:
+    return sum(_message_tokens(message) for message in messages)
+
+
+def _extract_summary(existing_summary: str, messages: list) -> str:
+    """Il ripiego deterministico: le righe dei messaggi tolti, accorciate.
+
+    Dichiara di essere un estratto: il modello del turno dopo non deve
+    leggerlo come una sintesi ragionata. Entrano solo le parole del consulente
+    e le risposte dell'assistente: gli esiti dei tool e le chiamate senza
+    testo sono fatti per il modello (id, XML, nomi di azione), e dal riassunto
+    finirebbero nel contesto della chat, da cui il modello li ripeterebbe.
+    """
+    lines = []
+    for message in messages:
+        if message_role(message) == "tool" or not _message_content_text(message):
+            continue
+        line = message_to_summary_line(message)
+        lines.append(line if len(line) <= FALLBACK_LINE_CHARS else line[:FALLBACK_LINE_CHARS] + "...")
+    extract = "\n".join(lines)
+    if len(extract) > FALLBACK_TOTAL_CHARS:
+        extract = "..." + extract[-FALLBACK_TOTAL_CHARS:]
+    block = (
+        "[Riassunto automatico non disponibile in questo turno: segue un estratto "
+        f"dei {len(messages)} messaggi piu' vecchi, non una sintesi.]\n" + extract
+    )
+    # Il riassunto intero ha un tetto. Del precedente si tiene la testa (la
+    # sintesi del modello, se c'e') e si omettono gli estratti di mezzo,
+    # dichiarandolo; l'estratto nuovo entra intero.
+    previous = existing_summary.strip()
+    room = FALLBACK_SUMMARY_MAX_CHARS - len(block) - len("\n\n")
+    if len(previous) > room:
+        keep = room - len(_OMITTED_EXTRACTS)
+        previous = previous[:keep] + _OMITTED_EXTRACTS if keep > 0 else ""
+    return "\n\n".join(part for part in (previous, block) if part)
+
+
+class ThreadSummary(BaseModel):
+    """Il riassunto del modello, validato prima di diventare stato.
+
+    L'uscita del modello e' non fidata: entra in `running_summary` solo
+    attraverso questo tipo, non vuota e dentro `SUMMARY_MAX_TOKENS`.
+    """
+
+    model_config = ConfigDict(frozen=True, str_strip_whitespace=True)
+
+    text: str = Field(min_length=1)
+
+    @field_validator("text")
+    @classmethod
+    def _within_budget(cls, value: str) -> str:
+        if count_tokens(value) > SUMMARY_MAX_TOKENS:
+            raise ValueError(f"riassunto oltre {SUMMARY_MAX_TOKENS} token")
+        return value
+
+
+def _parse_summary(raw: str) -> ThreadSummary | Literal["empty_summary", "oversized_summary"]:
+    """Il riassunto tipato, o perche' non puo' entrare nello stato."""
+    try:
+        return ThreadSummary(text=raw)
+    except ValidationError as exc:
+        too_short = any(error["type"] == "string_too_short" for error in exc.errors())
+        return "empty_summary" if too_short else "oversized_summary"
+
+
+def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dict:
+    """Comprime la storia del thread quando e' troppo lunga, in numero o in token.
+
+    `summarize(riassunto_esistente, messaggi)` produce il nuovo riassunto col
+    modello. Se il provider ha un guasto transitorio (`TRANSIENT_PROVIDER_ERRORS`)
+    o il testo non passa la validazione (vuoto, oltre `SUMMARY_MAX_TOKENS`), il
+    turno non cade: il riassunto diventa un estratto
+    dichiarato, contato in `degradation_counters`, e i messaggi vecchi escono
+    comunque dallo stato, che altrimenti crescerebbe a ogni turno. Ogni altro
+    errore (`OperationNotOpen`, un difetto nostro) si propaga.
+    """
+    messages = state["messages"]
+    cutoff = max(len(messages) - SUMMARY_KEEP_RECENT_MESSAGES, 0)
+    summarized_message_count = state.get("summarized_message_count", 0)
+    if cutoff <= summarized_message_count:
+        return {}
+    messages_to_summarize = messages[summarized_message_count:cutoff]
+
+    # La soglia in token misura la stessa fetta che il riassunto toglie: gli
+    # ultimi messaggi restano interi comunque, e contarli farebbe ripartire il
+    # riassunto a ogni turno senza ridurre nulla.
+    too_many = len(messages) > SUMMARY_TRIGGER_MESSAGE_COUNT
+    if not too_many and _history_tokens(messages_to_summarize) <= SUMMARY_TRIGGER_TOKENS:
+        return {}
+
+    existing = state.get("running_summary", "") or ""
+    try:
+        summary_text = summarize(existing, messages_to_summarize)
+    except TRANSIENT_PROVIDER_ERRORS as exc:
+        # Il riassunto e' manutenzione: un guasto del provider non fa cadere il
+        # turno. Solo quello: un difetto nostro si propaga.
+        logger.error("riassunto del thread fallito: ripiego su un estratto", exc_info=True)
+        degradation_counters.bump("thread_summary", "fallback_extract", detail=type(exc).__name__)
+        summary_text = _extract_summary(existing, messages_to_summarize)
+    else:
+        # L'uscita del modello e' non fidata: entra nello stato solo come
+        # `ThreadSummary` validato.
+        parsed = _parse_summary(summary_text)
+        if isinstance(parsed, ThreadSummary):
+            summary_text = parsed.text
+        else:
+            logger.error("riassunto del thread scartato (%s): ripiego su un estratto", parsed)
+            degradation_counters.bump("thread_summary", parsed)
+            summary_text = _extract_summary(existing, messages_to_summarize)
+
+    # Dopo il riassunto i messaggi vecchi escono dal checkpoint: il loro
+    # contenuto vive in running_summary, e lo stato non cresce senza limite.
+    # Uno senza id non si puo' togliere: resta in testa, e il contatore lo
+    # salta al giro dopo invece di riassumerlo una seconda volta.
+    summarized = messages[:cutoff]
+    remove_ops = [RemoveMessage(id=m.id) for m in summarized if getattr(m, "id", None)]
+    still_in_state = len(summarized) - len(remove_ops)
+    if still_in_state:
+        logger.warning("riassunto del thread: %d messaggi senza id restano nello stato", still_in_state)
+    return {
+        "running_summary": summary_text.strip(),
+        "summarized_message_count": still_in_state,
+        **({"messages": remove_ops} if remove_ops else {}),
+    }
+
 
 def normalize_model_name(model_name: str | None = None) -> str:
     if not model_name:
@@ -333,47 +501,17 @@ def build_agent(
     )
 
     def summarize_node(state: ConsultantState, config: RunnableConfig):
-        messages = state["messages"]
+        def summarize(existing_summary: str, messages_to_summarize: list) -> str:
+            return stream_to_text(
+                summary_llm,
+                build_summary_prompt(
+                    existing_summary=existing_summary,
+                    messages_to_summarize=messages_to_summarize,
+                ),
+                config=config,
+            )
 
-        if len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT:
-            return {}
-
-        cutoff = max(len(messages) - SUMMARY_KEEP_RECENT_MESSAGES, 0)
-        summarized_message_count = state.get("summarized_message_count", 0)
-
-        if cutoff <= summarized_message_count:
-            return {}
-
-        messages_to_summarize = messages[summarized_message_count:cutoff]
-
-        if not messages_to_summarize:
-            return {}
-
-        summary_text = stream_to_text(
-            summary_llm,
-            build_summary_prompt(
-                existing_summary=state.get("running_summary", ""),
-                messages_to_summarize=messages_to_summarize,
-            ),
-            config=config,
-        )
-
-        # Trim old messages from the checkpoint to prevent unbounded growth.
-        # After summarization, the content of old messages is captured in
-        # running_summary, so we can safely remove them from state.
-        remove_ops = [
-            RemoveMessage(id=m.id)
-            for m in messages[:cutoff]
-            if hasattr(m, "id") and m.id
-        ]
-
-        return {
-            "running_summary": summary_text.strip(),
-            "summarized_message_count": 0,
-            **({
-                "messages": remove_ops,
-            } if remove_ops else {}),
-        }
+        return summarize_history(state, summarize)
 
     def classify_and_select_context_node(state: ConsultantState, config: RunnableConfig):
         result = classify_and_select_context(
