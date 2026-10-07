@@ -476,6 +476,7 @@ def test_the_ledger_row_reaches_postgres():
             duration_ms=1234,
             prompt_version="plan_extraction@3",
             reasoning_effort="medium",
+            context_fingerprint="a" * 64,
         )
 
     with workspace_connection() as session:
@@ -490,6 +491,7 @@ def test_the_ledger_row_reaches_postgres():
         assert (row.input_tokens, row.output_tokens) == (321, 21)
         assert (row.reasoning_tokens, row.cached_input_tokens) == (7, 100)
         assert row.prompt_version == "plan_extraction@3"
+        assert row.context_fingerprint == "a" * 64
         assert row.duration_ms == 1234
         assert row.created_at
 

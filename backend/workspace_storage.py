@@ -585,6 +585,9 @@ class WorkspaceLlmUsage(WorkspaceBase):
     # allo stesso modo. NULL = modello senza prezzo configurato.
     cost_estimate: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # L'impronta sha256 del contesto di scope che il modello ha visto
+    # (`context_budget.assemble`). NULL per i compiti che non lo ricevono.
+    context_fingerprint: Mapped[str | None] = mapped_column(String, index=True)
 
 
 def build_workspace_engine():
