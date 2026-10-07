@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
+from typing import Literal
 
+from backend.eventlog.export import Exported, to_csv, to_xes
+from backend.eventlog.synthetic import from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.security import get_current_tenant_id, set_current_tenant_id
@@ -27,6 +31,8 @@ from backend.simulation.storage import (
     create_simulation_run,
     fail_simulation_run,
     find_active_run_by_key,
+    get_simulation_log_csv,
+    get_simulation_run,
 )
 
 
@@ -180,7 +186,11 @@ async def execute_simulation_run(
 
     summary, replay = _process_event_log(result, bpmn_xml=bpmn_xml, scenario=scenario)
     return complete_simulation_run(
-        run_id=run_id, result=result, summary=summary, replay=replay
+        run_id=run_id,
+        result=result,
+        summary=summary,
+        replay=replay,
+        log_csv=getattr(result, "event_log_csv", None),
     )
 
 
@@ -226,3 +236,38 @@ async def create_and_run_simulation(
         scenario=scenario,
         request=request,
     )
+
+
+class SimulationLogUnavailable(LookupError):
+    """Il run non esiste, o non ha un log da esportare (fallito, o anteriore a SIM-06)."""
+
+
+@dataclass(frozen=True, slots=True)
+class SimulationLogExport:
+    run_id: int
+    seed: int | None
+    engine_version: str | None
+    file: Exported
+
+
+def export_simulation_event_log(run_id: int, fmt: Literal["csv", "xes"]) -> SimulationLogExport:
+    """Il log sintetico di un run come event log canonico, in CSV o XES."""
+    run = get_simulation_run(run_id)
+    csv_text = get_simulation_log_csv(run_id) if run is not None else None
+    if run is None or not csv_text:
+        raise SimulationLogUnavailable("Nessun log di eventi per questa simulazione.")
+
+    result = run.get("result") or {}
+    seed = result.get("Seed")
+    engine_version = result.get("EngineVersion")
+    log = from_prosimos_csv(csv_text, source_name=f"simulation-run-{run_id}")
+    if fmt == "xes":
+        metadata: dict[str, str | int] = {"deliR:runId": run_id}
+        if seed is not None:
+            metadata["deliR:seed"] = seed
+        if engine_version:
+            metadata["deliR:engineVersion"] = str(engine_version)
+        exported = to_xes(log, metadata=metadata)
+    else:
+        exported = to_csv(log)
+    return SimulationLogExport(run_id=run_id, seed=seed, engine_version=engine_version, file=exported)

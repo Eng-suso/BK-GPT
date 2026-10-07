@@ -48,6 +48,7 @@ from backend.workspace_storage import (
     WorkspaceProject,
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
+    WorkspaceSimulationRunLog,
     WorkspaceEvidenceSegment,
     WorkspaceSource,
     WorkspaceSourceAudit,
@@ -4675,6 +4676,12 @@ def _purge_process(session, process: WorkspaceProcess) -> list[str]:
             )
         ).scalars():
             session.delete(artifact)
+        for run_log in session.execute(
+            select(WorkspaceSimulationRunLog).where(
+                WorkspaceSimulationRunLog.run_id.in_(run_ids)
+            )
+        ).scalars():
+            session.delete(run_log)
         # Fra run e artefatto non c'e' una relationship mappata: l'unita' di
         # lavoro non sa che l'artefatto va cancellato prima e puo' invertire
         # l'ordine, fermandosi sulla FK. Il flush fissa l'ordine.
