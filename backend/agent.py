@@ -334,16 +334,17 @@ def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dic
     d'ingresso, e si propaga.
     """
     messages = state["messages"]
-    too_many = len(messages) > SUMMARY_TRIGGER_MESSAGE_COUNT
-    if not too_many and _history_tokens(messages) <= SUMMARY_TRIGGER_TOKENS:
-        return {}
-
     cutoff = max(len(messages) - SUMMARY_KEEP_RECENT_MESSAGES, 0)
     summarized_message_count = state.get("summarized_message_count", 0)
     if cutoff <= summarized_message_count:
         return {}
     messages_to_summarize = messages[summarized_message_count:cutoff]
-    if not messages_to_summarize:
+
+    # La soglia in token misura la stessa fetta che il riassunto toglie: gli
+    # ultimi messaggi restano interi comunque, e contarli farebbe ripartire il
+    # riassunto a ogni turno senza ridurre nulla.
+    too_many = len(messages) > SUMMARY_TRIGGER_MESSAGE_COUNT
+    if not too_many and _history_tokens(messages_to_summarize) <= SUMMARY_TRIGGER_TOKENS:
         return {}
 
     existing = state.get("running_summary", "") or ""

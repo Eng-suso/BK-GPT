@@ -47,13 +47,35 @@ def test_a_long_thread_is_summarized_and_trimmed():
     assert removed == [m.id for m in messages[: len(messages) - SUMMARY_KEEP_RECENT_MESSAGES]]
 
 
+def _with_huge(messages: list, indexes: range) -> list:
+    huge = "parola " * 30_000
+    for i in indexes:
+        messages[i] = type(messages[i])(content=huge, id=messages[i].id)
+    return messages
+
+
 def test_a_few_huge_messages_trigger_the_summary_too():
-    messages = _thread(SUMMARY_KEEP_RECENT_MESSAGES + 2, text="parola " * 4_000)
+    messages = _with_huge(_thread(SUMMARY_KEEP_RECENT_MESSAGES + 2), range(2))
 
     out = summarize_history({"messages": messages}, lambda existing, old: "sintesi")
 
     assert len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT
     assert out["running_summary"] == "sintesi"
+
+
+def test_a_huge_recent_tail_does_not_trigger_the_summary():
+    # Gli ultimi messaggi restano interi comunque: contarli faceva ripartire il
+    # riassunto a ogni turno, una chiamata al modello per comprimere due righe.
+    messages = _with_huge(
+        _thread(SUMMARY_KEEP_RECENT_MESSAGES + 2),
+        range(2, SUMMARY_KEEP_RECENT_MESSAGES + 2),
+    )
+    calls = []
+
+    out = summarize_history({"messages": messages}, lambda s, m: calls.append(m) or "x")
+
+    assert out == {}
+    assert calls == []
 
 
 def test_huge_tool_call_arguments_count_toward_the_trigger():
@@ -72,6 +94,7 @@ def test_huge_tool_call_arguments_count_toward_the_trigger():
         HumanMessage(content="grazie", id="m4"),
         AIMessage(content="prego", id="m5"),
         HumanMessage(content="altro?", id="m6"),
+        AIMessage(content="niente", id="m7"),
     ]
     assert len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT
 
