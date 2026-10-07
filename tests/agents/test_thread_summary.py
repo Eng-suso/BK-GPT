@@ -8,6 +8,10 @@ risultato di un tool) non lo attivavano mai.
 
 from __future__ import annotations
 
+import logging
+
+import httpx
+import openai
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 
@@ -18,6 +22,7 @@ from backend.agent import (
     summarize_history,
 )
 from backend.llm import OperationNotOpen
+from backend.services import degradation_counters
 
 
 def _thread(n: int, text: str = "turno") -> list:
@@ -119,7 +124,7 @@ def test_a_failed_summary_does_not_fail_the_turn():
 
 def test_the_fallback_extract_has_a_ceiling():
     def broken(existing, old):
-        raise RuntimeError("guasto")
+        raise TimeoutError("guasto")
 
     messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2, text="x" * 5_000)
     out = summarize_history({"messages": messages}, broken)
@@ -133,3 +138,32 @@ def test_a_missing_operation_is_not_hidden_by_the_fallback():
 
     with pytest.raises(OperationNotOpen):
         summarize_history({"messages": _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)}, unaccounted)
+
+
+def _provider_timeout() -> openai.APITimeoutError:
+    return openai.APITimeoutError(request=httpx.Request("POST", "https://provider.test"))
+
+
+def test_a_provider_timeout_falls_back_and_is_counted(caplog):
+    degradation_counters.reset()
+    messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)
+
+    def slow(existing, old):
+        raise _provider_timeout()
+
+    with caplog.at_level(logging.WARNING, logger="backend.agent"):
+        out = summarize_history({"messages": messages}, slow)
+
+    assert "non una sintesi" in out["running_summary"]
+    assert degradation_counters.snapshot() == {"thread_summary:fallback_extract": 1}
+    assert [r.levelno for r in caplog.records if r.name == "backend.agent"] == [logging.ERROR]
+
+
+def test_a_programming_error_is_not_hidden_by_the_fallback():
+    # Un difetto nostro non e' un guasto del provider: un estratto al posto
+    # del riassunto lo nasconderebbe per sempre dietro un turno che funziona.
+    def buggy(existing, old):
+        raise TypeError("argomento sbagliato")
+
+    with pytest.raises(TypeError):
+        summarize_history({"messages": _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)}, buggy)

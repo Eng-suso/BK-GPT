@@ -28,7 +28,7 @@ from backend.process_understanding import (
     ProcessUnderstandingDiagnostics,
     ProcessUnderstandingQualityReport,
 )
-from backend.llm import LlmTask, OperationNotOpen, chat_client
+from backend.llm import TRANSIENT_PROVIDER_ERRORS, LlmTask, chat_client
 from backend.settings import (
     ALLOWED_MODELS,
     DEFAULT_OPENAI_MODEL,
@@ -42,6 +42,7 @@ from backend.memory.consultant_context_classifier import (
 from backend.memory.procedural.playbook_context import build_playbook_context
 from backend.memory.procedural.skill_loader import recent_user_text
 from backend.llm_streaming import stream_to_text
+from backend.services import degradation_counters
 
 
 # Il nodo che instrada la richiesta. E' una costante e non una stringa sparsa
@@ -328,10 +329,11 @@ def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dic
     """Comprime la storia del thread quando e' troppo lunga, in numero o in token.
 
     `summarize(riassunto_esistente, messaggi)` produce il nuovo riassunto col
-    modello. Se fallisce, il turno non cade: il riassunto diventa un estratto
-    dichiarato e i messaggi vecchi escono comunque dallo stato, che altrimenti
-    crescerebbe a ogni turno. `OperationNotOpen` no: e' un difetto del punto
-    d'ingresso, e si propaga.
+    modello. Se il provider ha un guasto transitorio (`TRANSIENT_PROVIDER_ERRORS`)
+    o risponde vuoto, il turno non cade: il riassunto diventa un estratto
+    dichiarato, contato in `degradation_counters`, e i messaggi vecchi escono
+    comunque dallo stato, che altrimenti crescerebbe a ogni turno. Ogni altro
+    errore (`OperationNotOpen`, un difetto nostro) si propaga.
     """
     messages = state["messages"]
     cutoff = max(len(messages) - SUMMARY_KEEP_RECENT_MESSAGES, 0)
@@ -350,13 +352,15 @@ def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dic
     existing = state.get("running_summary", "") or ""
     try:
         summary_text = summarize(existing, messages_to_summarize)
-    except OperationNotOpen:
-        raise
-    except Exception:
-        # Il riassunto e' manutenzione: un suo guasto non fa cadere il turno.
-        logger.warning("riassunto del thread fallito: ripiego su un estratto", exc_info=True)
+    except TRANSIENT_PROVIDER_ERRORS as exc:
+        # Il riassunto e' manutenzione: un guasto del provider non fa cadere il
+        # turno. Solo quello: un difetto nostro si propaga.
+        logger.error("riassunto del thread fallito: ripiego su un estratto", exc_info=True)
+        degradation_counters.bump("thread_summary", "fallback_extract", detail=type(exc).__name__)
         summary_text = _extract_summary(existing, messages_to_summarize)
     if not summary_text.strip():
+        logger.error("riassunto del thread vuoto: ripiego su un estratto")
+        degradation_counters.bump("thread_summary", "empty_summary")
         summary_text = _extract_summary(existing, messages_to_summarize)
 
     # Dopo il riassunto i messaggi vecchi escono dal checkpoint: il loro
