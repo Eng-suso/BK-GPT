@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, Tool
 import backend.agent as agent_module
 from backend.agent import (
     FALLBACK_LINE_CHARS,
+    FALLBACK_SUMMARY_MAX_CHARS,
     FALLBACK_TOTAL_CHARS,
     SUMMARY_KEEP_RECENT_MESSAGES,
     SUMMARY_MAX_TOKENS,
@@ -283,3 +284,24 @@ def test_an_oversized_summary_is_not_persisted():
     assert out["running_summary"].startswith("prima")
     assert "non una sintesi" in out["running_summary"]
     assert degradation_counters.snapshot() == {"thread_summary:oversized_summary": 1}
+
+
+def test_consecutive_fallbacks_do_not_grow_the_summary_without_bound():
+    # Ogni ripiego aggiungeva il suo estratto al riassunto di prima: con il
+    # provider giu' per qualche turno il riassunto cresceva a ogni giro, e con
+    # lui ogni prompt successivo.
+    def broken(existing, old):
+        raise TimeoutError("provider giu'")
+
+    summary = "Obiettivo: mappare il processo acquisti."
+    for turn in range(12):
+        messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 20, text=f"turno{turn} " + "x" * 400)
+        summary = summarize_history({"messages": messages, "running_summary": summary}, broken)[
+            "running_summary"
+        ]
+
+    assert len(summary) <= FALLBACK_SUMMARY_MAX_CHARS
+    # Resta la sintesi del modello in testa e l'estratto piu' recente in coda.
+    assert summary.startswith("Obiettivo: mappare il processo acquisti.")
+    assert "turno11" in summary
+    assert "estratti precedenti omessi" in summary

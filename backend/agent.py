@@ -63,6 +63,10 @@ SUMMARY_TRIGGER_TOKENS = 24_000
 # riassunto, e con un tetto, perche' finisce in ogni prompt successivo.
 FALLBACK_LINE_CHARS = 300
 FALLBACK_TOTAL_CHARS = 4_000
+# Il tetto del riassunto intero quando ci si aggiunge un estratto: con il
+# provider giu' per piu' turni gli estratti si accumulerebbero senza fine.
+FALLBACK_SUMMARY_MAX_CHARS = 12_000
+_OMITTED_EXTRACTS = "\n[... estratti precedenti omessi ...]"
 # Il tetto del riassunto del modello: finisce in ogni prompt successivo, e un
 # testo oltre questa misura non e' un riassunto (il modello che ripete la
 # trascrizione). Oltre, si ripiega sull'estratto.
@@ -321,12 +325,19 @@ def _extract_summary(existing_summary: str, messages: list) -> str:
     extract = "\n".join(lines)
     if len(extract) > FALLBACK_TOTAL_CHARS:
         extract = "..." + extract[-FALLBACK_TOTAL_CHARS:]
-    parts = [existing_summary.strip()] if existing_summary.strip() else []
-    parts.append(
+    block = (
         "[Riassunto automatico non disponibile in questo turno: segue un estratto "
         f"dei {len(messages)} messaggi piu' vecchi, non una sintesi.]\n" + extract
     )
-    return "\n\n".join(parts)
+    # Il riassunto intero ha un tetto. Del precedente si tiene la testa (la
+    # sintesi del modello, se c'e') e si omettono gli estratti di mezzo,
+    # dichiarandolo; l'estratto nuovo entra intero.
+    previous = existing_summary.strip()
+    room = FALLBACK_SUMMARY_MAX_CHARS - len(block) - len("\n\n")
+    if len(previous) > room:
+        keep = room - len(_OMITTED_EXTRACTS)
+        previous = previous[:keep] + _OMITTED_EXTRACTS if keep > 0 else ""
+    return "\n\n".join(part for part in (previous, block) if part)
 
 
 def _summary_rejection(summary_text: str) -> Literal["empty_summary", "oversized_summary"] | None:
