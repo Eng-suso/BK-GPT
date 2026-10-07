@@ -33,6 +33,7 @@ import time
 from functools import lru_cache
 from typing import Any, TypeVar, overload
 
+import openai
 from pydantic import BaseModel
 
 from backend.llm.operation import current_operation
@@ -85,6 +86,20 @@ class OperationNotOpen(RuntimeError):
     Se succede dentro un `ThreadPoolExecutor`, la causa e' quasi sempre un'altra:
     i thread non ereditano i `ContextVar`. Vedi `operation.inherit_operation`.
     """
+
+
+# I guasti del provider che passano da soli: rete, timeout, 429, 5xx. Chi ha
+# un ripiego lo usa solo per questi; un 4xx o un difetto nostro (`TypeError`,
+# `KeyError`) non sono un guasto del provider e si propagano. Il 429 copre
+# anche il credito finito: il ripiego regge il lavoro accessorio, e la
+# chiamata principale del turno lo dira' comunque.
+TRANSIENT_PROVIDER_ERRORS: tuple[type[BaseException], ...] = (
+    openai.APIConnectionError,  # comprende APITimeoutError
+    openai.RateLimitError,
+    openai.InternalServerError,
+    TimeoutError,
+    ConnectionError,
+)
 
 
 def _client(profile: TaskProfile, input_characters: int | None):
