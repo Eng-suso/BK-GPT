@@ -222,6 +222,13 @@ DEFAULT_LIST_LIMIT = 500
 MAX_LIST_LIMIT = 2000
 
 
+#: Quanti altri file entrano al massimo nel confronto di una fonte (P1.13). Il
+#: prompt ha gia' il suo tetto in caratteri (`reconcile.MAX_INPUT_CHARS`), ma una
+#: fonte del cliente si confronta con tutti i file del cliente: senza un tetto
+#: anche sulla lettura, un cliente grande li tirerebbe su tutti a ogni passata.
+MAX_RECONCILE_CANDIDATES = 200
+
+
 def capped_limit(limit: int | None) -> int:
     """Il numero di righe da chiedere: quello voluto, dentro i confini."""
     if limit is None:
@@ -2861,7 +2868,8 @@ def due_source_reconcile(limit: int = 1, *, only_tenant_id: str | None = None) -
         return claimed
 
 
-def _claims_as_input(session, sources: list[WorkspaceSource]) -> list[dict]:
+def _claims_as_input(session, sources: list) -> list[dict]:
+    # Righe ORM o tuple (`id`, `name`): servono solo quei due campi.
     names = {source.id: source.name for source in sources}
     if not names:
         return []
@@ -2894,8 +2902,10 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
         if source is None:
             return [], []
         client_wide = and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == source.client_id)
+        # Solo id e nome: la riga intera porta con se' il testo estratto.
+        # In ordine di id, lo stesso in cui le affermazioni arrivano al prompt.
         others = (
-            select(WorkspaceSource)
+            select(WorkspaceSource.id, WorkspaceSource.name)
             .where(WorkspaceSource.tenant_id == source.tenant_id)
             .where(WorkspaceSource.id != source.id)
             .where(WorkspaceSource.status == "approved")
@@ -2913,7 +2923,10 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
             others = others.where(or_(same_project, client_wide))
         return (
             _claims_as_input(session, [source]),
-            _claims_as_input(session, list(session.execute(others).scalars().all())),
+            _claims_as_input(
+                session,
+                list(session.execute(others.order_by(WorkspaceSource.id).limit(MAX_RECONCILE_CANDIDATES)).all()),
+            ),
         )
 
 
