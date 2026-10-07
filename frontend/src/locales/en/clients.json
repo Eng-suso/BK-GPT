@@ -40,7 +40,8 @@
     "documents": "Recent documents",
     "selectPrompt": "Select a client to see its details.",
     "actions": {
-      "edit": "Edit"
+      "edit": "Edit",
+      "open": "Open client page"
     }
   },
   "state": {
@@ -81,6 +82,19 @@
       "Attivo": "Already acquired, or actively worked with.",
       "Da seguire": "Existing relationship waiting on a follow-up.",
       "Prospect": "Still being pursued: lead, offer sent, open negotiation."
+    }
+  },
+  "page": {
+    "backToList": "Back to clients",
+    "openProjects": "Client projects",
+    "missing": {
+      "title": "Client not found",
+      "body": "This client no longer exists, or it was archived. If it was closed, you'll find it in the Archive."
+    },
+    "sources": {
+      "title": "Client sources",
+      "description": "Files that apply to every project of the client: they show in each one's Sources.",
+      "loadError": "The client sources could not be loaded."
     }
   }
 }

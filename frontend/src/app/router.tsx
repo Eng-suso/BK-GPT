@@ -5,6 +5,7 @@ import { NotFoundPage } from "@/app/NotFoundPage";
 import { DEFAULT_ROUTE } from "@/app/routes";
 import {
   ArchivePage,
+  ClientDetailPage,
   ClientsListPage,
   ComparePage,
   ConsultantPage,
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
       { path: "home", element: <HomePage /> },
       { path: "consultant", element: <ConsultantPage /> },
       { path: "clients", element: <ClientsListPage /> },
+      { path: "clients/:clientId", element: <ClientDetailPage /> },
       { path: "projects", element: <ProjectsListPage /> },
       { path: "projects/:projectId", element: <ProjectDetailPage /> },
       {

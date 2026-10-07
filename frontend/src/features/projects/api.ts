@@ -48,6 +48,8 @@ export const projectKeys = {
   list: () => [...projectKeys.all] as const,
   detail: (id: string) => [...projectKeys.all, id] as const,
   sources: (id: string) => [...projectKeys.all, id, "sources"] as const,
+  // Sotto `projects` e finisce in `sources`: `invalidateEverySourcesList` la vede.
+  clientSources: (clientId: string) => [...projectKeys.all, "client", clientId, "sources"] as const,
   sourceClaims: (sourceId: string) => [...projectKeys.all, "source", sourceId, "claims"] as const,
   sourceRelations: (sourceId: string) => [...projectKeys.all, "source", sourceId, "relations"] as const,
   sourceDocument: (sourceId: string) =>
@@ -250,19 +252,36 @@ export function useProjectSourcesQuery(
       const raw = await http<unknown>(`/v1/workspace/projects/${id}/sources`);
       return apiProjectSourcesSchema.parse(raw).map(toProjectSource);
     },
-    // Un file caricato viene letto dal worker dopo la risposta: finche' una
-    // fonte e' in lettura la lista si aggiorna da sola, poi smette.
-    // Anche mentre DeliR estrae le affermazioni: il dettaglio della fonte le
-    // mostra appena ci sono.
-    refetchInterval: (query) =>
-      query.state.data?.some(
-        (source) =>
-          source.acquisitionStatus === "pending" ||
-          source.claimsStatus === "pending" ||
-          source.reconcileStatus === "pending",
-      )
-        ? 1500
-        : false,
+    refetchInterval: refetchWhileReading,
+  });
+}
+
+/**
+ * Un file caricato viene letto dal worker dopo la risposta: finche' una fonte
+ * e' in lettura la lista si aggiorna da sola, poi smette. Anche mentre DeliR
+ * estrae le affermazioni: il dettaglio della fonte le mostra appena ci sono.
+ */
+function refetchWhileReading(query: { state: { data?: ProjectSource[] } }): number | false {
+  return query.state.data?.some(
+    (source) =>
+      source.acquisitionStatus === "pending" ||
+      source.claimsStatus === "pending" ||
+      source.reconcileStatus === "pending",
+  )
+    ? 1500
+    : false;
+}
+
+/** Le fonti caricate per tutto il cliente (P1.16): solo le sue, senza quelle dei progetti. */
+export function useClientSourcesQuery(clientId: string): UseQueryResult<ProjectSource[]> {
+  return useQuery({
+    queryKey: projectKeys.clientSources(clientId),
+    enabled: clientId !== "",
+    queryFn: async () => {
+      const raw = await http<unknown>(`/v1/workspace/clients/${clientId}/sources`);
+      return apiProjectSourcesSchema.parse(raw).map(toProjectSource);
+    },
+    refetchInterval: refetchWhileReading,
   });
 }
 
@@ -315,8 +334,10 @@ export function useVerifyProjectSourceMutation(
       });
       return toProjectSource(apiProjectSourceSchema.parse(raw));
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: projectKeys.sources(projectId) });
+    onSuccess: (source) => {
+      // Una fonte del cliente sta nelle Fonti di ogni suo progetto.
+      if (source.projectId === null) invalidateEverySourcesList(queryClient);
+      else void queryClient.invalidateQueries({ queryKey: projectKeys.sources(projectId) });
     },
   });
 }

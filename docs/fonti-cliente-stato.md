@@ -9,7 +9,7 @@ Stato al 7 ottobre 2026. Serve a chi riprende il lavoro da un'altra sessione
 | --- | --- |
 | Il piano, con lo stato delle attivita' e il registro | [DeliR - Piano di lavoro e avanzamento](https://claude.ai/code/artifact/7fc09e95-b508-4fe4-9d98-e492c0598604) |
 | L'architettura delle modalita' e della pipeline di ingestione | [DeliR - Architettura delle modalita' di lavoro](https://claude.ai/code/artifact/f4844720-0814-4e12-89ac-5ff5e7bd471d) |
-| Il blocco in corso | PR #75, questo branch (`feat/fonti-cliente-pannello`) |
+| I blocchi in corso | #72 (backend), #75 (pannello Fonti), #81 (chat), #82 (pagina del cliente) |
 
 Il piano su claude.ai e' la fonte di verita': dopo ogni blocco mergiato si
 aggiornano "Adesso", la riga dell'attivita' in "Piano di lavoro" e una riga del
@@ -31,8 +31,8 @@ Docs. **Gia' indietro:** mancano le righe di registro per la #72 e la #75.
 | --- | --- | --- |
 | 1 | **#72**, backend delle fonti del cliente (P1.16 1/4) | 4 rilievi CodeRabbit corretti il 7 ottobre (progetto mancante, tetto al confronto, cliente canonical condiviso, vincoli ORM); poi CI verde e merge |
 | 2 | **#75**, pannello Fonti (P1.16 2/4) | completa: test, screenshot desktop e mobile; CodeRabbit, CI e merge dopo la #72 |
-| 3 | Chat del consulente (P1.16 3/4): la voce "Tutto il cliente" in "Dove va questo file?" | da fare, branch nuovo da main |
-| 4 | Pagina del cliente con le sue fonti, e la ricerca globale che le trova (P1.16 4/4) | da fare, branch nuovo da main |
+| 3 | **#81**, chat del consulente (P1.16 3/4): "Tutto il cliente" in "Dove va questo file?" | pronta, impilata su #75 (`feat/fonti-cliente-chat`) |
+| 4 | **#82**, pagina del cliente con le sue fonti e ricerca globale (P1.16 4/4) | pronta, impilata su #81 (`feat/fonti-cliente-pagina`) |
 | 5 | Nodi Episode delle interviste nel grafo (resto di P1.14) | da fare |
 | 6 | Chiudere un conflitto dalla UI: scegliere quale vale, con una nota (resto di P1.13) | da fare |
 | 7 | I piani dei processi che leggono anche le fonti del cliente | da decidere con Sohayb |
@@ -48,6 +48,19 @@ Docs. **Gia' indietro:** mancano le righe di registro per la #72 e la #75.
 - Test vitest del pannello e dell'hook; screenshot Playwright desktop e mobile
   con API finte (spec temporaneo, non committato). Lo screenshot mobile ha
   mostrato il form di caricamento che sbordava: corretto.
+
+### #81 e #82: cosa c'e'
+
+- **#81**: in "Dove va questo file?" il menu "Ambito" ha "Tutto il cliente «nome»";
+  la destinazione porta `clientId`, il file va a
+  `POST /v1/workspace/clients/{id}/sources/upload`, e la chat ne legge lo stato
+  dalle Fonti del progetto scelto.
+- **#82**: pagina `/clients/:clientId` con le fonti del cliente (lo stesso
+  `SourcesPanel`, con `projectId: null`); la ricerca globale trova le fonti del
+  cliente e porta li', come per il cliente stesso; "Apri scheda" dalla lista
+  clienti.
+- Le due PR sono impilate: dopo ogni merge la successiva passa a `main`
+  (merge di `main` nel branch, base cambiata a mano).
 
 ## Come funzionano le fonti del cliente (backend, #72)
 

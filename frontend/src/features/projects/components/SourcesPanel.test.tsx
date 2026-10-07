@@ -76,6 +76,15 @@ function renderPanel(sources: ProjectSource[] = [SOURCE]) {
   );
 }
 
+function renderClientPanel(sources: ProjectSource[]) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <SourcesPanel projectId={null} client={CLIENT} sources={sources} processes={[]} />
+    </QueryClientProvider> as ReactNode,
+  );
+}
+
 afterEach(() => {
   http.mockReset();
 });
@@ -345,5 +354,44 @@ describe("SourcesPanel — una fonte si legge, non si riassume", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Il PDF non può essere letto.");
     expect(screen.getByRole("dialog", { name: /aggiungi una fonte/i })).toBeVisible();
+  });
+  it("sulla pagina del cliente un file va al cliente, senza scegliere l'ambito", async () => {
+    http.mockResolvedValue({
+      created: true,
+      suggested_roles: null,
+      id: "src-policy",
+      project_id: null,
+      client_id: CLIENT.id,
+      process_id: null,
+      name: "policy-acquisti.pdf",
+      type: "File",
+      meta: "",
+      roles: ["policy"],
+      retention: "persistent",
+      scopes: [],
+      status: "extracted",
+      byte_size: 18,
+      content_hash: "hash",
+      mime_type: "application/pdf",
+      acquisition_status: "pending",
+      acquisition_error: null,
+    });
+    const policy: ProjectSource = { ...SOURCE, id: "src-old", projectId: null, clientId: CLIENT.id, processId: null };
+    renderClientPanel([policy]);
+    // Tutte le fonti qui sono del cliente: la riga non lo ripete.
+    expect(screen.getByRole("button", { name: new RegExp(SOURCE.name) })).not.toHaveTextContent("Tutto il cliente");
+
+    await userEvent.click(screen.getByRole("button", { name: /aggiungi fonte/i }));
+    await userEvent.upload(
+      screen.getByLabelText(/file da analizzare/i),
+      new File(["policy"], "policy-acquisti.pdf", { type: "application/pdf" }),
+    );
+    await userEvent.click(screen.getByLabelText(/regole da rispettare/i));
+    expect(screen.queryByLabelText(/ambito/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /aggiungi una fonte/i })).toHaveTextContent("Ambito: Tutto il cliente «Esaote»");
+    await userEvent.click(screen.getByRole("button", { name: /^carica e analizza$/i }));
+
+    await waitFor(() => expect(http).toHaveBeenCalledTimes(1));
+    expect(http.mock.calls[0][0]).toBe(`/v1/workspace/clients/${CLIENT.id}/sources/upload`);
   });
 });
