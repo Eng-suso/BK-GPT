@@ -2,6 +2,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type QueryClient,
   type UseMutationResult,
   type UseQueryResult,
 } from "@tanstack/react-query";
@@ -343,12 +344,15 @@ export function useUploadClientSourceMutation(
         suggestedRoles: parsed.suggested_roles,
       };
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        predicate: (query) =>
-          query.queryKey[0] === projectKeys.all[0] && query.queryKey.at(-1) === "sources",
-      });
-    },
+    onSuccess: () => invalidateEverySourcesList(queryClient),
+  });
+}
+
+/** Rilegge le Fonti di ogni progetto in cache: una fonte del cliente sta in tutte. */
+export function invalidateEverySourcesList(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({
+    predicate: (query) =>
+      query.queryKey[0] === projectKeys.all[0] && query.queryKey.at(-1) === "sources",
   });
 }
 
