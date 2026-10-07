@@ -85,7 +85,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Dove | Cosa | Stato |
 | --- | --- | --- |
-| `migrations_workspace/versions/0026_*` | `0026_usage_context_print` (#80) e `0026_client_sources` (`feat/fonti-cliente`, altra sessione) partono entrambe da `0025`: chi mergia per secondo ripunta la propria `down_revision` | da fare al merge della seconda |
+| `migrations_workspace/versions/0026_*` | `0026_usage_context_print` (#80) e `0026_client_sources` (#72) partivano entrambe da `0025`: con due teste `alembic upgrade head` falliva | risolto: la `0026_usage_context_print` ora segue la `0026_client_sources` |
 | `e2e/simulation-workspace.spec.ts:381` | "changing run retains the tool…" fallisce a volte su chromium in CI (3 tentativi su 3 il 2026-10-04, verde al rilancio) | instabile, da guardare con chi lavora sulla simulazione |
 | Macchina di sviluppo | Con più sessioni, stack Docker e dev server insieme la RAM libera è scesa a 150 MB su 16 GB e Docker Desktop è andato in errore 500 | riavviato; tenere al minimo gli stack di test accesi |
 
@@ -96,6 +96,7 @@ In quest'ordine, senza decisioni da aspettare:
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
 | 2026-10-07 | P1.1b | #83: `graph_projection_state` (watermark avanzato dal worker nella stessa transazione, `PROJECTOR_VERSION` conservata finche' non si ricostruisce, `corrupt_since`/`corrupt_reason`); `ProjectionHealth.CORRUPT`; `kg_reproject` scrive l'esito | `tests/memory/test_projection_state.py` (11, su Postgres canonical), `tests/memory/test_projection_health.py`; migrazione 0019 su e giu' |
+| 2026-10-07 | — | Due teste workspace dopo #72 e #80: `0026_usage_context_print` ripuntata su `0026_client_sources` | `alembic heads` una testa; upgrade, downgrade a 0025 e di nuovo upgrade su Postgres locale |
 | 2026-10-07 | P1.3c | #80: `context_fingerprint` nel registro dei consumi; `build_scope_system_prompt` annota l'impronta in un raccoglitore del turno (ContextVar, arriva ai nodi LangGraph), il runtime la passa alla riga `chat_turn` | `tests/agents/test_context_fingerprint_trace.py`, `test_the_ledger_row_reaches_postgres`; migrazione 0026 su e giù su Postgres locale |
 | 2026-10-07 | P1.3b | #71: i 6 rilievi CodeRabbit chiusi — tool call nel conto dei token, soglia sulla sola fetta riassumibile, ripiego solo su `TRANSIENT_PROVIDER_ERRORS` (log error, `degradation_counters`), messaggi senza id non riassunti due volte, test su vuoto, giro ripetuto e confini; dal controllo pre-merge, il riassunto del modello validato (`ThreadSummary`, Pydantic) prima di entrare nello stato, un tetto al riassunto con ripieghi consecutivi, gli esiti dei tool fuori dall'estratto | `tests/agents/test_thread_summary.py`: 22 verdi; `tests/agents` + `tests/llm`: 527 verdi |
 | 2026-10-06 | P2.2 | #68: download a pezzi, radice relativa ancorata al progetto, nome file verificato (rilievi CodeRabbit) | `tests/workspace/test_blob_store.py`, `tests/evidence/test_source_ingestion.py`: 26 verdi |
