@@ -1,6 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import type { TFunction } from "i18next";
-import { Archive, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArrowRight, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import { StatusIndicator } from "@/components/status";
 import { Button } from "@/ui/button";
@@ -15,6 +15,8 @@ import type { Client } from "./types";
 import { clientStatusTone } from "./types";
 
 export type ClientRowActions = {
+  /** Apre la pagina del cliente, con le sue fonti. */
+  onOpen: (client: Client) => void;
   onEdit: (client: Client) => void;
   onArchive: (client: Client) => void;
   onDelete: (client: Client) => void;
@@ -104,6 +106,10 @@ export function buildClientColumns(
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => actions.onOpen(row.original)}>
+              <ArrowRight />
+              {t("detail.actions.open")}
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => actions.onEdit(row.original)}>
               <Pencil />
               {tCommon("lifecycle.actions.edit")}
