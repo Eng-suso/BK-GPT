@@ -153,17 +153,22 @@ describe("hitHref", () => {
     id: "x",
     title: "Esaote",
     context: "",
+    clientId: "cli-1",
     clientName: "Esaote",
     projectId: "proj-1",
     processId: "proc-1",
     sourceType: null,
   };
 
-  it("takes a client to its projects, already filtered", () => {
-    // Il cliente non ha una pagina propria: mandare all'elenco completo
-    // sarebbe come non aver cercato.
+  it("takes a client to its page", () => {
     // Per id: due clienti omonimi sono due clienti (X4).
-    expect(hitHref({ ...base, kind: "client", id: "cli-7" })).toBe("/projects?f_client=cli-7");
+    expect(hitHref({ ...base, kind: "client", id: "cli-7" })).toBe("/clients/cli-7");
+  });
+
+  it("opens a client source on the client page: it has no project", () => {
+    expect(
+      hitHref({ ...base, kind: "source", title: "Policy acquisti", projectId: null, processId: null }),
+    ).toBe("/clients/cli-1");
   });
 
   it("opens a source on the tab where sources are read", () => {
