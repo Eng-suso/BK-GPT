@@ -30,7 +30,7 @@ from backend.schemas.simulation import (
     ScenarioTemplateResponse,
 )
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
-from backend.simulation.ir.model import Provenance, SourceRef
+from backend.simulation.ir.model import Confidence, Provenance, SourceRef
 from backend.simulation.scenario_builder import describe_scenario_template
 from backend.workspace_database import get_bpmn_review
 
@@ -199,7 +199,7 @@ def _estimated() -> ParameterProvenance:
     return _schema(Provenance(origin="estimated", confidence="low"))
 
 
-def _declared(field: str, item: dict, confidence: str) -> ParameterProvenance:
+def _declared(field: str, item: dict, confidence: Confidence) -> ParameterProvenance:
     """Discovery grounds the element: an interview step or decision says so."""
     ident = str(item.get("id") or "").strip()
     sources = (
@@ -207,7 +207,7 @@ def _declared(field: str, item: dict, confidence: str) -> ParameterProvenance:
         if ident
         else ()
     )
-    return _schema(Provenance(origin="declared", confidence=confidence, sources=sources))  # type: ignore[arg-type]
+    return _schema(Provenance(origin="declared", confidence=confidence, sources=sources))
 
 
 def _schema(provenance: Provenance) -> ParameterProvenance:
@@ -249,7 +249,7 @@ def _resolve(node: dict | None, field: str, by_id: dict[str, dict]) -> dict | No
     return None
 
 
-def _gateway_confidence(certainties: list[str]) -> str:
+def _gateway_confidence(certainties: list[str]) -> Confidence:
     if not certainties:
         return "low"
     if all(value == "explicit" for value in certainties):
