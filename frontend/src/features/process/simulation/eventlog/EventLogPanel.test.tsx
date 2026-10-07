@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import "@/lib/i18n";
+import { HttpError } from "@/lib/http";
 
 import { SimulationSectionContext, type SimulationSectionValue } from "../useSimulationSection";
 
@@ -229,5 +230,34 @@ describe("EventLogPanel", () => {
     await waitFor(() => expect(calls("POST", "/v1/workspace/event-logs/elog_1/mapping")).toHaveLength(2));
     sent = (calls("POST", "/v1/workspace/event-logs/elog_1/mapping")[1][1] as { body: Record<string, unknown> }).body;
     expect(sent.resource_matches).toEqual({ anna: "lane-1" });
+  });
+
+  it("asks before deleting a log and deletes it only on confirm", async () => {
+    routes({ "DELETE /v1/workspace/event-logs/elog_1": undefined });
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(await screen.findByRole("button", { name: "Elimina erp.csv" }));
+    const dialog = await screen.findByRole("dialog", { name: "Eliminare erp.csv?" });
+    expect(calls("DELETE", "/v1/workspace/event-logs/elog_1")).toHaveLength(0);
+
+    await user.click(within(dialog).getByRole("button", { name: "Elimina il log" }));
+    await waitFor(() => expect(calls("DELETE", "/v1/workspace/event-logs/elog_1")).toHaveLength(1));
+  });
+
+  it("says when the report of a mapped log cannot be read and offers to remap", async () => {
+    routes({ "GET /v1/workspace/processes/acquisti/event-logs": [ANALYSIS.event_log] });
+    const listAndPreview = http.getMockImplementation()!;
+    http.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (path === "/v1/workspace/event-logs/elog_1/analysis") throw new HttpError(500, "500 Internal Server Error");
+      return listAndPreview(path, options);
+    });
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Non riesco a leggere il report");
+    await user.click(screen.getByRole("button", { name: "Rivedi le colonne" }));
+    expect(await screen.findByRole("region", { name: "Anteprima delle prime righe" })).toBeInTheDocument();
   });
 });
