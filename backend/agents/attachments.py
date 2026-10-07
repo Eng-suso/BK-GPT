@@ -77,7 +77,7 @@ def _read_project_sources(project_id: str) -> list[dict]:
     """
     from backend.workspace_database import list_project_sources
 
-    return list_project_sources(project_id)
+    return list_project_sources(project_id, include_client=True)
 
 
 def _read_project_processes(project_id: str) -> list[dict]:

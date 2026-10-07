@@ -28,7 +28,7 @@ def _wire(monkeypatch):
         lambda pid: _PROJECT if pid == "project-1" else None,
     )
     monkeypatch.setattr(workspace_database, "list_project_processes", lambda pid: list(_PROCESSES))
-    monkeypatch.setattr(workspace_database, "list_project_sources", lambda pid: list(_SOURCES))
+    monkeypatch.setattr(workspace_database, "list_project_sources", lambda pid, **_: list(_SOURCES))
     monkeypatch.setattr(workspace_database, "list_project_decisions", lambda pid: list(_DECISIONS))
 
 

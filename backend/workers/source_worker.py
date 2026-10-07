@@ -234,7 +234,12 @@ def _graph_one(row: dict) -> bool:
     token = set_current_tenant_id(row["tenant_id"])
     try:
         try:
-            ids = canonical_scope.resolve(row["project_id"], row["process_id"])
+            if row["project_id"]:
+                ids = canonical_scope.resolve(row["project_id"], row["process_id"])
+            else:
+                # Una fonte del cliente (P1.16) entra nel grafo a livello
+                # cliente: nessun progetto, nessun processo.
+                ids = canonical_scope.resolve_client(row["client_id"])
         except RuntimeError as exc:
             # Progetto senza cliente o sparito: riprovare non cambia la risposta.
             wd.fail_source_graph(row["id"], error=str(exc), permanent=True)
