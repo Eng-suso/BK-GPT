@@ -11,9 +11,11 @@ import type {
 import { HttpError, httpErrorMessage } from "@/lib/http";
 import {
   discardSource,
+  invalidateEverySourcesList,
   projectKeys,
   updateSourceRoles,
   useProjectSourcesQuery,
+  useUploadClientSourceMutation,
   useUploadProjectSourceMutation,
 } from "../../projects/api";
 import type { ChatScope } from "../chatScope";
@@ -21,12 +23,27 @@ import type { ChatScope } from "../chatScope";
 /** I formati che il caricamento accetta: gli stessi del pannello Fonti. */
 export const COMPOSER_UPLOAD_ACCEPT = ".pdf,.docx,.xlsx,.csv,.pptx,.txt,.md";
 
-type UploadTarget = { projectId: string; scopes: SourceScope[]; roles: SourceRole[] };
+type UploadTarget = {
+  projectId: string;
+  /** Il file va al cliente (P1.16): vale per tutti i suoi progetti. */
+  clientId: string | null;
+  scopes: SourceScope[];
+  roles: SourceRole[];
+};
 
-/** Dove mettere un file quando la chat non lo dice: un progetto, e forse un suo processo. */
+/**
+ * Dove mettere un file quando la chat non lo dice: un progetto, e forse un suo
+ * processo, oppure tutto il cliente del progetto.
+ */
 export type UploadDestination = {
   projectId: string;
   processId?: string | null;
+  /**
+   * Il cliente del progetto, quando il file vale per tutto il cliente (P1.16).
+   * Il progetto resta: da li' si legge lo stato del file, che compare nelle
+   * Fonti di ogni progetto del cliente.
+   */
+  clientId?: string | null;
   /** Come la destinazione si legge nel menu: "Acquisti · Procure to pay". */
   label?: string;
 };
@@ -36,15 +53,20 @@ export type UploadDestination = {
  * come si lavora, uno messo in un progetto e' contesto.
  */
 function targetFor(destination: UploadDestination): UploadTarget {
+  if (destination.clientId) {
+    return { projectId: destination.projectId, clientId: destination.clientId, scopes: [], roles: ["context"] };
+  }
   if (destination.processId) {
     return {
       projectId: destination.projectId,
+      clientId: null,
       scopes: [{ type: "process", id: destination.processId }],
       roles: ["process_evidence"],
     };
   }
   return {
     projectId: destination.projectId,
+    clientId: null,
     scopes: [{ type: "project", id: destination.projectId }],
     roles: ["context"],
   };
@@ -91,7 +113,8 @@ export function useComposerUploads(
 ) {
   const { t } = useTranslation("chat");
   const target = uploadTarget(scope, chosen);
-  const upload = useUploadProjectSourceMutation(target?.projectId ?? "");
+  const projectUpload = useUploadProjectSourceMutation(target?.projectId ?? "");
+  const clientUpload = useUploadClientSourceMutation(target?.clientId ?? "");
   const sources = useProjectSourcesQuery(target?.projectId ?? "", {
     enabled: Boolean(target) && hasSourceAttachments,
   });
@@ -113,12 +136,14 @@ export function useComposerUploads(
       const tempId = `${file.name}-${Date.now()}`;
       setInFlight((current) => [...current, { tempId, name: file.name, error: null }]);
       try {
-        const source = await upload.mutateAsync({
-          file,
-          roles: target.roles,
-          retention: "persistent",
-          scopes: target.scopes,
-        });
+        const source = target.clientId
+          ? await clientUpload.mutateAsync({ file, roles: target.roles, retention: "persistent" })
+          : await projectUpload.mutateAsync({
+              file,
+              roles: target.roles,
+              retention: "persistent",
+              scopes: target.scopes,
+            });
         if (source.created) createdHere.current.add(source.id);
         setRoles((current) => ({ ...current, [source.id]: source.roles }));
         // Ogni caricamento aggiorna la proposta: lo stesso file ricaricato dopo
@@ -140,7 +165,7 @@ export function useComposerUploads(
         return null;
       }
     },
-    [target, upload, t],
+    [target, projectUpload, clientUpload, t],
   );
 
   const dismissFailed = useCallback((tempId: string) => {
@@ -189,7 +214,11 @@ export function useComposerUploads(
           delete rest[sourceId];
           return rest;
         });
-        if (target) void queryClient.invalidateQueries({ queryKey: projectKeys.sources(target.projectId) });
+        if (target?.clientId) {
+          invalidateEverySourcesList(queryClient);
+        } else if (target) {
+          void queryClient.invalidateQueries({ queryKey: projectKeys.sources(target.projectId) });
+        }
         return true;
       } catch {
         // Il ruolo sulla card resta quello vero, e la card dice che il cambio
