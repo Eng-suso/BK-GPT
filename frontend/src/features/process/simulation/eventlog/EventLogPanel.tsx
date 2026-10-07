@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Trash2, Upload, X } from "lucide-react";
 
-import { EmptyState, InlineNotice } from "@/components/feedback";
+import { ConfirmDialog, EmptyState, InlineNotice } from "@/components/feedback";
 import { StatTile } from "@/components/data";
 import { httpErrorMessage } from "@/lib/http";
 import { Button } from "@/ui/button";
+import { Skeleton } from "@/ui/skeleton";
 
 import { fetchScenarioTemplate } from "../simulationApi";
 import { formatDuration } from "../simulationResults";
@@ -59,6 +60,8 @@ export function EventLogPanel(): React.JSX.Element {
   const remove = useDeleteEventLog(processId);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [uploadDelimiter, setUploadDelimiter] = React.useState<Delimiter | "">("");
+  // Il log da eliminare: si chiede prima, il file e l'analisi non si recuperano.
+  const [deleting, setDeleting] = React.useState<EventLog | null>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const selected = logs.data?.find((log) => log.id === selectedId) ?? null;
 
@@ -100,7 +103,19 @@ export function EventLogPanel(): React.JSX.Element {
           {httpErrorMessage(upload.error, t("simulation.eventLog.uploadFailed"))}
         </InlineNotice>
       )}
-      {logs.isError && <InlineNotice tone="error" title={t("simulation.eventLog.loadFailed")} />}
+      {logs.isError && (
+        <InlineNotice
+          tone="error"
+          title={t("simulation.eventLog.loadFailed")}
+          action={<Button size="sm" variant="outline" onClick={() => void logs.refetch()}>{t("simulation.eventLog.retry")}</Button>}
+        />
+      )}
+      {logs.isPending && (
+        <div className="sim-eventlog-list" aria-hidden>
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+        </div>
+      )}
       {logs.data?.length === 0 && <EmptyState title={t("simulation.eventLog.empty")} description={t("simulation.eventLog.emptyHint")} />}
       {logs.data && logs.data.length > 0 && (
         <ul className="sim-eventlog-list" aria-label={t("simulation.eventLog.list")}>
@@ -113,13 +128,24 @@ export function EventLogPanel(): React.JSX.Element {
                   {log.template ? ` · ${log.template.name} v${log.template.version}` : ""}
                 </span>
               </button>
-              <Button size="icon" variant="ghost" aria-label={t("simulation.eventLog.delete", { name: log.name })} disabled={remove.isPending} onClick={() => remove.mutate(log.id)}>
+              <Button size="icon" variant="ghost" aria-label={t("simulation.eventLog.delete", { name: log.name })} disabled={remove.isPending} onClick={() => setDeleting(log)}>
                 <Trash2 aria-hidden className="size-4" />
               </Button>
             </li>
           ))}
         </ul>
       )}
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={t("simulation.eventLog.deleteTitle", { name: deleting?.name ?? "" })}
+        description={t("simulation.eventLog.deleteDescription")}
+        confirmLabel={t("simulation.eventLog.deleteConfirm")}
+        destructive
+        onConfirm={async () => {
+          if (deleting) await remove.mutateAsync(deleting.id);
+        }}
+      />
     </div>
   );
 }
@@ -234,6 +260,21 @@ function EventLogWizard({ log, onClose }: { log: EventLog; onClose: () => void }
             </Button>
           </div>
         </section>
+      )}
+
+      {/* Un log gia' mappato si apre sui risultati: finche' il report non c'e' lo si dice. */}
+      {step !== "columns" && step !== "formats" && !analysis && (
+        stored.isError ? (
+          <InlineNotice
+            tone="error"
+            title={t("simulation.eventLog.analysisFailed")}
+            action={<Button size="sm" variant="outline" onClick={() => setStep("columns")}>{t("simulation.eventLog.remap")}</Button>}
+          >
+            {httpErrorMessage(stored.error, t("simulation.eventLog.analysisFailed"))}
+          </InlineNotice>
+        ) : (
+          <p className="sim-eventlog-hint" role="status">{t("simulation.eventLog.analysisLoading")}</p>
+        )
       )}
 
       {step === "results" && analysis && (
