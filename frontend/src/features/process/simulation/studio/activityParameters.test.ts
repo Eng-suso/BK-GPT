@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ScenarioElementProvenance } from "../simulationTypes";
-import { activityParameters } from "./activityParameters";
+import { activityParameters, hasTaskConfig } from "./activityParameters";
 
 const REQUEST = {
   default_task_duration_seconds: 900,
@@ -69,5 +69,10 @@ describe("activityParameters", () => {
   it("returns null without a request or a selection", () => {
     expect(activityParameters(null, "Task_Review")).toBeNull();
     expect(activityParameters(REQUEST, "")).toBeNull();
+  });
+  it("knows which elements the run configured as tasks", () => {
+    expect(hasTaskConfig(REQUEST, "Task_Review")).toBe(true);
+    expect(hasTaskConfig(REQUEST, "Gateway_1")).toBe(false);
+    expect(hasTaskConfig(null, "Task_Review")).toBe(false);
   });
 });

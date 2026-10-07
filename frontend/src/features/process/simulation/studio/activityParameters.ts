@@ -44,6 +44,11 @@ function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/** The run configured this element as a task (gateways and events never are). */
+export function hasTaskConfig(request: Record<string, unknown> | null | undefined, elementId: string): boolean {
+  return Boolean(elementId) && records(request?.tasks).some((t) => t.element_id === elementId);
+}
+
 export function activityParameters(
   request: Record<string, unknown> | null | undefined,
   elementId: string,
