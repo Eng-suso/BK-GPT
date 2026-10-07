@@ -915,3 +915,21 @@ test("activity inspector shows simulated parameters with origin and confidence",
   await params.scrollIntoViewIfNeeded();
   await params.screenshot({ path: testInfo.outputPath("activity-inspector-estimated.png"), animations: "disabled" });
 });
+
+test("activity inspector never shows an origin when provenance fails", async ({ page }) => {
+  const request = { default_task_duration_seconds: 900, resource_name: "Operatore", resource_amount: 1, default_cost_per_hour: 35,
+    tasks: [{ element_id: "A", mean_seconds: 2520, distribution: "expon" }] };
+  await page.route("http://127.0.0.1:8000/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/simulation-runs")) return route.fulfill({ json: [{ ...run, request }] });
+    if (path.endsWith("/simulation-provenance")) return route.fulfill({ status: 500, json: { detail: "boom" } });
+    return route.fallback();
+  });
+  await page.goto(`${studio}/workspace/42?panel=activity`);
+  await page.getByLabel("Attività", { exact: true }).selectOption("A");
+  const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
+  await expect(params).toContainText("Esponenziale");
+  await expect(params.getByRole("alert")).toContainText("Provenienza non disponibile", { timeout: 20_000 });
+  await expect(params).not.toContainText("inserito");
+  await expect(params).not.toContainText("confidenza");
+});
