@@ -39,7 +39,7 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P1.1b | Watermark per cliente, versione del projector, stato `CORRUPT` dalla riconciliazione | 4 | **da fare** |
 | P1.3a | Budget in token del prompt di scope (48.000), blocchi con priorità, omissioni dichiarate al modello, XML non duplicato, impronta sha256 | 5 | **fatto** — #61 |
 | P1.3b | Riassunto del thread a soglia di token (misurata sulla sola fetta riassumibile, tool call compresi), riassunto del modello validato (vuoto o oltre 2.000 token → estratto), ripiego deterministico solo sui guasti transitori del provider, contato | 5 | **fatto** — #71 |
-| P1.3c | Impronta del contesto nel registro dei consumi LLM | 5 | **da fare** |
+| P1.3c | Impronta del contesto nel registro dei consumi LLM: colonna `context_fingerprint` (migrazione workspace 0026), la riga `chat_turn` porta l'ultima impronta assemblata nel turno | 5 | **fatto** — #80 |
 | P1.5 | Suite security: injection indiretta da PDF/Excel/trascrizioni, cross-tenant, esfiltrazione (job notturno, modello dei test) | 5 | **da fare** |
 | P0.6a | Le migrazioni allo startup spegnevano tutti i logger del backend | 6 | **fatto** — #64 |
 | P0.6b | Audit log append-only, OpenTelemetry, Sentry, backup con restore provato, cancellazione GDPR end-to-end | 6 | **bloccato** — D4 (infra) |
@@ -52,10 +52,9 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 
 In quest'ordine, senza decisioni da aspettare:
 
-1. **P1.3c** impronta del contesto nel registro dei consumi (`backend/llm/ledger.py`): una colonna e il valore che `assemble()` già calcola;
-2. **P1.1b** watermark e stato `CORRUPT` della proiezione (`backend/memory/projection_health.py`, `scripts/kg_reproject.py`);
-3. **P1.4** Agent Outcome Harness, partendo dagli scenari già coperti a pezzi (`tests/evals/l0_deterministic`, `tests/bpmn/test_bpmn_concurrent_writes.py`);
-4. **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata.
+1. **P1.1b** watermark e stato `CORRUPT` della proiezione — #83;
+2. **P1.4** Agent Outcome Harness — #84;
+3. **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata — #85.
 
 ---
 
@@ -87,6 +86,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Dove | Cosa | Stato |
 | --- | --- | --- |
+| `migrations_workspace/versions/0026_*` | `0026_usage_context_print` (#80) e `0026_client_sources` (`feat/fonti-cliente`, altra sessione) partono entrambe da `0025`: chi mergia per secondo ripunta la propria `down_revision` | da fare al merge della seconda |
 | `e2e/simulation-workspace.spec.ts:381` | "changing run retains the tool…" fallisce a volte su chromium in CI (3 tentativi su 3 il 2026-10-04, verde al rilancio) | instabile, da guardare con chi lavora sulla simulazione |
 | Macchina di sviluppo | Con più sessioni, stack Docker e dev server insieme la RAM libera è scesa a 150 MB su 16 GB e Docker Desktop è andato in errore 500 | riavviato; tenere al minimo gli stack di test accesi |
 
@@ -96,6 +96,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
+| 2026-10-07 | P1.3c | #80: `context_fingerprint` nel registro dei consumi; `build_scope_system_prompt` annota l'impronta in un raccoglitore del turno (ContextVar, arriva ai nodi LangGraph), il runtime la passa alla riga `chat_turn` | `tests/agents/test_context_fingerprint_trace.py`, `test_the_ledger_row_reaches_postgres`; migrazione 0026 su e giù su Postgres locale |
 | 2026-10-07 | P1.3b | #71: i 6 rilievi CodeRabbit chiusi — tool call nel conto dei token, soglia sulla sola fetta riassumibile, ripiego solo su `TRANSIENT_PROVIDER_ERRORS` (log error, `degradation_counters`), messaggi senza id non riassunti due volte, test su vuoto, giro ripetuto e confini; dal controllo pre-merge, il riassunto del modello validato (`ThreadSummary`, Pydantic) prima di entrare nello stato, un tetto al riassunto con ripieghi consecutivi, gli esiti dei tool fuori dall'estratto | `tests/agents/test_thread_summary.py`: 22 verdi; `tests/agents` + `tests/llm`: 527 verdi |
 | 2026-10-06 | P2.2 | #68: download a pezzi, radice relativa ancorata al progetto, nome file verificato (rilievi CodeRabbit) | `tests/workspace/test_blob_store.py`, `tests/evidence/test_source_ingestion.py`: 26 verdi |
 | 2026-10-06 | — | #62 mergiata: i `ValueError` dei tool tornano al modello; istruzione esplicita di non riportare al consulente nomi di tool, id o messaggi tecnici | `tests/agents/test_tool_errors.py` |

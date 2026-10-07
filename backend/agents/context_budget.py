@@ -15,13 +15,17 @@ invece di ragionare su un piano a meta' credendolo intero.
 
 Il risultato porta l'impronta (sha256) del testo finale e il conto di cosa e'
 entrato: due turni con la stessa impronta hanno visto lo stesso contesto.
+Chi assembla il contesto di un turno la annota (`note_context_fingerprint`),
+e il runtime la raccoglie per la riga del registro dei consumi.
 """
 
 from __future__ import annotations
 
 import hashlib
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import TYPE_CHECKING, Literal
@@ -178,6 +182,42 @@ def assemble(parts: Sequence[str | ContextBlock], budget_tokens: int) -> Assembl
         blocks=tuple(outcomes),
     )
     return AssembledContext(text=text, report=report)
+
+
+# Le impronte dei contesti assemblati nel turno in corso. La lista e' una sola
+# per turno e si condivide per riferimento: i nodi di LangGraph girano in thread
+# che ricevono una copia del contesto, e un append li' si vede dal runtime.
+_turn_fingerprints: ContextVar[list[str] | None] = ContextVar(
+    "delir_context_fingerprints", default=None
+)
+
+
+@contextmanager
+def collect_context_fingerprints() -> Iterator[list[str]]:
+    """Raccoglie le impronte dei contesti assemblati dentro il blocco.
+
+    La apre il runtime intorno al turno; fuori da un turno annotare non fa
+    niente. Yields la lista, in ordine di assemblaggio.
+    """
+    seen: list[str] = []
+    token = _turn_fingerprints.set(seen)
+    try:
+        yield seen
+    finally:
+        _turn_fingerprints.reset(token)
+
+
+def note_context_fingerprint(fingerprint: str) -> None:
+    """Annota l'impronta di un contesto mandato al modello nel turno in corso."""
+    seen = _turn_fingerprints.get()
+    if seen is not None:
+        seen.append(fingerprint)
+
+
+def latest_context_fingerprint() -> str | None:
+    """L'ultima impronta annotata nel turno: il contesto della risposta finale."""
+    seen = _turn_fingerprints.get()
+    return seen[-1] if seen else None
 
 
 # Quanto costa la riga che dichiara un taglio o un'omissione, per eccesso.
