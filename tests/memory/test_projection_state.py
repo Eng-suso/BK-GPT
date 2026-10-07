@@ -177,3 +177,92 @@ def test_a_row_without_a_client_leaves_no_state():
         assert after == before
     finally:
         _drop(outbox_id)
+
+
+def _diff(**counts):
+    from backend.memory.knowledge_graph.reproject import GraphDiff
+
+    lists = {
+        name: [("Entity", f"id-{i}") for i in range(counts.get(name, 0))]
+        for name in ("missing_nodes", "extra_nodes", "duplicate_nodes", "drifted_nodes")
+    }
+    edge = ("REL", ("Entity", "a"), ("Entity", "b"))
+    lists.update(
+        {
+            name: [edge] * counts.get(name, 0)
+            for name in ("missing_edges", "extra_edges", "duplicate_edges", "drifted_edges")
+        }
+    )
+    return GraphDiff(**lists, expected_nodes=10, expected_edges=10)
+
+
+def _run_script(monkeypatch, client_id: str, *args: str) -> int:
+    from scripts import kg_reproject as script
+
+    monkeypatch.setattr("sys.argv", ["kg_reproject", "--client", client_id, "--consultant", str(uuid.uuid4()), *args])
+    return script.main()
+
+
+def test_a_reconciliation_that_finds_differences_marks_the_graph_corrupt(monkeypatch, client_id):
+    from backend.memory.knowledge_graph import reproject
+
+    monkeypatch.setattr(reproject, "diff", lambda *_a: _diff(missing_edges=3, extra_nodes=1))
+
+    assert _run_script(monkeypatch, client_id) == 1
+
+    state = _read(client_id)
+    assert state is not None and state.corrupt
+    assert state.corrupt_reason == "extra_nodes=1, missing_edges=3"
+
+
+def test_a_clean_reconciliation_clears_the_mark(monkeypatch, client_id):
+    from backend.memory.knowledge_graph import reproject
+
+    with MIGRATOR.begin() as conn:
+        projection_state.mark_corrupt(conn, client_id, "missing_edges=3")
+    monkeypatch.setattr(reproject, "diff", lambda *_a: _diff())
+
+    assert _run_script(monkeypatch, client_id) == 0
+
+    state = _read(client_id)
+    assert state is not None and not state.corrupt
+    assert state.verified_at is not None
+
+
+def test_a_rebuild_brings_the_projector_version_forward(monkeypatch, client_id):
+    from backend.memory.knowledge_graph import reproject
+
+    with MIGRATOR.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO graph_projection_state (client_id, watermark, projector_version) "
+                "VALUES (CAST(:cl AS uuid), 7, 'vecchio')"
+            ),
+            {"cl": client_id},
+        )
+    report = reproject.ApplyReport(
+        before=_diff(drifted_nodes=2), after=_diff(), deleted_nodes=0, deleted_edges=0,
+        applied_nodes=10, applied_edges=10,
+    )
+    monkeypatch.setattr(reproject, "apply", lambda *_a: report)
+
+    assert _run_script(monkeypatch, client_id, "--apply") == 0
+
+    state = _read(client_id)
+    assert state is not None
+    assert (state.projector_version, state.watermark, state.corrupt) == (PROJECTOR_VERSION, 7, False)
+
+
+def test_a_rebuild_that_leaves_differences_is_corrupt(monkeypatch, client_id):
+    from backend.memory.knowledge_graph import reproject
+
+    report = reproject.ApplyReport(
+        before=_diff(missing_nodes=1), after=_diff(missing_nodes=1), deleted_nodes=0,
+        deleted_edges=0, applied_nodes=9, applied_edges=10,
+    )
+    monkeypatch.setattr(reproject, "apply", lambda *_a: report)
+
+    assert _run_script(monkeypatch, client_id, "--apply") == 1
+
+    state = _read(client_id)
+    assert state is not None and state.corrupt
