@@ -44,6 +44,8 @@ class NewEventLog:
     payload: bytes
     columns: tuple[str, ...]
     row_count: int
+    # True se il separatore l'ha indicato il consulente, non il riconoscimento.
+    delimiter_chosen: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,8 +69,9 @@ def store_event_log(upload: NewEventLog) -> tuple[EventLogResponse, bool] | None
     """Registra il file sul processo. Lo stesso file gia' caricato ritrova la sua riga.
 
     Ritorna ``(log, creato)``, o ``None`` se il processo non e' del tenant. Un
-    file ricaricato con un separatore diverso lo aggiorna, e il mapping
+    file ricaricato indicando un separatore diverso lo aggiorna, e il mapping
     applicato con il separatore vecchio non vale piu': il log torna ``uploaded``.
+    Ricaricato senza indicarlo, resta il separatore gia' in uso.
     """
     try:
         with workspace_connection() as session:
@@ -76,7 +79,7 @@ def store_event_log(upload: NewEventLog) -> tuple[EventLogResponse, bool] | None
                 return None
             existing = _by_hash(session, upload.process_id, upload.content_hash)
             if existing is not None:
-                if existing.delimiter != upload.delimiter:
+                if upload.delimiter_chosen and existing.delimiter != upload.delimiter:
                     existing.delimiter = upload.delimiter
                     existing.columns_json = json.dumps(list(upload.columns))
                     existing.row_count = upload.row_count

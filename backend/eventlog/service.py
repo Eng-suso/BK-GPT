@@ -74,6 +74,7 @@ def upload_event_log(
         payload=payload,
         columns=table.header,
         row_count=len(table.rows),
+        delimiter_chosen=delimiter is not None,
     ))
     if stored is None:
         return None

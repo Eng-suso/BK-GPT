@@ -113,6 +113,25 @@ def test_the_same_file_uploaded_again_finds_its_log(client):
     assert again.json()["created"] is False
 
 
+def test_a_chosen_separator_is_kept_when_the_file_comes_back(client):
+    headers = _tenant()
+    process_id = _process(client, headers)
+    payload = "caso|attivita|fine\nC1|Ricevi|2026-01-05T09:00:00\n".encode()
+    first = _upload(client, headers, process_id, payload, delimiter="|").json()
+    client.post(
+        f"/v1/workspace/event-logs/{first['id']}/mapping",
+        json={"mapping": {"case_id": ["caso"], "activity": ["attivita"], "end": "fine"}},
+        headers=headers,
+    )
+
+    again = _upload(client, headers, process_id, payload).json()
+
+    assert again["delimiter"] == "|"
+    assert again["status"] == "mapped"
+    changed = _upload(client, headers, process_id, payload, delimiter=";")
+    assert changed.status_code == 415  # una sola colonna con il punto e virgola
+
+
 def test_a_different_separator_previews_without_changing_the_log(client):
     headers = _tenant()
     process_id = _process(client, headers)
