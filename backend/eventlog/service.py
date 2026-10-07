@@ -8,6 +8,7 @@ chiamano e traducono le eccezioni in codici HTTP; qui non c'e' HTTP.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 
 from backend.eventlog import storage
 from backend.eventlog.analysis import Preview, analyze, preview
@@ -20,9 +21,11 @@ from backend.schemas.eventlog import (
     EventLogPreviewResponse,
     EventLogResponse,
     QualityReportResponse,
+    ResourceMatchReportResponse,
     UploadedEventLogResponse,
 )
-from backend.simulation.scenario_builder import parse_bpmn_for_simulation
+from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+from backend.simulation.scenario_builder import describe_scenario_template
 from backend.workspace_database import get_bpmn_model, get_process
 from backend.workspace_services.source_ingestion import MAX_FILE_BYTES
 
@@ -94,7 +97,7 @@ def apply_mapping(event_log_id: str, request: ApplyEventLogMappingRequest) -> Ev
     Raises:
         EventLogNotFound, TemplateNotFound: non esistono nel tenant.
         MappingError: il mapping cita colonne che il file non ha.
-        ValueError: l'abbinamento cita elementi che il BPMN non ha.
+        ValueError: l'abbinamento cita elementi o risorse che il modello non ha.
     """
     log, table = _read(event_log_id, request.delimiter)
     template_id = request.template_id
@@ -107,12 +110,15 @@ def apply_mapping(event_log_id: str, request: ApplyEventLogMappingRequest) -> Ev
         assert request.mapping is not None  # garantito dal validatore della richiesta
         mapping = request.mapping
 
-    elements, bpmn_version_id = _model_elements(log.process_id)
+    model = _model_targets(log.process_id)
+    bpmn_version_id = model.bpmn_version_id
     result = analyze(
         table,
         mapping,
-        elements,
+        model.activities,
+        resources=model.resources,
         confirmed_matches=request.activity_matches,
+        confirmed_resource_matches=request.resource_matches,
         source_name=log.name,
     )
     quality = result.quality
@@ -121,6 +127,7 @@ def apply_mapping(event_log_id: str, request: ApplyEventLogMappingRequest) -> Ev
         mapping=mapping,
         template_id=template_id,
         activity_matches=request.activity_matches,
+        resource_matches=request.resource_matches,
         bpmn_version_id=bpmn_version_id,
         quality=QualityReportResponse(
             rows_read=quality.rows_read,
@@ -155,6 +162,18 @@ def apply_mapping(event_log_id: str, request: ApplyEventLogMappingRequest) -> Ev
                 {"element_id": e.element_id, "name": e.name} for e in result.matches.unobserved_elements
             ],
         ),
+        resources=ResourceMatchReportResponse(
+            confirmed=request.resource_matches is not None,
+            matches=[
+                {"resource": m.activity, "events": m.events, "model_resource_id": m.element_id, "reason": m.reason}
+                for m in result.resource_matches.matches
+            ],
+            unmatched_resources=list(result.resource_matches.unmatched_activities),
+            unobserved_model_resources=[
+                {"resource_id": r.element_id, "name": r.name} for r in result.resource_matches.unobserved_elements
+            ],
+            events_without_resource=result.events_without_resource,
+        ),
         summary=result.summary,
     ))
     if saved is None:
@@ -173,14 +192,31 @@ def _read(event_log_id: str, delimiter: str | None) -> tuple[EventLogResponse, T
     return log, read_table(log.name, payload, delimiter or log.delimiter)
 
 
-def _model_elements(process_id: str) -> tuple[list[ModelElement], int | None]:
-    """Le attivita' del BPMN corrente del processo e la versione da cui vengono."""
+@dataclass(frozen=True, slots=True)
+class _ModelTargets:
+    activities: list[ModelElement]
+    resources: list[ModelElement]
+    bpmn_version_id: int | None
+
+
+def _model_targets(process_id: str) -> _ModelTargets:
+    """Attivita' e risorse del modello corrente del processo, e la versione da cui vengono.
+
+    Le stesse che vede la configurazione della simulazione
+    (``describe_scenario_template`` sul BPMN normalizzato): un'attivita' del log
+    si abbina a un elemento che il motore simula davvero.
+    """
     process = get_process(process_id)
     model = get_bpmn_model(process["bpmn_model_id"]) if process else None
-    if model is None or not model.get("xml"):
-        return [], None
-    tasks, _gateways = parse_bpmn_for_simulation(model["xml"])
-    return [ModelElement(task.id, task.name) for task in tasks], model.get("version_id")
+    if model is None or not (model.get("xml") or "").strip():
+        return _ModelTargets([], [], None)
+    xml = model["xml"]
+    template = describe_scenario_template(normalize_bpmn_for_prosimos(xml), source_bpmn_xml=xml)
+    return _ModelTargets(
+        activities=[ModelElement(task.element_id, task.name) for task in template.tasks],
+        resources=[ModelElement(resource.id, resource.name) for resource in template.resources],
+        bpmn_version_id=model.get("version_id"),
+    )
 
 
 def _preview_response(value: Preview) -> EventLogPreviewResponse:

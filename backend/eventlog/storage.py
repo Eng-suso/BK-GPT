@@ -23,6 +23,7 @@ from backend.schemas.eventlog import (
     EventLogTemplateRef,
     EventLogTemplateResponse,
     QualityReportResponse,
+    ResourceMatchReportResponse,
 )
 from backend.workspace_database import now_iso, tenant_id, tenant_row
 from backend.workspace_storage import (
@@ -54,9 +55,11 @@ class AnalysisRecord:
     mapping: ColumnMapping
     template_id: int | None
     activity_matches: dict[str, str | None] | None
+    resource_matches: dict[str, str | None] | None
     bpmn_version_id: int | None
     quality: QualityReportResponse
     activities: ActivityMatchReportResponse
+    resources: ResourceMatchReportResponse
     summary: dict[str, Any] | None
 
 
@@ -157,9 +160,13 @@ def save_analysis(event_log_id: str, record: AnalysisRecord) -> EventLogAnalysis
         row.activity_matches_json = (
             json.dumps(record.activity_matches) if record.activity_matches is not None else None
         )
+        row.resource_matches_json = (
+            json.dumps(record.resource_matches) if record.resource_matches is not None else None
+        )
         row.bpmn_version_id = record.bpmn_version_id
         row.quality_json = record.quality.model_dump_json()
         row.match_json = record.activities.model_dump_json()
+        row.resource_match_json = record.resources.model_dump_json()
         row.summary_json = json.dumps(record.summary) if record.summary is not None else None
         row.mapped_at = now_iso()
         session.flush()
@@ -290,10 +297,12 @@ def _clear_analysis(row: WorkspaceEventLog) -> None:
     row.mapping_json = None
     row.template_id = None
     row.activity_matches_json = None
+    row.resource_matches_json = None
     row.bpmn_version_id = None
     row.quality_json = None
     row.summary_json = None
     row.match_json = None
+    row.resource_match_json = None
     row.mapped_at = None
 
 
@@ -319,12 +328,13 @@ def _log_response(session: Session, row: WorkspaceEventLog) -> EventLogResponse:
 
 
 def _analysis_response(session: Session, row: WorkspaceEventLog) -> EventLogAnalysisResponse:
-    if row.quality_json is None or row.match_json is None:
+    if row.quality_json is None or row.match_json is None or row.resource_match_json is None:
         raise RuntimeError(f"event log {row.id} mappato senza esito")
     return EventLogAnalysisResponse(
         event_log=_log_response(session, row),
         quality=QualityReportResponse.model_validate_json(row.quality_json),
         activities=ActivityMatchReportResponse.model_validate_json(row.match_json),
+        resources=ResourceMatchReportResponse.model_validate_json(row.resource_match_json),
         summary=json.loads(row.summary_json) if row.summary_json else None,
     )
 
