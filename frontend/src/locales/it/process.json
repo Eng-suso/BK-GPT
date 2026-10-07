@@ -5,7 +5,9 @@
   "tabs": {
     "canvas": "Canvas",
     "chat": "Discussione",
-    "simulation": "Simulazione"
+    "simulation": "Simulazione",
+    "review": "Review",
+    "tobe": "Ipotesi To-Be"
   },
   "actions": {
     "resizeInspector": "Ridimensiona ispettore",
@@ -544,7 +546,8 @@
         "overview": "Risultati",
         "compare": "Confronto",
         "heatmap": "Heatmap",
-        "insights": "Insight"
+        "insights": "Insight",
+        "eventLog": "Event log"
       },
       "question": {
         "activityQueued": "Dove si accumulano le code?",
@@ -620,6 +623,186 @@
       "gestureHint": "Spazio + trascina per muoverti; Ctrl/Cmd + rotella per zoomare",
       "resizeCanvas": "Ridimensiona area canvas",
       "resizeInspector": "Ridimensiona pannello di dettagli"
+    },
+    "eventLog": {
+      "intro": "Carica l'export di un sistema (CSV o XES): colonne, formati, qualità dei dati e KPI reali con lo stesso calcolo della simulazione.",
+      "delimiter": "Separatore",
+      "delimiterAuto": "Riconosci automaticamente",
+      "delimiterName": {
+        "comma": "Virgola (,)",
+        "semicolon": "Punto e virgola (;)",
+        "tab": "Tabulazione",
+        "pipe": "Barra verticale (|)"
+      },
+      "file": "File dell'event log",
+      "upload": "Carica event log",
+      "uploading": "Caricamento…",
+      "uploadFailed": "Il file non è stato caricato",
+      "loadFailed": "Non riesco a leggere gli event log del processo",
+      "retry": "Riprova",
+      "empty": "Nessun event log",
+      "emptyHint": "Carica un export CSV o XES per confrontare il processo reale con il modello.",
+      "list": "Event log del processo",
+      "rows_one": "{{count}} riga",
+      "rows_other": "{{count}} righe",
+      "status": {
+        "uploaded": "da mappare",
+        "mapped": "mappato"
+      },
+      "delete": "Elimina {{name}}",
+      "deleteTitle": "Eliminare {{name}}?",
+      "deleteDescription": "Il file, il mapping applicato, il report di qualità e i KPI reali di questo log non si recuperano. I template salvati restano.",
+      "deleteConfirm": "Elimina il log",
+      "analysisLoading": "Carico il report di qualità e i KPI…",
+      "analysisFailed": "Non riesco a leggere il report di questo log",
+      "remap": "Rivedi le colonne",
+      "back": "Torna all'elenco",
+      "steps": "Passi dell'import",
+      "step": {
+        "columns": "Colonne",
+        "formats": "Formati",
+        "results": "Qualità e KPI",
+        "activities": "Attività",
+        "resources": "Risorse"
+      },
+      "applyFailed": "Il mapping non è stato applicato",
+      "previewFailed": "Anteprima non disponibile con questo separatore",
+      "next": "Avanti",
+      "previous": "Indietro",
+      "apply": "Applica il mapping",
+      "applying": "Applicazione…",
+      "incomplete": "Per applicare il mapping manca ancora:",
+      "issue": {
+        "caseId": "la colonna dell'identificativo del caso",
+        "activity": "la colonna dell'attività",
+        "end": "la colonna di fine",
+        "timestamp": "la colonna del timestamp",
+        "attributeName": "il nome di un attributo",
+        "attributeNameDuplicate": "nomi diversi per attributi diversi"
+      },
+      "template": "Template di mapping",
+      "templateNone": "Nessun template",
+      "templateApply": "Applica il template",
+      "templateMissing": "Il file non ha queste colonne del template: {{columns}}",
+      "preview": "Anteprima delle prime righe",
+      "notMapped": "Non mappata",
+      "choose": "Scegli una colonna",
+      "addColumn": "Unisci un'altra colonna",
+      "addColumnTo": "Aggiungi una colonna a {{field}}",
+      "removeColumn": "Togli {{column}}",
+      "field": {
+        "caseId": "Identificativo del caso",
+        "activity": "Attività",
+        "timeShape": "Come sono registrati i tempi",
+        "end": "Fine (o completamento)",
+        "start": "Inizio",
+        "timestamp": "Timestamp",
+        "lifecycle": "Ciclo di vita (inizio/completamento)",
+        "resource": "Risorsa",
+        "role": "Ruolo",
+        "cost": "Costo",
+        "pattern": "Formato delle date",
+        "patternHint": "Alla strftime, es. %d/%m/%Y %H:%M. Vuoto = ISO 8601.",
+        "timezone": "Fuso orario delle date senza fuso",
+        "decimal": "Separatore decimale",
+        "thousands": "Separatore delle migliaia"
+      },
+      "shape": {
+        "interval": "Una riga per esecuzione, con inizio e fine",
+        "transition": "Una riga per transizione (inizio, completamento)"
+      },
+      "attributes": {
+        "case": "Attributi del caso",
+        "event": "Attributi dell'evento",
+        "name": "Nome",
+        "type": "Tipo",
+        "typeName": {
+          "text": "Testo",
+          "number": "Numero",
+          "category": "Categoria",
+          "date": "Data"
+        },
+        "add": {
+          "case": "Aggiungi un attributo del caso",
+          "event": "Aggiungi un attributo dell'evento"
+        }
+      },
+      "separator": {
+        "dot": "Punto (.)",
+        "comma": "Virgola (,)",
+        "none": "Nessuno",
+        "space": "Spazio",
+        "apostrophe": "Apostrofo (')"
+      },
+      "quality": "Qualità dei dati",
+      "issues": "Problemi trovati",
+      "noIssues": "Nessun problema nei dati",
+      "issueRows": "Prime righe: {{rows}}",
+      "period": "Periodo coperto: dal {{from}} al {{to}}",
+      "qualityIssue": {
+        "missing_case_id": "righe senza identificativo del caso, escluse",
+        "missing_activity": "righe senza attività, escluse",
+        "missing_timestamp": "righe senza timestamp di fine, escluse",
+        "unreadable_timestamp": "timestamp non leggibili con il formato indicato, righe escluse",
+        "end_before_start": "righe con la fine prima dell'inizio, escluse",
+        "duplicate_event": "eventi identici ripetuti, tenuto uno solo",
+        "unpaired_start": "inizi senza completamento, esclusi",
+        "unknown_lifecycle": "valori del ciclo di vita non riconosciuti, righe escluse",
+        "unreadable_number": "numeri non leggibili, valore lasciato vuoto",
+        "unreadable_date": "date negli attributi non leggibili, valore lasciato vuoto",
+        "case_attribute_conflict": "attributi del caso con valori diversi nello stesso caso, tenuto il primo"
+      },
+      "kpis": "KPI reali",
+      "noKpis": "Nessun evento valido: i KPI non si possono calcolare. Controlla il report di qualità.",
+      "timing": {
+        "complete_only": "Il log registra solo i completamenti: attesa e lavorazione non sono separabili.",
+        "mixed": "Solo una parte degli eventi ha l'inizio: attesa e lavorazione sono separate solo su quelli."
+      },
+      "kpi": {
+        "events": "Eventi validi",
+        "rowsRead": "su {{count}} righe lette",
+        "excluded": "Righe escluse",
+        "cases": "Casi",
+        "activities": "Attività distinte",
+        "cycle": "Cycle time medio",
+        "waiting": "Attesa media",
+        "processing": "Lavorazione media",
+        "cost": "Costo totale",
+        "notInLog": "Non nel log"
+      },
+      "saveTemplate": "Salva il mapping come template",
+      "templateName": "Nome del template",
+      "saveVersion": "Salva come versione {{version}}",
+      "saveNew": "Salva come nuovo template",
+      "saved": "Template «{{name}}» salvato, versione {{version}}",
+      "saveFailed": "Il template non è stato salvato",
+      "match": {
+        "events": "Eventi",
+        "ignore": "Ignora",
+        "ambiguous": "Più elementi con questo nome",
+        "confirm": "Conferma l'abbinamento",
+        "confirmed": "Abbinamento confermato dal consulente",
+        "activities": {
+          "hint": "In automatico si abbinano solo nomi identici. Gli altri li decidi tu.",
+          "log": "Attività del log",
+          "model": "Elemento del BPMN",
+          "choose": "Elemento del BPMN per {{name}}",
+          "noModel": "Il processo non ha ancora un BPMN da abbinare.",
+          "unobserved_one": "{{count}} elemento del modello non compare nel log",
+          "unobserved_other": "{{count}} elementi del modello non compaiono nel log"
+        },
+        "resources": {
+          "hint": "Abbina le persone o gli utenti del log ai pool e alle lane del modello.",
+          "log": "Risorsa del log",
+          "model": "Risorsa del modello",
+          "choose": "Risorsa del modello per {{name}}",
+          "noModel": "Il modello non ha pool o lane a cui abbinare le risorse.",
+          "unobserved_one": "{{count}} risorsa del modello non compare nel log",
+          "unobserved_other": "{{count}} risorse del modello non compaiono nel log",
+          "without_one": "{{count}} evento non ha risorsa nel log",
+          "without_other": "{{count}} eventi non hanno risorsa nel log"
+        }
+      }
     }
   },
   "side": {
@@ -655,7 +838,7 @@
       "toggleSection": "Espandi o riduci sezione",
       "addDocumentation": "Aggiungi documentazione",
       "noSelection": "Nessun elemento selezionato"
-},
+    },
     "eyebrow": "BPMN 2.0",
     "title": "Pannello proprietà",
     "hint": "Elemento selezionato"
@@ -834,5 +1017,167 @@
       "reloaded": "Ultima versione caricata",
       "reloadFailed": "Caricamento dell'ultima versione non riuscito"
     }
+  },
+  "review": {
+    "title": "Process Review",
+    "asIs": "As-Is",
+    "commands": "Comandi di revisione",
+    "asIsReadOnly": "As-Is · sola lettura",
+    "tasks": "Task",
+    "focusImpact": "Zona di impatto",
+    "processFindings": "Rilievi del processo",
+    "refresh": "Ricarica review",
+    "hypotheses": "Ipotesi To-Be",
+    "inspector": "Analisi del task",
+    "closeInspector": "Chiudi analisi del task",
+    "loading": "Caricamento della review",
+    "loadError": "Impossibile caricare la review",
+    "retry": "Riprova",
+    "canvasLabel": "As-Is in revisione, sola lettura",
+    "diagramError": "Impossibile leggere il diagramma",
+    "contextAssistant": "Assistente contestuale",
+    "inspectTask": "Ispeziona {{name}}",
+    "microGaps": "Punti da verificare: {{count}} · attività collegate: {{linked}}.",
+    "microComplete": "Scheda documentata · {{linked}} attività collegate.",
+    "task": "Task",
+    "needsReview": "Da verificare",
+    "documented": "Documentato",
+    "readOnlyTask": "Le azioni di review mantengono l’As-Is invariato.",
+    "detailTabs": "Dettagli della review",
+    "tab": {
+      "overview": "Overview",
+      "evidence": "Evidenze",
+      "impacts": "Impatti",
+      "actions": "Azioni"
+    },
+    "field": {
+      "owner": "Owner",
+      "input": "Input",
+      "output": "Output",
+      "problems": "Problemi rilevati",
+      "impacts": "Impatti",
+      "suggestion": "Suggerimento"
+    },
+    "notDocumented": "Non documentato",
+    "gap": {
+      "owner": "Responsabilità non documentata.",
+      "input": "Input non documentato.",
+      "output": "Output non documentato.",
+      "evidence": "Evidenza assente o da confermare."
+    },
+    "noStructuralGaps": "Nessun dato mancante nei campi disponibili.",
+    "structuralScope": "{{count}} attività nel perimetro delle dipendenze.",
+    "exploreImpacts": "Esplora le dipendenze",
+    "suggestionGaps": "Chiarisci i dati mancanti con l’owner prima di proporre una modifica.",
+    "suggestionComplete": "Valuta evidenze e dipendenze; documenta una proposta prima di costruire il To-Be.",
+    "taskNotes": "Note del task",
+    "noPlan": "Piano di processo non disponibile",
+    "noPlanDescription": "Owner, input e output vengono mostrati solo quando il piano o il BPMN li documentano.",
+    "showEvidence": "Mostra evidenze",
+    "action": {
+      "candidate": "Proponi modifica",
+      "clarification": "Chiedi chiarimento",
+      "deferred": "Ignora per ora"
+    },
+    "actionDescription": {
+      "candidate": "Crea un’ipotesi To-Be per «{{name}}». Il diagramma As-Is resta invariato.",
+      "clarification": "Registra una domanda per «{{name}}» nel registro di review. La domanda resta da portare all’owner.",
+      "deferred": "Rinvia la verifica di «{{name}}» e annota il motivo. Le evidenze restano visibili."
+    },
+    "defaultTitle": {
+      "clarification": "Chiarimento: {{name}}",
+      "deferred": "Verifica rinviata: {{name}}"
+    },
+    "proposalTitle": "Titolo",
+    "detailLabel": {
+      "candidate": "Modifica proposta e impatti da verificare",
+      "clarification": "Domanda per l’owner",
+      "deferred": "Motivo del rinvio"
+    },
+    "detailPlaceholder": {
+      "candidate": "Descrivi cosa cambiare, perché e quali dipendenze verificare…",
+      "clarification": "Quale informazione serve per decidere?",
+      "deferred": "Perché rinviare e quando riprendere la verifica?"
+    },
+    "cancel": "Annulla",
+    "saveAction": "Registra azione",
+    "saving": "Salvataggio…",
+    "saveError": "Impossibile registrare l’azione",
+    "staleTitle": "La base della review è cambiata",
+    "staleDescription": "Ricarica la review e riesamina il task prima di registrare una nuova azione.",
+    "staleAction": "As-Is aggiornato · ipotesi da riesaminare",
+    "evidenceError": "Impossibile caricare le evidenze",
+    "loadingEvidence": "Caricamento evidenze…",
+    "noSource": "Fonte non disponibile",
+    "noQuote": "Nessuna citazione verificata disponibile.",
+    "noEvidence": "Task senza evidenze collegate",
+    "noEvidenceDescription": "Il disegno non collega questo task a un elemento verificabile del piano. L’assenza di evidenza non è una prova di errore.",
+    "dependencyTitle": "Collegamenti del processo",
+    "dependencyDescription": "Attività e documenti da riesaminare se modifichi questo task.",
+    "upstream": "A monte",
+    "downstream": "A valle",
+    "selected": "Selezionato",
+    "noDependencies": "Nessuna attività collegata in questa direzione.",
+    "controls": "Controlli collegati",
+    "rules": "Regole collegate",
+    "documents": "Documenti e dati coinvolti",
+    "performanceTitle": "Tempi, colli di bottiglia e simulazione",
+    "performanceDescription": "Nessuna variazione di tempo è stata calcolata in questa review. Per stimarla servono uno scenario, parametri validati e un run di simulazione. Verifica anche le responsabilità dei task collegati.",
+    "openSimulation": "Apri simulazione",
+    "actionsDescription": "Ipotesi, domande e rinvii registrati per questo task. Una proposta non applica modifiche al modello.",
+    "noActions": "Nessuna azione registrata.",
+    "kind": {
+      "candidate": "Ipotesi To-Be",
+      "clarification": "Chiarimento da chiedere",
+      "deferred": "Verifica rinviata"
+    },
+    "hypothesesTitle": "Modifiche candidate al To-Be",
+    "toBeEyebrow": "As-Is descrive · Review interpreta · To-Be trasforma",
+    "hypothesesDescription": "Le ipotesi raccolte nella review sono il punto di partenza per il To-Be. Devono essere valutate dal consulente prima di essere trasformate in un nuovo modello.",
+    "candidateCount": "{{count}} ipotesi",
+    "backToReview": "Torna alla review",
+    "noCandidates": "Nessuna modifica candidata",
+    "noCandidatesDescription": "Ispeziona un task e registra una proposta con le evidenze e gli impatti da verificare.",
+    "startReview": "Apri Process Review",
+    "findingsScope": "Rilievi sul processo intero: non sono attribuiti automaticamente al task selezionato.",
+    "noFindings": "Nessun rilievo di processo registrato.",
+    "emptyTitle": "Nessun task da ispezionare",
+    "emptyDescription": "La review parte da un diagramma salvato. Ricostruisci il processo o importa un BPMN prima di ispezionare i task.",
+    "openAsIs": "Apri As-Is",
+    "selectHint": "Seleziona un task sul canvas o apri l’elenco Task per iniziare.",
+    "taskList": "Task del processo",
+    "searchTasks": "Cerca un task",
+    "noSearchResults": "Nessun task corrisponde alla ricerca.",
+    "impactLegend": "Legenda delle dipendenze",
+    "actionSaved": "Azione registrata. As-Is invariato.",
+    "more": "Rilievi",
+    "shortAction": {
+      "evidence": "Evidenze",
+      "clarification": "Chiarimento",
+      "deferred": "Rinvia"
+    },
+    "previousTask": "Task precedente",
+    "nextTask": "Task successivo",
+    "navigateTasks": "Navigazione dei task",
+    "selectTask": "Attività {{position}}: {{name}}",
+    "bubbleGap": {
+      "owner": "Chi prende in carico questa attività?",
+      "input": "Quali dati servono per iniziare?",
+      "output": "Qual è il risultato atteso?",
+      "evidence": "Una fonte resta da confermare."
+    },
+    "bubbleComplete": "Evidenze e dipendenze da valutare.",
+    "suggestionFor": {
+      "owner": "Assegna un responsabile e chiarisci chi riceve il lavoro al passaggio successivo.",
+      "input": "Concorda con l’owner i dati necessari per iniziare e come verificarne la completezza.",
+      "output": "Definisci il documento o risultato da consegnare e i criteri di accettazione.",
+      "evidence": "Verifica la fonte con l’owner prima di usare questa attività come base di una proposta."
+    },
+    "proposalBoard": "Registro delle ipotesi",
+    "proposalBoardDescription": "Le modifiche raccolte durante la review, pronte per il confronto con gli owner.",
+    "pendingDecision": "Da valutare",
+    "openTask": "Rivedi il task",
+    "candidateTaskCount_one": "{{count}} task coinvolto",
+    "candidateTaskCount_other": "{{count}} task coinvolti"
   }
 }

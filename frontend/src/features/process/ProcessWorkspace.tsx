@@ -9,8 +9,9 @@ import { useElementWidth } from "@/lib/useElementWidth";
 import type { Project, ProjectProcess } from "@/contracts/workspace";
 import { ChatExperience } from "../chat/ChatExperience";
 import { ProcessBpmnCanvas } from "./ProcessBpmnCanvas";
+import { ProcessReviewWorkspace } from "./review/ProcessReviewWorkspace";
 
-export type ProcessView = "chat" | "canvas";
+export type ProcessView = "chat" | "canvas" | "review" | "tobe";
 type ProcessWorkspaceProps = {
   project: Project;
   process: ProjectProcess;
@@ -19,6 +20,8 @@ type ProcessWorkspaceProps = {
   onTogglePropertiesPanel: () => void;
   /** Switches to the discussion view — where an empty model gets reconstructed. */
   onOpenDiscussion: () => void;
+  onReviewModeChange: (mode: "canvas" | "review" | "tobe") => void;
+  onOpenSimulation: () => void;
 };
 
 /**
@@ -31,7 +34,12 @@ type ProcessWorkspaceProps = {
  * @param onTogglePropertiesPanel - Toggles the properties panel.
  * @returns The process workspace element.
  */
-export function ProcessWorkspace({ project, process, view, propertiesOpen, onTogglePropertiesPanel, onOpenDiscussion }: ProcessWorkspaceProps): React.JSX.Element {
+export function ProcessWorkspace(props: ProcessWorkspaceProps): React.JSX.Element {
+  if (props.view === "review" || props.view === "tobe") return <ProcessReviewWorkspace key={props.process.id} processId={props.process.id} bpmnModelId={props.process.bpmnModelId} mode={props.view} onModeChange={props.onReviewModeChange} onSimulation={props.onOpenSimulation} />;
+  return <ModelingProcessWorkspace {...props} />;
+}
+
+function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTogglePropertiesPanel, onOpenDiscussion }: ProcessWorkspaceProps): React.JSX.Element {
   const { t } = useTranslation("process");
   const { ref, width } = useElementWidth<HTMLElement>();
   const [chatOpen, setChatOpen] = React.useState(false);
