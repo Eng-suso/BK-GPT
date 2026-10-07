@@ -37,6 +37,7 @@ export type SearchHit = {
   title: string;
   /** Dove vive, gia' scritto per chi legge. */
   context: string;
+  clientId: string | null;
   clientName: string | null;
   projectId: string | null;
   processId: string | null;
@@ -46,15 +47,15 @@ export type SearchHit = {
 /**
  * Dove porta un risultato.
  *
- * Un cliente non ha una pagina propria in questo router: porta ai suoi
- * progetti, gia' filtrati, che e' il lavoro che si stava cercando. Una fonte
- * apre il progetto sulla scheda delle fonti, dove si legge.
+ * Un cliente porta alla sua pagina, da cui si va ai suoi progetti. Una fonte
+ * apre il progetto sulla scheda delle fonti, dove si legge; una fonte del
+ * cliente (P1.16) non ha un progetto, e apre la pagina del cliente.
  */
 export function hitHref(hit: SearchHit): string {
   switch (hit.kind) {
     case "client":
       // Per id, non per nome: due clienti omonimi sono due clienti (X4).
-      return `${ROUTES.projects.list}?f_client=${encodeURIComponent(hit.id)}`;
+      return ROUTES.clients.detail(hit.id);
     case "project":
       return hit.projectId ? ROUTES.projects.detail(hit.projectId) : ROUTES.projects.list;
     case "process":
@@ -62,9 +63,8 @@ export function hitHref(hit: SearchHit): string {
         ? ROUTES.projects.process(hit.projectId, hit.processId)
         : ROUTES.projects.list;
     case "source":
-      return hit.projectId
-        ? `${ROUTES.projects.detail(hit.projectId)}?tab=sources`
-        : ROUTES.projects.list;
+      if (hit.projectId) return `${ROUTES.projects.detail(hit.projectId)}?tab=sources`;
+      return hit.clientId ? ROUTES.clients.detail(hit.clientId) : ROUTES.projects.list;
   }
 }
 
@@ -79,6 +79,7 @@ export async function searchWorkspace(query: string): Promise<SearchHit[]> {
       id: hit.id,
       title: hit.title,
       context: hit.context,
+      clientId: hit.client_id,
       clientName: hit.client_name,
       projectId: hit.project_id,
       processId: hit.process_id,

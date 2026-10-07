@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { SortingState } from "@tanstack/react-table";
-import { Pencil, Plus } from "lucide-react";
+import { ArrowRight, Pencil, Plus } from "lucide-react";
 
 import { PageHeader, WorkspaceListView } from "@/components/layout";
 import { DataTable, DataTablePagination, ListToolbar } from "@/components/data";
@@ -47,6 +48,7 @@ export function ClientsListPage(): React.JSX.Element {
   const { t } = useTranslation("clients");
   const { t: tCommon } = useTranslation("common");
 
+  const navigate = useNavigate();
   const page = useClientsPageQuery();
   // Riferimento stabile: `?? []` creerebbe un array nuovo a ogni render e
   // rifarebbe ogni `useMemo` che dipende da questo elenco.
@@ -116,11 +118,12 @@ export function ClientsListPage(): React.JSX.Element {
     () =>
       buildClientColumns(t, {
         tCommon,
+        onOpen: (client) => navigate(ROUTES.clients.detail(client.id)),
         onEdit: openEdit,
         onArchive: (client) => openLifecycle(client, "archive"),
         onDelete: (client) => openLifecycle(client, "delete"),
       }),
-    [t, tCommon, openEdit, openLifecycle],
+    [t, tCommon, navigate, openEdit, openLifecycle],
   );
 
   return (
@@ -166,6 +169,14 @@ export function ClientsListPage(): React.JSX.Element {
                 title={selected.name}
                 subtitle={selected.sector}
               />
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => navigate(ROUTES.clients.detail(selected.id))}
+              >
+                <ArrowRight /> {t("detail.actions.open")}
+              </Button>
               <DetailPanelSection
                 title={t("detail.summary")}
                 action={

@@ -222,8 +222,11 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
                     WorkspaceClient.id,
                     WorkspaceClient.name,
                 )
-                .join(WorkspaceProject, WorkspaceProject.id == WorkspaceSource.project_id)
-                .join(WorkspaceClient, WorkspaceClient.id == WorkspaceProject.client_id)
+                # Le fonti del cliente (P1.16) non hanno un progetto: il cliente
+                # si legge dalla fonte, e il progetto, quando c'e', si aggiunge.
+                .join(WorkspaceClient, WorkspaceClient.id == WorkspaceSource.client_id)
+                .outerjoin(WorkspaceProject, WorkspaceProject.id == WorkspaceSource.project_id)
+                .where(or_(WorkspaceSource.project_id.is_(None), WorkspaceProject.archived_at.is_(None)))
                 # Una fonte di un processo archiviato sta sotto un record
                 # archiviato; quella senza processo resta.
                 .outerjoin(WorkspaceProcess, WorkspaceProcess.id == WorkspaceSource.process_id)
@@ -233,7 +236,6 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
                 .limit(per_kind_limit),
                 tenant,
                 WorkspaceSource,
-                WorkspaceProject,
                 WorkspaceClient,
             )
         ).all()
@@ -252,7 +254,7 @@ def search_workspace(query: str, *, limit: int = 20, per_kind_limit: int = 25) -
                     "kind": "source",
                     "id": source_id,
                     "title": name,
-                    "context": f"{client_name} · {project_name}",
+                    "context": f"{client_name} · {project_name}" if project_id else client_name,
                     "client_id": client_id,
                     "client_name": client_name,
                     "project_id": project_id,

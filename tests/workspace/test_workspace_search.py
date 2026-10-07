@@ -238,3 +238,28 @@ def test_search_does_not_cross_tenants(client, engagement, monkeypatch):
         set_current_tenant_id("local")
 
     assert _hits(response) == []
+
+
+@_needs_db
+def test_a_client_file_is_found_and_leads_to_the_client(client, engagement):
+    # P1.16: un file caricato per tutto il cliente non ha un progetto. Si trova
+    # lo stesso, dice di quale cliente e', e resta anche se un progetto chiude.
+    marker = engagement["marker"]
+    uploaded = client.post(
+        f"/v1/workspace/clients/{engagement['client']['id']}/sources/upload",
+        data={"roles": '["policy"]', "retention": "persistent"},
+        files={"file": (f"policy-{marker}.md", b"# Policy acquisti", "text/markdown")},
+    )
+    assert uploaded.status_code == 201
+    client.post(
+        f"/v1/workspace/projects/{engagement['project']['id']}/archive",
+        json={"reason": "incarico chiuso"},
+    )
+
+    hits = _hits(client.get(SEARCH, params={"q": f"policy {marker}"}))
+
+    source = next(hit for hit in hits if hit["kind"] == "source")
+    assert source["id"] == uploaded.json()["id"]
+    assert source["client_id"] == engagement["client"]["id"]
+    assert source["project_id"] is None
+    assert source["context"] == engagement["client"]["name"]

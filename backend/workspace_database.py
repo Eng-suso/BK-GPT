@@ -224,6 +224,13 @@ DEFAULT_LIST_LIMIT = 500
 MAX_LIST_LIMIT = 2000
 
 
+#: Quanti altri file entrano al massimo nel confronto di una fonte (P1.13). Il
+#: prompt ha gia' il suo tetto in caratteri (`reconcile.MAX_INPUT_CHARS`), ma una
+#: fonte del cliente si confronta con tutti i file del cliente: senza un tetto
+#: anche sulla lettura, un cliente grande li tirerebbe su tutti a ogni passata.
+MAX_RECONCILE_CANDIDATES = 200
+
+
 def capped_limit(limit: int | None) -> int:
     """Il numero di righe da chiedere: quello voluto, dentro i confini."""
     if limit is None:
@@ -2016,6 +2023,7 @@ def source_to_dict(source: WorkspaceSource) -> dict:
     return {
         "id": source.id,
         "project_id": source.project_id,
+        "client_id": source.client_id,
         "process_id": source.process_id,
         "name": source.name,
         "type": source.type,
@@ -2048,18 +2056,51 @@ def decision_to_dict(decision: WorkspaceDecision) -> dict:
     }
 
 
-def list_project_sources(project_id: str) -> list[dict]:
+def list_project_sources(project_id: str, *, include_client: bool = False) -> list[dict]:
+    """Le fonti di un progetto e, con `include_client`, quelle del suo cliente.
+
+    Una fonte del cliente (P1.16) vale per tutti i suoi progetti: compare nelle
+    Fonti di ognuno, con `project_id` vuoto, e nel contesto degli agenti. Il
+    default resta il solo progetto: il set di fonti di un piano di processo non
+    le legge ancora, e cambiarlo qui l'avrebbe cambiato in silenzio.
+    """
     with workspace_connection() as session:
-        if tenant_row(session, WorkspaceProject, project_id) is None:
+        project = tenant_row(session, WorkspaceProject, project_id)
+        if project is None:
             return []
 
+        owned = WorkspaceSource.project_id == project_id
+        if include_client:
+            owned = or_(
+                owned,
+                and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == project.client_id),
+            )
         statement = (
             select(WorkspaceSource)
-            .where(WorkspaceSource.project_id == project_id)
+            .where(owned)
             .where(WorkspaceSource.tenant_id == tenant_id())
             .order_by(WorkspaceSource.name)
         )
         sources = session.execute(statement).scalars().all()
+        return [source_to_dict(source) for source in sources]
+
+
+def list_client_sources(client_id: str) -> list[dict] | None:
+    """Le fonti del cliente: quelle che valgono per tutti i suoi progetti.
+
+    Returns:
+        Le fonti, o `None` se il cliente non esiste in questo tenant.
+    """
+    with workspace_connection() as session:
+        if tenant_row(session, WorkspaceClient, client_id) is None:
+            return None
+        sources = session.execute(
+            select(WorkspaceSource)
+            .where(WorkspaceSource.tenant_id == tenant_id())
+            .where(WorkspaceSource.project_id.is_(None))
+            .where(WorkspaceSource.client_id == client_id)
+            .order_by(WorkspaceSource.name)
+        ).scalars().all()
         return [source_to_dict(source) for source in sources]
 
 
@@ -2150,7 +2191,8 @@ def create_project_source(
     _assert_source_scope(project_id, process_id)
     with workspace_connection() as session:
         current_tenant_id = tenant_id()
-        if tenant_row(session, WorkspaceProject, project_id) is None:
+        project = tenant_row(session, WorkspaceProject, project_id)
+        if project is None:
             raise ValueError(f"Progetto non trovato: {project_id}")
 
         if process_id:
@@ -2163,6 +2205,7 @@ def create_project_source(
             id=source_id,
             tenant_id=current_tenant_id,
             project_id=project_id,
+            client_id=project.client_id,
             process_id=process_id,
             name=name.strip(),
             type=type.strip() or "Fonte",
@@ -2193,7 +2236,8 @@ def process_id_for_identity(scopes: list[dict[str, str]]) -> str:
 
 def create_ingested_source(
     *,
-    project_id: str,
+    project_id: str | None = None,
+    client_id: str | None = None,
     name: str,
     roles: list[str],
     retention: str,
@@ -2208,7 +2252,15 @@ def create_ingested_source(
     Il file e' gia' conservato (`storage_key`); leggerlo - layout, tabelle, OCR -
     lo fa `source_worker`, fuori dalla richiesta. Fino ad allora la fonte esiste
     ma non ha testo, e lo dice: `acquisition_status == "pending"`.
+
+    Una fonte appartiene a un progetto (`project_id`) o al cliente
+    (`client_id`, P1.16): quella del cliente vale per tutti i suoi progetti, non
+    ha processo, e il suo ambito e' il cliente.
     """
+    if (project_id is None) == (client_id is None):
+        raise ValueError("Una fonte appartiene a un progetto o a un cliente, non a entrambi.")
+    if client_id is not None:
+        scopes = [{"type": "client", "id": client_id}]
     role_order = {name: index for index, name in enumerate(
         ("context", "process_evidence", "policy", "operational_data")
     )}
@@ -2237,11 +2289,22 @@ def create_ingested_source(
     if len(process_ids) > 1:
         raise ValueError("Una fonte caricata appartiene a un solo processo.")
     process_id = process_ids[0] if process_ids else None
-    _assert_source_scope(project_id, process_id)
-
-    validate_source_scopes(project_id, scopes_value)
+    if project_id is not None:
+        _assert_source_scope(project_id, process_id)
+        validate_source_scopes(project_id, scopes_value)
 
     with workspace_connection() as session:
+        if project_id is not None:
+            project = tenant_row(session, WorkspaceProject, project_id)
+            if project is None:
+                raise ValueError(f"Progetto non trovato: {project_id}")
+            owner_client_id = project.client_id
+            owned = WorkspaceSource.project_id == project_id
+        else:
+            if tenant_row(session, WorkspaceClient, client_id) is None:
+                raise ValueError(f"Cliente non trovato: {client_id}")
+            owner_client_id = client_id
+            owned = and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == client_id)
         lock_key = int(ingestion_key[:16], 16)
         if lock_key >= 2**63:
             lock_key -= 2**64
@@ -2252,7 +2315,7 @@ def create_ingested_source(
         existing = session.execute(
             select(WorkspaceSource)
             .where(WorkspaceSource.tenant_id == tenant_id())
-            .where(WorkspaceSource.project_id == project_id)
+            .where(owned)
             .where(WorkspaceSource.content_hash == content_hash)
             .where(WorkspaceSource.storage_key.is_not(None))
             .where(
@@ -2278,6 +2341,7 @@ def create_ingested_source(
             id=unique_id(session, WorkspaceSource, f"src-{slugify(name, 'source')}"),
             tenant_id=tenant_id(),
             project_id=project_id,
+            client_id=owner_client_id,
             process_id=process_id,
             name=name.strip(),
             type="File",
@@ -2521,15 +2585,20 @@ def _approve_source(session: Any, source: WorkspaceSource, *, reason: str) -> No
     """
     source.status = "approved"
     source.confirm_when_read = False
-    affected = (
-        [source.process_id]
-        if source.process_id
-        else session.execute(
-            select(WorkspaceProcess.id)
-            .where(WorkspaceProcess.project_id == source.project_id)
-            .where(WorkspaceProcess.tenant_id == source.tenant_id)
-        ).scalars().all()
-    )
+    if source.process_id:
+        affected = [source.process_id]
+    elif source.project_id:
+        affected = list(
+            session.execute(
+                select(WorkspaceProcess.id)
+                .where(WorkspaceProcess.project_id == source.project_id)
+                .where(WorkspaceProcess.tenant_id == source.tenant_id)
+            ).scalars().all()
+        )
+    else:
+        # Una fonte del cliente (P1.16) non e' ancora nel set di fonti dei
+        # piani: confermarla non li rende vecchi.
+        affected = []
     for affected_process_id in affected:
         enqueue_plan_materialization(affected_process_id, reason=reason, session=session)
     if source.storage_key and source.claims_status != "done":
@@ -2801,7 +2870,8 @@ def due_source_reconcile(limit: int = 1, *, only_tenant_id: str | None = None) -
         return claimed
 
 
-def _claims_as_input(session, sources: list[WorkspaceSource]) -> list[dict]:
+def _claims_as_input(session, sources: list) -> list[dict]:
+    # Righe ORM o tuple (`id`, `name`): servono solo quei due campi.
     names = {source.id: source.name for source in sources}
     if not names:
         return []
@@ -2821,7 +2891,9 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
 
     Gli altri file sono quelli confermati, gia' estratti, dello stesso progetto e
     dello stesso processo. Un file a livello di progetto (senza processo) si
-    confronta con tutti i file del progetto, e tutti con lui.
+    confronta con tutti i file del progetto, e tutti con lui. Le fonti del cliente
+    (P1.16) valgono per tutti i suoi progetti: entrano nel confronto di ogni file
+    del cliente, e una fonte del cliente si confronta con tutti.
 
     Returns:
         `(nuove, gia' presenti)`, entrambe con `id`, `statement`, `source_id`,
@@ -2831,21 +2903,32 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
         source = tenant_row(session, WorkspaceSource, source_id)
         if source is None:
             return [], []
+        client_wide = and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == source.client_id)
+        # Solo id e nome: la riga intera porta con se' il testo estratto.
+        # In ordine di id, lo stesso in cui le affermazioni arrivano al prompt.
         others = (
-            select(WorkspaceSource)
+            select(WorkspaceSource.id, WorkspaceSource.name)
             .where(WorkspaceSource.tenant_id == source.tenant_id)
-            .where(WorkspaceSource.project_id == source.project_id)
             .where(WorkspaceSource.id != source.id)
             .where(WorkspaceSource.status == "approved")
             .where(WorkspaceSource.claims_status == "done")
         )
-        if source.process_id:
-            others = others.where(
-                or_(WorkspaceSource.process_id.is_(None), WorkspaceSource.process_id == source.process_id)
-            )
+        if source.project_id is None:
+            others = others.where(WorkspaceSource.client_id == source.client_id)
+        else:
+            same_project = WorkspaceSource.project_id == source.project_id
+            if source.process_id:
+                same_project = and_(
+                    same_project,
+                    or_(WorkspaceSource.process_id.is_(None), WorkspaceSource.process_id == source.process_id),
+                )
+            others = others.where(or_(same_project, client_wide))
         return (
             _claims_as_input(session, [source]),
-            _claims_as_input(session, list(session.execute(others).scalars().all())),
+            _claims_as_input(
+                session,
+                list(session.execute(others.order_by(WorkspaceSource.id).limit(MAX_RECONCILE_CANDIDATES)).all()),
+            ),
         )
 
 
@@ -3064,6 +3147,7 @@ def due_source_graph(limit: int = 1, *, only_tenant_id: str | None = None) -> li
                     "tenant_id": row.tenant_id,
                     "name": row.name,
                     "project_id": row.project_id,
+                    "client_id": row.client_id,
                     "process_id": row.process_id,
                     "content_hash": row.content_hash,
                     "byte_size": row.byte_size,
@@ -4202,6 +4286,13 @@ def create_project_decision(
 # ---------------------------------------------------------------------------
 
 
+def get_client_name(client_id: str) -> str | None:
+    """Il nome del cliente, dentro il tenant corrente: e' la sua identita' nel canonical."""
+    with workspace_connection() as session:
+        client = tenant_row(session, WorkspaceClient, client_id)
+        return client.name if client is not None else None
+
+
 def _client_or_raise(session, client_id: str) -> WorkspaceClient:
     client = tenant_row(session, WorkspaceClient, client_id)
     if client is None:
@@ -4246,6 +4337,14 @@ def _record_counts(session, *, client=None, project=None) -> dict[str, int]:
             select(func.count())
             .select_from(WorkspaceSource)
             .where(WorkspaceSource.project_id.in_(project_ids))
+            .where(WorkspaceSource.tenant_id == tenant_id())
+        ).scalar_one()
+    if client is not None:
+        sources += session.execute(
+            select(func.count())
+            .select_from(WorkspaceSource)
+            .where(WorkspaceSource.project_id.is_(None))
+            .where(WorkspaceSource.client_id == client.id)
             .where(WorkspaceSource.tenant_id == tenant_id())
         ).scalar_one()
         decisions = session.execute(
@@ -4457,8 +4556,17 @@ def delete_client(client_id: str) -> dict:
         client = _client_or_raise(session, client_id)
         project_ids = [project.id for project in client.projects]
         client_name = client.name
+        client_source_ids = list(
+            session.execute(
+                select(WorkspaceSource.id)
+                .where(WorkspaceSource.tenant_id == tenant_id())
+                .where(WorkspaceSource.project_id.is_(None))
+                .where(WorkspaceSource.client_id == client_id)
+            ).scalars()
+        )
     from backend.memory.knowledge_graph import erase
 
+    erase.erase_client_sources(client_name, client_source_ids)
     erase.erase_client(client_name, project_ids)
 
     with workspace_connection() as session:
@@ -4466,6 +4574,17 @@ def delete_client(client_id: str) -> dict:
         removed = {"id": client.id, "name": client.name, **_record_counts(session, client=client)}
         for project in list(client.projects):
             storage_keys.extend(_purge_project(session, project))
+        # Le fonti del cliente (P1.16): non stanno sotto nessun progetto.
+        for source in session.execute(
+            select(WorkspaceSource)
+            .where(WorkspaceSource.tenant_id == tenant_id())
+            .where(WorkspaceSource.project_id.is_(None))
+            .where(WorkspaceSource.client_id == client_id)
+        ).scalars():
+            if source.storage_key:
+                storage_keys.append(source.storage_key)
+            session.delete(source)
+        session.flush()
         session.delete(client)
         session.flush()
     _remove_unreferenced_originals(storage_keys)

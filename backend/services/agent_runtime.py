@@ -10,6 +10,7 @@ from typing import Any, Iterator
 from uuid import UUID
 
 from backend.agent import CONTEXT_ROUTER_NODE, get_agent, normalize_model_name
+from backend.agents.context_budget import collect_context_fingerprints, latest_context_fingerprint
 from backend.agents.chat_mode import bind_active_mode
 from backend.agents.primary_scope import agent_scope_state
 from backend.agents.run_context import bind_active_thread, bind_turn_writes
@@ -208,6 +209,7 @@ def record_turn_usage(
     model: str,
     elapsed_seconds: float,
     reasoning_effort: str | None = None,
+    context_fingerprint: str | None = None,
 ) -> None:
     """Scrive nel registro la spesa di un turno, una riga per compito.
 
@@ -224,6 +226,9 @@ def record_turn_usage(
     dell'instradamento non sappiamo niente - i pezzi arrivano mescolati in un
     solo stream - e scriverci la durata dell'intero turno sarebbe un numero
     plausibile e falso, cioe' il tipo di numero su cui poi si fanno i budget.
+
+    L'impronta del contesto, per la stessa ragione, la riceve solo il turno:
+    l'instradamento il contesto di scope non lo vede.
     """
     if not usage_by_node:
         return
@@ -240,6 +245,7 @@ def record_turn_usage(
             duration_ms=int(elapsed_seconds * 1000) if task is LlmTask.CHAT_TURN else 0,
             prompt_version=prompt_version_for(task),
             reasoning_effort=reasoning_effort if task is LlmTask.CHAT_TURN else None,
+            context_fingerprint=context_fingerprint if task is LlmTask.CHAT_TURN else None,
         )
 
 
@@ -1005,6 +1011,7 @@ def stream_agent_events(
                 elapsed_seconds=time.monotonic() - started_at,
                 # Nel registro il livello come l'ha ricevuto il fornitore.
                 reasoning_effort=PROVIDER_REASONING_EFFORT.get(reasoning_effort),
+                context_fingerprint=latest_context_fingerprint(),
             )
             thread_lock.release()
             output_queue.put(None)
@@ -1022,7 +1029,9 @@ def stream_agent_events(
     )
 
     def run_agent_stream_in_turn() -> None:
-        with adopt(turn):
+        # Il raccoglitore delle impronte del contesto vive quanto il turno: la
+        # riga di consumo, scritta alla fine, porta l'ultima.
+        with adopt(turn), collect_context_fingerprints():
             run_agent_stream()
 
     worker = Thread(

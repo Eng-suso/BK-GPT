@@ -116,7 +116,7 @@ def _project_payload(project_id: str) -> dict:
     if project is None:
         raise ValueError(f"Progetto non trovato: {project_id}")
 
-    sources = workspace_database.list_project_sources(project_id)
+    sources = workspace_database.list_project_sources(project_id, include_client=True)
     decisions = workspace_database.list_project_decisions(project_id)
     processes = project.get("process_items") or []
     process_readiness = [

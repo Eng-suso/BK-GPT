@@ -22,8 +22,9 @@ from backend.settings import settings
 def test_graph_retrieval_without_a_scope_is_refused(monkeypatch):
     """Una lettura senza scope non degrada a client-wide: viene rifiutata."""
     from backend.memory import gateway
+    from backend.memory.gateway import graph as retrieval
 
-    monkeypatch.setattr(gateway, "graph_available", lambda: True)
+    monkeypatch.setattr(retrieval, "graph_available", lambda: True)
 
     result = gateway.graph_retrieve(
         consultant_id=str(uuid.uuid4()),
@@ -40,14 +41,14 @@ def test_graph_retrieval_without_a_scope_is_refused(monkeypatch):
 def test_a_client_wide_read_stays_possible_when_it_is_declared(monkeypatch):
     """Cutover, sweep e chat consulente leggono ancora: lo dichiarano."""
     from backend.memory import gateway
+    from backend.memory.gateway import graph as retrieval
+    from backend.memory.gateway.text_search import _EMPTY_CHUNK_SEARCH
 
-    monkeypatch.setattr(gateway, "graph_available", lambda: True)
-    monkeypatch.setattr(gateway, "_authorized_source_ids", lambda session, scope: None)
-    monkeypatch.setattr(gateway, "canonical_session", _null_session)
-    monkeypatch.setattr(gateway, "_resolve_seed_entities", lambda *a, **k: [])
-    monkeypatch.setattr(
-        gateway, "_text_search", lambda *a, **k: gateway._EMPTY_CHUNK_SEARCH
-    )
+    monkeypatch.setattr(retrieval, "graph_available", lambda: True)
+    monkeypatch.setattr(retrieval, "_authorized_source_ids", lambda session, scope: None)
+    monkeypatch.setattr(retrieval, "canonical_session", _null_session)
+    monkeypatch.setattr(retrieval, "_resolve_seed_entities", lambda *a, **k: [])
+    monkeypatch.setattr(retrieval, "_text_search", lambda *a, **k: _EMPTY_CHUNK_SEARCH)
 
     result = gateway.graph_retrieve(
         consultant_id=str(uuid.uuid4()),
@@ -80,7 +81,7 @@ def _scope(**kwargs):
 
 
 def test_the_scope_predicate_keeps_the_process_and_the_project_level_rows():
-    from backend.memory.gateway import _scope_sql
+    from backend.memory.gateway.scope import _scope_sql
 
     predicate, params = _scope_sql(_scope(project_id="pj", process_id="pr"))
 
@@ -92,7 +93,7 @@ def test_the_scope_predicate_keeps_the_process_and_the_project_level_rows():
 
 
 def test_without_a_process_the_boundary_is_the_project():
-    from backend.memory.gateway import _scope_sql
+    from backend.memory.gateway.scope import _scope_sql
 
     predicate, params = _scope_sql(_scope(project_id="pj"))
 
@@ -101,13 +102,13 @@ def test_without_a_process_the_boundary_is_the_project():
 
 
 def test_a_declared_client_wide_read_has_no_predicate():
-    from backend.memory.gateway import _scope_sql
+    from backend.memory.gateway.scope import _scope_sql
 
     assert _scope_sql(_scope(project_id="pj", client_wide=True)) == ("", {})
 
 
 def _node(**kwargs):
-    from backend.memory.gateway import _Node
+    from backend.memory.gateway.graph import _Node
 
     defaults = {"label": "x", "project_id": None, "process_id": None, "source_ids": ()}
     return _Node(**{**defaults, "label": "x", **kwargs})
@@ -130,14 +131,14 @@ def test_a_shared_node_is_readable_through_an_authorized_source():
 # --- Mem0: l'appartenenza dichiarata vince --------------------------------
 
 def test_a_memory_of_another_project_is_out_of_scope():
-    from backend.memory.gateway import _memory_out_of_scope
+    from backend.memory.gateway.memory import _memory_out_of_scope
 
     assert _memory_out_of_scope({"client_id": "cl", "project_id": "altro"}, "cl", "pj")
 
 
 def test_a_consultant_memory_stays_visible_everywhere():
     """Preferenze e metodo sono del consulente, non dell'incarico."""
-    from backend.memory.gateway import _memory_out_of_scope
+    from backend.memory.gateway.memory import _memory_out_of_scope
 
     assert not _memory_out_of_scope({}, "cl", "pj")
     assert not _memory_out_of_scope({"client_id": "cl"}, "cl", "pj")

@@ -115,7 +115,7 @@ export function ProjectsListPage(): React.JSX.Element {
       {
         id: "client",
         label: t("list.filter.client"),
-        // Per id: la ricerca globale porta qui con `f_client=<id>` (X4).
+        // Per id: la pagina del cliente porta qui con `f_client=<id>` (X4).
         accessor: (p) => p.clientId,
         display: (p) => p.client,
       },

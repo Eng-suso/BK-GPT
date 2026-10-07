@@ -1190,6 +1190,41 @@ def _drop_source_claims(session: Session, source_id: str, *, consultant_id: str,
     return len(claims) + len(evidence) + len(contradictions)
 
 
+def erase_workspace_sources(consultant_id: str, client_id: str, workspace_source_ids: list[str]) -> int:
+    """Toglie dal grafo le fonti workspace indicate: fonte, porzioni, affermazioni.
+
+    Serve alle fonti del cliente (P1.16), che non stanno sotto nessun progetto:
+    la cancellazione per progetto non le vede, e quella del cliente canonical
+    salta se un altro cliente workspace porta lo stesso nome.
+
+    Returns:
+        Quanti nodi sono stati tolti.
+    """
+    if not workspace_source_ids:
+        return 0
+    removed = 0
+    with canonical_session(consultant_id, client_id) as session:
+        rows = session.execute(
+            text(
+                "SELECT id FROM kg_source WHERE consultant_id = :c AND client_id = :cl "
+                "AND workspace_source_id = ANY(:ws)"
+            ),
+            {"c": str(consultant_id), "cl": str(client_id), "ws": list(workspace_source_ids)},
+        ).all()
+        for row in rows:
+            source_id = str(row.id)
+            removed += _drop_source_claims(session, source_id, consultant_id=consultant_id, client_id=client_id)
+            session.execute(text("DELETE FROM kg_source WHERE id = CAST(:sid AS uuid)"), {"sid": source_id})
+            _emit(
+                session, aggregate_type="source", aggregate_id=source_id,
+                consultant_id=consultant_id, client_id=client_id, op="delete",
+                payload={"kind": "node_delete", "label": "Source", "id_prop": "source_id",
+                         "id_value": source_id},
+            )
+            removed += 1
+    return removed
+
+
 # --- pacchetto di evidenza (atomico) -----------------------------------
 
 def write_evidence(
