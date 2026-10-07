@@ -30,7 +30,7 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 | P1.2a | Coda dei confronti: tetto di 5 tentativi, stato `failed` contato | 1 | **fatto** — #55 |
 | P1.2b | Quarantena per fonte | 1 | **fatto** (già su main: tentativi per fase, `failed`, errore leggibile, le altre fonti proseguono) |
 | — | I `ValueError` dei tool tornano al modello invece di far cadere il turno; argomenti fuori schema gestiti; confini (`RuntimeError`) invariati | 1 | **fatto** — #62 |
-| P1.4 | Agent Outcome Harness (stato canonico e derivato prima/dopo, tool chiesti ed eseguiti, scenari stale / tenant / injection / crash) | 1 | **da fare** |
+| P1.4 | Agent Outcome Harness (stato prima/dopo, tool chiesti ed eseguiti, scenari stale / tenant / injection / crash); lo stato derivato della proiezione negli scenari resta da aggiungere | 1 | **fatto** — #84 |
 | P0.1 | Identità per persona (JWT), membership, tenant risolto dal server, fine di `default_consultant_id` | 2 | **bloccato** — D1 |
 | P0.2 | RLS sul workspace DB | 2 | **bloccato** — dopo D1 |
 | P0.3 | Lock dei turni su Postgres per `thread_id`; simulazioni in coda Postgres | 3 | **bloccato** — D2 |
@@ -52,8 +52,8 @@ Stati: **da fare** · **in corso** (con PR) · **fatto** (mergiato) ·
 
 In quest'ordine, senza decisioni da aspettare:
 
-1. **P1.4** Agent Outcome Harness — #84;
-2. **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata — #85.
+1. **P2.1** spezzare `backend/memory/gateway.py` dietro la stessa facciata — #85;
+2. **P1.4**, seguito: uno scenario dell'harness sullo stato derivato (grafo `STALE`/`CORRUPT` servito da Postgres).
 
 ---
 
@@ -95,6 +95,7 @@ In quest'ordine, senza decisioni da aspettare:
 
 | Data | ID | Cosa | Verifica |
 | --- | --- | --- | --- |
+| 2026-10-07 | P1.4 | #84: `tests/evals/outcome_harness.py` (turno vero con `build_tool_chat_subgraph`, tool veri, modello a copione) e 4 scenari L0 + un controllo | `tests/evals/l0_deterministic/test_agent_outcomes.py`: 6 verdi; mutazione del confine di scope presa |
 | 2026-10-07 | P1.1b | #83: `graph_projection_state` (watermark avanzato dal worker nella stessa transazione, `PROJECTOR_VERSION` conservata finche' non si ricostruisce, `corrupt_since`/`corrupt_reason`); `ProjectionHealth.CORRUPT`; `kg_reproject` scrive l'esito | `tests/memory/test_projection_state.py` (11, su Postgres canonical), `tests/memory/test_projection_health.py`; migrazione 0019 su e giu' |
 | 2026-10-07 | — | Due teste workspace dopo #72 e #80: `0026_usage_context_print` ripuntata su `0026_client_sources` | `alembic heads` una testa; upgrade, downgrade a 0025 e di nuovo upgrade su Postgres locale |
 | 2026-10-07 | P1.3c | #80: `context_fingerprint` nel registro dei consumi; `build_scope_system_prompt` annota l'impronta in un raccoglitore del turno (ContextVar, arriva ai nodi LangGraph), il runtime la passa alla riga `chat_turn` | `tests/agents/test_context_fingerprint_trace.py`, `test_the_ledger_row_reaches_postgres`; migrazione 0026 su e giù su Postgres locale |
