@@ -231,6 +231,12 @@ def queue_stats(client_id: str | None = None) -> dict[str, int | float]:
     }
 
 
+def client_projection_state(client_id: str) -> projection_state.ProjectionState | None:
+    """Watermark, versione del projector e guasti dichiarati del grafo di un cliente."""
+    with _engine().begin() as conn:
+        return projection_state.read(conn, client_id)
+
+
 def run_forever(idle_sleep: float = 2.0) -> None:
     logger.info("graph_worker avviato")
     while True:
