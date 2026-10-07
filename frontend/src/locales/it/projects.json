@@ -173,7 +173,10 @@
           "knowledge_gap": "Una parte non sa",
           "complementary": "Complementari"
         }
-      }
+      },
+      "clientWide": "Tutto il cliente",
+      "appliesTo": "Vale per",
+      "wholeClient": "Tutto il cliente «{{name}}»"
     },
     "decisions": {
       "empty": "Nessuna decisione registrata"

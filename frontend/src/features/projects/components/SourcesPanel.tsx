@@ -29,6 +29,7 @@ import type { ProjectProcess, ProjectSource } from "@/contracts/workspace";
 import {
   downloadSourceOriginal,
   useSourceDocumentQuery,
+  useUploadClientSourceMutation,
   useUploadProjectSourceMutation,
   useVerifyProjectSourceMutation,
 } from "../api";
@@ -63,16 +64,19 @@ function iconForType(type: string): LucideIcon {
  *
  * @param sources - The evidence linked to the project
  * @param processes - The project's processes, to name the one a source belongs to
+ * @param client - The project's client: a file can be uploaded for all its projects
  * @param onOpenProcess - Opens the process a source is linked to
  * @returns The sources tab content
  */
 export function SourcesPanel({
   projectId,
+  client,
   sources,
   processes,
   onOpenProcess,
 }: {
   projectId: string;
+  client: { id: string; name: string };
   sources: ProjectSource[];
   processes: ProjectProcess[];
   onOpenProcess: (process: ProjectProcess) => void;
@@ -92,6 +96,10 @@ export function SourcesPanel({
   const [roles, setRoles] = useState<SourceRole[]>([]);
   const [scopeValue, setScopeValue] = useState(`project:${projectId}`);
   const upload = useUploadProjectSourceMutation(projectId);
+  // P1.16: un file per tutto il cliente compare nelle Fonti di ogni suo progetto.
+  const clientUpload = useUploadClientSourceMutation(client.id);
+  const uploading = upload.isPending || clientUpload.isPending;
+  const uploadError = upload.error ?? clientUpload.error;
   const verify = useVerifyProjectSourceMutation(projectId);
 
   const processById = useMemo(
@@ -140,11 +148,16 @@ export function SourcesPanel({
     setRoles([]);
     setScopeValue(`project:${projectId}`);
     upload.reset();
+    clientUpload.reset();
   };
 
   const submitUpload = () => {
     if (!file || roles.length === 0) return;
-    const [scopeType, scopeId] = scopeValue.split(":", 2) as ["project" | "process", string];
+    const [scopeType, scopeId] = scopeValue.split(":", 2) as ["client" | "project" | "process", string];
+    if (scopeType === "client") {
+      clientUpload.mutate({ file, roles, retention: "persistent" }, { onSuccess: closeUpload });
+      return;
+    }
     upload.mutate(
       { file, roles, retention: "persistent", scopes: [{ type: scopeType, id: scopeId }] },
       { onSuccess: closeUpload },
@@ -251,6 +264,7 @@ export function SourcesPanel({
                         : ""}
                       {source.meta ? ` · ${source.meta}` : ""}
                       {process ? ` · ${process.name}` : ""}
+                      {source.projectId === null ? ` · ${t("detail.sources.clientWide")}` : ""}
                     </span>
                   </span>
                   <ArrowRight
@@ -288,10 +302,17 @@ export function SourcesPanel({
                   label={t("detail.sources.type")}
                   value={openSource.type}
                 />
-                <DetailRow
-                  label={t("detail.sources.linkedProcess")}
-                  value={openProcess?.name ?? t("detail.sources.noLinkedProcess")}
-                />
+                {openSource.projectId === null ? (
+                  <DetailRow
+                    label={t("detail.sources.appliesTo")}
+                    value={t("detail.sources.wholeClient", { name: client.name })}
+                  />
+                ) : (
+                  <DetailRow
+                    label={t("detail.sources.linkedProcess")}
+                    value={openProcess?.name ?? t("detail.sources.noLinkedProcess")}
+                  />
+                )}
                 {openSource.roles.length ? (
                   <DetailRow
                     label={t("detail.sources.sourceUse")}
@@ -416,7 +437,7 @@ export function SourcesPanel({
       <Dialog
         open={uploadOpen}
         onOpenChange={(next) => {
-          if (!next && upload.isPending) return;
+          if (!next && uploading) return;
           if (next) {
             setUploadOpen(true);
           } else {
@@ -433,7 +454,7 @@ export function SourcesPanel({
           </DialogHeader>
 
           <form
-            className="flex flex-col gap-4"
+            className="flex min-w-0 flex-col gap-4"
             onSubmit={(event) => {
               event.preventDefault();
               submitUpload();
@@ -446,7 +467,7 @@ export function SourcesPanel({
                 required
                 accept=".pdf,.docx,.xlsx,.csv,.pptx,.txt,.md"
                 onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                className="rounded-md border border-border p-2 text-sm"
+                className="w-full min-w-0 rounded-md border border-border p-2 text-sm"
               />
               <span className="text-xs font-normal text-muted-foreground">
                 {t("detail.sources.fileHint")}
@@ -482,8 +503,11 @@ export function SourcesPanel({
               <select
                 value={scopeValue}
                 onChange={(event) => setScopeValue(event.target.value)}
-                className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+                className="h-9 w-full min-w-0 rounded-md border border-border bg-background px-3 text-sm"
               >
+                <option value={`client:${client.id}`}>
+                  {t("detail.sources.wholeClient", { name: client.name })}
+                </option>
                 <option value={`project:${projectId}`}>{t("detail.sources.wholeProject")}</option>
                 {processes.map((process) => (
                   <option key={process.id} value={`process:${process.id}`}>{process.name}</option>
@@ -491,24 +515,24 @@ export function SourcesPanel({
               </select>
             </label>
 
-            {upload.isError ? (
+            {uploadError ? (
               <p role="alert" className="text-sm text-destructive">
-                {upload.error instanceof HttpError
-                  ? httpErrorMessage(upload.error, t("detail.sources.uploadError"))
+                {uploadError instanceof HttpError
+                  ? httpErrorMessage(uploadError, t("detail.sources.uploadError"))
                   : t("detail.sources.uploadError")}
               </p>
             ) : null}
 
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={closeUpload} disabled={upload.isPending}>
+              <Button type="button" variant="ghost" onClick={closeUpload} disabled={uploading}>
                 {t("detail.sources.cancel")}
               </Button>
               <Button
                 type="button"
                 onClick={submitUpload}
-                disabled={!file || roles.length === 0 || upload.isPending}
+                disabled={!file || roles.length === 0 || uploading}
               >
-                {upload.isPending ? t("detail.sources.uploading") : t("detail.sources.upload")}
+                {uploading ? t("detail.sources.uploading") : t("detail.sources.upload")}
               </Button>
             </DialogFooter>
           </form>

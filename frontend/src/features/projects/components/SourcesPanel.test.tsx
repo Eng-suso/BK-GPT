@@ -29,6 +29,8 @@ const PROCESS: ProjectProcess = {
   archiveReason: null,
 };
 
+const CLIENT = { id: "esaote", name: "Esaote" };
+
 const SOURCE: ProjectSource = {
   id: "src-1",
   projectId: PROCESS.projectId,
@@ -63,7 +65,13 @@ function renderPanel(sources: ProjectSource[] = [SOURCE]) {
   });
   return render(
     <QueryClientProvider client={client}>
-      <SourcesPanel projectId={PROCESS.projectId} sources={sources} processes={[PROCESS]} onOpenProcess={vi.fn()} />
+      <SourcesPanel
+        projectId={PROCESS.projectId}
+        client={CLIENT}
+        sources={sources}
+        processes={[PROCESS]}
+        onOpenProcess={vi.fn()}
+      />
     </QueryClientProvider> as ReactNode,
   );
 }
@@ -184,6 +192,84 @@ describe("SourcesPanel — una fonte si legge, non si riassume", () => {
     expect(body.get("roles")).toBe('["process_evidence","policy"]');
     expect(body.get("retention")).toBe("persistent");
     expect(body.get("scopes")).toBe(JSON.stringify([{ type: "process", id: PROCESS.id }]));
+  });
+
+  it("carica un file per tutto il cliente", async () => {
+    http.mockResolvedValue({
+      id: "src-policy",
+      project_id: null,
+      client_id: CLIENT.id,
+      process_id: null,
+      name: "policy-acquisti.pdf",
+      type: "File",
+      meta: "In lettura: testo ed evidenze arrivano tra poco.",
+      roles: ["policy"],
+      retention: "persistent",
+      scopes: [{ type: "client", id: CLIENT.id }],
+      status: "extracted",
+      byte_size: 18,
+      content_hash: "hash",
+      mime_type: "application/pdf",
+      acquisition_status: "pending",
+      acquisition_error: null,
+    });
+
+    renderPanel();
+    await userEvent.click(screen.getByRole("button", { name: /aggiungi fonte/i }));
+    await userEvent.upload(
+      screen.getByLabelText(/file da analizzare/i),
+      new File(["policy"], "policy-acquisti.pdf", { type: "application/pdf" }),
+    );
+    await userEvent.click(screen.getByLabelText(/regole da rispettare/i));
+    const scope = screen.getByLabelText(/ambito/i);
+    expect(screen.getByRole("option", { name: "Tutto il cliente «Esaote»" })).toBeInTheDocument();
+    await userEvent.selectOptions(scope, `client:${CLIENT.id}`);
+    await userEvent.click(screen.getByRole("button", { name: /^carica e analizza$/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: /aggiungi una fonte/i })).not.toBeInTheDocument(),
+    );
+    expect(http).toHaveBeenCalledTimes(1);
+    const [path, options] = http.mock.calls[0] as [string, { body: FormData }];
+    expect(path).toBe(`/v1/workspace/clients/${CLIENT.id}/sources/upload`);
+    expect(options.body.get("roles")).toBe('["policy"]');
+  });
+
+  it("una fonte del cliente lo dice nella lista e nel dettaglio, senza processo da aprire", async () => {
+    const policy: ProjectSource = {
+      ...SOURCE,
+      id: "src-policy",
+      projectId: null,
+      clientId: CLIENT.id,
+      processId: null,
+      name: "policy-acquisti.pdf",
+      type: "File",
+      meta: "",
+    };
+    http.mockResolvedValue({
+      id: policy.id,
+      project_id: null,
+      process_id: null,
+      name: policy.name,
+      type: policy.type,
+      summary: "",
+      participants: [],
+      occurred_at: null,
+      episode_id: null,
+      content: "Ogni ordine sopra i 10.000 EUR richiede tre preventivi.",
+      has_content: true,
+    });
+
+    renderPanel([policy]);
+    const row = screen.getByRole("button", { name: /policy-acquisti\.pdf/ });
+    expect(row).toHaveTextContent("Tutto il cliente");
+    await userEvent.click(row);
+
+    const dialog = await screen.findByRole("dialog", { name: /policy-acquisti\.pdf/ });
+    expect(dialog).toHaveTextContent("Vale per");
+    expect(dialog).toHaveTextContent("Tutto il cliente «Esaote»");
+    expect(dialog).not.toHaveTextContent("Processo collegato");
+    expect(screen.queryByRole("button", { name: /apri processo collegato/i })).not.toBeInTheDocument();
   });
 
   it("dice quali file sono ancora in lettura e quali non sono stati letti per intero", () => {
