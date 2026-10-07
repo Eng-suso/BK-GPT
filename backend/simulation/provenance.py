@@ -6,10 +6,14 @@ trusting a run. This module maps every task / branching gateway in the scenario
 template back to the process-understanding artifact stored on the approved BPMN
 review:
 
-* an activity whose structure resolves to a discovered step  -> ``origin="interview"``
-* a gateway whose split resolves to a decision                -> confidence from
-  that decision's ``outcome_details`` certainty
-* anything the model invented                                 -> ``origin="ai_inferred"``
+* an activity whose structure resolves to a discovered step  -> ``declared``
+* a gateway whose split resolves to a decision                -> ``declared``, with
+  confidence from that decision's ``outcome_details`` certainty
+* anything the model invented                                 -> ``estimated``
+
+The origin is the Simulation IR's five-level ``Provenance`` (SIM-07): there is
+one provenance in DeliR, and this module only says which level discovery
+reaches (SIM-38). A discovered step becomes an ``interview`` source reference.
 
 It never invents numbers. Durations, rates and probabilities are not captured
 during discovery; the frontend layers "did the consultant change this from its
@@ -19,12 +23,14 @@ default?" on top of the structural signal here to produce the readiness roll-up.
 from __future__ import annotations
 
 from backend.schemas.simulation import (
+    ParameterProvenance,
     ProvenanceRef,
     ScenarioElementProvenance,
     ScenarioProvenanceResponse,
     ScenarioTemplateResponse,
 )
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+from backend.simulation.ir.model import Provenance, SourceRef
 from backend.simulation.scenario_builder import describe_scenario_template
 from backend.workspace_database import get_bpmn_review
 
@@ -60,7 +66,7 @@ def map_scenario_provenance(
                         kind="activity",
                         name=task.name,
                         parameter="duration",
-                        origin="ai_inferred",
+                        provenance=_estimated(),
                         confidence="low",
                     )
                     for task in template.tasks
@@ -71,7 +77,7 @@ def map_scenario_provenance(
                         kind="gateway",
                         name=gateway.name,
                         parameter="branching",
-                        origin="ai_inferred",
+                        provenance=_estimated(),
                         confidence="low",
                         open_questions=len(gateway.branches),
                     )
@@ -113,7 +119,7 @@ def map_scenario_provenance(
                     kind="activity",
                     name=task.name,
                     parameter="duration",
-                    origin="ai_inferred",
+                    provenance=_estimated(),
                     confidence="low",
                 )
             )
@@ -125,7 +131,7 @@ def map_scenario_provenance(
                 kind="activity",
                 name=task.name,
                 parameter="duration",
-                origin="interview",
+                provenance=_declared("steps", step, "high" if evidence else "medium"),
                 confidence="high" if evidence else "medium",
                 evidence=evidence,
                 hint_ref=ProvenanceRef(
@@ -146,7 +152,7 @@ def map_scenario_provenance(
                     kind="gateway",
                     name=gateway.name,
                     parameter="branching",
-                    origin="ai_inferred",
+                    provenance=_estimated(),
                     confidence="low",
                     open_questions=len(gateway.branches),
                 )
@@ -163,7 +169,7 @@ def map_scenario_provenance(
                 kind="gateway",
                 name=gateway.name,
                 parameter="branching",
-                origin="interview",
+                provenance=_declared("decisions", decision, _gateway_confidence(certainties)),
                 confidence=_gateway_confidence(certainties),
                 evidence=_clip(decision.get("source_evidence")),
                 open_questions=to_validate,
@@ -183,6 +189,30 @@ def map_scenario_provenance(
         weak_points=_clip(confidence.get("weak_points"), limit=6),
         elements=elements,
     )
+
+
+# --- provenance on the IR scale ---------------------------------------------
+
+
+def _estimated() -> ParameterProvenance:
+    """The model proposed the element; discovery never mentioned it."""
+    return _schema(Provenance(origin="estimated", confidence="low"))
+
+
+def _declared(field: str, item: dict, confidence: str) -> ParameterProvenance:
+    """Discovery grounds the element: an interview step or decision says so."""
+    ident = str(item.get("id") or "").strip()
+    sources = (
+        (SourceRef(kind="interview", id=f"{field}:{ident}", label=item.get("label") or None),)
+        if ident
+        else ()
+    )
+    return _schema(Provenance(origin="declared", confidence=confidence, sources=sources))  # type: ignore[arg-type]
+
+
+def _schema(provenance: Provenance) -> ParameterProvenance:
+    # Built through the IR so the IR's validation is the one that applies.
+    return ParameterProvenance.model_validate(provenance.model_dump(mode="json"))
 
 
 # --- helpers ---------------------------------------------------------------
