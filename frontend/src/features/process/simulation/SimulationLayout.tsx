@@ -27,7 +27,7 @@ import { ReplaySession } from "./replay/ReplaySession";
 import { listProsimosSimulationRuns } from "./simulationApi";
 import { formatRunOption, SimulationSectionContext, type SimulationPanel, type AnalysisView } from "./useSimulationSection";
 
-const PANELS = ["scenario", "overview", "compare", "heatmap", "insights", "widget", "activity"] as const;
+const PANELS = ["scenario", "overview", "compare", "heatmap", "insights", "eventLog", "widget", "activity"] as const;
 
 /**
  * Renders the simulation workspace layout with process navigation, run selection, and nested route content.
