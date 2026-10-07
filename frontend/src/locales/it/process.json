@@ -860,7 +860,7 @@
       "output": "Output non documentato.",
       "evidence": "Evidenza assente o da confermare."
     },
-    "noStructuralGaps": "Nessuna lacuna strutturale nei campi disponibili. Tempi e qualità restano da valutare.",
+    "noStructuralGaps": "Nessun dato mancante nei campi disponibili.",
     "structuralScope": "{{count}} attività nel perimetro delle dipendenze.",
     "exploreImpacts": "Esplora le dipendenze",
     "suggestionGaps": "Chiarisci i dati mancanti con l’owner prima di proporre una modifica.",
@@ -907,8 +907,8 @@
     "noQuote": "Nessuna citazione verificata disponibile.",
     "noEvidence": "Task senza evidenze collegate",
     "noEvidenceDescription": "Il disegno non collega questo task a un elemento verificabile del piano. L’assenza di evidenza non è una prova di errore.",
-    "dependencyTitle": "Dipendenze da verificare",
-    "dependencyDescription": "L’highlight segue i flussi reali del BPMN a monte e a valle, inclusi rami e cicli. Indica un perimetro di verifica, non un impatto già dimostrato.",
+    "dependencyTitle": "Collegamenti del processo",
+    "dependencyDescription": "Attività e documenti da riesaminare se modifichi questo task.",
     "upstream": "A monte",
     "downstream": "A valle",
     "selected": "Selezionato",
@@ -945,6 +945,34 @@
     "noSearchResults": "Nessun task corrisponde alla ricerca.",
     "impactLegend": "Legenda delle dipendenze",
     "actionSaved": "Azione registrata. As-Is invariato.",
-    "more": "Rilievi"
+    "more": "Rilievi",
+    "shortAction": {
+      "evidence": "Evidenze",
+      "clarification": "Chiarimento",
+      "deferred": "Rinvia"
+    },
+    "previousTask": "Task precedente",
+    "nextTask": "Task successivo",
+    "navigateTasks": "Navigazione dei task",
+    "selectTask": "Attività {{position}}: {{name}}",
+    "bubbleGap": {
+      "owner": "Chi prende in carico questa attività?",
+      "input": "Quali dati servono per iniziare?",
+      "output": "Qual è il risultato atteso?",
+      "evidence": "Una fonte resta da confermare."
+    },
+    "bubbleComplete": "Evidenze e dipendenze da valutare.",
+    "suggestionFor": {
+      "owner": "Assegna un responsabile e chiarisci chi riceve il lavoro al passaggio successivo.",
+      "input": "Concorda con l’owner i dati necessari per iniziare e come verificarne la completezza.",
+      "output": "Definisci il documento o risultato da consegnare e i criteri di accettazione.",
+      "evidence": "Verifica la fonte con l’owner prima di usare questa attività come base di una proposta."
+    },
+    "proposalBoard": "Registro delle ipotesi",
+    "proposalBoardDescription": "Le modifiche raccolte durante la review, pronte per il confronto con gli owner.",
+    "pendingDecision": "Da valutare",
+    "openTask": "Rivedi il task",
+    "candidateTaskCount_one": "{{count}} task coinvolto",
+    "candidateTaskCount_other": "{{count}} task coinvolti"
   }
 }

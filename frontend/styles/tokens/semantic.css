@@ -4,7 +4,7 @@
   --review-color-selected: var(--color-action-primary);
   --review-surface-selected: var(--color-surface-selected);
   --review-color-upstream: var(--color-text-secondary);
-  --review-color-downstream: var(--color-status-info);
+  --review-color-downstream: var(--color-text-primary);
   /* 4. Semantic tokens */
   --color-surface-app: var(--slate-app);
   --color-surface-primary: var(--white);

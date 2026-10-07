@@ -115,6 +115,7 @@ test("Review exposes six fields, dependency focus, evidence and responsive produ
   await expect(page.locator(".review-canvas [data-element-id='request']").first()).toHaveClass(/review-upstream/);
   await expect(page.locator(".review-canvas [data-element-id='order']").first()).toHaveClass(/review-downstream/);
   await page.screenshot({ path: info.outputPath("review-overview.png") });
+  if (info.project.name === "chromium") await page.locator(".review-agent-card").screenshot({ path: info.outputPath("review-mascot-detail.png") });
   await inspector.getByRole("tab", { name: "Impatti", exact: true }).click();
   await expect(inspector).toContainText("Controllo di completezza");
   await expect(inspector).toContainText("Nessuna variazione di tempo è stata calcolata");
@@ -138,7 +139,17 @@ test("Review exposes six fields, dependency focus, evidence and responsive produ
     await expect(page.getByRole("button", { name: "Task 4", exact: true })).toBeFocused();
     await expect(page.locator(".review-canvas")).toBeVisible();
     await page.screenshot({ path: info.outputPath("review-mascot-canvas.png") });
+  } else {
+    await page.getByRole("button", { name: "Chiudi analisi del task", exact: true }).click();
   }
+  await page.getByRole("button", { name: "Attività 4: Emettere ordine", exact: true }).click();
+  await expect(inspector.getByRole("heading", { name: "Emettere ordine", exact: true })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Task successivo", exact: true })).toBeDisabled();
+  await inspector.getByRole("button", { name: "Task precedente", exact: true }).click();
+  await expect(inspector.getByRole("heading", { name: "Approvare richiesta", exact: true })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Proponi modifica", exact: true })).toBeInViewport();
+  await page.getByRole("button", { name: "Chiudi analisi del task", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Attività 3: Approvare richiesta", exact: true })).toBeFocused();
 });
 
 test("candidate survives reload in To-Be hypotheses without editing As-Is", async ({ page }, info) => {
@@ -160,6 +171,9 @@ test("candidate survives reload in To-Be hypotheses without editing As-Is", asyn
   expect((await new AxeBuilder({ page }).include(".review-hypotheses").analyze()).violations).toEqual([]);
   expect(state.actions).toHaveLength(1);
   expect(state.mutations).toEqual(["/v1/workspace/processes/review-process/impact-review/actions"]);
+  await page.getByRole("button", { name: "Rivedi il task", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Analisi del task" }).getByRole("heading", { name: "Verificare dati", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Azioni", exact: true })).toHaveAttribute("aria-selected", "true");
 });
 
 test("conflict keeps proposal text and evidence failure stays explicit", async ({ page }) => {

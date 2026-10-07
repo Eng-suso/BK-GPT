@@ -22,9 +22,9 @@ type CanvasService = {
 type Registry = { getGraphics: (id: string) => SVGElement | undefined; get: (id: string) => unknown };
 
 /** Read-only viewer: reviewing cannot dispatch modeling commands or save XML. */
-export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, documents, focusImpact, gapCount, onSelect, onInspect }: {
+export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, documents, focusImpact, gap, onSelect, onInspect }: {
   xml: string; nodes: ReviewNode[]; selected: ReviewNode | null; upstream: string[]; downstream: string[]; documents: string[];
-  focusImpact: boolean; gapCount: number; onSelect: (id: string) => void; onInspect: () => void;
+  focusImpact: boolean; gap?: "owner" | "input" | "output" | "evidence"; onSelect: (id: string) => void; onInspect: () => void;
 }) {
   const { t } = useTranslation("process");
   const host = React.useRef<HTMLDivElement>(null);
@@ -45,10 +45,10 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
     const box = graphic?.getBoundingClientRect();
     const frame = host.current?.getBoundingClientRect();
     if (!box || !frame || box.right < frame.left || box.left > frame.right || box.bottom < frame.top || box.top > frame.bottom) { setAnchor(null); return; }
-    const width = Math.min(272, frame.width - 24);
-    const left = Math.max(12, Math.min(frame.width - width - 12, box.left - frame.left + box.width / 2 - width / 2));
-    const preferred = box.top - frame.top - 108;
-    const top = Math.max(12, Math.min(frame.height - 152, preferred >= 12 ? preferred : box.bottom - frame.top + 12));
+    const width = Math.min(244, frame.width - 24);
+    const left = Math.max(12, Math.min(frame.width - width - 12, box.right - frame.left + 16));
+    const preferred = box.top - frame.top - 84;
+    const top = Math.max(12, Math.min(frame.height - 100, preferred >= 12 ? preferred : box.bottom - frame.top + 12));
     setAnchor({ left, top });
   }, []);
 
@@ -56,7 +56,14 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
     if (!host.current) return;
     let mounted = true;
     setReady(false); setError(false); setAnchor(null);
-    const instance = new NavigatedViewer({ container: host.current }) as BpmnViewer;
+    const tokens = getComputedStyle(host.current);
+    const instance = new NavigatedViewer({ container: host.current, textRenderer: {
+      defaultStyle: { fontFamily: tokens.getPropertyValue("--font-family-geist").trim(), fontSize: Number.parseFloat(tokens.getPropertyValue("--font-size-300")) },
+      externalStyle: { fontFamily: tokens.getPropertyValue("--font-family-geist").trim(), fontSize: Number.parseFloat(tokens.getPropertyValue("--font-size-100")) },
+    }, bpmnRenderer: {
+      defaultFillColor: tokens.getPropertyValue("--color-surface-primary").trim(),
+      defaultStrokeColor: tokens.getPropertyValue("--color-text-secondary").trim(),
+    } }) as BpmnViewer;
     viewer.current = instance;
     const canvas = instance.get("canvas") as CanvasService;
     instance.on("element.click", (event: unknown) => {
@@ -89,7 +96,7 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
     {error && <div className="review-canvas-error"><InlineNotice tone="error" title={t("review.diagramError")} action={<Button size="sm" variant="outline" onClick={() => setRetry(value => value + 1)}>{t("review.retry")}</Button>} /></div>}
     {ready && selected && anchor && <Surface variant="floating" className="review-agent-card" style={anchor}>
       <Button variant="ghost" size="icon" className="review-agent-avatar" aria-label={t("review.inspectTask", { name: selected.name })} onClick={() => { setActivation(value => value + 1); onInspect(); }}><span key={`${selected.id}:${activation}`} className="review-mascot-orbit"><ReviewMascot /></span></Button>
-      <div className="min-w-0"><p className="text-micro font-semibold text-muted-foreground">{t("review.contextAssistant")}</p><p className="mt-1 text-xs leading-relaxed text-foreground">{t(gapCount ? "review.microGaps" : "review.microComplete", { count: gapCount, linked: new Set([...upstream, ...downstream]).size })}</p></div>
+      <div className="min-w-0"><p className="review-agent-signature">DeliR <span> / Review</span></p><p className="review-agent-message">{gap ? t(`review.bubbleGap.${gap}`) : t("review.bubbleComplete")}</p></div>
     </Surface>}
     <Surface variant="floating" className="review-canvas-controls" role="group" aria-label={t("canvas.zoomGroup")}>
       <Button variant="ghost" size="sm" disabled={!ready} onClick={() => { if (viewer.current) fitCanvas(viewer.current); }}><Maximize2 aria-hidden />{t("canvas.fit")}</Button>

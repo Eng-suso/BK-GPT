@@ -15,8 +15,8 @@ export function WorkspaceContextBar({ title, navigation, actions, className }: {
 }
 
 /** A labelled command group, without implying toolbar arrow-key behavior. */
-export function WorkspaceCommandBar({ label, children, className }: { label: string; children: Slot; className?: string }): React.JSX.Element {
-  return <Surface asChild variant="toolbar"><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 px-2 py-1.5", className)}>{children}</div></Surface>;
+export function WorkspaceCommandBar({ label, children, className, material = "toolbar" }: { label: string; children: Slot; className?: string; material?: "toolbar" | "floating" }): React.JSX.Element {
+  return <Surface asChild variant={material}><div data-workspace-layer="commands" role="group" aria-label={label} className={cn("flex shrink-0 flex-wrap items-center gap-2 px-2 py-1.5", className)}>{children}</div></Surface>;
 }
 
 /** The stage owns available height. Inspectors and playback never stack above it. */
@@ -60,7 +60,7 @@ export function CanvasWorkspaceShell({ label, commands, children, inspector, pla
   </section>;
 }
 
-export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; minimumStageWidth?: number; maximumWidth?: number; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, hidden, resizeLabel, initialWidth = 400, minimumStageWidth = 492, maximumWidth = 760, className, bodyClassName }, forwardedRef) => {
+export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string; title: string; scope?: string; closeLabel: string; onClose: () => void; children: Slot; footer?: Slot; hidden?: boolean; resizeLabel?: string; initialWidth?: number; minimumStageWidth?: number; maximumWidth?: number; className?: string; bodyClassName?: string }>(({ label, title, scope, closeLabel, onClose, children, footer, hidden, resizeLabel, initialWidth = 400, minimumStageWidth = 492, maximumWidth = 760, className, bodyClassName }, forwardedRef) => {
   const element = React.useRef<HTMLElement | null>(null);
   const [width, setWidth] = React.useState<number | null>(null);
   const [maximum, setMaximum] = React.useState(760);
@@ -80,6 +80,7 @@ export const WorkspaceInspector = React.forwardRef<HTMLElement, { label: string;
     {resizeLabel && <WorkspaceResizeSeparator label={resizeLabel} value={current} minimum={320} maximum={maximum} onResize={setWidth} />}
     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3"><div className="min-w-0">{scope && <p className="text-xs text-muted-foreground">{scope}</p>}<h2 data-dock-title tabIndex={-1} className="text-sm font-semibold focus-visible:outline-2 focus-visible:outline-ring">{title}</h2></div><Button size="icon" variant="ghost" onClick={onClose} aria-label={closeLabel}><X aria-hidden className="size-4" /></Button></header>
     <div className={cn("ui-scrollbar min-h-0 flex-1 overflow-auto p-4", bodyClassName)}>{children}</div>
+    {footer && <footer data-workspace-layer="inspector-footer" className="shrink-0 border-t border-border p-4">{footer}</footer>}
   </aside></Surface>;
 });
 WorkspaceInspector.displayName = "WorkspaceInspector";

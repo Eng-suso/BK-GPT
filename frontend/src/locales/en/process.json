@@ -860,7 +860,7 @@
       "output": "Output not documented.",
       "evidence": "Evidence missing or awaiting confirmation."
     },
-    "noStructuralGaps": "No structural gaps in the available fields. Timing and quality still need assessment.",
+    "noStructuralGaps": "No missing data in the available fields.",
     "structuralScope": "{{count}} activities in the dependency scope.",
     "exploreImpacts": "Explore dependencies",
     "suggestionGaps": "Clarify missing information with the owner before proposing a change.",
@@ -907,8 +907,8 @@
     "noQuote": "No verified quotation available.",
     "noEvidence": "Task without linked evidence",
     "noEvidenceDescription": "The diagram does not link this task to a verifiable plan element. Missing evidence is not proof of an error.",
-    "dependencyTitle": "Dependencies to verify",
-    "dependencyDescription": "Highlighting follows real BPMN flows upstream and downstream, including branches and cycles. It shows a verification scope, not an established impact.",
+    "dependencyTitle": "Process dependencies",
+    "dependencyDescription": "Activities and documents to revisit when changing this task.",
     "upstream": "Upstream",
     "downstream": "Downstream",
     "selected": "Selected",
@@ -945,6 +945,34 @@
     "noSearchResults": "No matching tasks.",
     "impactLegend": "Dependency legend",
     "actionSaved": "Action recorded. As-Is unchanged.",
-    "more": "Findings"
+    "more": "Findings",
+    "shortAction": {
+      "evidence": "Evidence",
+      "clarification": "Clarification",
+      "deferred": "Defer"
+    },
+    "previousTask": "Previous task",
+    "nextTask": "Next task",
+    "navigateTasks": "Task navigation",
+    "selectTask": "Activity {{position}}: {{name}}",
+    "bubbleGap": {
+      "owner": "Who takes ownership of this activity?",
+      "input": "Which inputs are needed to start?",
+      "output": "What is the expected outcome?",
+      "evidence": "A source still needs confirmation."
+    },
+    "bubbleComplete": "Evidence and dependencies to evaluate.",
+    "suggestionFor": {
+      "owner": "Assign an owner and clarify who receives the work at the next handoff.",
+      "input": "Agree the required inputs and completeness checks with the owner before work starts.",
+      "output": "Define the document or outcome to deliver and its acceptance criteria.",
+      "evidence": "Verify the source with the owner before using this activity as the basis of a proposal."
+    },
+    "proposalBoard": "Proposal register",
+    "proposalBoardDescription": "Changes collected during review, ready for discussion with the owners.",
+    "pendingDecision": "To evaluate",
+    "openTask": "Review task",
+    "candidateTaskCount_one": "{{count}} affected task",
+    "candidateTaskCount_other": "{{count}} affected tasks"
   }
 }
