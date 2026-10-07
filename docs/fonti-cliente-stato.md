@@ -29,31 +29,25 @@ Docs. **Gia' indietro:** mancano le righe di registro per la #72 e la #75.
 
 | # | lavoro | stato |
 | --- | --- | --- |
-| 1 | **#72**, backend delle fonti del cliente (P1.16 1/4) | CI verde; manca CodeRabbit (`@coderabbitai review`), poi merge |
-| 2 | **#75**, pannello Fonti (P1.16 2/4) | in corso, vedi sotto |
+| 1 | **#72**, backend delle fonti del cliente (P1.16 1/4) | 4 rilievi CodeRabbit corretti il 7 ottobre (progetto mancante, tetto al confronto, cliente canonical condiviso, vincoli ORM); poi CI verde e merge |
+| 2 | **#75**, pannello Fonti (P1.16 2/4) | completa: test, screenshot desktop e mobile; CodeRabbit, CI e merge dopo la #72 |
 | 3 | Chat del consulente (P1.16 3/4): la voce "Tutto il cliente" in "Dove va questo file?" | da fare, branch nuovo da main |
 | 4 | Pagina del cliente con le sue fonti, e la ricerca globale che le trova (P1.16 4/4) | da fare, branch nuovo da main |
 | 5 | Nodi Episode delle interviste nel grafo (resto di P1.14) | da fare |
 | 6 | Chiudere un conflitto dalla UI: scegliere quale vale, con una nota (resto di P1.13) | da fare |
 | 7 | I piani dei processi che leggono anche le fonti del cliente | da decidere con Sohayb |
 
-### #75, pannello Fonti: cosa resta
+### #75, pannello Fonti: fatto
 
-Il primo commit c'e': `useUploadClientSourceMutation` in
-`frontend/src/features/projects/api.ts`. Resta:
-
-1. `ProjectDetailPage.tsx` passa a `SourcesPanel` il cliente del progetto
-   (`project.clientId`, e `project.client` per il nome).
-2. In `SourcesPanel.tsx`, nel menu "Ambito" della finestra di caricamento, la
-   prima voce e' `client:<clientId>`: "Tutto il cliente «nome»". Scelta quella,
-   il caricamento usa `useUploadClientSourceMutation`.
-3. Nella lista, una fonte con `projectId === null` dice che vale per tutto il
-   cliente.
-4. Nel dettaglio, al posto di "Processo collegato" una riga "Vale per: tutto il
-   cliente «nome»", e niente "Apri processo collegato".
-5. Testi it/en in `frontend/src/locales/*/projects.json`; test vitest del
-   pannello e dell'hook; screenshot Playwright desktop e mobile con API finte
-   (spec temporaneo, non si committa).
+- `useUploadClientSourceMutation` in `frontend/src/features/projects/api.ts`:
+  dopo il caricamento rilegge le Fonti di tutti i progetti in cache.
+- `ProjectDetailPage.tsx` passa a `SourcesPanel` il cliente del progetto.
+- Nel menu "Ambito" la prima voce e' "Tutto il cliente «nome»"; nella lista una
+  fonte del cliente dice "Tutto il cliente"; nel dettaglio "Vale per: Tutto il
+  cliente «nome»", senza processo da aprire.
+- Test vitest del pannello e dell'hook; screenshot Playwright desktop e mobile
+  con API finte (spec temporaneo, non committato). Lo screenshot mobile ha
+  mostrato il form di caricamento che sbordava: corretto.
 
 ## Come funzionano le fonti del cliente (backend, #72)
 
