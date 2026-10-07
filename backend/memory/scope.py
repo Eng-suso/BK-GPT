@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 class ScopeIds:
     consultant_id: str
     client_id: str
-    project_id: str
+    # Vuoto per lo scope di un cliente (`resolve_client`).
+    project_id: str | None
     process_id: str | None
     process_name: str | None = None
 
@@ -115,6 +116,30 @@ def resolve_client_id(workspace_project_id: str) -> str | None:
             exc_info=True,
         )
         return None
+
+
+def resolve_client(workspace_client_id: str) -> ScopeIds:
+    """Lo scope canonical di un cliente, senza progetto (P1.16).
+
+    Per le fonti caricate per tutto il cliente: entrano nel grafo a livello
+    cliente, visibili a ogni suo progetto. Il cliente canonical e' lo stesso di
+    `resolve`: `client:<slug del nome>`.
+
+    Returns:
+        Uno `ScopeIds` con `project_id` e `process_id` vuoti.
+    """
+    if not settings.canonical_database_url:
+        raise RuntimeError("canonical_database_url non configurata")
+    client_name = str(workspace_database.get_client_name(workspace_client_id) or "").strip()
+    if not client_name:
+        raise RuntimeError(f"cliente workspace sconosciuto: {workspace_client_id}")
+    consultant_id = settings.default_consultant_id
+    with canonical_session(consultant_id) as session:
+        client_id = _upsert(
+            session, "client", f"client:{_slug(client_name)}", client_name,
+            {"consultant_id": consultant_id},
+        )
+    return ScopeIds(consultant_id, client_id, None, None, None)
 
 
 def resolve(workspace_project_id: str, workspace_process_id: str | None = None) -> ScopeIds:
