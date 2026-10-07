@@ -9,7 +9,7 @@ import type {
   BpmnRegistryElement,
 } from "./types";
 
-export function canvas(modeler: BpmnModeler): BpmnCanvasService {
+export function canvas(modeler: Pick<BpmnModeler, "get">): BpmnCanvasService {
   return modeler.get("canvas") as BpmnCanvasService;
 }
 
@@ -19,7 +19,7 @@ export function canvas(modeler: BpmnModeler): BpmnCanvasService {
  * Skips fitting while the viewport has zero dimensions and falls back to viewport
  * fitting when diagram bounds or viewbox data are unavailable.
  */
-export function fitCanvas(modeler: BpmnModeler): void {
+export function fitCanvas(modeler: Pick<BpmnModeler, "get">): void {
   const canvasService = canvas(modeler);
   canvasService.resized?.();
 

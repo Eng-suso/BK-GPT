@@ -5,7 +5,9 @@
   "tabs": {
     "canvas": "Canvas",
     "chat": "Discussion",
-    "simulation": "Simulation"
+    "simulation": "Simulation",
+    "review": "Review",
+    "tobe": "To-Be hypotheses"
   },
   "actions": {
     "resizeInspector": "Resize inspector",
@@ -631,7 +633,7 @@
       "toggleSection": "Toggle section",
       "addDocumentation": "Add documentation",
       "noSelection": "No element selected"
-},
+    },
     "eyebrow": "BPMN 2.0",
     "title": "Properties panel",
     "hint": "Selected element"
@@ -810,5 +812,167 @@
       "reloaded": "Latest version loaded",
       "reloadFailed": "Could not load the latest version"
     }
+  },
+  "review": {
+    "title": "Process Review",
+    "asIs": "As-Is",
+    "commands": "Review commands",
+    "asIsReadOnly": "As-Is · read only",
+    "tasks": "Tasks",
+    "focusImpact": "Impact scope",
+    "processFindings": "Process findings",
+    "refresh": "Refresh review",
+    "hypotheses": "To-Be hypotheses",
+    "inspector": "Task analysis",
+    "closeInspector": "Close task analysis",
+    "loading": "Loading review",
+    "loadError": "Unable to load review",
+    "retry": "Retry",
+    "canvasLabel": "Read-only As-Is review",
+    "diagramError": "Unable to read diagram",
+    "contextAssistant": "Contextual assistant",
+    "inspectTask": "Inspect {{name}}",
+    "microGaps": "{{count}} items to verify · {{linked}} linked activities.",
+    "microComplete": "Documented task · {{linked}} linked activities.",
+    "task": "Task",
+    "needsReview": "To verify",
+    "documented": "Documented",
+    "readOnlyTask": "Review actions keep the As-Is unchanged.",
+    "detailTabs": "Review details",
+    "tab": {
+      "overview": "Overview",
+      "evidence": "Evidence",
+      "impacts": "Impacts",
+      "actions": "Actions"
+    },
+    "field": {
+      "owner": "Owner",
+      "input": "Input",
+      "output": "Output",
+      "problems": "Detected issues",
+      "impacts": "Impacts",
+      "suggestion": "Suggestion"
+    },
+    "notDocumented": "Not documented",
+    "gap": {
+      "owner": "Responsibility not documented.",
+      "input": "Input not documented.",
+      "output": "Output not documented.",
+      "evidence": "Evidence missing or awaiting confirmation."
+    },
+    "noStructuralGaps": "No missing data in the available fields.",
+    "structuralScope": "{{count}} activities in the dependency scope.",
+    "exploreImpacts": "Explore dependencies",
+    "suggestionGaps": "Clarify missing information with the owner before proposing a change.",
+    "suggestionComplete": "Assess evidence and dependencies; document a proposal before building the To-Be.",
+    "taskNotes": "Task notes",
+    "noPlan": "Process plan unavailable",
+    "noPlanDescription": "Owner, inputs and outputs are shown only when documented in the plan or BPMN.",
+    "showEvidence": "Show evidence",
+    "action": {
+      "candidate": "Propose change",
+      "clarification": "Ask for clarification",
+      "deferred": "Ignore for now"
+    },
+    "actionDescription": {
+      "candidate": "Create a To-Be hypothesis for “{{name}}”. The As-Is diagram remains unchanged.",
+      "clarification": "Record a question for “{{name}}” in the review log. The owner still needs to be asked.",
+      "deferred": "Defer the verification of “{{name}}” and record why. Evidence remains visible."
+    },
+    "defaultTitle": {
+      "clarification": "Clarification: {{name}}",
+      "deferred": "Deferred verification: {{name}}"
+    },
+    "proposalTitle": "Title",
+    "detailLabel": {
+      "candidate": "Proposed change and impacts to verify",
+      "clarification": "Question for the owner",
+      "deferred": "Reason for deferral"
+    },
+    "detailPlaceholder": {
+      "candidate": "Describe what to change, why and which dependencies to verify…",
+      "clarification": "What information is needed to decide?",
+      "deferred": "Why defer and when should verification resume?"
+    },
+    "cancel": "Cancel",
+    "saveAction": "Record action",
+    "saving": "Saving…",
+    "saveError": "Unable to record action",
+    "staleTitle": "The review baseline has changed",
+    "staleDescription": "Refresh the review and reassess the task before recording a new action.",
+    "staleAction": "As-Is updated · hypothesis needs reassessment",
+    "evidenceError": "Unable to load evidence",
+    "loadingEvidence": "Loading evidence…",
+    "noSource": "Source unavailable",
+    "noQuote": "No verified quotation available.",
+    "noEvidence": "Task without linked evidence",
+    "noEvidenceDescription": "The diagram does not link this task to a verifiable plan element. Missing evidence is not proof of an error.",
+    "dependencyTitle": "Process dependencies",
+    "dependencyDescription": "Activities and documents to revisit when changing this task.",
+    "upstream": "Upstream",
+    "downstream": "Downstream",
+    "selected": "Selected",
+    "noDependencies": "No linked activities in this direction.",
+    "controls": "Linked controls",
+    "rules": "Linked rules",
+    "documents": "Documents and data involved",
+    "performanceTitle": "Timing, bottlenecks and simulation",
+    "performanceDescription": "No timing change has been calculated in this review. An estimate requires a scenario, validated parameters and a simulation run. Check responsibilities of linked tasks too.",
+    "openSimulation": "Open simulation",
+    "actionsDescription": "Hypotheses, questions and deferrals recorded for this task. A proposal does not change the model.",
+    "noActions": "No actions recorded.",
+    "kind": {
+      "candidate": "To-Be hypothesis",
+      "clarification": "Clarification to request",
+      "deferred": "Deferred verification"
+    },
+    "hypothesesTitle": "Candidate To-Be changes",
+    "toBeEyebrow": "As-Is describes · Review interprets · To-Be transforms",
+    "hypothesesDescription": "Review hypotheses are the starting point for the To-Be. The consultant must assess them before turning them into a new model.",
+    "candidateCount": "{{count}} hypotheses",
+    "backToReview": "Back to review",
+    "noCandidates": "No candidate changes",
+    "noCandidatesDescription": "Inspect a task and record a proposal with evidence and impacts to verify.",
+    "startReview": "Open Process Review",
+    "findingsScope": "Findings for the entire process: they are not automatically assigned to the selected task.",
+    "noFindings": "No process findings recorded.",
+    "emptyTitle": "No tasks to inspect",
+    "emptyDescription": "Review starts from a saved diagram. Reconstruct the process or import a BPMN before inspecting tasks.",
+    "openAsIs": "Open As-Is",
+    "selectHint": "Select a task on the canvas or open the Tasks list to begin.",
+    "taskList": "Process tasks",
+    "searchTasks": "Search tasks",
+    "noSearchResults": "No matching tasks.",
+    "impactLegend": "Dependency legend",
+    "actionSaved": "Action recorded. As-Is unchanged.",
+    "more": "Findings",
+    "shortAction": {
+      "evidence": "Evidence",
+      "clarification": "Clarification",
+      "deferred": "Defer"
+    },
+    "previousTask": "Previous task",
+    "nextTask": "Next task",
+    "navigateTasks": "Task navigation",
+    "selectTask": "Activity {{position}}: {{name}}",
+    "bubbleGap": {
+      "owner": "Who takes ownership of this activity?",
+      "input": "Which inputs are needed to start?",
+      "output": "What is the expected outcome?",
+      "evidence": "A source still needs confirmation."
+    },
+    "bubbleComplete": "Evidence and dependencies to evaluate.",
+    "suggestionFor": {
+      "owner": "Assign an owner and clarify who receives the work at the next handoff.",
+      "input": "Agree the required inputs and completeness checks with the owner before work starts.",
+      "output": "Define the document or outcome to deliver and its acceptance criteria.",
+      "evidence": "Verify the source with the owner before using this activity as the basis of a proposal."
+    },
+    "proposalBoard": "Proposal register",
+    "proposalBoardDescription": "Changes collected during review, ready for discussion with the owners.",
+    "pendingDecision": "To evaluate",
+    "openTask": "Review task",
+    "candidateTaskCount_one": "{{count}} affected task",
+    "candidateTaskCount_other": "{{count}} affected tasks"
   }
 }

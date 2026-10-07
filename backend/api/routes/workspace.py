@@ -1,5 +1,7 @@
 import json
 
+from backend.schemas.impact_review import CreateImpactReviewAction, ImpactReviewAction, ImpactReviewState
+
 from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 
@@ -104,6 +106,38 @@ from backend.workspace_database import (
 
 
 router = APIRouter(prefix="/v1/workspace", tags=["workspace"], dependencies=[Depends(require_principal)])
+
+
+@router.get("/processes/{process_id}/impact-review")
+def get_workspace_impact_review(process_id: str) -> ImpactReviewState:
+    """Read the saved As-Is and its separately persisted review actions."""
+    from backend.workspace_services.impact_review import ReviewNotFound, read_impact_review
+
+    try:
+        state: ImpactReviewState = read_impact_review(process_id)
+        return state
+    except ReviewNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/processes/{process_id}/impact-review/actions", status_code=201)
+def post_workspace_impact_review_action(
+    process_id: str,
+    payload: CreateImpactReviewAction,
+    principal: AuthPrincipal = Depends(require_principal),
+) -> ImpactReviewAction:
+    """Record a hypothesis or follow-up without modifying the As-Is."""
+    from backend.workspace_services.impact_review import (
+        ReviewConflict, ReviewNotFound, create_impact_review_action,
+    )
+    try:
+        return create_impact_review_action(process_id, payload, principal.user_id)
+    except ReviewNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReviewConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _edit_error(exc: ValueError) -> HTTPException:
