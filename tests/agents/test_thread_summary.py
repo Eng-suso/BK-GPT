@@ -340,3 +340,14 @@ def test_the_fallback_extract_does_not_carry_tool_results_to_the_consultant():
     for internal in ("manage_canvas_bpmn_model", "bpmn-7f3a", "<definitions/>", "readiness"):
         assert internal not in summary
 
+
+def test_the_summary_is_parsed_into_a_typed_value():
+    from pydantic import ValidationError
+
+    from backend.agent import ThreadSummary
+
+    assert ThreadSummary(text="  Obiettivo: acquisti.  ").text == "Obiettivo: acquisti."
+    with pytest.raises(ValidationError):
+        ThreadSummary(text="   ")
+    with pytest.raises(ValidationError):
+        ThreadSummary(text="parola " * (SUMMARY_MAX_TOKENS + 1))

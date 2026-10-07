@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph, MessagesState
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from backend.agent_checkpoint import get_checkpointer
 
@@ -349,13 +350,32 @@ def _extract_summary(existing_summary: str, messages: list) -> str:
     return "\n\n".join(part for part in (previous, block) if part)
 
 
-def _summary_rejection(summary_text: str) -> Literal["empty_summary", "oversized_summary"] | None:
-    """Perche' il riassunto del modello non puo' entrare nello stato, o None."""
-    if not summary_text.strip():
-        return "empty_summary"
-    if count_tokens(summary_text) > SUMMARY_MAX_TOKENS:
-        return "oversized_summary"
-    return None
+class ThreadSummary(BaseModel):
+    """Il riassunto del modello, validato prima di diventare stato.
+
+    L'uscita del modello e' non fidata: entra in `running_summary` solo
+    attraverso questo tipo, non vuota e dentro `SUMMARY_MAX_TOKENS`.
+    """
+
+    model_config = ConfigDict(frozen=True, str_strip_whitespace=True)
+
+    text: str = Field(min_length=1)
+
+    @field_validator("text")
+    @classmethod
+    def _within_budget(cls, value: str) -> str:
+        if count_tokens(value) > SUMMARY_MAX_TOKENS:
+            raise ValueError(f"riassunto oltre {SUMMARY_MAX_TOKENS} token")
+        return value
+
+
+def _parse_summary(raw: str) -> ThreadSummary | Literal["empty_summary", "oversized_summary"]:
+    """Il riassunto tipato, o perche' non puo' entrare nello stato."""
+    try:
+        return ThreadSummary(text=raw)
+    except ValidationError as exc:
+        too_short = any(error["type"] == "string_too_short" for error in exc.errors())
+        return "empty_summary" if too_short else "oversized_summary"
 
 
 def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dict:
@@ -393,11 +413,14 @@ def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dic
         degradation_counters.bump("thread_summary", "fallback_extract", detail=type(exc).__name__)
         summary_text = _extract_summary(existing, messages_to_summarize)
     else:
-        # L'uscita del modello e' non fidata: si valida prima che diventi stato.
-        rejection = _summary_rejection(summary_text)
-        if rejection is not None:
-            logger.error("riassunto del thread scartato (%s): ripiego su un estratto", rejection)
-            degradation_counters.bump("thread_summary", rejection)
+        # L'uscita del modello e' non fidata: entra nello stato solo come
+        # `ThreadSummary` validato.
+        parsed = _parse_summary(summary_text)
+        if isinstance(parsed, ThreadSummary):
+            summary_text = parsed.text
+        else:
+            logger.error("riassunto del thread scartato (%s): ripiego su un estratto", parsed)
+            degradation_counters.bump("thread_summary", parsed)
             summary_text = _extract_summary(existing, messages_to_summarize)
 
     # Dopo il riassunto i messaggi vecchi escono dal checkpoint: il loro
