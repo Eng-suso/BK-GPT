@@ -43,9 +43,13 @@ e un worker che serve un run alla volta non mescola lo stato fra run.
 Nell'ambiente del runner (Python 3.11 o 3.12), non nel venv del backend:
 
 ```bash
-pip install -r ops/prosimos/runner/requirements.txt pytest
+pip install -r ops/prosimos/runner/requirements-test.txt
 pytest ops/prosimos/runner
+pytest --noconftest tests/simulation/test_simulation_ir_engine.py
 ```
+
+In CI li fa girare il job `prosimos-runner` (Python 3.12), separato dal job del
+backend che gira sulla 3.14 e dove l'IR sul motore vero si salta.
 
 I test riusano lo scenario e i controlli di `ops/prosimos/spike/contract_spike.py`:
 forma della risposta, seed riproducibile, run senza seed ripetibile, routing
