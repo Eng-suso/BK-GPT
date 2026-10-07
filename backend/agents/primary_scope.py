@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from backend.agents.attachments import build_attachments_prompt, resolve_attachments
-from backend.agents.context_budget import ContextBlock, assemble
+from backend.agents.context_budget import ContextBlock, assemble, note_context_fingerprint
 from backend.agents.evidence_brief import evidence_prompt_block
 from backend.agents.product_language import PRODUCT_LANGUAGE_CONTRACT
 from backend.schemas.chat import (
@@ -550,6 +550,7 @@ def build_scope_system_prompt(state: dict) -> str:
     )
     assembled = assemble(lines, settings.agent_scope_context_budget_tokens)
     logger.info("contesto di scope %s: %s", scope_type, assembled.report.as_log())
+    note_context_fingerprint(assembled.report.fingerprint)
     return assembled.text
 
 
