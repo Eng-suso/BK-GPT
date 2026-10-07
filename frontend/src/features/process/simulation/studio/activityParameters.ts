@@ -54,8 +54,10 @@ export function activityParameters(
   elementId: string,
   element?: ScenarioElementProvenance,
 ): ActivityParameters | null {
-  if (!request || !elementId) return null;
-  const defaultMean = num(request.default_task_duration_seconds, 900);
+  // Every stored request carries the default duration; without it the run's
+  // configuration is unknown and nothing here would be true.
+  if (!request || !elementId || typeof request.default_task_duration_seconds !== "number") return null;
+  const defaultMean = request.default_task_duration_seconds;
   const task = records(request.tasks).find((t) => t.element_id === elementId) ?? null;
 
   const resources = records(request.resources);

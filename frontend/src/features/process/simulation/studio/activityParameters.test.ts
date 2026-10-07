@@ -69,6 +69,7 @@ describe("activityParameters", () => {
   it("returns null without a request or a selection", () => {
     expect(activityParameters(null, "Task_Review")).toBeNull();
     expect(activityParameters(REQUEST, "")).toBeNull();
+    expect(activityParameters({}, "Task_Review")).toBeNull();
   });
   it("knows which elements the run configured as tasks", () => {
     expect(hasTaskConfig(REQUEST, "Task_Review")).toBe(true);
