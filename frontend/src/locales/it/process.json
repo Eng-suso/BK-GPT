@@ -5,7 +5,9 @@
   "tabs": {
     "canvas": "Canvas",
     "chat": "Discussione",
-    "simulation": "Simulazione"
+    "simulation": "Simulazione",
+    "review": "Review",
+    "tobe": "Ipotesi To-Be"
   },
   "actions": {
     "resizeInspector": "Ridimensiona ispettore",
@@ -631,7 +633,7 @@
       "toggleSection": "Espandi o riduci sezione",
       "addDocumentation": "Aggiungi documentazione",
       "noSelection": "Nessun elemento selezionato"
-},
+    },
     "eyebrow": "BPMN 2.0",
     "title": "Pannello proprietà",
     "hint": "Elemento selezionato"
@@ -810,5 +812,139 @@
       "reloaded": "Ultima versione caricata",
       "reloadFailed": "Caricamento dell'ultima versione non riuscito"
     }
+  },
+  "review": {
+    "title": "Process Review",
+    "asIs": "As-Is",
+    "commands": "Comandi di revisione",
+    "asIsReadOnly": "As-Is · sola lettura",
+    "tasks": "Task",
+    "focusImpact": "Zona di impatto",
+    "processFindings": "Rilievi del processo",
+    "refresh": "Ricarica review",
+    "hypotheses": "Ipotesi To-Be",
+    "inspector": "Analisi del task",
+    "closeInspector": "Chiudi analisi del task",
+    "loading": "Caricamento della review",
+    "loadError": "Impossibile caricare la review",
+    "retry": "Riprova",
+    "canvasLabel": "As-Is in revisione, sola lettura",
+    "diagramError": "Impossibile leggere il diagramma",
+    "contextAssistant": "Assistente contestuale",
+    "inspectTask": "Ispeziona {{name}}",
+    "microGaps": "Punti da verificare: {{count}} · attività collegate: {{linked}}.",
+    "microComplete": "Scheda documentata · {{linked}} attività collegate.",
+    "task": "Task",
+    "needsReview": "Da verificare",
+    "documented": "Documentato",
+    "readOnlyTask": "Le azioni di review mantengono l’As-Is invariato.",
+    "detailTabs": "Dettagli della review",
+    "tab": {
+      "overview": "Overview",
+      "evidence": "Evidenze",
+      "impacts": "Impatti",
+      "actions": "Azioni"
+    },
+    "field": {
+      "owner": "Owner",
+      "input": "Input",
+      "output": "Output",
+      "problems": "Problemi rilevati",
+      "impacts": "Impatti",
+      "suggestion": "Suggerimento"
+    },
+    "notDocumented": "Non documentato",
+    "gap": {
+      "owner": "Responsabilità non documentata.",
+      "input": "Input non documentato.",
+      "output": "Output non documentato.",
+      "evidence": "Evidenza assente o da confermare."
+    },
+    "noStructuralGaps": "Nessuna lacuna strutturale nei campi disponibili. Tempi e qualità restano da valutare.",
+    "structuralScope": "{{count}} attività nel perimetro delle dipendenze.",
+    "exploreImpacts": "Esplora le dipendenze",
+    "suggestionGaps": "Chiarisci i dati mancanti con l’owner prima di proporre una modifica.",
+    "suggestionComplete": "Valuta evidenze e dipendenze; documenta una proposta prima di costruire il To-Be.",
+    "taskNotes": "Note del task",
+    "noPlan": "Piano di processo non disponibile",
+    "noPlanDescription": "Owner, input e output vengono mostrati solo quando il piano o il BPMN li documentano.",
+    "showEvidence": "Mostra evidenze",
+    "action": {
+      "candidate": "Proponi modifica",
+      "clarification": "Chiedi chiarimento",
+      "deferred": "Ignora per ora"
+    },
+    "actionDescription": {
+      "candidate": "Crea un’ipotesi To-Be per «{{name}}». Il diagramma As-Is resta invariato.",
+      "clarification": "Registra una domanda per «{{name}}» nel registro di review. La domanda resta da portare all’owner.",
+      "deferred": "Rinvia la verifica di «{{name}}» e annota il motivo. Le evidenze restano visibili."
+    },
+    "defaultTitle": {
+      "clarification": "Chiarimento: {{name}}",
+      "deferred": "Verifica rinviata: {{name}}"
+    },
+    "proposalTitle": "Titolo",
+    "detailLabel": {
+      "candidate": "Modifica proposta e impatti da verificare",
+      "clarification": "Domanda per l’owner",
+      "deferred": "Motivo del rinvio"
+    },
+    "detailPlaceholder": {
+      "candidate": "Descrivi cosa cambiare, perché e quali dipendenze verificare…",
+      "clarification": "Quale informazione serve per decidere?",
+      "deferred": "Perché rinviare e quando riprendere la verifica?"
+    },
+    "cancel": "Annulla",
+    "saveAction": "Registra azione",
+    "saving": "Salvataggio…",
+    "saveError": "Impossibile registrare l’azione",
+    "staleTitle": "La base della review è cambiata",
+    "staleDescription": "Ricarica la review e riesamina il task prima di registrare una nuova azione.",
+    "staleAction": "As-Is aggiornato · ipotesi da riesaminare",
+    "evidenceError": "Impossibile caricare le evidenze",
+    "loadingEvidence": "Caricamento evidenze…",
+    "noSource": "Fonte non disponibile",
+    "noQuote": "Nessuna citazione verificata disponibile.",
+    "noEvidence": "Task senza evidenze collegate",
+    "noEvidenceDescription": "Il disegno non collega questo task a un elemento verificabile del piano. L’assenza di evidenza non è una prova di errore.",
+    "dependencyTitle": "Dipendenze da verificare",
+    "dependencyDescription": "L’highlight segue i flussi reali del BPMN a monte e a valle, inclusi rami e cicli. Indica un perimetro di verifica, non un impatto già dimostrato.",
+    "upstream": "A monte",
+    "downstream": "A valle",
+    "selected": "Selezionato",
+    "noDependencies": "Nessuna attività collegata in questa direzione.",
+    "controls": "Controlli collegati",
+    "rules": "Regole collegate",
+    "documents": "Documenti e dati coinvolti",
+    "performanceTitle": "Tempi, colli di bottiglia e simulazione",
+    "performanceDescription": "Nessuna variazione di tempo è stata calcolata in questa review. Per stimarla servono uno scenario, parametri validati e un run di simulazione. Verifica anche le responsabilità dei task collegati.",
+    "openSimulation": "Apri simulazione",
+    "actionsDescription": "Ipotesi, domande e rinvii registrati per questo task. Una proposta non applica modifiche al modello.",
+    "noActions": "Nessuna azione registrata.",
+    "kind": {
+      "candidate": "Ipotesi To-Be",
+      "clarification": "Chiarimento da chiedere",
+      "deferred": "Verifica rinviata"
+    },
+    "hypothesesTitle": "Modifiche candidate al To-Be",
+    "toBeEyebrow": "As-Is descrive · Review interpreta · To-Be trasforma",
+    "hypothesesDescription": "Le ipotesi raccolte nella review sono il punto di partenza per il To-Be. Devono essere valutate dal consulente prima di essere trasformate in un nuovo modello.",
+    "candidateCount": "{{count}} ipotesi",
+    "backToReview": "Torna alla review",
+    "noCandidates": "Nessuna modifica candidata",
+    "noCandidatesDescription": "Ispeziona un task e registra una proposta con le evidenze e gli impatti da verificare.",
+    "startReview": "Apri Process Review",
+    "findingsScope": "Rilievi sul processo intero: non sono attribuiti automaticamente al task selezionato.",
+    "noFindings": "Nessun rilievo di processo registrato.",
+    "emptyTitle": "Nessun task da ispezionare",
+    "emptyDescription": "La review parte da un diagramma salvato. Ricostruisci il processo o importa un BPMN prima di ispezionare i task.",
+    "openAsIs": "Apri As-Is",
+    "selectHint": "Seleziona un task sul canvas o apri l’elenco Task per iniziare.",
+    "taskList": "Task del processo",
+    "searchTasks": "Cerca un task",
+    "noSearchResults": "Nessun task corrisponde alla ricerca.",
+    "impactLegend": "Legenda delle dipendenze",
+    "actionSaved": "Azione registrata. As-Is invariato.",
+    "more": "Rilievi"
   }
 }

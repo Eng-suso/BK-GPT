@@ -1,0 +1,62 @@
+/* Layout only. Materials come from Surface; semantic roles resolve to the
+   existing primitive scale in styles/tokens/semantic.css. */
+.process-review-workspace { position: relative; height: 100%; min-height: 0; min-width: 0; }
+.process-review-workspace [data-workspace-layer="body"] { position: relative; }
+.review-stage-content, .review-canvas-stage { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; border-radius: var(--material-radius-panel); }
+.review-canvas-stage { background: var(--color-surface-primary); border: var(--border-width-default) solid var(--color-border-subtle); }
+.review-canvas { position: absolute; inset: 0; }
+.review-canvas .djs-container { font-family: var(--font-family-geist); }
+.review-canvas .djs-shape.review-selected .djs-visual > :first-child { stroke: var(--review-color-selected) !important; stroke-width: var(--stroke-width-emphasis) !important; fill: var(--review-surface-selected) !important; }
+.review-canvas .djs-shape.review-upstream:not(.review-selected) .djs-visual > :first-child { stroke: var(--review-color-upstream) !important; stroke-width: var(--stroke-width-emphasis) !important; stroke-dasharray: 6 3 !important; }
+.review-canvas .djs-shape.review-downstream:not(.review-selected) .djs-visual > :first-child { stroke: var(--review-color-downstream) !important; stroke-width: var(--stroke-width-emphasis) !important; stroke-dasharray: 3 3 !important; }
+.review-canvas .djs-shape.review-document .djs-visual > :first-child { stroke: var(--review-color-downstream) !important; stroke-width: var(--stroke-width-emphasis) !important; }
+.review-canvas-controls { position: absolute; right: var(--space-300); bottom: var(--space-800); display: flex; align-items: center; gap: var(--space-100); padding: var(--space-100); }
+.review-agent-card { position: absolute; z-index: 2; display: flex; align-items: flex-start; gap: var(--space-200); width: min(272px, calc(100% - 24px)); padding: var(--space-300); pointer-events: auto; }
+.review-agent-avatar { flex-shrink: 0; width: 48px; height: 48px; border-radius: var(--radius-circular); color: var(--review-color-selected); background: var(--review-surface-selected); }
+.review-mascot-orbit { display: block; width: 44px; height: 44px; animation: review-mascot-orbit var(--motion-duration-deliberate) var(--motion-easing-standard) 1; }
+.review-agent-avatar .review-mascot { width: 44px; height: 44px; }
+.review-mascot-body { fill: var(--color-surface-primary); stroke: var(--review-color-selected); stroke-width: var(--stroke-width-default); }
+.review-mascot-visor { fill: var(--review-surface-selected); }
+.review-mascot-eyes, .review-mascot-signal { fill: var(--review-color-selected); }
+.review-mascot-shadow { fill: var(--color-border-subtle); }
+.review-mascot-antenna, .review-mascot-arm, .review-mascot-smile { fill: none; stroke: var(--review-color-selected); stroke-width: var(--stroke-width-default); stroke-linecap: round; }
+@keyframes review-mascot-orbit {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(4px, -3px) rotate(12deg); }
+  50% { transform: translate(0, -6px) rotate(0deg); }
+  75% { transform: translate(-4px, -3px) rotate(-12deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) { .review-mascot-orbit { animation: none; } }
+.review-start-hint { position: absolute; top: var(--space-300); left: var(--space-300); right: var(--space-300); display: flex; align-items: center; gap: var(--space-200); width: fit-content; max-width: calc(100% - 24px); padding: var(--space-300); pointer-events: none; }
+.review-impact-legend { position: absolute; left: var(--space-300); bottom: var(--space-300); display: flex; flex-wrap: wrap; gap: var(--space-300); padding: var(--space-200) var(--space-300); font-size: var(--font-size-100); color: var(--color-text-secondary); max-width: calc(100% - 24px); }
+.review-impact-legend span { display: flex; align-items: center; gap: var(--space-100); }
+.review-impact-legend i { width: var(--space-300); height: var(--space-300); border-radius: var(--radius-small); }
+.review-legend-upstream { border: var(--border-width-strong) dashed var(--review-color-upstream); }
+.review-legend-selected { border: var(--border-width-strong) solid var(--review-color-selected); background: var(--review-surface-selected); }
+.review-legend-downstream { border: var(--border-width-strong) dotted var(--review-color-downstream); }
+.review-empty { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-300); padding: var(--space-400); }
+.review-canvas-error { position: absolute; inset: var(--space-400) var(--space-400) auto; }
+.review-inspector { width: var(--workspace-inspector-width, 380px); }
+.review-inspector-compact { position: absolute !important; z-index: 4; inset: 0; width: 100% !important; }
+.review-stage-content--covered { visibility: hidden; }
+.review-commands-compact .review-command-context { flex-basis: 100%; }
+.review-commands-compact .review-command-label, .review-commands-compact .review-command-read-only { display: none; }
+.review-commands-compact [data-slot="button"] { min-height: 44px; }
+.review-node-facts { display: grid; gap: var(--space-300); }
+.review-node-facts > div { padding-bottom: var(--space-300); border-bottom: var(--border-width-default) solid var(--color-border-subtle); }
+.review-node-facts dt { display: flex; align-items: center; gap: var(--space-200); margin-bottom: var(--space-100); font-size: var(--font-size-100); color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
+.review-node-facts dt svg { width: var(--space-300); height: var(--space-300); }
+.review-node-facts dd { margin: 0; font-size: var(--font-size-200); line-height: var(--line-height-300); overflow-wrap: anywhere; }
+.review-node-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-200); }
+.review-node-actions button { min-height: 44px; height: auto; white-space: normal; font-size: var(--font-size-100); }
+.review-task-list { position: absolute; top: var(--space-300); right: var(--space-300); z-index: 3; width: min(320px, calc(100% - 24px)); max-height: calc(100% - 88px); padding: var(--space-300); overflow: auto; }
+.review-hypotheses { height: 100%; overflow: auto; }
+.review-save-feedback { position: absolute; z-index: 5; bottom: var(--space-300); left: var(--space-400); display: flex; align-items: center; gap: var(--space-200); max-width: calc(100% - 32px); padding: var(--space-300); border: var(--border-width-default) solid var(--color-border-subtle); border-radius: var(--material-radius-control); background: var(--color-surface-primary); color: var(--color-text-primary); box-shadow: var(--shadow-control); font-size: var(--font-size-100); }
+@media (max-width: 1199px) { .review-impact-legend { bottom: 76px; } }
+@media (forced-colors: active) {
+  .review-canvas .djs-shape.review-selected .djs-visual > :first-child,
+  .review-canvas .djs-shape.review-upstream .djs-visual > :first-child,
+  .review-canvas .djs-shape.review-downstream .djs-visual > :first-child { stroke: Highlight !important; fill: Canvas !important; }
+  .review-impact-legend i { border-color: CanvasText; }
+}
