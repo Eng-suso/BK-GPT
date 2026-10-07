@@ -62,6 +62,7 @@ def _action(row: WorkspaceImpactReviewAction) -> ImpactReviewAction:
         id=row.id, node_id=row.node_id, node_name=row.node_name,
         base_revision=row.base_revision, kind=cast(ReviewActionKind, row.kind),
         title=row.title, detail=row.detail, created_at=row.created_at, created_by=row.created_by,
+        proposal_xml=row.proposal_xml,
     )
 
 
@@ -80,7 +81,7 @@ def create_impact_review_action(process_id: str, payload: CreateImpactReviewActi
             if (previous.tenant_id != get_current_tenant_id() or previous.process_id != process_id
                 or previous.node_id != payload.node_id or previous.base_revision != payload.base_revision
                 or previous.kind != payload.kind or previous.title != payload.title or previous.detail != payload.detail
-                or previous.created_by != created_by):
+                or previous.created_by != created_by or previous.proposal_xml != payload.proposal_xml):
                 raise ReviewConflict("Identificativo azione già utilizzato.")
             return _action(previous)
         if payload.base_revision != state.base_revision:
@@ -93,11 +94,20 @@ def create_impact_review_action(process_id: str, payload: CreateImpactReviewActi
         node = next((element for element in root.iter() if element.get("id") == payload.node_id and element.tag in task_tags), None) if root is not None else None
         if node is None:
             raise ValueError("Il task non appartiene all'As-Is salvato.")
+        if payload.proposal_xml is not None:
+            if payload.kind not in {"candidate", "as_is_proposal"}:
+                raise ValueError("Solo una proposta può contenere un diagramma.")
+            from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
+            fromstring(payload.proposal_xml)  # reject entities before the editing parser
+            report = validate_bpmn_xml(payload.proposal_xml)
+            if not report["valid"]:
+                raise ValueError("Diagramma della proposta non valido: " + "; ".join(report["issues"]))
         row = WorkspaceImpactReviewAction(
             id=str(payload.id), tenant_id=get_current_tenant_id(), process_id=process_id,
             node_id=payload.node_id, node_name=node.get("name") or payload.node_id,
             base_revision=state.base_revision, kind=payload.kind, title=payload.title,
             detail=payload.detail, created_at=datetime.now(UTC).isoformat(), created_by=created_by,
+            proposal_xml=payload.proposal_xml,
         )
         session.add(row)
         session.flush()
