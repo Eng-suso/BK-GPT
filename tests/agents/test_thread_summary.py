@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, Tool
 
 import backend.agent as agent_module
 from backend.agent import (
+    FALLBACK_LINE_CHARS,
     FALLBACK_TOTAL_CHARS,
     SUMMARY_KEEP_RECENT_MESSAGES,
     SUMMARY_TRIGGER_MESSAGE_COUNT,
@@ -128,10 +129,20 @@ def test_the_fallback_extract_has_a_ceiling():
     def broken(existing, old):
         raise TimeoutError("guasto")
 
-    messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2, text="x" * 5_000)
+    # Abbastanza righe tagliate da superare anche il tetto totale.
+    lines_over_total = FALLBACK_TOTAL_CHARS // FALLBACK_LINE_CHARS + 5
+    messages = _thread(SUMMARY_KEEP_RECENT_MESSAGES + lines_over_total, text="x" * 5_000)
     out = summarize_history({"messages": messages}, broken)
 
-    assert len(out["running_summary"]) <= FALLBACK_TOTAL_CHARS + 300
+    header, extract = out["running_summary"].split("\n", 1)
+    assert header.startswith("[Riassunto automatico non disponibile")
+    # Il tetto totale taglia dalla testa e lo dichiara con "...".
+    assert extract.startswith("...")
+    assert len(extract) == len("...") + FALLBACK_TOTAL_CHARS
+    # Ogni riga intera ha il suo tetto; la prima e' gia' tagliata da quello totale.
+    for line in extract.split("\n")[1:]:
+        assert len(line) <= FALLBACK_LINE_CHARS + len("...")
+        assert line.endswith("...")
 
 
 def test_a_missing_operation_is_not_hidden_by_the_fallback():
