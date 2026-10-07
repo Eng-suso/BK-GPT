@@ -222,7 +222,7 @@ describe("SourcesPanel — una fonte si legge, non si riassume", () => {
     );
     await userEvent.click(screen.getByLabelText(/regole da rispettare/i));
     const scope = screen.getByLabelText(/ambito/i);
-    expect(screen.getByRole("option", { name: "Tutto il cliente Esaote" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Tutto il cliente «Esaote»" })).toBeInTheDocument();
     await userEvent.selectOptions(scope, `client:${CLIENT.id}`);
     await userEvent.click(screen.getByRole("button", { name: /^carica e analizza$/i }));
 
@@ -267,7 +267,7 @@ describe("SourcesPanel — una fonte si legge, non si riassume", () => {
 
     const dialog = await screen.findByRole("dialog", { name: /policy-acquisti\.pdf/ });
     expect(dialog).toHaveTextContent("Vale per");
-    expect(dialog).toHaveTextContent("Tutto il cliente Esaote");
+    expect(dialog).toHaveTextContent("Tutto il cliente «Esaote»");
     expect(dialog).not.toHaveTextContent("Processo collegato");
     expect(screen.queryByRole("button", { name: /apri processo collegato/i })).not.toBeInTheDocument();
   });

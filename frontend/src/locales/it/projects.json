@@ -176,7 +176,7 @@
       },
       "clientWide": "Tutto il cliente",
       "appliesTo": "Vale per",
-      "wholeClient": "Tutto il cliente {{name}}"
+      "wholeClient": "Tutto il cliente «{{name}}»"
     },
     "decisions": {
       "empty": "Nessuna decisione registrata"

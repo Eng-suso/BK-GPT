@@ -176,7 +176,7 @@
       },
       "clientWide": "Whole client",
       "appliesTo": "Applies to",
-      "wholeClient": "The whole client {{name}}"
+      "wholeClient": "The whole client “{{name}}”"
     },
     "decisions": {
       "empty": "No decisions recorded"
