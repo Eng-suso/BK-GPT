@@ -305,3 +305,38 @@ def test_consecutive_fallbacks_do_not_grow_the_summary_without_bound():
     assert summary.startswith("Obiettivo: mappare il processo acquisti.")
     assert "turno11" in summary
     assert "estratti precedenti omessi" in summary
+
+
+def test_the_fallback_extract_does_not_carry_tool_results_to_the_consultant():
+    # L'esito di un tool e' fatto per il modello: id, XML, nomi di azione. Il
+    # riassunto finisce nel contesto della chat, e il modello potrebbe
+    # ripeterlo al consulente.
+    def broken(existing, old):
+        raise TimeoutError("provider giu'")
+
+    messages = [
+        HumanMessage(content="Aggiorna il processo acquisti", id="m0"),
+        AIMessage(
+            content="",
+            tool_calls=[{"name": "manage_canvas_bpmn_model", "args": {"bpmn_model_id": "bpmn-7f3a"}, "id": "c1"}],
+            id="m1",
+        ),
+        ToolMessage(
+            content='{"action": "manage_canvas_bpmn_model", "bpmn_model_id": "bpmn-7f3a", '
+            '"xml": "<definitions/>", "readiness": 0.42}',
+            tool_call_id="c1",
+            id="m2",
+        ),
+        AIMessage(content="Ho aggiornato il processo acquisti.", id="m3"),
+        *_thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)[4:],
+    ]
+    for i, message in enumerate(messages[4:], start=4):
+        message.id = f"m{i}"
+
+    summary = summarize_history({"messages": messages}, broken)["running_summary"]
+
+    assert "Aggiorna il processo acquisti" in summary
+    assert "Ho aggiornato il processo acquisti." in summary
+    for internal in ("manage_canvas_bpmn_model", "bpmn-7f3a", "<definitions/>", "readiness"):
+        assert internal not in summary
+

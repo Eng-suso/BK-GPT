@@ -245,8 +245,7 @@ def build_context_messages(state: ConsultantState):
     return messages + recent_context_messages(state["messages"])
 
 
-def message_to_summary_line(message) -> str:
-    role = getattr(message, "type", None) or getattr(message, "role", "message")
+def _message_content_text(message) -> str:
     content = getattr(message, "content", "")
 
     if isinstance(content, list):
@@ -257,7 +256,12 @@ def message_to_summary_line(message) -> str:
             for item in content
         )
 
-    return f"{role}: {str(content).strip()}"
+    return str(content).strip()
+
+
+def message_to_summary_line(message) -> str:
+    role = getattr(message, "type", None) or getattr(message, "role", "message")
+    return f"{role}: {_message_content_text(message)}"
 
 
 def build_summary_prompt(existing_summary: str, messages_to_summarize: list) -> list:
@@ -316,10 +320,15 @@ def _extract_summary(existing_summary: str, messages: list) -> str:
     """Il ripiego deterministico: le righe dei messaggi tolti, accorciate.
 
     Dichiara di essere un estratto: il modello del turno dopo non deve
-    leggerlo come una sintesi ragionata.
+    leggerlo come una sintesi ragionata. Entrano solo le parole del consulente
+    e le risposte dell'assistente: gli esiti dei tool e le chiamate senza
+    testo sono fatti per il modello (id, XML, nomi di azione), e dal riassunto
+    finirebbero nel contesto della chat, da cui il modello li ripeterebbe.
     """
     lines = []
     for message in messages:
+        if message_role(message) == "tool" or not _message_content_text(message):
+            continue
         line = message_to_summary_line(message)
         lines.append(line if len(line) <= FALLBACK_LINE_CHARS else line[:FALLBACK_LINE_CHARS] + "...")
     extract = "\n".join(lines)
