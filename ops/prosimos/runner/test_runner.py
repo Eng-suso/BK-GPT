@@ -1,6 +1,6 @@
 """Contratto del runner. Gira nell'ambiente del runner (Python 3.12 + prosimos 2.x):
 
-    pip install -r ops/prosimos/runner/requirements.txt pytest
+    pip install -r ops/prosimos/runner/requirements-test.txt
     pytest ops/prosimos/runner
 """
 

@@ -1,7 +1,8 @@
 """L'IR compilato gira davvero su Prosimos 2.x, e le capacita' hanno effetto.
 
 Serve Prosimos nell'interprete (Python 3.11-3.12): nella CI del backend si
-salta. Si esegue nell'ambiente del runner:
+salta e lo esegue il job ``prosimos-runner``. In locale, nell'ambiente del
+runner (``ops/prosimos/runner/requirements-test.txt``) e senza ``.env``:
 
     pytest --noconftest tests/simulation/test_simulation_ir_engine.py
 """
