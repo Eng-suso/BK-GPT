@@ -253,11 +253,21 @@
       "label": "Origine",
       "sourceLabel": "Origine: {{source}} · confidenza {{confidence}}",
       "source": {
-        "interview": "da intervista",
-        "confirmed": "confermato",
-        "inferred": "dedotto",
+        "observed": "osservato",
+        "inferred": "dedotto dai dati",
+        "declared": "dichiarato",
         "estimated": "stimato",
+        "manual": "inserito",
         "default": "predefinito"
+      },
+      "sourcesTitle": "Fonti",
+      "sourceKind": {
+        "interview": "intervista",
+        "claim": "claim",
+        "source": "fonte del cliente",
+        "event_log": "event log",
+        "document": "documento",
+        "user": "consulente"
       },
       "confidence": {
         "high": "alta",

@@ -253,11 +253,21 @@
       "label": "Source",
       "sourceLabel": "Source: {{source}} · {{confidence}} confidence",
       "source": {
-        "interview": "from interview",
-        "confirmed": "confirmed",
-        "inferred": "inferred",
+        "observed": "observed",
+        "inferred": "inferred from data",
+        "declared": "declared",
         "estimated": "estimated",
+        "manual": "entered",
         "default": "default"
+      },
+      "sourcesTitle": "Sources",
+      "sourceKind": {
+        "interview": "interview",
+        "claim": "claim",
+        "source": "client source",
+        "event_log": "event log",
+        "document": "document",
+        "user": "consultant"
       },
       "confidence": {
         "high": "high",
