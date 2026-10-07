@@ -173,7 +173,10 @@
           "knowledge_gap": "One side does not know",
           "complementary": "Complementary"
         }
-      }
+      },
+      "clientWide": "Whole client",
+      "appliesTo": "Applies to",
+      "wholeClient": "The whole client {{name}}"
     },
     "decisions": {
       "empty": "No decisions recorded"

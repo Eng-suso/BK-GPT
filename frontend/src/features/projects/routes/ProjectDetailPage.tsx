@@ -265,6 +265,7 @@ export function ProjectDetailPage(): React.JSX.Element {
           <TabsContent value="sources">
             <SourcesPanel
               projectId={project.id}
+              client={{ id: project.clientId, name: project.client }}
               sources={sourcesQ.data ?? []}
               processes={project.processItems}
               onOpenProcess={openProcess}
