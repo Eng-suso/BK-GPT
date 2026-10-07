@@ -62,7 +62,9 @@ function SimulatedParameters({ run, elementId, isActivity }: { run: SimulationRu
       <div><dt>{t("simulation.activityInspector.origin")}</dt><dd>
         {provenance.isLoading && !provenance.data
           ? <span className="sim-param-note" role="status">{t("simulation.activityInspector.provenanceLoading")}</span>
-          : <><ProvenanceChip field={params.provenance} hideNote /><span className="sim-param-note">{t("simulation.activityInspector.confidence", { level: confidence })}</span></>}
+          : provenance.isError && !provenance.data
+            ? "—"
+            : <><ProvenanceChip field={params.provenance} hideNote /><span className="sim-param-note">{t("simulation.activityInspector.confidence", { level: confidence })}</span></>}
       </dd></div>
     </dl>
     {provenance.isError && !provenance.data
