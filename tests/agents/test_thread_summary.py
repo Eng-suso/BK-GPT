@@ -20,6 +20,7 @@ from backend.agent import (
     FALLBACK_LINE_CHARS,
     FALLBACK_TOTAL_CHARS,
     SUMMARY_KEEP_RECENT_MESSAGES,
+    SUMMARY_MAX_TOKENS,
     SUMMARY_TRIGGER_MESSAGE_COUNT,
     _history_tokens,
     summarize_history,
@@ -266,3 +267,19 @@ def test_the_token_threshold_is_exclusive(monkeypatch, margin, summarized):
     out = summarize_history({"messages": messages}, lambda existing, old: "sintesi")
 
     assert ("running_summary" in out) is summarized
+
+
+def test_an_oversized_summary_is_not_persisted():
+    # Il riassunto finisce in ogni prompt successivo: un testo fuori misura
+    # (il modello che ripete la trascrizione) non entra nello stato.
+    degradation_counters.reset()
+    messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)
+
+    out = summarize_history(
+        {"messages": messages, "running_summary": "prima"},
+        lambda existing, old: "parola " * (SUMMARY_MAX_TOKENS + 1),
+    )
+
+    assert out["running_summary"].startswith("prima")
+    assert "non una sintesi" in out["running_summary"]
+    assert degradation_counters.snapshot() == {"thread_summary:oversized_summary": 1}

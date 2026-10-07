@@ -2,7 +2,7 @@ import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import HumanMessage, RemoveMessage
 from langchain_core.messages import SystemMessage
@@ -63,6 +63,10 @@ SUMMARY_TRIGGER_TOKENS = 24_000
 # riassunto, e con un tetto, perche' finisce in ogni prompt successivo.
 FALLBACK_LINE_CHARS = 300
 FALLBACK_TOTAL_CHARS = 4_000
+# Il tetto del riassunto del modello: finisce in ogni prompt successivo, e un
+# testo oltre questa misura non e' un riassunto (il modello che ripete la
+# trascrizione). Oltre, si ripiega sull'estratto.
+SUMMARY_MAX_TOKENS = 2_000
 
 logger = logging.getLogger(__name__)
 
@@ -325,12 +329,22 @@ def _extract_summary(existing_summary: str, messages: list) -> str:
     return "\n\n".join(parts)
 
 
+def _summary_rejection(summary_text: str) -> Literal["empty_summary", "oversized_summary"] | None:
+    """Perche' il riassunto del modello non puo' entrare nello stato, o None."""
+    if not summary_text.strip():
+        return "empty_summary"
+    if count_tokens(summary_text) > SUMMARY_MAX_TOKENS:
+        return "oversized_summary"
+    return None
+
+
 def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dict:
     """Comprime la storia del thread quando e' troppo lunga, in numero o in token.
 
     `summarize(riassunto_esistente, messaggi)` produce il nuovo riassunto col
     modello. Se il provider ha un guasto transitorio (`TRANSIENT_PROVIDER_ERRORS`)
-    o risponde vuoto, il turno non cade: il riassunto diventa un estratto
+    o il testo non passa la validazione (vuoto, oltre `SUMMARY_MAX_TOKENS`), il
+    turno non cade: il riassunto diventa un estratto
     dichiarato, contato in `degradation_counters`, e i messaggi vecchi escono
     comunque dallo stato, che altrimenti crescerebbe a ogni turno. Ogni altro
     errore (`OperationNotOpen`, un difetto nostro) si propaga.
@@ -358,10 +372,13 @@ def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dic
         logger.error("riassunto del thread fallito: ripiego su un estratto", exc_info=True)
         degradation_counters.bump("thread_summary", "fallback_extract", detail=type(exc).__name__)
         summary_text = _extract_summary(existing, messages_to_summarize)
-    if not summary_text.strip():
-        logger.error("riassunto del thread vuoto: ripiego su un estratto")
-        degradation_counters.bump("thread_summary", "empty_summary")
-        summary_text = _extract_summary(existing, messages_to_summarize)
+    else:
+        # L'uscita del modello e' non fidata: si valida prima che diventi stato.
+        rejection = _summary_rejection(summary_text)
+        if rejection is not None:
+            logger.error("riassunto del thread scartato (%s): ripiego su un estratto", rejection)
+            degradation_counters.bump("thread_summary", rejection)
+            summary_text = _extract_summary(existing, messages_to_summarize)
 
     # Dopo il riassunto i messaggi vecchi escono dal checkpoint: il loro
     # contenuto vive in running_summary, e lo stato non cresce senza limite.
