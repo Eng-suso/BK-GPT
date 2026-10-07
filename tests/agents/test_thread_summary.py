@@ -9,7 +9,7 @@ risultato di un tool) non lo attivavano mai.
 from __future__ import annotations
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 
 from backend.agent import (
     FALLBACK_TOTAL_CHARS,
@@ -53,6 +53,30 @@ def test_a_few_huge_messages_trigger_the_summary_too():
     out = summarize_history({"messages": messages}, lambda existing, old: "sintesi")
 
     assert len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT
+    assert out["running_summary"] == "sintesi"
+
+
+def test_huge_tool_call_arguments_count_toward_the_trigger():
+    # Gli argomenti di un tool call (un XML BPMN intero) finiscono nel prompt
+    # vero: il conto che leggeva solo il testo li vedeva come zero token.
+    huge_call = AIMessage(
+        content="",
+        tool_calls=[{"name": "update_bpmn", "args": {"xml": "parola " * 30_000}, "id": "call-1"}],
+        id="m1",
+    )
+    messages = [
+        HumanMessage(content="aggiorna il processo", id="m0"),
+        huge_call,
+        ToolMessage(content="ok", tool_call_id="call-1", id="m2"),
+        AIMessage(content="fatto", id="m3"),
+        HumanMessage(content="grazie", id="m4"),
+        AIMessage(content="prego", id="m5"),
+        HumanMessage(content="altro?", id="m6"),
+    ]
+    assert len(messages) <= SUMMARY_TRIGGER_MESSAGE_COUNT
+
+    out = summarize_history({"messages": messages}, lambda existing, old: "sintesi")
+
     assert out["running_summary"] == "sintesi"
 
 

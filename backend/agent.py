@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -283,8 +284,23 @@ def build_summary_prompt(existing_summary: str, messages_to_summarize: list) -> 
         ),
     ]
 
+def _message_tokens(message) -> int:
+    """Token che il messaggio pesa nel prompt: testo e argomenti dei tool call.
+
+    `additional_kwargs["tool_calls"]` e' la forma grezza degli stessi tool call:
+    si conta solo quando manca quella interpretata, per non contarli due volte.
+    """
+    tokens = count_tokens(message_to_summary_line(message))
+    tool_calls = getattr(message, "tool_calls", None) or (
+        (getattr(message, "additional_kwargs", None) or {}).get("tool_calls")
+    )
+    if tool_calls:
+        tokens += count_tokens(json.dumps(tool_calls, ensure_ascii=False, default=str))
+    return tokens
+
+
 def _history_tokens(messages: list) -> int:
-    return sum(count_tokens(message_to_summary_line(message)) for message in messages)
+    return sum(_message_tokens(message) for message in messages)
 
 
 def _extract_summary(existing_summary: str, messages: list) -> str:
