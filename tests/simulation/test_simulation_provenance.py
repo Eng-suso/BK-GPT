@@ -85,7 +85,7 @@ def _review(process: ProcessUnderstanding) -> dict:
     }, model
 
 
-def test_no_review_marks_every_element_ai_inferred():
+def test_no_review_marks_every_element_estimated():
     template = ScenarioTemplateResponse(
         tasks=[ScenarioTemplateTask(element_id="Task_A", name="Fai qualcosa", type="task")],
         gateways=[
@@ -104,7 +104,8 @@ def test_no_review_marks_every_element_ai_inferred():
     result = map_scenario_provenance(template, None)
 
     assert result.has_discovery is False
-    assert {e.origin for e in result.elements} == {"ai_inferred"}
+    assert {e.provenance.origin for e in result.elements} == {"estimated"}
+    assert all(not e.provenance.sources for e in result.elements)
     assert {e.confidence for e in result.elements} == {"low"}
     gateway = next(e for e in result.elements if e.kind == "gateway")
     assert gateway.open_questions == 2
@@ -122,14 +123,18 @@ def test_discovered_activity_resolves_to_interview_with_evidence():
     assert result.missing_information == ["Volumi mensili non quantificati"]
 
     review_step = next(e for e in result.elements if e.name == "Verifica documentazione")
-    assert review_step.origin == "interview"
+    assert review_step.provenance.origin == "declared"
+    assert review_step.provenance.confidence == "high"
+    assert [(ref.kind, ref.id) for ref in review_step.provenance.sources] == [
+        ("interview", "steps:Task_Review")
+    ]
     assert review_step.confidence == "high"
     assert review_step.evidence
     assert review_step.hint_ref is not None
     assert review_step.hint_ref.field == "steps"
 
     approve = next(e for e in result.elements if e.name == "Approva")
-    assert approve.origin == "interview"
+    assert approve.provenance.origin == "declared"
     # no source_evidence on that step -> medium, not high
     assert approve.confidence == "medium"
 
@@ -186,7 +191,8 @@ def test_gateway_confidence_follows_outcome_certainty():
     )
 
     gateway = next(e for e in result.elements if e.kind == "gateway")
-    assert gateway.origin == "interview"
+    assert gateway.provenance.origin == "declared"
+    assert gateway.provenance.sources[0].id == "decisions:Decision_Complete"
     # one outcome is an assumption -> low, and it is flagged for validation
     assert gateway.confidence == "low"
     assert gateway.open_questions == 1
@@ -222,7 +228,20 @@ def test_element_ids_line_up_between_template_and_semantic_model():
     matched = [
         e
         for e in map_scenario_provenance(template, review).elements
-        if e.element_id in node_ids and e.origin == "interview"
+        if e.element_id in node_ids and e.provenance.origin == "declared"
     ]
     # every discovered task + the decision gateway resolved by id, not name
     assert len(matched) >= 3
+
+
+def test_schema_mirror_matches_the_ir_provenance():
+    """SIM-38: the API exposes exactly the IR's five levels, nothing else."""
+    from typing import get_args
+
+    from backend.schemas.simulation import ParameterProvenance, ParameterSourceRef
+    from backend.simulation.ir.model import Origin, SourceRef
+
+    schema_origin = ParameterProvenance.model_fields["origin"].annotation
+    assert set(get_args(schema_origin)) == set(get_args(Origin))
+    schema_kind = ParameterSourceRef.model_fields["kind"].annotation
+    assert set(get_args(schema_kind)) == set(get_args(SourceRef.model_fields["kind"].annotation))
