@@ -613,6 +613,7 @@
       "uploading": "Caricamento…",
       "uploadFailed": "Il file non è stato caricato",
       "loadFailed": "Non riesco a leggere gli event log del processo",
+      "retry": "Riprova",
       "empty": "Nessun event log",
       "emptyHint": "Carica un export CSV o XES per confrontare il processo reale con il modello.",
       "list": "Event log del processo",
@@ -623,6 +624,12 @@
         "mapped": "mappato"
       },
       "delete": "Elimina {{name}}",
+      "deleteTitle": "Eliminare {{name}}?",
+      "deleteDescription": "Il file, il mapping applicato, il report di qualità e i KPI reali di questo log non si recuperano. I template salvati restano.",
+      "deleteConfirm": "Elimina il log",
+      "analysisLoading": "Carico il report di qualità e i KPI…",
+      "analysisFailed": "Non riesco a leggere il report di questo log",
+      "remap": "Rivedi le colonne",
       "back": "Torna all'elenco",
       "steps": "Passi dell'import",
       "step": {

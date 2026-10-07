@@ -613,6 +613,7 @@
       "uploading": "Uploading…",
       "uploadFailed": "The file was not uploaded",
       "loadFailed": "Could not read the process event logs",
+      "retry": "Retry",
       "empty": "No event logs",
       "emptyHint": "Upload a CSV or XES export to compare the real process with the model.",
       "list": "Process event logs",
@@ -623,6 +624,12 @@
         "mapped": "mapped"
       },
       "delete": "Delete {{name}}",
+      "deleteTitle": "Delete {{name}}?",
+      "deleteDescription": "The file, the applied mapping, the quality report and the real KPIs of this log cannot be recovered. Saved templates stay.",
+      "deleteConfirm": "Delete log",
+      "analysisLoading": "Loading the quality report and KPIs…",
+      "analysisFailed": "Could not read the report of this log",
+      "remap": "Review the columns",
       "back": "Back to the list",
       "steps": "Import steps",
       "step": {
