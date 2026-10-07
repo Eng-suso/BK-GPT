@@ -252,7 +252,7 @@ delir_memories_entities` quando serve.
 
 ## Lettura — gateway INV-9 ✅
 
-`backend/memory/gateway.py` è l'unico punto di lettura del cervello. Nessun
+`backend/memory/gateway/` (il pacchetto, una facciata) è l'unico punto di lettura del cervello. Nessun
 tool interroga Neo4j / Postgres-KG / Mem0 direttamente.
 
 - **`graph_retrieve`** (grafo tipizzato, retrieval ibrido P3) — usato da
