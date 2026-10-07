@@ -222,6 +222,13 @@ DEFAULT_LIST_LIMIT = 500
 MAX_LIST_LIMIT = 2000
 
 
+#: Quanti altri file entrano al massimo nel confronto di una fonte (P1.13). Il
+#: prompt ha gia' il suo tetto in caratteri (`reconcile.MAX_INPUT_CHARS`), ma una
+#: fonte del cliente si confronta con tutti i file del cliente: senza un tetto
+#: anche sulla lettura, un cliente grande li tirerebbe su tutti a ogni passata.
+MAX_RECONCILE_CANDIDATES = 200
+
+
 def capped_limit(limit: int | None) -> int:
     """Il numero di righe da chiedere: quello voluto, dentro i confini."""
     if limit is None:
@@ -2286,7 +2293,10 @@ def create_ingested_source(
 
     with workspace_connection() as session:
         if project_id is not None:
-            owner_client_id = tenant_row(session, WorkspaceProject, project_id).client_id
+            project = tenant_row(session, WorkspaceProject, project_id)
+            if project is None:
+                raise ValueError(f"Progetto non trovato: {project_id}")
+            owner_client_id = project.client_id
             owned = WorkspaceSource.project_id == project_id
         else:
             if tenant_row(session, WorkspaceClient, client_id) is None:
@@ -2665,10 +2675,10 @@ def discard_uploaded_source(source_id: str) -> bool:
             .where(WorkspaceSource.storage_key == storage_key)
         ).scalar_one()
     if not still_used:
-        from backend.workspace_services.source_ingestion import SourceFileError, original_path
+        from backend.workspace_services.source_ingestion import SourceFileError, delete_original
 
         try:
-            original_path(storage_key).unlink(missing_ok=True)
+            delete_original(storage_key)
         except (SourceFileError, OSError):
             logger.warning("originale %s non rimosso", storage_key, exc_info=True)
     return True
@@ -2858,7 +2868,8 @@ def due_source_reconcile(limit: int = 1, *, only_tenant_id: str | None = None) -
         return claimed
 
 
-def _claims_as_input(session, sources: list[WorkspaceSource]) -> list[dict]:
+def _claims_as_input(session, sources: list) -> list[dict]:
+    # Righe ORM o tuple (`id`, `name`): servono solo quei due campi.
     names = {source.id: source.name for source in sources}
     if not names:
         return []
@@ -2891,8 +2902,10 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
         if source is None:
             return [], []
         client_wide = and_(WorkspaceSource.project_id.is_(None), WorkspaceSource.client_id == source.client_id)
+        # Solo id e nome: la riga intera porta con se' il testo estratto.
+        # In ordine di id, lo stesso in cui le affermazioni arrivano al prompt.
         others = (
-            select(WorkspaceSource)
+            select(WorkspaceSource.id, WorkspaceSource.name)
             .where(WorkspaceSource.tenant_id == source.tenant_id)
             .where(WorkspaceSource.id != source.id)
             .where(WorkspaceSource.status == "approved")
@@ -2910,7 +2923,10 @@ def reconcile_inputs(source_id: str) -> tuple[list[dict], list[dict]]:
             others = others.where(or_(same_project, client_wide))
         return (
             _claims_as_input(session, [source]),
-            _claims_as_input(session, list(session.execute(others).scalars().all())),
+            _claims_as_input(
+                session,
+                list(session.execute(others.order_by(WorkspaceSource.id).limit(MAX_RECONCILE_CANDIDATES)).all()),
+            ),
         )
 
 
@@ -4706,7 +4722,7 @@ def _purge_project(session, project: WorkspaceProject) -> list[str]:
 
 def _remove_unreferenced_originals(storage_keys: list[str]) -> None:
     """Rimuove un blob dopo il commit, solo se nessun'altra fonte lo usa."""
-    from backend.workspace_services.source_ingestion import original_path
+    from backend.workspace_services.source_ingestion import SourceFileError, delete_original
 
     for storage_key in set(storage_keys):
         with workspace_connection() as session:
@@ -4719,8 +4735,8 @@ def _remove_unreferenced_originals(storage_keys: list[str]) -> None:
         if still_used is not None:
             continue
         try:
-            original_path(storage_key).unlink(missing_ok=True)
-        except OSError:
+            delete_original(storage_key)
+        except (SourceFileError, OSError):
             logger.warning("file originale non rimosso: %s", storage_key, exc_info=True)
 
 

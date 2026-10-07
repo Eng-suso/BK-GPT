@@ -479,7 +479,11 @@ def erase_client(client_name: str, workspace_project_ids: list[str]) -> list[Era
     """Ogni progetto del cliente, poi il cliente canonical se non gli resta
     niente. Il cliente canonical e' identificato dal nome (`client:<slug>`,
     `scope.resolve`): se un altro progetto workspace ancora vivo usa lo stesso
-    nome di cliente, quel cliente canonical e' anche suo e non si tocca."""
+    nome di cliente, quel cliente canonical e' anche suo e non si tocca.
+
+    Lo stesso per le fonti del cliente (P1.16): `erase_client_sources` ha gia'
+    tolto quelle di questo cliente, quindi una fonte rimasta e' di un altro
+    cliente workspace con lo stesso nome, anche se non ha progetti."""
     from backend.memory.scope import _slug
 
     reports = [erase_project(pid) for pid in workspace_project_ids]
@@ -498,8 +502,18 @@ def erase_client(client_name: str, workspace_project_ids: list[str]) -> list[Era
             text("SELECT count(*) FROM project WHERE client_id = CAST(:cl AS uuid)"),
             {"cl": client_id},
         ).scalar_one()
-    if remaining:
-        report.skipped = f"il cliente canonical ha ancora {remaining} progetti di altri clienti workspace"
+        remaining_sources = session.execute(
+            text(
+                "SELECT count(*) FROM kg_source WHERE client_id = CAST(:cl AS uuid) "
+                "AND project_id IS NULL AND workspace_source_id IS NOT NULL"
+            ),
+            {"cl": client_id},
+        ).scalar_one()
+    if remaining or remaining_sources:
+        report.skipped = (
+            f"il cliente canonical ha ancora {remaining} progetti e "
+            f"{remaining_sources} fonti di altri clienti workspace"
+        )
         return [*reports, report]
     report.memories = _forget_memories(
         client_id, "client_id = CAST(:cl AS uuid)", {"cl": client_id},

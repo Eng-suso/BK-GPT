@@ -45,14 +45,14 @@ def _work_one(row: dict) -> bool:
     from backend.workspace_services.evidence.documents import DocumentServiceUnavailable
     from backend.workspace_services.source_ingestion import (
         SourceFileError,
-        original_path,
         parse_source_file,
+        read_original,
     )
 
     token = set_current_tenant_id(row["tenant_id"])
     try:
         try:
-            payload = original_path(row["storage_key"] or "").read_bytes()
+            payload = read_original(row["storage_key"] or "")
         except (SourceFileError, OSError) as exc:
             wd.fail_source_acquisition(row["id"], error="File originale non trovato.", permanent=True)
             logger.warning("fonte %s: originale non leggibile (%s)", row["id"], exc)
