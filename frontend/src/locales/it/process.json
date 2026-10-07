@@ -522,7 +522,8 @@
         "overview": "Risultati",
         "compare": "Confronto",
         "heatmap": "Heatmap",
-        "insights": "Insight"
+        "insights": "Insight",
+        "eventLog": "Event log"
       },
       "question": {
         "activityQueued": "Dove si accumulano le code?",
@@ -598,6 +599,186 @@
       "gestureHint": "Spazio + trascina per muoverti; Ctrl/Cmd + rotella per zoomare",
       "resizeCanvas": "Ridimensiona area canvas",
       "resizeInspector": "Ridimensiona pannello di dettagli"
+    },
+    "eventLog": {
+      "intro": "Carica l'export di un sistema (CSV o XES): colonne, formati, qualità dei dati e KPI reali con lo stesso calcolo della simulazione.",
+      "delimiter": "Separatore",
+      "delimiterAuto": "Riconosci automaticamente",
+      "delimiterName": {
+        "comma": "Virgola (,)",
+        "semicolon": "Punto e virgola (;)",
+        "tab": "Tabulazione",
+        "pipe": "Barra verticale (|)"
+      },
+      "file": "File dell'event log",
+      "upload": "Carica event log",
+      "uploading": "Caricamento…",
+      "uploadFailed": "Il file non è stato caricato",
+      "loadFailed": "Non riesco a leggere gli event log del processo",
+      "retry": "Riprova",
+      "empty": "Nessun event log",
+      "emptyHint": "Carica un export CSV o XES per confrontare il processo reale con il modello.",
+      "list": "Event log del processo",
+      "rows_one": "{{count}} riga",
+      "rows_other": "{{count}} righe",
+      "status": {
+        "uploaded": "da mappare",
+        "mapped": "mappato"
+      },
+      "delete": "Elimina {{name}}",
+      "deleteTitle": "Eliminare {{name}}?",
+      "deleteDescription": "Il file, il mapping applicato, il report di qualità e i KPI reali di questo log non si recuperano. I template salvati restano.",
+      "deleteConfirm": "Elimina il log",
+      "analysisLoading": "Carico il report di qualità e i KPI…",
+      "analysisFailed": "Non riesco a leggere il report di questo log",
+      "remap": "Rivedi le colonne",
+      "back": "Torna all'elenco",
+      "steps": "Passi dell'import",
+      "step": {
+        "columns": "Colonne",
+        "formats": "Formati",
+        "results": "Qualità e KPI",
+        "activities": "Attività",
+        "resources": "Risorse"
+      },
+      "applyFailed": "Il mapping non è stato applicato",
+      "previewFailed": "Anteprima non disponibile con questo separatore",
+      "next": "Avanti",
+      "previous": "Indietro",
+      "apply": "Applica il mapping",
+      "applying": "Applicazione…",
+      "incomplete": "Per applicare il mapping manca ancora:",
+      "issue": {
+        "caseId": "la colonna dell'identificativo del caso",
+        "activity": "la colonna dell'attività",
+        "end": "la colonna di fine",
+        "timestamp": "la colonna del timestamp",
+        "attributeName": "il nome di un attributo",
+        "attributeNameDuplicate": "nomi diversi per attributi diversi"
+      },
+      "template": "Template di mapping",
+      "templateNone": "Nessun template",
+      "templateApply": "Applica il template",
+      "templateMissing": "Il file non ha queste colonne del template: {{columns}}",
+      "preview": "Anteprima delle prime righe",
+      "notMapped": "Non mappata",
+      "choose": "Scegli una colonna",
+      "addColumn": "Unisci un'altra colonna",
+      "addColumnTo": "Aggiungi una colonna a {{field}}",
+      "removeColumn": "Togli {{column}}",
+      "field": {
+        "caseId": "Identificativo del caso",
+        "activity": "Attività",
+        "timeShape": "Come sono registrati i tempi",
+        "end": "Fine (o completamento)",
+        "start": "Inizio",
+        "timestamp": "Timestamp",
+        "lifecycle": "Ciclo di vita (inizio/completamento)",
+        "resource": "Risorsa",
+        "role": "Ruolo",
+        "cost": "Costo",
+        "pattern": "Formato delle date",
+        "patternHint": "Alla strftime, es. %d/%m/%Y %H:%M. Vuoto = ISO 8601.",
+        "timezone": "Fuso orario delle date senza fuso",
+        "decimal": "Separatore decimale",
+        "thousands": "Separatore delle migliaia"
+      },
+      "shape": {
+        "interval": "Una riga per esecuzione, con inizio e fine",
+        "transition": "Una riga per transizione (inizio, completamento)"
+      },
+      "attributes": {
+        "case": "Attributi del caso",
+        "event": "Attributi dell'evento",
+        "name": "Nome",
+        "type": "Tipo",
+        "typeName": {
+          "text": "Testo",
+          "number": "Numero",
+          "category": "Categoria",
+          "date": "Data"
+        },
+        "add": {
+          "case": "Aggiungi un attributo del caso",
+          "event": "Aggiungi un attributo dell'evento"
+        }
+      },
+      "separator": {
+        "dot": "Punto (.)",
+        "comma": "Virgola (,)",
+        "none": "Nessuno",
+        "space": "Spazio",
+        "apostrophe": "Apostrofo (')"
+      },
+      "quality": "Qualità dei dati",
+      "issues": "Problemi trovati",
+      "noIssues": "Nessun problema nei dati",
+      "issueRows": "Prime righe: {{rows}}",
+      "period": "Periodo coperto: dal {{from}} al {{to}}",
+      "qualityIssue": {
+        "missing_case_id": "righe senza identificativo del caso, escluse",
+        "missing_activity": "righe senza attività, escluse",
+        "missing_timestamp": "righe senza timestamp di fine, escluse",
+        "unreadable_timestamp": "timestamp non leggibili con il formato indicato, righe escluse",
+        "end_before_start": "righe con la fine prima dell'inizio, escluse",
+        "duplicate_event": "eventi identici ripetuti, tenuto uno solo",
+        "unpaired_start": "inizi senza completamento, esclusi",
+        "unknown_lifecycle": "valori del ciclo di vita non riconosciuti, righe escluse",
+        "unreadable_number": "numeri non leggibili, valore lasciato vuoto",
+        "unreadable_date": "date negli attributi non leggibili, valore lasciato vuoto",
+        "case_attribute_conflict": "attributi del caso con valori diversi nello stesso caso, tenuto il primo"
+      },
+      "kpis": "KPI reali",
+      "noKpis": "Nessun evento valido: i KPI non si possono calcolare. Controlla il report di qualità.",
+      "timing": {
+        "complete_only": "Il log registra solo i completamenti: attesa e lavorazione non sono separabili.",
+        "mixed": "Solo una parte degli eventi ha l'inizio: attesa e lavorazione sono separate solo su quelli."
+      },
+      "kpi": {
+        "events": "Eventi validi",
+        "rowsRead": "su {{count}} righe lette",
+        "excluded": "Righe escluse",
+        "cases": "Casi",
+        "activities": "Attività distinte",
+        "cycle": "Cycle time medio",
+        "waiting": "Attesa media",
+        "processing": "Lavorazione media",
+        "cost": "Costo totale",
+        "notInLog": "Non nel log"
+      },
+      "saveTemplate": "Salva il mapping come template",
+      "templateName": "Nome del template",
+      "saveVersion": "Salva come versione {{version}}",
+      "saveNew": "Salva come nuovo template",
+      "saved": "Template «{{name}}» salvato, versione {{version}}",
+      "saveFailed": "Il template non è stato salvato",
+      "match": {
+        "events": "Eventi",
+        "ignore": "Ignora",
+        "ambiguous": "Più elementi con questo nome",
+        "confirm": "Conferma l'abbinamento",
+        "confirmed": "Abbinamento confermato dal consulente",
+        "activities": {
+          "hint": "In automatico si abbinano solo nomi identici. Gli altri li decidi tu.",
+          "log": "Attività del log",
+          "model": "Elemento del BPMN",
+          "choose": "Elemento del BPMN per {{name}}",
+          "noModel": "Il processo non ha ancora un BPMN da abbinare.",
+          "unobserved_one": "{{count}} elemento del modello non compare nel log",
+          "unobserved_other": "{{count}} elementi del modello non compaiono nel log"
+        },
+        "resources": {
+          "hint": "Abbina le persone o gli utenti del log ai pool e alle lane del modello.",
+          "log": "Risorsa del log",
+          "model": "Risorsa del modello",
+          "choose": "Risorsa del modello per {{name}}",
+          "noModel": "Il modello non ha pool o lane a cui abbinare le risorse.",
+          "unobserved_one": "{{count}} risorsa del modello non compare nel log",
+          "unobserved_other": "{{count}} risorse del modello non compaiono nel log",
+          "without_one": "{{count}} evento non ha risorsa nel log",
+          "without_other": "{{count}} eventi non hanno risorsa nel log"
+        }
+      }
     }
   },
   "side": {

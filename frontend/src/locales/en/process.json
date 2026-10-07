@@ -522,7 +522,8 @@
         "overview": "Results",
         "compare": "Compare",
         "heatmap": "Heatmap",
-        "insights": "Insights"
+        "insights": "Insights",
+        "eventLog": "Event log"
       },
       "question": {
         "activityQueued": "Where do queues build up?",
@@ -598,6 +599,186 @@
       "gestureHint": "Space + drag to pan; Ctrl/Cmd + wheel to zoom",
       "resizeCanvas": "Resize canvas area",
       "resizeInspector": "Resize details panel"
+    },
+    "eventLog": {
+      "intro": "Upload a system export (CSV or XES): columns, formats, data quality and real KPIs computed exactly like the simulation.",
+      "delimiter": "Separator",
+      "delimiterAuto": "Detect automatically",
+      "delimiterName": {
+        "comma": "Comma (,)",
+        "semicolon": "Semicolon (;)",
+        "tab": "Tab",
+        "pipe": "Pipe (|)"
+      },
+      "file": "Event log file",
+      "upload": "Upload event log",
+      "uploading": "Uploading…",
+      "uploadFailed": "The file was not uploaded",
+      "loadFailed": "Could not read the process event logs",
+      "retry": "Retry",
+      "empty": "No event logs",
+      "emptyHint": "Upload a CSV or XES export to compare the real process with the model.",
+      "list": "Process event logs",
+      "rows_one": "{{count}} row",
+      "rows_other": "{{count}} rows",
+      "status": {
+        "uploaded": "to map",
+        "mapped": "mapped"
+      },
+      "delete": "Delete {{name}}",
+      "deleteTitle": "Delete {{name}}?",
+      "deleteDescription": "The file, the applied mapping, the quality report and the real KPIs of this log cannot be recovered. Saved templates stay.",
+      "deleteConfirm": "Delete log",
+      "analysisLoading": "Loading the quality report and KPIs…",
+      "analysisFailed": "Could not read the report of this log",
+      "remap": "Review the columns",
+      "back": "Back to the list",
+      "steps": "Import steps",
+      "step": {
+        "columns": "Columns",
+        "formats": "Formats",
+        "results": "Quality and KPIs",
+        "activities": "Activities",
+        "resources": "Resources"
+      },
+      "applyFailed": "The mapping was not applied",
+      "previewFailed": "Preview not available with this separator",
+      "next": "Next",
+      "previous": "Back",
+      "apply": "Apply mapping",
+      "applying": "Applying…",
+      "incomplete": "Before applying the mapping you still need:",
+      "issue": {
+        "caseId": "the case id column",
+        "activity": "the activity column",
+        "end": "the end column",
+        "timestamp": "the timestamp column",
+        "attributeName": "a name for every attribute",
+        "attributeNameDuplicate": "different names for different attributes"
+      },
+      "template": "Mapping template",
+      "templateNone": "No template",
+      "templateApply": "Apply template",
+      "templateMissing": "The file lacks these template columns: {{columns}}",
+      "preview": "Preview of the first rows",
+      "notMapped": "Not mapped",
+      "choose": "Choose a column",
+      "addColumn": "Join another column",
+      "addColumnTo": "Add a column to {{field}}",
+      "removeColumn": "Remove {{column}}",
+      "field": {
+        "caseId": "Case id",
+        "activity": "Activity",
+        "timeShape": "How times are recorded",
+        "end": "End (or completion)",
+        "start": "Start",
+        "timestamp": "Timestamp",
+        "lifecycle": "Lifecycle (start/complete)",
+        "resource": "Resource",
+        "role": "Role",
+        "cost": "Cost",
+        "pattern": "Date format",
+        "patternHint": "strftime style, e.g. %d/%m/%Y %H:%M. Empty = ISO 8601.",
+        "timezone": "Time zone for dates without one",
+        "decimal": "Decimal separator",
+        "thousands": "Thousands separator"
+      },
+      "shape": {
+        "interval": "One row per execution, with start and end",
+        "transition": "One row per transition (start, complete)"
+      },
+      "attributes": {
+        "case": "Case attributes",
+        "event": "Event attributes",
+        "name": "Name",
+        "type": "Type",
+        "typeName": {
+          "text": "Text",
+          "number": "Number",
+          "category": "Category",
+          "date": "Date"
+        },
+        "add": {
+          "case": "Add a case attribute",
+          "event": "Add an event attribute"
+        }
+      },
+      "separator": {
+        "dot": "Dot (.)",
+        "comma": "Comma (,)",
+        "none": "None",
+        "space": "Space",
+        "apostrophe": "Apostrophe (')"
+      },
+      "quality": "Data quality",
+      "issues": "Issues found",
+      "noIssues": "No data issues",
+      "issueRows": "First rows: {{rows}}",
+      "period": "Period covered: {{from}} to {{to}}",
+      "qualityIssue": {
+        "missing_case_id": "rows without a case id, excluded",
+        "missing_activity": "rows without an activity, excluded",
+        "missing_timestamp": "rows without an end timestamp, excluded",
+        "unreadable_timestamp": "timestamps unreadable with the given format, rows excluded",
+        "end_before_start": "rows ending before they start, excluded",
+        "duplicate_event": "identical repeated events, one kept",
+        "unpaired_start": "starts without completion, excluded",
+        "unknown_lifecycle": "unrecognised lifecycle values, rows excluded",
+        "unreadable_number": "unreadable numbers, value left empty",
+        "unreadable_date": "unreadable attribute dates, value left empty",
+        "case_attribute_conflict": "case attributes with different values in the same case, first kept"
+      },
+      "kpis": "Real KPIs",
+      "noKpis": "No valid events: KPIs cannot be computed. Check the quality report.",
+      "timing": {
+        "complete_only": "The log only records completions: waiting and processing cannot be separated.",
+        "mixed": "Only some events have a start: waiting and processing are separated only for those."
+      },
+      "kpi": {
+        "events": "Valid events",
+        "rowsRead": "out of {{count}} rows read",
+        "excluded": "Excluded rows",
+        "cases": "Cases",
+        "activities": "Distinct activities",
+        "cycle": "Average cycle time",
+        "waiting": "Average waiting",
+        "processing": "Average processing",
+        "cost": "Total cost",
+        "notInLog": "Not in the log"
+      },
+      "saveTemplate": "Save the mapping as a template",
+      "templateName": "Template name",
+      "saveVersion": "Save as version {{version}}",
+      "saveNew": "Save as a new template",
+      "saved": "Template “{{name}}” saved, version {{version}}",
+      "saveFailed": "The template was not saved",
+      "match": {
+        "events": "Events",
+        "ignore": "Ignore",
+        "ambiguous": "Several elements share this name",
+        "confirm": "Confirm matches",
+        "confirmed": "Matches confirmed by the consultant",
+        "activities": {
+          "hint": "Only identical names are matched automatically. You decide the rest.",
+          "log": "Log activity",
+          "model": "BPMN element",
+          "choose": "BPMN element for {{name}}",
+          "noModel": "The process has no BPMN to match yet.",
+          "unobserved_one": "{{count}} model element never appears in the log",
+          "unobserved_other": "{{count}} model elements never appear in the log"
+        },
+        "resources": {
+          "hint": "Match the people or users in the log to the model's pools and lanes.",
+          "log": "Log resource",
+          "model": "Model resource",
+          "choose": "Model resource for {{name}}",
+          "noModel": "The model has no pools or lanes to match resources to.",
+          "unobserved_one": "{{count}} model resource never appears in the log",
+          "unobserved_other": "{{count}} model resources never appear in the log",
+          "without_one": "{{count}} event has no resource in the log",
+          "without_other": "{{count}} events have no resource in the log"
+        }
+      }
     }
   },
   "side": {
