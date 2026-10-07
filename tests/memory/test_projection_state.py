@@ -114,3 +114,66 @@ def test_the_app_role_cannot_read_the_state(client_id):
 
     with pytest.raises(ProgrammingError), APP.begin() as conn:
         conn.execute(text("SELECT * FROM graph_projection_state"))
+
+
+def _enqueue(client_id: str | None) -> int:
+    with MIGRATOR.begin() as conn:
+        return conn.execute(
+            text(
+                "INSERT INTO graph_outbox "
+                "(aggregate_type, aggregate_id, consultant_id, client_id, op, payload, dedupe_key) "
+                "VALUES ('entity', CAST(:agg AS uuid), CAST(:cons AS uuid), CAST(:cl AS uuid), "
+                "        'upsert', CAST(:payload AS jsonb), :key) RETURNING id"
+            ),
+            {
+                "agg": str(uuid.uuid4()),
+                "cons": str(uuid.uuid4()),
+                "cl": client_id,
+                "payload": '{"kind": "node"}',
+                "key": f"test-projection-state-{uuid.uuid4()}",
+            },
+        ).scalar_one()
+
+
+def _drop(outbox_id: int) -> None:
+    with MIGRATOR.begin() as conn:
+        conn.execute(text("DELETE FROM graph_outbox WHERE id = :id"), {"id": outbox_id})
+
+
+def test_an_applied_row_advances_its_client_watermark(client_id):
+    from backend.workers import graph_worker
+
+    outbox_id = _enqueue(client_id)
+    try:
+        with WORKER.begin() as conn:
+            graph_worker._mark_applied(conn, outbox_id, client_id)
+            processed = conn.execute(
+                text("SELECT processed_at FROM graph_outbox WHERE id = :id"), {"id": outbox_id}
+            ).scalar_one()
+
+        assert processed is not None
+        state = _read(client_id)
+        assert state is not None
+        assert state.watermark == outbox_id
+    finally:
+        _drop(outbox_id)
+
+
+def test_a_row_without_a_client_leaves_no_state():
+    from backend.workers import graph_worker
+
+    outbox_id = _enqueue(None)
+    try:
+        count = text("SELECT count(*) FROM graph_projection_state")
+        with WORKER.begin() as conn:
+            before = conn.execute(count).scalar_one()
+            graph_worker._mark_applied(conn, outbox_id, None)
+            after = conn.execute(count).scalar_one()
+            processed = conn.execute(
+                text("SELECT processed_at FROM graph_outbox WHERE id = :id"), {"id": outbox_id}
+            ).scalar_one()
+
+        assert processed is not None
+        assert after == before
+    finally:
+        _drop(outbox_id)
