@@ -2,9 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 
-import { PanelShellHeader } from "@/components/panel";
-import { ResizeHandle } from "@/components/layout";
-import { Surface } from "@/ui/surface";
+import { WorkspaceInspector, WorkspaceResizeSeparator } from "@/components/layout/CanvasWorkspace";
 import { Button } from "@/ui/button";
 import { usePanelSize } from "@/lib/usePanelSize";
 import { useElementWidth } from "@/lib/useElementWidth";
@@ -38,33 +36,40 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
   const { ref, width } = useElementWidth<HTMLElement>();
   const [chatOpen, setChatOpen] = React.useState(false);
   const [chatWidth, setChatWidth] = usePanelSize("process-chat", 360, 320, 480);
-  const dragStart = React.useRef(0);
+  const [inspectorCloseLabel, setInspectorCloseLabel] = React.useState<string | null>(null);
+  const [inspectorTitle, setInspectorTitle] = React.useState<string | null>(null);
+  const inspectorClose = React.useRef<(() => void) | null>(null);
+  const inspectorHost = React.useRef<HTMLDivElement | null>(null);
+  const onInspectorChange = React.useCallback((inspector: { title: string; closeLabel: string; close: () => void } | null) => { inspectorClose.current = inspector?.close ?? null; setInspectorTitle(inspector?.title ?? null); setInspectorCloseLabel(inspector?.closeLabel ?? null); }, []);
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(null);
   const [currentCanvasVersionId, setCurrentCanvasVersionId] = React.useState<number | null>(null);
   const propertiesPanelRef = React.useRef<HTMLDivElement | null>(null);
   // A support pane is inline only when at least 720 px remain for the model.
   const inline = width >= 1090;
-  const availableChatWidth = Math.min(chatWidth, Math.max(320, width - 730));
-  const bothFit = width >= availableChatWidth + 360 + 740;
+  const availableChatWidth = Math.min(chatWidth, Math.max(320, width - 792));
+  const bothFit = width >= availableChatWidth + 480 + 792;
   const showChat = chatOpen && (!propertiesOpen || bothFit);
+  const detailsOpen = Boolean(inspectorTitle) && (!showChat || bothFit);
+  const rightOpen = propertiesOpen || detailsOpen;
   const supportReplacesCanvas = !inline && (showChat || propertiesOpen);
   const lastTrigger = React.useRef<HTMLElement | null>(null);
   const closeRef = React.useRef<HTMLButtonElement | null>(null);
 
   const restoreSupportFocus = React.useRef(false);
   React.useLayoutEffect(() => {
-    if (supportReplacesCanvas) closeRef.current?.focus();
+    if (supportReplacesCanvas) (closeRef.current ?? ref.current?.querySelector<HTMLButtonElement>(`.process-studio-properties button[aria-label="${CSS.escape(t("actions.closeOverlays"))}"]`))?.focus();
     else if (restoreSupportFocus.current && !propertiesOpen && !showChat) {
       restoreSupportFocus.current = false;
       lastTrigger.current?.focus({ preventScroll: true });
     }
-  }, [supportReplacesCanvas, propertiesOpen, showChat]);
+  }, [supportReplacesCanvas, propertiesOpen, showChat, ref, t]);
 
   const closeSupport = () => {
     restoreSupportFocus.current = true;
     setChatOpen(false);
     if (propertiesOpen) onTogglePropertiesPanel();
   };
+  const closeInspector = () => { if (propertiesOpen) closeSupport(); else { inspectorClose.current?.(); ref.current?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(t("actions.toggleProperties"))}"]`)?.focus({ preventScroll: true }); } };
   const toggleChat = () => {
     lastTrigger.current = ref.current?.querySelector<HTMLElement>(`button[aria-label="${CSS.escape(t("actions.toggleChat"))}"]`) ?? document.activeElement as HTMLElement | null;
     if (!showChat && propertiesOpen && !bothFit) onTogglePropertiesPanel();
@@ -82,7 +87,7 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
     }}>
       <div className={`process-workspace-grid process-view-${view}`}>
         {view === "canvas" ? (
-          <div className="process-studio-flex" aria-label="Studio BPMN">
+          <div className={`process-studio-flex ${!inline && detailsOpen && !propertiesOpen ? "process-studio-flex--stacked" : ""}`} aria-label="Studio BPMN">
             {showChat && <>
               <section className="process-studio-chat flex flex-col" style={{ width: inline ? availableChatWidth : "100%", flex: inline ? `0 0 ${availableChatWidth}px` : "1" }} aria-label={t("actions.toggleChat")}>
                 <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3">
@@ -93,16 +98,16 @@ export function ProcessWorkspace({ project, process, view, propertiesOpen, onTog
                   <ChatExperience chrome="panel" layout="embedded" scope={{ type: "canvas", projectId: project.id, processId: process.id, bpmnModelId: process.bpmnModelId, processName: process.name, currentBpmnXml: currentCanvasXml, currentBpmnVersionId: currentCanvasVersionId }} />
                 </div>
               </section>
-              {inline && <ResizeHandle ariaLabel={t("actions.toggleChat")} onResizeStart={() => (dragStart.current = availableChatWidth)} onDelta={(dx) => setChatWidth(Math.min(dragStart.current + dx, width - 730))} onStep={(dx) => setChatWidth(Math.min(availableChatWidth + dx, width - 730))} valueNow={availableChatWidth} valueMin={320} valueMax={Math.min(480, width - 730)} />}
+              {inline && <div className="process-chat-resize"><WorkspaceResizeSeparator label={t("actions.toggleChat")} value={availableChatWidth} minimum={320} maximum={Math.min(480, width - 792)} edge="end" onResize={setChatWidth} /></div>}
             </>}
             <section className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas} aria-label="Canvas BPMN">
-              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} onCurrentXmlChange={setCurrentCanvasXml} onBaseVersionChange={setCurrentCanvasVersionId} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
+              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} inspectorHost={inspectorHost} onInspectorChange={onInspectorChange} onCurrentXmlChange={setCurrentCanvasXml} onBaseVersionChange={setCurrentCanvasVersionId} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
             </section>
-            <Surface asChild variant="panel"><aside className="process-studio-properties" style={{ width: inline ? 360 : "100%", flex: inline ? "0 0 360px" : "1", marginLeft: inline ? 12 : 0 }} aria-label={t("properties.title")} hidden={!propertiesOpen}>
-              <PanelShellHeader title={t("properties.title")} actions={<Button ref={propertiesOpen ? closeRef : undefined} variant="ghost" size="icon-sm" aria-label={t("actions.closeOverlays")} onClick={closeSupport}><X className="size-4" /></Button>} />
-              {/* The host must remain mounted for the modeler's properties provider. */}
-              <div className="process-bpmn-properties-host" ref={propertiesPanelRef} />
-            </aside></Surface>
+            <WorkspaceInspector label={t("properties.title")} title={propertiesOpen ? t("properties.title") : inspectorTitle ?? t("properties.title")} closeLabel={propertiesOpen ? t("actions.closeOverlays") : inspectorCloseLabel ?? t("actions.closeOverlays")} onClose={closeInspector} hidden={!rightOpen} resizeLabel={inline ? t("actions.resizeInspector") : undefined} initialWidth={360} maximumWidth={480} minimumStageWidth={784 + (showChat && inline ? availableChatWidth + 12 : 0)} className={`process-studio-properties ${inline ? "" : "process-studio-properties--compact"}`} bodyClassName="process-inspector-body">
+              {/* Both hosts stay mounted: opening a pane must not rebuild the modeler. */}
+              <div className="process-bpmn-properties-host ui-scrollbar" ref={propertiesPanelRef} hidden={!propertiesOpen} />
+              <div ref={inspectorHost} className="process-detail-host ui-scrollbar" hidden={propertiesOpen} />
+            </WorkspaceInspector>
           </div>
         ) : (
           <section className="process-primary-panel" aria-label={t("canvas.processChat")}>

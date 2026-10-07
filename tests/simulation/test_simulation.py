@@ -402,12 +402,20 @@ def test_prepare_simulation_run_dedupes_in_flight_runs(client):
     )
 
     first_run, first_scenario, _ = prepare_simulation_run(bpmn_model=model, request=request)
-    second_run, second_scenario, _ = prepare_simulation_run(bpmn_model=model, request=request)
+    try:
+        second_run, second_scenario, _ = prepare_simulation_run(bpmn_model=model, request=request)
 
-    assert first_scenario is not None
-    # Same key, first run still pending -> reuse, no execution.
-    assert second_scenario is None
-    assert second_run["id"] == first_run["id"]
+        assert first_scenario is not None
+        # Same key, first run still pending -> reuse, no execution.
+        assert second_scenario is None
+        assert second_run["id"] == first_run["id"]
+    finally:
+        # Il run resta `pending` per costruzione: lasciato li', conta fra le
+        # simulazioni in corso di tutto il deploy e, su uno stack di test che
+        # resta acceso fra due sessioni, porta il limite a 429 nei test dopo.
+        from backend.simulation.storage import fail_simulation_run
+
+        fail_simulation_run(run_id=first_run["id"], error="chiuso dal test")
 
 
 def test_the_engine_says_it_is_full_instead_of_making_people_wait(client, monkeypatch):
@@ -532,3 +540,9 @@ def test_a_simulation_killed_mid_run_stops_being_in_flight(client):
     assert late["status"] == "failed"
     assert late["error"] == STALE_RUN_ERROR
     assert get_simulation_run(abandoned["id"])["summary"] is None
+
+    # Il run rilanciato e' `pending` e nessuno lo esegue: va chiuso, o conta fra
+    # le simulazioni in corso di tutto il deploy nei test che vengono dopo.
+    from backend.simulation.storage import fail_simulation_run
+
+    fail_simulation_run(run_id=relaunched["id"], error="chiuso dal test")

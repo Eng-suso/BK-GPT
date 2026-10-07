@@ -57,6 +57,8 @@ def _derive_idempotency_key(
             "default_cost_per_hour": request.default_cost_per_hour,
             "resource_amount": request.resource_amount,
             "resource_name": request.resource_name,
+            # Stesso scenario, seed diverso: un altro campione, un altro run.
+            "seed": request.seed,
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -167,6 +169,7 @@ async def execute_simulation_run(
                     scenario=scenario,
                     total_cases=request.total_cases,
                     start_date=request.start_date,
+                    seed=request.seed,
                 )
             )
         )

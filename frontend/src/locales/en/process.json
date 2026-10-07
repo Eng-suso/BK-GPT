@@ -8,6 +8,7 @@
     "simulation": "Simulation"
   },
   "actions": {
+    "resizeInspector": "Resize inspector",
     "backToProject": "Back to project",
     "toggleChat": "Canvas chat",
     "toggleProperties": "Properties",
@@ -612,11 +613,31 @@
     }
   },
   "properties": {
+    "vendor": {
+      "general": "General",
+      "documentation": "Documentation",
+      "name": "Name",
+      "id": "ID",
+      "executable": "Executable",
+      "process": "Process",
+      "participant": "Participant",
+      "userTask": "User Task",
+      "serviceTask": "Service Task",
+      "task": "Task",
+      "start": "Start Event",
+      "end": "End Event",
+      "gateway": "Exclusive Gateway",
+      "lane": "Lane",
+      "toggleSection": "Toggle section",
+      "addDocumentation": "Add documentation",
+      "noSelection": "No element selected"
+},
     "eyebrow": "BPMN 2.0",
     "title": "Properties panel",
     "hint": "Selected element"
   },
   "canvas": {
+    "documentDetails": "Details",
     "blank": {
       "title": "This model is still empty",
       "description": "The process is recorded but not reconstructed yet. The canvas comes out of the discussion: describe the process to the agent and it will propose the BPMN. You can also import a .bpmn file, or draw it by hand from the palette on the left.",

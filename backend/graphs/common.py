@@ -7,7 +7,7 @@ from langgraph.graph import START, END, StateGraph, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import BaseModel, ValidationError
 
-from backend.agents.run_context import report_bpmn_version_conflict
+from backend.graphs.tool_errors import report_tool_error
 from backend.graphs.agent_budget import (
     BUDGET_EXHAUSTED_MESSAGE,
     EXHAUSTED_KEY,
@@ -383,7 +383,7 @@ def build_tool_chat_subgraph(
     workflow.add_node(agent_node_name, agent_node)
     workflow.add_node(
         tool_node_name,
-        ToolNode(tools, handle_tool_errors=report_bpmn_version_conflict),
+        ToolNode(tools, handle_tool_errors=report_tool_error),
     )
 
     if preload_node is None:

@@ -275,11 +275,11 @@ def _run_tool_node(tool_fn):
     from langgraph.graph import END, START, MessagesState, StateGraph
     from langgraph.prebuilt import ToolNode
 
-    from backend.agents.run_context import report_bpmn_version_conflict
+    from backend.graphs.tool_errors import report_tool_error
 
     wrapped = tool(tool_fn)
     graph = StateGraph(MessagesState)
-    graph.add_node("tools", ToolNode([wrapped], handle_tool_errors=report_bpmn_version_conflict))
+    graph.add_node("tools", ToolNode([wrapped], handle_tool_errors=report_tool_error))
     graph.add_edge(START, "tools")
     graph.add_edge("tools", END)
     call = {"name": wrapped.name, "args": {}, "id": "call-1", "type": "tool_call"}

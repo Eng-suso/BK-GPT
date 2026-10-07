@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import {
+  Link,
   Navigate,
   useNavigate,
   useParams,
@@ -8,10 +9,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { FlaskConical, ArrowLeft, Users, MessagesSquare, Workflow } from "lucide-react";
 
-import { PageHeader } from "@/components/layout";
+import { WorkspaceContextBar, WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
 import { ErrorState } from "@/components/feedback";
 import { StatusIndicator, type StatusTone } from "@/components/status";
-import { Surface } from "@/ui/surface";
 import { Badge } from "@/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/ui/tabs";
 import { Button } from "@/ui/button";
@@ -142,51 +142,21 @@ export function ProcessStudioPage(): React.JSX.Element {
 
   return (
     <Tabs value={view} onValueChange={setView} className="h-full min-h-0 gap-0">
-      <Surface variant="chrome" className="process-studio-header mx-4 mb-3 mt-3 flex shrink-0 flex-col gap-3 rounded-xl p-4">
-        <PageHeader
-          compact
-          className="[&_h1]:text-xl"
-          breadcrumbs={[
-            { label: t("breadcrumb.projects"), to: ROUTES.projects.list },
-            { label: project.name, to: ROUTES.projects.detail(project.id) },
-            { label: process.name },
-          ]}
-          title={process.name}
-          meta={
-            <>
-              <StatusIndicator
-                tone={PROCESS_STATUS_TONE[process.status] ?? "neutral"}
-                label={process.status}
-              />
-              <Badge variant="secondary">{process.stage}</Badge>
-              <span className="inline-flex min-w-0 items-center gap-1.5" title={`${t("side.summary.ownerLabel")}: ${process.owner}`}><Users aria-hidden className="size-3.5 shrink-0" /><span className="break-words">{process.owner}</span></span>
-              <Badge variant="outline" className="tabular-nums">{t("side.summary.readiness")} {process.readiness}%</Badge>
-            </>
-          }
-          actions={
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  navigate(
-                    ROUTES.projects.simulation(project.id, process.id),
-                  )
-                }
-              >
-                <FlaskConical aria-hidden className="size-4" />
-                {t("simulation.section.title")}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={backToProject} aria-label={t("actions.backToProject")} title={t("actions.backToProject")}>
-                <ArrowLeft aria-hidden className="size-4" /><span className="process-back-label">{t("actions.backToProject")}</span>
-              </Button>
-            </>
-          }
-        />
+      <WorkspaceContextBar className="process-studio-header" title={process.name} navigation={<div className="flex shrink-0 items-center gap-2"><Button variant="ghost" size="icon-sm" onClick={backToProject} aria-label={t("actions.backToProject")} title={t("actions.backToProject")}><ArrowLeft aria-hidden className="size-4" /></Button><Badge variant="secondary" className="process-stage-badge">{process.stage}</Badge></div>} actions={<>
         <TabsList aria-label={t("actions.views")}>
-          {VIEWS.map((v) => <TabsTrigger key={v} value={v}>{v === "chat" ? <MessagesSquare aria-hidden /> : <Workflow aria-hidden />}{t(`tabs.${v}`)}</TabsTrigger>)}
+          {VIEWS.map((v) => <TabsTrigger key={v} value={v} aria-label={t(`tabs.${v}`)}>{v === "chat" ? <MessagesSquare aria-hidden /> : <Workflow aria-hidden />}<span className="process-view-label">{t(`tabs.${v}`)}</span></TabsTrigger>)}
         </TabsList>
-      </Surface>
+        <WorkspaceDisclosure label={t("canvas.documentDetails")} contentClassName="process-document-details">
+          <nav aria-label="Breadcrumb" className="mb-3 flex flex-wrap gap-2 text-xs text-muted-foreground"><Link to={ROUTES.projects.list}>{t("breadcrumb.projects")}</Link><span aria-hidden>/</span><Link to={ROUTES.projects.detail(project.id)}>{project.name}</Link></nav>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <StatusIndicator tone={PROCESS_STATUS_TONE[process.status] ?? "neutral"} label={process.status} />
+            <Badge variant="secondary">{process.stage}</Badge>
+            <span className="inline-flex items-center gap-1.5"><Users aria-hidden className="size-3.5" />{process.owner}</span>
+            <Badge variant="outline" className="tabular-nums">{t("side.summary.readiness")} {process.readiness}%</Badge>
+          </div>
+        </WorkspaceDisclosure>
+        <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.simulation(project.id, process.id))} aria-label={t("simulation.section.title")} title={t("simulation.section.title")}><FlaskConical aria-hidden className="size-4" /><span className="process-view-label">{t("simulation.section.title")}</span></Button>
+      </>} />
 
       <TabsContent value={view} className="min-h-0 flex-1">
         <ProcessWorkspace
