@@ -66,6 +66,21 @@ function source(created: boolean) {
   };
 }
 
+/** Un file per tutto il cliente (P1.16): nessun progetto, compare nelle Fonti di ognuno. */
+function clientSource() {
+  return {
+    ...source(false),
+    id: "src-policy",
+    project_id: null,
+    client_id: "c-esaote",
+    process_id: null,
+    name: "policy-acquisti.pdf",
+    mime_type: "application/pdf",
+    roles: ["context"],
+    scopes: [{ type: "client", id: "c-esaote" }],
+  };
+}
+
 async function fixture(
   page: Page,
   uploads: { path: string; body: string }[],
@@ -90,8 +105,12 @@ async function fixture(
       patches.push(body);
       return route.fulfill({ json: { ...source(false), roles: body.roles } });
     }
+    if (path === "/v1/workspace/clients/c-esaote/sources/upload") {
+      uploads.push({ path, body: request.postData() ?? "" });
+      return route.fulfill({ status: 201, json: { ...clientSource(), created: true, suggested_roles: ["policy"] } });
+    }
     if (path === "/v1/workspace/projects/p-acquisti/sources") {
-      return route.fulfill({ json: [source(false)] });
+      return route.fulfill({ json: [source(false), clientSource()] });
     }
     return route.fulfill({ status: 200, json: null });
   });
@@ -109,7 +128,7 @@ test("dalla chat del consulente un file va dove il consulente sceglie", async ({
   const dialog = page.getByRole("dialog", { name: "Dove va questo file?" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Progetto").selectOption("p-acquisti");
-  await dialog.getByLabel("Processo").selectOption("proc-p2p");
+  await dialog.getByLabel("Ambito").selectOption("proc-p2p");
 
   const chooser = page.waitForEvent("filechooser");
   await dialog.getByRole("button", { name: "Scegli il file" }).click();
@@ -143,3 +162,39 @@ test("dalla chat del consulente un file va dove il consulente sceglie", async ({
   // Con un file gia' allegato la destinazione non cambia.
   await expect(page.getByRole("menuitem", { name: "Cambia destinazione" })).toBeDisabled();
 });
+
+for (const mobile of [false, true]) {
+  test(`dalla chat del consulente un file va a tutto il cliente (${mobile ? "mobile" : "desktop"})`, async ({ page }, testInfo) => {
+    const uploads: { path: string; body: string }[] = [];
+    await fixture(page, uploads);
+    await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 });
+    await page.goto("/consultant");
+
+    await page.getByRole("button", { name: /aggiungi/i }).first().click();
+    await page.getByRole("menuitem", { name: "Carica un file" }).click();
+    const dialog = page.getByRole("dialog", { name: "Dove va questo file?" });
+    await dialog.getByLabel("Progetto").selectOption("p-acquisti");
+    await dialog.getByLabel("Ambito").selectOption({ label: "Tutto il cliente «Esaote»" });
+    await expect(dialog).toContainText("Vale per tutti i progetti del cliente");
+    const box = await dialog.boundingBox();
+    const select = await dialog.getByLabel("Ambito").boundingBox();
+    // La voce lunga non allarga il menu oltre la finestra.
+    expect(select && box && select.x + select.width <= box.x + box.width).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`destinazione-cliente-${mobile ? "mobile" : "desktop"}.png`) });
+
+    const chooser = page.waitForEvent("filechooser");
+    await dialog.getByRole("button", { name: "Scegli il file" }).click();
+    await (await chooser).setFiles({
+      name: "policy-acquisti.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4 policy"),
+    });
+
+    const chips = page.getByRole("list", { name: /allegati/i });
+    await expect(chips.getByText("policy-acquisti.pdf")).toBeVisible();
+    await expect(chips.getByText("Pronta")).toBeVisible();
+    expect(uploads.map((upload) => upload.path)).toEqual(["/v1/workspace/clients/c-esaote/sources/upload"]);
+    expect(uploads[0].body).toContain("context");
+    await page.screenshot({ path: testInfo.outputPath(`allegato-cliente-${mobile ? "mobile" : "desktop"}.png`) });
+  });
+}

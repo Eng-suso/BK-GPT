@@ -12,10 +12,11 @@ vi.mock("@/features/projects/api", () => ({
       {
         id: "p-acquisti",
         name: "Riorganizzazione acquisti",
+        clientId: "esaote",
         client: "Esaote",
         processItems: [{ id: "proc-p2p", name: "Procure to pay" }],
       },
-      { id: "p-hr", name: "Processi HR", client: "Barilla", processItems: [] },
+      { id: "p-hr", name: "Processi HR", clientId: "barilla", client: "Barilla", processItems: [] },
     ],
   }),
 }));
@@ -31,7 +32,7 @@ describe("UploadDestinationDialog", () => {
     expect(choose).toBeDisabled();
 
     await userEvent.selectOptions(screen.getByLabelText("Progetto"), "p-acquisti");
-    await userEvent.selectOptions(screen.getByLabelText("Processo"), "proc-p2p");
+    await userEvent.selectOptions(screen.getByLabelText("Ambito"), "proc-p2p");
     expect(screen.getByText(/evidenza di questo processo/)).toBeInTheDocument();
     await userEvent.click(choose);
 
@@ -40,6 +41,43 @@ describe("UploadDestinationDialog", () => {
       processId: "proc-p2p",
       label: "Riorganizzazione acquisti · Procure to pay",
     });
+  });
+
+  it("un file per tutto il cliente porta il cliente del progetto", async () => {
+    const onConfirm = vi.fn();
+    render(<UploadDestinationDialog open initial={null} onConfirm={onConfirm} onClose={vi.fn()} />);
+
+    await userEvent.selectOptions(screen.getByLabelText("Progetto"), "p-acquisti");
+    const scope = screen.getByLabelText("Ambito");
+    expect(screen.getByRole("option", { name: "Tutto il cliente «Esaote»" })).toBeInTheDocument();
+    await userEvent.selectOptions(scope, screen.getByRole("option", { name: "Tutto il cliente «Esaote»" }));
+    expect(screen.getByText(/tutti i progetti del cliente/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Scegli il file" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      projectId: "p-acquisti",
+      processId: null,
+      clientId: "esaote",
+      label: "Tutto il cliente «Esaote»",
+    });
+  });
+
+  it("riaperta, ricorda il cliente; cambiando progetto torna al progetto", async () => {
+    const onConfirm = vi.fn();
+    render(
+      <UploadDestinationDialog
+        open
+        initial={{ projectId: "p-acquisti", clientId: "esaote" }}
+        onConfirm={onConfirm}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Tutto il cliente «Esaote»" })).toHaveProperty("selected", true);
+
+    await userEvent.selectOptions(screen.getByLabelText("Progetto"), "p-hr");
+    await userEvent.click(screen.getByRole("button", { name: "Scegli il file" }));
+
+    expect(onConfirm).toHaveBeenCalledWith({ projectId: "p-hr", processId: null, label: "Processi HR" });
   });
 
   it("un progetto scelto prima e poi sparito dall'elenco non si conferma", () => {

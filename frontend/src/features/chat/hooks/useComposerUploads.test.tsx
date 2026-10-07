@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mutateAsync = vi.fn();
+const clientMutateAsync = vi.fn();
 const discardSource = vi.fn((_id: string) => Promise.resolve());
 const updateSourceRoles = vi.fn((id: string, roles: string[]) => Promise.resolve({ id, roles }));
 
@@ -21,6 +22,10 @@ vi.mock("../../projects/api", () => ({
     ],
   }),
   useUploadProjectSourceMutation: () => ({ mutateAsync }),
+  useUploadClientSourceMutation: (clientId: string) => ({
+    mutateAsync: (input: unknown) => clientMutateAsync(clientId, input),
+  }),
+  invalidateEverySourcesList: () => undefined,
 }));
 
 import { useComposerUploads, type UploadDestination } from "./useComposerUploads";
@@ -38,6 +43,7 @@ function file(name: string) {
 
 beforeEach(() => {
   mutateAsync.mockReset();
+  clientMutateAsync.mockReset();
   discardSource.mockClear();
 });
 
@@ -228,5 +234,33 @@ describe("useComposerUploads", () => {
     expect(mutateAsync).toHaveBeenLastCalledWith(
       expect.objectContaining({ roles: ["context"], scopes: [{ type: "project", id: "p-9" }] }),
     );
+  });
+
+  it("dalla chat del consulente un file per tutto il cliente va al cliente, e la card resta del progetto", async () => {
+    clientMutateAsync.mockResolvedValue({
+      id: "src-policy",
+      name: "policy.pdf",
+      projectId: null,
+      clientId: "esaote",
+      roles: ["context"],
+      created: true,
+    });
+    const { result } = renderHook(() =>
+      useComposerUploads({ type: "consultant" }, false, { projectId: "p-9", clientId: "esaote" }),
+    );
+
+    let attachment = null;
+    await act(async () => {
+      attachment = await result.current.uploadFile(file("policy.pdf"));
+    });
+
+    expect(mutateAsync).not.toHaveBeenCalled();
+    expect(clientMutateAsync).toHaveBeenCalledWith("esaote", {
+      file: expect.any(File),
+      roles: ["context"],
+      retention: "persistent",
+    });
+    // Il progetto scelto: da li' la chat legge lo stato del file e lo allega.
+    expect(attachment).toEqual({ kind: "source", id: "src-policy", label: "policy.pdf", projectId: "p-9" });
   });
 });
