@@ -167,3 +167,29 @@ def test_a_programming_error_is_not_hidden_by_the_fallback():
 
     with pytest.raises(TypeError):
         summarize_history({"messages": _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)}, buggy)
+
+
+def test_messages_without_id_are_not_summarized_twice():
+    # Senza id un messaggio non si puo' togliere dallo stato: resta in testa,
+    # gia' dentro il riassunto. Il contatore deve saltarlo al giro dopo.
+    messages = _thread(SUMMARY_TRIGGER_MESSAGE_COUNT + 2)
+    for i in range(2):
+        messages[i] = type(messages[i])(content=f"senza id {i}")
+    cutoff = len(messages) - SUMMARY_KEEP_RECENT_MESSAGES
+
+    first = summarize_history({"messages": messages}, lambda existing, old: "sintesi")
+
+    removed = {op.id for op in first["messages"]}
+    assert removed == {m.id for m in messages[2:cutoff]}
+    assert first["summarized_message_count"] == 2
+
+    kept = [m for m in messages if m.id not in removed]
+    new = [HumanMessage(content=f"nuovo {i}", id=f"n{i}") for i in range(SUMMARY_KEEP_RECENT_MESSAGES)]
+    seen: list = []
+    summarize_history(
+        {"messages": kept + new, "summarized_message_count": first["summarized_message_count"]},
+        lambda existing, old: seen.extend(old) or "sintesi 2",
+    )
+
+    assert seen, "il secondo giro deve riassumere i messaggi usciti dalla coda"
+    assert not [m for m in seen if m.id is None]

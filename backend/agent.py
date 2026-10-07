@@ -365,10 +365,16 @@ def summarize_history(state: dict, summarize: Callable[[str, list], str]) -> dic
 
     # Dopo il riassunto i messaggi vecchi escono dal checkpoint: il loro
     # contenuto vive in running_summary, e lo stato non cresce senza limite.
-    remove_ops = [RemoveMessage(id=m.id) for m in messages[:cutoff] if getattr(m, "id", None)]
+    # Uno senza id non si puo' togliere: resta in testa, e il contatore lo
+    # salta al giro dopo invece di riassumerlo una seconda volta.
+    summarized = messages[:cutoff]
+    remove_ops = [RemoveMessage(id=m.id) for m in summarized if getattr(m, "id", None)]
+    still_in_state = len(summarized) - len(remove_ops)
+    if still_in_state:
+        logger.warning("riassunto del thread: %d messaggi senza id restano nello stato", still_in_state)
     return {
         "running_summary": summary_text.strip(),
-        "summarized_message_count": 0,
+        "summarized_message_count": still_in_state,
         **({"messages": remove_ops} if remove_ops else {}),
     }
 
