@@ -40,6 +40,8 @@ from backend.workspace_storage import (
     WorkspaceClaimRelation,
     WorkspaceClient,
     WorkspaceDecision,
+    WorkspaceEventLog,
+    WorkspaceEventLogPayload,
     WorkspacePlanExtraction,
     WorkspacePlanMaterialization,
     WorkspaceProcess,
@@ -4696,6 +4698,21 @@ def _purge_process(session, process: WorkspaceProcess) -> list[str]:
             if isinstance(row, WorkspaceSource) and row.storage_key:
                 storage_keys.append(row.storage_key)
             session.delete(row)
+
+    # Gli event log importati: prima il file, poi la riga, con lo stesso flush
+    # che fissa l'ordine degli artefatti di simulazione.
+    log_ids = list(session.execute(
+        select(WorkspaceEventLog.id).where(WorkspaceEventLog.process_id == process.id)
+    ).scalars())
+    if log_ids:
+        for payload in session.execute(
+            select(WorkspaceEventLogPayload).where(WorkspaceEventLogPayload.event_log_id.in_(log_ids))
+        ).scalars():
+            session.delete(payload)
+        session.flush()
+        for log in session.execute(select(WorkspaceEventLog).where(WorkspaceEventLog.id.in_(log_ids))).scalars():
+            session.delete(log)
+        session.flush()
 
     session.delete(process)
     return storage_keys

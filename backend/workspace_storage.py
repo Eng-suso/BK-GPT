@@ -7,6 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -247,6 +248,99 @@ class WorkspaceSimulationRunArtifact(WorkspaceBase):
     summary_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     # Display representation: sampled case paths + bucketed series + flow volumes.
     replay_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkspaceEventLog(WorkspaceBase):
+    """Un event log reale caricato su un processo (SIM-15).
+
+    Il file resta com'era (`WorkspaceEventLogPayload`); qui si tiene cio' che
+    serve all'anteprima (formato, separatore, colonne, righe) e l'esito
+    dell'ultimo mapping applicato: il mapping stesso, il template da cui viene,
+    il report di qualita', i KPI e l'abbinamento delle attivita' al BPMN.
+    L'event log canonico non si salva: si ricostruisce dal file e dal mapping,
+    che sono deterministici.
+
+    `status`: `uploaded` finche' nessun mapping e' stato applicato, poi `mapped`.
+    Lo stesso file ricaricato sullo stesso processo ritrova la sua riga.
+    """
+
+    __tablename__ = "workspace_event_logs"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "process_id", "content_hash", name="uq_workspace_event_log_file"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    process_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_processes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    format: Mapped[str] = mapped_column(String, nullable=False)
+    # Il separatore in uso: quello riconosciuto, o quello indicato dal consulente.
+    delimiter: Mapped[str | None] = mapped_column(String)
+    content_hash: Mapped[str] = mapped_column(String, nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    columns_json: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="uploaded")
+    mapping_json: Mapped[str | None] = mapped_column(Text)
+    # La versione esatta del template applicato; NULL = mapping scritto a mano.
+    template_id: Mapped[int | None] = mapped_column(
+        ForeignKey("workspace_event_log_templates.id", ondelete="SET NULL")
+    )
+    # Le attivita' abbinate dal consulente; NULL = solo il suggerimento automatico.
+    activity_matches_json: Mapped[str | None] = mapped_column(Text)
+    # Le risorse del log abbinate dal consulente alle risorse del modello.
+    resource_matches_json: Mapped[str | None] = mapped_column(Text)
+    # La versione del BPMN su cui e' stato calcolato l'abbinamento.
+    bpmn_version_id: Mapped[int | None] = mapped_column(Integer)
+    quality_json: Mapped[str | None] = mapped_column(Text)
+    summary_json: Mapped[str | None] = mapped_column(Text)
+    match_json: Mapped[str | None] = mapped_column(Text)
+    resource_match_json: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    mapped_at: Mapped[str | None] = mapped_column(String)
+
+
+class WorkspaceEventLogPayload(WorkspaceBase):
+    """I byte del file caricato, fuori dalla riga del log come il replay dei run:
+    elencare i log non deve leggere megabyte."""
+
+    __tablename__ = "workspace_event_log_payloads"
+
+    event_log_id: Mapped[str] = mapped_column(
+        ForeignKey("workspace_event_logs.id", ondelete="CASCADE"), primary_key=True
+    )
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    payload: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
+
+class WorkspaceEventLogTemplate(WorkspaceBase):
+    """Un mapping salvato, versionato: lo stesso export di un sistema si rimappa
+    con un clic.
+
+    Una riga per versione. `template_key` tiene insieme le versioni dello stesso
+    template; salvarlo di nuovo aggiunge una versione, non riscrive la vecchia,
+    cosi' un log mappato con la versione 2 dice ancora con quale mapping.
+    Vive nel tenant, non nel progetto: l'export di SAP e' lo stesso per tutti i
+    progetti dello stesso cliente e di clienti diversi.
+    """
+
+    __tablename__ = "workspace_event_log_templates"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "template_key", "version", name="uq_workspace_event_log_template_version"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    template_key: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    mapping_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # Le colonne del file su cui e' stato costruito: per dire subito se un
+    # file nuovo le ha tutte.
+    columns_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
