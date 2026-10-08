@@ -16,6 +16,17 @@ def branch_label(points, name, boxes, labels, routes, container=None):
                 candidates += [Box(cx-width/2, cy-height-gap, width, height), Box(cx-width/2, cy+gap, width, height)]
             else:
                 candidates += [Box(cx+gap, cy-height/2, width, height), Box(cx-width-gap, cy-height/2, width, height)]
+    # Dense real-world diagrams may reserve the segment midpoint for another
+    # branch label. Search nearby along the same segment before adding space
+    # to the diagram or giving up. Keep the closest placements first.
+    for a, b in pairwise(points):
+        cx, cy = (a[0]+b[0])/2, (a[1]+b[1])/2
+        for shift in (24, -24, 48, -48, 72, -72, 96, -96):
+            for gap in (8, 20, 36, 52, 68, 100, 140):
+                if a[1] == b[1]:
+                    candidates += [Box(cx+shift-width/2, cy-height-gap, width, height), Box(cx+shift-width/2, cy+gap, width, height)]
+                else:
+                    candidates += [Box(cx+gap, cy+shift-height/2, width, height), Box(cx-width-gap, cy+shift-height/2, width, height)]
     for candidate in candidates:
         if container and not (container.x <= candidate.x and container.y <= candidate.y and container.right >= candidate.right and container.bottom >= candidate.bottom):
             continue
