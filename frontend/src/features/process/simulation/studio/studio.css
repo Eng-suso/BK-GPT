@@ -435,3 +435,6 @@
 .sim-activity-params dl > div { gap:12px; align-items:baseline; }
 .sim-activity-params dd { text-align:right; min-width:0; overflow-wrap:anywhere; }
 .sim-param-note { display:block; font-size:11px; font-weight:400; color:var(--muted-foreground); }
+.sim-param-group { display:grid; gap:6px; }
+.sim-param-group + .sim-param-group { padding-top:10px; border-top:1px dashed var(--border); }
+.sim-param-group h5 { font-size:12px; font-weight:600; color:var(--muted-foreground); }
