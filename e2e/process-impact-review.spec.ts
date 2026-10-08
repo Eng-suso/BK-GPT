@@ -41,11 +41,11 @@ ${[
 ].map((points, index) => `<bpmndi:BPMNEdge id="f${index + 1}_di" bpmnElement="f${index + 1}">${points}</bpmndi:BPMNEdge>`).join("")}
 </bpmndi:BPMNPlane></bpmndi:BPMNDiagram></b:definitions>`;
 
-async function fixture(page: Page, options: { failEvidence?: boolean; conflict?: boolean; failChatOnce?: boolean; holdChat?: boolean; engineDiagram?: boolean } = {}) {
+async function fixture(page: Page, options: { failEvidence?: boolean; conflict?: boolean; failChatOnce?: boolean; holdChat?: boolean; engineDiagram?: boolean; enterpriseDiagram?: boolean } = {}) {
   // These artifacts are generated and compared byte-canonically in the real
   // LangGraph → tool → Postgres test, rather than authored by this API mock.
   const baseline = options.engineDiagram ? readFileSync("e2e/fixtures/review-agent/baseline.bpmn", "utf8") : XML;
-  const proposal = options.engineDiagram ? readFileSync("e2e/fixtures/review-agent/proposal.bpmn", "utf8") : XML.replace('name="Verificare dati"', 'name="Verificare completezza dati"');
+  const proposal = options.enterpriseDiagram ? readFileSync("e2e/fixtures/canvas-layout/purchase.bpmn", "utf8") : options.engineDiagram ? readFileSync("e2e/fixtures/review-agent/proposal.bpmn", "utf8") : XML.replace('name="Verificare dati"', 'name="Verificare completezza dati"');
   const actions: Array<Record<string, unknown>> = [];
   const mutations: string[] = [];
   const turns: Array<Record<string, unknown>> = [];
@@ -329,4 +329,29 @@ test("avatar opens on demand and chat resizing persists across tasks", async ({ 
   // Reset must restore the original measured size, rather than an integer.
   await expect.poll(() => chat.evaluate(element => element.getBoundingClientRect().height)).toBeCloseTo(before.height, 1);
   expect((await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations).toEqual([]);
+});
+
+
+test("enterprise policy diagram renders real-owner lanes, process pool and branch labels", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await fixture(page, { enterpriseDiagram: true });
+  await open(page); await selectTask(page); await openAgent(page);
+  await send(page, "Disegna la proposta di acquisto con owner e condizioni espliciti.");
+  await expect(page.getByRole("button", { name: "Salva come ipotesi" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Agente di Review" }).getByRole("button", { name: "Apri conoscenza e proposte del task" }).click();
+  await page.getByRole("tab", { name: "Proposte", exact: true }).click();
+  await page.getByRole("button", { name: "Apri diagramma", exact: true }).click();
+  const preview = page.getByRole("dialog", { name: "Esplicitare il controllo di completezza" });
+  for (const id of ["Company", "Supplier", "Technical", "Purchasing", "Maintenance", "Director_Sign", "Request_Document"])
+    await expect(preview.locator(`.djs-element[data-element-id='${id}']`)).toBeVisible();
+  for (const text of ["Ufficio tecnico", "Acquisti", "Manutenzione", "Sopra soglia", "Sotto soglia"])
+    await expect(preview.locator(".djs-label").filter({ hasText: text }).first()).toBeVisible();
+  await expect(preview.locator(".djs-connection")).toHaveCount(11);
+  const geometry = await preview.locator(".djs-element[data-element-id='Start'], .djs-element[data-element-id='Open_Request'], .djs-element[data-element-id='Verify'], .djs-element[data-element-id='Decision'], .djs-element[data-element-id='Create_Order'], .djs-element[data-element-id='End']").evaluateAll(elements => Object.fromEntries(elements.map(element => [element.getAttribute("data-element-id"), element.getBoundingClientRect().x])));
+  expect(geometry.Start).toBeLessThan(geometry.Open_Request);
+  expect(geometry.Open_Request).toBeLessThan(geometry.Verify);
+  expect(geometry.Verify).toBeLessThan(geometry.Decision);
+  expect(geometry.Decision).toBeLessThan(geometry.Create_Order);
+  expect(geometry.Create_Order).toBeLessThan(geometry.End);
+  await page.screenshot({ path: info.outputPath("enterprise-layout-proposal.png") });
 });

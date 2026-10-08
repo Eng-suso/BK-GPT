@@ -83,7 +83,7 @@ def test_dense_lanes_use_only_the_rows_they_contain():
     )
     waypoints = list(message_edge.iter(f"{{{DI_NS}}}waypoint"))
     assert len(waypoints) >= 2
-    assert all(float(a.attrib["x"]) == float(b.attrib["x"]) or float(a.attrib["y"]) == float(b.attrib["y"]) for a, b in zip(waypoints, waypoints[1:]))
+    assert all(float(a.attrib["x"]) == float(b.attrib["x"]) or float(a.attrib["y"]) == float(b.attrib["y"]) for a, b in zip(waypoints, waypoints[1:], strict=False))
 
 
 def test_layout_report_identifies_connectors_through_other_activities():

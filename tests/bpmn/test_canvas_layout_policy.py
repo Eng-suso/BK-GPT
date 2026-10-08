@@ -98,3 +98,40 @@ def test_invalid_semantics_are_rejected_before_di_generation(mutation):
         xml = xml.replace('</b:laneSet>', '<b:lane id="other" name="Operations"><b:flowNodeRef>verify</b:flowNodeRef></b:lane></b:laneSet>')
     with pytest.raises(ValueError):
         apply_enterprise_layout(xml)
+
+
+def test_product_three_lane_artifact_matches_the_policy_and_contains_visible_branch_labels():
+    from pathlib import Path
+    xml = apply_enterprise_layout(Path("tests/fixtures/purchase_layout.bpmn").read_text())
+    assert xml == Path("e2e/fixtures/canvas-layout/purchase.bpmn").read_text()
+    root = ET.fromstring(xml)
+    assert len(root.findall(".//b:lane", NS)) == 3
+    for flow_id in ("F4", "F5"):
+        assert root.find(f".//bd:BPMNEdge[@bpmnElement='{flow_id}']/bd:BPMNLabel/dc:Bounds", NS) is not None
+    assert lint_visual_model(root)["valid"]
+
+
+def test_normalizer_preserves_event_declarations_conditions_and_provenance_in_schema_order():
+    xml = semantic(LINEAR, LINEAR_FLOWS).replace('<b:startEvent id="start" name=""/>', '<b:startEvent id="start"><b:documentation>Evidence A</b:documentation><b:timerEventDefinition><b:timeDuration>PT1H</b:timeDuration></b:timerEventDefinition></b:startEvent>')
+    root = ET.fromstring(apply_enterprise_layout(xml))
+    event = root.find(".//b:startEvent", NS)
+    assert [e.tag.rsplit("}", 1)[-1] for e in event] == ["documentation", "outgoing", "timerEventDefinition"]
+    assert event.findtext("b:timerEventDefinition/b:timeDuration", namespaces=NS) == "PT1H"
+    assert event.findtext("b:documentation", namespaces=NS) == "Evidence A"
+
+
+def test_qname_only_namespace_aliases_survive_di_regeneration():
+    xml = semantic(LINEAR, LINEAR_FLOWS).replace('id="def"', 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="def"')
+    xml = xml.replace('<b:process', '<b:itemDefinition id="item" structureRef="xsd:string"/><b:process', 1)
+    xml = xml.replace('targetRef="record"/>', 'targetRef="record"><b:conditionExpression xsi:type="b:tFormalExpression">ready</b:conditionExpression></b:sequenceFlow>')
+    laid_out = apply_enterprise_layout(xml)
+    assert 'xmlns:xsd="http://www.w3.org/2001/XMLSchema"' in laid_out
+    assert f'xmlns:b="{BPMN}"' in laid_out
+    assert 'xsi:type="b:tFormalExpression"' in laid_out
+    assert apply_enterprise_layout(laid_out) == laid_out
+
+
+def test_multiple_participants_cannot_claim_the_same_process():
+    xml = semantic(LINEAR, LINEAR_FLOWS).replace('</b:definitions>', '<b:collaboration id="collab"><b:participant id="one" processRef="process"/><b:participant id="two" processRef="process"/></b:collaboration></b:definitions>')
+    with pytest.raises(ValueError, match="participant"):
+        apply_enterprise_layout(xml)
