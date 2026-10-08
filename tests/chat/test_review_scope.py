@@ -37,3 +37,18 @@ def test_review_tools_do_not_accept_model_or_process_identifiers_from_the_llm():
         properties = tool.tool_call_schema.model_json_schema()["properties"]
         assert not {"project_id", "process_id", "bpmn_model_id", "state"} & properties.keys()
     assert not any(tool.name in {"manage_canvas_bpmn_model", "approve_canvas_bpmn_review"} for tool in REVIEW_TOOLS)
+
+
+def test_review_prompt_allows_requested_copies_without_conflicting_manual_policy():
+    from backend.agents.primary_scope import build_scope_system_prompt
+
+    prompt = build_scope_system_prompt({
+        "scope_type": "canvas", "chat_mode": "conversation",
+        "review_task_context": {"id": "verify", "name": "Verificare dati"},
+    })
+    assert "create_review_bpmn_proposal" in prompt
+    assert "Una domanda di lettura o parere non autorizza scritture" in prompt
+    assert "Non modificare l'As-Is originale" in prompt
+    assert "non creare record" not in prompt
+    ordinary = build_scope_system_prompt({"scope_type": "canvas", "chat_mode": "conversation"})
+    assert "non creare record" in ordinary

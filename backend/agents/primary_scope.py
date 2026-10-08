@@ -63,6 +63,13 @@ ACTION_HONESTY_RULE = (
     "quelle parole."
 )
 VALID_AGENT_SCOPE_TYPES: set[str] = {"consultant", "project", "process", "canvas"}
+REVIEW_MODE_CONTRACT = (
+    "Process Review: leggi, spiega e proponi sul task selezionato. Una richiesta "
+    "esplicita di modifica autorizza create_review_bpmn_proposal a registrare "
+    "soltanto una copia separata As-Is o To-Be, anche in autonomia Manuale. "
+    "Una domanda di lettura o parere non autorizza scritture. Non modificare "
+    "l'As-Is originale, il piano canonico, fonti o altri record."
+)
 MAX_CURRENT_BPMN_XML_CHARS = 80_000
 MAX_STATE_ARTIFACT_CHARS = 40_000
 
@@ -189,7 +196,7 @@ def build_scope_system_prompt(state: dict) -> str:
         f"scope_key: {state.get('scope_key') or 'consultant'}",
         "",
         f"chat_mode: {chat_mode}",
-        CHAT_MODE_CONTRACTS[chat_mode],
+        REVIEW_MODE_CONTRACT if state.get("review_task_context") else CHAT_MODE_CONTRACTS[chat_mode],
         ACTION_HONESTY_RULE,
     ]
     if state.get("review_task_context"):
