@@ -2,7 +2,7 @@
 from itertools import combinations, pairwise
 from math import isfinite
 
-from .geometry import Box
+from .geometry import Box, semantic_connections
 from .policy import ARTIFACT_TYPES, BPMNDI, DC, DI, FLOW_TYPES, local_name, tag
 from .router import segment_hits_box, _cross
 
@@ -88,6 +88,7 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
             child = shapes.get(ref.text)
             if box and child and not _contains(box, child):
                 issues.append(f"Il nodo {ref.text} è fuori dalla lane del suo owner.")
+    connections = {element.get("id"): (source, target) for element, source, target in semantic_connections(root, expanded_subprocesses=expanded)}
     routes, edge_counts, edge_crossings = [], {}, 0
     for edge in root.iter(f"{{{BPMNDI}}}BPMNEdge"):
         ref = edge.get("bpmnElement")
@@ -108,23 +109,25 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
             if any(segment_hits_box(a, b, label) for a, b in pairwise(points)):
                 (warnings if manual else issues).append(f"Il flusso {ref} attraversa l'etichetta {label_id}.")
         semantic = elements.get(ref)
-        if semantic is not None and local_name(semantic) == "sequenceFlow":
-            source, target = semantic.get("sourceRef"), semantic.get("targetRef")
+        if ref in connections:
+            source, target = connections[ref]
             for node_id, box in visible.items():
                 if node_id in {source, target} or {source, target}.issubset(descendants.get(node_id, set())):
                     continue
                 if any(segment_hits_box(a, b, box) for a, b in pairwise(points)):
                     issues.append(f"Il flusso {ref} attraversa {node_id}.")
+        if semantic is not None and local_name(semantic) == "sequenceFlow":
+            source, target = semantic.get("sourceRef"), semantic.get("targetRef")
             for old_source, old_target, old_points in routes:
                 if {source, target}.intersection({old_source, old_target}):
                     continue
                 edge_crossings += sum(_cross(a, b, c, d) for a, b in pairwise(points) for c, d in pairwise(old_points))
             routes.append((source, target, points))
-    for flow in root.iter(tag("sequenceFlow")):
-        if flow.get("id") in hidden:
-            continue
-        if edge_counts.get(flow.get("id")) != 1:
-            issues.append(f"Il flusso {flow.get('id')} deve avere una sola linea DI.")
+    # Expanded manual subprocesses also have internal sequence edges.
+    required_edges = set(connections) | {flow.get("id") for flow in root.iter(tag("sequenceFlow")) if flow.get("id") not in hidden}
+    for ref in required_edges:
+        if edge_counts.get(ref) != 1:
+            issues.append(f"Il flusso {ref} deve avere una sola linea DI.")
     if edge_crossings:
         warnings.append(f"Incroci residui tra flussi: {edge_crossings}.")
     return {"valid": not issues, "issues": sorted(set(issues)), "warnings": warnings, "metrics": {"shapes": len(shapes), "sequence_flows": len(routes), "edge_crossings": edge_crossings}}

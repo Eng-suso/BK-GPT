@@ -83,9 +83,7 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
     for connection, source, target in sorted(connections, key=lambda item: (item[0].get("id") in feedback, local_name(item[0]) != "sequenceFlow", item[0].get("id"))):
         positions = {**boxes, **{key: box for key, box in containers.items() if local_name(elements[key]) == "participant"}}
         if source not in positions or target not in positions:
-            if local_name(connection) == "sequenceFlow":
-                raise ValueError(f"Collegamento senza nodi visibili: {connection.get('id')}.")
-            continue
+            raise ValueError(f"Collegamento senza estremi visibili: {connection.get('id')}.")
         obstacle_boxes = dict(boxes)
         obstacle_boxes[source], obstacle_boxes[target] = positions[source], positions[target]
         points = orthogonal_route(source, target, obstacle_boxes, labels, previous,

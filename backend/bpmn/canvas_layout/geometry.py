@@ -29,13 +29,13 @@ class Box:
         return Box(self.x - margin, self.y - margin, self.width + margin * 2, self.height + margin * 2)
 
 
-def semantic_connections(root):
+def semantic_connections(root, *, expanded_subprocesses=()):
     parents = {child: parent for parent in root.iter() for child in parent}
     nodes = {e.get("id") for e in root.iter() if local_name(e) in FLOW_TYPES and e.tag.startswith("{" + BPMN + "}")}
     result = []
     for e in root.iter():
         ancestor = parents.get(e)
-        while ancestor is not None and ancestor.tag != tag("subProcess"):
+        while ancestor is not None and (ancestor.tag != tag("subProcess") or ancestor.get("id") in expanded_subprocesses):
             ancestor = parents.get(ancestor)
         if ancestor is not None:
             continue  # Internal semantics survive; collapsed children have no DI.

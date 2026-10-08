@@ -5,7 +5,7 @@ import re
 
 from defusedxml.ElementTree import fromstring, iterparse
 
-from .policy import BPMN, BPMNDI, FLOW_TYPES, local_name, tag
+from .policy import ARTIFACT_TYPES, BPMN, BPMNDI, FLOW_TYPES, local_name, tag
 
 
 def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element:
@@ -34,6 +34,9 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
     for child in list(root):
         if child.tag.startswith("{" + BPMNDI + "}"):
             root.remove(child)
+    for element in root.iter():
+        if element.tag.startswith("{" + BPMN + "}") and local_name(element) in ARTIFACT_TYPES | {"participant", "association", "messageFlow", "dataInputAssociation", "dataOutputAssociation"} and not (element.get("id") or "").strip():
+            raise ValueError(f"Identificativo obbligatorio per {local_name(element)}.")
     processes = root.findall(tag("process"))
     if not processes:
         raise ValueError("Il modello semantico non contiene un processo.")

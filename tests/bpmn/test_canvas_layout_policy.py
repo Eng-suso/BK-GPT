@@ -150,3 +150,23 @@ def test_collapsed_subprocess_preserves_and_validates_internal_semantics_without
     assert apply_enterprise_layout(laid_out) == laid_out
     with pytest.raises(ValueError, match="inner2"):
         apply_enterprise_layout(xml.replace('targetRef="innerEnd"', 'targetRef="missing"'))
+
+
+@pytest.mark.parametrize("kind", ["association", "messageFlow"])
+def test_non_sequence_connectors_cannot_disappear_when_their_endpoint_is_invalid(kind):
+    xml = semantic(LINEAR, LINEAR_FLOWS).replace('</b:process>', f'<b:{kind} id="dangling" sourceRef="verify" targetRef="missing"/></b:process>')
+    with pytest.raises(ValueError, match="dangling"):
+        apply_enterprise_layout(xml)
+
+
+def test_visual_lint_requires_document_and_participant_connections_not_only_sequence_flows():
+    from pathlib import Path
+    root = ET.fromstring(Path("e2e/fixtures/canvas-layout/purchase.bpmn").read_text())
+    plane = root.find(".//bd:BPMNPlane", NS)
+    for ref in ("Request_Data", "Supplier_Message"):
+        edge = plane.find(f"bd:BPMNEdge[@bpmnElement='{ref}']", NS)
+        plane.remove(edge)
+    report = lint_visual_model(root)
+    assert not report["valid"]
+    assert any("Request_Data" in issue for issue in report["issues"])
+    assert any("Supplier_Message" in issue for issue in report["issues"])

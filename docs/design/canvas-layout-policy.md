@@ -35,7 +35,8 @@ control output; they are absent from the agent tool schemas.
 - Deterministic orthogonal routing avoids nodes and labels. Candidate routes and
   an obstacle-corner search penalize crossings; branch labels have explicit DI.
 - Visual lint blocks missing or duplicate shapes/sequence edges, invalid bounds,
-  overlapping elements/text, owner or pool containment violations, diagonal
+  overlapping elements/text, missing document or participant connectors, owner or
+  pool containment violations, diagonal
   agent routes and connections through unrelated nodes or labels. Residual
   crossings are reported. This custom graph engine does not claim globally
   optimal routing for every possible graph.
