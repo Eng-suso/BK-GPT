@@ -77,7 +77,7 @@ export function GatewayRulesEditor({ gateway, rules, attributes, onChange }: {
         const issueId = `sim-rule-issue-${gateway.element_id}-${branch.flow_id}`;
         const label = branch.target_name || branch.flow_name || branch.flow_id;
         return (
-          <fieldset key={branch.flow_id} className="min-w-0 rounded-lg border border-border bg-card p-2.5" aria-describedby={issue ? issueId : undefined}>
+          <fieldset key={branch.flow_id} className="@container/branch min-w-0 rounded-lg border border-border bg-card p-2.5" aria-describedby={issue ? issueId : undefined}>
             <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.branchTo", { name: label })}</legend>
             <div className="grid gap-2">
               {groups.map((group, groupIndex) => (
@@ -133,8 +133,9 @@ function RuleRow({ rule, attributes, prefix, branchLabel, describedBy, onChange,
   const operators = operatorsFor(attribute);
   const name = attribute?.name || "?";
   return (
-    <div className="grid grid-cols-[auto_minmax(0,1.3fr)_minmax(64px,0.7fr)_minmax(0,1fr)_auto] items-center gap-1.5">
-      <span className="w-6 text-[11px] text-muted-foreground">{prefix}</span>
+    // Due righe: nel dock (360 px utili) attributo, confronto e valore su una sola si tagliano.
+    <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-1.5 gap-y-1">
+      <span className="text-[11px] text-muted-foreground">{prefix}</span>
       <select
         className={NATIVE_SELECT}
         aria-label={t("simulation.config.ruleAttribute", { branch: branchLabel })}
@@ -149,6 +150,10 @@ function RuleRow({ rule, attributes, prefix, branchLabel, describedBy, onChange,
         {!attribute && <option value="">{t("simulation.config.ruleChooseAttribute")}</option>}
         {attributes.map((a) => <option key={a.id} value={a.id}>{a.name || t("simulation.config.unnamedAttribute")}</option>)}
       </select>
+      <Button type="button" size="icon" variant="ghost" aria-label={t("simulation.config.removeCondition", { attribute: name })} onClick={onRemove}>
+        <X aria-hidden className="size-4" />
+      </Button>
+      <div className="col-start-2 grid grid-cols-1 gap-1.5 @[17rem]/branch:grid-cols-2">
       <select
         className={NATIVE_SELECT}
         aria-label={t("simulation.config.ruleOperator", { attribute: name })}
@@ -178,9 +183,7 @@ function RuleRow({ rule, attributes, prefix, branchLabel, describedBy, onChange,
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
         />
       )}
-      <Button type="button" size="icon" variant="ghost" aria-label={t("simulation.config.removeCondition", { attribute: name })} onClick={onRemove}>
-        <X aria-hidden className="size-4" />
-      </Button>
+      </div>
     </div>
   );
 }
