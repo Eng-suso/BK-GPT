@@ -64,9 +64,9 @@
 .sim-gap[data-fidelity="calibrate"] { border-color: var(--domain-validation-warning-border); background: var(--domain-validation-warning-surface); color: var(--domain-validation-warning-text); }
 .sim-gap[data-fidelity="far"] { border-color: var(--domain-validation-fail-border); background: var(--domain-validation-fail-surface); color: var(--domain-validation-fail-text); }
 .sim-gap-missing { color: var(--muted-foreground); }
-.djs-element.sim-fidelity-close .djs-visual > :nth-child(1) { stroke: var(--domain-validation-pass-border) !important; stroke-width: 2.5px; }
-.djs-element.sim-fidelity-calibrate .djs-visual > :nth-child(1) { stroke: var(--domain-validation-warning-border) !important; stroke-width: 2.5px; }
-.djs-element.sim-fidelity-far .djs-visual > :nth-child(1) { stroke: var(--domain-validation-fail-border) !important; stroke-width: 3px; }
+.djs-element.sim-fidelity-close .djs-visual > :nth-child(1) { stroke: var(--domain-validation-pass-border) !important; stroke-width: var(--stroke-width-emphasis); }
+.djs-element.sim-fidelity-calibrate .djs-visual > :nth-child(1) { stroke: var(--domain-validation-warning-border) !important; stroke-width: var(--stroke-width-emphasis); }
+.djs-element.sim-fidelity-far .djs-visual > :nth-child(1) { stroke: var(--domain-validation-fail-border) !important; stroke-width: var(--stroke-width-emphasis); }
 .sim-gap-head { flex-wrap: wrap; row-gap: 6px; }
 /* Inspector del task: il log reale accanto al simulato. */
 .sim-real-activity { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }

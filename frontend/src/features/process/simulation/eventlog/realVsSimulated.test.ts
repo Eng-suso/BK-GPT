@@ -96,4 +96,10 @@ describe("compareRealToSimulated", () => {
     expect(compareRealToSimulated(merged, simulated()).activities).toHaveLength(1);
     expect(row).toMatchObject({ el: "Task_A", name: "Approva", logNames: ["Approva", "Approva (2° livello)"], realCount: 40, realWait: 750, realProcessing: 1500 });
   });
+
+  it("does not invent times for an element whose executions are not counted", () => {
+    const uncounted = real({ byActivity: [activity("Task_A", "Approva", 600, 1200, 0)] } as Partial<EventLogSummary>);
+    const [row] = compareRealToSimulated(uncounted, simulated()).activities;
+    expect(row).toMatchObject({ realCount: 0, realWait: null, realProcessing: null, processingGap: null, fidelity: null });
+  });
 });

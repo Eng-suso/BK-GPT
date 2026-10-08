@@ -155,7 +155,7 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
 
   const activities: ActivityGap[] = [...groups.entries()].map(([el, group]) => {
     const twin = simulatedByEl.get(el) as Row;
-    const mean = (total: number) => (group.count > 0 ? total / group.count : 0);
+    const mean = (total: number) => (group.count > 0 ? total / group.count : null);
     // Con il solo completamento la "lavorazione" del log contiene anche l'attesa.
     const realWait = noStart ? null : mean(group.wait);
     const realProcessing = noStart ? null : mean(group.processing);
