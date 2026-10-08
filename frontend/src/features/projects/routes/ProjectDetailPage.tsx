@@ -319,7 +319,7 @@ export function ProjectDetailPage(): React.JSX.Element {
               },
               {
                 label: t("list.columns.progress"),
-                value: <ProgressBar value={project.progress} width={72} />,
+                value: <ProgressBar value={project.progress} label={t("list.columns.progress")} width={72} />,
               },
               {
                 label: t("detail.panel.milestones"),
