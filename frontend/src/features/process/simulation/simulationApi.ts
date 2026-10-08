@@ -56,6 +56,7 @@ export async function runProsimosSimulation(
           })),
         })),
         calendars: input.calendars?.length ? input.calendars : undefined,
+        model_patch: input.modelPatch,
         idempotency_key: input.idempotencyKey,
       },
     },

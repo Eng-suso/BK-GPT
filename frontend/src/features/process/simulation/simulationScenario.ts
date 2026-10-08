@@ -1,4 +1,11 @@
 import {
+  sanitizeAttributes,
+  sanitizeGatewayRules,
+  toModelPatch,
+  type CaseAttributeDraft,
+  type GatewayRulesDraft,
+} from "./caseRules";
+import {
   simCalendarSchema,
   type CreateSimulationRunInput,
   type DistributionName,
@@ -46,6 +53,10 @@ export type ScenarioDraft = {
   tasks: Record<string, TaskDraft>;
   gateways: Record<string, GatewayDraft>;
   calendars?: CalendarDraft[];
+  /** Attributi che ogni caso riceve all'arrivo (A2-1). */
+  caseAttributes?: CaseAttributeDraft[];
+  /** Decisioni instradate per regola: element_id -> flow_id -> gruppi di condizioni. */
+  gatewayRules?: Record<string, GatewayRulesDraft>;
 };
 
 export const DEFAULT_SCENARIO: ScenarioDraft = {
@@ -170,6 +181,7 @@ export function scenarioToInput(
       };
     }),
     calendars: draft.calendars ?? [],
+    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}),
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
       branches: Object.entries(branches).map(([flowId, probability]) => ({
@@ -236,7 +248,15 @@ export function seedDraftFromTemplate(
     }
   }
 
-  return { ...draft, resources, tasks, gateways };
+  // Una decisione per regola resta solo se il BPMN ha ancora la stessa decisione con le stesse uscite.
+  const gatewayRules: Record<string, GatewayRulesDraft> = {};
+  for (const gateway of template.gateways) {
+    const rules = draft.gatewayRules?.[gateway.element_id];
+    const flows = gateway.branches.map((b) => b.flow_id);
+    if (rules && flows.length === Object.keys(rules).length && flows.every((f) => f in rules)) gatewayRules[gateway.element_id] = rules;
+  }
+
+  return { ...draft, resources, tasks, gateways, gatewayRules };
 }
 
 // --- localStorage persistence (best-effort, per bpmn model) ------------------
@@ -266,6 +286,8 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
       calendars: Array.isArray(parsed.calendars)
         ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
         : [],
+      caseAttributes: sanitizeAttributes(parsed.caseAttributes),
+      gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
     };
   } catch {
     return structuredClone(DEFAULT_SCENARIO);

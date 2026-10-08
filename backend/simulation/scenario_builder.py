@@ -18,6 +18,7 @@ from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel
+from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
 from backend.simulation.validation import validate_simulation_bpmn
 
@@ -49,10 +50,17 @@ def build_prosimos_scenario(
     La richiesta diventa un modello esplicito (`model_from_request`), il modello
     diventa lo scenario del motore (`compile_for_prosimos`). Il JSON e' lo
     stesso del builder storico: lo garantiscono gli scenari golden nei test.
+
+    Una ``model_patch`` porta cio' che i campi v1 non esprimono (attributi del
+    caso, rami per regola): si applica al modello tradotto, che poi si verifica
+    di nuovo sul BPMN, perche' la patch puo' nominare elementi che non ci sono.
     """
     validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     model = model_from_request(request, tasks, gateways)
+    if request.model_patch:
+        model = apply_patch(model, request.model_patch)
+        check_model_against_bpmn(model, tasks, gateways)
     return ProsimosScenario(
         payload=compile_for_prosimos(model),
         task_count=len(tasks),
