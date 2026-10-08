@@ -7,6 +7,7 @@ Gira come `delir_migrator` (`CANONICAL_MIGRATOR_URL`): il requeue tocca
     CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin show <id> [--queue mem0_projection_log]
     CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin requeue-stuck [--queue ...]
     CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin purge-invalid [--apply]
+    CANONICAL_MIGRATOR_URL=... uv run python -m scripts.queue_admin purge-pending [--queue mem0_projection_log] [--apply]
 
 `purge-invalid` sposta in `graph_outbox_dead_letter` le righe mai processate il
 cui payload non e' applicabile (nessun `kind` fra quelli noti). Il CHECK della
@@ -14,6 +15,12 @@ cui payload non e' applicabile (nessun `kind` fra quelli noti). Il CHECK della
 veleni, e riprovarle non le rende valide. Il worker le sposta da solo quando le
 incontra; questo comando serve per farlo in blocco, senza aspettare che la coda
 ci ripassi. Senza `--apply` elenca soltanto.
+
+`purge-pending` cancella le righe mai processate di una coda (default
+`mem0_projection_log`): serve a buttare un backlog di dati di test prima di
+accendere una chiave OpenAI vera, cosi' il worker non lo lavora insieme ai dati
+reali. Cancella solo la riga di proiezione in coda, non la memoria/nodo
+sorgente nel canonical. Senza `--apply` conta soltanto.
 """
 
 from __future__ import annotations
@@ -149,6 +156,23 @@ def cmd_purge_invalid(conn, apply: bool) -> None:
     print(f"graph_outbox: {moved} righe spostate in graph_outbox_dead_letter")
 
 
+def cmd_purge_pending(conn, queue: str, apply: bool) -> None:
+    # Per i backlog di test: cancella le righe mai processate prima di accendere
+    # una chiave vera, cosi' il worker non le lavora insieme ai dati reali.
+    # Non toglie la memoria/nodo sorgente (sta nel canonical) - solo la riga di
+    # proiezione in coda.
+    done_col = _QUEUES[queue]
+    count = conn.execute(text(f"SELECT count(*) FROM {queue} WHERE {done_col} IS NULL")).scalar()
+    if not count:
+        print(f"{queue}: nessuna riga pending")
+        return
+    if not apply:
+        print(f"{queue}: {count} righe pending da cancellare (dry-run, usa --apply)")
+        return
+    deleted = conn.execute(text(f"DELETE FROM {queue} WHERE {done_col} IS NULL")).rowcount
+    print(f"{queue}: {deleted} righe pending cancellate")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -160,6 +184,9 @@ def main() -> int:
     p_rq.add_argument("--queue", default="graph_outbox", choices=list(_QUEUES))
     p_pi = sub.add_parser("purge-invalid")
     p_pi.add_argument("--apply", action="store_true", help="senza, elenca soltanto")
+    p_pp = sub.add_parser("purge-pending")
+    p_pp.add_argument("--queue", default="mem0_projection_log", choices=list(_QUEUES))
+    p_pp.add_argument("--apply", action="store_true", help="senza, conta soltanto")
     args = parser.parse_args()
 
     with _engine().begin() as conn:
@@ -171,6 +198,8 @@ def main() -> int:
             cmd_requeue_stuck(conn, args.queue)
         elif args.cmd == "purge-invalid":
             cmd_purge_invalid(conn, args.apply)
+        elif args.cmd == "purge-pending":
+            cmd_purge_pending(conn, args.queue, args.apply)
     return 0
 
 

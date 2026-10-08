@@ -14,6 +14,8 @@
     "test:lighthouse": "playwright test e2e/performance-lighthouse.spec.ts",
     "test:report": "playwright show-report",
     "test:backend": "uv run pytest tests/ -v",
+    "mem0:check": "uv run python -m scripts.queue_admin list",
+    "mem0:purge-test": "uv run python -m scripts.queue_admin purge-pending --queue mem0_projection_log --apply",
     "agent:worktree": "uv run python scripts/new_agent_worktree.py",
     "test:unit": "npm --prefix frontend run test:ci",
     "lint": "npm --prefix frontend run lint",
