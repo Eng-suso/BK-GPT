@@ -242,7 +242,13 @@ test("agent engine output renders the new task, owner and reconnected flows", as
   await expect(preview.locator(".djs-label").filter({ hasText: "Acquisti" })).toBeVisible();
   await expect(preview.locator(".djs-connection")).toHaveCount(3);
   for (const id of ["begin", "handoff", "finish"]) {
-    await expect(preview.locator(`.djs-connection[data-element-id='${id}'] .djs-visual > path`)).toBeVisible();
+    const line = preview.locator(`.djs-connection[data-element-id='${id}'] .djs-visual > path`);
+    // Horizontal SVG lines have zero bounding-box height: Playwright's
+    // visibility predicate cannot distinguish them from a hidden element.
+    expect(await line.evaluate(element => {
+      const style = getComputedStyle(element);
+      return (element as SVGPathElement).getTotalLength() > 0 && style.stroke !== "none" && Number.parseFloat(style.strokeWidth) > 0 && style.visibility === "visible";
+    })).toBeTruthy();
   }
   await page.screenshot({ path: info.outputPath("review-engine-proposal.png") });
   const download = page.waitForEvent("download");
