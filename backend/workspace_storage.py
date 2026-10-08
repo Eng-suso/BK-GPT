@@ -252,7 +252,7 @@ class WorkspaceSimulationRun(WorkspaceBase):
     request_json: Mapped[str] = mapped_column(Text, nullable=False)
     scenario_json: Mapped[str] = mapped_column(Text, nullable=False)
     # Il Simulation IR che il run ha simulato (SIM-20a). Assente nei run creati
-    # prima della 0032: per quelli resta solo la richiesta.
+    # prima della 0033: per quelli resta solo la richiesta.
     model_json: Mapped[str | None] = mapped_column(Text)
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
     outputs_json: Mapped[str] = mapped_column(Text, nullable=False)

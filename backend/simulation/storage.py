@@ -290,7 +290,7 @@ def get_simulation_run_model(run_id: int) -> tuple[bool, dict[str, Any] | None]:
     """Il modello IR che il run ha simulato.
 
     ``(False, None)``: il run non c'e' (o e' di un altro tenant).
-    ``(True, None)``: il run c'e' ma e' anteriore alla 0032 e il modello non
+    ``(True, None)``: il run c'e' ma e' anteriore alla 0033 e il modello non
     e' stato conservato.
     """
     with workspace_connection() as session:
