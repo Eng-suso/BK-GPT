@@ -63,6 +63,13 @@ ACTION_HONESTY_RULE = (
     "quelle parole."
 )
 VALID_AGENT_SCOPE_TYPES: set[str] = {"consultant", "project", "process", "canvas"}
+REVIEW_MODE_CONTRACT = (
+    "Process Review: leggi, spiega e proponi sul task selezionato. Una richiesta "
+    "esplicita di modifica autorizza create_review_bpmn_proposal a registrare "
+    "soltanto una copia separata As-Is o To-Be, anche in autonomia Manuale. "
+    "Una domanda di lettura o parere non autorizza scritture. Non modificare "
+    "l'As-Is originale, il piano canonico, fonti o altri record."
+)
 MAX_CURRENT_BPMN_XML_CHARS = 80_000
 MAX_STATE_ARTIFACT_CHARS = 40_000
 
@@ -134,10 +141,18 @@ def agent_scope_state(
     thread identifiers are represented by defaults or `None` values.
     """
     scope_type = agent_scope_type(scope)
+    review_context = None
+    if getattr(scope, "review_node_id", None):
+        from backend.schemas.chat import CanvasChatScope
+        from backend.workspace_services.task_review_context import read_task_review_context
+
+        if isinstance(scope, CanvasChatScope):
+            review_context = read_task_review_context(scope)
     return {
         "scope_type": scope_type,
+        "review_task_context": review_context,
         "pending_action": _open_pending_action(thread_id),
-        "chat_mode": chat_mode or DEFAULT_CHAT_MODE,
+        "chat_mode": "conversation" if review_context else chat_mode or DEFAULT_CHAT_MODE,
         # Scelta dal consulente, o "auto": guida router e risposta, non le scritture.
         "posture": posture or "auto",
         # Risolti qui, una volta per turno: i nodi a valle leggono contenuto,
@@ -147,7 +162,7 @@ def agent_scope_state(
         "project_id": getattr(scope, "project_id", None),
         "process_id": getattr(scope, "process_id", None),
         "bpmn_model_id": getattr(scope, "bpmn_model_id", None),
-        "current_bpmn_xml": getattr(scope, "current_bpmn_xml", None),
+        "current_bpmn_xml": None if review_context else getattr(scope, "current_bpmn_xml", None),
     }
 
 
@@ -181,9 +196,16 @@ def build_scope_system_prompt(state: dict) -> str:
         f"scope_key: {state.get('scope_key') or 'consultant'}",
         "",
         f"chat_mode: {chat_mode}",
-        CHAT_MODE_CONTRACTS[chat_mode],
+        REVIEW_MODE_CONTRACT if state.get("review_task_context") else CHAT_MODE_CONTRACTS[chat_mode],
         ACTION_HONESTY_RULE,
     ]
+    if state.get("review_task_context"):
+        lines.append(ContextBlock(
+            "task in review",
+            _state_value_to_text(state["review_task_context"], MAX_STATE_ARTIFACT_CHARS),
+            priority=95,
+            header=("", "Task selezionato nella Process Review, verificato dal backend:"),
+        ))
 
     posture = state.get("detected_posture") or (
         state.get("posture") if state.get("posture") not in {None, "auto"} else None

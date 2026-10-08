@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { readFileSync } from "node:fs";
 
 // Multiple full Axe scans and reloads need more than the single-page default
 // on mobile emulation in a CPU-constrained runner.
@@ -40,13 +41,39 @@ ${[
 ].map((points, index) => `<bpmndi:BPMNEdge id="f${index + 1}_di" bpmnElement="f${index + 1}">${points}</bpmndi:BPMNEdge>`).join("")}
 </bpmndi:BPMNPlane></bpmndi:BPMNDiagram></b:definitions>`;
 
-async function fixture(page: Page, options: { failEvidence?: boolean; conflict?: boolean } = {}) {
+async function fixture(page: Page, options: { failEvidence?: boolean; conflict?: boolean; failChatOnce?: boolean; holdChat?: boolean; engineDiagram?: boolean } = {}) {
+  // These artifacts are generated and compared byte-canonically in the real
+  // LangGraph → tool → Postgres test, rather than authored by this API mock.
+  const baseline = options.engineDiagram ? readFileSync("e2e/fixtures/review-agent/baseline.bpmn", "utf8") : XML;
+  const proposal = options.engineDiagram ? readFileSync("e2e/fixtures/review-agent/proposal.bpmn", "utf8") : XML.replace('name="Verificare dati"', 'name="Verificare completezza dati"');
   const actions: Array<Record<string, unknown>> = [];
   const mutations: string[] = [];
+  const turns: Array<Record<string, unknown>> = [];
+  const sessions: Array<{ thread_id: string; scope_key: string; messages: Array<{ role: string; content: string }>; title: string }> = [];
+  let release: (() => void) | undefined;
+  const held = options.holdChat ? new Promise<void>(resolve => { release = resolve; }) : null;
   await page.addInitScript(() => Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" }));
   await page.route(`${API}/**`, async route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.startsWith("/v1/consultant-chat/sessions")) {
+      if (path.endsWith("/messages/stream")) {
+        const body = request.postDataJSON() as Record<string, unknown>; turns.push(body);
+        if (options.failChatOnce && turns.length === 1) return route.fulfill({ status: 503, json: { detail: "Review temporarily unavailable" } });
+        const session = sessions.find(item => path.includes(item.thread_id))!;
+        if (held && turns.length === 1) await held;
+        const answer = session.scope_key.endsWith(":verify") ? "**Il controllo è utile, ma l’input non è documentato.**\n\nL’owner è Acquisti; l’intervista collega la verifica al passaggio verso Amministrazione. Suggerisco di esplicitare i campi obbligatori e l’esito del controllo, mantenendo l’autorizzazione della spesa.\n\n**Da verificare:** gestione delle richieste incomplete e responsabilità del rinvio. Non abbiamo dati sufficienti per stimare un risparmio di tempo." : "Questo task emette l’ordine dopo l’approvazione. Nessuna modifica effettuata.";
+        session.messages.push({ role: "user", content: String(body.message) }, { role: "assistant", content: answer });
+        if (String(body.message).includes("Disegna")) actions.push({ id: "separate-diagram", node_id: "verify", node_name: "Verificare dati", base_revision: BASE, kind: "as_is_proposal", title: "Esplicitare il controllo di completezza", detail: "Proposta As-Is: rendere esplicito il controllo descritto dall’owner. Da confermare i campi obbligatori.", proposal_xml: proposal, created_at: "2026-10-07T10:00:00Z", created_by: "DeliR Review" });
+        return route.fulfill({ contentType: "application/x-ndjson", body: `${JSON.stringify({ type: "delta", content: answer })}\n${JSON.stringify({ type: "done", message: answer })}\n` });
+      }
+      if (request.method() === "POST") {
+        const scope = request.postDataJSON().scope;
+        const session = { thread_id: `review-thread-${sessions.length}`, scope_key: `canvas:${scope.project_id}:${scope.process_id}:${scope.bpmn_model_id}:review:${scope.review_node_id}`, messages: [], title: "Task review" };
+        sessions.push(session); return route.fulfill({ json: session });
+      }
+      return route.fulfill({ json: sessions.find(item => path.endsWith(item.thread_id)) ?? sessions.filter(item => item.scope_key === new URL(request.url()).searchParams.get("scope_key")) });
+    }
     if (request.method() !== "GET") mutations.push(path);
     if (path === "/v1/workspace/projects/review-project") return route.fulfill({ json: {
       id: "review-project", client_id: "example", client: "Azienda demo", name: "Revisione acquisti indiretti", objective: "Review", lead: "Consulente", start_date: null, end_date: null,
@@ -61,7 +88,7 @@ async function fixture(page: Page, options: { failEvidence?: boolean; conflict?:
       return route.fulfill({ status: 201, json: action });
     }
     if (path.endsWith("/impact-review")) return route.fulfill({ json: {
-      process_id: "review-process", base_revision: BASE, xml: XML, actions,
+      process_id: "review-process", base_revision: BASE, xml: baseline, actions,
       plan: {
         title: "Acquisti indiretti", actors: [{ id: "buy", label: "Acquisti" }, { id: "ops", label: "Operations" }, { id: "fin", label: "Amministrazione" }],
         steps: TASKS.map(task => ({ id: task.id, label: task.name, actor_ids: [task.id === "request" ? "ops" : task.id === "approve" ? "fin" : "buy"], inputs: task.id === "verify" ? [] : ["request-form"], outputs: [task.id === "verify" ? "validated-request" : "request-form"] })),
@@ -80,89 +107,89 @@ async function fixture(page: Page, options: { failEvidence?: boolean; conflict?:
     }
     return route.fulfill({ json: [] });
   });
-  return { actions, mutations };
+  return { actions, mutations, turns, release: () => release?.() };
 }
 
 async function open(page: Page) {
   await page.goto("/projects/review-project/processes/review-process?view=review");
   await expect(page.locator(".review-canvas [data-element-id='verify']").first()).toBeVisible();
 }
-async function selectTask(page: Page) {
+async function selectTask(page: Page, name = "Verificare dati") {
   await page.getByRole("button", { name: "Task 4", exact: true }).click();
-  await page.getByRole("button", { name: "Verificare dati", exact: true }).click();
-  await expect(page.getByRole("complementary", { name: "Analisi del task" })).toBeVisible();
+  await page.getByRole("button", { name, exact: true }).click();
+}
+async function openAgent(page: Page) {
+  await page.getByRole("button", { name: "Apri agente DeliR", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Agente di Review" })).toBeVisible();
+}
+async function send(page: Page, message: string) {
+  await page.getByLabel("Scrivi all’agente di Review").fill(message);
+  await page.getByRole("button", { name: "Invia messaggio", exact: true }).click();
 }
 
-test("Review exposes six fields, dependency focus, evidence and responsive product screenshots", async ({ page }, info) => {
+test("floating agent, contextual conversation, knowledge and product screenshots", async ({ page }, info) => {
   if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1000 });
   const state = await fixture(page);
   await open(page);
-  if (info.project.name === "mobile-chrome") await expect(page.locator(".review-commands-compact")).toBeVisible();
-  await page.screenshot({ path: info.outputPath("review-canvas.png") });
+  await expect(page.locator(".review-task-ribbon")).toHaveCount(0);
   await selectTask(page);
-  if (info.project.name === "chromium") await page.getByRole("button", { name: "Centra", exact: true }).click();
   const inspector = page.getByRole("complementary", { name: "Analisi del task" });
-  if (info.project.name === "mobile-chrome") await expect(page.locator(".review-inspector-compact")).toBeVisible();
-  if (info.project.name === "chromium") {
-    expect(await page.locator(".review-mascot-orbit").evaluate(element => getComputedStyle(element).animationIterationCount)).toBe("1");
-    await page.emulateMedia({ reducedMotion: "reduce" });
-    expect(await page.locator(".review-mascot-orbit").evaluate(element => getComputedStyle(element).animationName)).toBe("none");
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-  }
-  for (const name of ["Owner", "Input", "Output", "Problemi rilevati", "Impatti", "Suggerimento"]) await expect(inspector.locator("dt").filter({ hasText: name })).toBeVisible();
-  await expect(inspector).toContainText("Input non documentato");
+  await expect(inspector).toBeHidden();
+  const launcher = (await page.getByRole("button", { name: "Apri agente DeliR", exact: true }).boundingBox())!;
+  expect(launcher.height).toBeLessThanOrEqual(80);
+  expect(launcher.width).toBeLessThanOrEqual(196);
+  await page.screenshot({ path: info.outputPath("review-canvas.png") });
+  const camera = await page.locator(".review-canvas .viewport").getAttribute("transform");
+  await openAgent(page);
+  await expect(page.getByLabel("Scrivi all’agente di Review")).toBeFocused();
+  await send(page, "Leggi le fonti e dimmi cosa ne pensi, senza modificare il processo.");
+  const chat = page.getByRole("dialog", { name: "Agente di Review" });
+  await expect(chat).toContainText("Il controllo è utile");
+  await expect(page.getByRole("button", { name: "Salva come ipotesi" })).toBeVisible();
+  expect(state.turns[0]).toMatchObject({ autonomy: "manual", posture: "review", scope: { review_node_id: "verify", review_base_revision: BASE } });
+  expect(await page.locator(".review-canvas .viewport").getAttribute("transform")).toBe(camera);
+  const chatBounds = (await chat.boundingBox())!;
+  const attributionBounds = (await page.locator(".review-canvas .bjs-powered-by").boundingBox())!;
+  expect(chatBounds.y + chatBounds.height).toBeLessThan(attributionBounds.y);
   expect((await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations).toEqual([]);
-  await expect(page.locator(".review-canvas [data-element-id='request']").first()).toHaveClass(/review-upstream/);
-  await expect(page.locator(".review-canvas [data-element-id='order']").first()).toHaveClass(/review-downstream/);
+  await page.screenshot({ path: info.outputPath("review-agent-chat.png") });
+  if (info.project.name === "chromium") await chat.screenshot({ path: info.outputPath("review-agent-detail.png") });
+  await chat.getByRole("button", { name: "Apri conoscenza e proposte del task" }).click();
+  await expect(inspector).toBeVisible();
+  for (const name of ["Owner", "Input", "Output", "Problemi rilevati", "Impatti", "Suggerimento"]) await expect(inspector.locator("dt").filter({ hasText: name })).toBeVisible();
   await page.screenshot({ path: info.outputPath("review-overview.png") });
-  if (info.project.name === "chromium") await page.locator(".review-agent-card").screenshot({ path: info.outputPath("review-mascot-detail.png") });
   await inspector.getByRole("tab", { name: "Impatti", exact: true }).click();
   await expect(inspector).toContainText("Controllo di completezza");
-  await expect(inspector).toContainText("Nessuna variazione di tempo è stata calcolata");
   await page.screenshot({ path: info.outputPath("review-impacts.png") });
   await inspector.getByRole("tab", { name: "Evidenze", exact: true }).click();
   await expect(inspector).toContainText("Intervista owner Acquisti · esempio");
   await page.screenshot({ path: info.outputPath("review-evidence.png") });
-  const camera = await page.locator(".review-canvas .viewport").getAttribute("transform");
-  await page.getByRole("button", { name: "Zona di impatto", exact: true }).click();
-  await expect(page.locator(".review-canvas [data-element-id='order']").first()).not.toHaveClass(/review-downstream/);
-  expect(await page.locator(".review-canvas .viewport").getAttribute("transform")).toBe(camera);
-  await inspector.getByRole("tab", { name: "Overview", exact: true }).click();
-  expect(await page.locator(".review-canvas .viewport").getAttribute("transform")).toBe(camera);
-  const violations = (await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations;
-  expect(violations).toEqual([]);
+  await expect(inspector.getByRole("button", { name: "Lavora con DeliR" })).toBeInViewport();
+  await expect(inspector.getByRole("button", { name: "Proposta As-Is", exact: true })).toBeInViewport();
+  expect((await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations).toEqual([]);
+  await page.getByRole("button", { name: "Chiudi analisi del task" }).click();
+  await expect(chat).toBeVisible();
+  await chat.getByRole("button", { name: "Chiudi chat DeliR" }).click();
+  await expect(chat).toBeHidden();
+  await expect(page.getByRole("button", { name: "Apri agente DeliR" })).toBeFocused();
   expect(state.mutations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
-  if (info.project.name === "mobile-chrome") {
-    await page.getByRole("button", { name: "Chiudi analisi del task", exact: true }).click();
-    await expect(inspector).toBeHidden();
-    await expect(page.getByRole("button", { name: "Task 4", exact: true })).toBeFocused();
-    await expect(page.locator(".review-canvas")).toBeVisible();
-    await page.screenshot({ path: info.outputPath("review-mascot-canvas.png") });
-  } else {
-    await page.getByRole("button", { name: "Chiudi analisi del task", exact: true }).click();
-  }
-  await page.getByRole("button", { name: "Attività 4: Emettere ordine", exact: true }).click();
-  await expect(inspector.getByRole("heading", { name: "Emettere ordine", exact: true })).toBeVisible();
-  await expect(inspector.getByRole("button", { name: "Task successivo", exact: true })).toBeDisabled();
-  await inspector.getByRole("button", { name: "Task precedente", exact: true }).click();
-  await expect(inspector.getByRole("heading", { name: "Approvare richiesta", exact: true })).toBeVisible();
-  await expect(inspector.getByRole("button", { name: "Proponi modifica", exact: true })).toBeInViewport();
-  await page.getByRole("button", { name: "Chiudi analisi del task", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Attività 3: Approvare richiesta", exact: true })).toBeFocused();
 });
 
-test("candidate survives reload in To-Be hypotheses without editing As-Is", async ({ page }, info) => {
+test("editable hypotheses survive reload without changing As-Is", async ({ page }, info) => {
   if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1000 });
   const state = await fixture(page);
-  await open(page); await selectTask(page);
-  await page.getByRole("button", { name: "Proponi modifica", exact: true }).click();
-  expect((await new AxeBuilder({ page }).include('[role="dialog"]').analyze()).violations).toEqual([]);
+  await open(page); await selectTask(page); await openAgent(page);
+  await send(page, "Quale modifica consiglieresti?");
+  await page.getByRole("button", { name: "Salva come ipotesi" }).click();
+  await page.getByRole("menuitem", { name: "Proposta To-Be", exact: true }).click();
+  const dialog = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Proponi modifica", exact: true }) });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("Modifica proposta e impatti da verificare")).toHaveValue(/Il controllo è utile/);
   await page.getByLabel("Titolo", { exact: true }).fill("Validare la completezza prima del passaggio");
-  await page.getByLabel("Modifica proposta e impatti da verificare").fill("Introdurre un controllo condiviso sulla richiesta prima dell’invio ad Amministrazione. Verificare con l’owner i campi obbligatori, i documenti in output e il tempo di lavorazione nello scenario To-Be.");
+  await page.getByLabel("Modifica proposta e impatti da verificare").fill("Verificare campi obbligatori e responsabilità con l’owner prima del passaggio ad Amministrazione.");
   await page.getByRole("button", { name: "Registra azione" }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(page.getByRole("status").filter({ hasText: "Azione registrata" })).toBeVisible();
+  await expect(dialog).toBeHidden();
   await page.goto("/projects/review-project/processes/review-process?view=tobe");
   await expect(page.getByRole("heading", { name: "Validare la completezza prima del passaggio" })).toBeVisible();
   await page.reload();
@@ -172,23 +199,134 @@ test("candidate survives reload in To-Be hypotheses without editing As-Is", asyn
   expect(state.actions).toHaveLength(1);
   expect(state.mutations).toEqual(["/v1/workspace/processes/review-process/impact-review/actions"]);
   await page.getByRole("button", { name: "Rivedi il task", exact: true }).click();
-  await expect(page.getByRole("complementary", { name: "Analisi del task" }).getByRole("heading", { name: "Verificare dati", exact: true })).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Azioni", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Proposte", exact: true })).toHaveAttribute("aria-selected", "true");
 });
 
-test("conflict keeps proposal text and evidence failure stays explicit", async ({ page }) => {
-  await fixture(page, { conflict: true, failEvidence: true });
-  await open(page); await selectTask(page);
-  const inspector = page.getByRole("complementary", { name: "Analisi del task" });
-  await inspector.getByRole("tab", { name: "Evidenze" }).click();
-  await expect(inspector.getByRole("alert")).toContainText("Impossibile caricare le evidenze");
-  await inspector.getByRole("tab", { name: "Azioni" }).click();
-  await inspector.getByRole("button", { name: "Proponi modifica" }).click();
+test("separate As-Is diagram is available for presentation and export", async ({ page }, info) => {
+  if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1000 });
+  const state = await fixture(page);
+  await open(page); await selectTask(page); await openAgent(page);
+  await send(page, "Disegna una proposta As-Is separata: rinomina il task in Verificare completezza dati.");
+  await expect(page.getByRole("button", { name: "Salva come ipotesi" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Agente di Review" }).getByRole("button", { name: "Apri conoscenza e proposte del task" }).click();
+  await page.getByRole("tab", { name: "Proposte", exact: true }).click();
+  await page.getByRole("button", { name: "Apri diagramma", exact: true }).click();
+  const preview = page.getByRole("dialog", { name: "Esplicitare il controllo di completezza" });
+  await expect(preview.locator(".djs-label").filter({ hasText: "Verificare completezza" })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("review-as-is-proposal.png") });
+  await preview.getByRole("tab", { name: "As-Is originale", exact: true }).click();
+  await expect(preview.locator(".djs-label").filter({ hasText: "Verificare dati" })).toBeVisible();
+  const download = page.waitForEvent("download");
+  await preview.getByRole("button", { name: "Scarica BPMN" }).click();
+  expect((await download).suggestedFilename()).toBe("review-separate-diagram.bpmn");
+  expect(state.actions).toHaveLength(1);
+  expect(state.mutations).toEqual([]);
+  expect((await new AxeBuilder({ page }).include(".review-proposal-viewer").analyze()).violations).toEqual([]);
+});
+
+test("agent engine output renders the new task, owner and reconnected flows", async ({ page }, info) => {
+  if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1000 });
+  await fixture(page, { engineDiagram: true });
+  await open(page);
+  await page.getByRole("button", { name: "Task 1", exact: true }).click();
+  await page.getByRole("button", { name: "Verificare dati", exact: true }).click();
+  await openAgent(page);
+  await send(page, "Disegna nella proposta un task per registrare l’esito dopo la verifica, con owner Acquisti.");
+  await expect(page.getByRole("button", { name: "Salva come ipotesi" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Agente di Review" }).getByRole("button", { name: "Apri conoscenza e proposte del task" }).click();
+  await page.getByRole("tab", { name: "Proposte", exact: true }).click();
+  await page.getByRole("button", { name: "Apri diagramma", exact: true }).click();
+  const preview = page.getByRole("dialog", { name: "Esplicitare il controllo di completezza" });
+  for (const id of ["verify", "record", "buying"]) await expect(preview.locator(`.djs-element[data-element-id='${id}']`)).toBeVisible();
+  await expect(preview.locator(".djs-label").filter({ hasText: "Registrare esito verifica" })).toBeVisible();
+  await expect(preview.locator(".djs-label").filter({ hasText: "Acquisti" })).toBeVisible();
+  await expect(preview.locator(".djs-connection")).toHaveCount(3);
+  for (const id of ["begin", "handoff", "finish"]) {
+    const line = preview.locator(`.djs-connection[data-element-id='${id}'] .djs-visual > path`);
+    // Horizontal SVG lines have zero bounding-box height: Playwright's
+    // visibility predicate cannot distinguish them from a hidden element.
+    expect(await line.evaluate(element => {
+      const style = getComputedStyle(element);
+      return (element as SVGPathElement).getTotalLength() > 0 && style.stroke !== "none" && Number.parseFloat(style.strokeWidth) > 0 && style.visibility === "visible";
+    })).toBeTruthy();
+  }
+  await page.screenshot({ path: info.outputPath("review-engine-proposal.png") });
+  const download = page.waitForEvent("download");
+  await preview.getByRole("button", { name: "Scarica BPMN" }).click();
+  expect(readFileSync((await (await download).path())!, "utf8")).toBe(readFileSync("e2e/fixtures/review-agent/proposal.bpmn", "utf8"));
+  await preview.getByRole("tab", { name: "As-Is originale", exact: true }).click();
+  await expect(preview.locator(".djs-element[data-element-id='record']")).toHaveCount(0);
+  await expect(preview.locator(".djs-connection")).toHaveCount(2);
+});
+
+test("node histories and drafts stay isolated while an earlier reply finishes", async ({ page }) => {
+  const state = await fixture(page, { holdChat: true });
+  await open(page); await selectTask(page); await openAgent(page);
+  await send(page, "Cosa sappiamo della verifica?");
+  await expect(page.getByRole("button", { name: "Interrompi risposta" })).toBeVisible();
+  await page.getByLabel("Scrivi all’agente di Review").fill("Bozza per verifica");
+  await selectTask(page, "Emettere ordine");
+  await expect(page.getByLabel("Scrivi all’agente di Review")).toHaveValue("");
+  await page.getByLabel("Scrivi all’agente di Review").fill("Bozza per ordine");
+  state.release();
+  await expect(page.getByRole("dialog", { name: "Agente di Review" })).not.toContainText("Il controllo è utile");
+  await selectTask(page);
+  await expect(page.getByLabel("Scrivi all’agente di Review")).toHaveValue("Bozza per verifica");
+  await expect(page.getByRole("dialog", { name: "Agente di Review" })).toContainText("Il controllo è utile");
+  await selectTask(page, "Emettere ordine");
+  await expect(page.getByLabel("Scrivi all’agente di Review")).toHaveValue("Bozza per ordine");
+  expect(state.turns).toHaveLength(1);
+});
+
+test("retry and stale proposal errors retain editable text", async ({ page }) => {
+  await fixture(page, { failChatOnce: true, conflict: true });
+  await open(page); await selectTask(page); await openAgent(page);
+  await send(page, "Valuta il controllo");
+  const chat = page.getByRole("dialog", { name: "Agente di Review" });
+  await expect(chat.getByRole("alert")).toContainText("La risposta non è stata completata");
+  await chat.getByRole("button", { name: "Riprova", exact: true }).click();
+  await expect(chat).toContainText("Il controllo è utile");
+  await page.getByRole("button", { name: "Salva come ipotesi" }).click();
+  await page.getByRole("menuitem", { name: "Proposta As-Is", exact: true }).click();
   await page.getByLabel("Titolo", { exact: true }).fill("Proposta conservata");
-  await page.getByLabel("Modifica proposta e impatti da verificare").fill("Dettaglio conservato dopo conflitto.");
   await page.getByRole("button", { name: "Registra azione" }).click();
-  await expect(page.getByRole("dialog")).toContainText("La base della review è cambiata");
+  await expect(page.getByRole("alert")).toContainText("La base della review è cambiata");
   await expect(page.getByLabel("Titolo", { exact: true })).toHaveValue("Proposta conservata");
   await page.keyboard.press("Escape");
-  await expect(inspector.getByRole("button", { name: "Proponi modifica" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Salva come ipotesi" })).toBeFocused();
+});
+
+
+test("avatar opens on demand and chat resizing persists across tasks", async ({ page }, info) => {
+  if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1000 });
+  await fixture(page); await open(page); await selectTask(page);
+  const chat = page.locator(".review-agent-chat");
+  await expect(chat).toBeHidden();
+  await selectTask(page, "Emettere ordine"); await expect(chat).toBeHidden();
+  await openAgent(page);
+  const before = (await chat.boundingBox())!;
+  const handle = page.getByRole("button", { name: "Ridimensiona chat DeliR" });
+  await handle.focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(chat).toHaveCSS("height", `${Math.round(before.height - 40)}px`);
+  if (info.project.name === "chromium") {
+    await page.keyboard.press("ArrowLeft");
+    await expect(chat).toHaveCSS("width", `${Math.round(before.width + 20)}px`);
+    const grip = (await handle.boundingBox())!;
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2 - 80, grip.y + grip.height / 2 - 60); await page.mouse.up();
+    await expect(chat).toHaveCSS("width", `${Math.round(before.width + 100)}px`);
+    await expect(chat).toHaveCSS("height", `${Math.round(before.height + 20)}px`);
+  }
+  const resized = (await chat.boundingBox())!;
+  await page.getByRole("button", { name: "Chiudi chat DeliR" }).click();
+  await expect(chat).toBeHidden(); await selectTask(page); await openAgent(page);
+  const retained = (await chat.boundingBox())!;
+  expect(retained.width).toBe(resized.width); expect(retained.height).toBe(resized.height);
+  await handle.focus(); await page.keyboard.press("Home");
+  // WebKit retains fractional CSS pixels in viewport-derived dimensions.
+  // Reset must restore the original measured size, rather than an integer.
+  await expect.poll(() => chat.evaluate(element => element.getBoundingClientRect().height)).toBeCloseTo(before.height, 1);
+  expect((await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations).toEqual([]);
 });

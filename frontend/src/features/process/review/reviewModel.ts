@@ -14,8 +14,8 @@ const planSchema = z.object({
 });
 export const reviewActionSchema = z.object({
   id: z.string(), node_id: z.string(), node_name: z.string(), base_revision: z.string(),
-  kind: z.enum(["candidate", "clarification", "deferred"]), title: z.string(), detail: z.string(),
-  created_at: z.string(), created_by: z.string(),
+  kind: z.enum(["candidate", "as_is_proposal", "clarification", "deferred"]), title: z.string(), detail: z.string(),
+  created_at: z.string(), created_by: z.string(), proposal_xml: z.string().nullable().optional(),
 });
 export const reviewStateSchema = z.object({
   process_id: z.string(), base_revision: z.string(), xml: z.string().nullable(),

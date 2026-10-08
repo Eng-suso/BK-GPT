@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from backend.process_understanding import ProcessUnderstanding
 
-ReviewActionKind = Literal["candidate", "clarification", "deferred"]
+ReviewActionKind = Literal["candidate", "as_is_proposal", "clarification", "deferred"]
 
 
 class CreateImpactReviewAction(BaseModel):
@@ -17,6 +17,7 @@ class CreateImpactReviewAction(BaseModel):
     kind: ReviewActionKind
     title: str = Field(min_length=1, max_length=180)
     detail: str = Field(min_length=1, max_length=4000)
+    proposal_xml: str | None = Field(default=None, max_length=1_000_000)
 
 
 class ImpactReviewAction(BaseModel):
@@ -29,6 +30,7 @@ class ImpactReviewAction(BaseModel):
     detail: str
     created_at: str
     created_by: str
+    proposal_xml: str | None = None
 
 
 class ImpactReviewState(BaseModel):

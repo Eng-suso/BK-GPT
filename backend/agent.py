@@ -77,6 +77,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConsultantState(MessagesState):
+    review_task_context: dict | None
     scope_type: str
     scope_key: str
     # Arrivano dal runtime con la richiesta, non dal modello. Dichiarati qui
@@ -535,6 +536,8 @@ def build_agent(
         return result
 
     def route_scope(state: ConsultantState):
+        if state.get("review_task_context"):
+            return "task_review"
         return tool_scope_type(state.get("scope_type"))
 
     workflow = StateGraph(ConsultantState)
@@ -577,6 +580,9 @@ def build_agent(
         ),
     )
     workflow.add_node("canvas_subgraph", canvas_subgraph)
+    from backend.graphs.task_review import build_task_review_subgraph
+
+    workflow.add_node("task_review_subgraph", build_task_review_subgraph(llm, build_context_messages))
 
     workflow.add_edge(START, "summarize")
     workflow.add_edge("summarize", CONTEXT_ROUTER_NODE)
@@ -588,12 +594,14 @@ def build_agent(
             "project": "project_subgraph",
             "process": "process_subgraph",
             "canvas": "canvas_subgraph",
+            "task_review": "task_review_subgraph",
         },
     )
     workflow.add_edge("consulting_subgraph", END)
     workflow.add_edge("project_subgraph", END)
     workflow.add_edge("process_subgraph", END)
     workflow.add_edge("canvas_subgraph", END)
+    workflow.add_edge("task_review_subgraph", END)
 
     return workflow.compile(checkpointer=get_checkpointer())
 
