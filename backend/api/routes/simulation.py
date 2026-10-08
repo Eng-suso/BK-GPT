@@ -15,6 +15,7 @@ from backend.schemas.simulation_model import (
     CreateSimulationModelRunRequest,
     SimulationModelRequest,
     SimulationModelResponse,
+    SimulationRunModelResponse,
 )
 from backend.schemas.workspace import BpmnModelResponse
 from backend.security import get_current_tenant_id, require_principal
@@ -33,6 +34,7 @@ from backend.simulation.service import (
 from backend.simulation.storage import (
     get_simulation_replay,
     get_simulation_run,
+    get_simulation_run_model,
     list_simulation_runs,
 )
 from backend.workspace_database import get_bpmn_model
@@ -195,6 +197,14 @@ def get_workspace_simulation_experiments(run_id: int) -> ExperimentReport:
     if run is None:
         raise HTTPException(status_code=404, detail="Simulazione non trovata.")
     return suggest_experiments(run.get("summary"), run.get("scenario"))
+
+
+@router.get("/simulation-runs/{run_id}/model")
+def get_workspace_simulation_run_model(run_id: int) -> SimulationRunModelResponse:
+    found, model = get_simulation_run_model(run_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Simulazione non trovata.")
+    return SimulationRunModelResponse(run_id=run_id, model=model)
 
 
 @router.get("/simulation-runs/{run_id}/replay")
