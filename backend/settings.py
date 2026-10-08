@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     # modello per l'estrazione fatti di Mem0: serve JSON mode. Override se il
     # tuo account non ha gpt-4o-mini.
     mem0_llm_model: str = "gpt-4o-mini"
+    # Estrazione fatti su un endpoint compatibile OpenAI diverso da api.openai.com
+    # (Gemini, Ollama), per lavorare dati di test senza spendere la chiave vera.
+    # L'embedder resta sempre OpenAI: lo schema pgvector e' fisso a 1536
+    # dimensioni (INV-4, vedi tests/live_llm.py), un altro provider le romperebbe.
+    mem0_llm_base_url: str | None = None
+    # Chiave per mem0_llm_base_url. Vuota = usa openai_api_key (comportamento
+    # pre-esistente, stesso provider per estrazione ed embedding).
+    mem0_llm_api_key: str | None = None
     mem0_embedder_model: str = "text-embedding-3-small"
     # Soglia di similarita' del recall (Mem0 `search(threshold=...)`). Il default
     # della libreria e' 0.1: con quella, qualunque memoria vagamente vicina entra

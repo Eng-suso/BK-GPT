@@ -3,7 +3,10 @@
 NON il Platform SDK hosted e NON il client MCP: `mem0.Memory` in-process.
 - vector store: database `mem0` isolato nello stesso cluster Postgres
   (ruolo delir_mem0), cosi' un bug di Mem0 non tocca lo schema canonical
-- LLM + embedder: OpenAI (la key gia' in .env)
+- LLM: OpenAI di default; `mem0_llm_base_url`/`mem0_llm_api_key` lo spostano su
+  un endpoint compatibile OpenAI (Gemini, Ollama) per lavorare dati di test
+  senza spendere la chiave vera
+- embedder: sempre OpenAI, niente override — 1536 dimensioni fisse (INV-4)
 - niente graph store: il grafo tipizzato di dominio e' Neo4j, non la
   Graph Memory schema-free di Mem0
 
@@ -65,7 +68,12 @@ def _config() -> dict:
             "provider": "openai",
             "config": {
                 "model": settings.mem0_llm_model,
-                "api_key": settings.openai_api_key,
+                "api_key": settings.mem0_llm_api_key or settings.openai_api_key,
+                **(
+                    {"openai_base_url": settings.mem0_llm_base_url}
+                    if settings.mem0_llm_base_url
+                    else {}
+                ),
             },
         },
         "embedder": {
