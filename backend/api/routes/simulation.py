@@ -38,6 +38,8 @@ from backend.simulation.storage import (
     list_simulation_runs,
 )
 from backend.workspace_database import get_bpmn_model
+from backend.schemas.simulation import BpmnCompatibilityRequest, BpmnCompatibilityResponse
+from backend.simulation.compatibility import compatibility_report_for_model
 
 
 router = APIRouter(
@@ -244,3 +246,22 @@ def export_workspace_simulation_event_log(
     if export.engine_version:
         headers["X-Simulation-Engine-Version"] = str(export.engine_version)
     return Response(content=export.file.content, media_type=export.file.media_type, headers=headers)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-compatibility")
+def get_workspace_simulation_compatibility(
+    bpmn_model_id: str,
+    request: BpmnCompatibilityRequest,
+) -> BpmnCompatibilityResponse:
+    """Che cosa il motore simula davvero di ogni elemento del BPMN (SIM-05)."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+
+    try:
+        return compatibility_report_for_model(
+            bpmn_model=BpmnModelResponse(**model),
+            current_bpmn_xml=request.current_bpmn_xml,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
