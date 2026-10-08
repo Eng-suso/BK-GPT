@@ -9,11 +9,14 @@ from backend.schemas.simulation import (
     ScenarioTemplateGateway,
     ScenarioTemplateResponse,
     ScenarioTemplateTask,
+    SimCalendarConfig,
+    SimCalendarPeriodConfig,
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
 from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
+from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
 from backend.simulation.validation import validate_simulation_bpmn
@@ -88,6 +91,7 @@ def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = N
             ScenarioTemplateTask(element_id=task.id, name=task.name, type=task.type)
             for task in tasks
         ],
+        standard_calendar=_standard_calendar_config(),
         gateways=[
             ScenarioTemplateGateway(
                 element_id=gateway.id,
@@ -103,6 +107,18 @@ def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = N
                 ],
             )
             for gateway in gateways
+        ],
+    )
+
+
+def _standard_calendar_config() -> SimCalendarConfig:
+    calendar = standard_calendar()
+    return SimCalendarConfig(
+        id=calendar.id,
+        name=calendar.name,
+        periods=[
+            SimCalendarPeriodConfig(from_day=p.from_day, to_day=p.to_day, begin=p.begin[:5], end=p.end[:5])
+            for p in calendar.periods
         ],
     )
 
