@@ -105,10 +105,14 @@ export function isRunning(threadId: string | null | undefined): boolean {
 
 /** Toglie dallo store un turno finito, una volta consolidato nella sessione. */
 export function clearRun(threadId: string): void {
+  if (isRunning(threadId)) return;
   runs.delete(threadId);
   controllers.delete(threadId);
   emit();
 }
+
+/** Dismissing an error must preserve the local transcript and queued input. */
+export function clearRunError(threadId: string): void { write(threadId, { error: null }); }
 
 /** Annulla la richiesta in corso; il testo gia' arrivato resta. */
 export function stopRun(threadId: string): void {
@@ -144,6 +148,7 @@ function pendingAssistant(): ChatMessage {
  */
 export async function startRun(input: StartRunInput): Promise<void> {
   const { threadId, transport, commit, onSettled } = input;
+  if (isRunning(threadId)) { enqueueMessage(threadId, input.content, input.attachments); return; }
 
   const controller = new AbortController();
   controllers.set(threadId, controller);
@@ -229,7 +234,30 @@ export async function startRun(input: StartRunInput): Promise<void> {
     const cancelReader = () => void reader.cancel().catch(() => {});
     controller.signal.addEventListener("abort", cancelReader);
 
-    while (true) {
+    const processLine = (line: string) => {
+        if (!line.trim()) return;
+        let event: Record<string, unknown>;
+        try { event = JSON.parse(line); } catch { return; }
+        if (event.type === "activity") {
+          const progress = readProgressEvent(event);
+          if (progress) update(current => {
+            const next = [...current]; const last = next.at(-1);
+            if (last?.role !== "assistant") return current;
+            next[next.length - 1] = { ...last, activity: nextAgentActivity(last.activity, progress) }; return next;
+          });
+        }
+        if (event.type === "trace") {
+          const trace = event.payload as { event_type?: string; payload?: { posture?: string } } | undefined;
+          if (trace?.event_type === "posture" && trace.payload?.posture) write(threadId, { detectedPosture: trace.payload.posture });
+        }
+        if (event.type === "delta") { answer += String(event.content ?? ""); patchAssistant({ content: answer }); }
+        if (event.type === "done") { answer = String(event.message ?? answer); patchAssistant({ content: answer }); }
+        if (event.type === "error") {
+          const error = event.error as { detail?: string; message?: string } | undefined;
+          throw new Error(error?.detail || error?.message || String(event.detail ?? "") || "Errore backend");
+        }
+    };
+    try { while (true) {
       const { value, done } = await reader.read();
       if (done) break;
 
@@ -237,65 +265,14 @@ export async function startRun(input: StartRunInput): Promise<void> {
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
 
-      for (const line of lines) {
-        if (!line.trim()) continue;
-
-        let event: Record<string, unknown>;
-        try {
-          event = JSON.parse(line);
-        } catch {
-          // Una riga troncata non deve buttare via il turno.
-          continue;
-        }
-
-        if (event.type === "activity") {
-          const progress = readProgressEvent(event);
-          if (progress) {
-            update((current) => {
-              const next = [...current];
-              const last = next[next.length - 1];
-              if (!last || last.role !== "assistant") return current;
-              next[next.length - 1] = {
-                ...last,
-                activity: nextAgentActivity(last.activity, progress),
-              };
-              return next;
-            });
-          }
-        }
-
-        if (event.type === "trace") {
-          const trace = event.payload as
-            | { event_type?: string; payload?: { posture?: string } }
-            | undefined;
-          if (trace?.event_type === "posture" && trace.payload?.posture) {
-            write(threadId, { detectedPosture: trace.payload.posture });
-          }
-        }
-
-        if (event.type === "delta") {
-          answer += String(event.content ?? "");
-          patchAssistant({ content: answer });
-        }
-
-        if (event.type === "done") {
-          answer = String(event.message ?? answer);
-          patchAssistant({ content: answer });
-        }
-
-        if (event.type === "error") {
-          const error = event.error as { detail?: string; message?: string } | undefined;
-          throw new Error(
-            error?.detail ||
-              error?.message ||
-              String(event.detail ?? "") ||
-              "Errore backend",
-          );
-        }
-      }
+      lines.forEach(processLine);
     }
-
-    controller.signal.removeEventListener("abort", cancelReader);
+    if (!controller.signal.aborted) processLine(buffer + decoder.decode());
+    } finally {
+      controller.signal.removeEventListener("abort", cancelReader);
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
 
     if (controller.signal.aborted) {
       await finishStopped();

@@ -42,6 +42,93 @@ test.beforeEach(async ({ page }) => { await fixture(page); });
 // Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
 const canvasView = `${studio}?view=canvas`;
 
+for (const mobile of [false, true]) test(`enterprise library and properties round-trip on ${mobile ? "mobile" : "desktop"}`, async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize(mobile ? { width: 390, height: 844 } : { width: 1600, height: 1000 });
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
+  let savedXml = xml;
+  const cors = { "access-control-allow-origin": "*", "access-control-allow-methods": "GET, PUT, OPTIONS", "access-control-allow-headers": "Content-Type" };
+  await page.route("**/v1/workspace/bpmn-models/layout-model/versions", route => route.fulfill({ headers: cors, json: [] }));
+  await page.route("**/v1/workspace/bpmn-models/layout-model", async route => {
+    if (route.request().method() === "PUT") savedXml = route.request().postDataJSON().xml;
+    await route.fulfill({ headers: cors, json: { id: "layout-model", process_id: "layout-process", name: "Model", xml: savedXml, version_id: 1 } });
+  });
+  await page.goto(canvasView);
+  const canvas = page.locator(".process-bpmn-canvas");
+  await expect(canvas.locator('[data-element-id="Task_1"]').first()).toBeVisible();
+  await page.getByRole("button", { name: "Apri libreria BPMN", exact: true }).click();
+  const library = page.getByRole("navigation", { name: "Strumenti BPMN" });
+  await library.getByRole("textbox", { name: "Cerca elementi BPMN" }).fill("servizio");
+  await expect(library.getByRole("button", { name: "Attività di servizio", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath(`enterprise-library-${mobile}.png`) });
+  await library.getByRole("textbox", { name: "Cerca elementi BPMN" }).fill("no-matching-element");
+  await expect(library).toContainText("Nessun elemento trovato");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Apri libreria BPMN", exact: true })).toBeFocused();
+  await canvas.locator('[data-element-id="Task_1"]').first().click();
+  const inspector = page.locator(".process-enterprise-properties");
+  if (mobile) await page.getByRole("button", { name: "Proprietà", exact: true }).click();
+  await inspector.getByRole("textbox", { name: "Responsabile attività", exact: true }).fill("Operations");
+  await inspector.getByRole("textbox", { name: "Ufficio competente", exact: true }).fill("Acquisti");
+  await inspector.getByRole("checkbox").check();
+  await inspector.getByRole("tab", { name: "Regole", exact: true }).click();
+  await inspector.getByRole("textbox", { name: "Note sulle regole", exact: true }).fill("Approvazione sopra soglia");
+  await inspector.getByRole("textbox", { name: "Rischi e mitigazioni", exact: true }).fill("Dati incompleti: controllo preventivo");
+  await inspector.getByRole("textbox", { name: "Riferimenti SOP", exact: true }).fill("SOP-ACQ-01");
+  await inspector.getByRole("tab", { name: "Dati", exact: true }).click();
+  await inspector.getByRole("textbox", { name: "Input", exact: true }).fill("Richiesta");
+  await inspector.getByRole("tab", { name: "File", exact: true }).click();
+  await inspector.getByRole("textbox", { name: "Riferimenti documentali", exact: true }).fill("Procedura acquisti");
+  await inspector.getByRole("tab", { name: "Cronologia", exact: true }).click();
+  await expect(inspector).toContainText("Nessuna versione salvata disponibile");
+  await inspector.getByRole("tab", { name: "AI", exact: true }).click();
+  await expect(inspector.getByRole("button", { name: "Chiedi a DeliR" })).toBeVisible();
+  await inspector.getByRole("tab", { name: "Dettagli", exact: true }).click();
+  await page.screenshot({ path: info.outputPath(`enterprise-properties-${mobile}.png`) });
+  expect((await new AxeBuilder({ page }).include(".process-workspace").analyze()).violations).toEqual([]);
+  if (mobile) await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Salva", exact: true })).toBeEnabled();
+  const historyReload = page.waitForResponse(response => response.url().endsWith("/layout-model/versions"));
+  await page.getByRole("button", { name: "Salva", exact: true }).click();
+  await (await historyReload).finished();
+  await expect.poll(() => savedXml).toContain('delir:owner="Operations"');
+  expect(savedXml).toContain('xmlns:delir="https://delir.app/schema/bpmn/1.0"');
+  expect(savedXml).toContain('delir:rules="Approvazione sopra soglia"');
+  expect(savedXml).toContain('delir:required="true"');
+  await page.reload();
+  await canvas.locator('[data-element-id="Task_1"]').first().click();
+  await expect(inspector.getByRole("textbox", { name: "Responsabile attività", exact: true })).toHaveValue("Operations");
+  await expect(inspector.getByRole("checkbox")).toBeChecked();
+  await inspector.getByRole("button", { name: "Elimina elemento", exact: true }).click();
+  await expect(canvas.locator('[data-element-id="Task_1"]')).toHaveCount(0);
+  await canvas.click({ position: { x: 30, y: 30 } });
+  await page.keyboard.press("Control+z");
+  await expect(canvas.locator('[data-element-id="Task_1"]').first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("enterprise library places service tasks and timer event definitions", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto(canvasView);
+  const canvas = page.locator(".process-bpmn-canvas");
+  await expect(canvas.locator('[data-element-id="Task_1"]').first()).toBeVisible();
+  await page.getByRole("button", { name: "Apri libreria BPMN", exact: true }).click();
+  const search = page.getByRole("textbox", { name: "Cerca elementi BPMN" });
+  await search.fill("servizio");
+  await page.getByRole("button", { name: "Attività di servizio", exact: true }).click();
+  await canvas.click({ position: { x: 180, y: 30 } });
+  await expect(canvas.locator(".delir-type-automation")).toHaveCount(1);
+  await search.fill("iniziale · timer");
+  await page.getByRole("button", { name: "Evento iniziale · timer", exact: true }).click();
+  await canvas.click({ position: { x: 400, y: 30 } });
+  await expect(canvas.locator(".delir-type-start")).toHaveCount(1);
+  const saveRequest = page.waitForRequest(request => request.method() === "PUT" && request.url().endsWith("/layout-model"));
+  await expect(page.getByRole("button", { name: "Salva", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Salva", exact: true }).click();
+  const saved = (await saveRequest).postDataJSON().xml;
+  expect(saved).toContain("bpmn:serviceTask"); expect(saved).toContain("bpmn:timerEventDefinition");
+});
+
 test("product-generated diagram keeps the DeliR identity in the editable canvas", async ({ page }, info) => {
   if (!info.project.name.startsWith("mobile-")) await page.setViewportSize({ width: 1600, height: 1000 });
   const generated = readFileSync("e2e/fixtures/canvas-layout/purchase.bpmn", "utf8");
@@ -63,7 +150,7 @@ test("laptop tools preserve canvas space and unsaved model edits", async ({ page
   await page.goto(canvasView);
   const canvas = page.locator(".process-bpmn-canvas");
   await page.locator('[data-element-id="Task_1"]').first().click();
-  await page.getByRole("textbox", { name: "Etichetta / Nome" }).fill("Modifica da conservare");
+  await page.getByRole("textbox", { name: "Nome" }).fill("Modifica da conservare");
   await page.getByRole("button", { name: "Chat canvas", exact: true }).focus();
   await page.getByRole("button", { name: "Chat canvas", exact: true }).click();
   await expect(page.locator(".process-studio-chat")).toBeVisible();
@@ -80,7 +167,7 @@ test("laptop tools preserve canvas space and unsaved model edits", async ({ page
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Importa, esporta, cronologia" })).toBeFocused();
   await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue("Modifica da conservare");
+  await expect(page.getByRole("textbox", { name: "Nome" })).toHaveValue("Modifica da conservare");
   const saved = page.waitForRequest((req) => req.method() === "PUT" && req.url().endsWith("/layout-model"));
   await page.getByRole("button", { name: "Salva", exact: true }).click();
   expect((await saved).postDataJSON().xml).toContain("Modifica da conservare");
@@ -266,7 +353,7 @@ test("process elements follow imports, selection and properties without rewritin
   await expect(navigator.locator("li")).toHaveCount(18);
   await navigator.getByRole("textbox", { name: "Cerca nel processo" }).fill("Attività 18:");
   await navigator.getByRole("button", { name: /Attività 18:/ }).click();
-  await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue(tasks[17].name);
+  await expect(page.getByRole("textbox", { name: "Nome" })).toHaveValue(tasks[17].name);
   await page.getByRole("button", { name: "Chiudi elenco elementi" }).click();
 
   const imported = xml.replaceAll("Task_", "Imported_").replace('bpmn:userTask id="Imported_2"', 'bpmn:serviceTask id="Imported_2"').replace('bpmn:userTask id="Imported_3"', 'bpmn:exclusiveGateway id="Imported_3"');
@@ -276,6 +363,7 @@ test("process elements follow imports, selection and properties without rewritin
   await navigator.getByRole("button", { name: /ServiceTask/ }).click();
   await expect(navigator.locator("li")).toHaveCount(1);
   await page.getByRole("button", { name: "Proprietà", exact: true }).click();
+  await page.getByText("Proprietà tecniche BPMN", { exact: true }).click();
   const properties = page.locator(".process-bpmn-properties-host");
   const nameInput = properties.getByRole("textbox", { name: "Nome", exact: true });
   if (!await nameInput.isVisible()) await properties.locator('[data-group-id="group-general"]').getByRole("button", { name: "Toggle section" }).click();
@@ -284,7 +372,7 @@ test("process elements follow imports, selection and properties without rewritin
   await expect(navigator).toContainText("Automazione importata");
   await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
   await expect(page.getByRole("button", { name: "Proprietà", exact: true })).toBeFocused();
-  await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue("Automazione importata");
+  await expect(page.getByRole("textbox", { name: "Nome" })).toHaveValue("Automazione importata");
   const search = navigator.getByRole("textbox", { name: "Cerca nel processo" });
   await search.press("ControlOrMeta+A");
   await search.press("Backspace");
@@ -329,7 +417,7 @@ test("process chrome and element navigation remain accessible without overlap on
   await page.getByRole("button", { name: /Attività 18:/ }).click();
   await expect(page.locator(".process-bpmn-canvas")).toBeVisible();
   await expect(page.getByRole("button", { name: "Elementi", exact: true })).toBeFocused();
-  await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue(tasks[17].name);
+  await expect(page.getByRole("textbox", { name: "Nome" })).toHaveValue(tasks[17].name);
   await testInfo.attach("Process mobile", { body: await page.screenshot({ path: process.env.DELIR_UI_PROOF_DIR ? join(process.env.DELIR_UI_PROOF_DIR, "process-mobile.png") : undefined }), contentType: "image/png" });
   const diagramBox = (await page.locator(".process-bpmn-canvas").boundingBox())!;
   const inspectorBox = (await page.locator(".process-bpmn-node-inspector").boundingBox())!;
@@ -492,7 +580,7 @@ for (const width of [1440, 1920]) {
     await page.mouse.up();
     await expect(viewport).not.toHaveAttribute("transform", originalCamera!);
     await canvas.locator('[data-element-id="Task_1"]').first().click();
-    await page.getByRole("textbox", { name: "Etichetta / Nome" }).fill("Bozza da conservare");
+    await page.getByRole("textbox", { name: "Nome" }).fill("Bozza da conservare");
     const inspector = page.locator(".process-studio-properties");
     await expect(inspector).toBeVisible();
     await expect(page.getByRole("button", { name: "Chiudi ispettore", exact: true })).toHaveCount(1);
@@ -504,11 +592,11 @@ for (const width of [1440, 1920]) {
     await expect(viewport).toHaveAttribute("transform", camera!);
     expect((await canvas.boundingBox())!.width).toBeGreaterThanOrEqual(720);
     await page.getByRole("button", { name: "Proprietà", exact: true }).click();
-    await expect(inspector.locator(".process-bpmn-properties-host")).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toBeHidden();
+    await expect(inspector.locator(".process-enterprise-host")).toBeVisible();
+    await expect(inspector.locator(".process-detail-host")).toBeHidden();
     await expect(viewport).toHaveAttribute("transform", camera!);
     await page.getByRole("button", { name: "Chiudi i pannelli", exact: true }).click();
-    await expect(page.getByRole("textbox", { name: "Etichetta / Nome" })).toHaveValue("Bozza da conservare");
+    await expect(page.getByRole("textbox", { name: "Nome" })).toHaveValue("Bozza da conservare");
     await page.getByRole("button", { name: "Chat canvas", exact: true }).click();
     await expect(page.locator(".process-studio-chat")).toBeVisible();
     expect((await canvas.boundingBox())!.width).toBeGreaterThanOrEqual(720);

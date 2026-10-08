@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
 import { translateBpmnLabel } from "./translate";
+import { enterpriseModdle, readSelectedElement, type EnterpriseMetadata } from "./enterprise";
+import { enterprisePaletteModule } from "./enterprisePalette";
 import {
   BpmnPropertiesPanelModule,
   BpmnPropertiesProviderModule,
@@ -75,6 +77,8 @@ export type UseBpmnCanvas = {
   clearSelection: () => void;
   updateSelectedNodeName: (name: string) => void;
   updateSelectedNodeDoc: (doc: string) => void;
+  updateSelectedMetadata: (patch: Partial<EnterpriseMetadata>) => void;
+  deleteSelectedElement: () => void;
   save: () => void;
   /** The last save hit a newer version (409): `reloadLatest` loads it. */
   hasConflict: boolean;
@@ -249,7 +253,7 @@ export function useBpmnCanvas({
       if (!previous) return null;
       const current = registry.get?.(previous.id) as BpmnElementSelection | undefined;
       if (!current) return null;
-      return { ...previous, name: current.businessObject?.name || "", documentation: splitTraceability(current.businessObject?.documentation?.[0]?.text).notes };
+      return readSelectedElement(current);
     });
     // Ogni punto che importa un XML passa di qui: e' il momento in cui i segni
     // di provenance vanno riletti dal disegno appena caricato.
@@ -288,11 +292,13 @@ export function useBpmnCanvas({
         if (!isMounted || !containerRef.current) return;
 
         const modeler = new Modeler({
+          moddleExtensions: { delir: enterpriseModdle },
           container: containerRef.current,
           propertiesPanel: propertiesPanelRef.current
             ? { parent: propertiesPanelRef.current }
             : undefined,
           additionalModules: [
+            enterprisePaletteModule,
             BpmnPropertiesPanelModule,
             BpmnPropertiesProviderModule,
             { translate: ["value", translateBpmnLabel] },
@@ -344,17 +350,7 @@ export function useBpmnCanvas({
             return;
           }
 
-          const bo = selected.businessObject;
-          // Il blocco di tracciabilita' non e' una nota: non si mostra e non si
-          // riscrive, cosi' il nodo resta riconoscibile per le evidenze.
-          const docs = splitTraceability(bo?.documentation?.[0]?.text).notes;
-
-          setSelectedElement({
-            id: selected.id,
-            type: (selected.type || "Elemento").replace(/^bpmn:/, ""),
-            name: bo?.name || "",
-            documentation: docs,
-          });
+          setSelectedElement(readSelectedElement(selected));
         });
 
         scheduleCanvasFit();
@@ -691,6 +687,25 @@ export function useBpmnCanvas({
     );
   }, []);
 
+  const updateSelectedMetadata = (patch: Partial<EnterpriseMetadata>) => {
+    const modeler = modelerRef.current;
+    if (!modeler || !selectedElement) return;
+    const element = (modeler.get("elementRegistry") as BpmnElementRegistry).get?.(selectedElement.id);
+    if (!element) return;
+    try {
+      (modeler.get("modeling") as BpmnModeling).updateProperties(element, Object.fromEntries(Object.entries(patch).map(([field, value]) => [`delir:${field}`, value])));
+      scheduleUnsavedCheck();
+    } catch (err) { setError(httpErrorMessage(err, "Aggiornamento proprietà non riuscito")); }
+  };
+  const deleteSelectedElement = () => {
+    const modeler = modelerRef.current;
+    if (!modeler || !selectedElement) return;
+    const element = (modeler.get("elementRegistry") as BpmnElementRegistry).get?.(selectedElement.id);
+    if (!element) return;
+    try { (modeler.get("modeling") as BpmnModeling).removeElements([element]); scheduleUnsavedCheck(); }
+    catch (err) { setError(httpErrorMessage(err, "Eliminazione elemento non riuscita")); }
+  };
+
   const zoomIn = useCallback(() => zoomBy(0.2), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(-0.2), [zoomBy]);
   const zoomFit = useCallback(() => {
@@ -755,6 +770,8 @@ export function useBpmnCanvas({
     clearSelection,
     updateSelectedNodeName,
     updateSelectedNodeDoc,
+    updateSelectedMetadata,
+    deleteSelectedElement,
     save: () => void save(),
     hasConflict,
     reloadLatest: () => void reloadLatest(),

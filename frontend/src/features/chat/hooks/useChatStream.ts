@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { httpErrorMessage } from "@/lib/http";
 import { notifyWorkspaceChanged } from "@/lib/workspaceEvents";
 import {
+  chatScopeKey,
   toApiChatAttachment,
   toApiChatScope,
   type ChatAttachment,
@@ -12,7 +13,7 @@ import {
 import type { ChatMessage, ChatSession } from "../types";
 import { streamChatMessage } from "../api";
 import {
-  clearRun,
+  clearRunError,
   dropQueuedMessage,
   enqueueMessage,
   getRun,
@@ -29,6 +30,7 @@ type UseChatStreamArgs = {
   /** Postura e autonomia scelte dal consulente per il prossimo turno. */
   choices: ChatTurnChoices;
   activeSession: ChatSession | null;
+  currentThreadId: string | null;
   ensureThread: (firstMessage: string) => Promise<ChatSession>;
   selectThread: (threadId: string) => void;
   commitTranscript: (
@@ -70,7 +72,7 @@ function notifyChatWorkspaceChanged(scope: ChatScope) {
   }
   notifyWorkspaceChanged({
     bpmnModelId: scope.bpmnModelId,
-    forceCanvasReload: true,
+    forceCanvasReload: !scope.reviewNodeId,
   });
 }
 
@@ -96,6 +98,7 @@ export function useChatStream({
   selectedModel,
   choices,
   activeSession,
+  currentThreadId,
   ensureThread,
   selectThread,
   commitTranscript,
@@ -106,32 +109,29 @@ export function useChatStream({
   const modelRef = useRef(selectedModel);
   const choicesRef = useRef(choices);
   const activeSessionRef = useRef(activeSession);
-  // Il thread appena aperto, prima che `activeSession` lo rispecchi. Vive in due
-  // posti perche' serve a due tempi diversi: lo stato fa ridisegnare il turno
-  // appena parte, il ref lo rende leggibile dentro il flusso async di invio
-  // senza rimemoizzare `sendMessage`. Il solo ref non bastava: scriverlo non
-  // ridisegna, quindi il turno restava invisibile fino al render successivo.
-  const [liveThreadId, setLiveThreadId] = useState<string | null>(null);
-  const liveThreadRef = useRef<string | null>(null);
-
-  const trackLiveThread = useCallback((threadId: string) => {
-    liveThreadRef.current = threadId;
-    setLiveThreadId(threadId);
-  }, []);
+  const currentThreadRef = useRef(currentThreadId);
+  const scopeKey = chatScopeKey(toApiChatScope(scope));
+  const openingRef = useRef<string | null>(null);
+  const openingInput = useRef<string | null>(null);
+  const pendingOpeningRef = useRef<{ scopeKey: string; messages: QueuedMessage[] } | null>(null);
+  const [pendingOpening, setPendingOpening] = useState<{ scopeKey: string; messages: QueuedMessage[] } | null>(null);
+  const openingGeneration = useRef(0);
+  const [openingScope, setOpeningScope] = useState<string | null>(null);
   useEffect(() => {
     scopeRef.current = scope;
     modelRef.current = selectedModel;
     choicesRef.current = choices;
     activeSessionRef.current = activeSession;
+    currentThreadRef.current = currentThreadId;
   });
 
   useSyncExternalStore(subscribeToRuns, getRunsVersion, getRunsVersion);
 
-  const activeThreadId = activeSession?.threadId ?? liveThreadId;
+  const activeThreadId = currentThreadId;
   const run = getRun(activeThreadId);
 
   const clearStreamError = useCallback(() => {
-    if (activeThreadId) clearRun(activeThreadId);
+    if (activeThreadId) clearRunError(activeThreadId);
   }, [activeThreadId]);
 
   const sendMessage = useCallback(
@@ -140,7 +140,18 @@ export function useChatStream({
       attachments: ChatAttachment[] = [],
       choicesOverride?: Partial<ChatTurnChoices>,
     ) => {
-      const currentThreadId = activeSessionRef.current?.threadId ?? liveThreadRef.current;
+      const scopeAtSend = scopeRef.current;
+      const keyAtSend = chatScopeKey(toApiChatScope(scopeAtSend));
+      const modelAtSend = modelRef.current;
+      const choicesAtSend = { ...choicesRef.current, ...choicesOverride };
+      if (openingRef.current === keyAtSend) {
+        if (content === openingInput.current && !attachments.length) return;
+        const pending = pendingOpeningRef.current;
+        const next = { scopeKey: keyAtSend, messages: [...(pending?.scopeKey === keyAtSend ? pending.messages : []), { content, attachments }] };
+        pendingOpeningRef.current = next; setPendingOpening(next);
+        return;
+      }
+      const currentThreadId = currentThreadRef.current;
       const currentRun = getRun(currentThreadId);
 
       // Un turno e' gia' in corso: il messaggio si accoda invece di sparire o di
@@ -150,15 +161,21 @@ export function useChatStream({
         return;
       }
 
+      openingRef.current = keyAtSend;
+      openingInput.current = content;
+      const generation = ++openingGeneration.current;
+      setOpeningScope(keyAtSend);
       let session: ChatSession;
       try {
         session = await ensureThread(content);
+        if (openingGeneration.current !== generation) return;
       } catch (err) {
+        if (openingGeneration.current !== generation) return;
         console.error("[chat] could not open a session", err);
         const detail = httpErrorMessage(err, "Errore sconosciuto");
         const fallbackId = `local-error-${Date.now()}`;
-        trackLiveThread(fallbackId);
-        selectThread(fallbackId);
+
+        if (chatScopeKey(toApiChatScope(scopeRef.current)) === keyAtSend) selectThread(fallbackId);
         await startRun({
           threadId: fallbackId,
           base: [],
@@ -168,26 +185,24 @@ export function useChatStream({
           commit: async () => {},
         });
         return;
+      } finally {
+        if (openingGeneration.current === generation) { openingRef.current = null; setOpeningScope(null); }
       }
 
       const threadId = session.threadId;
-      trackLiveThread(threadId);
+
       const existingRun = getRun(threadId);
-      const base = (
+      let base = (
         existingRun && existingRun.status !== "streaming"
           ? existingRun.messages
           : session.threadId === activeSessionRef.current?.threadId
             ? activeSessionRef.current.messages
             : session.messages
       ).filter((message) => message.role !== "error");
+      // A retry of an empty failed turn replaces its pending user bubble.
+      if (existingRun?.status === "error" && base.at(-1)?.role === "user" && base.at(-1)?.content === content) base = base.slice(0, -1);
 
-      const scopeAtSend = scopeRef.current;
-      const modelAtSend = modelRef.current;
-      // Dedicated product actions may explicitly delegate one workflow without
-      // relying on a React state update landing before the request starts.
-      const choicesAtSend = { ...choicesRef.current, ...choicesOverride };
-
-      await startRun({
+      const runPromise = startRun({
         threadId,
         base,
         content,
@@ -210,28 +225,39 @@ export function useChatStream({
           onSettled?.(id);
         },
       });
+      const pending = pendingOpeningRef.current;
+      if (pending?.scopeKey === keyAtSend) {
+        for (const message of pending.messages) enqueueMessage(threadId, message.content, message.attachments);
+        pendingOpeningRef.current = null; setPendingOpening(null);
+      }
+      await runPromise;
     },
-    [ensureThread, selectThread, commitTranscript, onSettled, trackLiveThread],
+    [ensureThread, selectThread, commitTranscript, onSettled],
   );
 
   const stopStreaming = useCallback(() => {
+    if (openingRef.current) { openingGeneration.current += 1; openingRef.current = null; pendingOpeningRef.current = null; setPendingOpening(null); setOpeningScope(null); }
     if (activeThreadId) stopRun(activeThreadId);
   }, [activeThreadId]);
 
   const cancelQueuedMessage = useCallback(
     (index: number) => {
+      if (pendingOpeningRef.current?.scopeKey === scopeKey) {
+        const next = { scopeKey, messages: pendingOpeningRef.current.messages.filter((_, i) => i !== index) };
+        pendingOpeningRef.current = next; setPendingOpening(next); return;
+      }
       if (activeThreadId) dropQueuedMessage(activeThreadId, index);
     },
-    [activeThreadId],
+    [activeThreadId, scopeKey],
   );
 
   return {
-    isBusy: run?.status === "streaming",
+    isBusy: openingScope === scopeKey || run?.status === "streaming",
     lastUserPrompt: run?.lastPrompt ?? "",
     lastUserAttachments: run?.lastAttachments ?? [],
     liveThreadId: run ? run.threadId : null,
     liveMessages: run ? run.messages : null,
-    queuedMessages: run?.queued ?? [],
+    queuedMessages: pendingOpening?.scopeKey === scopeKey ? pendingOpening.messages : run?.queued ?? [],
     streamError: run?.error ?? null,
     startedAtMs: run?.status === "streaming" ? run.startedAtMs : null,
     detectedPosture: run?.detectedPosture ?? null,

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   enqueueMessage,
+  clearRunError,
   getRun,
   isRunning,
   resetRunsForTests,
@@ -233,6 +234,28 @@ describe("la coda dei messaggi", () => {
 });
 
 describe("errori", () => {
+  it("keeps failed transcript and queued context when dismissing the error", async () => {
+    await startRun({ threadId: "retained", base: [{ role: "user", content: "Earlier context" }, { role: "assistant", content: "Earlier answer" }], content: "Retry me", attachments: [], transport: () => Promise.reject(new Error("Offline")), commit: async () => {} });
+    enqueueMessage("retained", "Queued context");
+    const before = getRun("retained")!;
+    clearRunError("retained");
+    expect(getRun("retained")).toMatchObject({ messages: before.messages, queued: before.queued, error: null });
+  });
+  it("parses the final UTF-8 event even without a trailing newline", async () => {
+    const bytes = new TextEncoder().encode(JSON.stringify({ type: "done", message: "Risposta completa: qualità ✅" }));
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(bytes.slice(0, bytes.length - 2)); controller.enqueue(bytes.slice(bytes.length - 2)); controller.close(); } });
+    const commit = vi.fn(async () => {});
+    await startRun({ threadId: "tail", base: [], content: "Question", attachments: [], transport: async () => new Response(body), commit });
+    expect(getRun("tail")?.messages.at(-1)?.content).toBe("Risposta completa: qualità ✅");
+    expect(commit).toHaveBeenCalledTimes(1);
+  });
+  it("a final error without newline preserves partial output and never commits success", async () => {
+    const commit = vi.fn(async () => {});
+    await startRun({ threadId: "error-tail", base: [], content: "Question", attachments: [], transport: async () => new Response(`${ndjson({ type: "delta", content: "Partial answer" })}\n${ndjson({ type: "error", detail: "Failed final event" })}`), commit });
+    expect(getRun("error-tail")?.status).toBe("error");
+    expect(getRun("error-tail")?.messages.some(message => message.content === "Partial answer")).toBe(true);
+    expect(commit).not.toHaveBeenCalled();
+  });
   it("mostra l'errore al posto della bolla vuota", async () => {
     const run = startRun({
       threadId: "t-error",
