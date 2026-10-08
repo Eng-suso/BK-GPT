@@ -203,7 +203,10 @@
       "dist": {
         "norm": "Normale",
         "expon": "Esponenziale",
-        "fixed": "Fissa"
+        "fixed": "Fissa",
+        "uniform": "Uniforme",
+        "lognorm": "Lognormale",
+        "gamma": "Gamma"
       }
     },
     "diagram": {
@@ -251,15 +254,43 @@
       "completed": "Completata",
       "failed": "Fallita"
     },
+    "activityInspector": {
+      "title": "Parametri simulati",
+      "duration": "Durata media",
+      "defaultDuration": "durata di default dello scenario",
+      "distribution": "Distribuzione",
+      "stdAssumed": "dev. std {{value}}: 10% della media, assunzione fissa",
+      "std": "dev. std {{value}}",
+      "bounds": "fra {{min}} e {{max}}",
+      "calendar": "Calendario",
+      "standardCalendar": "standard, lun–ven 9–17",
+      "resource": "Risorsa",
+      "resourceValue": "{{name}} × {{amount}} · {{cost}}/h",
+      "origin": "Origine",
+      "confidence": "confidenza {{level}}",
+      "provenanceLoading": "Provenienza in caricamento",
+      "provenanceError": "Provenienza non disponibile: il valore resta senza origine.",
+      "notActivity": "Seleziona un'attività: decisioni ed eventi non hanno durata né risorsa."
+    },
     "provenance": {
       "label": "Origine",
       "sourceLabel": "Origine: {{source}} · confidenza {{confidence}}",
       "source": {
-        "interview": "da intervista",
-        "confirmed": "confermato",
-        "inferred": "dedotto",
+        "observed": "osservato",
+        "inferred": "dedotto dai dati",
+        "declared": "dichiarato",
         "estimated": "stimato",
+        "manual": "inserito",
         "default": "predefinito"
+      },
+      "sourcesTitle": "Fonti",
+      "sourceKind": {
+        "interview": "intervista",
+        "claim": "claim",
+        "source": "fonte del cliente",
+        "event_log": "event log",
+        "document": "documento",
+        "user": "consulente"
       },
       "confidence": {
         "high": "alta",
