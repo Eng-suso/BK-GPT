@@ -79,3 +79,7 @@ Review proposals and simulation run logs arrived through independent `0030`
 revisions. `0031_merge_review_simulation` reunites their histories without
 renaming published revisions or changing schema. Upgrade and downgrade/re-upgrade
 were verified on isolated Postgres from a fresh database and from either branch.
+
+The concurrent integration of PR #97 published a second merge revision,
+`0031_merge_0030_heads`. `0032_merge_layout_heads` preserves both published
+histories and restores the single head; it contains no schema DDL.
