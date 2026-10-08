@@ -117,7 +117,7 @@ def layout_process(process, top: float, connections):
                 grouped[ranks[node_id]].append(node_id)
         rows = max((len(group) for group in grouped.values()), default=1)
         content_height = max((sizes[i][1] + (52 if nodes[i].get("name") and (local_name(nodes[i]).endswith("Event") or local_name(nodes[i]).endswith("Gateway")) else 0) for group in grouped.values() for i in group), default=p.task_height)
-        row_pitch = max(p.row_gap, content_height + p.padding)
+        row_pitch = max(p.row_gap, content_height + max(p.padding, p.min_node_gap))
         main_height = (rows - 1) * row_pitch + content_height + p.padding * 2
         if not grouped:
             main_height = p.padding * 2  # Retain a real but unused role as a compact band.

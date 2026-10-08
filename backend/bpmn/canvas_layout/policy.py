@@ -30,6 +30,8 @@ class CanvasLayoutPolicy:
     task_height: float = 64
     event_size: float = 36
     gateway_size: float = 50
+    # Vertical gap the visual validator requires between stacked nodes.
+    min_node_gap: float = 48
     route_clearance: float = 12
     bend_cost: float = 24
     crossing_cost: float = 10000
