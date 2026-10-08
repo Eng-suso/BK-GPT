@@ -13,7 +13,7 @@ from backend.workspace_services.task_review_context import read_task_review_cont
 
 class ReviewBpmnOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    action: Literal["update", "add", "delete", "connect", "reconnect", "assign_lane"]
+    action: Literal["update", "add", "delete", "connect", "reconnect", "assign_lane", "layout"]
     element_id: str | None = None
     element_type: str | None = None
     name: str | None = None
@@ -73,12 +73,19 @@ def build_review_proposal(scope: CanvasChatScope, *, target: Literal["as_is", "t
             ET.SubElement(lane, ns + "flowNodeRef").text = op.element_id
             xml = edit.layout_bpmn_di(ET.tostring(root, encoding="unicode"))
             change = {"action": "assign_lane", "id": op.element_id, "lane_id": op.lane_id}
+        elif op.action == "layout":
+            xml = edit.layout_bpmn_di(xml)
+            change = {"action": "layout"}
         else:
             raise ValueError(f"Parametri incompleti per {op.action}.")
         changes.append(change)
     report = edit.validate_bpmn_xml(xml)
     if not report["valid"]:
         raise ValueError("La proposta contiene collegamenti non validi: " + "; ".join(report["issues"]))
+    layout = edit.validate_bpmn_layout(xml)
+    if not layout["valid"]:
+        raise ValueError("Il disegno della proposta richiede correzioni: " + "; ".join(layout["issues"]))
+    report["layout"] = layout
     action = create_impact_review_action(scope.process_id, CreateImpactReviewAction(
         id=uuid4(), node_id=scope.review_node_id or "", base_revision=scope.review_base_revision or "",
         kind="as_is_proposal" if target == "as_is" else "candidate", title=title, detail=detail, proposal_xml=xml,

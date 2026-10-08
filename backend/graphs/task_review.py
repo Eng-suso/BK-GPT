@@ -30,7 +30,8 @@ def create_review_bpmn_proposal(
 
     update: element_id + name/documentation; add: element_type/name/optional element_id;
     delete: element_id; connect: source_id/target_id/optional element_id;
-    reconnect: element_id (flow) + source_id or target_id; assign_lane: element_id/lane_id.
+    reconnect: element_id (flow) + source_id or target_id; assign_lane: element_id/lane_id;
+    layout: redraw only the separate proposal when its geometry needs repair.
     Inspect exact element IDs first. Use base_proposal_id to revise an existing proposal.
     Stores a presentation-ready proposal in Review, never replaces baseline XML or plan.
     Do not call for read-only questions or requests for an opinion.

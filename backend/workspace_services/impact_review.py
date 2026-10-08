@@ -97,11 +97,14 @@ def create_impact_review_action(process_id: str, payload: CreateImpactReviewActi
         if payload.proposal_xml is not None:
             if payload.kind not in {"candidate", "as_is_proposal"}:
                 raise ValueError("Solo una proposta può contenere un diagramma.")
-            from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml
+            from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_xml, validate_bpmn_layout
             fromstring(payload.proposal_xml)  # reject entities before the editing parser
             report = validate_bpmn_xml(payload.proposal_xml)
             if not report["valid"]:
                 raise ValueError("Diagramma della proposta non valido: " + "; ".join(report["issues"]))
+            layout = validate_bpmn_layout(payload.proposal_xml)
+            if not layout["valid"]:
+                raise ValueError("Disegno della proposta non valido: " + "; ".join(layout["issues"]))
         row = WorkspaceImpactReviewAction(
             id=str(payload.id), tenant_id=get_current_tenant_id(), process_id=process_id,
             node_id=payload.node_id, node_name=node.get("name") or payload.node_id,
