@@ -83,20 +83,21 @@ export function CalendarsSection({
               </div>
               <ul className="grid gap-2">
                 {calendar.periods.map((period, index) => (
-                  <li key={index} className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_0.8fr_0.8fr_auto] sm:items-end">
+                  <li key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 border-t border-border pt-2 first:border-t-0 first:pt-0">
                     <DaySelect label={t("simulation.config.fromDay")} value={period.from_day} onChange={(from_day) => updatePeriod(calendar, index, { from_day })} />
                     <DaySelect label={t("simulation.config.toDay")} value={period.to_day} onChange={(to_day) => updatePeriod(calendar, index, { to_day })} />
-                    <TimeField label={t("simulation.config.begin")} value={period.begin} invalid={issue === "periodOrder"} describedBy={issue ? issueId : undefined} onChange={(begin) => updatePeriod(calendar, index, { begin })} />
-                    <TimeField label={t("simulation.config.end")} value={period.end} invalid={issue === "periodOrder"} describedBy={issue ? issueId : undefined} onChange={(end) => updatePeriod(calendar, index, { end })} />
                     <Button
                       type="button"
                       size="icon"
                       variant="ghost"
+                      className="row-span-2 self-center"
                       aria-label={`${t("simulation.config.removePeriod")} ${index + 1}`}
                       onClick={() => update(calendar.id, { periods: calendar.periods.filter((_, i) => i !== index) })}
                     >
                       <X aria-hidden className="size-4" />
                     </Button>
+                    <TimeField label={t("simulation.config.begin")} value={period.begin} invalid={issue === "periodOrder"} describedBy={issue ? issueId : undefined} onChange={(begin) => updatePeriod(calendar, index, { begin })} />
+                    <TimeField label={t("simulation.config.end")} value={period.end} invalid={issue === "periodOrder"} describedBy={issue ? issueId : undefined} onChange={(end) => updatePeriod(calendar, index, { end })} />
                   </li>
                 ))}
               </ul>
