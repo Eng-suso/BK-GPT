@@ -276,6 +276,23 @@ class WorkspaceSimulationRunArtifact(WorkspaceBase):
     created_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class WorkspaceSimulationRunLog(WorkspaceBase):
+    """Il CSV di eventi che il motore ha prodotto per un run, com'e' (SIM-06).
+
+    Tenuto a parte dall'artefatto: pesa quanto il run ed e' letto solo
+    dall'export, mentre l'artefatto si legge a ogni scheda del run.
+    """
+
+    __tablename__ = "workspace_simulation_run_logs"
+
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("workspace_simulation_runs.id"), primary_key=True
+    )
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    log_csv: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class WorkspaceEventLog(WorkspaceBase):
     """Un event log reale caricato su un processo (SIM-15).
 

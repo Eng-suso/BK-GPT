@@ -222,8 +222,9 @@ def _pools_from_scenario(scenario_payload: dict) -> dict[str, Pool]:
     return pools
 
 
-def _pool_key(resource_instance: str) -> str:
+def pool_key(resource_instance: str) -> str:
     return _INSTANCE_SUFFIX.sub("", resource_instance)
+
 
 
 # --------------------------------------------------------------------------- #
@@ -381,7 +382,7 @@ def _build_summary(
     for res_row in resource_rows:
         pool = str(
             res_row.get("Pool name")
-            or _pool_key(str(res_row.get("Resource name", res_row.get("Resource ID", ""))))
+            or pool_key(str(res_row.get("Resource name", res_row.get("Resource ID", ""))))
         )
         util_by_pool[pool] = max(
             util_by_pool.get(pool, 0.0), _num(res_row.get("Utilization Ratio"))
@@ -395,7 +396,7 @@ def _build_summary(
         queue_avg, queue_max = _time_weighted_queue(spans, run_start, run_end)
         act_wait_total = sum(act_waits)
         act_proc_total = sum(act_procs)
-        act_pools = {_pool_key(ev.resource) for ev in act_events}
+        act_pools = {pool_key(ev.resource) for ev in act_events}
         act_utilization = max((util_by_pool.get(p, 0.0) for p in act_pools), default=0.0)
         affected_cases = {
             ev.case_id for ev in act_events if (ev.start - ev.enable) > _QUEUE_EPSILON_SEC
@@ -497,14 +498,14 @@ def _diagnose_bottleneck(
     # utilisation per logical pool ("Operatore"), from Prosimos' calendar-aware stats
     util_by_pool: dict[str, float] = {}
     for row in by_resource_out:
-        pool = row["pool"] or _pool_key(row["name"])
+        pool = row["pool"] or pool_key(row["name"])
         util_by_pool[pool] = max(util_by_pool.get(pool, 0.0), row["utilizationPct"] / 100.0)
 
     best: dict | None = None
     for row in by_activity_out:
         act_events = by_activity.get(row["name"], [])
         act_wait_total = sum(max(0.0, ev.start - ev.enable) for ev in act_events)
-        act_pools = {_pool_key(ev.resource) for ev in act_events}
+        act_pools = {pool_key(ev.resource) for ev in act_events}
         act_utilization = max((util_by_pool.get(p, 0.0) for p in act_pools), default=0.0)
 
         # persistence: fraction of the run where this activity's queue was non-empty
@@ -611,7 +612,7 @@ def _build_replay(
     # ---- per-resource (pool) busy fraction -------------------------------
     pool_events: dict[str, list[LogEvent]] = defaultdict(list)
     for ev in events:
-        pool_events[_pool_key(ev.resource)].append(ev)
+        pool_events[pool_key(ev.resource)].append(ev)
     series_by_resource: dict[str, dict[str, list[float]]] = {}
     for key, evs in pool_events.items():
         amount = max(1, pools.get(key, Pool(key, key, 1, 0.0)).amount)
@@ -688,7 +689,7 @@ def _build_replay(
                         "enable": round(e.enable - run_start, 2),
                         "start": round(e.start - run_start, 2),
                         "end": round(e.end - run_start, 2),
-                        "res": _pool_key(e.resource),
+                        "res": pool_key(e.resource),
                     }
                     for e in evs
                 ],
