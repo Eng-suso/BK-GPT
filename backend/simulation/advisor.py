@@ -123,8 +123,7 @@ def _mmc_wait(lam: float, mu: float, c: int) -> float:
 
 def _arrival_rate(scenario: dict) -> float:
     dist = scenario.get("arrival_time_distribution") or {}
-    params = dist.get("distribution_params") or []
-    mean = _first_value(params)
+    mean = _mean_of(dist)
     return (1.0 / mean) if mean and mean > 0 else 0.0
 
 
@@ -135,8 +134,7 @@ def _service_rate(scenario: dict, task_el: str) -> float:
         resources = row.get("resources") or []
         if not resources:
             return 0.0
-        params = resources[0].get("distribution_params") or []
-        mean = _first_value(params)
+        mean = _mean_of(resources[0])
         return (1.0 / mean) if mean and mean > 0 else 0.0
     return 0.0
 
@@ -197,6 +195,20 @@ def _rationale(c: int, wq_c: float, wait_share: float) -> str:
         f"{c} {'risorsa assorbe' if c == 1 else 'risorse assorbono'} circa il "
         f"{round(wait_share * 100)}% del tempo di attraversamento in attesa."
     )
+
+
+def _mean_of(distribution: dict) -> float:
+    """La media di una distribuzione compilata per Prosimos.
+
+    Il primo parametro e' la media (o il valore fisso) per tutte le
+    distribuzioni tranne l'uniforme, che ha solo minimo e massimo
+    (``ir.compile.distribution_params``).
+    """
+    params = distribution.get("distribution_params") or []
+    if distribution.get("distribution_name") == "uniform":
+        values = [_num(p.get("value"), 0.0) for p in params[:2] if isinstance(p, dict)]
+        return sum(values) / 2 if len(values) == 2 else 0.0
+    return _first_value(params)
 
 
 def _first_value(params: list[Any]) -> float:
