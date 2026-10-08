@@ -1,0 +1,26 @@
+"""Riunisce le due 0030 nate in parallelo.
+
+Revision ID: 0031_merge_0030_heads
+Revises: 0030_review_proposal_diagrams, 0030_simulation_run_logs
+Create Date: 2026-10-08
+
+`0030_review_proposal_diagrams` (#94) e `0030_simulation_run_logs` (#92, SIM-06)
+partono entrambe da `0029_impact_review_actions` e sono entrate su main lo stesso
+giorno: due teste. Non si rinumera nessuna delle due, perche' un database puo'
+averne gia' applicata una: questa revisione le unisce e basta. Nessuno schema cambia.
+"""
+
+from __future__ import annotations
+
+revision = "0031_merge_0030_heads"
+down_revision = ("0030_review_proposal_diagrams", "0030_simulation_run_logs")
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    pass
+
+
+def downgrade() -> None:
+    pass
