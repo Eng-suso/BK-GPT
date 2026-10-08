@@ -57,6 +57,7 @@ def build_prosimos_scenario(
         payload=compile_for_prosimos(model),
         task_count=len(tasks),
         gateway_count=len(gateways),
+        model=model.model_dump(mode="json"),
     )
 
 
@@ -80,6 +81,7 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
         payload=compile_for_prosimos(model),
         task_count=len(tasks),
         gateway_count=len(gateways),
+        model=model.model_dump(mode="json"),
     )
 
 
