@@ -915,6 +915,16 @@
         "noActivities": "Nessuna attività del log è abbinata al modello: conferma gli abbinamenti nel passo Attività.",
         "unmatched": "{{count}} attività del log senza elemento del modello, fuori dal confronto",
         "unobserved": "{{count}} attività simulate che il log non ha mai visto"
+      },
+      "inspector": {
+        "title": "Dal log reale",
+        "noLog": "Nessun event log mappato: importa un export per vedere i tempi reali accanto ai simulati.",
+        "import": "Importa un event log",
+        "notInLog": "Il log non ha esecuzioni abbinate a questa attività.",
+        "failed": "Non riesco a leggere il log reale",
+        "processing": "Lavorazione media, reale → simulata",
+        "waiting": "Attesa media, reale → simulata",
+        "executions": "Esecuzioni, log → run"
       }
     }
   },

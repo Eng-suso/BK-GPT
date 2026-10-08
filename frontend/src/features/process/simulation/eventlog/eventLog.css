@@ -67,3 +67,12 @@
 .djs-element.sim-fidelity-close .djs-visual > :nth-child(1) { stroke: var(--domain-validation-pass-border) !important; stroke-width: 2.5px; }
 .djs-element.sim-fidelity-calibrate .djs-visual > :nth-child(1) { stroke: var(--domain-validation-warning-border) !important; stroke-width: 2.5px; }
 .djs-element.sim-fidelity-far .djs-visual > :nth-child(1) { stroke: var(--domain-validation-fail-border) !important; stroke-width: 3px; }
+.sim-gap-head { flex-wrap: wrap; row-gap: 6px; }
+/* Inspector del task: il log reale accanto al simulato. */
+.sim-real-activity { display: grid; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.sim-real-activity h4 { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; min-width: 0; }
+.sim-real-activity h4 small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 400; color: var(--muted-foreground); }
+.sim-real-activity dl { display: grid; gap: 6px; margin: 0; }
+.sim-real-activity dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: 12px; }
+.sim-real-activity dt { color: var(--muted-foreground); }
+.sim-real-activity dd { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }

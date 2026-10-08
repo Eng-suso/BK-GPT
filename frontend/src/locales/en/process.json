@@ -915,6 +915,16 @@
         "noActivities": "No log activity is matched to the model: confirm the matches in the Activities step.",
         "unmatched": "{{count}} log activities without a model element, left out",
         "unobserved": "{{count}} simulated activities the log never saw"
+      },
+      "inspector": {
+        "title": "From the real log",
+        "noLog": "No mapped event log: import an export to see real times next to the simulated ones.",
+        "import": "Import an event log",
+        "notInLog": "The log has no executions matched to this activity.",
+        "failed": "Cannot read the real log",
+        "processing": "Average processing, real → simulated",
+        "waiting": "Average waiting, real → simulated",
+        "executions": "Executions, log → run"
       }
     }
   },

@@ -8,6 +8,7 @@ import type { SimulationRun } from "../simulationTypes";
 import { useSimulationSection } from "../useSimulationSection";
 import { formatDuration } from "../simulationResults";
 import { SimulatedParameters } from "./SimulatedParameters";
+import { RealLogActivity } from "../eventlog/RealLogActivity";
 
 export function ActivityDetails({ engine, run, unavailable = false }: { engine: ReplayEngine; run: SimulationRun; unavailable?: boolean }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
@@ -25,6 +26,7 @@ export function ActivityDetails({ engine, run, unavailable = false }: { engine: 
     {pool && <div className="sim-activity-resource"><span>{pool}</span>{busy !== undefined && <Meter label={pool} value={Math.round(busy * 100)} tone={busy >= .95 ? "danger" : busy >= .8 ? "warning" : "ok"} />}</div>}
     {activity && <p className="sim-help">{t("simulation.studio.finalWaiting")}: {typeof (activity.wait as { avg?: number })?.avg === "number" ? formatDuration((activity.wait as { avg: number }).avg, i18n.language.startsWith("it") ? "it" : "en") : "—"}</p>}
     {id && <SimulatedParameters run={run} elementId={id} inSummary={Boolean(activity)} />}
+    {id && <RealLogActivity run={run} elementId={id} />}
     <Button size="sm" variant="outline" onClick={() => openPanel?.("scenario")}>{t("simulation.unified.editActivity")}</Button>
   </div>;
 }
