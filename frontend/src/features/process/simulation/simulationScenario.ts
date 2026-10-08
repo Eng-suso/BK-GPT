@@ -1,9 +1,10 @@
-import type {
-  CreateSimulationRunInput,
-  DistributionName,
-  ScenarioTemplate,
-  ScenarioTemplateResource,
-  SimCalendar,
+import {
+  simCalendarSchema,
+  type CreateSimulationRunInput,
+  type DistributionName,
+  type ScenarioTemplate,
+  type ScenarioTemplateResource,
+  type SimCalendar,
 } from "./simulationTypes";
 
 export type ResourceDraft = {
@@ -84,15 +85,20 @@ export const DISTRIBUTION_PARAMETERS: Record<DistributionName, { mean: boolean; 
 
 export type TaskDurationIssue = "uniformBounds" | "boundsOrder";
 
+/** Minuti in secondi interi, come arrivano al backend. */
+const seconds = (minutes: number | undefined) =>
+  minutes === undefined ? undefined : Math.max(0, Math.round(minutes * 60));
+
 /** Cosa manca alla durata per costruire la richiesta; il resto lo valida il backend. */
 export function taskDurationIssue(task: TaskDraft): TaskDurationIssue | null {
   if (!DISTRIBUTION_PARAMETERS[task.distribution].bounds) return null;
   if (task.distribution === "uniform" && (task.minMinutes === undefined || task.maxMinutes === undefined)) {
     return "uniformBounds";
   }
-  if (task.minMinutes !== undefined && task.maxMinutes !== undefined && task.minMinutes >= task.maxMinutes) {
-    return "boundsOrder";
-  }
+  // Confronto sui secondi inviati: 1,001 e 1,002 minuti diventano entrambi 60 s.
+  const minimum = seconds(task.minMinutes);
+  const maximum = seconds(task.maxMinutes);
+  if (minimum !== undefined && maximum !== undefined && minimum >= maximum) return "boundsOrder";
   return null;
 }
 
@@ -117,9 +123,6 @@ export function newCalendarId(existing: CalendarDraft[]): string {
   while (existing.some((c) => c.id === `cal-${n}`)) n += 1;
   return `cal-${n}`;
 }
-
-const seconds = (minutes: number | undefined) =>
-  minutes === undefined ? undefined : Math.max(0, Math.round(minutes * 60));
 
 function taskMeanSeconds(task: TaskDraft): number {
   const minutes = task.distribution === "uniform" && task.minMinutes !== undefined && task.maxMinutes !== undefined
@@ -259,7 +262,10 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
       resources: migratedResources,
       tasks: parsed.tasks ?? {},
       gateways: parsed.gateways ?? {},
-      calendars: Array.isArray(parsed.calendars) ? parsed.calendars : [],
+      // Una bozza vecchia o modificata a mano non deve rompere il pannello.
+      calendars: Array.isArray(parsed.calendars)
+        ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
+        : [],
     };
   } catch {
     return structuredClone(DEFAULT_SCENARIO);

@@ -119,6 +119,15 @@ describe("scenarioToInput", () => {
   });
 });
 
+describe("restored drafts", () => {
+  afterEach(() => localStorage.clear());
+  it("drops calendars that no longer match the schema", () => {
+    const good = { id: "cal-1", name: "Turno", periods: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "08:00", end: "12:00" }] };
+    localStorage.setItem("delir-sim-scenario:m1", JSON.stringify({ calendars: [good, { id: "cal-2" }, null] }));
+    expect(loadScenarioDraft("m1").calendars).toEqual([good]);
+  });
+});
+
 describe("duration and calendar issues", () => {
   const task = { meanMinutes: 10, resourceId: "r" };
   it("asks for both bounds of a uniform and ordered bounds elsewhere", () => {
@@ -126,6 +135,8 @@ describe("duration and calendar issues", () => {
     expect(taskDurationIssue({ ...task, distribution: "norm", minMinutes: 20, maxMinutes: 20 })).toBe("boundsOrder");
     expect(taskDurationIssue({ ...task, distribution: "fixed", minMinutes: 20, maxMinutes: 5 })).toBeNull();
     expect(taskDurationIssue({ ...task, distribution: "gamma" })).toBeNull();
+    // Diversi in minuti, uguali nei secondi che arrivano al backend.
+    expect(taskDurationIssue({ ...task, distribution: "norm", minMinutes: 1.001, maxMinutes: 1.002 })).toBe("boundsOrder");
   });
   it("rejects a calendar without name, periods or with a period across midnight", () => {
     const period = { from_day: "MONDAY" as const, to_day: "FRIDAY" as const, begin: "09:00", end: "17:00" };
