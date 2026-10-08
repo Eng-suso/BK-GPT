@@ -72,3 +72,10 @@ language request will produce correct business semantics.
 ![Actual Review tool proposal](process-review/engine-proposal-desktop.png)
 
 ![Mobile viewport](process-review/enterprise-layout-mobile.png)
+
+## Database integration
+
+Review proposals and simulation run logs arrived through independent `0030`
+revisions. `0031_merge_review_simulation` reunites their histories without
+renaming published revisions or changing schema. Upgrade and downgrade/re-upgrade
+were verified on isolated Postgres from a fresh database and from either branch.
