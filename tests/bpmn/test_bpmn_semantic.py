@@ -1,3 +1,4 @@
+import pytest
 import json
 import re
 
@@ -355,7 +356,7 @@ def test_loop_gateway_splice_preserves_flow_edge_label_and_condition():
     assert gateway.type == "exclusiveGateway"
 
 
-def test_serializer_skips_dangling_sequence_flow_instead_of_crashing():
+def test_serializer_blocks_dangling_sequence_flow_before_generating_di():
     model = build_bpmn_semantic_model(
         process_id="P",
         process_name="P",
@@ -369,9 +370,8 @@ def test_serializer_skips_dangling_sequence_flow_instead_of_crashing():
     model["sequenceFlows"].append({"id": "F_ghost", "sourceRef": "T", "targetRef": "does_not_exist"})
     from backend.bpmn import BPMNSemanticModel
 
-    xml = semantic_model_to_bpmn_xml(BPMNSemanticModel.model_validate(model))
-    assert "F_ghost" in xml  # the sequenceFlow element is still written
-    assert "F_ghost_di" not in xml  # but its edge is skipped, no KeyError
+    with pytest.raises(ValueError, match="F_ghost"):
+        semantic_model_to_bpmn_xml(BPMNSemanticModel.model_validate(model))
 
 
 def test_distinct_end_events_are_kept_separate():

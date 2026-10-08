@@ -70,8 +70,8 @@ def test_dense_lanes_use_only_the_rows_they_contain():
     assert layout_bpmn_di(laid_out) == laid_out
     assert report["valid"] is True
     assert report["metrics"]["bounds"]["height"] < 1200
-    assert shapes["Lane_A"]["height"] == shapes["Lane_B"]["height"]
-    assert shapes["Lane_C"]["height"] == shapes["Lane_A"]["height"]
+    assert shapes["Lane_A"]["height"] > shapes["Lane_B"]["height"]  # associated document reserves space
+    assert shapes["Lane_C"]["height"] == shapes["Lane_B"]["height"]
     assert shapes["Lane_A"]["y"] <= shapes["Document"]["y"]
     assert (shapes["Document"]["y"] + shapes["Document"]["height"]
             <= shapes["Lane_A"]["y"] + shapes["Lane_A"]["height"])
@@ -82,8 +82,8 @@ def test_dense_lanes_use_only_the_rows_they_contain():
         if edge.attrib.get("bpmnElement") == "Supplier_Message"
     )
     waypoints = list(message_edge.iter(f"{{{DI_NS}}}waypoint"))
-    assert float(waypoints[0].attrib["x"]) == float(waypoints[1].attrib["x"])
-    assert float(waypoints[0].attrib["y"]) < float(waypoints[1].attrib["y"])
+    assert len(waypoints) >= 2
+    assert all(float(a.attrib["x"]) == float(b.attrib["x"]) or float(a.attrib["y"]) == float(b.attrib["y"]) for a, b in zip(waypoints, waypoints[1:]))
 
 
 def test_layout_report_identifies_connectors_through_other_activities():
@@ -108,7 +108,8 @@ def test_layout_report_identifies_connectors_through_other_activities():
     report = validate_bpmn_layout(xml)
 
     assert report["metrics"]["edge_shape_crossing_count"] == 1
-    assert any("attraversano" in warning for warning in report["warnings"])
+    assert not report["valid"]
+    assert any("attraversano" in issue for issue in report["issues"])
 
 
 def test_wide_layout_plan_wraps_before_nodes_leave_the_lane():
@@ -153,7 +154,7 @@ def test_purchase_layout_keeps_lanes_inside_company_pool_and_separates_connector
     supplier = shapes["Supplier"]
     assert supplier["x"] == company["x"]
     assert supplier["width"] == company["width"]
-    assert supplier["y"] + supplier["height"] < company["y"]
+    assert supplier["y"] > company["y"] + company["height"]
     for lane_id in ("Technical", "Purchasing", "Maintenance"):
         lane = shapes[lane_id]
         assert lane["x"] == company["x"] + 30
@@ -212,7 +213,7 @@ def test_compiler_order_branch_and_boundary_event_do_not_cross_main_path():
     assert shapes["Director_Sign"]["x"] < shapes["Create_Order"]["x"] < shapes["End"]["x"]
 
 
-def test_long_single_lane_snakes_without_crossing_and_is_idempotent():
+def test_long_single_lane_keeps_forward_ranks_without_crossing_and_is_idempotent():
     nodes = "".join(
         f'<bpmn:task id="Task_{index}" name="Verifica e approva passaggio {index + 1}" />'
         for index in range(14)
@@ -233,9 +234,8 @@ def test_long_single_lane_snakes_without_crossing_and_is_idempotent():
     assert first == second
     assert report["valid"] is True
     assert report["warnings"] == []
-    assert shapes["Task_5"]["x"] == shapes["Task_6"]["x"]
-    assert shapes["Task_6"]["x"] > shapes["Task_7"]["x"]
-    assert shapes["Task_11"]["x"] == shapes["Task_12"]["x"]
+    assert all(shapes[f"Task_{i}"]["x"] < shapes[f"Task_{i+1}"]["x"] for i in range(13))
+    assert len({shapes[f"Task_{i}"]["y"] for i in range(14)}) == 1
 
 
 def test_repeated_branches_across_lanes_remain_unentangled_and_idempotent():
