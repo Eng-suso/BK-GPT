@@ -568,15 +568,6 @@
   .process-bpmn-body--elements > .process-bpmn-stage { display: none; }
   .process-bpmn-load-error { left: 12px; max-width: calc(100% - 24px); }
 }
-/* Type tints remain subordinate to provenance outlines and never change BPMN DI. */
-.process-bpmn--colours .delir-type-task .djs-visual > rect:first-child { fill: var(--domain-process-task-surface) !important; }
-.process-bpmn--colours .delir-type-automation .djs-visual > rect:first-child { fill: var(--domain-process-automation-surface) !important; }
-.process-bpmn--colours .delir-type-gateway .djs-visual > polygon:first-child { fill: var(--domain-process-gateway-surface) !important; }
-.process-bpmn--colours .delir-type-start .djs-visual > circle:first-child { fill: var(--domain-process-start-surface) !important; }
-.process-bpmn--colours .delir-type-end .djs-visual > circle:first-child { fill: var(--domain-process-end-surface) !important; }
-@media (forced-colors: active) {
-  .process-bpmn--colours .djs-visual > :is(rect, circle, polygon):first-child { fill: Canvas !important; }
-}
 
 /*
  * Revisione delle evidenze. Il pannello prende una colonna accanto alla tela

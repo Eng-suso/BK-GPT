@@ -600,13 +600,15 @@ def optimize_bpmn_layout(
     planned_rows: list[list[str]] | None = None,
     require_planned_rows: bool = False,
 ) -> tuple[str, dict]:
+    from backend.bpmn.canvas_layout import ENTERPRISE_POLICY
+
     # Legacy keyword arguments remain source-compatible, but never control DI.
     updated_xml = layout_bpmn_di(xml)
     report = validate_bpmn_layout(updated_xml)
     score = _layout_score(report)
     return updated_xml, {
         "valid": report["valid"], "selected_score": score, "selected_report": report,
-        "attempts": [{"attempt": 1, "policy": "delir-lr-v1", "valid": report["valid"],
+        "attempts": [{"attempt": 1, "policy": ENTERPRISE_POLICY.version, "valid": report["valid"],
                       "score": score, "report": report}],
     }
 

@@ -1,0 +1,49 @@
+/* The same semantic palette powers the editor and read-only Review diagrams.
+   Imported explicit DI colours win; readCanvasElements omits their markers. */
+.delir-canvas-identity {
+  position: absolute;
+  top: var(--space-400);
+  left: var(--space-400);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-geist);
+  font-size: var(--font-size-300);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
+  pointer-events: none;
+}
+.delir-canvas-identity svg { flex: none; width: var(--space-600); height: var(--space-600); color: var(--color-action-primary); }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-role-band { fill: var(--canvas-role-header-surface); stroke: none; pointer-events: none; }
+.process-bpmn-shell:not(.process-bpmn--colours) .delir-role-band { fill: transparent; stroke: none; }
+.process-bpmn-canvas.delir-canvas--colours, .review-canvas-stage.delir-canvas--colours {
+  background-color: var(--color-surface-primary);
+  background-image: radial-gradient(circle, var(--canvas-grid-color) var(--border-width-default), transparent var(--border-width-default));
+  background-size: var(--space-600) var(--space-600);
+}
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-task:not(.review-selected) .djs-visual > rect:first-child { fill: var(--domain-process-task-surface) !important; }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-automation:not(.review-selected) .djs-visual > rect:first-child { fill: var(--domain-process-automation-surface) !important; }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-gateway:not(.review-selected) .djs-visual > polygon:first-child { fill: var(--domain-process-gateway-surface) !important; }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-start:not(.review-selected) .djs-visual > circle:first-child { fill: var(--domain-process-start-surface) !important; }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-end:not(.review-selected) .djs-visual > circle:first-child { fill: var(--domain-process-end-surface) !important; }
+
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-task:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > rect:first-child { stroke: var(--domain-process-task-icon) !important; }
+
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-automation:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > rect:first-child { stroke: var(--domain-process-automation-icon) !important; }
+
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-gateway:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > polygon:first-child { stroke: var(--domain-process-gateway-icon) !important; }
+
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-start:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > circle:first-child { stroke: var(--domain-process-start-icon) !important; }
+
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-type-end:where(:not(.review-selected, .review-upstream, .review-downstream, [class*="delir-provenance-"])) .djs-visual > circle:first-child { stroke: var(--domain-process-end-icon) !important; }
+
+@media (forced-colors: active) {
+  .delir-canvas--colours { background-image: none; }
+  .delir-role-band { fill: Canvas !important; stroke: none !important; }
+  :is(.process-bpmn--colours, .delir-canvas--colours) .djs-visual > :is(rect, circle, polygon):first-child { fill: Canvas !important; stroke: CanvasText !important; }
+}
+
+/* Preserve measured glyph geometry at small zoom factors on mobile browsers. */
+:is(.process-bpmn-canvas, .review-canvas) .djs-label { text-rendering: geometricPrecision; }

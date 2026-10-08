@@ -42,8 +42,8 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
     width = max((box.right for box in [*boxes.values(), *containers.values()]), default=500) - p.origin_x
     for participant in sorted(participants, key=lambda e: e.get("id")):
         if participant.get("id") not in containers:
-            containers[participant.get("id")] = Box(p.origin_x, top, width, 100)
-            top += 100 + p.padding * 2
+            containers[participant.get("id")] = Box(p.origin_x, top, width, 64)
+            top += 64 + p.padding * 2
     collaboration = root.find(tag("collaboration"))
     plane_ref = collaboration.get("id") if collaboration is not None else root.find(tag("process")).get("id")
     taken = {e.get("id") for e in root.iter() if e.get("id")}
@@ -93,7 +93,8 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
             ET.SubElement(edge, f"{{{DI}}}waypoint", {"x": _number(x), "y": _number(y)})
         if connection.get("name") and local_name(connection) == "sequenceFlow":
             container = next((box for key, box in containers.items() if local_name(elements[key]) == "participant" and box.x <= boxes[source].x and box.y <= boxes[source].y and box.right >= boxes[source].right and box.bottom >= boxes[source].bottom), None)
-            label = branch_label(points, connection.get("name"), boxes, labels, previous, container)
+            lane_boundaries = [box for key, box in containers.items() if local_name(elements[key]) == "lane"]
+            label = branch_label(points, connection.get("name"), boxes, labels, previous, container, lane_boundaries)
             labels[connection.get("id")] = label
             _bounds(ET.SubElement(edge, f"{{{BPMNDI}}}BPMNLabel"), label)
         previous.append(points)

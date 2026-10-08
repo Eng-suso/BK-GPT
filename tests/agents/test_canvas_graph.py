@@ -587,7 +587,7 @@ def test_canvas_layout_consultant_agent_splits_goal_into_layout_tasks():
 
     planner = build_canvas_layout_consultant_agent(ForbiddenLLM())
     result = planner({"effective_bpmn_xml": xml}, {})
-    assert result["canvas_layout_plan"] == {"policy": "delir-lr-v1"}
+    assert result["canvas_layout_plan"] == {"policy": "delir-compact-v2"}
     assert result["canvas_task_log"][0]["owner"] == "canvas_layout_policy"
 
 
@@ -636,7 +636,7 @@ def test_canvas_drawing_agent_uses_layout_plan_without_hidden_retries(monkeypatc
 
     assert result["canvas_layout_status"] == "completed"
     assert result["canvas_task_log"][0]["status"] == "completed"
-    assert result["canvas_task_log"][0]["plan"] == {"policy": "delir-lr-v1"}
+    assert result["canvas_task_log"][0]["plan"] == {"policy": "delir-compact-v2"}
     assert validate_bpmn_layout(saved["xml"])["valid"] is True
 
 

@@ -18,18 +18,20 @@ ARTIFACT_TYPES = frozenset({"dataObjectReference", "dataStoreReference", "textAn
 
 @dataclass(frozen=True)
 class CanvasLayoutPolicy:
-    version: str = "delir-lr-v1"
+    version: str = "delir-compact-v2"
     origin_x: float = 80
     origin_y: float = 80
     pool_label_width: float = 30
     lane_label_width: float = 30
-    padding: float = 40
-    column_gap: float = 80
-    row_gap: float = 150
-    task_width: float = 160
-    task_height: float = 80
+    padding: float = 28
+    column_gap: float = 56
+    row_gap: float = 112
+    task_width: float = 144
+    task_height: float = 64
     event_size: float = 36
     gateway_size: float = 50
+    # Vertical gap the visual validator requires between stacked nodes.
+    min_node_gap: float = 48
     route_clearance: float = 12
     bend_cost: float = 24
     crossing_cost: float = 10000

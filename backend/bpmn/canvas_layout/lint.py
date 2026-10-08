@@ -3,6 +3,7 @@ from itertools import combinations, pairwise
 from math import isfinite
 
 from .geometry import Box, semantic_connections
+from .labels import _crosses_lane_border
 from .policy import ARTIFACT_TYPES, BPMNDI, DC, DI, FLOW_TYPES, local_name, tag
 from .router import segment_hits_box, _cross
 
@@ -84,6 +85,10 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
                     (warnings if manual else issues).append(f"Etichetta {node.get('id')} fuori dalla pool.")
     for lane in root.iter(tag("lane")):
         box = shapes.get(lane.get("id"))
+        if box:
+            for label_id, label in labels.items():
+                if _crosses_lane_border(label, box, margin=1):
+                    (warnings if manual else issues).append(f"Etichetta {label_id} sul separatore della lane {lane.get('id')}.")
         for ref in lane.findall(tag("flowNodeRef")):
             child = shapes.get(ref.text)
             if box and child and not _contains(box, child):

@@ -1,5 +1,6 @@
 """Graph ranks determine X; semantic ownership determines lane bands and Y."""
 from collections import defaultdict
+from textwrap import wrap
 from dataclasses import dataclass
 
 from .policy import BPMN, ARTIFACT_TYPES, FLOW_TYPES, ENTERPRISE_POLICY, local_name, tag
@@ -116,7 +117,10 @@ def layout_process(process, top: float, connections):
                 grouped[ranks[node_id]].append(node_id)
         rows = max((len(group) for group in grouped.values()), default=1)
         content_height = max((sizes[i][1] + (52 if nodes[i].get("name") and (local_name(nodes[i]).endswith("Event") or local_name(nodes[i]).endswith("Gateway")) else 0) for group in grouped.values() for i in group), default=p.task_height)
-        main_height = (rows - 1) * p.row_gap + content_height + p.padding * 2
+        row_pitch = max(p.row_gap, content_height + max(p.padding, p.min_node_gap))
+        main_height = (rows - 1) * row_pitch + content_height + p.padding * 2
+        if not grouped:
+            main_height = p.padding * 2  # Retain a real but unused role as a compact band.
         if any(e.get("id") in feedback and owner.get(source) == band for e, source, _ in connections):
             main_height += 80  # An interior return channel and readable labels.
         doc_groups = defaultdict(list)
@@ -135,7 +139,7 @@ def layout_process(process, top: float, connections):
             group.sort(key=lambda i: (tuple(sorted(parents[i])), i))
             for row, node_id in enumerate(group):
                 width, height = sizes[node_id]
-                cy = top + main_height / 2 + (row - (len(group) - 1) / 2) * p.row_gap
+                cy = top + main_height / 2 + (row - (len(group) - 1) / 2) * row_pitch
                 boxes[node_id] = Box(centers[rank] - width / 2, cy - height / 2, width, height)
         for rank, group in sorted(doc_groups.items()):
             for index, artifact_id in enumerate(sorted(group)):
@@ -164,5 +168,9 @@ def _size(node):
         return p.event_size, p.event_size
     if kind.endswith("Gateway"):
         return p.gateway_size, p.gateway_size
-    name_length = len(node.get("name", ""))
-    return (p.task_width if name_length <= 48 else 200, p.task_height if name_length <= 80 else 100)
+    name = node.get("name", "")
+    width = p.task_width if len(name) <= 48 else 200
+    # Reserve real label space instead of clipping a verbose NLP activity name.
+    # A conservative 7px glyph measure includes wide capitals at the UI's 13px.
+    lines = sum(max(1, len(wrap(line, width=int((width - 32) / 7)))) for line in name.splitlines())
+    return width, max(p.task_height, 28 + lines * 18)

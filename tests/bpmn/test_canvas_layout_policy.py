@@ -107,7 +107,11 @@ def test_product_three_lane_artifact_matches_the_policy_and_contains_visible_bra
     root = ET.fromstring(xml)
     assert len(root.findall(".//b:lane", NS)) == 3
     for flow_id in ("F4", "F5"):
-        assert root.find(f".//bd:BPMNEdge[@bpmnElement='{flow_id}']/bd:BPMNLabel/dc:Bounds", NS) is not None
+        label = root.find(f".//bd:BPMNEdge[@bpmnElement='{flow_id}']/bd:BPMNLabel/dc:Bounds", NS)
+        assert label is not None
+        y, bottom = float(label.get("y")), float(label.get("y")) + float(label.get("height"))
+        lanes = [shapes(xml)[id] for id in ("Technical", "Purchasing", "Maintenance")]
+        assert any(lane["y"] + 4 <= y and bottom <= lane["y"] + lane["height"] - 4 for lane in lanes)
     assert lint_visual_model(root)["valid"]
 
 
@@ -170,3 +174,15 @@ def test_visual_lint_requires_document_and_participant_connections_not_only_sequ
     assert not report["valid"]
     assert any("Request_Data" in issue for issue in report["issues"])
     assert any("Supplier_Message" in issue for issue in report["issues"])
+
+
+def test_lane_separator_text_blocks_agent_geometry_and_only_warns_for_manual_geometry():
+    from pathlib import Path
+    root = ET.fromstring(Path("e2e/fixtures/canvas-layout/purchase.bpmn").read_text())
+    boundary = root.find(".//bd:BPMNShape[@bpmnElement='Purchasing']/dc:Bounds", NS)
+    label = root.find(".//bd:BPMNEdge[@bpmnElement='F5']/bd:BPMNLabel/dc:Bounds", NS)
+    label.set("y", str(float(boundary.get("y")) - 20))
+    report = lint_visual_model(root)
+    assert not report["valid"]
+    assert any("F5 sul separatore" in issue for issue in report["issues"])
+    assert any("F5 sul separatore" in issue for issue in lint_visual_model(root, manual=True)["warnings"])
