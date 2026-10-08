@@ -21,7 +21,7 @@ function real(overrides: Partial<EventLogSummary> = {}): EventLogSummary {
     throughputPerHour: 2,
     cost: null,
     timing: "start_and_end",
-    byActivity: [activity("Task_A", "Approva", 600, 1200), activity("Task_B", "Paga", 600, 1200), activity(null, "Archivia", 0, 60)],
+    byActivity: [activity("Task_A", "Approva", 600, 1200), activity("Task_B", "Paga", 600, 1200), activity(null, "Archivia", 0, 60), activity("Task_D", "Sollecita", 0, 60)],
     ...overrides,
   } as EventLogSummary;
 }
@@ -84,6 +84,7 @@ describe("compareRealToSimulated", () => {
     expect(result.activities.map((row) => row.el)).toEqual(["Task_B", "Task_A"]);
     expect(result.activities[0]).toMatchObject({ processingGap: 1, fidelity: "far", realWait: 600, simulatedWait: 800 });
     expect(result.unmatchedReal).toEqual(["Archivia"]);
+    expect(result.notSimulated).toEqual(["Sollecita"]);
     expect(result.unobservedSimulated).toEqual(["Notifica"]);
   });
 });

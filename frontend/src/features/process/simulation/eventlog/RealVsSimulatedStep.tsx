@@ -89,8 +89,8 @@ export function RealVsSimulatedStep({ summary, realCases, onDecorations }: {
           {comparison.process.map((row) => (
             <tr key={row.key}>
               <th scope="row">{t(`simulation.eventLog.compare.kpiName.${row.key}`)}</th>
-              <td>{formatValue(row.real, row.format, lang)}</td>
-              <td>{formatValue(row.simulated, row.format, lang)}</td>
+              <td>{formatValue(row.real, row.format, lang, t)}</td>
+              <td>{formatValue(row.simulated, row.format, lang, t)}</td>
               <td><GapCell row={row} lang={lang} /></td>
             </tr>
           ))}
@@ -129,6 +129,11 @@ export function RealVsSimulatedStep({ summary, realCases, onDecorations }: {
           {comparison.unmatchedReal.join(", ")}
         </InlineNotice>
       )}
+      {comparison.notSimulated.length > 0 && (
+        <InlineNotice tone="warning" title={t("simulation.eventLog.compare.notSimulated", { count: comparison.notSimulated.length })}>
+          {comparison.notSimulated.join(", ")}
+        </InlineNotice>
+      )}
       {comparison.unobservedSimulated.length > 0 && (
         <InlineNotice tone="warning" title={t("simulation.eventLog.compare.unobserved", { count: comparison.unobservedSimulated.length })}>
           {comparison.unobservedSimulated.join(", ")}
@@ -163,9 +168,9 @@ function GapCell({ row, lang }: { row: KpiGap; lang: "it" | "en" }): React.JSX.E
   return <span className="sim-gap" data-fidelity={row.fidelity ?? undefined}>{signedPercent(row.gap, lang)}</span>;
 }
 
-function formatValue(value: number | null, format: GapFormat, lang: "it" | "en"): string {
+function formatValue(value: number | null, format: GapFormat, lang: "it" | "en", t: ReturnType<typeof useTranslation>["t"]): string {
   if (value === null) return MISSING_VALUE;
   if (format === "duration") return formatDuration(value, lang);
   if (format === "currency") return formatCurrency(value, lang);
-  return `${value.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 })}/h`;
+  return t("simulation.eventLog.compare.perHour", { value: value.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 }) });
 }

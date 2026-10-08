@@ -45,6 +45,8 @@ export type RealVsSimulated = {
   activities: ActivityGap[];
   /** Attivita' del log senza elemento del modello: fuori dal confronto. */
   unmatchedReal: string[];
+  /** Attivita' del log abbinate a un elemento che il run non ha mai eseguito. */
+  notSimulated: string[];
   /** Elementi simulati che il log non ha mai visto. */
   unobservedSimulated: string[];
   /** Giudizio complessivo: il peggiore fra cycle time medio e P90. */
@@ -124,13 +126,18 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
 
   const activities: ActivityGap[] = [];
   const unmatchedReal: string[] = [];
+  const notSimulated: string[] = [];
   const seen = new Set<string>();
   for (const row of rows(real)) {
     const name = typeof row.name === "string" ? row.name : "";
     const el = typeof row.el === "string" ? row.el : null;
     const twin = el ? simulatedByEl.get(el) : undefined;
-    if (!el || !twin) {
+    if (!el) {
       unmatchedReal.push(name);
+      continue;
+    }
+    if (!twin) {
+      notSimulated.push(name || el);
       continue;
     }
     seen.add(el);
@@ -165,6 +172,7 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
     process,
     activities,
     unmatchedReal,
+    notSimulated,
     unobservedSimulated,
     fidelity: worstFidelity(process.filter((row) => row.key === "cycleAvg" || row.key === "cycleP90").map((row) => row.fidelity)),
   };

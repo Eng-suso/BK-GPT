@@ -57,7 +57,7 @@ const ANALYSIS = {
   summary: {
     casesCompleted: 3, cycle: { avg: 4000, p50: 3900, p90: 6000, p95: 6200 }, waiting: { avg: 1400, p95: 1800, share: 0.35 },
     processing: { avg: 2600, p95: 3000 }, throughputPerHour: 2, cost: null, timing: "start_and_end", source: "real",
-    byActivity: [activity("A", "Verifica documentazione", 800, 1150), activity("B", "Approva richiesta", 600, 900), activity(null, "Archivia", 0, 60)],
+    byActivity: [activity("A", "Verifica documentazione", 800, 1150), activity("B", "Approva richiesta", 600, 900), activity(null, "Archivia", 0, 60), activity("End", "Chiusura pratica", 0, 30)],
   },
 };
 
@@ -138,6 +138,7 @@ test("real against simulated: verdict, KPIs by activity and gaps on the process"
   await expect(activities.getByRole("row", { name: /Approva richiesta/ })).toContainText("+67%");
   await expect(activities.getByRole("row", { name: /Verifica documentazione/ })).toContainText("+4%");
   await expect(step.getByText(/1 attività del log senza elemento del modello/)).toBeVisible();
+  await expect(step.getByText("1 attività del log che il run non ha mai eseguito")).toBeVisible();
 
   const show = step.getByRole("button", { name: "Mostra sul processo" });
   await show.click();

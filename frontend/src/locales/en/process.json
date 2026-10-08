@@ -914,7 +914,9 @@
         },
         "noActivities": "No log activity is matched to the model: confirm the matches in the Activities step.",
         "unmatched": "{{count}} log activities without a model element, left out",
-        "unobserved": "{{count}} simulated activities the log never saw"
+        "unobserved": "{{count}} simulated activities the log never saw",
+        "perHour": "{{value}}/h",
+        "notSimulated": "{{count}} log activities the run never executed"
       },
       "inspector": {
         "title": "From the real log",

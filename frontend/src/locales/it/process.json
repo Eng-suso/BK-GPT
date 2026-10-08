@@ -914,7 +914,9 @@
         },
         "noActivities": "Nessuna attività del log è abbinata al modello: conferma gli abbinamenti nel passo Attività.",
         "unmatched": "{{count}} attività del log senza elemento del modello, fuori dal confronto",
-        "unobserved": "{{count}} attività simulate che il log non ha mai visto"
+        "unobserved": "{{count}} attività simulate che il log non ha mai visto",
+        "perHour": "{{value}}/h",
+        "notSimulated": "{{count}} attività del log che il run non ha mai eseguito"
       },
       "inspector": {
         "title": "Dal log reale",
