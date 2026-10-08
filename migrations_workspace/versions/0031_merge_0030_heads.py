@@ -1,6 +1,6 @@
 """Riunisce le due 0030 nate in parallelo.
 
-Revision ID: 0031_merge_review_diagrams_run_logs
+Revision ID: 0031_merge_0030_heads
 Revises: 0030_review_proposal_diagrams, 0030_simulation_run_logs
 Create Date: 2026-10-08
 
@@ -12,7 +12,7 @@ averne gia' applicata una: questa revisione le unisce e basta. Nessuno schema ca
 
 from __future__ import annotations
 
-revision = "0031_merge_review_diagrams_run_logs"
+revision = "0031_merge_0030_heads"
 down_revision = ("0030_review_proposal_diagrams", "0030_simulation_run_logs")
 branch_labels = None
 depends_on = None
