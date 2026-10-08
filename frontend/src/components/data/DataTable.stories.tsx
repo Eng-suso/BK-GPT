@@ -67,7 +67,7 @@ const columns: ColumnDef<Project>[] = [
   {
     accessorKey: "progress",
     header: "Avanzamento",
-    cell: ({ getValue }) => <ProgressBar value={getValue<number>()} />,
+    cell: ({ getValue }) => <ProgressBar value={getValue<number>()} label="Progress" />,
   },
 ];
 

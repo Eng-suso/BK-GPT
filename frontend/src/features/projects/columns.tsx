@@ -111,7 +111,7 @@ export function buildProjectColumns(
       accessorKey: "progress",
       header: t("list.columns.progress"),
       cell: ({ getValue }) => (
-        <ProgressBar value={getValue<number>()} width={84} />
+        <ProgressBar value={getValue<number>()} label={t("list.columns.progress")} width={84} />
       ),
     },
   ];

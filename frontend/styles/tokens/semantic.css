@@ -259,7 +259,7 @@
   --state-readonly-text: var(--color-text-primary);
   --state-readonly-border: var(--color-border-subtle);
   --state-invalid-surface: var(--red-50);
-  --state-invalid-text: var(--color-status-danger);
+  --state-invalid-text: var(--red-800);
   --state-invalid-border: var(--color-border-danger);
   --state-invalid-icon: var(--color-status-danger);
   --state-warning-surface: var(--amber-50);

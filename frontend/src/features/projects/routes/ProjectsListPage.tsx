@@ -328,7 +328,7 @@ export function ProjectsListPage(): React.JSX.Element {
                     },
                     {
                       label: t("list.columns.progress"),
-                      value: <ProgressBar value={selected.progress} width={74} />,
+                      value: <ProgressBar value={selected.progress} label={t("list.columns.progress")} width={74} />,
                     },
                   ]}
                 />

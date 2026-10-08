@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 export type ProgressBarProps = {
   /** 0–100 */
   value: number;
+  /** Accessible name of the bar: what is progressing (e.g. "Avanzamento"). */
+  label: string;
   /** Show the "%" label to the right. */
   showValue?: boolean;
   /** Track width in px (default 100). */
@@ -12,6 +14,7 @@ export type ProgressBarProps = {
 
 export function ProgressBar({
   value,
+  label,
   showValue = true,
   width = 100,
   className,
@@ -21,6 +24,7 @@ export function ProgressBar({
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <span
         role="progressbar"
+        aria-label={label}
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}

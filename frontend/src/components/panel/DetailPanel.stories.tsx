@@ -39,7 +39,7 @@ export const ProjectSummary: Story = {
               { label: "Processi in scope", value: "28" },
               {
                 label: "Avanzamento",
-                value: <ProgressBar value={62} width={74} />,
+                value: <ProgressBar value={62} label="Progress" width={74} />,
               },
             ]}
           />

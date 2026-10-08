@@ -727,7 +727,8 @@
         "formats": "Formats",
         "results": "Quality and KPIs",
         "activities": "Activities",
-        "resources": "Resources"
+        "resources": "Resources",
+        "compare": "Real vs simulated"
       },
       "applyFailed": "The mapping was not applied",
       "previewFailed": "Preview not available with this separator",
@@ -760,6 +761,8 @@
         "timeShape": "How times are recorded",
         "end": "End (or completion)",
         "start": "Start",
+        "enable": "Enablement",
+        "enableHint": "When the activity became ready to run, if the system records it (e.g. enable_time in logs exported from DeliR). Without it, waiting before the first activity is not measured.",
         "timestamp": "Timestamp",
         "lifecycle": "Lifecycle (start/complete)",
         "resource": "Resource",
@@ -866,6 +869,66 @@
           "without_one": "{{count}} event has no resource in the log",
           "without_other": "{{count}} events have no resource in the log"
         }
+      },
+      "compare": {
+        "intro": "The same KPIs, computed the same way on the real log and on a run. The gap is (simulated − real) / real.",
+        "run": "Simulated run",
+        "noRun": "No completed run to compare",
+        "noRunHint": "Run a scenario: the comparison opens here as soon as it finishes.",
+        "verdict": {
+          "close": "The simulation is close to reality",
+          "calibrate": "The simulation needs calibration",
+          "far": "The simulation is far from reality"
+        },
+        "verdictDetail": "Average cycle time {{cycle}} · P90 {{p90}} against the log. Close within ±10%, to calibrate within ±25%.",
+        "cases": "The log has {{real}} cases, the run {{simulated}}: averages, percentiles and pace are compared, not totals.",
+        "process": "Whole process",
+        "activities": "By activity · average processing",
+        "activitiesCaption": "Average processing and waiting by activity, real and simulated, with the processing gap",
+        "kpi": "KPI",
+        "activity": "Activity",
+        "real": "Real",
+        "simulated": "Simulated",
+        "gap": "Gap",
+        "waitShort": "waiting {{value}}",
+        "kpiName": {
+          "cycleAvg": "Average cycle time",
+          "cycleP50": "Cycle time P50",
+          "cycleP90": "Cycle time P90",
+          "waitingAvg": "Average waiting per case",
+          "processingAvg": "Average processing per case",
+          "throughput": "Cases completed per hour",
+          "costPerCase": "Cost per case"
+        },
+        "notComparable": {
+          "noStart": "the log has no start times",
+          "noCost": "the log has no cost",
+          "missing": "value missing"
+        },
+        "showOnProcess": "Show on process",
+        "legend": "Real vs simulated gap",
+        "fidelity": {
+          "close": "within ±10%",
+          "calibrate": "within ±25%",
+          "far": "beyond ±25%"
+        },
+        "noActivities": "No log activity is matched to the model: confirm the matches in the Activities step.",
+        "unmatched": "{{count}} log activities without a model element, left out",
+        "unobserved": "{{count}} simulated activities the log never saw",
+        "perHour": "{{value}}/h",
+        "notSimulated": "{{count}} log activities the run never executed",
+        "merged": "from the log: {{names}}"
+      },
+      "inspector": {
+        "title": "From the real log",
+        "noLog": "No mapped event log: import an export to see real times next to the simulated ones.",
+        "import": "Import an event log",
+        "notInLog": "The log has no executions matched to this activity.",
+        "failed": "Cannot read the real log",
+        "processing": "Average processing, real → simulated",
+        "waiting": "Average waiting, real → simulated",
+        "executions": "Executions, log → run",
+        "noStart": "The log records completions only: real processing and waiting cannot be separated."
       }
     }
   },

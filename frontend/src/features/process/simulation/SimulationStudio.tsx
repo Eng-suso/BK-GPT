@@ -33,6 +33,8 @@ export function SimulationStudio(): React.JSX.Element {
   const ready = engine && run?.status === "completed";
   const [heatMetric, setHeatMetric] = React.useState<HeatMetric>("wait");
   const [decorations, setDecorations] = React.useState<NodeDecoration[]>([]);
+  // Scarti reale contro simulato dal pannello del log: valgono solo con il pannello aperto.
+  const [logDecorations, setLogDecorations] = React.useState<NodeDecoration[] | null>(null);
   const [actionsHost, setActionsHost] = React.useState<HTMLDivElement | null>(null);
   const [commandsHost, setCommandsHost] = React.useState<HTMLDivElement | null>(null);
   const [host, setHost] = React.useState<HTMLDivElement | null>(null);
@@ -79,7 +81,7 @@ export function SimulationStudio(): React.JSX.Element {
       {panel === "overview" && <SimulationWorkspace embedded />}
       {panel === "heatmap" && <>{!aggregate && <Button size="sm" variant="outline" onClick={() => setAnalysisView?.("final")}>{t("simulation.workspaceHierarchy.applyFinalHeatmap")}</Button>}<HeatmapPage embedded onDecorations={setDecorations} onMetric={setHeatMetric} /></>}
       {panel === "insights" && <div>{ready && <details className="sim-current-insights"><summary>{t("simulation.unified.currentDetails")}</summary><ReplayInsightRail engine={engine} run={run} embedded /></details>}<InsightsPage embedded /></div>}
-      {panel === "eventLog" && <EventLogPanel />}
+      {panel === "eventLog" && <EventLogPanel onDecorations={setLogDecorations} />}
       {panel === "activity" && ready && <ActivityDetails engine={displayedEngine ?? engine} run={analysisRun ?? run} unavailable={unavailable} />}
       <div ref={setHost} className="sim-studio-widget-host" />
     </WorkspaceInspector>}
@@ -87,7 +89,7 @@ export function SimulationStudio(): React.JSX.Element {
   >
       <section className="contents" aria-label={t("simulation.unified.canvas")}>
         {ready && displayedEngine && analysisRun ? <DashboardWorkspace engine={displayedEngine} run={analysisRun} final={aggregate} unavailable={unavailable} artifactLoading={finalReplay.isLoading} integrated commandsHost={commandsHost} inspectorHost={host} onProcessActionsHost={setActionsHost}
-          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined} />}
+          process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={panel === "eventLog" && logDecorations ? { label: t("simulation.eventLog.compare.legend"), fidelity: true } : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={panel === "eventLog" && logDecorations ? logDecorations : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined} />}
           processScope={scope} />
           : <div className="sim-studio-start"><div className="sim-studio-empty-process"><SimulationCanvas bpmnXml={bpmnXml} selectedElementId={selectedElementId} onSelectElement={selectElement} /></div>
             <EmptyState title={t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "pending" ? "simulation.running" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? t("simulation.unified.startHint")}

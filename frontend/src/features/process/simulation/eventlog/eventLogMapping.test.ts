@@ -18,12 +18,13 @@ describe("mapping draft", () => {
   });
 
   it("sends only the columns of the chosen time shape", () => {
-    const draft = { ...emptyDraft(), caseId: ["Ordine"], activity: ["Attivita"], start: "Inizio", end: "Fine", timestamp: "Quando", lifecycle: "Stato" };
+    const draft = { ...emptyDraft(), caseId: ["Ordine"], activity: ["Attivita"], start: "Inizio", enable: "Pronta", end: "Fine", timestamp: "Quando", lifecycle: "Stato" };
 
     const interval = toColumnMapping(draft);
-    expect(interval).toMatchObject({ start: "Inizio", end: "Fine", timestamp: null, lifecycle: null });
+    expect(interval).toMatchObject({ start: "Inizio", enable: "Pronta", end: "Fine", timestamp: null, lifecycle: null });
+    expect(usedColumns(draft).has("Pronta")).toBe(true);
     const transition = toColumnMapping({ ...draft, timeShape: "transition" });
-    expect(transition).toMatchObject({ start: null, end: null, timestamp: "Quando", lifecycle: "Stato" });
+    expect(transition).toMatchObject({ start: null, enable: null, end: null, timestamp: "Quando", lifecycle: "Stato" });
     expect(draftIssues(draft)).toEqual([]);
   });
 
@@ -33,6 +34,7 @@ describe("mapping draft", () => {
       caseId: ["Ordine", "Riga"],
       activity: ["Attivita"],
       end: "Fine",
+      enable: "Pronta",
       resource: "Utente",
       caseAttributes: addAttribute([], "Importo", "number"),
       pattern: "%d/%m/%Y %H:%M",

@@ -15,6 +15,8 @@ export type MappingDraft = {
   timeShape: TimeShape;
   start: string;
   end: string;
+  /** Abilitazione: quando l'attivita' e' diventata eseguibile (solo con inizio e fine). */
+  enable: string;
   timestamp: string;
   lifecycle: string;
   resource: string;
@@ -39,6 +41,7 @@ export function emptyDraft(): MappingDraft {
     timeShape: "interval",
     start: "",
     end: "",
+    enable: "",
     timestamp: "",
     lifecycle: "",
     resource: "",
@@ -61,6 +64,7 @@ export function draftFromMapping(mapping: ColumnMapping): MappingDraft {
     timeShape: transition ? "transition" : "interval",
     start: mapping.start ?? "",
     end: mapping.end ?? "",
+    enable: mapping.enable ?? "",
     timestamp: mapping.timestamp ?? "",
     lifecycle: mapping.lifecycle ?? "",
     resource: mapping.resource ?? "",
@@ -84,6 +88,7 @@ export function toColumnMapping(draft: MappingDraft): ColumnMapping {
     activity: draft.activity,
     start: interval ? orNull(draft.start) : null,
     end: interval ? orNull(draft.end) : null,
+    enable: interval ? orNull(draft.enable) : null,
     timestamp: interval ? null : orNull(draft.timestamp),
     lifecycle: interval ? null : orNull(draft.lifecycle),
     resource: orNull(draft.resource),
@@ -113,7 +118,7 @@ export function draftIssues(draft: MappingDraft): DraftIssue[] {
 /** Le colonne che il mapping usa: per segnalarle nell'anteprima. */
 export function usedColumns(draft: MappingDraft): Set<string> {
   const mapping = toColumnMapping(draft);
-  const single = [mapping.start, mapping.end, mapping.timestamp, mapping.lifecycle, mapping.resource, mapping.role, mapping.cost];
+  const single = [mapping.start, mapping.enable, mapping.end, mapping.timestamp, mapping.lifecycle, mapping.resource, mapping.role, mapping.cost];
   return new Set([
     ...mapping.case_id,
     ...mapping.activity,
