@@ -42,8 +42,8 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
     width = max((box.right for box in [*boxes.values(), *containers.values()]), default=500) - p.origin_x
     for participant in sorted(participants, key=lambda e: e.get("id")):
         if participant.get("id") not in containers:
-            containers[participant.get("id")] = Box(p.origin_x, top, width, 100)
-            top += 100 + p.padding * 2
+            containers[participant.get("id")] = Box(p.origin_x, top, width, 64)
+            top += 64 + p.padding * 2
     collaboration = root.find(tag("collaboration"))
     plane_ref = collaboration.get("id") if collaboration is not None else root.find(tag("process")).get("id")
     taken = {e.get("id") for e in root.iter() if e.get("id")}
