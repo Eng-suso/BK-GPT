@@ -14,7 +14,7 @@ configurati sono quelli veri.
 Configurazione: `LLM_PRICES_JSON` in `.env`, dollari (o euro: l'unita' e' quella
 che ci metti, il codice non converte) per **milione** di token.
 
-    LLM_PRICES_JSON={"gpt-5.6-luna": {"input": 1.25, "output": 10.0, "cached_input": 0.125}}
+    LLM_PRICES_JSON={"gpt-5.6-luna": {"input": 0.20, "output": 1.20, "cached_input": 0.02}}
 """
 
 from __future__ import annotations

@@ -339,9 +339,21 @@ perdono:
 
 | modello | input | cached input | output |
 | --- | --- | --- | --- |
-| `gpt-5.6-luna` | 0.20 | 0.02 | 0.75 |
+| `gpt-5.6-luna` | 0.20 | 0.02 | 1.20 |
+| `gpt-6-luna` | 0.10 | 0.01 | 0.50 |
+| `gpt-6.1-sol` | 2.00 | 0.10 | 10.00 |
+| `claude-haiku-5-5` | 0.10 | 0.01 | 0.50 |
+| `claude-sonnet-5-5` | 2.00 | 0.10 | 10.00 |
 | `text-embedding-3-small` | 0.02 | — | — |
 | `gpt-4o-transcribe-diarize` | **$0.006 / minuto di audio**, non a token: fuori dal listino apposta |
+
+Riletti dalle pagine ufficiali l'8/10/2026 (`developers.openai.com/api/docs/pricing`,
+`platform.claude.com/docs/en/about-claude/pricing`). Correzioni rispetto al 25/09:
+l'output di `gpt-5.6-luna` e' 1.20, non 0.75. Limiti del listino, che e' un
+prezzo per modello e non per scaglione: `claude-haiku-5-5` sopra i 100.000 token
+di prompt costa 0.50 input / 2.50 output (cache 0.05), e il listino usa il
+prezzo basso, quindi sottostima i prompt lunghi; i modelli OpenAI valgono fino a
+272.000 token di input.
 
 Tre cose che nessun test col confine di rete finto poteva dire:
 
