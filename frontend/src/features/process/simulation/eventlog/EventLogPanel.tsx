@@ -9,6 +9,7 @@ import { httpErrorMessage } from "@/lib/http";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 
+import type { NodeDecoration } from "../canvas/SimulationCanvas";
 import { fetchScenarioTemplate } from "../simulationApi";
 import { formatDuration } from "../simulationResults";
 import { useSimulationSection } from "../useSimulationSection";
@@ -44,15 +45,20 @@ import {
   useSaveEventLogTemplate,
   useUploadEventLog,
 } from "./useEventLogImport";
+import { RealVsSimulatedStep } from "./RealVsSimulatedStep";
 import "./eventLog.css";
 
-const STEPS = ["columns", "formats", "results", "activities", "resources"] as const;
+const STEPS = ["columns", "formats", "results", "activities", "resources", "compare"] as const;
 type Step = (typeof STEPS)[number];
 const PREVIEW_ROWS = 5;
 const ACCEPT = ".csv,.tsv,.txt,.xes";
 
-/** Import di un event log reale sul processo: file, mapping, qualita', KPI e abbinamenti al modello. */
-export function EventLogPanel(): React.JSX.Element {
+/**
+ * Import di un event log reale sul processo: file, mapping, qualita', KPI,
+ * abbinamenti al modello e confronto con un run simulato. `onDecorations`
+ * porta gli scarti del confronto sul disegno (null = nessun overlay).
+ */
+export function EventLogPanel({ onDecorations }: { onDecorations?: (items: NodeDecoration[] | null) => void } = {}): React.JSX.Element {
   const { t } = useTranslation("process");
   const { processId } = useSimulationSection();
   const logs = useEventLogs(processId);
@@ -76,7 +82,7 @@ export function EventLogPanel(): React.JSX.Element {
   };
 
   if (selected) {
-    return <EventLogWizard key={selected.id} log={selected} onClose={() => setSelectedId(null)} />;
+    return <EventLogWizard key={selected.id} log={selected} onClose={() => setSelectedId(null)} onDecorations={onDecorations} />;
   }
 
   return (
@@ -154,7 +160,11 @@ function delimiterKey(value: string): string {
   return { ",": "comma", ";": "semicolon", "\t": "tab", "|": "pipe" }[value] ?? "comma";
 }
 
-function EventLogWizard({ log, onClose }: { log: EventLog; onClose: () => void }): React.JSX.Element {
+function EventLogWizard({ log, onClose, onDecorations }: {
+  log: EventLog;
+  onClose: () => void;
+  onDecorations?: (items: NodeDecoration[] | null) => void;
+}): React.JSX.Element {
   const { t } = useTranslation("process");
   const { processId, process } = useSimulationSection();
   const [step, setStep] = React.useState<Step>(log.status === "mapped" ? "results" : "columns");
@@ -308,7 +318,14 @@ function EventLogWizard({ log, onClose }: { log: EventLog; onClose: () => void }
           pending={apply.isPending}
           withoutResource={analysis.resources.events_without_resource}
           onConfirm={(resourceMatches) => run({ resourceMatches })}
+          onNext={() => setStep("compare")}
         />
+      )}
+
+      {step === "compare" && analysis && (
+        analysis.summary
+          ? <RealVsSimulatedStep summary={analysis.summary} realCases={analysis.quality.cases} onDecorations={onDecorations} />
+          : <InlineNotice tone="warning" title={t("simulation.eventLog.noKpis")} />
       )}
     </div>
   );
@@ -360,21 +377,24 @@ function PreviewTable({ columns, rows, used }: { columns: string[]; rows: string
   );
 }
 
-function ColumnSelect({ label, value, columns, optional, onChange }: {
+function ColumnSelect({ label, hint, value, columns, optional, onChange }: {
   label: string;
+  hint?: string;
   value: string;
   columns: string[];
   optional?: boolean;
   onChange: (value: string) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
+  const hintId = React.useId();
   return (
     <label className="sim-field">
       <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <select value={value} aria-describedby={hint ? hintId : undefined} onChange={(event) => onChange(event.target.value)}>
         <option value="">{optional ? t("simulation.eventLog.notMapped") : t("simulation.eventLog.choose")}</option>
         {columns.map((column) => <option key={column} value={column}>{column}</option>)}
       </select>
+      {hint && <small id={hintId}>{hint}</small>}
     </label>
   );
 }
@@ -436,6 +456,7 @@ function ColumnsForm({ draft, columns, onChange }: {
         <>
           <ColumnSelect label={t("simulation.eventLog.field.end")} value={draft.end} columns={columns} onChange={(end) => onChange({ end })} />
           <ColumnSelect label={t("simulation.eventLog.field.start")} value={draft.start} columns={columns} optional onChange={(start) => onChange({ start })} />
+          <ColumnSelect label={t("simulation.eventLog.field.enable")} hint={t("simulation.eventLog.field.enableHint")} value={draft.enable} columns={columns} optional onChange={(enable) => onChange({ enable })} />
         </>
       ) : (
         <>

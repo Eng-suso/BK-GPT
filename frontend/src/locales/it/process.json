@@ -727,7 +727,8 @@
         "formats": "Formati",
         "results": "Qualità e KPI",
         "activities": "Attività",
-        "resources": "Risorse"
+        "resources": "Risorse",
+        "compare": "Reale contro simulato"
       },
       "applyFailed": "Il mapping non è stato applicato",
       "previewFailed": "Anteprima non disponibile con questo separatore",
@@ -760,6 +761,8 @@
         "timeShape": "Come sono registrati i tempi",
         "end": "Fine (o completamento)",
         "start": "Inizio",
+        "enable": "Abilitazione",
+        "enableHint": "Quando l'attività è diventata eseguibile, se il sistema lo registra (es. enable_time nei log esportati da DeliR). Senza, l'attesa prima della prima attività non si misura.",
         "timestamp": "Timestamp",
         "lifecycle": "Ciclo di vita (inizio/completamento)",
         "resource": "Risorsa",
@@ -866,6 +869,52 @@
           "without_one": "{{count}} evento non ha risorsa nel log",
           "without_other": "{{count}} eventi non hanno risorsa nel log"
         }
+      },
+      "compare": {
+        "intro": "Gli stessi KPI, calcolati allo stesso modo sul log reale e su un run. Lo scarto è (simulato − reale) / reale.",
+        "run": "Run simulato",
+        "noRun": "Nessun run completato da confrontare",
+        "noRunHint": "Lancia uno scenario: il confronto si apre qui appena il run finisce.",
+        "verdict": {
+          "close": "Il simulato è vicino al reale",
+          "calibrate": "Il simulato va calibrato",
+          "far": "Il simulato è lontano dal reale"
+        },
+        "verdictDetail": "Cycle time medio {{cycle}} · P90 {{p90}} rispetto al log. Vicino entro ±10%, da calibrare entro ±25%.",
+        "cases": "Il log ha {{real}} casi, il run {{simulated}}: si confrontano medie, percentili e ritmo, non i totali.",
+        "process": "Intero processo",
+        "activities": "Per attività · lavorazione media",
+        "activitiesCaption": "Lavorazione e attesa medie per attività, reale e simulata, con lo scarto della lavorazione",
+        "kpi": "KPI",
+        "activity": "Attività",
+        "real": "Reale",
+        "simulated": "Simulato",
+        "gap": "Scarto",
+        "waitShort": "attesa {{value}}",
+        "kpiName": {
+          "cycleAvg": "Cycle time medio",
+          "cycleP50": "Cycle time P50",
+          "cycleP90": "Cycle time P90",
+          "waitingAvg": "Attesa media per caso",
+          "processingAvg": "Lavorazione media per caso",
+          "throughput": "Casi completati all'ora",
+          "costPerCase": "Costo per caso"
+        },
+        "notComparable": {
+          "noStart": "il log non registra l'inizio",
+          "noCost": "il log non ha costi",
+          "missing": "valore assente"
+        },
+        "showOnProcess": "Mostra sul processo",
+        "legend": "Scarto reale contro simulato",
+        "fidelity": {
+          "close": "entro ±10%",
+          "calibrate": "entro ±25%",
+          "far": "oltre ±25%"
+        },
+        "noActivities": "Nessuna attività del log è abbinata al modello: conferma gli abbinamenti nel passo Attività.",
+        "unmatched": "{{count}} attività del log senza elemento del modello, fuori dal confronto",
+        "unobserved": "{{count}} attività simulate che il log non ha mai visto"
       }
     }
   },

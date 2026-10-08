@@ -22,6 +22,7 @@ const SECTION = {
   projectId: "p2p",
   processId: "acquisti",
   process: { id: "acquisti", bpmnModelId: "acquisti-bpmn", name: "Acquisti" },
+  runs: [],
 } as unknown as SimulationSectionValue;
 
 const COLUMNS = ["Ordine", "Attivita", "Fine", "Utente"];
@@ -52,6 +53,7 @@ const MAPPING = {
   activity: ["Attivita"],
   start: null,
   end: "Fine",
+  enable: null,
   timestamp: null,
   lifecycle: null,
   resource: "Utente",
@@ -128,15 +130,45 @@ function routes(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function renderPanel() {
+function renderPanel(section: SimulationSectionValue = SECTION, onDecorations?: (items: unknown) => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <SimulationSectionContext.Provider value={SECTION}>{children}</SimulationSectionContext.Provider>
+      <SimulationSectionContext.Provider value={section}>{children}</SimulationSectionContext.Provider>
     </QueryClientProvider>
   );
-  return render(<EventLogPanel />, { wrapper });
+  return render(<EventLogPanel onDecorations={onDecorations} />, { wrapper });
 }
+
+const activityKpis = (el: string | null, name: string, wait: number, processing: number) => ({
+  el, name, count: 4, wait: { avg: wait, p95: wait }, processing: { avg: processing, p95: processing },
+});
+const TIMED_ANALYSIS = {
+  ...ANALYSIS,
+  summary: {
+    ...ANALYSIS.summary,
+    cycle: { avg: 7200, p50: 7000, p90: 9000 },
+    waiting: { avg: 1800 },
+    processing: { avg: 5400 },
+    timing: "start_and_end",
+    byActivity: [activityKpis("T1", "Ricevi richiesta", 600, 1800), activityKpis(null, "Approva", 1200, 3600)],
+  },
+};
+const RUN = {
+  id: 7,
+  scenario_name: "Baseline",
+  status: "completed",
+  created_at: "2026-10-07T12:00:00Z",
+  summary: {
+    casesCompleted: 200,
+    cycle: { avg: 7560, p50: 7200, p90: 9900, p95: 11000 },
+    waiting: { avg: 2000 },
+    processing: { avg: 5560 },
+    cost: { total: 400, perCase: 2 },
+    throughputPerHour: 0.6,
+    byActivity: [activityKpis("T1", "Ricevi richiesta", 700, 2700), activityKpis("T2", "Approvazione ordine", 900, 2860)],
+  },
+};
 
 function calls(method: string, path: string) {
   return http.mock.calls.filter(([p, o]) => p === path && ((o as { method?: string } | undefined)?.method ?? "GET") === method);
@@ -230,6 +262,51 @@ describe("EventLogPanel", () => {
     await waitFor(() => expect(calls("POST", "/v1/workspace/event-logs/elog_1/mapping")).toHaveLength(2));
     sent = (calls("POST", "/v1/workspace/event-logs/elog_1/mapping")[1][1] as { body: Record<string, unknown> }).body;
     expect(sent.resource_matches).toEqual({ anna: "lane-1" });
+  });
+
+  it("compares the real log with a completed run and paints the gaps on the process", async () => {
+    routes({
+      "GET /v1/workspace/processes/acquisti/event-logs": [ANALYSIS.event_log],
+      "GET /v1/workspace/event-logs/elog_1/analysis": TIMED_ANALYSIS,
+    });
+    const onDecorations = vi.fn();
+    const user = userEvent.setup();
+    renderPanel({ ...SECTION, runs: [RUN], activeRunId: 7 } as unknown as SimulationSectionValue, onDecorations);
+
+    await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
+    await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
+
+    expect(screen.getByText("Il simulato è vicino al reale")).toBeInTheDocument();
+    const process = screen.getAllByRole("table")[0];
+    expect(within(within(process).getByRole("row", { name: /Cycle time medio/ })).getByText("+5%")).toBeInTheDocument();
+    expect(within(process).getByRole("row", { name: /Costo per caso/ })).toHaveTextContent("il log non ha costi");
+
+    const activities = screen.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });
+    expect(within(activities).getByRole("row", { name: /Ricevi richiesta/ })).toHaveTextContent("+50%");
+    expect(screen.getByText(/1 attività del log senza elemento del modello/).closest("section")).toHaveTextContent("Approva");
+    expect(screen.getByText(/1 attività simulate che il log non ha mai visto/)).toBeInTheDocument();
+
+    expect(onDecorations).toHaveBeenLastCalledWith(null);
+    await user.click(screen.getByRole("button", { name: "Mostra sul processo" }));
+    expect(onDecorations).toHaveBeenLastCalledWith([
+      { elementId: "T1", markers: ["sim-fidelity-far"], badge: "+50%", badgeTone: "danger" },
+    ]);
+  });
+
+  it("asks for a run when there is nothing to compare yet", async () => {
+    routes({
+      "GET /v1/workspace/processes/acquisti/event-logs": [ANALYSIS.event_log],
+      "GET /v1/workspace/event-logs/elog_1/analysis": TIMED_ANALYSIS,
+    });
+    const openPanel = vi.fn();
+    const user = userEvent.setup();
+    renderPanel({ ...SECTION, openPanel } as unknown as SimulationSectionValue);
+
+    await user.click(await screen.findByRole("button", { name: /^erp\.csv/ }));
+    await user.click(await screen.findByRole("button", { name: /Reale contro simulato$/ }));
+    expect(await screen.findByText("Nessun run completato da confrontare")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Scenario" }));
+    expect(openPanel).toHaveBeenCalledWith("scenario");
   });
 
   it("asks before deleting a log and deletes it only on confirm", async () => {
