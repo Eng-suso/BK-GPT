@@ -4,7 +4,25 @@ from pydantic import BaseModel, Field
 
 
 SimulationRunStatus = Literal["pending", "completed", "failed"]
-DistributionName = Literal["norm", "expon", "fixed"]
+# I nomi di Prosimos 2.1. Triangolare, Weibull e Beta non ci sono: il motore
+# non le esegue (docs/simulation-prosimos-2x-spike.md).
+DistributionName = Literal["fixed", "expon", "uniform", "norm", "lognorm", "gamma"]
+Weekday = Literal["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+
+
+class SimCalendarPeriodConfig(BaseModel):
+    """Da un giorno a un altro (inclusi), fra due orari ``HH:MM`` o ``HH:MM:SS``."""
+
+    from_day: Weekday
+    to_day: Weekday
+    begin: str = Field(min_length=5, max_length=12)
+    end: str = Field(min_length=5, max_length=12)
+
+
+class SimCalendarConfig(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=120)
+    periods: list[SimCalendarPeriodConfig] = Field(min_length=1, max_length=50)
 
 
 class SimResourceConfig(BaseModel):
@@ -12,13 +30,26 @@ class SimResourceConfig(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     cost_per_hour: float = Field(ge=0)
     amount: int = Field(ge=1, le=1000)
+    # Il calendario di lavoro della risorsa; assente = il calendario standard.
+    calendar_id: str | None = Field(default=None, max_length=64)
 
 
 class SimTaskConfig(BaseModel):
+    """La durata di un'attivita'. Oltre alla media, i parametri facoltativi:
+
+    - ``std_seconds`` (normale, lognormale, gamma): assente = 10% della media;
+    - ``min_seconds``/``max_seconds``: i limiti della distribuzione. Assenti,
+      +-3 deviazioni standard (mai sotto zero), o 0 e 10 volte la media per
+      l'esponenziale. L'uniforme li richiede entrambi.
+    """
+
     element_id: str = Field(min_length=1)
     mean_seconds: float = Field(gt=0)
     distribution: DistributionName = "norm"
     resource_id: str | None = None
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
 
 
 class SimGatewayBranchConfig(BaseModel):
@@ -44,6 +75,8 @@ class CreateSimulationRunRequest(BaseModel):
     # Optional per-element overrides (phase 2). When omitted, the global
     # defaults above drive every task / gateway / resource — unchanged behaviour.
     resources: list[SimResourceConfig] | None = None
+    # Calendari di lavoro citati dalle risorse, oltre a quello standard.
+    calendars: list[SimCalendarConfig] | None = Field(default=None, max_length=50)
     tasks: list[SimTaskConfig] | None = None
     gateways: list[SimGatewayConfig] | None = None
     # Optional client-supplied retry token. When absent the server derives a key
@@ -92,6 +125,8 @@ class ScenarioTemplateResponse(BaseModel):
     resources: list[ScenarioTemplateResource] = Field(default_factory=list)
     tasks: list[ScenarioTemplateTask] = Field(default_factory=list)
     gateways: list[ScenarioTemplateGateway] = Field(default_factory=list)
+    # Il calendario che usano gli arrivi e le risorse senza calendario proprio.
+    standard_calendar: SimCalendarConfig | None = None
 
 
 class SimulationRunResponse(BaseModel):
