@@ -812,6 +812,13 @@ async function coreShot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: resolve(OUT, "core", name), fullPage: false });
 }
 
+// Media generator for the pitch, not a regression test: it writes files and
+// follows marketing copy. CI runs it only when explicitly asked.
+test.skip(
+  Boolean(process.env.CI) && process.env.DELIR_PITCH_SCREENSHOTS !== "1",
+  "Pitch media generator: enable in CI with DELIR_PITCH_SCREENSHOTS=1",
+);
+
 test.beforeAll(async () => {
   const recordingRun =
     process.env.DELIR_RECORD_PITCH === "1" ||
