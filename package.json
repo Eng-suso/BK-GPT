@@ -10,6 +10,7 @@
     "test:e2e": "playwright test",
     "test:visual": "playwright test e2e/visual.spec.ts",
     "test:visual:update": "playwright test e2e/visual.spec.ts --update-snapshots",
+    "screenshots:pitch": "playwright test e2e/pitch-screenshots.spec.ts --project=chromium --workers=1",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:lighthouse": "playwright test e2e/performance-lighthouse.spec.ts",
     "test:report": "playwright show-report",
