@@ -5,7 +5,7 @@ from .geometry import Box
 from .router import segment_hits_box
 
 
-def branch_label(points, name, boxes, labels, routes):
+def branch_label(points, name, boxes, labels, routes, container=None):
     width = min(140, max(44, len(name) * 6))
     height = 30 if len(name) <= 22 else 44
     candidates = []
@@ -17,6 +17,8 @@ def branch_label(points, name, boxes, labels, routes):
             else:
                 candidates += [Box(cx+gap, cy-height/2, width, height), Box(cx-width-gap, cy-height/2, width, height)]
     for candidate in candidates:
+        if container and not (container.x <= candidate.x and container.y <= candidate.y and container.right >= candidate.right and container.bottom >= candidate.bottom):
+            continue
         if any(_overlap(candidate.expanded(4), box) for box in [*boxes.values(), *labels.values()]):
             continue
         if any(segment_hits_box(a, b, candidate.expanded(2)) for route in [*routes, points] for a, b in pairwise(route)):

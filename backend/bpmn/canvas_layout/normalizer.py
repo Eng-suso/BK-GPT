@@ -1,7 +1,9 @@
 """Normalize semantic references and discard all incoming agent geometry."""
 import xml.etree.ElementTree as ET
+from io import StringIO
+import re
 
-from defusedxml.ElementTree import fromstring
+from defusedxml.ElementTree import fromstring, iterparse
 
 from .policy import BPMN, BPMNDI, FLOW_TYPES, local_name, tag
 
@@ -11,6 +13,19 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
         root = fromstring(xml)
     except (ET.ParseError, ValueError) as exc:
         raise ValueError("Documento BPMN non leggibile.") from exc
+    # ElementTree drops namespace declarations used only by QName attribute
+    # values (for example xsi:type="b:tFormalExpression" or xsd:string).
+    # Keep those aliases so serialization cannot change their meaning.
+    aliases = {}
+    for _, (prefix, uri) in iterparse(StringIO(xml), events=("start-ns",)):
+        if prefix in aliases and aliases[prefix] != uri:
+            raise ValueError("Namespace prefix riutilizzato con significati diversi.")
+        aliases[prefix] = uri
+    canonical = {BPMN: "bpmn", BPMNDI: "bpmndi", "http://www.omg.org/spec/DD/20100524/DC": "dc", "http://www.omg.org/spec/DD/20100524/DI": "di", "http://www.w3.org/2001/XMLSchema-instance": "xsi"}
+    used = {match.group(1) for e in root.iter() for value in e.attrib.values() if (match := re.fullmatch(r"([A-Za-z_][\w.-]*):[\w.-]+", value))}
+    for prefix in sorted(used):
+        if prefix in aliases and canonical.get(aliases[prefix]) != prefix:
+            root.set(f"xmlns:{prefix}", aliases[prefix])
     if root.tag != tag("definitions"):
         raise ValueError("Il modello deve essere un documento BPMN definitions.")
     ids = [element.get("id") for element in root.iter() if element.get("id") and not element.tag.startswith("{" + BPMNDI + "}")]
@@ -35,15 +50,21 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
             for child in list(node):
                 if child.tag in {tag("incoming"), tag("outgoing")}:
                     node.remove(child)
+        references = {node_id: {"incoming": [], "outgoing": []} for node_id in nodes}
         for flow in flows:
             source, target = flow.get("sourceRef"), flow.get("targetRef")
             if not flow.get("id") or source not in nodes or target not in nodes:
                 raise ValueError(f"Collegamento {flow.get('id')} con estremi non validi nel processo.")
-            for node, direction in ((nodes[source], "outgoing"), (nodes[target], "incoming")):
-                ref = ET.Element(tag(direction))
-                ref.text = flow.get("id")
-                index = next((i for i, child in enumerate(node) if local_name(child) not in {"documentation", "extensionElements", "incoming", "outgoing"}), len(node))
-                node.insert(index, ref)
+            references[source]["outgoing"].append(flow.get("id"))
+            references[target]["incoming"].append(flow.get("id"))
+        for node_id, node in nodes.items():
+            index = next((i for i, child in enumerate(node) if local_name(child) not in {"documentation", "extensionElements"}), len(node))
+            for direction in ("incoming", "outgoing"):
+                for flow_id in references[node_id][direction]:
+                    ref = ET.Element(tag(direction))
+                    ref.text = flow_id
+                    node.insert(index, ref)
+                    index += 1
         assigned: set[str] = set()
         for lane in process.iter(tag("lane")):
             if not lane.get("id"):
@@ -62,6 +83,10 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
     # explicit participants and external pools remain semantic authority.
     collaboration = root.find(tag("collaboration"))
     participants = list(root.iter(tag("participant")))
+    process_ids = {p.get("id") for p in processes}
+    participant_processes = [p.get("processRef") for p in participants if p.get("processRef")]
+    if any(ref not in process_ids for ref in participant_processes) or len(set(participant_processes)) != len(participant_processes):
+        raise ValueError("I participant devono riferire processi distinti presenti nel modello.")
     for process in processes:
         if process.find(tag("laneSet")) is None or any(p.get("processRef") == process.get("id") for p in participants):
             continue

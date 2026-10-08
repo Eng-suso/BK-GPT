@@ -109,7 +109,10 @@ def layout_process(process, top: float, connections):
             if owner.get(node_id) == band:
                 grouped[ranks[node_id]].append(node_id)
         rows = max((len(group) for group in grouped.values()), default=1)
-        main_height = rows * p.row_gap + p.padding * 2
+        content_height = max((sizes[i][1] + (52 if nodes[i].get("name") and (local_name(nodes[i]).endswith("Event") or local_name(nodes[i]).endswith("Gateway")) else 0) for group in grouped.values() for i in group), default=p.task_height)
+        main_height = (rows - 1) * p.row_gap + content_height + p.padding * 2
+        if any(e.get("id") in feedback and owner.get(source) == band for e, source, _ in connections):
+            main_height += 80  # An interior return channel and readable labels.
         doc_groups = defaultdict(list)
         for artifact_id, (doc_band, rank) in artifact_owner.items():
             if doc_band == band:
