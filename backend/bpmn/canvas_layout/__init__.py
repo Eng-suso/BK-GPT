@@ -93,7 +93,8 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
             ET.SubElement(edge, f"{{{DI}}}waypoint", {"x": _number(x), "y": _number(y)})
         if connection.get("name") and local_name(connection) == "sequenceFlow":
             container = next((box for key, box in containers.items() if local_name(elements[key]) == "participant" and box.x <= boxes[source].x and box.y <= boxes[source].y and box.right >= boxes[source].right and box.bottom >= boxes[source].bottom), None)
-            label = branch_label(points, connection.get("name"), boxes, labels, previous, container)
+            lane_boundaries = [box for key, box in containers.items() if local_name(elements[key]) == "lane"]
+            label = branch_label(points, connection.get("name"), boxes, labels, previous, container, lane_boundaries)
             labels[connection.get("id")] = label
             _bounds(ET.SubElement(edge, f"{{{BPMNDI}}}BPMNLabel"), label)
         previous.append(points)

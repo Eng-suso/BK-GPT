@@ -346,6 +346,11 @@ test("enterprise policy diagram renders real-owner lanes, process pool and branc
     await expect(preview.locator(`.djs-element[data-element-id='${id}']`)).toBeVisible();
   for (const text of ["Ufficio tecnico", "Acquisti", "Manutenzione", "Sopra soglia", "Sotto soglia"])
     await expect(preview.locator(".djs-label").filter({ hasText: text }).first()).toBeVisible();
+  const laneBounds = await Promise.all(["Technical", "Purchasing", "Maintenance"].map(id => preview.locator(`.djs-element[data-element-id='${id}'] .djs-visual > rect`).first().boundingBox()));
+  for (const name of ["Sopra soglia", "Sotto soglia"]) {
+    const label = (await preview.locator(".djs-label").filter({ hasText: name }).first().boundingBox())!;
+    expect(laneBounds.some(lane => lane && label.y > lane.y && label.y + label.height < lane.y + lane.height)).toBe(true);
+  }
   await expect(preview.locator(".djs-connection")).toHaveCount(11);
   await expect(preview.locator(".delir-canvas-identity")).toHaveText("DeliR");
   await expect(preview.locator(".delir-canvas-identity svg")).toBeVisible();

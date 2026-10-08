@@ -16,6 +16,9 @@ Verbose NLP activity names grow the task height; sibling tracks reserve that
 height before placement. Branch labels search nearby positions along their
 route when the midpoint is occupied, with the same collision and containment
 checks. The facility golden case exercises this dense placement regression.
+Branch labels prefer nearby clear placements and cannot touch lane dividers;
+the visual linter independently enforces this for agent diagrams. A consultant's
+text on a divider is reported as a diagnostic without changing manual geometry.
 
 The purchase fixture's process pool shrank from 1740×670 to 1508×570. Its three
 roles, decision branches, document, boundary and supplier message remain intact.
