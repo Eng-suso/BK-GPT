@@ -1,3 +1,4 @@
+import type { ModelPatchInput } from "./caseRules";
 import { z } from "zod";
 
 /**
@@ -282,5 +283,7 @@ export type CreateSimulationRunInput = {
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];
   calendars?: SimCalendar[];
+  /** Cio' che i campi v1 non esprimono (attributi del caso, rami per regola), come patch dell'IR. */
+  modelPatch?: ModelPatchInput;
   idempotencyKey?: string;
 };
