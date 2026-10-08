@@ -270,7 +270,15 @@
       "confidence": "{{level}} confidence",
       "provenanceLoading": "Loading provenance",
       "provenanceError": "Provenance unavailable: the value has no origin.",
-      "notActivity": "Select an activity: decisions and events have no duration or resource."
+      "notActivity": "Select an activity: decisions and events have no duration or resource.",
+      "loading": "Loading run parameters",
+      "notSimulated": "This element has no parameters: select an activity or a decision.",
+      "legacyNote": "Run created before the model was kept: values read from the run request.",
+      "modelError": "Run model unavailable: values read from the run request.",
+      "assignment": "Resource {{n}} of {{total}}",
+      "byRule": "chosen by rule",
+      "and": "and",
+      "or": "or"
     },
     "provenance": {
       "label": "Source",

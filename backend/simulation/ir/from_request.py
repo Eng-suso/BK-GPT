@@ -2,8 +2,9 @@
 
 E' il ponte: la UI manda medie, le sei distribuzioni di Prosimos 2.1 con i loro
 parametri facoltativi, una risorsa per attivita' e i calendari delle risorse;
-qui diventano un modello esplicito, con le assunzioni del builder storico rese
-visibili e marcate ``manual``. Senza parametri e calendari nuovi il risultato
+qui diventano un modello esplicito: cio' che il consulente ha cambiato e'
+marcato ``manual``, le assunzioni del builder storico restano visibili e senza
+provenienza. Senza parametri e calendari nuovi il risultato
 compilato e' identico allo scenario che il builder produceva (test di
 equivalenza).
 """
@@ -244,10 +245,32 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
             Assignment(
                 resource_id=resource_id,
                 duration=duration_,
-                provenance=_MANUAL if override else None,
+                provenance=_MANUAL if _duration_set(override, request) else None,
             ),
         ),
     )
+
+
+def _duration_set(override: SimTaskConfig | None, request: CreateSimulationRunRequest) -> bool:
+    """Il consulente ha scelto questa durata, o e' il default che il pannello rimanda?
+
+    Il pannello manda ogni task, anche quelli lasciati alla durata di default:
+    la sola presenza non dice niente. Conta cio' che si allontana dal default
+    (media, distribuzione, parametri espliciti); il resto resta un'assunzione.
+    """
+    if override is None:
+        return False
+    return (
+        float(override.mean_seconds) != float(request.default_task_duration_seconds)
+        or override.distribution != "norm"
+        or any(value is not None for value in (override.std_seconds, override.min_seconds, override.max_seconds))
+    )
+
+
+def _even(values: list[float]) -> bool:
+    # Stessa tolleranza del pannello (simulationProvenance.ts, isEvenSplit):
+    # le percentuali arrotondate di tre rami non sommano esattamente.
+    return all(abs(value - 1 / len(values)) <= 0.0075 for value in values)
 
 
 def _gateway(gateway: BpmnGateway, override) -> Gateway:
@@ -260,7 +283,9 @@ def _gateway(gateway: BpmnGateway, override) -> Gateway:
     else:
         values = [1 / len(flow_ids)] * len(flow_ids)
     # Senza indicazioni i rami sono equiprobabili: un'assunzione, non un dato.
-    provenance = _MANUAL if override and override.branches else None
+    # Come per le durate: il pannello rimanda anche le divisioni in parti
+    # uguali che nessuno ha toccato, e quelle non sono una scelta.
+    provenance = _MANUAL if override and override.branches and not _even(values) else None
     return Gateway(
         element_id=gateway.id,
         branches=tuple(

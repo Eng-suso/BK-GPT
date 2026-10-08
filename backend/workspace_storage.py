@@ -251,6 +251,9 @@ class WorkspaceSimulationRun(WorkspaceBase):
     idempotency_key: Mapped[str | None] = mapped_column(String, index=True)
     request_json: Mapped[str] = mapped_column(Text, nullable=False)
     scenario_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # Il Simulation IR che il run ha simulato (SIM-20a). Assente nei run creati
+    # prima della 0033: per quelli resta solo la richiesta.
+    model_json: Mapped[str | None] = mapped_column(Text)
     result_json: Mapped[str] = mapped_column(Text, nullable=False)
     outputs_json: Mapped[str] = mapped_column(Text, nullable=False)
     error: Mapped[str | None] = mapped_column(Text)

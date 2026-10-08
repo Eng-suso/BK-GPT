@@ -47,3 +47,14 @@ class SimulationModelResponse(BaseModel):
 
     bpmn_model_id: str
     model: SimulationModel
+
+
+class SimulationRunModelResponse(BaseModel):
+    """Il modello IR che un run ha simulato (SIM-20a).
+
+    ``model`` e' ``None`` per i run creati prima che il modello si conservasse:
+    per quelli resta la richiesta v1 del run.
+    """
+
+    run_id: int
+    model: SimulationModel | None = None

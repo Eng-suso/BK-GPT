@@ -144,7 +144,7 @@ def test_the_bridge_keeps_the_builder_messages(request_, message):
 
 def test_the_bridge_marks_what_the_consultant_entered_and_what_is_assumed():
     tasks, gateways = parse_bpmn_for_simulation(BPMN)
-    request = CreateSimulationRunRequest(tasks=[SimTaskConfig(element_id="T_pay", mean_seconds=900)])
+    request = CreateSimulationRunRequest(tasks=[SimTaskConfig(element_id="T_pay", mean_seconds=1200)])
 
     model = model_from_request(request, tasks, gateways)
 
@@ -153,6 +153,32 @@ def test_the_bridge_marks_what_the_consultant_entered_and_what_is_assumed():
     # Una durata di default non l'ha detta nessuno: nessuna provenienza.
     assert by_id["T_receive"] is None
     assert all(b.provenance is None for b in model.gateways[0].branches)
+
+
+def test_the_bridge_does_not_mistake_the_defaults_the_panel_sends_back_for_choices():
+    """Il pannello manda ogni task e ogni gateway, anche quelli mai toccati."""
+    tasks, gateways = parse_bpmn_for_simulation(BPMN)
+    flows = [flow.id for flow in gateways[0].outgoing_flows]
+    even = [SimGatewayBranchConfig(flow_id=flow, probability=round(1 / len(flows), 2)) for flow in flows]
+    request = CreateSimulationRunRequest(
+        tasks=[
+            SimTaskConfig(element_id="T_pay", mean_seconds=900),
+            SimTaskConfig(element_id="T_receive", mean_seconds=900, distribution="expon"),
+        ],
+        gateways=[SimGatewayConfig(element_id=gateways[0].id, branches=even)],
+    )
+
+    model = model_from_request(request, tasks, gateways)
+
+    by_id = {a.element_id: a.assignments[0].provenance for a in model.activities}
+    assert by_id["T_pay"] is None
+    assert by_id["T_receive"] == Provenance(origin="manual")
+    assert all(b.provenance is None for b in model.gateways[0].branches)
+
+    skewed = [SimGatewayBranchConfig(flow_id=flow, probability=0.9 if i == 0 else 0.1) for i, flow in enumerate(flows)]
+    request = CreateSimulationRunRequest(gateways=[SimGatewayConfig(element_id=gateways[0].id, branches=skewed)])
+    model = model_from_request(request, tasks, gateways)
+    assert all(b.provenance == Provenance(origin="manual") for b in model.gateways[0].branches)
 
 
 # --------------------------------------------------------------------------- #
