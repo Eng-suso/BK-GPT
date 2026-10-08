@@ -1,7 +1,7 @@
 """Il modello IR che ogni run di simulazione ha simulato.
 
 Revision ID: 0032_simulation_run_model
-Revises: 0030_review_proposal_diagrams, 0030_simulation_run_logs
+Revises: 0031_merge_0030_heads
 Create Date: 2026-10-08
 
 SIM-20a: l'inspector del task deve dire cosa il run ha simulato. La richiesta
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0032_simulation_run_model"
-down_revision = ("0030_review_proposal_diagrams", "0030_simulation_run_logs")
+down_revision = "0031_merge_0030_heads"
 branch_labels = None
 depends_on = None
 
