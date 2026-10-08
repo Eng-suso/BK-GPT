@@ -90,6 +90,7 @@ START_END_ONLY_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   id="Definitions_empty" targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:process id="Process_empty" isExecutable="false">
     <bpmn:startEvent id="StartEvent_1" name="Inizio" >
@@ -108,6 +109,9 @@ START_END_ONLY_XML = """<?xml version="1.0" encoding="UTF-8"?>
       <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1">
         <dc:Bounds x="320" y="100" width="36" height="36" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="196" y="118" /><di:waypoint x="320" y="118" />
+      </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>

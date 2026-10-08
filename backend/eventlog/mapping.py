@@ -78,6 +78,8 @@ class ColumnMapping(_Spec):
     activity: tuple[str, ...] = Field(min_length=1)
     start: str | None = None
     end: str | None = None
+    # Quando l'attivita' e' diventata eseguibile, se la fonte lo registra.
+    enable: str | None = None
     timestamp: str | None = None
     lifecycle: str | None = None
     resource: str | None = None
@@ -108,7 +110,7 @@ class ColumnMapping(_Spec):
 
     def columns(self) -> set[str]:
         used = {*self.case_id, *self.activity}
-        used |= {c for c in (self.start, self.end, self.timestamp, self.lifecycle, self.resource, self.role, self.cost) if c}
+        used |= {c for c in (self.start, self.enable, self.end, self.timestamp, self.lifecycle, self.resource, self.role, self.cost) if c}
         used |= {a.column for a in self.case_attributes + self.event_attributes}
         return used
 
@@ -254,6 +256,13 @@ def apply_mapping(
                 issues.add("end_before_start", line)
                 continue
 
+        enabled = None
+        if mapping.enable and cell(row, mapping.enable):
+            enabled = _parse_time(cell(row, mapping.enable), mapping.timestamps.pattern, zone)
+            if enabled is None:
+                issues.add("unreadable_timestamp", line)
+                continue
+
         transition: str | None = None
         if mapping.lifecycle:
             value = cell(row, mapping.lifecycle).lower()
@@ -286,6 +295,7 @@ def apply_mapping(
                 activity=activity,
                 end=when,
                 start=start,
+                enabled=enabled,
                 resource=cell(row, mapping.resource) or None,
                 role=cell(row, mapping.role) or None,
                 cost=cost,
@@ -332,6 +342,7 @@ def _with_start(event: CanonicalEvent, start: datetime, *, merge: CanonicalEvent
         activity=event.activity,
         end=event.end,
         start=start,
+        enabled=event.enabled or merge.enabled,
         resource=event.resource or merge.resource,
         role=event.role or merge.role,
         cost=event.cost if event.cost is not None else merge.cost,

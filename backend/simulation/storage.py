@@ -16,6 +16,7 @@ from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
 from backend.workspace_storage import (
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
+    WorkspaceSimulationRunLog,
     workspace_connection,
 )
 
@@ -198,6 +199,7 @@ def complete_simulation_run(
     result: ProsimosSimulationResult,
     summary: dict[str, Any] | None = None,
     replay: dict[str, Any] | None = None,
+    log_csv: str | None = None,
 ) -> dict[str, Any]:
     run = _update_simulation_run(
         run_id=run_id,
@@ -210,7 +212,36 @@ def complete_simulation_run(
     if run["status"] == "completed" and (summary is not None or replay is not None):
         _write_simulation_artifact(run_id=run_id, summary=summary or {}, replay=replay or {})
         run["summary"] = summary
+    if run["status"] == "completed" and log_csv:
+        _write_simulation_log(run_id=run_id, log_csv=log_csv)
     return run
+
+
+def _write_simulation_log(*, run_id: int, log_csv: str) -> None:
+    with workspace_connection() as session:
+        existing = session.get(WorkspaceSimulationRunLog, run_id)
+        if existing is None:
+            session.add(
+                WorkspaceSimulationRunLog(
+                    run_id=run_id,
+                    tenant_id=get_current_tenant_id(),
+                    log_csv=log_csv,
+                    created_at=now_iso(),
+                )
+            )
+        else:
+            existing.log_csv = log_csv
+        session.flush()
+
+
+def get_simulation_log_csv(run_id: int) -> str | None:
+    """Il CSV del motore di un run del tenant corrente; ``None`` se non c'e'."""
+    with workspace_connection() as session:
+        run = session.get(WorkspaceSimulationRun, run_id)
+        if run is None or run.tenant_id != get_current_tenant_id():
+            return None
+        row = session.get(WorkspaceSimulationRunLog, run_id)
+        return row.log_csv if row is not None else None
 
 
 def _write_simulation_artifact(

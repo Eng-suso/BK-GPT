@@ -455,7 +455,7 @@ def test_clear_bpmn_process_removes_visible_canvas_elements():
     assert validation["counts"] == {"flow_nodes": 0, "sequence_flows": 0}
 
 
-def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(monkeypatch):
+def test_canvas_drawing_agent_preserves_semantic_artifacts_during_layout(monkeypatch):
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Test">
   <bpmn:process id="Process_Test">
@@ -503,16 +503,15 @@ def test_canvas_drawing_agent_removes_semantic_visual_artifacts_before_layout(mo
 
     assert result["canvas_layout_status"] == "completed"
     assert saved["source"] == "canvas_layout_agent"
-    # free-text annotation and the association docked to it are canvas-only noise
-    assert "<bpmn:textAnnotation" not in saved["xml"]
-    assert 'id="Association_1"' not in saved["xml"]
+    assert "<bpmn:textAnnotation" in saved["xml"]
+    assert 'id="Association_1"' in saved["xml"]
     # the data perspective stays on the canvas
     assert "<bpmn:dataObjectReference" in saved["xml"]
     assert 'id="Association_Data"' in saved["xml"]
     assert validate_bpmn_xml(saved["xml"])["valid"] is True
 
 
-def test_canvas_drawing_agent_blocks_without_layout_plan(monkeypatch):
+def test_canvas_drawing_agent_succeeds_without_an_llm_layout_plan(monkeypatch):
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Test">
   <bpmn:process id="Process_Test">
@@ -528,14 +527,13 @@ def test_canvas_drawing_agent_blocks_without_layout_plan(monkeypatch):
         lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
     )
 
+    monkeypatch.setattr(layout_graph_module.workspace_database, "update_bpmn_model", lambda model_id, updated_xml, **kwargs: {"xml": updated_xml})
     result = run_canvas_drawing_agent({"bpmn_model_id": "proc-bpmn"})
-
-    assert result["canvas_layout_status"] == "blocked"
-    assert result["canvas_task_log"][0]["status"] == "blocked"
-    assert result["blocking_conditions"] == ["Missing prerequisite: canvas_layout_plan"]
+    assert result["canvas_layout_status"] == "completed"
+    assert validate_bpmn_layout(result["saved_bpmn_xml"])["valid"]
 
 
-def test_canvas_drawing_agent_blocks_when_layout_plan_misses_flow_node(monkeypatch):
+def test_canvas_drawing_agent_ignores_incomplete_agent_geometry_and_draws_all_nodes(monkeypatch):
     xml = """<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_Test">
   <bpmn:process id="Process_Test">
@@ -551,6 +549,7 @@ def test_canvas_drawing_agent_blocks_when_layout_plan_misses_flow_node(monkeypat
         lambda bpmn_model_id: {"id": bpmn_model_id, "process_id": "proc-1", "xml": xml},
     )
 
+    monkeypatch.setattr(layout_graph_module.workspace_database, "update_bpmn_model", lambda model_id, updated_xml, **kwargs: {"xml": updated_xml})
     result = run_canvas_drawing_agent(
         {
             "bpmn_model_id": "proc-bpmn",
@@ -567,9 +566,8 @@ def test_canvas_drawing_agent_blocks_when_layout_plan_misses_flow_node(monkeypat
         }
     )
 
-    assert result["canvas_layout_status"] == "blocked"
-    assert result["canvas_task_log"][0]["status"] == "blocked"
-    assert "Task_Review" in result["blocking_conditions"][0]
+    assert result["canvas_layout_status"] == "completed"
+    assert 'bpmnElement="Task_Review"' in result["saved_bpmn_xml"]
 
 
 def test_canvas_layout_consultant_agent_splits_goal_into_layout_tasks():
@@ -583,34 +581,14 @@ def test_canvas_layout_consultant_agent_splits_goal_into_layout_tasks():
   </bpmn:process>
 </bpmn:definitions>"""
 
-    class FakeChunk:
-        def __init__(self, content):
-            self.content = content
+    class ForbiddenLLM:
+        def stream(self, *args, **kwargs):
+            raise AssertionError("DeliR geometry must not call an LLM")
 
-    class FakeLLM:
-        def stream(self, messages, config=None):
-            assert any("senior process consultant" in message.content for message in messages)
-            assert config["thread_id"] == "layout-test"
-            assert config["metadata"]["delir_stream_visibility"] == "internal"
-            yield FakeChunk(
-                '{"strategy":"paper_main_path","tasks":["leggi il percorso","separa i ritorni"],'
-                '"rows":[["Start","Task_A","Task_B","End"]],"max_nodes_per_row":4,'
-                '"column_gap":340,"row_gap":220,"lane_row_height":220,"annotation_columns":3,'
-                '"rationale":"Percorso principale da sinistra a destra."}'
-            )
-
-    planner = build_canvas_layout_consultant_agent(FakeLLM())
-    result = planner(
-        {
-            "effective_bpmn_xml": xml,
-            "canvas_objective": "Rendi leggibile il canvas",
-        },
-        {"thread_id": "layout-test"},
-    )
-
-    assert result["canvas_layout_plan"]["tasks"] == ["leggi il percorso", "separa i ritorni"]
-    assert result["canvas_layout_plan"]["rows"] == [["Start", "Task_A", "Task_B", "End"]]
-    assert result["canvas_task_log"][0]["owner"] == "canvas_layout_consultant_agent"
+    planner = build_canvas_layout_consultant_agent(ForbiddenLLM())
+    result = planner({"effective_bpmn_xml": xml}, {})
+    assert result["canvas_layout_plan"] == {"policy": "delir-lr-v1"}
+    assert result["canvas_task_log"][0]["owner"] == "canvas_layout_policy"
 
 
 def test_canvas_drawing_agent_uses_layout_plan_without_hidden_retries(monkeypatch):
@@ -658,11 +636,11 @@ def test_canvas_drawing_agent_uses_layout_plan_without_hidden_retries(monkeypatc
 
     assert result["canvas_layout_status"] == "completed"
     assert result["canvas_task_log"][0]["status"] == "completed"
-    assert result["canvas_task_log"][0]["plan"]["rows"] == [["Start", "Task_A"], ["Task_B", "End"]]
+    assert result["canvas_task_log"][0]["plan"] == {"policy": "delir-lr-v1"}
     assert validate_bpmn_layout(saved["xml"])["valid"] is True
 
 
-def test_layout_bpmn_di_wraps_long_process_into_readable_rows():
+def test_layout_bpmn_di_keeps_long_happy_path_left_to_right():
     tasks = "\n".join(
         f'    <bpmn:userTask id="Task_{idx}" name="Attivita molto lunga numero {idx}">'
         f'<bpmn:incoming>Flow_{idx}</bpmn:incoming><bpmn:outgoing>Flow_{idx + 1}</bpmn:outgoing></bpmn:userTask>'
@@ -692,8 +670,9 @@ def test_layout_bpmn_di_wraps_long_process_into_readable_rows():
     bounds = result["metrics"]["bounds"]
 
     assert result["valid"] is True
-    assert bounds["width"] <= 1900
-    assert bounds["height"] > 400
+    assert bounds["width"] > 1900
+    assert bounds["height"] < 400
+    assert result["metrics"]["edge_shape_crossing_count"] == 0
 
 
 def test_optimize_bpmn_layout_executes_one_layout_plan():

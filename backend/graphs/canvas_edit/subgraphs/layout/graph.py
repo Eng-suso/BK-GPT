@@ -1,417 +1,79 @@
-import json
-from typing import Any
-
-from langchain_core.messages import HumanMessage, SystemMessage
+"""Product-owned drawing workflow. LLMs never choose geometry."""
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import START, END, StateGraph
-from pydantic import BaseModel, ConfigDict, Field
 
 from backend import workspace_database
+from backend.bpmn.canvas_layout import ENTERPRISE_POLICY
 from backend.graphs.canvas_edit.state import CanvasState
-from backend.llm_streaming import stream_to_text
-from backend.workspace_services.bpmn_canvas_edit import (
-    BpmnLayoutConfig,
-    clean_bpmn_visual_metadata_artifacts,
-    list_bpmn_elements,
-    optimize_bpmn_layout,
-    validate_bpmn_layout,
-)
-
+from backend.workspace_services.bpmn_canvas_edit import optimize_bpmn_layout
 
 LAYOUT_SUBGRAPH_CONTRACT = """
-Canvas Drawing/Layout subgraph contract.
-
-Own only the visual arrangement of the BPMN canvas through an explicit
-consultant layout plan: objective, task split, readable rows, then drawing. The
-drawing agent must not invent a hidden fallback layout when the consultant plan
-is missing or incomplete. Before layout, remove canvas-only annotation noise:
-free-text annotations and the association edges that dock to them. Keep the data
-perspective (data objects, data stores and their read/write associations): it is
-part of the operating view and must be laid out readably, docked to the
-activities that produce or consume it, without overlapping flow nodes or lanes.
-Handoffs, business rules, unknowns, evidence and traceability stay in
-BPMNSemanticModel/sourceProcessUnderstanding/compilationPlan, not on the canvas.
-Do not change process semantics, labels, ownership, sequence flow source/target
-or business meaning. A layout pass is successful only when BPMN flow nodes and
-data artifacts do not overlap, every shape has a visible position and the
-overall aspect ratio is readable. Sequence flows, message flows and labels are
-connectors or text, not overlapping elements.
-""".strip()
-
-
-class CanvasLayoutPlan(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    strategy: str = "consultant_paper"
-    tasks: list[str] = Field(default_factory=list)
-    rows: list[list[str]] = Field(default_factory=list)
-    max_nodes_per_row: int = Field(default=5, ge=3, le=6)
-    column_gap: int = Field(default=320, ge=260, le=390)
-    row_gap: int = Field(default=210, ge=180, le=280)
-    lane_row_height: int = Field(default=210, ge=180, le=280)
-    annotation_columns: int = Field(default=3, ge=2, le=5)
-    rationale: str = ""
-
-
-LAYOUT_CONSULTANT_PROMPT = """
-You are the BPMN canvas layout consultant for DeliR.
-Decide a readable drawing strategy like a senior process consultant sketching on
-paper, while respecting BPMN semantics. Return only JSON matching:
-{"strategy": "...", "tasks": ["..."], "rows": [["Start", "Task_A", "End"]],
-"max_nodes_per_row": 3-6, "column_gap": 260-390,
-"row_gap": 180-280, "lane_row_height": 180-280, "annotation_columns": 2-5,
-"rationale": "..."}
-
-Principles:
-- start events belong visually on the left;
-- end events should finish to the right of their row;
-- the main path reads left to right;
-- branches and retries may sit on lower rows;
-- put BPMN ids in rows, not labels;
-- include every visible BPMN flow node exactly once;
-- do not put sequence flows, message flows or labels in rows;
-- split the goal into concrete layout tasks before choosing rows;
-- keep the drawing readable without forcing a tiny zoom;
-- prefer fewer than six visible columns for dense enterprise canvases.
+All agent canvas writes use DeliR's mandatory CanvasLayoutPolicy. Agents request
+semantic changes only; no positions, dimensions, rows or routes are accepted.
+Normalization, graph ranks, real-owner lanes, orthogonal routing and visual lint
+run deterministically before BPMN DI is committed. Preserve semantic documents,
+annotations, evidence, conditions and source/target references. Manual consultant
+geometry is preserved and validated on its separate save path.
 """.strip()
 
 
 def _layout_xml_from_state(state: CanvasState) -> tuple[dict | None, str]:
-    """Retrieve the BPMN model and the XML available in the canvas state.
-    
-    Args:
-        state (CanvasState): Untrusted canvas state containing a BPMN model ID and
-            possible XML representations.
-    
-    Returns:
-        tuple[dict | None, str]: The stored BPMN model, if found, and the selected
-        XML content. The XML is an empty string when no usable representation exists.
-    
-    Side Effects:
-        Reads the BPMN model from the workspace database when the state contains a
-        model ID.
-    """
-    bpmn_model_id = state.get("bpmn_model_id")
-    model = workspace_database.get_bpmn_model(bpmn_model_id) if bpmn_model_id else None
+    model_id = state.get("bpmn_model_id")
+    model = workspace_database.get_bpmn_model(model_id) if model_id else None
     xml = (state.get("effective_bpmn_xml") or state.get("current_bpmn_xml") or (model or {}).get("xml") or "").strip()
     return model, xml
 
 
-def _extract_json_object(content: str) -> dict[str, Any]:
-    start = content.find("{")
-    end = content.rfind("}")
-    if start < 0 or end <= start:
-        return {}
-    try:
-        parsed = json.loads(content[start : end + 1])
-    except json.JSONDecodeError:
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
-def _plan_to_config(plan: dict | CanvasLayoutPlan | None) -> BpmnLayoutConfig | None:
-    if not plan:
-        return None
-    try:
-        parsed = plan if isinstance(plan, CanvasLayoutPlan) else CanvasLayoutPlan.model_validate(plan)
-    except Exception:
-        return None
-    return BpmnLayoutConfig(
-        max_nodes_per_row=parsed.max_nodes_per_row,
-        column_gap=parsed.column_gap,
-        row_gap=parsed.row_gap,
-        lane_row_height=parsed.lane_row_height,
-        annotation_columns=parsed.annotation_columns,
-    )
-
-
-def _planned_rows_from_plan(plan: dict | None) -> list[list[str]] | None:
-    if not plan:
-        return None
-    rows = plan.get("rows")
-    if not isinstance(rows, list):
-        return None
-    planned_rows = []
-    for row in rows:
-        if not isinstance(row, list):
-            continue
-        ids = [item for item in row if isinstance(item, str) and item.strip()]
-        if ids:
-            planned_rows.append(ids)
-    return planned_rows or None
-
-
-def build_canvas_layout_consultant_agent(llm):
-    """
-    Build a consultant agent that generates a validated BPMN canvas layout plan.
-    
-    The returned agent removes visual metadata before analysis, evaluates the current
-    layout, and requests a plan from the language model. It blocks the workflow when
-    the model or XML is unavailable or when the generated plan contains no explicit
-    drawing rows. It does not persist changes or modify the BPMN XML.
-    
-    Args:
-        llm: Untrusted language-model client used to generate the layout plan.
-    
-    Returns:
-        A callable that accepts canvas state and runtime configuration and returns
-        state updates containing the layout plan and task-log status.
-    """
-    def plan_canvas_layout(state: CanvasState, config: RunnableConfig) -> dict:
-        _model, xml = _layout_xml_from_state(state)
-        if not xml:
-            return {"canvas_layout_plan": None}
-
-        clean_xml, _clean_report = clean_bpmn_visual_metadata_artifacts(xml)
-        layout_report = validate_bpmn_layout(clean_xml)
-        elements = list_bpmn_elements(clean_xml)
-        visible_elements = [
-            {
-                "type": item.get("type"),
-                "name": item.get("name"),
-                "id": item.get("id"),
-            }
-            for item in elements
-            if item.get("type")
-            in {
-                "startEvent",
-                "endEvent",
-                "task",
-                "userTask",
-                "serviceTask",
-                "manualTask",
-                "exclusiveGateway",
-                "parallelGateway",
-                "inclusiveGateway",
-                "eventBasedGateway",
-                "lane",
-            }
-        ][:40]
-        prompt = {
-            "objective": state.get("canvas_objective") or state.get("goal") or "Rendere il canvas leggibile",
-            "current_layout": layout_report,
-            "visible_elements": visible_elements,
-            "constraints": {
-                "max_readable_width": 1900,
-                "left_to_right": True,
-                "start_left": True,
-                "end_right": True,
-                "avoid_tiny_zoom": True,
-            },
-        }
-        raw_plan = stream_to_text(
-            llm,
-            [
-                SystemMessage(content=LAYOUT_CONSULTANT_PROMPT),
-                HumanMessage(content=json.dumps(prompt, ensure_ascii=True)),
-            ],
-            config=config,
-        )
-        plan = CanvasLayoutPlan.model_validate(_extract_json_object(raw_plan)).model_dump(mode="json")
-        # No canned task list stands in for a plan the consultant agent did not
-        # produce: a fabricated task split would make an empty plan look deliberate
-        # in the task log while the rows below are what actually gets drawn.
-        if not plan["rows"]:
-            return {
-                "canvas_layout_plan": plan,
-                "canvas_layout_status": "blocked",
-                "canvas_loop_status": "blocked",
-                "blocking_conditions": ["Il layout consultant non ha prodotto righe di disegno esplicite."],
-                "canvas_task_log": [
-                    {
-                        "step": "layout_plan",
-                        "status": "blocked",
-                        "owner": "canvas_layout_consultant_agent",
-                        "summary": "Il piano layout non contiene righe esplicite da applicare.",
-                        "plan": plan,
-                    }
-                ],
-            }
+def build_canvas_layout_consultant_agent(llm=None):
+    """Compatibility node: select the system policy without invoking an LLM."""
+    def select_policy(state: CanvasState, config: RunnableConfig) -> dict:
         return {
-            "canvas_layout_plan": plan,
-            "canvas_task_log": [
-                {
-                    "step": "layout_plan",
-                    "status": "completed",
-                    "owner": "canvas_layout_consultant_agent",
-                    "summary": "Piano layout consulenziale preparato.",
-                    "plan": plan,
-                }
-            ],
+            "canvas_layout_plan": {"policy": ENTERPRISE_POLICY.version},
+            "canvas_task_log": [{"step": "layout_plan", "status": "completed",
+                                 "owner": "canvas_layout_policy", "summary": "Policy di disegno DeliR selezionata."}],
         }
-
-    return plan_canvas_layout
+    return select_policy
 
 
 def run_canvas_drawing_agent(state: CanvasState) -> dict:
-    """
-    Apply the planned BPMN canvas layout and persist the resulting model.
-    
-    Args:
-        state (CanvasState): Untrusted workflow state containing the model identifier,
-            effective BPMN XML, and validated consultant layout plan.
-    
-    Returns:
-        dict: Layout status, validation reports, task-log entry, blocking conditions,
-            and updated BPMN XML when drawing is attempted. The result is blocked
-            when prerequisites, planned rows, geometric validation, or persistence
-            fail.
-    
-    Raises:
-        ValueError: Not raised; layout optimization errors of this category are
-            converted into a blocked result.
-    
-    Side effects:
-        Removes visual annotation artifacts, runs layout optimization, and persists
-        the updated BPMN XML when a model identifier and effective XML are available.
-        The operation preserves the requirement that the consultant's planned rows
-        are explicitly provided and used.
-    """
-    if state.get("canvas_layout_status") == "blocked":
-        return {
-            "canvas_layout_status": "blocked",
-            "canvas_loop_status": "blocked",
-            "blocking_conditions": state.get("blocking_conditions") or [],
-            "canvas_task_log": [
-                {
-                    "step": "layout",
-                    "status": "blocked",
-                    "owner": "canvas_drawing_agent",
-                    "summary": "Disegno non eseguito per piano layout incompleto.",
-                }
-            ],
-        }
-
-    bpmn_model_id = state.get("bpmn_model_id")
-    if not bpmn_model_id:
-        return {
-            "canvas_layout_status": "blocked",
-            "canvas_loop_status": "blocked",
-            "blocking_conditions": ["Missing prerequisite: bpmn_model_id"],
-            "canvas_task_log": [
-                {
-                    "step": "layout",
-                    "status": "blocked",
-                    "owner": "layout_subgraph",
-                    "summary": "Impossibile disegnare il canvas: bpmn_model_id mancante.",
-                }
-            ],
-        }
-
+    model_id = state.get("bpmn_model_id")
     model, xml = _layout_xml_from_state(state)
-    if not model or not xml:
-        return {
-            "canvas_layout_status": "blocked",
-            "canvas_loop_status": "blocked",
-            "blocking_conditions": ["Missing prerequisite: effective_bpmn_xml"],
-            "canvas_task_log": [
-                {
-                    "step": "layout",
-                    "status": "blocked",
-                    "owner": "layout_subgraph",
-                    "summary": "Impossibile disegnare il canvas: XML BPMN mancante.",
-                }
-            ],
-        }
-
-    clean_xml, clean_report = clean_bpmn_visual_metadata_artifacts(xml)
-    layout_plan = state.get("canvas_layout_plan")
-    layout_config = _plan_to_config(layout_plan)
-    planned_rows = _planned_rows_from_plan(layout_plan)
-    if layout_config is None or planned_rows is None:
-        return {
-            "canvas_layout_status": "blocked",
-            "canvas_loop_status": "blocked",
-            "blocking_conditions": ["Missing prerequisite: canvas_layout_plan"],
-            "canvas_task_log": [
-                {
-                    "step": "layout",
-                    "status": "blocked",
-                    "owner": "canvas_drawing_agent",
-                    "summary": "Disegno non eseguito: manca un piano layout esplicito del consultant agent.",
-                }
-            ],
-        }
     try:
-        updated_xml, optimization = optimize_bpmn_layout(
-            clean_xml,
-            config=layout_config,
-            planned_rows=planned_rows,
-            require_planned_rows=True,
+        if not model_id or not model or not xml:
+            raise ValueError("Missing prerequisite: bpmn_model_id/effective_bpmn_xml")
+        updated_xml, optimization = optimize_bpmn_layout(xml)
+        report = optimization["selected_report"]
+        if not optimization["valid"]:
+            raise ValueError("; ".join(report["issues"]))
+        saved = workspace_database.update_bpmn_model(
+            model_id, updated_xml, change_summary="Layout BPMN aggiornato", source="canvas_layout_agent",
         )
+        if saved is None:
+            raise ValueError("Modello BPMN non disponibile per il salvataggio.")
     except ValueError as exc:
         return {
-            "canvas_layout_status": "blocked",
-            "canvas_loop_status": "blocked",
+            "canvas_layout_status": "blocked", "canvas_loop_status": "blocked",
             "blocking_conditions": [str(exc)],
-            "canvas_task_log": [
-                {
-                    "step": "layout",
-                    "status": "blocked",
-                    "owner": "canvas_drawing_agent",
-                    "summary": "Disegno non eseguito: il piano layout non e' applicabile.",
-                    "plan": layout_plan,
-                    "clean_report": clean_report,
-                }
-            ],
+            "canvas_task_log": [{"step": "layout", "status": "blocked", "owner": "layout_subgraph", "summary": str(exc)}],
         }
-    report = optimization.get("selected_report") or {}
-    status = "completed" if optimization.get("valid") else "blocked"
-    saved_model = workspace_database.update_bpmn_model(
-        bpmn_model_id,
-        updated_xml,
-        change_summary="Layout BPMN aggiornato",
-        source="canvas_layout_agent",
-    )
-    if saved_model is None:
-        status = "blocked"
-
+    actual_xml = saved["xml"]
     return {
-        "saved_bpmn_xml": updated_xml,
-        "effective_bpmn_xml": updated_xml,
-        "effective_bpmn_xml_source": "layout_subgraph",
-        "canvas_layout_status": status,
-        "canvas_layout_report": report,
-        "canvas_loop_status": "blocked" if status == "blocked" else state.get("canvas_loop_status"),
-        "blocking_conditions": (report.get("issues") or [])
-        if status == "blocked"
-        else (state.get("blocking_conditions") or []),
-        "canvas_task_log": [
-            {
-                "step": "layout",
-                "status": status,
-                "owner": "layout_subgraph",
-                "summary": "Canvas ridisegnato e validato per leggibilita'."
-                if status == "completed"
-                else "Il layout del canvas richiede intervento: la validazione geometrica non passa.",
-                "report": report,
-                "clean_report": clean_report,
-                "plan": layout_plan,
-            }
-        ],
+        "saved_bpmn_xml": actual_xml, "effective_bpmn_xml": actual_xml,
+        "effective_bpmn_xml_source": "layout_subgraph", "canvas_layout_status": "completed",
+        "canvas_layout_report": report, "canvas_loop_status": state.get("canvas_loop_status"),
+        "blocking_conditions": state.get("blocking_conditions") or [],
+        "canvas_task_log": [{"step": "layout", "status": "completed", "owner": "layout_subgraph",
+                             "summary": "Canvas ridisegnato e validato secondo la policy DeliR.",
+                             "report": report, "plan": {"policy": ENTERPRISE_POLICY.version}}],
     }
 
 
 def build_layout_subgraph(llm=None):
-    """
-    Build the canvas layout workflow with optional consultant planning.
-    
-    Args:
-        llm: Untrusted language model used to generate the consultant planning node.
-            When omitted, the workflow runs the drawing agent directly.
-    
-    Returns:
-        The compiled workflow that always executes the canvas drawing agent and
-        terminates after drawing.
-    """
+    """Keep the caller API; drawing always runs independently of LLM planning."""
     workflow = StateGraph(CanvasState)
-    if llm is not None:
-        workflow.add_node("canvas_layout_consultant_agent", build_canvas_layout_consultant_agent(llm))
+    workflow.add_node("canvas_layout_policy", build_canvas_layout_consultant_agent())
     workflow.add_node("canvas_drawing_agent", run_canvas_drawing_agent)
-    if llm is not None:
-        workflow.add_edge(START, "canvas_layout_consultant_agent")
-        workflow.add_edge("canvas_layout_consultant_agent", "canvas_drawing_agent")
-    else:
-        workflow.add_edge(START, "canvas_drawing_agent")
+    workflow.add_edge(START, "canvas_layout_policy")
+    workflow.add_edge("canvas_layout_policy", "canvas_drawing_agent")
     workflow.add_edge("canvas_drawing_agent", END)
     return workflow.compile()

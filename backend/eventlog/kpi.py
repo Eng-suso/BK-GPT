@@ -5,7 +5,8 @@ Prosimos), cosi' "cycle time" vuol dire la stessa cosa sui due lati del
 confronto. Cio' che un log reale non sa non diventa zero:
 
 - **abilitazione**: un log reale registra inizio e fine, non quando l'attivita'
-  e' diventata eseguibile. Si usa la fine dell'evento precedente dello stesso
+  e' diventata eseguibile (a meno che la colonna sia mappata, come nei log
+  simulati esportati). Altrimenti si usa la fine dell'evento precedente dello stesso
   caso (convenzione del process mining); il primo evento parte dal suo inizio;
 - **inizio mancante**: con solo il completamento l'attesa non si separa dalla
   lavorazione; l'evento parte dall'abilitazione e tutto il tempo e' lavorazione.
@@ -32,7 +33,10 @@ def to_log_events(log: EventLog) -> list[LogEvent]:
         for event in case_events:
             end = event.end.timestamp()
             start = event.start.timestamp() if event.start else None
-            enable = previous_end if previous_end is not None else (start if start is not None else end)
+            if event.enabled is not None:
+                enable = event.enabled.timestamp()
+            else:
+                enable = previous_end if previous_end is not None else (start if start is not None else end)
             if start is not None:
                 enable = min(enable, start)
             events.append(LogEvent(

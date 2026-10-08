@@ -1,4 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from typing import Literal
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 
 from backend.schemas.simulation import (
     CreateSimulationRunRequest,
@@ -19,7 +21,9 @@ from backend.security import get_current_tenant_id, require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.service import (
     SimulationCapacityError,
+    SimulationLogUnavailable,
     execute_simulation_run,
+    export_simulation_event_log,
     prepare_simulation_model_run,
     prepare_simulation_run,
     scenario_provenance_for_model,
@@ -206,3 +210,27 @@ def get_workspace_simulation_replay(run_id: int) -> SimulationReplayResponse:
         schema_version=artifact["schema_version"],
         replay=artifact["replay"],
     )
+
+
+@router.get("/simulation-runs/{run_id}/event-log")
+def export_workspace_simulation_event_log(
+    run_id: int,
+    format: Literal["csv", "xes"] = Query(default="csv"),
+) -> Response:
+    try:
+        export = export_simulation_event_log(run_id, format)
+    except SimulationLogUnavailable as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        # Un CSV del motore che non si legge: il run c'e', il suo log no.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="simulation-run-{run_id}.{export.file.extension}"',
+        "X-Content-SHA256": export.file.sha256,
+    }
+    if export.seed is not None:
+        headers["X-Simulation-Seed"] = str(export.seed)
+    if export.engine_version:
+        headers["X-Simulation-Engine-Version"] = str(export.engine_version)
+    return Response(content=export.file.content, media_type=export.file.media_type, headers=headers)
