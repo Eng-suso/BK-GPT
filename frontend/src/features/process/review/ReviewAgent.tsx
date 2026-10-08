@@ -38,7 +38,7 @@ export function ReviewAgent({ node, projectId, processId, processName, bpmnModel
   React.useLayoutEffect(() => {
     const stage = panel.current?.parentElement;
     if (!stage) return;
-    const observer = new ResizeObserver(() => { const edge = Number.parseFloat(getComputedStyle(panel.current!).right) || 16; setAvailable({ width: Math.max(1, stage.clientWidth - edge * 2), height: Math.max(1, stage.clientHeight - edge * 2) }); });
+    const observer = new ResizeObserver(() => { const style = getComputedStyle(panel.current!); const edge = Number.parseFloat(style.right) || 16; const bottom = Number.parseFloat(style.bottom) || 64; setAvailable({ width: Math.max(1, stage.clientWidth - edge * 2), height: Math.max(1, stage.clientHeight - edge - bottom) }); });
     observer.observe(stage); return () => observer.disconnect();
   }, []);
   const clamp = (next: { width: number; height: number }) => ({ width: Math.max(Math.min(280, available.width), Math.min(available.width, next.width)), height: Math.max(Math.min(320, available.height), Math.min(available.height, next.height)) });
