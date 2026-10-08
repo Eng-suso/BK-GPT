@@ -107,8 +107,29 @@ export const scenarioTemplateResourceSchema = z.object({
 });
 export type ScenarioTemplateResource = z.infer<typeof scenarioTemplateResourceSchema>;
 
+/** Le distribuzioni che Prosimos 2.1 esegue: niente triangolare, Weibull o Beta. */
+export const DISTRIBUTIONS = ["fixed", "expon", "uniform", "norm", "lognorm", "gamma"] as const;
+export type DistributionName = (typeof DISTRIBUTIONS)[number];
+
+export const WEEKDAYS = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+export const simCalendarSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  periods: z.array(z.object({
+    from_day: z.enum(WEEKDAYS),
+    to_day: z.enum(WEEKDAYS),
+    begin: z.string(),
+    end: z.string(),
+  })),
+});
+export type SimCalendar = z.infer<typeof simCalendarSchema>;
+
 export const scenarioTemplateSchema = z.object({
   resources: z.array(scenarioTemplateResourceSchema).optional(),
+  /** Il calendario di arrivi e risorse senza calendario proprio. */
+  standard_calendar: simCalendarSchema.nullable().optional(),
   tasks: z.array(
     z.object({ element_id: z.string(), name: z.string(), type: z.string() }),
   ),
@@ -199,13 +220,19 @@ export type SimResourceInput = {
   name: string;
   costPerHour: number;
   amount: number;
+  /** Assente = il calendario standard. */
+  calendarId?: string;
 };
 
 export type SimTaskInput = {
   elementId: string;
   meanSeconds: number;
-  distribution: "norm" | "expon" | "fixed";
+  distribution: DistributionName;
   resourceId: string | null;
+  /** Assenti = le assunzioni del backend (dev. std al 10%, limiti a ±3σ). */
+  stdSeconds?: number;
+  minSeconds?: number;
+  maxSeconds?: number;
 };
 
 export type SimGatewayInput = {
@@ -225,5 +252,6 @@ export type CreateSimulationRunInput = {
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];
+  calendars?: SimCalendar[];
   idempotencyKey?: string;
 };
