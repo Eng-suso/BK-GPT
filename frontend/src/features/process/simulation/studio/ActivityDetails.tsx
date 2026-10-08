@@ -10,7 +10,7 @@ import { formatCurrency, formatDuration } from "../simulationResults";
 import { useScenarioProvenance } from "../useInputConfidence";
 import { ProvenanceChip } from "../ProvenanceChip";
 import { provenanceTip } from "../simulationProvenance";
-import { activityParameters, hasTaskConfig } from "./activityParameters";
+import { activityParameters, formatParameterDuration, hasTaskConfig } from "./activityParameters";
 
 export function ActivityDetails({ engine, run, unavailable = false }: { engine: ReplayEngine; run: SimulationRun; unavailable?: boolean }): React.JSX.Element {
   const { t, i18n } = useTranslation("process");
@@ -56,9 +56,13 @@ function SimulatedParameters({ run, elementId, isActivity }: { run: SimulationRu
   return <section className="sim-activity-params" aria-label={title}>
     <h4>{title}</h4>
     <dl>
-      <div><dt>{t("simulation.activityInspector.duration")}</dt><dd>{formatDuration(params.meanSeconds, lang)}{params.usesDefault && <span className="sim-param-note">{t("simulation.activityInspector.defaultDuration")}</span>}</dd></div>
-      <div><dt>{t("simulation.activityInspector.distribution")}</dt><dd>{t(`simulation.config.dist.${params.distribution}`)}{params.stdShareOfMean != null && <span className="sim-param-note">{t("simulation.activityInspector.normalStd", { pct: Math.round(params.stdShareOfMean * 100) })}</span>}</dd></div>
+      <div><dt>{t("simulation.activityInspector.duration")}</dt><dd>{formatParameterDuration(params.meanSeconds, lang)}{params.usesDefault && <span className="sim-param-note">{t("simulation.activityInspector.defaultDuration")}</span>}</dd></div>
+      <div><dt>{t("simulation.activityInspector.distribution")}</dt><dd>{t(`simulation.config.dist.${params.distribution}`)}
+        {params.std && <span className="sim-param-note">{t(params.std.assumed ? "simulation.activityInspector.stdAssumed" : "simulation.activityInspector.std", { value: formatParameterDuration(params.std.seconds, lang) })}</span>}
+        {params.bounds && <span className="sim-param-note">{t("simulation.activityInspector.bounds", { min: formatParameterDuration(params.bounds.minSeconds, lang), max: formatParameterDuration(params.bounds.maxSeconds, lang) })}</span>}
+      </dd></div>
       {params.resource && <div><dt>{t("simulation.activityInspector.resource")}</dt><dd>{t("simulation.activityInspector.resourceValue", { name: params.resource.name, amount: params.resource.amount, cost: formatCurrency(params.resource.costPerHour, lang) })}</dd></div>}
+      {params.resource && <div><dt>{t("simulation.activityInspector.calendar")}</dt><dd>{params.resource.calendar ?? t("simulation.activityInspector.standardCalendar")}</dd></div>}
       <div><dt>{t("simulation.activityInspector.origin")}</dt><dd>
         {provenance.isLoading && !provenance.data
           ? <span className="sim-param-note" role="status">{t("simulation.activityInspector.provenanceLoading")}</span>

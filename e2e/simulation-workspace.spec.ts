@@ -906,7 +906,8 @@ test("activity inspector shows simulated parameters with origin and confidence",
 
   await page.getByLabel("Attività", { exact: true }).selectOption("B");
   await expect(params).toContainText("Normale");
-  await expect(params).toContainText("dev. std 10% della media");
+  await expect(params).toContainText("dev. std 1 min 30 s: 10% della media, assunzione fissa");
+  await expect(params).toContainText("standard, lun–ven 9–17");
   await expect(params).toContainText("durata di default dello scenario");
   await expect(params).toContainText("stimato");
   await expect(params).toContainText("confidenza media");
