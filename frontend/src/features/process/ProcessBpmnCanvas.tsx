@@ -25,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { onWorkspaceChanged } from "@/lib/workspaceEvents";
 import { provenanceKeys, useProcessProvenanceQuery } from "./api";
 import { EvidenceReviewPanel } from "./components/EvidenceReviewPanel";
+import { BpmnCanvasIdentity } from "./components/BpmnCanvasIdentity";
 
 type ProcessBpmnCanvasProps = {
   bpmnModelId: string;
@@ -214,7 +215,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         {elementsOpen && <BpmnElementNavigator elements={elements} selectedId={selectedElement?.id} isReady={isReady} onClose={closeElements} onSelect={(id) => { if (selectElement(id) && shellWidth < 820) closeElements(); }} />}
         <div className="process-bpmn-stage">
         <BpmnCreationTools tools={creationTools} isReady={isReady} onActivate={activateTool} />
-        <div className="process-bpmn-canvas" ref={containerRef}>
+        <div className={`process-bpmn-canvas ${coloursEnabled ? "delir-canvas--colours" : ""}`} ref={containerRef}>
+          <BpmnCanvasIdentity />
           {/* Un processo appena creato non ha un modello: prima il canvas
               apriva su un diagramma finto che nessuno aveva descritto. Qui la
               tela resta vuota e dice da dove si parte — la palette bpmn-js

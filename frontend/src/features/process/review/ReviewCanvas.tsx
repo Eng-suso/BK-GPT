@@ -7,6 +7,8 @@ import { Button } from "@/ui/button";
 import { InlineNotice } from "@/components/feedback/InlineNotice";
 import type { BpmnViewer } from "../simulation/canvas/bpmnViewer";
 import { fitCanvas } from "../bpmn/viewport";
+import { readCanvasElements } from "../bpmn/elements";
+import { BpmnCanvasIdentity } from "../components/BpmnCanvasIdentity";
 import type { ReviewNode } from "./reviewModel";
 
 import "bpmn-js/dist/assets/diagram-js.css";
@@ -71,8 +73,14 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
     instance.on("canvas.viewbox.changed", measure);
     const observer = new ResizeObserver(() => { canvas.resized(); measure(); });
     observer.observe(host.current);
-    void instance.importXML(xml).then(() => {
+    // TextRenderer measures once during import. Load the actual UI font first;
+    // replacing a fallback afterwards leaves incorrect wraps on phone browsers.
+    const font = `${tokens.getPropertyValue("--font-size-300").trim()} ${tokens.getPropertyValue("--font-family-geist").trim()}`;
+    void document.fonts.load(font).then(() => {
+      if (mounted) return instance.importXML(xml);
+    }).then(() => {
       if (!mounted) return;
+      readCanvasElements(instance);
       fitCanvas(instance); setReady(true); measure();
     }).catch(() => { if (mounted) setError(true); });
     return () => { mounted = false; observer.disconnect(); instance.destroy(); if (viewer.current === instance) viewer.current = null; };
@@ -89,7 +97,8 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
   }, [selected, upstream, downstream, documents, focusImpact, ready, measure]);
 
   const zoom = (delta: number) => { const canvas = viewer.current?.get("canvas") as CanvasService | undefined; if (canvas) canvas.zoom(Math.min(3, Math.max(0.2, canvas.zoom() + delta))); };
-  return <div className="review-canvas-stage">
+  return <div className="review-canvas-stage delir-canvas--colours">
+    <BpmnCanvasIdentity />
     <div ref={host} className="review-canvas" aria-label={t("review.canvasLabel")} />
     {error && <div className="review-canvas-error"><InlineNotice tone="error" title={t("review.diagramError")} action={<Button size="sm" variant="outline" onClick={() => setRetry(value => value + 1)}>{t("review.retry")}</Button>} /></div>}
     {ready && renderAgent?.(anchor)}

@@ -13,7 +13,7 @@ export function elementKind(type: string): ElementKind {
 }
 /** Read the current registry after every import/edit. Markers affect presentation,
  * never the XML or command stack, and explicit colours in imported DI take priority. */
-export function readCanvasElements(modeler: BpmnModeler): CanvasElement[] {
+export function readCanvasElements(modeler: Pick<BpmnModeler, "get">): CanvasElement[] {
   const registry = modeler.get("elementRegistry") as { getAll: () => RegistryShape[] };
   const canvas = modeler.get("canvas") as { addMarker: (id: string, marker: string) => void; removeMarker: (id: string, marker: string) => void };
   return registry.getAll().filter((el) => !el.labelTarget && el.type !== "label" && typeof el.x === "number").map((el) => {
