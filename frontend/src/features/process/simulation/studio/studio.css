@@ -429,3 +429,9 @@
 .sim-scene-move { opacity:0; pointer-events:none; }
 .sim-scene-object:hover > .sim-scene-move,.sim-scene-object:focus-within > .sim-scene-move { opacity:1; pointer-events:auto; }
 @media(forced-colors:active) { .sim-scene-move { opacity:1; pointer-events:auto; } }
+.sim-activity-params { padding-block:12px; border-top:1px solid var(--border); display:grid; gap:8px; }
+.sim-activity-params h4 { font-size:13px; font-weight:600; }
+.sim-activity-params dl { margin:0; }
+.sim-activity-params dl > div { gap:12px; align-items:baseline; }
+.sim-activity-params dd { text-align:right; min-width:0; overflow-wrap:anywhere; }
+.sim-param-note { display:block; font-size:11px; font-weight:400; color:var(--muted-foreground); }
