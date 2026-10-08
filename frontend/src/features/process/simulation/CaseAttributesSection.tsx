@@ -50,7 +50,7 @@ export function CaseAttributesSection({ attributes, usedBy, onChange }: {
                   size="icon"
                   variant="ghost"
                   disabled={inUse > 0}
-                  aria-label={`${t("simulation.config.removeAttribute")} ${attribute.name}`}
+                  aria-label={t("simulation.config.removeAttribute", { name: attribute.name })}
                   onClick={() => onChange(attributes.filter((a) => a.id !== attribute.id))}
                 >
                   <X aria-hidden className="size-4" />

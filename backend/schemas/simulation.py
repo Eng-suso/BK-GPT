@@ -2,6 +2,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from backend.simulation.ir.patch import ModelPatch
+
 
 SimulationRunStatus = Literal["pending", "completed", "failed"]
 # I nomi di Prosimos 2.1. Triangolare, Weibull e Beta non ci sono: il motore
@@ -81,9 +83,8 @@ class CreateSimulationRunRequest(BaseModel):
     gateways: list[SimGatewayConfig] | None = None
     # Cio' che i campi qui sopra non sanno dire (attributi del caso, rami per
     # regola, priorita'): una ``ModelPatch`` dell'IR applicata dopo la
-    # traduzione della richiesta. Resta un dict perche' l'IR importa questo
-    # modulo; la valida ``build_prosimos_scenario``.
-    model_patch: dict[str, Any] | None = None
+    # traduzione della richiesta e verificata di nuovo sul BPMN.
+    model_patch: ModelPatch | None = None
     # Optional client-supplied retry token. When absent the server derives a key
     # from the scenario inputs so a duplicate submit while a run is still
     # in flight returns the existing run instead of launching a second one.

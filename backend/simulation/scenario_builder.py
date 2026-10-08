@@ -18,7 +18,7 @@ from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
 from backend.simulation.ir.model import SimulationModel
-from backend.simulation.ir.patch import ModelPatch, apply_patch
+from backend.simulation.ir.patch import apply_patch
 from backend.simulation.models import BpmnFlow, BpmnGateway, BpmnTask, ProsimosScenario
 from backend.simulation.validation import validate_simulation_bpmn
 
@@ -59,7 +59,7 @@ def build_prosimos_scenario(
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     model = model_from_request(request, tasks, gateways)
     if request.model_patch:
-        model = apply_patch(model, ModelPatch.model_validate(request.model_patch))
+        model = apply_patch(model, request.model_patch)
         check_model_against_bpmn(model, tasks, gateways)
     return ProsimosScenario(
         payload=compile_for_prosimos(model),

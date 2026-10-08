@@ -70,6 +70,8 @@ export function ruleIssue(groups: BranchRuleDraft | undefined, attributes: CaseA
     if (!rule.value.trim()) return "incompleteRule";
     if (!operatorsFor(attribute).includes(rule.operator)) return "incompleteRule";
     if (attribute.kind === "number" && !NUMBER.test(rule.value.trim())) return "notANumber";
+    // Una categoria rinominata o tolta lascia la regola su un valore che nessun caso avra'.
+    if (attribute.kind === "category" && !attribute.categories.some((c) => c.value.trim() === rule.value.trim())) return "incompleteRule";
   }
   return null;
 }

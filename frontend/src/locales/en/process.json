@@ -260,7 +260,7 @@
       "attributes": "Case attributes",
       "attributesHint": "Every case gets them on arrival, with the given share. Rule-based decisions use them to pick a branch, and they appear in the simulated log.",
       "attributeName": "Attribute name",
-      "removeAttribute": "Remove attribute",
+      "removeAttribute": "Remove attribute {{name}}",
       "attributeInUse_one": "Used by {{count}} decision: remove it from the rule first.",
       "attributeInUse_other": "Used by {{count}} decisions: remove it from the rules first.",
       "attributeKind": "Kind of value",

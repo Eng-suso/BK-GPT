@@ -40,6 +40,8 @@ describe("branch rules", () => {
     expect(ruleIssue([[{ attributeId: "attr-2", operator: ">", value: "" }]], attrs)).toBe("incompleteRule");
     expect(ruleIssue([[{ attributeId: "attr-2", operator: ">", value: "tanto" }]], attrs)).toBe("notANumber");
     expect(ruleIssue([[{ attributeId: "attr-1", operator: ">", value: "premium" }]], attrs)).toBe("incompleteRule");
+    expect(ruleIssue([[{ attributeId: "attr-1", operator: "=", value: "gold" }]], attrs)).toBe("incompleteRule");
+    expect(ruleIssue([[{ attributeId: "attr-1", operator: "=", value: "premium" }]], attrs)).toBeNull();
     expect(ruleIssue([[{ attributeId: "gone", operator: "=", value: "x" }]], attrs)).toBe("unknownAttribute");
     expect(ruleIssue([[{ attributeId: "attr-2", operator: ">", value: "5000,5" }]], attrs)).toBeNull();
     expect(ruleIssue([[{ attributeId: "attr-2", operator: ">", value: "-12.5" }]], attrs)).toBeNull();
