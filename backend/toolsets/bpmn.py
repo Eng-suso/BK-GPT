@@ -290,7 +290,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
-            updated_xml=updated_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "add_element":
@@ -321,7 +321,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
-            updated_xml=updated_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "delete_element":
@@ -346,7 +346,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
-            updated_xml=updated_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "clear_canvas":
@@ -370,7 +370,7 @@ def manage_canvas_bpmn_model(
                 "validation": validate_bpmn_xml(updated_xml),
                 "xml_saved": True,
             },
-            updated_xml=updated_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "connect_elements":
@@ -401,7 +401,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
-            updated_xml=updated_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "reconnect_flow":
@@ -431,7 +431,7 @@ def manage_canvas_bpmn_model(
                 "change": change,
                 "xml_saved": True,
             },
-            updated_xml=updated_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "layout":
@@ -457,7 +457,7 @@ def manage_canvas_bpmn_model(
                 "layout_optimization": layout_optimization,
                 "xml_saved": True,
             },
-            updated_xml=updated_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "validate_layout":
@@ -990,7 +990,7 @@ def update_canvas_bpmn_element(
         name=name,
         documentation=documentation,
     )
-    model = workspace_database.update_bpmn_model(bpmn_model_id, updated_xml)
+    model = workspace_database.update_bpmn_model(bpmn_model_id, updated_xml, source="canvas_agent_update")
     if model is None:
         raise ValueError(f"Modello BPMN non trovato: {bpmn_model_id}")
 
