@@ -36,6 +36,7 @@ from backend.simulation.ir.model import (  # noqa: E402
     DiscreteOption,
     Exponential,
     Gateway,
+    LogNormal,
     Normal,
     PriorityRule,
     Resource,
@@ -90,7 +91,7 @@ def _model(*, busy: bool = False) -> SimulationModel:
     )
 
 
-def _run(model: SimulationModel, seed: int = 5) -> list[dict]:
+def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None) -> list[dict]:
     import numpy
     from prosimos.simulation_engine import run_simulation
 
@@ -98,7 +99,7 @@ def _run(model: SimulationModel, seed: int = 5) -> list[dict]:
     numpy.random.seed(seed)
     with tempfile.TemporaryDirectory() as tmp:
         scenario, log = Path(tmp) / "s.json", Path(tmp) / "log.csv"
-        scenario.write_text(json.dumps(compile_for_prosimos(model)))
+        scenario.write_text(json.dumps(payload if payload is not None else compile_for_prosimos(model)))
         run_simulation(str(contract_spike.BPMN_PATH), str(scenario), 200, None, str(log), contract_spike.START)
         return contract_spike.parse_log(log.read_text())
 
@@ -117,3 +118,22 @@ def test_resource_calendars_from_the_ir_are_respected():
 
 def test_priority_rules_from_the_ir_serve_premium_first():
     assert contract_spike.check_prioritisation(_run(_model(busy=True))) is None
+
+
+def test_a_run_from_the_v2_contract_keeps_calendars_lognormal_and_rules_on_the_engine():
+    # SIM-37, criterio d'uscita: lo scenario esce dal builder della richiesta v2
+    # (verifica sul BPMN compresa), non da `compile_for_prosimos` chiamato a mano.
+    from backend.simulation.scenario_builder import build_prosimos_scenario_from_model
+
+    base = _model()
+    approve = Activity(element_id="T_approve", assignments=(
+        Assignment(resource_id="appr", duration=LogNormal(mean=1500, variance=250000, minimum=300, maximum=6000)),))
+    model = base.model_copy(update={"activities": (base.activities[0], approve, base.activities[2])})
+    scenario = build_prosimos_scenario_from_model(
+        bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), model=model)
+
+    durations = {t["task_id"]: t["resources"][0]["distribution_name"] for t in scenario.payload["task_resource_distribution"]}
+    assert durations["T_approve"] == "lognorm"
+    rows = _run(model, payload=scenario.payload)
+    assert contract_spike.check_branch_rules(rows) is None
+    assert contract_spike.check_calendars(rows) is None

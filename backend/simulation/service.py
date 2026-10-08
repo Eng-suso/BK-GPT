@@ -9,6 +9,7 @@ from backend.eventlog.export import Exported, to_csv, to_xes
 from backend.eventlog.synthetic import from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import CreateSimulationRunRequest
+from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import get_current_tenant_id, set_current_tenant_id
 from backend.schemas.simulation import ScenarioProvenanceResponse, ScenarioTemplateResponse
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
@@ -20,8 +21,12 @@ from backend.simulation.log_processor import (
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
 from backend.simulation.result_parser import with_output_files
+from backend.simulation.ir.model import SimulationModel
+from backend.simulation.ir.patch import apply_patch
 from backend.simulation.scenario_builder import (
+    baseline_for_bpmn,
     build_prosimos_scenario,
+    build_prosimos_scenario_from_model,
     describe_scenario_template,
 )
 from backend.settings import settings
@@ -34,6 +39,9 @@ from backend.simulation.storage import (
     get_simulation_log_csv,
     get_simulation_run,
 )
+
+
+RunRequest = CreateSimulationRunRequest | CreateSimulationModelRunRequest
 
 
 class SimulationCapacityError(RuntimeError):
@@ -101,6 +109,81 @@ def scenario_provenance_for_model(
     )
 
 
+def simulation_model_for_bpmn(
+    *,
+    bpmn_model: BpmnModelResponse,
+    current_bpmn_xml: str | None,
+) -> SimulationModel:
+    """La baseline IR del processo, sugli id del BPMN che il run simulera'."""
+    bpmn_xml = (current_bpmn_xml or bpmn_model.xml or "").strip()
+    if not bpmn_xml:
+        raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
+    return baseline_for_bpmn(normalize_bpmn_for_prosimos(bpmn_xml), source_bpmn_xml=bpmn_xml)
+
+
+def prepare_simulation_model_run(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSimulationModelRunRequest,
+) -> tuple[dict, ProsimosScenario | None, str]:
+    """Come ``prepare_simulation_run``, per un run descritto dall'IR (SIM-37).
+
+    Il modello e' quello della richiesta, oppure la baseline del BPMN con la
+    patch applicata, oppure la baseline cosi' com'e'.
+    """
+    source_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
+    if not source_xml:
+        raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
+    bpmn_xml = normalize_bpmn_for_prosimos(source_xml)
+
+    if request.model is not None:
+        model = request.model
+    else:
+        model = baseline_for_bpmn(bpmn_xml, source_bpmn_xml=source_xml)
+        if request.patch is not None:
+            model = apply_patch(model, request.patch)
+
+    scenario = build_prosimos_scenario_from_model(bpmn_xml=bpmn_xml, model=model)
+    idempotency_key = request.idempotency_key or _derive_model_idempotency_key(
+        bpmn_model_id=bpmn_model.id,
+        bpmn_xml=bpmn_xml,
+        scenario=scenario,
+        request=request,
+    )
+    return _register_run(
+        bpmn_model=bpmn_model,
+        bpmn_xml=bpmn_xml,
+        scenario=scenario,
+        request=request,
+        idempotency_key=idempotency_key,
+    )
+
+
+def _derive_model_idempotency_key(
+    *,
+    bpmn_model_id: str,
+    bpmn_xml: str,
+    scenario: ProsimosScenario,
+    request: CreateSimulationModelRunRequest,
+) -> str:
+    # Lo scenario compilato contiene gia' tutto il modello: due richieste che
+    # arrivano allo stesso JSON (modello intero o patch) sono lo stesso run.
+    material = json.dumps(
+        {
+            "contract": "ir",
+            "bpmn_model_id": bpmn_model_id,
+            "bpmn_xml": bpmn_xml,
+            "scenario": scenario.payload,
+            "total_cases": request.total_cases,
+            "start_date": request.start_date,
+            "seed": request.seed,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 def prepare_simulation_run(
     *,
     bpmn_model: BpmnModelResponse,
@@ -128,7 +211,23 @@ def prepare_simulation_run(
         scenario=scenario,
         request=request,
     )
+    return _register_run(
+        bpmn_model=bpmn_model,
+        bpmn_xml=bpmn_xml,
+        scenario=scenario,
+        request=request,
+        idempotency_key=idempotency_key,
+    )
 
+
+def _register_run(
+    *,
+    bpmn_model: BpmnModelResponse,
+    bpmn_xml: str,
+    scenario: ProsimosScenario,
+    request: RunRequest,
+    idempotency_key: str,
+) -> tuple[dict, ProsimosScenario | None, str]:
     existing = find_active_run_by_key(
         bpmn_model_id=bpmn_model.id,
         idempotency_key=idempotency_key,
@@ -164,7 +263,7 @@ async def execute_simulation_run(
     tenant_id: str,
     bpmn_xml: str,
     scenario: ProsimosScenario,
-    request: CreateSimulationRunRequest,
+    request: RunRequest,
 ) -> dict:
     set_current_tenant_id(tenant_id)
     try:
