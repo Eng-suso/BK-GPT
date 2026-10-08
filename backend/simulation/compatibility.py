@@ -26,6 +26,7 @@ from backend.schemas.simulation import (
     CompatibilityStatus,
     KpiImpact,
 )
+from backend.schemas.workspace import BpmnModelResponse
 from backend.simulation.bpmn_normalizer import (
     _ACTIVITY_TAGS,
     _GATEWAY_REWRITE,
@@ -53,6 +54,16 @@ class _After:
 
     tags: dict[str, str]
     flows: dict[str, tuple[str, str]]
+
+
+def compatibility_report_for_model(
+    *, bpmn_model: BpmnModelResponse, current_bpmn_xml: str | None
+) -> BpmnCompatibilityResponse:
+    """Il report sul BPMN che il run userebbe: quello in modifica, o il salvato."""
+    bpmn_xml = (current_bpmn_xml or bpmn_model.xml or "").strip()
+    if not bpmn_xml:
+        raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
+    return bpmn_compatibility_report(bpmn_xml)
 
 
 def bpmn_compatibility_report(bpmn_xml: str) -> BpmnCompatibilityResponse:
