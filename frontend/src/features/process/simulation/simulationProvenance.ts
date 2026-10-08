@@ -163,7 +163,8 @@ export function activityProvenance(
   return { origin: "estimated", confidence: "medium", ...grounding };
 }
 
-function gatewayProvenance(
+/** Provenance of a gateway split: `touched` = moved off the even baseline. */
+export function gatewayProvenance(
   touched: boolean,
   el: ScenarioElementProvenance | undefined,
 ): FieldProvenance {
