@@ -42,6 +42,10 @@ describe("branch rules", () => {
     expect(ruleIssue([[{ attributeId: "attr-1", operator: ">", value: "premium" }]], attrs)).toBe("incompleteRule");
     expect(ruleIssue([[{ attributeId: "gone", operator: "=", value: "x" }]], attrs)).toBe("unknownAttribute");
     expect(ruleIssue([[{ attributeId: "attr-2", operator: ">", value: "5000,5" }]], attrs)).toBeNull();
+    expect(ruleIssue([[{ attributeId: "attr-2", operator: ">", value: "-12.5" }]], attrs)).toBeNull();
+    for (const value of ["0x10", "1e3", "Infinity", "5.000,00"]) {
+      expect(ruleIssue([[{ attributeId: "attr-2", operator: ">", value }]], attrs)).toBe("notANumber");
+    }
   });
 
   it("counts what blocks the run", () => {

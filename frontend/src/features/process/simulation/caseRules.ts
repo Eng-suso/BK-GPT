@@ -24,6 +24,9 @@ export type BranchRuleDraft = RuleDraft[][];
 /** flow_id -> gruppi di condizioni. Presente = la decisione instrada per regola. */
 export type GatewayRulesDraft = Record<string, BranchRuleDraft>;
 
+/** Un numero come lo scrive il consulente: segno facoltativo, virgola o punto decimale. */
+const NUMBER = /^-?\d+(?:[.,]\d+)?$/;
+
 export type AttributeIssue = "name" | "duplicateName" | "categories" | "categoryValue" | "categorySum" | "bounds";
 export type RuleIssue = "missingRule" | "incompleteRule" | "unknownAttribute" | "notANumber";
 
@@ -66,7 +69,7 @@ export function ruleIssue(groups: BranchRuleDraft | undefined, attributes: CaseA
     if (!attribute) return "unknownAttribute";
     if (!rule.value.trim()) return "incompleteRule";
     if (!operatorsFor(attribute).includes(rule.operator)) return "incompleteRule";
-    if (attribute.kind === "number" && !Number.isFinite(Number(rule.value.replace(",", ".")))) return "notANumber";
+    if (attribute.kind === "number" && !NUMBER.test(rule.value.trim())) return "notANumber";
   }
   return null;
 }

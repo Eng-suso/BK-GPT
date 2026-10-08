@@ -321,7 +321,8 @@
         "neq": "diverso da"
       },
       "ruleValue": "Valore per {{attribute}}",
-      "removeCondition": "Togli la condizione su {{attribute}}"
+      "removeCondition": "Togli la condizione su {{attribute}}",
+      "ruleChooseValue": "Scegli un valore"
     },
     "diagram": {
       "title": "Modello di processo",

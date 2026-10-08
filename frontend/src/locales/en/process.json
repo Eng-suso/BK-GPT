@@ -321,7 +321,8 @@
         "neq": "not equal to"
       },
       "ruleValue": "Value for {{attribute}}",
-      "removeCondition": "Remove the condition on {{attribute}}"
+      "removeCondition": "Remove the condition on {{attribute}}",
+      "ruleChooseValue": "Choose a value"
     },
     "diagram": {
       "title": "Process model",

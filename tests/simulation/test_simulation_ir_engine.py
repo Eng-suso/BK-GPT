@@ -139,20 +139,23 @@ def test_a_run_from_the_v2_contract_keeps_calendars_lognormal_and_rules_on_the_e
     assert contract_spike.check_calendars(rows) is None
 
 
+def _amount_rule(operator: str) -> dict:
+    return {"any_of": [[{"attribute": "importo", "operator": operator, "value": 5000}]]}
+
+
 def test_a_v1_run_with_a_model_patch_routes_by_the_consultant_rules():
     # A2-1: il pannello manda la richiesta v1 e, in `model_patch`, attributi e
     # rami per regola; sul motore i casi sopra soglia passano dall'approvazione.
     from backend.schemas.simulation import CreateSimulationRunRequest
     from backend.simulation.scenario_builder import build_prosimos_scenario
 
-    rule = lambda op: {"any_of": [[{"attribute": "importo", "operator": op, "value": 5000}]]}  # noqa: E731
     request = CreateSimulationRunRequest(
         tasks=[{"element_id": t, "mean_seconds": 600} for t in ("T_receive", "T_approve", "T_pay")],
         model_patch={
             "case_attributes": [{"name": "importo", "distribution": {"kind": "uniform", "minimum": 100, "maximum": 12000}}],
             "gateways": [{"element_id": "G_split", "branches": [
-                {"flow_id": "F_high", "probability": 0.5, "condition": rule(">")},
-                {"flow_id": "F_low", "probability": 0.5, "condition": rule("<=")},
+                {"flow_id": "F_high", "probability": 0.5, "condition": _amount_rule(">")},
+                {"flow_id": "F_low", "probability": 0.5, "condition": _amount_rule("<=")},
             ]}],
         },
     )

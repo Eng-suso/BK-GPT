@@ -170,7 +170,7 @@ function RuleRow({ rule, attributes, prefix, branchLabel, describedBy, onChange,
           value={rule.value}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
         >
-          {!attribute.categories.some((c) => c.value === rule.value) && <option value={rule.value}>{rule.value || "—"}</option>}
+          {!attribute.categories.some((c) => c.value === rule.value) && <option value={rule.value}>{rule.value || t("simulation.config.ruleChooseValue")}</option>}
           {attribute.categories.filter((c) => c.value.trim()).map((c) => <option key={c.value} value={c.value}>{c.value}</option>)}
         </select>
       ) : (
