@@ -26,6 +26,9 @@ class CanonicalEvent:
     activity: str
     end: datetime
     start: datetime | None = None
+    # Quando l'attivita' e' diventata eseguibile. Solo i log che lo registrano
+    # (quelli simulati) lo hanno; per gli altri lo ricava ``kpi.to_log_events``.
+    enabled: datetime | None = None
     resource: str | None = None
     role: str | None = None
     cost: float | None = None
