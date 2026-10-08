@@ -37,10 +37,10 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
     processes = root.findall(tag("process"))
     if not processes:
         raise ValueError("Il modello semantico non contiene un processo.")
-    for process in processes:
+    for process in [*processes, *root.iter(tag("subProcess"))]:
         if not process.get("id"):
             raise ValueError("Il processo deve avere un identificativo stabile.")
-        if process_name and not process.get("name"):
+        if process in processes and process_name and not process.get("name"):
             process.set("name", process_name)
         nodes = {e.get("id"): e for e in process if local_name(e) in FLOW_TYPES and e.tag.startswith("{" + BPMN + "}")}
         if None in nodes:
@@ -66,7 +66,8 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
                     node.insert(index, ref)
                     index += 1
         assigned: set[str] = set()
-        for lane in process.iter(tag("lane")):
+        lane_set = process.find(tag("laneSet"))
+        for lane in lane_set.iter(tag("lane")) if lane_set is not None else ():
             if not lane.get("id"):
                 raise ValueError("Una lane deve identificare un owner semantico esplicito.")
             refs = [ref.text for ref in lane.findall(tag("flowNodeRef"))]

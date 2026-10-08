@@ -550,8 +550,6 @@ def validate_bpmn_layout(xml: str) -> dict:
 
     diagram_bounds = _diagram_bounds(shapes)
     edge_count = sum(1 for element in root.iter() if _namespace(element.tag) == BPMNDI_NS and _local_name(element.tag) == "BPMNEdge")
-    if edge_count < len(list(_sequence_flows(root))):
-        issues.append("Alcuni collegamenti non hanno una linea disegnata.")
 
     from backend.bpmn.canvas_layout import lint_visual_model
     visual = lint_visual_model(root, manual=True)
@@ -745,6 +743,7 @@ def _edge_shape_crossings(
         and _local_name(element.tag) in {"sequenceFlow", "messageFlow", "association"}
         and element.attrib.get("id")
     }
+    descendants = {sub.attrib.get("id"): {e.attrib.get("id") for e in sub.iter() if e is not sub} for sub in root.iter(_bpmn_tag("subProcess"))}
     crossings: list[tuple[str, str]] = []
     for edge in root.iter():
         if _namespace(edge.tag) != BPMNDI_NS or _local_name(edge.tag) != "BPMNEdge":
@@ -762,7 +761,7 @@ def _edge_shape_crossings(
                 continue
         source_id, target_id = endpoints[edge_id]
         for node_id, bounds in node_shapes.items():
-            if node_id in {source_id, target_id}:
+            if node_id in {source_id, target_id} or {source_id, target_id}.issubset(descendants.get(node_id, set())):
                 continue
             if any(_segment_crosses_box(start, end, bounds) for start, end in pairwise(points)):
                 crossings.append((edge_id, node_id))

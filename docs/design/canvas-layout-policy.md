@@ -28,6 +28,8 @@ control output; they are absent from the agent tool schemas.
   final rank; feedback loops use return channels.
 - Lane order follows first involvement. Ties use incoming flow IDs and lane IDs.
   Simultaneous branches share a rank and symmetric vertical tracks before joins.
+- Subprocess internals remain semantic authority; the agent policy renders the
+  subprocess collapsed. Manual expanded subprocess DI is preserved and validated.
 - Task sizes and spacing come from the frozen product policy. Artifact space and
   boundary attachments follow semantic relationships.
 - Deterministic orthogonal routing avoids nodes and labels. Candidate routes and
@@ -67,3 +69,5 @@ language request will produce correct business semantics.
 ![Three real-owner lanes](process-review/enterprise-layout-proposal.png)
 
 ![Actual Review tool proposal](process-review/engine-proposal-desktop.png)
+
+![Mobile viewport](process-review/enterprise-layout-mobile.png)

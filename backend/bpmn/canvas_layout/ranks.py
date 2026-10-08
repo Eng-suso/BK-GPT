@@ -55,7 +55,8 @@ def rank_process(process, nodes: dict) -> tuple[dict[str, int], set[str], dict[s
             if degree[target] == 0:
                 ready.append(target)
     connected = {ref for flow in flows for ref in (flow.get("sourceRef"), flow.get("targetRef"))}
-    owners = {ref.text: lane.get("id", "") for lane in process.iter(tag("lane")) for ref in lane.findall(tag("flowNodeRef"))}
+    lane_set = process.find(tag("laneSet"))
+    owners = {ref.text: lane.get("id", "") for lane in lane_set.iter(tag("lane")) for ref in lane.findall(tag("flowNodeRef"))} if lane_set is not None else {}
     isolated = sorted((i for i in nodes if i not in connected and local_name(nodes[i]) not in {"boundaryEvent", "startEvent", "endEvent"}), key=lambda i: (owners.get(i, ""), i))
     for index, node_id in enumerate(isolated):
         ranks[node_id] = index

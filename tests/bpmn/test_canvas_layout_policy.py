@@ -135,3 +135,18 @@ def test_multiple_participants_cannot_claim_the_same_process():
     xml = semantic(LINEAR, LINEAR_FLOWS).replace('</b:definitions>', '<b:collaboration id="collab"><b:participant id="one" processRef="process"/><b:participant id="two" processRef="process"/></b:collaboration></b:definitions>')
     with pytest.raises(ValueError, match="participant"):
         apply_enterprise_layout(xml)
+
+
+def test_collapsed_subprocess_preserves_and_validates_internal_semantics_without_internal_di():
+    xml = semantic(LINEAR, LINEAR_FLOWS).replace('<b:userTask id="verify" name="Verificare dati"/>', '<b:subProcess id="verify" name="Verificare dati"><b:startEvent id="innerStart"/><b:userTask id="innerCheck"/><b:endEvent id="innerEnd"/><b:sequenceFlow id="inner1" sourceRef="innerStart" targetRef="innerCheck"/><b:sequenceFlow id="inner2" sourceRef="innerCheck" targetRef="innerEnd"/></b:subProcess>')
+    laid_out = apply_enterprise_layout(xml)
+    root = ET.fromstring(laid_out)
+    assert root.find(".//b:sequenceFlow[@id='inner2']", NS).get("targetRef") == "innerEnd"
+    assert root.find(".//bd:BPMNShape[@bpmnElement='verify']", NS).get("isExpanded") == "false"
+    assert root.find(".//bd:BPMNShape[@bpmnElement='innerCheck']", NS) is None
+    assert root.find(".//bd:BPMNEdge[@bpmnElement='inner1']", NS) is None
+    from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_layout
+    assert validate_bpmn_layout(laid_out)["valid"]
+    assert apply_enterprise_layout(laid_out) == laid_out
+    with pytest.raises(ValueError, match="inner2"):
+        apply_enterprise_layout(xml.replace('targetRef="innerEnd"', 'targetRef="missing"'))

@@ -333,7 +333,7 @@ test("avatar opens on demand and chat resizing persists across tasks", async ({ 
 
 
 test("enterprise policy diagram renders real-owner lanes, process pool and branch labels", async ({ page }, info) => {
-  await page.setViewportSize({ width: 1600, height: 1000 });
+  if (!info.project.name.startsWith("mobile-")) await page.setViewportSize({ width: 1600, height: 1000 });
   await fixture(page, { enterpriseDiagram: true });
   await open(page); await selectTask(page); await openAgent(page);
   await send(page, "Disegna la proposta di acquisto con owner e condizioni espliciti.");

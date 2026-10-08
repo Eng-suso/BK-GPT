@@ -348,3 +348,42 @@ def test_missing_manual_connector_coordinate_returns_validation_error(process):
     with pytest.raises(ValueError, match="non valido"):
         db.update_bpmn_model(f"b-{process}", ET.tostring(root, encoding="unicode"))
     assert db.get_bpmn_model(f"b-{process}")["xml"] == XML
+
+
+def test_manual_expanded_subprocess_is_preserved_and_agent_policy_collapses_only_its_di(process):
+    from backend import workspace_database as db
+    from backend.agents.chat_mode import bind_active_mode
+    import xml.etree.ElementTree as ET
+    b = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"
+    bd = "{http://www.omg.org/spec/BPMN/20100524/DI}"
+    dc = "{http://www.omg.org/spec/DD/20100524/DC}"
+    root = ET.fromstring(XML)
+    host = root.find(f".//{b}userTask[@id='verify']")
+    host.tag = b + "subProcess"
+    ET.SubElement(host, b + "startEvent", {"id": "internalStart"})
+    ET.SubElement(host, b + "userTask", {"id": "internal"})
+    ET.SubElement(host, b + "sequenceFlow", {"id": "internalFlow", "sourceRef": "internalStart", "targetRef": "internal"})
+    host_shape = root.find(f".//{bd}BPMNShape[@bpmnElement='verify']")
+    host_shape.set("isExpanded", "true")
+    bounds = host_shape.find(dc + "Bounds")
+    shape = ET.SubElement(root.find(f".//{bd}BPMNPlane"), bd + "BPMNShape", {"id": "internal_di", "bpmnElement": "internal"})
+    ET.SubElement(shape, dc + "Bounds", {"x": str(float(bounds.get("x")) + 20), "y": str(float(bounds.get("y")) + 20), "width": "100", "height": "40"})
+    inner_bounds = shape.find(dc + "Bounds")
+    inner_bounds.set("x", str(float(bounds.get("x")) + 68))
+    inner_bounds.set("y", str(float(bounds.get("y")) + 22))
+    inner_bounds.set("width", "60")
+    inner_bounds.set("height", "36")
+    start_shape = ET.SubElement(root.find(f".//{bd}BPMNPlane"), bd + "BPMNShape", {"id": "internalStart_di", "bpmnElement": "internalStart"})
+    ET.SubElement(start_shape, dc + "Bounds", {"x": str(float(bounds.get("x")) + 20), "y": str(float(bounds.get("y")) + 22), "width": "36", "height": "36"})
+    edge = ET.SubElement(root.find(f".//{bd}BPMNPlane"), bd + "BPMNEdge", {"id": "internalFlow_di", "bpmnElement": "internalFlow"})
+    for offset in (56, 68):
+        ET.SubElement(edge, "{http://www.omg.org/spec/DD/20100524/DI}waypoint", {"x": str(float(bounds.get("x")) + offset), "y": str(float(bounds.get("y")) + 40)})
+    xml = ET.tostring(root, encoding="unicode")
+    model_id = f"b-{process}"
+    assert db.update_bpmn_model(model_id, xml)["xml"] == xml
+    with bind_active_mode("agent"):
+        actual = db.update_bpmn_model(model_id, xml)["xml"]
+    regenerated = ET.fromstring(actual)
+    assert regenerated.find(f".//{b}userTask[@id='internal']") is not None
+    assert regenerated.find(f".//{bd}BPMNShape[@bpmnElement='internal']") is None
+    assert regenerated.find(f".//{bd}BPMNShape[@bpmnElement='verify']").get("isExpanded") == "false"

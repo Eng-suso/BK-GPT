@@ -38,7 +38,9 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
                 labels[ref] = label_box
             except ValueError:
                 issues.append(f"Bounds etichetta non validi: {ref}.")
-    hidden = {e.get("id") for sub in root.iter(tag("subProcess")) for e in sub.iter() if e is not sub}
+    descendants = {sub.get("id"): {e.get("id") for e in sub.iter() if e is not sub} for sub in root.iter(tag("subProcess"))}
+    expanded = {s.get("bpmnElement") for s in root.iter(f"{{{BPMNDI}}}BPMNShape") if s.get("isExpanded") == "true"}
+    hidden = {ref for sub_id, refs in descendants.items() if sub_id not in expanded for ref in refs}
     for ref, element in elements.items():
         if ref in hidden:
             continue
@@ -57,6 +59,8 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
                 issues.append(f"Etichetta flusso non valida: {edge.get('bpmnElement')}.")
     for (left, a), (right, b) in combinations(visible.items(), 2):
         if elements[left].get("attachedToRef") == right or elements[right].get("attachedToRef") == left:
+            continue
+        if right in descendants.get(left, set()) and _contains(a, b) or left in descendants.get(right, set()) and _contains(b, a):
             continue
         if _overlap(a, b):
             issues.append(f"Elementi sovrapposti: {left}, {right}.")
@@ -107,7 +111,7 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
         if semantic is not None and local_name(semantic) == "sequenceFlow":
             source, target = semantic.get("sourceRef"), semantic.get("targetRef")
             for node_id, box in visible.items():
-                if node_id in {source, target}:
+                if node_id in {source, target} or {source, target}.issubset(descendants.get(node_id, set())):
                     continue
                 if any(segment_hits_box(a, b, box) for a, b in pairwise(points)):
                     issues.append(f"Il flusso {ref} attraversa {node_id}.")

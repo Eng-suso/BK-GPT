@@ -34,6 +34,11 @@ def semantic_connections(root):
     nodes = {e.get("id") for e in root.iter() if local_name(e) in FLOW_TYPES and e.tag.startswith("{" + BPMN + "}")}
     result = []
     for e in root.iter():
+        ancestor = parents.get(e)
+        while ancestor is not None and ancestor.tag != tag("subProcess"):
+            ancestor = parents.get(ancestor)
+        if ancestor is not None:
+            continue  # Internal semantics survive; collapsed children have no DI.
         kind = local_name(e)
         if kind in {"sequenceFlow", "association", "messageFlow"} and e.get("id"):
             result.append((e, e.get("sourceRef"), e.get("targetRef")))
@@ -63,7 +68,8 @@ def layout_process(process, top: float, connections):
     for node_id in ordinary:
         if local_name(ordinary[node_id]) == "endEvent":
             ranks[node_id] = terminal
-    lanes = list(process.iter(tag("lane")))
+    lane_set = process.find(tag("laneSet"))
+    lanes = list(lane_set.iter(tag("lane"))) if lane_set is not None else []
     owner = {ref.text: lane.get("id") for lane in lanes for ref in lane.findall(tag("flowNodeRef"))}
     # Event/gateway placement may inherit a neighboring visual band. This does
     # not assign ownership or create flowNodeRefs in the semantic model.
