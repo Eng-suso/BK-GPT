@@ -129,6 +129,46 @@ class ScenarioTemplateResponse(BaseModel):
     standard_calendar: SimCalendarConfig | None = None
 
 
+# --- Compatibilita' del BPMN con il motore (SIM-05) ---------------------------
+
+CompatibilityStatus = Literal["preserved", "approximated", "flattened", "removed"]
+KpiImpact = Literal["none", "low", "medium", "high"]
+
+
+class BpmnCompatibilityRequest(BaseModel):
+    current_bpmn_xml: str | None = None
+
+
+class BpmnElementCompatibility(BaseModel):
+    """Che cosa il normalizer ha fatto di un elemento del BPMN del consulente."""
+
+    element_id: str
+    name: str = ""
+    bpmn_type: str
+    status: CompatibilityStatus
+    impact: KpiImpact
+    # Come il motore vede l'elemento: il tipo dopo la normalizzazione, oppure
+    # l'elemento che lo assorbe (sottoprocesso, evento di inizio superstite).
+    simulated_as: str | None = None
+    # Il sottoprocesso che contiene l'elemento, quando e' stato appiattito.
+    parent_id: str | None = None
+    note: str = ""
+
+
+class BpmnCompatibilityResponse(BaseModel):
+    """Ogni elemento del BPMN, con lo stato dopo la normalizzazione.
+
+    ``undeclared`` conta gli elementi che il normalizer ha cambiato senza una
+    voce nel report: deve essere sempre zero, e un test lo controlla.
+    """
+
+    elements: list[BpmnElementCompatibility] = Field(default_factory=list)
+    counts: dict[CompatibilityStatus, int] = Field(default_factory=dict)
+    # Elementi non preservati che spostano i KPI (impatto diverso da "none").
+    kpi_affecting: int = 0
+    undeclared: int = 0
+
+
 class SimulationRunResponse(BaseModel):
     id: int
     bpmn_model_id: str
