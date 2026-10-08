@@ -4,6 +4,10 @@ Agents edit process meaning. DeliR owns diagram geometry.
 
 `Agent → semantic BPMN → normalizer → graph/lane layout → visual lint → regenerated BPMN DI → bpmn-js`
 
+The current grammar is `delir-compact-v2`; density, product identity, rendered
+text checks and the limits of the NLP quality claim are documented in
+[Compact DeliR canvas](delir-canvas-identity.md).
+
 The entrypoint is `backend.bpmn.canvas_layout.apply_enterprise_layout`. Compilers,
 canvas editing helpers, construction tools, the drawing subgraph and Review
 proposals use it. A second guard at model persistence checks the runtime actor:
