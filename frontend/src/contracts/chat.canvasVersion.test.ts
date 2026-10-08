@@ -28,3 +28,11 @@ describe("toApiChatScope (canvas)", () => {
     expect(api).not.toHaveProperty("current_bpmn_version_id");
   });
 });
+
+describe("task review scope", () => {
+  it("keeps the review target when creating a persistent session", () => {
+    const api = toApiChatScope({ ...SCOPE, reviewNodeId: "verify", reviewBaseRevision: "a".repeat(64) }, { includeTransient: false });
+    expect(api).toMatchObject({ review_node_id: "verify", review_base_revision: "a".repeat(64) });
+    expect(api).not.toHaveProperty("current_bpmn_xml");
+  });
+});

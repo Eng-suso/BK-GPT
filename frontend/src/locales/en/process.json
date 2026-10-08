@@ -303,15 +303,43 @@
       "completed": "Completed",
       "failed": "Failed"
     },
+    "activityInspector": {
+      "title": "Simulated parameters",
+      "duration": "Mean duration",
+      "defaultDuration": "scenario default duration",
+      "distribution": "Distribution",
+      "stdAssumed": "std. dev. {{value}}: 10% of the mean, fixed assumption",
+      "std": "std. dev. {{value}}",
+      "bounds": "between {{min}} and {{max}}",
+      "calendar": "Calendar",
+      "standardCalendar": "standard, Mon–Fri 9–17",
+      "resource": "Resource",
+      "resourceValue": "{{name}} × {{amount}} · {{cost}}/h",
+      "origin": "Origin",
+      "confidence": "{{level}} confidence",
+      "provenanceLoading": "Loading provenance",
+      "provenanceError": "Provenance unavailable: the value has no origin.",
+      "notActivity": "Select an activity: decisions and events have no duration or resource."
+    },
     "provenance": {
       "label": "Source",
       "sourceLabel": "Source: {{source}} · {{confidence}} confidence",
       "source": {
-        "interview": "from interview",
-        "confirmed": "confirmed",
-        "inferred": "inferred",
+        "observed": "observed",
+        "inferred": "inferred from data",
+        "declared": "declared",
         "estimated": "estimated",
+        "manual": "entered",
         "default": "default"
+      },
+      "sourcesTitle": "Sources",
+      "sourceKind": {
+        "interview": "interview",
+        "claim": "claim",
+        "source": "client source",
+        "event_log": "event log",
+        "document": "document",
+        "user": "consultant"
       },
       "confidence": {
         "high": "high",
@@ -1055,7 +1083,7 @@
     "focusImpact": "Impact scope",
     "processFindings": "Process findings",
     "refresh": "Refresh review",
-    "hypotheses": "To-Be hypotheses",
+    "hypotheses": "Proposals",
     "inspector": "Task analysis",
     "closeInspector": "Close task analysis",
     "loading": "Loading review",
@@ -1073,10 +1101,10 @@
     "readOnlyTask": "Review actions keep the As-Is unchanged.",
     "detailTabs": "Review details",
     "tab": {
-      "overview": "Overview",
+      "overview": "Knowledge",
       "evidence": "Evidence",
       "impacts": "Impacts",
-      "actions": "Actions"
+      "actions": "Proposals"
     },
     "field": {
       "owner": "Owner",
@@ -1105,27 +1133,32 @@
     "action": {
       "candidate": "Propose change",
       "clarification": "Ask for clarification",
-      "deferred": "Ignore for now"
+      "deferred": "Ignore for now",
+      "as_is_proposal": "As-Is proposal"
     },
     "actionDescription": {
       "candidate": "Create a To-Be hypothesis for “{{name}}”. The As-Is diagram remains unchanged.",
       "clarification": "Record a question for “{{name}}” in the review log. The owner still needs to be asked.",
-      "deferred": "Defer the verification of “{{name}}” and record why. Evidence remains visible."
+      "deferred": "Defer the verification of “{{name}}” and record why. Evidence remains visible.",
+      "as_is_proposal": "Record a correction to the As-Is representation of “{{name}}” for separate presentation."
     },
     "defaultTitle": {
       "clarification": "Clarification: {{name}}",
-      "deferred": "Deferred verification: {{name}}"
+      "deferred": "Deferred verification: {{name}}",
+      "as_is_proposal": "Review of {{name}}"
     },
     "proposalTitle": "Title",
     "detailLabel": {
       "candidate": "Proposed change and impacts to verify",
       "clarification": "Question for the owner",
-      "deferred": "Reason for deferral"
+      "deferred": "Reason for deferral",
+      "as_is_proposal": "Proposed correction, rationale and evidence to verify"
     },
     "detailPlaceholder": {
       "candidate": "Describe what to change, why and which dependencies to verify…",
       "clarification": "What information is needed to decide?",
-      "deferred": "Why defer and when should verification resume?"
+      "deferred": "Why defer and when should verification resume?",
+      "as_is_proposal": "Proposed correction, rationale and evidence to verify"
     },
     "cancel": "Cancel",
     "saveAction": "Record action",
@@ -1152,12 +1185,13 @@
     "performanceTitle": "Timing, bottlenecks and simulation",
     "performanceDescription": "No timing change has been calculated in this review. An estimate requires a scenario, validated parameters and a simulation run. Check responsibilities of linked tasks too.",
     "openSimulation": "Open simulation",
-    "actionsDescription": "Hypotheses, questions and deferrals recorded for this task. A proposal does not change the model.",
+    "actionsDescription": "As-Is corrections, To-Be proposals and clarifications for this task. Open a diagram to compare it with the original.",
     "noActions": "No actions recorded.",
     "kind": {
       "candidate": "To-Be hypothesis",
       "clarification": "Clarification to request",
-      "deferred": "Deferred verification"
+      "deferred": "Deferred verification",
+      "as_is_proposal": "As-Is proposal"
     },
     "hypothesesTitle": "Candidate To-Be changes",
     "toBeEyebrow": "As-Is describes · Review interprets · To-Be transforms",
@@ -1201,11 +1235,79 @@
       "output": "Define the document or outcome to deliver and its acceptance criteria.",
       "evidence": "Verify the source with the owner before using this activity as the basis of a proposal."
     },
-    "proposalBoard": "Proposal register",
-    "proposalBoardDescription": "Changes collected during review, ready for discussion with the owners.",
+    "proposalBoard": "Proposals for discussion",
+    "proposalBoardDescription": "As-Is corrections and To-Be hypotheses, with rationale and diagrams separate from the original process.",
     "pendingDecision": "To evaluate",
     "openTask": "Review task",
     "candidateTaskCount_one": "{{count}} affected task",
-    "candidateTaskCount_other": "{{count}} affected tasks"
+    "candidateTaskCount_other": "{{count}} affected tasks",
+    "agent": {
+      "open": "Open DeliR agent",
+      "close": "Close DeliR chat",
+      "title": "Review agent",
+      "invite": "Let’s work on the process",
+      "chooseTitle": "Choose a task, then let’s talk",
+      "chooseDescription": "Select an activity on the canvas. I can read evidence, offer an opinion and work with you on As-Is and To-Be proposals.",
+      "chooseTask": "Choose task",
+      "details": "Open task knowledge and proposals",
+      "contextBound": "Task and evidence connected",
+      "simulation": "Simulation",
+      "conversation": "Review conversation",
+      "welcome": "Let’s work on “{{name}}”.",
+      "welcomeDetail": "I read the process and its evidence, compare alternatives and prepare proposal diagrams. Where shall we start?",
+      "shortcut": {
+        "understand": "What we know about this task",
+        "issues": "Issues and missing information",
+        "opinion": "Your opinion on this task",
+        "alternatives": "Changes you would suggest",
+        "evidence": "Check evidence and contradictions",
+        "handoffs": "Analyze dependencies and handoffs",
+        "controls": "Evaluate rules and controls",
+        "automation": "Explore automation",
+        "questions": "Prepare questions for the owner",
+        "simulation": "Read simulation results",
+        "asIs": "Revise a separate As-Is proposal",
+        "toBe": "Draw a To-Be proposal"
+      },
+      "prompt": {
+        "understand": "Explain what you know about this task: owner, inputs, outputs, rules and evidence. Separate documented facts from missing information.",
+        "issues": "Analyze issues, missing information and contradictions for the selected task and its dependencies.",
+        "opinion": "Read the context and give your opinion on this task: what works, what concerns you and what you would investigate. Explain your judgment without modifying the process.",
+        "alternatives": "What changes would you suggest for this task? Compare alternatives, upstream and downstream effects, risks and validation needs without saving changes.",
+        "evidence": "Check this task’s sources: quotations, consistent claims and contradictions. Identify unsupported information.",
+        "handoffs": "Analyze handoffs, responsibilities and dependencies. Which upstream and downstream activities and documents would a change affect?",
+        "controls": "Evaluate rules, controls and exceptions for this task. Which controls could a simplification remove?",
+        "automation": "Compare automation options: prerequisites, limits, human involvement and validation. Do not invent savings.",
+        "questions": "Prepare targeted questions for the task owner based on actual information gaps, ordered by priority.",
+        "simulation": "Read recorded simulations for this process and explain what they tell us about this task. If results or parameters are missing, explain what is needed.",
+        "asIs": "I want to correct the current representation of this task in a separate As-Is proposal for presentation. Read the context and identify evidence-supported corrections and questions to resolve before drawing the proposal.",
+        "toBe": "I want a To-Be proposal for this task. Compare alternatives and explain your recommendation, impacts and assumptions to validate before drawing a separate version."
+      },
+      "you": "You",
+      "assistant": "DeliR",
+      "asIs": "As-Is proposal",
+      "toBe": "To-Be proposal",
+      "saveHypothesis": "Save as hypothesis",
+      "thinking": "Examining the process…",
+      "answerReady": "DeliR’s answer is available",
+      "error": "The answer could not be completed",
+      "historyError": "History is temporarily unavailable",
+      "explore": "Explore",
+      "enterHint": "Enter to send · ⇧ for a new line",
+      "input": "Write to the Review agent",
+      "placeholder": "Ask for an opinion, check evidence, describe a change…",
+      "stop": "Stop response",
+      "send": "Send message",
+      "proposalFor": "Review of {{name}}",
+      "draftTrimmed": "The answer exceeds 4,000 characters: review and complete the draft before saving.",
+      "askOpinion": "Ask DeliR’s opinion",
+      "preview": "Open diagram",
+      "separateProposal": "A separate version for presentation and discussion. The original As-Is remains the reference.",
+      "baseline": "Original As-Is",
+      "download": "Download BPMN",
+      "workTogether": "Work with DeliR",
+      "resize": "Resize DeliR chat",
+      "resizeHint": "Drag the corner; arrow keys to resize, Home to reset"
+    }
   }
 }

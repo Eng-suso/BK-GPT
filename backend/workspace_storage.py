@@ -114,7 +114,7 @@ class WorkspaceImpactReviewAction(WorkspaceBase):
 
     __tablename__ = "workspace_impact_review_actions"
     __table_args__ = (
-        CheckConstraint("kind IN ('candidate', 'clarification', 'deferred')", name="ck_impact_review_kind"),
+        CheckConstraint("kind IN ('candidate', 'as_is_proposal', 'clarification', 'deferred')", name="ck_impact_review_kind"),
         Index("ix_impact_review_process_tenant", "process_id", "tenant_id"),
     )
     id: Mapped[str] = mapped_column(String, primary_key=True)
@@ -126,6 +126,7 @@ class WorkspaceImpactReviewAction(WorkspaceBase):
     kind: Mapped[str] = mapped_column(String, nullable=False)
     title: Mapped[str] = mapped_column(String, nullable=False)
     detail: Mapped[str] = mapped_column(Text, nullable=False)
+    proposal_xml: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     created_by: Mapped[str] = mapped_column(String, nullable=False)
 

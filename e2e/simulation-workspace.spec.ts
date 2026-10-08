@@ -872,3 +872,65 @@ test("embedded process navigates independently and keeps clicks and workspace ge
   await expect(inner).toHaveAttribute("transform", afterSelection!);
   await expect(page.getByRole("button", { name: "Salva layout", exact: true })).toHaveCount(0);
 });
+
+test("activity inspector shows simulated parameters with origin and confidence", async ({ page }, testInfo) => {
+  const request = {
+    default_task_duration_seconds: 900, resource_name: "Operatore", resource_amount: 1, default_cost_per_hour: 35,
+    resources: [{ id: "res-a", name: "Analisti", amount: 3, cost_per_hour: 40 }, { id: "res-b", name: "Approvatori", amount: 1, cost_per_hour: 90 }],
+    tasks: [
+      { element_id: "A", mean_seconds: 2520, distribution: "expon", resource_id: "res-a" },
+      { element_id: "B", mean_seconds: 900, distribution: "norm", resource_id: "res-b" },
+    ],
+  };
+  const declared = (id: string, name: string, step: string) => ({
+    element_id: id, kind: "activity", name, parameter: "duration", confidence: "high", open_questions: 0, hint_ref: null,
+    evidence: [], provenance: { origin: "declared", confidence: "high", sources: [{ kind: "interview", id: `steps:${step}`, label: name }] },
+  });
+  await page.route("http://127.0.0.1:8000/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/simulation-runs")) return route.fulfill({ json: [{ ...run, request }] });
+    if (path.endsWith("/simulation-provenance")) return route.fulfill({ json: { has_discovery: true, elements: [declared("A", "Verifica documentazione", "s1"), declared("B", "Approva richiesta", "s2")] } });
+    return route.fallback();
+  });
+  await page.goto(`${studio}/workspace/42?panel=activity`);
+  await page.getByLabel("Attività", { exact: true }).selectOption("A");
+  const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
+  await expect(params).toBeVisible();
+  await expect(params).toContainText("Esponenziale");
+  await expect(params).toContainText("Analisti × 3");
+  await expect(params).toContainText("inserito");
+  await expect(params).toContainText("confidenza alta");
+  await expect(params).toContainText("intervista Verifica documentazione");
+  await params.scrollIntoViewIfNeeded();
+  await params.screenshot({ path: testInfo.outputPath("activity-inspector-manual.png"), animations: "disabled" });
+
+  await page.getByLabel("Attività", { exact: true }).selectOption("B");
+  await expect(params).toContainText("Normale");
+  await expect(params).toContainText("dev. std 1 min 30 s: 10% della media, assunzione fissa");
+  await expect(params).toContainText("standard, lun–ven 9–17");
+  await expect(params).toContainText("durata di default dello scenario");
+  await expect(params).toContainText("stimato");
+  await expect(params).toContainText("confidenza media");
+  const axe = await new AxeBuilder({ page }).include(".sim-activity-params").analyze();
+  expect(axe.violations).toEqual([]);
+  await params.scrollIntoViewIfNeeded();
+  await params.screenshot({ path: testInfo.outputPath("activity-inspector-estimated.png"), animations: "disabled" });
+});
+
+test("activity inspector never shows an origin when provenance fails", async ({ page }) => {
+  const request = { default_task_duration_seconds: 900, resource_name: "Operatore", resource_amount: 1, default_cost_per_hour: 35,
+    tasks: [{ element_id: "A", mean_seconds: 2520, distribution: "expon" }] };
+  await page.route("http://127.0.0.1:8000/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/simulation-runs")) return route.fulfill({ json: [{ ...run, request }] });
+    if (path.endsWith("/simulation-provenance")) return route.fulfill({ status: 500, json: { detail: "boom" } });
+    return route.fallback();
+  });
+  await page.goto(`${studio}/workspace/42?panel=activity`);
+  await page.getByLabel("Attività", { exact: true }).selectOption("A");
+  const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
+  await expect(params).toContainText("Esponenziale");
+  await expect(params.getByRole("alert")).toContainText("Provenienza non disponibile", { timeout: 20_000 });
+  await expect(params).not.toContainText("inserito");
+  await expect(params).not.toContainText("confidenza");
+});

@@ -154,6 +154,35 @@ export type ScenarioTemplateTask = ScenarioTemplate["tasks"][number];
 export type ScenarioTemplateGateway = ScenarioTemplate["gateways"][number];
 
 /**
+ * The Simulation IR's five-level provenance (SIM-07), as the API sends it.
+ * Mirrors `Provenance` in `backend/simulation/ir/model.py`: there is one
+ * provenance in DeliR, and every screen reads this one (SIM-38).
+ */
+export const provenanceOriginSchema = z.enum([
+  "observed",
+  "inferred",
+  "declared",
+  "estimated",
+  "manual",
+]);
+export type ProvenanceOrigin = z.infer<typeof provenanceOriginSchema>;
+
+export const parameterSourceRefSchema = z.object({
+  kind: z.enum(["claim", "source", "event_log", "document", "interview", "user"]),
+  id: z.string(),
+  label: z.string().nullable().optional(),
+});
+export type ParameterSourceRef = z.infer<typeof parameterSourceRefSchema>;
+
+export const parameterProvenanceSchema = z.object({
+  origin: provenanceOriginSchema,
+  confidence: z.enum(["high", "medium", "low"]).nullable().optional(),
+  sources: z.array(parameterSourceRefSchema).default([]),
+  note: z.string().nullable().optional(),
+});
+export type ParameterProvenance = z.infer<typeof parameterProvenanceSchema>;
+
+/**
  * Structural provenance for the scenario builder (Phase 5). Says where each
  * simulable element came from — discovery evidence or a model inference — so the
  * consultant knows how far to trust the parameter they set for it. Backend:
@@ -171,7 +200,7 @@ export const scenarioProvenanceSchema = z.object({
       kind: z.enum(["activity", "gateway"]),
       name: z.string(),
       parameter: z.enum(["duration", "branching"]),
-      origin: z.enum(["interview", "ai_inferred"]),
+      provenance: parameterProvenanceSchema,
       confidence: z.enum(["high", "medium", "low"]),
       evidence: z.array(z.string()).default([]),
       open_questions: z.number().default(0),

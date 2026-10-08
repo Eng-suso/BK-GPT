@@ -22,6 +22,14 @@ const TEMPLATE: ScenarioTemplate = {
   ],
 };
 
+function declared(id: string, confidence: "high" | "medium" | "low") {
+  return {
+    origin: "declared" as const,
+    confidence,
+    sources: [{ kind: "interview" as const, id }],
+  };
+}
+
 function provenance(over: Partial<ScenarioProvenance> = {}): ScenarioProvenance {
   return {
     has_discovery: true,
@@ -35,7 +43,7 @@ function provenance(over: Partial<ScenarioProvenance> = {}): ScenarioProvenance 
         kind: "activity",
         name: "Verifica",
         parameter: "duration",
-        origin: "interview",
+        provenance: declared("steps:s1", "high"),
         confidence: "high",
         evidence: ["Un operatore controlla gli allegati."],
         open_questions: 0,
@@ -46,7 +54,7 @@ function provenance(over: Partial<ScenarioProvenance> = {}): ScenarioProvenance 
         kind: "activity",
         name: "Approva",
         parameter: "duration",
-        origin: "ai_inferred",
+        provenance: { origin: "estimated", confidence: "low", sources: [] },
         confidence: "low",
         evidence: [],
         open_questions: 0,
@@ -57,7 +65,7 @@ function provenance(over: Partial<ScenarioProvenance> = {}): ScenarioProvenance 
         kind: "gateway",
         name: "Completa?",
         parameter: "branching",
-        origin: "interview",
+        provenance: declared("decisions:d1", "medium"),
         confidence: "medium",
         evidence: [],
         open_questions: 1,
@@ -82,46 +90,47 @@ describe("buildInputConfidence", () => {
 
   it("a discovered activity left at default reads as estimated/medium", () => {
     const ic = buildInputConfidence(seeded(), TEMPLATE, provenance());
-    expect(ic.activities.Task_Review.source).toBe("estimated");
+    expect(ic.activities.Task_Review.origin).toBe("estimated");
     expect(ic.activities.Task_Review.confidence).toBe("medium");
     expect(ic.activities.Task_Review.evidence).toHaveLength(1);
+    expect(ic.activities.Task_Review.sources).toEqual([{ kind: "interview", id: "steps:s1" }]);
   });
 
-  it("a discovered activity with a consultant-set duration reads as confirmed/high", () => {
+  it("a discovered activity with a consultant-set duration reads as manual/high", () => {
     const draft = seeded();
     draft.tasks.Task_Review = { ...draft.tasks.Task_Review, meanMinutes: 42 };
     const ic = buildInputConfidence(draft, TEMPLATE, provenance());
-    expect(ic.activities.Task_Review.source).toBe("confirmed");
+    expect(ic.activities.Task_Review.origin).toBe("manual");
     expect(ic.activities.Task_Review.confidence).toBe("high");
   });
 
   it("an inferred activity at default is the weakest signal", () => {
     const ic = buildInputConfidence(seeded(), TEMPLATE, provenance());
-    expect(ic.activities.Task_Approve.source).toBe("default");
+    expect(ic.activities.Task_Approve.origin).toBe("default");
     expect(ic.activities.Task_Approve.confidence).toBe("low");
     expect(ic.readiness.lowConfidenceElementIds).toContain("Task_Approve");
   });
 
   it("an untouched even gateway keeps the backend confidence and flags open questions", () => {
     const ic = buildInputConfidence(seeded(), TEMPLATE, provenance());
-    expect(ic.gateways.Decision_1.source).toBe("inferred");
+    expect(ic.gateways.Decision_1.origin).toBe("declared");
     expect(ic.gateways.Decision_1.confidence).toBe("medium");
     expect(ic.gateways.Decision_1.note).toBe("1");
   });
 
-  it("editing the split off the even baseline marks the gateway confirmed", () => {
+  it("editing the split off the even baseline marks the gateway manual", () => {
     const draft = seeded();
     draft.gateways.Decision_1 = { f1: 80, f2: 20 };
     const ic = buildInputConfidence(draft, TEMPLATE, provenance());
-    expect(ic.gateways.Decision_1.source).toBe("confirmed");
+    expect(ic.gateways.Decision_1.origin).toBe("manual");
   });
 
-  it("globals flip to confirmed once moved off the DEFAULT_SCENARIO value", () => {
+  it("globals flip to manual once moved off the DEFAULT_SCENARIO value", () => {
     const draft = seeded();
     draft.totalCases = 500;
     const ic = buildInputConfidence(draft, TEMPLATE, provenance());
-    expect(ic.globals.cases.source).toBe("confirmed");
-    expect(ic.globals.arrival.source).toBe("default");
+    expect(ic.globals.cases.origin).toBe("manual");
+    expect(ic.globals.arrival.origin).toBe("default");
   });
 
   it("rolls structure up from the backend origin ratio", () => {
@@ -144,7 +153,7 @@ describe("buildInputConfidence", () => {
     const strong = provenance({
       elements: provenance().elements.map((e) => ({
         ...e,
-        origin: "interview" as const,
+        provenance: declared(`steps:${e.element_id}`, "high"),
         confidence: "high" as const,
       })),
     });
@@ -158,7 +167,27 @@ describe("buildInputConfidence", () => {
     draft.resources[0].parametersConfirmed = true;
     expect(buildInputConfidence(draft, TEMPLATE, null).resources.confidence).toBe("low");
     draft.tasks = Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, { ...task, resourceId: "manual" }]));
-    expect(buildInputConfidence(draft, TEMPLATE, null).resources).toMatchObject({ source: "confirmed", confidence: "high" });
+    expect(buildInputConfidence(draft, TEMPLATE, null).resources).toMatchObject({ origin: "manual", confidence: "high" });
   });
 
+  it("an activity measured on an event log keeps the observed origin", () => {
+    const observed = provenance({
+      elements: provenance().elements.map((e) =>
+        e.element_id === "Task_Approve"
+          ? {
+              ...e,
+              provenance: {
+                origin: "observed" as const,
+                confidence: "high" as const,
+                sources: [{ kind: "event_log" as const, id: "log-1" }],
+              },
+              confidence: "high" as const,
+            }
+          : e,
+      ),
+    });
+    const ic = buildInputConfidence(seeded(), TEMPLATE, observed);
+    expect(ic.activities.Task_Approve).toMatchObject({ origin: "observed", confidence: "high" });
+    expect(ic.activities.Task_Approve.sources?.[0].kind).toBe("event_log");
+  });
 });

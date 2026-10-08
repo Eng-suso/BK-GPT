@@ -385,6 +385,10 @@ def agent_checkpoint_thread_id(thread_id: str, scope_key: str | None) -> str:
 
 
 def scope_fields(scope: ChatScope | None) -> dict[str, str | None]:
+    if isinstance(scope, CanvasChatScope) and (scope.review_node_id or scope.review_base_revision):
+        from backend.workspace_services.task_review_context import read_task_review_context
+
+        read_task_review_context(scope)
     key = chat_scope_key(scope)
 
     if scope is None:
@@ -584,6 +588,8 @@ def stream_agent_events(
             warning, or error events.
     """
     fields = scope_fields(scope)
+    if isinstance(scope, CanvasChatScope) and scope.review_node_id:
+        chat_mode = "conversation"
     selected_model = normalize_model_name(model_name)
     checkpoint_thread_id = agent_checkpoint_thread_id(thread_id, fields["scope_key"])
     context = trace_context or new_trace_context(

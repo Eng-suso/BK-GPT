@@ -8,7 +8,6 @@ import { InlineNotice } from "@/components/feedback/InlineNotice";
 import type { BpmnViewer } from "../simulation/canvas/bpmnViewer";
 import { fitCanvas } from "../bpmn/viewport";
 import type { ReviewNode } from "./reviewModel";
-import { ReviewMascot } from "./ReviewMascot";
 
 import "bpmn-js/dist/assets/diagram-js.css";
 import "bpmn-js/dist/assets/bpmn-font/css/bpmn.css";
@@ -22,9 +21,9 @@ type CanvasService = {
 type Registry = { getGraphics: (id: string) => SVGElement | undefined; get: (id: string) => unknown };
 
 /** Read-only viewer: reviewing cannot dispatch modeling commands or save XML. */
-export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, documents, focusImpact, gap, onSelect, onInspect }: {
+export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, documents, focusImpact, onSelect, renderAgent }: {
   xml: string; nodes: ReviewNode[]; selected: ReviewNode | null; upstream: string[]; downstream: string[]; documents: string[];
-  focusImpact: boolean; gap?: "owner" | "input" | "output" | "evidence"; onSelect: (id: string) => void; onInspect: () => void;
+  focusImpact: boolean; onSelect: (id: string) => void; renderAgent?: (anchor: { left: number; top: number } | null) => React.ReactNode;
 }) {
   const { t } = useTranslation("process");
   const host = React.useRef<HTMLDivElement>(null);
@@ -36,7 +35,6 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
   const [error, setError] = React.useState(false);
   const [retry, setRetry] = React.useState(0);
   const [anchor, setAnchor] = React.useState<{ left: number; top: number } | null>(null);
-  const [activation, setActivation] = React.useState(0);
   React.useLayoutEffect(() => { selectedRef.current = selected?.id; selectRef.current = onSelect; nodesRef.current = nodes; });
 
   const measure = React.useCallback(() => {
@@ -45,7 +43,7 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
     const box = graphic?.getBoundingClientRect();
     const frame = host.current?.getBoundingClientRect();
     if (!box || !frame || box.right < frame.left || box.left > frame.right || box.bottom < frame.top || box.top > frame.bottom) { setAnchor(null); return; }
-    const width = Math.min(244, frame.width - 24);
+    const width = Math.min(196, frame.width - 24);
     const left = Math.max(12, Math.min(frame.width - width - 12, box.right - frame.left + 16));
     const preferred = box.top - frame.top - 84;
     const top = Math.max(12, Math.min(frame.height - 100, preferred >= 12 ? preferred : box.bottom - frame.top + 12));
@@ -94,10 +92,7 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
   return <div className="review-canvas-stage">
     <div ref={host} className="review-canvas" aria-label={t("review.canvasLabel")} />
     {error && <div className="review-canvas-error"><InlineNotice tone="error" title={t("review.diagramError")} action={<Button size="sm" variant="outline" onClick={() => setRetry(value => value + 1)}>{t("review.retry")}</Button>} /></div>}
-    {ready && selected && anchor && <Surface variant="floating" className="review-agent-card" style={anchor}>
-      <Button variant="ghost" size="icon" className="review-agent-avatar" aria-label={t("review.inspectTask", { name: selected.name })} onClick={() => { setActivation(value => value + 1); onInspect(); }}><span key={`${selected.id}:${activation}`} className="review-mascot-orbit"><ReviewMascot /></span></Button>
-      <div className="min-w-0"><p className="review-agent-signature">DeliR <span> / Review</span></p><p className="review-agent-message">{gap ? t(`review.bubbleGap.${gap}`) : t("review.bubbleComplete")}</p></div>
-    </Surface>}
+    {ready && renderAgent?.(anchor)}
     <Surface variant="floating" className="review-canvas-controls" role="group" aria-label={t("canvas.zoomGroup")}>
       <Button variant="ghost" size="sm" disabled={!ready} onClick={() => { if (viewer.current) fitCanvas(viewer.current); }}><Maximize2 aria-hidden />{t("canvas.fit")}</Button>
       <Button variant="ghost" size="icon" disabled={!ready} aria-label={t("canvas.zoomOut")} onClick={() => zoom(-0.2)}><Minus aria-hidden /></Button>

@@ -1,36 +1,46 @@
 /**
  * Input Confidence (Phase 5) — pure roll-up.
  *
- * The backend says where each element's *structure* came from (discovery
- * interview vs. model inference) and, for gateways, how certain the discovered
- * outcomes are. This module layers the local scenario draft on top — "has the
+ * The backend says where each element's *structure* came from, on the Simulation
+ * IR's five-level scale (`declared` by discovery, `estimated` by the model, and
+ * `observed` / `inferred` once an event log backs it) and, for gateways, how
+ * certain the discovered outcomes are. This module layers the local scenario draft on top — "has the
  * consultant moved this field off its default?" — and produces:
  *
- *   • a per-field provenance badge (source + confidence)
+ *   • a per-field provenance badge (origin + confidence)
  *   • a Simulation Readiness roll-up (one row per parameter family + an overall)
  *
  * No IO, no React. `buildInputConfidence` is the whole contract.
  */
 
 import type {
+  ParameterSourceRef,
+  ProvenanceOrigin,
   ScenarioElementProvenance,
   ScenarioProvenance,
   ScenarioTemplate,
 } from "./simulationTypes";
 import { DEFAULT_SCENARIO, scenarioResourceIssues, type ScenarioDraft } from "./simulationScenario";
 
-export type ProvenanceSource =
-  | "interview" // structure + parameter both grounded in discovery
-  | "confirmed" // consultant set this value explicitly
-  | "inferred" // model inferred it, not yet confirmed
-  | "estimated" // a plausible guess on top of a known structure
-  | "default"; // untouched fallback
+/**
+ * One scale for every badge (SIM-38): the IR's five origins, plus `default` for
+ * a value nobody set — the undeclared assumption the readiness roll-up counts.
+ *
+ *   observed  measured on an event log
+ *   inferred  derived with statistics or mining
+ *   declared  said in an interview or written in a document
+ *   estimated proposed by a model, or a plausible guess on a known structure
+ *   manual    entered by the consultant
+ */
+export type FieldOrigin = ProvenanceOrigin | "default";
 
 export type Confidence = "high" | "medium" | "low";
 
 export type FieldProvenance = {
-  source: ProvenanceSource;
+  origin: FieldOrigin;
   confidence: Confidence;
+  /** What backs the value: interview steps, claims, event logs. */
+  sources?: ParameterSourceRef[];
   evidence?: string[];
   /** Short human note, e.g. "2 esiti da validare". */
   note?: string;
@@ -106,21 +116,51 @@ function isEvenSplit(values: number[]): boolean {
   return values.every((v) => Math.abs(v - even) <= 0.75);
 }
 
-function activityProvenance(
+/** Tooltip text: discovery evidence, else the sources, else why there is none. */
+export function provenanceTip(
+  field: FieldProvenance,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  if (field.evidence && field.evidence.length > 0) {
+    return `${t("simulation.provenance.evidenceTitle")}: ${field.evidence.join(" · ")}`;
+  }
+  if (field.sources && field.sources.length > 0) {
+    const refs = field.sources.map(
+      (ref) => `${t(`simulation.provenance.sourceKind.${ref.kind}`)} ${ref.label ?? ref.id}`,
+    );
+    return `${t("simulation.provenance.sourcesTitle")}: ${refs.join(" · ")}`;
+  }
+  return field.origin === "estimated"
+    ? t("simulation.provenance.aiInferredHint")
+    : t("simulation.provenance.noEvidence");
+}
+
+/** Discovery or data back the element; `estimated` means the model made it up. */
+function isGrounded(el: ScenarioElementProvenance | undefined): el is ScenarioElementProvenance {
+  return el != null && el.provenance.origin !== "estimated";
+}
+
+function sourcesOf(el: ScenarioElementProvenance | undefined): ParameterSourceRef[] | undefined {
+  return el?.provenance.sources.length ? el.provenance.sources : undefined;
+}
+
+/** Provenance of one activity's duration: `custom` = moved off the default. */
+export function activityProvenance(
   custom: boolean,
   el: ScenarioElementProvenance | undefined,
 ): FieldProvenance {
-  const grounded = el?.origin === "interview";
   const evidence = el?.evidence?.length ? el.evidence : undefined;
-  if (grounded && custom) {
-    return { source: "confirmed", confidence: "high", evidence, hintRef: el?.hint_ref };
+  if (!isGrounded(el)) {
+    return custom ? { origin: "manual", confidence: "medium" } : { origin: "default", confidence: "low" };
   }
-  if (grounded) {
-    // structure is real, but discovery never captured a duration
-    return { source: "estimated", confidence: "medium", evidence, hintRef: el?.hint_ref };
+  const grounding = { evidence, sources: sourcesOf(el), hintRef: el.hint_ref };
+  if (custom) return { origin: "manual", confidence: "high", ...grounding };
+  if (el.provenance.origin === "observed" || el.provenance.origin === "inferred") {
+    // the number itself comes from data, not just the structure
+    return { origin: el.provenance.origin, confidence: el.provenance.confidence ?? el.confidence, ...grounding };
   }
-  if (custom) return { source: "confirmed", confidence: "medium" };
-  return { source: "default", confidence: "low" };
+  // structure is real, but discovery never captured a duration
+  return { origin: "estimated", confidence: "medium", ...grounding };
 }
 
 function gatewayProvenance(
@@ -129,50 +169,42 @@ function gatewayProvenance(
 ): FieldProvenance {
   const open = el?.open_questions ?? 0;
   const note = open > 0 ? `${open}` : undefined; // rendered with i18n by the caller
-  const evidence = el?.evidence?.length ? el.evidence : undefined;
 
-  if (!el || el.origin === "ai_inferred") {
+  if (!isGrounded(el)) {
     return touched
-      ? { source: "confirmed", confidence: "medium", note }
-      : { source: "estimated", confidence: "low", note };
+      ? { origin: "manual", confidence: "medium", note }
+      : { origin: "estimated", confidence: "low", note };
   }
+  const grounding = {
+    evidence: el.evidence?.length ? el.evidence : undefined,
+    sources: sourcesOf(el),
+    hintRef: el.hint_ref,
+  };
   if (el.confidence === "high") {
-    return {
-      source: touched ? "confirmed" : "interview",
-      confidence: "high",
-      evidence,
-      hintRef: el.hint_ref,
-    };
-  }
-  if (el.confidence === "medium") {
-    return {
-      source: touched ? "confirmed" : "inferred",
-      confidence: "medium",
-      evidence,
-      note,
-      hintRef: el.hint_ref,
-    };
+    return { origin: touched ? "manual" : el.provenance.origin, confidence: "high", ...grounding };
   }
   return {
-    source: touched ? "confirmed" : "estimated",
-    confidence: touched ? "medium" : "low",
-    evidence,
+    origin: touched ? "manual" : el.provenance.origin,
+    confidence: el.confidence === "medium" || touched ? "medium" : "low",
     note,
-    hintRef: el.hint_ref,
+    ...grounding,
   };
 }
 
 function globalField(changed: boolean, whenSet: Confidence): FieldProvenance {
   return changed
-    ? { source: "confirmed", confidence: whenSet }
-    : { source: "default", confidence: "low" };
+    ? { origin: "manual", confidence: whenSet }
+    : { origin: "default", confidence: "low" };
 }
 
 function resourcesField(draft: ScenarioDraft): FieldProvenance {
   const issues = scenarioResourceIssues(draft);
-  if (issues.missingResources) return { source: "default", confidence: "low" };
-  if (issues.pending > 0 || issues.unassigned > 0) return { source: draft.resources.some((r) => r.source) ? "inferred" : "estimated", confidence: "low" };
-  return { source: "confirmed", confidence: "high" };
+  if (issues.missingResources) return { origin: "default", confidence: "low" };
+  if (issues.pending > 0 || issues.unassigned > 0) {
+    // pools and lanes of the BPMN are declared structure, never staffing
+    return { origin: draft.resources.some((r) => r.source) ? "declared" : "estimated", confidence: "low" };
+  }
+  return { origin: "manual", confidence: "high" };
 }
 
 export function buildInputConfidence(
@@ -220,7 +252,7 @@ export function buildInputConfidence(
   const structurePct = provenance
     ? weightToPct(
         [...tasks, ...gateways].map((el) =>
-          byId.get(el.element_id)?.origin === "interview" ? "high" : "low",
+          isGrounded(byId.get(el.element_id)) ? "high" : "low",
         ),
       )
     : 0;
@@ -234,7 +266,7 @@ export function buildInputConfidence(
 
   const rows: ReadinessRow[] = [
     row("structure", structurePct, countWeak([...tasks, ...gateways].map((el) =>
-      byId.get(el.element_id)?.origin === "interview" ? "high" : "low",
+      isGrounded(byId.get(el.element_id)) ? "high" : "low",
     ))),
     row("durations", weightToPct(durationConfidences), countWeak(durationConfidences)),
     row("resources", weightToPct([resources.confidence]), countWeak([resources.confidence])),
