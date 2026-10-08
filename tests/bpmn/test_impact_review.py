@@ -323,3 +323,28 @@ def test_agent_restore_uses_policy_and_human_restore_keeps_saved_manual_di(proce
     assert restored["bpmn_model"]["xml"] == apply_enterprise_layout(translated, process_name="Process")
     restored = db.restore_bpmn_version(model_id, saved["version_id"])
     assert restored["bpmn_model"]["xml"] == translated
+
+
+def test_manual_semantic_owner_refs_are_validated_without_relayout(process):
+    from backend import workspace_database as db
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+    model_id = f"b-{process}"
+    owned = XML.replace('<bpmn:process id="p">', '<bpmn:process id="p"><bpmn:laneSet id="roles"><bpmn:lane id="buyer" name="Acquisti"><bpmn:flowNodeRef>verify</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>')
+    owned = apply_enterprise_layout(owned)
+    saved = db.update_bpmn_model(model_id, _translated_di(owned))
+    assert saved["xml"] == _translated_di(owned)
+    invalid = owned.replace('<bpmn:flowNodeRef>verify</bpmn:flowNodeRef>', '<bpmn:flowNodeRef>missing</bpmn:flowNodeRef>')
+    with pytest.raises(ValueError, match="riferimenti non validi"):
+        db.update_bpmn_model(model_id, invalid)
+    assert db.get_bpmn_model(model_id)["xml"] == saved["xml"]
+
+
+def test_missing_manual_connector_coordinate_returns_validation_error(process):
+    from backend import workspace_database as db
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(XML)
+    point = root.find(".//{http://www.omg.org/spec/DD/20100524/DI}waypoint")
+    del point.attrib["x"]
+    with pytest.raises(ValueError, match="non valido"):
+        db.update_bpmn_model(f"b-{process}", ET.tostring(root, encoding="unicode"))
+    assert db.get_bpmn_model(f"b-{process}")["xml"] == XML

@@ -1002,6 +1002,8 @@ def _canvas_xml_for_write(xml: str, *, source: str, process_name: str | None = N
     # This low-level store also serves legacy records with no diagram yet.
     # A present manual diagram is validated without changing a single byte.
     if "BPMNDiagram" in xml:
+        from backend.bpmn.canvas_layout.normalizer import normalize_semantics
+        normalize_semantics(xml)  # Validate semantics on a copy; preserve the original DI bytes.
         semantic = validate_bpmn_xml(xml)
         report = validate_bpmn_layout(xml)
         report["issues"].extend(semantic["issues"])

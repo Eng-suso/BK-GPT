@@ -757,7 +757,7 @@ def _edge_shape_crossings(
             if _namespace(waypoint.tag) != DI_NS or _local_name(waypoint.tag) != "waypoint":
                 continue
             try:
-                points.append((float(waypoint.attrib["x"]), float(waypoint.attrib["y"])))
+                points.append((float(waypoint.attrib.get("x", "nan")), float(waypoint.attrib.get("y", "nan"))))
             except (KeyError, ValueError):
                 continue
         source_id, target_id = endpoints[edge_id]
@@ -774,7 +774,7 @@ def _edge_edge_crossings(root: ET.Element) -> list[tuple[str, str]]:
     edges: list[tuple[str, list[tuple[float, float]]]] = []
     for edge in root.iter(f"{{{BPMNDI_NS}}}BPMNEdge"):
         points = [
-            (float(point.attrib["x"]), float(point.attrib["y"]))
+            (float(point.attrib.get("x", "nan")), float(point.attrib.get("y", "nan")))
             for point in edge.iter(f"{{{DI_NS}}}waypoint")
         ]
         if len(points) > 1:
