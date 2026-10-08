@@ -7,7 +7,10 @@ from .policy import BPMN, BPMNDI, FLOW_TYPES, local_name, tag
 
 
 def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element:
-    root = fromstring(xml)
+    try:
+        root = fromstring(xml)
+    except (ET.ParseError, ValueError) as exc:
+        raise ValueError("Documento BPMN non leggibile.") from exc
     if root.tag != tag("definitions"):
         raise ValueError("Il modello deve essere un documento BPMN definitions.")
     ids = [element.get("id") for element in root.iter() if element.get("id") and not element.tag.startswith("{" + BPMNDI + "}")]
@@ -36,11 +39,14 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
             source, target = flow.get("sourceRef"), flow.get("targetRef")
             if not flow.get("id") or source not in nodes or target not in nodes:
                 raise ValueError(f"Collegamento {flow.get('id')} con estremi non validi nel processo.")
-            ET.SubElement(nodes[source], tag("outgoing")).text = flow.get("id")
-            ET.SubElement(nodes[target], tag("incoming")).text = flow.get("id")
+            for node, direction in ((nodes[source], "outgoing"), (nodes[target], "incoming")):
+                ref = ET.Element(tag(direction))
+                ref.text = flow.get("id")
+                index = next((i for i, child in enumerate(node) if local_name(child) not in {"documentation", "extensionElements", "incoming", "outgoing"}), len(node))
+                node.insert(index, ref)
         assigned: set[str] = set()
         for lane in process.iter(tag("lane")):
-            if not lane.get("id") or not lane.get("name", "").strip():
+            if not lane.get("id"):
                 raise ValueError("Una lane deve identificare un owner semantico esplicito.")
             refs = [ref.text for ref in lane.findall(tag("flowNodeRef"))]
             if any(ref not in nodes for ref in refs) or len(refs) != len(set(refs)):
@@ -66,6 +72,15 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
             "name": process.get("name") or process.get("id"), "processRef": process.get("id"),
         })
         participants.append(participant)
+    gateway_ids = {e.get("id") for e in root.iter() if local_name(e).endswith("Gateway")}
+    for flow in [*root.iter(tag("sequenceFlow")), *root.iter(tag("messageFlow"))]:
+        name = flow.get("name")
+        if name and (local_name(flow) == "messageFlow" or flow.get("sourceRef") not in gateway_ids):
+            del flow.attrib["name"]
+            if not any((doc.text or "") == name for doc in flow.findall(tag("documentation"))):
+                doc = ET.Element(tag("documentation"))
+                doc.text = name
+                flow.insert(0, doc)
     return root
 
 

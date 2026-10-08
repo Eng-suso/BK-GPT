@@ -1,10 +1,4 @@
-"""Serialize a `BPMNSemanticModel` to BPMN 2.0 XML, diagram interchange included.
-
-Owns the deterministic layout of the compiled model (lane bands, flow-node
-columns, pool shapes, edge waypoints). `layout_bpmn_di` in
-`workspace_services.bpmn_canvas_edit` regenerates DI for hand-edited canvases;
-this module owns DI for freshly compiled models.
-"""
+"""Serialize semantics; CanvasLayoutPolicy owns all generated geometry."""
 
 from __future__ import annotations
 
@@ -14,8 +8,6 @@ from html import escape
 from backend.bpmn._helpers import documentation_xml, element_documentation
 from backend.bpmn.models import (
     ACTIVITY_NODE_TYPES as _ACTIVITY_NODE_TYPES,
-    BPMNFlowNode,
-    BPMNMessageFlow,
     BPMNSemanticModel,
 )
 
@@ -167,7 +159,7 @@ def _event_definition_xml(
     return f"      <bpmn:{kind}EventDefinition />"
 
 
-def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
+def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = True) -> str:
     """
     Serialize a semantic BPMN model into a BPMN 2.0 XML document with deterministic diagram interchange layout.
     
@@ -293,93 +285,12 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel) -> str:
             f'sourceRef="{escape(association.sourceRef)}" targetRef="{escape(association.targetRef)}"{direction} />'
         )
 
-    plane_element = (
-        (model.collaborationId or f"Collaboration_{model.id}") if model.participants else model.id
-    )
-    xml_parts.extend(
-        [
-            "  </bpmn:process>",
-            f'  <bpmndi:BPMNDiagram id="BPMNDiagram_{escape(model.id)}">',
-            f'    <bpmndi:BPMNPlane id="BPMNPlane_{escape(model.id)}" bpmnElement="{escape(plane_element)}">',
-        ]
-    )
-    positions, lane_shapes = _layout_model(model)
-    pool_shapes, pool_positions = _collaboration_pool_shapes(model, positions, lane_shapes)
-    for pool_shape in pool_shapes:
-        pool_id = escape(str(pool_shape["id"]))
-        xml_parts.extend(
-            [
-                f'      <bpmndi:BPMNShape id="{pool_id}_di" bpmnElement="{pool_id}" isHorizontal="true">',
-                f'        <dc:Bounds x="{pool_shape["x"]}" y="{pool_shape["y"]}" width="{pool_shape["width"]}" height="{pool_shape["height"]}" />',
-                "      </bpmndi:BPMNShape>",
-            ]
-        )
-    for lane_shape in lane_shapes:
-        lane_shape_id = escape(str(lane_shape["id"]))
-        xml_parts.extend(
-            [
-                f'      <bpmndi:BPMNShape id="{lane_shape_id}_di" bpmnElement="{lane_shape_id}" isHorizontal="true">',
-                f'        <dc:Bounds x="{lane_shape["x"]}" y="{lane_shape["y"]}" width="{lane_shape["width"]}" height="{lane_shape["height"]}" />',
-                "      </bpmndi:BPMNShape>",
-            ]
-        )
-    for node in model.flowNodes:
-        pos = positions[node.id]
-        node_di_id = escape(node.id)
-        xml_parts.extend(
-            [
-                f'      <bpmndi:BPMNShape id="{node_di_id}_di" bpmnElement="{node_di_id}">',
-                f'        <dc:Bounds x="{pos["x"]}" y="{pos["y"]}" width="{pos["width"]}" height="{pos["height"]}" />',
-                "      </bpmndi:BPMNShape>",
-            ]
-        )
-
-    artifacts = [*model.dataObjects, *model.dataStores]
-    data_positions = _layout_data_objects(artifacts, positions)
-    for artifact in artifacts:
-        pos = data_positions[artifact.id]
-        artifact_di_id = escape(artifact.id)
-        xml_parts.extend(
-            [
-                f'      <bpmndi:BPMNShape id="{artifact_di_id}_di" bpmnElement="{artifact_di_id}">',
-                f'        <dc:Bounds x="{pos["x"]}" y="{pos["y"]}" width="{pos["width"]}" height="{pos["height"]}" />',
-                "      </bpmndi:BPMNShape>",
-            ]
-        )
-
-    annotation_positions = _layout_text_annotations(model.textAnnotations)
-    for annotation in model.textAnnotations:
-        pos = annotation_positions[annotation.id]
-        annotation_di_id = escape(annotation.id)
-        xml_parts.extend(
-            [
-                f'      <bpmndi:BPMNShape id="{annotation_di_id}_di" bpmnElement="{annotation_di_id}">',
-                f'        <dc:Bounds x="{pos["x"]}" y="{pos["y"]}" width="{pos["width"]}" height="{pos["height"]}" />',
-                "      </bpmndi:BPMNShape>",
-            ]
-        )
-
-    for flow in model.sequenceFlows:
-        visible_name = flow.name if flow.sourceRef in gateway_ids else None
-        for line in _edge_xml(flow.id, flow.sourceRef, flow.targetRef, positions, visible_name):
-            xml_parts.append(line)
-    connectable_positions = {**positions, **data_positions, **annotation_positions}
-    for association in model.associations:
-        source = connectable_positions.get(association.sourceRef)
-        target = connectable_positions.get(association.targetRef)
-        if source and target:
-            xml_parts.extend(_association_edge_xml(association.id, source, target))
-
-    message_flow_positions = {**positions, **pool_positions}
-    for message_flow in model.messageFlows:
-        source_pos = message_flow_positions.get(message_flow.sourceRef)
-        target_pos = message_flow_positions.get(message_flow.targetRef)
-        if source_pos and target_pos:
-            for line in _message_flow_edge_xml(message_flow, source_pos, target_pos):
-                xml_parts.append(line)
-
-    xml_parts.extend(["    </bpmndi:BPMNPlane>", "  </bpmndi:BPMNDiagram>", "</bpmn:definitions>"])
-    return "\n".join(xml_parts)
+    xml_parts.extend(["  </bpmn:process>", "</bpmn:definitions>"])
+    semantic_xml = "\n".join(xml_parts)
+    if not include_di:
+        return semantic_xml
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+    return apply_enterprise_layout(semantic_xml)
 
 
 def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
@@ -490,292 +401,17 @@ def _flow_refs(model: BPMNSemanticModel) -> tuple[dict[str, list[str]], dict[str
     return incoming, outgoing
 
 
-def _node_size(node: BPMNFlowNode) -> tuple[int, int]:
-    """Determine the (width, height) dimensions for a BPMN node in the diagram.
-
-    Args:
-        node: The BPMNFlowNode to size.
-
-    Returns:
-        A tuple of (width, height) in diagram units.
-    """
-    if node.type in {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent"}:
-        return 44, 44
-    if node.type == "boundaryEvent":
-        return 36, 36
-    if node.type in {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"}:
-        return 68, 68
-    return 188, 92
 
 
-def _layout_model(
-    model: BPMNSemanticModel,
-) -> tuple[dict[str, dict[str, float]], list[dict[str, float | str]]]:
-    """Compute deterministic layout positions for all flow nodes and lanes.
-
-    Args:
-        model: The BPMNSemanticModel to lay out.
-
-    Returns:
-        A tuple of (node_positions_dict, lane_shapes_list).
-    """
-    lane_index_by_id = {lane.id: index for index, lane in enumerate(model.lanes)}
-    lane_height = 180
-    top = 150
-    left = 110
-    lane_label_width = 70
-    x_gap = 230
-    positions: dict[str, dict[str, float]] = {}
-
-    ranked_nodes = [node for node in model.flowNodes if node.type != "boundaryEvent"]
-    for rank, node in enumerate(ranked_nodes):
-        width, height = _node_size(node)
-        lane_index = lane_index_by_id.get(node.laneId or "", 0)
-        y = top + lane_index * lane_height + (lane_height - height) / 2
-        positions[node.id] = {
-            "x": left + lane_label_width + 70 + rank * x_gap,
-            "y": y,
-            "width": width,
-            "height": height,
-        }
-
-    for node in model.flowNodes:
-        if node.type != "boundaryEvent":
-            continue
-        width, height = _node_size(node)
-        attached = positions.get(node.attachedToRef or "")
-        if attached is not None:
-            positions[node.id] = {
-                "x": attached["x"] + attached["width"] * 0.62,
-                "y": attached["y"] + attached["height"] - height / 2,
-                "width": width,
-                "height": height,
-            }
-        else:
-            positions[node.id] = {"x": left, "y": top, "width": width, "height": height}
-
-    right = max((pos["x"] + pos["width"] for pos in positions.values()), default=900) + 90
-    lane_shapes = [
-        {
-            "id": lane.id,
-            "x": left,
-            "y": top + index * lane_height,
-            "width": max(900, right - left),
-            "height": lane_height,
-        }
-        for index, lane in enumerate(model.lanes)
-    ]
-    return positions, lane_shapes
 
 
-def _collaboration_pool_shapes(
-    model: BPMNSemanticModel,
-    node_positions: dict[str, dict[str, float]],
-    lane_shapes: list[dict[str, float | str]],
-) -> tuple[list[dict[str, float | str]], dict[str, dict[str, float]]]:
-    """Compute pool shapes for collaboration diagrams with participants.
-
-    Args:
-        model: The BPMNSemanticModel with participants.
-        node_positions: Dictionary of node positions.
-        lane_shapes: List of lane shape dictionaries.
-
-    Returns:
-        A tuple of (pool_shapes_list, pool_positions_dict).
-    """
-    if not model.participants:
-        return [], {}
-
-    primary = next((p for p in model.participants if p.processRef), None)
-    externals = [p for p in model.participants if not p.processRef]
-
-    boxes: list[tuple[float, float, float, float]] = [
-        (float(shape["x"]), float(shape["y"]), float(shape["width"]), float(shape["height"]))
-        for shape in lane_shapes
-    ]
-    boxes.extend((pos["x"], pos["y"], pos["width"], pos["height"]) for pos in node_positions.values())
-    if boxes:
-        min_x = min(box[0] for box in boxes)
-        min_y = min(box[1] for box in boxes)
-        max_x = max(box[0] + box[2] for box in boxes)
-        max_y = max(box[1] + box[3] for box in boxes)
-    else:
-        min_x, min_y, max_x, max_y = 110.0, 150.0, 1000.0, 330.0
-
-    pool_left = min_x - 30
-    pool_width = (max_x - pool_left) + 40
-    primary_top = min_y - 30
-    primary_height = max(max_y - primary_top + 30, 160.0)
-
-    shapes: list[dict[str, float | str]] = []
-    pool_positions: dict[str, dict[str, float]] = {}
-    if primary is not None:
-        box = {"x": pool_left, "y": primary_top, "width": pool_width, "height": primary_height}
-        pool_positions[primary.id] = box
-        shapes.append({"id": primary.id, **box})
-
-    external_top = primary_top + primary_height + 40
-    for participant in externals:
-        box = {"x": pool_left, "y": external_top, "width": pool_width, "height": 120.0}
-        pool_positions[participant.id] = box
-        shapes.append({"id": participant.id, **box})
-        external_top += 160
-
-    return shapes, pool_positions
 
 
-def _layout_text_annotations(annotations: list) -> dict[str, dict[str, float]]:
-    """Compute layout positions for text annotations.
-
-    Args:
-        annotations: List of text annotation objects.
-
-    Returns:
-        A dictionary mapping annotation IDs to position dictionaries.
-    """
-    return {
-        annotation.id: {"x": 180 + ((index - 1) * 230), "y": 40, "width": 190, "height": 70}
-        for index, annotation in enumerate(annotations, start=1)
-    }
 
 
-def _layout_data_objects(
-    data_objects: list,
-    positions: dict[str, dict[str, float]],
-) -> dict[str, dict[str, float]]:
-    """Compute layout positions for data objects and data stores.
-
-    Args:
-        data_objects: List of data object/store artifacts.
-        positions: Dictionary of node positions to position artifacts relative to.
-
-    Returns:
-        A dictionary mapping data artifact IDs to position dictionaries.
-    """
-    layout: dict[str, dict[str, float]] = {}
-    per_source_count: dict[str, int] = {}
-
-    for index, data_object in enumerate(data_objects, start=1):
-        source_id = data_object.sourceNodeRef or ""
-        source = positions.get(source_id)
-        if source:
-            offset = per_source_count.get(source_id, 0)
-            per_source_count[source_id] = offset + 1
-            x = source["x"] + 20 + offset * 48
-            y = source["y"] + source["height"] + 34
-        else:
-            x = 180 + (index - 1) * 130
-            y = 420
-        layout[data_object.id] = {"x": x, "y": y, "width": 64, "height": 54}
-
-    return layout
 
 
-def _edge_xml(
-    flow_id: str,
-    source_ref: str,
-    target_ref: str,
-    positions: dict[str, dict[str, float]],
-    name: str | None,
-) -> list[str]:
-    """Generate BPMNDi edge XML with waypoints for a sequence flow.
-
-    Args:
-        flow_id: The ID of the sequence flow.
-        source_ref: The source node ID.
-        target_ref: The target node ID.
-        positions: Dictionary of node positions.
-        name: Optional flow name for label rendering.
-
-    Returns:
-        A list of XML lines for the edge, or empty list if endpoints are missing.
-    """
-    source = positions.get(source_ref)
-    target = positions.get(target_ref)
-    if source is None or target is None:
-        # dangling sequence flow (model rebuilt from an inconsistent dict) — skip
-        return []
-    start_x = source["x"] + source["width"]
-    start_y = source["y"] + source["height"] / 2
-    end_x = target["x"]
-    end_y = target["y"] + target["height"] / 2
-    lines = [
-        f'      <bpmndi:BPMNEdge id="{escape(flow_id)}_di" bpmnElement="{escape(flow_id)}">',
-        f'        <di:waypoint x="{start_x}" y="{start_y}" />',
-    ]
-    if abs(start_y - end_y) > 1:
-        mid_x = start_x + max(60, (end_x - start_x) / 2)
-        lines.extend(
-            [
-                f'        <di:waypoint x="{mid_x}" y="{start_y}" />',
-                f'        <di:waypoint x="{mid_x}" y="{end_y}" />',
-            ]
-        )
-    lines.append(f'        <di:waypoint x="{end_x}" y="{end_y}" />')
-    if name:
-        label_width = min(150, max(70, len(name) * 6))
-        lines.extend(
-            [
-                "        <bpmndi:BPMNLabel>",
-                f'          <dc:Bounds x="{(start_x + end_x) / 2 - label_width / 2}" y="{min(start_y, end_y) - 32}" width="{label_width}" height="24" />',
-                "        </bpmndi:BPMNLabel>",
-            ]
-        )
-    lines.append("      </bpmndi:BPMNEdge>")
-    return lines
 
 
-def _association_edge_xml(
-    association_id: str,
-    source: dict[str, float],
-    target: dict[str, float],
-) -> list[str]:
-    """Generate BPMNDi edge XML for an association.
-
-    Args:
-        association_id: The ID of the association.
-        source: Position dictionary for the source element.
-        target: Position dictionary for the target element.
-
-    Returns:
-        A list of XML lines for the association edge.
-    """
-    escaped = escape(association_id)
-    return [
-        f'      <bpmndi:BPMNEdge id="{escaped}_di" bpmnElement="{escaped}">',
-        f'        <di:waypoint x="{source["x"] + source["width"] / 2}" y="{source["y"] + source["height"] / 2}" />',
-        f'        <di:waypoint x="{target["x"] + target["width"] / 2}" y="{target["y"] + target["height"] / 2}" />',
-        "      </bpmndi:BPMNEdge>",
-    ]
 
 
-def _message_flow_edge_xml(
-    message_flow: BPMNMessageFlow,
-    source: dict[str, float],
-    target: dict[str, float],
-) -> list[str]:
-    """Generate BPMNDi edge XML for a message flow.
-
-    Args:
-        message_flow: The BPMNMessageFlow with id and optional name.
-        source: Position dictionary for the source pool or node.
-        target: Position dictionary for the target pool or node.
-
-    Returns:
-        A list of XML lines for the message flow edge.
-    """
-    start_x = source["x"] + source["width"] / 2
-    end_x = target["x"] + target["width"] / 2
-    if source["y"] <= target["y"]:
-        start_y = source["y"] + source["height"]
-        end_y = target["y"]
-    else:
-        start_y = source["y"]
-        end_y = target["y"] + target["height"]
-    lines = [
-        f'      <bpmndi:BPMNEdge id="{escape(message_flow.id)}_di" bpmnElement="{escape(message_flow.id)}">',
-        f'        <di:waypoint x="{start_x}" y="{start_y}" />',
-        f'        <di:waypoint x="{end_x}" y="{end_y}" />',
-    ]
-    lines.append("      </bpmndi:BPMNEdge>")
-    return lines

@@ -39,16 +39,25 @@ def rank_process(process, nodes: dict) -> tuple[dict[str, int], set[str], dict[s
             if flow_id not in feedback:
                 parents[target].append(source)
                 forward[source].append(target)
+    for node_id, node in nodes.items():
+        host = node.get("attachedToRef") if local_name(node) == "boundaryEvent" else None
+        if host in nodes and host not in parents[node_id]:
+            parents[node_id].append(host)
+            forward[host].append(node_id)
     degree = {node_id: len(parents[node_id]) for node_id in nodes}
     ready = deque(sorted(node_id for node_id in nodes if degree[node_id] == 0))
     ranks = {node_id: 0 for node_id in nodes}
     while ready:
         source = ready.popleft()
         for target in forward[source]:
-            ranks[target] = max(ranks[target], ranks[source] + 1)
+            ranks[target] = max(ranks[target], ranks[source] + (0 if nodes[target].get("attachedToRef") == source else 1))
             degree[target] -= 1
             if degree[target] == 0:
                 ready.append(target)
+    connected = {ref for flow in flows for ref in (flow.get("sourceRef"), flow.get("targetRef"))}
+    isolated = sorted(i for i in nodes if i not in connected and local_name(nodes[i]) not in {"boundaryEvent", "startEvent", "endEvent"})
+    for index, node_id in enumerate(isolated):
+        ranks[node_id] = index
     # Boundary events leave their host rather than participating in the happy path.
     for node_id, node in nodes.items():
         if local_name(node) == "boundaryEvent":

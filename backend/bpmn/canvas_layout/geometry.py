@@ -2,7 +2,7 @@
 from collections import defaultdict
 from dataclasses import dataclass
 
-from .policy import ARTIFACT_TYPES, FLOW_TYPES, ENTERPRISE_POLICY, local_name, tag
+from .policy import BPMN, ARTIFACT_TYPES, FLOW_TYPES, ENTERPRISE_POLICY, local_name, tag
 from .ranks import rank_process
 
 
@@ -31,7 +31,7 @@ class Box:
 
 def semantic_connections(root):
     parents = {child: parent for parent in root.iter() for child in parent}
-    nodes = {e.get("id") for e in root.iter() if local_name(e) in FLOW_TYPES}
+    nodes = {e.get("id") for e in root.iter() if local_name(e) in FLOW_TYPES and e.tag.startswith("{" + BPMN + "}")}
     result = []
     for e in root.iter():
         kind = local_name(e)
@@ -55,7 +55,7 @@ def semantic_connections(root):
 def layout_process(process, top: float, connections):
     p = ENTERPRISE_POLICY
     initial_top = top
-    nodes = {e.get("id"): e for e in process if local_name(e) in FLOW_TYPES}
+    nodes = {e.get("id"): e for e in process if local_name(e) in FLOW_TYPES and e.tag.startswith("{" + BPMN + "}")}
     ranks, feedback, parents = rank_process(process, nodes)
     ordinary = {node_id: node for node_id, node in nodes.items() if local_name(node) != "boundaryEvent"}
     # All end events sit at the terminal rank, including early termination paths.
@@ -87,7 +87,7 @@ def layout_process(process, top: float, connections):
     sizes = {node_id: _size(node) for node_id, node in ordinary.items()}
     column_widths = defaultdict(lambda: p.event_size)
     for node_id in ordinary:
-        column_widths[ranks[node_id]] = max(column_widths[ranks[node_id]], sizes[node_id][0])
+        column_widths[ranks[node_id]] = max(column_widths[ranks[node_id]], sizes[node_id][0], 160 if ordinary[node_id].get("name") and (local_name(ordinary[node_id]).endswith("Event") or local_name(ordinary[node_id]).endswith("Gateway")) else 0)
     centers, x = {}, p.origin_x + p.pool_label_width + p.lane_label_width + p.padding
     for rank in sorted(column_widths):
         centers[rank] = x + column_widths[rank] / 2
@@ -100,6 +100,8 @@ def layout_process(process, top: float, connections):
         neighbors = {other for _, source, target in connections for other in ([target] if source == artifact_id else [source] if target == artifact_id else []) if other in ordinary}
         neighbor = min(neighbors, key=lambda i: (ranks[i], i)) if neighbors else None
         artifact_owner[artifact_id] = (owner.get(neighbor), ranks.get(neighbor, 0))
+    if any(band is None for band, _ in artifact_owner.values()) and None not in bands:
+        bands.append(None)
     for band in bands:
         grouped = defaultdict(list)
         for node_id in ordinary:
@@ -111,8 +113,10 @@ def layout_process(process, top: float, connections):
         for artifact_id, (doc_band, rank) in artifact_owner.items():
             if doc_band == band:
                 doc_groups[rank].append(artifact_id)
-        doc_rows = max(((len(group) + 1) // 2 for group in doc_groups.values()), default=0)
-        band_height = main_height + (p.padding + doc_rows * 120 if doc_rows else 0)
+        doc_rows = max((len(group) for group in doc_groups.values()), default=0)
+        boundary_count = max((sum(node.get("attachedToRef") == host for node in nodes.values()) for host in ordinary if owner.get(host) == band), default=0)
+        boundary_space = 80 + boundary_count * 52 if boundary_count else 0
+        band_height = main_height + boundary_space + (p.padding + doc_rows * 120 if doc_rows else 0)
         if band is not None:
             lane_boxes[band] = Box(p.origin_x + p.pool_label_width, top, right - p.origin_x - p.pool_label_width, band_height)
         for rank, group in sorted(grouped.items()):
@@ -125,11 +129,10 @@ def layout_process(process, top: float, connections):
                 boxes[node_id] = Box(centers[rank] - width / 2, cy - height / 2, width, height)
         for rank, group in sorted(doc_groups.items()):
             for index, artifact_id in enumerate(sorted(group)):
-                row, column = divmod(index, 2)
-                count = min(2, len(group) - row * 2)
-                cx = centers.get(rank, p.origin_x + p.padding + 100) + (column - (count - 1) / 2) * 100
+                row = index
+                cx = centers.get(rank, p.origin_x + p.padding + 100)
                 width, height = (160, 60) if local_name(artifacts[artifact_id]) == "textAnnotation" else (64, 54)
-                boxes[artifact_id] = Box(cx - width / 2, top + main_height + p.padding + row * 120, width, height)
+                boxes[artifact_id] = Box(cx - width / 2, top + main_height + boundary_space + p.padding + row * 120, width, height)
         top += band_height
     for node_id, node in nodes.items():
         if local_name(node) != "boundaryEvent":
@@ -137,7 +140,10 @@ def layout_process(process, top: float, connections):
         host = boxes.get(node.get("attachedToRef"))
         if host is None:
             raise ValueError(f"Evento boundary {node_id} senza posizione dell'attività ospite.")
-        boxes[node_id] = Box(host.x + host.width * .65 - 18, host.bottom - 18, 36, 36)
+        siblings = sorted(i for i, e in nodes.items() if e.get("attachedToRef") == node.get("attachedToRef"))
+        index = siblings.index(node_id)
+        cx = host.center[0] + (index - (len(siblings) - 1) / 2) * 48
+        boxes[node_id] = Box(cx - 18, host.bottom - 18, 36, 36)
     return boxes, lane_boxes, ranks, feedback, Box(p.origin_x, initial_top, right - p.origin_x, top - initial_top), top
 
 

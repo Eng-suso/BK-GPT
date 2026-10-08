@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from itertools import pairwise
-from dataclasses import asdict, dataclass, replace
-from collections.abc import Iterable
+from dataclasses import dataclass
 import xml.etree.ElementTree as ET
 
 
@@ -109,13 +108,6 @@ class BpmnLayoutConfig:
     annotation_columns: int = 4
 
 
-def _readable_layout_config(config: BpmnLayoutConfig) -> BpmnLayoutConfig:
-    """Keep every planned column inside the maximum readable lane width."""
-    available = LAYOUT_MAX_READABLE_WIDTH - LAYOUT_LANE_LABEL_WIDTH - 190
-    max_columns = max(2, int(available // config.column_gap))
-    if config.max_nodes_per_row <= max_columns:
-        return config
-    return replace(config, max_nodes_per_row=max_columns)
 
 
 def list_bpmn_elements(xml: str) -> list[dict]:
@@ -255,6 +247,10 @@ def delete_bpmn_element(xml: str, element_id: str) -> tuple[str, dict]:
     for doomed in list(root.iter()):
         if doomed.attrib.get("id") in doomed_ids and doomed is not element and _namespace(doomed.tag) == BPMN_NS:
             _remove_element(root, doomed)
+    for lane in root.iter(_bpmn_tag("lane")):
+        for ref in list(lane.findall(_bpmn_tag("flowNodeRef"))):
+            if ref.text in doomed_ids:
+                lane.remove(ref)
     _remove_element(root, element)
     _remove_di_for_elements(root, doomed_ids)
 
@@ -549,29 +545,18 @@ def validate_bpmn_layout(xml: str) -> dict:
         root, {node_id: shapes[node_id] for node_id in flow_node_ids if node_id in shapes}
     )
     if edge_shape_crossings:
-        warnings.append("Alcuni collegamenti attraversano attivita' o gateway e rendono il disegno difficile da leggere.")
+        issues.append("Alcuni collegamenti attraversano attivita' o gateway e rendono il disegno difficile da leggere.")
     edge_edge_crossings = _edge_edge_crossings(root)
-    if edge_edge_crossings:
-        warnings.append("Alcune linee del disegno si incrociano o si sovrappongono.")
 
     diagram_bounds = _diagram_bounds(shapes)
-    if diagram_bounds:
-        width = diagram_bounds["width"]
-        height = diagram_bounds["height"]
-        gateway_count = sum(
-            _local_name(element.tag).endswith("Gateway") for element in process
-            if _namespace(element.tag) == BPMN_NS
-        )
-        compact_simple_process = len(flow_node_ids) <= 12 and gateway_count < 3
-        if width > LAYOUT_MAX_READABLE_WIDTH and compact_simple_process:
-            warnings.append("Il disegno e' ancora molto largo: conviene distribuirlo su piu' righe.")
-        if width / max(height, 1) > 4.5 and compact_simple_process:
-            warnings.append("Il disegno e' troppo orizzontale per essere letto bene a schermo.")
-
     edge_count = sum(1 for element in root.iter() if _namespace(element.tag) == BPMNDI_NS and _local_name(element.tag) == "BPMNEdge")
     if edge_count < len(list(_sequence_flows(root))):
         issues.append("Alcuni collegamenti non hanno una linea disegnata.")
 
+    from backend.bpmn.canvas_layout import lint_visual_model
+    visual = lint_visual_model(root, manual=True)
+    issues.extend(visual["issues"])
+    warnings.extend(visual["warnings"])
     return {
         "valid": not issues,
         "issues": issues,
@@ -617,49 +602,17 @@ def optimize_bpmn_layout(
     planned_rows: list[list[str]] | None = None,
     require_planned_rows: bool = False,
 ) -> tuple[str, dict]:
-    if require_planned_rows and planned_rows is None:
-        raise ValueError("Il layout BPMN richiede planned_rows esplicite dal layout consultant agent.")
-    layout_config = _readable_layout_config(config or BpmnLayoutConfig())
-    updated_xml = layout_bpmn_di(xml, config=layout_config, planned_rows=planned_rows)
+    # Legacy keyword arguments remain source-compatible, but never control DI.
+    updated_xml = layout_bpmn_di(xml)
     report = validate_bpmn_layout(updated_xml)
     score = _layout_score(report)
-
     return updated_xml, {
-        "valid": bool(report.get("valid")),
-        "selected_score": score,
-        "selected_report": report,
-        "attempts": [
-            {
-                "attempt": 1,
-                "config": asdict(layout_config),
-                "valid": report.get("valid"),
-                "score": score,
-                "report": report,
-            }
-        ],
+        "valid": report["valid"], "selected_score": score, "selected_report": report,
+        "attempts": [{"attempt": 1, "policy": "delir-lr-v1", "valid": report["valid"],
+                      "score": score, "report": report}],
     }
 
 
-def _append_node_label(
-    shape: ET.Element,
-    element_type: str,
-    name: str,
-    position: dict[str, float],
-) -> None:
-    if not name.strip():
-        return
-    width = min(180.0, max(110.0, len(name) * 5.8))
-    height = 44.0 if len(name) > 28 else 30.0
-    if element_type == "boundaryEvent":
-        x = position["x"] + position["width"] + 14
-        y = position["y"] + 4
-    else:
-        x = position["x"] + position["width"] / 2 - width / 2
-        y = position["y"] - height - 12
-    label = ET.SubElement(shape, _bpmndi_tag("BPMNLabel"))
-    ET.SubElement(label, _dc_tag("Bounds"), {
-        "x": str(x), "y": str(y), "width": str(width), "height": str(height),
-    })
 
 
 def layout_bpmn_di(
@@ -667,590 +620,23 @@ def layout_bpmn_di(
     config: BpmnLayoutConfig | None = None,
     planned_rows: list[list[str]] | None = None,
 ) -> str:
-    """
-    Generate BPMN diagram interchange metadata for the process.
-    
-    Parameters:
-    	xml (str): BPMN XML containing a process.
-    	config (BpmnLayoutConfig | None): Optional layout configuration.
-    
-    Returns:
-    	str: BPMN XML with regenerated diagram, shape, and edge layout metadata.
-    """
-    config = _readable_layout_config(config or BpmnLayoutConfig())
-    root = _parse_bpmn_xml(xml)
-    _normalize_connector_labels(root)
-    definitions_id = root.attrib.get("id", "Definitions")
-    process = _find_process(root)
-    process_id = process.attrib.get("id", "Process")
-    collaboration = _find_collaboration(root)
-    plane_element = (
-        collaboration.attrib.get("id", process_id) if collaboration is not None else process_id
-    )
-
-    for child in list(root):
-        if _namespace(child.tag) == BPMNDI_NS and _local_name(child.tag) == "BPMNDiagram":
-            root.remove(child)
-
-    diagram = ET.SubElement(root, _bpmndi_tag("BPMNDiagram"), {"id": f"{definitions_id}_Diagram"})
-    plane = ET.SubElement(
-        diagram,
-        _bpmndi_tag("BPMNPlane"),
-        {
-            "id": f"{process_id}_Plane",
-            "bpmnElement": plane_element,
-        },
-    )
-
-    all_flow_nodes = [
-        element
-        for element in process
-        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) in FLOW_NODE_TYPES and element.attrib.get("id")
-    ]
-    flow_nodes = [e for e in all_flow_nodes if _local_name(e.tag) != "boundaryEvent"]
-    boundary_nodes = [e for e in all_flow_nodes if _local_name(e.tag) == "boundaryEvent"]
-    lane_shapes = _layout_lane_shapes(process, flow_nodes, config, planned_rows=planned_rows)
-    for lane_shape in lane_shapes:
-        lane_id = str(lane_shape["id"])
-        shape = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNShape"),
-            {
-                "id": f"{lane_id}_di",
-                "bpmnElement": lane_id,
-                "isHorizontal": "true",
-            },
-        )
-        ET.SubElement(
-            shape,
-            _dc_tag("Bounds"),
-            {
-                "x": str(lane_shape["x"]),
-                "y": str(lane_shape["y"]),
-                "width": str(lane_shape["width"]),
-                "height": str(lane_shape["height"]),
-            },
-        )
-
-    node_positions = _layout_flow_nodes(process, flow_nodes, config, planned_rows=planned_rows)
-    for element in flow_nodes:
-        element_type = _local_name(element.tag)
-        element_id = element.attrib.get("id")
-        if not element_id:
-            continue
-
-        position = node_positions[element_id]
-        shape = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNShape"),
-            {"id": f"{element_id}_di", "bpmnElement": element_id},
-        )
-        ET.SubElement(
-            shape,
-            _dc_tag("Bounds"),
-            {
-                "x": str(position["x"]),
-                "y": str(position["y"]),
-                "width": str(position["width"]),
-                "height": str(position["height"]),
-            },
-        )
-        if element_type.endswith("Gateway") or element_type == "endEvent":
-            _append_node_label(shape, element_type, element.attrib.get("name", ""), position)
-
-    for element in boundary_nodes:
-        element_id = element.attrib["id"]
-        attached_to_ref = element.attrib.get("attachedToRef")
-        host = node_positions.get(attached_to_ref) if attached_to_ref else None
-        if host is not None:
-            position = {
-                "x": host["x"] + host["width"] * 0.62,
-                "y": host["y"] + host["height"] - 18,
-                "width": 36,
-                "height": 36,
-            }
-        else:
-            position = {"x": LAYOUT_LEFT, "y": LAYOUT_TOP, "width": 36, "height": 36}
-        node_positions[element_id] = position
-        shape = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNShape"),
-            {"id": f"{element_id}_di", "bpmnElement": element_id},
-        )
-        ET.SubElement(
-            shape,
-            _dc_tag("Bounds"),
-            {
-                "x": str(position["x"]),
-                "y": str(position["y"]),
-                "width": str(position["width"]),
-                "height": str(position["height"]),
-            },
-        )
-        _append_node_label(shape, "boundaryEvent", element.attrib.get("name", ""), position)
-
-    artifact_positions = _layout_artifacts(process, node_positions, config)
-    for element_id, position in artifact_positions.items():
-        shape = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNShape"),
-            {"id": f"{element_id}_di", "bpmnElement": element_id},
-        )
-        ET.SubElement(
-            shape,
-            _dc_tag("Bounds"),
-            {
-                "x": str(position["x"]),
-                "y": str(position["y"]),
-                "width": str(position["width"]),
-                "height": str(position["height"]),
-            },
-        )
-
-    connectable_positions = {**node_positions, **artifact_positions}
-    boundary_ids = {element.attrib["id"] for element in boundary_nodes}
-    outgoing_index: dict[str, int] = {}
-    for flow in _sequence_flows(root):
-        flow_id = flow.attrib.get("id")
-        source_ref = flow.attrib.get("sourceRef")
-        target_ref = flow.attrib.get("targetRef")
-        source = node_positions.get(source_ref) if source_ref else None
-        target = node_positions.get(target_ref) if target_ref else None
-        if not flow_id or source is None or target is None:
-            continue
-
-        edge = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNEdge"),
-            {"id": f"{flow_id}_di", "bpmnElement": flow_id},
-        )
-        source_index = outgoing_index.get(source_ref, 0)
-        outgoing_index[source_ref] = source_index + 1
-        points = _edge_waypoints(
-            source, target, connectable_positions.values(), source_index,
-            source_ref in boundary_ids,
-        )
-        for point in points:
-            ET.SubElement(edge, _di_tag("waypoint"), {"x": str(point["x"]), "y": str(point["y"])})
-        if flow.attrib.get("name") and len(points) >= 3:
-            vertical = max((abs(a["y"] - b["y"]) for a, b in pairwise(points)), default=0)
-            horizontal = max((abs(a["x"] - b["x"]) for a, b in pairwise(points)), default=0)
-            if vertical > 150 and vertical > horizontal:
-                label = ET.SubElement(edge, _bpmndi_tag("BPMNLabel"))
-                ET.SubElement(label, _dc_tag("Bounds"), {
-                    "x": str(points[-2]["x"] + 14),
-                    "y": str(target["y"] - 32),
-                    "width": "125", "height": "28",
-                })
-
-    for association in _associations(root):
-        association_id = association.attrib.get("id")
-        source_ref = association.attrib.get("sourceRef")
-        target_ref = association.attrib.get("targetRef")
-        source = connectable_positions.get(source_ref) if source_ref else None
-        target = connectable_positions.get(target_ref) if target_ref else None
-        if not association_id or source is None or target is None:
-            continue
-
-        edge = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNEdge"),
-            {"id": f"{association_id}_di", "bpmnElement": association_id},
-        )
-        ET.SubElement(
-            edge,
-            _di_tag("waypoint"),
-            {"x": str(source["x"] + source["width"] / 2), "y": str(source["y"] + source["height"])},
-        )
-        ET.SubElement(
-            edge,
-            _di_tag("waypoint"),
-            {"x": str(target["x"] + target["width"] / 2), "y": str(target["y"])},
-        )
-
-    if collaboration is not None:
-        pool_positions = _layout_participant_shapes(
-            plane, collaboration, process_id, node_positions, lane_shapes
-        )
-        _layout_message_flow_edges(plane, collaboration, {**node_positions, **pool_positions})
-
-    _avoid_node_label_collisions(plane, connectable_positions, lane_shapes)
-    return _xml_to_string(root)
+    """Compatibility entrypoint; only DeliR's global policy decides geometry."""
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+    return apply_enterprise_layout(xml)
 
 
-def _normalize_connector_labels(root: ET.Element) -> None:
-    """Only gateway branches carry visible names on connectors."""
-    gateways = {
-        element.attrib["id"] for element in root.iter()
-        if _namespace(element.tag) == BPMN_NS
-        and _local_name(element.tag).endswith("Gateway")
-        and element.attrib.get("id")
-    }
-    for flow in _sequence_flows(root):
-        if flow.attrib.get("sourceRef") not in gateways:
-            _move_connector_name_to_documentation(flow)
-    collaboration = _find_collaboration(root)
-    if collaboration is not None:
-        for flow in _message_flows(collaboration):
-            _move_connector_name_to_documentation(flow)
 
 
-def _move_connector_name_to_documentation(flow: ET.Element) -> None:
-    name = flow.attrib.pop("name", "").strip()
-    if not name:
-        return
-    documentation = ET.Element(_bpmn_tag("documentation"))
-    documentation.text = name
-    insert_at = 0
-    for child in flow:
-        if _namespace(child.tag) != BPMN_NS or _local_name(child.tag) != "documentation":
-            break
-        insert_at += 1
-    flow.insert(insert_at, documentation)
 
 
-def _avoid_node_label_collisions(
-    plane: ET.Element,
-    node_positions: dict[str, dict[str, float]],
-    lane_shapes: list[dict[str, float | str]],
-) -> None:
-    """Move external labels away from connectors after all routes are known."""
-    edges = [
-        [(float(point.attrib["x"]), float(point.attrib["y"]))
-         for point in edge.iter(f"{{{DI_NS}}}waypoint")]
-        for edge in plane.iter(f"{{{BPMNDI_NS}}}BPMNEdge")
-    ]
-    labels: list[tuple[str, ET.Element, dict[str, float]]] = []
-    for shape in plane.iter(f"{{{BPMNDI_NS}}}BPMNShape"):
-        owner_id = shape.attrib.get("bpmnElement", "")
-        if owner_id not in node_positions:
-            continue
-        bounds = shape.find(f"{{{BPMNDI_NS}}}BPMNLabel/{{{DC_NS}}}Bounds")
-        if bounds is None:
-            continue
-        labels.append((owner_id, bounds, {key: float(bounds.attrib[key]) for key in ("x", "y", "width", "height")}))
-
-    def overlaps(a: dict[str, float], b: dict[str, float], margin: float = 2) -> bool:
-        return (a["x"] < b["x"] + b["width"] + margin
-                and a["x"] + a["width"] + margin > b["x"]
-                and a["y"] < b["y"] + b["height"] + margin
-                and a["y"] + a["height"] + margin > b["y"])
-
-    for owner_id, bounds_element, current in labels:
-        owner = node_positions[owner_id]
-        width, height = current["width"], current["height"]
-        center_x = owner["x"] + owner["width"] / 2
-        center_y = owner["y"] + owner["height"] / 2
-        candidates = [
-            current,
-            {"x": center_x - width / 2, "y": owner["y"] + owner["height"] + 12,
-             "width": width, "height": height},
-            {"x": center_x - width / 2, "y": owner["y"] - height - 12,
-             "width": width, "height": height},
-            {"x": owner["x"] + owner["width"] + 14, "y": center_y - height / 2,
-             "width": width, "height": height},
-            {"x": owner["x"] - width - 14, "y": center_y - height / 2,
-             "width": width, "height": height},
-        ]
-        containing_lane = next((lane for lane in lane_shapes
-            if float(lane["x"]) <= center_x <= float(lane["x"]) + float(lane["width"])
-            and float(lane["y"]) <= center_y <= float(lane["y"]) + float(lane["height"])), None)
-        for candidate in candidates:
-            if containing_lane and not (
-                float(containing_lane["x"]) + 8 <= candidate["x"]
-                and candidate["x"] + width <= float(containing_lane["x"]) + float(containing_lane["width"]) - 8
-                and float(containing_lane["y"]) + 8 <= candidate["y"]
-                and candidate["y"] + height <= float(containing_lane["y"]) + float(containing_lane["height"]) - 8
-            ):
-                continue
-            if any(overlaps(candidate, box) for node_id, box in node_positions.items() if node_id != owner_id):
-                continue
-            if any(overlaps(candidate, other) for label_id, _, other in labels if label_id != owner_id):
-                continue
-            if any(_segment_crosses_box(start, end, candidate)
-                   for points in edges for start, end in pairwise(points)):
-                continue
-            current["x"], current["y"] = candidate["x"], candidate["y"]
-            bounds_element.set("x", str(candidate["x"]))
-            bounds_element.set("y", str(candidate["y"]))
-            break
-
-    edge_labels: list[tuple[ET.Element, dict[str, float], list[tuple[float, float]]]] = []
-    for edge in plane.iter(f"{{{BPMNDI_NS}}}BPMNEdge"):
-        bounds = edge.find(f"{{{BPMNDI_NS}}}BPMNLabel/{{{DC_NS}}}Bounds")
-        if bounds is None:
-            continue
-        points = [(float(point.attrib["x"]), float(point.attrib["y"]))
-                  for point in edge.iter(f"{{{DI_NS}}}waypoint")]
-        edge_labels.append((bounds, {key: float(bounds.attrib[key])
-                                    for key in ("x", "y", "width", "height")}, points))
-
-    for bounds_element, current, points in edge_labels:
-        verticals = [(a, b) for a, b in pairwise(points) if abs(a[0] - b[0]) < 2]
-        if not verticals:
-            continue
-        longest = max(verticals, key=lambda segment: abs(segment[0][1] - segment[1][1]))
-        line_x = longest[0][0]
-        candidates = [current]
-        for offset in (0, -45, 45):
-            for x in (line_x - current["width"] - 14, line_x + 14):
-                candidates.append({"x": x, "y": current["y"] + offset,
-                                   "width": current["width"], "height": current["height"]})
-        for candidate in candidates:
-            if any(overlaps(candidate, box) for box in node_positions.values()):
-                continue
-            if any(overlaps(candidate, other) for _, _, other in labels):
-                continue
-            if any(overlaps(candidate, other) for other_bounds, other, _ in edge_labels
-                   if other_bounds is not bounds_element):
-                continue
-            if any(_segment_crosses_box(start, end, candidate)
-                   for route in edges for start, end in pairwise(route)):
-                continue
-            current["x"], current["y"] = candidate["x"], candidate["y"]
-            bounds_element.set("x", str(candidate["x"]))
-            bounds_element.set("y", str(candidate["y"]))
-            break
 
 
-def _layout_flow_nodes(
-    process: ET.Element,
-    flow_nodes: list[ET.Element],
-    config: BpmnLayoutConfig,
-    planned_rows: list[list[str]] | None = None,
-) -> dict[str, dict[str, float]]:
-    lane_y_by_id, _local_rows, _lane_heights, row_pitch = _lane_geometry(
-        process, flow_nodes, config, planned_rows
-    )
-    positions: dict[str, dict[str, float]] = {}
-    cells = _lane_cells(process, flow_nodes, config, planned_rows)
-
-    for element in flow_nodes:
-        element_id = element.attrib["id"]
-        element_type = _local_name(element.tag)
-        width, height = _shape_size(element_type)
-        cell = cells[element_id]
-        row = cell["row"]
-        column = cell["column"]
-        lane_id = _effective_lane_id(process, element)
-        if lane_id is None and lane_y_by_id:
-            lane_id = next(iter(lane_y_by_id))
-        lane_base_y = lane_y_by_id.get(lane_id or "", LAYOUT_TOP)
-        x = LAYOUT_LEFT + LAYOUT_LANE_LABEL_WIDTH + 70 + column * config.column_gap
-        y = lane_base_y + 52 + row * row_pitch + (80 - height) / 2
-        positions[element_id] = {"x": x, "y": y, "width": width, "height": height}
-
-    return positions
 
 
-def _layout_lane_shapes(
-    process: ET.Element,
-    flow_nodes: list[ET.Element],
-    config: BpmnLayoutConfig,
-    planned_rows: list[list[str]] | None = None,
-) -> list[dict[str, float | str]]:
-    lanes = _lanes(process)
-    if not lanes:
-        return []
-
-    lane_y_by_id, _local_rows, lane_heights, _row_pitch = _lane_geometry(
-        process, flow_nodes, config, planned_rows
-    )
-    cells = _lane_cells(process, flow_nodes, config, planned_rows)
-    last_column = max((cell["column"] for cell in cells.values()), default=0)
-    lane_width = LAYOUT_LANE_LABEL_WIDTH + 70 + last_column * config.column_gap + 160
-    lane_width = max(980, lane_width)
-    return [
-        {
-            "id": lane.attrib["id"],
-            "x": LAYOUT_LEFT,
-            "y": lane_y_by_id[lane.attrib["id"]],
-            "width": lane_width,
-            "height": lane_heights[lane.attrib["id"]],
-        }
-        for lane in lanes
-        if lane.attrib.get("id")
-    ]
 
 
-def _layout_artifacts(
-    process: ET.Element,
-    node_positions: dict[str, dict[str, float]],
-    config: BpmnLayoutConfig,
-) -> dict[str, dict[str, float]]:
-    positions: dict[str, dict[str, float]] = {}
-    data_by_source_count: dict[str, int] = {}
-    associations_by_target = {
-        association.attrib.get("targetRef"): association.attrib.get("sourceRef")
-        for association in _associations(process)
-        if association.attrib.get("targetRef")
-    }
-
-    annotations = [
-        element
-        for element in process
-        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) in ANNOTATION_TYPES and element.attrib.get("id")
-    ]
-    for index, element in enumerate(annotations):
-        row = index // config.annotation_columns
-        column = index % config.annotation_columns
-        positions[element.attrib["id"]] = {
-            "x": LAYOUT_LEFT + LAYOUT_LANE_LABEL_WIDTH + 70 + column * 330,
-            "y": 44 + row * 108,
-            "width": 260,
-            "height": 82,
-        }
-
-    data_objects = [
-        element
-        for element in process
-        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) in DATA_ARTIFACT_TYPES and element.attrib.get("id")
-    ]
-    for index, element in enumerate(data_objects):
-        element_id = element.attrib["id"]
-        source_id = associations_by_target.get(element_id) or next(iter(node_positions), "")
-        source = node_positions.get(source_id)
-        if source:
-            offset = data_by_source_count.get(source_id, 0)
-            data_by_source_count[source_id] = offset + 1
-            x = source["x"] + 12 + offset * 78
-            y = source["y"] + source["height"] + 34
-        else:
-            row = index // 6
-            column = index % 6
-            x = LAYOUT_LEFT + LAYOUT_LANE_LABEL_WIDTH + 70 + column * 120
-            y = LAYOUT_TOP + 90 + row * 90
-        positions[element_id] = {"x": x, "y": y, "width": 72, "height": 58}
-
-    return positions
 
 
-def _edge_waypoints(
-    source: dict[str, float],
-    target: dict[str, float],
-    obstacles: Iterable[dict[str, float]] = (),
-    source_flow_index: int = 0,
-    source_is_boundary: bool = False,
-) -> list[dict[str, float]]:
-    start = {"x": source["x"] + source["width"], "y": source["y"] + source["height"] / 2}
-    end = {"x": target["x"], "y": target["y"] + target["height"] / 2}
-
-    blockers = [box for box in obstacles if box is not source and box is not target]
-    if source_is_boundary and target["y"] > source["y"]:
-        start = {"x": source["x"], "y": source["y"] + source["height"] / 2}
-        end = {"x": target["x"], "y": target["y"] + target["height"] / 2}
-        channel_x = min(source["x"], target["x"]) - 40
-        direct = [start, {"x": channel_x, "y": start["y"]}, {"x": channel_x, "y": end["y"]}, end]
-    elif (
-        source_flow_index and source["width"] <= 60
-        and target["x"] > source["x"] + source["width"] + 20
-        and abs(target["y"] - source["y"]) > 100
-    ):
-        # The alternate branch leaves a gateway on its vertical side, then
-        # reaches the activity along its lane. This keeps the sibling branch
-        # free to run through the gap between lanes.
-        downward = target["y"] > source["y"]
-        start = {"x": source["x"] + source["width"] / 2,
-                 "y": source["y"] + source["height"] if downward else source["y"]}
-        end = {"x": target["x"], "y": target["y"] + target["height"] / 2}
-        direct = [start, {"x": start["x"], "y": end["y"]}, end]
-    elif (
-        source["width"] > 60 and target["width"] <= 60
-        and target["x"] > source["x"] + source["width"] + 20
-        and abs(target["y"] - source["y"]) > 100
-    ):
-        downward = target["y"] > source["y"]
-        start = {"x": source["x"] + source["width"] / 2,
-                 "y": source["y"] + source["height"] if downward else source["y"]}
-        end = {"x": target["x"] + target["width"] / 2,
-               "y": target["y"] if downward else target["y"] + target["height"]}
-        gap_y = (start["y"] + end["y"]) / 2
-        direct = [start, {"x": start["x"], "y": gap_y},
-                  {"x": end["x"], "y": gap_y}, end]
-    elif target["y"] > source["y"] + source["height"] + 20:
-        # A change of lane uses the gap beside the tasks. Distinct outgoing
-        # flows take distinct ports and channels, so branches do not coincide.
-        if source_flow_index == 0 and abs(target["x"] - source["x"]) < 12:
-            preferred_x = source["x"] + source["width"] - 3
-            candidate_xs = [preferred_x, source["x"] + 25, source["x"] + source["width"] / 2]
-            clear_x = next((x for x in candidate_xs if not any(
-                _segment_crosses_box((x, source["y"] + source["height"]), (x, target["y"]), box)
-                for box in blockers
-            )), preferred_x)
-            start = {"x": clear_x, "y": source["y"] + source["height"]}
-            end = {"x": clear_x, "y": target["y"]}
-            direct = [start, end] if abs(start["x"] - end["x"]) < 2 else [
-                start, {"x": start["x"], "y": (start["y"] + end["y"]) / 2},
-                {"x": end["x"], "y": (start["y"] + end["y"]) / 2}, end,
-            ]
-        elif source_flow_index and target["x"] <= source["x"]:
-            start = {"x": source["x"] + 8, "y": source["y"] + source["height"]}
-            channel_x = min(target["x"] - 40, source["x"] - 40)
-            end = {"x": target["x"], "y": target["y"] + target["height"] / 2}
-            direct = [start, {"x": channel_x, "y": start["y"]}, {"x": channel_x, "y": end["y"]}, end]
-        elif target["x"] > source["x"] + source["width"] + 20:
-            channel_x = (source["x"] + source["width"] + target["x"]) / 2
-            end = {"x": target["x"], "y": target["y"] + target["height"] / 2}
-            direct = [start, {"x": channel_x, "y": start["y"]}, {"x": channel_x, "y": end["y"]}, end]
-        else:
-            channel_x = max(source["x"] + source["width"], target["x"] + target["width"]) + 40 + 40 * source_flow_index
-            if source_flow_index:
-                start = {"x": source["x"] + source["width"] - 8, "y": source["y"] + source["height"]}
-            end = {"x": target["x"] + target["width"], "y": target["y"] + target["height"] / 2}
-            direct = [start, {"x": channel_x, "y": start["y"]}, {"x": channel_x, "y": end["y"]}, end]
-    elif target["x"] + target["width"] < source["x"] and abs(start["y"] - end["y"]) < 2:
-        direct = [
-            {"x": source["x"], "y": start["y"]},
-            {"x": target["x"] + target["width"], "y": end["y"]},
-        ]
-    elif target["x"] > source["x"] and abs(start["y"] - end["y"]) < 2:
-        direct = [start, end]
-    elif target["x"] > source["x"]:
-        mid_x = start["x"] + max(70, (end["x"] - start["x"]) / 2)
-        direct = [start, {"x": mid_x, "y": start["y"]}, {"x": mid_x, "y": end["y"]}, end]
-    else:
-        route_y = max(source["y"] + source["height"], target["y"] + target["height"]) + 58
-        direct = [
-            start,
-            {"x": start["x"] + 68, "y": start["y"]},
-            {"x": start["x"] + 68, "y": route_y},
-            {"x": end["x"] - 68, "y": route_y},
-            {"x": end["x"] - 68, "y": end["y"]},
-            end,
-        ]
-
-    crossing_boxes = [box for box in blockers if any(
-        _segment_crosses_box((a["x"], a["y"]), (b["x"], b["y"]), box)
-        for a, b in pairwise(direct)
-    )]
-    if not crossing_boxes:
-        return direct
-
-    # A skip edge (for example the default branch around an approval task)
-    # must travel outside the occupied band, rather than through that task.
-    candidates = []
-    for above in (False, True):
-        route_y = (
-            min(box["y"] for box in [source, target, *crossing_boxes]) - 38
-            if above else
-            max(box["y"] + box["height"] for box in [source, target, *crossing_boxes]) + 38
-        )
-        start_y = source["y"] if above else source["y"] + source["height"]
-        end_y = target["y"] if above else target["y"] + target["height"]
-        sx = source["x"] + source["width"] / 2
-        tx = target["x"] + target["width"] / 2
-        points = [
-            {"x": sx, "y": start_y},
-            {"x": sx, "y": route_y},
-            {"x": tx, "y": route_y},
-            {"x": tx, "y": end_y},
-        ]
-        if not any(
-            _segment_crosses_box((a["x"], a["y"]), (b["x"], b["y"]), box)
-            for box in blockers for a, b in pairwise(points)
-        ):
-            candidates.append((abs(start_y - route_y) + abs(sx - tx) + abs(end_y - route_y), points))
-    return min(candidates, key=lambda candidate: candidate[0])[1] if candidates else direct
 
 
 def _layout_score(report: dict) -> float:
@@ -1270,207 +656,20 @@ def _layout_score(report: dict) -> float:
     return score
 
 
-def _layout_grid(
-    flow_nodes: list[ET.Element],
-    config: BpmnLayoutConfig,
-    planned_rows: list[list[str]] | None,
-) -> dict[str, dict[str, int]]:
-    element_ids = [element.attrib["id"] for element in flow_nodes if element.attrib.get("id")]
-    known_ids = set(element_ids)
-    rows: list[list[str]] = []
-    used: set[str] = set()
-
-    for planned_row in planned_rows or []:
-        clean_row = []
-        for element_id in planned_row:
-            if element_id in known_ids and element_id not in used:
-                clean_row.append(element_id)
-                used.add(element_id)
-        for index in range(0, len(clean_row), config.max_nodes_per_row):
-            rows.append(clean_row[index : index + config.max_nodes_per_row])
-
-    missing = [element_id for element_id in element_ids if element_id not in used]
-    if planned_rows and missing:
-        raise ValueError(
-            "Il piano layout non copre tutti i flow node BPMN visibili: " + ", ".join(sorted(missing))
-        )
-    for index in range(0, len(missing), config.max_nodes_per_row):
-        rows.append(missing[index : index + config.max_nodes_per_row])
-
-    if not rows:
-        rows = [element_ids]
-
-    grid: dict[str, dict[str, int]] = {}
-    for row_index, row in enumerate(rows):
-        for column_index, element_id in enumerate(row):
-            grid[element_id] = {
-                "row": row_index,
-                "column": column_index,
-                "row_count": len(row),
-            }
-    return grid
 
 
-def _layout_row_count(
-    flow_nodes: list[ET.Element],
-    config: BpmnLayoutConfig,
-    planned_rows: list[list[str]] | None,
-) -> int:
-    grid = _layout_grid(flow_nodes, config, planned_rows)
-    return max((cell["row"] + 1 for cell in grid.values()), default=1)
 
 
-def _lane_cells(
-    process: ET.Element,
-    flow_nodes: list[ET.Element],
-    config: BpmnLayoutConfig,
-    planned_rows: list[list[str]] | None,
-) -> dict[str, dict[str, int]]:
-    """Give each lane its own ordered slots while retaining the plan's order."""
-    grid = _layout_grid(flow_nodes, config, planned_rows)
-    flow_order = _topological_node_order(process, flow_nodes)
-    lanes = _lanes(process)
-    first_lane = lanes[0].attrib["id"] if lanes else ""
-    by_lane: dict[str, list[ET.Element]] = {}
-    for element in flow_nodes:
-        lane_id = _effective_lane_id(process, element) or first_lane
-        by_lane.setdefault(lane_id, []).append(element)
-
-    cells: dict[str, dict[str, int]] = {}
-    capacity = config.max_nodes_per_row
-    gateway_count = sum(_local_name(element.tag).endswith("Gateway") for element in flow_nodes)
-    if len(by_lane) > 1 and (
-        any(len(elements) > capacity for elements in by_lane.values()) or gateway_count >= 3
-    ):
-        # A multi-lane process needs one shared time axis. Independent wrapping
-        # makes later cross-lane flows travel backwards through prior tasks.
-        return {
-            node_id: {"row": 0, "column": order}
-            for node_id, order in flow_order.items()
-        }
-    for elements in by_lane.values():
-        elements.sort(key=lambda element: flow_order[element.attrib["id"]])
-        for offset in range(0, len(elements), capacity):
-            row_elements = elements[offset : offset + capacity]
-            first_column = grid[row_elements[0].attrib["id"]]["column"]
-            if offset == 0:
-                first_id = row_elements[0].attrib["id"]
-                for flow in _sequence_flows(process):
-                    if flow.attrib.get("targetRef") != first_id:
-                        continue
-                    predecessor_id = flow.attrib.get("sourceRef", "")
-                    boundary = next((
-                        node for node in process
-                        if node.attrib.get("id") == predecessor_id
-                        and _local_name(node.tag) == "boundaryEvent"
-                    ), None)
-                    if boundary is not None:
-                        predecessor_id = boundary.attrib.get("attachedToRef", "")
-                    if predecessor_id in cells:
-                        first_column = cells[predecessor_id]["column"]
-                        break
-            start_column = min(first_column, capacity - len(row_elements))
-            for index, element in enumerate(row_elements):
-                row_index = offset // capacity
-                column = capacity - 1 - index if row_index % 2 else start_column + index
-                if row_index % 2 == 0 and _local_name(element.tag) == "endEvent" and index == len(row_elements) - 1:
-                    column = capacity - 1
-                cells[element.attrib["id"]] = {"row": row_index, "column": column}
-    return cells
 
 
-def _topological_node_order(
-    process: ET.Element, flow_nodes: list[ET.Element]
-) -> dict[str, int]:
-    """Place every branch before the activity where it rejoins."""
-    ids = [element.attrib["id"] for element in flow_nodes]
-    original = {node_id: index for index, node_id in enumerate(ids)}
-    successors: dict[str, list[str]] = {node_id: [] for node_id in ids}
-    incoming = {node_id: 0 for node_id in ids}
-    for flow in _sequence_flows(process):
-        source_id = flow.attrib.get("sourceRef")
-        target_id = flow.attrib.get("targetRef")
-        if source_id in successors and target_id in incoming:
-            successors[source_id].append(target_id)
-            incoming[target_id] += 1
-
-    available = [node_id for node_id in ids if incoming[node_id] == 0]
-    result: list[str] = []
-    while available:
-        available.sort(key=original.__getitem__)
-        node_id = available.pop(0)
-        result.append(node_id)
-        for target_id in successors[node_id]:
-            incoming[target_id] -= 1
-            if incoming[target_id] == 0:
-                available.append(target_id)
-    result.extend(node_id for node_id in ids if node_id not in result)
-    return {node_id: index for index, node_id in enumerate(result)}
 
 
-def _lane_geometry(
-    process: ET.Element,
-    flow_nodes: list[ET.Element],
-    config: BpmnLayoutConfig,
-    planned_rows: list[list[str]] | None = None,
-) -> tuple[dict[str, float], dict[str, int], dict[str, float], int]:
-    """Reserve only occupied rows in each lane, including room for data objects."""
-    lanes = _lanes(process)
-    if not lanes:
-        return {}, {}, {}, config.row_gap
-
-    cells = _lane_cells(process, flow_nodes, config, planned_rows)
-    rows_by_lane: dict[str, set[int]] = {lane.attrib["id"]: set() for lane in lanes}
-    local_row_by_node: dict[str, int] = {}
-    for element in flow_nodes:
-        node_id = element.attrib["id"]
-        lane_id = _effective_lane_id(process, element) or lanes[0].attrib["id"]
-        local_row_by_node[node_id] = cells[node_id]["row"]
-        rows_by_lane[lane_id].add(cells[node_id]["row"])
-
-    row_pitch = max(config.row_gap, config.lane_row_height + 30)
-    lane_y_by_id: dict[str, float] = {}
-    lane_heights: dict[str, float] = {}
-    next_y = float(LAYOUT_TOP)
-    for lane in lanes:
-        lane_id = lane.attrib["id"]
-        lane_y_by_id[lane_id] = next_y
-        lane_heights[lane_id] = 30 + max(1, len(rows_by_lane[lane_id])) * row_pitch
-        next_y += lane_heights[lane_id]
-    return lane_y_by_id, local_row_by_node, lane_heights, row_pitch
 
 
-def _lanes(process: ET.Element) -> list[ET.Element]:
-    return [
-        element
-        for element in process.iter()
-        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "lane" and element.attrib.get("id")
-    ]
 
 
-def _lane_id_for_node(process: ET.Element, element_id: str) -> str | None:
-    for lane in _lanes(process):
-        for child in lane:
-            if _namespace(child.tag) == BPMN_NS and _local_name(child.tag) == "flowNodeRef":
-                if (child.text or "").strip() == element_id:
-                    return lane.attrib.get("id")
-
-    return None
 
 
-def _effective_lane_id(process: ET.Element, element: ET.Element) -> str | None:
-    """Keep an unassigned end event with the activity that completes the work."""
-    element_id = element.attrib["id"]
-    explicit = _lane_id_for_node(process, element_id)
-    if explicit or _local_name(element.tag) != "endEvent":
-        return explicit
-    for flow in _sequence_flows(process):
-        if flow.attrib.get("targetRef") == element_id:
-            source_id = flow.attrib.get("sourceRef", "")
-            source_lane = _lane_id_for_node(process, source_id)
-            if source_lane:
-                return source_lane
-    return None
 
 
 def _shape_bounds(root: ET.Element) -> dict[str, dict[str, float]]:
@@ -1581,9 +780,12 @@ def _edge_edge_crossings(root: ET.Element) -> list[tuple[str, str]]:
         if len(points) > 1:
             edges.append((edge.attrib.get("bpmnElement", ""), points))
 
+    endpoints = {e.get("id"): {e.get("sourceRef"), e.get("targetRef")} for e in root.iter() if _local_name(e.tag) in {"sequenceFlow", "association", "messageFlow"}}
     crossings = []
     for index, (left_id, left_points) in enumerate(edges):
         for right_id, right_points in edges[index + 1:]:
+            if endpoints.get(left_id, set()).intersection(endpoints.get(right_id, set())):
+                continue
             if any(
                 _segments_overlap_interior(a, b, c, d)
                 for a, b in pairwise(left_points)
@@ -1690,20 +892,6 @@ def _sequence_flows(root: ET.Element) -> list[ET.Element]:
     ]
 
 
-def _associations(root: ET.Element) -> list[ET.Element]:
-    """Return all BPMN association elements in the XML tree.
-    
-    Parameters:
-    	root (ET.Element): Root element of the BPMN XML tree.
-    
-    Returns:
-    	list[ET.Element]: BPMN association elements found in the tree.
-    """
-    return [
-        element
-        for element in root.iter()
-        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "association"
-    ]
 
 
 def _boundary_events(root: ET.Element) -> list[ET.Element]:
@@ -1719,146 +907,12 @@ def _boundary_events(root: ET.Element) -> list[ET.Element]:
     ]
 
 
-def _find_collaboration(root: ET.Element) -> ET.Element | None:
-    """Find the collaboration element in a BPMN XML tree.
-    
-    Parameters:
-    	root (ET.Element): Root element of the BPMN XML tree.
-    
-    Returns:
-    	ET.Element | None: The collaboration element, or `None` if the tree does not contain one.
-    """
-    return next(
-        (
-            element
-            for element in root.iter()
-            if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "collaboration"
-        ),
-        None,
-    )
 
 
-def _message_flows(collaboration: ET.Element) -> list[ET.Element]:
-    return [
-        element
-        for element in collaboration
-        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "messageFlow"
-    ]
 
 
-def _layout_participant_shapes(
-    plane: ET.Element,
-    collaboration: ET.Element,
-    process_id: str,
-    node_positions: dict[str, dict[str, float]],
-    lane_shapes: list[dict[str, float | str]],
-) -> dict[str, dict[str, float]]:
-    boxes: list[dict[str, float]] = [
-        {"x": float(shape["x"]), "y": float(shape["y"]), "width": float(shape["width"]), "height": float(shape["height"])}
-        for shape in lane_shapes
-    ]
-    boxes.extend(node_positions.values())
-    if boxes:
-        min_x = min(box["x"] for box in boxes)
-        min_y = min(box["y"] for box in boxes)
-        max_x = max(box["x"] + box["width"] for box in boxes)
-        max_y = max(box["y"] + box["height"] for box in boxes)
-    else:
-        min_x, min_y, max_x, max_y = float(LAYOUT_LEFT), float(LAYOUT_TOP), 1000.0, 400.0
-
-    participants = [
-        element
-        for element in collaboration
-        if _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "participant"
-    ]
-    if lane_shapes:
-        # A lane is a subdivision of its participant, not an inset box.
-        # Its first and last edges must coincide with the pool border; the
-        # remaining 30 px on the left are the participant's title strip.
-        pool_left = min(float(lane["x"]) for lane in lane_shapes) - 30
-        pool_right = max(float(lane["x"]) + float(lane["width"]) for lane in lane_shapes)
-        primary_top = min(float(lane["y"]) for lane in lane_shapes)
-        primary_bottom = max(float(lane["y"]) + float(lane["height"]) for lane in lane_shapes)
-        pool_width = pool_right - pool_left
-        primary_height = primary_bottom - primary_top
-    else:
-        pool_left = min_x - 30
-        pool_width = (max_x - pool_left) + 40
-        primary_top = min_y - 30
-        primary_height = max(max_y - primary_top + 30, 160.0)
-
-    positions: dict[str, dict[str, float]] = {}
-    external_count = 0
-    for participant in participants:
-        participant_id = participant.attrib.get("id")
-        if not participant_id:
-            continue
-        if participant.attrib.get("processRef") == process_id:
-            box = {"x": pool_left, "y": primary_top, "width": pool_width, "height": primary_height}
-        else:
-            # In the OMG collaboration examples, each participant owns a
-            # separate horizontal pool. The first black box sits above the
-            # modeled pool; additional participants stack below it.
-            external_y = (
-                primary_top - 150 if external_count == 0
-                else primary_top + primary_height + 50 + (external_count - 1) * 150
-            )
-            box = {
-                "x": pool_left,
-                "y": external_y,
-                "width": pool_width,
-                "height": 100.0,
-            }
-            external_count += 1
-        positions[participant_id] = box
-        shape = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNShape"),
-            {"id": f"{participant_id}_di", "bpmnElement": participant_id, "isHorizontal": "true"},
-        )
-        ET.SubElement(
-            shape,
-            _dc_tag("Bounds"),
-            {"x": str(box["x"]), "y": str(box["y"]), "width": str(box["width"]), "height": str(box["height"])},
-        )
-    return positions
 
 
-def _layout_message_flow_edges(
-    plane: ET.Element,
-    collaboration: ET.Element,
-    endpoint_positions: dict[str, dict[str, float]],
-) -> None:
-    for message_flow in _message_flows(collaboration):
-        flow_id = message_flow.attrib.get("id")
-        source_ref = message_flow.attrib.get("sourceRef")
-        target_ref = message_flow.attrib.get("targetRef")
-        source = endpoint_positions.get(source_ref) if source_ref else None
-        target = endpoint_positions.get(target_ref) if target_ref else None
-        if not flow_id or source is None or target is None:
-            continue
-
-        start_x = source["x"] + source["width"] / 2
-        end_x = target["x"] + target["width"] / 2
-        # A message between a full-width participant and an activity docks
-        # opposite that activity. Keep the connection vertical in the gap.
-        if source["width"] > 500 and target["width"] <= 110:
-            start_x = end_x
-        elif target["width"] > 500 and source["width"] <= 110:
-            end_x = start_x
-        if source["y"] <= target["y"]:
-            start_y, end_y = source["y"] + source["height"], target["y"]
-        else:
-            start_y, end_y = source["y"], target["y"] + target["height"]
-        points = [(start_x, start_y), (end_x, end_y)]
-
-        edge = ET.SubElement(
-            plane,
-            _bpmndi_tag("BPMNEdge"),
-            {"id": f"{flow_id}_di", "bpmnElement": flow_id},
-        )
-        for x, y in points:
-            ET.SubElement(edge, _di_tag("waypoint"), {"x": str(x), "y": str(y)})
 
 
 def _remove_element(root: ET.Element, target: ET.Element) -> None:
@@ -1942,12 +996,6 @@ def _default_element_id(element_type: str, name: str) -> str:
     return f"{element_type}_{clean_name or 'New'}"
 
 
-def _shape_size(element_type: str) -> tuple[int, int]:
-    if element_type in {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent"}:
-        return 36, 36
-    if element_type.endswith("Gateway"):
-        return 50, 50
-    return 110, 80
 
 
 def _has_bpmn_di(root: ET.Element) -> bool:
@@ -1957,27 +1005,16 @@ def _has_bpmn_di(root: ET.Element) -> bool:
     )
 
 
-def _has_collaboration(root: ET.Element) -> bool:
-    return any(
-        _namespace(element.tag) == BPMN_NS and _local_name(element.tag) == "collaboration"
-        for element in root.iter()
-    )
 
 
 def _bpmn_tag(local_name: str) -> str:
     return f"{{{BPMN_NS}}}{local_name}"
 
 
-def _bpmndi_tag(local_name: str) -> str:
-    return f"{{{BPMNDI_NS}}}{local_name}"
 
 
-def _dc_tag(local_name: str) -> str:
-    return f"{{{DC_NS}}}{local_name}"
 
 
-def _di_tag(local_name: str) -> str:
-    return f"{{{DI_NS}}}{local_name}"
 
 
 def _replace_documentation(element: ET.Element, text: str) -> None:

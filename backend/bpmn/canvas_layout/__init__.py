@@ -38,7 +38,7 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
         if participant is not None:
             containers[participant.get("id")] = boundary
         top = bottom + p.padding * 2
-    width = max((box.right for box in boxes.values()), default=500) - p.origin_x + p.padding
+    width = max((box.right for box in [*boxes.values(), *containers.values()]), default=500) - p.origin_x
     for participant in sorted(participants, key=lambda e: e.get("id")):
         if participant.get("id") not in containers:
             containers[participant.get("id")] = Box(p.origin_x, top, width, 100)
@@ -68,7 +68,12 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
         shape = ET.SubElement(plane, f"{{{BPMNDI}}}BPMNShape", attrs)
         _bounds(shape, box)
         if elements[element_id].get("name") and (kind.endswith("Event") or kind.endswith("Gateway") or kind in {"dataObjectReference", "dataStoreReference"}):
-            label = Box(box.center[0] - 70, box.bottom + 8, 140, 44)
+            if kind == "boundaryEvent":
+                host_id = elements[element_id].get("attachedToRef")
+                siblings = sorted(i for i, e in elements.items() if e.get("attachedToRef") == host_id)
+                label = Box(boxes[host_id].center[0] - 70, boxes[host_id].bottom + 58 + siblings.index(element_id) * 52, 140, 44)
+            else:
+                label = Box(box.center[0] - 70, box.bottom + 8, 140, 44)
             labels[element_id] = label
             _bounds(ET.SubElement(shape, f"{{{BPMNDI}}}BPMNLabel"), label)
     # Feedback routes come last; they may use outer channels without changing

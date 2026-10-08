@@ -32,7 +32,7 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
     start = (a[0], a[1] + p.route_clearance) if downward else (a[0] + p.route_clearance, a[1])
     finish = (b[0] - p.route_clearance, b[1])
     obstacles = [box if key in {source_id, target_id} else box.expanded(p.route_clearance) for key, box in boxes.items()]
-    obstacles += [box.expanded(4) for key, box in labels.items() if key not in {source_id, target_id}]
+    obstacles += [box.expanded(4) for key, box in labels.items() if True]
 
     def clear(points):
         return all(not segment_hits_box(u, v, box) for u, v in pairwise(points) for box in obstacles)
