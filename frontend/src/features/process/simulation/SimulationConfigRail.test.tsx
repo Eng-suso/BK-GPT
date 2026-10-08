@@ -104,8 +104,8 @@ describe("SimulationConfigRail", () => {
     await user.clear(name);
     await user.type(name, "Turno sabato");
     const calendar = screen.getByLabelText("Nome del calendario").closest("li") as HTMLElement;
-    await user.selectOptions(within(calendar).getByLabelText("Dal"), "SATURDAY");
-    await user.selectOptions(within(calendar).getByLabelText("Al"), "SATURDAY");
+    await user.selectOptions(within(calendar).getByLabelText("Dal giorno"), "SATURDAY");
+    await user.selectOptions(within(calendar).getByLabelText("Al giorno"), "SATURDAY");
 
     await user.selectOptions(screen.getByLabelText("Calendario di lavoro · Ufficio"), "cal-1");
     expect(current().resources[0].calendarId).toBe("cal-1");
