@@ -916,7 +916,8 @@
         "unmatched": "{{count}} log activities without a model element, left out",
         "unobserved": "{{count}} simulated activities the log never saw",
         "perHour": "{{value}}/h",
-        "notSimulated": "{{count}} log activities the run never executed"
+        "notSimulated": "{{count}} log activities the run never executed",
+        "merged": "from the log: {{names}}"
       },
       "inspector": {
         "title": "From the real log",
@@ -926,7 +927,8 @@
         "failed": "Cannot read the real log",
         "processing": "Average processing, real → simulated",
         "waiting": "Average waiting, real → simulated",
-        "executions": "Executions, log → run"
+        "executions": "Executions, log → run",
+        "noStart": "The log records completions only: real processing and waiting cannot be separated."
       }
     }
   },

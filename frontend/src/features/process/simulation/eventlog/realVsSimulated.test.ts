@@ -76,7 +76,7 @@ describe("compareRealToSimulated", () => {
     const result = compareRealToSimulated(real({ timing: "complete_only" }), simulated());
     expect(result.process.find((row) => row.key === "waitingAvg")?.notComparable).toBe("noStart");
     expect(result.process.find((row) => row.key === "processingAvg")?.notComparable).toBe("noStart");
-    expect(result.activities.every((row) => row.processingGap === null && row.realWait === null)).toBe(true);
+    expect(result.activities.every((row) => row.processingGap === null && row.realWait === null && row.realProcessing === null)).toBe(true);
   });
 
   it("joins activities on the BPMN element, largest gap first", () => {
@@ -86,5 +86,14 @@ describe("compareRealToSimulated", () => {
     expect(result.unmatchedReal).toEqual(["Archivia"]);
     expect(result.notSimulated).toEqual(["Sollecita"]);
     expect(result.unobservedSimulated).toEqual(["Notifica"]);
+  });
+
+  it("merges log activities mapped to the same element, weighted by executions", () => {
+    const merged = real({
+      byActivity: [activity("Task_A", "Approva", 600, 1200, 30), activity("Task_A", "Approva (2° livello)", 1200, 2400, 10)],
+    } as Partial<EventLogSummary>);
+    const [row] = compareRealToSimulated(merged, simulated()).activities;
+    expect(compareRealToSimulated(merged, simulated()).activities).toHaveLength(1);
+    expect(row).toMatchObject({ el: "Task_A", name: "Approva", logNames: ["Approva", "Approva (2° livello)"], realCount: 40, realWait: 750, realProcessing: 1500 });
   });
 });

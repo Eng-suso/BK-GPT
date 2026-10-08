@@ -59,23 +59,26 @@ export function RealLogActivity({ run, elementId }: { run: SimulationRun; elemen
       {!row ? (
         <p className="sim-help">{t("simulation.eventLog.inspector.notInLog")}</p>
       ) : (
-        <dl>
-          <div>
-            <dt>{t("simulation.eventLog.inspector.processing")}</dt>
-            <dd>
-              {formatDuration(row.realProcessing, lang)} → {formatDuration(row.simulatedProcessing, lang)}
-              {row.fidelity && <span className="sim-gap" data-fidelity={row.fidelity}>{signedPercent(row.processingGap, lang)}</span>}
-            </dd>
-          </div>
-          <div>
-            <dt>{t("simulation.eventLog.inspector.waiting")}</dt>
-            <dd>{row.realWait === null ? MISSING_VALUE : formatDuration(row.realWait, lang)} → {row.simulatedWait === null ? MISSING_VALUE : formatDuration(row.simulatedWait, lang)}</dd>
-          </div>
-          <div>
-            <dt>{t("simulation.eventLog.inspector.executions")}</dt>
-            <dd>{row.realCount} → {row.simulatedCount}</dd>
-          </div>
-        </dl>
+        <>
+          {row.realProcessing === null && <p className="sim-help">{t("simulation.eventLog.inspector.noStart")}</p>}
+          <dl>
+            <div>
+              <dt>{t("simulation.eventLog.inspector.processing")}</dt>
+              <dd>
+                {row.realProcessing === null ? MISSING_VALUE : formatDuration(row.realProcessing, lang)} → {formatDuration(row.simulatedProcessing, lang)}
+                {row.fidelity && <span className="sim-gap" data-fidelity={row.fidelity}>{signedPercent(row.processingGap, lang)}</span>}
+              </dd>
+            </div>
+            <div>
+              <dt>{t("simulation.eventLog.inspector.waiting")}</dt>
+              <dd>{row.realWait === null ? MISSING_VALUE : formatDuration(row.realWait, lang)} → {row.simulatedWait === null ? MISSING_VALUE : formatDuration(row.simulatedWait, lang)}</dd>
+            </div>
+            <div>
+              <dt>{t("simulation.eventLog.inspector.executions")}</dt>
+              <dd>{row.realCount} → {row.simulatedCount}</dd>
+            </div>
+          </dl>
+        </>
       )}
     </section>
   );

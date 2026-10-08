@@ -99,7 +99,7 @@ export function RealVsSimulatedStep({ summary, realCases, onDecorations }: {
 
       <div className="sim-eventlog-head sim-gap-head">
         <h3 className="sim-eventlog-title">{t("simulation.eventLog.compare.activities")}</h3>
-        {comparison.activities.length > 0 && (
+        {decorations.length > 0 && (
           <Button size="sm" variant={onCanvas ? "secondary" : "outline"} aria-pressed={onCanvas} onClick={() => setOnCanvas((value) => !value)}>
             <MapIcon aria-hidden className="size-4" />
             {t("simulation.eventLog.compare.showOnProcess")}
@@ -148,8 +148,8 @@ function ActivityRow({ row, lang }: { row: ActivityGap; lang: "it" | "en" }): Re
   const wait = (value: number | null) => value === null ? null : <small>{t("simulation.eventLog.compare.waitShort", { value: formatDuration(value, lang) })}</small>;
   return (
     <tr>
-      <th scope="row">{row.name}</th>
-      <td>{formatDuration(row.realProcessing, lang)}{wait(row.realWait)}</td>
+      <th scope="row">{row.name}{row.logNames.length > 1 && <small>{t("simulation.eventLog.compare.merged", { names: row.logNames.join(", ") })}</small>}</th>
+      <td>{row.realProcessing === null ? <span className="sim-gap-missing">{MISSING_VALUE}<small>{t("simulation.eventLog.compare.notComparable.noStart")}</small></span> : formatDuration(row.realProcessing, lang)}{wait(row.realWait)}</td>
       <td>{formatDuration(row.simulatedProcessing, lang)}{wait(row.simulatedWait)}</td>
       <td>
         {row.fidelity

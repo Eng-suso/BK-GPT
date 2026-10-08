@@ -181,3 +181,32 @@ test("without a mapped log the inspector leads to the import", async ({ page }) 
   await expect(page).toHaveURL(/panel=eventLog/);
   await expect(dock(page).getByRole("button", { name: /^sap-export\.csv/ })).toBeVisible();
 });
+
+test("a log with completions only is never compared on processing, and merged activities show once", async ({ page }) => {
+  const completions = {
+    ...ANALYSIS,
+    summary: {
+      ...ANALYSIS.summary,
+      timing: "complete_only",
+      byActivity: [activity("A", "Verifica documentazione", 0, 2000), activity("A", "Verifica integrazioni", 0, 1000), activity("B", "Approva richiesta", 0, 1500)],
+    },
+  };
+  await fixture(page, [ANALYSIS.event_log]);
+  await page.route("http://127.0.0.1:8000/v1/workspace/event-logs/elog_e2e/analysis", (route) => route.fulfill({ json: completions }));
+  await page.goto(`${studio}/dashboard/42?panel=eventLog`);
+  await dock(page).getByRole("button", { name: /^sap-export\.csv/ }).click();
+  await dock(page).getByRole("button", { name: /Reale contro simulato$/ }).click();
+
+  const step = dock(page).getByRole("region", { name: "Reale contro simulato" });
+  const activities = step.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });
+  await expect(activities.getByRole("row")).toHaveCount(3);
+  await expect(activities.getByRole("row", { name: /Verifica documentazione/ })).toContainText("dal log: Verifica documentazione, Verifica integrazioni");
+  await expect(activities.getByRole("row", { name: /Approva richiesta/ })).toContainText("il log non registra l'inizio");
+  await expect(step.getByRole("button", { name: "Mostra sul processo" })).toHaveCount(0);
+
+  await page.goto(`${studio}/workspace/42?panel=activity`);
+  await page.getByLabel("Attività", { exact: true }).selectOption("B");
+  const real = page.getByRole("region", { name: "Dal log reale", exact: true });
+  await expect(real).toContainText("registra solo i completamenti");
+  await expect(real.locator(".sim-gap")).toHaveCount(0);
+});

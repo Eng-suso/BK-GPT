@@ -916,7 +916,8 @@
         "unmatched": "{{count}} attività del log senza elemento del modello, fuori dal confronto",
         "unobserved": "{{count}} attività simulate che il log non ha mai visto",
         "perHour": "{{value}}/h",
-        "notSimulated": "{{count}} attività del log che il run non ha mai eseguito"
+        "notSimulated": "{{count}} attività del log che il run non ha mai eseguito",
+        "merged": "dal log: {{names}}"
       },
       "inspector": {
         "title": "Dal log reale",
@@ -926,7 +927,8 @@
         "failed": "Non riesco a leggere il log reale",
         "processing": "Lavorazione media, reale → simulata",
         "waiting": "Attesa media, reale → simulata",
-        "executions": "Esecuzioni, log → run"
+        "executions": "Esecuzioni, log → run",
+        "noStart": "Il log registra solo i completamenti: lavorazione e attesa reali non si separano."
       }
     }
   },

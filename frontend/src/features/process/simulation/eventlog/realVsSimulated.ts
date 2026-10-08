@@ -29,11 +29,14 @@ export type KpiGap = {
 export type ActivityGap = {
   el: string;
   name: string;
+  /** Le attivita' del log confluite in questo elemento (piu' di una se aggregate). */
+  logNames: string[];
   realCount: number;
   simulatedCount: number;
   realWait: number | null;
   simulatedWait: number | null;
-  realProcessing: number;
+  /** null quando il log non registra l'inizio: la durata contiene l'attesa. */
+  realProcessing: number | null;
   simulatedProcessing: number;
   processingGap: number | null;
   waitGap: number | null;
@@ -124,48 +127,62 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
   const simulatedByEl = new Map<string, Row>();
   for (const row of rows(simulated)) if (typeof row.el === "string") simulatedByEl.set(row.el, row);
 
-  const activities: ActivityGap[] = [];
+  // Piu' attivita' del log possono finire sullo stesso elemento del modello:
+  // si confrontano una volta sola, con medie pesate sulle esecuzioni.
+  type Group = { names: string[]; count: number; wait: number; processing: number };
+  const groups = new Map<string, Group>();
   const unmatchedReal: string[] = [];
   const notSimulated: string[] = [];
-  const seen = new Set<string>();
   for (const row of rows(real)) {
     const name = typeof row.name === "string" ? row.name : "";
     const el = typeof row.el === "string" ? row.el : null;
-    const twin = el ? simulatedByEl.get(el) : undefined;
     if (!el) {
       unmatchedReal.push(name);
       continue;
     }
-    if (!twin) {
+    if (!simulatedByEl.has(el)) {
       notSimulated.push(name || el);
       continue;
     }
-    seen.add(el);
-    const realWait = noStart ? null : at(row, "wait", "avg");
+    const count = num(row.count) ?? 0;
+    const group = groups.get(el) ?? { names: [], count: 0, wait: 0, processing: 0 };
+    group.names.push(name || el);
+    group.count += count;
+    group.wait += (at(row, "wait", "avg") ?? 0) * count;
+    group.processing += (at(row, "processing", "avg") ?? 0) * count;
+    groups.set(el, group);
+  }
+
+  const activities: ActivityGap[] = [...groups.entries()].map(([el, group]) => {
+    const twin = simulatedByEl.get(el) as Row;
+    const mean = (total: number) => (group.count > 0 ? total / group.count : 0);
+    // Con il solo completamento la "lavorazione" del log contiene anche l'attesa.
+    const realWait = noStart ? null : mean(group.wait);
+    const realProcessing = noStart ? null : mean(group.processing);
     const simulatedWait = noStart ? null : at(twin, "wait", "avg");
-    const realProcessing = at(row, "processing", "avg") ?? 0;
     const simulatedProcessing = at(twin, "processing", "avg") ?? 0;
-    const processingGap = noStart ? null : relativeGap(realProcessing, simulatedProcessing);
-    const waitGap = relativeGap(realWait, simulatedWait);
-    activities.push({
+    const processingGap = relativeGap(realProcessing, simulatedProcessing);
+    const modelName = typeof twin.name === "string" ? twin.name : el;
+    return {
       el,
-      name: name || (typeof twin.name === "string" ? twin.name : el),
-      realCount: num(row.count) ?? 0,
+      name: group.names.length === 1 ? group.names[0] : modelName,
+      logNames: group.names,
+      realCount: group.count,
       simulatedCount: num(twin.count) ?? 0,
       realWait,
       simulatedWait,
       realProcessing,
       simulatedProcessing,
       processingGap,
-      waitGap,
+      waitGap: relativeGap(realWait, simulatedWait),
       fidelity: fidelityOf(processingGap),
-    });
-  }
+    };
+  });
   // Prima gli scarti piu' grandi: e' li' che il consulente deve guardare.
   activities.sort((a, b) => Math.abs(b.processingGap ?? 0) - Math.abs(a.processingGap ?? 0));
 
   const unobservedSimulated = [...simulatedByEl.entries()]
-    .filter(([el]) => !seen.has(el))
+    .filter(([el]) => !groups.has(el))
     .map(([el, row]) => (typeof row.name === "string" ? row.name : el));
 
   return {
