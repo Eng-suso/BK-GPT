@@ -77,6 +77,10 @@ as well as the aggregate score. Unknown evidence must remain an explicit gap.
 
 ## Product screenshots
 
+![Generated diagram in the editable product canvas](process-review/delir-generated-editor-desktop.png)
+
+![Editable canvas on a phone](process-review/delir-generated-editor-mobile.png)
+
 ![Compact three-role proposal](process-review/enterprise-layout-proposal.png)
 
 ![Actual agent tool output](process-review/engine-proposal-desktop.png)

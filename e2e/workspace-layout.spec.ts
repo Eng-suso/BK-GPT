@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 
 const studio = "/projects/layout-project/processes/layout-process";
@@ -40,6 +41,22 @@ test.beforeEach(async ({ page }) => { await fixture(page); });
 
 // Aprire un processo porta alla discussione: il canvas si chiede, con `?view=canvas`.
 const canvasView = `${studio}?view=canvas`;
+
+test("product-generated diagram keeps the DeliR identity in the editable canvas", async ({ page }, info) => {
+  if (!info.project.name.startsWith("mobile-")) await page.setViewportSize({ width: 1600, height: 1000 });
+  const generated = readFileSync("e2e/fixtures/canvas-layout/purchase.bpmn", "utf8");
+  await page.route("http://127.0.0.1:8000/v1/workspace/bpmn-models/layout-model", route => route.fulfill({ json: { id: "layout-model", process_id: "layout-process", name: "Acquisti indiretti", xml: generated } }));
+  await page.goto(canvasView);
+  const canvas = page.locator(".process-bpmn-canvas");
+  await expect(canvas.locator('[data-element-id="Verify"]')).toBeVisible();
+  await expect(canvas.locator(".delir-canvas-identity svg")).toBeVisible();
+  await expect(canvas.locator(".delir-role-band")).toHaveCount(5);
+  await expect(canvas.locator(".djs-connection")).toHaveCount(11);
+  await expect(canvas.locator('[data-element-id="Request_Document"]')).toBeVisible();
+  const scan = await new AxeBuilder({ page }).include(".process-bpmn-shell").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze();
+  expect(scan.violations).toEqual([]);
+  await page.screenshot({ path: info.outputPath("delir-generated-editor.png") });
+});
 
 test("laptop tools preserve canvas space and unsaved model edits", async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
