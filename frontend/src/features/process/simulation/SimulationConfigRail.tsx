@@ -20,20 +20,20 @@ import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
 import {
   newResourceId,
   resourceParametersValid,
+  scenarioParameterIssues,
   scenarioResourceIssues,
   type ScenarioDraft,
-  type TaskDraft,
 } from "./simulationScenario";
 import type { InputConfidence } from "./simulationProvenance";
 import { ProvenanceChip } from "./ProvenanceChip";
+import { TaskDurationFields } from "./TaskDurationFields";
+import { CalendarsSection } from "./CalendarsSection";
 
 const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
   pending: "pending",
   completed: "ok",
   failed: "danger",
 };
-
-const DISTRIBUTIONS: TaskDraft["distribution"][] = ["norm", "expon", "fixed"];
 
 type SimulationConfigRailProps = {
   template: ScenarioTemplate | null;
@@ -112,7 +112,9 @@ export function SimulationConfigRail({
     onDraftChange({ ...draft, ...partial });
   const num = (raw: string) => (raw === "" ? 0 : Number(raw));
   const resourceIssues = scenarioResourceIssues(draft);
-  const canRun = Boolean(template) && !templateLoading && resourceIssues.ready;
+  const parameterIssues = scenarioParameterIssues(draft);
+  const calendars = draft.calendars ?? [];
+  const canRun = Boolean(template) && !templateLoading && resourceIssues.ready && parameterIssues.ready;
   const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
     patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
 
@@ -128,7 +130,7 @@ export function SimulationConfigRail({
         <div className="min-w-0">
           {!workspace && <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>}
           {workspace ? <nav aria-label={t("simulation.workspace.sections")} className="flex flex-wrap gap-1">
-            {["globals", "resources", "activities", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
+            {["globals", "resources", "calendars", "activities", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
               const sections = scrollRef.current?.querySelectorAll("section");
               const target = Array.from(sections ?? []).find((section) => section.querySelector("h4")?.textContent?.startsWith(t(`simulation.config.${key}`)));
               target?.scrollIntoView({ block: "start" });
@@ -277,6 +279,18 @@ export function SimulationConfigRail({
                     <NumberField label={`${t("simulation.fields.costPerHour")} (€/h)`} value={resource.costPerHour} min={0} onChange={(value) => updateResource(resource.id, { costPerHour: value, parametersConfirmed: false })} />
                     <NumberField label={t("simulation.config.capacity")} value={resource.amount} min={1} max={1000} onChange={(value) => updateResource(resource.id, { amount: value, parametersConfirmed: false })} />
                   </div>
+                  <label className="mt-3 grid gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.resourceCalendar")}</span>
+                    <select
+                      className="h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm"
+                      aria-label={`${t("simulation.config.resourceCalendar")} · ${resource.name}`}
+                      value={calendars.some((c) => c.id === resource.calendarId) ? resource.calendarId : ""}
+                      onChange={(e) => updateResource(resource.id, { calendarId: e.target.value || undefined })}
+                    >
+                      <option value="">{t("simulation.config.standardCalendar")}</option>
+                      {calendars.map((c) => <option key={c.id} value={c.id}>{c.name || c.id}</option>)}
+                    </select>
+                  </label>
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}
@@ -290,7 +304,21 @@ export function SimulationConfigRail({
             <p>{t("simulation.config.resourceSetupRequired")}</p>
             {resourceIssues.pending > 0 && <p>{t("simulation.config.pendingResources", { count: resourceIssues.pending })}</p>}
             {resourceIssues.unassigned > 0 && <p>{t("simulation.config.unassignedActivities", { count: resourceIssues.unassigned })}</p>}
+            {parameterIssues.durations > 0 && <p>{t("simulation.config.invalidDurations", { count: parameterIssues.durations })}</p>}
+            {parameterIssues.calendars > 0 && <p>{t("simulation.config.invalidCalendars", { count: parameterIssues.calendars })}</p>}
           </div>}
+        </DetailPanelSection>
+
+        <DetailPanelSection title={t("simulation.config.calendars")}>
+          <CalendarsSection
+            standard={template?.standard_calendar}
+            calendars={calendars}
+            onChange={(next) => patch({
+              calendars: next,
+              // Una risorsa sul calendario rimosso torna su quello standard.
+              resources: draft.resources.map((r) => r.calendarId && !next.some((c) => c.id === r.calendarId) ? { ...r, calendarId: undefined } : r),
+            })}
+          />
         </DetailPanelSection>
 
         <DetailPanelSection
@@ -324,54 +352,12 @@ export function SimulationConfigRail({
                         <ProvenanceChip field={provenance.activities[task.element_id]} />
                       )}
                     </div>
-                    <div className="sim-task-timing grid grid-cols-[minmax(90px,0.7fr)_minmax(0,1fr)] gap-3">
-                      <FieldLabel label={t("simulation.config.durationMin")}>
-                        <Input
-                          className="h-8"
-                          type="number"
-                          min={1}
-                          value={cfg.meanMinutes}
-                          onChange={(e) =>
-                            patch({
-                              tasks: {
-                                ...draft.tasks,
-                                [task.element_id]: {
-                                  ...cfg,
-                                  meanMinutes: num(e.target.value),
-                                },
-                              },
-                            })
-                          }
-                        />
-                      </FieldLabel>
-                      <FieldLabel label={t("simulation.config.distribution")}>
-                        <Select
-                          value={cfg.distribution}
-                          onValueChange={(value) =>
-                            patch({
-                              tasks: {
-                                ...draft.tasks,
-                                [task.element_id]: {
-                                  ...cfg,
-                                  distribution: value as TaskDraft["distribution"],
-                                },
-                              },
-                            })
-                          }
-                        >
-                          <SelectTrigger size="sm" className="w-full">
-                            <SelectValue placeholder={t("simulation.config.selectResource")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {DISTRIBUTIONS.map((d) => (
-                              <SelectItem key={d} value={d}>
-                                {t(`simulation.config.dist.${d}`)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </FieldLabel>
-                    </div>
+                    <TaskDurationFields
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
                     <div className="sim-task-role mt-1.5">
                       <FieldLabel label={t("simulation.config.role")}>
                         <Select
