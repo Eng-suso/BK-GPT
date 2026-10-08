@@ -325,6 +325,8 @@ test("avatar opens on demand and chat resizing persists across tasks", async ({ 
   const retained = (await chat.boundingBox())!;
   expect(retained.width).toBe(resized.width); expect(retained.height).toBe(resized.height);
   await handle.focus(); await page.keyboard.press("Home");
-  await expect(chat).toHaveCSS("height", `${Math.round(before.height)}px`);
+  // WebKit retains fractional CSS pixels in viewport-derived dimensions.
+  // Reset must restore the original measured size, rather than an integer.
+  await expect.poll(() => chat.evaluate(element => element.getBoundingClientRect().height)).toBeCloseTo(before.height, 1);
   expect((await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations).toEqual([]);
 });
