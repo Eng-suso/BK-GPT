@@ -52,6 +52,7 @@ describe("fidelity", () => {
     expect(fidelityOf(-0.2)).toBe("calibrate");
     expect(fidelityOf(0.4)).toBe("far");
     expect(fidelityOf(null)).toBeNull();
+    expect(fidelityOf(relativeGap(2, 2.2))).toBe("close");
     expect(worstFidelity(["close", null, "calibrate"])).toBe("calibrate");
   });
 });

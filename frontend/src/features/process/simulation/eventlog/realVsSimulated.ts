@@ -57,7 +57,8 @@ export const FIDELITY_CALIBRATE = 0.25;
 
 export function fidelityOf(gap: number | null): Fidelity | null {
   if (gap === null || !Number.isFinite(gap)) return null;
-  const size = Math.abs(gap);
+  // Arrotondato al decimillesimo: 2,2 su 2 e' +10%, non +10,0000001%.
+  const size = Math.round(Math.abs(gap) * 10_000) / 10_000;
   if (size <= FIDELITY_CLOSE) return "close";
   return size <= FIDELITY_CALIBRATE ? "calibrate" : "far";
 }
@@ -167,4 +168,17 @@ export function compareRealToSimulated(real: EventLogSummary, simulated: Simulat
     unobservedSimulated,
     fidelity: worstFidelity(process.filter((row) => row.key === "cycleAvg" || row.key === "cycleP90").map((row) => row.fidelity)),
   };
+}
+
+/** Lo scarto con il segno, nella lingua del consulente: "+12%", "-5%", "0%". */
+export function signedPercent(gap: number | null, lang: "it" | "en"): string {
+  if (gap === null || !Number.isFinite(gap)) return "—";
+  return new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: 0, signDisplay: "exceptZero" }).format(gap);
+}
+
+/** Il log mappato piu' recente: e' il riferimento reale dell'inspector. */
+export function latestMappedLog<T extends { status: string; mapped_at: string | null }>(logs: T[] | undefined): T | null {
+  return (logs ?? [])
+    .filter((log) => log.status === "mapped" && log.mapped_at)
+    .sort((a, b) => (b.mapped_at ?? "").localeCompare(a.mapped_at ?? ""))[0] ?? null;
 }

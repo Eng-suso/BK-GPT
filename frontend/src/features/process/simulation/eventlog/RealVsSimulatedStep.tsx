@@ -10,7 +10,7 @@ import { formatCount, formatCurrency, formatDuration, MISSING_VALUE } from "../s
 import type { SimulationSummary } from "../simulationTypes";
 import { formatRunOption, useSimulationSection } from "../useSimulationSection";
 import type { EventLogSummary } from "./eventLogTypes";
-import { compareRealToSimulated, type ActivityGap, type Fidelity, type GapFormat, type KpiGap } from "./realVsSimulated";
+import { compareRealToSimulated, signedPercent, type ActivityGap, type Fidelity, type GapFormat, type KpiGap } from "./realVsSimulated";
 
 const BADGE_TONE: Record<Fidelity, NodeDecoration["badgeTone"]> = { close: "neutral", calibrate: "warning", far: "danger" };
 
@@ -97,7 +97,7 @@ export function RealVsSimulatedStep({ summary, realCases, onDecorations }: {
         </tbody>
       </table>
 
-      <div className="sim-eventlog-head">
+      <div className="sim-eventlog-head sim-gap-head">
         <h3 className="sim-eventlog-title">{t("simulation.eventLog.compare.activities")}</h3>
         {comparison.activities.length > 0 && (
           <Button size="sm" variant={onCanvas ? "secondary" : "outline"} aria-pressed={onCanvas} onClick={() => setOnCanvas((value) => !value)}>
@@ -168,9 +168,4 @@ function formatValue(value: number | null, format: GapFormat, lang: "it" | "en")
   if (format === "duration") return formatDuration(value, lang);
   if (format === "currency") return formatCurrency(value, lang);
   return `${value.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 })}/h`;
-}
-
-function signedPercent(gap: number | null, lang: "it" | "en"): string {
-  if (gap === null || !Number.isFinite(gap)) return MISSING_VALUE;
-  return new Intl.NumberFormat(lang === "it" ? "it-IT" : "en-US", { style: "percent", maximumFractionDigits: 0, signDisplay: "exceptZero" }).format(gap);
 }
