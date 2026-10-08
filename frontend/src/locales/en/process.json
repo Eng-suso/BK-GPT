@@ -256,7 +256,72 @@
         "FRIDAY": "Fri",
         "SATURDAY": "Sat",
         "SUNDAY": "Sun"
-      }
+      },
+      "attributes": "Case attributes",
+      "attributesHint": "Every case gets them on arrival, with the given share. Rule-based decisions use them to pick a branch, and they appear in the simulated log.",
+      "attributeName": "Attribute name",
+      "removeAttribute": "Remove attribute",
+      "attributeInUse_one": "Used by {{count}} decision: remove it from the rule first.",
+      "attributeInUse_other": "Used by {{count}} decisions: remove it from the rules first.",
+      "attributeKind": "Kind of value",
+      "attributeKindName": {
+        "category": "Categories",
+        "number": "Number"
+      },
+      "attribute": {
+        "minimum": "Minimum",
+        "maximum": "Maximum"
+      },
+      "attributeNumberHint": "Each case gets a uniform value between minimum and maximum (e.g. an order amount).",
+      "attributeIssue": {
+        "name": "Name the attribute.",
+        "duplicateName": "Two attributes have the same name.",
+        "categories": "Add at least one category.",
+        "categoryValue": "Each category needs its own name.",
+        "categorySum": "Shares must be above zero and add up to 100%.",
+        "bounds": "The minimum must be lower than the maximum."
+      },
+      "newAttributeName": "Attribute {{n}}",
+      "addAttribute": "Add attribute",
+      "categoryValue": "Category {{n}}",
+      "categoryShare": "Share",
+      "removeCategory": "Remove category {{value}}",
+      "addCategory": "Add category",
+      "categoryTotal": "Total {{value}}%",
+      "invalidAttributes": "Attributes to fix: {{count}}",
+      "invalidRules": "Rule-based decisions to complete: {{count}}",
+      "gatewayMode": "How {{name}} picks a branch",
+      "gatewayByPercent": "By percentage",
+      "gatewayByRule": "By rule",
+      "gatewayRuleNeedsAttribute": "To route by rule, define a case attribute first.",
+      "gatewayRuleHint": "Each branch has its own rule. Cover every case: a case that matches no rule stops at the decision.",
+      "ruleOr": "or",
+      "branchTo": "To {{name}}",
+      "ruleIf": "if",
+      "addCondition": "Condition",
+      "addAlternative": "Alternative (or)",
+      "addRule": "Add rule",
+      "ruleReads": "The case goes here if {{rule}}.",
+      "ruleIssue": {
+        "missingRule": "Each branch needs at least one rule.",
+        "incompleteRule": "Complete the condition: attribute, comparison and value.",
+        "unknownAttribute": "The rule uses an attribute that no longer exists.",
+        "notANumber": "With a numeric attribute the value is a number."
+      },
+      "ruleAttribute": "Condition attribute towards {{branch}}",
+      "ruleChooseAttribute": "Choose an attribute",
+      "unnamedAttribute": "Unnamed attribute",
+      "ruleOperator": "Comparison on {{attribute}}",
+      "operator": {
+        "gt": "greater than",
+        "gte": "at least",
+        "lt": "less than",
+        "lte": "at most",
+        "eq": "equal to",
+        "neq": "not equal to"
+      },
+      "ruleValue": "Value for {{attribute}}",
+      "removeCondition": "Remove the condition on {{attribute}}"
     },
     "diagram": {
       "title": "Process model",

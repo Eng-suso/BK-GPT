@@ -256,7 +256,72 @@
         "FRIDAY": "Ven",
         "SATURDAY": "Sab",
         "SUNDAY": "Dom"
-      }
+      },
+      "attributes": "Attributi del caso",
+      "attributesHint": "Ogni caso li riceve all'arrivo, con la quota indicata. Le decisioni per regola li usano per scegliere il ramo, e finiscono nel log simulato.",
+      "attributeName": "Nome dell'attributo",
+      "removeAttribute": "Togli l'attributo",
+      "attributeInUse_one": "Usato da {{count}} decisione: toglilo prima dalla regola.",
+      "attributeInUse_other": "Usato da {{count}} decisioni: toglilo prima dalle regole.",
+      "attributeKind": "Tipo di valore",
+      "attributeKindName": {
+        "category": "Categorie",
+        "number": "Numero"
+      },
+      "attribute": {
+        "minimum": "Minimo",
+        "maximum": "Massimo"
+      },
+      "attributeNumberHint": "Ogni caso riceve un valore uniforme fra minimo e massimo (es. l'importo di un ordine).",
+      "attributeIssue": {
+        "name": "Dai un nome all'attributo.",
+        "duplicateName": "Due attributi hanno lo stesso nome.",
+        "categories": "Aggiungi almeno una categoria.",
+        "categoryValue": "Ogni categoria ha un nome, diverso dalle altre.",
+        "categorySum": "Le quote devono essere maggiori di zero e sommare 100%.",
+        "bounds": "Il minimo deve essere minore del massimo."
+      },
+      "newAttributeName": "Attributo {{n}}",
+      "addAttribute": "Aggiungi attributo",
+      "categoryValue": "Categoria {{n}}",
+      "categoryShare": "Quota",
+      "removeCategory": "Togli la categoria {{value}}",
+      "addCategory": "Aggiungi categoria",
+      "categoryTotal": "Totale {{value}}%",
+      "invalidAttributes": "Attributi da correggere: {{count}}",
+      "invalidRules": "Decisioni per regola da completare: {{count}}",
+      "gatewayMode": "Come si sceglie il ramo in {{name}}",
+      "gatewayByPercent": "Per percentuale",
+      "gatewayByRule": "Per regola",
+      "gatewayRuleNeedsAttribute": "Per instradare per regola definisci prima un attributo del caso.",
+      "gatewayRuleHint": "Ogni ramo ha la sua regola. Copri tutti i casi: un caso che non soddisfa nessuna regola si ferma alla decisione.",
+      "ruleOr": "oppure",
+      "branchTo": "Verso {{name}}",
+      "ruleIf": "se",
+      "addCondition": "Condizione",
+      "addAlternative": "Alternativa (oppure)",
+      "addRule": "Aggiungi regola",
+      "ruleReads": "Il caso va qui se {{rule}}.",
+      "ruleIssue": {
+        "missingRule": "Ogni ramo ha bisogno di almeno una regola.",
+        "incompleteRule": "Completa la condizione: attributo, confronto e valore.",
+        "unknownAttribute": "La regola usa un attributo che non esiste più.",
+        "notANumber": "Con un attributo numerico il valore è un numero."
+      },
+      "ruleAttribute": "Attributo della condizione verso {{branch}}",
+      "ruleChooseAttribute": "Scegli un attributo",
+      "unnamedAttribute": "Attributo senza nome",
+      "ruleOperator": "Confronto su {{attribute}}",
+      "operator": {
+        "gt": "maggiore di",
+        "gte": "almeno",
+        "lt": "minore di",
+        "lte": "al massimo",
+        "eq": "uguale a",
+        "neq": "diverso da"
+      },
+      "ruleValue": "Valore per {{attribute}}",
+      "removeCondition": "Togli la condizione su {{attribute}}"
     },
     "diagram": {
       "title": "Modello di processo",
