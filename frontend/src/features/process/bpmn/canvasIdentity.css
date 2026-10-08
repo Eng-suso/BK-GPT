@@ -15,7 +15,7 @@
   letter-spacing: var(--letter-spacing-tight);
   pointer-events: none;
 }
-.delir-canvas-identity svg { width: var(--space-500); height: var(--space-500); color: var(--color-action-primary); }
+.delir-canvas-identity svg { flex: none; width: var(--space-600); height: var(--space-600); color: var(--color-action-primary); }
 :is(.process-bpmn--colours, .delir-canvas--colours) .delir-role-band { fill: var(--canvas-role-header-surface); stroke: none; pointer-events: none; }
 .process-bpmn-shell:not(.process-bpmn--colours) .delir-role-band { fill: transparent; stroke: none; }
 .process-bpmn-canvas.delir-canvas--colours, .review-canvas-stage.delir-canvas--colours {
@@ -41,6 +41,7 @@
 
 @media (forced-colors: active) {
   .delir-canvas--colours { background-image: none; }
+  .delir-role-band { fill: Canvas !important; stroke: none !important; }
   :is(.process-bpmn--colours, .delir-canvas--colours) .djs-visual > :is(rect, circle, polygon):first-child { fill: Canvas !important; stroke: CanvasText !important; }
 }
 
