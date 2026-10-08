@@ -83,7 +83,7 @@ describe("withViewportPadding", () => {
       { x: 0, y: 0, width: 20, height: 10 },
       1,
     );
-    expect(padded.height).toBeGreaterThanOrEqual(420);
+    expect(padded.height).toBeGreaterThanOrEqual(240);
   });
 });
 

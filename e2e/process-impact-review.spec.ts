@@ -347,6 +347,20 @@ test("enterprise policy diagram renders real-owner lanes, process pool and branc
   for (const text of ["Ufficio tecnico", "Acquisti", "Manutenzione", "Sopra soglia", "Sotto soglia"])
     await expect(preview.locator(".djs-label").filter({ hasText: text }).first()).toBeVisible();
   await expect(preview.locator(".djs-connection")).toHaveCount(11);
+  await expect(preview.locator(".delir-canvas-identity")).toHaveText("DeliR");
+  const task = preview.locator(".djs-element[data-element-id='Verify'] .djs-visual > rect").first();
+  const gateway = preview.locator(".djs-element[data-element-id='Decision'] .djs-visual > polygon").first();
+  expect(await task.evaluate(el => getComputedStyle(el).fill)).not.toBe(await gateway.evaluate(el => getComputedStyle(el).fill));
+  // The branded presentation must keep the actual activity label inside its shape.
+  for (const id of ["Open_Request", "Verify", "Director_Sign", "Create_Order", "Urgent_Call"]) {
+    const visual = preview.locator(`.djs-element[data-element-id='${id}'] .djs-visual`);
+    const box = (await visual.locator("rect").first().boundingBox())!;
+    const text = (await visual.locator("text").boundingBox())!;
+    expect(text.x).toBeGreaterThanOrEqual(box.x - 2);
+    expect(text.y).toBeGreaterThanOrEqual(box.y - 2);
+    expect(text.x + text.width).toBeLessThanOrEqual(box.x + box.width + 2);
+    expect(text.y + text.height).toBeLessThanOrEqual(box.y + box.height + 2);
+  }
   const geometry = await preview.locator(".djs-element[data-element-id='Start'], .djs-element[data-element-id='Open_Request'], .djs-element[data-element-id='Verify'], .djs-element[data-element-id='Decision'], .djs-element[data-element-id='Create_Order'], .djs-element[data-element-id='End']").evaluateAll(elements => Object.fromEntries(elements.map(element => [element.getAttribute("data-element-id"), element.getBoundingClientRect().x])));
   expect(geometry.Start).toBeLessThan(geometry.Open_Request);
   expect(geometry.Open_Request).toBeLessThan(geometry.Verify);

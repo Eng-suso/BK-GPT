@@ -174,12 +174,12 @@ export function withViewportPadding(
   bounds: BpmnCanvasViewbox,
   viewportRatio: number,
 ): BpmnCanvasViewbox {
-  const paddingX = 140;
-  const paddingY = 120;
+  const paddingX = 48;
+  const paddingY = 48;
   let x = bounds.x - paddingX;
   let y = bounds.y - paddingY;
   let width = bounds.width + paddingX * 2;
-  let height = Math.max(bounds.height + paddingY * 2, 420);
+  let height = Math.max(bounds.height + paddingY * 2, 240);
   const boundsRatio = width / height;
 
   if (boundsRatio > viewportRatio) {
