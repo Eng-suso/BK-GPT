@@ -1,14 +1,18 @@
 """Dalla richiesta di oggi (``CreateSimulationRunRequest``) al Simulation IR.
 
-E' il ponte: la UI manda ancora medie, tre nomi di distribuzione e una risorsa
-per attivita'; qui diventano un modello esplicito, con le stesse assunzioni del
-builder storico rese visibili e marcate ``manual``. Il risultato compilato e'
-identico allo scenario che il builder produceva (test di equivalenza).
+E' il ponte: la UI manda medie, le sei distribuzioni di Prosimos 2.1 con i loro
+parametri facoltativi, una risorsa per attivita' e i calendari delle risorse;
+qui diventano un modello esplicito, con le assunzioni del builder storico rese
+visibili e marcate ``manual``. Senza parametri e calendari nuovi il risultato
+compilato e' identico allo scenario che il builder produceva (test di
+equivalenza).
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+
+from pydantic import ValidationError
 
 from backend.simulation.ir.model import (
     Activity,
@@ -17,21 +21,25 @@ from backend.simulation.ir.model import (
     Branch,
     Calendar,
     CalendarPeriod,
+    Distribution,
     Exponential,
     Fixed,
+    Gamma,
     Gateway,
+    LogNormal,
     Normal,
     Provenance,
     Resource,
     ResourcePool,
     SimulationModel,
+    Uniform,
 )
 from backend.simulation.models import BpmnGateway, BpmnTask
 
 if TYPE_CHECKING:
     # Solo per i tipi: lo schema HTTP importa il modello dell'IR (richiesta v2),
     # e un import a runtime qui chiuderebbe il cerchio.
-    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.schemas.simulation import CreateSimulationRunRequest, SimCalendarConfig, SimTaskConfig
 
 STANDARD_CALENDAR_ID = "delir-calendar-standard"
 DEFAULT_RESOURCE_ID = "delir-resource-operator"
@@ -58,7 +66,8 @@ def model_from_request(
     if not tasks:
         raise ValueError("Il BPMN non contiene task simulabili.")
     task_overrides = {cfg.element_id: cfg for cfg in (request.tasks or [])}
-    pool = _pool(request, tasks, task_overrides)
+    calendars = _calendars(request.calendars or [])
+    pool = _pool(request, tasks, task_overrides, {calendar.id for calendar in calendars})
     resource_ids = [resource.id for resource in pool.resources]
     default_resource_id = resource_ids[0]
     gateway_overrides = {cfg.element_id: cfg for cfg in (request.gateways or [])}
@@ -70,7 +79,7 @@ def model_from_request(
             calendar_id=STANDARD_CALENDAR_ID,
             provenance=_MANUAL,
         ),
-        calendars=(standard_calendar(),),
+        calendars=calendars,
         pools=(pool,),
         activities=tuple(
             _activity(task, task_overrides.get(task.id), request, default_resource_id, set(resource_ids))
@@ -83,16 +92,101 @@ def model_from_request(
 def duration_from_mean(distribution: str, mean: float):
     """Le assunzioni storiche: dev. std al 10% della media, limiti a +-3 sigma,
     esponenziale troncata a 10 volte la media."""
+    return duration(distribution, mean)
+
+
+def duration(
+    distribution: str,
+    mean: float,
+    *,
+    std: float | None = None,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> Distribution:
+    """La durata con i parametri del consulente; quelli che mancano seguono le
+    assunzioni storiche (``duration_from_mean``).
+
+    Raises:
+        ValueError: parametri incoerenti (limiti invertiti, media fuori dai limiti,
+            uniforme senza minimo e massimo), con un messaggio per il consulente.
+    """
     mean = max(1.0, mean)
-    if distribution == "fixed":
-        return Fixed(value=mean)
-    if distribution == "expon":
-        return Exponential(mean=mean, minimum=0.0, maximum=mean * 10.0)
-    std = max(1.0, mean * 0.1)
-    return Normal(mean=mean, std=std, minimum=max(0.0, mean - 3.0 * std), maximum=mean + 3.0 * std)
+    try:
+        if distribution == "fixed":
+            return Fixed(value=mean)
+        if distribution == "expon":
+            return Exponential(
+                mean=mean,
+                minimum=0.0 if minimum is None else minimum,
+                maximum=mean * 10.0 if maximum is None else maximum,
+            )
+        if distribution == "uniform":
+            if minimum is None or maximum is None:
+                raise ValueError("Per la distribuzione uniforme indica minimo e massimo.")
+            return Uniform(minimum=minimum, maximum=maximum)
+        sigma = std if std is not None else max(1.0, mean * 0.1)
+        low = max(0.0, mean - 3.0 * sigma) if minimum is None else minimum
+        high = mean + 3.0 * sigma if maximum is None else maximum
+        if distribution == "norm":
+            return Normal(mean=mean, std=sigma, minimum=low, maximum=high)
+        if distribution == "lognorm":
+            return LogNormal(mean=mean, variance=sigma**2, minimum=low, maximum=high)
+        if distribution == "gamma":
+            return Gamma(mean=mean, variance=sigma**2, minimum=low, maximum=high)
+    except ValidationError as exc:
+        reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+        raise ValueError(f"Durata non valida ({distribution}): {reason}.") from exc
+    raise ValueError(f"Distribuzione non supportata: {distribution}.")
 
 
-def _pool(request: CreateSimulationRunRequest, tasks: list[BpmnTask], task_overrides: dict) -> ResourcePool:
+def _task_duration(override: SimTaskConfig) -> Distribution:
+    return duration(
+        override.distribution,
+        float(override.mean_seconds),
+        std=override.std_seconds,
+        minimum=override.min_seconds,
+        maximum=override.max_seconds,
+    )
+
+
+def _calendars(configs: list[SimCalendarConfig]) -> tuple[Calendar, ...]:
+    """Il calendario standard (arrivi e risorse senza calendario) piu' quelli del consulente."""
+    ids = [config.id for config in configs]
+    if STANDARD_CALENDAR_ID in ids or len(set(ids)) != len(ids):
+        raise ValueError("I calendari devono avere identificativi distinti.")
+    calendars = [standard_calendar()]
+    for config in configs:
+        try:
+            calendars.append(Calendar(
+                id=config.id,
+                name=config.name,
+                periods=tuple(
+                    CalendarPeriod(
+                        from_day=period.from_day,
+                        to_day=period.to_day,
+                        begin=_clock(period.begin),
+                        end=_clock(period.end),
+                    )
+                    for period in config.periods
+                ),
+            ))
+        except ValidationError as exc:
+            reason = exc.errors()[0]["msg"].removeprefix("Value error, ")
+            raise ValueError(f"Calendario «{config.name}» non valido: {reason}.") from exc
+    return tuple(calendars)
+
+
+def _clock(value: str) -> str:
+    """``HH:MM`` diventa ``HH:MM:00.000``; il resto lo valida il modello."""
+    return f"{value}:00.000" if len(value) == 5 else value
+
+
+def _pool(
+    request: CreateSimulationRunRequest,
+    tasks: list[BpmnTask],
+    task_overrides: dict,
+    calendar_ids: set[str],
+) -> ResourcePool:
     if request.resources is not None:
         if not request.resources:
             raise ValueError("Definisci almeno una risorsa per simulare il processo.")
@@ -103,6 +197,9 @@ def _pool(request: CreateSimulationRunRequest, tasks: list[BpmnTask], task_overr
             raise ValueError("Assegna un nome alle risorse.")
         if any(not task_overrides.get(t.id) or task_overrides[t.id].resource_id not in ids for t in tasks):
             raise ValueError("Assegna una risorsa valida a ogni attività prima di simulare.")
+        unknown = sorted({cfg.calendar_id for cfg in request.resources if cfg.calendar_id} - calendar_ids)
+        if unknown:
+            raise ValueError(f"Calendari inesistenti assegnati alle risorse: {', '.join(unknown)}.")
         return ResourcePool(
             id=DEFAULT_POOL_ID,
             name="Risorse",
@@ -112,7 +209,7 @@ def _pool(request: CreateSimulationRunRequest, tasks: list[BpmnTask], task_overr
                     name=cfg.name,
                     cost_per_hour=float(cfg.cost_per_hour),
                     amount=int(cfg.amount),
-                    calendar_id=STANDARD_CALENDAR_ID,
+                    calendar_id=cfg.calendar_id or STANDARD_CALENDAR_ID,
                     provenance=_MANUAL,
                 )
                 for cfg in request.resources
@@ -136,8 +233,9 @@ def _pool(request: CreateSimulationRunRequest, tasks: list[BpmnTask], task_overr
 
 
 def _activity(task: BpmnTask, override, request, default_resource_id: str, resource_ids: set[str]) -> Activity:
-    mean = float(override.mean_seconds) if override else float(request.default_task_duration_seconds)
-    distribution = override.distribution if override else "norm"
+    duration_ = _task_duration(override) if override else duration_from_mean(
+        "norm", float(request.default_task_duration_seconds)
+    )
     resource_id = override.resource_id if override and override.resource_id in resource_ids else default_resource_id
     return Activity(
         element_id=task.id,
@@ -145,7 +243,7 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
         assignments=(
             Assignment(
                 resource_id=resource_id,
-                duration=duration_from_mean(distribution, mean),
+                duration=duration_,
                 provenance=_MANUAL if override else None,
             ),
         ),
