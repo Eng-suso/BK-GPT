@@ -74,6 +74,10 @@ def read_impact_review(process_id: str) -> ImpactReviewState:
 
 def create_impact_review_action(process_id: str, payload: CreateImpactReviewAction, created_by: str) -> ImpactReviewAction:
     """Append an idempotent action; reject foreign, removed or stale targets."""
+    from backend.agents.chat_mode import active_mode
+    if payload.proposal_xml is not None and (active_mode() is not None or created_by == "DeliR Review"):
+        from backend.bpmn.canvas_layout import apply_enterprise_layout
+        payload = payload.model_copy(update={"proposal_xml": apply_enterprise_layout(payload.proposal_xml)})
     with workspace_connection() as session:
         state = _state(session, process_id, lock=True)
         previous = session.get(WorkspaceImpactReviewAction, str(payload.id))

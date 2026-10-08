@@ -558,14 +558,9 @@ def generate_bpmn_draft(
     layout_warnings = (layout_report.get("selected_report") or {}).get("warnings") or []
     pending = [*pending, *(warning for warning in layout_warnings if warning not in pending)]
 
-    # Un layout imperfetto non annulla una bozza corretta: il disegno esiste, si
-    # legge meno bene, e lo si dice. Bloccare qui butterebbe via un modello
-    # valido per una questione di geometria.
     if not layout_report.get("valid"):
-        pending = [
-            *pending,
-            "La disposizione del diagramma non e' ottimale: elementi vicini o sovrapposti da sistemare.",
-        ]
+        return failure("layout_failed", "Il diagramma non supera la policy visuale DeliR.",
+                       issues=(layout_report.get("selected_report") or {}).get("issues") or [], pending=pending)
 
     # Ogni nodo porta l'esito della verifica sulle fonti. Un passaggio che
     # nessuna intervista regge non si toglie dal disegno - puo' essere il pezzo

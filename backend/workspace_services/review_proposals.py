@@ -35,6 +35,8 @@ def build_review_proposal(scope: CanvasChatScope, *, target: Literal["as_is", "t
         xml = base.proposal_xml
     if not xml or not operations or len(operations) > 30:
         raise ValueError("Servono un diagramma di partenza e da 1 a 30 modifiche.")
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+    xml = apply_enterprise_layout(xml, process_name=state.plan.title if state.plan else None)
     changes = []
     for operation in operations:
         op = operation
@@ -82,6 +84,7 @@ def build_review_proposal(scope: CanvasChatScope, *, target: Literal["as_is", "t
     report = edit.validate_bpmn_xml(xml)
     if not report["valid"]:
         raise ValueError("La proposta contiene collegamenti non validi: " + "; ".join(report["issues"]))
+    xml = apply_enterprise_layout(xml)
     layout = edit.validate_bpmn_layout(xml)
     if not layout["valid"]:
         raise ValueError("Il disegno della proposta richiede correzioni: " + "; ".join(layout["issues"]))
