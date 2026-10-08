@@ -20,7 +20,7 @@ export function ReviewProposalViewer({ action, baseline, onClose }: { action: Re
   let nodes: ReviewNode[];
   try { nodes = readReviewGraph(xml ?? null).nodes; } catch { nodes = []; }
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}><DialogContent className="review-proposal-viewer sm:max-w-5xl">
-    <DialogTitle>{action.title}</DialogTitle><DialogDescription>{t("review.agent.separateProposal")}</DialogDescription>
+    <DialogTitle className="pr-8">{action.title}</DialogTitle><DialogDescription>{t("review.agent.separateProposal")}</DialogDescription>
     <Tabs value={version} onValueChange={setVersion} className="flex min-h-0 flex-1 flex-col gap-3"><div className="flex flex-wrap items-center justify-between gap-2"><TabsList><TabsTrigger value="baseline">{t("review.agent.baseline")}</TabsTrigger><TabsTrigger value="proposal">{t(`review.kind.${action.kind}`)}</TabsTrigger></TabsList><Button variant="outline" size="sm" onClick={download}><Download aria-hidden />{t("review.agent.download")}</Button></div>
     <TabsContent value={version} className="mt-0 min-h-0 flex-1">{xml && <ReviewCanvas xml={xml} nodes={nodes} selected={null} upstream={[]} downstream={[]} documents={[]} focusImpact={false} onSelect={() => {}} />}</TabsContent></Tabs>
     <p className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{action.detail}</p>

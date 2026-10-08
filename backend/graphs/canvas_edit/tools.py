@@ -165,19 +165,13 @@ raise_modeling_question rather than reporting it as a defect you already fixed.
 """.format(knowledge_boundary=KNOWLEDGE_BOUNDARY_POLICY).strip()
 
 LAYOUT_TOOL_POLICY = """
-Canvas Drawing/Layout subagent tools.
-
-Own visual readability only through an explicit consultant-style layout plan:
-split the objective into layout tasks, choose readable left-to-right rows, then
-draw. Start events should sit on the left, end events should finish to the right,
-and branches/retries may use lower rows when that improves readability. Do not
-use hidden deterministic fallback layout when the plan is missing or incomplete.
-Remove semantic text annotations, association edges and data artifacts from the
-visible canvas before layout; they belong in the canonical BPMNSemanticModel
-payload. Sequence flows, message flows and labels are not elements for overlap
-checks. Do not alter business semantics, labels, owners or sequence flow
-source/target. A layout pass should end with layout validation and a saved BPMN
-XML version only when the geometry is readable.
+DeliR owns canvas geometry through the mandatory CanvasLayoutPolicy. Agents may
+request semantic changes and inspect validation, never choose coordinates,
+dimensions, rows, lane visual order or routing. All generated or mutated agent
+XML discards incoming DI, normalizes semantics, applies deterministic layout and
+passes visual lint before save. Roles remain lanes; participants remain pools.
+Preserve artifacts, conditions, documentation and traceability. Human manual
+geometry is preserved and validated through its own save path.
 """.strip()
 
 

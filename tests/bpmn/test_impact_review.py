@@ -253,10 +253,137 @@ def test_agent_draws_a_new_task_owner_and_reconnected_flows_on_a_proposal(proces
     from xml.etree.ElementTree import canonicalize
 
     artifacts = Path(__file__).resolve().parents[2] / "e2e" / "fixtures" / "review-agent"
-    assert canonicalize(proposal) == canonicalize((artifacts / "proposal.bpmn").read_text(encoding="utf-8"))
-    assert canonicalize(initial.xml) == canonicalize((artifacts / "baseline.bpmn").read_text(encoding="utf-8"))
     # Optional bridge to browser validation: the XML is produced by the real
     # agent tool and editing engine here, not fabricated in the Playwright route.
     if output := os.environ.get("BKGPT_REVIEW_ARTIFACT"):
         Path(output).write_text(proposal, encoding="utf-8")
         Path(output).with_suffix(".baseline.bpmn").write_text(initial.xml, encoding="utf-8")
+    assert canonicalize(proposal) == canonicalize((artifacts / "proposal.bpmn").read_text(encoding="utf-8"))
+    assert canonicalize(initial.xml) == canonicalize((artifacts / "baseline.bpmn").read_text(encoding="utf-8"))
+
+
+
+def _translated_di(xml):
+    """A legitimate consultant layout change, including connector waypoints."""
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(xml)
+    for element in root.iter():
+        if element.tag.endswith(("}Bounds", "}waypoint")):
+            element.set("x", str(float(element.get("x")) + 23))
+            element.set("y", str(float(element.get("y")) + 17))
+    return ET.tostring(root, encoding="unicode")
+
+
+def test_manual_di_is_preserved_but_runtime_agent_cannot_choose_geometry(process):
+    from backend import workspace_database as db
+    from backend.agents.chat_mode import bind_active_mode
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+    from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_layout
+
+    model_id = f"b-{process}"
+    translated = _translated_di(XML)
+    assert validate_bpmn_layout(translated)["valid"]
+    human = db.update_bpmn_model(model_id, translated)
+    assert human["xml"] == translated
+    assert db.list_bpmn_versions(model_id)[0]["xml"] == translated
+    # Even a future agent using the default manual source cannot bypass policy.
+    with bind_active_mode("agent"):
+        agent = db.update_bpmn_model(model_id, translated)
+    expected = apply_enterprise_layout(translated, process_name="Process")
+    assert agent["xml"] == expected and agent["xml"] != translated
+    assert db.list_bpmn_versions(model_id)[0]["xml"] == expected
+
+
+def test_manual_invalid_geometry_is_rejected_atomically(process):
+    from backend import workspace_database as db
+    import xml.etree.ElementTree as ET
+
+    model_id = f"b-{process}"
+    before = db.get_bpmn_model(model_id)
+    versions = db.list_bpmn_versions(model_id)
+    root = ET.fromstring(XML)
+    bounds = root.find(".//{http://www.omg.org/spec/DD/20100524/DC}Bounds")
+    bounds.set("width", "nan")
+    with pytest.raises(ValueError, match="non valido"):
+        db.update_bpmn_model(model_id, ET.tostring(root, encoding="unicode"))
+    assert db.get_bpmn_model(model_id)["xml"] == before["xml"]
+    assert db.list_bpmn_versions(model_id) == versions
+
+
+def test_agent_restore_uses_policy_and_human_restore_keeps_saved_manual_di(process):
+    from backend import workspace_database as db
+    from backend.agents.chat_mode import bind_active_mode
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+
+    model_id = f"b-{process}"
+    translated = _translated_di(XML)
+    saved = db.update_bpmn_model(model_id, translated)
+    with bind_active_mode("agent"):
+        restored = db.restore_bpmn_version(model_id, saved["version_id"])
+    assert restored["bpmn_model"]["xml"] == apply_enterprise_layout(translated, process_name="Process")
+    restored = db.restore_bpmn_version(model_id, saved["version_id"])
+    assert restored["bpmn_model"]["xml"] == translated
+
+
+def test_manual_semantic_owner_refs_are_validated_without_relayout(process):
+    from backend import workspace_database as db
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+    model_id = f"b-{process}"
+    owned = XML.replace('<bpmn:process id="p">', '<bpmn:process id="p"><bpmn:laneSet id="roles"><bpmn:lane id="buyer" name="Acquisti"><bpmn:flowNodeRef>verify</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>')
+    owned = apply_enterprise_layout(owned)
+    saved = db.update_bpmn_model(model_id, _translated_di(owned))
+    assert saved["xml"] == _translated_di(owned)
+    invalid = owned.replace('<bpmn:flowNodeRef>verify</bpmn:flowNodeRef>', '<bpmn:flowNodeRef>missing</bpmn:flowNodeRef>')
+    with pytest.raises(ValueError, match="riferimenti non validi"):
+        db.update_bpmn_model(model_id, invalid)
+    assert db.get_bpmn_model(model_id)["xml"] == saved["xml"]
+
+
+def test_missing_manual_connector_coordinate_returns_validation_error(process):
+    from backend import workspace_database as db
+    import xml.etree.ElementTree as ET
+    root = ET.fromstring(XML)
+    point = root.find(".//{http://www.omg.org/spec/DD/20100524/DI}waypoint")
+    del point.attrib["x"]
+    with pytest.raises(ValueError, match="non valido"):
+        db.update_bpmn_model(f"b-{process}", ET.tostring(root, encoding="unicode"))
+    assert db.get_bpmn_model(f"b-{process}")["xml"] == XML
+
+
+def test_manual_expanded_subprocess_is_preserved_and_agent_policy_collapses_only_its_di(process):
+    from backend import workspace_database as db
+    from backend.agents.chat_mode import bind_active_mode
+    import xml.etree.ElementTree as ET
+    b = "{http://www.omg.org/spec/BPMN/20100524/MODEL}"
+    bd = "{http://www.omg.org/spec/BPMN/20100524/DI}"
+    dc = "{http://www.omg.org/spec/DD/20100524/DC}"
+    root = ET.fromstring(XML)
+    host = root.find(f".//{b}userTask[@id='verify']")
+    host.tag = b + "subProcess"
+    ET.SubElement(host, b + "startEvent", {"id": "internalStart"})
+    ET.SubElement(host, b + "userTask", {"id": "internal"})
+    ET.SubElement(host, b + "sequenceFlow", {"id": "internalFlow", "sourceRef": "internalStart", "targetRef": "internal"})
+    host_shape = root.find(f".//{bd}BPMNShape[@bpmnElement='verify']")
+    host_shape.set("isExpanded", "true")
+    bounds = host_shape.find(dc + "Bounds")
+    shape = ET.SubElement(root.find(f".//{bd}BPMNPlane"), bd + "BPMNShape", {"id": "internal_di", "bpmnElement": "internal"})
+    ET.SubElement(shape, dc + "Bounds", {"x": str(float(bounds.get("x")) + 20), "y": str(float(bounds.get("y")) + 20), "width": "100", "height": "40"})
+    inner_bounds = shape.find(dc + "Bounds")
+    inner_bounds.set("x", str(float(bounds.get("x")) + 68))
+    inner_bounds.set("y", str(float(bounds.get("y")) + 22))
+    inner_bounds.set("width", "60")
+    inner_bounds.set("height", "36")
+    start_shape = ET.SubElement(root.find(f".//{bd}BPMNPlane"), bd + "BPMNShape", {"id": "internalStart_di", "bpmnElement": "internalStart"})
+    ET.SubElement(start_shape, dc + "Bounds", {"x": str(float(bounds.get("x")) + 20), "y": str(float(bounds.get("y")) + 22), "width": "36", "height": "36"})
+    edge = ET.SubElement(root.find(f".//{bd}BPMNPlane"), bd + "BPMNEdge", {"id": "internalFlow_di", "bpmnElement": "internalFlow"})
+    for offset in (56, 68):
+        ET.SubElement(edge, "{http://www.omg.org/spec/DD/20100524/DI}waypoint", {"x": str(float(bounds.get("x")) + offset), "y": str(float(bounds.get("y")) + 40)})
+    xml = ET.tostring(root, encoding="unicode")
+    model_id = f"b-{process}"
+    assert db.update_bpmn_model(model_id, xml)["xml"] == xml
+    with bind_active_mode("agent"):
+        actual = db.update_bpmn_model(model_id, xml)["xml"]
+    regenerated = ET.fromstring(actual)
+    assert regenerated.find(f".//{b}userTask[@id='internal']") is not None
+    assert regenerated.find(f".//{bd}BPMNShape[@bpmnElement='internal']") is None
+    assert regenerated.find(f".//{bd}BPMNShape[@bpmnElement='verify']").get("isExpanded") == "false"

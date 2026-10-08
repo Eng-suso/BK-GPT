@@ -979,6 +979,7 @@ def create_bpmn_version(
     the session but is not committed.
     """
     assert_write_allowed("create_bpmn_version")
+    xml = _canvas_xml_for_write(xml, source=source, process_name=model.name)
     version = WorkspaceBpmnVersion(
         tenant_id=getattr(model, "tenant_id", tenant_id()),
         bpmn_model_id=model.id,
@@ -990,6 +991,26 @@ def create_bpmn_version(
     )
     session.add(version)
     return version
+
+
+def _canvas_xml_for_write(xml: str, *, source: str, process_name: str | None = None) -> str:
+    """Runtime actor is authoritative; source also covers system drawing jobs."""
+    from backend.agents.chat_mode import active_mode
+    from backend.bpmn.canvas_layout import apply_enterprise_layout
+    from backend.workspace_services.bpmn_canvas_edit import validate_bpmn_layout, validate_bpmn_xml
+    if active_mode() is not None or source.startswith("canvas_") or source in {"review_approval", "plan_draft"}:
+        return apply_enterprise_layout(xml, process_name=process_name)
+    # This low-level store also serves legacy records with no diagram yet.
+    # A present manual diagram is validated without changing a single byte.
+    if "BPMNDiagram" in xml:
+        from backend.bpmn.canvas_layout.normalizer import normalize_semantics
+        normalize_semantics(xml)  # Validate semantics on a copy; preserve the original DI bytes.
+        semantic = validate_bpmn_xml(xml)
+        report = validate_bpmn_layout(xml)
+        report["issues"].extend(semantic["issues"])
+        if report["issues"]:
+            raise ValueError("Disegno manuale non valido: " + "; ".join(report["issues"]))
+    return xml
 
 
 def update_bpmn_model(
@@ -1042,6 +1063,7 @@ def update_bpmn_model(
         session.refresh(model, with_for_update=True)
         _assert_bpmn_not_changed_underneath(session, model.id, expected_version_id)
 
+        clean_xml = _canvas_xml_for_write(clean_xml, source=source, process_name=model.name)
         model.xml = clean_xml
         # Il disegno e' cambiato: il confronto con le fonti che risultava prima
         # non descrive piu' cio' che si vede. Va rifatto, e lo fa il worker.
@@ -1119,11 +1141,11 @@ def restore_bpmn_version(bpmn_model_id: str, version_id: int) -> dict:
         # una versione che chi ripristina (dentro un turno) non ha visto.
         session.refresh(model, with_for_update=True)
         _assert_bpmn_not_changed_underneath(session, model.id, NO_PRECONDITION)
-        model.xml = version.xml
+        model.xml = _canvas_xml_for_write(version.xml, source="restore", process_name=model.name)
         restored = create_bpmn_version(
             session=session,
             model=model,
-            xml=version.xml,
+            xml=model.xml,
             change_summary=f"Ripristino versione {version_id}",
             source="restore",
         )
