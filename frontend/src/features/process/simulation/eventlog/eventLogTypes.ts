@@ -23,6 +23,7 @@ export const columnMappingSchema = z.object({
   activity: z.array(z.string()).min(1),
   start: z.string().nullable().optional(),
   end: z.string().nullable().optional(),
+  enable: z.string().nullable().optional(),
   timestamp: z.string().nullable().optional(),
   lifecycle: z.string().nullable().optional(),
   resource: z.string().nullable().optional(),
