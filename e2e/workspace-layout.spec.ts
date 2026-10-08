@@ -77,11 +77,11 @@ test("scenario supports long activity lists, model reference and execution", asy
   await expect(row).toBeVisible();
   const run = page.getByRole("button", { name: "Avvia simulazione", exact: true });
   await expect(run).toBeInViewport();
-  await row.getByRole("spinbutton").fill("37");
-  expect((await row.getByRole("spinbutton").boundingBox())!.width).toBeGreaterThanOrEqual(100);
+  await row.getByRole("spinbutton", { name: /^Durata, min/ }).fill("37");
+  expect((await row.getByRole("spinbutton", { name: /^Durata, min/ }).boundingBox())!.width).toBeGreaterThanOrEqual(100);
   await expect(page.locator(".sim-studio-empty-process .djs-container")).toBeVisible();
   await page.locator('.sim-studio-empty-process [data-element-id="Task_18"]').first().click();
-  await expect(row.getByRole("spinbutton")).toHaveValue("37");
+  await expect(row.getByRole("spinbutton", { name: /^Durata, min/ })).toHaveValue("37");
   await expect(run).toBeDisabled();
   await page.getByRole("button", { name: "Aggiungi ruolo", exact: true }).click();
   const resource = page.locator("[data-resource-id]");

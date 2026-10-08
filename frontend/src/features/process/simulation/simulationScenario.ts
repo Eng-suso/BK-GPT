@@ -1,7 +1,10 @@
-import type {
-  CreateSimulationRunInput,
-  ScenarioTemplate,
-  ScenarioTemplateResource,
+import {
+  simCalendarSchema,
+  type CreateSimulationRunInput,
+  type DistributionName,
+  type ScenarioTemplate,
+  type ScenarioTemplateResource,
+  type SimCalendar,
 } from "./simulationTypes";
 
 export type ResourceDraft = {
@@ -11,14 +14,23 @@ export type ResourceDraft = {
   amount: number;
   source?: ScenarioTemplateResource;
   parametersConfirmed?: boolean;
+  /** Assente = il calendario standard. */
+  calendarId?: string;
 };
 
 export type TaskDraft = {
   meanMinutes: number;
-  distribution: "norm" | "expon" | "fixed";
+  distribution: DistributionName;
   resourceId: string;
   assignmentSource?: "bpmn" | "manual";
+  /** Facoltativi: assenti, il backend applica le ipotesi standard. */
+  stdMinutes?: number;
+  minMinutes?: number;
+  maxMinutes?: number;
 };
+
+/** Un calendario di lavoro dello scenario, con orari ``HH:MM``. */
+export type CalendarDraft = SimCalendar;
 
 /** element_id -> flow_id -> probability (0–100) */
 export type GatewayDraft = Record<string, number>;
@@ -33,6 +45,7 @@ export type ScenarioDraft = {
   excludedResourceIds?: string[];
   tasks: Record<string, TaskDraft>;
   gateways: Record<string, GatewayDraft>;
+  calendars?: CalendarDraft[];
 };
 
 export const DEFAULT_SCENARIO: ScenarioDraft = {
@@ -60,11 +73,70 @@ export function scenarioResourceIssues(draft: ScenarioDraft) {
     ready: !missingResources && ids.size === draft.resources.length && pending === 0 && unassigned === 0 && Object.keys(draft.tasks).length > 0 };
 }
 
+/** Quali parametri della durata ha senso indicare per ogni distribuzione. */
+export const DISTRIBUTION_PARAMETERS: Record<DistributionName, { mean: boolean; std: boolean; bounds: boolean }> = {
+  fixed: { mean: true, std: false, bounds: false },
+  expon: { mean: true, std: false, bounds: true },
+  uniform: { mean: false, std: false, bounds: true },
+  norm: { mean: true, std: true, bounds: true },
+  lognorm: { mean: true, std: true, bounds: true },
+  gamma: { mean: true, std: true, bounds: true },
+};
+
+export type TaskDurationIssue = "uniformBounds" | "boundsOrder";
+
+/** Minuti in secondi interi, come arrivano al backend. */
+const seconds = (minutes: number | undefined) =>
+  minutes === undefined ? undefined : Math.max(0, Math.round(minutes * 60));
+
+/** Cosa manca alla durata per costruire la richiesta; il resto lo valida il backend. */
+export function taskDurationIssue(task: TaskDraft): TaskDurationIssue | null {
+  if (!DISTRIBUTION_PARAMETERS[task.distribution].bounds) return null;
+  if (task.distribution === "uniform" && (task.minMinutes === undefined || task.maxMinutes === undefined)) {
+    return "uniformBounds";
+  }
+  // Confronto sui secondi inviati: 1,001 e 1,002 minuti diventano entrambi 60 s.
+  const minimum = seconds(task.minMinutes);
+  const maximum = seconds(task.maxMinutes);
+  if (minimum !== undefined && maximum !== undefined && minimum >= maximum) return "boundsOrder";
+  return null;
+}
+
+export type CalendarIssue = "name" | "periods" | "periodOrder";
+
+export function calendarIssue(calendar: CalendarDraft): CalendarIssue | null {
+  if (!calendar.name.trim()) return "name";
+  if (calendar.periods.length === 0) return "periods";
+  // Un periodo che passa la mezzanotte va diviso in due.
+  if (calendar.periods.some((period) => !period.begin || !period.end || period.begin >= period.end)) return "periodOrder";
+  return null;
+}
+
+export function scenarioParameterIssues(draft: ScenarioDraft) {
+  const durations = Object.values(draft.tasks).filter((task) => taskDurationIssue(task) !== null).length;
+  const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
+  return { durations, calendars, ready: durations === 0 && calendars === 0 };
+}
+
+export function newCalendarId(existing: CalendarDraft[]): string {
+  let n = existing.length + 1;
+  while (existing.some((c) => c.id === `cal-${n}`)) n += 1;
+  return `cal-${n}`;
+}
+
+function taskMeanSeconds(task: TaskDraft): number {
+  const minutes = task.distribution === "uniform" && task.minMinutes !== undefined && task.maxMinutes !== undefined
+    ? (task.minMinutes + task.maxMinutes) / 2
+    : task.meanMinutes;
+  return Math.max(1, Math.round(minutes * 60));
+}
+
 export function scenarioToInput(
   draft: ScenarioDraft,
   currentBpmnXml: string | null,
 ): Omit<CreateSimulationRunInput, "idempotencyKey"> {
   const primary = draft.resources[0];
+  const calendarIds = new Set((draft.calendars ?? []).map((c) => c.id));
   const base = {
     scenarioName: draft.scenarioName,
     totalCases: draft.totalCases,
@@ -83,13 +155,21 @@ export function scenarioToInput(
       name: r.name,
       costPerHour: r.costPerHour,
       amount: r.amount,
+      calendarId: calendarIds.has(r.calendarId ?? "") ? r.calendarId : undefined,
     })),
-    tasks: Object.entries(draft.tasks).map(([elementId, task]) => ({
-      elementId,
-      meanSeconds: Math.max(1, Math.round(task.meanMinutes * 60)),
-      distribution: task.distribution,
-      resourceId: task.resourceId,
-    })),
+    tasks: Object.entries(draft.tasks).map(([elementId, task]) => {
+      const parameters = DISTRIBUTION_PARAMETERS[task.distribution];
+      return {
+        elementId,
+        meanSeconds: taskMeanSeconds(task),
+        distribution: task.distribution,
+        resourceId: task.resourceId,
+        stdSeconds: parameters.std && task.stdMinutes !== undefined ? Math.max(1, Math.round(task.stdMinutes * 60)) : undefined,
+        minSeconds: parameters.bounds ? seconds(task.minMinutes) : undefined,
+        maxSeconds: parameters.bounds ? seconds(task.maxMinutes) : undefined,
+      };
+    }),
+    calendars: draft.calendars ?? [],
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
       branches: Object.entries(branches).map(([flowId, probability]) => ({
@@ -182,6 +262,10 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
       resources: migratedResources,
       tasks: parsed.tasks ?? {},
       gateways: parsed.gateways ?? {},
+      // Una bozza vecchia o modificata a mano non deve rompere il pannello.
+      calendars: Array.isArray(parsed.calendars)
+        ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
+        : [],
     };
   } catch {
     return structuredClone(DEFAULT_SCENARIO);
