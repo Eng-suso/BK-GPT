@@ -16,6 +16,8 @@
   pointer-events: none;
 }
 .delir-canvas-identity svg { width: var(--space-500); height: var(--space-500); color: var(--color-action-primary); }
+:is(.process-bpmn--colours, .delir-canvas--colours) .delir-role-band { fill: var(--canvas-role-header-surface); stroke: none; pointer-events: none; }
+.process-bpmn-shell:not(.process-bpmn--colours) .delir-role-band { fill: transparent; stroke: none; }
 .process-bpmn-canvas.delir-canvas--colours, .review-canvas-stage.delir-canvas--colours {
   background-color: var(--color-surface-primary);
   background-image: radial-gradient(circle, var(--canvas-grid-color) var(--border-width-default), transparent var(--border-width-default));

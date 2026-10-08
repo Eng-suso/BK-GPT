@@ -537,6 +537,7 @@
   --domain-kpi-no-data-icon: var(--domain-role-neutral-icon);
   --domain-process-start-surface: var(--domain-role-green-surface);
   --canvas-grid-color: color-mix(in srgb, var(--color-border-subtle) 55%, transparent);
+  --canvas-role-header-surface: color-mix(in srgb, var(--color-action-primary) 6%, var(--color-surface-primary));
   --domain-process-start-text: var(--domain-role-green-text);
   --domain-process-start-border: var(--domain-role-green-border);
   --domain-process-start-icon: var(--domain-role-green-icon);
