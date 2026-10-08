@@ -270,7 +270,15 @@
       "confidence": "confidenza {{level}}",
       "provenanceLoading": "Provenienza in caricamento",
       "provenanceError": "Provenienza non disponibile: il valore resta senza origine.",
-      "notActivity": "Seleziona un'attività: decisioni ed eventi non hanno durata né risorsa."
+      "notActivity": "Seleziona un'attività: decisioni ed eventi non hanno durata né risorsa.",
+      "loading": "Parametri del run in caricamento",
+      "notSimulated": "Questo elemento non ha parametri: seleziona un'attività o una decisione.",
+      "legacyNote": "Run creato prima che il modello si conservasse: valori letti dalla richiesta del run.",
+      "modelError": "Modello del run non disponibile: valori letti dalla richiesta del run.",
+      "assignment": "Risorsa {{n}} di {{total}}",
+      "byRule": "scelto per regola",
+      "and": "e",
+      "or": "oppure"
     },
     "provenance": {
       "label": "Origine",

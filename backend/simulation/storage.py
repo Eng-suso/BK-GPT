@@ -182,6 +182,7 @@ def create_simulation_run(
                 update={"current_bpmn_xml": None}
             ).model_dump_json(),
             scenario_json=json.dumps(scenario.payload, ensure_ascii=False),
+            model_json=json.dumps(scenario.model, ensure_ascii=False) if scenario.model is not None else None,
             result_json="{}",
             outputs_json="[]",
             error=None,
@@ -283,6 +284,20 @@ def get_simulation_replay(run_id: int) -> dict[str, Any] | None:
             "schema_version": artifact.replay_schema_version,
             "replay": json.loads(artifact.replay_json or "{}"),
         }
+
+
+def get_simulation_run_model(run_id: int) -> tuple[bool, dict[str, Any] | None]:
+    """Il modello IR che il run ha simulato.
+
+    ``(False, None)``: il run non c'e' (o e' di un altro tenant).
+    ``(True, None)``: il run c'e' ma e' anteriore alla 0033 e il modello non
+    e' stato conservato.
+    """
+    with workspace_connection() as session:
+        run = session.get(WorkspaceSimulationRun, run_id)
+        if run is None or run.tenant_id != get_current_tenant_id():
+            return False, None
+        return True, json.loads(run.model_json) if run.model_json else None
 
 
 def _summary_for(session, run_id: int) -> dict[str, Any] | None:

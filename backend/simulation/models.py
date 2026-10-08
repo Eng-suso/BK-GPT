@@ -30,6 +30,11 @@ class ProsimosScenario(BaseModel):
     payload: dict[str, Any]
     task_count: int
     gateway_count: int
+    # Il Simulation IR da cui viene ``payload``, serializzato (``model_dump``).
+    # Il run lo conserva: e' cio' che ha simulato davvero, provenienza compresa.
+    # Un dizionario e non ``SimulationModel`` per non importare l'IR da qui
+    # (``ir.from_request`` importa questo modulo).
+    model: dict[str, Any] | None = None
 
 
 class ProsimosSimulationRequest(BaseModel):

@@ -45,6 +45,7 @@ async function fixture(page: Page): Promise<void> {
     };
     else if (path.endsWith("/simulation-runs")) data = [run, { ...run, id: 43, scenario_name: "TO-BE · Capacità aggiuntiva" }];
     else if (path.endsWith("/replay")) data = { run_id: Number(path.split("/").at(-2)), schema_version: 1, replay: payload };
+    else if (path.endsWith("/model")) data = { run_id: Number(path.split("/").at(-2)), model: null };
     else if (path.endsWith("/simulation-template")) data = { tasks: [{ element_id: "A", name: "Verifica documentazione", type: "task" }, { element_id: "B", name: "Approva richiesta", type: "task" }], gateways: [] };
     else if (path.endsWith("/experiments")) data = { bottleneck_el: "A", bottleneck_name: "Verifica documentazione", factors: {}, experiments: [] };
     else if (path.endsWith("/simulation-provenance")) data = { has_discovery: false, elements: [] };
@@ -933,4 +934,54 @@ test("activity inspector never shows an origin when provenance fails", async ({ 
   await expect(params.getByRole("alert")).toContainText("Provenienza non disponibile", { timeout: 20_000 });
   await expect(params).not.toContainText("inserito");
   await expect(params).not.toContainText("confidenza");
+});
+
+test("activity inspector reads the model the run simulated, assignment by assignment", async ({ page }, testInfo) => {
+  const model = {
+    schema_version: 1,
+    arrival: { interarrival: { kind: "exponential", mean: 1800, minimum: 0, maximum: 18000 }, calendar_id: "delir-calendar-standard" },
+    calendars: [
+      { id: "delir-calendar-standard", name: "Standard office calendar", periods: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "09:00:00.000", end: "17:00:00.000" }] },
+      { id: "night", name: "Notte", periods: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "22:00:00", end: "23:59:59" }] },
+    ],
+    pools: [{ id: "p", name: "Ufficio", resources: [
+      { id: "ops", name: "Analisti", cost_per_hour: 40, amount: 3, calendar_id: "delir-calendar-standard" },
+      { id: "night-ops", name: "Turno notte", cost_per_hour: 55, amount: 1, calendar_id: "night" },
+    ] }],
+    activities: [
+      { element_id: "A", name: "Verifica documentazione", assignments: [
+        { resource_id: "ops", duration: { kind: "lognormal", mean: 600, variance: 90000, minimum: 60, maximum: 3600 },
+          provenance: { origin: "observed", confidence: "high", sources: [{ kind: "event_log", id: "log-7", label: "Export SAP" }] } },
+        { resource_id: "night-ops", duration: { kind: "uniform", minimum: 300, maximum: 900 }, provenance: null },
+      ] },
+      { element_id: "B", name: "Approva richiesta", assignments: [
+        { resource_id: "ops", duration: { kind: "normal", mean: 900, std: 90, minimum: 630, maximum: 1170 }, provenance: null },
+      ] },
+    ],
+    gateways: [],
+  };
+  await page.route("http://127.0.0.1:8000/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/simulation-runs/42/model")) return route.fulfill({ json: { run_id: 42, model } });
+    return route.fallback();
+  });
+  await page.goto(`${studio}/workspace/42?panel=activity`);
+  await page.getByLabel("Attività", { exact: true }).selectOption("A");
+  const params = page.getByRole("region", { name: "Parametri simulati", exact: true });
+  await expect(params).toContainText("Risorsa 1 di 2");
+  await expect(params).toContainText("Analisti × 3");
+  await expect(params).toContainText("Lognormale");
+  await expect(params).toContainText("dev. std 5 min");
+  await expect(params).toContainText("osservato");
+  await expect(params).toContainText("event log Export SAP");
+  await expect(params).toContainText("Risorsa 2 di 2");
+  await expect(params).toContainText("Turno notte × 1");
+  await expect(params).toContainText("Notte · lun–ven 22:00–23:59");
+  await expect(params).toContainText("Uniforme");
+  await expect(params).toContainText("fra 5 min e 15 min");
+  await expect(params).not.toContainText("valori letti dalla richiesta");
+  const axe = await new AxeBuilder({ page }).include(".sim-activity-params").analyze();
+  expect(axe.violations).toEqual([]);
+  await params.scrollIntoViewIfNeeded();
+  await params.screenshot({ path: testInfo.outputPath("activity-inspector-model.png"), animations: "disabled" });
 });
