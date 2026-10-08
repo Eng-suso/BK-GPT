@@ -203,7 +203,59 @@
       "dist": {
         "norm": "Normale",
         "expon": "Esponenziale",
-        "fixed": "Fissa"
+        "fixed": "Fissa",
+        "uniform": "Uniforme",
+        "lognorm": "Lognormale",
+        "gamma": "Gamma"
+      },
+      "stdMin": "Dev. std, min",
+      "minMin": "Minimo, min",
+      "maxMin": "Massimo, min",
+      "durationDefaults": "Campi vuoti: deviazione standard al 10% della media, limiti a ±3 deviazioni standard.",
+      "exponDefaults": "Campi vuoti: limiti da 0 a 10 volte la media.",
+      "uniformHint": "La durata è uniforme fra minimo e massimo.",
+      "durationIssue": {
+        "uniformBounds": "Indica minimo e massimo.",
+        "boundsOrder": "Il minimo deve essere minore del massimo."
+      },
+      "invalidDurations": "Attività con durata da correggere: {{count}}",
+      "calendars": "Calendari",
+      "calendarsHint": "Gli arrivi e le risorse senza calendario proprio seguono il calendario standard.",
+      "standardCalendar": "Calendario standard",
+      "addCalendar": "Aggiungi calendario",
+      "removeCalendar": "Rimuovi calendario",
+      "calendarName": "Nome del calendario",
+      "newCalendarName": "Calendario {{n}}",
+      "addPeriod": "Aggiungi periodo",
+      "removePeriod": "Rimuovi periodo",
+      "fromDay": "Dal",
+      "toDay": "Al",
+      "begin": "Dalle",
+      "end": "Alle",
+      "calendarIssue": {
+        "name": "Dai un nome al calendario.",
+        "periods": "Aggiungi almeno un periodo.",
+        "periodOrder": "L'orario di fine deve seguire quello di inizio; un turno che passa la mezzanotte va diviso in due periodi."
+      },
+      "invalidCalendars": "Calendari da correggere: {{count}}",
+      "resourceCalendar": "Calendario di lavoro",
+      "weekday": {
+        "MONDAY": "Lunedì",
+        "TUESDAY": "Martedì",
+        "WEDNESDAY": "Mercoledì",
+        "THURSDAY": "Giovedì",
+        "FRIDAY": "Venerdì",
+        "SATURDAY": "Sabato",
+        "SUNDAY": "Domenica"
+      },
+      "weekdayShort": {
+        "MONDAY": "Lun",
+        "TUESDAY": "Mar",
+        "WEDNESDAY": "Mer",
+        "THURSDAY": "Gio",
+        "FRIDAY": "Ven",
+        "SATURDAY": "Sab",
+        "SUNDAY": "Dom"
       }
     },
     "diagram": {

@@ -203,7 +203,59 @@
       "dist": {
         "norm": "Normal",
         "expon": "Exponential",
-        "fixed": "Fixed"
+        "fixed": "Fixed",
+        "uniform": "Uniform",
+        "lognorm": "Lognormal",
+        "gamma": "Gamma"
+      },
+      "stdMin": "Std dev, min",
+      "minMin": "Minimum, min",
+      "maxMin": "Maximum, min",
+      "durationDefaults": "Empty fields: standard deviation at 10% of the mean, bounds at ±3 standard deviations.",
+      "exponDefaults": "Empty fields: bounds from 0 to 10 times the mean.",
+      "uniformHint": "The duration is uniform between minimum and maximum.",
+      "durationIssue": {
+        "uniformBounds": "Enter minimum and maximum.",
+        "boundsOrder": "The minimum must be lower than the maximum."
+      },
+      "invalidDurations": "Activities with a duration to fix: {{count}}",
+      "calendars": "Calendars",
+      "calendarsHint": "Arrivals and resources without their own calendar follow the standard calendar.",
+      "standardCalendar": "Standard calendar",
+      "addCalendar": "Add calendar",
+      "removeCalendar": "Remove calendar",
+      "calendarName": "Calendar name",
+      "newCalendarName": "Calendar {{n}}",
+      "addPeriod": "Add period",
+      "removePeriod": "Remove period",
+      "fromDay": "From",
+      "toDay": "To",
+      "begin": "From",
+      "end": "Until",
+      "calendarIssue": {
+        "name": "Give the calendar a name.",
+        "periods": "Add at least one period.",
+        "periodOrder": "The end time must follow the start time; a shift across midnight must be split into two periods."
+      },
+      "invalidCalendars": "Calendars to fix: {{count}}",
+      "resourceCalendar": "Working calendar",
+      "weekday": {
+        "MONDAY": "Monday",
+        "TUESDAY": "Tuesday",
+        "WEDNESDAY": "Wednesday",
+        "THURSDAY": "Thursday",
+        "FRIDAY": "Friday",
+        "SATURDAY": "Saturday",
+        "SUNDAY": "Sunday"
+      },
+      "weekdayShort": {
+        "MONDAY": "Mon",
+        "TUESDAY": "Tue",
+        "WEDNESDAY": "Wed",
+        "THURSDAY": "Thu",
+        "FRIDAY": "Fri",
+        "SATURDAY": "Sat",
+        "SUNDAY": "Sun"
       }
     },
     "diagram": {
