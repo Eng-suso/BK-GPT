@@ -203,7 +203,10 @@
       "dist": {
         "norm": "Normale",
         "expon": "Esponenziale",
-        "fixed": "Fissa"
+        "fixed": "Fissa",
+        "uniform": "Uniforme",
+        "lognorm": "Lognormale",
+        "gamma": "Gamma"
       }
     },
     "diagram": {
@@ -256,7 +259,11 @@
       "duration": "Durata media",
       "defaultDuration": "durata di default dello scenario",
       "distribution": "Distribuzione",
-      "normalStd": "dev. std {{pct}}% della media, assunzione fissa",
+      "stdAssumed": "dev. std {{value}}: 10% della media, assunzione fissa",
+      "std": "dev. std {{value}}",
+      "bounds": "fra {{min}} e {{max}}",
+      "calendar": "Calendario",
+      "standardCalendar": "standard, lun–ven 9–17",
       "resource": "Risorsa",
       "resourceValue": "{{name}} × {{amount}} · {{cost}}/h",
       "origin": "Origine",
