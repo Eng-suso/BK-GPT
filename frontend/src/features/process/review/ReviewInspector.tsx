@@ -6,14 +6,14 @@ import { Surface } from "@/ui/surface";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs";
 import { InlineNotice } from "@/components/feedback/InlineNotice";
 import type { ProcessProvenance } from "@/contracts/workspace";
-import { inspectReviewNode, type ReviewGraph, type ReviewNode, type ReviewState } from "./reviewModel";
+import { inspectReviewNode, type ReviewGraph, type ReviewNode, type ReviewState, type ReviewAction } from "./reviewModel";
 import { ReviewMascot } from "./ReviewMascot";
 
-export function ReviewInspector({ node, graph, state, provenance, evidenceError, evidenceLoading, onRetryEvidence, tab, onTab, onSelect, onSimulation }: {
+export function ReviewInspector({ node, graph, state, provenance, evidenceError, evidenceLoading, onRetryEvidence, tab, onTab, onSelect, onSimulation, onPreview, onAskAgent }: {
   node: ReviewNode; graph: ReviewGraph; state: ReviewState; provenance?: ProcessProvenance;
   evidenceError: boolean; evidenceLoading: boolean; onRetryEvidence: () => void;
   tab: string; onTab: (tab: string) => void;
-  onSelect: (id: string) => void; onSimulation: () => void;
+  onSelect: (id: string) => void; onSimulation: () => void; onPreview: (action: ReviewAction) => void; onAskAgent: () => void;
 }) {
   const { t } = useTranslation("process");
   const inspection = inspectReviewNode(node, graph, state, provenance);
@@ -38,7 +38,7 @@ export function ReviewInspector({ node, graph, state, provenance, evidenceError,
           <Surface asChild variant="inset"><div className="review-fact-transfer"><dt><FileOutput aria-hidden />{t("review.field.output")}</dt><dd className={!outputs.length ? "review-missing-value" : undefined}>{value(outputs.join(", "))}</dd></div></Surface>
           <div className="review-fact-issues" data-pending={gaps.length > 0}><dt><CircleHelp aria-hidden />{t("review.field.problems")}<span className="review-issue-count">{String(gaps.length).padStart(2, "0")}</span></dt><dd>{gaps.length ? <ul className="space-y-1">{gaps.map(gap => <li key={gap}>{t(`review.gap.${gap}`)}</li>)}</ul> : t("review.noStructuralGaps")}</dd></div>
           <div className="review-fact-scope"><dt><GitBranch aria-hidden />{t("review.field.impacts")}</dt><dd><div className="review-scope-path"><span><b>{scope.upstream.length}</b>{t("review.upstream")}</span><i aria-hidden /><span className="review-scope-current" role="img" aria-label={`${t("review.selected")}: ${node.name}`} /><i aria-hidden /><span><b>{scope.downstream.length}</b>{t("review.downstream")}</span></div><Button variant="link" size="sm" className="h-auto px-0 py-1" onClick={() => onTab("impacts")}>{t("review.exploreImpacts")}<ArrowUpRight aria-hidden /></Button></dd></div>
-          <div className="review-fact-suggestion"><dt><ReviewMascot />{t("review.field.suggestion")}</dt><dd>{suggestion}</dd></div>
+          <div className="review-fact-suggestion"><dt><ReviewMascot />{t("review.field.suggestion")}</dt><dd>{suggestion}<Button variant="link" size="sm" className="px-0" onClick={onAskAgent}>{t("review.agent.askOpinion")}<ArrowUpRight aria-hidden /></Button></dd></div>
         </dl>
         {node.notes && <Surface variant="inset" className="p-3"><p className="mb-1 text-xs font-semibold">{t("review.taskNotes")}</p><p className="whitespace-pre-wrap text-xs leading-relaxed">{node.notes}</p></Surface>}
         {!state.plan && <InlineNotice tone="warning" title={t("review.noPlan")}>{t("review.noPlanDescription")}</InlineNotice>}
@@ -60,7 +60,7 @@ export function ReviewInspector({ node, graph, state, provenance, evidenceError,
       </TabsContent>
       <TabsContent value="actions" className="space-y-3 pt-3">
         <p className="text-xs leading-relaxed text-muted-foreground">{t("review.actionsDescription")}</p>
-        {actions.length ? actions.map(action => <Surface key={action.id} variant="inset" className="space-y-2 p-3"><Badge variant="outline">{t(`review.kind.${action.kind}`)}</Badge><h4 className="text-xs font-semibold break-words">{action.title}</h4><p className="whitespace-pre-wrap break-words text-xs leading-relaxed">{action.detail}</p>{action.base_revision !== state.base_revision && <p className="text-xs font-medium text-warning">{t("review.staleAction")}</p>}</Surface>) : <p className="text-xs text-muted-foreground">{t("review.noActions")}</p>}
+        {actions.length ? actions.map(action => <Surface key={action.id} variant="inset" className="space-y-2 p-3"><Badge variant="outline">{t(`review.kind.${action.kind}`)}</Badge><h4 className="text-xs font-semibold break-words">{action.title}</h4><p className="whitespace-pre-wrap break-words text-xs leading-relaxed">{action.detail}</p>{action.proposal_xml && <Button variant="outline" size="sm" onClick={() => onPreview(action)}>{t("review.agent.preview")}</Button>}{action.base_revision !== state.base_revision && <p className="text-xs font-medium text-warning">{t("review.staleAction")}</p>}</Surface>) : <p className="text-xs text-muted-foreground">{t("review.noActions")}</p>}
       </TabsContent>
     </Tabs>
   </div>;

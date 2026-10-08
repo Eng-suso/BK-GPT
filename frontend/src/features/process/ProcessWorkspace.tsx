@@ -35,7 +35,7 @@ type ProcessWorkspaceProps = {
  * @returns The process workspace element.
  */
 export function ProcessWorkspace(props: ProcessWorkspaceProps): React.JSX.Element {
-  if (props.view === "review" || props.view === "tobe") return <ProcessReviewWorkspace key={props.process.id} processId={props.process.id} bpmnModelId={props.process.bpmnModelId} mode={props.view} onModeChange={props.onReviewModeChange} onSimulation={props.onOpenSimulation} />;
+  if (props.view === "review" || props.view === "tobe") return <ProcessReviewWorkspace key={props.process.id} projectId={props.project.id} processName={props.process.name} processId={props.process.id} bpmnModelId={props.process.bpmnModelId} mode={props.view} onModeChange={props.onReviewModeChange} onSimulation={props.onOpenSimulation} />;
   return <ModelingProcessWorkspace {...props} />;
 }
 

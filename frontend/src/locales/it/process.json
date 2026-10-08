@@ -1003,7 +1003,7 @@
     "focusImpact": "Zona di impatto",
     "processFindings": "Rilievi del processo",
     "refresh": "Ricarica review",
-    "hypotheses": "Ipotesi To-Be",
+    "hypotheses": "Proposte",
     "inspector": "Analisi del task",
     "closeInspector": "Chiudi analisi del task",
     "loading": "Caricamento della review",
@@ -1021,10 +1021,10 @@
     "readOnlyTask": "Le azioni di review mantengono l’As-Is invariato.",
     "detailTabs": "Dettagli della review",
     "tab": {
-      "overview": "Overview",
+      "overview": "Conoscenza",
       "evidence": "Evidenze",
       "impacts": "Impatti",
-      "actions": "Azioni"
+      "actions": "Proposte"
     },
     "field": {
       "owner": "Owner",
@@ -1053,27 +1053,32 @@
     "action": {
       "candidate": "Proponi modifica",
       "clarification": "Chiedi chiarimento",
-      "deferred": "Ignora per ora"
+      "deferred": "Ignora per ora",
+      "as_is_proposal": "Proposta As-Is"
     },
     "actionDescription": {
       "candidate": "Crea un’ipotesi To-Be per «{{name}}». Il diagramma As-Is resta invariato.",
       "clarification": "Registra una domanda per «{{name}}» nel registro di review. La domanda resta da portare all’owner.",
-      "deferred": "Rinvia la verifica di «{{name}}» e annota il motivo. Le evidenze restano visibili."
+      "deferred": "Rinvia la verifica di «{{name}}» e annota il motivo. Le evidenze restano visibili.",
+      "as_is_proposal": "Registra una correzione della rappresentazione As-Is per «{{name}}», da presentare separatamente."
     },
     "defaultTitle": {
       "clarification": "Chiarimento: {{name}}",
-      "deferred": "Verifica rinviata: {{name}}"
+      "deferred": "Verifica rinviata: {{name}}",
+      "as_is_proposal": "Revisione di {{name}}"
     },
     "proposalTitle": "Titolo",
     "detailLabel": {
       "candidate": "Modifica proposta e impatti da verificare",
       "clarification": "Domanda per l’owner",
-      "deferred": "Motivo del rinvio"
+      "deferred": "Motivo del rinvio",
+      "as_is_proposal": "Correzione proposta, motivazione e fonti da verificare"
     },
     "detailPlaceholder": {
       "candidate": "Descrivi cosa cambiare, perché e quali dipendenze verificare…",
       "clarification": "Quale informazione serve per decidere?",
-      "deferred": "Perché rinviare e quando riprendere la verifica?"
+      "deferred": "Perché rinviare e quando riprendere la verifica?",
+      "as_is_proposal": "Correzione proposta, motivazione e fonti da verificare"
     },
     "cancel": "Annulla",
     "saveAction": "Registra azione",
@@ -1100,12 +1105,13 @@
     "performanceTitle": "Tempi, colli di bottiglia e simulazione",
     "performanceDescription": "Nessuna variazione di tempo è stata calcolata in questa review. Per stimarla servono uno scenario, parametri validati e un run di simulazione. Verifica anche le responsabilità dei task collegati.",
     "openSimulation": "Apri simulazione",
-    "actionsDescription": "Ipotesi, domande e rinvii registrati per questo task. Una proposta non applica modifiche al modello.",
+    "actionsDescription": "Correzioni As-Is, proposte To-Be e chiarimenti per questo task. Apri un diagramma per confrontarlo con l’originale.",
     "noActions": "Nessuna azione registrata.",
     "kind": {
       "candidate": "Ipotesi To-Be",
       "clarification": "Chiarimento da chiedere",
-      "deferred": "Verifica rinviata"
+      "deferred": "Verifica rinviata",
+      "as_is_proposal": "Proposta As-Is"
     },
     "hypothesesTitle": "Modifiche candidate al To-Be",
     "toBeEyebrow": "As-Is descrive · Review interpreta · To-Be trasforma",
@@ -1149,11 +1155,79 @@
       "output": "Definisci il documento o risultato da consegnare e i criteri di accettazione.",
       "evidence": "Verifica la fonte con l’owner prima di usare questa attività come base di una proposta."
     },
-    "proposalBoard": "Registro delle ipotesi",
-    "proposalBoardDescription": "Le modifiche raccolte durante la review, pronte per il confronto con gli owner.",
+    "proposalBoard": "Proposte da discutere",
+    "proposalBoardDescription": "Correzioni As-Is e ipotesi To-Be, con motivazioni e diagrammi separati dal processo originale.",
     "pendingDecision": "Da valutare",
     "openTask": "Rivedi il task",
     "candidateTaskCount_one": "{{count}} task coinvolto",
-    "candidateTaskCount_other": "{{count}} task coinvolti"
+    "candidateTaskCount_other": "{{count}} task coinvolti",
+    "agent": {
+      "open": "Apri agente DeliR",
+      "close": "Chiudi chat DeliR",
+      "title": "Agente di Review",
+      "invite": "Lavoriamo sul processo",
+      "chooseTitle": "Scegli un task, poi parliamone",
+      "chooseDescription": "Seleziona un’attività sul canvas. Posso leggere le fonti, dare un parere e lavorare con te su proposte As-Is e To-Be.",
+      "chooseTask": "Scegli task",
+      "details": "Apri conoscenza e proposte del task",
+      "contextBound": "Task e fonti collegati",
+      "simulation": "Simulazione",
+      "conversation": "Conversazione di Review",
+      "welcome": "Lavoriamo su «{{name}}».",
+      "welcomeDetail": "Leggo il processo e le sue fonti, confronto alternative e preparo diagrammi di proposta. Da dove partiamo?",
+      "shortcut": {
+        "understand": "Cosa sappiamo del task",
+        "issues": "Criticità e informazioni mancanti",
+        "opinion": "Il tuo parere su questo task",
+        "alternatives": "Quali modifiche faresti",
+        "evidence": "Verifica fonti e contraddizioni",
+        "handoffs": "Analizza dipendenze e handoff",
+        "controls": "Valuta regole e controlli",
+        "automation": "Esplora l’automazione",
+        "questions": "Prepara domande per l’owner",
+        "simulation": "Leggi risultati di simulazione",
+        "asIs": "Modifica in una proposta As-Is",
+        "toBe": "Disegna una proposta To-Be"
+      },
+      "prompt": {
+        "understand": "Dimmi cosa sai di questo task: chi lo svolge, input, output, regole e fonti. Distingui ciò che è documentato da ciò che manca.",
+        "issues": "Analizza criticità, informazioni mancanti e contraddizioni sul task selezionato e le sue dipendenze.",
+        "opinion": "Leggi il contesto e dammi il tuo parere su questo task: cosa funziona, cosa ti convince meno e cosa approfondiresti. Motiva il giudizio senza modificare il processo.",
+        "alternatives": "Quali modifiche suggeriresti per questo task? Confronta alternative, impatti a monte e a valle, rischi e verifiche necessarie, senza salvare modifiche.",
+        "evidence": "Verifica le fonti del task selezionato: citazioni, affermazioni concordanti e contraddizioni. Indica anche ciò che non è supportato.",
+        "handoffs": "Analizza handoff, responsabilità e dipendenze di questo task. Quali attività e documenti a monte e a valle verrebbero toccati da una modifica?",
+        "controls": "Valuta regole, controlli ed eccezioni di questo task. Quali controlli rischiamo di perdere con una semplificazione?",
+        "automation": "Confronta opzioni di automazione per questo task: prerequisiti, limiti, coinvolgimento umano e verifiche. Non inventare risparmi.",
+        "questions": "Prepara domande mirate per l’owner di questo task, basate sulle lacune effettive e ordinate per priorità.",
+        "simulation": "Leggi le simulazioni registrate per questo processo e spiegami cosa possiamo dire su questo task. Se mancano risultati o parametri, indica cosa serve.",
+        "asIs": "Vorrei correggere la rappresentazione attuale di questo task in una proposta As-Is separata, da presentare. Leggi il contesto e dimmi quali correzioni sono supportate dalle fonti e quali richiedono un mio chiarimento prima di disegnare la proposta.",
+        "toBe": "Vorrei una proposta To-Be per questo task. Confronta le alternative e spiegami quale suggerisci, gli impatti e le assunzioni da verificare prima di disegnare una versione separata."
+      },
+      "you": "Tu",
+      "assistant": "DeliR",
+      "asIs": "Proposta As-Is",
+      "toBe": "Proposta To-Be",
+      "saveHypothesis": "Salva come ipotesi",
+      "thinking": "Sto esaminando il processo…",
+      "answerReady": "Risposta di DeliR disponibile",
+      "error": "La risposta non è stata completata",
+      "historyError": "Cronologia temporaneamente non disponibile",
+      "explore": "Approfondisci",
+      "enterHint": "Invio per inviare · ⇧ per andare a capo",
+      "input": "Scrivi all’agente di Review",
+      "placeholder": "Chiedi un parere, verifica una fonte, descrivi una modifica…",
+      "stop": "Interrompi risposta",
+      "send": "Invia messaggio",
+      "proposalFor": "Revisione di {{name}}",
+      "draftTrimmed": "La risposta supera 4.000 caratteri: rivedi e completa la bozza prima di salvarla.",
+      "askOpinion": "Chiedi il parere di DeliR",
+      "preview": "Apri diagramma",
+      "separateProposal": "Versione separata da presentare e discutere. L’As-Is originale resta il riferimento.",
+      "baseline": "As-Is originale",
+      "download": "Scarica BPMN",
+      "workTogether": "Lavora con DeliR",
+      "resize": "Ridimensiona chat DeliR",
+      "resizeHint": "Trascina l’angolo; frecce per ridimensionare, Home per ripristinare"
+    }
   }
 }
