@@ -135,6 +135,9 @@ test("floating agent, contextual conversation, knowledge and product screenshots
   await selectTask(page);
   const inspector = page.getByRole("complementary", { name: "Analisi del task" });
   await expect(inspector).toBeHidden();
+  const launcher = (await page.getByRole("button", { name: "Apri agente DeliR", exact: true }).boundingBox())!;
+  expect(launcher.height).toBeLessThanOrEqual(80);
+  expect(launcher.width).toBeLessThanOrEqual(196);
   await page.screenshot({ path: info.outputPath("review-canvas.png") });
   const camera = await page.locator(".review-canvas .viewport").getAttribute("transform");
   await openAgent(page);

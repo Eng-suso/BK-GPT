@@ -46,7 +46,7 @@ export function ReviewAgent({ node, projectId, processId, processName, bpmnModel
   const trigger = React.useRef<HTMLButtonElement>(null);
   const close = () => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true })); };
   return <>
-    <Surface asChild variant="floating"><Button ref={trigger} variant="ghost" className={`review-agent-launcher ${open ? "review-agent-launcher--open" : ""}`} style={!open && anchor ? anchor : undefined} aria-label={t("review.agent.open")} aria-expanded={open} aria-controls={chatId} onClick={() => open ? close() : setOpen(true)}>
+    <Surface asChild variant="floating"><Button ref={trigger} variant="ghost" className={`review-agent-launcher ${open ? "review-agent-launcher--open" : ""}`} style={!open && anchor ? { ...anchor, right: "auto", bottom: "auto" } : undefined} aria-label={t("review.agent.open")} aria-expanded={open} aria-controls={chatId} onClick={() => open ? close() : setOpen(true)}>
       <span key={node?.id ?? "process"} className="review-mascot-orbit"><ReviewMascot /></span>
       <span className="review-agent-launcher-copy"><b>DeliR</b><span>{node?.name ?? t("review.agent.invite")}</span></span>
     </Button></Surface>
