@@ -179,3 +179,57 @@ def test_entities_are_refused_before_parsing():
     evil = '<?xml version="1.0"?><!DOCTYPE d [<!ENTITY x "boom">]><d>&x;</d>'
     with pytest.raises(ValueError):
         bpmn_compatibility_report(evil)
+
+
+# --------------------------------------------------------------------------- #
+# API
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture()
+def client():
+    from fastapi.testclient import TestClient
+
+    from backend.app import app
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def _bpmn_model_id(client) -> str:
+    client_id = client.post("/v1/workspace/clients", json={"name": "SIM-05 Client"}).json()["id"]
+    project_id = client.post(
+        "/v1/workspace/projects", json={"client_id": client_id, "name": "SIM-05 Project"}
+    ).json()["id"]
+    process = client.post(f"/v1/workspace/projects/{project_id}/processes", json={"name": "SIM-05 Process"})
+    assert process.status_code == 200
+    return process.json()["bpmn_model_id"]
+
+
+def _url(bpmn_model_id: str) -> str:
+    return f"/v1/workspace/bpmn-models/{bpmn_model_id}/simulation-compatibility"
+
+
+def test_the_api_reports_the_bpmn_being_edited(client):
+    response = client.post(_url(_bpmn_model_id(client)), json={"current_bpmn_xml": RICH_BPMN})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["undeclared"] == 0
+    by_id = {entry["element_id"]: entry for entry in body["elements"]}
+    assert by_id["SP"]["status"] == "flattened"
+    assert by_id["B_timer"]["impact"] == "high"
+    assert body["counts"]["removed"] > 0
+
+
+def test_the_api_without_a_bpmn_says_what_to_do(client):
+    response = client.post(_url(_bpmn_model_id(client)), json={})
+
+    assert response.status_code == 400
+    assert "BPMN" in response.json()["error"]["message"]
+
+
+def test_the_api_on_an_unknown_model_is_404(client):
+    response = client.post(_url("non-esiste"), json={"current_bpmn_xml": SIMPLE_BPMN})
+
+    assert response.status_code == 404
