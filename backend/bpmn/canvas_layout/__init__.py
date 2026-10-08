@@ -2,6 +2,7 @@
 import xml.etree.ElementTree as ET
 
 from .geometry import Box, layout_process, semantic_connections
+from .labels import branch_label
 from .lint import lint_visual_model
 from .normalizer import normalize_semantics
 from .policy import BPMN, BPMNDI, DC, DI, ENTERPRISE_POLICY, CanvasLayoutPolicy, local_name, tag
@@ -92,6 +93,10 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
         edge = ET.SubElement(plane, f"{{{BPMNDI}}}BPMNEdge", {"id": allocate(f"{connection.get('id')}_di"), "bpmnElement": connection.get("id")})
         for x, y in points:
             ET.SubElement(edge, f"{{{DI}}}waypoint", {"x": _number(x), "y": _number(y)})
+        if connection.get("name") and local_name(connection) == "sequenceFlow":
+            label = branch_label(points, connection.get("name"), boxes, labels, previous)
+            labels[connection.get("id")] = label
+            _bounds(ET.SubElement(edge, f"{{{BPMNDI}}}BPMNLabel"), label)
         previous.append(points)
     report = lint_visual_model(root)
     if not report["valid"]:

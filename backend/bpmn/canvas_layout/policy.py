@@ -32,7 +32,7 @@ class CanvasLayoutPolicy:
     gateway_size: float = 50
     route_clearance: float = 12
     bend_cost: float = 24
-    crossing_cost: float = 100
+    crossing_cost: float = 10000
 
 
 ENTERPRISE_POLICY = CanvasLayoutPolicy()

@@ -11,7 +11,7 @@ def rank_process(process, nodes: dict) -> tuple[dict[str, int], set[str], dict[s
         adjacency[flow.get("sourceRef")].append((flow.get("targetRef"), flow.get("id")))
     for node_id in adjacency:
         default = nodes[node_id].get("default")
-        adjacency[node_id].sort(key=lambda pair: (pair[1] != default, pair[0], pair[1]))
+        adjacency[node_id].sort(key=lambda pair: (pair[1] != default, pair[1], pair[0]))
     color, feedback = {}, set()
 
     ordered = sorted(nodes, key=lambda node_id: (local_name(nodes[node_id]) != "startEvent", node_id))
@@ -55,7 +55,8 @@ def rank_process(process, nodes: dict) -> tuple[dict[str, int], set[str], dict[s
             if degree[target] == 0:
                 ready.append(target)
     connected = {ref for flow in flows for ref in (flow.get("sourceRef"), flow.get("targetRef"))}
-    isolated = sorted(i for i in nodes if i not in connected and local_name(nodes[i]) not in {"boundaryEvent", "startEvent", "endEvent"})
+    owners = {ref.text: lane.get("id", "") for lane in process.iter(tag("lane")) for ref in lane.findall(tag("flowNodeRef"))}
+    isolated = sorted((i for i in nodes if i not in connected and local_name(nodes[i]) not in {"boundaryEvent", "startEvent", "endEvent"}), key=lambda i: (owners.get(i, ""), i))
     for index, node_id in enumerate(isolated):
         ranks[node_id] = index
     # Boundary events leave their host rather than participating in the happy path.

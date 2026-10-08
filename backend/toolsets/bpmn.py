@@ -521,7 +521,7 @@ def manage_canvas_bpmn_model(
                 "change_summary": change_summary or "Sostituzione strutturale canvas",
                 "xml_saved": True,
             },
-            updated_xml=clean_xml,
+            updated_xml=model["xml"],
         )
 
     if operation == "list_versions":
@@ -761,7 +761,7 @@ def manage_canvas_construction(
         # aveva sollevato eccezioni, quindi il tool riportava salvato. Qui il
         # canvas si rilegge dal database e si confronta con cio' che si e'
         # scritto; se non coincide, l'operazione fallisce invece di raccontarsi.
-        verify_bpmn_model_persisted(bpmn_model_id, clean_xml)
+        verify_bpmn_model_persisted(bpmn_model_id, model["xml"])
         return _construction_result(
             tool_call_id,
             {
@@ -777,8 +777,8 @@ def manage_canvas_construction(
                 "persistence_verified": True,
             },
             state={
-                "saved_bpmn_xml": clean_xml,
-                "effective_bpmn_xml": clean_xml,
+                "saved_bpmn_xml": model["xml"],
+                "effective_bpmn_xml": model["xml"],
                 "effective_bpmn_xml_source": "canvas_construction_apply",
                 "canvas_last_validation": validation,
                 # Spent: a later apply must not silently re-apply a stale preview.

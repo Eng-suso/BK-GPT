@@ -71,7 +71,7 @@ def layout_process(process, top: float, connections):
         if node_id in owner or not (local_name(nodes[node_id]).endswith("Event") or local_name(nodes[node_id]).endswith("Gateway")):
             continue
         host = nodes[node_id].get("attachedToRef")
-        adjacent = sorted(parents[node_id], key=lambda i: (ranks[i], i))
+        adjacent = sorted(parents[node_id], key=lambda i: (-ranks[i], i))
         adjacent += sorted(target for e, source, target in connections if source == node_id and target in nodes)
         candidates = ([host] if host else []) + adjacent
         choice = next((owner[i] for i in candidates if i in owner), None)
@@ -79,6 +79,7 @@ def layout_process(process, top: float, connections):
             owner[node_id] = choice
     lane_order = sorted(lanes, key=lambda lane: (
         min((ranks.get(ref.text, terminal + 1) for ref in lane.findall(tag("flowNodeRef"))), default=terminal + 1),
+        min((e.get("id") for e, _, target in connections if target in {ref.text for ref in lane.findall(tag("flowNodeRef"))} and local_name(e) == "sequenceFlow"), default=""),
         lane.get("id"),
     ))
     bands = [lane.get("id") for lane in lane_order]

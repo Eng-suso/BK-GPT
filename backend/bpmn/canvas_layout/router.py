@@ -32,7 +32,7 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
     start = (a[0], a[1] + p.route_clearance) if downward else (a[0] + p.route_clearance, a[1])
     finish = (b[0] - p.route_clearance, b[1])
     obstacles = [box if key in {source_id, target_id} else box.expanded(p.route_clearance) for key, box in boxes.items()]
-    obstacles += [box.expanded(4) for key, box in labels.items() if True]
+    obstacles += [box.expanded(4) for box in labels.values()]
 
     def clear(points):
         return all(not segment_hits_box(u, v, box) for u, v in pairwise(points) for box in obstacles)
@@ -52,8 +52,9 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
     ys = sorted({box.y - p.route_clearance for box in boxes.values()} | {box.bottom + p.route_clearance for box in boxes.values()})
     candidates.extend([a, start, (start[0], y), (finish[0], y), finish, b] for y in ys)
     viable = [compress(path) for path in candidates if clear(path)]
-    if viable:
-        return min(viable, key=lambda path: (cost(path), path))
+    best = min(viable, key=lambda path: (cost(path), path)) if viable else None
+    if best is not None and not any(_cross(u, v, w, z) for u, v in pairwise(best) for other in previous for w, z in pairwise(other)):
+        return best
     # Obstacle-corner visibility grid is a bounded fallback for complex paths.
     # Common linear and cross-lane paths use the candidates above.
     xs = sorted({start[0], finish[0]} | {value for box in obstacles for value in (box.x, box.right)})
@@ -75,11 +76,16 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
             u, v = (xs[x], ys[y]), (xs[nx], ys[ny])
             if not clear([u, v]):
                 continue
-            next_value = value + cost([u, v]) + (p.bend_cost if direction not in {2, next_direction} else 0)
+            # Grid segments end at obstacle corners; charge a crossing even
+            # when it falls exactly on a grid vertex, before compression.
+            contacts = sum(_grid_cross(u, v, w, z) for other in previous for w, z in pairwise(other))
+            next_value = value + abs(u[0]-v[0]) + abs(u[1]-v[1]) + contacts * p.crossing_cost + (p.bend_cost if direction not in {2, next_direction} else 0)
             nxt = (nx, ny, next_direction)
             if next_value < distance.get(nxt, float("inf")):
                 distance[nxt], parent[nxt] = next_value, current
                 heappush(queue, (next_value, nxt))
+    if goal is None and best is not None:
+        return best
     if goal is None:
         raise ValueError(f"Nessun percorso ortogonale privo di ostacoli: {source_id} → {target_id}.")
     path = []
@@ -87,7 +93,8 @@ def orthogonal_route(source_id, target_id, boxes, labels, previous=(), downward=
         path.append((xs[goal[0]], ys[goal[1]]))
         goal = parent[goal]
     path.append(start)
-    return compress([a, *reversed(path), b])
+    routed = compress([a, *reversed(path), b])
+    return min([best, routed], key=lambda path: (cost(path), path)) if best else routed
 
 
 def _cross(a, b, c, d):
@@ -95,4 +102,12 @@ def _cross(a, b, c, d):
         return min(a[0], b[0]) < c[0] < max(a[0], b[0]) and min(c[1], d[1]) < a[1] < max(c[1], d[1])
     if a[0] == b[0] and c[1] == d[1]:
         return _cross(c, d, a, b)
+    return False
+
+
+def _grid_cross(a, b, c, d):
+    if a[1] == b[1] and c[0] == d[0]:
+        return min(a[0], b[0]) <= c[0] <= max(a[0], b[0]) and min(c[1], d[1]) < a[1] < max(c[1], d[1])
+    if a[0] == b[0] and c[1] == d[1]:
+        return min(a[1], b[1]) <= c[1] <= max(a[1], b[1]) and min(c[0], d[0]) < a[0] < max(c[0], d[0])
     return False

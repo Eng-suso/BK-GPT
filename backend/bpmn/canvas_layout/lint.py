@@ -45,6 +45,16 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
         if local_name(element) in FLOW_TYPES | ARTIFACT_TYPES | {"participant", "lane"} and counts.get(ref) != 1:
             issues.append(f"L'elemento {ref} deve avere una sola forma DI.")
     visible = {ref: box for ref, box in shapes.items() if ref in elements and local_name(elements[ref]) in FLOW_TYPES | ARTIFACT_TYPES}
+    for edge in root.iter(f"{{{BPMNDI}}}BPMNEdge"):
+        bounds = edge.find(f"{{{BPMNDI}}}BPMNLabel/{{{DC}}}Bounds")
+        if bounds is not None:
+            try:
+                box = Box(*(float(bounds.get(key, "nan")) for key in ("x", "y", "width", "height")))
+                if not all(isfinite(v) for v in (box.x, box.y, box.width, box.height)) or min(box.width, box.height) <= 0:
+                    raise ValueError
+                labels[edge.get("bpmnElement")] = box
+            except ValueError:
+                issues.append(f"Etichetta flusso non valida: {edge.get('bpmnElement')}.")
     for (left, a), (right, b) in combinations(visible.items(), 2):
         if elements[left].get("attachedToRef") == right or elements[right].get("attachedToRef") == left:
             continue
