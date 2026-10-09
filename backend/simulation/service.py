@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hashlib
 import json
+import logging
+import os
+import socket
+import uuid
 from dataclasses import dataclass
 from typing import Literal
 
@@ -10,7 +16,7 @@ from backend.eventlog.synthetic import from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
-from backend.security import get_current_tenant_id, set_current_tenant_id
+from backend.security import set_current_tenant_id
 from backend.schemas.simulation import ScenarioProvenanceResponse, ScenarioTemplateResponse
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.provenance import build_scenario_provenance
@@ -20,6 +26,7 @@ from backend.simulation.log_processor import (
 )
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
+from backend.simulation.queue import ClaimedRun, SimulationQueueFull, assert_room_in_queue, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
@@ -32,7 +39,6 @@ from backend.simulation.scenario_builder import (
 from backend.settings import settings
 from backend.simulation.storage import (
     complete_simulation_run,
-    count_runs_in_flight,
     create_simulation_run,
     fail_simulation_run,
     find_active_run_by_key,
@@ -43,12 +49,14 @@ from backend.simulation.storage import (
 
 RunRequest = CreateSimulationRunRequest | CreateSimulationModelRunRequest
 
+logger = logging.getLogger(__name__)
+
 
 class SimulationCapacityError(RuntimeError):
-    """Il motore di simulazione e' pieno adesso, non e' un errore della richiesta.
+    """La coda delle simulazioni e' piena adesso, non e' un errore della richiesta.
 
     Serve un tipo suo perche' la rotta deve rispondere 429 e non 400: la stessa
-    richiesta, fra due minuti, funziona.
+    richiesta, fra qualche minuto, funziona.
     """
 
 
@@ -235,16 +243,13 @@ def _register_run(
     if existing is not None:
         return existing, None, bpmn_xml
 
-    # Prosimos e' un servizio solo e regge un numero fisso di simulazioni
-    # insieme. Oltre quel numero non rifiuta: mette in coda, e chi aspetta vede
-    # una rotella girare per quindici minuti prima di leggere un timeout. Un
-    # rifiuto immediato e' un'informazione, un'attesa muta no.
-    in_flight = count_runs_in_flight()
-    if in_flight >= settings.simulation_max_concurrent_runs:
-        raise SimulationCapacityError(
-            f"Ci sono gia' {in_flight} simulazioni in corso, il massimo che il "
-            "motore regge insieme. Aspetta che ne finisca una e rilancia."
-        )
+    # Il run entra nella coda su Postgres (P0.3) e aspetta il suo turno: il
+    # consulente vede la sua posizione invece di un rifiuto. Solo una coda
+    # piena rifiuta, perche' oltre quella l'attesa non sarebbe un servizio.
+    try:
+        assert_room_in_queue()
+    except SimulationQueueFull as exc:
+        raise SimulationCapacityError(str(exc)) from exc
 
     run = create_simulation_run(
         bpmn_model_id=bpmn_model.id,
@@ -253,44 +258,79 @@ def _register_run(
         request=request,
         scenario=scenario,
         idempotency_key=idempotency_key,
+        bpmn_xml=bpmn_xml,
     )
     return run, scenario, bpmn_xml
 
 
-async def execute_simulation_run(
-    *,
-    run_id: int,
-    tenant_id: str,
-    bpmn_xml: str,
-    scenario: ProsimosScenario,
-    request: RunRequest,
-) -> dict:
-    set_current_tenant_id(tenant_id)
+def new_worker_id() -> str:
+    """Chi esegue: host, processo e un suffisso, per riconoscerlo nei log e nel DB."""
+    return f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+
+
+async def drain_simulation_queue(worker_id: str | None = None) -> int:
+    """Prende ed esegue run dalla coda finche' ce ne sono e il motore ha posto.
+
+    Gira dopo ogni richiesta di run (BackgroundTask) e nel worker periodico: due
+    drenaggi insieme sono sicuri, perche' la presa e' esclusiva. Restituisce
+    quanti run ha eseguito.
+    """
+    worker_id = worker_id or new_worker_id()
+    done = 0
+    while (claimed := await asyncio.to_thread(claim_next_run, worker_id)) is not None:
+        await execute_claimed_run(claimed)
+        done += 1
+    return done
+
+
+async def execute_claimed_run(claimed: ClaimedRun) -> dict:
+    """Esegue un run preso dalla coda, battendo finche' gira."""
+    set_current_tenant_id(claimed.tenant_id)
+    heart = asyncio.create_task(_keep_beating(claimed))
     try:
         result = with_output_files(
             await run_prosimos_simulation(
                 ProsimosSimulationRequest(
-                    bpmn_xml=bpmn_xml,
-                    scenario=scenario,
-                    total_cases=request.total_cases,
-                    start_date=request.start_date,
-                    seed=request.seed,
+                    bpmn_xml=claimed.bpmn_xml,
+                    scenario=claimed.scenario,
+                    total_cases=claimed.total_cases,
+                    start_date=claimed.start_date,
+                    seed=claimed.seed,
                 )
             )
         )
     except ProsimosError as exc:
-        return fail_simulation_run(run_id=run_id, error=str(exc))
+        return fail_simulation_run(run_id=claimed.run_id, error=str(exc), worker_id=claimed.worker_id)
     except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "pending"
-        return fail_simulation_run(run_id=run_id, error=f"Errore inatteso: {exc}")
+        logger.exception("simulazione %s: errore inatteso", claimed.run_id)
+        return fail_simulation_run(run_id=claimed.run_id, error=f"Errore inatteso: {exc}", worker_id=claimed.worker_id)
+    finally:
+        heart.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heart
 
-    summary, replay = _process_event_log(result, bpmn_xml=bpmn_xml, scenario=scenario)
+    summary, replay = _process_event_log(result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario)
     return complete_simulation_run(
-        run_id=run_id,
+        run_id=claimed.run_id,
         result=result,
         summary=summary,
         replay=replay,
         log_csv=getattr(result, "event_log_csv", None),
+        worker_id=claimed.worker_id,
     )
+
+
+async def _keep_beating(claimed: ClaimedRun) -> None:
+    while True:
+        await asyncio.sleep(settings.simulation_heartbeat_seconds)
+        try:
+            alive = await asyncio.to_thread(beat, claimed.run_id, claimed.worker_id)
+        except Exception:  # noqa: BLE001 - un battito perso non ferma la simulazione
+            logger.warning("simulazione %s: battito non scritto", claimed.run_id, exc_info=True)
+            continue
+        if not alive:
+            # Il run non e' piu' nostro: l'esito, quando arriva, verra' scartato.
+            return
 
 
 def _process_event_log(
@@ -321,20 +361,12 @@ async def create_and_run_simulation(
     bpmn_model: BpmnModelResponse,
     request: CreateSimulationRunRequest,
 ) -> dict:
-    """Synchronous helper kept for tests and non-HTTP callers."""
-    run, scenario, bpmn_xml = prepare_simulation_run(
-        bpmn_model=bpmn_model, request=request
-    )
+    """Mette il run in coda e drena la coda: per i test e chi non passa da HTTP."""
+    run, scenario, _ = prepare_simulation_run(bpmn_model=bpmn_model, request=request)
     if scenario is None:
         return run
-
-    return await execute_simulation_run(
-        run_id=run["id"],
-        tenant_id=get_current_tenant_id(),
-        bpmn_xml=bpmn_xml,
-        scenario=scenario,
-        request=request,
-    )
+    await drain_simulation_queue()
+    return get_simulation_run(run["id"]) or run
 
 
 class SimulationLogUnavailable(LookupError):
