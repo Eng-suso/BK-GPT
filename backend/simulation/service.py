@@ -26,7 +26,7 @@ from backend.simulation.log_processor import (
 )
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
-from backend.simulation.queue import ClaimedRun, SimulationQueueFull, assert_room_in_queue, beat, claim_next_run
+from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
@@ -247,19 +247,17 @@ def _register_run(
     # consulente vede la sua posizione invece di un rifiuto. Solo una coda
     # piena rifiuta, perche' oltre quella l'attesa non sarebbe un servizio.
     try:
-        assert_room_in_queue()
+        run = create_simulation_run(
+            bpmn_model_id=bpmn_model.id,
+            process_id=bpmn_model.process_id,
+            scenario_name=request.scenario_name.strip() or "Baseline AS-IS",
+            request=request,
+            scenario=scenario,
+            idempotency_key=idempotency_key,
+            bpmn_xml=bpmn_xml,
+        )
     except SimulationQueueFull as exc:
         raise SimulationCapacityError(str(exc)) from exc
-
-    run = create_simulation_run(
-        bpmn_model_id=bpmn_model.id,
-        process_id=bpmn_model.process_id,
-        scenario_name=request.scenario_name.strip() or "Baseline AS-IS",
-        request=request,
-        scenario=scenario,
-        idempotency_key=idempotency_key,
-        bpmn_xml=bpmn_xml,
-    )
     return run, scenario, bpmn_xml
 
 
@@ -300,17 +298,23 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
             )
         )
     except ProsimosError as exc:
-        return fail_simulation_run(run_id=claimed.run_id, error=str(exc), worker_id=claimed.worker_id)
+        return await asyncio.to_thread(fail_simulation_run, run_id=claimed.run_id, error=str(exc), worker_id=claimed.worker_id)
     except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "pending"
         logger.exception("simulazione %s: errore inatteso", claimed.run_id)
-        return fail_simulation_run(run_id=claimed.run_id, error=f"Errore inatteso: {exc}", worker_id=claimed.worker_id)
+        return await asyncio.to_thread(
+            fail_simulation_run, run_id=claimed.run_id, error=f"Errore inatteso: {exc}", worker_id=claimed.worker_id
+        )
     finally:
         heart.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await heart
 
-    summary, replay = _process_event_log(result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario)
-    return complete_simulation_run(
+    # Lettura del log e scrittura in DB sono sincrone: fuori dall'event loop.
+    summary, replay = await asyncio.to_thread(
+        _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario
+    )
+    return await asyncio.to_thread(
+        complete_simulation_run,
         run_id=claimed.run_id,
         result=result,
         summary=summary,

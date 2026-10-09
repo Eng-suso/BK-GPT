@@ -13,7 +13,7 @@ from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import get_current_tenant_id
 from backend.settings import settings
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
-from backend.simulation.queue import LEGACY_STALE_RUN_ERROR, queue_view, reap_stale_runs
+from backend.simulation.queue import LEGACY_STALE_RUN_ERROR, admit, queue_view, reap_stale_runs
 from backend.workspace_storage import (
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
@@ -91,7 +91,9 @@ def create_simulation_run(
     idempotency_key: str | None = None,
     bpmn_xml: str | None = None,
 ) -> dict[str, Any]:
+    """Il run entra in coda; ``SimulationQueueFull`` se la coda e' piena."""
     with workspace_connection() as session:
+        admit(session)
         run = WorkspaceSimulationRun(
             tenant_id=get_current_tenant_id(),
             bpmn_model_id=bpmn_model_id,
@@ -285,7 +287,8 @@ def _update_simulation_run(
 
         # Un esecutore dato per morto, il cui run e' tornato in coda o e' di un
         # altro, consegna tardi: il suo esito non vale piu'.
-        stolen = worker_id is not None and run.worker_id != worker_id
+        # Un run gia' preso accetta l'esito solo dal suo esecutore.
+        stolen = run.started_at is not None and (worker_id is None or run.worker_id != worker_id)
         if run.status != "pending" or stolen:
             # Arriva un risultato per una simulazione gia' chiusa: quasi sempre
             # una che avevamo dichiarato morta e che invece stava ancora

@@ -146,3 +146,35 @@ def test_the_api_returns_the_queue_state_of_a_waiting_run(api_client, model, mon
     assert created.json()["queue"]["state"] == "queued"
     listed = api_client.get(f"/v1/workspace/bpmn-models/{model.id}/simulation-runs").json()
     assert listed[0]["queue"]["state"] == "queued"
+
+
+def test_concurrent_claims_never_take_the_same_run(model, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setattr(settings, "simulation_max_concurrent_runs", 3)
+    for seed in range(1, 6):
+        _enqueue(model, seed)
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        claimed = [c for c in pool.map(lambda i: queue.claim_next_run(f"w{i}"), range(8)) if c is not None]
+
+    ids = [c.run_id for c in claimed]
+    assert len(ids) == len(set(ids)) == 3
+
+
+def test_concurrent_admissions_respect_the_queue_limit(model, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setattr(settings, "simulation_max_queued_runs", 3)
+
+    def attempt(seed: int) -> bool:
+        try:
+            _enqueue(model, seed)
+        except SimulationCapacityError:
+            return False
+        return True
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        admitted = list(pool.map(attempt, range(10, 16)))
+
+    assert sum(admitted) == 3

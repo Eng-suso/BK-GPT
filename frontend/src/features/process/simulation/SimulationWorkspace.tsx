@@ -185,7 +185,7 @@ function RunSnapshot({
 
       {isPending ? (
         <div className="p-4">
-          <EmptyState variant="inline" title={t("simulation.running")} />
+          <EmptyState variant="inline" title={runWaitTitle(run.queue?.state, run.queue?.position, t)} description={runWaitHint(run.queue?.state, t)} />
         </div>
       ) : !insights.hasData ? (
         <div className="p-4">

@@ -12,6 +12,9 @@ eseguirlo (il BPMN normalizzato), chi lo prende lo marca ``started_at`` e batte
 
 I run ``pending`` gia' presenti non hanno il BPMN per ripartire: si segnano come
 avviati alla loro creazione, cosi' lo spazzino li chiude come prima.
+
+Il downgrade chiude come falliti i run ancora in coda: senza la coda nessuno li
+eseguirebbe. Chi torna indietro li rilancia dal pannello.
 """
 
 from __future__ import annotations
@@ -53,6 +56,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute(
+        "UPDATE workspace_simulation_runs SET status = 'failed', "
+        "error = 'Simulazione rimasta in coda durante un aggiornamento del servizio: rilanciala.' "
+        "WHERE status = 'pending' AND started_at IS NULL"
+    )
     op.drop_index("ix_workspace_simulation_runs_queue", table_name="workspace_simulation_runs", if_exists=True)
     for column in reversed(_COLUMNS):
         op.drop_column("workspace_simulation_runs", column.name)

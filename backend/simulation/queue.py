@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from backend.settings import settings
@@ -88,11 +88,15 @@ def _running():
     return (WorkspaceSimulationRun.status == "pending") & WorkspaceSimulationRun.started_at.is_not(None)
 
 
-def assert_room_in_queue() -> None:
-    """Solleva ``SimulationQueueFull`` se non c'e' posto per un altro run in attesa."""
-    with workspace_connection() as session:
-        reap_stale_runs(session)
-        waiting = session.execute(select(func.count()).select_from(WorkspaceSimulationRun).where(_queued())).scalar_one()
+def admit(session: Session) -> None:
+    """Dentro la transazione che inserisce il run: c'e' posto in coda?
+
+    Il lock advisory e' lo stesso delle prese, cosi' due ammissioni insieme non
+    superano il limite contando la stessa coda.
+    """
+    session.execute(select(func.pg_advisory_xact_lock(_CLAIM_LOCK)))
+    reap_stale_runs(session)
+    waiting = session.execute(select(func.count()).select_from(WorkspaceSimulationRun).where(_queued())).scalar_one()
     if waiting >= settings.simulation_max_queued_runs:
         raise SimulationQueueFull(
             f"Ci sono gia' {waiting} simulazioni in attesa, il massimo della coda. "
@@ -109,7 +113,9 @@ def reap_stale_runs(session: Session) -> list[int]:
     cutoff = datetime.now(UTC) - timedelta(seconds=settings.simulation_heartbeat_seconds * MISSED_BEATS)
     legacy_cutoff = datetime.now(UTC) - timedelta(seconds=settings.prosimos_timeout_seconds + 120.0)
     touched: list[int] = []
-    for run in session.execute(select(WorkspaceSimulationRun).where(_running())).scalars():
+    # SKIP LOCKED: una riga che un altro sta toccando (una presa, un battito) non si giudica ora.
+    stale = select(WorkspaceSimulationRun).where(_running()).with_for_update(skip_locked=True)
+    for run in session.execute(stale).scalars():
         beat = _parse(run.heartbeat_at)
         if beat is None:
             # Run anteriori alla coda: non battono, si giudicano dall'avvio come prima.
@@ -174,12 +180,16 @@ def claim_next_run(worker_id: str) -> ClaimedRun | None:
 def beat(run_id: int, worker_id: str) -> bool:
     """Aggiorna il battito; ``False`` se il run non e' piu' di questo esecutore."""
     with workspace_connection() as session:
-        run = session.get(WorkspaceSimulationRun, run_id)
-        if run is None or run.status != "pending" or run.worker_id != worker_id:
-            return False
-        run.heartbeat_at = now_iso()
-        session.flush()
-        return True
+        # Un UPDATE condizionato: se lo spazzino ha appena rimesso il run in coda,
+        # il battito non lo riporta in vita.
+        updated = session.execute(
+            update(WorkspaceSimulationRun)
+            .where(WorkspaceSimulationRun.id == run_id)
+            .where(_running())
+            .where(WorkspaceSimulationRun.worker_id == worker_id)
+            .values(heartbeat_at=now_iso())
+        )
+        return updated.rowcount == 1
 
 
 def queue_view(session: Session, run: WorkspaceSimulationRun) -> dict[str, Any] | None:

@@ -230,6 +230,10 @@ class Settings(BaseSettings):
     # Ogni quanto un run in corso dice "sono vivo". Un run che tace da tre
     # battiti e' di un processo morto: torna in coda (o fallisce al terzo tentativo).
     simulation_heartbeat_seconds: float = 30.0
+    # Il giro periodico della coda nel processo dell'API. Spento, i run partono
+    # comunque dal drenaggio di ogni richiesta, ma nessuno riprende quelli
+    # rimessi in coda dopo un crash: va acceso in almeno un processo.
+    simulation_worker_in_process: bool = True
     # Sync Prosimos runs the whole simulation inside the HTTP call, so this must
     # cover the slowest expected simulation, not just connect latency.
     prosimos_timeout_seconds: float = 900.0

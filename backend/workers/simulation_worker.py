@@ -21,7 +21,10 @@ _EVERY_SECONDS = 10.0
 
 
 async def run_simulation_queue(every: float = _EVERY_SECONDS) -> None:
-    if "pytest" in sys.modules:  # i test drenano la coda a mano
+    if "pytest" in sys.modules:  # i test drenano la coda a mano, come per gli altri worker
+        return
+    if not settings.simulation_worker_in_process:
+        logger.info("giro della coda simulazioni spento (simulation_worker_in_process=False)")
         return
     from backend.simulation.service import drain_simulation_queue, new_worker_id
 
