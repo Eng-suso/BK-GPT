@@ -336,7 +336,18 @@
       "arrivalMeanMin": "Tempo medio fra due arrivi, min",
       "arrivalUniformHint": "Il tempo fra due arrivi è uniforme fra minimo e massimo.",
       "arrivalCalendar": "Calendario degli arrivi",
-      "invalidArrival": "Arrivi dei casi da correggere."
+      "invalidArrival": "Arrivi dei casi da correggere.",
+      "sources": "Fonti del cliente",
+      "sourcesHint": "Affermazioni dei file caricati che nominano questa attività. Collegarne una dice da dove viene la durata; il valore resta quello che imposti qui.",
+      "sourceLinked": "Fonte collegata · {{file}}",
+      "sourceProposed": "Proposta da {{file}}",
+      "sourceSays": "La fonte indica {{duration}} («{{text}}»): è un riferimento, non il valore.",
+      "linkSource": "Collega come fonte",
+      "linkSourceFor": "Collega come fonte per {{task}}: {{what}}",
+      "dismissSource": "Non pertinente",
+      "dismissSourceFor": "Non pertinente per {{task}}: {{what}}",
+      "unlinkSource": "Scollega",
+      "unlinkSourceFor": "Scollega da {{task}}: {{what}}"
     },
     "diagram": {
       "title": "Modello di processo",
@@ -427,7 +438,7 @@
       "sourcesTitle": "Fonti",
       "sourceKind": {
         "interview": "intervista",
-        "claim": "claim",
+        "claim": "affermazione di una fonte",
         "source": "fonte del cliente",
         "event_log": "event log",
         "document": "documento",

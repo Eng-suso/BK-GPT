@@ -4,6 +4,8 @@ import {
   experimentReportSchema,
   scenarioProvenanceSchema,
   scenarioTemplateSchema,
+  simulationClaimsSchema,
+  type SimulationClaims,
   simulationReplaySchema,
   simulationRunSchema,
   simulationRunsSchema,
@@ -55,6 +57,7 @@ export async function runProsimosSimulation(
           std_seconds: task.stdSeconds,
           min_seconds: task.minSeconds,
           max_seconds: task.maxSeconds,
+          claims: task.claims?.map((claim) => ({ claim_id: claim.claimId, label: claim.label })),
           other_assignments: task.otherAssignments?.map((other) => ({
             resource_id: other.resourceId,
             mean_seconds: other.meanSeconds,
@@ -91,6 +94,15 @@ export async function fetchScenarioTemplate(
   );
 
   return scenarioTemplateSchema.parse(raw);
+}
+
+/** SIM-07: le affermazioni dei file che nominano ogni attivita'. */
+export async function fetchSimulationClaims(bpmnModelId: string, currentBpmnXml: string | null): Promise<SimulationClaims> {
+  const raw = await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}/simulation-claims`, {
+    method: "POST",
+    body: { current_bpmn_xml: currentBpmnXml },
+  });
+  return simulationClaimsSchema.parse(raw);
 }
 
 /** Where each simulable element came from — discovery evidence or inference. */

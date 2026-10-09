@@ -271,9 +271,30 @@ export type SimDurationInput = {
 /** Gli arrivi (A2-3): il tempo fra due arrivi e il calendario in cui arrivano. */
 export type SimArrivalInput = SimDurationInput & { calendarId?: string };
 
+/** SIM-07: le affermazioni dei file proposte come fonte di ogni attivita'. */
+export const claimProposalSchema = z.object({
+  claim_id: z.number(),
+  statement: z.string(),
+  quote: z.string(),
+  quote_verified: z.boolean(),
+  source_id: z.string(),
+  source_name: z.string(),
+  score: z.number(),
+  duration_hint: z.object({ text: z.string(), seconds: z.number() }).nullable().optional(),
+});
+export type ClaimProposal = z.infer<typeof claimProposalSchema>;
+
+export const simulationClaimsSchema = z.object({
+  sources: z.number(),
+  activities: z.array(z.object({ element_id: z.string(), name: z.string(), proposals: z.array(claimProposalSchema) })),
+});
+export type SimulationClaims = z.infer<typeof simulationClaimsSchema>;
+
 export type SimTaskInput = SimDurationInput & {
   elementId: string;
   resourceId: string | null;
+  /** Le affermazioni confermate dal consulente come fonte della durata. */
+  claims?: { claimId: number; label: string }[];
   /** Gli altri ruoli che possono svolgere l'attività, ognuno con la sua durata. */
   otherAssignments?: (SimDurationInput & { resourceId: string })[];
 };
