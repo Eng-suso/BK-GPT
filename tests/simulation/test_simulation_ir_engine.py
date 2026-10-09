@@ -174,6 +174,31 @@ def test_a_task_with_other_resources_is_shared_on_the_engine():
     assert min(by_resource["Senior"]) == 900
 
 
+def test_cases_arrive_only_inside_the_arrival_calendar():
+    # A2-3: il consulente fa arrivare i casi solo la mattina dei giorni feriali.
+    from datetime import datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 600} for t in ("T_receive", "T_approve", "T_pay")],
+        calendars=[{"id": "mornings", "name": "Mattine", "periods": [
+            {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00", "end": "12:00"}]}],
+        arrival={"mean_seconds": 1200, "distribution": "fixed", "calendar_id": "mornings"},
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
+
+    first: dict[str, datetime] = {}
+    for row in _run(_model(), payload=scenario.payload):
+        enabled = datetime.fromisoformat(row["enable_time"].replace(" ", "T"))
+        if row["case_id"] not in first or enabled < first[row["case_id"]]:
+            first[row["case_id"]] = enabled
+    assert len(first) == 200
+    outside = [t for t in first.values() if t.weekday() > 4 or not 9 <= t.hour < 12]
+    assert outside == [], outside[:5]
+
+
 def _amount_rule(operator: str) -> dict:
     return {"any_of": [[{"attribute": "importo", "operator": operator, "value": 5000}]]}
 
