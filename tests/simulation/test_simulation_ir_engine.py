@@ -139,6 +139,41 @@ def test_a_run_from_the_v2_contract_keeps_calendars_lognormal_and_rules_on_the_e
     assert contract_spike.check_calendars(rows) is None
 
 
+def test_a_task_with_other_resources_is_shared_on_the_engine():
+    # A2-2: l'approvazione la fanno l'approvatore e, quando lui e' occupato o fuori
+    # orario, un senior con la sua durata. Sul motore lavorano entrambi.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        arrival_interval_seconds=400,
+        resources=[
+            {"id": "ops", "name": "Operatore", "cost_per_hour": 30, "amount": 2},
+            {"id": "appr", "name": "Approvatore", "cost_per_hour": 60, "amount": 1},
+            {"id": "senior", "name": "Senior", "cost_per_hour": 90, "amount": 1},
+        ],
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "resource_id": "ops"},
+            {"element_id": "T_approve", "mean_seconds": 1800, "resource_id": "appr",
+             "other_assignments": [{"resource_id": "senior", "mean_seconds": 900, "distribution": "fixed"}]},
+            {"element_id": "T_pay", "mean_seconds": 600, "resource_id": "ops"},
+        ],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
+
+    rows = [row for row in _run(_model(), payload=scenario.payload) if row["activity"] == "Approva"]
+    by_resource: dict[str, list[float]] = {}
+    for row in rows:
+        by_resource.setdefault(row["resource"].rsplit("_", 1)[0], []).append(row["end"] - row["start"])
+    assert set(by_resource) == {"Approvatore", "Senior"}, by_resource.keys()
+    # Ognuno con la sua durata: il senior e' fisso a 15 minuti di lavoro. Un'approvazione
+    # iniziata a fine turno riprende il mattino dopo (calendario standard, 16 ore di
+    # pausa notturna), quindi il tempo trascorso e' 15 minuti piu' le notti di mezzo.
+    night = 16 * 3600
+    assert all(round(seconds - 900) % night == 0 for seconds in by_resource["Senior"]), by_resource["Senior"]
+    assert min(by_resource["Senior"]) == 900
+
+
 def _amount_rule(operator: str) -> dict:
     return {"any_of": [[{"attribute": "importo", "operator": operator, "value": 5000}]]}
 
