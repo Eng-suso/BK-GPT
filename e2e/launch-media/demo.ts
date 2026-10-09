@@ -561,3 +561,52 @@ export const simulationLayout = {
     ],
   }],
 };
+
+/** "Ipotesi To-Be": le due modifiche che il To-Be simula, con chi le ha chieste. */
+export const impactReview = {
+  process_id: IDS.process,
+  base_revision: "as-is-v3",
+  xml: bpmnXml,
+  plan: {
+    title: PROCESS_NAME,
+    actors: (idealPlan.actors as { id: string; label: string }[]).map(({ id, label }) => ({ id, label })),
+    steps: (idealPlan.steps as { id: string; label: string; actor_ids: string[] }[]).map((step) => ({
+      id: step.id, label: step.label, description: null, actor_ids: step.actor_ids, inputs: [], outputs: [],
+    })),
+    data_objects: [],
+    controls: [],
+    structured_business_rules: [],
+    consultant_findings: [],
+  },
+  actions: [
+    {
+      id: "tobe-richiesta-completa",
+      node_id: "ricostruisci_richiesta",
+      node_name: labels.get("ricostruisci_richiesta") ?? "Ricostruisci richiesta",
+      base_revision: "as-is-v3",
+      kind: "candidate",
+      title: "La richiesta nasce completa, con i campi obbligatori",
+      detail:
+        "Laura: «Un posto unico dove la richiesta arriva scritta come si deve, con dentro tutto quello che serve.» " +
+        "Francesca: «Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori.» " +
+        "Ipotesi simulata: i rimbalzi scendono dal 55% al 25% (stima del consulente).",
+      created_at: "2026-10-01T10:00:00Z",
+      created_by: "Marco Bellini",
+      proposal_xml: null,
+    },
+    {
+      id: "tobe-autorizzazione-visibile",
+      node_id: "percorso_autorizzazione_autorizza_spesa",
+      node_name: labels.get("percorso_autorizzazione_autorizza_spesa") ?? "Autorizza spesa",
+      base_revision: "as-is-v3",
+      kind: "candidate",
+      title: "Autorizzazione visibile, con una delega quando il responsabile e' fuori",
+      detail:
+        "Francesca: «…vorrei che l'autorizzazione fosse una cosa che si vede, non una mail che aspetto.» " +
+        "Oggi «non c'e' un sostituto formale». Ipotesi simulata: una finestra di autorizzazione ogni giorno.",
+      created_at: "2026-10-01T10:05:00Z",
+      created_by: "Marco Bellini",
+      proposal_xml: null,
+    },
+  ],
+};

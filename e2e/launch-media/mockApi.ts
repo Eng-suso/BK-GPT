@@ -9,6 +9,7 @@ import {
   claimsOf,
   clients,
   conformance,
+  impactReview,
   project,
   projects,
   provenance,
@@ -86,6 +87,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/review/versions`) return json([]);
     if (path === `/v1/workspace/processes/${IDS.process}/provenance`) return json(provenance);
     if (path === `/v1/workspace/processes/${IDS.process}/conformance`) return json(conformance);
+    if (path === `/v1/workspace/processes/${IDS.process}/impact-review`) return json(impactReview);
 
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(api.simulation_template);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(api.simulation_provenance);
