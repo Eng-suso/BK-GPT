@@ -519,6 +519,35 @@ test.describe("screens", () => {
     await expect(page.getByText(/Nessun sostituto formale/).first()).toBeVisible();
     await shot("01b-proprieta-del-task");
 
+    await page.goto(P);
+    await expect(page.getByText(/Ho letto le tre interviste/).first()).toBeVisible();
+    await shot("01c-chat-con-delir");
+
+    for (const [name, node, task, question, done] of [
+      ["05b-review-as-is", AS_IS_REVIEW_NODE, "Regolarizza ordine a posteriori", asIsReviewQuestion, /Da confermare con Laura Conti/],
+      ["05c-review-to-be", REVIEW_NODE, "Autorizza spesa", reviewQuestion, /Da verificare con Laura Conti/],
+    ] as const) {
+      await page.goto(`${P}?view=review`);
+      await expect(page.locator(`.review-canvas [data-element-id='${node}']`).first()).toBeVisible();
+      await page.getByRole("button", { name: /^Task \d+$/ }).first().click();
+      await page.getByRole("button", { name: task, exact: true }).click();
+      await page.getByRole("button", { name: "Apri agente DeliR", exact: true }).click();
+      await page.getByLabel("Scrivi all’agente di Review").fill(question);
+      await page.getByRole("button", { name: "Invia messaggio", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "Agente di Review" }).getByText(done).first()).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(600);
+      await shot(name);
+    }
+
+    await page.goto(`${P}/simulation`);
+    await page.getByRole("button", { name: "Event log", exact: true }).click();
+    await page.getByRole("button", { name: /^export-workflow-acquisti\.csv/ }).first().click();
+    await page.getByRole("button", { name: /Reale contro simulato/ }).first().click();
+    await page.getByRole("combobox", { name: "Run simulato" }).selectOption({ value: String(IDS.asIsRun) });
+    await expect(page.getByText(/vicino al reale/).first()).toBeVisible();
+    await page.waitForTimeout(600);
+    await shot("07c-event-log-reale-contro-simulato");
+
     await openSources(page);
     await page.getByRole("tab", { name: /Fonti/ }).click();
     await page.getByText("Intervista Laura Conti").first().click();
