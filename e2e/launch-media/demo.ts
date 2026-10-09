@@ -249,8 +249,10 @@ for (const expectedClaim of expected.expected_claims) {
   for (const evidence of expectedClaim.evidence) claim(evidence.source, expectedClaim.text, evidence.quote);
 }
 for (const binding of expected.expected_evidence_bindings) {
-  const label = labels.get(COMPILED_ID[binding.element] ?? binding.element) ?? binding.element;
-  claim(binding.source, `${label}: ${binding.quote}`, binding.quote);
+  const elementId = COMPILED_ID[binding.element] ?? binding.element;
+  const label = labels.get(elementId) ?? binding.element;
+  const what = elementId.startsWith("gw_") || elementId === "urgenza" ? "la decisione" : "il passo";
+  claim(binding.source, `Descrive ${what} «${label}»`, binding.quote);
 }
 
 const LAURA = "a1_laura_conti_ufficio_tecnico.md";
@@ -420,6 +422,22 @@ export const conformance = {
   },
 };
 
+/** Corsie, nodi e flussi dell'As-Is v3, nella forma che la review mostra. */
+const semanticModel = (() => {
+  const lanes = [...bpmnXml.matchAll(/<bpmn:lane id="([^"]+)" name="([^"]+)">([\s\S]*?)<\/bpmn:lane>/g)].map((m) => ({
+    id: m[1],
+    name: m[2],
+    flowNodeRefs: [...m[3].matchAll(/<bpmn:flowNodeRef>([^<]+)<\/bpmn:flowNodeRef>/g)].map((r) => r[1]),
+  }));
+  const flowNodes = [...bpmnXml.matchAll(/<bpmn:(startEvent|endEvent|userTask|exclusiveGateway) id="([^"]+)"(?: name="([^"]*)")?/g)].map(
+    (m) => ({ id: m[2], type: m[1], name: m[3] ?? "" }),
+  );
+  const sequenceFlows = [...bpmnXml.matchAll(/<bpmn:sequenceFlow id="([^"]+)"(?: name="([^"]*)")? sourceRef="([^"]+)" targetRef="([^"]+)"/g)].map(
+    (m) => ({ id: m[1], sourceRef: m[3], targetRef: m[4], ...(m[2] ? { name: m[2] } : {}) }),
+  );
+  return { lanes, flowNodes, sequenceFlows };
+})();
+
 export const review = {
   bpmn_model_id: IDS.model,
   process_id: IDS.process,
@@ -442,6 +460,7 @@ export const review = {
     },
   ],
   process_understanding: idealPlan,
+  bpmn_semantic_model: semanticModel,
   quality_report: { approval_recommendation: "needs_user_clarification" },
   status: "pending",
   created_at: "2026-09-05T09:00:00Z",
@@ -516,3 +535,29 @@ export const chatMessages = [
       "Una cosa resta aperta: nessuna fonte dichiara la soglia di autorizzazione, quindi non la metto nel modello e te la chiedo.",
   },
 ];
+
+/**
+ * Il layout della tela di simulazione per il video: processo grande, tre KPI
+ * a destra. E' il JSON che "Modifica canvas → Salva layout" scrive su questo
+ * dispositivo (`layoutSchema` in dashboardModel.ts).
+ */
+export const simulationLayoutKey = `delir:simulation:dashboard:${IDS.project}:${IDS.process}`;
+const widget = (id: string, kind: string, metric: string, title: string, color: string, canvas: Record<string, number>) => ({
+  id, title, kind, metric, width: "half", text: "**${metric}**", metricExpression: "", target: 100,
+  followFilter: false, activityId: "", showLabels: true, color, canvas,
+});
+// Proporzioni dello schermo (16:9 meno la barra di riproduzione): processo e
+// due KPI sopra, l'andamento dei casi attivi su tutta la riga sotto.
+export const simulationLayout = {
+  version: 1,
+  process: { canvas: { x: 0, y: 0, width: 1500, height: 600 }, groupId: "video", beforeId: "__first__", width: "full", height: 600 },
+  groups: [{
+    id: "video",
+    title: "",
+    widgets: [
+      widget("video-queued", "kpi", "queued", "Richieste in coda", "amber", { x: 1524, y: 0, width: 400, height: 294 }),
+      widget("video-cycle", "line", "cycle", "Tempo medio di attraversamento", "violet", { x: 1524, y: 306, width: 400, height: 294 }),
+      widget("video-active", "area", "active", "Casi attivi", "blue", { x: 0, y: 624, width: 1924, height: 240 }),
+    ],
+  }],
+};

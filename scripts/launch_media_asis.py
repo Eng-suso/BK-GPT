@@ -143,10 +143,8 @@ def route(src, dst, src_kind, dst_kind):
         return [(sx, scy), (dcx, scy), (dcx, dy + dh if dcy < scy else dy)]
     if src_kind.endswith("Gateway"):  # dal vertice del gateway verso la riga del bersaglio
         return [(scx, sy + sh if dcy > scy else sy), (scx, dcy), (dx, dcy)]
-    if dst_kind.endswith("Gateway") or dst_kind.endswith("Event"):  # dentro un merge dal vertice
-        return [(sx + sw, scy), (dcx, scy), (dcx, dy if dcy > scy else dy + dh)]
-    elbow = dx - 24
-    return [(sx + sw, scy), (elbow, scy), (elbow, dcy), (dx, dcy)]
+    # A L: si esce di lato e si entra dall'alto o dal basso, senza uncini.
+    return [(sx + sw, scy), (dcx, scy), (dcx, dy if dcy > scy else dy + dh)]
 
 
 def main() -> None:

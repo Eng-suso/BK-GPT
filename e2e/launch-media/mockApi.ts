@@ -15,6 +15,8 @@ import {
   relationsOf,
   review,
   runById,
+  simulationLayout,
+  simulationLayoutKey,
   runData,
   simulationRuns,
   sourceDocument,
@@ -29,11 +31,13 @@ export const unhandled = new Set<string>();
 
 export async function installDemoApi(page: Page, language: "it" | "en" = "it"): Promise<void> {
   await page.addInitScript(
-    ({ base, lng }) => {
+    ({ base, lng, layoutKey, layout }) => {
       Object.assign(window, { DELIR_API_BASE: base });
       window.localStorage.setItem("delir-language", lng);
+      // Il layout che il consulente ha salvato per la tela di simulazione.
+      window.localStorage.setItem(layoutKey, layout);
     },
-    { base: API, lng: language },
+    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(simulationLayout) },
   );
 
   await page.route(`${API}/**`, async (route: Route) => {
@@ -107,7 +111,17 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
       return json({ ...chatSession, model_name: "delir", messages: chatMessages });
     }
 
-    if (path === "/v1/auth/me") return json({ user_id: "marco", display_name: "Marco Bellini", tenant_id: "demo" });
+    if (path === "/v1/auth/me") {
+      // L'etichetta in alto a destra e' lo spazio di lavoro: quello del consulente.
+      return json({
+        tenant_id: "Studio Bellini",
+        auth_mode: "local",
+        auth_enabled: false,
+        is_admin: false,
+        caller_id: "marco-bellini",
+        has_user_identity: false,
+      });
+    }
     if (path === "/v1/workspace/notifications") return json([]);
 
     unhandled.add(`${method} ${path}`);

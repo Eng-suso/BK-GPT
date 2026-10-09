@@ -205,24 +205,24 @@
       <bpmndi:BPMNEdge id="Flow_urgenza_linea_ferma_di" bpmnElement="Flow_urgenza_linea_ferma"><di:waypoint x="475" y="120" /><di:waypoint x="475" y="205" /><di:waypoint x="563" y="205" /><bpmndi:BPMNLabel><dc:Bounds x="483" y="124" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_chiama_riferimento_di" bpmnElement="Flow_chiama_riferimento"><di:waypoint x="687" y="205" /><di:waypoint x="713" y="205" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_riferimento_regolarizza_di" bpmnElement="Flow_riferimento_regolarizza"><di:waypoint x="775" y="241" /><di:waypoint x="775" y="609" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_regolarizza_contabile_di" bpmnElement="Flow_regolarizza_contabile"><di:waypoint x="837" y="645" /><di:waypoint x="839" y="645" /><di:waypoint x="839" y="975" /><di:waypoint x="863" y="975" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_regolarizza_contabile_di" bpmnElement="Flow_regolarizza_contabile"><di:waypoint x="837" y="645" /><di:waypoint x="925" y="645" /><di:waypoint x="925" y="939" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_contabile_fine_di" bpmnElement="Flow_contabile_fine"><di:waypoint x="987" y="975" /><di:waypoint x="1057" y="975" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_richiesta_merge_di" bpmnElement="Flow_richiesta_merge"><di:waypoint x="687" y="95" /><di:waypoint x="925" y="95" /><di:waypoint x="925" y="290" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_merge_ricostruisci_di" bpmnElement="Flow_merge_ricostruisci"><di:waypoint x="950" y="315" /><di:waypoint x="1013" y="315" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_ricostruisci_invia_di" bpmnElement="Flow_ricostruisci_invia"><di:waypoint x="1137" y="315" /><di:waypoint x="1163" y="315" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_invia_verifica_di" bpmnElement="Flow_invia_verifica"><di:waypoint x="1287" y="315" /><di:waypoint x="1289" y="315" /><di:waypoint x="1289" y="425" /><di:waypoint x="1313" y="425" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_invia_verifica_di" bpmnElement="Flow_invia_verifica"><di:waypoint x="1287" y="315" /><di:waypoint x="1375" y="315" /><di:waypoint x="1375" y="389" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_verifica_completa_di" bpmnElement="Flow_verifica_completa"><di:waypoint x="1437" y="425" /><di:waypoint x="1500" y="425" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_completa_no_di" bpmnElement="Flow_completa_no"><di:waypoint x="1525" y="450" /><di:waypoint x="1525" y="499" /><bpmndi:BPMNLabel><dc:Bounds x="1533" y="454" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_integrazione_merge_di" bpmnElement="Flow_integrazione_merge"><di:waypoint x="1463" y="535" /><di:waypoint x="925" y="535" /><di:waypoint x="925" y="340" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_completa_si_di" bpmnElement="Flow_completa_si"><di:waypoint x="1550" y="425" /><di:waypoint x="1650" y="425" /><bpmndi:BPMNLabel><dc:Bounds x="1560" y="403" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_autorizzazione_si_di" bpmnElement="Flow_autorizzazione_si"><di:waypoint x="1675" y="450" /><di:waypoint x="1675" y="499" /><bpmndi:BPMNLabel><dc:Bounds x="1683" y="454" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_richiedi_autorizza_di" bpmnElement="Flow_richiedi_autorizza"><di:waypoint x="1737" y="535" /><di:waypoint x="1739" y="535" /><di:waypoint x="1739" y="755" /><di:waypoint x="1763" y="755" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_richiedi_autorizza_di" bpmnElement="Flow_richiedi_autorizza"><di:waypoint x="1737" y="535" /><di:waypoint x="1825" y="535" /><di:waypoint x="1825" y="719" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_autorizza_merge_di" bpmnElement="Flow_autorizza_merge"><di:waypoint x="1887" y="755" /><di:waypoint x="1975" y="755" /><di:waypoint x="1975" y="450" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_autorizzazione_no_di" bpmnElement="Flow_autorizzazione_no"><di:waypoint x="1700" y="425" /><di:waypoint x="1950" y="425" /><bpmndi:BPMNLabel><dc:Bounds x="1710" y="403" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_merge_seleziona_di" bpmnElement="Flow_merge_seleziona"><di:waypoint x="2000" y="425" /><di:waypoint x="2063" y="425" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_seleziona_emetti_di" bpmnElement="Flow_seleziona_emetti"><di:waypoint x="2187" y="425" /><di:waypoint x="2213" y="425" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_emetti_ricevi_di" bpmnElement="Flow_emetti_ricevi"><di:waypoint x="2337" y="425" /><di:waypoint x="2339" y="425" /><di:waypoint x="2339" y="865" /><di:waypoint x="2363" y="865" /></bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Flow_ricevi_verifica_di" bpmnElement="Flow_ricevi_verifica"><di:waypoint x="2487" y="865" /><di:waypoint x="2489" y="865" /><di:waypoint x="2489" y="95" /><di:waypoint x="2513" y="95" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_emetti_ricevi_di" bpmnElement="Flow_emetti_ricevi"><di:waypoint x="2337" y="425" /><di:waypoint x="2425" y="425" /><di:waypoint x="2425" y="829" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ricevi_verifica_di" bpmnElement="Flow_ricevi_verifica"><di:waypoint x="2487" y="865" /><di:waypoint x="2575" y="865" /><di:waypoint x="2575" y="131" /></bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_verifica_fine_di" bpmnElement="Flow_verifica_fine"><di:waypoint x="2637" y="95" /><di:waypoint x="2707" y="95" /></bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
