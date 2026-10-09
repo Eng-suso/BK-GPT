@@ -322,7 +322,14 @@
       },
       "ruleValue": "Valore per {{attribute}}",
       "removeCondition": "Togli la condizione su {{attribute}}",
-      "ruleChooseValue": "Scegli un valore"
+      "ruleChooseValue": "Scegli un valore",
+      "otherRoles": "Possono svolgerla anche",
+      "addOtherRole": "Aggiungi un altro ruolo",
+      "addOtherRoleFor": "Aggiungi un altro ruolo a {{task}}",
+      "otherRolesHint": "Ogni caso va al primo ruolo libero. Ogni ruolo ha la sua durata.",
+      "otherRolesNoneFree": "Tutti i ruoli svolgono già questa attività. Per aggiungerne un altro, crealo in Risorse.",
+      "otherRoleOf": "Altro ruolo · {{task}}",
+      "removeOtherRole": "Togli {{role}} da {{task}}"
     },
     "diagram": {
       "title": "Modello di processo",
@@ -393,7 +400,8 @@
       "assignment": "Risorsa {{n}} di {{total}}",
       "byRule": "scelto per regola",
       "and": "e",
-      "or": "oppure"
+      "or": "oppure",
+      "sharedActivity": "Più risorse svolgono questa attività: ogni caso è andato alla prima libera, con la sua durata."
     },
     "provenance": {
       "label": "Origine",
