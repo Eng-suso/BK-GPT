@@ -7,7 +7,8 @@
  *   scenes/<id>.mp4          scena del video, con testo a schermo e disclaimer
  *   landing/<nome>.mp4|webm  clip in loop per la landing (senza testo) + poster
  *   landing/hero-loop.*      il loop dell'hero (storyboard.json -> hero)
- *   video/delir-presentazione-it.mp4   il video muto completo
+ *   video/delir-presentazione-it.mp4   tutte le scene per intero (materiale di montaggio)
+ *   video/delir-<taglio>-it.mp4        i tagli di storyboard.json -> cuts (90s, 150s)
  *
  *   node scripts/launch_media_render.mjs               # tutte le scene
  *   node scripts/launch_media_render.mjs 01-gancio     # solo quelle, riusando le altre
@@ -47,6 +48,11 @@ function rawClip(id) {
   const out = resolve(WORK, `${id}.mp4`);
   ffmpeg(["-f", "concat", "-safe", "0", "-i", list, "-vf", "fps=30,scale=1920:1080:flags=lanczos,format=yuv420p", ...X264, "-crf", "14", out]);
   return { file: out, duration: meta.end, marks: meta.marks };
+}
+
+function loadRaw(id) {
+  const meta = JSON.parse(readFileSync(resolve(RAW, id, "scene.json"), "utf-8"));
+  return { file: resolve(WORK, `${id}.mp4`), duration: meta.end, marks: meta.marks };
 }
 
 function captionFilter(index, start, end) {
@@ -100,6 +106,7 @@ for (const scene of storyboard.scenes) {
   const done = resolve(SCENES, `${scene.id}.mp4`);
   if (only.size && !only.has(scene.id)) {
     if (existsSync(done)) sceneFiles.push(done);
+    if (existsSync(resolve(WORK, `${scene.id}.mp4`))) raws[scene.id] = loadRaw(scene.id);
     continue;
   }
   if (!existsSync(resolve(RAW, scene.id, "scene.json"))) {
@@ -134,4 +141,72 @@ if (sceneFiles.length) {
   ffmpeg(["-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", video]);
   const seconds = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video]).toString().trim();
   console.log(`video completo: ${video} (${Number(seconds).toFixed(1)} s)`);
+}
+
+/**
+ * Un taglio: per ogni scena, `hold` secondi fermi con il testo (gli ultimi
+ * dell'attesa registrata), poi `keep` secondi d'azione accelerati di `speed`.
+ * Le card si accelerano per intero.
+ */
+function cutScene(cutName, cut, entry) {
+  const scene = storyboard.scenes.find((item) => item.id === entry.id);
+  const raw = raws[entry.id];
+  const speed = entry.speed ?? 1;
+  const inputs = ["-i", raw.file];
+  const filters = [];
+  let total;
+  if (scene.card) {
+    total = raw.duration / speed;
+    filters.push(`[0:v]setpts=(PTS-STARTPTS)/${speed},fps=30[base]`);
+  } else {
+    const hold = Math.min(cut.hold, HOLD);
+    const keep = Math.min(entry.keep ?? Infinity, raw.duration - HOLD - 0.3);
+    total = hold + keep / speed;
+    filters.push(
+      `[0:v]trim=start=${HOLD - hold}:end=${HOLD},setpts=PTS-STARTPTS[a]`,
+      `[0:v]trim=start=${HOLD}:end=${HOLD + keep},setpts=(PTS-STARTPTS)/${speed}[b]`,
+      `[a][b]concat=n=2:v=1,fps=30[base]`,
+    );
+  }
+  let last = "base";
+  let n = 1;
+  const overlay = (png, start, end) => {
+    if (start >= total - 0.3) return;
+    end = Math.min(end, total - 0.1);
+    inputs.push("-loop", "1", "-t", total.toFixed(3), "-i", png);
+    filters.push(captionFilter(n, start.toFixed(2), end));
+    filters.push(`[${last}][c${n}]overlay=0:0:enable='between(t,${start.toFixed(2)},${end.toFixed(2)})'[v${n}]`);
+    last = `v${n}`;
+    n++;
+  };
+  if (scene.caption && !scene.card) overlay(resolve(OVERLAYS, `${scene.id}.png`), 0.15, Math.min(cut.hold, HOLD) - 0.15);
+  (scene.captions ?? []).forEach((extra, index) => {
+    const at = Math.min(cut.hold, HOLD) + ((raw.marks[extra.mark] ?? HOLD) - HOLD) / speed;
+    overlay(resolve(OVERLAYS, `${scene.id}-${index + 1}.png`), at + 0.2, at + 0.2 + extra.duration / Math.max(1, speed * 0.85));
+  });
+  if (!scene.card) {
+    inputs.push("-loop", "1", "-t", total.toFixed(3), "-i", resolve(OVERLAYS, "disclaimer.png"));
+    filters.push(`[${last}][${n}:v]overlay=0:0[v${n}]`);
+    last = `v${n}`;
+  }
+  const end = (total - 0.25).toFixed(2);
+  filters.push(`[${last}]fade=t=in:st=0:d=0.25:color=white,fade=t=out:st=${end}:d=0.25:color=white,format=yuv420p[out]`);
+  const out = resolve(WORK, `cut-${cutName}-${entry.id}.mp4`);
+  ffmpeg([...inputs, "-filter_complex", filters.join(";"), "-map", "[out]", "-t", total.toFixed(3), ...X264, "-crf", "18", "-r", "30", out]);
+  return out;
+}
+
+for (const [cutName, cut] of Object.entries(storyboard.cuts ?? {})) {
+  const missing = cut.scenes.filter((entry) => !raws[entry.id]).map((entry) => entry.id);
+  if (missing.length) {
+    console.warn(`taglio ${cutName}: mancano ${missing.join(", ")}`);
+    continue;
+  }
+  const parts = cut.scenes.map((entry) => cutScene(cutName, cut, entry));
+  const list = resolve(WORK, `cut-${cutName}.txt`);
+  writeFileSync(list, parts.map((file) => `file '${file}'`).join("\n"));
+  const video = resolve(VIDEO, `delir-${cutName}-it.mp4`);
+  ffmpeg(["-f", "concat", "-safe", "0", "-i", list, "-c", "copy", "-movflags", "+faststart", video]);
+  const seconds = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video]).toString().trim();
+  console.log(`taglio ${cutName}: ${video} (${Number(seconds).toFixed(1)} s)`);
 }
