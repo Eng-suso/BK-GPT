@@ -1,0 +1,1264 @@
+{
+ "simulation_template": {
+  "resources": [
+   {
+    "id": "bpmn-lane-d604585def6d9761",
+    "name": "Reparto",
+    "kind": "lane",
+    "bpmn_id": "reparto",
+    "pool_name": "Gestione acquisto materiali indiretti e servizi",
+    "parent_name": null,
+    "task_ids": [
+     "rileva_fabbisogno",
+     "invia_richiesta_ufficio_tecnico",
+     "percorso_urgente_chiama_fornitore_diretto",
+     "percorso_urgente_invia_riferimento_ordine_urgente",
+     "verifica_merce"
+    ]
+   },
+   {
+    "id": "bpmn-lane-e7432059dffad847",
+    "name": "Ufficio Tecnico",
+    "kind": "lane",
+    "bpmn_id": "ufficio_tecnico",
+    "pool_name": "Gestione acquisto materiali indiretti e servizi",
+    "parent_name": null,
+    "task_ids": [
+     "ricostruisci_richiesta",
+     "invia_richiesta_acquisti"
+    ]
+   },
+   {
+    "id": "bpmn-lane-49f8bbdbff87be10",
+    "name": "Ufficio Acquisti",
+    "kind": "lane",
+    "bpmn_id": "acquisti",
+    "pool_name": "Gestione acquisto materiali indiretti e servizi",
+    "parent_name": null,
+    "task_ids": [
+     "percorso_urgente_regolarizza_ordine",
+     "verifica_lavorabilita",
+     "percorso_integrazione_richiedi_integrazione",
+     "percorso_autorizzazione_richiedi_autorizzazione",
+     "seleziona_fornitore",
+     "emetti_ordine"
+    ]
+   },
+   {
+    "id": "bpmn-lane-568954f4406f4e19",
+    "name": "Responsabile Acquisti",
+    "kind": "lane",
+    "bpmn_id": "responsabile_acquisti",
+    "pool_name": "Gestione acquisto materiali indiretti e servizi",
+    "parent_name": null,
+    "task_ids": [
+     "percorso_autorizzazione_autorizza_spesa"
+    ]
+   },
+   {
+    "id": "bpmn-lane-f37173137aa2f584",
+    "name": "Magazzino",
+    "kind": "lane",
+    "bpmn_id": "magazzino",
+    "pool_name": "Gestione acquisto materiali indiretti e servizi",
+    "parent_name": null,
+    "task_ids": [
+     "ricevi_merce"
+    ]
+   },
+   {
+    "id": "bpmn-lane-517c44c5cab2edcd",
+    "name": "Amministrazione",
+    "kind": "lane",
+    "bpmn_id": "amministrazione",
+    "pool_name": "Gestione acquisto materiali indiretti e servizi",
+    "parent_name": null,
+    "task_ids": [
+     "percorso_urgente_gestione_contabile_fattura"
+    ]
+   }
+  ],
+  "tasks": [
+   {
+    "element_id": "rileva_fabbisogno",
+    "name": "Rileva fabbisogno durante il giro impianti",
+    "type": "task"
+   },
+   {
+    "element_id": "invia_richiesta_ufficio_tecnico",
+    "name": "Invia richiesta all'Ufficio Tecnico",
+    "type": "task"
+   },
+   {
+    "element_id": "percorso_urgente_chiama_fornitore_diretto",
+    "name": "Chiama fornitore direttamente",
+    "type": "task"
+   },
+   {
+    "element_id": "percorso_urgente_invia_riferimento_ordine_urgente",
+    "name": "Invia riferimento ordine del fornitore",
+    "type": "task"
+   },
+   {
+    "element_id": "ricostruisci_richiesta",
+    "name": "Ricostruisci richiesta e informazioni mancanti",
+    "type": "task"
+   },
+   {
+    "element_id": "invia_richiesta_acquisti",
+    "name": "Invia richiesta ad Acquisti",
+    "type": "task"
+   },
+   {
+    "element_id": "percorso_urgente_regolarizza_ordine",
+    "name": "Regolarizza ordine a posteriori",
+    "type": "task"
+   },
+   {
+    "element_id": "percorso_urgente_gestione_contabile_fattura",
+    "name": "Gestione contabile della fattura",
+    "type": "task"
+   },
+   {
+    "element_id": "verifica_lavorabilita",
+    "name": "Verifica lavorabilità della richiesta",
+    "type": "task"
+   },
+   {
+    "element_id": "percorso_integrazione_richiedi_integrazione",
+    "name": "Richiedi integrazione della richiesta",
+    "type": "task"
+   },
+   {
+    "element_id": "percorso_autorizzazione_richiedi_autorizzazione",
+    "name": "Richiedi autorizzazione al responsabile",
+    "type": "task"
+   },
+   {
+    "element_id": "percorso_autorizzazione_autorizza_spesa",
+    "name": "Autorizza spesa",
+    "type": "task"
+   },
+   {
+    "element_id": "seleziona_fornitore",
+    "name": "Seleziona fornitore o richiedi quotazioni",
+    "type": "task"
+   },
+   {
+    "element_id": "emetti_ordine",
+    "name": "Emetti ordine al fornitore",
+    "type": "task"
+   },
+   {
+    "element_id": "ricevi_merce",
+    "name": "Ricevi merce in magazzino",
+    "type": "task"
+   },
+   {
+    "element_id": "verifica_merce",
+    "name": "Verifica merce ricevuta",
+    "type": "task"
+   }
+  ],
+  "gateways": [
+   {
+    "element_id": "urgenza",
+    "name": "Linea ferma?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "Flow_urgenza_ordinaria",
+      "flow_name": "No",
+      "target_name": "Invia richiesta all'Ufficio Tecnico"
+     },
+     {
+      "flow_id": "Flow_urgenza_linea_ferma",
+      "flow_name": "Sì",
+      "target_name": "Chiama fornitore direttamente"
+     }
+    ]
+   },
+   {
+    "element_id": "gw_richiesta_completa",
+    "name": "Richiesta completa?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "Flow_completa_no",
+      "flow_name": "No",
+      "target_name": "Richiedi integrazione della richiesta"
+     },
+     {
+      "flow_id": "Flow_completa_si",
+      "flow_name": "Sì",
+      "target_name": "Serve autorizzazione?"
+     }
+    ]
+   },
+   {
+    "element_id": "gw_serve_autorizzazione",
+    "name": "Serve autorizzazione?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "Flow_autorizzazione_si",
+      "flow_name": "Sì",
+      "target_name": "Richiedi autorizzazione al responsabile"
+     },
+     {
+      "flow_id": "Flow_autorizzazione_no",
+      "flow_name": "No",
+      "target_name": ""
+     }
+    ]
+   }
+  ],
+  "standard_calendar": {
+   "id": "delir-calendar-standard",
+   "name": "Standard office calendar",
+   "periods": [
+    {
+     "from_day": "MONDAY",
+     "to_day": "FRIDAY",
+     "begin": "09:00",
+     "end": "17:00"
+    }
+   ]
+  }
+ },
+ "simulation_provenance": {
+  "has_discovery": true,
+  "process_confidence": null,
+  "readiness_score": null,
+  "missing_information": [],
+  "weak_points": [],
+  "elements": [
+   {
+    "element_id": "rileva_fabbisogno",
+    "kind": "activity",
+    "name": "Rileva fabbisogno durante il giro impianti",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:rileva_fabbisogno",
+       "label": "Rileva fabbisogno durante il giro impianti"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "rileva_fabbisogno",
+     "label": "Rileva fabbisogno durante il giro impianti"
+    }
+   },
+   {
+    "element_id": "invia_richiesta_ufficio_tecnico",
+    "kind": "activity",
+    "name": "Invia richiesta all'Ufficio Tecnico",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:invia_richiesta_ufficio_tecnico",
+       "label": "Invia richiesta all'Ufficio Tecnico"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "invia_richiesta_ufficio_tecnico",
+     "label": "Invia richiesta all'Ufficio Tecnico"
+    }
+   },
+   {
+    "element_id": "percorso_urgente_chiama_fornitore_diretto",
+    "kind": "activity",
+    "name": "Chiama fornitore direttamente",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:chiama_fornitore_diretto",
+       "label": "Chiama fornitore direttamente"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "chiama_fornitore_diretto",
+     "label": "Chiama fornitore direttamente"
+    }
+   },
+   {
+    "element_id": "percorso_urgente_invia_riferimento_ordine_urgente",
+    "kind": "activity",
+    "name": "Invia riferimento ordine del fornitore",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:invia_riferimento_ordine_urgente",
+       "label": "Invia riferimento ordine del fornitore"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "invia_riferimento_ordine_urgente",
+     "label": "Invia riferimento ordine del fornitore"
+    }
+   },
+   {
+    "element_id": "ricostruisci_richiesta",
+    "kind": "activity",
+    "name": "Ricostruisci richiesta e informazioni mancanti",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:ricostruisci_richiesta",
+       "label": "Ricostruisci richiesta e informazioni mancanti"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "ricostruisci_richiesta",
+     "label": "Ricostruisci richiesta e informazioni mancanti"
+    }
+   },
+   {
+    "element_id": "invia_richiesta_acquisti",
+    "kind": "activity",
+    "name": "Invia richiesta ad Acquisti",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:invia_richiesta_acquisti",
+       "label": "Invia richiesta ad Acquisti"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "invia_richiesta_acquisti",
+     "label": "Invia richiesta ad Acquisti"
+    }
+   },
+   {
+    "element_id": "percorso_urgente_regolarizza_ordine",
+    "kind": "activity",
+    "name": "Regolarizza ordine a posteriori",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:regolarizza_ordine",
+       "label": "Regolarizza ordine a posteriori"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "regolarizza_ordine",
+     "label": "Regolarizza ordine a posteriori"
+    }
+   },
+   {
+    "element_id": "percorso_urgente_gestione_contabile_fattura",
+    "kind": "activity",
+    "name": "Gestione contabile della fattura",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:gestione_contabile_fattura",
+       "label": "Gestione contabile della fattura"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "gestione_contabile_fattura",
+     "label": "Gestione contabile della fattura"
+    }
+   },
+   {
+    "element_id": "verifica_lavorabilita",
+    "kind": "activity",
+    "name": "Verifica lavorabilità della richiesta",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "estimated",
+     "confidence": "low",
+     "sources": [],
+     "note": null
+    },
+    "confidence": "low",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": null
+   },
+   {
+    "element_id": "percorso_integrazione_richiedi_integrazione",
+    "kind": "activity",
+    "name": "Richiedi integrazione della richiesta",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:richiedi_integrazione",
+       "label": "Richiedi integrazione della richiesta"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "richiedi_integrazione",
+     "label": "Richiedi integrazione della richiesta"
+    }
+   },
+   {
+    "element_id": "percorso_autorizzazione_richiedi_autorizzazione",
+    "kind": "activity",
+    "name": "Richiedi autorizzazione al responsabile",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:richiedi_autorizzazione",
+       "label": "Richiedi autorizzazione al responsabile"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "richiedi_autorizzazione",
+     "label": "Richiedi autorizzazione al responsabile"
+    }
+   },
+   {
+    "element_id": "percorso_autorizzazione_autorizza_spesa",
+    "kind": "activity",
+    "name": "Autorizza spesa",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:autorizza_spesa",
+       "label": "Autorizza spesa"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "autorizza_spesa",
+     "label": "Autorizza spesa"
+    }
+   },
+   {
+    "element_id": "seleziona_fornitore",
+    "kind": "activity",
+    "name": "Seleziona fornitore o richiedi quotazioni",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:seleziona_fornitore",
+       "label": "Seleziona fornitore o richiedi quotazioni"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "seleziona_fornitore",
+     "label": "Seleziona fornitore o richiedi quotazioni"
+    }
+   },
+   {
+    "element_id": "emetti_ordine",
+    "kind": "activity",
+    "name": "Emetti ordine al fornitore",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:emetti_ordine",
+       "label": "Emetti ordine al fornitore"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "emetti_ordine",
+     "label": "Emetti ordine al fornitore"
+    }
+   },
+   {
+    "element_id": "ricevi_merce",
+    "kind": "activity",
+    "name": "Ricevi merce in magazzino",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:ricevi_merce",
+       "label": "Ricevi merce in magazzino"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "ricevi_merce",
+     "label": "Ricevi merce in magazzino"
+    }
+   },
+   {
+    "element_id": "verifica_merce",
+    "kind": "activity",
+    "name": "Verifica merce ricevuta",
+    "parameter": "duration",
+    "provenance": {
+     "origin": "declared",
+     "confidence": "medium",
+     "sources": [
+      {
+       "kind": "interview",
+       "id": "steps:verifica_merce",
+       "label": "Verifica merce ricevuta"
+      }
+     ],
+     "note": null
+    },
+    "confidence": "medium",
+    "evidence": [],
+    "open_questions": 0,
+    "hint_ref": {
+     "field": "steps",
+     "id": "verifica_merce",
+     "label": "Verifica merce ricevuta"
+    }
+   },
+   {
+    "element_id": "urgenza",
+    "kind": "gateway",
+    "name": "Linea ferma?",
+    "parameter": "branching",
+    "provenance": {
+     "origin": "estimated",
+     "confidence": "low",
+     "sources": [],
+     "note": null
+    },
+    "confidence": "low",
+    "evidence": [],
+    "open_questions": 2,
+    "hint_ref": null
+   },
+   {
+    "element_id": "gw_richiesta_completa",
+    "kind": "gateway",
+    "name": "Richiesta completa?",
+    "parameter": "branching",
+    "provenance": {
+     "origin": "estimated",
+     "confidence": "low",
+     "sources": [],
+     "note": null
+    },
+    "confidence": "low",
+    "evidence": [],
+    "open_questions": 2,
+    "hint_ref": null
+   },
+   {
+    "element_id": "gw_serve_autorizzazione",
+    "kind": "gateway",
+    "name": "Serve autorizzazione?",
+    "parameter": "branching",
+    "provenance": {
+     "origin": "estimated",
+     "confidence": "low",
+     "sources": [],
+     "note": null
+    },
+    "confidence": "low",
+    "evidence": [],
+    "open_questions": 2,
+    "hint_ref": null
+   }
+  ]
+ },
+ "simulation_compatibility": {
+  "elements": [
+   {
+    "element_id": "Process_acquisti_indiretti_LaneSet",
+    "name": "",
+    "bpmn_type": "laneSet",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "reparto",
+    "name": "Reparto",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "ufficio_tecnico",
+    "name": "Ufficio Tecnico",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "acquisti",
+    "name": "Ufficio Acquisti",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "responsabile_acquisti",
+    "name": "Responsabile Acquisti",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "magazzino",
+    "name": "Magazzino",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "amministrazione",
+    "name": "Amministrazione",
+    "bpmn_type": "lane",
+    "status": "removed",
+    "impact": "none",
+    "simulated_as": null,
+    "parent_id": null,
+    "note": "Le lane non arrivano al motore, ma restano risorse: si leggono dal BPMN originale."
+   },
+   {
+    "element_id": "StartEvent_1",
+    "name": "Fabbisogno rilevato",
+    "bpmn_type": "startEvent",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "startEvent",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "rileva_fabbisogno",
+    "name": "Rileva fabbisogno durante il giro impianti",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "urgenza",
+    "name": "Linea ferma?",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "invia_richiesta_ufficio_tecnico",
+    "name": "Invia richiesta all'Ufficio Tecnico",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "percorso_urgente_chiama_fornitore_diretto",
+    "name": "Chiama fornitore direttamente",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "percorso_urgente_invia_riferimento_ordine_urgente",
+    "name": "Invia riferimento ordine del fornitore",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "gw_merge_richiesta",
+    "name": "",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "ricostruisci_richiesta",
+    "name": "Ricostruisci richiesta e informazioni mancanti",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "invia_richiesta_acquisti",
+    "name": "Invia richiesta ad Acquisti",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "percorso_urgente_regolarizza_ordine",
+    "name": "Regolarizza ordine a posteriori",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "percorso_urgente_gestione_contabile_fattura",
+    "name": "Gestione contabile della fattura",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "EndEvent_urgente",
+    "name": "Ordine urgente registrato",
+    "bpmn_type": "endEvent",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "endEvent",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "verifica_lavorabilita",
+    "name": "Verifica lavorabilità della richiesta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "gw_richiesta_completa",
+    "name": "Richiesta completa?",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "percorso_integrazione_richiedi_integrazione",
+    "name": "Richiedi integrazione della richiesta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "gw_serve_autorizzazione",
+    "name": "Serve autorizzazione?",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "percorso_autorizzazione_richiedi_autorizzazione",
+    "name": "Richiedi autorizzazione al responsabile",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "percorso_autorizzazione_autorizza_spesa",
+    "name": "Autorizza spesa",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "gw_merge_autorizzazione",
+    "name": "",
+    "bpmn_type": "exclusiveGateway",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "exclusiveGateway",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "seleziona_fornitore",
+    "name": "Seleziona fornitore o richiedi quotazioni",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "emetti_ordine",
+    "name": "Emetti ordine al fornitore",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "ricevi_merce",
+    "name": "Ricevi merce in magazzino",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "verifica_merce",
+    "name": "Verifica merce ricevuta",
+    "bpmn_type": "userTask",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "task",
+    "parent_id": null,
+    "note": "userTask simulato come task: per il motore durata e risorsa sono le stesse."
+   },
+   {
+    "element_id": "EndEvent_1",
+    "name": "Merce verificata",
+    "bpmn_type": "endEvent",
+    "status": "approximated",
+    "impact": "none",
+    "simulated_as": "EndEvent_urgente",
+    "parent_id": null,
+    "note": "Unito all'evento di fine EndEvent_urgente: il motore ne accetta uno solo."
+   },
+   {
+    "element_id": "Flow_start",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_rileva_urgenza",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_urgenza_ordinaria",
+    "name": "No",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_urgenza_linea_ferma",
+    "name": "Sì",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_chiama_riferimento",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_riferimento_regolarizza",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_regolarizza_contabile",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_contabile_fine",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_richiesta_merge",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_merge_ricostruisci",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_ricostruisci_invia",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_invia_verifica",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_verifica_completa",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_completa_no",
+    "name": "No",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_integrazione_merge",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_completa_si",
+    "name": "Sì",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_autorizzazione_si",
+    "name": "Sì",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_richiedi_autorizza",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_autorizza_merge",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_autorizzazione_no",
+    "name": "No",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_merge_seleziona",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_seleziona_emetti",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_emetti_ricevi",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_ricevi_verifica",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "preserved",
+    "impact": "none",
+    "simulated_as": "sequenceFlow",
+    "parent_id": null,
+    "note": ""
+   },
+   {
+    "element_id": "Flow_verifica_fine",
+    "name": "",
+    "bpmn_type": "sequenceFlow",
+    "status": "approximated",
+    "impact": "none",
+    "simulated_as": "verifica_merce → EndEvent_urgente",
+    "parent_id": null,
+    "note": "Ricollegato: da verifica_merce → EndEvent_1 a verifica_merce → EndEvent_urgente."
+   }
+  ],
+  "counts": {
+   "preserved": 47,
+   "approximated": 2,
+   "flattened": 0,
+   "removed": 7
+  },
+  "kpi_affecting": 0,
+  "undeclared": 0
+ }
+}

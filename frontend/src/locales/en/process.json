@@ -1034,7 +1034,40 @@
     },
     "eyebrow": "BPMN 2.0",
     "title": "Properties panel",
-    "hint": "Selected element"
+    "hint": "Selected element",
+    "enterprise": {
+      "tabsLabel": "Property tabs",
+      "tabs": {
+        "details": "Details",
+        "rules": "Rules",
+        "data": "Data",
+        "files": "Files",
+        "history": "History",
+        "ai": "AI"
+      },
+      "name": "Name",
+      "description": "Description",
+      "required": "Required in the process (annotation)",
+      "saveHint": "Properties are saved with the diagram. The required annotation does not change BPMN execution.",
+      "fields": {
+        "owner": "Task owner",
+        "office": "Competence office",
+        "rules": "Rule notes",
+        "risks": "Risks and mitigations",
+        "sop": "SOP references",
+        "inputs": "Inputs",
+        "outputs": "Outputs",
+        "systems": "Systems involved",
+        "files": "Document references"
+      },
+      "filesHint": "Record titles, IDs or references to project documents. This tab does not upload attachments.",
+      "historyHint": "Saved versions of the complete diagram. Undo unsaved edits from the canvas (Ctrl+Z).",
+      "noHistory": "No saved versions available.",
+      "aiHint": "Open the process discussion to examine rules, risks and sources with DeliR. For a conversation about one activity, use the avatar in Review.",
+      "ask": "Ask DeliR",
+      "delete": "Delete element",
+      "technical": "Technical BPMN properties"
+    }
   },
   "canvas": {
     "documentDetails": "Details",
@@ -1202,13 +1235,75 @@
         "data-object": "Data object",
         "data-store": "Data store",
         "participant-expanded": "Pool or participant",
-        "group": "Group"
+        "group": "Group",
+        "start-message": "Start event · message",
+        "start-timer": "Start event · timer",
+        "start-conditional": "Start event · conditional",
+        "start-signal": "Start event · signal",
+        "catch-message": "Catch event · message",
+        "catch-timer": "Catch event · timer",
+        "catch-conditional": "Catch event · conditional",
+        "catch-signal": "Catch event · signal",
+        "catch-link": "Catch event · link",
+        "throw-message": "Throw event · message",
+        "throw-signal": "Throw event · signal",
+        "throw-escalation": "Throw event · escalation",
+        "throw-compensate": "Throw event · compensate",
+        "throw-link": "Throw event · link",
+        "end-message": "End event · message",
+        "end-error": "End event · error",
+        "end-escalation": "End event · escalation",
+        "end-signal": "End event · signal",
+        "end-compensate": "End event · compensate",
+        "end-terminate": "End event · terminate",
+        "boundary-message": "Boundary event · message",
+        "boundary-timer": "Boundary event · timer",
+        "boundary-conditional": "Boundary event · conditional",
+        "boundary-error": "Boundary event · error",
+        "boundary-escalation": "Boundary event · escalation",
+        "boundary-signal": "Boundary event · signal",
+        "boundary-compensate": "Boundary event · compensate",
+        "user-task": "User task",
+        "service-task": "Service task",
+        "manual-task": "Manual task",
+        "script-task": "Script task",
+        "business-rule-task": "Business rule task",
+        "send-task": "Send task",
+        "receive-task": "Receive task",
+        "parallel-gateway": "Parallel gateway",
+        "inclusive-gateway": "Inclusive gateway",
+        "complex-gateway": "Complex gateway",
+        "event-based-gateway": "Event-based gateway",
+        "call-activity": "Call activity",
+        "subprocess-collapsed": "Collapsed subprocess",
+        "lane": "Lane",
+        "annotation": "Text annotation"
       }
     },
     "conflict": {
       "reloadLatest": "Load the latest version",
       "reloaded": "Latest version loaded",
       "reloadFailed": "Could not load the latest version"
+    },
+    "library": {
+      "title": "BPMN library",
+      "toggle": "Open BPMN library",
+      "close": "Close BPMN library",
+      "search": "Search BPMN elements",
+      "hint": "Choose an element and click the canvas, or drag it. Place lanes inside a pool and boundary events on an activity border.",
+      "recent": "Recent",
+      "quick": "Quick elements",
+      "noRecent": "Recently used elements appear here.",
+      "noResults": "No matching elements.",
+      "navigation": "Tools",
+      "groups": {
+        "event": "Events",
+        "activity": "Activities",
+        "gateway": "Gateways",
+        "data": "Data",
+        "collaboration": "Collaboration",
+        "artifact": "Artifacts"
+      }
     }
   },
   "review": {
@@ -1444,7 +1539,9 @@
       "download": "Download BPMN",
       "workTogether": "Work with DeliR",
       "resize": "Resize DeliR chat",
-      "resizeHint": "Drag the corner; arrow keys to resize, Home to reset"
+      "resizeHint": "Drag the corner; arrow keys to resize, Home to reset",
+      "move": "Move DeliR avatar",
+      "moveHint": "Drag to move. Use arrow keys; Home restores automatic positioning."
     }
   }
 }

@@ -1034,7 +1034,40 @@
     },
     "eyebrow": "BPMN 2.0",
     "title": "Pannello proprietà",
-    "hint": "Elemento selezionato"
+    "hint": "Elemento selezionato",
+    "enterprise": {
+      "tabsLabel": "Schede proprietà",
+      "tabs": {
+        "details": "Dettagli",
+        "rules": "Regole",
+        "data": "Dati",
+        "files": "File",
+        "history": "Cronologia",
+        "ai": "AI"
+      },
+      "name": "Nome",
+      "description": "Descrizione",
+      "required": "Obbligatorio nel processo (annotazione)",
+      "saveHint": "Le proprietà si salvano con il disegno. L’annotazione «obbligatorio» non modifica l’esecuzione BPMN.",
+      "fields": {
+        "owner": "Responsabile attività",
+        "office": "Ufficio competente",
+        "rules": "Note sulle regole",
+        "risks": "Rischi e mitigazioni",
+        "sop": "Riferimenti SOP",
+        "inputs": "Input",
+        "outputs": "Output",
+        "systems": "Sistemi coinvolti",
+        "files": "Riferimenti documentali"
+      },
+      "filesHint": "Registra titoli, ID o riferimenti dei documenti del progetto. Questa scheda non carica allegati.",
+      "historyHint": "Versioni salvate dell’intero disegno. Le modifiche non salvate si annullano dal canvas (Ctrl+Z).",
+      "noHistory": "Nessuna versione salvata disponibile.",
+      "aiHint": "Apri la discussione del processo per confrontare regole, rischi e fonti con DeliR. Per la conversazione su una singola attività usa l’avatar in Review.",
+      "ask": "Chiedi a DeliR",
+      "delete": "Elimina elemento",
+      "technical": "Proprietà tecniche BPMN"
+    }
   },
   "canvas": {
     "documentDetails": "Dettagli",
@@ -1202,13 +1235,75 @@
         "data-object": "Oggetto dati",
         "data-store": "Archivio dati",
         "participant-expanded": "Pool o partecipante",
-        "group": "Gruppo"
+        "group": "Gruppo",
+        "start-message": "Evento iniziale · messaggio",
+        "start-timer": "Evento iniziale · timer",
+        "start-conditional": "Evento iniziale · condizione",
+        "start-signal": "Evento iniziale · segnale",
+        "catch-message": "Evento intermedio di ricezione · messaggio",
+        "catch-timer": "Evento intermedio di ricezione · timer",
+        "catch-conditional": "Evento intermedio di ricezione · condizione",
+        "catch-signal": "Evento intermedio di ricezione · segnale",
+        "catch-link": "Evento intermedio di ricezione · link",
+        "throw-message": "Evento intermedio di lancio · messaggio",
+        "throw-signal": "Evento intermedio di lancio · segnale",
+        "throw-escalation": "Evento intermedio di lancio · escalation",
+        "throw-compensate": "Evento intermedio di lancio · compensazione",
+        "throw-link": "Evento intermedio di lancio · link",
+        "end-message": "Evento finale · messaggio",
+        "end-error": "Evento finale · errore",
+        "end-escalation": "Evento finale · escalation",
+        "end-signal": "Evento finale · segnale",
+        "end-compensate": "Evento finale · compensazione",
+        "end-terminate": "Evento finale · terminazione",
+        "boundary-message": "Evento boundary · messaggio",
+        "boundary-timer": "Evento boundary · timer",
+        "boundary-conditional": "Evento boundary · condizione",
+        "boundary-error": "Evento boundary · errore",
+        "boundary-escalation": "Evento boundary · escalation",
+        "boundary-signal": "Evento boundary · segnale",
+        "boundary-compensate": "Evento boundary · compensazione",
+        "user-task": "Attività utente",
+        "service-task": "Attività di servizio",
+        "manual-task": "Attività manuale",
+        "script-task": "Attività script",
+        "business-rule-task": "Attività regole di business",
+        "send-task": "Invio messaggio",
+        "receive-task": "Ricezione messaggio",
+        "parallel-gateway": "Gateway parallelo",
+        "inclusive-gateway": "Gateway inclusivo",
+        "complex-gateway": "Gateway complesso",
+        "event-based-gateway": "Gateway basato su eventi",
+        "call-activity": "Attività richiamata",
+        "subprocess-collapsed": "Sottoprocesso compresso",
+        "lane": "Lane / corsia",
+        "annotation": "Annotazione di testo"
       }
     },
     "conflict": {
       "reloadLatest": "Carica l'ultima versione",
       "reloaded": "Ultima versione caricata",
       "reloadFailed": "Caricamento dell'ultima versione non riuscito"
+    },
+    "library": {
+      "title": "Libreria BPMN",
+      "toggle": "Apri libreria BPMN",
+      "close": "Chiudi libreria BPMN",
+      "search": "Cerca elementi BPMN",
+      "hint": "Scegli un elemento e clicca sul canvas, oppure trascinalo. Le lane vanno inserite in un pool; gli eventi boundary sul bordo di un’attività.",
+      "recent": "Recenti",
+      "quick": "Elementi rapidi",
+      "noRecent": "Gli elementi usati appariranno qui.",
+      "noResults": "Nessun elemento trovato.",
+      "navigation": "Strumenti",
+      "groups": {
+        "event": "Eventi",
+        "activity": "Attività",
+        "gateway": "Gateway",
+        "data": "Dati",
+        "collaboration": "Collaborazione",
+        "artifact": "Artefatti"
+      }
     }
   },
   "review": {
@@ -1444,7 +1539,9 @@
       "download": "Scarica BPMN",
       "workTogether": "Lavora con DeliR",
       "resize": "Ridimensiona chat DeliR",
-      "resizeHint": "Trascina l’angolo; frecce per ridimensionare, Home per ripristinare"
+      "resizeHint": "Trascina l’angolo; frecce per ridimensionare, Home per ripristinare",
+      "move": "Sposta avatar DeliR",
+      "moveHint": "Trascina per spostare. Usa le frecce da tastiera; Home ripristina la posizione automatica."
     }
   }
 }

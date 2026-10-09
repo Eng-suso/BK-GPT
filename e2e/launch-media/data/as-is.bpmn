@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:delir="https://delir.app/schema/bpmn/1.0" id="Definitions_acquisti_indiretti_v3" targetNamespace="https://delir.ai/bpmn">
+  <bpmn:collaboration id="Collaboration_acquisti_indiretti">
+    <bpmn:participant id="Participant_acquisti_indiretti" name="Gestione acquisto materiali indiretti e servizi" processRef="Process_acquisti_indiretti" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_acquisti_indiretti" name="Gestione acquisto materiali indiretti e servizi" isExecutable="false">
+    <bpmn:laneSet id="Process_acquisti_indiretti_LaneSet">
+      <bpmn:lane id="reparto" name="Reparto">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>rileva_fabbisogno</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>urgenza</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>invia_richiesta_ufficio_tecnico</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>percorso_urgente_chiama_fornitore_diretto</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>percorso_urgente_invia_riferimento_ordine_urgente</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>verifica_merce</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_1</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="ufficio_tecnico" name="Ufficio Tecnico">
+        <bpmn:flowNodeRef>gw_merge_richiesta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>ricostruisci_richiesta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>invia_richiesta_acquisti</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="acquisti" name="Ufficio Acquisti">
+        <bpmn:flowNodeRef>percorso_urgente_regolarizza_ordine</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>verifica_lavorabilita</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_richiesta_completa</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>percorso_integrazione_richiedi_integrazione</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_serve_autorizzazione</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>percorso_autorizzazione_richiedi_autorizzazione</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_merge_autorizzazione</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>seleziona_fornitore</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>emetti_ordine</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="responsabile_acquisti" name="Responsabile Acquisti">
+        <bpmn:flowNodeRef>percorso_autorizzazione_autorizza_spesa</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="magazzino" name="Magazzino">
+        <bpmn:flowNodeRef>ricevi_merce</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="amministrazione" name="Amministrazione">
+        <bpmn:flowNodeRef>percorso_urgente_gestione_contabile_fattura</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_urgente</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="StartEvent_1" name="Fabbisogno rilevato">
+      <bpmn:outgoing>Flow_start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="rileva_fabbisogno" name="Rileva fabbisogno durante il giro impianti">
+      <bpmn:incoming>Flow_start</bpmn:incoming>
+      <bpmn:outgoing>Flow_rileva_urgenza</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="urgenza" name="Linea ferma?" default="Flow_urgenza_ordinaria">
+      <bpmn:incoming>Flow_rileva_urgenza</bpmn:incoming>
+      <bpmn:outgoing>Flow_urgenza_ordinaria</bpmn:outgoing>
+      <bpmn:outgoing>Flow_urgenza_linea_ferma</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="invia_richiesta_ufficio_tecnico" name="Invia richiesta all'Ufficio Tecnico">
+      <bpmn:incoming>Flow_urgenza_ordinaria</bpmn:incoming>
+      <bpmn:outgoing>Flow_richiesta_merge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="percorso_urgente_chiama_fornitore_diretto" name="Chiama fornitore direttamente">
+      <bpmn:incoming>Flow_urgenza_linea_ferma</bpmn:incoming>
+      <bpmn:outgoing>Flow_chiama_riferimento</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="percorso_urgente_invia_riferimento_ordine_urgente" name="Invia riferimento ordine del fornitore">
+      <bpmn:incoming>Flow_chiama_riferimento</bpmn:incoming>
+      <bpmn:outgoing>Flow_riferimento_regolarizza</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_merge_richiesta">
+      <bpmn:incoming>Flow_richiesta_merge</bpmn:incoming>
+      <bpmn:incoming>Flow_integrazione_merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_ricostruisci</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="ricostruisci_richiesta" name="Ricostruisci richiesta e informazioni mancanti" delir:owner="Laura Conti" delir:office="Ufficio Tecnico" delir:risks="Meta' del tempo di Laura su questa attivita' va nel ricostruire cosa viene chiesto." delir:systems="Mail, telefono, file Excel personale di Laura" delir:inputs="Richiesta dal reparto (mail, messaggio o a voce)" delir:outputs="Richiesta con descrizione, quantita', data e riferimento" delir:files="Intervista Laura Conti · Responsabile Ufficio Tecnico">
+      <bpmn:documentation>«La prima cosa che faccio e' capire se ho abbastanza informazioni per portarla avanti.» (Laura Conti)</bpmn:documentation>
+      <bpmn:incoming>Flow_merge_ricostruisci</bpmn:incoming>
+      <bpmn:outgoing>Flow_ricostruisci_invia</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="invia_richiesta_acquisti" name="Invia richiesta ad Acquisti">
+      <bpmn:incoming>Flow_ricostruisci_invia</bpmn:incoming>
+      <bpmn:outgoing>Flow_invia_verifica</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="percorso_urgente_regolarizza_ordine" name="Regolarizza ordine a posteriori" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:risks="Chi ordina d'urgenza non sa che la regolarizzazione la fa Acquisti: passaggio mai dichiarato." delir:inputs="Riferimento d'ordine del fornitore (mail di Paolo)" delir:outputs="Ordine aperto e agganciato al fornitore" delir:systems="Mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti; Intervista Paolo Marchetti · Capo Manutenzione">
+      <bpmn:documentation>«La parte di ordine si', la faccio io.» (Francesca Neri)</bpmn:documentation>
+      <bpmn:incoming>Flow_riferimento_regolarizza</bpmn:incoming>
+      <bpmn:outgoing>Flow_regolarizza_contabile</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="percorso_urgente_gestione_contabile_fattura" name="Gestione contabile della fattura">
+      <bpmn:incoming>Flow_regolarizza_contabile</bpmn:incoming>
+      <bpmn:outgoing>Flow_contabile_fine</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_urgente" name="Ordine urgente registrato">
+      <bpmn:incoming>Flow_contabile_fine</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="verifica_lavorabilita" name="Verifica lavorabilità della richiesta" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:rules="Lavorabile: si capisce cosa comprare e da chi comprarlo." delir:risks="Piu' della meta' delle richieste torna indietro (stima di Francesca, non misurata)." delir:systems="Mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti">
+      <bpmn:documentation>«Leggo e verifico se e' lavorabile.» (Francesca Neri)</bpmn:documentation>
+      <bpmn:incoming>Flow_invia_verifica</bpmn:incoming>
+      <bpmn:outgoing>Flow_verifica_completa</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_richiesta_completa" name="Richiesta completa?" default="Flow_completa_si">
+      <bpmn:incoming>Flow_verifica_completa</bpmn:incoming>
+      <bpmn:outgoing>Flow_completa_no</bpmn:outgoing>
+      <bpmn:outgoing>Flow_completa_si</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="percorso_integrazione_richiedi_integrazione" name="Richiedi integrazione della richiesta">
+      <bpmn:incoming>Flow_completa_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_integrazione_merge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_serve_autorizzazione" name="Serve autorizzazione?" default="Flow_autorizzazione_no">
+      <bpmn:incoming>Flow_completa_si</bpmn:incoming>
+      <bpmn:outgoing>Flow_autorizzazione_si</bpmn:outgoing>
+      <bpmn:outgoing>Flow_autorizzazione_no</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="percorso_autorizzazione_richiedi_autorizzazione" name="Richiedi autorizzazione al responsabile">
+      <bpmn:incoming>Flow_autorizzazione_si</bpmn:incoming>
+      <bpmn:outgoing>Flow_richiedi_autorizza</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="percorso_autorizzazione_autorizza_spesa" name="Autorizza spesa" delir:owner="Responsabile di Francesca (nome non dichiarato)" delir:office="Ufficio Acquisti" delir:rules="Serve sopra una soglia di importo che nessuna fonte dichiara: domanda aperta." delir:risks="Nessun sostituto formale: se il responsabile non risponde la pratica resta ferma." delir:systems="Mail" delir:inputs="Richiesta completa sopra soglia" delir:outputs="Autorizzazione via mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti">
+      <bpmn:documentation>«…e' una mail che mando e una risposta che aspetto.» (Francesca Neri)</bpmn:documentation>
+      <bpmn:incoming>Flow_richiedi_autorizza</bpmn:incoming>
+      <bpmn:outgoing>Flow_autorizza_merge</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="gw_merge_autorizzazione">
+      <bpmn:incoming>Flow_autorizza_merge</bpmn:incoming>
+      <bpmn:incoming>Flow_autorizzazione_no</bpmn:incoming>
+      <bpmn:outgoing>Flow_merge_seleziona</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="seleziona_fornitore" name="Seleziona fornitore o richiedi quotazioni" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:rules="Ricorrenti: lista personale di fornitori. Nuovi: quotazioni, senza una regola scritta sul numero." delir:risks="Non esiste un albo fornitori formale." delir:files="Intervista Francesca Neri · Ufficio Acquisti">
+      <bpmn:incoming>Flow_merge_seleziona</bpmn:incoming>
+      <bpmn:outgoing>Flow_seleziona_emetti</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="emetti_ordine" name="Emetti ordine al fornitore">
+      <bpmn:incoming>Flow_seleziona_emetti</bpmn:incoming>
+      <bpmn:outgoing>Flow_emetti_ricevi</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="ricevi_merce" name="Ricevi merce in magazzino">
+      <bpmn:incoming>Flow_emetti_ricevi</bpmn:incoming>
+      <bpmn:outgoing>Flow_ricevi_verifica</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="verifica_merce" name="Verifica merce ricevuta">
+      <bpmn:incoming>Flow_ricevi_verifica</bpmn:incoming>
+      <bpmn:outgoing>Flow_verifica_fine</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_1" name="Merce verificata">
+      <bpmn:incoming>Flow_verifica_fine</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_start" sourceRef="StartEvent_1" targetRef="rileva_fabbisogno" />
+    <bpmn:sequenceFlow id="Flow_rileva_urgenza" sourceRef="rileva_fabbisogno" targetRef="urgenza" />
+    <bpmn:sequenceFlow id="Flow_urgenza_ordinaria" name="No" sourceRef="urgenza" targetRef="invia_richiesta_ufficio_tecnico" />
+    <bpmn:sequenceFlow id="Flow_urgenza_linea_ferma" name="Sì" sourceRef="urgenza" targetRef="percorso_urgente_chiama_fornitore_diretto" />
+    <bpmn:sequenceFlow id="Flow_chiama_riferimento" sourceRef="percorso_urgente_chiama_fornitore_diretto" targetRef="percorso_urgente_invia_riferimento_ordine_urgente" />
+    <bpmn:sequenceFlow id="Flow_riferimento_regolarizza" sourceRef="percorso_urgente_invia_riferimento_ordine_urgente" targetRef="percorso_urgente_regolarizza_ordine" />
+    <bpmn:sequenceFlow id="Flow_regolarizza_contabile" sourceRef="percorso_urgente_regolarizza_ordine" targetRef="percorso_urgente_gestione_contabile_fattura" />
+    <bpmn:sequenceFlow id="Flow_contabile_fine" sourceRef="percorso_urgente_gestione_contabile_fattura" targetRef="EndEvent_urgente" />
+    <bpmn:sequenceFlow id="Flow_richiesta_merge" sourceRef="invia_richiesta_ufficio_tecnico" targetRef="gw_merge_richiesta" />
+    <bpmn:sequenceFlow id="Flow_merge_ricostruisci" sourceRef="gw_merge_richiesta" targetRef="ricostruisci_richiesta" />
+    <bpmn:sequenceFlow id="Flow_ricostruisci_invia" sourceRef="ricostruisci_richiesta" targetRef="invia_richiesta_acquisti" />
+    <bpmn:sequenceFlow id="Flow_invia_verifica" sourceRef="invia_richiesta_acquisti" targetRef="verifica_lavorabilita" />
+    <bpmn:sequenceFlow id="Flow_verifica_completa" sourceRef="verifica_lavorabilita" targetRef="gw_richiesta_completa" />
+    <bpmn:sequenceFlow id="Flow_completa_no" name="No" sourceRef="gw_richiesta_completa" targetRef="percorso_integrazione_richiedi_integrazione" />
+    <bpmn:sequenceFlow id="Flow_integrazione_merge" sourceRef="percorso_integrazione_richiedi_integrazione" targetRef="gw_merge_richiesta" />
+    <bpmn:sequenceFlow id="Flow_completa_si" name="Sì" sourceRef="gw_richiesta_completa" targetRef="gw_serve_autorizzazione" />
+    <bpmn:sequenceFlow id="Flow_autorizzazione_si" name="Sì" sourceRef="gw_serve_autorizzazione" targetRef="percorso_autorizzazione_richiedi_autorizzazione" />
+    <bpmn:sequenceFlow id="Flow_richiedi_autorizza" sourceRef="percorso_autorizzazione_richiedi_autorizzazione" targetRef="percorso_autorizzazione_autorizza_spesa" />
+    <bpmn:sequenceFlow id="Flow_autorizza_merge" sourceRef="percorso_autorizzazione_autorizza_spesa" targetRef="gw_merge_autorizzazione" />
+    <bpmn:sequenceFlow id="Flow_autorizzazione_no" name="No" sourceRef="gw_serve_autorizzazione" targetRef="gw_merge_autorizzazione" />
+    <bpmn:sequenceFlow id="Flow_merge_seleziona" sourceRef="gw_merge_autorizzazione" targetRef="seleziona_fornitore" />
+    <bpmn:sequenceFlow id="Flow_seleziona_emetti" sourceRef="seleziona_fornitore" targetRef="emetti_ordine" />
+    <bpmn:sequenceFlow id="Flow_emetti_ricevi" sourceRef="emetti_ordine" targetRef="ricevi_merce" />
+    <bpmn:sequenceFlow id="Flow_ricevi_verifica" sourceRef="ricevi_merce" targetRef="verifica_merce" />
+    <bpmn:sequenceFlow id="Flow_verifica_fine" sourceRef="verifica_merce" targetRef="EndEvent_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_acquisti_indiretti">
+    <bpmndi:BPMNPlane id="Plane_acquisti_indiretti" bpmnElement="Collaboration_acquisti_indiretti">
+      <bpmndi:BPMNShape id="Participant_acquisti_indiretti_di" bpmnElement="Participant_acquisti_indiretti" isHorizontal="true"><dc:Bounds x="40" y="40" width="2780" height="990" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="reparto_di" bpmnElement="reparto" isHorizontal="true"><dc:Bounds x="70" y="40" width="2750" height="220" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ufficio_tecnico_di" bpmnElement="ufficio_tecnico" isHorizontal="true"><dc:Bounds x="70" y="260" width="2750" height="110" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="acquisti_di" bpmnElement="acquisti" isHorizontal="true"><dc:Bounds x="70" y="370" width="2750" height="330" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="responsabile_acquisti_di" bpmnElement="responsabile_acquisti" isHorizontal="true"><dc:Bounds x="70" y="700" width="2750" height="110" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="magazzino_di" bpmnElement="magazzino" isHorizontal="true"><dc:Bounds x="70" y="810" width="2750" height="110" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="amministrazione_di" bpmnElement="amministrazione" isHorizontal="true"><dc:Bounds x="70" y="920" width="2750" height="110" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1"><dc:Bounds x="157" y="77" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="120" y="119" width="110" height="26" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="rileva_fabbisogno_di" bpmnElement="rileva_fabbisogno"><dc:Bounds x="263" y="59" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="urgenza_di" bpmnElement="urgenza" isMarkerVisible="true"><dc:Bounds x="450" y="70" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="420" y="40" width="110" height="26" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="invia_richiesta_ufficio_tecnico_di" bpmnElement="invia_richiesta_ufficio_tecnico"><dc:Bounds x="563" y="59" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="percorso_urgente_chiama_fornitore_diretto_di" bpmnElement="percorso_urgente_chiama_fornitore_diretto"><dc:Bounds x="563" y="169" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="percorso_urgente_invia_riferimento_ordine_urgente_di" bpmnElement="percorso_urgente_invia_riferimento_ordine_urgente"><dc:Bounds x="713" y="169" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_merge_richiesta_di" bpmnElement="gw_merge_richiesta" isMarkerVisible="true"><dc:Bounds x="900" y="290" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ricostruisci_richiesta_di" bpmnElement="ricostruisci_richiesta"><dc:Bounds x="1013" y="279" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="invia_richiesta_acquisti_di" bpmnElement="invia_richiesta_acquisti"><dc:Bounds x="1163" y="279" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="percorso_urgente_regolarizza_ordine_di" bpmnElement="percorso_urgente_regolarizza_ordine"><dc:Bounds x="713" y="609" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="percorso_urgente_gestione_contabile_fattura_di" bpmnElement="percorso_urgente_gestione_contabile_fattura"><dc:Bounds x="863" y="939" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_urgente_di" bpmnElement="EndEvent_urgente"><dc:Bounds x="1057" y="957" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="1020" y="999" width="110" height="26" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="verifica_lavorabilita_di" bpmnElement="verifica_lavorabilita"><dc:Bounds x="1313" y="389" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_richiesta_completa_di" bpmnElement="gw_richiesta_completa" isMarkerVisible="true"><dc:Bounds x="1500" y="400" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1470" y="370" width="110" height="26" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="percorso_integrazione_richiedi_integrazione_di" bpmnElement="percorso_integrazione_richiedi_integrazione"><dc:Bounds x="1463" y="499" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_serve_autorizzazione_di" bpmnElement="gw_serve_autorizzazione" isMarkerVisible="true"><dc:Bounds x="1650" y="400" width="50" height="50" /><bpmndi:BPMNLabel><dc:Bounds x="1620" y="370" width="110" height="26" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="percorso_autorizzazione_richiedi_autorizzazione_di" bpmnElement="percorso_autorizzazione_richiedi_autorizzazione"><dc:Bounds x="1613" y="499" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="percorso_autorizzazione_autorizza_spesa_di" bpmnElement="percorso_autorizzazione_autorizza_spesa"><dc:Bounds x="1763" y="719" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_merge_autorizzazione_di" bpmnElement="gw_merge_autorizzazione" isMarkerVisible="true"><dc:Bounds x="1950" y="400" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="seleziona_fornitore_di" bpmnElement="seleziona_fornitore"><dc:Bounds x="2063" y="389" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="emetti_ordine_di" bpmnElement="emetti_ordine"><dc:Bounds x="2213" y="389" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="ricevi_merce_di" bpmnElement="ricevi_merce"><dc:Bounds x="2363" y="829" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="verifica_merce_di" bpmnElement="verifica_merce"><dc:Bounds x="2513" y="59" width="124" height="72" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_1_di" bpmnElement="EndEvent_1"><dc:Bounds x="2707" y="77" width="36" height="36" /><bpmndi:BPMNLabel><dc:Bounds x="2670" y="119" width="110" height="26" /></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_start_di" bpmnElement="Flow_start"><di:waypoint x="193" y="95" /><di:waypoint x="263" y="95" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rileva_urgenza_di" bpmnElement="Flow_rileva_urgenza"><di:waypoint x="387" y="95" /><di:waypoint x="450" y="95" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_urgenza_ordinaria_di" bpmnElement="Flow_urgenza_ordinaria"><di:waypoint x="500" y="95" /><di:waypoint x="563" y="95" /><bpmndi:BPMNLabel><dc:Bounds x="510" y="73" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_urgenza_linea_ferma_di" bpmnElement="Flow_urgenza_linea_ferma"><di:waypoint x="475" y="120" /><di:waypoint x="475" y="205" /><di:waypoint x="563" y="205" /><bpmndi:BPMNLabel><dc:Bounds x="483" y="124" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_chiama_riferimento_di" bpmnElement="Flow_chiama_riferimento"><di:waypoint x="687" y="205" /><di:waypoint x="713" y="205" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_riferimento_regolarizza_di" bpmnElement="Flow_riferimento_regolarizza"><di:waypoint x="775" y="241" /><di:waypoint x="775" y="609" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_regolarizza_contabile_di" bpmnElement="Flow_regolarizza_contabile"><di:waypoint x="837" y="645" /><di:waypoint x="925" y="645" /><di:waypoint x="925" y="939" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_contabile_fine_di" bpmnElement="Flow_contabile_fine"><di:waypoint x="987" y="975" /><di:waypoint x="1057" y="975" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_richiesta_merge_di" bpmnElement="Flow_richiesta_merge"><di:waypoint x="687" y="95" /><di:waypoint x="925" y="95" /><di:waypoint x="925" y="290" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_ricostruisci_di" bpmnElement="Flow_merge_ricostruisci"><di:waypoint x="950" y="315" /><di:waypoint x="1013" y="315" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ricostruisci_invia_di" bpmnElement="Flow_ricostruisci_invia"><di:waypoint x="1137" y="315" /><di:waypoint x="1163" y="315" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_invia_verifica_di" bpmnElement="Flow_invia_verifica"><di:waypoint x="1287" y="315" /><di:waypoint x="1375" y="315" /><di:waypoint x="1375" y="389" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_verifica_completa_di" bpmnElement="Flow_verifica_completa"><di:waypoint x="1437" y="425" /><di:waypoint x="1500" y="425" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_completa_no_di" bpmnElement="Flow_completa_no"><di:waypoint x="1525" y="450" /><di:waypoint x="1525" y="499" /><bpmndi:BPMNLabel><dc:Bounds x="1533" y="454" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_integrazione_merge_di" bpmnElement="Flow_integrazione_merge"><di:waypoint x="1463" y="535" /><di:waypoint x="925" y="535" /><di:waypoint x="925" y="340" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_completa_si_di" bpmnElement="Flow_completa_si"><di:waypoint x="1550" y="425" /><di:waypoint x="1650" y="425" /><bpmndi:BPMNLabel><dc:Bounds x="1560" y="403" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_autorizzazione_si_di" bpmnElement="Flow_autorizzazione_si"><di:waypoint x="1675" y="450" /><di:waypoint x="1675" y="499" /><bpmndi:BPMNLabel><dc:Bounds x="1683" y="454" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_richiedi_autorizza_di" bpmnElement="Flow_richiedi_autorizza"><di:waypoint x="1737" y="535" /><di:waypoint x="1825" y="535" /><di:waypoint x="1825" y="719" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_autorizza_merge_di" bpmnElement="Flow_autorizza_merge"><di:waypoint x="1887" y="755" /><di:waypoint x="1975" y="755" /><di:waypoint x="1975" y="450" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_autorizzazione_no_di" bpmnElement="Flow_autorizzazione_no"><di:waypoint x="1700" y="425" /><di:waypoint x="1950" y="425" /><bpmndi:BPMNLabel><dc:Bounds x="1710" y="403" width="24" height="16" /></bpmndi:BPMNLabel></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_merge_seleziona_di" bpmnElement="Flow_merge_seleziona"><di:waypoint x="2000" y="425" /><di:waypoint x="2063" y="425" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_seleziona_emetti_di" bpmnElement="Flow_seleziona_emetti"><di:waypoint x="2187" y="425" /><di:waypoint x="2213" y="425" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_emetti_ricevi_di" bpmnElement="Flow_emetti_ricevi"><di:waypoint x="2337" y="425" /><di:waypoint x="2425" y="425" /><di:waypoint x="2425" y="829" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ricevi_verifica_di" bpmnElement="Flow_ricevi_verifica"><di:waypoint x="2487" y="865" /><di:waypoint x="2575" y="865" /><di:waypoint x="2575" y="131" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_verifica_fine_di" bpmnElement="Flow_verifica_fine"><di:waypoint x="2637" y="95" /><di:waypoint x="2707" y="95" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

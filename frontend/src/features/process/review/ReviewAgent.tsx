@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUp, ArrowUpRight, BookOpen, ChevronDown, FlaskConical, Square, X } from "lucide-react";
+import { ArrowUp, ArrowUpRight, BookOpen, ChevronDown, FlaskConical, Grip, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/ui/button";
 import { Surface } from "@/ui/surface";
@@ -44,12 +44,39 @@ export function ReviewAgent({ node, projectId, processId, processName, bpmnModel
   const clamp = (next: { width: number; height: number }) => ({ width: Math.max(Math.min(280, available.width), Math.min(available.width, next.width)), height: Math.max(Math.min(320, available.height), Math.min(available.height, next.height)) });
   const current = size ? clamp(size) : { width: Math.min(392, available.width), height: Math.min(560, available.height) };
   const trigger = React.useRef<HTMLButtonElement>(null);
+  const launcher = React.useRef<HTMLDivElement>(null);
+  const [position, setPosition] = React.useState<{ left: number; top: number } | null>(null);
+  const [stageSize, setStageSize] = React.useState({ width: 1, height: 1, avatarWidth: 196, avatarHeight: 64 });
+  const moveGesture = React.useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  React.useLayoutEffect(() => {
+    const stage = launcher.current?.parentElement;
+    if (!stage) return;
+    const measure = () => setStageSize(previous => ({ width: stage.clientWidth, height: stage.clientHeight, avatarWidth: launcher.current?.offsetWidth || previous.avatarWidth, avatarHeight: launcher.current?.offsetHeight || previous.avatarHeight }));
+    measure(); const observer = new ResizeObserver(measure); observer.observe(stage); if (launcher.current) observer.observe(launcher.current);
+    return () => observer.disconnect();
+  }, []);
+  const clampPosition = (next: { left: number; top: number }) => ({
+    left: Math.max(8, Math.min(Math.max(8, stageSize.width - stageSize.avatarWidth - 8), next.left)),
+    top: Math.max(8, Math.min(Math.max(8, stageSize.height - stageSize.avatarHeight - 44), next.top)),
+  });
+  const placed = position || anchor;
   const close = () => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true })); };
   return <>
-    <Surface asChild variant="floating"><Button ref={trigger} variant="ghost" className={`review-agent-launcher ${open ? "review-agent-launcher--open" : ""}`} style={!open && anchor ? { ...anchor, right: "auto", bottom: "auto" } : undefined} aria-label={t("review.agent.open")} aria-expanded={open} aria-controls={chatId} onClick={() => open ? close() : setOpen(true)}>
+    <div ref={launcher} className="review-agent-position" hidden={open} style={placed ? { left: `clamp(8px, ${placed.left}px, max(8px, calc(100% - ${stageSize.avatarWidth}px - 8px)))`, top: `clamp(8px, ${placed.top}px, max(8px, calc(100% - ${stageSize.avatarHeight}px - 44px)))`, right: "auto", bottom: "auto" } : undefined}>
+    <Surface asChild variant="floating"><Button ref={trigger} variant="ghost" className="review-agent-launcher" aria-label={t("review.agent.open")} aria-expanded={open} aria-controls={chatId} onClick={() => setOpen(true)}>
       <span key={node?.id ?? "process"} className="review-mascot-orbit"><ReviewMascot /></span>
       <span className="review-agent-launcher-copy"><b>DeliR</b><span>{node?.name ?? t("review.agent.invite")}</span></span>
     </Button></Surface>
+    <Button variant="ghost" size="icon-sm" className="review-agent-move" aria-label={t("review.agent.move")} title={t("review.agent.moveHint")} onPointerDown={event => {
+      if (event.button !== 0 || !launcher.current) return;
+      moveGesture.current = { x: event.clientX, y: event.clientY, left: launcher.current.offsetLeft, top: launcher.current.offsetTop };
+      event.preventDefault(); event.stopPropagation(); event.currentTarget.setPointerCapture(event.pointerId);
+    }} onPointerMove={event => { const start = moveGesture.current; if (start) setPosition(clampPosition({ left: start.left + event.clientX - start.x, top: start.top + event.clientY - start.y })); }} onPointerUp={event => { moveGesture.current = null; if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }} onPointerCancel={() => { moveGesture.current = null; }} onLostPointerCapture={() => { moveGesture.current = null; }} onKeyDown={event => {
+      const steps: Record<string, [number, number]> = { ArrowLeft: [-20, 0], ArrowRight: [20, 0], ArrowUp: [0, -20], ArrowDown: [0, 20] };
+      const step = steps[event.key]; if (step && launcher.current) { event.preventDefault(); event.stopPropagation(); setPosition(clampPosition({ left: launcher.current.offsetLeft + step[0], top: launcher.current.offsetTop + step[1] })); }
+      if (event.key === "Home") { event.preventDefault(); setPosition(null); }
+    }}><Grip aria-hidden /></Button>
+    </div>
     <Surface ref={panel} variant="floating" id={chatId} style={size ? { width: current.width, height: current.height } : undefined} className="review-agent-chat" role="dialog" aria-label={t("review.agent.title")} hidden={!open} onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
       <CanvasResizeHandle label={t("review.agent.resize")} hint={t("review.agent.resizeHint")} className="review-chat-resize" aria-description={`${Math.round(current.width)} × ${Math.round(current.height)} px`} onPointerDown={event => {
         if (event.button !== 0 || !panel.current) return;
@@ -61,7 +88,7 @@ export function ReviewAgent({ node, projectId, processId, processName, bpmnModel
         if (event.key === "Home") { event.preventDefault(); setSize(null); }
       }} />
       <header className="review-chat-header"><ReviewMascot /><div className="review-chat-heading"><span>DeliR <span className="text-muted-foreground">/ Review</span></span><h3>{node?.name ?? t("review.agent.chooseTitle")}</h3></div><div className="flex shrink-0 gap-1">{node && <Button variant="ghost" size="icon-sm" aria-label={t("review.agent.details")} onClick={onDetails}><BookOpen aria-hidden /></Button>}<Button variant="ghost" size="icon-sm" aria-label={t("review.agent.close")} onClick={close}><X aria-hidden /></Button></div></header>
-      {node ? <TaskReviewConversation node={node} open={open} scope={{ type: "canvas", projectId, processId, processName, bpmnModelId, reviewNodeId: node.id, reviewBaseRevision: revision }} draft={drafts[node.id] ?? ""} onDraft={value => setDrafts(previous => ({ ...previous, [node.id]: value }))} onPropose={onPropose} onSimulation={onSimulation} /> : <div className="review-chat-empty"><ReviewMascot /><h4>{t("review.agent.chooseTitle")}</h4><p>{t("review.agent.chooseDescription")}</p><Button size="sm" variant="outline" onClick={onChooseTask}>{t("review.agent.chooseTask")}</Button></div>}
+      {node ? <TaskReviewConversation key={node.id} node={node} open={open} scope={{ type: "canvas", projectId, processId, processName, bpmnModelId, reviewNodeId: node.id, reviewBaseRevision: revision }} draft={drafts[node.id] ?? ""} onDraft={value => setDrafts(previous => ({ ...previous, [node.id]: value }))} onPropose={onPropose} onSimulation={onSimulation} /> : <div className="review-chat-empty"><ReviewMascot /><h4>{t("review.agent.chooseTitle")}</h4><p>{t("review.agent.chooseDescription")}</p><Button size="sm" variant="outline" onClick={onChooseTask}>{t("review.agent.chooseTask")}</Button></div>}
     </Surface>
   </>;
 }
@@ -72,7 +99,7 @@ function TaskReviewConversation({ node, scope, open, draft, onDraft, onPropose, 
 }) {
   const { t } = useTranslation("process");
   const sessions = useChatSessions(scope, "gpt-5.6-luna");
-  const stream = useChatStream({ scope, selectedModel: "gpt-5.6-luna", choices: { posture: "review", autonomy: "manual", reasoning: "medium" }, activeSession: sessions.activeSession, ensureThread: sessions.ensureThread, selectThread: sessions.selectThread, commitTranscript: sessions.commitTranscript });
+  const stream = useChatStream({ scope, selectedModel: "gpt-5.6-luna", choices: { posture: "review", autonomy: "manual", reasoning: "medium" }, activeSession: sessions.activeSession, currentThreadId: sessions.currentThreadId, ensureThread: sessions.ensureThread, selectThread: sessions.selectThread, commitTranscript: sessions.commitTranscript });
   const messages = stream.liveThreadId && stream.liveThreadId === sessions.currentThreadId ? stream.liveMessages ?? [] : sessions.activeSession?.messages ?? [];
   const proposalTrigger = React.useRef<HTMLButtonElement | null>(null);
   const input = React.useRef<HTMLTextAreaElement>(null);

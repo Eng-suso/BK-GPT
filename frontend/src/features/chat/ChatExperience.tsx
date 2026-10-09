@@ -94,6 +94,7 @@ export const ChatExperience: React.FC<ChatExperienceProps> = ({
     selectedModel,
     choices: { posture, autonomy, reasoning: reasoningEffort },
     activeSession: sessions.activeSession,
+    currentThreadId: sessions.currentThreadId,
     ensureThread: sessions.ensureThread,
     selectThread: sessions.selectThread,
     commitTranscript: sessions.commitTranscript,

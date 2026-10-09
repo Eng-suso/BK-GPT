@@ -1,0 +1,95 @@
+{
+  "disclaimer": "Azienda e persone fittizie · caso dimostrativo",
+  "hold": 2.6,
+  "scenes": [
+    {
+      "id": "01-gancio",
+      "card": "hook",
+      "title": "Nessuno conosce il processo intero."
+    },
+    {
+      "id": "02-capire",
+      "caption": "Fatti, ipotesi, lacune. Separati.",
+      "landing": "fonti-e-affermazioni"
+    },
+    {
+      "id": "03-passaggio-nascosto",
+      "caption": "Due non sanno. Una sì.",
+      "landing": "passaggio-nascosto"
+    },
+    {
+      "id": "04-lacuna",
+      "caption": "DeliR non inventa. Te lo chiede.",
+      "landing": "lacuna-aperta"
+    },
+    {
+      "id": "05-ogni-passaggio-una-fonte",
+      "caption": "Ogni passaggio ha una fonte.",
+      "landing": "evidenze-sul-processo"
+    },
+    {
+      "id": "06-ultima-parola",
+      "caption": "L'ultima parola è tua.",
+      "landing": "versioni"
+    },
+    {
+      "id": "07-simula-as-is",
+      "caption": "Oggi: più di metà delle richieste torna indietro.",
+      "landing": "simulazione-as-is"
+    },
+    {
+      "id": "07b-heatmap",
+      "caption": "Il collo di bottiglia, misurato.",
+      "landing": "heatmap-collo-di-bottiglia"
+    },
+    {
+      "id": "08-to-be",
+      "caption": "Il To-Be l'avevano già chiesto loro.",
+      "landing": "ipotesi-to-be"
+    },
+    {
+      "id": "09-simula-to-be",
+      "caption": "Stesse richieste. Processo nuovo.",
+      "landing": "simulazione-to-be"
+    },
+    {
+      "id": "10-decidi",
+      "caption": "Non un'opinione. Una simulazione.",
+      "landing": "confronto"
+    },
+    {
+      "id": "11-process-owner",
+      "caption": "Prossimo passo: il process owner.",
+      "landing": "prossimo-passo"
+    },
+    {
+      "id": "12-memoria",
+      "caption": "Tutto resta nella memoria di DeliR.",
+      "captions": [
+        {
+          "text": "Per ogni cliente. Per ogni progetto.",
+          "mark": "portfolio",
+          "duration": 3
+        }
+      ],
+      "landing": "memoria"
+    },
+    {
+      "id": "13-chiusura",
+      "card": "close",
+      "title": "Non disegnare il processo. Dimostralo."
+    }
+  ],
+  "hero": [
+    {
+      "scene": "03-passaggio-nascosto",
+      "from": 2.6,
+      "duration": 8
+    },
+    {
+      "scene": "07-simula-as-is",
+      "from": 2.6,
+      "duration": 9
+    }
+  ]
+}
