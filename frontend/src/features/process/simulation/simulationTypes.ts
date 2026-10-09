@@ -254,15 +254,20 @@ export type SimResourceInput = {
   calendarId?: string;
 };
 
-export type SimTaskInput = {
-  elementId: string;
+export type SimDurationInput = {
   meanSeconds: number;
   distribution: DistributionName;
-  resourceId: string | null;
   /** Assenti = le assunzioni del backend (dev. std al 10%, limiti a ±3σ). */
   stdSeconds?: number;
   minSeconds?: number;
   maxSeconds?: number;
+};
+
+export type SimTaskInput = SimDurationInput & {
+  elementId: string;
+  resourceId: string | null;
+  /** Gli altri ruoli che possono svolgere l'attività, ognuno con la sua durata. */
+  otherAssignments?: (SimDurationInput & { resourceId: string })[];
 };
 
 export type SimGatewayInput = {

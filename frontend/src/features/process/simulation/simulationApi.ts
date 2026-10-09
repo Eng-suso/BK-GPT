@@ -47,6 +47,14 @@ export async function runProsimosSimulation(
           std_seconds: task.stdSeconds,
           min_seconds: task.minSeconds,
           max_seconds: task.maxSeconds,
+          other_assignments: task.otherAssignments?.map((other) => ({
+            resource_id: other.resourceId,
+            mean_seconds: other.meanSeconds,
+            distribution: other.distribution,
+            std_seconds: other.stdSeconds,
+            min_seconds: other.minSeconds,
+            max_seconds: other.maxSeconds,
+          })),
         })),
         gateways: input.gateways?.map((g) => ({
           element_id: g.elementId,
