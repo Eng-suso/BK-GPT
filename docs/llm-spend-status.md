@@ -352,8 +352,9 @@ Riletti dalle pagine ufficiali l'8/10/2026 (`developers.openai.com/api/docs/pric
 l'output di `gpt-5.6-luna` e' 1.20, non 0.75. Limiti del listino, che e' un
 prezzo per modello e non per scaglione: `claude-haiku-5-5` sopra i 100.000 token
 di prompt costa 0.50 input / 2.50 output (cache 0.05), e il listino usa il
-prezzo basso, quindi sottostima i prompt lunghi; i modelli OpenAI valgono fino a
-272.000 token di input.
+prezzo basso, quindi sottostima i prompt lunghi. Lo stesso per OpenAI: i prezzi
+in tabella valgono fino a 272.000 token di input; sopra, l'intera richiesta costa
+2x l'input (e il cached input) e 1,5x l'output, e il listino la sottostima.
 
 Tre cose che nessun test col confine di rete finto poteva dire:
 
