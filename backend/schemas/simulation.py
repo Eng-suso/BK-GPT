@@ -36,6 +36,20 @@ class SimResourceConfig(BaseModel):
     calendar_id: str | None = Field(default=None, max_length=64)
 
 
+class SimTaskAssignmentConfig(BaseModel):
+    """Un'altra risorsa che puo' svolgere l'attivita', con la sua durata.
+
+    I parametri della durata seguono le stesse regole di ``SimTaskConfig``.
+    """
+
+    resource_id: str = Field(min_length=1, max_length=64)
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "norm"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+
+
 class SimTaskConfig(BaseModel):
     """La durata di un'attivita'. Oltre alla media, i parametri facoltativi:
 
@@ -43,6 +57,10 @@ class SimTaskConfig(BaseModel):
     - ``min_seconds``/``max_seconds``: i limiti della distribuzione. Assenti,
       +-3 deviazioni standard (mai sotto zero), o 0 e 10 volte la media per
       l'esponenziale. L'uniforme li richiede entrambi.
+
+    ``other_assignments``: le altre risorse che possono svolgerla, ognuna con
+    la sua durata. Il motore da' il caso alla prima risorsa libera fra
+    ``resource_id`` e queste.
     """
 
     element_id: str = Field(min_length=1)
@@ -52,6 +70,7 @@ class SimTaskConfig(BaseModel):
     std_seconds: float | None = Field(default=None, gt=0)
     min_seconds: float | None = Field(default=None, ge=0)
     max_seconds: float | None = Field(default=None, gt=0)
+    other_assignments: list[SimTaskAssignmentConfig] = Field(default_factory=list, max_length=20)
 
 
 class SimGatewayBranchConfig(BaseModel):

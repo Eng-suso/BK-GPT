@@ -21,12 +21,16 @@ import {
   newResourceId,
   resourceParametersValid,
   scenarioParameterIssues,
+  roleLabel,
   scenarioResourceIssues,
+  taskResourceIds,
+  withValidOtherAssignments,
   type ScenarioDraft,
 } from "./simulationScenario";
 import type { InputConfidence } from "./simulationProvenance";
 import { ProvenanceChip } from "./ProvenanceChip";
 import { TaskDurationFields } from "./TaskDurationFields";
+import { OtherAssignments } from "./OtherAssignments";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
@@ -263,7 +267,7 @@ export function SimulationConfigRail({
           )}
           <ul className="grid gap-3">
             {draft.resources.map((resource) => {
-              const assigned = Object.values(draft.tasks).filter((task) => task.resourceId === resource.id).length;
+              const assigned = Object.values(draft.tasks).filter((task) => taskResourceIds(task).includes(resource.id)).length;
               const confirmed = resource.parametersConfirmed !== false && resourceParametersValid(resource);
               const context = [resource.source?.pool_name, resource.source?.parent_name].filter(Boolean).join(" / ");
               return (
@@ -274,11 +278,17 @@ export function SimulationConfigRail({
                       {context && <p className="break-words text-xs text-muted-foreground">{context}</p>}
                       <StatusIndicator tone={confirmed ? "ok" : "pending"} label={t(confirmed ? "simulation.config.resourceConfirmed" : "simulation.config.resourcePending")} />
                     </div>
-                    <Button type="button" size="icon" variant="ghost" aria-label={`${t("simulation.config.removeResource")} ${resource.name}`} onClick={() => patch({
-                      resources: draft.resources.filter((r) => r.id !== resource.id),
-                      excludedResourceIds: resource.source ? [...(draft.excludedResourceIds ?? []), resource.id] : draft.excludedResourceIds,
-                      tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, task.resourceId === resource.id ? { ...task, resourceId: "", assignmentSource: "manual" as const } : task])),
-                    })}><X aria-hidden className="size-4" /></Button>
+                    <Button type="button" size="icon" variant="ghost" aria-label={`${t("simulation.config.removeResource")} ${resource.name}`} onClick={() => {
+                      const remaining = draft.resources.filter((r) => r.id !== resource.id);
+                      const remainingIds = new Set(remaining.map((r) => r.id));
+                      patch({
+                        resources: remaining,
+                        excludedResourceIds: resource.source ? [...(draft.excludedResourceIds ?? []), resource.id] : draft.excludedResourceIds,
+                        // Il ruolo tolto sparisce anche dagli altri ruoli delle attività.
+                        tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, withValidOtherAssignments(
+                          task.resourceId === resource.id ? { ...task, resourceId: "", assignmentSource: "manual" as const } : task, remainingIds)])),
+                      });
+                    }}><X aria-hidden className="size-4" /></Button>
                   </div>
                   <FieldLabel label={t("simulation.config.role")}>
                     <Input value={resource.name} onChange={(e) => updateResource(resource.id, { name: e.target.value, parametersConfirmed: false })} />
@@ -302,7 +312,7 @@ export function SimulationConfigRail({
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}
-                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" className="h-auto min-h-9 max-w-full whitespace-normal text-left" onClick={() => patch({ tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, draft.resources.some((r) => r.id === task.resourceId) ? task : { ...task, resourceId: resource.id, assignmentSource: "manual" as const }])) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
+                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" className="h-auto min-h-9 max-w-full whitespace-normal text-left" onClick={() => patch({ tasks: assignUnassignedTasks(draft, resource.id) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
                   </div>
                 </li>
               );
@@ -376,7 +386,11 @@ export function SimulationConfigRail({
                             patch({
                               tasks: {
                                 ...draft.tasks,
-                                [task.element_id]: { ...cfg, resourceId: value, assignmentSource: "manual" },
+                                // Se il nuovo principale era fra gli altri ruoli, lì non serve più.
+                                [task.element_id]: withValidOtherAssignments(
+                                  { ...cfg, resourceId: value, assignmentSource: "manual" },
+                                  new Set(draft.resources.map((r) => r.id)),
+                                ),
                               },
                             })
                           }
@@ -387,13 +401,20 @@ export function SimulationConfigRail({
                           <SelectContent>
                             {draft.resources.map((r) => (
                               <SelectItem key={r.id} value={r.id}>
-                                {r.source?.pool_name && r.source.kind === "lane" ? `${r.source.pool_name} / ${r.name}` : r.name}
+                                {roleLabel(r)}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </FieldLabel>
                     </div>
+                    <OtherAssignments
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      resources={draft.resources}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
                   </li>
                 );
               })}
@@ -567,6 +588,14 @@ export function SimulationConfigRail({
       )}
     </div>
   );
+}
+
+/** Le attività senza un ruolo valido passano a ``resourceId``, che sparisce dai loro altri ruoli. */
+function assignUnassignedTasks(draft: ScenarioDraft, resourceId: string): ScenarioDraft["tasks"] {
+  const ids = new Set(draft.resources.map((r) => r.id));
+  return Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, ids.has(task.resourceId)
+    ? task
+    : withValidOtherAssignments({ ...task, resourceId, assignmentSource: "manual" as const }, ids)]));
 }
 
 function NumberField({

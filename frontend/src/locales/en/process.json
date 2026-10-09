@@ -322,7 +322,14 @@
       },
       "ruleValue": "Value for {{attribute}}",
       "removeCondition": "Remove the condition on {{attribute}}",
-      "ruleChooseValue": "Choose a value"
+      "ruleChooseValue": "Choose a value",
+      "otherRoles": "Can also be done by",
+      "addOtherRole": "Add another role",
+      "addOtherRoleFor": "Add another role to {{task}}",
+      "otherRolesHint": "Each case goes to the first free role. Each role has its own duration.",
+      "otherRolesNoneFree": "Every role already does this activity. To add another, create it in Resources.",
+      "otherRoleOf": "Other role · {{task}}",
+      "removeOtherRole": "Remove {{role}} from {{task}}"
     },
     "diagram": {
       "title": "Process model",
@@ -393,7 +400,8 @@
       "assignment": "Resource {{n}} of {{total}}",
       "byRule": "chosen by rule",
       "and": "and",
-      "or": "or"
+      "or": "or",
+      "sharedActivity": "Several resources do this activity: each case went to the first free one, with its own duration."
     },
     "provenance": {
       "label": "Source",

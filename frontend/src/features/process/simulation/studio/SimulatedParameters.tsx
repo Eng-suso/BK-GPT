@@ -66,9 +66,12 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
     body = !view
       ? <p className="sim-help">{t("simulation.activityInspector.notSimulated")}</p>
       : view.kind === "activity"
-        ? view.assignments.map((assignment, index) => (
-            <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
-          ))
+        ? <>
+            {view.assignments.length > 1 && <p className="sim-help">{t("simulation.activityInspector.sharedActivity")}</p>}
+            {view.assignments.map((assignment, index) => (
+              <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
+            ))}
+          </>
         : <Branches branches={view.branches} provenance={view.provenance} lang={lang} t={t} provenanceState={provenance} />;
   } else {
     // Ripiego dichiarato: run anteriore al modello conservato, o modello non arrivato.

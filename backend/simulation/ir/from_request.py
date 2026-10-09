@@ -238,17 +238,43 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
         "norm", float(request.default_task_duration_seconds)
     )
     resource_id = override.resource_id if override and override.resource_id in resource_ids else default_resource_id
+    primary = Assignment(
+        resource_id=resource_id,
+        duration=duration_,
+        provenance=_MANUAL if _duration_set(override, request) else None,
+    )
     return Activity(
         element_id=task.id,
         name=task.name,
-        assignments=(
-            Assignment(
-                resource_id=resource_id,
-                duration=duration_,
-                provenance=_MANUAL if _duration_set(override, request) else None,
-            ),
-        ),
+        assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
     )
+
+
+def _other_assignments(task: BpmnTask, override, primary_id: str, resource_ids: set[str]) -> list[Assignment]:
+    """Le altre risorse che il consulente ha messo sull'attivita', ognuna con la sua durata."""
+    if not override or not override.other_assignments:
+        return []
+    label = task.name or task.id
+    seen = {primary_id}
+    assignments = []
+    for cfg in override.other_assignments:
+        if cfg.resource_id not in resource_ids:
+            raise ValueError(f"«{label}»: una delle risorse aggiunte non esiste più. Sceglila di nuovo.")
+        if cfg.resource_id in seen:
+            raise ValueError(f"«{label}»: la stessa risorsa compare due volte. Tienila una volta sola.")
+        seen.add(cfg.resource_id)
+        try:
+            duration_ = duration(
+                cfg.distribution,
+                float(cfg.mean_seconds),
+                std=cfg.std_seconds,
+                minimum=cfg.min_seconds,
+                maximum=cfg.max_seconds,
+            )
+        except ValueError as exc:
+            raise ValueError(f"«{label}»: {exc}") from exc
+        assignments.append(Assignment(resource_id=cfg.resource_id, duration=duration_, provenance=_MANUAL))
+    return assignments
 
 
 def _duration_set(override: SimTaskConfig | None, request: CreateSimulationRunRequest) -> bool:

@@ -4,15 +4,16 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/ui/input";
 
 import { DISTRIBUTIONS, type DistributionName } from "./simulationTypes";
-import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type TaskDraft } from "./simulationScenario";
+import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type DurationDraft } from "./simulationScenario";
 
 const NATIVE_SELECT = "h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm";
 
 /**
  * La durata di un'attività: distribuzione e i parametri che quella distribuzione usa.
  * I campi facoltativi vuoti restano vuoti: le ipotesi standard le applica il backend.
+ * Serve sia per il ruolo principale sia per ogni altro ruolo dell'attività.
  */
-export function TaskDurationFields({
+export function TaskDurationFields<T extends DurationDraft>({
   elementId,
   taskName,
   task,
@@ -20,8 +21,8 @@ export function TaskDurationFields({
 }: {
   elementId: string;
   taskName: string;
-  task: TaskDraft;
-  onChange: (next: TaskDraft) => void;
+  task: T;
+  onChange: (next: T) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const parameters = DISTRIBUTION_PARAMETERS[task.distribution];

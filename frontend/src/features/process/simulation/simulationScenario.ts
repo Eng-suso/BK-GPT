@@ -25,15 +25,24 @@ export type ResourceDraft = {
   calendarId?: string;
 };
 
-export type TaskDraft = {
+/** La durata di un'attività per un ruolo, in minuti. */
+export type DurationDraft = {
   meanMinutes: number;
   distribution: DistributionName;
-  resourceId: string;
-  assignmentSource?: "bpmn" | "manual";
   /** Facoltativi: assenti, il backend applica le ipotesi standard. */
   stdMinutes?: number;
   minMinutes?: number;
   maxMinutes?: number;
+};
+
+/** Un altro ruolo che può svolgere l'attività, con la sua durata (A2-2). */
+export type AssignmentDraft = DurationDraft & { resourceId: string };
+
+export type TaskDraft = DurationDraft & {
+  resourceId: string;
+  assignmentSource?: "bpmn" | "manual";
+  /** Gli altri ruoli: il motore dà il caso al primo libero. */
+  otherAssignments?: AssignmentDraft[];
 };
 
 /** Un calendario di lavoro dello scenario, con orari ``HH:MM``. */
@@ -101,7 +110,7 @@ const seconds = (minutes: number | undefined) =>
   minutes === undefined ? undefined : Math.max(0, Math.round(minutes * 60));
 
 /** Cosa manca alla durata per costruire la richiesta; il resto lo valida il backend. */
-export function taskDurationIssue(task: TaskDraft): TaskDurationIssue | null {
+export function taskDurationIssue(task: DurationDraft): TaskDurationIssue | null {
   if (!DISTRIBUTION_PARAMETERS[task.distribution].bounds) return null;
   if (task.distribution === "uniform" && (task.minMinutes === undefined || task.maxMinutes === undefined)) {
     return "uniformBounds";
@@ -124,7 +133,8 @@ export function calendarIssue(calendar: CalendarDraft): CalendarIssue | null {
 }
 
 export function scenarioParameterIssues(draft: ScenarioDraft) {
-  const durations = Object.values(draft.tasks).filter((task) => taskDurationIssue(task) !== null).length;
+  const durations = Object.values(draft.tasks).filter((task) =>
+    [task, ...(task.otherAssignments ?? [])].some((duration) => taskDurationIssue(duration) !== null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   return { durations, calendars, ready: durations === 0 && calendars === 0 };
 }
@@ -135,11 +145,58 @@ export function newCalendarId(existing: CalendarDraft[]): string {
   return `cal-${n}`;
 }
 
-function taskMeanSeconds(task: TaskDraft): number {
+/** Il nome del ruolo come lo mostra il pannello: per una lane anche la pool. */
+export function roleLabel(resource: ResourceDraft): string {
+  return resource.source?.pool_name && resource.source.kind === "lane" ? `${resource.source.pool_name} / ${resource.name}` : resource.name;
+}
+
+/** I ruoli dell'attività, il principale per primo. */
+export function taskResourceIds(task: TaskDraft): string[] {
+  return [task.resourceId, ...(task.otherAssignments ?? []).map((a) => a.resourceId)];
+}
+
+/**
+ * Tiene solo gli altri ruoli che esistono ancora e che non ripetono un ruolo già
+ * presente: un ruolo tolto dalle risorse, o diventato il principale, sparisce.
+ */
+export function withValidOtherAssignments(task: TaskDraft, resourceIds: ReadonlySet<string>): TaskDraft {
+  if (task.otherAssignments === undefined) return task;
+  // Una bozza salvata a mano o da una versione vecchia non deve rompere il pannello.
+  if (!Array.isArray(task.otherAssignments)) return { ...task, otherAssignments: undefined };
+  const seen = new Set([task.resourceId]);
+  const kept = task.otherAssignments.filter((a) => {
+    if (!a || typeof a !== "object" || !resourceIds.has(a.resourceId) || seen.has(a.resourceId)) return false;
+    seen.add(a.resourceId);
+    return true;
+  });
+  return kept.length === task.otherAssignments.length ? task : { ...task, otherAssignments: kept };
+}
+
+/** Un altro ruolo per l'attività: il primo non ancora usato, con la stessa durata come punto di partenza. */
+export function newOtherAssignment(task: TaskDraft, resources: ResourceDraft[]): AssignmentDraft | null {
+  const used = new Set(taskResourceIds(task));
+  const free = resources.find((r) => !used.has(r.id));
+  if (!free) return null;
+  const { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes } = task;
+  return { resourceId: free.id, meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes };
+}
+
+function taskMeanSeconds(task: DurationDraft): number {
   const minutes = task.distribution === "uniform" && task.minMinutes !== undefined && task.maxMinutes !== undefined
     ? (task.minMinutes + task.maxMinutes) / 2
     : task.meanMinutes;
   return Math.max(1, Math.round(minutes * 60));
+}
+
+function durationInput(duration: DurationDraft) {
+  const parameters = DISTRIBUTION_PARAMETERS[duration.distribution];
+  return {
+    meanSeconds: taskMeanSeconds(duration),
+    distribution: duration.distribution,
+    stdSeconds: parameters.std && duration.stdMinutes !== undefined ? Math.max(1, Math.round(duration.stdMinutes * 60)) : undefined,
+    minSeconds: parameters.bounds ? seconds(duration.minMinutes) : undefined,
+    maxSeconds: parameters.bounds ? seconds(duration.maxMinutes) : undefined,
+  };
 }
 
 export function scenarioToInput(
@@ -169,15 +226,12 @@ export function scenarioToInput(
       calendarId: calendarIds.has(r.calendarId ?? "") ? r.calendarId : undefined,
     })),
     tasks: Object.entries(draft.tasks).map(([elementId, task]) => {
-      const parameters = DISTRIBUTION_PARAMETERS[task.distribution];
+      const others = task.otherAssignments ?? [];
       return {
         elementId,
-        meanSeconds: taskMeanSeconds(task),
-        distribution: task.distribution,
+        ...durationInput(task),
         resourceId: task.resourceId,
-        stdSeconds: parameters.std && task.stdMinutes !== undefined ? Math.max(1, Math.round(task.stdMinutes * 60)) : undefined,
-        minSeconds: parameters.bounds ? seconds(task.minMinutes) : undefined,
-        maxSeconds: parameters.bounds ? seconds(task.maxMinutes) : undefined,
+        ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),
     calendars: draft.calendars ?? [],
@@ -211,6 +265,7 @@ export function seedDraftFromTemplate(
   }
 
   const tasks: Record<string, TaskDraft> = {};
+  const resourceIds = new Set(resources.map((r) => r.id));
   for (const task of template.tasks) {
     const modelResourceId = candidates.find((r) => r.task_ids.includes(task.element_id) && resources.some((resource) => resource.id === r.id))?.id ?? "";
     const existing = draft.tasks[task.element_id];
@@ -220,13 +275,13 @@ export function seedDraftFromTemplate(
       resourceId: modelResourceId,
       assignmentSource: "bpmn" as const,
     };
+    let next: TaskDraft = cfg;
     if (cfg.assignmentSource === "bpmn") {
-      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId };
+      next = { ...cfg, resourceId: modelResourceId };
     } else if (cfg.resourceId && !resources.some((r) => r.id === cfg.resourceId)) {
-      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId, assignmentSource: "bpmn" };
-    } else {
-      tasks[task.element_id] = cfg;
+      next = { ...cfg, resourceId: modelResourceId, assignmentSource: "bpmn" };
     }
+    tasks[task.element_id] = withValidOtherAssignments(next, resourceIds);
   }
 
   const gateways: Record<string, GatewayDraft> = {};
