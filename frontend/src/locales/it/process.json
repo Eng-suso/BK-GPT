@@ -1004,6 +1004,10 @@
         "executions": "Esecuzioni, log → run",
         "noStart": "Il log registra solo i completamenti: lavorazione e attesa reali non si separano."
       }
+    },
+    "queue": {
+      "queued": "In coda: posizione {{position}}",
+      "queuedHint": "Parte appena il motore ha un posto libero. Puoi lasciare la pagina: la simulazione resta in coda."
     }
   },
   "side": {

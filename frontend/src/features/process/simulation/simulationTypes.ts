@@ -38,6 +38,11 @@ export const simulationRunSchema = z.object({
   error: z.string().nullable(),
   created_at: z.string(),
   completed_at: z.string().nullable(),
+  /** P0.3: per un run in attesa, in coda (con la posizione) o in corso. */
+  queue: z
+    .object({ state: z.enum(["queued", "running"]), position: z.number().nullable() })
+    .nullable()
+    .optional(),
 });
 
 /**

@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/ui/dialog";
 import { ROUTES } from "@/app/routes";
+import { runWaitTitle } from "../runQueue";
 import { SimulationBpmnView } from "../SimulationBpmnView";
 import { useSimulationSection } from "../useSimulationSection";
 
@@ -101,6 +102,7 @@ export function ScenarioBuilderPage({ embedded = false }: { embedded?: boolean }
             draft={draft}
             onDraftChange={updateDraft}
             isRunning={isRunning}
+            runningLabel={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)}
             error={error}
             onRun={() => void handleRun()}
             focusElementId={focusEl}

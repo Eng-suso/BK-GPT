@@ -1,5 +1,6 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
+import { runWaitHint, runWaitTitle } from "./runQueue";
 import type { HeatMetric } from "./simulationResults";
 import { useReplayEngine } from "./replay/useReplay";
 import { useTranslation } from "react-i18next";
@@ -92,7 +93,7 @@ export function SimulationStudio(): React.JSX.Element {
           process={<ProcessSurface engine={displayedEngine} aggregate={aggregate} unavailable={unavailable} summary={aggregate ? analysisRun.summary : undefined} legend={panel === "eventLog" && logDecorations ? { label: t("simulation.eventLog.compare.legend"), fidelity: true } : view === "compare" ? { label: t("simulation.diagram.legendWait"), delta: !["a", "b"].includes(query.get("compareMode") ?? "") } : (view === "heatmap" || (aggregate && panel === "heatmap")) ? { label: t(`simulation.heatmap.metric.${heatMetric}`) } : undefined} inspectorHost={host} actionsHost={actionsHost} decorations={panel === "eventLog" && logDecorations ? logDecorations : view === "compare" || view === "heatmap" || (aggregate && panel === "heatmap") ? decorations : aggregate ? [] : undefined} />}
           processScope={scope} />
           : <div className="sim-studio-start"><div className="sim-studio-empty-process"><SimulationCanvas bpmnXml={bpmnXml} selectedElementId={selectedElementId} onSelectElement={selectElement} /></div>
-            <EmptyState title={t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "pending" ? "simulation.running" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? t("simulation.unified.startHint")}
+            <EmptyState title={!isLoading && !noArtifact && run?.status === "pending" ? runWaitTitle(run?.queue?.state, run?.queue?.position, t) : t(isLoading ? "simulation.loading" : noArtifact ? "simulation.replay.noArtifact" : run?.status === "failed" ? "simulation.status.failed" : "simulation.replay.noRun")} description={error ?? run?.error ?? (run?.status === "pending" ? runWaitHint(run?.queue?.state, t) : undefined) ?? t("simulation.unified.startHint")}
               action={<Button onClick={() => show("scenario")}>{t("simulation.unified.tool.scenario")}</Button>} />
           </div>}
       </section>

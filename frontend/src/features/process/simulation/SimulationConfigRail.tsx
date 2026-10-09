@@ -48,6 +48,8 @@ type SimulationConfigRailProps = {
   draft: ScenarioDraft;
   onDraftChange: (next: ScenarioDraft) => void;
   isRunning: boolean;
+  /** Cosa dice il pulsante mentre il run aspetta: in coda o in corso (P0.3). */
+  runningLabel?: string;
   error: string | null;
   onRun: () => void;
   focusElementId: string | null;
@@ -90,6 +92,7 @@ export function SimulationConfigRail({
   draft,
   onDraftChange,
   isRunning,
+  runningLabel,
   error,
   runs,
   activeRunId,
@@ -160,7 +163,7 @@ export function SimulationConfigRail({
             disabled={isRunning || !canRun}
             onClick={onRun}
           >
-            {isRunning ? t("simulation.running") : t("simulation.run")}
+            {isRunning ? runningLabel ?? t("simulation.running") : t("simulation.run")}
           </Button>
         ) : (
           onCollapse && (
@@ -542,7 +545,7 @@ export function SimulationConfigRail({
       <div className="border-t border-border p-3">
         {!embedded && (
           <Button type="button" className="w-full" disabled={isRunning || !canRun} onClick={onRun}>
-            {isRunning ? t("simulation.running") : t("simulation.run")}
+            {isRunning ? runningLabel ?? t("simulation.running") : t("simulation.run")}
           </Button>
         )}
         {!embedded && runs && runs.length > 0 && onSelectRun && (
