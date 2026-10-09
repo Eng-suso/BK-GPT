@@ -22,7 +22,7 @@ import {
   reviewQuestion,
 } from "./demo";
 import { installDemoApi, unhandled } from "./mockApi";
-import { Recorder, clickOn, installCursor, moveTo, slowScroll } from "./recorder";
+import { Recorder, clickOn, cue, installCursor, moveTo, slowScroll } from "./recorder";
 import storyboard from "./storyboard.json";
 
 const OUT = resolve(process.cwd(), "artifacts", "launch-media");
@@ -170,6 +170,12 @@ async function cardScene(page: Page, id: string, kind: CardKind, seconds: number
   const rec = new Recorder(page, resolve(RAW, id));
   await rec.start();
   await page.evaluate(() => document.querySelector(".launch-card")?.classList.remove("paused"));
+  // Gli istanti delle animazioni CSS delle card (vedi showCard).
+  const item = storyboard.scenes.find((entry) => entry.id === id) as CardScene;
+  if (kind === "hook") storyboard.hook.forEach((_, index) => cue("beat", {}, 0.2 + index * HOOK_STEP));
+  if (kind === "promise") (item.points ?? []).forEach((_, index) => cue("reveal", {}, 0.9 + index * 0.9));
+  if (kind === "result") (item.tiles ?? []).forEach((_, index) => cue("reveal", {}, 0.8 + index * 0.6));
+  if (kind === "close") cue("logo", {}, 0.3);
   await page.waitForTimeout(seconds * 1000);
   await rec.stop();
 }
@@ -184,7 +190,10 @@ test("18-chiusura", async ({ page }) => cardScene(page, "18-chiusura", "close", 
 /** Scrive come una persona: si vede il testo comparire, poi invia. */
 async function typeLikeHuman(page: Page, box: Locator, text: string): Promise<void> {
   await clickOn(page, box, 600);
+  const started = Date.now();
   await box.pressSequentially(text, { delay: 28 });
+  // La digitazione, come intervallo: il montaggio la rende con i tasti.
+  cue("type", { count: text.length, length: (Date.now() - started) / 1000 }, (started - Date.now()) / 1000);
   await page.waitForTimeout(350);
 }
 

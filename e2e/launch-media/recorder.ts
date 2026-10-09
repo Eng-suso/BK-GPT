@@ -10,6 +10,18 @@ import { resolve } from "node:path";
  * il suo istante; il montaggio (`scripts/launch_media_render.mjs`) li porta a
  * 30 fps costanti. I `mark` segnano istanti della scena per i testi a schermo.
  */
+/**
+ * Eventi sonori (clic, digitazione, card che entrano): li scrivono i gesti
+ * del cursore e le card; ogni scena tiene quelli caduti durante la sua
+ * registrazione. Il montaggio (`launch_media_edit.py`) ci mette gli effetti.
+ */
+type Cue = { at: number; kind: string; count?: number; length?: number };
+const cues: Cue[] = [];
+
+export function cue(kind: string, extra: { count?: number; length?: number } = {}, delay = 0): void {
+  cues.push({ at: Date.now() / 1000 + delay, kind, ...extra });
+}
+
 export class Recorder {
   private session: CDPSession | null = null;
   private frames: { file: string; t: number }[] = [];
@@ -70,9 +82,12 @@ export class Recorder {
     await Promise.all(this.pending);
     await this.session?.detach();
     const t0 = this.frames[0]?.t ?? this.started;
+    const events = cues
+      .filter((item) => item.at >= this.started && item.at <= ended)
+      .map(({ at, ...item }) => ({ ...item, t: at - this.started }));
     writeFileSync(
       resolve(this.dir, "scene.json"),
-      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, camera: this.camera, viewport: this.page.viewportSize(), end: ended - t0 }, null, 1),
+      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, camera: this.camera, events, viewport: this.page.viewportSize(), end: ended - t0 }, null, 1),
     );
   }
 }
@@ -122,6 +137,7 @@ export async function moveTo(page: Page, target: Locator | { x: number; y: numbe
 export async function clickOn(page: Page, target: Locator, ms = 700): Promise<void> {
   await moveTo(page, target, ms);
   await page.evaluate(() => document.getElementById("launch-cursor")?.classList.add("is-clicking"));
+  cue("click");
   await page.waitForTimeout(140);
   await target.click();
   await page.evaluate(() => document.getElementById("launch-cursor")?.classList.remove("is-clicking"));
