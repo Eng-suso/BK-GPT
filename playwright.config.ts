@@ -44,31 +44,32 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
 
-  /* Configure projects for major browsers */
+  /* Configure projects for major browsers. I media di lancio (e2e/launch-media)
+   * hanno la loro config, playwright.launch.config.ts. */
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: ['**/performance-lighthouse.spec.ts'],
+      testIgnore: ['**/performance-lighthouse.spec.ts', '**/launch-media/**'],
     },
     // Firefox is intentionally excluded from the default local matrix because the
     // current Windows runner fails before navigation at browser.newPage().
     {
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
-      testIgnore: ['**/performance-lighthouse.spec.ts'],
+      testIgnore: ['**/performance-lighthouse.spec.ts', '**/launch-media/**'],
     },
 
     /* Test against mobile viewports. */
     {
       name: 'mobile-chrome',
       use: { ...devices['Pixel 7'] },
-      testIgnore: ['**/performance-lighthouse.spec.ts'],
+      testIgnore: ['**/performance-lighthouse.spec.ts', '**/launch-media/**'],
     },
     {
       name: 'mobile-safari',
       use: { ...devices['iPhone 14'] },
-      testIgnore: ['**/performance-lighthouse.spec.ts'],
+      testIgnore: ['**/performance-lighthouse.spec.ts', '**/launch-media/**'],
     },
 
     /* Lighthouse performance audits — Chromium/CDP only */
