@@ -8,9 +8,12 @@ import { provenanceTip, type FieldProvenance } from "../simulationProvenance";
 import { formatCurrency } from "../simulationResults";
 import type { ScenarioElementProvenance, SimulationRun } from "../simulationTypes";
 import { useScenarioProvenance } from "../useInputConfidence";
+import { useSimulationSection } from "../useSimulationSection";
 import { activityParameters, formatParameterDuration, hasTaskConfig } from "./activityParameters";
 import {
+  arrivalFromModel,
   elementFromModel,
+  type ArrivalView,
   type AssignmentView,
   type BranchView,
   type CalendarView,
@@ -57,13 +60,18 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
     staleTime: 60_000,
   });
   const element = provenance.data?.elements.find((el) => el.element_id === elementId);
+  const { bpmnXml } = useSimulationSection();
+  const isStart = React.useMemo(() => isStartEvent(bpmnXml, elementId), [bpmnXml, elementId]);
 
   let body: React.ReactNode;
   if (runModel.isLoading && !runModel.data) {
     body = <p className="sim-help" role="status">{t("simulation.activityInspector.loading")}</p>;
   } else if (runModel.data) {
     const view = elementFromModel(runModel.data, elementId, element, template.data);
-    body = !view
+    const arrival = !view && isStart ? arrivalFromModel(runModel.data) : null;
+    body = arrival
+      ? <Arrival arrival={arrival} lang={lang} t={t} provenanceState={provenance} />
+      : !view
       ? <p className="sim-help">{t("simulation.activityInspector.notSimulated")}</p>
       : view.kind === "activity"
         ? <>
@@ -117,12 +125,13 @@ function calendarText(calendar: CalendarView, lang: Lang, t: T): string {
   return periods.length ? `${calendar.name} · ${periods.join(", ")}` : calendar.name;
 }
 
-function DurationRows({ duration, lang, t }: { duration: DurationView; lang: Lang; t: T }): React.JSX.Element {
+function DurationRows({ duration, lang, t, meanLabel }: { duration: DurationView; lang: Lang; t: T; meanLabel?: string }): React.JSX.Element {
   const distribution = t(`simulation.config.dist.${DIST_KEY[duration.kind]}`);
+  const mean = meanLabel ?? t("simulation.activityInspector.duration");
   const f = (seconds: number) => formatParameterDuration(seconds, lang);
   if (duration.kind === "fixed") {
     return <>
-      <div><dt>{t("simulation.activityInspector.duration")}</dt><dd>{f(duration.valueSeconds)}</dd></div>
+      <div><dt>{mean}</dt><dd>{f(duration.valueSeconds)}</dd></div>
       <div><dt>{t("simulation.activityInspector.distribution")}</dt><dd>{distribution}</dd></div>
     </>;
   }
@@ -132,7 +141,7 @@ function DurationRows({ duration, lang, t }: { duration: DurationView; lang: Lan
     </dd></div>;
   }
   return <>
-    <div><dt>{t("simulation.activityInspector.duration")}</dt><dd>{f(duration.meanSeconds)}</dd></div>
+    <div><dt>{mean}</dt><dd>{f(duration.meanSeconds)}</dd></div>
     <div><dt>{t("simulation.activityInspector.distribution")}</dt><dd>{distribution}
       {duration.stdSeconds != null && <span className="sim-param-note">{t("simulation.activityInspector.std", { value: f(duration.stdSeconds) })}</span>}
       <span className="sim-param-note">{t("simulation.activityInspector.bounds", { min: f(duration.minSeconds), max: f(duration.maxSeconds) })}</span>
@@ -151,6 +160,26 @@ function Assignment({ assignment, index, total, lang, t, provenanceState }: { as
     </dl>
     <ProvenanceFoot field={assignment.provenance} t={t} provenanceState={provenanceState} />
   </div>;
+}
+
+/** L'evento di inizio: come arrivavano i casi nel run (A2-3). */
+function Arrival({ arrival, lang, t, provenanceState }: { arrival: ArrivalView; lang: Lang; t: T; provenanceState: ProvenanceState }): React.JSX.Element {
+  return <div className="sim-param-group">
+    <h5>{t("simulation.activityInspector.arrivals")}</h5>
+    <dl>
+      <DurationRows duration={arrival.duration} lang={lang} t={t} meanLabel={t("simulation.activityInspector.interarrival")} />
+      <div><dt>{t("simulation.activityInspector.arrivalCalendar")}</dt><dd>{calendarText(arrival.calendar, lang, t)}</dd></div>
+      <OriginRow field={arrival.provenance} t={t} provenanceState={provenanceState} />
+    </dl>
+    <ProvenanceFoot field={arrival.provenance} t={t} provenanceState={provenanceState} />
+  </div>;
+}
+
+/** L'elemento e' un evento di inizio del BPMN del processo? */
+function isStartEvent(bpmnXml: string | null | undefined, elementId: string): boolean {
+  if (!bpmnXml) return false;
+  const document = new DOMParser().parseFromString(bpmnXml, "application/xml");
+  return Array.from(document.getElementsByTagNameNS("*", "startEvent")).some((node) => node.getAttribute("id") === elementId);
 }
 
 function ruleText(branch: BranchView, t: T): string {

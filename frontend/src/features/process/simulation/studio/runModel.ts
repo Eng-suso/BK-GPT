@@ -36,6 +36,7 @@ const ruleSchema = z.object({
 export type IrRule = z.infer<typeof ruleSchema>;
 
 export const runModelSchema = z.object({
+  arrival: z.object({ interarrival: irDistributionSchema, calendar_id: z.string(), provenance }).optional(),
   calendars: z.array(
     z.object({
       id: z.string(),

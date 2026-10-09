@@ -53,9 +53,21 @@ export type BranchView = {
   provenance: FieldProvenance;
 };
 
+export type ArrivalView = { duration: DurationView; calendar: CalendarView; provenance: FieldProvenance };
+
 export type ElementView =
   | { kind: "activity"; assignments: AssignmentView[] }
   | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance };
+
+/** Come arrivavano i casi nel run (A2-3): lo mostra l'evento di inizio. */
+export function arrivalFromModel(model: RunModel): ArrivalView | null {
+  if (!model.arrival) return null;
+  return {
+    duration: durationView(model.arrival.interarrival),
+    calendar: calendarView(model, model.arrival.calendar_id),
+    provenance: parameterProvenance(model.arrival.provenance, activityProvenance(false, undefined), activityProvenance(true, undefined)),
+  };
+}
 
 export function durationView(distribution: IrDistribution): DurationView {
   switch (distribution.kind) {

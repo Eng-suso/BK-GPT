@@ -329,7 +329,13 @@
       "otherRolesHint": "Each case goes to the first free role. Each role has its own duration.",
       "otherRolesNoneFree": "Every role already does this activity. To add another, create it in Resources.",
       "otherRoleOf": "Other role · {{task}}",
-      "removeOtherRole": "Remove {{role}} from {{task}}"
+      "removeOtherRole": "Remove {{role}} from {{task}}",
+      "arrivals": "Case arrivals",
+      "arrivalsHint": "How much time passes between one case arriving and the next. Cases arrive only during the hours of the chosen calendar.",
+      "arrivalMeanMin": "Mean time between arrivals, min",
+      "arrivalUniformHint": "The time between arrivals is uniform between minimum and maximum.",
+      "arrivalCalendar": "Arrival calendar",
+      "invalidArrival": "Case arrivals need fixing."
     },
     "diagram": {
       "title": "Process model",
@@ -401,7 +407,10 @@
       "byRule": "chosen by rule",
       "and": "and",
       "or": "or",
-      "sharedActivity": "Several resources do this activity: each case went to the first free one, with its own duration."
+      "sharedActivity": "Several resources do this activity: each case went to the first free one, with its own duration.",
+      "arrivals": "Case arrivals",
+      "interarrival": "Mean time between arrivals",
+      "arrivalCalendar": "Arrival calendar"
     },
     "provenance": {
       "label": "Source",
