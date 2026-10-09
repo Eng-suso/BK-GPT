@@ -22,9 +22,12 @@ const CORS = {
   "Access-Control-Allow-Headers": "*",
 };
 
-/** Pezzi di 1-3 parole, come i token che arrivano dal modello. */
+/**
+ * Pezzi di 1-3 parole, come i token che arrivano dal modello. Un grassetto
+ * arriva intero: a meta' il Markdown mostrerebbe gli asterischi.
+ */
 function tokens(text) {
-  const words = text.split(/(?<=\s)/);
+  const words = text.split(/(\*\*[^*]+\*\*\S*\s*)|(?<=\s)/).filter(Boolean);
   const out = [];
   for (let i = 0; i < words.length; ) {
     const size = 1 + ((i * 7) % 3);
