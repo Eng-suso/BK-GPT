@@ -83,7 +83,8 @@ def test_without_other_resources_the_scenario_does_not_change():
 def test_another_resource_that_does_not_fit_is_refused_with_the_task_name(extra, message):
     with pytest.raises(ValueError, match=message) as error:
         build_prosimos_scenario(bpmn_xml=BPMN, request=_request(extra))
-    assert "T_approve" in str(error.value) or "Approv" in str(error.value)
+    # Il messaggio nomina l'attivita' con il nome del BPMN.
+    assert str(error.value).startswith("«Approva»:")
 
 
 def test_the_run_keeps_every_resource_in_the_model_the_inspector_reads(api_client, new_bpmn_model, fake_engine):

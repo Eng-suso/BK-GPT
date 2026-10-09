@@ -312,7 +312,7 @@ export function SimulationConfigRail({
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}
-                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" className="h-auto min-h-9 max-w-full whitespace-normal text-left" onClick={() => patch({ tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, draft.resources.some((r) => r.id === task.resourceId) ? task : withValidOtherAssignments({ ...task, resourceId: resource.id, assignmentSource: "manual" as const }, new Set(draft.resources.map((r) => r.id)))])) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
+                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" className="h-auto min-h-9 max-w-full whitespace-normal text-left" onClick={() => patch({ tasks: assignUnassignedTasks(draft, resource.id) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
                   </div>
                 </li>
               );
@@ -588,6 +588,14 @@ export function SimulationConfigRail({
       )}
     </div>
   );
+}
+
+/** Le attività senza un ruolo valido passano a ``resourceId``, che sparisce dai loro altri ruoli. */
+function assignUnassignedTasks(draft: ScenarioDraft, resourceId: string): ScenarioDraft["tasks"] {
+  const ids = new Set(draft.resources.map((r) => r.id));
+  return Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, ids.has(task.resourceId)
+    ? task
+    : withValidOtherAssignments({ ...task, resourceId, assignmentSource: "manual" as const }, ids)]));
 }
 
 function NumberField({
