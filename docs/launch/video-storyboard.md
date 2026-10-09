@@ -13,7 +13,7 @@ da qui in poi cambia il prodotto, non la storia.
 | Process owner | **Laura Conti** |
 | Audio | **Nessuno.** Il racconto passa da testo a schermo e cursore; le chat dell'agente si vedono in streaming |
 | Lingua | Italiano principale, inglese seconda versione dallo stesso script |
-| Frase di chiusura | **Dalle interviste a un processo che puoi difendere.** |
+| Frase di chiusura | **Dalle interviste alla decisione del cliente. Con i numeri.** |
 | Disclaimer fisso | *Azienda e persone fittizie · caso dimostrativo* |
 
 ## Perché non c'è una contraddizione
@@ -29,23 +29,29 @@ storia si regge su cio' che le fonti dicono davvero:
 3. **Il To-Be l'hanno chiesto loro.** Richiesta completa con campi
    obbligatori (Laura, Francesca), autorizzazione visibile (Francesca).
 
-## Il gancio: la settimana del consulente
+## Il copy: il dolore del consulente, poi il risultato
 
-Il pubblico e' il consulente di processo e il piccolo studio di consulenza. Il
-gancio non spiega DeliR: racconta la loro settimana, con le loro parole
-(problema nei primi 3 secondi, prodotto subito dopo). Il cliente dice di
-conoscere il processo; le interviste mostrano che ognuno ne conosce un pezzo;
-venerdi' la mappa va difesa davanti al cliente.
+Il pubblico e' il consulente di processo e il piccolo studio. Niente slogan:
+il gancio dice i quattro problemi che riconosce subito, la promessa dice cosa
+porta al cliente, ogni scena risponde a un problema, la card dei risultati
+chiude il cerchio con i numeri del caso.
 
-| Giorno | Testo |
+| # | Gancio (un problema per volta) |
 | --- | --- |
-| Lunedì | Kick-off da Vetrano Industriale. «Il processo acquisti? Lo conosciamo.» |
-| Martedì | Tre interviste. Ognuno conosce un pezzo. |
-| Mercoledì | Nessuno sa chi sistema gli ordini urgenti. |
-| Venerdì | Presenti la mappa al cliente. E devi difenderla. |
+| 1 | Tre interviste. Tre versioni diverse dello stesso processo. |
+| 2 | Giorni a ricostruirlo dagli appunti. |
+| 3 | Poi il cliente chiede: «Questo chi l'ha detto?» |
+| 4 | E subito dopo: «Quanto ci fa risparmiare?» E tu rispondi a sensazione. |
 
-La frase del lunedi' e' del cliente-tipo, non delle interviste: e' l'unica
-battuta non presa dal golden set, e non e' attribuita a nessuno.
+**Promessa** — Con DeliR, dal cliente arrivi con: un As-Is con la fonte di ogni passaggio, il collo di bottiglia misurato, non intuito, un To-Be con il risparmio già simulato.
+
+**Risultato** — Il risultato per Vetrano Industriale: 38 affermazioni, ognuna con la sua citazione · 2g 22h di attesa sull'autorizzazione, misurata · −75% tempo di attraversamento nel To‑Be · −29% costo per pratica nel To‑Be. Valori simulati · modello As-Is verificato sul log del cliente (scarto 2%).
+
+**Chiusura** — Dalle interviste alla decisione del cliente. Con i numeri.
+
+La domanda «Quanto ci fa risparmiare?» del gancio torna nella scena della
+decisione, con la risposta simulata. Le domande del cliente non sono citazioni
+delle interviste e non sono attribuite a nessuno.
 
 ## Storyboard (muto)
 
@@ -55,29 +61,31 @@ review del To-Be con DeliR → ipotesi → simulazione To-Be → decisione →
 export per il process owner → memoria. Le chat sono in streaming (fasi di
 lavoro, poi testo che arriva a pezzi), come dal backend.
 
-| Scena | Cosa si vede | Testo a schermo |
-| --- | --- | --- |
-| 01-settimana | Le quattro card del gancio | — |
-| 02-interviste-a-delir | Chat di processo: il consulente scrive, DeliR legge le 3 interviste e risponde | Carichi le interviste. DeliR le legge con te. |
-| 03-fonti | Intervista con le affermazioni e le citazioni verificate | Ogni affermazione, con la sua citazione. |
-| 04-passaggio-nascosto | Divergenze: i due "non so" e il "la faccio io" di Francesca | Due non sanno chi sistema l'urgenza. Francesca sì. |
-| 05-lacuna | Soglia di autorizzazione: domanda aperta | Quello che nessuno ha detto, DeliR te lo chiede. |
-| 06-as-is | BPMN a 6 corsie, evidenze al 100%, citazione sul task urgente | La bozza As-Is. Ogni passaggio ha una fonte. |
-| 07-review-as-is | Review mode su "Regolarizza ordine a posteriori": domanda e risposta in streaming | Rivedi l'As-Is con DeliR, attività per attività. |
-| 08-as-is-corretto | Proprietà del task, cronologia "As-Is v3 · validato con Laura Conti" | Correggi tu: è la versione che firmi. |
-| 09-simula-as-is | Replay con 6 grafici in movimento | Simuli il processo di oggi. |
-| 10-heatmap | Attesa per attività, Autorizza spesa in rosso | Si ferma all'autorizzazione: quasi 3 giorni. |
-| 11-event-log | Export del gestionale → qualità e KPI → reale contro simulato | Lo verifichi sui dati del cliente: scarto 2%. |
-| 12-review-to-be | Review mode su "Autorizza spesa": proposta To-Be in streaming | Chiedi a DeliR come migliorarlo. |
-| 13-ipotesi-to-be | Ipotesi con la citazione di chi le ha chieste | Le proposte vengono da chi lavora nel processo. |
-| 14-simula-to-be | Stesse richieste, la coda sparisce | Stesse richieste. Processo nuovo. |
-| 15-decidi | Confronto KPI e verdetto | −75% di attraversamento, −29% di costo. Simulato. |
-| 16-process-owner | Diagramma To-Be separato, "Scarica BPMN", prossimo passo del progetto | Esporti il To-Be per Laura Conti, process owner. |
-| 17-memoria | Progetto → cliente → portafoglio | Tutto resta nella memoria di DeliR. / Al prossimo cliente non riparti da zero. |
-| 18-chiusura | Marchio | Dalle interviste a un processo che puoi difendere. |
+| Scena | Testo a schermo |
+| --- | --- |
+| 01-gancio | card |
+| 01b-promessa | Con DeliR, dal cliente arrivi con: |
+| 02-interviste-a-delir | Carichi le interviste. DeliR estrae chi fa cosa. |
+| 03-fonti | «Chi l'ha detto?» Ecco la frase esatta. |
+| 04-passaggio-nascosto | Le versioni che non tornano escono prima del workshop. |
+| 05-lacuna | Quello che nessuno ha detto diventa una domanda per il cliente. |
+| 06-as-is | La bozza As-Is arriva già collegata alle fonti. |
+| 07-review-as-is | Rivedi ogni attività con DeliR, prima di mostrarla. |
+| 08-as-is-corretto | Ogni correzione resta tracciata, versione per versione. |
+| 09-simula-as-is | Simuli il processo di oggi, prima di cambiarlo. |
+| 10-heatmap | Il collo di bottiglia, misurato: quasi 3 giorni di attesa. |
+| 11-event-log | Controlli la simulazione sul log del cliente: scarto 2%. |
+| 12-review-to-be | Chiedi a DeliR dove intervenire. Risponde con le fonti. |
+| 13-ipotesi-to-be | Il To-Be parte da quello che chiede chi lavora nel processo. |
+| 14-simula-to-be | Stesse richieste. Processo nuovo. |
+| 15-decidi | «Quanto ci fa risparmiare?» −75% di tempo, −29% di costo. Simulato. |
+| 16-process-owner | Il To-Be va al process owner in BPMN, pronto da validare. |
+| 17-memoria | Fonti, versioni e simulazioni restano nel progetto. / Il prossimo cliente non parte da zero. |
+| 17b-risultato | Il risultato per Vetrano Industriale |
+| 18-chiusura | Dalle interviste alla decisione del cliente. Con i numeri. |
 
-**Tagli** (`storyboard.json` → `cuts`, stesso girato): **90 s** movimentato
-(11 scene, testo 2 s) e **2'30"** esteso (17 scene, testo 2,3 s). Le chat
+**Tagli** (`storyboard.json` → `cuts`, stesso girato): **~90 s** movimentato
+(12 scene con le card, testo 2,3 s) e **2'30"** esteso (19 scene, testo 2,3 s). Le chat
 hanno tre velocita' legate ai marker della registrazione: digitazione 3–3,5×,
 risposta in streaming 1,2–1,5× (si legge), rilettura 2,5×. Loop hero: review dell'As-Is + replay As-Is.
 
