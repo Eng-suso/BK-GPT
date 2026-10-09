@@ -3236,6 +3236,19 @@ def list_source_claims(source_id: str) -> list[dict]:
         ]
 
 
+def existing_claim_ids(claim_ids: set[int]) -> set[int]:
+    """Quali di queste affermazioni esistono ancora nel tenant corrente."""
+    if not claim_ids:
+        return set()
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspaceSourceClaim.id)
+            .where(WorkspaceSourceClaim.id.in_(claim_ids))
+            .where(WorkspaceSourceClaim.tenant_id == tenant_id())
+        ).scalars().all()
+        return set(rows)
+
+
 def list_evidence_segments(source_id: str) -> list[dict]:
     """Le porzioni citabili di una fonte, nell'ordine della fonte."""
     with workspace_connection() as session:
