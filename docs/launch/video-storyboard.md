@@ -40,6 +40,7 @@ storia si regge su cio' che le fonti dicono davvero:
 | 34–46 s | Validare + tracciare | BPMN a 6 lane, zoom su "Regolarizza ordine" → citazione | Ogni passaggio ha una fonte. |
 | 46–54 s | Correggere l'As-Is | Lacuna chiusa, "As-Is v3 · validato" | L'ultima parola è tua. |
 | 54–66 s | Simulare l'As-Is | Token nel ciclo di rilavorazione, coda su "Autorizza spesa" | Oggi: più di metà delle richieste torna indietro. |
+| +8 s | Heatmap | Attesa per attività: Autorizza spesa in rosso (2g 22h), scheda del collo di bottiglia | Il collo di bottiglia, misurato. |
 | 66–74 s | Creare il To-Be | Modifiche con la citazione di chi le ha chieste | Il To-Be l'avevano già chiesto loro. |
 | 74–84 s | Simulare il To-Be | Stesse richieste, la coda sparisce | Stesse richieste. Processo nuovo. |
 | 84–94 s | Decidere | Confronto KPI e verdetto (numeri dalla simulazione) | Non un'opinione. Una simulazione. |
@@ -66,7 +67,8 @@ Tagli dallo stesso girato: **loop hero 20 s** (20–34 s + 54–60 s), **social 
 | Capire | fonti e claim | upload → claim |
 | Verificare | lacuna aperta, passaggio nascosto | — |
 | Ogni passaggio ha una fonte | canvas + citazione | click su task → evidenza |
-| Simulare | replay As-Is, replay To-Be | i due replay |
+| Simulare | replay As-Is, replay To-Be (processo + 6 KPI in movimento) | i due replay |
+| Collo di bottiglia | heatmap dell'attesa | heatmap |
 | Decidere | confronto KPI | — |
 | Memoria | progetto con fonti, versioni, simulazioni | zoom out |
 

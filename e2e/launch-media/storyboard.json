@@ -38,6 +38,11 @@
       "landing": "simulazione-as-is"
     },
     {
+      "id": "07b-heatmap",
+      "caption": "Il collo di bottiglia, misurato.",
+      "landing": "heatmap-collo-di-bottiglia"
+    },
+    {
       "id": "08-to-be",
       "caption": "Il To-Be l'avevano già chiesto loro.",
       "landing": "ipotesi-to-be"

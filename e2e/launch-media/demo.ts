@@ -546,8 +546,12 @@ const widget = (id: string, kind: string, metric: string, title: string, color: 
   id, title, kind, metric, width: "half", text: "**${metric}**", metricExpression: "", target: 100,
   followFilter: false, activityId: "", showLabels: true, color, canvas,
 });
-// Proporzioni dello schermo (16:9 meno la barra di riproduzione): processo e
-// due KPI sopra, l'andamento dei casi attivi su tutta la riga sotto.
+// Proporzioni dello schermo (16:9 meno la barra di riproduzione): processo con
+// coda e tempo medio a destra, sotto quattro grafici in riga. Sei andamenti che si
+// muovono mentre i casi attraversano il processo.
+const ROW_Y = 624;
+const ROW_W = (1924 - 3 * 24) / 4;
+const rowRect = (index: number) => ({ x: index * (ROW_W + 24), y: ROW_Y, width: ROW_W, height: 260 });
 export const simulationLayout = {
   version: 1,
   process: { canvas: { x: 0, y: 0, width: 1500, height: 600 }, groupId: "video", beforeId: "__first__", width: "full", height: 600 },
@@ -555,58 +559,12 @@ export const simulationLayout = {
     id: "video",
     title: "",
     widgets: [
-      widget("video-queued", "kpi", "queued", "Richieste in coda", "amber", { x: 1524, y: 0, width: 400, height: 294 }),
+      widget("video-queued", "area", "queued", "Richieste in coda", "amber", { x: 1524, y: 0, width: 400, height: 294 }),
       widget("video-cycle", "line", "cycle", "Tempo medio di attraversamento", "violet", { x: 1524, y: 306, width: 400, height: 294 }),
-      widget("video-active", "area", "active", "Casi attivi", "blue", { x: 0, y: 624, width: 1924, height: 240 }),
+      widget("video-completed", "line", "completed", "Richieste concluse", "teal", rowRect(0)),
+      widget("video-throughput", "line", "throughput", "Throughput", "blue", rowRect(1)),
+      widget("video-cost", "area", "cost", "Costo accumulato", "violet", rowRect(2)),
+      widget("video-busy", "column", "resourceBusy", "Occupazione delle risorse", "amber", rowRect(3)),
     ],
   }],
-};
-
-/** "Ipotesi To-Be": le due modifiche che il To-Be simula, con chi le ha chieste. */
-export const impactReview = {
-  process_id: IDS.process,
-  base_revision: "as-is-v3",
-  xml: bpmnXml,
-  plan: {
-    title: PROCESS_NAME,
-    actors: (idealPlan.actors as { id: string; label: string }[]).map(({ id, label }) => ({ id, label })),
-    steps: (idealPlan.steps as { id: string; label: string; actor_ids: string[] }[]).map((step) => ({
-      id: step.id, label: step.label, description: null, actor_ids: step.actor_ids, inputs: [], outputs: [],
-    })),
-    data_objects: [],
-    controls: [],
-    structured_business_rules: [],
-    consultant_findings: [],
-  },
-  actions: [
-    {
-      id: "tobe-richiesta-completa",
-      node_id: "ricostruisci_richiesta",
-      node_name: labels.get("ricostruisci_richiesta") ?? "Ricostruisci richiesta",
-      base_revision: "as-is-v3",
-      kind: "candidate",
-      title: "La richiesta nasce completa, con i campi obbligatori",
-      detail:
-        "Laura: «Un posto unico dove la richiesta arriva scritta come si deve, con dentro tutto quello che serve.» " +
-        "Francesca: «Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori.» " +
-        "Ipotesi simulata: i rimbalzi scendono dal 55% al 25% (stima del consulente).",
-      created_at: "2026-10-01T10:00:00Z",
-      created_by: "Marco Bellini",
-      proposal_xml: null,
-    },
-    {
-      id: "tobe-autorizzazione-visibile",
-      node_id: "percorso_autorizzazione_autorizza_spesa",
-      node_name: labels.get("percorso_autorizzazione_autorizza_spesa") ?? "Autorizza spesa",
-      base_revision: "as-is-v3",
-      kind: "candidate",
-      title: "Autorizzazione visibile, con una delega quando il responsabile e' fuori",
-      detail:
-        "Francesca: «…vorrei che l'autorizzazione fosse una cosa che si vede, non una mail che aspetto.» " +
-        "Oggi «non c'e' un sostituto formale». Ipotesi simulata: una finestra di autorizzazione ogni giorno.",
-      created_at: "2026-10-01T10:05:00Z",
-      created_by: "Marco Bellini",
-      proposal_xml: null,
-    },
-  ],
 };

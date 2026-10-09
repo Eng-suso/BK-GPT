@@ -254,6 +254,22 @@ async function replayScene(page: Page, id: string, run: number): Promise<void> {
 test("07-simula-as-is", async ({ page }) => replayScene(page, "07-simula-as-is", IDS.asIsRun));
 test("09-simula-to-be", async ({ page }) => replayScene(page, "09-simula-to-be", IDS.toBeRun));
 
+test("07b-heatmap", async ({ page }) => {
+  await scene(page, "07b-heatmap", async () => {
+    await page.goto(`${P}/simulation/heatmap/${IDS.asIsRun}`);
+    await expect(page.getByText("Collo di bottiglia").first()).toBeVisible();
+    await page.getByRole("button", { name: "Mostra tutta la tela" }).click();
+    await page.waitForTimeout(600);
+  }, async () => {
+    await moveTo(page, page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first(), 1000);
+    await page.waitForTimeout(1200);
+    await moveTo(page, page.getByText("Collo di bottiglia").first(), 900);
+    await page.waitForTimeout(1200);
+    await moveTo(page, page.getByText("Quota dell'attesa totale").first(), 800);
+    await page.waitForTimeout(2200);
+  });
+});
+
 test("08-to-be", async ({ page }) => {
   await scene(page, "08-to-be", async () => {
     await page.goto(P);
@@ -364,6 +380,12 @@ test.describe("screens", () => {
       await page.waitForTimeout(400);
       await shot(name);
     }
+
+    await page.goto(`${P}/simulation/heatmap/${IDS.asIsRun}`);
+    await expect(page.getByText("Collo di bottiglia").first()).toBeVisible();
+    await page.getByRole("button", { name: "Mostra tutta la tela" }).click();
+    await page.waitForTimeout(800);
+    await shot("07b-heatmap-collo-di-bottiglia");
 
     await page.goto(`${P}/simulation/compare?a=${IDS.asIsRun}&b=${IDS.toBeRun}`);
     await expect(page.getByText(/attraversamento −/)).toBeVisible();
