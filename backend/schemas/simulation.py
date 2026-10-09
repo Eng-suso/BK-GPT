@@ -212,6 +212,9 @@ class SimulationRunResponse(BaseModel):
     error: str | None = None
     created_at: str
     completed_at: str | None = None
+    # Per un run ``pending`` (P0.3): ``{"state": "queued", "position": n}`` mentre
+    # aspetta il suo turno, ``{"state": "running", "position": None}`` mentre gira.
+    queue: dict[str, Any] | None = None
 
 
 class SimulationReplayResponse(BaseModel):
