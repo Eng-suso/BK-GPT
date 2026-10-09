@@ -12,7 +12,15 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { IDS, PROCESS_OWNER } from "./demo";
+import {
+  AS_IS_REVIEW_NODE,
+  IDS,
+  PROCESS_OWNER,
+  REVIEW_NODE,
+  asIsReviewQuestion,
+  discoveryQuestion,
+  reviewQuestion,
+} from "./demo";
 import { installDemoApi, unhandled } from "./mockApi";
 import { Recorder, clickOn, installCursor, moveTo, slowScroll } from "./recorder";
 import storyboard from "./storyboard.json";
@@ -24,9 +32,10 @@ const HOLD = storyboard.hold * 1000;
 
 test.skip(Boolean(process.env.CI) && process.env.DELIR_LAUNCH_MEDIA !== "1", "Generatore di media: in CI con DELIR_LAUNCH_MEDIA=1");
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, info) => {
   page.setDefaultTimeout(10_000);
-  await installDemoApi(page);
+  // La discussione parte vuota solo dove il consulente la apre davanti a noi.
+  await installDemoApi(page, "it", { live: info.title === "02-interviste-a-delir" });
   await installCursor(page);
 });
 
@@ -60,72 +69,83 @@ async function openSources(page: Page): Promise<void> {
 
 // --- Card (gancio e chiusura): HTML dentro l'app, cosi' i caratteri sono i suoi.
 
-async function showCard(page: Page, kind: "hook" | "close"): Promise<void> {
+type Hook = { day: string; line: string; quote?: string };
+
+/**
+ * Il gancio e' la settimana del consulente, un giorno per volta (una card
+ * sostituisce l'altra); la chiusura e' il marchio con la frase.
+ */
+async function showCard(page: Page, kind: "hook" | "close", step: number): Promise<void> {
   await page.goto("/home");
   await expect(page.getByText("Acquisti indiretti e servizi").first()).toBeVisible();
-  const quotes = [
-    ["Laura Conti · Ufficio Tecnico", "So che poi la parte di carta viene messa a posto dopo, ma non so da chi."],
-    ["Paolo Marchetti · Manutenzione", "Se mi chiedi chi materialmente lo fa, non lo so, e non voglio dirti un nome a caso."],
-    ["Francesca Neri · Acquisti", "La parte di ordine si', la faccio io."],
-  ];
-  const scene = storyboard.scenes.find((item) => item.card === kind)!;
-  await page.evaluate(({ kind, quotes, title, disclaimer }) => {
+  const item = storyboard.scenes.find((entry) => entry.card === kind)!;
+  await page.evaluate(({ kind, hook, title, disclaimer, step }) => {
     const css = `
       .launch-card { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; background: #f8fafc; color: #0f172a; }
-      .launch-card .wrap { width: 1240px; display: grid; gap: 22px; }
-      .launch-card .quote { opacity: 0; transform: translateY(14px); animation: launch-in 700ms cubic-bezier(.22,1,.36,1) forwards;
-        background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 26px 32px; box-shadow: 0 10px 30px rgba(15,23,42,.06); }
-      .launch-card .quote p { font-size: 34px; line-height: 1.3; margin: 0; letter-spacing: -0.01em; }
-      .launch-card .quote small { display: block; margin-top: 10px; font-size: 18px; color: #64748b; }
-      .launch-card .quote.known { border-color: #2563eb; }
+      .launch-card .day { position: absolute; display: grid; gap: 26px; justify-items: center; text-align: center; width: 1500px;
+        opacity: 0; transform: translateY(18px); animation: launch-in 600ms cubic-bezier(.22,1,.36,1) forwards, launch-out 400ms ease-in forwards; }
+      .launch-card .day:last-of-type { animation: launch-in 600ms cubic-bezier(.22,1,.36,1) forwards; }
+      .launch-card .label { font-size: 30px; font-weight: 600; color: #2563eb; letter-spacing: .08em; text-transform: uppercase; }
+      .launch-card .line { font-size: 76px; font-weight: 650; letter-spacing: -0.03em; line-height: 1.12; }
+      .launch-card .quote { font-size: 40px; color: #475569; font-style: italic; }
       .launch-card h1 { opacity: 0; animation: launch-in 800ms cubic-bezier(.22,1,.36,1) forwards; font-size: 64px; letter-spacing: -0.03em; margin: 26px 0 0; text-align: center; }
       .launch-card .brand { opacity: 0; animation: launch-in 900ms cubic-bezier(.22,1,.36,1) forwards; font-size: 120px; font-weight: 700; color: #1d4ed8; letter-spacing: -0.04em; text-align: center; }
       .launch-card .disclaimer { position: fixed; right: 36px; bottom: 28px; font-size: 16px; color: #94a3b8; }
       .launch-card.paused * { animation-play-state: paused !important; }
-      @keyframes launch-in { to { opacity: 1; transform: none; } }`;
+      @keyframes launch-in { to { opacity: 1; transform: none; } }
+      @keyframes launch-out { to { opacity: 0; transform: translateY(-14px); } }`;
     const root = document.createElement("div");
     root.className = "launch-card paused";
     const style = document.createElement("style");
     style.textContent = css;
-    const wrap = document.createElement("div");
-    wrap.className = "wrap";
+    root.append(style);
     if (kind === "hook") {
-      quotes.forEach(([who, text], index) => {
+      hook.forEach((entry, index) => {
         const card = document.createElement("div");
-        card.className = index === 2 ? "quote known" : "quote";
-        card.style.animationDelay = `${0.3 + index * 1.5}s`;
-        const p = document.createElement("p");
-        p.textContent = `«${text}»`;
-        const small = document.createElement("small");
-        small.textContent = who;
-        card.append(p, small);
-        wrap.append(card);
+        card.className = "day";
+        const at = 0.2 + index * step;
+        // Entra a `at`, esce poco prima che entri il giorno dopo.
+        card.style.animationDelay = `${at}s, ${at + step - 0.45}s`;
+        const label = document.createElement("div");
+        label.className = "label";
+        label.textContent = entry.day;
+        const line = document.createElement("div");
+        line.className = "line";
+        line.textContent = entry.line;
+        card.append(label, line);
+        if (entry.quote) {
+          const quote = document.createElement("div");
+          quote.className = "quote";
+          quote.textContent = `«${entry.quote}»`;
+          card.append(quote);
+        }
+        root.append(card);
       });
-      const h1 = document.createElement("h1");
-      h1.textContent = title;
-      h1.style.animationDelay = "5s";
-      wrap.append(h1);
     } else {
+      const wrap = document.createElement("div");
       const brand = document.createElement("div");
       brand.className = "brand";
       brand.textContent = "DeliR";
       brand.style.animationDelay = "0.3s";
       const h1 = document.createElement("h1");
-      h1.textContent = title;
+      h1.textContent = title ?? "";
       h1.style.animationDelay = "1.1s";
       wrap.append(brand, h1);
+      root.append(wrap);
     }
     const note = document.createElement("div");
     note.className = "disclaimer";
     note.textContent = disclaimer;
-    root.append(style, wrap, note);
+    root.append(note);
     document.body.append(root);
     document.getElementById("launch-cursor")?.remove();
-  }, { kind, quotes, title: scene.title!, disclaimer: storyboard.disclaimer });
+  }, { kind, hook: storyboard.hook as Hook[], title: item.title, disclaimer: storyboard.disclaimer, step });
 }
 
+const HOOK_STEP = 2.4;
+
 async function cardScene(page: Page, id: string, kind: "hook" | "close", seconds: number): Promise<void> {
-  await showCard(page, kind);
+  await showCard(page, kind, HOOK_STEP);
   const rec = new Recorder(page, resolve(RAW, id));
   await rec.start();
   await page.evaluate(() => document.querySelector(".launch-card")?.classList.remove("paused"));
@@ -133,13 +153,108 @@ async function cardScene(page: Page, id: string, kind: "hook" | "close", seconds
   await rec.stop();
 }
 
-test("01-gancio", async ({ page }) => cardScene(page, "01-gancio", "hook", 8.5));
-test("13-chiusura", async ({ page }) => cardScene(page, "13-chiusura", "close", 5));
+test("01-settimana", async ({ page }) => cardScene(page, "01-settimana", "hook", 0.4 + storyboard.hook.length * HOOK_STEP));
+test("18-chiusura", async ({ page }) => cardScene(page, "18-chiusura", "close", 5));
+
+// --- Chat con DeliR ----------------------------------------------------------
+
+/** Scrive come una persona: si vede il testo comparire, poi invia. */
+async function typeLikeHuman(page: Page, box: Locator, text: string): Promise<void> {
+  await clickOn(page, box, 600);
+  await box.pressSequentially(text, { delay: 28 });
+  await page.waitForTimeout(350);
+}
+
+/** Apre la Review di un task del modello e il suo agente. */
+async function openReviewAgent(page: Page, taskName: string): Promise<Locator> {
+  await clickOn(page, page.getByRole("button", { name: /^Task \d+$/ }).first());
+  await page.waitForTimeout(300);
+  await clickOn(page, page.getByRole("button", { name: taskName, exact: true }));
+  await page.waitForTimeout(700);
+  await clickOn(page, page.getByRole("button", { name: "Apri agente DeliR", exact: true }));
+  const chat = page.getByRole("dialog", { name: "Agente di Review" });
+  await expect(chat).toBeVisible();
+  // Piu' spazio alla conversazione: la si legge per intero.
+  const handle = page.getByRole("button", { name: "Ridimensiona chat DeliR" });
+  await moveTo(page, handle, 500);
+  await handle.focus();
+  for (let step = 0; step < 14; step += 1) {
+    await page.keyboard.press(step % 2 ? "ArrowLeft" : "ArrowUp");
+    await page.waitForTimeout(25);
+  }
+  for (let step = 0; step < 6; step += 1) await page.keyboard.press("ArrowUp");
+  return chat;
+}
+
+async function askReview(page: Page, chat: Locator, question: string, done: RegExp): Promise<void> {
+  await typeLikeHuman(page, page.getByLabel("Scrivi all’agente di Review"), question);
+  await clickOn(page, page.getByRole("button", { name: "Invia messaggio", exact: true }), 400);
+  await moveTo(page, chat.getByText(question).first(), 500);
+  await expect(chat.getByText(done).first()).toBeVisible({ timeout: 30_000 });
+  // La risposta e' piu' lunga del pannello: si torna all'inizio e la si rilegge.
+  await page.waitForTimeout(700);
+  const log = await scrollable(chat);
+  const height = await log.evaluate((el) => el.scrollTop);
+  if (height > 0) {
+    await slowScroll(page, log, -height, 1400);
+    await page.waitForTimeout(1200);
+    await slowScroll(page, log, height, 2600);
+  }
+}
+
+
+/**
+ * Le chat si leggono solo da vicino: 1280x720 a densita' 1,5, cioe' fotogrammi
+ * a 1920x1080 con i testi un terzo piu' grandi.
+ */
+test.describe("chat ravvicinate", () => {
+  test.use({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
+
+  test("02-interviste-a-delir", async ({ page }) => {
+    await scene(page, "02-interviste-a-delir", async () => {
+      await page.goto(P);
+      await expect(page.getByPlaceholder(/Scrivi un messaggio/)).toBeVisible();
+    }, async () => {
+      const box = page.getByPlaceholder(/Scrivi un messaggio/);
+      await typeLikeHuman(page, box, discoveryQuestion);
+      await page.keyboard.press("Enter");
+      await moveTo(page, { x: 1500, y: 980 }, 600);
+      await expect(page.getByText(/Leggo le fonti raccolte/).first()).toBeVisible({ timeout: 10_000 });
+      // La risposta e' completa quando torna il pulsante di invio al posto di "Ferma".
+      await expect(page.getByRole("button", { name: /Ferma/ })).toBeHidden({ timeout: 40_000 });
+      await page.waitForTimeout(1600);
+    });
+  });
+
+  test("07-review-as-is", async ({ page }) => {
+    await scene(page, "07-review-as-is", async () => {
+      await page.goto(`${P}?view=review`);
+      await expect(page.locator(`.review-canvas [data-element-id='${AS_IS_REVIEW_NODE}']`).first()).toBeVisible();
+    }, async () => {
+      const chat = await openReviewAgent(page, "Regolarizza ordine a posteriori");
+      await askReview(page, chat, asIsReviewQuestion, /Da confermare con Laura Conti/);
+      await page.waitForTimeout(1800);
+    });
+  });
+
+  test("12-review-to-be", async ({ page }) => {
+    await scene(page, "12-review-to-be", async () => {
+      await page.goto(`${P}?view=review`);
+      await expect(page.locator(`.review-canvas [data-element-id='${REVIEW_NODE}']`).first()).toBeVisible();
+    }, async () => {
+      const chat = await openReviewAgent(page, "Autorizza spesa");
+      await askReview(page, chat, reviewQuestion, /Da verificare con Laura Conti/);
+      await page.waitForTimeout(900);
+      await moveTo(page, page.getByRole("button", { name: "Salva come ipotesi" }), 800);
+      await page.waitForTimeout(1500);
+    });
+  });
+});
 
 // --- Scene di prodotto -----------------------------------------------------
 
-test("02-capire", async ({ page }) => {
-  await scene(page, "02-capire", () => openSources(page), async () => {
+test("03-fonti", async ({ page }) => {
+  await scene(page, "03-fonti", () => openSources(page), async () => {
     await clickOn(page, page.getByRole("tab", { name: /Fonti/ }));
     await page.waitForTimeout(900);
     await clickOn(page, page.getByText("Intervista Laura Conti").first());
@@ -152,8 +267,8 @@ test("02-capire", async ({ page }) => {
   });
 });
 
-test("03-passaggio-nascosto", async ({ page }) => {
-  await scene(page, "03-passaggio-nascosto", async () => {
+test("04-passaggio-nascosto", async ({ page }) => {
+  await scene(page, "04-passaggio-nascosto", async () => {
     await openSources(page);
     await page.getByRole("tab", { name: /Fonti/ }).click();
     await expect(page.getByText("Intervista Francesca Neri").first()).toBeVisible();
@@ -184,8 +299,8 @@ test("03-passaggio-nascosto", async ({ page }) => {
   });
 });
 
-test("04-lacuna", async ({ page }) => {
-  await scene(page, "04-lacuna", async () => {
+test("05-lacuna", async ({ page }) => {
+  await scene(page, "05-lacuna", async () => {
     await page.goto(P);
     await expect(page.getByRole("button", { name: /^Decidi$/ })).toBeVisible();
   }, async () => {
@@ -200,8 +315,8 @@ test("04-lacuna", async ({ page }) => {
   });
 });
 
-test("05-ogni-passaggio-una-fonte", async ({ page }) => {
-  await scene(page, "05-ogni-passaggio-una-fonte", async () => {
+test("06-as-is", async ({ page }) => {
+  await scene(page, "06-as-is", async () => {
     await page.goto(`${P}?view=canvas`);
     await expect(page.locator("[data-element-id='percorso_urgente_regolarizza_ordine']").first()).toBeVisible();
   }, async () => {
@@ -222,20 +337,17 @@ test("05-ogni-passaggio-una-fonte", async ({ page }) => {
   });
 });
 
-test("06-ultima-parola", async ({ page }) => {
-  await scene(page, "06-ultima-parola", async () => {
+
+test("08-as-is-corretto", async ({ page }) => {
+  await scene(page, "08-as-is-corretto", async () => {
     await page.goto(`${P}?view=canvas`);
-    await expect(page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first()).toBeVisible();
+    await expect(page.locator(`[data-element-id='${AS_IS_REVIEW_NODE}']`).first()).toBeVisible();
   }, async () => {
-    await clickOn(page, page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first());
+    await clickOn(page, page.locator(`[data-element-id='${AS_IS_REVIEW_NODE}']`).first());
     await clickOn(page, page.getByRole("button", { name: "Proprietà", exact: true }));
-    const panel = page.getByRole("tablist", { name: "Schede proprietà" });
-    await expect(panel).toBeVisible();
+    await expect(page.getByRole("tablist", { name: "Schede proprietà" })).toBeVisible();
     await moveTo(page, page.getByLabel("Responsabile attività"), 800);
-    await page.waitForTimeout(900);
-    await clickOn(page, panel.getByRole("tab", { name: "Regole" }));
-    await moveTo(page, page.getByText(/Nessun sostituto formale/).first(), 800);
-    await page.waitForTimeout(1300);
+    await page.waitForTimeout(1200);
     await clickOn(page, page.getByRole("button", { name: "Importa, esporta, cronologia" }));
     await page.waitForTimeout(400);
     await clickOn(page, page.getByRole("menuitem", { name: /Cronologia versioni/ }));
@@ -260,11 +372,11 @@ async function replayScene(page: Page, id: string, run: number): Promise<void> {
   });
 }
 
-test("07-simula-as-is", async ({ page }) => replayScene(page, "07-simula-as-is", IDS.asIsRun));
-test("09-simula-to-be", async ({ page }) => replayScene(page, "09-simula-to-be", IDS.toBeRun));
+test("09-simula-as-is", async ({ page }) => replayScene(page, "09-simula-as-is", IDS.asIsRun));
+test("14-simula-to-be", async ({ page }) => replayScene(page, "14-simula-to-be", IDS.toBeRun));
 
-test("07b-heatmap", async ({ page }) => {
-  await scene(page, "07b-heatmap", async () => {
+test("10-heatmap", async ({ page }) => {
+  await scene(page, "10-heatmap", async () => {
     await page.goto(`${P}/simulation/heatmap/${IDS.asIsRun}`);
     await expect(page.getByText("Collo di bottiglia").first()).toBeVisible();
     await page.getByRole("button", { name: "Mostra tutta la tela" }).click();
@@ -279,8 +391,33 @@ test("07b-heatmap", async ({ page }) => {
   });
 });
 
-test("08-to-be", async ({ page }) => {
-  await scene(page, "08-to-be", async () => {
+test("11-event-log", async ({ page }) => {
+  await scene(page, "11-event-log", async () => {
+    await page.goto(`${P}/simulation`);
+    await expect(page.getByRole("button", { name: "Event log", exact: true })).toBeVisible();
+  }, async () => {
+    await clickOn(page, page.getByRole("button", { name: "Event log", exact: true }));
+    await page.waitForTimeout(700);
+    await clickOn(page, page.getByRole("button", { name: /^export-workflow-acquisti\.csv/ }).first());
+    await page.waitForTimeout(900);
+    await clickOn(page, page.getByRole("button", { name: /Qualità e KPI/ }).first());
+    await page.waitForTimeout(1600);
+    await clickOn(page, page.getByRole("button", { name: /Reale contro simulato/ }).first());
+    await page.waitForTimeout(800);
+    // Il log e' di oggi: si confronta con la simulazione dell'As-Is.
+    const run = page.getByRole("combobox", { name: "Run simulato" });
+    await moveTo(page, run, 700);
+    await run.selectOption({ value: String(IDS.asIsRun) }).catch(async () => run.selectOption({ index: 1 }));
+    await expect(page.getByText(/vicino al reale/).first()).toBeVisible();
+    await page.waitForTimeout(500);
+    await moveTo(page, page.getByText(/vicino al reale/).first(), 900);
+    await page.waitForTimeout(2200);
+  });
+});
+
+
+test("13-ipotesi-to-be", async ({ page }) => {
+  await scene(page, "13-ipotesi-to-be", async () => {
     await page.goto(P);
     await expect(page.getByRole("tab", { name: "Ipotesi To-Be" })).toBeVisible();
   }, async () => {
@@ -294,8 +431,8 @@ test("08-to-be", async ({ page }) => {
   });
 });
 
-test("10-decidi", async ({ page }) => {
-  await scene(page, "10-decidi", async () => {
+test("15-decidi", async ({ page }) => {
+  await scene(page, "15-decidi", async () => {
     await page.goto(`${P}/simulation/compare?a=${IDS.asIsRun}&b=${IDS.toBeRun}`);
     await expect(page.getByText(/attraversamento −/)).toBeVisible();
     await page.getByRole("button", { name: "Mostra tutta la tela" }).click();
@@ -307,20 +444,40 @@ test("10-decidi", async ({ page }) => {
   });
 });
 
-test("11-process-owner", async ({ page }) => {
-  await scene(page, "11-process-owner", async () => {
+/**
+ * DeliR non ha (ancora) un invio al process owner: il consulente apre la
+ * proposta To-Be, scarica il BPMN e il progetto segna il passo successivo.
+ */
+test("16-process-owner", async ({ page }) => {
+  await scene(page, "16-process-owner", async () => {
+    await page.goto(`${P}?view=review`);
+    await expect(page.locator(`.review-canvas [data-element-id='${REVIEW_NODE}']`).first()).toBeVisible();
+    await page.getByRole("button", { name: /^Task \d+$/ }).first().click();
+    await page.getByRole("button", { name: "Autorizza spesa", exact: true }).click();
+    await page.getByRole("button", { name: "Apri agente DeliR", exact: true }).click();
+    const chat = page.getByRole("dialog", { name: "Agente di Review" });
+    await page.getByLabel("Scrivi all’agente di Review").fill(reviewQuestion);
+    await page.getByRole("button", { name: "Invia messaggio", exact: true }).click();
+    await expect(chat.getByText(/Da verificare con Laura Conti/).first()).toBeVisible({ timeout: 30_000 });
+    await chat.getByRole("button", { name: "Apri conoscenza e proposte del task" }).click();
+    await page.getByRole("tab", { name: "Proposte", exact: true }).click();
+    await page.waitForTimeout(500);
+  }, async () => {
+    await clickOn(page, page.getByRole("button", { name: "Apri diagramma", exact: true }).first());
+    const preview = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "Scarica BPMN" }) });
+    await expect(preview).toBeVisible();
+    await page.waitForTimeout(1500);
+    await clickOn(page, preview.getByRole("button", { name: "Scarica BPMN" }));
+    await page.waitForTimeout(1300);
     await page.goto(`/projects/${IDS.project}`);
     await expect(page.getByText(`Validazione del To-Be con ${PROCESS_OWNER}`)).toBeVisible();
-  }, async () => {
-    await moveTo(page, page.getByText("Validazione del process owner").first(), 900);
-    await page.waitForTimeout(979);
     await moveTo(page, page.getByText(`Validazione del To-Be con ${PROCESS_OWNER}`), 900);
-    await page.waitForTimeout(1680);
+    await page.waitForTimeout(1800);
   });
 });
 
-test("12-memoria", async ({ page }) => {
-  await scene(page, "12-memoria", async () => {
+test("17-memoria", async ({ page }) => {
+  await scene(page, "17-memoria", async () => {
     await page.goto(`/projects/${IDS.project}`);
     await expect(page.getByRole("tab", { name: /Fonti/ })).toBeVisible();
   }, async (rec) => {

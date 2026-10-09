@@ -30,7 +30,11 @@ export class Recorder {
       this.pending.push(this.session!.send("Page.screencastFrameAck", { sessionId }).catch(() => undefined));
     });
     const { width, height } = this.page.viewportSize() ?? { width: 1920, height: 1080 };
-    await this.session.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: width, maxHeight: height, everyNthFrame: 1 });
+    // Con densita' > 1 (scene ravvicinate) i fotogrammi restano a piena risoluzione.
+    const dpr = await this.page.evaluate(() => window.devicePixelRatio);
+    await this.session.send("Page.startScreencast", {
+      format: "jpeg", quality: 92, maxWidth: Math.round(width * dpr), maxHeight: Math.round(height * dpr), everyNthFrame: 1,
+    });
     this.started = Date.now() / 1000;
     // Un primo fotogramma anche se la pagina e' ferma.
     await this.page.evaluate(() => document.body.style.setProperty("--launch-tick", String(Math.random())));

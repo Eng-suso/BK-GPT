@@ -696,7 +696,7 @@ export const asIsReviewScript: ChatScript = {
     "",
     "**Cosa manca nel modello**",
     "- la registrazione contabile è di Amministrazione, ma solo dopo l’ordine: «per farla loro hanno bisogno che io abbia aperto l'ordine»;",
-    "- a Paolo nessuno l’ha mai detto: «Non credo, e onestamente non e' mai stato detto.»",
+    "- Paolo non sa che è Acquisti; Francesca: «Non credo, e onestamente non e' mai stato detto.»",
     "",
     "**Da confermare con Laura Conti** prima di validare l’As-Is.",
   ].join("\n"),

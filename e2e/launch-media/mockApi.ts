@@ -139,7 +139,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
         scope_key: scope.review_node_id
           ? `canvas:${scope.project_id}:${scope.process_id}:${scope.bpmn_model_id}:review:${scope.review_node_id}`
           : `${scope.type}:${scope.project_id}:${scope.process_id}`,
-        title: "Review del task",
+        title: scope.review_node_id ? "Review del task" : "Ricostruzione As-Is dalle interviste",
         messages: [] as { role: string; content: string }[],
       };
       reviewSessions.push(session);
