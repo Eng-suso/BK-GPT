@@ -9,7 +9,8 @@
  *   landing/hero-loop.*      il loop dell'hero (storyboard.json -> hero)
  *   video/delir-presentazione-it.mp4   il video muto completo
  *
- *   node scripts/launch_media_render.mjs
+ *   node scripts/launch_media_render.mjs               # tutte le scene
+ *   node scripts/launch_media_render.mjs 01-gancio     # solo quelle, riusando le altre
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -30,7 +31,7 @@ function ffmpeg(args) {
   execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args], { stdio: "inherit" });
 }
 
-const X264 = ["-c:v", "libx264", "-preset", "slow", "-pix_fmt", "yuv420p", "-movflags", "+faststart"];
+const X264 = ["-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p", "-movflags", "+faststart"];
 
 /** Fotogrammi a tempo variabile -> 30 fps costanti, 1920x1080. */
 function rawClip(id) {
@@ -88,13 +89,19 @@ function landingClip(name, raw, from, duration) {
   const filter = `[0:v][1:v]overlay=0:0,format=yuv420p[out]`;
   const args = ["-ss", String(from), "-t", String(duration), "-i", raw, "-loop", "1", "-t", String(duration), "-i", resolve(OVERLAYS, "disclaimer.png"), "-filter_complex", filter, "-map", "[out]", "-an"];
   ffmpeg([...args, ...X264, "-crf", "21", `${base}.mp4`]);
-  ffmpeg([...args, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "34", "-row-mt", "1", "-deadline", "good", `${base}.webm`]);
+  ffmpeg([...args, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "34", "-row-mt", "1", "-deadline", "good", "-cpu-used", "4", `${base}.webm`]);
   ffmpeg(["-ss", "0.5", "-i", `${base}.mp4`, "-frames:v", "1", "-q:v", "3", `${base}.jpg`]);
 }
 
+const only = new Set(process.argv.slice(2));
 const raws = {};
 const sceneFiles = [];
 for (const scene of storyboard.scenes) {
+  const done = resolve(SCENES, `${scene.id}.mp4`);
+  if (only.size && !only.has(scene.id)) {
+    if (existsSync(done)) sceneFiles.push(done);
+    continue;
+  }
   if (!existsSync(resolve(RAW, scene.id, "scene.json"))) {
     console.warn(`manca la registrazione di ${scene.id}: saltata`);
     continue;
@@ -107,7 +114,7 @@ for (const scene of storyboard.scenes) {
 }
 
 const heroParts = storyboard.hero.filter((part) => raws[part.scene]);
-if (heroParts.length) {
+if (heroParts.length && heroParts.length === storyboard.hero.length) {
   const parts = heroParts.map((part, index) => {
     const out = resolve(WORK, `hero-${index}.mp4`);
     ffmpeg(["-ss", String(part.from), "-t", String(part.duration), "-i", raws[part.scene].file, "-vf", `fade=t=in:st=0:d=0.4:color=white,fade=t=out:st=${part.duration - 0.4}:d=0.4:color=white`, ...X264, "-crf", "14", out]);

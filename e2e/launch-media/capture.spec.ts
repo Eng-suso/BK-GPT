@@ -81,9 +81,10 @@ async function showCard(page: Page, kind: "hook" | "close"): Promise<void> {
       .launch-card h1 { opacity: 0; animation: launch-in 800ms cubic-bezier(.22,1,.36,1) forwards; font-size: 64px; letter-spacing: -0.03em; margin: 26px 0 0; text-align: center; }
       .launch-card .brand { opacity: 0; animation: launch-in 900ms cubic-bezier(.22,1,.36,1) forwards; font-size: 120px; font-weight: 700; color: #1d4ed8; letter-spacing: -0.04em; text-align: center; }
       .launch-card .disclaimer { position: fixed; right: 36px; bottom: 28px; font-size: 16px; color: #94a3b8; }
+      .launch-card.paused * { animation-play-state: paused !important; }
       @keyframes launch-in { to { opacity: 1; transform: none; } }`;
     const root = document.createElement("div");
-    root.className = "launch-card";
+    root.className = "launch-card paused";
     const style = document.createElement("style");
     style.textContent = css;
     const wrap = document.createElement("div");
@@ -92,7 +93,7 @@ async function showCard(page: Page, kind: "hook" | "close"): Promise<void> {
       quotes.forEach(([who, text], index) => {
         const card = document.createElement("div");
         card.className = index === 2 ? "quote known" : "quote";
-        card.style.animationDelay = `${0.4 + index * 2.1}s`;
+        card.style.animationDelay = `${0.3 + index * 1.5}s`;
         const p = document.createElement("p");
         p.textContent = `«${text}»`;
         const small = document.createElement("small");
@@ -102,7 +103,7 @@ async function showCard(page: Page, kind: "hook" | "close"): Promise<void> {
       });
       const h1 = document.createElement("h1");
       h1.textContent = title;
-      h1.style.animationDelay = "7s";
+      h1.style.animationDelay = "5s";
       wrap.append(h1);
     } else {
       const brand = document.createElement("div");
@@ -123,23 +124,17 @@ async function showCard(page: Page, kind: "hook" | "close"): Promise<void> {
   }, { kind, quotes, title: scene.title!, disclaimer: storyboard.disclaimer });
 }
 
-test("01-gancio", async ({ page }) => {
-  await page.goto("/home");
-  const rec = new Recorder(page, resolve(RAW, "01-gancio"));
+async function cardScene(page: Page, id: string, kind: "hook" | "close", seconds: number): Promise<void> {
+  await showCard(page, kind);
+  const rec = new Recorder(page, resolve(RAW, id));
   await rec.start();
-  await showCard(page, "hook");
-  await page.waitForTimeout(10_000);
+  await page.evaluate(() => document.querySelector(".launch-card")?.classList.remove("paused"));
+  await page.waitForTimeout(seconds * 1000);
   await rec.stop();
-});
+}
 
-test("13-chiusura", async ({ page }) => {
-  await page.goto("/home");
-  const rec = new Recorder(page, resolve(RAW, "13-chiusura"));
-  await rec.start();
-  await showCard(page, "close");
-  await page.waitForTimeout(5_000);
-  await rec.stop();
-});
+test("01-gancio", async ({ page }) => cardScene(page, "01-gancio", "hook", 8.5));
+test("13-chiusura", async ({ page }) => cardScene(page, "13-chiusura", "close", 5));
 
 // --- Scene di prodotto -----------------------------------------------------
 
@@ -150,10 +145,10 @@ test("02-capire", async ({ page }) => {
     await clickOn(page, page.getByText("Intervista Laura Conti").first());
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByText("citazione verificata").first()).toBeVisible();
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(840);
     await moveTo(page, dialog.getByText("citazione verificata").first(), 800);
     await slowScroll(page, await scrollable(dialog), 520, 4200);
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(840);
   });
 });
 
@@ -183,9 +178,9 @@ test("03-passaggio-nascosto", async ({ page }) => {
     await moveTo(page, dialog.getByText("Divergenze (3)").first(), 700);
     await page.waitForTimeout(500);
     await moveTo(page, dialog.getByText(/non so da chi/).first(), 900);
-    await page.waitForTimeout(1300);
+    await page.waitForTimeout(909);
     await moveTo(page, dialog.getByText(/la faccio io/).first(), 900);
-    await page.waitForTimeout(2600);
+    await page.waitForTimeout(1560);
   });
 });
 
@@ -199,9 +194,9 @@ test("04-lacuna", async ({ page }) => {
     await clickOn(page, page.getByRole("button", { name: /Da decidere/ }));
     await page.waitForTimeout(700);
     await moveTo(page, page.getByText(/Qual e' la soglia di importo/).first(), 900);
-    await page.waitForTimeout(1400);
+    await page.waitForTimeout(979);
     await moveTo(page, page.getByText("Chiedo la procedura scritta a Francesca"), 800);
-    await page.waitForTimeout(2600);
+    await page.waitForTimeout(1560);
   });
 });
 
@@ -223,7 +218,7 @@ test("05-ogni-passaggio-una-fonte", async ({ page }) => {
     await moveTo(page, quote, 900);
     await page.waitForTimeout(800);
     await moveTo(page, page.locator("[data-element-id='percorso_urgente_regolarizza_ordine']").first(), 900);
-    await page.waitForTimeout(2400);
+    await page.waitForTimeout(1440);
   });
 });
 
@@ -237,7 +232,7 @@ test("06-ultima-parola", async ({ page }) => {
     await clickOn(page, page.getByRole("menuitem", { name: /Cronologia versioni/ }));
     await page.waitForTimeout(800);
     await moveTo(page, page.getByText("As-Is v3 · validato con Laura Conti").first(), 900);
-    await page.waitForTimeout(3200);
+    await page.waitForTimeout(1920);
   });
 });
 
@@ -252,7 +247,7 @@ async function replayScene(page: Page, id: string, run: number): Promise<void> {
   }, async () => {
     await clickOn(page, page.getByRole("button", { name: "Riproduci", exact: true }), 600);
     await moveTo(page, { x: 960, y: 1040 }, 500);
-    await page.waitForTimeout(12_500);
+    await page.waitForTimeout(9500);
   });
 }
 
@@ -268,9 +263,9 @@ test("08-to-be", async ({ page }) => {
     await expect(page.getByText("La richiesta nasce completa, con i campi obbligatori")).toBeVisible();
     await page.waitForTimeout(700);
     await moveTo(page, page.getByText(/Un posto unico dove la richiesta/).first(), 900);
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(1260);
     await moveTo(page, page.getByText(/vorrei che l'autorizzazione/).first(), 900);
-    await page.waitForTimeout(2600);
+    await page.waitForTimeout(1560);
   });
 });
 
@@ -281,9 +276,9 @@ test("10-decidi", async ({ page }) => {
     await page.getByRole("button", { name: "Mostra tutta la tela" }).click();
   }, async () => {
     await moveTo(page, page.getByText(/attraversamento −/), 1000);
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(1260);
     await moveTo(page, page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first(), 1000);
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1800);
   });
 });
 
@@ -293,9 +288,9 @@ test("11-process-owner", async ({ page }) => {
     await expect(page.getByText(`Validazione del To-Be con ${PROCESS_OWNER}`)).toBeVisible();
   }, async () => {
     await moveTo(page, page.getByText("Validazione del process owner").first(), 900);
-    await page.waitForTimeout(1400);
+    await page.waitForTimeout(979);
     await moveTo(page, page.getByText(`Validazione del To-Be con ${PROCESS_OWNER}`), 900);
-    await page.waitForTimeout(2800);
+    await page.waitForTimeout(1680);
   });
 });
 
@@ -306,12 +301,12 @@ test("12-memoria", async ({ page }) => {
   }, async (rec) => {
     const nav = (name: string) => page.getByRole("button", { name, exact: true }).first();
     await clickOn(page, nav("Clienti"));
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(840);
     await clickOn(page, page.getByText("Vetrano Industriale S.p.A.").first());
-    await page.waitForTimeout(1800);
+    await page.waitForTimeout(1260);
     await clickOn(page, nav("Home"));
     rec.mark("portfolio");
-    await page.waitForTimeout(3600);
+    await page.waitForTimeout(3400);
   });
 });
 
@@ -401,7 +396,7 @@ test("overlays", async ({ page }) => {
   }
   for (const [name, text] of Object.entries(texts)) {
     await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent;font-family:${font.replace(/"/g, "'")}">
-      <div style="position:fixed;inset:0;display:flex;align-items:${name === "disclaimer" ? "flex-end" : "flex-end"};justify-content:${name === "disclaimer" ? "flex-end" : "center"};padding:${name === "disclaimer" ? "0 28px 22px 0" : "0 0 120px 0"}">
+      <div style="position:fixed;inset:0;display:flex;align-items:${name === "disclaimer" ? "flex-start" : "flex-end"};justify-content:center;padding:${name === "disclaimer" ? "13px 0 0 0" : "0 0 120px 0"}">
         <div style="${name === "disclaimer"
           ? "font-size:15px;color:#64748b;background:rgba(255,255,255,.88);border:1px solid #e2e8f0;border-radius:999px;padding:6px 14px"
           : "font-size:52px;font-weight:600;letter-spacing:-0.02em;color:#fff;background:rgba(15,23,42,.88);border-radius:22px;padding:26px 44px;box-shadow:0 20px 60px rgba(15,23,42,.35);max-width:1500px;text-align:center"}">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>

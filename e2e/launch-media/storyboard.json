@@ -1,6 +1,6 @@
 {
   "disclaimer": "Azienda e persone fittizie · caso dimostrativo",
-  "hold": 3.2,
+  "hold": 2.6,
   "scenes": [
     {
       "id": "01-gancio",
@@ -60,7 +60,13 @@
     {
       "id": "12-memoria",
       "caption": "Tutto resta nella memoria di DeliR.",
-      "captions": [{ "text": "Per ogni cliente. Per ogni progetto.", "mark": "portfolio", "duration": 3 }],
+      "captions": [
+        {
+          "text": "Per ogni cliente. Per ogni progetto.",
+          "mark": "portfolio",
+          "duration": 3
+        }
+      ],
       "landing": "memoria"
     },
     {
@@ -70,7 +76,15 @@
     }
   ],
   "hero": [
-    { "scene": "03-passaggio-nascosto", "from": 3.2, "duration": 8 },
-    { "scene": "07-simula-as-is", "from": 3.2, "duration": 12 }
+    {
+      "scene": "03-passaggio-nascosto",
+      "from": 2.6,
+      "duration": 8
+    },
+    {
+      "scene": "07-simula-as-is",
+      "from": 2.6,
+      "duration": 9
+    }
   ]
 }
