@@ -81,6 +81,20 @@ lavoro, poi testo che arriva a pezzi), come dal backend.
 hanno tre velocita' legate ai marker della registrazione: digitazione 3–3,5×,
 risposta in streaming 1,2–1,5× (si legge), rilettura 2,5×. Loop hero: review dell'As-Is + replay As-Is.
 
+## Regia
+
+I tagli li monta `scripts/launch_media_edit.py`, fotogramma per fotogramma:
+
+- **camera**: in cattura ogni scena registra dove guardare (`rec.focus`,
+  `rec.wide`); il montaggio fa zoom e panoramiche con easing in-out (0,9 s) su
+  quel rettangolo e torna al campo largo;
+- **transizioni**: dissolvenza incrociata di 0,45 s fra le scene, apertura e
+  chiusura dal bianco;
+- **testi**: entrano dal basso con dissolvenza, durante l'attesa della scena;
+- **percorso del consulente**: in alto, le sei tappe (Interviste, As-Is,
+  Simulazione, Event log, To-Be, Process owner), quella in corso accesa e le
+  precedenti spuntate; il disclaimer in basso a destra.
+
 ## Regole del video muto
 
 - Un testo per scena, corto, almeno 2 s a schermo (taglio 90 s) o 2,6 s (esteso).
