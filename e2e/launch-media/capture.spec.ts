@@ -67,85 +67,106 @@ async function openSources(page: Page): Promise<void> {
   await expect(page.getByRole("tab", { name: /Fonti/ })).toBeVisible();
 }
 
-// --- Card (gancio e chiusura): HTML dentro l'app, cosi' i caratteri sono i suoi.
+// --- Card: HTML dentro l'app, cosi' i caratteri sono i suoi.
 
-type Hook = { day: string; line: string; quote?: string };
+type Hook = { line: string; sub?: string; quote?: string };
+type CardKind = "hook" | "promise" | "result" | "close";
+type CardScene = { title?: string; points?: string[]; tiles?: { value: string; label: string }[]; note?: string };
 
 /**
- * Il gancio e' la settimana del consulente, un giorno per volta (una card
- * sostituisce l'altra); la chiusura e' il marchio con la frase.
+ * Gancio: i problemi del consulente, uno per volta (una card sostituisce
+ * l'altra). Promessa: cosa porta al cliente. Risultato: i numeri del caso.
+ * Chiusura: il marchio con l'esito.
  */
-async function showCard(page: Page, kind: "hook" | "close", step: number): Promise<void> {
+async function showCard(page: Page, id: string, kind: CardKind, step: number): Promise<void> {
   await page.goto("/home");
   await expect(page.getByText("Acquisti indiretti e servizi").first()).toBeVisible();
-  const item = storyboard.scenes.find((entry) => entry.card === kind)!;
-  await page.evaluate(({ kind, hook, title, disclaimer, step }) => {
+  const item = storyboard.scenes.find((entry) => entry.id === id) as CardScene;
+  await page.evaluate(({ kind, hook, item, disclaimer, step }) => {
     const css = `
       .launch-card { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; background: #f8fafc; color: #0f172a; }
-      .launch-card .day { position: absolute; display: grid; gap: 26px; justify-items: center; text-align: center; width: 1500px;
+      .launch-card .beat { position: absolute; display: grid; gap: 24px; justify-items: center; text-align: center; width: 1500px;
         opacity: 0; transform: translateY(18px); animation: launch-in 600ms cubic-bezier(.22,1,.36,1) forwards, launch-out 400ms ease-in forwards; }
-      .launch-card .day:last-of-type { animation: launch-in 600ms cubic-bezier(.22,1,.36,1) forwards; }
-      .launch-card .label { font-size: 30px; font-weight: 600; color: #2563eb; letter-spacing: .08em; text-transform: uppercase; }
-      .launch-card .line { font-size: 76px; font-weight: 650; letter-spacing: -0.03em; line-height: 1.12; }
-      .launch-card .quote { font-size: 40px; color: #475569; font-style: italic; }
-      .launch-card h1 { opacity: 0; animation: launch-in 800ms cubic-bezier(.22,1,.36,1) forwards; font-size: 64px; letter-spacing: -0.03em; margin: 26px 0 0; text-align: center; }
+      .launch-card .beat:last-of-type { animation: launch-in 600ms cubic-bezier(.22,1,.36,1) forwards; }
+      .launch-card .line { font-size: 78px; font-weight: 650; letter-spacing: -0.03em; line-height: 1.12; }
+      .launch-card .quote { font-size: 78px; font-weight: 650; letter-spacing: -0.03em; color: #1d4ed8; }
+      .launch-card .sub { font-size: 42px; color: #64748b; }
+      .launch-card .in { opacity: 0; transform: translateY(16px); animation: launch-in 700ms cubic-bezier(.22,1,.36,1) forwards; }
+      .launch-card .head { font-size: 54px; font-weight: 650; letter-spacing: -0.02em; margin-bottom: 18px; }
+      .launch-card .points { display: grid; gap: 22px; width: 1250px; }
+      .launch-card .point { display: flex; align-items: center; gap: 26px; font-size: 50px; font-weight: 550; letter-spacing: -0.02em;
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 22px; padding: 26px 34px; box-shadow: 0 12px 34px rgba(15,23,42,.07); }
+      .launch-card .tick { flex: none; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: #16a34a; color: #fff; font-size: 32px; }
+      .launch-card .tiles { display: grid; grid-template-columns: repeat(4, 360px); gap: 24px; }
+      .launch-card .tile { background: #fff; border: 1px solid #e2e8f0; border-radius: 24px; padding: 34px 30px; text-align: left; box-shadow: 0 12px 34px rgba(15,23,42,.07); }
+      .launch-card .tile b { display: block; font-size: 76px; letter-spacing: -0.03em; color: #1d4ed8; }
+      .launch-card .tile span { display: block; margin-top: 10px; font-size: 26px; line-height: 1.3; color: #475569; }
+      .launch-card .note { margin-top: 26px; font-size: 24px; color: #64748b; text-align: center; }
+      .launch-card h1 { opacity: 0; animation: launch-in 800ms cubic-bezier(.22,1,.36,1) forwards; font-size: 62px; letter-spacing: -0.03em; margin: 26px 0 0; text-align: center; max-width: 1500px; }
       .launch-card .brand { opacity: 0; animation: launch-in 900ms cubic-bezier(.22,1,.36,1) forwards; font-size: 120px; font-weight: 700; color: #1d4ed8; letter-spacing: -0.04em; text-align: center; }
       .launch-card .disclaimer { position: fixed; right: 36px; bottom: 28px; font-size: 16px; color: #94a3b8; }
       .launch-card.paused * { animation-play-state: paused !important; }
       @keyframes launch-in { to { opacity: 1; transform: none; } }
       @keyframes launch-out { to { opacity: 0; transform: translateY(-14px); } }`;
-    const root = document.createElement("div");
-    root.className = "launch-card paused";
+    const el = (tag: string, className: string, text?: string, delay?: number) => {
+      const node = document.createElement(tag);
+      node.className = className;
+      if (text !== undefined) node.textContent = text;
+      if (delay !== undefined) node.style.animationDelay = `${delay}s`;
+      return node;
+    };
+    const root = el("div", "launch-card paused");
     const style = document.createElement("style");
     style.textContent = css;
     root.append(style);
     if (kind === "hook") {
       hook.forEach((entry, index) => {
-        const card = document.createElement("div");
-        card.className = "day";
+        const beat = el("div", "beat");
         const at = 0.2 + index * step;
-        // Entra a `at`, esce poco prima che entri il giorno dopo.
-        card.style.animationDelay = `${at}s, ${at + step - 0.45}s`;
-        const label = document.createElement("div");
-        label.className = "label";
-        label.textContent = entry.day;
-        const line = document.createElement("div");
-        line.className = "line";
-        line.textContent = entry.line;
-        card.append(label, line);
-        if (entry.quote) {
-          const quote = document.createElement("div");
-          quote.className = "quote";
-          quote.textContent = `«${entry.quote}»`;
-          card.append(quote);
-        }
-        root.append(card);
+        // Entra a `at`, esce poco prima che entri il problema dopo.
+        beat.style.animationDelay = `${at}s, ${at + step - 0.45}s`;
+        beat.append(el("div", "line", entry.line));
+        if (entry.quote) beat.append(el("div", "quote", `«${entry.quote}»`));
+        if (entry.sub) beat.append(el("div", "sub", entry.sub));
+        root.append(beat);
       });
+    } else if (kind === "promise") {
+      const wrap = el("div", "");
+      wrap.append(el("div", "head in", item.title, 0.2));
+      const points = el("div", "points");
+      (item.points ?? []).forEach((text, index) => {
+        const point = el("div", "point in", undefined, 0.9 + index * 0.9);
+        point.append(el("span", "tick", "✓"), el("span", "", text));
+        points.append(point);
+      });
+      wrap.append(points);
+      root.append(wrap);
+    } else if (kind === "result") {
+      const wrap = el("div", "");
+      wrap.append(el("div", "head in", item.title, 0.2));
+      const tiles = el("div", "tiles");
+      (item.tiles ?? []).forEach((tile, index) => {
+        const box = el("div", "tile in", undefined, 0.8 + index * 0.6);
+        box.append(el("b", "", tile.value), el("span", "", tile.label));
+        tiles.append(box);
+      });
+      wrap.append(tiles, el("div", "note in", item.note, 3.4));
+      root.append(wrap);
     } else {
-      const wrap = document.createElement("div");
-      const brand = document.createElement("div");
-      brand.className = "brand";
-      brand.textContent = "DeliR";
-      brand.style.animationDelay = "0.3s";
-      const h1 = document.createElement("h1");
-      h1.textContent = title ?? "";
-      h1.style.animationDelay = "1.1s";
-      wrap.append(brand, h1);
+      const wrap = el("div", "");
+      wrap.append(el("div", "brand", "DeliR", 0.3), el("h1", "", item.title ?? "", 1.1));
       root.append(wrap);
     }
-    const note = document.createElement("div");
-    note.className = "disclaimer";
-    note.textContent = disclaimer;
-    root.append(note);
+    root.append(el("div", "disclaimer", disclaimer));
     document.body.append(root);
     document.getElementById("launch-cursor")?.remove();
-  }, { kind, hook: storyboard.hook as Hook[], title: item.title, disclaimer: storyboard.disclaimer, step });
+  }, { kind, hook: storyboard.hook as Hook[], item, disclaimer: storyboard.disclaimer, step });
 }
 
-const HOOK_STEP = 2.4;
+const HOOK_STEP = 2.6;
 
-async function cardScene(page: Page, id: string, kind: "hook" | "close", seconds: number): Promise<void> {
-  await showCard(page, kind, HOOK_STEP);
+async function cardScene(page: Page, id: string, kind: CardKind, seconds: number): Promise<void> {
+  await showCard(page, id, kind, HOOK_STEP);
   const rec = new Recorder(page, resolve(RAW, id));
   await rec.start();
   await page.evaluate(() => document.querySelector(".launch-card")?.classList.remove("paused"));
@@ -153,7 +174,9 @@ async function cardScene(page: Page, id: string, kind: "hook" | "close", seconds
   await rec.stop();
 }
 
-test("01-settimana", async ({ page }) => cardScene(page, "01-settimana", "hook", 0.4 + storyboard.hook.length * HOOK_STEP));
+test("01-gancio", async ({ page }) => cardScene(page, "01-gancio", "hook", 0.4 + storyboard.hook.length * HOOK_STEP));
+test("01b-promessa", async ({ page }) => cardScene(page, "01b-promessa", "promise", 5.6));
+test("17b-risultato", async ({ page }) => cardScene(page, "17b-risultato", "result", 6.4));
 test("18-chiusura", async ({ page }) => cardScene(page, "18-chiusura", "close", 5));
 
 // --- Chat con DeliR ----------------------------------------------------------
