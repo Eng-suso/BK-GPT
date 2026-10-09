@@ -33,6 +33,7 @@ type ProcessBpmnCanvasProps = {
   processId?: string;
   processName: string;
   propertiesPanelRef: RefObject<HTMLDivElement | null>;
+  enterprisePropertiesHost?: RefObject<HTMLDivElement | null>;
   inspectorHost?: RefObject<HTMLDivElement | null>;
   onInspectorChange?: (inspector: { title: string; closeLabel: string; close: () => void } | null) => void;
   onCurrentXmlChange?: (xml: string) => void;
@@ -57,6 +58,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
   processId,
   processName,
   propertiesPanelRef,
+  enterprisePropertiesHost,
   inspectorHost,
   onInspectorChange,
   onCurrentXmlChange,
@@ -125,6 +127,8 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     clearSelection,
     updateSelectedNodeName,
     updateSelectedNodeDoc,
+    updateSelectedMetadata,
+    deleteSelectedElement,
     save,
     hasConflict,
     reloadLatest,
@@ -149,10 +153,11 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
     onInspectorChange?.(!isPropertiesOpen && inspectorTitle ? { title: inspectorTitle, closeLabel: isEvidenceOpen ? t("canvas.evidence.close") : t("canvas.inspectorClose"), close: () => { setIsEvidenceOpen(false); clearSelection(); } } : null);
   }, [onInspectorChange, isPropertiesOpen, inspectorTitle, isEvidenceOpen, clearSelection, t]);
   React.useEffect(() => () => onInspectorChange?.(null), [onInspectorChange]);
+  const propertyContent = selectedElement ? <BpmnNodeInspector embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onMetadataChange={updateSelectedMetadata} onDelete={deleteSelectedElement} versions={versions} onAsk={onOpenDiscussion} onClose={clearSelection} /> : <p className="p-4 text-sm text-muted-foreground">{t("properties.vendor.noSelection")}</p>;
   const inspectorContent = !isPropertiesOpen && (processId && isEvidenceOpen ? (
     <EvidenceReviewPanel embedded={Boolean(inspectorHost)} processId={processId} bpmnModelId={bpmnModelId} hasUnsavedChanges={hasUnsavedChanges} onLocate={focusSourceRef} onClose={() => setIsEvidenceOpen(false)} />
   ) : selectedElement ? (
-    <BpmnNodeInspector embedded={Boolean(inspectorHost)} element={selectedElement} onNameChange={updateSelectedNodeName} onDocChange={updateSelectedNodeDoc} onClose={clearSelection} />
+    propertyContent
   ) : null);
 
   const isError = status.toLowerCase().startsWith("errore");
@@ -257,6 +262,7 @@ export const ProcessBpmnCanvas: React.FC<ProcessBpmnCanvasProps> = ({
         </Surface>
         </div>
         {inspectorContent && (inspectorHost?.current ? createPortal(inspectorContent, inspectorHost.current) : inspectorContent)}
+        {isPropertiesOpen && enterprisePropertiesHost?.current && createPortal(propertyContent, enterprisePropertiesHost.current)}
       </div>
 
       <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>

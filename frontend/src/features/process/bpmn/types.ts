@@ -65,6 +65,7 @@ export type BpmnModeling = {
     element: unknown,
     properties: Record<string, unknown>,
   ) => void;
+  removeElements: (elements: unknown[]) => void;
 };
 
 export type BpmnFactory = {
@@ -77,6 +78,8 @@ export type BpmnElementSelection = {
   businessObject?: {
     name?: string;
     documentation?: Array<{ text?: string }>;
+    get?: (key: string) => unknown;
+    $attrs?: Record<string, unknown>;
   };
 };
 
@@ -85,4 +88,5 @@ export type SelectedBpmnElement = {
   type: string;
   name: string;
   documentation: string;
+  metadata: import("./enterprise").EnterpriseMetadata;
 };

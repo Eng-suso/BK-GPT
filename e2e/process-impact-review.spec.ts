@@ -127,6 +127,37 @@ async function send(page: Page, message: string) {
   await page.getByRole("button", { name: "Invia messaggio", exact: true }).click();
 }
 
+test("avatar moves freely, retains manual position across task selection and clamps on resize", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await fixture(page); await open(page); await selectTask(page);
+  const avatar = page.locator(".review-agent-position");
+  const handle = page.getByRole("button", { name: "Sposta avatar DeliR", exact: true });
+  const before = (await avatar.boundingBox())!;
+  await handle.focus(); await page.keyboard.press("ArrowLeft"); await page.keyboard.press("ArrowDown");
+  const moved = (await avatar.boundingBox())!;
+  expect(moved.x).toBeCloseTo(before.x - 20, 0); expect(moved.y).toBeCloseTo(before.y + 20, 0);
+  const grip = (await handle.boundingBox())!;
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2); await page.mouse.down();
+  await page.mouse.move(grip.x - 100, grip.y + 80); await page.mouse.up();
+  const manual = (await avatar.boundingBox())!;
+  expect(manual.x).toBeLessThan(moved.x - 80);
+  await selectTask(page, "Emettere ordine");
+  const retained = (await avatar.boundingBox())!;
+  expect(retained.x).toBe(manual.x); expect(retained.y).toBe(manual.y);
+  await openAgent(page); await page.getByRole("button", { name: "Chiudi chat DeliR" }).click();
+  expect((await avatar.boundingBox())!.x).toBe(manual.x);
+  await page.screenshot({ path: info.outputPath("enterprise-avatar-moved.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const stage = (await page.locator(".review-canvas-stage").boundingBox())!;
+  const phone = (await avatar.boundingBox())!;
+  expect(phone.x).toBeGreaterThanOrEqual(stage.x); expect(phone.x + phone.width).toBeLessThanOrEqual(stage.x + stage.width);
+  expect(phone.y + phone.height).toBeLessThanOrEqual(stage.y + stage.height);
+  await page.screenshot({ path: info.outputPath("enterprise-avatar-mobile.png") });
+  await handle.focus(); await page.keyboard.press("Home");
+  await expect(page.getByRole("button", { name: "Apri agente DeliR", exact: true })).toBeVisible();
+  expect((await new AxeBuilder({ page }).include(".process-review-workspace").analyze()).violations).toEqual([]);
+});
+
 test("floating agent, contextual conversation, knowledge and product screenshots", async ({ page }, info) => {
   if (info.project.name === "chromium") await page.setViewportSize({ width: 1600, height: 1000 });
   const state = await fixture(page);

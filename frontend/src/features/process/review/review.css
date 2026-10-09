@@ -111,7 +111,7 @@
 .review-register-empty button { padding-left: 0; margin-top: var(--space-300); }
 @media (max-width: 600px) { .review-proposal-register { padding: var(--space-600) var(--space-400); } .review-register-heading h2 { font-size: var(--font-size-700); } .review-register-total { display: none; } .review-proposal-record { grid-template-columns: minmax(0, 1fr); padding: var(--space-400); } .review-proposal-index { display: none; } }
 .review-save-feedback { position: absolute; z-index: 5; bottom: var(--space-300); left: var(--space-400); display: flex; align-items: center; gap: var(--space-200); max-width: calc(100% - 32px); padding: var(--space-300); border: var(--border-width-default) solid var(--color-border-subtle); border-radius: var(--material-radius-control); background: var(--color-surface-primary); color: var(--color-text-primary); box-shadow: var(--shadow-control); font-size: var(--font-size-100); }
-@media (max-width: 1199px) { .review-impact-legend { left: var(--space-400); right: auto; } }
+@media (max-width: 1199px) { .review-impact-legend { left: var(--space-400); right: auto; top: calc(var(--space-400) + 36px); } }
 @media (max-width: 600px) { .review-dossier-body { padding-inline: var(--space-400); } .review-dossier-heading h3 { font-size: var(--font-size-600); } }
 @media (forced-colors: active) {
   .review-canvas .djs-shape.review-selected .djs-visual > :first-child,
@@ -121,6 +121,11 @@
 }
 .review-agent-launcher { position: absolute; z-index: 4; right: var(--space-400); bottom: calc(var(--space-1600) + var(--space-400)); height: auto; min-height: var(--space-1600); width: min(196px, calc(100% - 24px)); padding: var(--space-200); justify-content: flex-start; gap: var(--space-200); border-radius: var(--material-radius-control); text-align: left; }
 .review-agent-launcher--open { display: none; }
+.review-agent-position { position: absolute; z-index: 4; right: var(--space-400); bottom: calc(var(--space-1600) + var(--space-400)); width: min(196px, calc(100% - 16px)); }
+.review-agent-position[hidden] { display: none; }
+.review-agent-position .review-agent-launcher { position: relative; width: 100%; right: auto; bottom: auto; padding-right: 32px; }
+.review-agent-move { position: absolute; z-index: 5; top: 2px; right: 2px; cursor: grab; touch-action: none; }
+.review-agent-move:active { cursor: grabbing; }
 .review-agent-launcher .review-mascot-orbit { flex: none; }
 .review-agent-launcher .review-mascot { width: 48px; height: 48px; }
 .review-agent-launcher-copy { display: flex; flex-direction: column; min-width: 0; gap: var(--space-50); }

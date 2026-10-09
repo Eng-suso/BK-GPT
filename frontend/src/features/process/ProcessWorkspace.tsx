@@ -52,6 +52,7 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
   const [currentCanvasXml, setCurrentCanvasXml] = React.useState<string | null>(null);
   const [currentCanvasVersionId, setCurrentCanvasVersionId] = React.useState<number | null>(null);
   const propertiesPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const enterprisePropertiesHost = React.useRef<HTMLDivElement | null>(null);
   // A support pane is inline only when at least 720 px remain for the model.
   const inline = width >= 1090;
   const availableChatWidth = Math.min(chatWidth, Math.max(320, width - 792));
@@ -108,12 +109,13 @@ function ModelingProcessWorkspace({ project, process, view, propertiesOpen, onTo
               </section>
               {inline && <div className="process-chat-resize"><WorkspaceResizeSeparator label={t("actions.toggleChat")} value={availableChatWidth} minimum={320} maximum={Math.min(480, width - 792)} edge="end" onResize={setChatWidth} /></div>}
             </>}
-            <section className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas} aria-label="Canvas BPMN">
-              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} inspectorHost={inspectorHost} onInspectorChange={onInspectorChange} onCurrentXmlChange={setCurrentCanvasXml} onBaseVersionChange={setCurrentCanvasVersionId} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
-            </section>
+            <div className="process-studio-canvas" style={{ flex: 1, minWidth: 0 }} hidden={supportReplacesCanvas}>
+              <ProcessBpmnCanvas bpmnModelId={process.bpmnModelId} processId={process.id} processName={process.name} propertiesPanelRef={propertiesPanelRef} enterprisePropertiesHost={enterprisePropertiesHost} inspectorHost={inspectorHost} onInspectorChange={onInspectorChange} onCurrentXmlChange={setCurrentCanvasXml} onBaseVersionChange={setCurrentCanvasVersionId} onOpenDiscussion={onOpenDiscussion} isCanvasChatOpen={showChat} onToggleCanvasChat={toggleChat} isPropertiesOpen={propertiesOpen} onTogglePropertiesPanel={toggleProperties} />
+            </div>
             <WorkspaceInspector label={t("properties.title")} title={propertiesOpen ? t("properties.title") : inspectorTitle ?? t("properties.title")} closeLabel={propertiesOpen ? t("actions.closeOverlays") : inspectorCloseLabel ?? t("actions.closeOverlays")} onClose={closeInspector} hidden={!rightOpen} resizeLabel={inline ? t("actions.resizeInspector") : undefined} initialWidth={360} maximumWidth={480} minimumStageWidth={784 + (showChat && inline ? availableChatWidth + 12 : 0)} className={`process-studio-properties ${inline ? "" : "process-studio-properties--compact"}`} bodyClassName="process-inspector-body">
               {/* Both hosts stay mounted: opening a pane must not rebuild the modeler. */}
-              <div className="process-bpmn-properties-host ui-scrollbar" ref={propertiesPanelRef} hidden={!propertiesOpen} />
+              <div className="process-enterprise-host" ref={enterprisePropertiesHost} hidden={!propertiesOpen} />
+              <details className="process-technical-properties" hidden={!propertiesOpen}><summary>{t("properties.enterprise.technical")}</summary><div className="process-bpmn-properties-host ui-scrollbar" ref={propertiesPanelRef} /></details>
               <div ref={inspectorHost} className="process-detail-host ui-scrollbar" hidden={propertiesOpen} />
             </WorkspaceInspector>
           </div>
