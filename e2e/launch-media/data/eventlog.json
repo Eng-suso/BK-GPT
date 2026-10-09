@@ -1,0 +1,748 @@
+{
+ "log": {
+  "id": "elog-vetrano-erp",
+  "process_id": "acquisti-indiretti",
+  "name": "export-workflow-acquisti.csv",
+  "format": "csv",
+  "delimiter": ";",
+  "byte_size": 382675,
+  "row_count": 3861,
+  "columns": [
+   "Pratica",
+   "Attivita",
+   "Inizio",
+   "Fine",
+   "Utente"
+  ],
+  "status": "mapped",
+  "mapping": {
+   "case_id": [
+    "Pratica"
+   ],
+   "activity": [
+    "Attivita"
+   ],
+   "start": "Inizio",
+   "end": "Fine",
+   "enable": null,
+   "timestamp": null,
+   "lifecycle": null,
+   "resource": "Utente",
+   "role": null,
+   "cost": null,
+   "case_attributes": [],
+   "event_attributes": [],
+   "timestamps": {
+    "pattern": null,
+    "timezone": "Europe/Rome"
+   },
+   "numbers": {
+    "decimal": ".",
+    "thousands": ""
+   },
+   "joiner": " · "
+  },
+  "template": null,
+  "created_at": "2026-10-03T09:10:00Z",
+  "mapped_at": "2026-10-03T09:12:00Z"
+ },
+ "preview": {
+  "format": "csv",
+  "delimiter": ";",
+  "columns": [
+   "Pratica",
+   "Attivita",
+   "Inizio",
+   "Fine",
+   "Utente"
+  ],
+  "row_count": 3861,
+  "sample_rows": [
+   [
+    "RDA-20260000",
+    "Rileva fabbisogno durante il giro impianti",
+    "2026-06-01T07:00:00Z",
+    "2026-06-01T07:12:46Z",
+    "reparto"
+   ],
+   [
+    "RDA-20260000",
+    "Invia richiesta all'Ufficio Tecnico",
+    "2026-06-01T07:12:46Z",
+    "2026-06-01T07:17:35Z",
+    "reparto"
+   ],
+   [
+    "RDA-20260000",
+    "Ricostruisci richiesta e informazioni mancanti",
+    "2026-06-01T07:17:35Z",
+    "2026-06-01T07:31:47Z",
+    "l.conti"
+   ],
+   [
+    "RDA-20260000",
+    "Invia richiesta ad Acquisti",
+    "2026-06-01T07:31:47Z",
+    "2026-06-01T07:36:02Z",
+    "l.conti"
+   ],
+   [
+    "RDA-20260000",
+    "Verifica lavorabilità della richiesta",
+    "2026-06-01T07:36:02Z",
+    "2026-06-01T07:49:17Z",
+    "f.neri"
+   ],
+   [
+    "RDA-20260000",
+    "Richiedi integrazione della richiesta",
+    "2026-06-01T07:49:17Z",
+    "2026-06-01T07:56:51Z",
+    "f.neri"
+   ],
+   [
+    "RDA-20260000",
+    "Ricostruisci richiesta e informazioni mancanti",
+    "2026-06-01T07:56:51Z",
+    "2026-06-01T08:19:44Z",
+    "l.conti"
+   ],
+   [
+    "RDA-20260000",
+    "Invia richiesta ad Acquisti",
+    "2026-06-01T08:19:44Z",
+    "2026-06-01T08:24:38Z",
+    "l.conti"
+   ]
+  ]
+ },
+ "analysis": {
+  "event_log": {
+   "id": "elog-vetrano-erp",
+   "process_id": "acquisti-indiretti",
+   "name": "export-workflow-acquisti.csv",
+   "format": "csv",
+   "delimiter": ";",
+   "byte_size": 382675,
+   "row_count": 3861,
+   "columns": [
+    "Pratica",
+    "Attivita",
+    "Inizio",
+    "Fine",
+    "Utente"
+   ],
+   "status": "mapped",
+   "mapping": {
+    "case_id": [
+     "Pratica"
+    ],
+    "activity": [
+     "Attivita"
+    ],
+    "start": "Inizio",
+    "end": "Fine",
+    "enable": null,
+    "timestamp": null,
+    "lifecycle": null,
+    "resource": "Utente",
+    "role": null,
+    "cost": null,
+    "case_attributes": [],
+    "event_attributes": [],
+    "timestamps": {
+     "pattern": null,
+     "timezone": "Europe/Rome"
+    },
+    "numbers": {
+     "decimal": ".",
+     "thousands": ""
+    },
+    "joiner": " · "
+   },
+   "template": null,
+   "created_at": "2026-10-03T09:10:00Z",
+   "mapped_at": "2026-10-03T09:12:00Z"
+  },
+  "quality": {
+   "rows_read": 3861,
+   "rows_excluded": 0,
+   "events": 3861,
+   "cases": 240,
+   "activities": 17,
+   "resources": 6,
+   "period_start": "2026-06-01T07:00:00+00:00",
+   "period_end": "2026-07-29T09:09:15+00:00",
+   "events_without_start": 0,
+   "issues": []
+  },
+  "activities": {
+   "bpmn_version_id": 3,
+   "confirmed": true,
+   "matches": [
+    {
+     "activity": "Invia richiesta ad Acquisti",
+     "events": 562,
+     "element_id": "invia_richiesta_acquisti",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Ricostruisci richiesta e informazioni mancanti",
+     "events": 562,
+     "element_id": "ricostruisci_richiesta",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Verifica lavorabilità della richiesta",
+     "events": 562,
+     "element_id": "verifica_lavorabilita",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Richiedi integrazione della richiesta",
+     "events": 327,
+     "element_id": "percorso_integrazione_richiedi_integrazione",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Rileva fabbisogno durante il giro impianti",
+     "events": 240,
+     "element_id": "rileva_fabbisogno",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Emetti ordine al fornitore",
+     "events": 235,
+     "element_id": "emetti_ordine",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Invia richiesta all'Ufficio Tecnico",
+     "events": 235,
+     "element_id": "invia_richiesta_ufficio_tecnico",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Registrazione fattura",
+     "events": 235,
+     "element_id": null,
+     "reason": "none"
+    },
+    {
+     "activity": "Ricevi merce in magazzino",
+     "events": 235,
+     "element_id": "ricevi_merce",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Seleziona fornitore o richiedi quotazioni",
+     "events": 235,
+     "element_id": "seleziona_fornitore",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Verifica merce ricevuta",
+     "events": 235,
+     "element_id": "verifica_merce",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Autorizza spesa",
+     "events": 89,
+     "element_id": "percorso_autorizzazione_autorizza_spesa",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Richiedi autorizzazione al responsabile",
+     "events": 89,
+     "element_id": "percorso_autorizzazione_richiedi_autorizzazione",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Chiama fornitore direttamente",
+     "events": 5,
+     "element_id": "percorso_urgente_chiama_fornitore_diretto",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Gestione contabile della fattura",
+     "events": 5,
+     "element_id": "percorso_urgente_gestione_contabile_fattura",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Invia riferimento ordine del fornitore",
+     "events": 5,
+     "element_id": "percorso_urgente_invia_riferimento_ordine_urgente",
+     "reason": "same_name"
+    },
+    {
+     "activity": "Regolarizza ordine a posteriori",
+     "events": 5,
+     "element_id": "percorso_urgente_regolarizza_ordine",
+     "reason": "same_name"
+    }
+   ],
+   "unmatched_activities": [
+    "Registrazione fattura"
+   ],
+   "unobserved_elements": []
+  },
+  "resources": {
+   "confirmed": false,
+   "matches": [
+    {
+     "resource": "f.neri",
+     "events": 1453,
+     "model_resource_id": null,
+     "reason": "none"
+    },
+    {
+     "resource": "l.conti",
+     "events": 1124,
+     "model_resource_id": null,
+     "reason": "none"
+    },
+    {
+     "resource": "reparto",
+     "events": 720,
+     "model_resource_id": "bpmn-lane-d604585def6d9761",
+     "reason": "same_name"
+    },
+    {
+     "resource": "amministrazione",
+     "events": 240,
+     "model_resource_id": "bpmn-lane-517c44c5cab2edcd",
+     "reason": "same_name"
+    },
+    {
+     "resource": "magazzino",
+     "events": 235,
+     "model_resource_id": "bpmn-lane-f37173137aa2f584",
+     "reason": "same_name"
+    },
+    {
+     "resource": "resp.acquisti",
+     "events": 89,
+     "model_resource_id": null,
+     "reason": "none"
+    }
+   ],
+   "unmatched_resources": [
+    "f.neri",
+    "l.conti",
+    "resp.acquisti"
+   ],
+   "unobserved_model_resources": [
+    {
+     "resource_id": "bpmn-lane-e7432059dffad847",
+     "name": "Ufficio Tecnico"
+    },
+    {
+     "resource_id": "bpmn-lane-49f8bbdbff87be10",
+     "name": "Ufficio Acquisti"
+    },
+    {
+     "resource_id": "bpmn-lane-568954f4406f4e19",
+     "name": "Responsabile Acquisti"
+    }
+   ],
+   "events_without_resource": 0
+  },
+  "summary": {
+   "casesCompleted": 240,
+   "cycle": {
+    "avg": 245585.67916666667,
+    "p50": 164542.5,
+    "p90": 609852.2,
+    "p95": 691011.75
+   },
+   "waiting": {
+    "avg": 191160.13333333333,
+    "p95": 637032.1499999996,
+    "share": 0.7784
+   },
+   "processing": {
+    "avg": 54425.54583333333,
+    "p95": 242300.19999999998
+   },
+   "cost": null,
+   "throughputPerHour": 0.172,
+   "byActivity": [
+    {
+     "el": "percorso_autorizzazione_autorizza_spesa",
+     "name": "Autorizza spesa",
+     "count": 89,
+     "wait": {
+      "avg": 220259.68539325843,
+      "p95": 517511.6
+     },
+     "processing": {
+      "avg": 40879.10112359551,
+      "p95": 429006.8
+     },
+     "queue": {
+      "avg": 3.906,
+      "max": 13
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.3943,
+     "casesAffectedPct": 0.3708
+    },
+    {
+     "el": "seleziona_fornitore",
+     "name": "Seleziona fornitore o richiedi quotazioni",
+     "count": 235,
+     "wait": {
+      "avg": 22152.953191489363,
+      "p95": 65450.99999999999
+     },
+     "processing": {
+      "avg": 5135.829787234043,
+      "p95": 58756.6
+     },
+     "queue": {
+      "avg": 1.037,
+      "max": 8
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.1088,
+     "casesAffectedPct": 0.9
+    },
+    {
+     "el": "emetti_ordine",
+     "name": "Emetti ordine al fornitore",
+     "count": 235,
+     "wait": {
+      "avg": 16054.425531914894,
+      "p95": 65656.3
+     },
+     "processing": {
+      "avg": 2836.540425531915,
+      "p95": 905.4999999999999
+     },
+     "queue": {
+      "avg": 0.752,
+      "max": 8
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0753,
+     "casesAffectedPct": 0.925
+    },
+    {
+     "el": "percorso_integrazione_richiedi_integrazione",
+     "name": "Richiedi integrazione della richiesta",
+     "count": 327,
+     "wait": {
+      "avg": 12234.516819571865,
+      "p95": 64384.59999999998
+     },
+     "processing": {
+      "avg": 1120.5259938837921,
+      "p95": 886.5999999999998
+     },
+     "queue": {
+      "avg": 0.797,
+      "max": 6
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0741,
+     "casesAffectedPct": 0.5375
+    },
+    {
+     "el": "percorso_autorizzazione_richiedi_autorizzazione",
+     "name": "Richiedi autorizzazione al responsabile",
+     "count": 89,
+     "wait": {
+      "avg": 11679.056179775282,
+      "p95": 63295.99999999999
+     },
+     "processing": {
+      "avg": 297.6629213483146,
+      "p95": 416.79999999999995
+     },
+     "queue": {
+      "avg": 0.207,
+      "max": 3
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0181,
+     "casesAffectedPct": 0.325
+    },
+    {
+     "el": "verifica_lavorabilita",
+     "name": "Verifica lavorabilità della richiesta",
+     "count": 562,
+     "wait": {
+      "avg": 11021.480427046263,
+      "p95": 63222.55
+     },
+     "processing": {
+      "avg": 3256.802491103203,
+      "p95": 922.8999999999999
+     },
+     "queue": {
+      "avg": 1.234,
+      "max": 8
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.1361,
+     "casesAffectedPct": 0.9042
+    },
+    {
+     "el": "invia_richiesta_acquisti",
+     "name": "Invia richiesta ad Acquisti",
+     "count": 562,
+     "wait": {
+      "avg": 5323.9555160142345,
+      "p95": 5870.0999999999985
+     },
+     "processing": {
+      "avg": 2760.9039145907473,
+      "p95": 409.0
+     },
+     "queue": {
+      "avg": 0.596,
+      "max": 7
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0771,
+     "casesAffectedPct": 0.7708
+    },
+    {
+     "el": "ricostruisci_richiesta",
+     "name": "Ricostruisci richiesta e informazioni mancanti",
+     "count": 562,
+     "wait": {
+      "avg": 4726.0551601423485,
+      "p95": 5320.19999999999
+     },
+     "processing": {
+      "avg": 2701.5978647686834,
+      "p95": 2382.5999999999967
+     },
+     "queue": {
+      "avg": 0.529,
+      "max": 7
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0708,
+     "casesAffectedPct": 0.7042
+    },
+    {
+     "el": "percorso_urgente_regolarizza_ordine",
+     "name": "Regolarizza ordine a posteriori",
+     "count": 5,
+     "wait": {
+      "avg": 3630.0,
+      "p95": 6017.2
+     },
+     "processing": {
+      "avg": 1134.4,
+      "p95": 1481.2
+     },
+     "queue": {
+      "avg": 0.004,
+      "max": 1
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0004,
+     "casesAffectedPct": 0.0208
+    },
+    {
+     "el": null,
+     "name": "Registrazione fattura",
+     "count": 235,
+     "wait": {
+      "avg": 1662.4382978723404,
+      "p95": 2869.0999999999995
+     },
+     "processing": {
+      "avg": 1063.8765957446808,
+      "p95": 1456.6
+     },
+     "queue": {
+      "avg": 0.078,
+      "max": 4
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0109,
+     "casesAffectedPct": 0.9792
+    },
+    {
+     "el": "ricevi_merce",
+     "name": "Ricevi merce in magazzino",
+     "count": 235,
+     "wait": {
+      "avg": 23.24255319148936,
+      "p95": 228.89999999999995
+     },
+     "processing": {
+      "avg": 2805.055319148936,
+      "p95": 885.9
+     },
+     "queue": {
+      "avg": 0.001,
+      "max": 2
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0113,
+     "casesAffectedPct": 0.0708
+    },
+    {
+     "el": "rileva_fabbisogno",
+     "name": "Rileva fabbisogno durante il giro impianti",
+     "count": 240,
+     "wait": {
+      "avg": 0.0,
+      "p95": 0.0
+     },
+     "processing": {
+      "avg": 2744.9875,
+      "p95": 904.2499999999999
+     },
+     "queue": {
+      "avg": 0.0,
+      "max": 0
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0112,
+     "casesAffectedPct": 0.0
+    },
+    {
+     "el": "invia_richiesta_ufficio_tecnico",
+     "name": "Invia richiesta all'Ufficio Tecnico",
+     "count": 235,
+     "wait": {
+      "avg": 0.0,
+      "p95": 0.0
+     },
+     "processing": {
+      "avg": 785.8936170212766,
+      "p95": 406.7999999999999
+     },
+     "queue": {
+      "avg": 0.0,
+      "max": 0
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0031,
+     "casesAffectedPct": 0.0
+    },
+    {
+     "el": "verifica_merce",
+     "name": "Verifica merce ricevuta",
+     "count": 235,
+     "wait": {
+      "avg": 0.0,
+      "p95": 0.0
+     },
+     "processing": {
+      "avg": 1094.3744680851064,
+      "p95": 939.9
+     },
+     "queue": {
+      "avg": 0.0,
+      "max": 0
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0044,
+     "casesAffectedPct": 0.0
+    },
+    {
+     "el": "percorso_urgente_chiama_fornitore_diretto",
+     "name": "Chiama fornitore direttamente",
+     "count": 5,
+     "wait": {
+      "avg": 0.0,
+      "p95": 0.0
+     },
+     "processing": {
+      "avg": 46920.6,
+      "p95": 185223.79999999996
+     },
+     "queue": {
+      "avg": 0.0,
+      "max": 0
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.004,
+     "casesAffectedPct": 0.0
+    },
+    {
+     "el": "percorso_urgente_invia_riferimento_ordine_urgente",
+     "name": "Invia riferimento ordine del fornitore",
+     "count": 5,
+     "wait": {
+      "avg": 0.0,
+      "p95": 0.0
+     },
+     "processing": {
+      "avg": 310.2,
+      "p95": 354.8
+     },
+     "queue": {
+      "avg": 0.0,
+      "max": 0
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0,
+     "casesAffectedPct": 0.0
+    },
+    {
+     "el": "percorso_urgente_gestione_contabile_fattura",
+     "name": "Gestione contabile della fattura",
+     "count": 5,
+     "wait": {
+      "avg": 0.0,
+      "p95": 0.0
+     },
+     "processing": {
+      "avg": 1109.2,
+      "p95": 1668.0
+     },
+     "queue": {
+      "avg": 0.0,
+      "max": 0
+     },
+     "utilizationPct": 0,
+     "avgCost": 0.0,
+     "cycleContributionPct": 0.0001,
+     "casesAffectedPct": 0.0
+    }
+   ],
+   "byResource": [],
+   "bottleneck": {
+    "el": "percorso_autorizzazione_autorizza_spesa",
+    "name": "Autorizza spesa",
+    "score": 0.3499,
+    "factors": {
+     "waitingContribution": 0.4273,
+     "utilization": 0.0,
+     "queueGrowth": 0.2197,
+     "casesAffected": 0.3708,
+     "cycleContribution": 0.3943,
+     "persistence": 0.9249
+    }
+   },
+   "timing": "start_and_end",
+   "source": "real"
+  }
+ }
+}
