@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from xml.sax.saxutils import quoteattr
+from xml.sax.saxutils import escape, quoteattr
 
 DATA = Path("e2e/launch-media/data")
 COMPILED = DATA / "as-is.compiled.bpmn"
@@ -98,6 +98,51 @@ FLOWS = [
     ("Flow_verifica_fine", "verifica_merce", "EndEvent_1", None, False),
 ]
 
+# Proprieta' enterprise delle attivita' (attributi `delir:`, PR #103): solo cio'
+# che le interviste dicono. Dove una fonte non lo dice, lo si scrive.
+METADATA = {
+    "ricostruisci_richiesta": {
+        "owner": "Laura Conti", "office": "Ufficio Tecnico",
+        "risks": "Meta' del tempo di Laura su questa attivita' va nel ricostruire cosa viene chiesto.",
+        "systems": "Mail, telefono, file Excel personale di Laura",
+        "inputs": "Richiesta dal reparto (mail, messaggio o a voce)",
+        "outputs": "Richiesta con descrizione, quantita', data e riferimento",
+        "files": "Intervista Laura Conti · Responsabile Ufficio Tecnico",
+        "doc": "«La prima cosa che faccio e' capire se ho abbastanza informazioni per portarla avanti.» (Laura Conti)",
+    },
+    "verifica_lavorabilita": {
+        "owner": "Francesca Neri", "office": "Ufficio Acquisti",
+        "rules": "Lavorabile: si capisce cosa comprare e da chi comprarlo.",
+        "risks": "Piu' della meta' delle richieste torna indietro (stima di Francesca, non misurata).",
+        "systems": "Mail",
+        "files": "Intervista Francesca Neri · Ufficio Acquisti",
+        "doc": "«Leggo e verifico se e' lavorabile.» (Francesca Neri)",
+    },
+    "percorso_autorizzazione_autorizza_spesa": {
+        "owner": "Responsabile di Francesca (nome non dichiarato)", "office": "Ufficio Acquisti",
+        "rules": "Serve sopra una soglia di importo che nessuna fonte dichiara: domanda aperta.",
+        "risks": "Nessun sostituto formale: se il responsabile non risponde la pratica resta ferma.",
+        "systems": "Mail",
+        "inputs": "Richiesta completa sopra soglia", "outputs": "Autorizzazione via mail",
+        "files": "Intervista Francesca Neri · Ufficio Acquisti",
+        "doc": "«…e' una mail che mando e una risposta che aspetto.» (Francesca Neri)",
+    },
+    "seleziona_fornitore": {
+        "owner": "Francesca Neri", "office": "Ufficio Acquisti",
+        "rules": "Ricorrenti: lista personale di fornitori. Nuovi: quotazioni, senza una regola scritta sul numero.",
+        "risks": "Non esiste un albo fornitori formale.",
+        "files": "Intervista Francesca Neri · Ufficio Acquisti",
+    },
+    "percorso_urgente_regolarizza_ordine": {
+        "owner": "Francesca Neri", "office": "Ufficio Acquisti",
+        "risks": "Chi ordina d'urgenza non sa che la regolarizzazione la fa Acquisti: passaggio mai dichiarato.",
+        "inputs": "Riferimento d'ordine del fornitore (mail di Paolo)", "outputs": "Ordine aperto e agganciato al fornitore",
+        "systems": "Mail",
+        "files": "Intervista Francesca Neri · Ufficio Acquisti; Intervista Paolo Marchetti · Capo Manutenzione",
+        "doc": "«La parte di ordine si', la faccio io.» (Francesca Neri)",
+    },
+}
+
 ROW, COL = 110, 150
 POOL_X, POOL_Y, LANE_HEADER = 40, 40, 30
 CONTENT_X = POOL_X + LANE_HEADER * 2
@@ -164,6 +209,7 @@ def main() -> None:
         'xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" '
         'xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" '
         'xmlns:di="http://www.omg.org/spec/DD/20100524/DI" '
+        'xmlns:delir="https://delir.app/schema/bpmn/1.0" '
         'id="Definitions_acquisti_indiretti_v3" targetNamespace="https://delir.ai/bpmn">',
         '  <bpmn:collaboration id="Collaboration_acquisti_indiretti">',
         f'    <bpmn:participant id="Participant_acquisti_indiretti" name={quoteattr(PROCESS_NAME)} processRef="{PROCESS_ID}" />',
@@ -183,7 +229,11 @@ def main() -> None:
         attrs = f'id="{node_id}"' + (f" name={quoteattr(label)}" if label else "")
         if node_id in defaults:
             attrs += f' default="{defaults[node_id]}"'
+        meta = METADATA.get(node_id, {})
+        attrs += "".join(f" delir:{field}={quoteattr(value)}" for field, value in meta.items() if field != "doc")
         lines.append(f"    <bpmn:{kind} {attrs}>")
+        if meta.get("doc"):
+            lines.append(f"      <bpmn:documentation>{escape(meta['doc'])}</bpmn:documentation>")
         lines += [f"      <bpmn:incoming>{f}</bpmn:incoming>" for f in incoming[node_id]]
         lines += [f"      <bpmn:outgoing>{f}</bpmn:outgoing>" for f in outgoing[node_id]]
         lines.append(f"    </bpmn:{kind}>")

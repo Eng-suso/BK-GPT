@@ -225,14 +225,23 @@ test("05-ogni-passaggio-una-fonte", async ({ page }) => {
 test("06-ultima-parola", async ({ page }) => {
   await scene(page, "06-ultima-parola", async () => {
     await page.goto(`${P}?view=canvas`);
-    await expect(page.getByRole("button", { name: "Importa, esporta, cronologia" })).toBeVisible();
+    await expect(page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first()).toBeVisible();
   }, async () => {
+    await clickOn(page, page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first());
+    await clickOn(page, page.getByRole("button", { name: "Proprietà", exact: true }));
+    const panel = page.getByRole("tablist", { name: "Schede proprietà" });
+    await expect(panel).toBeVisible();
+    await moveTo(page, page.getByLabel("Responsabile attività"), 800);
+    await page.waitForTimeout(900);
+    await clickOn(page, panel.getByRole("tab", { name: "Regole" }));
+    await moveTo(page, page.getByText(/Nessun sostituto formale/).first(), 800);
+    await page.waitForTimeout(1300);
     await clickOn(page, page.getByRole("button", { name: "Importa, esporta, cronologia" }));
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
     await clickOn(page, page.getByRole("menuitem", { name: /Cronologia versioni/ }));
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(600);
     await moveTo(page, page.getByText("As-Is v3 · validato con Laura Conti").first(), 900);
-    await page.waitForTimeout(1920);
+    await page.waitForTimeout(2000);
   });
 });
 
@@ -345,6 +354,13 @@ test.describe("screens", () => {
     await page.getByRole("button", { name: "Evidenze" }).click();
     await expect(page.getByRole("complementary", { name: "Evidenze del disegno" })).toContainText("100%");
     await shot("01-hero-processo-validato");
+
+    await page.goto(`${P}?view=canvas`);
+    await page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first().click();
+    await page.getByRole("button", { name: "Proprietà", exact: true }).click();
+    await page.getByRole("tablist", { name: "Schede proprietà" }).getByRole("tab", { name: "Regole" }).click();
+    await expect(page.getByText(/Nessun sostituto formale/).first()).toBeVisible();
+    await shot("01b-proprieta-del-task");
 
     await openSources(page);
     await page.getByRole("tab", { name: /Fonti/ }).click();

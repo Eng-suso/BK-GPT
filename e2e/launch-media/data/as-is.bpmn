@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_acquisti_indiretti_v3" targetNamespace="https://delir.ai/bpmn">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:delir="https://delir.app/schema/bpmn/1.0" id="Definitions_acquisti_indiretti_v3" targetNamespace="https://delir.ai/bpmn">
   <bpmn:collaboration id="Collaboration_acquisti_indiretti">
     <bpmn:participant id="Participant_acquisti_indiretti" name="Gestione acquisto materiali indiretti e servizi" processRef="Process_acquisti_indiretti" />
   </bpmn:collaboration>
@@ -71,7 +71,8 @@
       <bpmn:incoming>Flow_integrazione_merge</bpmn:incoming>
       <bpmn:outgoing>Flow_merge_ricostruisci</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:userTask id="ricostruisci_richiesta" name="Ricostruisci richiesta e informazioni mancanti">
+    <bpmn:userTask id="ricostruisci_richiesta" name="Ricostruisci richiesta e informazioni mancanti" delir:owner="Laura Conti" delir:office="Ufficio Tecnico" delir:risks="Meta' del tempo di Laura su questa attivita' va nel ricostruire cosa viene chiesto." delir:systems="Mail, telefono, file Excel personale di Laura" delir:inputs="Richiesta dal reparto (mail, messaggio o a voce)" delir:outputs="Richiesta con descrizione, quantita', data e riferimento" delir:files="Intervista Laura Conti · Responsabile Ufficio Tecnico">
+      <bpmn:documentation>«La prima cosa che faccio e' capire se ho abbastanza informazioni per portarla avanti.» (Laura Conti)</bpmn:documentation>
       <bpmn:incoming>Flow_merge_ricostruisci</bpmn:incoming>
       <bpmn:outgoing>Flow_ricostruisci_invia</bpmn:outgoing>
     </bpmn:userTask>
@@ -79,7 +80,8 @@
       <bpmn:incoming>Flow_ricostruisci_invia</bpmn:incoming>
       <bpmn:outgoing>Flow_invia_verifica</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:userTask id="percorso_urgente_regolarizza_ordine" name="Regolarizza ordine a posteriori">
+    <bpmn:userTask id="percorso_urgente_regolarizza_ordine" name="Regolarizza ordine a posteriori" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:risks="Chi ordina d'urgenza non sa che la regolarizzazione la fa Acquisti: passaggio mai dichiarato." delir:inputs="Riferimento d'ordine del fornitore (mail di Paolo)" delir:outputs="Ordine aperto e agganciato al fornitore" delir:systems="Mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti; Intervista Paolo Marchetti · Capo Manutenzione">
+      <bpmn:documentation>«La parte di ordine si', la faccio io.» (Francesca Neri)</bpmn:documentation>
       <bpmn:incoming>Flow_riferimento_regolarizza</bpmn:incoming>
       <bpmn:outgoing>Flow_regolarizza_contabile</bpmn:outgoing>
     </bpmn:userTask>
@@ -90,7 +92,8 @@
     <bpmn:endEvent id="EndEvent_urgente" name="Ordine urgente registrato">
       <bpmn:incoming>Flow_contabile_fine</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:userTask id="verifica_lavorabilita" name="Verifica lavorabilità della richiesta">
+    <bpmn:userTask id="verifica_lavorabilita" name="Verifica lavorabilità della richiesta" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:rules="Lavorabile: si capisce cosa comprare e da chi comprarlo." delir:risks="Piu' della meta' delle richieste torna indietro (stima di Francesca, non misurata)." delir:systems="Mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti">
+      <bpmn:documentation>«Leggo e verifico se e' lavorabile.» (Francesca Neri)</bpmn:documentation>
       <bpmn:incoming>Flow_invia_verifica</bpmn:incoming>
       <bpmn:outgoing>Flow_verifica_completa</bpmn:outgoing>
     </bpmn:userTask>
@@ -112,7 +115,8 @@
       <bpmn:incoming>Flow_autorizzazione_si</bpmn:incoming>
       <bpmn:outgoing>Flow_richiedi_autorizza</bpmn:outgoing>
     </bpmn:userTask>
-    <bpmn:userTask id="percorso_autorizzazione_autorizza_spesa" name="Autorizza spesa">
+    <bpmn:userTask id="percorso_autorizzazione_autorizza_spesa" name="Autorizza spesa" delir:owner="Responsabile di Francesca (nome non dichiarato)" delir:office="Ufficio Acquisti" delir:rules="Serve sopra una soglia di importo che nessuna fonte dichiara: domanda aperta." delir:risks="Nessun sostituto formale: se il responsabile non risponde la pratica resta ferma." delir:systems="Mail" delir:inputs="Richiesta completa sopra soglia" delir:outputs="Autorizzazione via mail" delir:files="Intervista Francesca Neri · Ufficio Acquisti">
+      <bpmn:documentation>«…e' una mail che mando e una risposta che aspetto.» (Francesca Neri)</bpmn:documentation>
       <bpmn:incoming>Flow_richiedi_autorizza</bpmn:incoming>
       <bpmn:outgoing>Flow_autorizza_merge</bpmn:outgoing>
     </bpmn:userTask>
@@ -121,7 +125,7 @@
       <bpmn:incoming>Flow_autorizzazione_no</bpmn:incoming>
       <bpmn:outgoing>Flow_merge_seleziona</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:userTask id="seleziona_fornitore" name="Seleziona fornitore o richiedi quotazioni">
+    <bpmn:userTask id="seleziona_fornitore" name="Seleziona fornitore o richiedi quotazioni" delir:owner="Francesca Neri" delir:office="Ufficio Acquisti" delir:rules="Ricorrenti: lista personale di fornitori. Nuovi: quotazioni, senza una regola scritta sul numero." delir:risks="Non esiste un albo fornitori formale." delir:files="Intervista Francesca Neri · Ufficio Acquisti">
       <bpmn:incoming>Flow_merge_seleziona</bpmn:incoming>
       <bpmn:outgoing>Flow_seleziona_emetti</bpmn:outgoing>
     </bpmn:userTask>
