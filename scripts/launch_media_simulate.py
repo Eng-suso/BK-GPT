@@ -20,17 +20,26 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 from pathlib import Path
 
+from backend.simulation.advisor import suggest_experiments
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+from backend.simulation.compatibility import bpmn_compatibility_report
+from backend.simulation.provenance import map_scenario_provenance
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.log_processor import activity_name_to_element_id, process_prosimos_log
 from backend.simulation.models import ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import run_prosimos_simulation
 from backend.simulation.result_parser import with_output_files
-from backend.simulation.scenario_builder import baseline_for_bpmn, build_prosimos_scenario_from_model
+from backend.simulation.scenario_builder import (
+    baseline_for_bpmn,
+    build_prosimos_scenario_from_model,
+    describe_scenario_template,
+)
 
 DATA = Path("e2e/launch-media/data")
+GOLDEN = Path("tests/golden/esaote_ciclo_passivo")
 SEED = 20261009
 TOTAL_CASES = 360
 START = "2026-09-07T08:00:00+02:00"
@@ -118,6 +127,18 @@ RESPONSABILE_AS_IS = [
 RESPONSABILE_TO_BE = [{"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "16:00:00.000", "end": "17:00:00.000"}]
 
 
+# Rami dei gateway dell'As-Is v3 (scripts/launch_media_asis.py).
+AUTH_SHARE = 1 / 3  # quota delle richieste complete che supera la soglia: lacuna aperta
+AS_IS_BRANCHES = {
+    "Flow_urgenza_linea_ferma": (0.03, declared("paolo", note="\"Direi qualche volta al mese.\"")),
+    "Flow_urgenza_ordinaria": (0.97, declared("paolo", note="\"Direi qualche volta al mese.\"")),
+    "Flow_completa_no": (0.55, declared("francesca", note="\"A sensazione, piu' della meta'.\"")),
+    "Flow_completa_si": (0.45, declared("francesca", note="\"A sensazione, piu' della meta'.\"")),
+    "Flow_autorizzazione_si": (AUTH_SHARE, assumed("La soglia e' una lacuna aperta: la quota sopra soglia e' un'assunzione.")),
+    "Flow_autorizzazione_no": (1 - AUTH_SHARE, assumed("La soglia e' una lacuna aperta: la quota sopra soglia e' un'assunzione.")),
+}
+
+
 def as_is_model(base: SimulationModel) -> SimulationModel:
     data = base.model_dump(mode="json")
     data["arrival"]["interarrival"] = {"kind": "exponential", "mean": WORKDAY / 5, "minimum": 0.0, "maximum": WORKDAY}
@@ -145,20 +166,9 @@ def as_is_model(base: SimulationModel) -> SimulationModel:
 
     for gateway in data["gateways"]:
         for branch in gateway["branches"]:
-            flow = branch["flow_id"]
-            if gateway["element_id"] == "urgenza":
-                urgent = "percorso_urgente" in flow
-                branch["probability"] = 0.03 if urgent else 0.97
-                branch["provenance"] = declared("paolo", note="\"Direi qualche volta al mese.\"")
-            elif "integrazione" in flow:
-                branch["probability"] = 0.55
-                branch["provenance"] = declared("francesca", note="\"A sensazione, piu' della meta'.\"")
-            elif "autorizzazione" in flow:
-                branch["probability"] = 0.15
-                branch["provenance"] = assumed("Quota sopra soglia: la soglia e' una lacuna aperta, la quota e' un'assunzione.")
-            else:
-                branch["probability"] = 0.30
-                branch["provenance"] = assumed("Complemento delle altre uscite.")
+            probability, provenance = AS_IS_BRANCHES[branch["flow_id"]]
+            branch["probability"] = probability
+            branch["provenance"] = provenance
     return SimulationModel.model_validate(data)
 
 
@@ -178,18 +188,12 @@ def to_be_model(as_is: SimulationModel) -> SimulationModel:
         "confidence": "low",
     }
     for gateway in data["gateways"]:
-        if gateway["element_id"] != "esito_verifica":
-            continue
         for branch in gateway["branches"]:
-            if "integrazione" in branch["flow_id"]:
-                # Prudente: il modulo dimezza i rimbalzi, non li azzera.
-                branch["probability"] = 0.25
-                branch["provenance"] = form
-            elif "autorizzazione" in branch["flow_id"]:
-                branch["probability"] = 0.15
-            else:
-                branch["probability"] = 0.60
-                branch["provenance"] = form
+            # Prudente: il modulo dimezza i rimbalzi, non li azzera.
+            if branch["flow_id"] == "Flow_completa_no":
+                branch["probability"], branch["provenance"] = 0.25, form
+            elif branch["flow_id"] == "Flow_completa_si":
+                branch["probability"], branch["provenance"] = 0.75, form
     for activity in data["activities"]:
         if activity["element_id"] == "ricostruisci_richiesta":
             for assignment in activity["assignments"]:
@@ -212,6 +216,17 @@ def to_be_model(as_is: SimulationModel) -> SimulationModel:
                     "confidence": "low",
                 }
     return SimulationModel.model_validate(data)
+
+
+def finite(value):
+    """Prosimos scrive Infinity in alcune statistiche: in JSON diventa null."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: finite(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [finite(item) for item in value]
+    return value
 
 
 async def run(name: str, bpmn_xml: str, model: SimulationModel) -> dict:
@@ -252,7 +267,20 @@ async def main() -> None:
         "as_is": await run("As-Is v3 · validato", bpmn_xml, as_is),
         "to_be": await run("To-Be · richiesta completa + delega", bpmn_xml, to_be),
     }
-    (DATA / "runs.json").write_text(json.dumps(runs, ensure_ascii=False), encoding="utf-8")
+    for value in runs.values():
+        value["experiments"] = suggest_experiments(value["summary"], value["scenario"]).model_dump(mode="json")
+    (DATA / "runs.json").write_text(json.dumps(finite(runs), ensure_ascii=False, allow_nan=False), encoding="utf-8")
+
+    # Le risposte che il backend darebbe per questo BPMN, calcolate dalle stesse
+    # funzioni delle route: il frontend le riceve com'erano, non riscritte a mano.
+    template = describe_scenario_template(bpmn_xml, source_bpmn_xml=source)
+    plan = json.loads((GOLDEN / "ideal_plan.json").read_text(encoding="utf-8"))
+    api = {
+        "simulation_template": template.model_dump(mode="json"),
+        "simulation_provenance": map_scenario_provenance(template, {"process_understanding": plan}).model_dump(mode="json"),
+        "simulation_compatibility": bpmn_compatibility_report(source).model_dump(mode="json"),
+    }
+    (DATA / "api.json").write_text(json.dumps(finite(api), ensure_ascii=False, indent=1, allow_nan=False), encoding="utf-8")
     for key, value in runs.items():
         s = value["summary"]
         print(
