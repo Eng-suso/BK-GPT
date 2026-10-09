@@ -186,11 +186,13 @@ async function openReviewAgent(page: Page, taskName: string): Promise<Locator> {
   return chat;
 }
 
-async function askReview(page: Page, chat: Locator, question: string, done: RegExp): Promise<void> {
+async function askReview(page: Page, rec: Recorder, chat: Locator, question: string, done: RegExp): Promise<void> {
   await typeLikeHuman(page, page.getByLabel("Scrivi all’agente di Review"), question);
   await clickOn(page, page.getByRole("button", { name: "Invia messaggio", exact: true }), 400);
+  rec.mark("sent");
   await moveTo(page, chat.getByText(question).first(), 500);
   await expect(chat.getByText(done).first()).toBeVisible({ timeout: 30_000 });
+  rec.mark("answered");
   // La risposta e' piu' lunga del pannello: si torna all'inizio e la si rilegge.
   await page.waitForTimeout(700);
   const log = await scrollable(chat);
@@ -214,14 +216,16 @@ test.describe("chat ravvicinate", () => {
     await scene(page, "02-interviste-a-delir", async () => {
       await page.goto(P);
       await expect(page.getByPlaceholder(/Scrivi un messaggio/)).toBeVisible();
-    }, async () => {
+    }, async (rec) => {
       const box = page.getByPlaceholder(/Scrivi un messaggio/);
       await typeLikeHuman(page, box, discoveryQuestion);
       await page.keyboard.press("Enter");
-      await moveTo(page, { x: 1500, y: 980 }, 600);
+      rec.mark("sent");
+      await moveTo(page, { x: 1100, y: 690 }, 600);
       await expect(page.getByText(/Leggo le fonti raccolte/).first()).toBeVisible({ timeout: 10_000 });
       // La risposta e' completa quando torna il pulsante di invio al posto di "Ferma".
       await expect(page.getByRole("button", { name: /Ferma/ })).toBeHidden({ timeout: 40_000 });
+      rec.mark("answered");
       await page.waitForTimeout(1600);
     });
   });
@@ -230,9 +234,9 @@ test.describe("chat ravvicinate", () => {
     await scene(page, "07-review-as-is", async () => {
       await page.goto(`${P}?view=review`);
       await expect(page.locator(`.review-canvas [data-element-id='${AS_IS_REVIEW_NODE}']`).first()).toBeVisible();
-    }, async () => {
+    }, async (rec) => {
       const chat = await openReviewAgent(page, "Regolarizza ordine a posteriori");
-      await askReview(page, chat, asIsReviewQuestion, /Da confermare con Laura Conti/);
+      await askReview(page, rec, chat, asIsReviewQuestion, /Da confermare con Laura Conti/);
       await page.waitForTimeout(1800);
     });
   });
@@ -241,9 +245,9 @@ test.describe("chat ravvicinate", () => {
     await scene(page, "12-review-to-be", async () => {
       await page.goto(`${P}?view=review`);
       await expect(page.locator(`.review-canvas [data-element-id='${REVIEW_NODE}']`).first()).toBeVisible();
-    }, async () => {
+    }, async (rec) => {
       const chat = await openReviewAgent(page, "Autorizza spesa");
-      await askReview(page, chat, reviewQuestion, /Da verificare con Laura Conti/);
+      await askReview(page, rec, chat, reviewQuestion, /Da verificare con Laura Conti/);
       await page.waitForTimeout(900);
       await moveTo(page, page.getByRole("button", { name: "Salva come ipotesi" }), 800);
       await page.waitForTimeout(1500);

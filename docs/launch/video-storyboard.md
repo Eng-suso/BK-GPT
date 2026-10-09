@@ -77,8 +77,9 @@ lavoro, poi testo che arriva a pezzi), come dal backend.
 | 18-chiusura | Marchio | Dalle interviste a un processo che puoi difendere. |
 
 **Tagli** (`storyboard.json` → `cuts`, stesso girato): **90 s** movimentato
-(13 scene, testo 2 s, azione accelerata 1,3–1,6×) e **2'30"** esteso (tutte le
-scene, testo 2,6 s, 1,2–1,3×). Loop hero: review dell'As-Is + replay As-Is.
+(11 scene, testo 2 s) e **2'30"** esteso (17 scene, testo 2,3 s). Le chat
+hanno tre velocita' legate ai marker della registrazione: digitazione 3–3,5×,
+risposta in streaming 1,2–1,5× (si legge), rilettura 2,5×. Loop hero: review dell'As-Is + replay As-Is.
 
 ## Regole del video muto
 

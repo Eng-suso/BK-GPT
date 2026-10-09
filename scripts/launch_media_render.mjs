@@ -160,13 +160,23 @@ function cutScene(cutName, cut, entry) {
     filters.push(`[0:v]setpts=(PTS-STARTPTS)/${speed},fps=30[base]`);
   } else {
     const hold = Math.min(cut.hold, HOLD);
-    const keep = Math.min(entry.keep ?? Infinity, raw.duration - HOLD - 0.3);
-    total = hold + keep / speed;
-    filters.push(
-      `[0:v]trim=start=${HOLD - hold}:end=${HOLD},setpts=PTS-STARTPTS[a]`,
-      `[0:v]trim=start=${HOLD}:end=${HOLD + keep},setpts=(PTS-STARTPTS)/${speed}[b]`,
-      `[a][b]concat=n=2:v=1,fps=30[base]`,
-    );
+    const stop = raw.duration - 0.3;
+    // Segmenti a velocita' diverse (es. digitazione veloce, risposta quasi
+    // reale), fino a un marker della registrazione; altrimenti `keep` secondi.
+    const segments = entry.segments ?? [{ to: HOLD + (entry.keep ?? Infinity), speed }];
+    const at = (to) => Math.min(stop, to === "end" ? stop : typeof to === "number" ? to : raw.marks[to]);
+    filters.push(`[0:v]split=${segments.length + 1}${segments.map((_, i) => `[s${i}]`).join("")}[sh]`);
+    filters.push(`[sh]trim=start=${HOLD - hold}:end=${HOLD},setpts=PTS-STARTPTS[h]`);
+    total = hold;
+    let from = HOLD;
+    segments.forEach((segment, i) => {
+      const to = at(segment.to);
+      if (to === undefined || Number.isNaN(to)) throw new Error(`${entry.id}: marker ${segment.to} assente`);
+      filters.push(`[s${i}]trim=start=${from}:end=${to},setpts=(PTS-STARTPTS)/${segment.speed}[g${i}]`);
+      total += (to - from) / segment.speed;
+      from = to;
+    });
+    filters.push(`[h]${segments.map((_, i) => `[g${i}]`).join("")}concat=n=${segments.length + 1}:v=1,fps=30[base]`);
   }
   let last = "base";
   let n = 1;
