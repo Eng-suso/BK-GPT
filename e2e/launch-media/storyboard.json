@@ -20,6 +20,14 @@
       "line": "Presenti la mappa al cliente. E devi difenderla."
     }
   ],
+  "stages": [
+    "Interviste",
+    "As-Is",
+    "Simulazione",
+    "Event log",
+    "To-Be",
+    "Process owner"
+  ],
   "scenes": [
     {
       "id": "01-settimana",
@@ -28,77 +36,92 @@
     {
       "id": "02-interviste-a-delir",
       "caption": "Carichi le interviste. DeliR le legge con te.",
-      "landing": "chat-discovery"
+      "landing": "chat-discovery",
+      "stage": 0
     },
     {
       "id": "03-fonti",
       "caption": "Ogni affermazione, con la sua citazione.",
-      "landing": "fonti-e-affermazioni"
+      "landing": "fonti-e-affermazioni",
+      "stage": 0
     },
     {
       "id": "04-passaggio-nascosto",
       "caption": "Due non sanno chi sistema l'urgenza. Francesca sì.",
-      "landing": "passaggio-nascosto"
+      "landing": "passaggio-nascosto",
+      "stage": 0
     },
     {
       "id": "05-lacuna",
       "caption": "Quello che nessuno ha detto, DeliR te lo chiede.",
-      "landing": "lacuna-aperta"
+      "landing": "lacuna-aperta",
+      "stage": 0
     },
     {
       "id": "06-as-is",
       "caption": "La bozza As-Is. Ogni passaggio ha una fonte.",
-      "landing": "evidenze-sul-processo"
+      "landing": "evidenze-sul-processo",
+      "stage": 1
     },
     {
       "id": "07-review-as-is",
       "caption": "Rivedi l'As-Is con DeliR, attività per attività.",
-      "landing": "review-as-is"
+      "landing": "review-as-is",
+      "stage": 1
     },
     {
       "id": "08-as-is-corretto",
       "caption": "Correggi tu: è la versione che firmi.",
-      "landing": "as-is-corretto"
+      "landing": "as-is-corretto",
+      "stage": 1
     },
     {
       "id": "09-simula-as-is",
       "caption": "Simuli il processo di oggi.",
-      "landing": "simulazione-as-is"
+      "landing": "simulazione-as-is",
+      "stage": 2
     },
     {
       "id": "10-heatmap",
       "caption": "Si ferma all'autorizzazione: quasi 3 giorni.",
-      "landing": "heatmap-collo-di-bottiglia"
+      "landing": "heatmap-collo-di-bottiglia",
+      "stage": 2
     },
     {
       "id": "11-event-log",
       "caption": "Lo verifichi sui dati del cliente: scarto 2%.",
-      "landing": "event-log"
+      "landing": "event-log",
+      "stage": 3
     },
     {
       "id": "12-review-to-be",
       "caption": "Chiedi a DeliR come migliorarlo.",
-      "landing": "review-to-be"
+      "landing": "review-to-be",
+      "stage": 4
     },
     {
       "id": "13-ipotesi-to-be",
       "caption": "Le proposte vengono da chi lavora nel processo.",
-      "landing": "ipotesi-to-be"
+      "landing": "ipotesi-to-be",
+      "stage": 4
     },
     {
       "id": "14-simula-to-be",
       "caption": "Stesse richieste. Processo nuovo.",
-      "landing": "simulazione-to-be"
+      "landing": "simulazione-to-be",
+      "stage": 4
     },
     {
       "id": "15-decidi",
       "caption": "−75% di attraversamento, −29% di costo. Simulato.",
-      "landing": "confronto"
+      "landing": "confronto",
+      "stage": 4
     },
     {
       "id": "16-process-owner",
       "caption": "Esporti il To-Be per Laura Conti, process owner.",
-      "landing": "process-owner"
+      "landing": "process-owner",
+      "stage": 5
     },
     {
       "id": "17-memoria",
@@ -110,7 +133,8 @@
           "duration": 3
         }
       ],
-      "landing": "memoria"
+      "landing": "memoria",
+      "stage": 6
     },
     {
       "id": "18-chiusura",

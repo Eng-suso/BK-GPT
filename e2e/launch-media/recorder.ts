@@ -14,6 +14,7 @@ export class Recorder {
   private session: CDPSession | null = null;
   private frames: { file: string; t: number }[] = [];
   private marks: Record<string, number> = {};
+  private camera: { t: number; rect: { x: number; y: number; width: number; height: number } | null; zoom?: number }[] = [];
   private started = 0;
   private pending: Promise<unknown>[] = [];
 
@@ -44,6 +45,25 @@ export class Recorder {
     this.marks[name] = Date.now() / 1000 - this.started;
   }
 
+  /**
+   * Inquadratura: il montaggio (scripts/launch_media_edit.py) porta la camera
+   * su questo rettangolo, con un movimento morbido. `zoom` e' il massimo.
+   */
+  async focus(target: Locator | { x: number; y: number; width: number; height: number }, zoom = 1.6, pad = 48): Promise<void> {
+    const box = "boundingBox" in target ? await target.boundingBox() : target;
+    if (!box) return;
+    this.camera.push({
+      t: Date.now() / 1000 - this.started,
+      rect: { x: box.x - pad, y: box.y - pad, width: box.width + 2 * pad, height: box.height + 2 * pad },
+      zoom,
+    });
+  }
+
+  /** Ritorno al campo largo. */
+  wide(): void {
+    this.camera.push({ t: Date.now() / 1000 - this.started, rect: null });
+  }
+
   async stop(): Promise<void> {
     const ended = Date.now() / 1000;
     await this.session?.send("Page.stopScreencast");
@@ -52,7 +72,7 @@ export class Recorder {
     const t0 = this.frames[0]?.t ?? this.started;
     writeFileSync(
       resolve(this.dir, "scene.json"),
-      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, end: ended - t0 }, null, 1),
+      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, camera: this.camera, viewport: this.page.viewportSize(), end: ended - t0 }, null, 1),
     );
   }
 }

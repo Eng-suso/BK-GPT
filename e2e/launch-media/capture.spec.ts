@@ -166,11 +166,14 @@ async function typeLikeHuman(page: Page, box: Locator, text: string): Promise<vo
 }
 
 /** Apre la Review di un task del modello e il suo agente. */
-async function openReviewAgent(page: Page, taskName: string): Promise<Locator> {
+async function openReviewAgent(page: Page, rec: Recorder, taskName: string, node: string): Promise<Locator> {
   await clickOn(page, page.getByRole("button", { name: /^Task \d+$/ }).first());
   await page.waitForTimeout(300);
   await clickOn(page, page.getByRole("button", { name: taskName, exact: true }));
-  await page.waitForTimeout(700);
+  // La camera va sul task scelto: monte e valle evidenziati.
+  await rec.focus(page.locator(`.review-canvas [data-element-id='${node}']`).first(), 1.7, 220);
+  await page.waitForTimeout(1500);
+  rec.wide();
   await clickOn(page, page.getByRole("button", { name: "Apri agente DeliR", exact: true }));
   const chat = page.getByRole("dialog", { name: "Agente di Review" });
   await expect(chat).toBeVisible();
@@ -183,6 +186,8 @@ async function openReviewAgent(page: Page, taskName: string): Promise<Locator> {
     await page.waitForTimeout(25);
   }
   for (let step = 0; step < 6; step += 1) await page.keyboard.press("ArrowUp");
+  await page.waitForTimeout(200);
+  await rec.focus(chat, 1.4, 24);
   return chat;
 }
 
@@ -218,9 +223,12 @@ test.describe("chat ravvicinate", () => {
       await expect(page.getByPlaceholder(/Scrivi un messaggio/)).toBeVisible();
     }, async (rec) => {
       const box = page.getByPlaceholder(/Scrivi un messaggio/);
+      await rec.focus(box, 1.6, 40);
       await typeLikeHuman(page, box, discoveryQuestion);
       await page.keyboard.press("Enter");
       rec.mark("sent");
+      // La conversazione: la domanda, le fasi di lavoro, la risposta.
+      await rec.focus({ x: 170, y: 110, width: 940, height: 420 }, 1.35, 0);
       await moveTo(page, { x: 1100, y: 690 }, 600);
       await expect(page.getByText(/Leggo le fonti raccolte/).first()).toBeVisible({ timeout: 10_000 });
       // La risposta e' completa quando torna il pulsante di invio al posto di "Ferma".
@@ -235,9 +243,11 @@ test.describe("chat ravvicinate", () => {
       await page.goto(`${P}?view=review`);
       await expect(page.locator(`.review-canvas [data-element-id='${AS_IS_REVIEW_NODE}']`).first()).toBeVisible();
     }, async (rec) => {
-      const chat = await openReviewAgent(page, "Regolarizza ordine a posteriori");
+      const chat = await openReviewAgent(page, rec, "Regolarizza ordine a posteriori", AS_IS_REVIEW_NODE);
       await askReview(page, rec, chat, asIsReviewQuestion, /Da confermare con Laura Conti/);
-      await page.waitForTimeout(1800);
+      await page.waitForTimeout(600);
+      rec.wide();
+      await page.waitForTimeout(1200);
     });
   });
 
@@ -246,7 +256,7 @@ test.describe("chat ravvicinate", () => {
       await page.goto(`${P}?view=review`);
       await expect(page.locator(`.review-canvas [data-element-id='${REVIEW_NODE}']`).first()).toBeVisible();
     }, async (rec) => {
-      const chat = await openReviewAgent(page, "Autorizza spesa");
+      const chat = await openReviewAgent(page, rec, "Autorizza spesa", REVIEW_NODE);
       await askReview(page, rec, chat, reviewQuestion, /Da verificare con Laura Conti/);
       await page.waitForTimeout(900);
       await moveTo(page, page.getByRole("button", { name: "Salva come ipotesi" }), 800);
@@ -258,13 +268,15 @@ test.describe("chat ravvicinate", () => {
 // --- Scene di prodotto -----------------------------------------------------
 
 test("03-fonti", async ({ page }) => {
-  await scene(page, "03-fonti", () => openSources(page), async () => {
+  await scene(page, "03-fonti", () => openSources(page), async (rec) => {
     await clickOn(page, page.getByRole("tab", { name: /Fonti/ }));
     await page.waitForTimeout(900);
     await clickOn(page, page.getByText("Intervista Laura Conti").first());
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByText("citazione verificata").first()).toBeVisible();
-    await page.waitForTimeout(840);
+    await page.waitForTimeout(500);
+    await rec.focus(dialog, 1.35, 16);
+    await page.waitForTimeout(340);
     await moveTo(page, dialog.getByText("citazione verificata").first(), 800);
     await slowScroll(page, await scrollable(dialog), 520, 4200);
     await page.waitForTimeout(840);
@@ -276,7 +288,7 @@ test("04-passaggio-nascosto", async ({ page }) => {
     await openSources(page);
     await page.getByRole("tab", { name: /Fonti/ }).click();
     await expect(page.getByText("Intervista Francesca Neri").first()).toBeVisible();
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.getByText("Intervista Francesca Neri").first());
     const dialog = page.getByRole("dialog");
     const section = dialog.getByText(/CONFRONTO CON GLI ALTRI FILE/i).first();
@@ -293,7 +305,9 @@ test("04-passaggio-nascosto", async ({ page }) => {
       return top;
     });
     await slowScroll(page, box, Math.max(0, offset - 40), 2600);
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(300);
+    await rec.focus(dialog.getByText(/CONFRONTO CON GLI ALTRI FILE/i).first(), 1.6, 60);
+    await page.waitForTimeout(300);
     await moveTo(page, dialog.getByText("Divergenze (3)").first(), 700);
     await page.waitForTimeout(500);
     await moveTo(page, dialog.getByText(/non so da chi/).first(), 900);
@@ -307,11 +321,12 @@ test("05-lacuna", async ({ page }) => {
   await scene(page, "05-lacuna", async () => {
     await page.goto(P);
     await expect(page.getByRole("button", { name: /^Decidi$/ })).toBeVisible();
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.getByRole("button", { name: /^Decidi$/ }));
     await page.waitForTimeout(900);
     await clickOn(page, page.getByRole("button", { name: /Da decidere/ }));
     await page.waitForTimeout(700);
+    await rec.focus(page.getByText(/Qual e' la soglia di importo/).first(), 1.8, 160);
     await moveTo(page, page.getByText(/Qual e' la soglia di importo/).first(), 900);
     await page.waitForTimeout(979);
     await moveTo(page, page.getByText("Chiedo la procedura scritta a Francesca"), 800);
@@ -323,11 +338,13 @@ test("06-as-is", async ({ page }) => {
   await scene(page, "06-as-is", async () => {
     await page.goto(`${P}?view=canvas`);
     await expect(page.locator("[data-element-id='percorso_urgente_regolarizza_ordine']").first()).toBeVisible();
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.getByRole("button", { name: "Evidenze" }));
     const panel = page.getByRole("complementary", { name: "Evidenze del disegno" });
     await expect(panel).toContainText("100%");
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(300);
+    await rec.focus(panel, 1.5, 16);
+    await page.waitForTimeout(600);
     await moveTo(page, panel.getByText("Il disegno coincide con le fonti"), 800);
     await page.waitForTimeout(900);
     await clickOn(page, panel.locator("summary", { hasText: "Citati dalle fonti" }));
@@ -336,7 +353,9 @@ test("06-as-is", async ({ page }) => {
     await quote.scrollIntoViewIfNeeded();
     await moveTo(page, quote, 900);
     await page.waitForTimeout(800);
+    rec.wide();
     await moveTo(page, page.locator("[data-element-id='percorso_urgente_regolarizza_ordine']").first(), 900);
+    await rec.focus(page.locator("[data-element-id='percorso_urgente_regolarizza_ordine']").first(), 2, 200);
     await page.waitForTimeout(1440);
   });
 });
@@ -346,16 +365,21 @@ test("08-as-is-corretto", async ({ page }) => {
   await scene(page, "08-as-is-corretto", async () => {
     await page.goto(`${P}?view=canvas`);
     await expect(page.locator(`[data-element-id='${AS_IS_REVIEW_NODE}']`).first()).toBeVisible();
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.locator(`[data-element-id='${AS_IS_REVIEW_NODE}']`).first());
     await clickOn(page, page.getByRole("button", { name: "Proprietà", exact: true }));
     await expect(page.getByRole("tablist", { name: "Schede proprietà" })).toBeVisible();
+    await page.waitForTimeout(300);
+    await rec.focus(page.getByLabel("Responsabile attività"), 1.8, 180);
     await moveTo(page, page.getByLabel("Responsabile attività"), 800);
     await page.waitForTimeout(1200);
+    rec.wide();
     await clickOn(page, page.getByRole("button", { name: "Importa, esporta, cronologia" }));
     await page.waitForTimeout(400);
     await clickOn(page, page.getByRole("menuitem", { name: /Cronologia versioni/ }));
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(400);
+    await rec.focus(page.getByText("As-Is v3 · validato con Laura Conti").first(), 1.9, 160);
+    await page.waitForTimeout(200);
     await moveTo(page, page.getByText("As-Is v3 · validato con Laura Conti").first(), 900);
     await page.waitForTimeout(2000);
   });
@@ -369,10 +393,16 @@ async function replayScene(page: Page, id: string, run: number): Promise<void> {
     await page.getByRole("combobox", { name: "Velocità" }).click();
     await page.getByRole("option", { name: "≈ 40 s" }).click();
     await page.waitForTimeout(800);
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.getByRole("button", { name: "Riproduci", exact: true }), 600);
     await moveTo(page, { x: 960, y: 1040 }, 500);
-    await page.waitForTimeout(9500);
+    // Prima i token sul processo, poi i grafici che si muovono.
+    await rec.focus({ x: 80, y: 160, width: 1340, height: 660 }, 1.3, 0);
+    await page.waitForTimeout(4500);
+    await rec.focus({ x: 80, y: 600, width: 1820, height: 420 }, 1.25, 0);
+    await page.waitForTimeout(3400);
+    rec.wide();
+    await page.waitForTimeout(1600);
   });
 }
 
@@ -385,9 +415,11 @@ test("10-heatmap", async ({ page }) => {
     await expect(page.getByText("Collo di bottiglia").first()).toBeVisible();
     await page.getByRole("button", { name: "Mostra tutta la tela" }).click();
     await page.waitForTimeout(600);
-  }, async () => {
+  }, async (rec) => {
+    await rec.focus(page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first(), 2.2, 220);
     await moveTo(page, page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first(), 1000);
     await page.waitForTimeout(1200);
+    await rec.focus(page.getByText("Collo di bottiglia").first(), 1.8, 200);
     await moveTo(page, page.getByText("Collo di bottiglia").first(), 900);
     await page.waitForTimeout(1200);
     await moveTo(page, page.getByText("Quota dell'attesa totale").first(), 800);
@@ -399,11 +431,13 @@ test("11-event-log", async ({ page }) => {
   await scene(page, "11-event-log", async () => {
     await page.goto(`${P}/simulation`);
     await expect(page.getByRole("button", { name: "Event log", exact: true })).toBeVisible();
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.getByRole("button", { name: "Event log", exact: true }));
     await page.waitForTimeout(700);
     await clickOn(page, page.getByRole("button", { name: /^export-workflow-acquisti\.csv/ }).first());
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(400);
+    await rec.focus({ x: 1430, y: 160, width: 480, height: 820 }, 1.6, 0);
+    await page.waitForTimeout(500);
     await clickOn(page, page.getByRole("button", { name: /Qualità e KPI/ }).first());
     await page.waitForTimeout(1600);
     await clickOn(page, page.getByRole("button", { name: /Reale contro simulato/ }).first());
@@ -413,6 +447,7 @@ test("11-event-log", async ({ page }) => {
     await moveTo(page, run, 700);
     await run.selectOption({ value: String(IDS.asIsRun) }).catch(async () => run.selectOption({ index: 1 }));
     await expect(page.getByText(/vicino al reale/).first()).toBeVisible();
+    await rec.focus(page.getByText(/vicino al reale/).first(), 2.0, 140);
     await page.waitForTimeout(500);
     await moveTo(page, page.getByText(/vicino al reale/).first(), 900);
     await page.waitForTimeout(2200);
@@ -424,12 +459,15 @@ test("13-ipotesi-to-be", async ({ page }) => {
   await scene(page, "13-ipotesi-to-be", async () => {
     await page.goto(P);
     await expect(page.getByRole("tab", { name: "Ipotesi To-Be" })).toBeVisible();
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.getByRole("tab", { name: "Ipotesi To-Be" }));
     await expect(page.getByText("La richiesta nasce completa, con i campi obbligatori")).toBeVisible();
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(300);
+    await rec.focus(page.getByText("La richiesta nasce completa, con i campi obbligatori"), 1.7, 220);
+    await page.waitForTimeout(400);
     await moveTo(page, page.getByText(/Un posto unico dove la richiesta/).first(), 900);
     await page.waitForTimeout(1260);
+    await rec.focus(page.getByText(/vorrei che l'autorizzazione/).first(), 1.7, 220);
     await moveTo(page, page.getByText(/vorrei che l'autorizzazione/).first(), 900);
     await page.waitForTimeout(1560);
   });
@@ -440,9 +478,11 @@ test("15-decidi", async ({ page }) => {
     await page.goto(`${P}/simulation/compare?a=${IDS.asIsRun}&b=${IDS.toBeRun}`);
     await expect(page.getByText(/attraversamento −/)).toBeVisible();
     await page.getByRole("button", { name: "Mostra tutta la tela" }).click();
-  }, async () => {
+  }, async (rec) => {
+    await rec.focus(page.getByText(/attraversamento −/), 1.9, 160);
     await moveTo(page, page.getByText(/attraversamento −/), 1000);
     await page.waitForTimeout(1260);
+    rec.wide();
     await moveTo(page, page.locator("[data-element-id='percorso_autorizzazione_autorizza_spesa']").first(), 1000);
     await page.waitForTimeout(1800);
   });
@@ -466,15 +506,19 @@ test("16-process-owner", async ({ page }) => {
     await chat.getByRole("button", { name: "Apri conoscenza e proposte del task" }).click();
     await page.getByRole("tab", { name: "Proposte", exact: true }).click();
     await page.waitForTimeout(500);
-  }, async () => {
+  }, async (rec) => {
     await clickOn(page, page.getByRole("button", { name: "Apri diagramma", exact: true }).first());
     const preview = page.getByRole("dialog").filter({ has: page.getByRole("button", { name: "Scarica BPMN" }) });
     await expect(preview).toBeVisible();
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(300);
+    await rec.focus(preview, 1.5, 16);
+    await page.waitForTimeout(1200);
     await clickOn(page, preview.getByRole("button", { name: "Scarica BPMN" }));
     await page.waitForTimeout(1300);
+    rec.wide();
     await page.goto(`/projects/${IDS.project}`);
     await expect(page.getByText(`Validazione del To-Be con ${PROCESS_OWNER}`)).toBeVisible();
+    await rec.focus(page.getByText(`Validazione del To-Be con ${PROCESS_OWNER}`), 2.2, 120);
     await moveTo(page, page.getByText(`Validazione del To-Be con ${PROCESS_OWNER}`), 900);
     await page.waitForTimeout(1800);
   });
@@ -491,6 +535,7 @@ test("17-memoria", async ({ page }) => {
     await clickOn(page, page.getByText("Vetrano Industriale S.p.A.").first());
     await page.waitForTimeout(1260);
     await clickOn(page, nav("Home"));
+    rec.wide();
     rec.mark("portfolio");
     await page.waitForTimeout(3400);
   });
@@ -616,19 +661,37 @@ test("overlays", async ({ page }) => {
   mkdirSync(dir, { recursive: true });
   await page.goto("/home");
   await expect(page.getByText("Acquisti indiretti e servizi").first()).toBeVisible();
-  const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-  const texts: Record<string, string> = { disclaimer: storyboard.disclaimer };
+  const font = (await page.evaluate(() => getComputedStyle(document.body).fontFamily)).replace(/"/g, "'");
+  const esc = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const render = async (name: string, body: string) => {
+    await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent;font-family:${font}">${body}</body></html>`);
+    await page.screenshot({ path: resolve(dir, `${name}.png`), omitBackground: true });
+  };
+
+  // Testi delle scene: il montaggio li fa entrare dal basso.
+  const texts: Record<string, string> = {};
   for (const item of storyboard.scenes) {
-    if (item.caption) texts[`${item.id}`] = item.caption;
+    if (item.caption) texts[item.id] = item.caption;
     (item.captions ?? []).forEach((extra, index) => { texts[`${item.id}-${index + 1}`] = extra.text; });
   }
   for (const [name, text] of Object.entries(texts)) {
-    await page.setContent(`<!doctype html><html><body style="margin:0;background:transparent;font-family:${font.replace(/"/g, "'")}">
-      <div style="position:fixed;inset:0;display:flex;align-items:${name === "disclaimer" ? "flex-start" : "flex-end"};justify-content:center;padding:${name === "disclaimer" ? "13px 0 0 0" : "0 0 120px 0"}">
-        <div style="${name === "disclaimer"
-          ? "font-size:15px;color:#64748b;background:rgba(255,255,255,.88);border:1px solid #e2e8f0;border-radius:999px;padding:6px 14px"
-          : "font-size:52px;font-weight:600;letter-spacing:-0.02em;color:#fff;background:rgba(15,23,42,.88);border-radius:22px;padding:26px 44px;box-shadow:0 20px 60px rgba(15,23,42,.35);max-width:1500px;text-align:center"}">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>
-      </div></body></html>`);
-    await page.screenshot({ path: resolve(dir, `${name}.png`), omitBackground: true });
+    await render(name, `<div style="position:fixed;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:0 0 110px 0">
+      <div style="font-size:50px;font-weight:600;letter-spacing:-0.02em;color:#fff;background:rgba(15,23,42,.9);border-radius:22px;padding:24px 44px;box-shadow:0 24px 70px rgba(15,23,42,.35);max-width:1500px;text-align:center">${esc(text)}</div></div>`);
+  }
+
+  await render("disclaimer", `<div style="position:fixed;right:18px;bottom:12px;font-size:14px;color:#64748b;background:rgba(255,255,255,.9);border:1px solid #e2e8f0;border-radius:999px;padding:5px 12px">${esc(storyboard.disclaimer)}</div>`);
+
+  // Il percorso del consulente: una tappa accesa per volta, le precedenti fatte.
+  for (let current = 0; current <= storyboard.stages.length; current += 1) {
+    const steps = storyboard.stages.map((label, index) => {
+      const done = index < current;
+      const now = index === current;
+      const dot = done
+        ? `<span style="display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#16a34a;color:#fff;font-size:12px">✓</span>`
+        : `<span style="display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:${now ? "#2563eb" : "#e2e8f0"};color:${now ? "#fff" : "#64748b"};font-size:12px;font-weight:600">${index + 1}</span>`;
+      return `<span style="display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:999px;${now ? "background:#eff6ff;" : ""}color:${now ? "#1d4ed8" : done ? "#0f172a" : "#94a3b8"};font-weight:${now ? 650 : 500}">${dot}${esc(label)}</span>`;
+    });
+    await render(`stage-${current}`, `<div style="position:fixed;top:7px;left:0;right:0;display:flex;justify-content:center">
+      <div style="display:flex;align-items:center;gap:2px;font-size:14px;background:rgba(255,255,255,.96);border:1px solid #e2e8f0;border-radius:999px;padding:3px 5px;box-shadow:0 8px 26px rgba(15,23,42,.12)">${steps.join('<span style="color:#cbd5e1">›</span>')}</div></div>`);
   }
 });
