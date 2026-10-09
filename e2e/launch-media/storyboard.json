@@ -1,95 +1,82 @@
 {
   "disclaimer": "Azienda e persone fittizie · caso dimostrativo",
   "hold": 2.6,
+  "hook": [
+    { "day": "Lunedì", "line": "Kick-off da Vetrano Industriale.", "quote": "Il processo acquisti? Lo conosciamo." },
+    { "day": "Martedì", "line": "Tre interviste. Ognuno conosce un pezzo." },
+    { "day": "Mercoledì", "line": "Nessuno sa chi sistema gli ordini urgenti." },
+    { "day": "Venerdì", "line": "Presenti la mappa al cliente. E devi difenderla." }
+  ],
   "scenes": [
+    { "id": "01-settimana", "card": "hook" },
+    { "id": "02-interviste-a-delir", "caption": "Carichi le interviste. DeliR le legge con te.", "landing": "chat-discovery" },
+    { "id": "03-fonti", "caption": "Ogni affermazione, con la sua citazione.", "landing": "fonti-e-affermazioni" },
+    { "id": "04-passaggio-nascosto", "caption": "Due non sanno chi sistema l'urgenza. Francesca sì.", "landing": "passaggio-nascosto" },
+    { "id": "05-lacuna", "caption": "Quello che nessuno ha detto, DeliR te lo chiede.", "landing": "lacuna-aperta" },
+    { "id": "06-as-is", "caption": "La bozza As-Is. Ogni passaggio ha una fonte.", "landing": "evidenze-sul-processo" },
+    { "id": "07-review-as-is", "caption": "Rivedi l'As-Is con DeliR, attività per attività.", "landing": "review-as-is" },
+    { "id": "08-as-is-corretto", "caption": "Correggi tu: è la versione che firmi.", "landing": "as-is-corretto" },
+    { "id": "09-simula-as-is", "caption": "Simuli il processo di oggi.", "landing": "simulazione-as-is" },
+    { "id": "10-heatmap", "caption": "Si ferma all'autorizzazione: quasi 3 giorni.", "landing": "heatmap-collo-di-bottiglia" },
+    { "id": "11-event-log", "caption": "Lo verifichi sui dati del cliente: scarto 2%.", "landing": "event-log" },
+    { "id": "12-review-to-be", "caption": "Chiedi a DeliR come migliorarlo.", "landing": "review-to-be" },
+    { "id": "13-ipotesi-to-be", "caption": "Le proposte vengono da chi lavora nel processo.", "landing": "ipotesi-to-be" },
+    { "id": "14-simula-to-be", "caption": "Stesse richieste. Processo nuovo.", "landing": "simulazione-to-be" },
+    { "id": "15-decidi", "caption": "−75% di attraversamento, −29% di costo. Simulato.", "landing": "confronto" },
+    { "id": "16-process-owner", "caption": "Esporti il To-Be per Laura Conti, process owner.", "landing": "process-owner" },
     {
-      "id": "01-gancio",
-      "card": "hook",
-      "title": "Nessuno conosce il processo intero."
-    },
-    {
-      "id": "02-capire",
-      "caption": "Fatti, ipotesi, lacune. Separati.",
-      "landing": "fonti-e-affermazioni"
-    },
-    {
-      "id": "03-passaggio-nascosto",
-      "caption": "Due non sanno. Una sì.",
-      "landing": "passaggio-nascosto"
-    },
-    {
-      "id": "04-lacuna",
-      "caption": "DeliR non inventa. Te lo chiede.",
-      "landing": "lacuna-aperta"
-    },
-    {
-      "id": "05-ogni-passaggio-una-fonte",
-      "caption": "Ogni passaggio ha una fonte.",
-      "landing": "evidenze-sul-processo"
-    },
-    {
-      "id": "06-ultima-parola",
-      "caption": "L'ultima parola è tua.",
-      "landing": "versioni"
-    },
-    {
-      "id": "07-simula-as-is",
-      "caption": "Oggi: più di metà delle richieste torna indietro.",
-      "landing": "simulazione-as-is"
-    },
-    {
-      "id": "07b-heatmap",
-      "caption": "Il collo di bottiglia, misurato.",
-      "landing": "heatmap-collo-di-bottiglia"
-    },
-    {
-      "id": "08-to-be",
-      "caption": "Il To-Be l'avevano già chiesto loro.",
-      "landing": "ipotesi-to-be"
-    },
-    {
-      "id": "09-simula-to-be",
-      "caption": "Stesse richieste. Processo nuovo.",
-      "landing": "simulazione-to-be"
-    },
-    {
-      "id": "10-decidi",
-      "caption": "Non un'opinione. Una simulazione.",
-      "landing": "confronto"
-    },
-    {
-      "id": "11-process-owner",
-      "caption": "Prossimo passo: il process owner.",
-      "landing": "prossimo-passo"
-    },
-    {
-      "id": "12-memoria",
+      "id": "17-memoria",
       "caption": "Tutto resta nella memoria di DeliR.",
-      "captions": [
-        {
-          "text": "Per ogni cliente. Per ogni progetto.",
-          "mark": "portfolio",
-          "duration": 3
-        }
-      ],
+      "captions": [{ "text": "Al prossimo cliente non riparti da zero.", "mark": "portfolio", "duration": 3 }],
       "landing": "memoria"
     },
-    {
-      "id": "13-chiusura",
-      "card": "close",
-      "title": "Non disegnare il processo. Dimostralo."
-    }
+    { "id": "18-chiusura", "card": "close", "title": "Dalle interviste a un processo che puoi difendere." }
   ],
-  "hero": [
-    {
-      "scene": "03-passaggio-nascosto",
-      "from": 2.6,
-      "duration": 8
+  "cuts": {
+    "90s": {
+      "hold": 2.0,
+      "scenes": [
+        { "id": "01-settimana", "speed": 1.3 },
+        { "id": "02-interviste-a-delir", "speed": 1.6, "keep": 6 },
+        { "id": "04-passaggio-nascosto", "speed": 1.5, "keep": 4.5 },
+        { "id": "06-as-is", "speed": 1.5, "keep": 4 },
+        { "id": "07-review-as-is", "speed": 1.6, "keep": 6.5 },
+        { "id": "09-simula-as-is", "speed": 1.5, "keep": 6 },
+        { "id": "10-heatmap", "speed": 1.4, "keep": 3.5 },
+        { "id": "11-event-log", "speed": 1.6, "keep": 4.5 },
+        { "id": "12-review-to-be", "speed": 1.6, "keep": 7 },
+        { "id": "14-simula-to-be", "speed": 1.5, "keep": 5 },
+        { "id": "15-decidi", "speed": 1.3, "keep": 4 },
+        { "id": "16-process-owner", "speed": 1.4, "keep": 3.5 },
+        { "id": "18-chiusura", "speed": 1.0 }
+      ]
     },
-    {
-      "scene": "07-simula-as-is",
-      "from": 2.6,
-      "duration": 9
+    "150s": {
+      "hold": 2.6,
+      "scenes": [
+        { "id": "01-settimana", "speed": 1.0 },
+        { "id": "02-interviste-a-delir", "speed": 1.25, "keep": 9 },
+        { "id": "03-fonti", "speed": 1.3, "keep": 5 },
+        { "id": "04-passaggio-nascosto", "speed": 1.25, "keep": 7 },
+        { "id": "05-lacuna", "speed": 1.25, "keep": 5 },
+        { "id": "06-as-is", "speed": 1.25, "keep": 6 },
+        { "id": "07-review-as-is", "speed": 1.3, "keep": 9 },
+        { "id": "08-as-is-corretto", "speed": 1.3, "keep": 7 },
+        { "id": "09-simula-as-is", "speed": 1.2, "keep": 8 },
+        { "id": "10-heatmap", "speed": 1.2, "keep": 5 },
+        { "id": "11-event-log", "speed": 1.3, "keep": 6 },
+        { "id": "12-review-to-be", "speed": 1.3, "keep": 10 },
+        { "id": "13-ipotesi-to-be", "speed": 1.3, "keep": 4 },
+        { "id": "14-simula-to-be", "speed": 1.2, "keep": 7 },
+        { "id": "15-decidi", "speed": 1.2, "keep": 5 },
+        { "id": "16-process-owner", "speed": 1.2, "keep": 5 },
+        { "id": "17-memoria", "speed": 1.2, "keep": 7 },
+        { "id": "18-chiusura", "speed": 1.0 }
+      ]
     }
+  },
+  "hero": [
+    { "scene": "07-review-as-is", "from": 2.6, "duration": 8 },
+    { "scene": "09-simula-as-is", "from": 2.6, "duration": 9 }
   ]
 }

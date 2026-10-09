@@ -678,3 +678,26 @@ export const reviewScript: ChatScript = {
 
 /** L'export del gestionale e l'analisi del backend (scripts/launch_media_eventlog.py). */
 export const eventLog = readJson<{ log: Record<string, unknown>; preview: unknown; analysis: unknown }>(resolve(DATA, "eventlog.json"));
+
+/** Review dell'As-Is su "Regolarizza ordine a posteriori": chi lo fa davvero, cosa manca. */
+export const AS_IS_REVIEW_NODE = "percorso_urgente_regolarizza_ordine";
+export const asIsReviewQuestion = "È corretto così? Chi lo fa davvero, e cosa manca?";
+export const asIsReviewScript: ChatScript = {
+  phases: [
+    { id: "understanding", label: "Leggo la richiesta", icon: "brain", ms: 600 },
+    { id: "reading_sources", label: "Leggo le fonti raccolte", icon: "document", detail: "3 interviste sul percorso urgente", ms: 1300 },
+    { id: "comparing", label: "Confronto con le evidenze esistenti", icon: "compare", ms: 900 },
+    { id: "drafting", label: "Preparo la risposta", icon: "pen", ms: 500 },
+  ],
+  answer: [
+    "**Sì: la regolarizzazione la fa Acquisti.**",
+    "",
+    "Francesca: «La parte di ordine si', la faccio io.» Laura e Paolo non lo sanno: «non so da chi», «non voglio dirti un nome a caso».",
+    "",
+    "**Cosa manca nel modello**",
+    "- la registrazione contabile è di Amministrazione, ma solo dopo l’ordine: «per farla loro hanno bisogno che io abbia aperto l'ordine»;",
+    "- a Paolo nessuno l’ha mai detto: «Non credo, e onestamente non e' mai stato detto.»",
+    "",
+    "**Da confermare con Laura Conti** prima di validare l’As-Is.",
+  ].join("\n"),
+};

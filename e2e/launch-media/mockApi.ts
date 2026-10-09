@@ -15,6 +15,8 @@ import {
   provenance,
   relationsOf,
   review,
+  AS_IS_REVIEW_NODE,
+  asIsReviewScript,
   discoveryScript,
   eventLog,
   reviewScript,
@@ -147,7 +149,9 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     if (streamMatch) {
       const session = reviewSessions.find((item) => item.thread_id === streamMatch[1]);
       const body = request.postDataJSON() as Record<string, unknown>;
-      const script = session?.scope_key.includes(":review:") ? reviewScript : discoveryScript;
+      const script = !session?.scope_key.includes(":review:")
+        ? discoveryScript
+        : session.scope_key.endsWith(`:review:${AS_IS_REVIEW_NODE}`) ? asIsReviewScript : reviewScript;
       session?.messages.push({ role: "user", content: String(body.message ?? "") }, { role: "assistant", content: script.answer });
       // Lo streaming lo fa streamServer.mjs, con il copione del turno.
       return route.continue({ postData: JSON.stringify({ ...body, __script: script }) });
