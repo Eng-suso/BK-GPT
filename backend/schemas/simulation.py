@@ -50,6 +50,23 @@ class SimTaskAssignmentConfig(BaseModel):
     max_seconds: float | None = Field(default=None, gt=0)
 
 
+class SimArrivalConfig(BaseModel):
+    """Come arrivano i casi: la distribuzione del tempo fra un arrivo e il
+    successivo e il calendario in cui arrivano.
+
+    I parametri seguono le regole della durata di ``SimTaskConfig``; per
+    l'esponenziale, assenti, i limiti sono 0 e 10 volte la media. Senza
+    ``calendar_id`` i casi arrivano nel calendario standard.
+    """
+
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "expon"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+    calendar_id: str | None = Field(default=None, max_length=64)
+
+
 class SimTaskConfig(BaseModel):
     """La durata di un'attivita'. Oltre alla media, i parametri facoltativi:
 
@@ -89,6 +106,9 @@ class CreateSimulationRunRequest(BaseModel):
     start_date: str | None = None
     current_bpmn_xml: str | None = None
     arrival_interval_seconds: int = Field(default=1800, ge=1)
+    # Gli arrivi con distribuzione e calendario (A2-3). Se c'e', prevale su
+    # ``arrival_interval_seconds``.
+    arrival: SimArrivalConfig | None = None
     default_task_duration_seconds: int = Field(default=900, ge=1)
     default_cost_per_hour: float = Field(default=35.0, ge=0)
     resource_amount: int = Field(default=1, ge=1, le=1000)
