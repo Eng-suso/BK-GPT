@@ -43,7 +43,7 @@ storia si regge su cio' che le fonti dicono davvero:
 | 66–74 s | Creare il To-Be | Modifiche con la citazione di chi le ha chieste | Il To-Be l'avevano già chiesto loro. |
 | 74–84 s | Simulare il To-Be | Stesse richieste, la coda sparisce | Stesse richieste. Processo nuovo. |
 | 84–94 s | Decidere | Confronto KPI e verdetto (numeri dalla simulazione) | Non un'opinione. Una simulazione. |
-| 94–102 s | Process owner | Invio a Laura Conti, stato "In validazione" | Pronto per il process owner. |
+| 94–102 s | Process owner | Prossimo passo del progetto: validazione del To-Be con Laura Conti | Prossimo passo: il process owner. |
 | 102–113 s | Memoria | Zoom out processo → progetto → cliente → portafoglio | Tutto resta nella memoria di DeliR. / Per ogni cliente. Per ogni progetto. |
 | 113–117 s | Chiusura | Logo, URL | Non disegnare il processo. Dimostralo. |
 
@@ -70,8 +70,37 @@ Tagli dallo stesso girato: **loop hero 20 s** (20–34 s + 54–60 s), **social 
 | Decidere | confronto KPI | — |
 | Memoria | progetto con fonti, versioni, simulazioni | zoom out |
 
-Generazione: `npm run media:launch` (vedi `e2e/launch-media/`). Output in
-`artifacts/launch-media/` (non versionato).
+Generazione: `npm run media:launch` (cattura + montaggio; solo montaggio:
+`npm run media:launch:render`). Output in `artifacts/launch-media/` (non
+versionato): `screens/` (PNG 3840×2160), `landing/` (MP4 + WebM + poster per
+sezione, `hero-loop`), `scenes/`, `video/delir-presentazione-it.mp4`.
+
+Dove il Chromium installato non e' quello di Playwright:
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE=/percorso/chrome npm run media:launch`.
+
+## Da dove vengono i dati
+
+| Cosa | Fonte |
+| --- | --- |
+| Interviste, claim, citazioni, evidenze | golden set `tests/golden/esaote_ciclo_passivo` (alla lettera; il modulo dati si ferma se una citazione non si trova) |
+| BPMN As-Is | compilatore del prodotto (`data/as-is.compiled.bpmn`), corretto in v3 da `scripts/launch_media_asis.py` |
+| KPI, replay, confronto, esperimenti | Prosimos 2.1.0 + funzioni del backend (`scripts/launch_media_simulate.py`), seed fisso |
+| Volume (5 richieste/giorno), persone, costi orari, effetto del To-Be | assunzioni del consulente, dichiarate come tali nella provenienza dei parametri |
+
+Risultato della simulazione (360 richieste): attraversamento medio
+**2g 21h → 17h 46min (−75%)**, costo per caso **−29%**; collo di bottiglia
+As-Is **Autorizza spesa** (il responsabile c'e' due ore a settimana e nessuno
+lo sostituisce).
+
+## La correzione dell'As-Is (v3)
+
+Il compilatore produce BPMN valido ma non nello stile che un consulente
+presenterebbe: un gateway con due domande e tre uscite, default non dichiarati,
+join impliciti su tre elementi, un solo evento di fine per due esiti, "Start" e
+"End" generici, corsie in ordine di compilazione. La v3 tiene le stesse
+attivita' (stessi id) e corregge questi punti; `analyze_control_flow` la da'
+sound senza warning. I gateway di merge restano senza nome, come vuole lo stile
+BPMN: le domande stanno sugli split.
 
 ## Cosa non scrivere
 
@@ -81,7 +110,10 @@ Generazione: `npm run media:launch` (vedi `e2e/launch-media/`). Output in
 
 ## Gap di prodotto aperti
 
-| Scena | Gap |
+| Area | Gap |
 | --- | --- |
-| Creare il To-Be | Manca l'azione "Crea To-Be da questo As-Is" (copia collegata) |
-| Process owner | Manca il flusso di invio/validazione: oggi `owner` è un campo di testo |
+| Compilatore BPMN | Un gateway per domanda, default dichiarati ed etichettati, merge espliciti, un evento di fine per esito, nomi di inizio/fine, ordine delle corsie, layout ortogonale: oggi li corregge a mano la v3 |
+| Creare il To-Be | Le ipotesi To-Be esistono; manca l'azione "Crea To-Be da questo As-Is" (copia collegata del modello) |
+| Process owner | Manca il flusso di invio/validazione: oggi `owner` è un campo di testo. Il video mostra il "prossimo passo", non un invio |
+| Tela di simulazione | Il layout del video e' scritto nel `localStorage` come lo salva "Modifica canvas": manca un layout "presentazione" predefinito |
+| Versione inglese | Mancano i testi EN in storyboard.json e la cattura con l'interfaccia in inglese |
