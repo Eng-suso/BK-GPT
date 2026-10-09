@@ -57,7 +57,7 @@ def simulation_run_to_dict(
         "created_at": run.created_at,
         "completed_at": run.completed_at,
         # In coda (con la posizione) o in corso: cosa dire al consulente mentre aspetta.
-        "queue": queue_view(session, run) if (session := object_session(run)) is not None else None,
+        "queue": view.model_dump() if (session := object_session(run)) is not None and (view := queue_view(session, run)) else None,
     }
 
 

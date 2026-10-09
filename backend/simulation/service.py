@@ -11,6 +11,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from backend.eventlog.export import Exported, to_csv, to_xes
 from backend.eventlog.synthetic import from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
@@ -329,7 +331,7 @@ async def _keep_beating(claimed: ClaimedRun) -> None:
         await asyncio.sleep(settings.simulation_heartbeat_seconds)
         try:
             alive = await asyncio.to_thread(beat, claimed.run_id, claimed.worker_id)
-        except Exception:  # noqa: BLE001 - un battito perso non ferma la simulazione
+        except SQLAlchemyError:  # un battito perso non ferma la simulazione
             logger.warning("simulazione %s: battito non scritto", claimed.run_id, exc_info=True)
             continue
         if not alive:

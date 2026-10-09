@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -131,12 +132,14 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
-        for task in (worker_task, simulation_task):
-            task.cancel()
-            try:
-                await task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
-                pass
+        simulation_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await simulation_task
+        worker_task.cancel()
+        try:
+            await worker_task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass
 
 
 app = FastAPI(lifespan=lifespan)

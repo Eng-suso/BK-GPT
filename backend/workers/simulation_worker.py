@@ -13,6 +13,8 @@ import asyncio
 import logging
 import sys
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from backend.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -49,5 +51,5 @@ async def _drain(drain, worker_id: str) -> None:
             logger.info("coda simulazioni: %d run eseguiti da %s", done, worker_id)
     except asyncio.CancelledError:
         raise
-    except Exception:  # noqa: BLE001 - un giro storto non ferma la coda
+    except (SQLAlchemyError, OSError):  # database o rete: il giro dopo riprova
         logger.exception("coda simulazioni: drenaggio fallito")

@@ -20,11 +20,11 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from backend.schemas.simulation import SimulationQueueView
 from backend.settings import settings
 from backend.simulation.models import ProsimosScenario
 from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
@@ -192,13 +192,13 @@ def beat(run_id: int, worker_id: str) -> bool:
         return updated.rowcount == 1
 
 
-def queue_view(session: Session, run: WorkspaceSimulationRun) -> dict[str, Any] | None:
+def queue_view(session: Session, run: WorkspaceSimulationRun) -> SimulationQueueView | None:
     """Per un run ``pending``: in coda (con la posizione) o in corso. ``None`` altrimenti."""
     if run.status != "pending":
         return None
     if run.started_at is not None:
-        return {"state": "running", "position": None}
+        return SimulationQueueView(state="running")
     ahead = session.execute(
         select(func.count()).select_from(WorkspaceSimulationRun).where(_queued()).where(WorkspaceSimulationRun.id < run.id)
     ).scalar_one()
-    return {"state": "queued", "position": int(ahead) + 1}
+    return SimulationQueueView(state="queued", position=int(ahead) + 1)
