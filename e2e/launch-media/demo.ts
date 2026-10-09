@@ -12,6 +12,7 @@
  * A schermo il cliente e' Vetrano Industriale S.p.A. (fittizio): il nome del
  * caso nel golden set non deve comparire negli asset pubblici.
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -570,9 +571,11 @@ export const simulationLayout = {
 };
 
 /** "Ipotesi To-Be": le due modifiche che il To-Be simula, con chi le ha chieste. */
+// La revisione di base e' l'impronta sha256 del disegno, come la calcola il backend.
+const BASE_REVISION = createHash("sha256").update(bpmnXml).digest("hex");
 export const impactReview = {
   process_id: IDS.process,
-  base_revision: "as-is-v3",
+  base_revision: BASE_REVISION,
   xml: bpmnXml,
   plan: {
     title: PROCESS_NAME,
@@ -590,7 +593,7 @@ export const impactReview = {
       id: "tobe-richiesta-completa",
       node_id: "ricostruisci_richiesta",
       node_name: labels.get("ricostruisci_richiesta") ?? "Ricostruisci richiesta",
-      base_revision: "as-is-v3",
+      base_revision: BASE_REVISION,
       kind: "candidate",
       title: "La richiesta nasce completa, con i campi obbligatori",
       detail:
@@ -605,7 +608,7 @@ export const impactReview = {
       id: "tobe-autorizzazione-visibile",
       node_id: "percorso_autorizzazione_autorizza_spesa",
       node_name: labels.get("percorso_autorizzazione_autorizza_spesa") ?? "Autorizza spesa",
-      base_revision: "as-is-v3",
+      base_revision: BASE_REVISION,
       kind: "candidate",
       title: "Autorizzazione visibile, con una delega quando il responsabile e' fuori",
       detail:
@@ -617,3 +620,61 @@ export const impactReview = {
     },
   ],
 };
+
+/**
+ * Review mode su "Autorizza spesa": la domanda del consulente e la risposta di
+ * DeliR. Le citazioni sono di Francesca, alla lettera; l'attesa e' quella della
+ * simulazione As-Is (heatmap); la soglia resta una domanda aperta.
+ */
+export const REVIEW_NODE = "percorso_autorizzazione_autorizza_spesa";
+export const reviewQuestion = "Come miglioreresti questa attività? Basati solo sulle fonti.";
+export const reviewAnswer = [
+  "**Il problema non è la firma: è l’attesa.**",
+  "",
+  "Francesca: «Se e' fuori, possono essere giorni.» e «Non c'e' un sostituto formale». Nella simulazione As-Is qui le richieste aspettano in media 2g 22h: è il collo di bottiglia del processo.",
+  "",
+  "**Proposta To-Be**",
+  "- una finestra di autorizzazione ogni giorno, con una **delega** quando il responsabile è fuori;",
+  "- l’autorizzazione **visibile** a chi l’ha chiesta, non una mail che si aspetta.",
+  "",
+  "**Da verificare con Laura Conti:** la soglia di importo sopra cui serve l’autorizzazione. Nessuna fonte la dichiara, quindi non la metto nel modello.",
+].join("\n");
+
+/** La proposta come diagramma separato dall'As-Is: le due attivita' che cambiano. */
+export const proposalXml = bpmnXml
+  .replace('name="Autorizza spesa"', 'name="Autorizza spesa (responsabile o delegato, ogni giorno)"')
+  .replace('name="Invia richiesta all\'Ufficio Tecnico"', 'name="Compila richiesta con campi obbligatori"');
+
+for (const action of impactReview.actions as Record<string, unknown>[]) {
+  action.proposal_xml = proposalXml;
+}
+
+/** Un turno dell'agente come lo recita `streamServer.mjs`: fasi di lavoro, poi il testo. */
+export type ChatScript = { phases: { id: string; label: string; icon: string; detail?: string; ms?: number }[]; answer: string };
+
+// Etichette e icone delle fasi: backend/services/agent_progress.py.
+export const discoveryQuestion = chatMessages[0].content;
+export const discoveryScript: ChatScript = {
+  phases: [
+    { id: "understanding", label: "Leggo la richiesta", icon: "brain", ms: 700 },
+    { id: "reading_sources", label: "Leggo le fonti raccolte", icon: "document", detail: "3 interviste: Laura Conti, Paolo Marchetti, Francesca Neri", ms: 1500 },
+    { id: "extracting", label: "Estraggo fatti e punti aperti", icon: "extract", detail: `${claimCount} affermazioni con citazione`, ms: 1300 },
+    { id: "comparing", label: "Confronto con le evidenze esistenti", icon: "compare", ms: 1000 },
+    { id: "modeling", label: "Costruisco il modello di processo", icon: "build", detail: "6 funzioni, percorso urgente", ms: 1100 },
+    { id: "drafting", label: "Preparo la risposta", icon: "pen", ms: 500 },
+  ],
+  answer: chatMessages[1].content,
+};
+
+export const reviewScript: ChatScript = {
+  phases: [
+    { id: "understanding", label: "Leggo la richiesta", icon: "brain", ms: 600 },
+    { id: "reading_sources", label: "Leggo le fonti raccolte", icon: "document", detail: "Intervista Francesca Neri · Ufficio Acquisti", ms: 1300 },
+    { id: "comparing", label: "Confronto con le evidenze esistenti", icon: "compare", detail: "simulazione As-Is: attesa su Autorizza spesa", ms: 1100 },
+    { id: "drafting", label: "Preparo la risposta", icon: "pen", ms: 500 },
+  ],
+  answer: reviewAnswer,
+};
+
+/** L'export del gestionale e l'analisi del backend (scripts/launch_media_eventlog.py). */
+export const eventLog = readJson<{ log: Record<string, unknown>; preview: unknown; analysis: unknown }>(resolve(DATA, "eventlog.json"));

@@ -15,6 +15,9 @@ import {
   provenance,
   relationsOf,
   review,
+  discoveryScript,
+  eventLog,
+  reviewScript,
   runById,
   simulationLayout,
   simulationLayoutKey,
@@ -30,7 +33,12 @@ export const API = "http://127.0.0.1:8000";
 /** Richieste che il caso non copre: lo spec le stampa, cosi' un buco si vede. */
 export const unhandled = new Set<string>();
 
-export async function installDemoApi(page: Page, language: "it" | "en" = "it"): Promise<void> {
+/**
+ * `live`: la discussione del processo parte vuota e le risposte dell'agente
+ * arrivano in streaming da `streamServer.mjs`, come dal backend vero.
+ */
+export async function installDemoApi(page: Page, language: "it" | "en" = "it", options: { live?: boolean } = {}): Promise<void> {
+  const reviewSessions: { thread_id: string; scope_key: string; title: string; messages: { role: string; content: string }[] }[] = [];
   await page.addInitScript(
     ({ base, lng, layoutKey, layout }) => {
       Object.assign(window, { DELIR_API_BASE: base });
@@ -89,6 +97,12 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
     if (path === `/v1/workspace/processes/${IDS.process}/conformance`) return json(conformance);
     if (path === `/v1/workspace/processes/${IDS.process}/impact-review`) return json(impactReview);
 
+    if (path === `/v1/workspace/processes/${IDS.process}/event-logs` && method === "GET") return json([eventLog.log]);
+    const logId = String(eventLog.log.id);
+    if (path === `/v1/workspace/event-logs/${logId}`) return json(eventLog.log);
+    if (path === `/v1/workspace/event-logs/${logId}/preview`) return json(eventLog.preview);
+    if (path === `/v1/workspace/event-logs/${logId}/analysis` || path === `/v1/workspace/event-logs/${logId}/mapping`) return json(eventLog.analysis);
+    if (path === "/v1/workspace/event-log-templates") return json([]);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(api.simulation_template);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(api.simulation_provenance);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-compatibility`) return json(api.simulation_compatibility);
@@ -108,7 +122,38 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
       return json(runById(id));
     }
 
-    if (path === "/v1/consultant-chat/sessions" && method === "GET") return json([chatSession]);
+    // La chat di review e' per task (scope_key con ":review:"): sessioni sue,
+    // separate dalla discussione del processo.
+    if (path === "/v1/consultant-chat/sessions" && method === "GET") {
+      const scopeKey = url.searchParams.get("scope_key") ?? "";
+      if (scopeKey.includes(":review:")) return json(reviewSessions.filter((session) => session.scope_key === scopeKey));
+      if (options.live) return json(reviewSessions.filter((session) => !session.scope_key.includes(":review:")));
+      return json([chatSession]);
+    }
+    if (path === "/v1/consultant-chat/sessions" && method === "POST") {
+      const scope = (request.postDataJSON() as { scope?: Record<string, string> }).scope ?? {};
+      const session = {
+        thread_id: `review-thread-${reviewSessions.length + 1}`,
+        scope_key: scope.review_node_id
+          ? `canvas:${scope.project_id}:${scope.process_id}:${scope.bpmn_model_id}:review:${scope.review_node_id}`
+          : `${scope.type}:${scope.project_id}:${scope.process_id}`,
+        title: "Review del task",
+        messages: [] as { role: string; content: string }[],
+      };
+      reviewSessions.push(session);
+      return json(session);
+    }
+    const streamMatch = path.match(/^\/v1\/consultant-chat\/sessions\/([^/]+)\/messages\/stream$/);
+    if (streamMatch) {
+      const session = reviewSessions.find((item) => item.thread_id === streamMatch[1]);
+      const body = request.postDataJSON() as Record<string, unknown>;
+      const script = session?.scope_key.includes(":review:") ? reviewScript : discoveryScript;
+      session?.messages.push({ role: "user", content: String(body.message ?? "") }, { role: "assistant", content: script.answer });
+      // Lo streaming lo fa streamServer.mjs, con il copione del turno.
+      return route.continue({ postData: JSON.stringify({ ...body, __script: script }) });
+    }
+    const reviewSession = reviewSessions.find((item) => path === `/v1/consultant-chat/sessions/${item.thread_id}`);
+    if (reviewSession) return json(reviewSession);
     if (path === `/v1/consultant-chat/sessions/${IDS.thread}`) {
       return json({ ...chatSession, model_name: "delir", messages: chatMessages });
     }
