@@ -43,6 +43,8 @@ export type TaskDraft = DurationDraft & {
   assignmentSource?: "bpmn" | "manual";
   /** Gli altri ruoli: il motore dà il caso al primo libero. */
   otherAssignments?: AssignmentDraft[];
+  /** Le affermazioni dei file collegate come fonte della durata (SIM-07). */
+  claims?: { claimId: number; label: string }[];
 };
 
 /** Un calendario di lavoro dello scenario, con orari ``HH:MM``. */
@@ -73,6 +75,8 @@ export type ScenarioDraft = {
   caseAttributes?: CaseAttributeDraft[];
   /** Decisioni instradate per regola: element_id -> flow_id -> gruppi di condizioni. */
   gatewayRules?: Record<string, GatewayRulesDraft>;
+  /** Proposte di fonti scartate dal consulente: element_id -> id delle affermazioni. */
+  dismissedClaims?: Record<string, number[]>;
 };
 
 export const DEFAULT_SCENARIO: ScenarioDraft = {
@@ -276,6 +280,7 @@ export function scenarioToInput(
         elementId,
         ...durationInput(task),
         resourceId: task.resourceId,
+        ...(task.claims?.length ? { claims: task.claims } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),

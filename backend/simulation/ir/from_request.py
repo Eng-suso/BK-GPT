@@ -33,6 +33,7 @@ from backend.simulation.ir.model import (
     Resource,
     ResourcePool,
     SimulationModel,
+    SourceRef,
     Uniform,
 )
 from backend.simulation.models import BpmnGateway, BpmnTask
@@ -262,12 +263,23 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
     primary = Assignment(
         resource_id=resource_id,
         duration=duration_,
-        provenance=_MANUAL if _duration_set(override, request) else None,
+        provenance=_declared(override) or (_MANUAL if _duration_set(override, request) else None),
     )
     return Activity(
         element_id=task.id,
         name=task.name,
         assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
+    )
+
+
+def _declared(override: SimTaskConfig | None) -> Provenance | None:
+    """La durata sostenuta da affermazioni dei file confermate dal consulente (SIM-07)."""
+    if override is None or not override.claims:
+        return None
+    return Provenance(
+        origin="declared",
+        confidence="medium",
+        sources=tuple(SourceRef(kind="claim", id=str(ref.claim_id), label=ref.label or None) for ref in override.claims),
     )
 
 

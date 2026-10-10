@@ -36,6 +36,7 @@ export function ScenarioBuilderPage({ embedded = false }: { embedded?: boolean }
     bpmnXml,
     template,
     templateLoading,
+    claims,
     draft,
     updateDraft,
     provenance,
@@ -99,6 +100,7 @@ export function ScenarioBuilderPage({ embedded = false }: { embedded?: boolean }
             workspace
             template={template}
             templateLoading={templateLoading}
+            claims={claims}
             draft={draft}
             onDraftChange={updateDraft}
             isRunning={isRunning}

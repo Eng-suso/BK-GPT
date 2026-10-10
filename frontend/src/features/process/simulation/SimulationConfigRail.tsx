@@ -16,7 +16,7 @@ import {
 } from "@/ui/select";
 import { cn } from "@/lib/utils";
 
-import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
+import type { ScenarioTemplate, SimulationClaims, SimulationRun } from "./simulationTypes";
 import {
   newResourceId,
   resourceParametersValid,
@@ -33,6 +33,7 @@ import type { InputConfidence } from "./simulationProvenance";
 import { ProvenanceChip } from "./ProvenanceChip";
 import { TaskDurationFields } from "./TaskDurationFields";
 import { OtherAssignments } from "./OtherAssignments";
+import { ActivitySources } from "./ActivitySources";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
@@ -47,6 +48,8 @@ const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
 type SimulationConfigRailProps = {
   template: ScenarioTemplate | null;
   templateLoading: boolean;
+  /** SIM-07: proposte di fonti per attivita'; assenti, il pannello non le mostra. */
+  claims?: SimulationClaims | null;
   draft: ScenarioDraft;
   onDraftChange: (next: ScenarioDraft) => void;
   isRunning: boolean;
@@ -91,6 +94,7 @@ type SimulationConfigRailProps = {
 export function SimulationConfigRail({
   template,
   templateLoading,
+  claims,
   draft,
   onDraftChange,
   isRunning,
@@ -437,6 +441,18 @@ export function SimulationConfigRail({
                       task={cfg}
                       resources={draft.resources}
                       onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
+                    <ActivitySources
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      proposals={claims?.activities.find((a) => a.element_id === task.element_id)?.proposals ?? []}
+                      dismissed={draft.dismissedClaims?.[task.element_id] ?? []}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                      onDismiss={(claimId) => patch({ dismissedClaims: {
+                        ...draft.dismissedClaims,
+                        [task.element_id]: [...(draft.dismissedClaims?.[task.element_id] ?? []), claimId],
+                      } })}
                     />
                   </li>
                 );

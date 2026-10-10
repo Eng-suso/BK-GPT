@@ -8,6 +8,8 @@ from backend.schemas.simulation import (
     ScenarioProvenanceResponse,
     ScenarioTemplateRequest,
     ScenarioTemplateResponse,
+    SimulationClaimsRequest,
+    SimulationClaimsResponse,
     SimulationReplayResponse,
     SimulationRunResponse,
 )
@@ -21,6 +23,7 @@ from backend.schemas.workspace import BpmnModelResponse
 from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.service import (
+    claim_proposals_for_model,
     SimulationCapacityError,
     SimulationLogUnavailable,
     drain_simulation_queue,
@@ -105,6 +108,24 @@ async def create_workspace_simulation_model_run(
     background_tasks.add_task(drain_simulation_queue)
 
     return SimulationRunResponse(**run)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-claims")
+def get_workspace_simulation_claims(
+    bpmn_model_id: str,
+    request: SimulationClaimsRequest,
+) -> SimulationClaimsResponse:
+    """Le affermazioni dei file del cliente proposte come fonte di ogni attivita' (SIM-07)."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+    try:
+        return claim_proposals_for_model(
+            bpmn_model=BpmnModelResponse(**model),
+            current_bpmn_xml=request.current_bpmn_xml,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/simulation-model")

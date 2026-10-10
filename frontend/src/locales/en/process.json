@@ -336,7 +336,18 @@
       "arrivalMeanMin": "Mean time between arrivals, min",
       "arrivalUniformHint": "The time between arrivals is uniform between minimum and maximum.",
       "arrivalCalendar": "Arrival calendar",
-      "invalidArrival": "Case arrivals need fixing."
+      "invalidArrival": "Case arrivals need fixing.",
+      "sources": "Client sources",
+      "sourcesHint": "Statements from the uploaded files that name this activity. Linking one says where the duration comes from; the value stays the one you set here.",
+      "sourceLinked": "Linked source · {{file}}",
+      "sourceProposed": "Proposed from {{file}}",
+      "sourceSays": "The source says {{duration}} (“{{text}}”): a reference, not the value.",
+      "linkSource": "Link as source",
+      "linkSourceFor": "Link as source for {{task}}: {{what}}",
+      "dismissSource": "Not relevant",
+      "dismissSourceFor": "Not relevant for {{task}}: {{what}}",
+      "unlinkSource": "Unlink",
+      "unlinkSourceFor": "Unlink from {{task}}: {{what}}"
     },
     "diagram": {
       "title": "Process model",
@@ -427,7 +438,7 @@
       "sourcesTitle": "Sources",
       "sourceKind": {
         "interview": "interview",
-        "claim": "claim",
+        "claim": "statement from a source",
         "source": "client source",
         "event_log": "event log",
         "document": "document",

@@ -8,9 +8,10 @@ import { useBpmnModelQuery } from "../api";
 import {
   getProsimosSimulationRun,
   fetchScenarioTemplate,
+  fetchSimulationClaims,
   runProsimosSimulation,
 } from "./simulationApi";
-import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
+import type { ScenarioTemplate, SimulationClaims, SimulationRun } from "./simulationTypes";
 import {
   loadScenarioDraft,
   saveScenarioDraft,
@@ -32,6 +33,8 @@ export type ScenarioLab = {
   bpmnXml: string | null;
   template: ScenarioTemplate | null;
   templateLoading: boolean;
+  /** SIM-07: le affermazioni dei file proposte come fonte; null finche' non arrivano. */
+  claims: SimulationClaims | null;
   draft: ScenarioDraft;
   updateDraft: (next: ScenarioDraft) => void;
   provenance: ScenarioProvenance | null;
@@ -89,6 +92,13 @@ export function useScenarioLab(): ScenarioLab {
     staleTime: 60_000,
   });
   const template = templateQuery.data ?? null;
+  // SIM-07: proposte di fonti dai file del cliente. Un errore qui non blocca lo scenario.
+  const claimsQuery = useQuery<SimulationClaims>({
+    queryKey: ["workspace", "simulation-claims", process.bpmnModelId],
+    queryFn: () => fetchSimulationClaims(process.bpmnModelId, null),
+    enabled: bpmnXml !== null,
+    staleTime: 60_000,
+  });
   const templateLoading = modelQuery.isLoading || (templateQuery.isLoading && bpmnXml !== null);
 
   const draft = React.useMemo(
@@ -177,6 +187,7 @@ export function useScenarioLab(): ScenarioLab {
     bpmnXml,
     template,
     templateLoading,
+    claims: claimsQuery.data ?? null,
     draft,
     updateDraft,
     provenance,

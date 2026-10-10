@@ -67,6 +67,13 @@ class SimArrivalConfig(BaseModel):
     calendar_id: str | None = Field(default=None, max_length=64)
 
 
+class SimClaimRef(BaseModel):
+    """Un'affermazione di un file del cliente che il consulente ha collegato all'attivita'."""
+
+    claim_id: int = Field(ge=1)
+    label: str = Field(default="", max_length=200)
+
+
 class SimTaskConfig(BaseModel):
     """La durata di un'attivita'. Oltre alla media, i parametri facoltativi:
 
@@ -88,6 +95,9 @@ class SimTaskConfig(BaseModel):
     min_seconds: float | None = Field(default=None, ge=0)
     max_seconds: float | None = Field(default=None, gt=0)
     other_assignments: list[SimTaskAssignmentConfig] = Field(default_factory=list, max_length=20)
+    # Le affermazioni confermate dal consulente (SIM-07): diventano la fonte
+    # ``declared`` della durata. Il valore resta quello del pannello.
+    claims: list[SimClaimRef] = Field(default_factory=list, max_length=10)
 
 
 class SimGatewayBranchConfig(BaseModel):
@@ -172,6 +182,44 @@ class ScenarioTemplateResponse(BaseModel):
     gateways: list[ScenarioTemplateGateway] = Field(default_factory=list)
     # Il calendario che usano gli arrivi e le risorse senza calendario proprio.
     standard_calendar: SimCalendarConfig | None = None
+
+
+# --- Affermazioni dei file come fonti dei parametri (SIM-07, C3) -------------
+
+
+class SimulationClaimsRequest(BaseModel):
+    current_bpmn_xml: str | None = None
+
+
+class DurationHintResponse(BaseModel):
+    text: str
+    seconds: float
+
+
+class ClaimProposalResponse(BaseModel):
+    claim_id: int
+    statement: str
+    quote: str
+    quote_verified: bool
+    source_id: str
+    source_name: str
+    # Quanto del nome dell'attivita' l'affermazione nomina (0-1).
+    score: float
+    # Una durata citata nella fonte: un riferimento, mai il valore del parametro.
+    duration_hint: DurationHintResponse | None = None
+
+
+class ActivityClaimsResponse(BaseModel):
+    element_id: str
+    name: str
+    proposals: list[ClaimProposalResponse] = Field(default_factory=list)
+
+
+class SimulationClaimsResponse(BaseModel):
+    """Per ogni attivita' del BPMN, le affermazioni dei file che la nominano."""
+
+    sources: int = 0
+    activities: list[ActivityClaimsResponse] = Field(default_factory=list)
 
 
 # --- Compatibilita' del BPMN con il motore (SIM-05) ---------------------------

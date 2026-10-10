@@ -19,7 +19,13 @@ from backend.schemas.workspace import BpmnModelResponse
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import set_current_tenant_id
-from backend.schemas.simulation import ScenarioProvenanceResponse, ScenarioTemplateResponse
+from backend.schemas.simulation import (
+    ActivityClaimsResponse,
+    ClaimProposalResponse,
+    ScenarioProvenanceResponse,
+    ScenarioTemplateResponse,
+    SimulationClaimsResponse,
+)
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.provenance import build_scenario_provenance
 from backend.simulation.log_processor import (
@@ -103,6 +109,53 @@ def scenario_template_for_model(
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
     return describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml), source_bpmn_xml=bpmn_xml)
+
+
+def claim_proposals_for_model(
+    *,
+    bpmn_model: BpmnModelResponse,
+    current_bpmn_xml: str | None,
+) -> SimulationClaimsResponse:
+    """Per ogni attivita', le affermazioni dei file del progetto (e del cliente) che la nominano."""
+    from backend.simulation.claims import propose
+
+    template = scenario_template_for_model(bpmn_model=bpmn_model, current_bpmn_xml=current_bpmn_xml)
+    names, claims = _process_claims(bpmn_model.process_id)
+    return SimulationClaimsResponse(
+        sources=len(names),
+        activities=[
+            ActivityClaimsResponse(
+                element_id=task.element_id,
+                name=task.name,
+                proposals=[ClaimProposalResponse.model_validate(p, from_attributes=True)
+                           for p in propose(task.name, claims, names)],
+            )
+            for task in template.tasks
+        ],
+    )
+
+
+def _process_claims(process_id: str) -> tuple[dict[str, str], list]:
+    """I file del progetto del processo (e del suo cliente) e le loro affermazioni."""
+    from backend.simulation.claims import SourceClaim
+    from backend.workspace_database import get_process, list_claims_for_sources, list_project_sources
+
+    process = get_process(process_id)
+    if process is None:
+        raise ValueError("Il processo di questo modello non esiste più.")
+    sources = list_project_sources(process["project_id"], include_client=True)
+    names = {source["id"]: source["name"] for source in sources}
+    return names, [SourceClaim(**row) for row in list_claims_for_sources(list(names))]
+
+
+def _check_claims(request: CreateSimulationRunRequest, process_id: str) -> None:
+    """Una fonte collegata deve essere un'affermazione dei file di questo progetto, ancora presente."""
+    linked = {ref.claim_id for task in request.tasks or [] for ref in task.claims}
+    if not linked:
+        return
+    _, claims = _process_claims(process_id)
+    if linked - {claim.id for claim in claims}:
+        raise ValueError("Una fonte collegata a un'attività non esiste più: scollegala dal pannello e rilancia.")
 
 
 def scenario_provenance_for_model(
@@ -212,6 +265,7 @@ def prepare_simulation_run(
     # Adapt the model to Prosimos' constraints (e.g. single end event) before it
     # feeds both the scenario and the engine request.
     bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
+    _check_claims(request, bpmn_model.process_id)
 
     scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
 

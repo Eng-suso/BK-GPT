@@ -3236,6 +3236,24 @@ def list_source_claims(source_id: str) -> list[dict]:
         ]
 
 
+def list_claims_for_sources(source_ids: list[str]) -> list[dict]:
+    """Le affermazioni di piu' fonti del tenant corrente, in una sola lettura."""
+    if not source_ids:
+        return []
+    with workspace_connection() as session:
+        rows = session.execute(
+            select(WorkspaceSourceClaim)
+            .where(WorkspaceSourceClaim.source_id.in_(source_ids))
+            .where(WorkspaceSourceClaim.tenant_id == tenant_id())
+            .order_by(WorkspaceSourceClaim.source_id, WorkspaceSourceClaim.ordinal)
+        ).scalars().all()
+        return [
+            {"id": row.id, "statement": row.statement, "quote": row.quote,
+             "quote_verified": row.quote_verified, "source_id": row.source_id}
+            for row in rows
+        ]
+
+
 def list_evidence_segments(source_id: str) -> list[dict]:
     """Le porzioni citabili di una fonte, nell'ordine della fonte."""
     with workspace_connection() as session:
