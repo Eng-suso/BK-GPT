@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import secrets
 import socket
 import uuid
 from dataclasses import asdict, dataclass
@@ -16,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from backend.eventlog.export import Exported, to_csv, to_xes
 from backend.eventlog.synthetic import from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
-from backend.schemas.simulation import CreateSimulationRunRequest
+from backend.schemas.simulation import SEED_MAX, CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import set_current_tenant_id
 from backend.schemas.simulation import (
@@ -50,6 +51,7 @@ from backend.settings import settings
 from backend.simulation.storage import (
     complete_simulation_run,
     create_simulation_run,
+    create_simulation_run_group,
     fail_simulation_run,
     find_active_run_by_key,
     get_simulation_log_csv,
@@ -94,6 +96,7 @@ def _derive_idempotency_key(
             # Un obiettivo di servizio diverso cambia cio' che il run misura.
             "sla": request.sla.model_dump() if request.sla else None,
             "case_fixed_cost": request.case_fixed_cost,
+            "warmup_cases": request.warmup_cases,
             "fixed_costs": {t.element_id: t.fixed_cost for t in request.tasks or [] if t.fixed_cost},
         },
         sort_keys=True,
@@ -253,6 +256,83 @@ def _derive_model_idempotency_key(
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def prepare_simulation_runs(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSimulationRunRequest,
+) -> list[tuple[dict, ProsimosScenario | None, str]]:
+    """Il run dello scenario, o un gruppo di ripetizioni con seed consecutivi (SIM-04).
+
+    Ogni ripetizione e' un run normale, con il suo seed. Il gruppo sta nella
+    richiesta di ciascuna, cosi' il pannello le ritrova e ne calcola gli
+    intervalli. Il gruppo entra in coda intero o non entra; lo stesso invio
+    ritentato ritrova il gruppo gia' in volo invece di crearne un altro.
+    """
+    # Gruppo e posizione li scrive il servizio: quelli mandati dal client non contano.
+    request = request.model_copy(update={"replication_group": None, "replication_index": None})
+    if request.replications == 1:
+        return [prepare_simulation_run(bpmn_model=bpmn_model, request=request)]
+    if request.seed is not None and request.seed + request.replications - 1 > SEED_MAX:
+        raise ValueError(f"Con {request.replications} ripetizioni il seed iniziale puo' arrivare al massimo a {SEED_MAX - request.replications + 1}.")
+
+    # La chiave del gruppo non dipende dal seed estratto: un invio ritentato senza
+    # seed ritrova le stesse chiavi, quindi il gruppo gia' in coda.
+    _, _, base_key = _plan_run(bpmn_model=bpmn_model, request=request)
+    group_key = request.idempotency_key or hashlib.sha256(f"{base_key}:{request.replications}".encode()).hexdigest()
+    group = uuid.uuid4().hex
+    base_seed = request.seed if request.seed is not None else secrets.randbelow(2**31)
+    name = request.scenario_name.strip() or "Baseline AS-IS"
+    members = []
+    for index in range(request.replications):
+        member = request.model_copy(update={
+            "seed": base_seed + index,
+            "replications": 1,
+            "replication_group": group,
+            "replication_index": index + 1,
+            "scenario_name": f"{name} · {index + 1}/{request.replications}",
+        })
+        member = member.model_copy(update={"idempotency_key": f"{group_key}-{index + 1}"})
+        bpmn_xml, scenario, key = _plan_run(bpmn_model=bpmn_model, request=member)
+        members.append((member, scenario, key, scenario.bpmn_xml or bpmn_xml))
+    try:
+        runs = create_simulation_run_group(
+            bpmn_model_id=bpmn_model.id,
+            process_id=bpmn_model.process_id,
+            members=members,
+        )
+    except SimulationQueueFull as exc:
+        raise SimulationCapacityError(str(exc)) from exc
+    return [(run, scenario, bpmn_xml) for run, (_, scenario, _, bpmn_xml) in zip(runs, members, strict=True)]
+
+
+def _plan_run(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSimulationRunRequest,
+) -> tuple[str, ProsimosScenario, str]:
+    """Valida la richiesta e la compila: (BPMN normalizzato, scenario, chiave di idempotenza)."""
+    bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
+    if not bpmn_xml:
+        raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
+
+    # Adapt the model to Prosimos' constraints (e.g. single end event) before it
+    # feeds both the scenario and the engine request.
+    bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
+    _check_claims(request, bpmn_model.process_id)
+    if request.warmup_cases >= request.total_cases:
+        raise ValueError("Il riscaldamento deve lasciare almeno un caso da misurare: abbassalo o aumenta i casi.")
+
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
+
+    idempotency_key = request.idempotency_key or _derive_idempotency_key(
+        bpmn_model_id=bpmn_model.id,
+        bpmn_xml=bpmn_xml,
+        scenario=scenario,
+        request=request,
+    )
+    return bpmn_xml, scenario, idempotency_key
+
+
 def prepare_simulation_run(
     *,
     bpmn_model: BpmnModelResponse,
@@ -264,23 +344,7 @@ def prepare_simulation_run(
     identical simulation is still in flight, scenario is None and the caller
     must not launch execution.
     """
-    bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
-    if not bpmn_xml:
-        raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
-
-    # Adapt the model to Prosimos' constraints (e.g. single end event) before it
-    # feeds both the scenario and the engine request.
-    bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
-    _check_claims(request, bpmn_model.process_id)
-
-    scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
-
-    idempotency_key = request.idempotency_key or _derive_idempotency_key(
-        bpmn_model_id=bpmn_model.id,
-        bpmn_xml=bpmn_xml,
-        scenario=scenario,
-        request=request,
-    )
+    bpmn_xml, scenario, idempotency_key = _plan_run(bpmn_model=bpmn_model, request=request)
     return _register_run(
         bpmn_model=bpmn_model,
         bpmn_xml=bpmn_xml,
@@ -375,13 +439,15 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
 
     # Lettura del log e scrittura in DB sono sincrone: fuori dall'event loop.
     summary, replay = await asyncio.to_thread(
-        _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario
+        _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario,
+        warmup_cases=claimed.warmup_cases,
     )
     log_csv = getattr(result, "event_log_csv", None)
     if summary is not None and claimed.sla and log_csv:
         # SIM-13: l'esito dell'obiettivo di servizio, sulla stessa definizione di cycle dei KPI.
         outcome = await asyncio.to_thread(
-            sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share
+            sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share,
+            warmup_cases=claimed.warmup_cases,
         )
         if outcome is not None:
             summary["sla"] = asdict(outcome)
@@ -416,6 +482,7 @@ def _process_event_log(
     *,
     bpmn_xml: str,
     scenario: ProsimosScenario,
+    warmup_cases: int = 0,
 ) -> tuple[dict | None, dict | None]:
     """Turn the Prosimos event log into the run summary + replay artifact.
     Never raises — a log/parse failure just means no artifact for this run."""
@@ -429,6 +496,7 @@ def _process_event_log(
             scenario_payload=scenario.payload,
             prosimos_stats=result.payload,
             name_to_element_id=activity_name_to_element_id(bpmn_xml),
+            warmup_cases=warmup_cases,
         )
     except Exception:  # noqa: BLE001 - the replay artifact is best-effort
         return None, None

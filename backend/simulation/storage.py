@@ -13,7 +13,7 @@ from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import get_current_tenant_id
 from backend.settings import settings
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
-from backend.simulation.queue import LEGACY_STALE_RUN_ERROR, admit, queue_view, reap_stale_runs
+from backend.simulation.queue import LEGACY_STALE_RUN_ERROR, admit, hold_queue, queue_view, reap_stale_runs
 from backend.workspace_storage import (
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
@@ -94,31 +94,97 @@ def create_simulation_run(
     """Il run entra in coda; ``SimulationQueueFull`` se la coda e' piena."""
     with workspace_connection() as session:
         admit(session)
-        run = WorkspaceSimulationRun(
-            tenant_id=get_current_tenant_id(),
+        run = _new_run(
             bpmn_model_id=bpmn_model_id,
             process_id=process_id,
             scenario_name=scenario_name,
-            engine="prosimos",
-            status="pending",
+            request=request,
+            scenario=scenario,
             idempotency_key=idempotency_key,
-            request_json=request.model_copy(
-                update={"current_bpmn_xml": None}
-            ).model_dump_json(),
-            scenario_json=json.dumps(scenario.payload, ensure_ascii=False),
-            model_json=json.dumps(scenario.model, ensure_ascii=False) if scenario.model is not None else None,
-            result_json="{}",
-            outputs_json="[]",
-            error=None,
-            created_at=now_iso(),
-            completed_at=None,
-            # Il run entra in coda con il BPMN normalizzato: chiunque lo prenda lo esegue.
             bpmn_xml=bpmn_xml,
-            attempts=0,
         )
         session.add(run)
         session.flush()
         return simulation_run_to_dict(run)
+
+
+def create_simulation_run_group(
+    *,
+    bpmn_model_id: str,
+    process_id: str,
+    members: list[tuple[CreateSimulationRunRequest, ProsimosScenario, str, str]],
+) -> list[dict[str, Any]]:
+    """Un gruppo di ripetizioni (SIM-04) in coda, tutto in una transazione.
+
+    ``members``: (richiesta, scenario, chiave di idempotenza, BPMN) di ognuna.
+    Se il gruppo e' gia' in volo (lo stesso invio, ritentato) restituisce
+    quello: il controllo sta sotto il lock della coda, quindi due invii insieme
+    non creano due gruppi. Coda piena: non entra nessuna ripetizione.
+    """
+    keys = [key for _, _, key, _ in members]
+    with workspace_connection() as session:
+        hold_queue(session)
+        reap_stale_runs(session)
+        existing = session.execute(
+            select(WorkspaceSimulationRun)
+            .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
+            .where(WorkspaceSimulationRun.bpmn_model_id == bpmn_model_id)
+            .where(WorkspaceSimulationRun.idempotency_key.in_(keys))
+            .where(WorkspaceSimulationRun.status == "pending")
+        ).scalars().all()
+        if existing:
+            order = {key: index for index, key in enumerate(keys)}
+            return [simulation_run_to_dict(run) for run in sorted(existing, key=lambda r: order[r.idempotency_key])]
+        admit(session, runs=len(members))
+        runs = [
+            _new_run(
+                bpmn_model_id=bpmn_model_id,
+                process_id=process_id,
+                scenario_name=request.scenario_name,
+                request=request,
+                scenario=scenario,
+                idempotency_key=key,
+                bpmn_xml=bpmn_xml,
+            )
+            for request, scenario, key, bpmn_xml in members
+        ]
+        session.add_all(runs)
+        session.flush()
+        return [simulation_run_to_dict(run) for run in runs]
+
+
+def _new_run(
+    *,
+    bpmn_model_id: str,
+    process_id: str,
+    scenario_name: str,
+    request: CreateSimulationRunRequest | CreateSimulationModelRunRequest,
+    scenario: ProsimosScenario,
+    idempotency_key: str | None,
+    bpmn_xml: str | None,
+) -> WorkspaceSimulationRun:
+    return WorkspaceSimulationRun(
+        tenant_id=get_current_tenant_id(),
+        bpmn_model_id=bpmn_model_id,
+        process_id=process_id,
+        scenario_name=scenario_name,
+        engine="prosimos",
+        status="pending",
+        idempotency_key=idempotency_key,
+        request_json=request.model_copy(
+            update={"current_bpmn_xml": None}
+        ).model_dump_json(),
+        scenario_json=json.dumps(scenario.payload, ensure_ascii=False),
+        model_json=json.dumps(scenario.model, ensure_ascii=False) if scenario.model is not None else None,
+        result_json="{}",
+        outputs_json="[]",
+        error=None,
+        created_at=now_iso(),
+        completed_at=None,
+        # Il run entra in coda con il BPMN normalizzato: chiunque lo prenda lo esegue.
+        bpmn_xml=bpmn_xml,
+        attempts=0,
+    )
 
 
 def complete_simulation_run(

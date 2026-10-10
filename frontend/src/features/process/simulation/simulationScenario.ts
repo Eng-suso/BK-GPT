@@ -109,6 +109,10 @@ export type ScenarioDraft = {
   sla?: SlaDraft;
   /** SIM-10: euro per ogni caso completato. Assente = nessuno. */
   caseFixedCost?: number;
+  /** SIM-03: i primi casi restano fuori dai KPI. Assente = nessuno. */
+  warmupCases?: number;
+  /** SIM-04: quante volte ripetere lo scenario (1-20). Assente = una. */
+  replications?: number;
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
@@ -211,7 +215,20 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
-  return { durations, calendars, arrival, sla, costs, ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs };
+  const warmup = warmupIssue(draft) !== null;
+  const replications = draft.replications !== undefined && !(Number.isInteger(draft.replications) && draft.replications >= 1 && draft.replications <= 20);
+  return { durations, calendars, arrival, sla, costs, warmup, replications,
+    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications };
+}
+
+export type WarmupIssue = "notWhole" | "noCaseLeft";
+
+/** Il riscaldamento: un numero intero di casi, che lasci almeno un caso da misurare. */
+export function warmupIssue(draft: ScenarioDraft): WarmupIssue | null {
+  const warmup = draft.warmupCases;
+  if (warmup === undefined || warmup === 0) return null;
+  if (!Number.isInteger(warmup) || warmup < 0) return "notWhole";
+  return warmup >= draft.totalCases ? "noCaseLeft" : null;
 }
 
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
@@ -325,6 +342,8 @@ export function scenarioToInput(
   return {
     ...base,
     ...(draft.caseFixedCost ? { caseFixedCost: draft.caseFixedCost } : {}),
+    ...(draft.warmupCases ? { warmupCases: draft.warmupCases } : {}),
+    ...(draft.replications && draft.replications > 1 ? { replications: draft.replications } : {}),
     ...(draft.sla ? { sla: {
       targetSeconds: slaSeconds(draft.sla),
       share: draft.sla.sharePercent / 100,

@@ -134,8 +134,8 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
       </section>
 
       {lowConfidence && (
-        <p className="flex items-start gap-2 rounded-md border border-[var(--amber-400,#fbbf24)] bg-[var(--sim-bottleneck-surface)] px-3 py-2 text-xs leading-relaxed text-foreground">
-          <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0 text-[var(--amber-700)]" />
+        <p className="flex items-start gap-2 rounded-md border border-[var(--state-warning-border)] bg-[var(--sim-bottleneck-surface)] px-3 py-2 text-xs leading-relaxed text-foreground">
+          <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0 text-[var(--state-warning-icon)]" />
           {t("simulation.insights.lowConfidenceCaveat")}
         </p>
       )}

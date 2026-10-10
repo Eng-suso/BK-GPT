@@ -25,6 +25,7 @@ import {
   roleLabel,
   scenarioResourceIssues,
   taskResourceIds,
+  warmupIssue,
   withArrival,
   withValidOtherAssignments,
   type ScenarioDraft,
@@ -207,7 +208,7 @@ export function SimulationConfigRail({
                 onChange={(e) => patch({ scenarioName: e.target.value })}
               />
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <NumberField
                 label={t("simulation.fields.cases")}
                 value={draft.totalCases}
@@ -221,11 +222,26 @@ export function SimulationConfigRail({
                 min={1}
                 onChange={(v) => patch({ defaultTaskMinutes: v })}
               />
+              <FieldLabel label={t("simulation.config.replications")}>
+                <Input className="h-8" type="number" min={1} max={20} step={1} value={draft.replications ?? 1}
+                  aria-describedby="sim-replications-hint"
+                  onChange={(e) => patch({ replications: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
+              <FieldLabel label={t("simulation.config.warmupCases")}>
+                <Input className="h-8" type="number" min={0} step={1} value={draft.warmupCases ?? ""}
+                  aria-invalid={warmupIssue(draft) ? true : undefined}
+                  aria-describedby="sim-warmup-hint"
+                  onChange={(e) => patch({ warmupCases: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
               <FieldLabel label={t("simulation.config.caseFixedCost")}>
                 <Input className="h-8" type="number" min={0} step="any" value={draft.caseFixedCost ?? ""}
                   onChange={(e) => patch({ caseFixedCost: e.target.value === "" ? undefined : Number(e.target.value) })} />
               </FieldLabel>
             </div>
+            <p id="sim-replications-hint" className="text-xs text-muted-foreground">{t("simulation.config.replicationsHint")}</p>
+            {warmupIssue(draft)
+              ? <p id="sim-warmup-hint" role="alert" className="text-xs font-medium text-destructive">{t(`simulation.config.warmupIssue.${warmupIssue(draft)}`)}</p>
+              : <p id="sim-warmup-hint" className="text-xs text-muted-foreground">{t("simulation.config.warmupHint")}</p>}
             <fieldset className="sim-arrivals mt-1 grid gap-2 rounded-md border border-border p-2.5" data-sim-arrivals>
               <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.arrivals")}</legend>
               <p className="text-xs text-muted-foreground">{t("simulation.config.arrivalsHint")}</p>
@@ -361,6 +377,8 @@ export function SimulationConfigRail({
             {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
             {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
             {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
+            {parameterIssues.warmup && <p>{t("simulation.config.invalidWarmup")}</p>}
+            {parameterIssues.replications && <p>{t("simulation.config.invalidReplications")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
             {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}
@@ -533,7 +551,7 @@ export function SimulationConfigRail({
                       ) : (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--amber-700)] hover:underline"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--state-warning-text)] hover:underline"
                           onClick={() => {
                             const flows = gateway.branches.map((b) => b.flow_id);
                             const total = flows.reduce((acc, f) => acc + (cfg[f] ?? 0), 0);

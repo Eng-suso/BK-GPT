@@ -240,8 +240,10 @@ def process_prosimos_log(
     name_to_element_id: dict[str, str] | None = None,
     max_cases: int | None = None,
     buckets: int | None = None,
+    warmup_cases: int = 0,
 ) -> tuple[dict, dict]:
     events = parse_prosimos_log(csv_text)
+    measured = after_warmup(events, warmup_cases)
     max_cases = max_cases or settings.sim_replay_max_cases
     buckets = buckets or settings.sim_replay_buckets
 
@@ -262,17 +264,23 @@ def process_prosimos_log(
         for r in _records(prosimos_stats.get("IndividualTaskStatistics"))
     }
 
-    summary = _build_summary(
-        events=events,
-        by_case=by_case,
-        by_activity=by_activity,
-        name_to_element_id=name_to_element_id,
-        prosimos_stats=prosimos_stats,
-        pools=pools,
-        run_start=run_start,
-        run_end=run_end,
-        duration=duration,
-    )
+    if measured is events:
+        summary = _build_summary(
+            events=events,
+            by_case=by_case,
+            by_activity=by_activity,
+            name_to_element_id=name_to_element_id,
+            prosimos_stats=prosimos_stats,
+            pools=pools,
+            run_start=run_start,
+            run_end=run_end,
+            duration=duration,
+        )
+    else:
+        summary = _warm_summary(
+            events, measured, warmup_cases,
+            name_to_element_id=name_to_element_id, prosimos_stats=prosimos_stats, pools=pools,
+        )
     replay = _build_replay(
         events=events,
         by_case=by_case,
@@ -287,6 +295,65 @@ def process_prosimos_log(
         buckets=buckets,
     )
     return summary, replay
+
+
+def after_warmup(events: list[LogEvent], warmup_cases: int) -> list[LogEvent]:
+    """Gli eventi dei casi arrivati dopo i primi ``warmup_cases`` (SIM-03).
+
+    Il sistema parte vuoto: i primi casi trovano code corte e risorse libere, e
+    i loro tempi non dicono com'e' il processo a regime. Senza riscaldamento,
+    gli stessi eventi.
+    """
+    if warmup_cases <= 0:
+        return events
+    arrival: dict[str, float] = {}
+    for ev in events:
+        arrival[ev.case_id] = min(arrival.get(ev.case_id, ev.enable), ev.enable)
+    warm = set(sorted(arrival, key=lambda case_id: (arrival[case_id], case_id))[:warmup_cases])
+    return [ev for ev in events if ev.case_id not in warm]
+
+
+def _warm_summary(
+    events: list[LogEvent],
+    measured: list[LogEvent],
+    warmup_cases: int,
+    *,
+    name_to_element_id: dict[str, str],
+    prosimos_stats: dict,
+    pools: dict,
+) -> dict:
+    """Il riepilogo sui soli casi dopo il riscaldamento.
+
+    Tempi, code e colli di bottiglia si ricalcolano sugli eventi misurati. Il
+    costo di Prosimos e' dell'intero run: si attribuisce ai casi misurati in
+    proporzione al loro tempo di lavoro.
+    """
+    by_case: dict[str, list[LogEvent]] = defaultdict(list)
+    by_activity: dict[str, list[LogEvent]] = defaultdict(list)
+    for ev in measured:
+        by_case[ev.case_id].append(ev)
+        by_activity[ev.activity].append(ev)
+    run_start = min(ev.enable for ev in measured)
+    run_end = max(ev.end for ev in measured)
+    summary = _build_summary(
+        events=measured,
+        by_case=by_case,
+        by_activity=by_activity,
+        name_to_element_id=name_to_element_id,
+        prosimos_stats=prosimos_stats,
+        pools=pools,
+        run_start=run_start,
+        run_end=run_end,
+        duration=max(1.0, run_end - run_start),
+    )
+    work = sum(max(0.0, ev.end - ev.start) for ev in events)
+    kept = sum(max(0.0, ev.end - ev.start) for ev in measured)
+    share = kept / work if work > 0 else 1.0
+    cases = len(by_case)
+    total = float(summary["cost"]["total"]) * share
+    summary["cost"] = {**summary["cost"], "total": total, "perCase": total / cases if cases else 0.0}
+    summary["warmup"] = {"excludedCases": warmup_cases, "measuredCases": cases}
+    return summary
 
 
 def summarize_log_events(

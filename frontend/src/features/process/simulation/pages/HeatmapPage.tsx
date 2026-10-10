@@ -272,7 +272,7 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
                         {s.name}
                       </span>
                       {s.el === bottleneckEl && (
-                        <Flame aria-hidden className="size-3 shrink-0 text-[var(--amber-700)]" />
+                        <Flame aria-hidden className="size-3 shrink-0 text-[var(--state-warning-text)]" />
                       )}
                     </span>
                     <span className="mt-1 block pr-2">
