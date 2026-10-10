@@ -65,7 +65,7 @@ def build_prosimos_scenario(
     return _scenario(bpmn_xml, model, tasks, gateways)
 
 
-def _scenario(bpmn_xml: str, model: SimulationModel, tasks, gateways) -> ProsimosScenario:
+def _scenario(bpmn_xml: str, model: SimulationModel, tasks: list[BpmnTask], gateways: list[BpmnGateway]) -> ProsimosScenario:
     """Il payload del motore, con le durate condizionali compilate in varianti (SIM-32).
 
     Il run conserva il modello come l'ha scritto il consulente, non le varianti:

@@ -70,13 +70,14 @@ def expand_duration_variants(bpmn_xml: str, model: SimulationModel) -> tuple[str
     ET.register_namespace("", _BPMN)
     # Il BPMN viene dal consulente: letto senza entita' esterne ne' espansioni.
     root = safe_fromstring(bpmn_xml)
+    taken = {element.get("id") for element in root.iter() if element.get("id")}
     activities: list[Activity] = []
     gateways = list(model.gateways)
     for activity in model.activities:
         if activity.duration_by is None:
             activities.append(activity)
             continue
-        copies = _expand_activity(root, activity)
+        copies = _expand_activity(root, activity, taken)
         activities.append(activity.model_copy(update={"duration_by": None}))
         activities.extend(copies)
         gateways.append(_split_gateway(activity, copies))
@@ -95,25 +96,32 @@ def _variant_id(activity: Activity, index: int) -> str:
     return f"{activity.element_id}__dur_{index + 1}"
 
 
-def _expand_activity(root: ET.Element, activity: Activity) -> list[Activity]:
+def _claim(taken: set[str], element_id: str) -> str:
+    """Un id generato non deve esistere gia' nel BPMN: altrimenti si fallisce con il motivo."""
+    if element_id in taken:
+        raise ValueError(f"il BPMN contiene già l'id {element_id}: rinomina quell'elemento per usare le durate per categoria")
+    taken.add(element_id)
+    return element_id
+
+
+def _expand_activity(root: ET.Element, activity: Activity, taken: set[str]) -> list[Activity]:
     """Riscrive il BPMN intorno al task e restituisce le attivita' copia."""
     process, task = _find(root, activity.element_id)
-    split_id, join_id = _ids(activity)
+    split_id, join_id = (_claim(taken, element_id) for element_id in _ids(activity))
     for flow in process.findall(f"{{{_BPMN}}}sequenceFlow"):
         if flow.get("targetRef") == activity.element_id:
             flow.set("targetRef", split_id)
         if flow.get("sourceRef") == activity.element_id:
             flow.set("sourceRef", join_id)
 
-    position = list(process).index(task)
     split = ET.Element(f"{{{_BPMN}}}exclusiveGateway", {"id": split_id, "name": task.get("name", "")})
-    process.insert(position, split)
+    process.insert(list(process).index(task), split)
     new_tasks = []
     copies: list[Activity] = []
     rule = _rule(activity)
     for index, variant in enumerate(rule.variants):
         element = copy.deepcopy(task)
-        element.set("id", _variant_id(activity, index))
+        element.set("id", _claim(taken, _variant_id(activity, index)))
         new_tasks.append(element)
         copies.append(Activity(
             element_id=_variant_id(activity, index),
@@ -123,16 +131,17 @@ def _expand_activity(root: ET.Element, activity: Activity) -> list[Activity]:
                 for a in activity.assignments
             ),
         ))
-    # Le copie dopo l'originale: il nome nel log si riconduce all'id originale.
-    for offset, element in enumerate(new_tasks, start=1):
-        process.insert(position + 1 + offset, element)
-    join = ET.Element(f"{{{_BPMN}}}exclusiveGateway", {"id": join_id})
-    process.insert(position + 1 + len(new_tasks) + 1, join)
+    # Le copie subito dopo l'originale, poi l'unione: il nome nel log si riconduce
+    # all'id originale (vince la prima occorrenza).
+    previous = task
+    for element in [*new_tasks, ET.Element(f"{{{_BPMN}}}exclusiveGateway", {"id": join_id})]:
+        process.insert(list(process).index(previous) + 1, element)
+        previous = element
 
     targets = [activity.element_id, *(c.element_id for c in copies)]
     for target in targets:
-        process.append(ET.Element(f"{{{_BPMN}}}sequenceFlow", {"id": f"{split_id}__{target}", "sourceRef": split_id, "targetRef": target}))
-        process.append(ET.Element(f"{{{_BPMN}}}sequenceFlow", {"id": f"{target}__{join_id}", "sourceRef": target, "targetRef": join_id}))
+        process.append(ET.Element(f"{{{_BPMN}}}sequenceFlow", {"id": _claim(taken, f"{split_id}__{target}"), "sourceRef": split_id, "targetRef": target}))
+        process.append(ET.Element(f"{{{_BPMN}}}sequenceFlow", {"id": _claim(taken, f"{target}__{join_id}"), "sourceRef": target, "targetRef": join_id}))
     return copies
 
 

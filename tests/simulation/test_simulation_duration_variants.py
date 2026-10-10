@@ -82,3 +82,17 @@ def test_the_run_keeps_the_conditional_durations_and_runs_the_rewritten_bpmn(api
     model = api_client.get(f"/v1/workspace/simulation-runs/{created.json()['id']}/model").json()["model"]
     approve = next(a for a in model["activities"] if a["element_id"] == "T_approve")
     assert approve["duration_by"]["attribute"] == "tipo"
+
+
+def test_a_generated_id_that_already_exists_is_refused():
+    clash = BPMN.replace('<task id="T_pay"', '<task id="T_approve__dur_1"').replace('"T_pay"', '"T_approve__dur_1"')
+    with pytest.raises(ValueError, match="contiene già l'id T_approve__dur_1"):
+        build_prosimos_scenario(bpmn_xml=clash, request=CreateSimulationRunRequest(
+            total_cases=10,
+            tasks=[
+                {"element_id": "T_receive", "mean_seconds": 600},
+                {"element_id": "T_approve", "mean_seconds": 1200, "duration_by": BY_TYPE},
+                {"element_id": "T_approve__dur_1", "mean_seconds": 600},
+            ],
+            model_patch={"case_attributes": [TYPE]},
+        ))

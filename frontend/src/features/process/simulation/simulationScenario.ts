@@ -63,10 +63,12 @@ export function durationOf(task: DurationDraft): DurationDraft {
 export function durationVariants(task: TaskDraft, attributes: CaseAttributeDraft[]): { attribute: string; variants: { value: string; duration: DurationDraft }[] } | null {
   const attribute = attributes.find((a) => a.id === task.durationBy?.attributeId);
   if (!task.durationBy || !attribute || attribute.kind !== "category") return null;
+  // Senza nome il backend non saprebbe a quale attributo legarla: la durata va rivista.
+  const name = attribute.name.trim();
   const values = attribute.categories.map((c) => c.value.trim()).filter(Boolean);
-  if (values.length === 0) return null;
+  if (!name || values.length === 0) return null;
   return {
-    attribute: attribute.name.trim(),
+    attribute: name,
     variants: values.map((value) => ({ value, duration: task.durationBy?.variants[value] ?? durationOf(task) })),
   };
 }

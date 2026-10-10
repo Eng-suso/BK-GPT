@@ -28,6 +28,7 @@ export function DurationByCategory({
   const categorical = attributes.filter((a): a is Extract<CaseAttributeDraft, { kind: "category" }> => a.kind === "category");
   if (categorical.length === 0 && !task.durationBy) return null;
   const attribute = categorical.find((a) => a.id === task.durationBy?.attributeId);
+  const attributeName = attribute?.name.trim() || t("simulation.config.unnamedAttribute");
   const variant = (value: string): DurationDraft => task.durationBy?.variants[value] ?? durationOf(task);
   const setVariant = (value: string, next: DurationDraft) => task.durationBy && onChange({
     ...task,
@@ -51,11 +52,11 @@ export function DurationByCategory({
       {task.durationBy && !attribute && <p role="alert" className="text-xs font-medium text-destructive">{t("simulation.config.durationByMissing")}</p>}
       {attribute && (
         <>
-          <p className="text-xs text-muted-foreground">{t("simulation.config.durationByHint", { attribute: attribute.name })}</p>
+          <p className="text-xs text-muted-foreground">{t("simulation.config.durationByHint", { attribute: attributeName })}</p>
           <ul className="grid gap-2">
             {attribute.categories.filter((c) => c.value.trim()).map((category) => (
               <li key={category.value} className="grid gap-1.5 rounded-md border border-border bg-card p-2.5">
-                <p className="text-xs font-medium text-foreground">{t("simulation.config.durationByCategory", { attribute: attribute.name, value: category.value })}</p>
+                <p className="text-xs font-medium text-foreground">{t("simulation.config.durationByCategory", { attribute: attributeName, value: category.value })}</p>
                 <TaskDurationFields
                   elementId={`${elementId}-${category.value}`}
                   taskName={`${taskName} · ${category.value}`}
