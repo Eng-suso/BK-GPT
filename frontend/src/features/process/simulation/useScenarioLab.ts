@@ -328,11 +328,15 @@ export function useScenarioLab(): ScenarioLab {
   }, [bpmnModelId, flushSave, mutate]);
 
   const newSeed = React.useCallback(async () => {
-    const baseline = workspaceRef.current?.baseline;
-    if (!baseline) return;
+    // Prima le modifiche in attesa: poi si rimanda l'AS-IS cosi' com'e' salvato, alla sua revisione.
+    await flushSave();
     const seedValue = Math.floor(Math.random() * (WORKSPACE_SEED_MAX + 1));
-    await mutate(() => putScenarioBaseline(bpmnModelId, { name: baseline.name, draft: baselineDraft ?? baseline.draft, revision: baseline.revision, seed: seedValue }));
-  }, [bpmnModelId, mutate, baselineDraft]);
+    await mutate(() => {
+      const baseline = workspaceRef.current?.baseline;
+      if (!baseline) return Promise.reject(new Error(t("simulation.scenarios.unavailable")));
+      return putScenarioBaseline(bpmnModelId, { name: baseline.name, draft: baseline.draft, revision: baseline.revision, seed: seedValue });
+    });
+  }, [bpmnModelId, mutate, flushSave, t]);
 
   const syncSection = React.useCallback(() => {
     void queryClient.invalidateQueries({
