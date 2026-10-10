@@ -11,15 +11,15 @@ from pathlib import Path
 import pytest
 
 from backend.schemas.simulation import CreateSimulationRunRequest
-from backend.simulation.claims import duration_hint, propose
+from backend.simulation.claims import SourceClaim, duration_hint, propose
 from backend.workspace_database import get_bpmn_model, get_process
 from backend.workspace_storage import WorkspaceSource, WorkspaceSourceClaim, workspace_connection
 
 BPMN = (Path(__file__).resolve().parents[2] / "ops" / "prosimos" / "spike" / "p2p_mini.bpmn").read_text(encoding="utf-8")
 
 
-def _claim(claim_id: int, statement: str, quote: str = "", verified: bool = True) -> dict:
-    return {"id": claim_id, "statement": statement, "quote": quote or statement, "quote_verified": verified, "source_id": "s1"}
+def _claim(claim_id: int, statement: str, quote: str = "", verified: bool = True) -> SourceClaim:
+    return SourceClaim(id=claim_id, statement=statement, quote=quote or statement, quote_verified=verified, source_id="s1")
 
 
 def test_an_activity_is_matched_by_the_root_of_its_words():
@@ -118,6 +118,14 @@ def test_a_confirmed_claim_becomes_the_declared_source_of_the_duration(api_clien
     assert provenance["sources"] == [{"kind": "claim", "id": str(claim_id), "label": "procedura-acquisti.pdf"}]
     # Il valore resta quello del pannello: la fonte non lo sostituisce.
     assert approve["assignments"][0]["duration"]["mean"] == 1800.0
+
+
+def test_a_claim_from_another_project_is_refused(api_client, new_bpmn_model, fake_engine):
+    [elsewhere] = _source_with_claims(new_bpmn_model(), ["Approva ogni ordine il responsabile."])
+    response = api_client.post(f"/v1/workspace/bpmn-models/{new_bpmn_model()}/simulation-runs",
+                               json=_run_request([{"claim_id": elsewhere, "label": "procedura-acquisti.pdf"}]))
+    assert response.status_code == 400
+    assert fake_engine == []
 
 
 def test_a_claim_that_no_longer_exists_is_a_400_with_the_reason(api_client, new_bpmn_model, fake_engine):

@@ -118,15 +118,11 @@ def claim_proposals_for_model(
 ) -> SimulationClaimsResponse:
     """Per ogni attivita', le affermazioni dei file del progetto (e del cliente) che la nominano."""
     from backend.simulation.claims import propose
-    from backend.workspace_database import get_process, list_project_sources, list_source_claims
 
     template = scenario_template_for_model(bpmn_model=bpmn_model, current_bpmn_xml=current_bpmn_xml)
-    process = get_process(bpmn_model.process_id)
-    sources = list_project_sources(process["project_id"], include_client=True) if process else []
-    names = {source["id"]: source["name"] for source in sources}
-    claims = [claim for source in sources for claim in list_source_claims(source["id"])]
+    names, claims = _process_claims(bpmn_model.process_id)
     return SimulationClaimsResponse(
-        sources=len(sources),
+        sources=len(names),
         activities=[
             ActivityClaimsResponse(
                 element_id=task.element_id,
@@ -139,12 +135,26 @@ def claim_proposals_for_model(
     )
 
 
-def _check_claims(request: CreateSimulationRunRequest) -> None:
-    """Un'affermazione collegata e poi cancellata con il suo file non e' piu' una fonte."""
-    from backend.workspace_database import existing_claim_ids
+def _process_claims(process_id: str) -> tuple[dict[str, str], list]:
+    """I file del progetto del processo (e del suo cliente) e le loro affermazioni."""
+    from backend.simulation.claims import SourceClaim
+    from backend.workspace_database import get_process, list_claims_for_sources, list_project_sources
 
+    process = get_process(process_id)
+    if process is None:
+        raise ValueError("Il processo di questo modello non esiste più.")
+    sources = list_project_sources(process["project_id"], include_client=True)
+    names = {source["id"]: source["name"] for source in sources}
+    return names, [SourceClaim(**row) for row in list_claims_for_sources(list(names))]
+
+
+def _check_claims(request: CreateSimulationRunRequest, process_id: str) -> None:
+    """Una fonte collegata deve essere un'affermazione dei file di questo progetto, ancora presente."""
     linked = {ref.claim_id for task in request.tasks or [] for ref in task.claims}
-    if linked - existing_claim_ids(linked):
+    if not linked:
+        return
+    _, claims = _process_claims(process_id)
+    if linked - {claim.id for claim in claims}:
         raise ValueError("Una fonte collegata a un'attività non esiste più: scollegala dal pannello e rilancia.")
 
 
@@ -255,7 +265,7 @@ def prepare_simulation_run(
     # Adapt the model to Prosimos' constraints (e.g. single end event) before it
     # feeds both the scenario and the engine request.
     bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
-    _check_claims(request)
+    _check_claims(request, bpmn_model.process_id)
 
     scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
 

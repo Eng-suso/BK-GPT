@@ -41,6 +41,17 @@ _DURATION = re.compile(
 
 
 @dataclass(frozen=True, slots=True)
+class SourceClaim:
+    """Un'affermazione di un file, come la legge l'abbinamento."""
+
+    id: int
+    statement: str
+    quote: str
+    quote_verified: bool
+    source_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class DurationHint:
     """Una durata citata nella fonte: il testo com'e' e il suo valore in secondi."""
 
@@ -79,30 +90,30 @@ def duration_hint(text: str) -> DurationHint | None:
     return DurationHint(text=match.group(0), seconds=amount * factor)
 
 
-def propose(activity_name: str, claims: list[dict], sources: dict[str, str]) -> list[ClaimProposal]:
+def propose(activity_name: str, claims: list[SourceClaim], sources: dict[str, str]) -> list[ClaimProposal]:
     """Le affermazioni che nominano l'attivita', le piu' vicine per prime (al massimo tre).
 
-    ``claims`` sono le righe di ``list_source_claims``; ``sources`` va da id a nome del file.
+    ``sources`` va da id a nome del file.
     """
     wanted = _words(activity_name)
     if not wanted:
         return []
     proposals = []
     for claim in claims:
-        found = wanted & _words(f"{claim['statement']} {claim['quote']}")
+        found = wanted & _words(f"{claim.statement} {claim.quote}")
         score = len(found) / len(wanted)
         # Un nome di una parola sola deve esserci; uno lungo almeno per meta'.
         if not found or score < 0.5:
             continue
         proposals.append(ClaimProposal(
-            claim_id=int(claim["id"]),
-            statement=claim["statement"],
-            quote=claim["quote"],
-            quote_verified=bool(claim["quote_verified"]),
-            source_id=claim["source_id"],
-            source_name=sources.get(claim["source_id"], claim["source_id"]),
+            claim_id=claim.id,
+            statement=claim.statement,
+            quote=claim.quote,
+            quote_verified=claim.quote_verified,
+            source_id=claim.source_id,
+            source_name=sources.get(claim.source_id, claim.source_id),
             score=round(score, 2),
-            duration_hint=duration_hint(f"{claim['quote']} {claim['statement']}"),
+            duration_hint=duration_hint(f"{claim.quote} {claim.statement}"),
         ))
     proposals.sort(key=lambda p: (-p.score, not p.quote_verified, p.claim_id))
     return proposals[:_MAX_PROPOSALS]

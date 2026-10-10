@@ -96,6 +96,7 @@ export function useScenarioLab(): ScenarioLab {
   const claimsQuery = useQuery<SimulationClaims>({
     queryKey: ["workspace", "simulation-claims", process.bpmnModelId],
     queryFn: () => fetchSimulationClaims(process.bpmnModelId, null),
+    enabled: bpmnXml !== null,
     staleTime: 60_000,
   });
   const templateLoading = modelQuery.isLoading || (templateQuery.isLoading && bpmnXml !== null);
