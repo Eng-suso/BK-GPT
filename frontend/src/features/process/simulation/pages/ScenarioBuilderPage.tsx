@@ -14,13 +14,16 @@ import { useSimulationSection } from "../useSimulationSection";
 import { SimulationConfigRail } from "../SimulationConfigRail";
 import { ReadinessSummary } from "../ReadinessSummary";
 import { useScenarioLab } from "../useScenarioLab";
+import { ScenarioTabs } from "../ScenarioTabs";
+import { changedElements } from "../scenarioWorkspace";
+import type { NodeDecoration } from "../canvas/SimulationCanvas";
 
 /**
  * Provides the scenario configuration workspace for reviewing and editing simulation assumptions.
  *
  * @returns The scenario builder page.
  */
-export function ScenarioBuilderPage({ embedded = false }: { embedded?: boolean } = {}): React.JSX.Element {
+export function ScenarioBuilderPage({ embedded = false, onDecorations }: { embedded?: boolean; onDecorations?: (items: NodeDecoration[] | null) => void } = {}): React.JSX.Element {
   const { t } = useTranslation("process");
   const navigate = useNavigate();
   const { projectId, processId, selectedElementId, selectElement } = useSimulationSection();
@@ -46,6 +49,15 @@ export function ScenarioBuilderPage({ embedded = false }: { embedded?: boolean }
     handleRun,
     activeRun,
   } = lab;
+
+  // SIM-14: sul processo, le attivita' e le decisioni che lo scenario scelto cambia.
+  const selected = lab.selectedScenario;
+  const decorations = React.useMemo<NodeDecoration[] | null>(() => {
+    if (!selected || selected.kind !== "alternative") return null;
+    return [...changedElements(selected)].map((elementId) => ({ elementId, markers: ["sim-scenario-changed"], badge: selected.label }));
+  }, [selected]);
+  React.useEffect(() => { onDecorations?.(decorations); }, [decorations, onDecorations]);
+  React.useEffect(() => () => onDecorations?.(null), [onDecorations]);
 
   const [localFocusEl, setFocusEl] = React.useState<string | null>(null);
   const focusEl = embedded ? selectedElementId ?? null : localFocusEl;
@@ -87,6 +99,7 @@ export function ScenarioBuilderPage({ embedded = false }: { embedded?: boolean }
             {activeRun?.status === "completed" && <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.projects.simulation(projectId, processId, "overview"))}>{t("simulation.workspace.viewResults")}</Button>}
           </div>
         </header>
+      {!templateLoading && <ScenarioTabs lab={lab} />}
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto ui-surface ui-surface-panel">
         {templateLoading ? (
           <div className="grid gap-3">
