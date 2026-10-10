@@ -18,6 +18,7 @@ from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
 from backend.api.routes.observability import router as observability_router
 from backend.api.routes.simulation import router as simulation_router
+from backend.api.routes.simulation_scenarios import router as simulation_scenarios_router
 from backend.api.routes.eventlog import router as eventlog_router
 from backend.api.routes.workspace import router as workspace_router
 from backend.security import (
@@ -191,6 +192,7 @@ async def tenant_context_middleware(request: Request, call_next):
 
 app.include_router(workspace_router)
 app.include_router(simulation_router)
+app.include_router(simulation_scenarios_router)
 app.include_router(eventlog_router)
 app.include_router(memory_router)
 app.include_router(observability_router)

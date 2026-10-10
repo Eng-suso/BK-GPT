@@ -4,7 +4,7 @@ import type { Project, ProjectProcess } from "../../../contracts/workspace";
 import type { SimulationRun } from "./simulationTypes";
 
 export type AnalysisView = "replay" | "final" | "compare" | "heatmap";
-export type SimulationPanel = "scenario" | "overview" | "compare" | "heatmap" | "insights" | "eventLog" | "widget" | "activity";
+export type SimulationPanel = "scenario" | "scenarios" | "overview" | "compare" | "heatmap" | "insights" | "eventLog" | "widget" | "activity";
 
 export type SimulationSectionValue = {
   projectId: string;

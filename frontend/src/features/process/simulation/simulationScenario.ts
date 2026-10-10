@@ -458,35 +458,43 @@ const KEY = (bpmnModelId: string) => `delir-sim-scenario:${bpmnModelId}`;
 export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
   try {
     const raw = window.localStorage.getItem(KEY(bpmnModelId));
-    if (!raw) return structuredClone(DEFAULT_SCENARIO);
-    const parsed = JSON.parse(raw) as Partial<ScenarioDraft>;
-    const resources = Array.isArray(parsed.resources) ? parsed.resources : [];
-    // Migrate the old untouched, generated operator; retain explicit custom roles.
-    const legacyDefault = (resource: ResourceDraft) => resource.id === "res-1" &&
-      resource.name === "Operatore" && resource.amount === 1 && resource.costPerHour === 35 &&
-      resource.parametersConfirmed === undefined && !resource.source;
-    const migratedResources = resources.filter((r) => !legacyDefault(r)).map((r) => ({
-      ...r, parametersConfirmed: r.parametersConfirmed ?? false,
-    }));
-    return {
-      ...structuredClone(DEFAULT_SCENARIO),
-      ...parsed,
-      resources: migratedResources,
-      tasks: parsed.tasks ?? {},
-      gateways: parsed.gateways ?? {},
-      // Una bozza vecchia o modificata a mano non deve rompere il pannello.
-      calendars: Array.isArray(parsed.calendars)
-        ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
-        : [],
-      caseAttributes: sanitizeAttributes(parsed.caseAttributes),
-      arrival: sanitizeArrival(parsed.arrival),
-      sla: sanitizeSla(parsed.sla),
-      gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
-      casePriorities: sanitizePriorities(parsed.casePriorities),
-    };
+    return raw ? parseScenarioDraft(JSON.parse(raw)) : structuredClone(DEFAULT_SCENARIO);
   } catch {
     return structuredClone(DEFAULT_SCENARIO);
   }
+}
+
+/**
+ * Una bozza letta da fuori (il browser, o il workspace sul server): i campi
+ * mancanti prendono i default, quelli rotti si scartano.
+ */
+export function parseScenarioDraft(value: unknown): ScenarioDraft {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return structuredClone(DEFAULT_SCENARIO);
+  const parsed = value as Partial<ScenarioDraft>;
+  const resources = Array.isArray(parsed.resources) ? parsed.resources : [];
+  // Migrate the old untouched, generated operator; retain explicit custom roles.
+  const legacyDefault = (resource: ResourceDraft) => resource.id === "res-1" &&
+    resource.name === "Operatore" && resource.amount === 1 && resource.costPerHour === 35 &&
+    resource.parametersConfirmed === undefined && !resource.source;
+  const migratedResources = resources.filter((r) => !legacyDefault(r)).map((r) => ({
+    ...r, parametersConfirmed: r.parametersConfirmed ?? false,
+  }));
+  return {
+    ...structuredClone(DEFAULT_SCENARIO),
+    ...parsed,
+    resources: migratedResources,
+    tasks: parsed.tasks ?? {},
+    gateways: parsed.gateways ?? {},
+    // Una bozza vecchia o modificata a mano non deve rompere il pannello.
+    calendars: Array.isArray(parsed.calendars)
+      ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
+      : [],
+    caseAttributes: sanitizeAttributes(parsed.caseAttributes),
+    arrival: sanitizeArrival(parsed.arrival),
+    sla: sanitizeSla(parsed.sla),
+    gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
+    casePriorities: sanitizePriorities(parsed.casePriorities),
+  };
 }
 
 function sanitizeSla(raw: unknown): SlaDraft | undefined {
