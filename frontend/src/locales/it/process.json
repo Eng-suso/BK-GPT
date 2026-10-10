@@ -1250,7 +1250,8 @@
         "change": "{{scenario}}: {{what}}"
       },
       "legend": "Modificato nello scenario {{label}}",
-      "unavailable": "Il workspace degli scenari non risponde: per ora modifichi la bozza salvata in questo browser."
+      "unavailable": "Il workspace degli scenari non risponde: per ora modifichi la bozza salvata in questo browser.",
+      "notSaved": "Lo scenario non è stato salvato: riprova prima di avviare il run."
     }
   },
   "side": {

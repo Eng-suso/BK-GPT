@@ -172,6 +172,9 @@ export function useScenarioLab(): ScenarioLab {
 
   // Modifiche non ancora confermate dal server, per scenario.
   const [pending, setPending] = React.useState<Record<number, ScenarioDraft>>({});
+  // Dopo un salvataggio, cio' che e' rimasto in attesa (= non salvato), letto fuori dal render.
+  const pendingRef = React.useRef(pending);
+  React.useEffect(() => { pendingRef.current = pending; }, [pending]);
   const [isSaving, setIsSaving] = React.useState(false);
   const [workspaceError, setWorkspaceError] = React.useState<string | null>(null);
 
@@ -319,10 +322,16 @@ export function useScenarioLab(): ScenarioLab {
   }, [bpmnModelId, mutate, requestedId, selectScenario]);
 
   const revertChange = React.useCallback(async (scenario: WorkspaceScenario, index: number) => {
+    // La riga mostrata, non la sua posizione: un salvataggio in coda puo' rigenerare la patch.
+    const target = scenario.patch[index];
+    if (!target) return;
     await flushSave();
     const latest = workspaceScenarios(workspaceRef.current).find((s) => s.id === scenario.id);
     if (!latest || latest.kind !== "alternative") return;
-    const patch = latest.patch.filter((_, i) => i !== index);
+    const key = JSON.stringify(target);
+    const found = latest.patch.findIndex((op) => JSON.stringify(op) === key);
+    if (found < 0) return;
+    const patch = latest.patch.filter((_, i) => i !== found);
     setPending((all) => without(all, scenario.id));
     await mutate(() => updateWorkspaceScenario(bpmnModelId, latest.id, { patch, revision: latest.revision }));
   }, [bpmnModelId, flushSave, mutate]);
@@ -405,6 +414,8 @@ export function useScenarioLab(): ScenarioLab {
     try {
       // Il run parte dallo scenario salvato: prima le modifiche in attesa.
       await flushSave();
+      // Un run cita solo cio' che e' salvato: se il salvataggio non e' riuscito, prima quello.
+      if (selectedScenario && pendingRef.current[selectedScenario.id]) throw new Error(t("simulation.scenarios.notSaved"));
       const run = await submit(draft, selectedScenario);
       setPolledRun(run);
       selectRun?.(run.id);
@@ -427,6 +438,7 @@ export function useScenarioLab(): ScenarioLab {
     }
     try {
       await flushSave();
+      if (pendingRef.current[scenario.id]) throw new Error(t("simulation.scenarios.notSaved"));
       await submit(draftOf(scenario), scenario);
       syncSection();
       return true;
@@ -434,7 +446,7 @@ export function useScenarioLab(): ScenarioLab {
       setWorkspaceError(`${scenarioDisplayName(scenario)}: ${readError(err)}`);
       return false;
     }
-  }, [template, bpmnXml, scenarioBlocker, flushSave, submit, draftOf, syncSection]);
+  }, [template, bpmnXml, scenarioBlocker, flushSave, submit, draftOf, syncSection, t]);
 
   return {
     bpmnXml,

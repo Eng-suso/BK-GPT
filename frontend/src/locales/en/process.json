@@ -1250,7 +1250,8 @@
         "change": "{{scenario}}: {{what}}"
       },
       "legend": "Changed in scenario {{label}}",
-      "unavailable": "The scenario workspace is not responding: for now you are editing the draft saved in this browser."
+      "unavailable": "The scenario workspace is not responding: for now you are editing the draft saved in this browser.",
+      "notSaved": "The scenario was not saved: try again before starting the run."
     }
   },
   "side": {
