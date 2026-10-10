@@ -229,3 +229,24 @@ def test_a_run_cannot_cite_a_scenario_of_another_process_or_a_future_revision(ap
     assert foreign.status_code == 400
     assert future.status_code == 400
     assert missing.status_code == 400
+
+
+def test_deleting_the_process_removes_its_scenarios(api_client):
+    from sqlalchemy import func, select
+
+    from backend.workspace_storage import WorkspaceSimulationScenario, workspace_connection
+
+    client_id = api_client.post("/v1/workspace/clients", json={"name": "Purge"}).json()["id"]
+    project_id = api_client.post("/v1/workspace/projects", json={"client_id": client_id, "name": "Purge"}).json()["id"]
+    process = api_client.post(f"/v1/workspace/projects/{project_id}/processes", json={"name": "Purge"}).json()
+    model_id = process["bpmn_model_id"]
+    _with_baseline(api_client, model_id)
+    api_client.post(_url(model_id), json={"name": "A"})
+
+    assert api_client.delete(f"/v1/workspace/processes/{process['id']}").status_code in (200, 204)
+
+    with workspace_connection() as session:
+        left = session.execute(
+            select(func.count()).select_from(WorkspaceSimulationScenario).where(WorkspaceSimulationScenario.bpmn_model_id == model_id)
+        ).scalar_one()
+    assert left == 0
