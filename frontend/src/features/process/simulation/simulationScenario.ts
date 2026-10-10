@@ -61,11 +61,23 @@ export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
   calendarId?: string;
 };
 
+/** SIM-13: il caso si chiude entro ``target`` ore o giorni per almeno ``sharePercent`` dei casi. */
+export type SlaDraft = { target: number; unit: "hours" | "days"; sharePercent: number };
+export type SlaIssue = "target" | "share";
+
+export function slaIssue(sla: SlaDraft): SlaIssue | null {
+  if (!(Number.isFinite(sla.target) && sla.target > 0)) return "target";
+  if (!(Number.isFinite(sla.sharePercent) && sla.sharePercent > 0 && sla.sharePercent <= 100)) return "share";
+  return null;
+}
+
 export type ScenarioDraft = {
   scenarioName: string;
   totalCases: number;
   arrivalIntervalMinutes: number;
   arrival?: ArrivalDraft;
+  /** L'obiettivo di servizio: facoltativo, il run ne misura l'esito. */
+  sla?: SlaDraft;
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
@@ -161,7 +173,8 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
     [task, ...(task.otherAssignments ?? [])].some((duration) => taskDurationIssue(duration) !== null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null;
-  return { durations, calendars, arrival, ready: durations === 0 && calendars === 0 && !arrival };
+  const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
+  return { durations, calendars, arrival, sla, ready: durations === 0 && calendars === 0 && !arrival && !sla };
 }
 
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
@@ -267,6 +280,10 @@ export function scenarioToInput(
   const arrivalCalendar = draft.arrival?.calendarId;
   return {
     ...base,
+    ...(draft.sla ? { sla: {
+      targetSeconds: Math.round(draft.sla.target * (draft.sla.unit === "days" ? 86_400 : 3600)),
+      share: draft.sla.sharePercent / 100,
+    } } : {}),
     arrival: {
       ...durationInput(arrivalDuration(draft)),
       calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
@@ -397,12 +414,20 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
         : [],
       caseAttributes: sanitizeAttributes(parsed.caseAttributes),
       arrival: sanitizeArrival(parsed.arrival),
+      sla: sanitizeSla(parsed.sla),
       gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
       casePriorities: sanitizePriorities(parsed.casePriorities),
     };
   } catch {
     return structuredClone(DEFAULT_SCENARIO);
   }
+}
+
+function sanitizeSla(raw: unknown): SlaDraft | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Partial<SlaDraft>;
+  if (typeof value.target !== "number" || typeof value.sharePercent !== "number") return undefined;
+  return { target: value.target, sharePercent: value.sharePercent, unit: value.unit === "hours" ? "hours" : "days" };
 }
 
 function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {

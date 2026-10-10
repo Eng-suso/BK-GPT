@@ -357,7 +357,22 @@
       "prioritiesNeedAttribute": "To set a priority, define a case attribute first.",
       "invalidPriorities_one": "Priorities to complete: {{count}}",
       "invalidPriorities_other": "Priorities to complete: {{count}}",
-      "priorityReads": "Cases with {{rule}} go first."
+      "priorityReads": "Cases with {{rule}} go first.",
+      "sla": "Service objective",
+      "slaHint": "Optional. How soon a case must close, and for how many cases: the run says whether the objective is met.",
+      "slaTarget": "Within",
+      "slaUnit": "Unit",
+      "slaHours": "Hours",
+      "slaDays": "Days",
+      "slaShare": "For at least % of cases",
+      "slaReads": "At least {{share}}% of cases must close within {{target}} {{unit}}.",
+      "slaAdd": "Add a service objective",
+      "slaRemove": "Remove the objective",
+      "slaIssue": {
+        "target": "Enter a time above zero.",
+        "share": "The share goes from 1 to 100."
+      },
+      "invalidSla": "Service objective needs fixing."
     },
     "diagram": {
       "title": "Process model",
@@ -396,7 +411,12 @@
         "processing": "Avg processing",
         "cycle": "Cycle",
         "cost": "Avg cost"
-      }
+      },
+      "slaMet": "Met",
+      "slaMissed": "Missed",
+      "slaWithin": "{{share}} of cases closed within {{target}} (objective {{goal}}).",
+      "slaLate_one": "{{count}} case of {{cases}} over the time.",
+      "slaLate_other": "{{count}} cases of {{cases}} over the time."
     },
     "jsonSummary": "Raw Prosimos data",
     "status": {

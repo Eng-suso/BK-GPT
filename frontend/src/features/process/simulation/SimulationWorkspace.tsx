@@ -15,6 +15,7 @@ import type { SimulationRun, SimulationSummary } from "./simulationTypes";
 import { useScenarioLab } from "./useScenarioLab";
 import { SimulationBpmnView, type SimulationNodeOverlay } from "./SimulationBpmnView";
 import { SimulationResults } from "./SimulationResultsView";
+import { ServiceLevelOutcome } from "./ServiceLevel";
 import {
   formatCurrency,
   formatDuration,
@@ -107,7 +108,7 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
         <details open={Boolean(selectedElementId)}>
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{t("simulation.results.summary")}</summary>
           <div className="border-t border-border p-4">
-            {activeRun.error ? <p role="alert" className="text-sm text-destructive">{activeRun.error}</p> : isPending ? <EmptyState variant="inline" title={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)} description={runWaitHint(activeRun?.queue?.state, t)} /> : <SimulationResults insights={insights} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} />}
+            {activeRun.error ? <p role="alert" className="text-sm text-destructive">{activeRun.error}</p> : isPending ? <EmptyState variant="inline" title={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)} description={runWaitHint(activeRun?.queue?.state, t)} /> : <><ServiceLevelOutcome run={activeRun} /><SimulationResults insights={insights} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /></>}
           </div>
         </details>
       </section>}

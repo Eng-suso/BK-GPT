@@ -357,7 +357,22 @@
       "prioritiesNeedAttribute": "Per dare una priorità, definisci prima un attributo del caso.",
       "invalidPriorities_one": "Priorità da completare: {{count}}",
       "invalidPriorities_other": "Priorità da completare: {{count}}",
-      "priorityReads": "Passano prima i casi con {{rule}}."
+      "priorityReads": "Passano prima i casi con {{rule}}.",
+      "sla": "Obiettivo di servizio",
+      "slaHint": "Facoltativo. Entro quanto deve chiudersi un caso, e per quanti casi: il run dice se l'obiettivo è rispettato.",
+      "slaTarget": "Entro",
+      "slaUnit": "Unità",
+      "slaHours": "Ore",
+      "slaDays": "Giorni",
+      "slaShare": "Per almeno il % dei casi",
+      "slaReads": "Almeno il {{share}}% dei casi deve chiudersi entro {{target}} {{unit}}.",
+      "slaAdd": "Aggiungi un obiettivo di servizio",
+      "slaRemove": "Togli l'obiettivo",
+      "slaIssue": {
+        "target": "Indica un tempo maggiore di zero.",
+        "share": "La quota va da 1 a 100."
+      },
+      "invalidSla": "Obiettivo di servizio da correggere."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -396,7 +411,12 @@
         "processing": "Lavoro medio",
         "cycle": "Attraversamento",
         "cost": "Costo medio"
-      }
+      },
+      "slaMet": "Rispettato",
+      "slaMissed": "Non rispettato",
+      "slaWithin": "{{share}} dei casi chiusi entro {{target}} (obiettivo {{goal}}).",
+      "slaLate_one": "{{count}} caso su {{cases}} oltre il tempo.",
+      "slaLate_other": "{{count}} casi su {{cases}} oltre il tempo."
     },
     "jsonSummary": "Dati grezzi Prosimos",
     "status": {

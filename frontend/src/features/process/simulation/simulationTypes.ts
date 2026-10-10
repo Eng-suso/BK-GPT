@@ -13,6 +13,15 @@ export const simulationSummarySchema = z
     waiting: z.object({ avg: z.number(), p95: z.number(), share: z.number() }),
     processing: z.object({ avg: z.number(), p95: z.number().optional() }),
     cost: z.object({ total: z.number(), perCase: z.number() }),
+    /** SIM-13: l'esito dell'obiettivo di servizio, se lo scenario ne aveva uno. */
+    sla: z.object({
+      target_seconds: z.number(),
+      share_target: z.number(),
+      share_within: z.number(),
+      cases: z.number(),
+      late_cases: z.number(),
+      met: z.boolean(),
+    }).nullable().optional(),
     throughputPerHour: z.number(),
     byActivity: z.array(z.record(z.string(), z.unknown())),
     byResource: z.array(z.record(z.string(), z.unknown())),
@@ -314,6 +323,8 @@ export type CreateSimulationRunInput = {
   resourceAmount: number;
   resourceName: string;
   arrival?: SimArrivalInput;
+  /** SIM-13: obiettivo di servizio, in secondi e quota 0-1. */
+  sla?: { targetSeconds: number; share: number };
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];

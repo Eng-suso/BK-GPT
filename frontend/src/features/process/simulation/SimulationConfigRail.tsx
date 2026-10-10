@@ -34,6 +34,7 @@ import { ProvenanceChip } from "./ProvenanceChip";
 import { TaskDurationFields } from "./TaskDurationFields";
 import { OtherAssignments } from "./OtherAssignments";
 import { ActivitySources } from "./ActivitySources";
+import { ServiceLevelFields } from "./ServiceLevel";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
@@ -241,6 +242,7 @@ export function SimulationConfigRail({
                 </select>
               </label>
             </fieldset>
+            <ServiceLevelFields sla={draft.sla} onChange={(next) => patch({ sla: next })} />
             {provenance && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
                 <ChipRow
@@ -351,6 +353,7 @@ export function SimulationConfigRail({
             {parameterIssues.durations > 0 && <p>{t("simulation.config.invalidDurations", { count: parameterIssues.durations })}</p>}
             {parameterIssues.calendars > 0 && <p>{t("simulation.config.invalidCalendars", { count: parameterIssues.calendars })}</p>}
             {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
+            {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
             {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}

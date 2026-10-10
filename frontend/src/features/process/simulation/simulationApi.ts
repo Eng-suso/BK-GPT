@@ -34,6 +34,7 @@ export async function runProsimosSimulation(
         default_cost_per_hour: input.defaultCostPerHour,
         resource_amount: input.resourceAmount,
         resource_name: input.resourceName,
+        sla: input.sla && { target_seconds: input.sla.targetSeconds, share: input.sla.share },
         arrival: input.arrival && {
           mean_seconds: input.arrival.meanSeconds,
           distribution: input.arrival.distribution,
