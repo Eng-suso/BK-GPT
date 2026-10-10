@@ -142,3 +142,12 @@ test("the comparison of single runs explains how to make it reliable", async ({ 
   await page.goto(`${studio}/workspace/42?view=compare&panel=compare&a=42&b=43`);
   await expect(page.locator("[data-sim-replication-delta-hint]")).toContainText("ripeti entrambi gli scenari almeno due volte");
 });
+
+test("replications of two different models are not compared", async ({ page }) => {
+  const other = [1, 2].map((index) => ({ ...member(index, 3000), id: 60 + index, bpmn_model_id: "other-model",
+    request: { replication_group: "g3", replication_index: index, seed: 100 + index } }));
+  await fixture(page, [...group, ...other]);
+  await page.goto(`${studio}/workspace/41?view=compare&panel=compare&a=41&b=61`);
+  await expect(page.getByRole("status").filter({ hasText: /modell/i }).first()).toBeVisible();
+  await expect(page.locator("[data-sim-replication-delta], [data-sim-replication-delta-hint]")).toHaveCount(0);
+});

@@ -122,7 +122,7 @@ export function ComparePage({ embedded = false, compact = false, onDecorations }
       </div>
 
       <Verdict runA={runA} runB={runB} />
-      <ReplicationDelta runA={runA} runB={runB} runs={runs} />
+      {sameModel && <ReplicationDelta runA={runA} runB={runB} runs={runs} />}
       {!sameModel && <p className="sim-comparison-compatibility" role="status">{t("simulation.decision.modelMismatch")}</p>}
       {compact && <ScenarioMatrix baseline={runA} alternative={runB} candidates={candidates} />}
 
