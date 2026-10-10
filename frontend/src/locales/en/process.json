@@ -1249,7 +1249,8 @@
         "title": "In the scenarios",
         "change": "{{scenario}}: {{what}}"
       },
-      "legend": "Changed in scenario {{label}}"
+      "legend": "Changed in scenario {{label}}",
+      "unavailable": "The scenario workspace is not responding: for now you are editing the draft saved in this browser."
     }
   },
   "side": {

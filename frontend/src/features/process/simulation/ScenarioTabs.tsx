@@ -26,7 +26,7 @@ export function ScenarioTabs({ lab }: { lab: ScenarioLab }): React.JSX.Element |
   const changes = useScenarioChanges(baselineDraft, template);
   const scenarios = workspaceScenarios(workspace);
   if (!workspace?.baseline || !selectedScenario) {
-    return workspaceError ? <p role="alert" className="sim-scenario-error">{workspaceError}</p> : null;
+    return workspaceError ? <p role="status" className="sim-scenario-notice">{workspaceError}</p> : null;
   }
   const full = workspace.alternatives.length >= MAX_ALTERNATIVES;
   const list = selectedScenario.kind === "alternative" ? changes.read(selectedScenario) : [];

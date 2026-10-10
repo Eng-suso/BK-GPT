@@ -1249,7 +1249,8 @@
         "title": "Negli scenari",
         "change": "{{scenario}}: {{what}}"
       },
-      "legend": "Modificato nello scenario {{label}}"
+      "legend": "Modificato nello scenario {{label}}",
+      "unavailable": "Il workspace degli scenari non risponde: per ora modifichi la bozza salvata in questo browser."
     }
   },
   "side": {

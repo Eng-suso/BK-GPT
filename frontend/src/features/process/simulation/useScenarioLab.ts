@@ -453,7 +453,8 @@ export function useScenarioLab(): ScenarioLab {
     error,
     handleRun,
     workspace,
-    workspaceError: workspaceError ?? (workspaceQuery.error ? readError(workspaceQuery.error) : null),
+    // Senza workspace il pannello resta utilizzabile sulla bozza del browser: lo si dice in chiaro.
+    workspaceError: workspaceError ?? (workspaceQuery.error ? t("simulation.scenarios.unavailable") : null),
     selectedScenario,
     selectScenario,
     baselineDraft,
