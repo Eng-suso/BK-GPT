@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.simulation.costs import FixedCosts, add_fixed_costs
@@ -56,3 +57,23 @@ def test_the_run_summary_includes_the_fixed_costs(monkeypatch):
     assert cost["breakdown"]["resources"] == base["total"]
     assert cost["breakdown"]["cases"] > 0
     assert cost["total"] == base["total"] + cost["breakdown"]["cases"]
+
+
+@pytest.mark.parametrize("extra", [
+    {"case_fixed_cost": -1},
+    {"case_fixed_cost": "2.5"},
+    {"tasks": [{"element_id": "Task_A", "mean_seconds": 600, "fixed_cost": -5}]},
+    {"tasks": [{"element_id": "Task_A", "mean_seconds": 600, "fixed_cost": "5"}]},
+])
+def test_an_invalid_fixed_cost_is_refused(extra):
+    from backend.app import app
+
+    with TestClient(app) as client:
+        cl = client.post("/v1/workspace/clients", json={"name": "BadCost"}).json()
+        pr = client.post("/v1/workspace/projects", json={"client_id": cl["id"], "name": "BadCost P"}).json()
+        ps = client.post(f"/v1/workspace/projects/{pr['id']}/processes", json={"name": "BadCost Proc"}).json()
+        url = f"/v1/workspace/bpmn-models/{ps['bpmn_model_id']}/simulation-runs"
+        response = client.post(url, json={"total_cases": 10, "current_bpmn_xml": MINIMAL_BPMN, **extra})
+        runs = client.get(url).json()
+    assert response.status_code == 422
+    assert runs == []

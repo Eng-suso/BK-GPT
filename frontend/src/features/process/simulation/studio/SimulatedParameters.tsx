@@ -93,6 +93,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
         {t(runModel.isError ? "simulation.activityInspector.modelError" : "simulation.activityInspector.legacyNote")}
       </p>
       <LegacyParameters run={run} elementId={elementId} isActivity={inSummary || hasTaskConfig(run.request, elementId)} element={element} lang={lang} t={t} provenanceState={provenance} />
+      <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
     </>;
   }
 
