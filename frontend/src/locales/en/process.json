@@ -133,7 +133,7 @@
       "replicationDelta": "Difference across replications",
       "pairedGroups": "A repeated {{a}} times, B {{b}}, with the same seeds: each replication of B is compared with its twin in A.",
       "independentGroups": "A repeated {{a}} times, B {{b}}, with different seeds: the two groups are compared with each other.",
-      "deltaHeader": "Difference B − A",
+      "deltaHeader": "Difference B − A",
       "outcome": "Outcome",
       "deltaVerdict": {
         "better": "B better",

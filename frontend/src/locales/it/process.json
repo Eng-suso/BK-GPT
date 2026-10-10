@@ -133,7 +133,7 @@
       "replicationDelta": "Differenza sulle ripetizioni",
       "pairedGroups": "A ripetuto {{a}} volte, B {{b}}, con gli stessi seed: ogni ripetizione di B si confronta con la sua gemella di A.",
       "independentGroups": "A ripetuto {{a}} volte, B {{b}}, con seed diversi: i due gruppi si confrontano fra loro.",
-      "deltaHeader": "Differenza B − A",
+      "deltaHeader": "Differenza B − A",
       "outcome": "Esito",
       "deltaVerdict": {
         "better": "B migliore",
