@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import secrets
 import socket
 import uuid
 from dataclasses import asdict, dataclass
@@ -34,7 +35,7 @@ from backend.simulation.log_processor import (
 )
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
-from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
+from backend.simulation.queue import ClaimedRun, SimulationQueueFull, assert_room_for, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
 from backend.simulation.sla import sla_outcome
@@ -252,6 +253,39 @@ def _derive_model_idempotency_key(
         ensure_ascii=False,
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def prepare_simulation_runs(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSimulationRunRequest,
+) -> list[tuple[dict, ProsimosScenario | None, str]]:
+    """Il run dello scenario, o un gruppo di ripetizioni con seed consecutivi (SIM-04).
+
+    Ogni ripetizione e' un run normale: stessa coda, stessa idempotenza (il seed
+    la distingue). Il gruppo sta nella richiesta di ciascuna, cosi' il pannello
+    le ritrova e ne calcola gli intervalli.
+    """
+    if request.replications == 1:
+        return [prepare_simulation_run(bpmn_model=bpmn_model, request=request)]
+    try:
+        assert_room_for(request.replications)
+    except SimulationQueueFull as exc:
+        raise SimulationCapacityError(str(exc)) from exc
+    group = uuid.uuid4().hex
+    base_seed = request.seed if request.seed is not None else secrets.randbelow(2**31)
+    name = request.scenario_name.strip() or "Baseline AS-IS"
+    return [
+        prepare_simulation_run(bpmn_model=bpmn_model, request=request.model_copy(update={
+            "seed": base_seed + index,
+            "replications": 1,
+            "replication_group": group,
+            "replication_index": index + 1,
+            "scenario_name": f"{name} · {index + 1}/{request.replications}",
+            "idempotency_key": f"{request.idempotency_key}-{index + 1}" if request.idempotency_key else None,
+        }))
+        for index in range(request.replications)
+    ]
 
 
 def prepare_simulation_run(

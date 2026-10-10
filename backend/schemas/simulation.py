@@ -154,6 +154,12 @@ class CreateSimulationRunRequest(BaseModel):
     arrival: SimArrivalConfig | None = None
     # L'obiettivo di servizio: il motore non lo usa, il run ne misura l'esito.
     sla: SimSlaConfig | None = None
+    # SIM-04: quante volte ripetere lo scenario, con seed consecutivi. Ogni
+    # ripetizione e' un run; insieme danno a ogni KPI un intervallo.
+    replications: int = Field(default=1, ge=1, le=20)
+    # Scritti dal servizio, non dal client: il gruppo e la posizione nel gruppo.
+    replication_group: str | None = Field(default=None, max_length=64)
+    replication_index: int | None = Field(default=None, ge=1, le=20)
     # SIM-03: i primi casi escono dai KPI (il sistema parte vuoto). Il replay li mostra.
     warmup_cases: int = Field(default=0, ge=0, le=10_000)
     # SIM-10: euro per ogni caso completato, oltre al tempo delle risorse.

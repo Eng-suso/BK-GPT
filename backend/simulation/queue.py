@@ -95,6 +95,22 @@ def _running():
     return (WorkspaceSimulationRun.status == "pending") & WorkspaceSimulationRun.started_at.is_not(None)
 
 
+def assert_room_for(runs: int) -> None:
+    """Prima di un gruppo di ripetizioni (SIM-04): c'e' posto in coda per tutte?
+
+    Senza questo controllo un gruppo potrebbe entrare a meta': meglio rifiutarlo
+    intero, con il motivo, che lasciare ripetizioni orfane.
+    """
+    with workspace_connection() as session:
+        reap_stale_runs(session)
+        waiting = session.execute(select(func.count()).select_from(WorkspaceSimulationRun).where(_queued())).scalar_one()
+    if waiting + runs > settings.simulation_max_queued_runs:
+        raise SimulationQueueFull(
+            f"Ci sono {waiting} simulazioni in attesa: {runs} ripetizioni non ci stanno nella coda "
+            f"(massimo {settings.simulation_max_queued_runs}). Riduci le ripetizioni o aspetta."
+        )
+
+
 def admit(session: Session) -> None:
     """Dentro la transazione che inserisce il run: c'e' posto in coda?
 

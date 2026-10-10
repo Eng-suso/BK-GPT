@@ -29,7 +29,7 @@ from backend.simulation.service import (
     drain_simulation_queue,
     export_simulation_event_log,
     prepare_simulation_model_run,
-    prepare_simulation_run,
+    prepare_simulation_runs,
     scenario_provenance_for_model,
     scenario_template_for_model,
     simulation_model_for_bpmn,
@@ -63,10 +63,11 @@ async def create_workspace_simulation_run(
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
 
     try:
-        run, _, _ = prepare_simulation_run(
+        # Una ripetizione o un gruppo (SIM-04): la risposta e' la prima, il gruppo sta nella richiesta.
+        run, _, _ = prepare_simulation_runs(
             bpmn_model=BpmnModelResponse(**model),
             request=request,
-        )
+        )[0]
     except SimulationCapacityError as exc:
         # 429 e non 400: la richiesta e' giusta, e' il momento a essere
         # sbagliato (coda piena). La stessa, fra qualche minuto, funziona.
