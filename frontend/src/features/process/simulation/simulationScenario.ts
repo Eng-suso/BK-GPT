@@ -1,7 +1,9 @@
 import {
   sanitizeAttributes,
   sanitizeGatewayRules,
+  sanitizePriorities,
   toModelPatch,
+  type BranchRuleDraft,
   type CaseAttributeDraft,
   type GatewayRulesDraft,
 } from "./caseRules";
@@ -45,7 +47,31 @@ export type TaskDraft = DurationDraft & {
   otherAssignments?: AssignmentDraft[];
   /** Le affermazioni dei file collegate come fonte della durata (SIM-07). */
   claims?: { claimId: number; label: string }[];
+  /** SIM-10: euro per ogni esecuzione, oltre al tempo delle risorse. Assente = nessuno. */
+  fixedCost?: number;
+  /** SIM-32: durata per categoria di un attributo; le categorie senza voce usano la base. */
+  durationBy?: { attributeId: string; variants: Record<string, DurationDraft> };
 };
+
+/** La durata di base di un'attivita', senza ruolo ne' altro. */
+export function durationOf(task: DurationDraft): DurationDraft {
+  const { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes } = task;
+  return { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes };
+}
+
+/** Le durate per categoria che si inviano: le categorie attuali dell'attributo, la base dove manca. */
+export function durationVariants(task: TaskDraft, attributes: CaseAttributeDraft[]): { attribute: string; variants: { value: string; duration: DurationDraft }[] } | null {
+  const attribute = attributes.find((a) => a.id === task.durationBy?.attributeId);
+  if (!task.durationBy || !attribute || attribute.kind !== "category") return null;
+  // Senza nome il backend non saprebbe a quale attributo legarla: la durata va rivista.
+  const name = attribute.name.trim();
+  const values = attribute.categories.map((c) => c.value.trim()).filter(Boolean);
+  if (!name || values.length === 0) return null;
+  return {
+    attribute: name,
+    variants: values.map((value) => ({ value, duration: task.durationBy?.variants[value] ?? durationOf(task) })),
+  };
+}
 
 /** Un calendario di lavoro dello scenario, con orari ``HH:MM``. */
 export type CalendarDraft = SimCalendar;
@@ -59,11 +85,30 @@ export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
   calendarId?: string;
 };
 
+/** SIM-13: il caso si chiude entro ``target`` ore o giorni per almeno ``sharePercent`` dei casi. */
+export type SlaDraft = { target: number; unit: "hours" | "days"; sharePercent: number };
+export type SlaIssue = "target" | "share";
+
+export function slaSeconds(sla: SlaDraft): number {
+  return Math.round(sla.target * (sla.unit === "days" ? 86_400 : 3600));
+}
+
+export function slaIssue(sla: SlaDraft): SlaIssue | null {
+  // Sui secondi inviati: un obiettivo che arrotondato vale zero non e' un obiettivo.
+  if (!(Number.isFinite(sla.target) && slaSeconds(sla) >= 1)) return "target";
+  if (!(Number.isFinite(sla.sharePercent) && sla.sharePercent > 0 && sla.sharePercent <= 100)) return "share";
+  return null;
+}
+
 export type ScenarioDraft = {
   scenarioName: string;
   totalCases: number;
   arrivalIntervalMinutes: number;
   arrival?: ArrivalDraft;
+  /** L'obiettivo di servizio: facoltativo, il run ne misura l'esito. */
+  sla?: SlaDraft;
+  /** SIM-10: euro per ogni caso completato. Assente = nessuno. */
+  caseFixedCost?: number;
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
@@ -75,6 +120,8 @@ export type ScenarioDraft = {
   caseAttributes?: CaseAttributeDraft[];
   /** Decisioni instradate per regola: element_id -> flow_id -> gruppi di condizioni. */
   gatewayRules?: Record<string, GatewayRulesDraft>;
+  /** SIM-12: chi passa prima in coda. Indice 0 = priorita' 1, servita per prima. */
+  casePriorities?: BranchRuleDraft[];
   /** Proposte di fonti scartate dal consulente: element_id -> id delle affermazioni. */
   dismissedClaims?: Record<string, number[]>;
 };
@@ -153,11 +200,18 @@ export function calendarIssue(calendar: CalendarDraft): CalendarIssue | null {
 }
 
 export function scenarioParameterIssues(draft: ScenarioDraft) {
+  const attributes = draft.caseAttributes ?? [];
   const durations = Object.values(draft.tasks).filter((task) =>
-    [task, ...(task.otherAssignments ?? [])].some((duration) => taskDurationIssue(duration) !== null)).length;
+    [task, ...(task.otherAssignments ?? []), ...(durationVariants(task, attributes)?.variants.map((v) => v.duration) ?? [])]
+      .some((duration) => taskDurationIssue(duration) !== null)
+    // Una durata per categoria su un attributo tolto o non a categorie va rivista.
+    || (task.durationBy !== undefined && durationVariants(task, attributes) === null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null;
-  return { durations, calendars, arrival, ready: durations === 0 && calendars === 0 && !arrival };
+  const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
+  const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
+  const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
+  return { durations, calendars, arrival, sla, costs, ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs };
 }
 
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
@@ -232,6 +286,13 @@ function taskMeanSeconds(task: DurationDraft): number {
   return Math.max(1, Math.round(minutes * 60));
 }
 
+function byCategory(task: TaskDraft, attributes: CaseAttributeDraft[]) {
+  const variants = durationVariants(task, attributes);
+  return variants
+    ? { durationBy: { attribute: variants.attribute, variants: variants.variants.map((v) => ({ value: v.value, ...durationInput(v.duration) })) } }
+    : {};
+}
+
 function durationInput(duration: DurationDraft) {
   const parameters = DISTRIBUTION_PARAMETERS[duration.distribution];
   return {
@@ -263,6 +324,11 @@ export function scenarioToInput(
   const arrivalCalendar = draft.arrival?.calendarId;
   return {
     ...base,
+    ...(draft.caseFixedCost ? { caseFixedCost: draft.caseFixedCost } : {}),
+    ...(draft.sla ? { sla: {
+      targetSeconds: slaSeconds(draft.sla),
+      share: draft.sla.sharePercent / 100,
+    } } : {}),
     arrival: {
       ...durationInput(arrivalDuration(draft)),
       calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
@@ -281,11 +347,13 @@ export function scenarioToInput(
         ...durationInput(task),
         resourceId: task.resourceId,
         ...(task.claims?.length ? { claims: task.claims } : {}),
+        ...(task.fixedCost ? { fixedCost: task.fixedCost } : {}),
+        ...(byCategory(task, draft.caseAttributes ?? [])),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),
     calendars: draft.calendars ?? [],
-    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}),
+    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}, draft.casePriorities ?? []),
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
       branches: Object.entries(branches).map(([flowId, probability]) => ({
@@ -393,11 +461,21 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
         : [],
       caseAttributes: sanitizeAttributes(parsed.caseAttributes),
       arrival: sanitizeArrival(parsed.arrival),
+      sla: sanitizeSla(parsed.sla),
       gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
+      casePriorities: sanitizePriorities(parsed.casePriorities),
     };
   } catch {
     return structuredClone(DEFAULT_SCENARIO);
   }
+}
+
+function sanitizeSla(raw: unknown): SlaDraft | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Partial<SlaDraft>;
+  const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+  if (!finite(value.target) || !finite(value.sharePercent)) return undefined;
+  return { target: value.target, sharePercent: value.sharePercent, unit: value.unit === "hours" ? "hours" : "days" };
 }
 
 function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {

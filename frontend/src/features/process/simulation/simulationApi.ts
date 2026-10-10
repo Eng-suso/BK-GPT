@@ -34,6 +34,8 @@ export async function runProsimosSimulation(
         default_cost_per_hour: input.defaultCostPerHour,
         resource_amount: input.resourceAmount,
         resource_name: input.resourceName,
+        sla: input.sla && { target_seconds: input.sla.targetSeconds, share: input.sla.share },
+        case_fixed_cost: input.caseFixedCost,
         arrival: input.arrival && {
           mean_seconds: input.arrival.meanSeconds,
           distribution: input.arrival.distribution,
@@ -58,6 +60,18 @@ export async function runProsimosSimulation(
           min_seconds: task.minSeconds,
           max_seconds: task.maxSeconds,
           claims: task.claims?.map((claim) => ({ claim_id: claim.claimId, label: claim.label })),
+          fixed_cost: task.fixedCost,
+          duration_by: task.durationBy && {
+            attribute: task.durationBy.attribute,
+            variants: task.durationBy.variants.map((v) => ({
+              value: v.value,
+              mean_seconds: v.meanSeconds,
+              distribution: v.distribution,
+              std_seconds: v.stdSeconds,
+              min_seconds: v.minSeconds,
+              max_seconds: v.maxSeconds,
+            })),
+          },
           other_assignments: task.otherAssignments?.map((other) => ({
             resource_id: other.resourceId,
             mean_seconds: other.meanSeconds,

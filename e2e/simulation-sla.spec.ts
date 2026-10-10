@@ -1,0 +1,125 @@
+import { test, expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+
+const studio = "/projects/sla-project/processes/sla-process/simulation";
+const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_rules" targetNamespace="https://example.test/rules">
+<bpmn:process id="Process_rules" isExecutable="false"><bpmn:startEvent id="Start" /><bpmn:task id="T_receive" name="Ricevi ordine" /><bpmn:exclusiveGateway id="G_split" name="Importo alto?" /><bpmn:task id="T_approve" name="Approva" /><bpmn:task id="T_pay" name="Paga" /><bpmn:endEvent id="End" />
+<bpmn:sequenceFlow id="F0" sourceRef="Start" targetRef="T_receive" /><bpmn:sequenceFlow id="F1" sourceRef="T_receive" targetRef="G_split" /><bpmn:sequenceFlow id="F_high" sourceRef="G_split" targetRef="T_approve" /><bpmn:sequenceFlow id="F_low" sourceRef="G_split" targetRef="T_pay" /><bpmn:sequenceFlow id="F2" sourceRef="T_approve" targetRef="T_pay" /><bpmn:sequenceFlow id="F3" sourceRef="T_pay" targetRef="End" /></bpmn:process>
+<bpmndi:BPMNDiagram id="Diagram_rules"><bpmndi:BPMNPlane id="Plane_rules" bpmnElement="Process_rules">
+<bpmndi:BPMNShape id="Start_di" bpmnElement="Start"><dc:Bounds x="60" y="120" width="36" height="36" /></bpmndi:BPMNShape><bpmndi:BPMNShape id="T_receive_di" bpmnElement="T_receive"><dc:Bounds x="140" y="98" width="120" height="80" /></bpmndi:BPMNShape><bpmndi:BPMNShape id="G_split_di" bpmnElement="G_split" isMarkerVisible="true"><dc:Bounds x="300" y="113" width="50" height="50" /></bpmndi:BPMNShape><bpmndi:BPMNShape id="T_approve_di" bpmnElement="T_approve"><dc:Bounds x="400" y="20" width="120" height="80" /></bpmndi:BPMNShape><bpmndi:BPMNShape id="T_pay_di" bpmnElement="T_pay"><dc:Bounds x="560" y="98" width="120" height="80" /></bpmndi:BPMNShape><bpmndi:BPMNShape id="End_di" bpmnElement="End"><dc:Bounds x="720" y="120" width="36" height="36" /></bpmndi:BPMNShape>
+<bpmndi:BPMNEdge id="F0_di" bpmnElement="F0"><di:waypoint x="96" y="138" /><di:waypoint x="140" y="138" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="F1_di" bpmnElement="F1"><di:waypoint x="260" y="138" /><di:waypoint x="300" y="138" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="F_high_di" bpmnElement="F_high"><di:waypoint x="325" y="113" /><di:waypoint x="325" y="60" /><di:waypoint x="400" y="60" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="F_low_di" bpmnElement="F_low"><di:waypoint x="350" y="138" /><di:waypoint x="560" y="138" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="F2_di" bpmnElement="F2"><di:waypoint x="520" y="60" /><di:waypoint x="620" y="60" /><di:waypoint x="620" y="98" /></bpmndi:BPMNEdge><bpmndi:BPMNEdge id="F3_di" bpmnElement="F3"><di:waypoint x="680" y="138" /><di:waypoint x="720" y="138" /></bpmndi:BPMNEdge>
+</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>`;
+
+const tasks = [
+  { element_id: "T_receive", name: "Ricevi ordine", type: "task" },
+  { element_id: "T_approve", name: "Approva", type: "task" },
+  { element_id: "T_pay", name: "Paga", type: "task" },
+];
+const template = {
+  tasks,
+  resources: [],
+  standard_calendar: { id: "delir-calendar-standard", name: "Standard", periods: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "09:00", end: "17:00" }] },
+  gateways: [{ element_id: "G_split", name: "Importo alto?", type: "exclusiveGateway", branches: [
+    { flow_id: "F_high", flow_name: "", target_name: "Approva" },
+    { flow_id: "F_low", flow_name: "", target_name: "Paga" },
+  ] }],
+};
+// Bozza pronta: ruolo confermato e assegnato, cosi' il test parte dalle regole.
+const draft = {
+  scenarioName: "Due giorni", totalCases: 50, arrivalIntervalMinutes: 30, defaultTaskMinutes: 15,
+  resources: [{ id: "r1", name: "Ufficio acquisti", costPerHour: 40, amount: 2, parametersConfirmed: true }],
+  tasks: Object.fromEntries(tasks.map((t) => [t.element_id, { meanMinutes: 20, distribution: "norm", resourceId: "r1", assignmentSource: "manual" }])),
+  gateways: { G_split: { F_high: 50, F_low: 50 } },
+};
+
+const run = {
+  id: 42, bpmn_model_id: "sla-model", process_id: "sla-process", scenario_name: "Due giorni",
+  engine: "prosimos", status: "completed", request: {}, scenario: {}, result: {}, outputs: [], error: null,
+  created_at: "2026-10-08T09:00:00Z", completed_at: "2026-10-08T09:01:00Z",
+  summary: { casesCompleted: 50, cycle: { avg: 3600, p50: 3400, p90: 5200, p95: 5600 }, waiting: { avg: 900, p95: 1500, share: 0.25 },
+    processing: { avg: 2700 }, cost: { total: 3000, perCase: 60 }, throughputPerHour: 2,
+    byActivity: [{ el: "T_approve", name: "Approva", wait: { avg: 600 } }, { el: "T_pay", name: "Paga", wait: { avg: 300 } }],
+    byResource: [], bottleneck: { el: "T_approve", name: "Approva" },
+    sla: { target_seconds: 172800, share_target: 0.9, share_within: 0.87, cases: 50, late_cases: 7, met: false } },
+};
+const replay = {
+  schemaVersion: 1, meta: { start: "2026-10-08T09:00:00Z", durationSec: 300, totalCases: 1, sampledCases: 1, bucketSec: 100 },
+  elements: { T_receive: { name: "Ricevi ordine" }, T_approve: { name: "Approva" }, T_pay: { name: "Paga" } },
+  cases: [{ id: "0", cycleSec: 300, events: [{ el: "T_receive", enable: 0, start: 0, end: 100, res: "Ufficio" }, { el: "T_pay", enable: 100, start: 150, end: 300, res: "Ufficio" }] }],
+  series: { t: [0, 100, 200], byElement: {}, byResource: {}, global: { wip: [1, 1, 0], queued: [0, 0, 0], done: [0, 0, 1], throughputPerHour: [0, 0, 12], costAccrued: [0, 5, 10], avgCycleSec: [0, 0, 300] } },
+  flows: {},
+};
+const rule = (op: string) => ({ any_of: [[{ attribute: "importo", operator: op, value: 5000 }]] });
+const model = {
+  schema_version: 1,
+  arrival: { interarrival: { kind: "exponential", mean: 1800, minimum: 0, maximum: 18000 }, calendar_id: "delir-calendar-standard" },
+  calendars: [{ id: "delir-calendar-standard", name: "Standard", periods: [{ from_day: "MONDAY", to_day: "FRIDAY", begin: "09:00:00", end: "17:00:00" }] }],
+  pools: [{ id: "p", name: "Ufficio", resources: [{ id: "r1", name: "Ufficio acquisti", cost_per_hour: 40, amount: 2, calendar_id: "delir-calendar-standard" }] }],
+  activities: tasks.map((t) => ({ element_id: t.element_id, name: t.name, assignments: [{ resource_id: "r1", duration: { kind: "normal", mean: 1200, std: 120, minimum: 840, maximum: 1560 }, provenance: { origin: "manual" } }] })),
+  gateways: [{ element_id: "G_split", branches: [
+    { flow_id: "F_high", probability: 0.5, condition: rule(">"), provenance: { origin: "manual" } },
+    { flow_id: "F_low", probability: 0.5, condition: rule("<="), provenance: { origin: "manual" } },
+  ] }],
+  case_attributes: [{ name: "importo", distribution: { kind: "uniform", minimum: 100, maximum: 12000 }, provenance: { origin: "manual" } }],
+};
+
+async function fixture(page: Page, runs: unknown[] = []) {
+  await page.addInitScript((stored) => {
+    Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" });
+    localStorage.setItem("delir-language", "it");
+    if (!sessionStorage.getItem("seeded")) {
+      localStorage.setItem("delir-sim-scenario:sla-model", stored);
+      sessionStorage.setItem("seeded", "1");
+    }
+  }, JSON.stringify(draft));
+  await page.route("http://127.0.0.1:8000/**", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    let data: unknown = [];
+    if (path === "/v1/workspace/projects/sla-project") data = {
+      id: "sla-project", client_id: "demo", client: "Azienda Demo", name: "Acquisti", phase: "AS-IS", status: "In corso", progress: 40, processes: 1,
+      next_step: "Simulare la soglia", milestones: [], open_issues: [], deliverables: [],
+      process_items: [{ id: "sla-process", project_id: "sla-project", bpmn_model_id: "sla-model", name: "Ciclo passivo", stage: "AS-IS", status: "Da validare", owner: "Acquisti", readiness: 80 }],
+    };
+    else if (path.endsWith("/simulation-template")) data = template;
+    else if (path.endsWith("/simulation-provenance")) data = { has_discovery: false, elements: [] };
+    else if (path.endsWith("/simulation-runs") && request.method() === "POST") data = { ...run, status: "pending", request: request.postDataJSON() };
+    else if (path.endsWith("/simulation-runs")) data = runs;
+    else if (path.endsWith("/replay")) data = { run_id: 42, schema_version: 1, replay };
+    else if (path.endsWith("/simulation-runs/42/model")) data = { run_id: 42, model };
+    else if (path.endsWith("/experiments")) data = { bottleneck_el: null, bottleneck_name: null, factors: {}, experiments: [] };
+    else if (path.endsWith("/sla-model")) data = { id: "sla-model", process_id: "sla-process", name: "Ciclo passivo", xml };
+    await route.fulfill({ json: data });
+  });
+}
+
+test("the consultant sets a service objective and the run carries it", async ({ page }) => {
+  await fixture(page);
+  await page.goto(`${studio}/scenario`);
+
+  const sla = page.locator("[data-sim-sla]");
+  await sla.getByRole("button", { name: "Aggiungi un obiettivo di servizio" }).click();
+  await expect(sla).toContainText("Almeno il 90% dei casi deve chiudersi entro 2 giorni.");
+  await sla.getByLabel("Entro").fill("36");
+  await sla.getByLabel("Unità").selectOption("hours");
+  await expect(sla).toContainText("Almeno il 90% dei casi deve chiudersi entro 36 ore.");
+
+  const axe = await new AxeBuilder({ page }).include("[data-sim-sla]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+
+  const request = page.waitForRequest((req) => req.method() === "POST" && req.url().endsWith("/simulation-runs"));
+  await page.getByRole("button", { name: "Avvia simulazione", exact: true }).click();
+  expect((await request).postDataJSON().sla).toEqual({ target_seconds: 129600, share: 0.9 });
+});
+
+test("the results say whether the run met the service objective", async ({ page }) => {
+  await fixture(page, [run]);
+  await page.goto(`${studio}/workspace/42?panel=overview`);
+  const outcome = page.locator("[data-sim-sla-outcome]");
+  await expect(outcome).toContainText("Non rispettato");
+  await expect(outcome).toContainText("87% dei casi chiusi entro 2g (obiettivo 90%).");
+  await expect(outcome).toContainText("7 casi su 50 oltre il tempo.");
+  const axe = await new AxeBuilder({ page }).include("[data-sim-sla-outcome]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+});

@@ -65,57 +65,88 @@ export function GatewayRulesEditor({ gateway, rules, attributes, onChange }: {
   onChange: (rules: GatewayRulesDraft) => void;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
-  const words = { and: t("simulation.activityInspector.and"), or: t("simulation.config.ruleOr") };
   const setBranch = (flowId: string, groups: BranchRuleDraft) => onChange({ ...rules, [flowId]: groups });
 
   return (
     <div className="grid gap-3">
       <p className="text-xs leading-relaxed text-muted-foreground">{t("simulation.config.gatewayRuleHint")}</p>
       {gateway.branches.map((branch) => {
-        const groups = rules[branch.flow_id] ?? [];
-        const issue = ruleIssue(groups, attributes);
-        const issueId = `sim-rule-issue-${gateway.element_id}-${branch.flow_id}`;
         const label = branch.target_name || branch.flow_name || branch.flow_id;
         return (
-          <fieldset key={branch.flow_id} className="@container/branch min-w-0 rounded-lg border border-border bg-card p-2.5" aria-describedby={issue ? issueId : undefined}>
-            <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.branchTo", { name: label })}</legend>
-            <div className="grid gap-2">
-              {groups.map((group, groupIndex) => (
-                <div key={groupIndex} className="grid gap-1.5">
-                  {groupIndex > 0 && <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{words.or}</p>}
-                  {group.map((rule, ruleIndex) => (
-                    <RuleRow
-                      key={ruleIndex}
-                      rule={rule}
-                      attributes={attributes}
-                      prefix={ruleIndex === 0 ? t("simulation.config.ruleIf") : words.and}
-                      branchLabel={label}
-                      describedBy={issue ? issueId : undefined}
-                      onChange={(next) => setBranch(branch.flow_id, groups.map((g, gi) => gi === groupIndex ? g.map((r, ri) => (ri === ruleIndex ? next : r)) : g))}
-                      onRemove={() => setBranch(branch.flow_id, groups
-                        .map((g, gi) => (gi === groupIndex ? g.filter((_, ri) => ri !== ruleIndex) : g))
-                        .filter((g) => g.length > 0))}
-                    />
-                  ))}
-                  <Button type="button" size="sm" variant="ghost" className="h-7 w-fit gap-1 px-2 text-xs"
-                    onClick={() => setBranch(branch.flow_id, groups.map((g, gi) => (gi === groupIndex ? [...g, defaultRule(attributes)] : g)))}>
-                    <Plus aria-hidden className="size-3.5" />
-                    {t("simulation.config.addCondition")}
-                  </Button>
-                </div>
-              ))}
-              <Button type="button" size="sm" variant="outline" className="h-7 w-fit gap-1 px-2 text-xs"
-                onClick={() => setBranch(branch.flow_id, [...groups, [defaultRule(attributes)]])}>
-                <Plus aria-hidden className="size-3.5" />
-                {t(groups.length ? "simulation.config.addAlternative" : "simulation.config.addRule")}
-              </Button>
-              {!issue && <p className="text-xs text-muted-foreground">{t("simulation.config.ruleReads", { rule: ruleSentence(groups, attributes, words) })}</p>}
-              {issue && <p id={issueId} role="alert" className="text-xs font-medium text-destructive">{t(`simulation.config.ruleIssue.${issue}`)}</p>}
-            </div>
-          </fieldset>
+          <ConditionGroups
+            key={branch.flow_id}
+            id={`${gateway.element_id}-${branch.flow_id}`}
+            legend={t("simulation.config.branchTo", { name: label })}
+            subject={label}
+            groups={rules[branch.flow_id] ?? []}
+            attributes={attributes}
+            onChange={(groups) => setBranch(branch.flow_id, groups)}
+          />
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Una condizione sugli attributi del caso: gruppi in "oppure", condizioni di un gruppo in "e",
+ * riletta come frase. La usano i rami per regola (A2-1) e le priorita' dei casi (SIM-12).
+ */
+export function ConditionGroups({ id, legend, subject, groups, attributes, onChange, action, sentenceKey = "simulation.config.ruleReads" }: {
+  id: string;
+  legend: string;
+  /** Nome breve per le etichette accessibili dei campi. */
+  subject: string;
+  groups: BranchRuleDraft;
+  attributes: CaseAttributeDraft[];
+  onChange: (groups: BranchRuleDraft) => void;
+  /** Un controllo accanto alla legenda (es. togli la priorita'). */
+  action?: React.ReactNode;
+  /** Come si rilegge la condizione: un ramo "va qui", una priorita' "passa prima". */
+  sentenceKey?: string;
+}): React.JSX.Element {
+  const { t } = useTranslation("process");
+  const words = { and: t("simulation.activityInspector.and"), or: t("simulation.config.ruleOr") };
+  const issue = ruleIssue(groups, attributes);
+  const issueId = `sim-rule-issue-${id}`;
+  return (
+    <fieldset className="@container/branch min-w-0 rounded-lg border border-border bg-card p-2.5" aria-describedby={issue ? issueId : undefined}>
+      <legend className="px-1 text-xs font-medium text-foreground">{legend}</legend>
+      {action && <div className="-mt-1 mb-1 flex justify-end">{action}</div>}
+      <div className="grid gap-2">
+        {groups.map((group, groupIndex) => (
+          <div key={groupIndex} className="grid gap-1.5">
+            {groupIndex > 0 && <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{words.or}</p>}
+            {group.map((rule, ruleIndex) => (
+              <RuleRow
+                key={ruleIndex}
+                rule={rule}
+                attributes={attributes}
+                prefix={ruleIndex === 0 ? t("simulation.config.ruleIf") : words.and}
+                branchLabel={subject}
+                describedBy={issue ? issueId : undefined}
+                onChange={(next) => onChange(groups.map((g, gi) => gi === groupIndex ? g.map((r, ri) => (ri === ruleIndex ? next : r)) : g))}
+                onRemove={() => onChange(groups
+                  .map((g, gi) => (gi === groupIndex ? g.filter((_, ri) => ri !== ruleIndex) : g))
+                  .filter((g) => g.length > 0))}
+              />
+            ))}
+            <Button type="button" size="sm" variant="ghost" className="h-7 w-fit gap-1 px-2 text-xs"
+              onClick={() => onChange(groups.map((g, gi) => (gi === groupIndex ? [...g, defaultRule(attributes)] : g)))}>
+              <Plus aria-hidden className="size-3.5" />
+              {t("simulation.config.addCondition")}
+            </Button>
+          </div>
+        ))}
+        <Button type="button" size="sm" variant="outline" className="h-7 w-fit gap-1 px-2 text-xs"
+          onClick={() => onChange([...groups, [defaultRule(attributes)]])}>
+          <Plus aria-hidden className="size-3.5" />
+          {t(groups.length ? "simulation.config.addAlternative" : "simulation.config.addRule")}
+        </Button>
+        {!issue && <p className="text-xs text-muted-foreground">{t(sentenceKey, { rule: ruleSentence(groups, attributes, words) })}</p>}
+        {issue && <p id={issueId} role="alert" className="text-xs font-medium text-destructive">{t(`simulation.config.ruleIssue.${issue}`)}</p>}
+      </div>
+    </fieldset>
   );
 }
 

@@ -8,7 +8,7 @@ import logging
 import os
 import socket
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Literal
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -36,6 +36,8 @@ from backend.simulation.models import ProsimosScenario, ProsimosSimulationReques
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
+from backend.simulation.costs import add_fixed_costs
+from backend.simulation.sla import sla_outcome
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.scenario_builder import (
@@ -89,6 +91,10 @@ def _derive_idempotency_key(
             "resource_name": request.resource_name,
             # Stesso scenario, seed diverso: un altro campione, un altro run.
             "seed": request.seed,
+            # Un obiettivo di servizio diverso cambia cio' che il run misura.
+            "sla": request.sla.model_dump() if request.sla else None,
+            "case_fixed_cost": request.case_fixed_cost,
+            "fixed_costs": {t.element_id: t.fixed_cost for t in request.tasks or [] if t.fixed_cost},
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -292,6 +298,8 @@ def _register_run(
     request: RunRequest,
     idempotency_key: str,
 ) -> tuple[dict, ProsimosScenario | None, str]:
+    # Il motore esegue il BPMN riscritto, se lo scenario lo ha riscritto (SIM-32).
+    bpmn_xml = scenario.bpmn_xml or bpmn_xml
     existing = find_active_run_by_key(
         bpmn_model_id=bpmn_model.id,
         idempotency_key=idempotency_key,
@@ -369,6 +377,16 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
     summary, replay = await asyncio.to_thread(
         _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario
     )
+    log_csv = getattr(result, "event_log_csv", None)
+    if summary is not None and claimed.sla and log_csv:
+        # SIM-13: l'esito dell'obiettivo di servizio, sulla stessa definizione di cycle dei KPI.
+        outcome = await asyncio.to_thread(
+            sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share
+        )
+        if outcome is not None:
+            summary["sla"] = asdict(outcome)
+    if summary is not None and claimed.fixed_costs:
+        summary = add_fixed_costs(summary, claimed.fixed_costs)
     return await asyncio.to_thread(
         complete_simulation_run,
         run_id=claimed.run_id,

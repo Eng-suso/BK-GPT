@@ -34,10 +34,13 @@ import { ProvenanceChip } from "./ProvenanceChip";
 import { TaskDurationFields } from "./TaskDurationFields";
 import { OtherAssignments } from "./OtherAssignments";
 import { ActivitySources } from "./ActivitySources";
+import { ServiceLevelFields } from "./ServiceLevel";
+import { DurationByCategory } from "./DurationByCategory";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
-import { caseRuleIssues, type GatewayRulesDraft } from "./caseRules";
+import { attributeUsage, caseRuleIssues, type GatewayRulesDraft } from "./caseRules";
+import { CasePrioritiesSection } from "./CasePrioritiesSection";
 
 const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
   pending: "pending",
@@ -132,9 +135,10 @@ export function SimulationConfigRail({
   const calendars = draft.calendars ?? [];
   const attributes = draft.caseAttributes ?? [];
   const gatewayRules = draft.gatewayRules ?? {};
-  const ruleIssues = caseRuleIssues(attributes, gatewayRules);
-  const attributeUse = Object.fromEntries(attributes.map((a) => [a.id,
-    Object.values(gatewayRules).filter((branches) => Object.values(branches).flat(2).some((r) => r.attributeId === a.id)).length]));
+  const priorities = draft.casePriorities ?? [];
+  const ruleIssues = caseRuleIssues(attributes, gatewayRules, priorities);
+  const attributeUse = attributeUsage(attributes, gatewayRules, priorities,
+    Object.values(draft.tasks).flatMap((task) => (task.durationBy ? [task.durationBy.attributeId] : [])));
   const canRun = Boolean(template) && !templateLoading && resourceIssues.ready && parameterIssues.ready && ruleIssues.ready;
   const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
     patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
@@ -151,7 +155,7 @@ export function SimulationConfigRail({
         <div className="min-w-0">
           {!workspace && <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>}
           {workspace ? <nav aria-label={t("simulation.workspace.sections")} className="flex flex-wrap gap-1">
-            {["globals", "resources", "calendars", "activities", "attributes", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
+            {["globals", "resources", "calendars", "activities", "attributes", "priorities", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
               const sections = scrollRef.current?.querySelectorAll("section");
               const target = Array.from(sections ?? []).find((section) => section.querySelector("h4")?.textContent?.startsWith(t(`simulation.config.${key}`)));
               target?.scrollIntoView({ block: "start" });
@@ -203,7 +207,7 @@ export function SimulationConfigRail({
                 onChange={(e) => patch({ scenarioName: e.target.value })}
               />
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <NumberField
                 label={t("simulation.fields.cases")}
                 value={draft.totalCases}
@@ -217,6 +221,10 @@ export function SimulationConfigRail({
                 min={1}
                 onChange={(v) => patch({ defaultTaskMinutes: v })}
               />
+              <FieldLabel label={t("simulation.config.caseFixedCost")}>
+                <Input className="h-8" type="number" min={0} step="any" value={draft.caseFixedCost ?? ""}
+                  onChange={(e) => patch({ caseFixedCost: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
             </div>
             <fieldset className="sim-arrivals mt-1 grid gap-2 rounded-md border border-border p-2.5" data-sim-arrivals>
               <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.arrivals")}</legend>
@@ -240,6 +248,7 @@ export function SimulationConfigRail({
                 </select>
               </label>
             </fieldset>
+            <ServiceLevelFields sla={draft.sla} onChange={(next) => patch({ sla: next })} />
             {provenance && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
                 <ChipRow
@@ -350,8 +359,11 @@ export function SimulationConfigRail({
             {parameterIssues.durations > 0 && <p>{t("simulation.config.invalidDurations", { count: parameterIssues.durations })}</p>}
             {parameterIssues.calendars > 0 && <p>{t("simulation.config.invalidCalendars", { count: parameterIssues.calendars })}</p>}
             {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
+            {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
+            {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
+            {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}
           </div>}
         </DetailPanelSection>
 
@@ -435,6 +447,20 @@ export function SimulationConfigRail({
                         </Select>
                       </FieldLabel>
                     </div>
+                    <DurationByCategory
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      attributes={attributes}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
+                    <label className="sim-task-cost mt-1.5 grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.fixedCost")}</span>
+                      <Input className="h-8" type="number" min={0} step="any"
+                        aria-label={`${t("simulation.config.fixedCost")} · ${task.name}`}
+                        value={cfg.fixedCost ?? ""}
+                        onChange={(e) => patch({ tasks: { ...draft.tasks, [task.element_id]: { ...cfg, fixedCost: e.target.value === "" ? undefined : Number(e.target.value) } } })} />
+                    </label>
                     <OtherAssignments
                       elementId={task.element_id}
                       taskName={task.name}
@@ -463,6 +489,10 @@ export function SimulationConfigRail({
 
         <DetailPanelSection title={t("simulation.config.attributes")}>
           <CaseAttributesSection attributes={attributes} usedBy={attributeUse} onChange={(next) => patch({ caseAttributes: next })} />
+        </DetailPanelSection>
+
+        <DetailPanelSection title={t("simulation.config.priorities")}>
+          <CasePrioritiesSection priorities={priorities} attributes={attributes} onChange={(next) => patch({ casePriorities: next })} />
         </DetailPanelSection>
 
         {template && template.gateways.length > 0 && (

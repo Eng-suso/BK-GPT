@@ -347,7 +347,40 @@
       "dismissSource": "Non pertinente",
       "dismissSourceFor": "Non pertinente per {{task}}: {{what}}",
       "unlinkSource": "Scollega",
-      "unlinkSourceFor": "Scollega da {{task}}: {{what}}"
+      "unlinkSourceFor": "Scollega da {{task}}: {{what}}",
+      "priorities": "Priorità dei casi",
+      "prioritiesHint": "Quando più casi aspettano la stessa risorsa, passano prima quelli della priorità 1, poi quelli della 2. Gli altri aspettano in ordine di arrivo.",
+      "priorityLevel": "Priorità {{level}}",
+      "removePriority": "Togli la priorità {{level}}",
+      "removePriorityShort": "Togli",
+      "addPriority": "Aggiungi una priorità",
+      "prioritiesNeedAttribute": "Per dare una priorità, definisci prima un attributo del caso.",
+      "invalidPriorities_one": "Priorità da completare: {{count}}",
+      "invalidPriorities_other": "Priorità da completare: {{count}}",
+      "priorityReads": "Passano prima i casi con {{rule}}.",
+      "sla": "Obiettivo di servizio",
+      "slaHint": "Facoltativo. Entro quanto deve chiudersi un caso, e per quanti casi: il run dice se l'obiettivo è rispettato.",
+      "slaTarget": "Entro",
+      "slaUnit": "Unità",
+      "slaHours": "Ore",
+      "slaDays": "Giorni",
+      "slaShare": "Per almeno il % dei casi",
+      "slaReads": "Almeno il {{share}}% dei casi deve chiudersi entro {{target}} {{unit}}.",
+      "slaAdd": "Aggiungi un obiettivo di servizio",
+      "slaRemove": "Togli l'obiettivo",
+      "slaIssue": {
+        "target": "Indica un tempo maggiore di zero.",
+        "share": "La quota va da 1 a 100."
+      },
+      "invalidSla": "Obiettivo di servizio da correggere.",
+      "fixedCost": "Costo fisso per esecuzione, €",
+      "caseFixedCost": "Costo fisso per caso, €",
+      "invalidCosts": "Costi fissi da correggere: devono essere zero o più.",
+      "durationBy": "La durata cambia con",
+      "durationBySame": "Uguale per tutti i casi",
+      "durationByHint": "Ogni categoria di «{{attribute}}» ha la sua durata; parte da quella di base.",
+      "durationByCategory": "Casi con {{attribute}} = {{value}}",
+      "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -386,7 +419,17 @@
         "processing": "Lavoro medio",
         "cycle": "Attraversamento",
         "cost": "Costo medio"
-      }
+      },
+      "slaMet": "Rispettato",
+      "slaMissed": "Non rispettato",
+      "slaWithin": "{{share}} dei casi chiusi entro {{target}} (obiettivo {{goal}}).",
+      "slaLate_one": "{{count}} caso su {{cases}} oltre il tempo.",
+      "slaLate_other": "{{count}} casi su {{cases}} oltre il tempo.",
+      "costTitle": "Costo dello scenario",
+      "costTotal": "{{total}} in tutto, {{perCase}} per caso.",
+      "costResources": "Tempo delle risorse: {{value}}",
+      "costActivities": "Costi fissi delle attività: {{value}}",
+      "costCases": "Costi fissi per caso: {{value}}"
     },
     "jsonSummary": "Dati grezzi Prosimos",
     "status": {
@@ -422,7 +465,12 @@
       "sharedActivity": "Più risorse svolgono questa attività: ogni caso è andato alla prima libera, con la sua durata.",
       "arrivals": "Arrivi dei casi",
       "interarrival": "Tempo medio fra due arrivi",
-      "arrivalCalendar": "Calendario degli arrivi"
+      "arrivalCalendar": "Calendario degli arrivi",
+      "prioritiesNote": "Gli altri casi aspettavano in ordine di arrivo.",
+      "fixedCost": "Costo fisso: {{value}} per ogni esecuzione, oltre al tempo della risorsa.",
+      "durationBy": "Durata per {{attribute}}",
+      "durationByCategory": "{{attribute}} = {{value}}",
+      "durationByOthers": "Gli altri casi hanno usato la durata delle risorse qui sotto."
     },
     "provenance": {
       "label": "Origine",

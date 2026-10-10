@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.simulation.ir.patch import ModelPatch
 
@@ -67,11 +67,40 @@ class SimArrivalConfig(BaseModel):
     calendar_id: str | None = Field(default=None, max_length=64)
 
 
+class SimSlaConfig(BaseModel):
+    """L'obiettivo di servizio dello scenario (SIM-13): il caso si chiude entro
+    ``target_seconds`` per almeno la quota ``share`` dei casi (0-1)."""
+
+    # Stretto: "86400" come stringa e' un errore del client, non un numero da indovinare.
+    model_config = ConfigDict(strict=True)
+
+    target_seconds: float = Field(gt=0)
+    share: float = Field(gt=0, le=1)
+
+
 class SimClaimRef(BaseModel):
     """Un'affermazione di un file del cliente che il consulente ha collegato all'attivita'."""
 
     claim_id: int = Field(ge=1)
     label: str = Field(default="", max_length=200)
+
+
+class SimDurationVariantConfig(BaseModel):
+    """La durata per i casi con una categoria dell'attributo (SIM-32)."""
+
+    value: str = Field(min_length=1, max_length=120)
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "norm"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+
+
+class SimDurationByConfig(BaseModel):
+    """La durata dell'attivita' cambia con un attributo a categorie del caso."""
+
+    attribute: str = Field(min_length=1, max_length=64)
+    variants: list[SimDurationVariantConfig] = Field(min_length=1, max_length=20)
 
 
 class SimTaskConfig(BaseModel):
@@ -98,6 +127,10 @@ class SimTaskConfig(BaseModel):
     # Le affermazioni confermate dal consulente (SIM-07): diventano la fonte
     # ``declared`` della durata. Il valore resta quello del pannello.
     claims: list[SimClaimRef] = Field(default_factory=list, max_length=10)
+    # SIM-32: durate diverse per categoria di un attributo del caso.
+    duration_by: SimDurationByConfig | None = None
+    # SIM-10: euro per ogni esecuzione dell'attivita', oltre al tempo delle risorse.
+    fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
 
 
 class SimGatewayBranchConfig(BaseModel):
@@ -119,6 +152,10 @@ class CreateSimulationRunRequest(BaseModel):
     # Gli arrivi con distribuzione e calendario (A2-3). Se c'e', prevale su
     # ``arrival_interval_seconds``.
     arrival: SimArrivalConfig | None = None
+    # L'obiettivo di servizio: il motore non lo usa, il run ne misura l'esito.
+    sla: SimSlaConfig | None = None
+    # SIM-10: euro per ogni caso completato, oltre al tempo delle risorse.
+    case_fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
     default_task_duration_seconds: int = Field(default=900, ge=1)
     default_cost_per_hour: float = Field(default=35.0, ge=0)
     resource_amount: int = Field(default=1, ge=1, le=1000)

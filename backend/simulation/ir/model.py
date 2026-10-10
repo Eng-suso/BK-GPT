@@ -197,10 +197,36 @@ class Assignment(_Strict):
     provenance: Provenance | None = None
 
 
+class DurationVariant(_Strict):
+    """La durata dell'attivita' per i casi con ``attribute = value``."""
+
+    value: str = Field(min_length=1)
+    duration: Distribution
+    provenance: Provenance | None = None
+
+
+class DurationByAttribute(_Strict):
+    """SIM-32: la durata cambia con un attributo a categorie del caso.
+
+    Un caso con una categoria elencata usa la sua durata; gli altri usano quelle
+    delle assegnazioni. Il motore non lo sa fare: ``ir/variants.py`` compila
+    l'attivita' in varianti dietro una decisione per regola.
+    """
+
+    attribute: str = Field(min_length=1, max_length=64)
+    variants: tuple[DurationVariant, ...] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def _distinct(self):
+        _unique(f"categoria della durata per {self.attribute}", [variant.value for variant in self.variants])
+        return self
+
+
 class Activity(_Strict):
     element_id: str = Field(min_length=1)
     name: str = ""
     assignments: tuple[Assignment, ...] = Field(min_length=1)
+    duration_by: DurationByAttribute | None = None
 
 
 # --------------------------------------------------------------------------- #

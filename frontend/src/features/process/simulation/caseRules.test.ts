@@ -52,7 +52,7 @@ describe("branch rules", () => {
 
   it("counts what blocks the run", () => {
     const rules = { G: { F1: [[{ attributeId: "attr-2", operator: ">" as const, value: "5000" }]], F2: [] } };
-    expect(caseRuleIssues([tipo, importo], rules)).toEqual({ attributes: 0, gateways: 1, ready: false });
+    expect(caseRuleIssues([tipo, importo], rules)).toEqual({ attributes: 0, gateways: 1, priorities: 0, ready: false });
     expect(caseRuleIssues([tipo, importo], { G: { ...rules.G, F2: [[defaultRule([importo])]] } }).ready).toBe(false);
     expect(caseRuleIssues([tipo, importo], { G: { ...rules.G, F2: [[{ ...defaultRule([importo]), value: "1" }]] } }).ready).toBe(true);
   });

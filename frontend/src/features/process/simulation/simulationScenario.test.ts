@@ -126,6 +126,13 @@ describe("restored drafts", () => {
     localStorage.setItem("delir-sim-scenario:m1", JSON.stringify({ calendars: [good, { id: "cal-2" }, null] }));
     expect(loadScenarioDraft("m1").calendars).toEqual([good]);
   });
+
+  it("drops a service objective whose numbers are not finite", () => {
+    localStorage.setItem("delir-sim-scenario:m1", '{"sla":{"target":1e400,"sharePercent":90,"unit":"days"}}');
+    expect(loadScenarioDraft("m1").sla).toBeUndefined();
+    localStorage.setItem("delir-sim-scenario:m1", JSON.stringify({ sla: { target: 2, sharePercent: 90, unit: "hours" } }));
+    expect(loadScenarioDraft("m1").sla).toEqual({ target: 2, sharePercent: 90, unit: "hours" });
+  });
 });
 
 describe("duration and calendar issues", () => {
@@ -149,7 +156,7 @@ describe("duration and calendar issues", () => {
     const draft: ScenarioDraft = { ...structuredClone(DEFAULT_SCENARIO),
       tasks: { A: { ...task, distribution: "uniform" } },
       calendars: [{ id: "c", name: "", periods: [] }] };
-    expect(scenarioParameterIssues(draft)).toEqual({ durations: 1, calendars: 1, arrival: false, ready: false });
+    expect(scenarioParameterIssues(draft)).toEqual({ durations: 1, calendars: 1, arrival: false, sla: false, costs: false, ready: false });
   });
 });
 

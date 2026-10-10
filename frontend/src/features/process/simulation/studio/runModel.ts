@@ -37,6 +37,7 @@ export type IrRule = z.infer<typeof ruleSchema>;
 
 export const runModelSchema = z.object({
   arrival: z.object({ interarrival: irDistributionSchema, calendar_id: z.string(), provenance }).optional(),
+  priority_rules: z.array(z.object({ level: z.number(), condition: z.object({ any_of: z.array(z.array(ruleSchema)) }) })).optional(),
   calendars: z.array(
     z.object({
       id: z.string(),
@@ -65,6 +66,10 @@ export const runModelSchema = z.object({
       element_id: z.string(),
       name: z.string().default(""),
       assignments: z.array(z.object({ resource_id: z.string(), duration: irDistributionSchema, provenance })),
+      duration_by: z.object({
+        attribute: z.string(),
+        variants: z.array(z.object({ value: z.string(), duration: irDistributionSchema })),
+      }).nullable().optional(),
     }),
   ),
   gateways: z
