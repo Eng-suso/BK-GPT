@@ -349,4 +349,8 @@ export type CreateSimulationRunInput = {
   /** Cio' che i campi v1 non esprimono (attributi del caso, rami per regola), come patch dell'IR. */
   modelPatch?: ModelPatchInput;
   idempotencyKey?: string;
+  /** Seed del motore: nel workspace e' il seed comune, cosi' gli scenari si confrontano a coppie. */
+  seed?: number;
+  /** SIM-14: lo scenario del workspace e le revisioni su cui il run e' costruito. */
+  workspaceScenario?: { id: number; revision: number; baseline_revision: number };
 };
