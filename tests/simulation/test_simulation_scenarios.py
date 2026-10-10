@@ -216,7 +216,7 @@ def test_a_run_remembers_the_scenario_and_revisions_it_simulated(api_client, new
     assert sorted(run["request"]["seed"] for run in members) == [workspace["seed"], workspace["seed"] + 1]
 
 
-def test_a_run_cannot_cite_a_scenario_of_another_process_or_a_future_revision(api_client, new_bpmn_model, fake_engine):
+def test_a_run_cites_only_the_current_revision_of_a_scenario_of_its_process(api_client, new_bpmn_model, fake_engine):
     model_id = new_bpmn_model()
     other_id = new_bpmn_model()
     baseline_id = _with_baseline(api_client, model_id)["baseline"]["id"]
@@ -225,10 +225,15 @@ def test_a_run_cannot_cite_a_scenario_of_another_process_or_a_future_revision(ap
     foreign = _run(api_client, other_id, {"id": baseline_id, "revision": 1, "baseline_revision": 1})
     future = _run(api_client, model_id, {"id": baseline_id, "revision": 2, "baseline_revision": 1})
     missing = _run(api_client, model_id, {"id": 999999, "revision": 1, "baseline_revision": 1})
+    api_client.put(_url(model_id, "/baseline"), json={"name": "AS-IS", "draft": AS_IS, "revision": 1})
+    stale = _run(api_client, model_id, {"id": baseline_id, "revision": 1, "baseline_revision": 1})
+    current = _run(api_client, model_id, {"id": baseline_id, "revision": 2, "baseline_revision": 2})
 
     assert foreign.status_code == 400
     assert future.status_code == 400
     assert missing.status_code == 400
+    assert stale.status_code == 400
+    assert current.status_code == 200, current.text
 
 
 def test_deleting_the_process_removes_its_scenarios(api_client):

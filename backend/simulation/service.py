@@ -166,8 +166,10 @@ def _check_workspace_scenario(request: CreateSimulationRunRequest, bpmn_model_id
     current = scenario_revisions(bpmn_model_id, ref.id)
     if current is None:
         raise ValueError("Lo scenario del workspace non esiste piu' su questo processo: ricarica il workspace.")
-    if ref.revision > current[0] or ref.baseline_revision > current[1]:
-        raise ValueError("Il run cita una revisione dello scenario che non esiste ancora.")
+    # Solo la revisione di oggi: un run su una versione passata dello scenario o
+    # dell'AS-IS direbbe di simulare cio' che non e' piu' salvato.
+    if (ref.revision, ref.baseline_revision) != current:
+        raise ValueError("Lo scenario e' cambiato nel frattempo: ricarica il workspace e avvia di nuovo.")
 
 
 def _check_claims(request: CreateSimulationRunRequest, process_id: str) -> None:
