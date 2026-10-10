@@ -551,7 +551,7 @@ export function SimulationConfigRail({
                       ) : (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--amber-700)] hover:underline"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--state-warning-text)] hover:underline"
                           onClick={() => {
                             const flows = gateway.branches.map((b) => b.flow_id);
                             const total = flows.reduce((acc, f) => acc + (cfg[f] ?? 0), 0);
