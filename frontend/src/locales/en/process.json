@@ -1004,6 +1004,10 @@
         "executions": "Executions, log → run",
         "noStart": "The log records completions only: real processing and waiting cannot be separated."
       }
+    },
+    "queue": {
+      "queued": "Queued: position {{position}}",
+      "queuedHint": "It starts as soon as the engine has a free slot. You can leave the page: the run stays in the queue."
     }
   },
   "side": {

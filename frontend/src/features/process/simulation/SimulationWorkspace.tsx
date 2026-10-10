@@ -10,6 +10,7 @@ import { Button } from "@/ui/button";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/app/routes";
 
+import { runWaitHint, runWaitTitle } from "./runQueue";
 import type { SimulationRun, SimulationSummary } from "./simulationTypes";
 import { useScenarioLab } from "./useScenarioLab";
 import { SimulationBpmnView, type SimulationNodeOverlay } from "./SimulationBpmnView";
@@ -106,7 +107,7 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
         <details open={Boolean(selectedElementId)}>
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{t("simulation.results.summary")}</summary>
           <div className="border-t border-border p-4">
-            {activeRun.error ? <p role="alert" className="text-sm text-destructive">{activeRun.error}</p> : isPending ? <EmptyState variant="inline" title={t("simulation.running")} /> : <SimulationResults insights={insights} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} />}
+            {activeRun.error ? <p role="alert" className="text-sm text-destructive">{activeRun.error}</p> : isPending ? <EmptyState variant="inline" title={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)} description={runWaitHint(activeRun?.queue?.state, t)} /> : <SimulationResults insights={insights} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} />}
           </div>
         </details>
       </section>}
@@ -184,7 +185,7 @@ function RunSnapshot({
 
       {isPending ? (
         <div className="p-4">
-          <EmptyState variant="inline" title={t("simulation.running")} />
+          <EmptyState variant="inline" title={runWaitTitle(run.queue?.state, run.queue?.position, t)} description={runWaitHint(run.queue?.state, t)} />
         </div>
       ) : !insights.hasData ? (
         <div className="p-4">

@@ -391,7 +391,7 @@ def test_a_full_model_runs_and_gets_an_idempotency_key(client, monkeypatch):
 
 def test_the_same_ir_request_in_flight_is_not_run_twice(client, monkeypatch):
     # Il primo run resta "pending": il motore non viene lanciato in background.
-    monkeypatch.setattr("backend.api.routes.simulation.execute_simulation_run", lambda **_: None)
+    monkeypatch.setattr("backend.api.routes.simulation.drain_simulation_queue", lambda: None)
     bpmn_model_id = _bpmn_model_id(client)
     body = {"total_cases": 5, "seed": 3, "current_bpmn_xml": MINIMAL_BPMN, "patch": {}}
 

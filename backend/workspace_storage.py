@@ -259,6 +259,14 @@ class WorkspaceSimulationRun(WorkspaceBase):
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     completed_at: Mapped[str | None] = mapped_column(String)
+    # Coda su Postgres (P0.3, migrazione 0034). Un run ``pending`` senza
+    # ``started_at`` aspetta il suo turno; con ``started_at`` gira, e
+    # ``heartbeat_at`` dice se il processo che lo esegue e' ancora vivo.
+    bpmn_xml: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[str | None] = mapped_column(String)
+    heartbeat_at: Mapped[str | None] = mapped_column(String)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    worker_id: Mapped[str | None] = mapped_column(String)
 
 
 class WorkspaceSimulationRunArtifact(WorkspaceBase):

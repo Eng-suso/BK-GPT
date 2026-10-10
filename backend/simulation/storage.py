@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import object_session
 
 from backend.schemas.simulation import CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import get_current_tenant_id
 from backend.settings import settings
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationResult
+from backend.simulation.queue import LEGACY_STALE_RUN_ERROR, admit, queue_view, reap_stale_runs
 from backend.workspace_storage import (
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
@@ -28,72 +29,8 @@ def now_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
-#: Quanto si aspetta oltre il tempo massimo di Prosimos prima di dire che una
-#: simulazione non tornera'. Il margine copre il tempo di scrittura del
-#: risultato, non una seconda attesa.
-STALE_RUN_MARGIN_SECONDS = 120.0
-
-#: Cosa legge il consulente al posto di una rotella che gira per sempre.
-STALE_RUN_ERROR = (
-    "La simulazione non e' arrivata in fondo: il servizio si e' fermato mentre "
-    "girava. Rilanciala."
-)
-
-
-def _started_at(created_at: str | None) -> datetime | None:
-    if not created_at:
-        return None
-    try:
-        parsed = datetime.fromisoformat(created_at)
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
-
-
-def _expire_stale_runs(session: Session, *, tenant_id: str | None) -> None:
-    """Chiude le simulazioni rimaste `pending` oltre il tempo massimo.
-
-    Una simulazione gira in un `BackgroundTasks` dello stesso processo: un
-    riavvio o un crash a meta' la lascia `pending` in database, e da quel
-    momento due cose non succedono piu'. La prima e' che nessuno la fallisce,
-    quindi il frontend continua a chiedere il suo stato ogni cinque secondi,
-    per sempre. La seconda, peggiore, e' che l'idempotenza vede ancora un run
-    "in volo" con quella chiave e rifiuta di rilanciare lo scenario: un crash
-    rende quello scenario non simulabile, e nessun messaggio lo dice.
-
-    Args:
-        session: La sessione della lettura o della scrittura in corso: la
-            potatura sta nella stessa transazione di chi l'ha provocata.
-        tenant_id: Lo spazio di lavoro da potare. `None` pota tutto, e serve
-            quando la domanda riguarda il deploy e non un cliente: quante
-            simulazioni stanno davvero occupando Prosimos.
-    """
-    cutoff = datetime.now(UTC) - timedelta(
-        seconds=settings.prosimos_timeout_seconds + STALE_RUN_MARGIN_SECONDS
-    )
-    query = select(WorkspaceSimulationRun).where(
-        WorkspaceSimulationRun.status == "pending"
-    )
-    if tenant_id is not None:
-        query = query.where(WorkspaceSimulationRun.tenant_id == tenant_id)
-    pending = session.execute(query).scalars().all()
-
-    expired: list[int] = []
-    for run in pending:
-        started = _started_at(run.created_at)
-        # Una data illeggibile e' gia' un run che nessuno puo' giudicare vivo.
-        if started is not None and started > cutoff:
-            continue
-        run.status = "failed"
-        run.error = STALE_RUN_ERROR
-        run.completed_at = now_iso()
-        expired.append(run.id)
-
-    if expired:
-        session.flush()
-        # Una simulazione morta a meta' e' un fatto operativo: si e' fermato il
-        # processo mentre girava, e chi legge i log deve vederlo.
-        logger.warning("simulazioni chiuse perche' mai tornate: %s", expired)
+# La scadenza dei run morti ora la decide la coda (P0.3): battito, non eta'.
+STALE_RUN_ERROR = LEGACY_STALE_RUN_ERROR
 
 
 def simulation_run_to_dict(
@@ -119,6 +56,8 @@ def simulation_run_to_dict(
         "error": run.error,
         "created_at": run.created_at,
         "completed_at": run.completed_at,
+        # In coda (con la posizione) o in corso: cosa dire al consulente mentre aspetta.
+        "queue": view.model_dump() if (session := object_session(run)) is not None and (view := queue_view(session, run)) else None,
     }
 
 
@@ -129,8 +68,8 @@ def find_active_run_by_key(
 ) -> dict[str, Any] | None:
     """Return an in-flight (pending) run with the same key, if any."""
     with workspace_connection() as session:
-        # Prima di dire "ce n'e' gia' uno in volo": uno scaduto non e' in volo.
-        _expire_stale_runs(session, tenant_id=get_current_tenant_id())
+        # Prima di dire "ce n'e' gia' uno in volo": uno senza battito non lo e'.
+        reap_stale_runs(session)
         run = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
@@ -142,24 +81,6 @@ def find_active_run_by_key(
         return simulation_run_to_dict(run) if run is not None else None
 
 
-def count_runs_in_flight() -> int:
-    """Quante simulazioni stanno girando adesso, in tutto il deploy.
-
-    Il conto non e' per spazio di lavoro perche' il vincolo non lo e': Prosimos
-    e' un servizio solo, con un numero fisso di worker, e una simulazione di
-    chiunque occupa uno di quelli.
-    """
-    with workspace_connection() as session:
-        _expire_stale_runs(session, tenant_id=None)
-        return int(
-            session.execute(
-                select(func.count())
-                .select_from(WorkspaceSimulationRun)
-                .where(WorkspaceSimulationRun.status == "pending")
-            ).scalar_one()
-        )
-
-
 def create_simulation_run(
     *,
     bpmn_model_id: str,
@@ -168,8 +89,11 @@ def create_simulation_run(
     request: CreateSimulationRunRequest | CreateSimulationModelRunRequest,
     scenario: ProsimosScenario,
     idempotency_key: str | None = None,
+    bpmn_xml: str | None = None,
 ) -> dict[str, Any]:
+    """Il run entra in coda; ``SimulationQueueFull`` se la coda e' piena."""
     with workspace_connection() as session:
+        admit(session)
         run = WorkspaceSimulationRun(
             tenant_id=get_current_tenant_id(),
             bpmn_model_id=bpmn_model_id,
@@ -188,6 +112,9 @@ def create_simulation_run(
             error=None,
             created_at=now_iso(),
             completed_at=None,
+            # Il run entra in coda con il BPMN normalizzato: chiunque lo prenda lo esegue.
+            bpmn_xml=bpmn_xml,
+            attempts=0,
         )
         session.add(run)
         session.flush()
@@ -201,12 +128,14 @@ def complete_simulation_run(
     summary: dict[str, Any] | None = None,
     replay: dict[str, Any] | None = None,
     log_csv: str | None = None,
+    worker_id: str | None = None,
 ) -> dict[str, Any]:
     run = _update_simulation_run(
         run_id=run_id,
         status="completed",
         result=result,
         error=None,
+        worker_id=worker_id,
     )
     # Il risultato puo' essere stato scartato perche' arrivato dopo la chiusura:
     # in quel caso non deve lasciare dietro di se' nemmeno l'artefatto.
@@ -307,20 +236,21 @@ def _summary_for(session, run_id: int) -> dict[str, Any] | None:
     return json.loads(artifact.summary_json or "{}") or None
 
 
-def fail_simulation_run(*, run_id: int, error: str) -> dict[str, Any]:
+def fail_simulation_run(*, run_id: int, error: str, worker_id: str | None = None) -> dict[str, Any]:
     return _update_simulation_run(
         run_id=run_id,
         status="failed",
         result=ProsimosSimulationResult(),
         error=error,
+        worker_id=worker_id,
     )
 
 
 def get_simulation_run(run_id: int) -> dict[str, Any] | None:
     with workspace_connection() as session:
-        # E' la rotta che il frontend interroga ogni cinque secondi: e' qui che
+        # E' la rotta che il frontend interroga ogni pochi secondi: e' qui che
         # una simulazione morta deve smettere di sembrare viva.
-        _expire_stale_runs(session, tenant_id=get_current_tenant_id())
+        reap_stale_runs(session)
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             return None
@@ -329,7 +259,7 @@ def get_simulation_run(run_id: int) -> dict[str, Any] | None:
 
 def list_simulation_runs(bpmn_model_id: str) -> list[dict[str, Any]]:
     with workspace_connection() as session:
-        _expire_stale_runs(session, tenant_id=get_current_tenant_id())
+        reap_stale_runs(session)
         rows = session.execute(
             select(WorkspaceSimulationRun)
             .where(WorkspaceSimulationRun.tenant_id == get_current_tenant_id())
@@ -348,13 +278,18 @@ def _update_simulation_run(
     status: str,
     result: ProsimosSimulationResult,
     error: str | None,
+    worker_id: str | None = None,
 ) -> dict[str, Any]:
     with workspace_connection() as session:
         run = session.get(WorkspaceSimulationRun, run_id)
         if run is None or run.tenant_id != get_current_tenant_id():
             raise ValueError(f"Simulation run non trovata: {run_id}")
 
-        if run.status != "pending":
+        # Un esecutore dato per morto, il cui run e' tornato in coda o e' di un
+        # altro, consegna tardi: il suo esito non vale piu'.
+        # Un run gia' preso accetta l'esito solo dal suo esecutore.
+        stolen = run.started_at is not None and (worker_id is None or run.worker_id != worker_id)
+        if run.status != "pending" or stolen:
             # Arriva un risultato per una simulazione gia' chiusa: quasi sempre
             # una che avevamo dichiarato morta e che invece stava ancora
             # girando. Scriverlo adesso la riporterebbe in vita dopo che il

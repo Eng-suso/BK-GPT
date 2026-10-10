@@ -194,6 +194,13 @@ class BpmnCompatibilityResponse(BaseModel):
     undeclared: int = 0
 
 
+class SimulationQueueView(BaseModel):
+    """Dove sta un run ``pending`` (P0.3): in coda, con la posizione, o in corso."""
+
+    state: Literal["queued", "running"]
+    position: int | None = None
+
+
 class SimulationRunResponse(BaseModel):
     id: int
     bpmn_model_id: str
@@ -212,6 +219,9 @@ class SimulationRunResponse(BaseModel):
     error: str | None = None
     created_at: str
     completed_at: str | None = None
+    # Per un run ``pending`` (P0.3): ``{"state": "queued", "position": n}`` mentre
+    # aspetta il suo turno, ``{"state": "running", "position": None}`` mentre gira.
+    queue: SimulationQueueView | None = None
 
 
 class SimulationReplayResponse(BaseModel):

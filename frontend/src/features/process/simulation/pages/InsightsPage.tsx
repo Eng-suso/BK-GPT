@@ -10,6 +10,7 @@ import { StatusIndicator } from "@/components/status";
 import { Button } from "@/ui/button";
 import { ROUTES } from "@/app/routes";
 
+import { runWaitHint, runWaitTitle } from "../runQueue";
 import { fetchSimulationExperiments } from "../simulationApi";
 import type { Experiment, SimulationSummary } from "../simulationTypes";
 import { useScenarioLab } from "../useScenarioLab";
@@ -46,7 +47,7 @@ export function InsightsPage({ embedded = false }: { embedded?: boolean } = {}):
   if (!activeRun) {
     return <Gate title={t("simulation.insights.noRun")} description={t("simulation.insights.noRunHint")} />;
   }
-  if (activeRun.status === "pending") return <Gate title={t("simulation.running")} />;
+  if (activeRun.status === "pending") return <Gate title={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)} description={runWaitHint(activeRun?.queue?.state, t)} />;
   if (!summary) return <Gate title={t("simulation.insights.noData")} />;
 
   const lowConfidence =

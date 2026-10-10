@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -119,15 +120,21 @@ async def lifespan(_app: FastAPI):
     size_request_threadpool()
 
     from backend.local_store import ensure_schema
+    from backend.workers.simulation_worker import run_simulation_queue
     from backend.workers.supervisor import run_queue_workers
 
     if settings.workspace_database_url:
         await asyncio.to_thread(ensure_schema)  # migra il DB operativo a head
 
     worker_task = asyncio.create_task(run_queue_workers(), name="queue_workers")
+    # La coda delle simulazioni gira sempre: e' il prodotto, non una proiezione.
+    simulation_task = asyncio.create_task(run_simulation_queue(), name="simulation_queue")
     try:
         yield
     finally:
+        simulation_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await simulation_task
         worker_task.cancel()
         try:
             await worker_task

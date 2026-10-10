@@ -15,6 +15,7 @@ import {
 } from "@/ui/select";
 import { cn } from "@/lib/utils";
 
+import { runWaitHint, runWaitTitle } from "../runQueue";
 import { SimulationCanvas, type NodeDecoration } from "../canvas/SimulationCanvas";
 import { resolveActiveRun, useSimulationSection } from "../useSimulationSection";
 import type { SimulationSummary } from "../simulationTypes";
@@ -62,6 +63,9 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
 
   const selectedEl = selectedElementId !== undefined ? selectedElementId : localSelectedEl;
   const setSelectedEl = selectElement ?? setLocalSelectedEl;
+  // Prima del memo: dopo, il React Compiler non sa se ``t`` o il run cambiano.
+  const waitTitle = runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t);
+  const waitHint = runWaitHint(activeRun?.queue?.state, t);
   const summary = (activeRun?.summary as SimulationSummary | null) ?? null;
   const stats = React.useMemo(() => readActivityStats(summary), [summary]);
 
@@ -121,7 +125,7 @@ export function HeatmapPage({ embedded = false, onDecorations, onMetric }: { emb
     );
   }
   if (activeRun.status === "pending") {
-    return <Gate icon={Flame} title={t("simulation.running")} />;
+    return <Gate icon={Flame} title={waitTitle} description={waitHint} />;
   }
   if (activeRun.status === "failed") {
     return (
