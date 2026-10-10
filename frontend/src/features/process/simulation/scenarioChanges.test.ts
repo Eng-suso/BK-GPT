@@ -8,6 +8,7 @@ const LABELS: ChangeLabels = {
   section: (key) => `sezione:${key}`,
   number: (value) => String(value),
   complex: "modificato",
+  text: (key, value) => (key === "distribution" ? `dist:${value}` : value),
   yes: "sì",
   no: "no",
 };
@@ -32,6 +33,19 @@ describe("describeChanges", () => {
     expect(read([{ op: "set", path: ["tasks", "T1", "resourceId"], value: "senior" }])[0]).toMatchObject({
       elementId: "T1", subject: "Approva ordine", field: "campo:resourceId", from: "Approvatore", to: "Senior",
     });
+  });
+
+  it("un valore testuale tradotto e un ramo col suo nome", () => {
+    const names = { ...NAMES, elements: { ...NAMES.elements, G1: "Importo alto?", f1: "Ramo verso Approva" } };
+    const [dist, branch] = describeChanges(
+      [
+        { op: "set", path: ["tasks", "T1", "distribution"], value: "expon" },
+        { op: "set", path: ["gateways", "G1", "f1"], value: 30 },
+      ],
+      [], AS_IS, names, LABELS,
+    );
+    expect(dist).toMatchObject({ to: "dist:expon", kind: "added" });
+    expect(branch).toMatchObject({ elementId: "G1", subject: "Importo alto?", field: "Ramo verso Approva", to: "30" });
   });
 
   it("un campo dello scenario e una sezione nuova", () => {

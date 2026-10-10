@@ -1,4 +1,7 @@
-import type { ScenarioPatchOp, ScenarioPathStep } from "./scenarioPatch";
+import type { ScenarioPathStep } from "./scenarioPatch";
+
+/** Un'operazione come arriva dal workspace (lo schema e' gia' validato dal backend). */
+export type StoredPatchOp = { op: "set" | "remove" | "order"; path: ScenarioPathStep[]; value?: unknown; ids?: string[] };
 
 /**
  * SIM-14: una patch letta come una pull request ("Approvatore · Unità: 1 → 2").
@@ -26,11 +29,15 @@ export type ChangeLabels = {
   number: (value: number) => string;
   /** Un valore composto (un calendario, una regola): si dice solo che cambia. */
   complex: string;
+  /** Un valore testuale tradotto (la distribuzione, l'unita' di tempo), o com'e'. */
+  text: (key: string, value: string) => string;
   yes: string;
   no: string;
 };
 
-type Names = { elements: Record<string, string>; resources: Record<string, string> };
+/** I nomi da mostrare: attivita', decisioni e rami del BPMN; risorse dell'AS-IS. */
+export type ChangeNames = { elements: Record<string, string>; resources: Record<string, string> };
+type Names = ChangeNames;
 
 const ELEMENT_SECTIONS = new Set(["tasks", "gateways", "gatewayRules", "dismissedClaims"]);
 
@@ -51,7 +58,7 @@ function format(value: unknown, key: string, labels: ChangeLabels, names: Names)
   if (value === undefined || value === null) return null;
   if (typeof value === "number") return labels.number(value);
   if (typeof value === "boolean") return value ? labels.yes : labels.no;
-  if (typeof value === "string") return key === "resourceId" ? names.resources[value] ?? value : value;
+  if (typeof value === "string") return key === "resourceId" ? names.resources[value] ?? value : labels.text(key, value);
   if (typeof value === "object" && value && "name" in value && typeof (value as { name: unknown }).name === "string") return (value as { name: string }).name;
   return labels.complex;
 }
@@ -65,7 +72,7 @@ function itemName(section: string, step: { id: string }, baseline: unknown, valu
 }
 
 export function describeChanges(
-  patch: ScenarioPatchOp[],
+  patch: StoredPatchOp[],
   conflicts: number[],
   baseline: unknown,
   names: Names,
@@ -91,7 +98,8 @@ export function describeChanges(
       index,
       elementId,
       subject,
-      field: fieldStep && op.op !== "order" ? labels.field(fieldStep) : "",
+      // Un ramo di una decisione si chiama col suo nome ("Ramo verso Approva").
+      field: fieldStep && op.op !== "order" ? names.elements[fieldStep] ?? labels.field(fieldStep) : "",
       kind,
       from: kind === "changed" ? format(before, fieldStep ?? sectionKey, labels, names) : null,
       to: op.op === "set" ? format(value, fieldStep ?? sectionKey, labels, names) : null,
