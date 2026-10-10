@@ -110,7 +110,7 @@ export const DISTRIBUTION_PARAMETERS: Record<DistributionName, { mean: boolean; 
   gamma: { mean: true, std: true, bounds: true },
 };
 
-export type TaskDurationIssue = "uniformBounds" | "boundsOrder";
+export type TaskDurationIssue = "uniformBounds" | "boundsOrder" | "meanOutsideBounds";
 
 /** Minuti in secondi interi, come arrivano al backend. */
 const seconds = (minutes: number | undefined) =>
@@ -126,6 +126,15 @@ export function taskDurationIssue(task: DurationDraft): TaskDurationIssue | null
   const minimum = seconds(task.minMinutes);
   const maximum = seconds(task.maxMinutes);
   if (minimum !== undefined && maximum !== undefined && minimum >= maximum) return "boundsOrder";
+  // Le regole del backend: l'esponenziale vuole la media strettamente dentro i limiti,
+  // la normale anche sui limiti. Lognormale e gamma non la vincolano.
+  const mean = Math.max(1, Math.round(task.meanMinutes * 60));
+  if (task.distribution === "expon" && ((minimum !== undefined && mean <= minimum) || (maximum !== undefined && mean >= maximum))) {
+    return "meanOutsideBounds";
+  }
+  if (task.distribution === "norm" && ((minimum !== undefined && mean < minimum) || (maximum !== undefined && mean > maximum))) {
+    return "meanOutsideBounds";
+  }
   return null;
 }
 
@@ -160,8 +169,13 @@ export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
 }
 
 /** Aggiorna gli arrivi della bozza da una durata modificata nel pannello. */
-export function withArrival(draft: ScenarioDraft, next: DurationDraft, calendarId = draft.arrival?.calendarId): ScenarioDraft {
+/**
+ * Aggiorna gli arrivi della bozza. Senza terzo argomento il calendario resta quello
+ * di prima; con ``undefined`` esplicito torna il calendario standard.
+ */
+export function withArrival(draft: ScenarioDraft, next: DurationDraft, ...calendar: [calendarId: string | undefined] | []): ScenarioDraft {
   const { meanMinutes, ...rest } = next;
+  const calendarId = calendar.length ? calendar[0] : draft.arrival?.calendarId;
   return { ...draft, arrivalIntervalMinutes: meanMinutes, arrival: { ...rest, calendarId } };
 }
 

@@ -36,6 +36,22 @@ describe("case arrivals in the scenario draft (A2-3)", () => {
     expect(scenarioToInput(next, null).arrival?.calendarId).toBeUndefined();
   });
 
+  it("goes back to the standard calendar when the consultant picks it again", () => {
+    const morning = withArrival(draft({ calendars: [MORNINGS] }), arrivalDuration(draft()), "cal-1");
+    const standard = withArrival(morning, arrivalDuration(morning), undefined);
+    expect(standard.arrival?.calendarId).toBeUndefined();
+    expect(scenarioToInput(standard, null).arrival?.calendarId).toBeUndefined();
+    // Senza calendario nell'argomento, quello scelto resta.
+    expect(withArrival(morning, { ...arrivalDuration(morning), meanMinutes: 40 }).arrival?.calendarId).toBe("cal-1");
+  });
+
+  it("refuses a mean outside the bounds the engine would reject", () => {
+    const outside = withArrival(draft({ arrivalIntervalMinutes: 15 }), { meanMinutes: 15, distribution: "expon", minMinutes: 20, maxMinutes: 30 });
+    expect(scenarioParameterIssues(outside)).toMatchObject({ arrival: true, ready: false });
+    const inside = withArrival(draft(), { meanMinutes: 25, distribution: "expon", minMinutes: 20, maxMinutes: 30 });
+    expect(scenarioParameterIssues(inside)).toMatchObject({ arrival: false });
+  });
+
   it("blocks the run while the arrivals need fixing", () => {
     const next = withArrival(draft(), { meanMinutes: 15, distribution: "uniform" });
     expect(scenarioParameterIssues(next)).toMatchObject({ arrival: true, ready: false });

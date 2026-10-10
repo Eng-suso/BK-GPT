@@ -216,7 +216,8 @@
       "uniformHint": "The duration is uniform between minimum and maximum.",
       "durationIssue": {
         "uniformBounds": "Enter minimum and maximum.",
-        "boundsOrder": "The minimum must be lower than the maximum."
+        "boundsOrder": "The minimum must be lower than the maximum.",
+        "meanOutsideBounds": "The mean must lie between minimum and maximum."
       },
       "invalidDurations": "Activities with a duration to fix: {{count}}",
       "calendars": "Calendars",

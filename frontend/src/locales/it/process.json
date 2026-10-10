@@ -216,7 +216,8 @@
       "uniformHint": "La durata è uniforme fra minimo e massimo.",
       "durationIssue": {
         "uniformBounds": "Indica minimo e massimo.",
-        "boundsOrder": "Il minimo deve essere minore del massimo."
+        "boundsOrder": "Il minimo deve essere minore del massimo.",
+        "meanOutsideBounds": "La media deve stare fra minimo e massimo."
       },
       "invalidDurations": "Attività con durata da correggere: {{count}}",
       "calendars": "Calendari",
