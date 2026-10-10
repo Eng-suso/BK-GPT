@@ -3,7 +3,6 @@ import { z } from "zod";
 import { http } from "@/lib/http";
 
 import { compareGroups, groupMembers, replicationIntervals, KPI_BETTER, type DeltaInterval, type Interval, type ReplicationKpi } from "./replications";
-import type { ScenarioPatchOp } from "./scenarioPatch";
 import type { SimulationRun } from "./simulationTypes";
 
 /**
@@ -60,7 +59,7 @@ export async function putScenarioBaseline(
 
 export async function createWorkspaceScenario(
   bpmnModelId: string,
-  body: { name: string; patch: ScenarioPatchOp[] },
+  body: { name: string; patch: WorkspaceScenario["patch"] },
 ): Promise<ScenarioWorkspace> {
   return parse(await http<unknown>(base(bpmnModelId), { method: "POST", body }));
 }
@@ -68,7 +67,7 @@ export async function createWorkspaceScenario(
 export async function updateWorkspaceScenario(
   bpmnModelId: string,
   scenarioId: number,
-  body: { name?: string; patch?: ScenarioPatchOp[]; revision: number },
+  body: { name?: string; patch?: WorkspaceScenario["patch"]; revision: number },
 ): Promise<ScenarioWorkspace> {
   return parse(await http<unknown>(`${base(bpmnModelId)}/${scenarioId}`, { method: "PATCH", body }));
 }
