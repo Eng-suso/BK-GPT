@@ -111,6 +111,8 @@ export type ScenarioDraft = {
   caseFixedCost?: number;
   /** SIM-03: i primi casi restano fuori dai KPI. Assente = nessuno. */
   warmupCases?: number;
+  /** SIM-04: quante volte ripetere lo scenario (1-20). Assente = una. */
+  replications?: number;
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
@@ -214,7 +216,9 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
   const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
   const warmup = warmupIssue(draft) !== null;
-  return { durations, calendars, arrival, sla, costs, warmup, ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup };
+  const replications = draft.replications !== undefined && !(Number.isInteger(draft.replications) && draft.replications >= 1 && draft.replications <= 20);
+  return { durations, calendars, arrival, sla, costs, warmup, replications,
+    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications };
 }
 
 export type WarmupIssue = "notWhole" | "noCaseLeft";
@@ -339,6 +343,7 @@ export function scenarioToInput(
     ...base,
     ...(draft.caseFixedCost ? { caseFixedCost: draft.caseFixedCost } : {}),
     ...(draft.warmupCases ? { warmupCases: draft.warmupCases } : {}),
+    ...(draft.replications && draft.replications > 1 ? { replications: draft.replications } : {}),
     ...(draft.sla ? { sla: {
       targetSeconds: slaSeconds(draft.sla),
       share: draft.sla.sharePercent / 100,

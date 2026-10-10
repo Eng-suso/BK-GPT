@@ -37,6 +37,7 @@ export async function runProsimosSimulation(
         sla: input.sla && { target_seconds: input.sla.targetSeconds, share: input.sla.share },
         case_fixed_cost: input.caseFixedCost,
         warmup_cases: input.warmupCases,
+        replications: input.replications,
         arrival: input.arrival && {
           mean_seconds: input.arrival.meanSeconds,
           distribution: input.arrival.distribution,

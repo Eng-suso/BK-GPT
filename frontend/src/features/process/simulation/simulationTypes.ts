@@ -340,6 +340,8 @@ export type CreateSimulationRunInput = {
   caseFixedCost?: number;
   /** SIM-03: i primi casi fuori dai KPI. */
   warmupCases?: number;
+  /** SIM-04: ripetizioni dello scenario. */
+  replications?: number;
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];

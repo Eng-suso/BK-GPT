@@ -222,6 +222,11 @@ export function SimulationConfigRail({
                 min={1}
                 onChange={(v) => patch({ defaultTaskMinutes: v })}
               />
+              <FieldLabel label={t("simulation.config.replications")}>
+                <Input className="h-8" type="number" min={1} max={20} step={1} value={draft.replications ?? 1}
+                  aria-describedby="sim-replications-hint"
+                  onChange={(e) => patch({ replications: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
               <FieldLabel label={t("simulation.config.warmupCases")}>
                 <Input className="h-8" type="number" min={0} step={1} value={draft.warmupCases ?? ""}
                   aria-invalid={warmupIssue(draft) ? true : undefined}
@@ -233,6 +238,7 @@ export function SimulationConfigRail({
                   onChange={(e) => patch({ caseFixedCost: e.target.value === "" ? undefined : Number(e.target.value) })} />
               </FieldLabel>
             </div>
+            <p id="sim-replications-hint" className="text-xs text-muted-foreground">{t("simulation.config.replicationsHint")}</p>
             {warmupIssue(draft)
               ? <p id="sim-warmup-hint" role="alert" className="text-xs font-medium text-destructive">{t(`simulation.config.warmupIssue.${warmupIssue(draft)}`)}</p>
               : <p id="sim-warmup-hint" className="text-xs text-muted-foreground">{t("simulation.config.warmupHint")}</p>}
@@ -372,6 +378,7 @@ export function SimulationConfigRail({
             {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
             {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
             {parameterIssues.warmup && <p>{t("simulation.config.invalidWarmup")}</p>}
+            {parameterIssues.replications && <p>{t("simulation.config.invalidReplications")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
             {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}

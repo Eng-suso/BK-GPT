@@ -387,7 +387,10 @@
         "notWhole": "Indica un numero intero di casi.",
         "noCaseLeft": "Il riscaldamento deve lasciare almeno un caso da misurare."
       },
-      "invalidWarmup": "Casi di riscaldamento da correggere."
+      "invalidWarmup": "Casi di riscaldamento da correggere.",
+      "replications": "Ripetizioni",
+      "replicationsHint": "Lo scenario gira più volte, ogni volta con casi diversi: i risultati avranno un intervallo e non dipenderanno da un'estrazione fortunata. Da 1 a 20.",
+      "invalidReplications": "Le ripetizioni vanno da 1 a 20."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -437,7 +440,20 @@
       "costResources": "Tempo delle risorse: {{value}}",
       "costActivities": "Costi fissi delle attività: {{value}}",
       "costCases": "Costi fissi per caso: {{value}}",
-      "warmupNote": "Risultati calcolati su {{measured}} casi: i primi {{excluded}} servivano a riempire le code e sono esclusi."
+      "warmupNote": "Risultati calcolati su {{measured}} casi: i primi {{excluded}} servivano a riempire le code e sono esclusi.",
+      "replications": "Ripetizioni dello scenario",
+      "replicationProgress": "Ripetizioni completate: {{done}} di {{total}}.",
+      "replicationFailed_one": "{{count}} non è riuscita.",
+      "replicationFailed_other": "{{count}} non sono riuscite.",
+      "replicationValue": "{{mean}} ± {{half}}",
+      "replicationKpi": {
+        "cycle": "Durata media del caso",
+        "waiting": "Attesa media",
+        "costPerCase": "Costo per caso",
+        "throughput": "Casi completati all'ora"
+      },
+      "replicationHint": "Media di {{count}} ripetizioni, con l'intervallo al 95%: il valore vero sta lì dentro con buona confidenza.",
+      "replicationWaiting": "L'intervallo compare quando almeno due ripetizioni sono completate."
     },
     "jsonSummary": "Dati grezzi Prosimos",
     "status": {

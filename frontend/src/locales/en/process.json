@@ -387,7 +387,10 @@
         "notWhole": "Enter a whole number of cases.",
         "noCaseLeft": "The warm-up must leave at least one case to measure."
       },
-      "invalidWarmup": "Warm-up cases need fixing."
+      "invalidWarmup": "Warm-up cases need fixing.",
+      "replications": "Replications",
+      "replicationsHint": "The scenario runs several times, each with different cases: results get an interval and do not hinge on a lucky draw. From 1 to 20.",
+      "invalidReplications": "Replications go from 1 to 20."
     },
     "diagram": {
       "title": "Process model",
@@ -437,7 +440,20 @@
       "costResources": "Resource time: {{value}}",
       "costActivities": "Activity fixed costs: {{value}}",
       "costCases": "Fixed costs per case: {{value}}",
-      "warmupNote": "Results computed on {{measured}} cases: the first {{excluded}} filled the queues and are left out."
+      "warmupNote": "Results computed on {{measured}} cases: the first {{excluded}} filled the queues and are left out.",
+      "replications": "Scenario replications",
+      "replicationProgress": "Replications completed: {{done}} of {{total}}.",
+      "replicationFailed_one": "{{count}} failed.",
+      "replicationFailed_other": "{{count}} failed.",
+      "replicationValue": "{{mean}} ± {{half}}",
+      "replicationKpi": {
+        "cycle": "Mean case duration",
+        "waiting": "Mean waiting",
+        "costPerCase": "Cost per case",
+        "throughput": "Cases completed per hour"
+      },
+      "replicationHint": "Mean of {{count}} replications with the 95% interval: the true value lies within it with good confidence.",
+      "replicationWaiting": "The interval shows once at least two replications have completed."
     },
     "jsonSummary": "Raw Prosimos data",
     "status": {
