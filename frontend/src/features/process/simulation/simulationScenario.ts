@@ -473,7 +473,8 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
 function sanitizeSla(raw: unknown): SlaDraft | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const value = raw as Partial<SlaDraft>;
-  if (typeof value.target !== "number" || typeof value.sharePercent !== "number") return undefined;
+  const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+  if (!finite(value.target) || !finite(value.sharePercent)) return undefined;
   return { target: value.target, sharePercent: value.sharePercent, unit: value.unit === "hours" ? "hours" : "days" };
 }
 
