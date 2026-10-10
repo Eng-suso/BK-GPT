@@ -18,6 +18,8 @@ export const simulationSummarySchema = z
       /** SIM-10: presente solo se lo scenario aveva costi fissi. */
       breakdown: z.object({ resources: z.number(), activities: z.number(), cases: z.number() }).optional(),
     }),
+    /** SIM-03: quanti casi del riscaldamento sono rimasti fuori dai KPI. */
+    warmup: z.object({ excludedCases: z.number(), measuredCases: z.number() }).optional(),
     /** SIM-13: l'esito dell'obiettivo di servizio, se lo scenario ne aveva uno. */
     sla: z.object({
       target_seconds: z.number(),
@@ -336,6 +338,8 @@ export type CreateSimulationRunInput = {
   sla?: { targetSeconds: number; share: number };
   /** SIM-10: euro per caso completato. */
   caseFixedCost?: number;
+  /** SIM-03: i primi casi fuori dai KPI. */
+  warmupCases?: number;
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];

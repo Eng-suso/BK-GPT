@@ -4,6 +4,18 @@ import { useTranslation } from "react-i18next";
 import { formatCurrency } from "./simulationResults";
 import type { SimulationRun } from "./simulationTypes";
 
+/** SIM-03: i KPI escludono i primi casi, che hanno trovato il sistema vuoto. */
+export function WarmupNote({ run }: { run: SimulationRun }): React.JSX.Element | null {
+  const { t } = useTranslation("process");
+  const warmup = run.summary?.warmup;
+  if (!warmup) return null;
+  return (
+    <p className="mb-3 text-xs text-muted-foreground" data-sim-warmup-note>
+      {t("simulation.results.warmupNote", { excluded: warmup.excludedCases, measured: warmup.measuredCases })}
+    </p>
+  );
+}
+
 /** SIM-10: da dove viene il costo del run, quando lo scenario ha costi fissi. */
 export function CostBreakdown({ run }: { run: SimulationRun }): React.JSX.Element | null {
   const { t, i18n } = useTranslation("process");

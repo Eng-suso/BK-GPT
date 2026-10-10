@@ -380,7 +380,14 @@
       "durationBySame": "Uguale per tutti i casi",
       "durationByHint": "Ogni categoria di «{{attribute}}» ha la sua durata; parte da quella di base.",
       "durationByCategory": "Casi con {{attribute}} = {{value}}",
-      "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro."
+      "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro.",
+      "warmupCases": "Casi di riscaldamento",
+      "warmupHint": "Facoltativo. Il sistema parte vuoto: i primi casi trovano code corte. Restano fuori dai risultati, il replay li mostra.",
+      "warmupIssue": {
+        "notWhole": "Indica un numero intero di casi.",
+        "noCaseLeft": "Il riscaldamento deve lasciare almeno un caso da misurare."
+      },
+      "invalidWarmup": "Casi di riscaldamento da correggere."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -429,7 +436,8 @@
       "costTotal": "{{total}} in tutto, {{perCase}} per caso.",
       "costResources": "Tempo delle risorse: {{value}}",
       "costActivities": "Costi fissi delle attività: {{value}}",
-      "costCases": "Costi fissi per caso: {{value}}"
+      "costCases": "Costi fissi per caso: {{value}}",
+      "warmupNote": "Risultati calcolati su {{measured}} casi: i primi {{excluded}} servivano a riempire le code e sono esclusi."
     },
     "jsonSummary": "Dati grezzi Prosimos",
     "status": {

@@ -380,7 +380,14 @@
       "durationBySame": "Same for every case",
       "durationByHint": "Each category of “{{attribute}}” has its own duration, starting from the base one.",
       "durationByCategory": "Cases with {{attribute}} = {{value}}",
-      "durationByMissing": "The chosen attribute is gone or not a category: pick another."
+      "durationByMissing": "The chosen attribute is gone or not a category: pick another.",
+      "warmupCases": "Warm-up cases",
+      "warmupHint": "Optional. The system starts empty: the first cases meet short queues. They stay out of the results; the replay shows them.",
+      "warmupIssue": {
+        "notWhole": "Enter a whole number of cases.",
+        "noCaseLeft": "The warm-up must leave at least one case to measure."
+      },
+      "invalidWarmup": "Warm-up cases need fixing."
     },
     "diagram": {
       "title": "Process model",
@@ -429,7 +436,8 @@
       "costTotal": "{{total}} in total, {{perCase}} per case.",
       "costResources": "Resource time: {{value}}",
       "costActivities": "Activity fixed costs: {{value}}",
-      "costCases": "Fixed costs per case: {{value}}"
+      "costCases": "Fixed costs per case: {{value}}",
+      "warmupNote": "Results computed on {{measured}} cases: the first {{excluded}} filled the queues and are left out."
     },
     "jsonSummary": "Raw Prosimos data",
     "status": {
