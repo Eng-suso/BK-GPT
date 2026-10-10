@@ -13,13 +13,14 @@ import { activityParameters, formatParameterDuration, hasTaskConfig } from "./ac
 import {
   arrivalFromModel,
   elementFromModel,
+  prioritiesFromModel,
   type ArrivalView,
   type AssignmentView,
   type BranchView,
   type CalendarView,
   type DurationView,
 } from "./modelParameters";
-import { useRunModel } from "./runModel";
+import { useRunModel, type IrRule } from "./runModel";
 
 type Lang = "it" | "en";
 type T = ReturnType<typeof useTranslation>["t"];
@@ -70,7 +71,10 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
     const view = elementFromModel(runModel.data, elementId, element, template.data);
     const arrival = !view && isStart ? arrivalFromModel(runModel.data) : null;
     body = arrival
-      ? <Arrival arrival={arrival} lang={lang} t={t} provenanceState={provenance} />
+      ? <>
+          <Arrival arrival={arrival} lang={lang} t={t} provenanceState={provenance} />
+          <Priorities priorities={prioritiesFromModel(runModel.data)} t={t} />
+        </>
       : !view
       ? <p className="sim-help">{t("simulation.activityInspector.notSimulated")}</p>
       : view.kind === "activity"
@@ -172,6 +176,21 @@ function Arrival({ arrival, lang, t, provenanceState }: { arrival: ArrivalView; 
       <OriginRow field={arrival.provenance} t={t} provenanceState={provenanceState} />
     </dl>
     <ProvenanceFoot field={arrival.provenance} t={t} provenanceState={provenanceState} />
+  </div>;
+}
+
+/** SIM-12: le priorita' dei casi che il run ha simulato; niente se non ce n'erano. */
+function Priorities({ priorities, t }: { priorities: { level: number; condition: IrRule[][] }[]; t: T }): React.JSX.Element | null {
+  if (priorities.length === 0) return null;
+  const sentence = (groups: IrRule[][]) => groups
+    .map((group) => group.map((rule) => `${rule.attribute} ${rule.operator} ${rule.value}`).join(` ${t("simulation.activityInspector.and")} `))
+    .join(` ${t("simulation.activityInspector.or")} `);
+  return <div className="sim-param-group">
+    <h5>{t("simulation.config.priorities")}</h5>
+    <dl>
+      {priorities.map((p) => <div key={p.level}><dt>{t("simulation.config.priorityLevel", { level: p.level })}</dt><dd>{sentence(p.condition)}</dd></div>)}
+    </dl>
+    <p className="sim-help">{t("simulation.activityInspector.prioritiesNote")}</p>
   </div>;
 }
 

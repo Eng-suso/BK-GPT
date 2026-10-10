@@ -347,7 +347,17 @@
       "dismissSource": "Not relevant",
       "dismissSourceFor": "Not relevant for {{task}}: {{what}}",
       "unlinkSource": "Unlink",
-      "unlinkSourceFor": "Unlink from {{task}}: {{what}}"
+      "unlinkSourceFor": "Unlink from {{task}}: {{what}}",
+      "priorities": "Case priorities",
+      "prioritiesHint": "When several cases wait for the same resource, priority 1 cases go first, then priority 2. The others wait in arrival order.",
+      "priorityLevel": "Priority {{level}}",
+      "removePriority": "Remove priority {{level}}",
+      "removePriorityShort": "Remove",
+      "addPriority": "Add a priority",
+      "prioritiesNeedAttribute": "To set a priority, define a case attribute first.",
+      "invalidPriorities_one": "Priorities to complete: {{count}}",
+      "invalidPriorities_other": "Priorities to complete: {{count}}",
+      "priorityReads": "Cases with {{rule}} go first."
     },
     "diagram": {
       "title": "Process model",
@@ -422,7 +432,8 @@
       "sharedActivity": "Several resources do this activity: each case went to the first free one, with its own duration.",
       "arrivals": "Case arrivals",
       "interarrival": "Mean time between arrivals",
-      "arrivalCalendar": "Arrival calendar"
+      "arrivalCalendar": "Arrival calendar",
+      "prioritiesNote": "The other cases waited in arrival order."
     },
     "provenance": {
       "label": "Source",

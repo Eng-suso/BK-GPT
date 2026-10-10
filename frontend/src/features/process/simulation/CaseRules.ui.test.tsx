@@ -52,7 +52,7 @@ describe("case attributes and branch rules in the scenario panel", () => {
 
     const byRule = screen.getByRole("button", { name: "Per regola" });
     expect(byRule).toBeDisabled();
-    expect(screen.getByText(/definisci prima un attributo del caso/)).toBeInTheDocument();
+    expect(screen.getByText("Per instradare per regola definisci prima un attributo del caso.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Aggiungi attributo" }));
     const name = screen.getByLabelText("Nome dell'attributo");

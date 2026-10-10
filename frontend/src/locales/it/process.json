@@ -347,7 +347,17 @@
       "dismissSource": "Non pertinente",
       "dismissSourceFor": "Non pertinente per {{task}}: {{what}}",
       "unlinkSource": "Scollega",
-      "unlinkSourceFor": "Scollega da {{task}}: {{what}}"
+      "unlinkSourceFor": "Scollega da {{task}}: {{what}}",
+      "priorities": "Priorità dei casi",
+      "prioritiesHint": "Quando più casi aspettano la stessa risorsa, passano prima quelli della priorità 1, poi quelli della 2. Gli altri aspettano in ordine di arrivo.",
+      "priorityLevel": "Priorità {{level}}",
+      "removePriority": "Togli la priorità {{level}}",
+      "removePriorityShort": "Togli",
+      "addPriority": "Aggiungi una priorità",
+      "prioritiesNeedAttribute": "Per dare una priorità, definisci prima un attributo del caso.",
+      "invalidPriorities_one": "Priorità da completare: {{count}}",
+      "invalidPriorities_other": "Priorità da completare: {{count}}",
+      "priorityReads": "Passano prima i casi con {{rule}}."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -422,7 +432,8 @@
       "sharedActivity": "Più risorse svolgono questa attività: ogni caso è andato alla prima libera, con la sua durata.",
       "arrivals": "Arrivi dei casi",
       "interarrival": "Tempo medio fra due arrivi",
-      "arrivalCalendar": "Calendario degli arrivi"
+      "arrivalCalendar": "Calendario degli arrivi",
+      "prioritiesNote": "Gli altri casi aspettavano in ordine di arrivo."
     },
     "provenance": {
       "label": "Origine",

@@ -92,7 +92,7 @@ export function GatewayRulesEditor({ gateway, rules, attributes, onChange }: {
  * Una condizione sugli attributi del caso: gruppi in "oppure", condizioni di un gruppo in "e",
  * riletta come frase. La usano i rami per regola (A2-1) e le priorita' dei casi (SIM-12).
  */
-export function ConditionGroups({ id, legend, subject, groups, attributes, onChange, action }: {
+export function ConditionGroups({ id, legend, subject, groups, attributes, onChange, action, sentenceKey = "simulation.config.ruleReads" }: {
   id: string;
   legend: string;
   /** Nome breve per le etichette accessibili dei campi. */
@@ -102,6 +102,8 @@ export function ConditionGroups({ id, legend, subject, groups, attributes, onCha
   onChange: (groups: BranchRuleDraft) => void;
   /** Un controllo accanto alla legenda (es. togli la priorita'). */
   action?: React.ReactNode;
+  /** Come si rilegge la condizione: un ramo "va qui", una priorita' "passa prima". */
+  sentenceKey?: string;
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const words = { and: t("simulation.activityInspector.and"), or: t("simulation.config.ruleOr") };
@@ -141,7 +143,7 @@ export function ConditionGroups({ id, legend, subject, groups, attributes, onCha
           <Plus aria-hidden className="size-3.5" />
           {t(groups.length ? "simulation.config.addAlternative" : "simulation.config.addRule")}
         </Button>
-        {!issue && <p className="text-xs text-muted-foreground">{t("simulation.config.ruleReads", { rule: ruleSentence(groups, attributes, words) })}</p>}
+        {!issue && <p className="text-xs text-muted-foreground">{t(sentenceKey, { rule: ruleSentence(groups, attributes, words) })}</p>}
         {issue && <p id={issueId} role="alert" className="text-xs font-medium text-destructive">{t(`simulation.config.ruleIssue.${issue}`)}</p>}
       </div>
     </fieldset>

@@ -37,7 +37,8 @@ import { ActivitySources } from "./ActivitySources";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
-import { caseRuleIssues, type GatewayRulesDraft } from "./caseRules";
+import { attributeUsage, caseRuleIssues, type GatewayRulesDraft } from "./caseRules";
+import { CasePrioritiesSection } from "./CasePrioritiesSection";
 
 const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
   pending: "pending",
@@ -132,9 +133,9 @@ export function SimulationConfigRail({
   const calendars = draft.calendars ?? [];
   const attributes = draft.caseAttributes ?? [];
   const gatewayRules = draft.gatewayRules ?? {};
-  const ruleIssues = caseRuleIssues(attributes, gatewayRules);
-  const attributeUse = Object.fromEntries(attributes.map((a) => [a.id,
-    Object.values(gatewayRules).filter((branches) => Object.values(branches).flat(2).some((r) => r.attributeId === a.id)).length]));
+  const priorities = draft.casePriorities ?? [];
+  const ruleIssues = caseRuleIssues(attributes, gatewayRules, priorities);
+  const attributeUse = attributeUsage(attributes, gatewayRules, priorities);
   const canRun = Boolean(template) && !templateLoading && resourceIssues.ready && parameterIssues.ready && ruleIssues.ready;
   const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
     patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
@@ -151,7 +152,7 @@ export function SimulationConfigRail({
         <div className="min-w-0">
           {!workspace && <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>}
           {workspace ? <nav aria-label={t("simulation.workspace.sections")} className="flex flex-wrap gap-1">
-            {["globals", "resources", "calendars", "activities", "attributes", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
+            {["globals", "resources", "calendars", "activities", "attributes", "priorities", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
               const sections = scrollRef.current?.querySelectorAll("section");
               const target = Array.from(sections ?? []).find((section) => section.querySelector("h4")?.textContent?.startsWith(t(`simulation.config.${key}`)));
               target?.scrollIntoView({ block: "start" });
@@ -352,6 +353,7 @@ export function SimulationConfigRail({
             {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
+            {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}
           </div>}
         </DetailPanelSection>
 
@@ -463,6 +465,10 @@ export function SimulationConfigRail({
 
         <DetailPanelSection title={t("simulation.config.attributes")}>
           <CaseAttributesSection attributes={attributes} usedBy={attributeUse} onChange={(next) => patch({ caseAttributes: next })} />
+        </DetailPanelSection>
+
+        <DetailPanelSection title={t("simulation.config.priorities")}>
+          <CasePrioritiesSection priorities={priorities} attributes={attributes} onChange={(next) => patch({ casePriorities: next })} />
         </DetailPanelSection>
 
         {template && template.gateways.length > 0 && (
