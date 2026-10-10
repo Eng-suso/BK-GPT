@@ -453,7 +453,8 @@
         "throughput": "Casi completati all'ora"
       },
       "replicationHint": "Media di {{count}} ripetizioni, con l'intervallo al 95%: il valore vero sta lì dentro con buona confidenza.",
-      "replicationWaiting": "L'intervallo compare quando almeno due ripetizioni sono completate."
+      "replicationWaiting": "L'intervallo compare quando almeno due ripetizioni sono completate.",
+      "replicationPerHour": "{{value}} all'ora"
     },
     "jsonSummary": "Dati grezzi Prosimos",
     "status": {

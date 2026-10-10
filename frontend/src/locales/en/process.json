@@ -453,7 +453,8 @@
         "throughput": "Cases completed per hour"
       },
       "replicationHint": "Mean of {{count}} replications with the 95% interval: the true value lies within it with good confidence.",
-      "replicationWaiting": "The interval shows once at least two replications have completed."
+      "replicationWaiting": "The interval shows once at least two replications have completed.",
+      "replicationPerHour": "{{value}} per hour"
     },
     "jsonSummary": "Raw Prosimos data",
     "status": {

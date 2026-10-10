@@ -27,7 +27,7 @@ export function ReplicationTable({ run, runs }: { run: SimulationRun; runs: Simu
     cycle: (v) => formatDuration(v, lang),
     waiting: (v) => formatDuration(v, lang),
     costPerCase: (v) => formatCurrency(v, lang),
-    throughput: (v) => `${v.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 })}/h`,
+    throughput: (v) => t("simulation.results.replicationPerHour", { value: v.toLocaleString(lang === "it" ? "it-IT" : "en-US", { maximumFractionDigits: 2 }) }),
   };
   const row = (kpi: ReplicationKpi, value: Interval | null) => value && (
     <tr key={kpi}>
