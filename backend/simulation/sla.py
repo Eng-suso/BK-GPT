@@ -7,10 +7,25 @@ cycle time dei KPI (ultima fine - prima abilitazione del caso).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from backend.simulation.log_processor import parse_prosimos_log
 
 
-def sla_outcome(log_csv: str, *, target_seconds: float, share: float) -> dict | None:
+@dataclass(frozen=True, slots=True)
+class SlaOutcome:
+    """L'esito dell'obiettivo sul run, come lo salva il riepilogo."""
+
+    target_seconds: float
+    share_target: float
+    # Quota esatta: ``met`` e la percentuale mostrata non devono contraddirsi.
+    share_within: float
+    cases: int
+    late_cases: int
+    met: bool
+
+
+def sla_outcome(log_csv: str, *, target_seconds: float, share: float) -> SlaOutcome | None:
     """Quanti casi completati stanno nel target, e se l'obiettivo e' rispettato.
 
     ``None`` se il log non ha casi: senza casi non c'e' niente da giudicare.
@@ -25,11 +40,11 @@ def sla_outcome(log_csv: str, *, target_seconds: float, share: float) -> dict | 
         return None
     within = sum(1 for case_id, end in last_end.items() if end - first_enable[case_id] <= target_seconds)
     share_within = within / cases
-    return {
-        "target_seconds": target_seconds,
-        "share_target": share,
-        "share_within": round(share_within, 4),
-        "cases": cases,
-        "late_cases": cases - within,
-        "met": share_within >= share,
-    }
+    return SlaOutcome(
+        target_seconds=target_seconds,
+        share_target=share,
+        share_within=share_within,
+        cases=cases,
+        late_cases=cases - within,
+        met=share_within >= share,
+    )

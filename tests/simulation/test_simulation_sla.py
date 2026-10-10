@@ -3,10 +3,11 @@
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.simulation.models import ProsimosSimulationResult
-from backend.simulation.sla import sla_outcome
+from backend.simulation.sla import SlaOutcome, sla_outcome
 from tests.simulation.test_simulation_replay import MINIMAL_BPMN
 
 HEADER = "case_id,activity,enable_time,start_time,end_time,resource"
@@ -35,9 +36,8 @@ def test_the_share_of_cases_within_the_target_decides_the_outcome():
         _row("4", "Ricevi", 9, 12),                              # 3 ore, esattamente il target
     )
     outcome = sla_outcome(log, target_seconds=3 * 3600, share=0.8)
-    assert outcome == {"target_seconds": 10800, "share_target": 0.8, "share_within": 0.75,
-                       "cases": 4, "late_cases": 1, "met": False}
-    assert sla_outcome(log, target_seconds=3 * 3600, share=0.75)["met"] is True
+    assert outcome == SlaOutcome(target_seconds=10800, share_target=0.8, share_within=0.75, cases=4, late_cases=1, met=False)
+    assert sla_outcome(log, target_seconds=3 * 3600, share=0.75).met is True
 
 
 def test_the_run_summary_carries_the_outcome_of_the_scenario_sla(monkeypatch):
@@ -78,3 +78,21 @@ def test_without_an_sla_the_summary_has_none(monkeypatch):
                           json={"total_cases": 60, "current_bpmn_xml": MINIMAL_BPMN}).json()
         summary = client.get(f"/v1/workspace/simulation-runs/{run['id']}").json()["summary"]
     assert "sla" not in summary
+
+
+@pytest.mark.parametrize("sla", [
+    {"target_seconds": 0, "share": 0.9},
+    {"target_seconds": 3600, "share": 0},
+    {"target_seconds": 3600, "share": 1.5},
+    {"target_seconds": "3600", "share": 0.9},
+])
+def test_an_invalid_sla_is_refused(sla):
+    from backend.app import app
+
+    with TestClient(app) as client:
+        cl = client.post("/v1/workspace/clients", json={"name": "BadSla"}).json()
+        pr = client.post("/v1/workspace/projects", json={"client_id": cl["id"], "name": "BadSla P"}).json()
+        ps = client.post(f"/v1/workspace/projects/{pr['id']}/processes", json={"name": "BadSla Proc"}).json()
+        response = client.post(f"/v1/workspace/bpmn-models/{ps['bpmn_model_id']}/simulation-runs",
+                               json={"total_cases": 10, "current_bpmn_xml": MINIMAL_BPMN, "sla": sla})
+    assert response.status_code == 422

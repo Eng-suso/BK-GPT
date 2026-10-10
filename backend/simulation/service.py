@@ -8,7 +8,7 @@ import logging
 import os
 import socket
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Literal
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -375,9 +375,11 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
     log_csv = getattr(result, "event_log_csv", None)
     if summary is not None and claimed.sla and log_csv:
         # SIM-13: l'esito dell'obiettivo di servizio, sulla stessa definizione di cycle dei KPI.
-        summary["sla"] = await asyncio.to_thread(
-            sla_outcome, log_csv, target_seconds=float(claimed.sla["target_seconds"]), share=float(claimed.sla["share"])
+        outcome = await asyncio.to_thread(
+            sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share
         )
+        if outcome is not None:
+            summary["sla"] = asdict(outcome)
     return await asyncio.to_thread(
         complete_simulation_run,
         run_id=claimed.run_id,

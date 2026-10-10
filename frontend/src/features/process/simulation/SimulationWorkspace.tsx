@@ -104,11 +104,12 @@ export function SimulationWorkspace({ embedded = false }: { embedded?: boolean }
         {bpmnXml ? <SimulationBpmnView className="min-h-0 flex-1" bpmnXml={bpmnXml} overlays={overlays} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /> : <EmptyState variant="inline" title={t("simulation.diagram.noModel")} />}
       </section>
       }
+      {activeRun?.status === "completed" && <ServiceLevelOutcome run={activeRun} />}
       {activeRun && <section aria-label={t("simulation.output.eyebrow")} className="shrink-0 ui-surface ui-surface-panel">
         <details open={Boolean(selectedElementId)}>
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring">{t("simulation.results.summary")}</summary>
           <div className="border-t border-border p-4">
-            {activeRun.error ? <p role="alert" className="text-sm text-destructive">{activeRun.error}</p> : isPending ? <EmptyState variant="inline" title={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)} description={runWaitHint(activeRun?.queue?.state, t)} /> : <><ServiceLevelOutcome run={activeRun} /><SimulationResults insights={insights} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} /></>}
+            {activeRun.error ? <p role="alert" className="text-sm text-destructive">{activeRun.error}</p> : isPending ? <EmptyState variant="inline" title={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)} description={runWaitHint(activeRun?.queue?.state, t)} /> : <SimulationResults insights={insights} selectedElementId={selectedElementId} onSelectElement={setSelectedElementId} />}
           </div>
         </details>
       </section>}

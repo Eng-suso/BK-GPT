@@ -65,8 +65,13 @@ export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
 export type SlaDraft = { target: number; unit: "hours" | "days"; sharePercent: number };
 export type SlaIssue = "target" | "share";
 
+export function slaSeconds(sla: SlaDraft): number {
+  return Math.round(sla.target * (sla.unit === "days" ? 86_400 : 3600));
+}
+
 export function slaIssue(sla: SlaDraft): SlaIssue | null {
-  if (!(Number.isFinite(sla.target) && sla.target > 0)) return "target";
+  // Sui secondi inviati: un obiettivo che arrotondato vale zero non e' un obiettivo.
+  if (!(Number.isFinite(sla.target) && slaSeconds(sla) >= 1)) return "target";
   if (!(Number.isFinite(sla.sharePercent) && sla.sharePercent > 0 && sla.sharePercent <= 100)) return "share";
   return null;
 }
@@ -281,7 +286,7 @@ export function scenarioToInput(
   return {
     ...base,
     ...(draft.sla ? { sla: {
-      targetSeconds: Math.round(draft.sla.target * (draft.sla.unit === "days" ? 86_400 : 3600)),
+      targetSeconds: slaSeconds(draft.sla),
       share: draft.sla.sharePercent / 100,
     } } : {}),
     arrival: {

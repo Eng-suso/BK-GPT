@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.simulation.ir.patch import ModelPatch
 
@@ -70,6 +70,9 @@ class SimArrivalConfig(BaseModel):
 class SimSlaConfig(BaseModel):
     """L'obiettivo di servizio dello scenario (SIM-13): il caso si chiude entro
     ``target_seconds`` per almeno la quota ``share`` dei casi (0-1)."""
+
+    # Stretto: "86400" come stringa e' un errore del client, non un numero da indovinare.
+    model_config = ConfigDict(strict=True)
 
     target_seconds: float = Field(gt=0)
     share: float = Field(gt=0, le=1)

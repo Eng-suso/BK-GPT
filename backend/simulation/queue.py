@@ -24,7 +24,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from backend.schemas.simulation import SimulationQueueView
+from backend.schemas.simulation import SimSlaConfig, SimulationQueueView
 from backend.settings import settings
 from backend.simulation.models import ProsimosScenario
 from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
@@ -65,7 +65,7 @@ class ClaimedRun:
     start_date: str | None
     seed: int | None
     # L'obiettivo di servizio dello scenario (SIM-13), se il consulente l'ha dato.
-    sla: dict | None = None
+    sla: SimSlaConfig | None = None
 
 
 def now_iso() -> str:
@@ -176,7 +176,8 @@ def claim_next_run(worker_id: str) -> ClaimedRun | None:
             total_cases=int(request.get("total_cases") or 100),
             start_date=request.get("start_date"),
             seed=request.get("seed"),
-            sla=request.get("sla"),
+            # Rivalidato: la richiesta salvata torna dal database, non dal client.
+            sla=SimSlaConfig.model_validate(request["sla"]) if request.get("sla") else None,
         )
 
 

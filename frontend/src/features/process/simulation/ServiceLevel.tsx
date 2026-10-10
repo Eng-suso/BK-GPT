@@ -73,9 +73,14 @@ export function ServiceLevelOutcome({ run }: { run: SimulationRun }): React.JSX.
         <StatusIndicator tone={sla.met ? "ok" : "danger"} label={t(sla.met ? "simulation.results.slaMet" : "simulation.results.slaMissed")} />
       </div>
       <p className="text-sm text-foreground">
-        {t("simulation.results.slaWithin", { share: formatPercent(sla.share_within), target: formatDuration(sla.target_seconds, lang), goal: formatPercent(sla.share_target) })}
+        {t("simulation.results.slaWithin", { share: shareBelow(sla.share_within, lang), target: formatDuration(sla.target_seconds, lang), goal: formatPercent(sla.share_target) })}
       </p>
       <p className="text-xs text-muted-foreground">{t("simulation.results.slaLate", { count: sla.late_cases, cases: sla.cases })}</p>
     </section>
   );
+}
+
+/** Per difetto, a un decimale: un 99,6% non deve leggersi "100%" accanto a "Non rispettato". */
+function shareBelow(ratio: number, lang: "it" | "en"): string {
+  return `${(Math.floor(ratio * 1000) / 10).toLocaleString(lang === "it" ? "it-IT" : "en-US")}%`;
 }
