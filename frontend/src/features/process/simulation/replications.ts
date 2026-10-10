@@ -100,8 +100,9 @@ export function deltaInterval(a: number[], b: number[], betterIs: "lower" | "hig
     const va = ma.variance / a.length;
     const vb = mb.variance / b.length;
     const se = Math.sqrt(va + vb);
-    const df = se === 0 ? a.length + b.length - 2 : (va + vb) ** 2 / (va ** 2 / (a.length - 1) + vb ** 2 / (b.length - 1));
-    half = t975(df) * se;
+    const welch = (va + vb) ** 2 / (va ** 2 / (a.length - 1) + vb ** 2 / (b.length - 1));
+    // Varianze nulle o troppo piccole: i gradi di liberta' di Welch non esistono, si usano quelli dei due gruppi insieme.
+    half = t975(se > 0 && Number.isFinite(welch) ? welch : a.length + b.length - 2) * se;
   }
   const decided = delta !== 0 && Math.abs(delta) > half;
   const bWins = betterIs === "lower" ? delta < 0 : delta > 0;

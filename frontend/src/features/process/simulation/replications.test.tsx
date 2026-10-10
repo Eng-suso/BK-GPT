@@ -89,3 +89,11 @@ describe("delta between two repeated scenarios (SIM-04)", () => {
     expect(compareGroups(a[0], a[1], a)).toBeNull();
   });
 });
+
+describe("delta interval edge cases", () => {
+  it("falls back to the pooled degrees of freedom when the Welch value does not exist", () => {
+    const value = deltaInterval([1e-200, 2e-200, 3e-200], [5, 5, 5], "lower", false);
+    expect(Number.isFinite(value?.half)).toBe(true);
+    expect(value?.verdict).toBe("worse");
+  });
+});
