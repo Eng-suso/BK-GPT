@@ -16,6 +16,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from backend.schemas.simulation_scenarios import (
     BASELINE_LABEL,
@@ -44,7 +45,7 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def _rows(session, bpmn_model_id: str, *, lock: bool = False) -> list[WorkspaceSimulationScenario]:
+def _rows(session: Session, bpmn_model_id: str, *, lock: bool = False) -> list[WorkspaceSimulationScenario]:
     query = (
         select(WorkspaceSimulationScenario)
         .where(WorkspaceSimulationScenario.tenant_id == get_current_tenant_id())
