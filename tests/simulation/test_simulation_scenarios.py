@@ -250,3 +250,16 @@ def test_deleting_the_process_removes_its_scenarios(api_client):
             select(func.count()).select_from(WorkspaceSimulationScenario).where(WorkspaceSimulationScenario.bpmn_model_id == model_id)
         ).scalar_one()
     assert left == 0
+
+
+def test_an_oversized_patch_or_draft_is_rejected(api_client, new_bpmn_model):
+    model_id = new_bpmn_model()
+    _with_baseline(api_client, model_id)
+    # Caratteri accentati: il tetto e' in byte UTF-8, non in caratteri.
+    huge = "è" * 300_000
+
+    patch = api_client.post(_url(model_id), json={"name": "x", "patch": [{"op": "set", "path": ["note"], "value": huge}]})
+    draft = api_client.put(_url(model_id, "/baseline"), json={"name": "AS-IS", "draft": {"note": huge}, "revision": 1})
+
+    assert patch.status_code == 422
+    assert draft.status_code == 422

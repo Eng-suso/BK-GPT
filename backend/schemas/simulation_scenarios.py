@@ -46,10 +46,21 @@ class ScenarioPatchOp(BaseModel):
         return self
 
 
+def _json_bytes(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8"))
+
+
 def _check_draft_size(draft: dict[str, Any]) -> dict[str, Any]:
-    if len(json.dumps(draft, ensure_ascii=False)) > MAX_DRAFT_BYTES:
+    if _json_bytes(draft) > MAX_DRAFT_BYTES:
         raise ValueError("La bozza dello scenario e' troppo grande.")
     return draft
+
+
+def _check_patch_size(patch: list[ScenarioPatchOp] | None) -> list[ScenarioPatchOp] | None:
+    # I valori di un 'set' possono essere sezioni intere: lo stesso tetto della bozza.
+    if patch is not None and _json_bytes([op.model_dump(mode="json") for op in patch]) > MAX_DRAFT_BYTES:
+        raise ValueError("La patch dello scenario e' troppo grande.")
+    return patch
 
 
 class PutScenarioBaselineRequest(BaseModel):
@@ -67,11 +78,15 @@ class CreateScenarioRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     patch: list[ScenarioPatchOp] = Field(default_factory=list, max_length=MAX_PATCH_OPS)
 
+    _patch_size = field_validator("patch")(_check_patch_size)
+
 
 class UpdateScenarioRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     patch: list[ScenarioPatchOp] | None = Field(default=None, max_length=MAX_PATCH_OPS)
     revision: int = Field(ge=1)
+
+    _patch_size = field_validator("patch")(_check_patch_size)
 
 
 class SimulationScenarioResponse(BaseModel):
