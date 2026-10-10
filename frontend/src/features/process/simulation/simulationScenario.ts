@@ -49,7 +49,27 @@ export type TaskDraft = DurationDraft & {
   claims?: { claimId: number; label: string }[];
   /** SIM-10: euro per ogni esecuzione, oltre al tempo delle risorse. Assente = nessuno. */
   fixedCost?: number;
+  /** SIM-32: durata per categoria di un attributo; le categorie senza voce usano la base. */
+  durationBy?: { attributeId: string; variants: Record<string, DurationDraft> };
 };
+
+/** La durata di base di un'attivita', senza ruolo ne' altro. */
+export function durationOf(task: DurationDraft): DurationDraft {
+  const { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes } = task;
+  return { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes };
+}
+
+/** Le durate per categoria che si inviano: le categorie attuali dell'attributo, la base dove manca. */
+export function durationVariants(task: TaskDraft, attributes: CaseAttributeDraft[]): { attribute: string; variants: { value: string; duration: DurationDraft }[] } | null {
+  const attribute = attributes.find((a) => a.id === task.durationBy?.attributeId);
+  if (!task.durationBy || !attribute || attribute.kind !== "category") return null;
+  const values = attribute.categories.map((c) => c.value.trim()).filter(Boolean);
+  if (values.length === 0) return null;
+  return {
+    attribute: attribute.name.trim(),
+    variants: values.map((value) => ({ value, duration: task.durationBy?.variants[value] ?? durationOf(task) })),
+  };
+}
 
 /** Un calendario di lavoro dello scenario, con orari ``HH:MM``. */
 export type CalendarDraft = SimCalendar;
@@ -178,8 +198,12 @@ export function calendarIssue(calendar: CalendarDraft): CalendarIssue | null {
 }
 
 export function scenarioParameterIssues(draft: ScenarioDraft) {
+  const attributes = draft.caseAttributes ?? [];
   const durations = Object.values(draft.tasks).filter((task) =>
-    [task, ...(task.otherAssignments ?? [])].some((duration) => taskDurationIssue(duration) !== null)).length;
+    [task, ...(task.otherAssignments ?? []), ...(durationVariants(task, attributes)?.variants.map((v) => v.duration) ?? [])]
+      .some((duration) => taskDurationIssue(duration) !== null)
+    // Una durata per categoria su un attributo tolto o non a categorie va rivista.
+    || (task.durationBy !== undefined && durationVariants(task, attributes) === null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null;
   const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
@@ -260,6 +284,13 @@ function taskMeanSeconds(task: DurationDraft): number {
   return Math.max(1, Math.round(minutes * 60));
 }
 
+function byCategory(task: TaskDraft, attributes: CaseAttributeDraft[]) {
+  const variants = durationVariants(task, attributes);
+  return variants
+    ? { durationBy: { attribute: variants.attribute, variants: variants.variants.map((v) => ({ value: v.value, ...durationInput(v.duration) })) } }
+    : {};
+}
+
 function durationInput(duration: DurationDraft) {
   const parameters = DISTRIBUTION_PARAMETERS[duration.distribution];
   return {
@@ -315,6 +346,7 @@ export function scenarioToInput(
         resourceId: task.resourceId,
         ...(task.claims?.length ? { claims: task.claims } : {}),
         ...(task.fixedCost ? { fixedCost: task.fixedCost } : {}),
+        ...(byCategory(task, draft.caseAttributes ?? [])),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),

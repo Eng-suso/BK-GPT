@@ -311,6 +311,8 @@ export type SimTaskInput = SimDurationInput & {
   claims?: { claimId: number; label: string }[];
   /** SIM-10: euro per esecuzione. */
   fixedCost?: number;
+  /** SIM-32: durate per categoria di un attributo del caso. */
+  durationBy?: { attribute: string; variants: (SimDurationInput & { value: string })[] };
   /** Gli altri ruoli che possono svolgere l'attività, ognuno con la sua durata. */
   otherAssignments?: (SimDurationInput & { resourceId: string })[];
 };

@@ -55,8 +55,10 @@ export type BranchView = {
 
 export type ArrivalView = { duration: DurationView; calendar: CalendarView; provenance: FieldProvenance };
 
+export type DurationByView = { attribute: string; variants: { value: string; duration: DurationView }[] };
+
 export type ElementView =
-  | { kind: "activity"; assignments: AssignmentView[] }
+  | { kind: "activity"; assignments: AssignmentView[]; durationBy: DurationByView | null }
   | { kind: "gateway"; branches: BranchView[]; provenance: FieldProvenance };
 
 /** SIM-12: chi passava prima in coda nel run, dalla priorita' 1. */
@@ -134,6 +136,9 @@ export function elementFromModel(
     const structural = activityProvenance(false, element);
     return {
       kind: "activity",
+      durationBy: activity.duration_by
+        ? { attribute: activity.duration_by.attribute, variants: activity.duration_by.variants.map((v) => ({ value: v.value, duration: durationView(v.duration) })) }
+        : null,
       assignments: activity.assignments.map((assignment) => {
         const resource = resources.get(assignment.resource_id);
         return {

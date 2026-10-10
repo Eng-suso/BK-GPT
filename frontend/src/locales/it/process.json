@@ -375,7 +375,12 @@
       "invalidSla": "Obiettivo di servizio da correggere.",
       "fixedCost": "Costo fisso per esecuzione, €",
       "caseFixedCost": "Costo fisso per caso, €",
-      "invalidCosts": "Costi fissi da correggere: devono essere zero o più."
+      "invalidCosts": "Costi fissi da correggere: devono essere zero o più.",
+      "durationBy": "La durata cambia con",
+      "durationBySame": "Uguale per tutti i casi",
+      "durationByHint": "Ogni categoria di «{{attribute}}» ha la sua durata; parte da quella di base.",
+      "durationByCategory": "Casi con {{attribute}} = {{value}}",
+      "durationByMissing": "L'attributo scelto non c'è più o non è a categorie: scegline un altro."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -462,7 +467,10 @@
       "interarrival": "Tempo medio fra due arrivi",
       "arrivalCalendar": "Calendario degli arrivi",
       "prioritiesNote": "Gli altri casi aspettavano in ordine di arrivo.",
-      "fixedCost": "Costo fisso: {{value}} per ogni esecuzione, oltre al tempo della risorsa."
+      "fixedCost": "Costo fisso: {{value}} per ogni esecuzione, oltre al tempo della risorsa.",
+      "durationBy": "Durata per {{attribute}}",
+      "durationByCategory": "{{attribute}} = {{value}}",
+      "durationByOthers": "Gli altri casi hanno usato la durata delle risorse qui sotto."
     },
     "provenance": {
       "label": "Origine",

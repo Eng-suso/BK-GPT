@@ -18,6 +18,7 @@ import {
   type AssignmentView,
   type BranchView,
   type CalendarView,
+  type DurationByView,
   type DurationView,
 } from "./modelParameters";
 import { useRunModel, type IrRule } from "./runModel";
@@ -81,6 +82,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
         ? <>
             {view.assignments.length > 1 && <p className="sim-help">{t("simulation.activityInspector.sharedActivity")}</p>}
             <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
+            {view.durationBy && <DurationBy durationBy={view.durationBy} lang={lang} t={t} />}
             {view.assignments.map((assignment, index) => (
               <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
             ))}
@@ -190,6 +192,20 @@ function Priorities({ priorities, t }: { priorities: { level: number; condition:
       {priorities.map((p) => <div key={p.level}><dt>{t("simulation.config.priorityLevel", { level: p.level })}</dt><dd>{conditionText(p.condition, t)}</dd></div>)}
     </dl>
     <p className="sim-help">{t("simulation.activityInspector.prioritiesNote")}</p>
+  </div>;
+}
+
+/** SIM-32: le durate per categoria che il run ha simulato; gli altri casi usano quelle delle risorse. */
+function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang: Lang; t: T }): React.JSX.Element {
+  return <div className="sim-param-group">
+    <h5>{t("simulation.activityInspector.durationBy", { attribute: durationBy.attribute })}</h5>
+    {durationBy.variants.map((variant) => (
+      <div key={variant.value}>
+        <p className="sim-param-note">{t("simulation.activityInspector.durationByCategory", { attribute: durationBy.attribute, value: variant.value })}</p>
+        <dl><DurationRows duration={variant.duration} lang={lang} t={t} /></dl>
+      </div>
+    ))}
+    <p className="sim-help">{t("simulation.activityInspector.durationByOthers")}</p>
   </div>;
 }
 

@@ -99,11 +99,13 @@ export function attributeUsage(
   attributes: CaseAttributeDraft[],
   gatewayRules: Record<string, GatewayRulesDraft>,
   priorities: BranchRuleDraft[] = [],
+  durationAttributeIds: string[] = [],
 ): Record<string, number> {
   const uses = (groups: BranchRuleDraft[], id: string) => groups.some((g) => g.flat().some((r) => r.attributeId === id));
   return Object.fromEntries(attributes.map((a) => [a.id,
     Object.values(gatewayRules).filter((branches) => uses(Object.values(branches), a.id)).length +
-    priorities.filter((groups) => uses([groups], a.id)).length]));
+    priorities.filter((groups) => uses([groups], a.id)).length +
+    durationAttributeIds.filter((id) => id === a.id).length]));
 }
 
 /** La prima condizione di una regola nuova: il primo attributo con il suo primo valore. */

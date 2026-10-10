@@ -35,6 +35,7 @@ import { TaskDurationFields } from "./TaskDurationFields";
 import { OtherAssignments } from "./OtherAssignments";
 import { ActivitySources } from "./ActivitySources";
 import { ServiceLevelFields } from "./ServiceLevel";
+import { DurationByCategory } from "./DurationByCategory";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
@@ -136,7 +137,8 @@ export function SimulationConfigRail({
   const gatewayRules = draft.gatewayRules ?? {};
   const priorities = draft.casePriorities ?? [];
   const ruleIssues = caseRuleIssues(attributes, gatewayRules, priorities);
-  const attributeUse = attributeUsage(attributes, gatewayRules, priorities);
+  const attributeUse = attributeUsage(attributes, gatewayRules, priorities,
+    Object.values(draft.tasks).flatMap((task) => (task.durationBy ? [task.durationBy.attributeId] : [])));
   const canRun = Boolean(template) && !templateLoading && resourceIssues.ready && parameterIssues.ready && ruleIssues.ready;
   const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
     patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
@@ -445,6 +447,13 @@ export function SimulationConfigRail({
                         </Select>
                       </FieldLabel>
                     </div>
+                    <DurationByCategory
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      attributes={attributes}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
                     <label className="sim-task-cost mt-1.5 grid gap-1">
                       <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.fixedCost")}</span>
                       <Input className="h-8" type="number" min={0} step="any"

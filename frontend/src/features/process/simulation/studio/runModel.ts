@@ -66,6 +66,10 @@ export const runModelSchema = z.object({
       element_id: z.string(),
       name: z.string().default(""),
       assignments: z.array(z.object({ resource_id: z.string(), duration: irDistributionSchema, provenance })),
+      duration_by: z.object({
+        attribute: z.string(),
+        variants: z.array(z.object({ value: z.string(), duration: irDistributionSchema })),
+      }).nullable().optional(),
     }),
   ),
   gateways: z

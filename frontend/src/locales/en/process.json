@@ -375,7 +375,12 @@
       "invalidSla": "Service objective needs fixing.",
       "fixedCost": "Fixed cost per execution, €",
       "caseFixedCost": "Fixed cost per case, €",
-      "invalidCosts": "Fixed costs need fixing: they must be zero or more."
+      "invalidCosts": "Fixed costs need fixing: they must be zero or more.",
+      "durationBy": "Duration changes with",
+      "durationBySame": "Same for every case",
+      "durationByHint": "Each category of “{{attribute}}” has its own duration, starting from the base one.",
+      "durationByCategory": "Cases with {{attribute}} = {{value}}",
+      "durationByMissing": "The chosen attribute is gone or not a category: pick another."
     },
     "diagram": {
       "title": "Process model",
@@ -462,7 +467,10 @@
       "interarrival": "Mean time between arrivals",
       "arrivalCalendar": "Arrival calendar",
       "prioritiesNote": "The other cases waited in arrival order.",
-      "fixedCost": "Fixed cost: {{value}} per execution, on top of the resource time."
+      "fixedCost": "Fixed cost: {{value}} per execution, on top of the resource time.",
+      "durationBy": "Duration by {{attribute}}",
+      "durationByCategory": "{{attribute}} = {{value}}",
+      "durationByOthers": "The other cases used the resource durations below."
     },
     "provenance": {
       "label": "Source",
