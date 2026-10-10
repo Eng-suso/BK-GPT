@@ -1,7 +1,9 @@
 import {
   sanitizeAttributes,
   sanitizeGatewayRules,
+  sanitizePriorities,
   toModelPatch,
+  type BranchRuleDraft,
   type CaseAttributeDraft,
   type GatewayRulesDraft,
 } from "./caseRules";
@@ -75,6 +77,8 @@ export type ScenarioDraft = {
   caseAttributes?: CaseAttributeDraft[];
   /** Decisioni instradate per regola: element_id -> flow_id -> gruppi di condizioni. */
   gatewayRules?: Record<string, GatewayRulesDraft>;
+  /** SIM-12: chi passa prima in coda. Indice 0 = priorita' 1, servita per prima. */
+  casePriorities?: BranchRuleDraft[];
   /** Proposte di fonti scartate dal consulente: element_id -> id delle affermazioni. */
   dismissedClaims?: Record<string, number[]>;
 };
@@ -285,7 +289,7 @@ export function scenarioToInput(
       };
     }),
     calendars: draft.calendars ?? [],
-    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}),
+    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}, draft.casePriorities ?? []),
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
       branches: Object.entries(branches).map(([flowId, probability]) => ({
@@ -394,6 +398,7 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
       caseAttributes: sanitizeAttributes(parsed.caseAttributes),
       arrival: sanitizeArrival(parsed.arrival),
       gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
+      casePriorities: sanitizePriorities(parsed.casePriorities),
     };
   } catch {
     return structuredClone(DEFAULT_SCENARIO);

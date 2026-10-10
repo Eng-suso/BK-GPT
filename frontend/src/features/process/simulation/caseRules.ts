@@ -76,12 +76,34 @@ export function ruleIssue(groups: BranchRuleDraft | undefined, attributes: CaseA
   return null;
 }
 
-/** Quante decisioni per regola e quanti attributi impediscono il run. */
-export function caseRuleIssues(attributes: CaseAttributeDraft[], gatewayRules: Record<string, GatewayRulesDraft>) {
+/** Quante decisioni per regola, priorita' e attributi impediscono il run. */
+export function caseRuleIssues(
+  attributes: CaseAttributeDraft[],
+  gatewayRules: Record<string, GatewayRulesDraft>,
+  priorities: BranchRuleDraft[] = [],
+) {
   const badAttributes = attributes.filter((a) => attributeIssue(a, attributes) !== null).length;
   const badGateways = Object.values(gatewayRules).filter((branches) =>
     Object.values(branches).some((groups) => ruleIssue(groups, attributes) !== null)).length;
-  return { attributes: badAttributes, gateways: badGateways, ready: badAttributes === 0 && badGateways === 0 };
+  const badPriorities = priorities.filter((groups) => ruleIssue(groups, attributes) !== null).length;
+  return {
+    attributes: badAttributes,
+    gateways: badGateways,
+    priorities: badPriorities,
+    ready: badAttributes === 0 && badGateways === 0 && badPriorities === 0,
+  };
+}
+
+/** Quante decisioni e priorita' usano ogni attributo: uno usato non si toglie. */
+export function attributeUsage(
+  attributes: CaseAttributeDraft[],
+  gatewayRules: Record<string, GatewayRulesDraft>,
+  priorities: BranchRuleDraft[] = [],
+): Record<string, number> {
+  const uses = (groups: BranchRuleDraft[], id: string) => groups.some((g) => g.flat().some((r) => r.attributeId === id));
+  return Object.fromEntries(attributes.map((a) => [a.id,
+    Object.values(gatewayRules).filter((branches) => uses(Object.values(branches), a.id)).length +
+    priorities.filter((groups) => uses([groups], a.id)).length]));
 }
 
 /** La prima condizione di una regola nuova: il primo attributo con il suo primo valore. */
@@ -99,7 +121,11 @@ export function ruleSentence(groups: BranchRuleDraft, attributes: CaseAttributeD
 }
 
 type IrDistribution = { kind: "uniform"; minimum: number; maximum: number };
+type IrCondition = { any_of: Array<Array<{ attribute: string; operator: RuleOperator; value: string | number }>> };
+
 export type ModelPatchInput = {
+  /** SIM-12: livello 1 = servito per primo quando piu' casi aspettano la stessa risorsa. */
+  priority_rules?: Array<{ level: number; condition: IrCondition }>;
   case_attributes?: Array<
     | { name: string; options: { value: string; probability: number }[]; provenance: typeof PROVENANCE }
     | { name: string; distribution: IrDistribution; provenance: typeof PROVENANCE }
@@ -109,7 +135,7 @@ export type ModelPatchInput = {
     branches: Array<{
       flow_id: string;
       probability: number;
-      condition: { any_of: Array<Array<{ attribute: string; operator: RuleOperator; value: string | number }>> };
+      condition: IrCondition;
       provenance: typeof PROVENANCE;
     }>;
   }>;
@@ -122,9 +148,21 @@ export type ModelPatchInput = {
 export function toModelPatch(
   attributes: CaseAttributeDraft[],
   gatewayRules: Record<string, GatewayRulesDraft>,
+  priorities: BranchRuleDraft[] = [],
 ): ModelPatchInput | undefined {
   if (attributes.length === 0) return undefined;
   const byId = new Map(attributes.map((a) => [a.id, a]));
+  const condition = (groups: BranchRuleDraft): IrCondition => ({
+    any_of: groups.map((group) => group.map((rule) => {
+      const attribute = byId.get(rule.attributeId);
+      const raw = rule.value.trim();
+      return {
+        attribute: attribute?.name.trim() ?? rule.attributeId,
+        operator: rule.operator,
+        value: attribute?.kind === "number" ? Number(raw.replace(",", ".")) : raw,
+      };
+    })),
+  });
   const caseAttributes: NonNullable<ModelPatchInput["case_attributes"]> = attributes.map((attribute) => {
     if (attribute.kind === "number") {
       return { name: attribute.name.trim(), distribution: { kind: "uniform", minimum: attribute.minimum, maximum: attribute.maximum }, provenance: PROVENANCE };
@@ -145,22 +183,17 @@ export function toModelPatch(
         flow_id: flowId,
         // Ignorata dal motore quando ogni ramo ha una regola; l'IR la vuole fra 0 e 1.
         probability: 1 / flows.length,
-        condition: {
-          any_of: groups.map((group) => group.map((rule) => {
-            const attribute = byId.get(rule.attributeId);
-            const raw = rule.value.trim();
-            return {
-              attribute: attribute?.name.trim() ?? rule.attributeId,
-              operator: rule.operator,
-              value: attribute?.kind === "number" ? Number(raw.replace(",", ".")) : raw,
-            };
-          })),
-        },
+        condition: condition(groups),
         provenance: PROVENANCE,
       })),
     };
   });
-  return { case_attributes: caseAttributes, ...(gateways.length ? { gateways } : {}) };
+  const priorityRules = priorities.map((groups, index) => ({ level: index + 1, condition: condition(groups) }));
+  return {
+    case_attributes: caseAttributes,
+    ...(gateways.length ? { gateways } : {}),
+    ...(priorityRules.length ? { priority_rules: priorityRules } : {}),
+  };
 }
 
 /** Bozze lette dal localStorage: cio' che non torna si scarta, non rompe il pannello. */
@@ -174,16 +207,24 @@ export function sanitizeAttributes(raw: unknown): CaseAttributeDraft[] {
   });
 }
 
+const isRule = (r: unknown): r is RuleDraft => Boolean(r) && typeof (r as RuleDraft).attributeId === "string" &&
+  typeof (r as RuleDraft).value === "string" && (NUMBER_OPERATORS as readonly string[]).includes((r as RuleDraft).operator);
+const isGroups = (groups: unknown): groups is BranchRuleDraft =>
+  Array.isArray(groups) && groups.every((g) => Array.isArray(g) && g.every(isRule));
+
+/** Le priorita' salvate: quelle che non tornano si scartano. */
+export function sanitizePriorities(raw: unknown): BranchRuleDraft[] {
+  return Array.isArray(raw) ? raw.filter(isGroups) : [];
+}
+
 export function sanitizeGatewayRules(raw: unknown): Record<string, GatewayRulesDraft> {
   if (!raw || typeof raw !== "object") return {};
-  const isRule = (r: unknown): r is RuleDraft => Boolean(r) && typeof (r as RuleDraft).attributeId === "string" &&
-    typeof (r as RuleDraft).value === "string" && (NUMBER_OPERATORS as readonly string[]).includes((r as RuleDraft).operator);
   const out: Record<string, GatewayRulesDraft> = {};
   for (const [gateway, branches] of Object.entries(raw as Record<string, unknown>)) {
     if (!branches || typeof branches !== "object") continue;
     const clean: GatewayRulesDraft = {};
     for (const [flow, groups] of Object.entries(branches as Record<string, unknown>)) {
-      if (Array.isArray(groups) && groups.every((g) => Array.isArray(g) && g.every(isRule))) clean[flow] = groups as BranchRuleDraft;
+      if (isGroups(groups)) clean[flow] = groups;
     }
     out[gateway] = clean;
   }
