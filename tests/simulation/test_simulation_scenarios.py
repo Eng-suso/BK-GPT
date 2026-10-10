@@ -225,14 +225,16 @@ def test_a_run_cites_only_the_current_revision_of_a_scenario_of_its_process(api_
     foreign = _run(api_client, other_id, {"id": baseline_id, "revision": 1, "baseline_revision": 1})
     future = _run(api_client, model_id, {"id": baseline_id, "revision": 2, "baseline_revision": 1})
     missing = _run(api_client, model_id, {"id": 999999, "revision": 1, "baseline_revision": 1})
-    api_client.put(_url(model_id, "/baseline"), json={"name": "AS-IS", "draft": AS_IS, "revision": 1})
+    assert api_client.put(_url(model_id, "/baseline"), json={"name": "AS-IS", "draft": AS_IS, "revision": 1}).status_code == 200
     stale = _run(api_client, model_id, {"id": baseline_id, "revision": 1, "baseline_revision": 1})
+    stale_baseline = _run(api_client, model_id, {"id": baseline_id, "revision": 2, "baseline_revision": 1})
     current = _run(api_client, model_id, {"id": baseline_id, "revision": 2, "baseline_revision": 2})
 
     assert foreign.status_code == 400
     assert future.status_code == 400
     assert missing.status_code == 400
     assert stale.status_code == 400
+    assert stale_baseline.status_code == 400
     assert current.status_code == 200, current.text
 
 
