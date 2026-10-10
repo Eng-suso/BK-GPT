@@ -1,5 +1,6 @@
 import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { HttpError } from "@/lib/http";
@@ -14,12 +15,27 @@ import {
 import type { ScenarioTemplate, SimulationClaims, SimulationRun } from "./simulationTypes";
 import {
   loadScenarioDraft,
+  parseScenarioDraft,
   saveScenarioDraft,
+  scenarioParameterIssues,
   scenarioToInput,
   scenarioResourceIssues,
   seedDraftFromTemplate,
   type ScenarioDraft,
 } from "./simulationScenario";
+import { diffScenario } from "./scenarioPatch";
+import {
+  createWorkspaceScenario,
+  deleteWorkspaceScenario,
+  fetchScenarioWorkspace,
+  putScenarioBaseline,
+  scenarioDisplayName,
+  scenarioRef,
+  updateWorkspaceScenario,
+  workspaceScenarios,
+  type ScenarioWorkspace,
+  type WorkspaceScenario,
+} from "./scenarioWorkspace";
 import { resolveActiveRun, useSimulationSection } from "./useSimulationSection";
 import { useInputConfidence } from "./useInputConfidence";
 import type { InputConfidence } from "./simulationProvenance";
@@ -27,7 +43,12 @@ import type { ScenarioProvenance } from "./simulationTypes";
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 15 * 60 * 1000;
+/** Una modifica nel pannello si salva sul workspace dopo questa pausa. */
+const SAVE_DELAY_MS = 600;
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Un AS-IS creato dalla bozza locale una volta sola, anche con piu' pannelli aperti. */
+const bootstrapping = new Set<string>();
 
 export type ScenarioLab = {
   bpmnXml: string | null;
@@ -44,20 +65,40 @@ export type ScenarioLab = {
   isPending: boolean;
   error: string | null;
   handleRun: () => Promise<void>;
+  /** SIM-14: il workspace AS-IS | A | B | C e lo scenario che il pannello modifica. */
+  workspace: ScenarioWorkspace | null;
+  workspaceError: string | null;
+  selectedScenario: WorkspaceScenario | null;
+  selectScenario: (id: number | null) => void;
+  /** L'AS-IS con i default del template: il riferimento delle modifiche di ogni scenario. */
+  baselineDraft: ScenarioDraft | null;
+  isSaving: boolean;
+  createScenario: (name: string, from?: WorkspaceScenario) => Promise<WorkspaceScenario | null>;
+  renameScenario: (scenario: WorkspaceScenario, name: string) => Promise<void>;
+  deleteScenario: (scenario: WorkspaceScenario) => Promise<boolean>;
+  /** Toglie una modifica dallo scenario: per quel punto torna come l'AS-IS. */
+  revertChange: (scenario: WorkspaceScenario, index: number) => Promise<void>;
+  newSeed: () => Promise<void>;
+  /** Avvia uno scenario del workspace, con il seed comune. */
+  runScenario: (scenario: WorkspaceScenario) => Promise<boolean>;
+  /** Il motivo per cui uno scenario non puo' partire, o null. */
+  scenarioBlocker: (scenario: WorkspaceScenario) => string | null;
 };
 
 /**
- * The shared scenario workbench: the persisted draft, the element template, the
- * input-confidence roll-up and the run+poll machinery. Panoramica and the
- * scenario builder both drive the same lab so a run launched from either shows
- * up everywhere without a reload.
+ * The shared scenario workbench: the workspace scenarios (SIM-14), the draft of
+ * the selected one, the element template, the input-confidence roll-up and the
+ * run+poll machinery. Panoramica and the scenario builder both drive the same
+ * lab so a run launched from either shows up everywhere without a reload.
  */
 export function useScenarioLab(): ScenarioLab {
   const { t } = useTranslation("process");
   const queryClient = useQueryClient();
   const { process, runs: sectionRuns, refetchRuns, activeRunId, selectRun } = useSimulationSection();
+  const bpmnModelId = process.bpmnModelId;
+  const [params, setParams] = useSearchParams();
 
-  const modelQuery = useBpmnModelQuery(process.bpmnModelId);
+  const modelQuery = useBpmnModelQuery(bpmnModelId);
   const bpmnXml = modelQuery.data?.xml ?? null;
 
   const [pickedRunId, setPickedRunId] = React.useState<number | null>(null);
@@ -81,52 +122,231 @@ export function useScenarioLab(): ScenarioLab {
     return resolveActiveRun(sectionRuns, activeRunId != null ? String(activeRunId) : undefined);
   }, [polledRun, pickedRunId, sectionRuns, activeRunId]);
 
+  // Finche' il workspace non risponde il pannello lavora sulla bozza del browser.
   const [storedDraft, setStoredDraft] = React.useState<ScenarioDraft>(() =>
-    loadScenarioDraft(process.bpmnModelId),
+    loadScenarioDraft(bpmnModelId),
   );
 
   const templateQuery = useQuery<ScenarioTemplate>({
-    queryKey: ["workspace", "simulation-template", process.bpmnModelId],
-    queryFn: () => fetchScenarioTemplate(process.bpmnModelId, null),
+    queryKey: ["workspace", "simulation-template", bpmnModelId],
+    queryFn: () => fetchScenarioTemplate(bpmnModelId, null),
     enabled: bpmnXml !== null,
     staleTime: 60_000,
   });
   const template = templateQuery.data ?? null;
   // SIM-07: proposte di fonti dai file del cliente. Un errore qui non blocca lo scenario.
   const claimsQuery = useQuery<SimulationClaims>({
-    queryKey: ["workspace", "simulation-claims", process.bpmnModelId],
-    queryFn: () => fetchSimulationClaims(process.bpmnModelId, null),
+    queryKey: ["workspace", "simulation-claims", bpmnModelId],
+    queryFn: () => fetchSimulationClaims(bpmnModelId, null),
     enabled: bpmnXml !== null,
     staleTime: 60_000,
   });
   const templateLoading = modelQuery.isLoading || (templateQuery.isLoading && bpmnXml !== null);
 
+  // --- SIM-14: il workspace degli scenari -----------------------------------
+  const workspaceKey = React.useMemo(() => ["workspace", "simulation-scenarios", bpmnModelId], [bpmnModelId]);
+  const workspaceQuery = useQuery<ScenarioWorkspace>({
+    queryKey: workspaceKey,
+    queryFn: () => fetchScenarioWorkspace(bpmnModelId),
+    enabled: bpmnXml !== null,
+    staleTime: 30_000,
+  });
+  const workspace = workspaceQuery.data ?? null;
+  // I salvataggi in coda leggono la revisione piu' recente, anche fra due render.
+  const workspaceRef = React.useRef(workspace);
+  React.useEffect(() => { workspaceRef.current = workspace; }, [workspace]);
+  const setWorkspace = React.useCallback((next: ScenarioWorkspace) => {
+    workspaceRef.current = next;
+    queryClient.setQueryData(workspaceKey, next);
+  }, [queryClient, workspaceKey]);
+
+  const scenarios = workspaceScenarios(workspace);
+  const requestedId = Number(params.get("scenario")) || null;
+  const selectedScenario = scenarios.find((s) => s.id === requestedId) ?? workspace?.baseline ?? null;
+  const selectScenario = React.useCallback((id: number | null) => {
+    const next = new URLSearchParams(params);
+    if (id == null) next.delete("scenario");
+    else next.set("scenario", String(id));
+    setParams(next, { replace: true });
+  }, [params, setParams]);
+
+  // Modifiche non ancora confermate dal server, per scenario.
+  const [pending, setPending] = React.useState<Record<number, ScenarioDraft>>({});
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [workspaceError, setWorkspaceError] = React.useState<string | null>(null);
+
+  const seed = React.useCallback(
+    (value: ScenarioDraft) => (template ? seedDraftFromTemplate(value, template) : value),
+    [template],
+  );
+  const baselineDraft = React.useMemo(
+    () => (workspace?.baseline ? seed(pending[workspace.baseline.id] ?? parseScenarioDraft(workspace.baseline.draft)) : null),
+    [workspace, pending, seed],
+  );
+  const draftOf = React.useCallback(
+    (scenario: WorkspaceScenario): ScenarioDraft => {
+      const edited = pending[scenario.id];
+      // Il nome e' quello del workspace (o quello appena scritto nel campo del pannello).
+      return seed({ ...(edited ?? parseScenarioDraft(scenario.draft)), scenarioName: edited?.scenarioName ?? scenario.name });
+    },
+    [pending, seed],
+  );
+
   const draft = React.useMemo(
-    () => (template ? seedDraftFromTemplate(storedDraft, template) : storedDraft),
-    [storedDraft, template],
+    () => (selectedScenario ? draftOf(selectedScenario) : seed(storedDraft)),
+    [selectedScenario, draftOf, seed, storedDraft],
   );
 
   const { provenance, confidence } = useInputConfidence(
-    process.bpmnModelId,
+    bpmnModelId,
     draft,
     template,
     bpmnXml !== null,
   );
 
+  const readFailure = React.useCallback(async (err: unknown) => {
+    if (err instanceof HttpError && err.status === 409) {
+      // Un'altra scheda ha cambiato lo scenario: si riparte da quello salvato.
+      setPending({});
+      await workspaceQuery.refetch();
+      setWorkspaceError(t("simulation.scenarios.conflict"));
+      return;
+    }
+    setWorkspaceError(readError(err));
+  }, [t, workspaceQuery]);
+
+  // L'AS-IS nasce dalla bozza che il consulente aveva gia' nel browser.
+  React.useEffect(() => {
+    if (!workspace || workspace.baseline || !template || bootstrapping.has(bpmnModelId)) return;
+    bootstrapping.add(bpmnModelId);
+    const local = seed(loadScenarioDraft(bpmnModelId));
+    putScenarioBaseline(bpmnModelId, { name: local.scenarioName.trim() || t("simulation.scenarios.asIsName"), draft: local })
+      .then(setWorkspace)
+      .catch(readFailure)
+      .finally(() => bootstrapping.delete(bpmnModelId));
+  }, [workspace, template, bpmnModelId, seed, setWorkspace, readFailure, t]);
+
+  const persist = React.useCallback(async (scenarioId: number, next: ScenarioDraft) => {
+    const current = workspaceRef.current;
+    const scenario = workspaceScenarios(current).find((s) => s.id === scenarioId);
+    if (!current?.baseline || !scenario) return;
+    try {
+      const name = next.scenarioName.trim();
+      let updated: ScenarioWorkspace;
+      if (scenario.kind === "baseline") {
+        updated = await putScenarioBaseline(bpmnModelId, { name: name || scenario.name, draft: next, revision: scenario.revision });
+      } else {
+        const reference = seed(parseScenarioDraft(current.baseline.draft));
+        // Il nome non e' una differenza dall'AS-IS: si salva a parte.
+        const patch = diffScenario(reference, { ...next, scenarioName: reference.scenarioName });
+        updated = await updateWorkspaceScenario(bpmnModelId, scenario.id, {
+          patch,
+          revision: scenario.revision,
+          ...(name && name !== scenario.name ? { name } : {}),
+        });
+      }
+      setWorkspace(updated);
+      setWorkspaceError(null);
+      setPending((all) => (all[scenarioId] === next ? without(all, scenarioId) : all));
+    } catch (err) {
+      await readFailure(err);
+    }
+  }, [bpmnModelId, seed, setWorkspace, readFailure]);
+
+  // Un salvataggio alla volta: ognuno parte dalla revisione lasciata dal precedente.
+  const saveChain = React.useRef<Promise<void>>(Promise.resolve());
+  const queued = React.useRef<{ id: number; draft: ScenarioDraft } | null>(null);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushSave = React.useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const job = queued.current;
+    queued.current = null;
+    if (job) {
+      setIsSaving(true);
+      saveChain.current = saveChain.current
+        .then(() => persist(job.id, job.draft))
+        .finally(() => { if (mountedRef.current && !queued.current) setIsSaving(false); });
+    }
+    return saveChain.current;
+  }, [persist]);
+  React.useEffect(() => () => { void flushSave(); }, [flushSave]);
+
   const updateDraft = React.useCallback(
     (next: ScenarioDraft) => {
-      setStoredDraft(next);
-      saveScenarioDraft(process.bpmnModelId, next);
+      if (!selectedScenario) {
+        setStoredDraft(next);
+        saveScenarioDraft(bpmnModelId, next);
+        return;
+      }
+      // La copia nel browser resta quella dell'AS-IS: serve se il workspace non risponde.
+      if (selectedScenario.kind === "baseline") saveScenarioDraft(bpmnModelId, next);
+      setPending((all) => ({ ...all, [selectedScenario.id]: next }));
+      queued.current = { id: selectedScenario.id, draft: next };
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => { void flushSave(); }, SAVE_DELAY_MS);
     },
-    [process.bpmnModelId],
+    [bpmnModelId, selectedScenario, flushSave],
   );
+
+  const mutate = React.useCallback(async (action: () => Promise<ScenarioWorkspace>): Promise<ScenarioWorkspace | null> => {
+    await flushSave();
+    try {
+      const updated = await action();
+      setWorkspace(updated);
+      setWorkspaceError(null);
+      return updated;
+    } catch (err) {
+      await readFailure(err);
+      return null;
+    }
+  }, [flushSave, setWorkspace, readFailure]);
+
+  const createScenario = React.useCallback(async (name: string, from?: WorkspaceScenario) => {
+    const before = new Set(workspaceScenarios(workspaceRef.current).map((s) => s.id));
+    const updated = await mutate(() => createWorkspaceScenario(bpmnModelId, { name, patch: from?.kind === "alternative" ? from.patch : [] }));
+    const created = updated?.alternatives.find((s) => !before.has(s.id)) ?? null;
+    if (created) selectScenario(created.id);
+    return created;
+  }, [bpmnModelId, mutate, selectScenario]);
+
+  const renameScenario = React.useCallback(async (scenario: WorkspaceScenario, name: string) => {
+    const latest = workspaceScenarios(workspaceRef.current).find((s) => s.id === scenario.id) ?? scenario;
+    if (latest.kind === "baseline") {
+      await mutate(() => putScenarioBaseline(bpmnModelId, { name, draft: baselineDraft ?? latest.draft, revision: latest.revision }));
+    } else {
+      await mutate(() => updateWorkspaceScenario(bpmnModelId, latest.id, { name, revision: latest.revision }));
+    }
+  }, [bpmnModelId, mutate, baselineDraft]);
+
+  const deleteScenario = React.useCallback(async (scenario: WorkspaceScenario) => {
+    const updated = await mutate(() => deleteWorkspaceScenario(bpmnModelId, scenario.id));
+    if (updated && requestedId === scenario.id) selectScenario(null);
+    return updated !== null;
+  }, [bpmnModelId, mutate, requestedId, selectScenario]);
+
+  const revertChange = React.useCallback(async (scenario: WorkspaceScenario, index: number) => {
+    await flushSave();
+    const latest = workspaceScenarios(workspaceRef.current).find((s) => s.id === scenario.id);
+    if (!latest || latest.kind !== "alternative") return;
+    const patch = latest.patch.filter((_, i) => i !== index);
+    setPending((all) => without(all, scenario.id));
+    await mutate(() => updateWorkspaceScenario(bpmnModelId, latest.id, { patch, revision: latest.revision }));
+  }, [bpmnModelId, flushSave, mutate]);
+
+  const newSeed = React.useCallback(async () => {
+    const baseline = workspaceRef.current?.baseline;
+    if (!baseline) return;
+    const seedValue = Math.floor(Math.random() * 2_000_000_000);
+    await mutate(() => putScenarioBaseline(bpmnModelId, { name: baseline.name, draft: baselineDraft ?? baseline.draft, revision: baseline.revision, seed: seedValue }));
+  }, [bpmnModelId, mutate, baselineDraft]);
 
   const syncSection = React.useCallback(() => {
     void queryClient.invalidateQueries({
-      queryKey: ["workspace", "simulation-runs", process.bpmnModelId],
+      queryKey: ["workspace", "simulation-runs", bpmnModelId],
     });
     refetchRuns();
-  }, [queryClient, process.bpmnModelId, refetchRuns]);
+  }, [queryClient, bpmnModelId, refetchRuns]);
 
   const pollRun = React.useCallback(
     async (runId: number) => {
@@ -156,6 +376,27 @@ export function useScenarioLab(): ScenarioLab {
     [t, syncSection],
   );
 
+  const scenarioBlocker = React.useCallback((scenario: WorkspaceScenario) => {
+    const value = draftOf(scenario);
+    if (!scenarioResourceIssues(value).ready) return t("simulation.config.resourceSetupRequired");
+    if (!scenarioParameterIssues(value).ready) return t("simulation.scenarios.fixParameters");
+    return null;
+  }, [draftOf, t]);
+
+  /** Il run di una bozza: dentro il workspace porta lo scenario, le revisioni e il seed comune. */
+  const submit = React.useCallback(async (value: ScenarioDraft, scenario: WorkspaceScenario | null) => {
+    const current = workspaceRef.current;
+    const latest = scenario ? workspaceScenarios(current).find((s) => s.id === scenario.id) ?? scenario : null;
+    return runProsimosSimulation(bpmnModelId, {
+      ...scenarioToInput(latest ? { ...value, scenarioName: scenarioDisplayName(latest) } : value, bpmnXml),
+      ...(current && latest ? { workspaceScenario: scenarioRef(current, latest), seed: current.seed ?? undefined } : {}),
+      idempotencyKey:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${bpmnModelId}-${Date.now()}`,
+    });
+  }, [bpmnModelId, bpmnXml]);
+
   const handleRun = React.useCallback(async () => {
     if (!template || templateLoading || !bpmnXml || !scenarioResourceIssues(draft).ready) {
       setError(t("simulation.config.resourceSetupRequired"));
@@ -164,13 +405,9 @@ export function useScenarioLab(): ScenarioLab {
     setIsRunning(true);
     setError(null);
     try {
-      const run = await runProsimosSimulation(process.bpmnModelId, {
-        ...scenarioToInput(draft, bpmnXml),
-        idempotencyKey:
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${process.bpmnModelId}-${Date.now()}`,
-      });
+      // Il run parte dallo scenario salvato: prima le modifiche in attesa.
+      await flushSave();
+      const run = await submit(draft, selectedScenario);
       setPolledRun(run);
       selectRun?.(run.id);
       syncSection();
@@ -181,7 +418,25 @@ export function useScenarioLab(): ScenarioLab {
     } finally {
       if (mountedRef.current) setIsRunning(false);
     }
-  }, [process.bpmnModelId, draft, bpmnXml, template, templateLoading, t, syncSection, pollRun, selectRun]);
+  }, [draft, bpmnXml, template, templateLoading, t, syncSection, pollRun, selectRun, flushSave, submit, selectedScenario]);
+
+  const runScenario = React.useCallback(async (scenario: WorkspaceScenario) => {
+    if (!template || !bpmnXml) return false;
+    const blocker = scenarioBlocker(scenario);
+    if (blocker) {
+      setWorkspaceError(`${scenarioDisplayName(scenario)}: ${blocker}`);
+      return false;
+    }
+    try {
+      await flushSave();
+      await submit(draftOf(scenario), scenario);
+      syncSection();
+      return true;
+    } catch (err) {
+      setWorkspaceError(`${scenarioDisplayName(scenario)}: ${readError(err)}`);
+      return false;
+    }
+  }, [template, bpmnXml, scenarioBlocker, flushSave, submit, draftOf, syncSection]);
 
   return {
     bpmnXml,
@@ -197,7 +452,24 @@ export function useScenarioLab(): ScenarioLab {
     isPending: activeRun?.status === "pending",
     error,
     handleRun,
+    workspace,
+    workspaceError: workspaceError ?? (workspaceQuery.error ? readError(workspaceQuery.error) : null),
+    selectedScenario,
+    selectScenario,
+    baselineDraft,
+    isSaving,
+    createScenario,
+    renameScenario,
+    deleteScenario,
+    revertChange,
+    newSeed,
+    runScenario,
+    scenarioBlocker,
   };
+}
+
+function without<T>(all: Record<number, T>, id: number): Record<number, T> {
+  return Object.fromEntries(Object.entries(all).filter(([key]) => Number(key) !== id));
 }
 
 function readError(error: unknown): string {
