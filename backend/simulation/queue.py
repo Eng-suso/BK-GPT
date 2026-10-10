@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, update
@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from backend.schemas.simulation import SimSlaConfig, SimulationQueueView
 from backend.settings import settings
+from backend.simulation.costs import FixedCosts
 from backend.simulation.models import ProsimosScenario
 from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
 
@@ -66,6 +67,8 @@ class ClaimedRun:
     seed: int | None
     # L'obiettivo di servizio dello scenario (SIM-13), se il consulente l'ha dato.
     sla: SimSlaConfig | None = None
+    # SIM-10: i costi fissi dello scenario, sommati al costo delle risorse a fine run.
+    fixed_costs: FixedCosts = field(default_factory=FixedCosts)
 
 
 def now_iso() -> str:
@@ -178,6 +181,14 @@ def claim_next_run(worker_id: str) -> ClaimedRun | None:
             seed=request.get("seed"),
             # Rivalidato: la richiesta salvata torna dal database, non dal client.
             sla=SimSlaConfig.model_validate(request["sla"]) if request.get("sla") else None,
+            fixed_costs=FixedCosts(
+                per_execution={
+                    task["element_id"]: float(task["fixed_cost"])
+                    for task in request.get("tasks") or []
+                    if task.get("fixed_cost")
+                },
+                per_case=float(request.get("case_fixed_cost") or 0.0),
+            ),
         )
 
 

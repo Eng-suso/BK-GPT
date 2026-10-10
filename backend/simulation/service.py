@@ -36,6 +36,7 @@ from backend.simulation.models import ProsimosScenario, ProsimosSimulationReques
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
+from backend.simulation.costs import add_fixed_costs
 from backend.simulation.sla import sla_outcome
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
@@ -92,6 +93,8 @@ def _derive_idempotency_key(
             "seed": request.seed,
             # Un obiettivo di servizio diverso cambia cio' che il run misura.
             "sla": request.sla.model_dump() if request.sla else None,
+            "case_fixed_cost": request.case_fixed_cost,
+            "fixed_costs": {t.element_id: t.fixed_cost for t in request.tasks or [] if t.fixed_cost},
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -380,6 +383,8 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
         )
         if outcome is not None:
             summary["sla"] = asdict(outcome)
+    if summary is not None and claimed.fixed_costs:
+        summary = add_fixed_costs(summary, claimed.fixed_costs)
     return await asyncio.to_thread(
         complete_simulation_run,
         run_id=claimed.run_id,

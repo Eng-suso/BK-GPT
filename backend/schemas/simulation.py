@@ -109,6 +109,8 @@ class SimTaskConfig(BaseModel):
     # Le affermazioni confermate dal consulente (SIM-07): diventano la fonte
     # ``declared`` della durata. Il valore resta quello del pannello.
     claims: list[SimClaimRef] = Field(default_factory=list, max_length=10)
+    # SIM-10: euro per ogni esecuzione dell'attivita', oltre al tempo delle risorse.
+    fixed_cost: float | None = Field(default=None, ge=0)
 
 
 class SimGatewayBranchConfig(BaseModel):
@@ -132,6 +134,8 @@ class CreateSimulationRunRequest(BaseModel):
     arrival: SimArrivalConfig | None = None
     # L'obiettivo di servizio: il motore non lo usa, il run ne misura l'esito.
     sla: SimSlaConfig | None = None
+    # SIM-10: euro per ogni caso completato, oltre al tempo delle risorse.
+    case_fixed_cost: float | None = Field(default=None, ge=0)
     default_task_duration_seconds: int = Field(default=900, ge=1)
     default_cost_per_hour: float = Field(default=35.0, ge=0)
     resource_amount: int = Field(default=1, ge=1, le=1000)
