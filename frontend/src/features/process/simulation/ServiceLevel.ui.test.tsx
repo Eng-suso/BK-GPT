@@ -28,7 +28,7 @@ describe("service objective (SIM-13)", () => {
     await user.click(screen.getByRole("button", { name: "Aggiungi un obiettivo di servizio" }));
     expect(screen.getByText("Almeno il 90% dei casi deve chiudersi entro 2 giorni.")).toBeInTheDocument();
 
-    const share = screen.getByLabelText("Per almeno il % dei casi");
+    const share = screen.getByLabelText("Quota minima di casi, %");
     await user.clear(share);
     await user.type(share, "0");
     expect(screen.getByRole("alert")).toHaveTextContent("La quota va da 1 a 100.");

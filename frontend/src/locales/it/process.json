@@ -364,7 +364,7 @@
       "slaUnit": "Unità",
       "slaHours": "Ore",
       "slaDays": "Giorni",
-      "slaShare": "Per almeno il % dei casi",
+      "slaShare": "Quota minima di casi, %",
       "slaReads": "Almeno il {{share}}% dei casi deve chiudersi entro {{target}} {{unit}}.",
       "slaAdd": "Aggiungi un obiettivo di servizio",
       "slaRemove": "Togli l'obiettivo",
