@@ -117,3 +117,37 @@ test("the results show each KPI of the group with its interval", async ({ page }
   const axe = await new AxeBuilder({ page }).include("[data-sim-replications]").withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
 });
+
+test("the comparison says whether B is better across replications, with the interval", async ({ page }, testInfo) => {
+  // B ripetuto con gli stessi seed di A e circa dieci minuti in meno per caso.
+  const better = [1, 2, 3].map((index) => ({ ...member(index, [3000, 3620, 3290][index - 1]), id: 50 + index,
+    scenario_name: `Più personale · ${index}/3`, request: { replication_group: "g2", replication_index: index, seed: 100 + index } }));
+  await fixture(page, [...group, ...better]);
+  await page.goto(`${studio}/workspace/41?view=compare&panel=compare&a=41&b=51`);
+  const section = page.locator("[data-sim-replication-delta]");
+  await expect(section).toContainText("Differenza sulle ripetizioni");
+  await expect(section).toContainText("stessi seed");
+  const cycle = section.getByRole("row", { name: /Durata media del caso/ });
+  await expect(cycle).toContainText("B migliore");
+  await expect(cycle).toContainText("±");
+  await expect(section.getByRole("row", { name: /Costo per caso/ })).toContainText("Differenza non certa");
+  await section.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `.tmp/replication-delta-${testInfo.project.name}.png` });
+  const axe = await new AxeBuilder({ page }).include("[data-sim-replication-delta]").withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+});
+
+test("the comparison of single runs explains how to make it reliable", async ({ page }) => {
+  await fixture(page, [run, { ...run, id: 43, scenario_name: "Alternativa" }]);
+  await page.goto(`${studio}/workspace/42?view=compare&panel=compare&a=42&b=43`);
+  await expect(page.locator("[data-sim-replication-delta-hint]")).toContainText("ripeti entrambi gli scenari almeno due volte");
+});
+
+test("replications of two different models are not compared", async ({ page }) => {
+  const other = [1, 2].map((index) => ({ ...member(index, 3000), id: 60 + index, bpmn_model_id: "other-model",
+    request: { replication_group: "g3", replication_index: index, seed: 100 + index } }));
+  await fixture(page, [...group, ...other]);
+  await page.goto(`${studio}/workspace/41?view=compare&panel=compare&a=41&b=61`);
+  await expect(page.getByRole("status").filter({ hasText: /modell/i }).first()).toBeVisible();
+  await expect(page.locator("[data-sim-replication-delta], [data-sim-replication-delta-hint]")).toHaveCount(0);
+});
