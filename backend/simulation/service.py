@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from backend.eventlog.export import Exported, to_csv, to_xes
 from backend.eventlog.synthetic import from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
-from backend.schemas.simulation import CreateSimulationRunRequest
+from backend.schemas.simulation import SEED_MAX, CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
 from backend.security import set_current_tenant_id
 from backend.schemas.simulation import (
@@ -35,7 +35,7 @@ from backend.simulation.log_processor import (
 )
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
-from backend.simulation.queue import ClaimedRun, SimulationQueueFull, assert_room_for, beat, claim_next_run
+from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
 from backend.simulation.sla import sla_outcome
@@ -51,6 +51,7 @@ from backend.settings import settings
 from backend.simulation.storage import (
     complete_simulation_run,
     create_simulation_run,
+    create_simulation_run_group,
     fail_simulation_run,
     find_active_run_by_key,
     get_simulation_log_csv,
@@ -262,43 +263,54 @@ def prepare_simulation_runs(
 ) -> list[tuple[dict, ProsimosScenario | None, str]]:
     """Il run dello scenario, o un gruppo di ripetizioni con seed consecutivi (SIM-04).
 
-    Ogni ripetizione e' un run normale: stessa coda, stessa idempotenza (il seed
-    la distingue). Il gruppo sta nella richiesta di ciascuna, cosi' il pannello
-    le ritrova e ne calcola gli intervalli.
+    Ogni ripetizione e' un run normale, con il suo seed. Il gruppo sta nella
+    richiesta di ciascuna, cosi' il pannello le ritrova e ne calcola gli
+    intervalli. Il gruppo entra in coda intero o non entra; lo stesso invio
+    ritentato ritrova il gruppo gia' in volo invece di crearne un altro.
     """
+    # Gruppo e posizione li scrive il servizio: quelli mandati dal client non contano.
+    request = request.model_copy(update={"replication_group": None, "replication_index": None})
     if request.replications == 1:
         return [prepare_simulation_run(bpmn_model=bpmn_model, request=request)]
-    try:
-        assert_room_for(request.replications)
-    except SimulationQueueFull as exc:
-        raise SimulationCapacityError(str(exc)) from exc
+    if request.seed is not None and request.seed + request.replications - 1 > SEED_MAX:
+        raise ValueError(f"Con {request.replications} ripetizioni il seed iniziale puo' arrivare al massimo a {SEED_MAX - request.replications + 1}.")
+
+    # La chiave del gruppo non dipende dal seed estratto: un invio ritentato senza
+    # seed ritrova le stesse chiavi, quindi il gruppo gia' in coda.
+    _, _, base_key = _plan_run(bpmn_model=bpmn_model, request=request)
+    group_key = request.idempotency_key or hashlib.sha256(f"{base_key}:{request.replications}".encode()).hexdigest()
     group = uuid.uuid4().hex
     base_seed = request.seed if request.seed is not None else secrets.randbelow(2**31)
     name = request.scenario_name.strip() or "Baseline AS-IS"
-    return [
-        prepare_simulation_run(bpmn_model=bpmn_model, request=request.model_copy(update={
+    members = []
+    for index in range(request.replications):
+        member = request.model_copy(update={
             "seed": base_seed + index,
             "replications": 1,
             "replication_group": group,
             "replication_index": index + 1,
             "scenario_name": f"{name} · {index + 1}/{request.replications}",
-            "idempotency_key": f"{request.idempotency_key}-{index + 1}" if request.idempotency_key else None,
-        }))
-        for index in range(request.replications)
-    ]
+        })
+        member = member.model_copy(update={"idempotency_key": f"{group_key}-{index + 1}"})
+        bpmn_xml, scenario, key = _plan_run(bpmn_model=bpmn_model, request=member)
+        members.append((member, scenario, key, scenario.bpmn_xml or bpmn_xml))
+    try:
+        runs = create_simulation_run_group(
+            bpmn_model_id=bpmn_model.id,
+            process_id=bpmn_model.process_id,
+            members=members,
+        )
+    except SimulationQueueFull as exc:
+        raise SimulationCapacityError(str(exc)) from exc
+    return [(run, scenario, bpmn_xml) for run, (_, scenario, _, bpmn_xml) in zip(runs, members, strict=True)]
 
 
-def prepare_simulation_run(
+def _plan_run(
     *,
     bpmn_model: BpmnModelResponse,
     request: CreateSimulationRunRequest,
-) -> tuple[dict, ProsimosScenario | None, str]:
-    """Create (or reuse) a pending run record.
-
-    Returns (run, scenario, bpmn_xml). When the run is being reused because an
-    identical simulation is still in flight, scenario is None and the caller
-    must not launch execution.
-    """
+) -> tuple[str, ProsimosScenario, str]:
+    """Valida la richiesta e la compila: (BPMN normalizzato, scenario, chiave di idempotenza)."""
     bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
@@ -318,6 +330,21 @@ def prepare_simulation_run(
         scenario=scenario,
         request=request,
     )
+    return bpmn_xml, scenario, idempotency_key
+
+
+def prepare_simulation_run(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSimulationRunRequest,
+) -> tuple[dict, ProsimosScenario | None, str]:
+    """Create (or reuse) a pending run record.
+
+    Returns (run, scenario, bpmn_xml). When the run is being reused because an
+    identical simulation is still in flight, scenario is None and the caller
+    must not launch execution.
+    """
+    bpmn_xml, scenario, idempotency_key = _plan_run(bpmn_model=bpmn_model, request=request)
     return _register_run(
         bpmn_model=bpmn_model,
         bpmn_xml=bpmn_xml,

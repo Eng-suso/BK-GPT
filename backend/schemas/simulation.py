@@ -143,6 +143,10 @@ class SimGatewayConfig(BaseModel):
     branches: list[SimGatewayBranchConfig] = Field(default_factory=list)
 
 
+# Il seed piu' alto che il motore accetta (numpy: 32 bit senza segno).
+SEED_MAX = 2**32 - 1
+
+
 class CreateSimulationRunRequest(BaseModel):
     scenario_name: str = "Baseline AS-IS"
     total_cases: int = Field(default=100, ge=1, le=100_000)
@@ -185,7 +189,7 @@ class CreateSimulationRunRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=128)
     # Seed del motore. Con lo stesso seed e lo stesso scenario il runner rifa'
     # lo stesso log; senza, ne sceglie uno e lo restituisce nel risultato.
-    seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
+    seed: int | None = Field(default=None, ge=0, le=SEED_MAX)
 
 
 class ScenarioTemplateRequest(BaseModel):

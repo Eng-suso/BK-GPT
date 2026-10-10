@@ -95,36 +95,32 @@ def _running():
     return (WorkspaceSimulationRun.status == "pending") & WorkspaceSimulationRun.started_at.is_not(None)
 
 
-def assert_room_for(runs: int) -> None:
-    """Prima di un gruppo di ripetizioni (SIM-04): c'e' posto in coda per tutte?
-
-    Senza questo controllo un gruppo potrebbe entrare a meta': meglio rifiutarlo
-    intero, con il motivo, che lasciare ripetizioni orfane.
-    """
-    with workspace_connection() as session:
-        reap_stale_runs(session)
-        waiting = session.execute(select(func.count()).select_from(WorkspaceSimulationRun).where(_queued())).scalar_one()
-    if waiting + runs > settings.simulation_max_queued_runs:
-        raise SimulationQueueFull(
-            f"Ci sono {waiting} simulazioni in attesa: {runs} ripetizioni non ci stanno nella coda "
-            f"(massimo {settings.simulation_max_queued_runs}). Riduci le ripetizioni o aspetta."
-        )
+def hold_queue(session: Session) -> None:
+    """Il lock della coda per tutta la transazione: ammissioni e prese in fila."""
+    session.execute(select(func.pg_advisory_xact_lock(_CLAIM_LOCK)))
 
 
-def admit(session: Session) -> None:
-    """Dentro la transazione che inserisce il run: c'e' posto in coda?
+def admit(session: Session, runs: int = 1) -> None:
+    """Dentro la transazione che inserisce i run: c'e' posto in coda per tutti?
 
     Il lock advisory e' lo stesso delle prese, cosi' due ammissioni insieme non
-    superano il limite contando la stessa coda.
+    superano il limite contando la stessa coda. Un gruppo di ripetizioni
+    (SIM-04) entra intero o non entra: niente ripetizioni orfane.
     """
-    session.execute(select(func.pg_advisory_xact_lock(_CLAIM_LOCK)))
+    hold_queue(session)
     reap_stale_runs(session)
     waiting = session.execute(select(func.count()).select_from(WorkspaceSimulationRun).where(_queued())).scalar_one()
-    if waiting >= settings.simulation_max_queued_runs:
+    if waiting + runs <= settings.simulation_max_queued_runs:
+        return
+    if runs == 1:
         raise SimulationQueueFull(
             f"Ci sono gia' {waiting} simulazioni in attesa, il massimo della coda. "
             "Aspetta che ne parta qualcuna e rilancia."
         )
+    raise SimulationQueueFull(
+        f"Ci sono {waiting} simulazioni in attesa: {runs} ripetizioni non ci stanno nella coda "
+        f"(massimo {settings.simulation_max_queued_runs}). Riduci le ripetizioni o aspetta."
+    )
 
 
 def reap_stale_runs(session: Session) -> list[int]:
