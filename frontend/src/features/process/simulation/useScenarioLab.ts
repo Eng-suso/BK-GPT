@@ -32,6 +32,7 @@ import {
   scenarioDisplayName,
   scenarioRef,
   updateWorkspaceScenario,
+  WORKSPACE_SEED_MAX,
   workspaceScenarios,
   type ScenarioWorkspace,
   type WorkspaceScenario,
@@ -74,7 +75,6 @@ export type ScenarioLab = {
   baselineDraft: ScenarioDraft | null;
   isSaving: boolean;
   createScenario: (name: string, from?: WorkspaceScenario) => Promise<WorkspaceScenario | null>;
-  renameScenario: (scenario: WorkspaceScenario, name: string) => Promise<void>;
   deleteScenario: (scenario: WorkspaceScenario) => Promise<boolean>;
   /** Toglie una modifica dallo scenario: per quel punto torna come l'AS-IS. */
   revertChange: (scenario: WorkspaceScenario, index: number) => Promise<void>;
@@ -204,10 +204,13 @@ export function useScenarioLab(): ScenarioLab {
     bpmnXml !== null,
   );
 
-  const readFailure = React.useCallback(async (err: unknown) => {
+  const queued = React.useRef<{ id: number; draft: ScenarioDraft } | null>(null);
+  const readFailure = React.useCallback(async (err: unknown, scenarioId?: number) => {
     if (err instanceof HttpError && err.status === 409) {
-      // Un'altra scheda ha cambiato lo scenario: si riparte da quello salvato.
-      setPending({});
+      // Un'altra scheda ha cambiato lo scenario: per quello si riparte dal salvato,
+      // le modifiche in attesa sugli altri restano.
+      setPending((all) => (scenarioId === undefined ? {} : without(all, scenarioId)));
+      if (scenarioId === undefined || queued.current?.id === scenarioId) queued.current = null;
       await workspaceQuery.refetch();
       setWorkspaceError(t("simulation.scenarios.conflict"));
       return;
@@ -249,13 +252,12 @@ export function useScenarioLab(): ScenarioLab {
       setWorkspaceError(null);
       setPending((all) => (all[scenarioId] === next ? without(all, scenarioId) : all));
     } catch (err) {
-      await readFailure(err);
+      await readFailure(err, scenarioId);
     }
   }, [bpmnModelId, seed, setWorkspace, readFailure]);
 
   // Un salvataggio alla volta: ognuno parte dalla revisione lasciata dal precedente.
   const saveChain = React.useRef<Promise<void>>(Promise.resolve());
-  const queued = React.useRef<{ id: number; draft: ScenarioDraft } | null>(null);
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushSave = React.useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -310,15 +312,6 @@ export function useScenarioLab(): ScenarioLab {
     return created;
   }, [bpmnModelId, mutate, selectScenario]);
 
-  const renameScenario = React.useCallback(async (scenario: WorkspaceScenario, name: string) => {
-    const latest = workspaceScenarios(workspaceRef.current).find((s) => s.id === scenario.id) ?? scenario;
-    if (latest.kind === "baseline") {
-      await mutate(() => putScenarioBaseline(bpmnModelId, { name, draft: baselineDraft ?? latest.draft, revision: latest.revision }));
-    } else {
-      await mutate(() => updateWorkspaceScenario(bpmnModelId, latest.id, { name, revision: latest.revision }));
-    }
-  }, [bpmnModelId, mutate, baselineDraft]);
-
   const deleteScenario = React.useCallback(async (scenario: WorkspaceScenario) => {
     const updated = await mutate(() => deleteWorkspaceScenario(bpmnModelId, scenario.id));
     if (updated && requestedId === scenario.id) selectScenario(null);
@@ -337,7 +330,7 @@ export function useScenarioLab(): ScenarioLab {
   const newSeed = React.useCallback(async () => {
     const baseline = workspaceRef.current?.baseline;
     if (!baseline) return;
-    const seedValue = Math.floor(Math.random() * 2_000_000_000);
+    const seedValue = Math.floor(Math.random() * (WORKSPACE_SEED_MAX + 1));
     await mutate(() => putScenarioBaseline(bpmnModelId, { name: baseline.name, draft: baselineDraft ?? baseline.draft, revision: baseline.revision, seed: seedValue }));
   }, [bpmnModelId, mutate, baselineDraft]);
 
@@ -387,9 +380,10 @@ export function useScenarioLab(): ScenarioLab {
   const submit = React.useCallback(async (value: ScenarioDraft, scenario: WorkspaceScenario | null) => {
     const current = workspaceRef.current;
     const latest = scenario ? workspaceScenarios(current).find((s) => s.id === scenario.id) ?? scenario : null;
+    const ref = current && latest ? scenarioRef(current, latest) : null;
     return runProsimosSimulation(bpmnModelId, {
       ...scenarioToInput(latest ? { ...value, scenarioName: scenarioDisplayName(latest) } : value, bpmnXml),
-      ...(current && latest ? { workspaceScenario: scenarioRef(current, latest), seed: current.seed ?? undefined } : {}),
+      ...(ref ? { workspaceScenario: ref, seed: current?.seed ?? undefined } : {}),
       idempotencyKey:
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
@@ -460,7 +454,6 @@ export function useScenarioLab(): ScenarioLab {
     baselineDraft,
     isSaving,
     createScenario,
-    renameScenario,
     deleteScenario,
     revertChange,
     newSeed,

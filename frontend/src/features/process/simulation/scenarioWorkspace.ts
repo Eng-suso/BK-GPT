@@ -88,9 +88,13 @@ export function scenarioDisplayName(scenario: Pick<WorkspaceScenario, "kind" | "
 
 export type WorkspaceScenarioRef = { id: number; revision: number; baseline_revision: number };
 
-export function scenarioRef(workspace: ScenarioWorkspace, scenario: WorkspaceScenario): WorkspaceScenarioRef {
-  return { id: scenario.id, revision: scenario.revision, baseline_revision: workspace.baseline?.revision ?? scenario.revision };
+/** Il riferimento del run: senza AS-IS non c'e' workspace, quindi nemmeno uno scenario da citare. */
+export function scenarioRef(workspace: ScenarioWorkspace, scenario: WorkspaceScenario): WorkspaceScenarioRef | null {
+  return workspace.baseline ? { id: scenario.id, revision: scenario.revision, baseline_revision: workspace.baseline.revision } : null;
 }
+
+/** Il seed comune piu' alto: lo stesso `WORKSPACE_SEED_MAX` del backend (intero a 32 bit meno 20 ripetizioni). */
+export const WORKSPACE_SEED_MAX = 2 ** 31 - 1 - 20;
 
 export function runScenarioRef(run: SimulationRun): WorkspaceScenarioRef | null {
   const ref = run.request?.workspace_scenario as Partial<WorkspaceScenarioRef> | null | undefined;
