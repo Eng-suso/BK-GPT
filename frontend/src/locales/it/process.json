@@ -129,7 +129,19 @@
         "costPerCase": "Costo per caso",
         "throughput": "Throughput orario",
         "busiestResource": "Risorsa più carica"
-      }
+      },
+      "replicationDelta": "Differenza sulle ripetizioni",
+      "pairedGroups": "A ripetuto {{a}} volte, B {{b}}, con gli stessi seed: ogni ripetizione di B si confronta con la sua gemella di A.",
+      "independentGroups": "A ripetuto {{a}} volte, B {{b}}, con seed diversi: i due gruppi si confrontano fra loro.",
+      "deltaHeader": "Differenza B − A",
+      "outcome": "Esito",
+      "deltaVerdict": {
+        "better": "B migliore",
+        "worse": "B peggiore",
+        "unclear": "Differenza non certa"
+      },
+      "deltaHint": "Intervallo al 95%: B è migliore o peggiore solo se l'intervallo non comprende lo zero. Altrimenti la differenza potrebbe essere un caso.",
+      "repeatBoth": "Per sapere se la differenza è reale e non un caso, ripeti entrambi gli scenari almeno due volte (Ripetizioni nel pannello). Con lo stesso seed iniziale il confronto è più preciso."
     },
     "scenario": {
       "eyebrow": "Prosimos",

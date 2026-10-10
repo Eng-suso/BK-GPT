@@ -129,7 +129,19 @@
         "costPerCase": "Cost per case",
         "throughput": "Throughput per hour",
         "busiestResource": "Busiest resource"
-      }
+      },
+      "replicationDelta": "Difference across replications",
+      "pairedGroups": "A repeated {{a}} times, B {{b}}, with the same seeds: each replication of B is compared with its twin in A.",
+      "independentGroups": "A repeated {{a}} times, B {{b}}, with different seeds: the two groups are compared with each other.",
+      "deltaHeader": "Difference B − A",
+      "outcome": "Outcome",
+      "deltaVerdict": {
+        "better": "B better",
+        "worse": "B worse",
+        "unclear": "Difference not certain"
+      },
+      "deltaHint": "95% interval: B is better or worse only when the interval leaves zero out. Otherwise the difference could be chance.",
+      "repeatBoth": "To know whether the difference is real and not chance, repeat both scenarios at least twice (Replications in the panel). With the same starting seed the comparison is more precise."
     },
     "scenario": {
       "eyebrow": "Prosimos",
