@@ -40,6 +40,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.String(), nullable=False),
         sa.Column("updated_at", sa.String(), nullable=False),
         sa.UniqueConstraint("tenant_id", "bpmn_model_id", "label", name="uq_simulation_scenario_label"),
+        sa.CheckConstraint("kind IN ('baseline', 'alternative')", name="ck_simulation_scenario_kind"),
     )
     op.create_index("ix_workspace_simulation_scenarios_tenant_id", "workspace_simulation_scenarios", ["tenant_id"])
     op.create_index("ix_workspace_simulation_scenarios_bpmn_model_id", "workspace_simulation_scenarios", ["bpmn_model_id"])

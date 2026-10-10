@@ -316,6 +316,7 @@ class WorkspaceSimulationScenario(WorkspaceBase):
     __tablename__ = "workspace_simulation_scenarios"
     __table_args__ = (
         UniqueConstraint("tenant_id", "bpmn_model_id", "label", name="uq_simulation_scenario_label"),
+        CheckConstraint("kind IN ('baseline', 'alternative')", name="ck_simulation_scenario_kind"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
