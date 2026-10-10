@@ -80,6 +80,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
       : view.kind === "activity"
         ? <>
             {view.assignments.length > 1 && <p className="sim-help">{t("simulation.activityInspector.sharedActivity")}</p>}
+            <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
             {view.assignments.map((assignment, index) => (
               <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
             ))}
@@ -189,6 +190,14 @@ function Priorities({ priorities, t }: { priorities: { level: number; condition:
     </dl>
     <p className="sim-help">{t("simulation.activityInspector.prioritiesNote")}</p>
   </div>;
+}
+
+/** SIM-10: il costo fisso per esecuzione che lo scenario dava all'attivita'. */
+function FixedCost({ run, elementId, lang, t }: { run: SimulationRun; elementId: string; lang: Lang; t: T }): React.JSX.Element | null {
+  const tasks = Array.isArray(run.request.tasks) ? (run.request.tasks as { element_id?: string; fixed_cost?: number | null }[]) : [];
+  const cost = tasks.find((task) => task.element_id === elementId)?.fixed_cost;
+  if (!cost) return null;
+  return <p className="sim-help">{t("simulation.activityInspector.fixedCost", { value: formatCurrency(cost, lang) })}</p>;
 }
 
 /** L'elemento e' un evento di inizio del BPMN del processo? */

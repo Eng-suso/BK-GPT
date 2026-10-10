@@ -47,6 +47,8 @@ export type TaskDraft = DurationDraft & {
   otherAssignments?: AssignmentDraft[];
   /** Le affermazioni dei file collegate come fonte della durata (SIM-07). */
   claims?: { claimId: number; label: string }[];
+  /** SIM-10: euro per ogni esecuzione, oltre al tempo delle risorse. Assente = nessuno. */
+  fixedCost?: number;
 };
 
 /** Un calendario di lavoro dello scenario, con orari ``HH:MM``. */
@@ -83,6 +85,8 @@ export type ScenarioDraft = {
   arrival?: ArrivalDraft;
   /** L'obiettivo di servizio: facoltativo, il run ne misura l'esito. */
   sla?: SlaDraft;
+  /** SIM-10: euro per ogni caso completato. Assente = nessuno. */
+  caseFixedCost?: number;
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
@@ -179,7 +183,9 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
   const arrival = taskDurationIssue(arrivalDuration(draft)) !== null;
   const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
-  return { durations, calendars, arrival, sla, ready: durations === 0 && calendars === 0 && !arrival && !sla };
+  const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
+  const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
+  return { durations, calendars, arrival, sla, costs, ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs };
 }
 
 /** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
@@ -285,6 +291,7 @@ export function scenarioToInput(
   const arrivalCalendar = draft.arrival?.calendarId;
   return {
     ...base,
+    ...(draft.caseFixedCost ? { caseFixedCost: draft.caseFixedCost } : {}),
     ...(draft.sla ? { sla: {
       targetSeconds: slaSeconds(draft.sla),
       share: draft.sla.sharePercent / 100,
@@ -307,6 +314,7 @@ export function scenarioToInput(
         ...durationInput(task),
         resourceId: task.resourceId,
         ...(task.claims?.length ? { claims: task.claims } : {}),
+        ...(task.fixedCost ? { fixedCost: task.fixedCost } : {}),
         ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),

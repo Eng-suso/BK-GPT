@@ -205,7 +205,7 @@ export function SimulationConfigRail({
                 onChange={(e) => patch({ scenarioName: e.target.value })}
               />
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <NumberField
                 label={t("simulation.fields.cases")}
                 value={draft.totalCases}
@@ -219,6 +219,10 @@ export function SimulationConfigRail({
                 min={1}
                 onChange={(v) => patch({ defaultTaskMinutes: v })}
               />
+              <FieldLabel label={t("simulation.config.caseFixedCost")}>
+                <Input className="h-8" type="number" min={0} step="any" value={draft.caseFixedCost ?? ""}
+                  onChange={(e) => patch({ caseFixedCost: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
             </div>
             <fieldset className="sim-arrivals mt-1 grid gap-2 rounded-md border border-border p-2.5" data-sim-arrivals>
               <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.arrivals")}</legend>
@@ -354,6 +358,7 @@ export function SimulationConfigRail({
             {parameterIssues.calendars > 0 && <p>{t("simulation.config.invalidCalendars", { count: parameterIssues.calendars })}</p>}
             {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
             {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
+            {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
             {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}
@@ -440,6 +445,13 @@ export function SimulationConfigRail({
                         </Select>
                       </FieldLabel>
                     </div>
+                    <label className="sim-task-cost mt-1.5 grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.fixedCost")}</span>
+                      <Input className="h-8" type="number" min={0} step="any"
+                        aria-label={`${t("simulation.config.fixedCost")} · ${task.name}`}
+                        value={cfg.fixedCost ?? ""}
+                        onChange={(e) => patch({ tasks: { ...draft.tasks, [task.element_id]: { ...cfg, fixedCost: e.target.value === "" ? undefined : Number(e.target.value) } } })} />
+                    </label>
                     <OtherAssignments
                       elementId={task.element_id}
                       taskName={task.name}

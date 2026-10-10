@@ -372,7 +372,10 @@
         "target": "Enter a time above zero.",
         "share": "The share goes from 1 to 100."
       },
-      "invalidSla": "Service objective needs fixing."
+      "invalidSla": "Service objective needs fixing.",
+      "fixedCost": "Fixed cost per execution, €",
+      "caseFixedCost": "Fixed cost per case, €",
+      "invalidCosts": "Fixed costs need fixing: they must be zero or more."
     },
     "diagram": {
       "title": "Process model",
@@ -416,7 +419,12 @@
       "slaMissed": "Missed",
       "slaWithin": "{{share}} of cases closed within {{target}} (objective {{goal}}).",
       "slaLate_one": "{{count}} case of {{cases}} over the time.",
-      "slaLate_other": "{{count}} cases of {{cases}} over the time."
+      "slaLate_other": "{{count}} cases of {{cases}} over the time.",
+      "costTitle": "Scenario cost",
+      "costTotal": "{{total}} in total, {{perCase}} per case.",
+      "costResources": "Resource time: {{value}}",
+      "costActivities": "Activity fixed costs: {{value}}",
+      "costCases": "Fixed costs per case: {{value}}"
     },
     "jsonSummary": "Raw Prosimos data",
     "status": {
@@ -453,7 +461,8 @@
       "arrivals": "Case arrivals",
       "interarrival": "Mean time between arrivals",
       "arrivalCalendar": "Arrival calendar",
-      "prioritiesNote": "The other cases waited in arrival order."
+      "prioritiesNote": "The other cases waited in arrival order.",
+      "fixedCost": "Fixed cost: {{value}} per execution, on top of the resource time."
     },
     "provenance": {
       "label": "Source",

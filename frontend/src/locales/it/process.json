@@ -372,7 +372,10 @@
         "target": "Indica un tempo maggiore di zero.",
         "share": "La quota va da 1 a 100."
       },
-      "invalidSla": "Obiettivo di servizio da correggere."
+      "invalidSla": "Obiettivo di servizio da correggere.",
+      "fixedCost": "Costo fisso per esecuzione, €",
+      "caseFixedCost": "Costo fisso per caso, €",
+      "invalidCosts": "Costi fissi da correggere: devono essere zero o più."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -416,7 +419,12 @@
       "slaMissed": "Non rispettato",
       "slaWithin": "{{share}} dei casi chiusi entro {{target}} (obiettivo {{goal}}).",
       "slaLate_one": "{{count}} caso su {{cases}} oltre il tempo.",
-      "slaLate_other": "{{count}} casi su {{cases}} oltre il tempo."
+      "slaLate_other": "{{count}} casi su {{cases}} oltre il tempo.",
+      "costTitle": "Costo dello scenario",
+      "costTotal": "{{total}} in tutto, {{perCase}} per caso.",
+      "costResources": "Tempo delle risorse: {{value}}",
+      "costActivities": "Costi fissi delle attività: {{value}}",
+      "costCases": "Costi fissi per caso: {{value}}"
     },
     "jsonSummary": "Dati grezzi Prosimos",
     "status": {
@@ -453,7 +461,8 @@
       "arrivals": "Arrivi dei casi",
       "interarrival": "Tempo medio fra due arrivi",
       "arrivalCalendar": "Calendario degli arrivi",
-      "prioritiesNote": "Gli altri casi aspettavano in ordine di arrivo."
+      "prioritiesNote": "Gli altri casi aspettavano in ordine di arrivo.",
+      "fixedCost": "Costo fisso: {{value}} per ogni esecuzione, oltre al tempo della risorsa."
     },
     "provenance": {
       "label": "Origine",

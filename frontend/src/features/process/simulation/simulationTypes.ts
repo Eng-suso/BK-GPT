@@ -12,7 +12,12 @@ export const simulationSummarySchema = z
     cycle: z.object({ avg: z.number(), p50: z.number(), p90: z.number(), p95: z.number() }),
     waiting: z.object({ avg: z.number(), p95: z.number(), share: z.number() }),
     processing: z.object({ avg: z.number(), p95: z.number().optional() }),
-    cost: z.object({ total: z.number(), perCase: z.number() }),
+    cost: z.object({
+      total: z.number(),
+      perCase: z.number(),
+      /** SIM-10: presente solo se lo scenario aveva costi fissi. */
+      breakdown: z.object({ resources: z.number(), activities: z.number(), cases: z.number() }).optional(),
+    }),
     /** SIM-13: l'esito dell'obiettivo di servizio, se lo scenario ne aveva uno. */
     sla: z.object({
       target_seconds: z.number(),
@@ -304,6 +309,8 @@ export type SimTaskInput = SimDurationInput & {
   resourceId: string | null;
   /** Le affermazioni confermate dal consulente come fonte della durata. */
   claims?: { claimId: number; label: string }[];
+  /** SIM-10: euro per esecuzione. */
+  fixedCost?: number;
   /** Gli altri ruoli che possono svolgere l'attività, ognuno con la sua durata. */
   otherAssignments?: (SimDurationInput & { resourceId: string })[];
 };
@@ -325,6 +332,8 @@ export type CreateSimulationRunInput = {
   arrival?: SimArrivalInput;
   /** SIM-13: obiettivo di servizio, in secondi e quota 0-1. */
   sla?: { targetSeconds: number; share: number };
+  /** SIM-10: euro per caso completato. */
+  caseFixedCost?: number;
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];
