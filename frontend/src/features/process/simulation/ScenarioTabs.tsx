@@ -156,9 +156,12 @@ function NewScenarioDialog({ lab, from, onClose }: { lab: ScenarioLab; from: Wor
     if (!trimmed || busy) return;
     setBusy(true);
     const origin = alternatives.find((s) => String(s.id) === source);
-    const created = await lab.createScenario(trimmed, origin);
-    setBusy(false);
-    if (created) onClose();
+    try {
+      const created = await lab.createScenario(trimmed, origin);
+      if (created) onClose();
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <Dialog open={from !== null} onOpenChange={(open) => { if (!open) onClose(); }}>

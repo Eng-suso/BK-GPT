@@ -82,8 +82,11 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
   const run = async (scenarios: WorkspaceScenario[]) => {
     setStarting((current) => new Set([...current, ...scenarios.map((s) => s.id)]));
     // Uno dopo l'altro: ogni run entra in coda con il suo gruppo intero.
-    for (const scenario of scenarios) await lab.runScenario(scenario);
-    setStarting((current) => new Set([...current].filter((id) => !scenarios.some((s) => s.id === id))));
+    try {
+      for (const scenario of scenarios) await lab.runScenario(scenario);
+    } finally {
+      setStarting((current) => new Set([...current].filter((id) => !scenarios.some((s) => s.id === id))));
+    }
   };
   const toRun = rows.filter(({ results }) => results.status !== "current" && results.status !== "pending").map(({ scenario }) => scenario);
 
