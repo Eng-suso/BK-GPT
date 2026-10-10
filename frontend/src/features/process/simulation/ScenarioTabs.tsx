@@ -46,7 +46,7 @@ export function ScenarioTabs({ lab }: { lab: ScenarioLab }): React.JSX.Element |
               title={scenarioDisplayName(scenario)}
             >
               <span className="sim-scenario-label">{scenario.label}</span>
-              {scenario.kind === "alternative" && <span className="sim-scenario-name">{scenario.name}</span>}
+              {scenario.kind === "alternative" && <><span className="sr-only"> · </span><span className="sim-scenario-name">{scenario.name}</span></>}
             </Button>
           ))}
         </div>

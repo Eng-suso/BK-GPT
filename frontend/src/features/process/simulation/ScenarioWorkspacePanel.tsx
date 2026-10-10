@@ -143,7 +143,7 @@ export function ScenarioWorkspacePanel(): React.JSX.Element {
               return (
                 <tr key={scenario.id} data-sim-workspace-row={scenario.label}>
                   <th scope="row">
-                    <span className="sim-workspace-name"><span className="sim-scenario-label">{scenario.label}</span>{scenario.kind === "alternative" && <span>{scenario.name}</span>}</span>
+                    <span className="sim-workspace-name"><span className="sim-scenario-label">{scenario.label}</span>{scenario.kind === "alternative" && <><span className="sr-only"> · </span><span>{scenario.name}</span></>}</span>
                     <span className={cn("block text-xs", STATUS_TONE[results.status])}>{t(`simulation.scenarios.workspace.status.${results.status}`)}</span>
                     {results.members.length > 0 && <span className="block text-xs text-muted-foreground">{t("simulation.scenarios.workspace.reps", { count: results.completed.length })}</span>}
                     <span className="sim-workspace-actions">
