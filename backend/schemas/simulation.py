@@ -67,6 +67,14 @@ class SimArrivalConfig(BaseModel):
     calendar_id: str | None = Field(default=None, max_length=64)
 
 
+class SimSlaConfig(BaseModel):
+    """L'obiettivo di servizio dello scenario (SIM-13): il caso si chiude entro
+    ``target_seconds`` per almeno la quota ``share`` dei casi (0-1)."""
+
+    target_seconds: float = Field(gt=0)
+    share: float = Field(gt=0, le=1)
+
+
 class SimClaimRef(BaseModel):
     """Un'affermazione di un file del cliente che il consulente ha collegato all'attivita'."""
 
@@ -119,6 +127,8 @@ class CreateSimulationRunRequest(BaseModel):
     # Gli arrivi con distribuzione e calendario (A2-3). Se c'e', prevale su
     # ``arrival_interval_seconds``.
     arrival: SimArrivalConfig | None = None
+    # L'obiettivo di servizio: il motore non lo usa, il run ne misura l'esito.
+    sla: SimSlaConfig | None = None
     default_task_duration_seconds: int = Field(default=900, ge=1)
     default_cost_per_hour: float = Field(default=35.0, ge=0)
     resource_amount: int = Field(default=1, ge=1, le=1000)

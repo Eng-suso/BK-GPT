@@ -64,6 +64,8 @@ class ClaimedRun:
     total_cases: int
     start_date: str | None
     seed: int | None
+    # L'obiettivo di servizio dello scenario (SIM-13), se il consulente l'ha dato.
+    sla: dict | None = None
 
 
 def now_iso() -> str:
@@ -174,6 +176,7 @@ def claim_next_run(worker_id: str) -> ClaimedRun | None:
             total_cases=int(request.get("total_cases") or 100),
             start_date=request.get("start_date"),
             seed=request.get("seed"),
+            sla=request.get("sla"),
         )
 
 

@@ -36,6 +36,7 @@ from backend.simulation.models import ProsimosScenario, ProsimosSimulationReques
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
+from backend.simulation.sla import sla_outcome
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.scenario_builder import (
@@ -89,6 +90,8 @@ def _derive_idempotency_key(
             "resource_name": request.resource_name,
             # Stesso scenario, seed diverso: un altro campione, un altro run.
             "seed": request.seed,
+            # Un obiettivo di servizio diverso cambia cio' che il run misura.
+            "sla": request.sla.model_dump() if request.sla else None,
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -369,6 +372,12 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
     summary, replay = await asyncio.to_thread(
         _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario
     )
+    log_csv = getattr(result, "event_log_csv", None)
+    if summary is not None and claimed.sla and log_csv:
+        # SIM-13: l'esito dell'obiettivo di servizio, sulla stessa definizione di cycle dei KPI.
+        summary["sla"] = await asyncio.to_thread(
+            sla_outcome, log_csv, target_seconds=float(claimed.sla["target_seconds"]), share=float(claimed.sla["share"])
+        )
     return await asyncio.to_thread(
         complete_simulation_run,
         run_id=claimed.run_id,
