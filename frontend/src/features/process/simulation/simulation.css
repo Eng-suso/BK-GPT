@@ -369,3 +369,37 @@
   .sim-transport-controls > span { margin-left: auto; font-size: 11px; }
   .sim-transport-controls [role="combobox"] { width: 88px; }
 }
+
+/* SIM-14: workspace degli scenari AS-IS | A | B | C. */
+.sim-scenario-tabs { display: grid; gap: 8px; padding: 10px 12px; }
+.sim-scenario-tabs-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sim-scenario-tablist { display: flex; gap: 4px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
+.sim-scenario-tablist > button { flex: 0 0 auto; max-width: 180px; }
+.sim-scenario-label { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; font-weight: 600; }
+.sim-scenario-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-scenario-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.sim-scenario-error { font-size: 12px; color: var(--state-invalid-text); }
+.sim-scenario-changes > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+.sim-scenario-changes > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+.sim-scenario-changes ul { display: grid; gap: 2px; margin-top: 6px; }
+.sim-scenario-changes li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; line-height: 1.4; padding: 4px 0; border-top: 1px solid var(--color-border-subtle); }
+.sim-scenario-changes li small { display: block; color: var(--state-warning-text); }
+.sim-scenario-changes li.is-conflict > span { color: var(--color-text-muted); text-decoration: line-through; text-decoration-color: var(--state-warning-icon); }
+.sim-scenario-conflicts { display: flex; gap: 6px; align-items: flex-start; margin-top: 6px; padding: 6px 8px; font-size: 12px; border-radius: var(--radius-control, 8px); color: var(--state-warning-text); background: var(--state-warning-surface); border: 1px solid var(--state-warning-border); }
+.djs-element.sim-scenario-changed .djs-visual > rect,
+.djs-element.sim-scenario-changed .djs-visual > path:first-of-type {
+  stroke: var(--sim-info) !important;
+  stroke-width: 3px !important;
+  stroke-dasharray: 6 3;
+}
+.sim-workspace-seed { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
+.sim-workspace-table { overflow-x: auto; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control, 8px); }
+.sim-workspace-table:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.sim-workspace-table table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 12.5px; }
+.sim-workspace-table caption { caption-side: bottom; padding: 8px 10px; text-align: left; font-size: 12px; color: var(--color-text-muted); }
+.sim-workspace-table th, .sim-workspace-table td { padding: 8px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--color-border-subtle); }
+.sim-workspace-table thead th { border-top: 0; font-size: 11.5px; font-weight: 500; color: var(--color-text-muted); background: var(--color-surface-muted, transparent); }
+.sim-workspace-table tbody th { font-weight: 500; min-width: 170px; }
+.sim-workspace-table tbody tr:first-child { background: color-mix(in oklab, var(--sim-info) 5%, transparent); }
+.sim-workspace-name { display: flex; gap: 6px; align-items: baseline; color: var(--color-text-primary); }
+.sim-workspace-actions { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 4px; margin-inline-start: -8px; }
