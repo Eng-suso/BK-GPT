@@ -146,7 +146,7 @@ async function fixture(page: Page, workspace: Workspace, runs: unknown[] = []) {
 
 const tabs = (page: Page) => page.locator("[data-sim-scenario-tabs]");
 
-test("the AS-IS comes from the draft and a new scenario keeps only its changes", async ({ page }) => {
+test("the AS-IS comes from the draft and a new scenario keeps only its changes", async ({ page }, testInfo) => {
   const workspace = new Workspace();
   await fixture(page, workspace);
   await page.goto(`${studio}/scenario`);
@@ -173,6 +173,8 @@ test("the AS-IS comes from the draft and a new scenario keeps only its changes",
   await expect(tabs(page)).toContainText("Ufficio acquisti · Unità: 2 → 3");
   await expect.poll(() => (workspace.alternatives[0]?.patch ?? [])).toEqual([{ op: "set", path: ["resources", { id: "r1" }, "amount"], value: 3 }]);
 
+  await tabs(page).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("scenario-tabs.png"), animations: "disabled" });
   const axe = await new AxeBuilder({ page }).include("[data-sim-scenario-tabs]").withTags(["wcag2a", "wcag2aa"]).analyze();
   expect(axe.violations).toEqual([]);
 
@@ -266,12 +268,13 @@ test("the Workspace tool compares every scenario with the AS-IS, with the interv
   await expect(page).toHaveURL(/panel=compare/);
 });
 
-test("the process and the task inspector show what a scenario changes", async ({ page }) => {
+test("the process and the task inspector show what a scenario changes", async ({ page }, testInfo) => {
   const workspace = new Workspace().seedWith(draft, { name: "Approvazione veloce", patch: [{ op: "set", path: ["tasks", "T_approve", "meanMinutes"], value: 10 }] });
   await fixture(page, workspace, group(41, 1, "g-asis", [3600, 3720]));
   await page.goto(`${studio}/workspace/41?panel=scenario&scenario=2`);
   await expect(page.locator('.djs-element[data-element-id="T_approve"].sim-scenario-changed').first()).toBeAttached();
   await expect(page.locator(".sim-process-legend")).toContainText("Modificato nello scenario A");
+  await page.screenshot({ path: testInfo.outputPath("scenario-overlay.png"), animations: "disabled" });
 
   await page.goto(`${studio}/workspace/41?panel=activity`);
   await page.locator('.djs-element[data-element-id="T_approve"]').first().click();
