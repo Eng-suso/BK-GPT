@@ -23,6 +23,8 @@ from backend.simulation.ir.model import (
     Calendar,
     CalendarPeriod,
     Distribution,
+    DurationByAttribute,
+    DurationVariant,
     Exponential,
     Fixed,
     Gamma,
@@ -269,7 +271,24 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
         element_id=task.id,
         name=task.name,
         assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
+        duration_by=_duration_by(task, override),
     )
+
+
+def _duration_by(task: BpmnTask, override) -> DurationByAttribute | None:
+    """SIM-32: le durate per categoria, tradotte con le regole delle altre durate."""
+    if not override or override.duration_by is None:
+        return None
+    label = task.name or task.id
+    variants = []
+    for cfg in override.duration_by.variants:
+        try:
+            value = duration(cfg.distribution, float(cfg.mean_seconds), std=cfg.std_seconds,
+                             minimum=cfg.min_seconds, maximum=cfg.max_seconds)
+        except ValueError as exc:
+            raise ValueError(f"«{label}», categoria «{cfg.value}»: {exc}") from exc
+        variants.append(DurationVariant(value=cfg.value, duration=value, provenance=_MANUAL))
+    return DurationByAttribute(attribute=override.duration_by.attribute, variants=tuple(variants))
 
 
 def _declared(override: SimTaskConfig | None) -> Provenance | None:

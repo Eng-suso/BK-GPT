@@ -14,6 +14,7 @@ from backend.schemas.simulation import (
 )
 from backend.simulation.bpmn_resources import describe_bpmn_resources
 from backend.simulation.ir import compile_for_prosimos, model_from_request
+from backend.simulation.ir.variants import expand_duration_variants
 from backend.simulation.ir.baseline import baseline_model
 from backend.simulation.ir.bpmn_check import check_model_against_bpmn
 from backend.simulation.ir.from_request import standard_calendar
@@ -61,11 +62,22 @@ def build_prosimos_scenario(
     if request.model_patch:
         model = apply_patch(model, request.model_patch)
         check_model_against_bpmn(model, tasks, gateways)
+    return _scenario(bpmn_xml, model, tasks, gateways)
+
+
+def _scenario(bpmn_xml: str, model: SimulationModel, tasks, gateways) -> ProsimosScenario:
+    """Il payload del motore, con le durate condizionali compilate in varianti (SIM-32).
+
+    Il run conserva il modello come l'ha scritto il consulente, non le varianti:
+    l'inspector mostra le durate per categoria sull'attivita' vera.
+    """
+    engine_bpmn, engine_model = expand_duration_variants(bpmn_xml, model)
     return ProsimosScenario(
-        payload=compile_for_prosimos(model),
+        payload=compile_for_prosimos(engine_model),
         task_count=len(tasks),
         gateway_count=len(gateways),
         model=model.model_dump(mode="json"),
+        bpmn_xml=engine_bpmn if engine_bpmn is not bpmn_xml else None,
     )
 
 
@@ -85,12 +97,7 @@ def build_prosimos_scenario_from_model(*, bpmn_xml: str, model: SimulationModel)
     validate_simulation_bpmn(bpmn_xml)
     tasks, gateways = parse_bpmn_for_simulation(bpmn_xml)
     check_model_against_bpmn(model, tasks, gateways)
-    return ProsimosScenario(
-        payload=compile_for_prosimos(model),
-        task_count=len(tasks),
-        gateway_count=len(gateways),
-        model=model.model_dump(mode="json"),
-    )
+    return _scenario(bpmn_xml, model, tasks, gateways)
 
 
 def describe_scenario_template(bpmn_xml: str, *, source_bpmn_xml: str | None = None) -> ScenarioTemplateResponse:

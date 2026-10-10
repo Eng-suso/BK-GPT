@@ -91,7 +91,7 @@ def _model(*, busy: bool = False) -> SimulationModel:
     )
 
 
-def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None) -> list[dict]:
+def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None, bpmn: str | None = None) -> list[dict]:
     import numpy
     from prosimos.simulation_engine import run_simulation
 
@@ -100,7 +100,11 @@ def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None) 
     with tempfile.TemporaryDirectory() as tmp:
         scenario, log = Path(tmp) / "s.json", Path(tmp) / "log.csv"
         scenario.write_text(json.dumps(payload if payload is not None else compile_for_prosimos(model)))
-        run_simulation(str(contract_spike.BPMN_PATH), str(scenario), 200, None, str(log), contract_spike.START)
+        bpmn_path = contract_spike.BPMN_PATH
+        if bpmn is not None:
+            bpmn_path = Path(tmp) / "model.bpmn"
+            bpmn_path.write_text(bpmn, encoding="utf-8")
+        run_simulation(str(bpmn_path), str(scenario), 200, None, str(log), contract_spike.START)
         return contract_spike.parse_log(log.read_text())
 
 
@@ -197,6 +201,48 @@ def test_cases_arrive_only_inside_the_arrival_calendar():
     assert len(first) == 200
     outside = [t for t in first.values() if t.weekday() > 4 or not 9 <= t.hour < 12]
     assert outside == [], outside[:5]
+
+
+def test_a_duration_that_depends_on_a_case_category_is_applied_by_the_engine():
+    # SIM-32: Approva dura 10 minuti per i premium, 25 per gli standard. Il motore
+    # non lo sa fare: lo scenario lo compila in varianti dietro una decisione per regola.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "distribution": "fixed"},
+            {"element_id": "T_approve", "mean_seconds": 1200, "distribution": "fixed",
+             "duration_by": {"attribute": "tipo", "variants": [
+                 {"value": "premium", "mean_seconds": 600, "distribution": "fixed"},
+                 {"value": "standard", "mean_seconds": 1500, "distribution": "fixed"}]}},
+            {"element_id": "T_pay", "mean_seconds": 600, "distribution": "fixed"},
+        ],
+        model_patch={
+            "case_attributes": [
+                {"name": "tipo", "options": [{"value": "premium", "probability": 0.3}, {"value": "standard", "probability": 0.7}]},
+                {"name": "importo", "distribution": {"kind": "uniform", "minimum": 100, "maximum": 12000}},
+            ],
+            "gateways": [{"element_id": "G_split", "branches": [
+                {"flow_id": "F_high", "probability": 0.5, "condition": _amount_rule(">")},
+                {"flow_id": "F_low", "probability": 0.5, "condition": _amount_rule("<=")},
+            ]}],
+        },
+    )
+    bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    assert scenario.bpmn_xml is not None
+
+    rows = _run(_model(), payload=scenario.payload, bpmn=scenario.bpmn_xml)
+    worked: dict[str, set[float]] = {}
+    for row in rows:
+        if row["activity"] == "Approva":
+            worked.setdefault(row.get("tipo", ""), set()).add(round(row["end"] - row["start"]) % (16 * 3600))
+    assert worked.get("premium") == {600}, worked
+    assert worked.get("standard") == {1500}, worked
+    # Una sola attività nel log: le varianti hanno il nome dell'originale.
+    assert {row["activity"] for row in rows} == {"Ricevi", "Approva", "Paga"}
 
 
 def _amount_rule(operator: str) -> dict:

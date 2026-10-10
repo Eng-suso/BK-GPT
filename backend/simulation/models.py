@@ -35,6 +35,9 @@ class ProsimosScenario(BaseModel):
     # Un dizionario e non ``SimulationModel`` per non importare l'IR da qui
     # (``ir.from_request`` importa questo modulo).
     model: dict[str, Any] | None = None
+    # Il BPMN che il motore deve eseguire, se lo scenario lo ha riscritto
+    # (durate condizionali, SIM-32). Assente = quello della richiesta.
+    bpmn_xml: str | None = None
 
 
 class ProsimosSimulationRequest(BaseModel):

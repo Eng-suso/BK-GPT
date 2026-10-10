@@ -85,6 +85,24 @@ class SimClaimRef(BaseModel):
     label: str = Field(default="", max_length=200)
 
 
+class SimDurationVariantConfig(BaseModel):
+    """La durata per i casi con una categoria dell'attributo (SIM-32)."""
+
+    value: str = Field(min_length=1, max_length=120)
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "norm"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+
+
+class SimDurationByConfig(BaseModel):
+    """La durata dell'attivita' cambia con un attributo a categorie del caso."""
+
+    attribute: str = Field(min_length=1, max_length=64)
+    variants: list[SimDurationVariantConfig] = Field(min_length=1, max_length=20)
+
+
 class SimTaskConfig(BaseModel):
     """La durata di un'attivita'. Oltre alla media, i parametri facoltativi:
 
@@ -109,6 +127,8 @@ class SimTaskConfig(BaseModel):
     # Le affermazioni confermate dal consulente (SIM-07): diventano la fonte
     # ``declared`` della durata. Il valore resta quello del pannello.
     claims: list[SimClaimRef] = Field(default_factory=list, max_length=10)
+    # SIM-32: durate diverse per categoria di un attributo del caso.
+    duration_by: SimDurationByConfig | None = None
     # SIM-10: euro per ogni esecuzione dell'attivita', oltre al tempo delle risorse.
     fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
 

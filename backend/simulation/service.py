@@ -298,6 +298,8 @@ def _register_run(
     request: RunRequest,
     idempotency_key: str,
 ) -> tuple[dict, ProsimosScenario | None, str]:
+    # Il motore esegue il BPMN riscritto, se lo scenario lo ha riscritto (SIM-32).
+    bpmn_xml = scenario.bpmn_xml or bpmn_xml
     existing = find_active_run_by_key(
         bpmn_model_id=bpmn_model.id,
         idempotency_key=idempotency_key,
