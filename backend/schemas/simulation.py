@@ -154,6 +154,8 @@ class CreateSimulationRunRequest(BaseModel):
     arrival: SimArrivalConfig | None = None
     # L'obiettivo di servizio: il motore non lo usa, il run ne misura l'esito.
     sla: SimSlaConfig | None = None
+    # SIM-03: i primi casi escono dai KPI (il sistema parte vuoto). Il replay li mostra.
+    warmup_cases: int = Field(default=0, ge=0, le=10_000)
     # SIM-10: euro per ogni caso completato, oltre al tempo delle risorse.
     case_fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
     default_task_duration_seconds: int = Field(default=900, ge=1)

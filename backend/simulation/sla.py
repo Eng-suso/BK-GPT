@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.simulation.log_processor import parse_prosimos_log
+from backend.simulation.log_processor import after_warmup, parse_prosimos_log
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,14 +25,15 @@ class SlaOutcome:
     met: bool
 
 
-def sla_outcome(log_csv: str, *, target_seconds: float, share: float) -> SlaOutcome | None:
+def sla_outcome(log_csv: str, *, target_seconds: float, share: float, warmup_cases: int = 0) -> SlaOutcome | None:
     """Quanti casi completati stanno nel target, e se l'obiettivo e' rispettato.
 
     ``None`` se il log non ha casi: senza casi non c'e' niente da giudicare.
     """
     first_enable: dict[str, float] = {}
     last_end: dict[str, float] = {}
-    for event in parse_prosimos_log(log_csv):
+    # Gli stessi casi dei KPI: quelli del riscaldamento (SIM-03) non contano.
+    for event in after_warmup(parse_prosimos_log(log_csv), warmup_cases):
         first_enable[event.case_id] = min(first_enable.get(event.case_id, event.enable), event.enable)
         last_end[event.case_id] = max(last_end.get(event.case_id, event.end), event.end)
     cases = len(last_end)

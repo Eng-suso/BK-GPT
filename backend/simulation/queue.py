@@ -69,6 +69,8 @@ class ClaimedRun:
     sla: SimSlaConfig | None = None
     # SIM-10: i costi fissi dello scenario, sommati al costo delle risorse a fine run.
     fixed_costs: FixedCosts = field(default_factory=FixedCosts)
+    # SIM-03: i primi casi, che trovano il sistema vuoto, restano fuori dai KPI.
+    warmup_cases: int = 0
 
 
 def now_iso() -> str:
@@ -189,6 +191,7 @@ def claim_next_run(worker_id: str) -> ClaimedRun | None:
                 },
                 per_case=float(request.get("case_fixed_cost") or 0.0),
             ),
+            warmup_cases=int(request.get("warmup_cases") or 0),
         )
 
 

@@ -94,6 +94,7 @@ def _derive_idempotency_key(
             # Un obiettivo di servizio diverso cambia cio' che il run misura.
             "sla": request.sla.model_dump() if request.sla else None,
             "case_fixed_cost": request.case_fixed_cost,
+            "warmup_cases": request.warmup_cases,
             "fixed_costs": {t.element_id: t.fixed_cost for t in request.tasks or [] if t.fixed_cost},
         },
         sort_keys=True,
@@ -272,6 +273,8 @@ def prepare_simulation_run(
     # feeds both the scenario and the engine request.
     bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
     _check_claims(request, bpmn_model.process_id)
+    if request.warmup_cases >= request.total_cases:
+        raise ValueError("Il riscaldamento deve lasciare almeno un caso da misurare: abbassalo o aumenta i casi.")
 
     scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
 
@@ -375,13 +378,15 @@ async def execute_claimed_run(claimed: ClaimedRun) -> dict:
 
     # Lettura del log e scrittura in DB sono sincrone: fuori dall'event loop.
     summary, replay = await asyncio.to_thread(
-        _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario
+        _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario,
+        warmup_cases=claimed.warmup_cases,
     )
     log_csv = getattr(result, "event_log_csv", None)
     if summary is not None and claimed.sla and log_csv:
         # SIM-13: l'esito dell'obiettivo di servizio, sulla stessa definizione di cycle dei KPI.
         outcome = await asyncio.to_thread(
-            sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share
+            sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share,
+            warmup_cases=claimed.warmup_cases,
         )
         if outcome is not None:
             summary["sla"] = asdict(outcome)
@@ -416,6 +421,7 @@ def _process_event_log(
     *,
     bpmn_xml: str,
     scenario: ProsimosScenario,
+    warmup_cases: int = 0,
 ) -> tuple[dict | None, dict | None]:
     """Turn the Prosimos event log into the run summary + replay artifact.
     Never raises — a log/parse failure just means no artifact for this run."""
@@ -429,6 +435,7 @@ def _process_event_log(
             scenario_payload=scenario.payload,
             prosimos_stats=result.payload,
             name_to_element_id=activity_name_to_element_id(bpmn_xml),
+            warmup_cases=warmup_cases,
         )
     except Exception:  # noqa: BLE001 - the replay artifact is best-effort
         return None, None
