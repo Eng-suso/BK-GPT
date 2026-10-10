@@ -147,6 +147,18 @@ class SimGatewayConfig(BaseModel):
 SEED_MAX = 2**32 - 1
 
 
+class WorkspaceScenarioRef(BaseModel):
+    """Lo scenario del workspace (SIM-14) da cui parte il run, alle revisioni usate.
+
+    Il pannello confronta queste revisioni con quelle di oggi: un run fatto su
+    una versione precedente dello scenario o dell'AS-IS e' da rifare.
+    """
+
+    id: int = Field(ge=1)
+    revision: int = Field(ge=1)
+    baseline_revision: int = Field(ge=1)
+
+
 class CreateSimulationRunRequest(BaseModel):
     scenario_name: str = "Baseline AS-IS"
     total_cases: int = Field(default=100, ge=1, le=100_000)
@@ -190,6 +202,9 @@ class CreateSimulationRunRequest(BaseModel):
     # Seed del motore. Con lo stesso seed e lo stesso scenario il runner rifa'
     # lo stesso log; senza, ne sceglie uno e lo restituisce nel risultato.
     seed: int | None = Field(default=None, ge=0, le=SEED_MAX)
+    # SIM-14: lo scenario del workspace che il run simula. Assente per i run
+    # lanciati fuori dal workspace (API, run anteriori).
+    workspace_scenario: WorkspaceScenarioRef | None = None
 
 
 class ScenarioTemplateRequest(BaseModel):

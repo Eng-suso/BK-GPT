@@ -1,5 +1,7 @@
 """SIM-14: il workspace degli scenari AS-IS | A | B | C, via API."""
 
+from tests.simulation.test_simulation_ir_contract import MINIMAL_BPMN
+
 TENANT_A = {"X-DeliR-Tenant-ID": "sim-scenarios-a"}
 TENANT_B = {"X-DeliR-Tenant-ID": "sim-scenarios-b"}
 
@@ -185,3 +187,45 @@ def test_another_tenant_sees_neither_the_workspace_nor_its_scenarios(api_client,
     assert api_client.delete(_url(model_id, f"/{workspace['baseline']['id']}"), headers=TENANT_B).status_code == 404
     other_model = new_bpmn_model(TENANT_B)
     assert api_client.get(_url(other_model), headers=TENANT_B).json()["baseline"] is None
+
+
+def _run(api_client, model_id: str, ref: dict, **extra):
+    return api_client.post(
+        f"/v1/workspace/bpmn-models/{model_id}/simulation-runs",
+        json={"total_cases": 5, "current_bpmn_xml": MINIMAL_BPMN, "workspace_scenario": ref, **extra},
+    )
+
+
+def test_a_run_remembers_the_scenario_and_revisions_it_simulated(api_client, new_bpmn_model, fake_engine):
+    model_id = new_bpmn_model()
+    workspace = _with_baseline(api_client, model_id)
+    scenario = api_client.post(_url(model_id), json={"name": "A"}).json()["alternatives"][0]
+    ref = {"id": scenario["id"], "revision": 1, "baseline_revision": 1}
+
+    single = _run(api_client, model_id, ref)
+    group = _run(api_client, model_id, {**ref, "id": workspace["baseline"]["id"]}, replications=2, seed=workspace["seed"])
+
+    assert single.status_code == 200, single.text
+    assert single.json()["request"]["workspace_scenario"] == ref
+    assert group.status_code == 200, group.text
+    runs = api_client.get(f"/v1/workspace/bpmn-models/{model_id}/simulation-runs").json()
+    members = [run for run in runs if run["request"].get("replication_group") == group.json()["request"]["replication_group"]]
+    assert len(members) == 2
+    assert {run["request"]["workspace_scenario"]["id"] for run in members} == {workspace["baseline"]["id"]}
+    # Il seed comune del workspace: le ripetizioni partono da li'.
+    assert sorted(run["request"]["seed"] for run in members) == [workspace["seed"], workspace["seed"] + 1]
+
+
+def test_a_run_cannot_cite_a_scenario_of_another_process_or_a_future_revision(api_client, new_bpmn_model, fake_engine):
+    model_id = new_bpmn_model()
+    other_id = new_bpmn_model()
+    baseline_id = _with_baseline(api_client, model_id)["baseline"]["id"]
+    _with_baseline(api_client, other_id)
+
+    foreign = _run(api_client, other_id, {"id": baseline_id, "revision": 1, "baseline_revision": 1})
+    future = _run(api_client, model_id, {"id": baseline_id, "revision": 2, "baseline_revision": 1})
+    missing = _run(api_client, model_id, {"id": 999999, "revision": 1, "baseline_revision": 1})
+
+    assert foreign.status_code == 400
+    assert future.status_code == 400
+    assert missing.status_code == 400
