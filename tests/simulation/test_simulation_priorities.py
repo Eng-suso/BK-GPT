@@ -53,3 +53,14 @@ def test_the_run_keeps_the_priorities_in_the_model_the_inspector_reads(api_clien
     model = api_client.get(f"/v1/workspace/simulation-runs/{created.json()['id']}/model").json()["model"]
     assert model["priority_rules"][0]["level"] == 1
     assert model["priority_rules"][0]["condition"]["any_of"][0][0]["value"] == "premium"
+
+
+def test_an_invalid_priority_is_a_400_with_the_reason(api_client, new_bpmn_model, fake_engine):
+    response = api_client.post(
+        f"/v1/workspace/bpmn-models/{new_bpmn_model()}/simulation-runs",
+        json={**_request().model_dump(mode="json"), "current_bpmn_xml": BPMN,
+              "model_patch": {"priority_rules": _premium_first()["priority_rules"]}},
+    )
+    assert response.status_code == 400
+    assert "tipo" in response.json()["error"]["message"]
+    assert fake_engine == []

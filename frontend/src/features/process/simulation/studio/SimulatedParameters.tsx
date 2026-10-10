@@ -182,13 +182,10 @@ function Arrival({ arrival, lang, t, provenanceState }: { arrival: ArrivalView; 
 /** SIM-12: le priorita' dei casi che il run ha simulato; niente se non ce n'erano. */
 function Priorities({ priorities, t }: { priorities: { level: number; condition: IrRule[][] }[]; t: T }): React.JSX.Element | null {
   if (priorities.length === 0) return null;
-  const sentence = (groups: IrRule[][]) => groups
-    .map((group) => group.map((rule) => `${rule.attribute} ${rule.operator} ${rule.value}`).join(` ${t("simulation.activityInspector.and")} `))
-    .join(` ${t("simulation.activityInspector.or")} `);
   return <div className="sim-param-group">
     <h5>{t("simulation.config.priorities")}</h5>
     <dl>
-      {priorities.map((p) => <div key={p.level}><dt>{t("simulation.config.priorityLevel", { level: p.level })}</dt><dd>{sentence(p.condition)}</dd></div>)}
+      {priorities.map((p) => <div key={p.level}><dt>{t("simulation.config.priorityLevel", { level: p.level })}</dt><dd>{conditionText(p.condition, t)}</dd></div>)}
     </dl>
     <p className="sim-help">{t("simulation.activityInspector.prioritiesNote")}</p>
   </div>;
@@ -201,8 +198,9 @@ function isStartEvent(bpmnXml: string | null | undefined, elementId: string): bo
   return Array.from(document.getElementsByTagNameNS("*", "startEvent")).some((node) => node.getAttribute("id") === elementId);
 }
 
-function ruleText(branch: BranchView, t: T): string {
-  return (branch.condition ?? [])
+/** Una condizione dell'IR come frase: condizioni in "e", gruppi in "oppure". */
+function conditionText(groups: IrRule[][], t: T): string {
+  return groups
     .map((group) => group.map((rule) => `${rule.attribute} ${rule.operator} ${rule.value}`).join(` ${t("simulation.activityInspector.and")} `))
     .join(` ${t("simulation.activityInspector.or")} `);
 }
@@ -213,7 +211,7 @@ function Branches({ branches, provenance, lang, t, provenanceState }: { branches
     <dl>
       {branches.map((branch) => (
         <div key={branch.flowId}><dt>{branch.label}</dt><dd>
-          {branch.condition ? ruleText(branch, t) : percent.format(branch.probability)}
+          {branch.condition ? conditionText(branch.condition, t) : percent.format(branch.probability)}
           {branch.condition && <span className="sim-param-note">{t("simulation.activityInspector.byRule")}</span>}
         </dd></div>
       ))}
