@@ -216,7 +216,8 @@
       "uniformHint": "La durata è uniforme fra minimo e massimo.",
       "durationIssue": {
         "uniformBounds": "Indica minimo e massimo.",
-        "boundsOrder": "Il minimo deve essere minore del massimo."
+        "boundsOrder": "Il minimo deve essere minore del massimo.",
+        "meanOutsideBounds": "La media deve stare fra minimo e massimo."
       },
       "invalidDurations": "Attività con durata da correggere: {{count}}",
       "calendars": "Calendari",
@@ -329,7 +330,13 @@
       "otherRolesHint": "Ogni caso va al primo ruolo libero. Ogni ruolo ha la sua durata.",
       "otherRolesNoneFree": "Tutti i ruoli svolgono già questa attività. Per aggiungerne un altro, crealo in Risorse.",
       "otherRoleOf": "Altro ruolo · {{task}}",
-      "removeOtherRole": "Togli {{role}} da {{task}}"
+      "removeOtherRole": "Togli {{role}} da {{task}}",
+      "arrivals": "Arrivi dei casi",
+      "arrivalsHint": "Quanto tempo passa fra l'arrivo di un caso e il successivo. I casi arrivano solo negli orari del calendario scelto.",
+      "arrivalMeanMin": "Tempo medio fra due arrivi, min",
+      "arrivalUniformHint": "Il tempo fra due arrivi è uniforme fra minimo e massimo.",
+      "arrivalCalendar": "Calendario degli arrivi",
+      "invalidArrival": "Arrivi dei casi da correggere."
     },
     "diagram": {
       "title": "Modello di processo",
@@ -401,7 +408,10 @@
       "byRule": "scelto per regola",
       "and": "e",
       "or": "oppure",
-      "sharedActivity": "Più risorse svolgono questa attività: ogni caso è andato alla prima libera, con la sua durata."
+      "sharedActivity": "Più risorse svolgono questa attività: ogni caso è andato alla prima libera, con la sua durata.",
+      "arrivals": "Arrivi dei casi",
+      "interarrival": "Tempo medio fra due arrivi",
+      "arrivalCalendar": "Calendario degli arrivi"
     },
     "provenance": {
       "label": "Origine",

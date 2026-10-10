@@ -268,6 +268,9 @@ export type SimDurationInput = {
   maxSeconds?: number;
 };
 
+/** Gli arrivi (A2-3): il tempo fra due arrivi e il calendario in cui arrivano. */
+export type SimArrivalInput = SimDurationInput & { calendarId?: string };
+
 export type SimTaskInput = SimDurationInput & {
   elementId: string;
   resourceId: string | null;
@@ -289,6 +292,7 @@ export type CreateSimulationRunInput = {
   defaultCostPerHour: number;
   resourceAmount: number;
   resourceName: string;
+  arrival?: SimArrivalInput;
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];

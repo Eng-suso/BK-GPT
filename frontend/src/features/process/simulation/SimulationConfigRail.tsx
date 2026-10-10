@@ -20,10 +20,12 @@ import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
 import {
   newResourceId,
   resourceParametersValid,
+  arrivalDuration,
   scenarioParameterIssues,
   roleLabel,
   scenarioResourceIssues,
   taskResourceIds,
+  withArrival,
   withValidOtherAssignments,
   type ScenarioDraft,
 } from "./simulationScenario";
@@ -197,7 +199,7 @@ export function SimulationConfigRail({
                 onChange={(e) => patch({ scenarioName: e.target.value })}
               />
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <NumberField
                 label={t("simulation.fields.cases")}
                 value={draft.totalCases}
@@ -206,18 +208,34 @@ export function SimulationConfigRail({
                 onChange={(v) => patch({ totalCases: v })}
               />
               <NumberField
-                label={t("simulation.fields.arrivalMin")}
-                value={draft.arrivalIntervalMinutes}
-                min={1}
-                onChange={(v) => patch({ arrivalIntervalMinutes: v })}
-              />
-              <NumberField
                 label={t("simulation.config.defaultDurationMin")}
                 value={draft.defaultTaskMinutes}
                 min={1}
                 onChange={(v) => patch({ defaultTaskMinutes: v })}
               />
             </div>
+            <fieldset className="sim-arrivals mt-1 grid gap-2 rounded-md border border-border p-2.5" data-sim-arrivals>
+              <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.arrivals")}</legend>
+              <p className="text-xs text-muted-foreground">{t("simulation.config.arrivalsHint")}</p>
+              <TaskDurationFields
+                elementId="arrivals"
+                taskName={t("simulation.config.arrivals")}
+                kind="arrival"
+                task={arrivalDuration(draft)}
+                onChange={(next) => onDraftChange(withArrival(draft, next))}
+              />
+              <label className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.arrivalCalendar")}</span>
+                <select
+                  className="h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm"
+                  value={calendars.some((c) => c.id === draft.arrival?.calendarId) ? draft.arrival?.calendarId : ""}
+                  onChange={(e) => onDraftChange(withArrival(draft, arrivalDuration(draft), e.target.value || undefined))}
+                >
+                  <option value="">{t("simulation.config.standardCalendar")}</option>
+                  {calendars.map((c) => <option key={c.id} value={c.id}>{c.name || c.id}</option>)}
+                </select>
+              </label>
+            </fieldset>
             {provenance && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
                 <ChipRow
@@ -225,7 +243,7 @@ export function SimulationConfigRail({
                   field={provenance.globals.cases}
                 />
                 <ChipRow
-                  label={t("simulation.fields.arrivalMin")}
+                  label={t("simulation.config.arrivals")}
                   field={provenance.globals.arrival}
                 />
               </div>
@@ -327,6 +345,7 @@ export function SimulationConfigRail({
             {resourceIssues.unassigned > 0 && <p>{t("simulation.config.unassignedActivities", { count: resourceIssues.unassigned })}</p>}
             {parameterIssues.durations > 0 && <p>{t("simulation.config.invalidDurations", { count: parameterIssues.durations })}</p>}
             {parameterIssues.calendars > 0 && <p>{t("simulation.config.invalidCalendars", { count: parameterIssues.calendars })}</p>}
+            {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
           </div>}
@@ -338,8 +357,9 @@ export function SimulationConfigRail({
             calendars={calendars}
             onChange={(next) => patch({
               calendars: next,
-              // Una risorsa sul calendario rimosso torna su quello standard.
+              // Una risorsa, o gli arrivi, sul calendario rimosso tornano su quello standard.
               resources: draft.resources.map((r) => r.calendarId && !next.some((c) => c.id === r.calendarId) ? { ...r, calendarId: undefined } : r),
+              arrival: draft.arrival?.calendarId && !next.some((c) => c.id === draft.arrival?.calendarId) ? { ...draft.arrival, calendarId: undefined } : draft.arrival,
             })}
           />
         </DetailPanelSection>

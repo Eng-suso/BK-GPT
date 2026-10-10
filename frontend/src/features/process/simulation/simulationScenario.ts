@@ -51,10 +51,17 @@ export type CalendarDraft = SimCalendar;
 /** element_id -> flow_id -> probability (0–100) */
 export type GatewayDraft = Record<string, number>;
 
+/** Come arrivano i casi (A2-3): la media fra due arrivi e' ``arrivalIntervalMinutes``. */
+export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
+  /** Assente = il calendario standard. */
+  calendarId?: string;
+};
+
 export type ScenarioDraft = {
   scenarioName: string;
   totalCases: number;
   arrivalIntervalMinutes: number;
+  arrival?: ArrivalDraft;
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
@@ -103,7 +110,7 @@ export const DISTRIBUTION_PARAMETERS: Record<DistributionName, { mean: boolean; 
   gamma: { mean: true, std: true, bounds: true },
 };
 
-export type TaskDurationIssue = "uniformBounds" | "boundsOrder";
+export type TaskDurationIssue = "uniformBounds" | "boundsOrder" | "meanOutsideBounds";
 
 /** Minuti in secondi interi, come arrivano al backend. */
 const seconds = (minutes: number | undefined) =>
@@ -119,6 +126,15 @@ export function taskDurationIssue(task: DurationDraft): TaskDurationIssue | null
   const minimum = seconds(task.minMinutes);
   const maximum = seconds(task.maxMinutes);
   if (minimum !== undefined && maximum !== undefined && minimum >= maximum) return "boundsOrder";
+  // Le regole del backend: l'esponenziale vuole la media strettamente dentro i limiti,
+  // la normale anche sui limiti. Lognormale e gamma non la vincolano.
+  const mean = Math.max(1, Math.round(task.meanMinutes * 60));
+  if (task.distribution === "expon" && ((minimum !== undefined && mean <= minimum) || (maximum !== undefined && mean >= maximum))) {
+    return "meanOutsideBounds";
+  }
+  if (task.distribution === "norm" && ((minimum !== undefined && mean < minimum) || (maximum !== undefined && mean > maximum))) {
+    return "meanOutsideBounds";
+  }
   return null;
 }
 
@@ -136,7 +152,31 @@ export function scenarioParameterIssues(draft: ScenarioDraft) {
   const durations = Object.values(draft.tasks).filter((task) =>
     [task, ...(task.otherAssignments ?? [])].some((duration) => taskDurationIssue(duration) !== null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
-  return { durations, calendars, ready: durations === 0 && calendars === 0 };
+  const arrival = taskDurationIssue(arrivalDuration(draft)) !== null;
+  return { durations, calendars, arrival, ready: durations === 0 && calendars === 0 && !arrival };
+}
+
+/** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
+export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
+  const arrival = draft.arrival;
+  return {
+    meanMinutes: draft.arrivalIntervalMinutes,
+    distribution: arrival?.distribution ?? "expon",
+    stdMinutes: arrival?.stdMinutes,
+    minMinutes: arrival?.minMinutes,
+    maxMinutes: arrival?.maxMinutes,
+  };
+}
+
+/** Aggiorna gli arrivi della bozza da una durata modificata nel pannello. */
+/**
+ * Aggiorna gli arrivi della bozza. Senza terzo argomento il calendario resta quello
+ * di prima; con ``undefined`` esplicito torna il calendario standard.
+ */
+export function withArrival(draft: ScenarioDraft, next: DurationDraft, ...calendar: [calendarId: string | undefined] | []): ScenarioDraft {
+  const { meanMinutes, ...rest } = next;
+  const calendarId = calendar.length ? calendar[0] : draft.arrival?.calendarId;
+  return { ...draft, arrivalIntervalMinutes: meanMinutes, arrival: { ...rest, calendarId } };
 }
 
 export function newCalendarId(existing: CalendarDraft[]): string {
@@ -216,8 +256,13 @@ export function scenarioToInput(
     resourceName: primary?.name ?? "",
   };
 
+  const arrivalCalendar = draft.arrival?.calendarId;
   return {
     ...base,
+    arrival: {
+      ...durationInput(arrivalDuration(draft)),
+      calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
+    },
     resources: draft.resources.map((r) => ({
       id: r.id,
       name: r.name,
@@ -342,11 +387,26 @@ export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
         ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
         : [],
       caseAttributes: sanitizeAttributes(parsed.caseAttributes),
+      arrival: sanitizeArrival(parsed.arrival),
       gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
     };
   } catch {
     return structuredClone(DEFAULT_SCENARIO);
   }
+}
+
+function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Partial<ArrivalDraft>;
+  if (!value.distribution || !(value.distribution in DISTRIBUTION_PARAMETERS)) return undefined;
+  const number = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : undefined);
+  return {
+    distribution: value.distribution,
+    stdMinutes: number(value.stdMinutes),
+    minMinutes: number(value.minMinutes),
+    maxMinutes: number(value.maxMinutes),
+    calendarId: typeof value.calendarId === "string" ? value.calendarId : undefined,
+  };
 }
 
 export function saveScenarioDraft(bpmnModelId: string, draft: ScenarioDraft): void {

@@ -149,7 +149,7 @@ describe("duration and calendar issues", () => {
     const draft: ScenarioDraft = { ...structuredClone(DEFAULT_SCENARIO),
       tasks: { A: { ...task, distribution: "uniform" } },
       calendars: [{ id: "c", name: "", periods: [] }] };
-    expect(scenarioParameterIssues(draft)).toEqual({ durations: 1, calendars: 1, ready: false });
+    expect(scenarioParameterIssues(draft)).toEqual({ durations: 1, calendars: 1, arrival: false, ready: false });
   });
 });
 
