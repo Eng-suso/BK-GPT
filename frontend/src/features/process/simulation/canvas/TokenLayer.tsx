@@ -9,11 +9,14 @@ import {
   type BpmnShape,
   type BpmnViewer,
 } from "./bpmnViewer";
+import { routeBetween, type TokenRoute } from "./tokenRoute";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const TOKEN_R = 7;
 const QUEUE_GAP = 17;
 const QUEUE_MAX_DOTS = 6;
+/** Marker on a sequence flow while at least one token travels along it. */
+const LIVE_FLOW = "sim-flow-live";
 
 type TokenLayerProps = {
   viewer: BpmnViewer | null;
@@ -46,6 +49,13 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
     ).matches;
 
     const dots = new Map<string, SVGCircleElement>();
+    const paths = new Map<string, TokenRoute | null>();
+    let liveFlows = new Set<string>();
+    const routeFor = (from: string | null, to: string | null): TokenRoute | null => {
+      const key = `${from ?? "^"}>${to ?? "$"}`;
+      if (!paths.has(key)) paths.set(key, routeBetween(registry, from, to));
+      return paths.get(key) ?? null;
+    };
     let overflow: SVGTextElement | null = null;
 
     const ensureDot = (caseId: string): SVGCircleElement => {
@@ -63,6 +73,7 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
     const render = (): void => {
       const tokens = engine.tokensAt();
       const seen = new Set<string>();
+      const live = new Set<string>();
 
       // group tokens per node so they stack / spread instead of overlapping
       const queuedByNode = new Map<string, ReplayToken[]>();
@@ -82,6 +93,7 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         const pos = resolvePosition(
           token,
           registry,
+          routeFor,
           queuedByNode,
           activeByNode,
           reduceMotion,
@@ -95,9 +107,15 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         const dot = ensureDot(token.caseId);
         dot.setAttribute("cx", pos.x.toFixed(1));
         dot.setAttribute("cy", pos.y.toFixed(1));
-        dot.dataset.state = pos.queued ? "queued" : "active";
+        dot.dataset.state = pos.moving ? "moving" : pos.queued ? "queued" : "active";
         seen.add(token.caseId);
+        for (const flow of pos.flows ?? []) live.add(flow);
       }
+
+      // the aura: light up the flows tokens are travelling along right now
+      for (const flow of liveFlows) if (!live.has(flow)) canvas.removeMarker(flow, LIVE_FLOW);
+      for (const flow of live) if (!liveFlows.has(flow)) canvas.addMarker(flow, LIVE_FLOW);
+      liveFlows = live;
 
       for (const [caseId, dot] of dots) {
         if (!seen.has(caseId)) {
@@ -127,6 +145,7 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
       unsubscribe();
       for (const dot of dots.values()) dot.remove();
       dots.clear();
+      for (const flow of liveFlows) canvas.removeMarker(flow, LIVE_FLOW);
       overflow?.remove();
     };
   }, [viewer, engine]);
@@ -134,25 +153,23 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
   return null;
 }
 
-type ResolvedPos = BpmnPoint & { queued: boolean; hidden?: boolean };
+type ResolvedPos = BpmnPoint & { queued: boolean; hidden?: boolean; moving?: boolean; flows?: string[] };
 
 function resolvePosition(
   token: ReplayToken,
   registry: BpmnElementRegistry,
+  routeFor: (from: string | null, to: string | null) => TokenRoute | null,
   queuedByNode: Map<string, ReplayToken[]>,
   activeByNode: Map<string, ReplayToken[]>,
   reduceMotion: boolean,
 ): ResolvedPos | null {
   if (token.at.kind === "flow") {
-    if (reduceMotion) {
-      const shape = registry.get(token.at.to);
-      return shape ? { ...shapeCenter(shape), queued: false } : null;
+    const to = token.at.to ? registry.get(token.at.to) : undefined;
+    if (reduceMotion) return to ? { ...shapeCenter(to), queued: false } : null;
+    const route = routeFor(token.at.from, token.at.to);
+    if (route && route.points.length >= 2) {
+      return { ...pointAlong(route.points, token.at.progress), queued: false, moving: true, flows: route.flows };
     }
-    const conn = findConnection(registry, token.at.from, token.at.to);
-    if (conn?.waypoints && conn.waypoints.length >= 2) {
-      return { ...pointAlong(conn.waypoints, token.at.progress), queued: false };
-    }
-    const to = registry.get(token.at.to);
     return to ? { ...shapeCenter(to), queued: false } : null;
   }
 
@@ -200,20 +217,6 @@ function shapeCenter(shape: BpmnShape): BpmnPoint {
   };
 }
 
-function findConnection(
-  registry: BpmnElementRegistry,
-  from: string,
-  to: string,
-): BpmnShape | undefined {
-  return registry
-    .filter(
-      (el) =>
-        Array.isArray(el.waypoints) &&
-        el.source?.id === from &&
-        el.target?.id === to,
-    )
-    .at(0);
-}
 
 function pointAlong(waypoints: BpmnPoint[], progress: number): BpmnPoint {
   const segLengths: number[] = [];

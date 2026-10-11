@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ReplayEngine, medianCaseId, pickCaseId } from "./replayEngine";
+import { ReplayEngine, medianCaseId, pickCaseId, tokenForCase } from "./replayEngine";
 import type { SimulationReplay } from "../simulationTypes";
 
 type Payload = SimulationReplay["replay"];
@@ -148,16 +148,57 @@ describe("ReplayEngine", () => {
     });
 
     it("places a token on the connecting flow between two activities", () => {
+      // speed 3 (400s / 120) -> a hop lasts 0.7 * 3 = 2.1 sim seconds
       const engine = new ReplayEngine(makePayload());
       engine.setGranularity("case");
-      engine.setFocusCase("0"); // A ends 50, B enables 50 -> no gap; use case 1
-      engine.setFocusCase("1"); // A ends 120, B enables 120 -> also no gap
-
-      // craft a gap: case 0's A ends at 50, B enables at 50 — adjust by seeking
-      // between events where enable > prev end is false, so fall back to node.
-      engine.seek(50);
+      engine.setFocusCase("1"); // A ends 120, B enables 120: no gap in sim time
+      engine.seek(121);
       const at = engine.tokensAt()[0].at;
-      expect(at.kind === "node" || at.kind === "flow").toBe(true);
+      expect(at).toMatchObject({ kind: "flow", from: "A", to: "B" });
+      expect(at.kind === "flow" && at.progress).toBeCloseTo(1 / 2.1, 5);
+
+      engine.seek(123); // hop over: queued at B (start 200)
+      expect(engine.tokensAt()[0].at).toEqual({ kind: "node", el: "B", queued: true });
+    });
+  });
+
+  describe("token travel", () => {
+    const events = [
+      { el: "A", enable: 0, start: 0, end: 50, res: "r" },
+      { el: "B", enable: 50, start: 100, end: 150, res: "r" },
+    ];
+
+    it("without travel the case jumps from step to step (sim time only)", () => {
+      expect(tokenForCase(events, 0)).toEqual({ kind: "node", el: "A", queued: false });
+      expect(tokenForCase(events, 50)).toEqual({ kind: "node", el: "B", queued: true });
+      expect(tokenForCase(events, 150)).toBeNull();
+    });
+
+    it("is born at the start event, hops between steps and leaves at the end", () => {
+      expect(tokenForCase(events, 5, 10)).toEqual({ kind: "flow", from: null, to: "A", progress: 0.5 });
+      expect(tokenForCase(events, 12, 10)).toEqual({ kind: "node", el: "A", queued: false });
+      expect(tokenForCase(events, 55, 10)).toEqual({ kind: "flow", from: "A", to: "B", progress: 0.5 });
+      expect(tokenForCase(events, 70, 10)).toEqual({ kind: "node", el: "B", queued: true });
+      expect(tokenForCase(events, 155, 10)).toEqual({ kind: "flow", from: "B", to: null, progress: 0.5 });
+      expect(tokenForCase(events, 160, 10)).toBeNull();
+    });
+
+    it("never takes more than half of a short step", () => {
+      const quick = [
+        { el: "A", enable: 0, start: 0, end: 4, res: "r" },
+        { el: "B", enable: 4, start: 4, end: 8, res: "r" },
+      ];
+      expect(tokenForCase(quick, 1, 100)).toMatchObject({ kind: "flow", to: "A", progress: 0.5 });
+      expect(tokenForCase(quick, 3, 100)).toEqual({ kind: "node", el: "A", queued: false });
+      expect(tokenForCase(quick, 7, 100)).toEqual({ kind: "node", el: "B", queued: false });
+    });
+
+    it("uses the real gap when it is longer than the hop", () => {
+      const gap = [
+        { el: "A", enable: 0, start: 0, end: 10, res: "r" },
+        { el: "B", enable: 50, start: 50, end: 100, res: "r" },
+      ];
+      expect(tokenForCase(gap, 30, 2)).toEqual({ kind: "flow", from: "A", to: "B", progress: 0.5 });
     });
   });
 

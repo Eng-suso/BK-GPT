@@ -110,6 +110,19 @@
   fill: var(--sim-token-queued);
 }
 
+/* in transit: the token and the flow it travels along carry a soft aura */
+.sim-token[data-state="moving"] {
+  filter: drop-shadow(0 0 3px color-mix(in oklab, var(--sim-token) 75%, transparent))
+    drop-shadow(0 0 7px color-mix(in oklab, var(--sim-token) 40%, transparent));
+}
+
+.djs-connection.sim-flow-live .djs-visual > path {
+  stroke: var(--sim-token) !important;
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 0 4px color-mix(in oklab, var(--sim-token) 55%, transparent));
+  transition: stroke 200ms ease-out, filter 200ms ease-out;
+}
+
 .sim-token-overflow {
   fill: var(--color-text-primary);
   font-size: 11px;
