@@ -1799,5 +1799,176 @@
       "move": "Sposta avatar DeliR",
       "moveHint": "Trascina per spostare. Usa le frecce da tastiera; Home ripristina la posizione automatica."
     }
+  },
+  "handover": {
+    "title": "Consegna",
+    "open": "Consegna al responsabile",
+    "back": "Torna al processo",
+    "loading": "Caricamento della consegna",
+    "version": "Versione {{id}}",
+    "noVersion": "Nessuna versione salvata",
+    "updated": "Ultima modifica {{date}}",
+    "owner": "Responsabile",
+    "noOwner": "Nessun responsabile",
+    "stage": {
+      "design": "In lavorazione",
+      "review": "In attesa di approvazione",
+      "approved": "Approvato"
+    },
+    "headline": {
+      "ready": "Disegno completato · Pronto per la consegna",
+      "notReady": "Non ancora pronto per la consegna",
+      "review": "Inviato a {{owner}} · In attesa di risposta",
+      "approved": "Approvato · Da ora si misurano i risultati"
+    },
+    "notReadyDetail_one": "{{count}} controllo importante non è superato.",
+    "notReadyDetail_other": "{{count}} controlli importanti non sono superati.",
+    "actions": {
+      "send": "Invia al responsabile",
+      "approve": "Approva questa versione",
+      "requestChanges": "Chiedi modifiche",
+      "reopen": "Riporta in lavorazione",
+      "openModel": "Apri il disegno",
+      "openSimulation": "Apri la simulazione",
+      "group": "Azioni della consegna"
+    },
+    "confirm": {
+      "sendTitle": "Inviare a {{owner}}?",
+      "sendBody": "Il responsabile potrà leggere il processo, approvarlo o chiedere modifiche. Il disegno non cambia finché non lo decidete voi.",
+      "approveTitle": "Approvare questa versione?",
+      "approveBody": "Questa versione diventa quella di riferimento. Da qui in poi si misura se il processo dà i risultati attesi.",
+      "reopenTitle": "Riportare il processo in lavorazione?",
+      "reopenBody": "La richiesta di approvazione viene ritirata e il consulente può modificare di nuovo il disegno."
+    },
+    "done": {
+      "sent": "Processo inviato al responsabile",
+      "approved": "Versione approvata",
+      "reopened": "Processo riportato in lavorazione",
+      "changes": "Richiesta di modifica registrata",
+      "error": "Operazione non riuscita. Riprova."
+    },
+    "journey": {
+      "label": "Percorso del processo",
+      "design": {
+        "who": "Consulente",
+        "steps": "Capire · Mettere in discussione · Ridisegnare"
+      },
+      "review": {
+        "who": "Consulente e responsabile",
+        "steps": "Verificare · Approvare · Rilasciare"
+      },
+      "operate": {
+        "who": "Responsabile",
+        "steps": "Gestire · Misurare · Migliorare"
+      },
+      "current": "Fase attuale"
+    },
+    "readiness": {
+      "title": "Pronto per la consegna?",
+      "description": "Prima dell'invio DeliR controlla che il lavoro sia completo.",
+      "critical": "Bloccante",
+      "outcome": {
+        "pass": "Superato",
+        "warning": "Da guardare",
+        "fail": "Non superato"
+      },
+      "model": {
+        "label": "Processo disegnato",
+        "pass_one": "{{count}} attività nel disegno",
+        "pass_other": "{{count}} attività nel disegno",
+        "fail": "Il disegno non ha ancora attività"
+      },
+      "owner": {
+        "label": "Responsabile indicato",
+        "pass": "{{owner}}",
+        "fail": "Manca chi sarà responsabile del processo"
+      },
+      "sources": {
+        "label": "Coerente con i documenti",
+        "pass": "Nessun contrasto con i documenti del cliente",
+        "warning": "{{count}} punti da completare rispetto ai documenti",
+        "unchecked": "Il disegno non è ancora stato confrontato con i documenti",
+        "fail": "{{count}} contrasti con i documenti da risolvere"
+      },
+      "evidence": {
+        "label": "Supportato dalle fonti",
+        "pass": "{{count}}% delle attività ha una fonte",
+        "warning": "{{count}}% delle attività ha una fonte, alcune vanno confermate",
+        "unknown": "Fonti non ancora controllate",
+        "fail": "Solo {{count}}% delle attività ha una fonte"
+      },
+      "simulation": {
+        "label": "Simulazione eseguita",
+        "pass_one": "{{count}} simulazione conclusa",
+        "pass_other": "{{count}} simulazioni concluse",
+        "warning": "Nessuna simulazione conclusa"
+      },
+      "openPoints": {
+        "label": "Domande aperte",
+        "pass": "Nessuna domanda aperta",
+        "warning_one": "{{count}} domanda ancora da chiarire",
+        "warning_other": "{{count}} domande ancora da chiarire"
+      }
+    },
+    "summary": {
+      "title": "In breve",
+      "problems": "Problemi trovati",
+      "changes": "Modifiche proposte",
+      "openPoints": "Domande aperte",
+      "simulation": "Simulazioni concluse",
+      "findings": "Cosa non funziona oggi",
+      "noFindings": "Nessun problema registrato nell'analisi."
+    },
+    "changes": {
+      "title": "Cosa cambia",
+      "description": "Ogni modifica spiega il motivo e le fonti, così il responsabile non deve chiedere al consulente.",
+      "empty": "Nessuna modifica proposta. Le modifiche si propongono dalla vista Revisione.",
+      "activity": "Attività",
+      "why": "Perché",
+      "sources": "Fonti",
+      "noSources": "Nessuna fonte collegata a questa attività.",
+      "outdated": "Proposta fatta su una versione precedente del disegno.",
+      "proposedBy": "Proposta da {{who}} il {{date}}"
+    },
+    "simulation": {
+      "title": "Risultati della simulazione",
+      "description": "Numeri dell'ultima simulazione conclusa: {{scenario}}.",
+      "empty": "Nessuna simulazione conclusa. I numeri compariranno qui dopo la prima simulazione.",
+      "cycle": "Durata media di un caso",
+      "waiting": "Attesa media",
+      "cost": "Costo per caso",
+      "cases": "Casi simulati"
+    },
+    "openPoints": {
+      "title": "Punti ancora aperti",
+      "empty": "Nessun punto aperto.",
+      "kind": {
+        "clarification": "Domanda",
+        "deferred": "Rimandato"
+      }
+    },
+    "ownership": {
+      "title": "Chi se ne occupa",
+      "owner": "Responsabile del processo",
+      "afterApproval": "Dopo l'approvazione",
+      "steps": [
+        "La versione approvata viene bloccata",
+        "Le decisioni e le fonti restano salvate",
+        "Si misurano i risultati rispetto alla simulazione",
+        "Il processo torna in revisione se i risultati si allontanano"
+      ]
+    },
+    "request": {
+      "title": "Chiedi modifiche",
+      "description": "Scegli l'attività e scrivi cosa va cambiato. DeliR registra la richiesta: il disegno non viene modificato.",
+      "activity": "Attività",
+      "pickActivity": "Scegli un'attività",
+      "titleLabel": "In breve",
+      "titlePlaceholder": "Es. La responsabilità deve restare all'Amministrazione",
+      "detailLabel": "Cosa va cambiato e perché",
+      "submit": "Invia la richiesta",
+      "cancel": "Annulla",
+      "noActivities": "Il disegno non ha attività da commentare."
+    }
   }
 }
