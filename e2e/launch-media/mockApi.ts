@@ -29,7 +29,7 @@ import {
   sources,
   versions,
 } from "./demo";
-import { heroRuns, heroWorkspace } from "./heroData";
+import { heroApi, heroRunData, heroRunRecords, heroSimulationLayout, heroWorkspace, heroXml } from "./heroData";
 import { HERO_SOURCES, englishJson } from "./heroLocale";
 
 export const API = "http://127.0.0.1:8000";
@@ -50,7 +50,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
       // Il layout che il consulente ha salvato per la tela di simulazione.
       window.localStorage.setItem(layoutKey, layout);
     },
-    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(options.hero ? englishJson(simulationLayout) : simulationLayout) },
+    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(options.hero ? heroSimulationLayout : simulationLayout) },
   );
 
   await page.route(`${API}/**`, async (route: Route) => {
@@ -91,7 +91,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     }
 
     if (path === `/v1/workspace/bpmn-models/${IDS.model}` && method === "GET") {
-      return json({ id: IDS.model, process_id: IDS.process, name: "As-Is v3", xml: bpmnXml, version_id: 3 });
+      return json({ id: IDS.model, process_id: IDS.process, name: "As-Is v3", xml: options.hero ? heroXml : bpmnXml, version_id: 3 });
     }
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/versions`) {
       return json(versions.map((version) => ({ ...version, xml: bpmnXml })));
@@ -108,21 +108,21 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     if (path === `/v1/workspace/event-logs/${logId}/preview`) return json(eventLog.preview);
     if (path === `/v1/workspace/event-logs/${logId}/analysis` || path === `/v1/workspace/event-logs/${logId}/mapping`) return json(eventLog.analysis);
     if (path === "/v1/workspace/event-log-templates") return json([]);
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(api.simulation_template);
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(api.simulation_provenance);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(options.hero ? heroApi.simulation_template : api.simulation_template);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(options.hero ? heroApi.simulation_provenance : api.simulation_provenance);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-compatibility`) return json(api.simulation_compatibility);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-model`) {
       return json({ bpmn_model_id: IDS.model, model: runs().as_is.model });
     }
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(options.hero ? heroRuns : simulationRuns);
+    // Hero: il processo compatto con i suoi due run (il workspace a tre scenari resta per il caso grande).
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(options.hero ? heroRunRecords : simulationRuns);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-scenarios` && method === "GET") return json(heroWorkspace);
 
     const runMatch = path.match(/^\/v1\/workspace\/simulation-runs\/(\d+)(?:\/(replay|experiments|model))?$/);
     if (runMatch) {
       const id = Number(runMatch[1]);
-      const data = runData(id);
-      const heroRun = options.hero && !runMatch[2] ? heroRuns.find((run) => run.id === id) : undefined;
-      if (heroRun) return json(heroRun);
+      const data = (options.hero ? heroRunData(id) : runData(id)) as ReturnType<typeof runData>;
+      if (options.hero && !runMatch[2]) return json(heroRunRecords.find((run) => run.id === id) ?? null);
       if (!data) return route.fulfill({ status: 404, json: { detail: "Simulazione non trovata." } });
       if (runMatch[2] === "replay") return json({ run_id: id, schema_version: 1, replay: data.replay });
       if (runMatch[2] === "experiments") return json(data.experiments);

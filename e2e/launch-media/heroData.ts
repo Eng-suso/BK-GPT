@@ -111,3 +111,61 @@ export const heroRuns = data.scenarios.flatMap((scenario) => scenario.runs.map((
     completed_at: `2026-10-03T09:${String(21 + id % 40).padStart(2, "0")}:00Z`,
   };
 }));
+
+/** Il processo compatto dell'hero (scripts/launch_media_hero_process.py) e i suoi due run. */
+export const heroXml = readFileSync(resolve(__dirname, "data", "hero.bpmn"), "utf-8");
+const heroSim = JSON.parse(readFileSync(resolve(__dirname, "data", "hero-runs.json"), "utf-8")) as Record<"as_is" | "to_be", Record<string, unknown> & { summary: unknown; request: unknown; scenario: unknown; result: unknown; name: string }>;
+export const heroApi = JSON.parse(readFileSync(resolve(__dirname, "data", "hero-api.json"), "utf-8")) as { simulation_template: unknown; simulation_provenance: unknown };
+
+export function heroRunData(id: number) {
+  if (id === IDS.asIsRun) return heroSim.as_is;
+  if (id === IDS.toBeRun) return heroSim.to_be;
+  return null;
+}
+
+export const heroRunRecords = ([[IDS.toBeRun, heroSim.to_be, "2026-10-03T10:14:00Z"], [IDS.asIsRun, heroSim.as_is, "2026-10-03T09:48:00Z"]] as const).map(([id, run, at]) => ({
+  id, bpmn_model_id: IDS.model, process_id: IDS.process, scenario_name: run.name, engine: "prosimos", status: "completed",
+  idempotency_key: `hero-${id}`, request: run.request, scenario: run.scenario, result: run.result, outputs: [], summary: run.summary,
+  error: null, created_at: at, completed_at: at,
+}));
+
+/**
+ * La tela di simulazione dell'hero: il processo intero a sinistra e quattro
+ * widget KPI del prodotto a destra (tempo medio, coda, throughput, costo), le
+ * misure che il consulente guarda durante il replay, come grafici che crescono. Proporzioni ~3,7:1, come
+ * una fascia dello schermo diviso.
+ */
+// Grafici, non numeri: l'andamento si legge anche da lontano.
+const kpi = (id: string, kind: "line" | "area", metric: string, title: string, color: string, x: number, y: number, width = 288, height = 252) => ({
+  id, title, kind, metric, width: "half", text: "**${metric}**", metricExpression: "", target: 100,
+  followFilter: false, activityId: "", showLabels: true, color, canvas: { x, y, width, height },
+});
+export const heroSimulationLayout = {
+  version: 1,
+  process: { canvas: { x: 0, y: 0, width: 1300, height: 520 }, groupId: "hero", beforeId: "__first__", width: "full", height: 520 },
+  groups: [{
+    id: "hero",
+    title: "",
+    widgets: [
+      kpi("hero-cycle", "line", "cycle", "Average cycle time", "violet", 1324, 0),
+      kpi("hero-queued", "area", "queued", "Queued cases", "amber", 1636, 0),
+      kpi("hero-throughput", "line", "throughput", "Throughput", "blue", 1324, 268),
+      kpi("hero-cost", "area", "cost", "Accrued cost", "teal", 1636, 268),
+    ],
+  }],
+};
+
+/** La stessa tela con i quattro grafici sotto il processo: ~16:9, per l'inquadratura singola. */
+export const heroSimulationLayoutSolo = {
+  ...heroSimulationLayout,
+  groups: [{
+    id: "hero",
+    title: "",
+    widgets: [
+      kpi("hero-cycle", "line", "cycle", "Average cycle time", "violet", 0, 536, 316, 240),
+      kpi("hero-queued", "area", "queued", "Queued cases", "amber", 328, 536, 316, 240),
+      kpi("hero-throughput", "line", "throughput", "Throughput", "blue", 656, 536, 316, 240),
+      kpi("hero-cost", "area", "cost", "Accrued cost", "teal", 984, 536, 316, 240),
+    ],
+  }],
+};
