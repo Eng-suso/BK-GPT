@@ -49,6 +49,7 @@ from backend.workspace_storage import (
     WorkspaceSimulationRun,
     WorkspaceSimulationRunArtifact,
     WorkspaceSimulationRunLog,
+    WorkspaceSimulationScenario,
     WorkspaceEvidenceSegment,
     WorkspaceSource,
     WorkspaceSourceAudit,
@@ -4733,6 +4734,7 @@ def _purge_process(session, process: WorkspaceProcess) -> list[str]:
         (WorkspaceBpmnReview, WorkspaceBpmnReview.bpmn_model_id),
         (WorkspaceBpmnReviewVersion, WorkspaceBpmnReviewVersion.bpmn_model_id),
         (WorkspaceSimulationRun, WorkspaceSimulationRun.bpmn_model_id),
+        (WorkspaceSimulationScenario, WorkspaceSimulationScenario.bpmn_model_id),
     ):
         for row in session.execute(select(model).where(column == bpmn_model_id)).scalars():
             session.delete(row)

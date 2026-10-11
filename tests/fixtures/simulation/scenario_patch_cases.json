@@ -1,0 +1,71 @@
+[
+  {
+    "name": "una chiave annidata cambia",
+    "baseline": {"totalCases": 100, "tasks": {"T1": {"meanMinutes": 30, "resourceId": "r1"}}},
+    "patch": [{"op": "set", "path": ["tasks", "T1", "meanMinutes"], "value": 20}],
+    "expected": {"totalCases": 100, "tasks": {"T1": {"meanMinutes": 20, "resourceId": "r1"}}},
+    "conflicts": []
+  },
+  {
+    "name": "una risorsa per id, anche se l'AS-IS ne aggiunge un'altra prima",
+    "baseline": {"resources": [{"id": "r0", "amount": 1}, {"id": "r1", "amount": 2}]},
+    "patch": [{"op": "set", "path": ["resources", {"id": "r1"}, "amount"], "value": 3}],
+    "expected": {"resources": [{"id": "r0", "amount": 1}, {"id": "r1", "amount": 3}]},
+    "conflicts": []
+  },
+  {
+    "name": "un elemento nuovo si aggiunge in fondo, uno tolto sparisce",
+    "baseline": {"resources": [{"id": "r1", "amount": 2}, {"id": "r2", "amount": 1}]},
+    "patch": [
+      {"op": "set", "path": ["resources", {"id": "r3"}], "value": {"id": "r3", "amount": 1}},
+      {"op": "remove", "path": ["resources", {"id": "r2"}]}
+    ],
+    "expected": {"resources": [{"id": "r1", "amount": 2}, {"id": "r3", "amount": 1}]},
+    "conflicts": []
+  },
+  {
+    "name": "l'ordine: gli elementi elencati prima, gli altri in fondo",
+    "baseline": {"resources": [{"id": "a"}, {"id": "b"}, {"id": "c"}]},
+    "patch": [{"op": "order", "path": ["resources"], "ids": ["c", "a", "x", "c"]}],
+    "expected": {"resources": [{"id": "c"}, {"id": "a"}, {"id": "b"}]},
+    "conflicts": []
+  },
+  {
+    "name": "una chiave tolta",
+    "baseline": {"warmupCases": 10, "totalCases": 100},
+    "patch": [{"op": "remove", "path": ["warmupCases"]}],
+    "expected": {"totalCases": 100},
+    "conflicts": []
+  },
+  {
+    "name": "un'attivita' tolta dall'AS-IS: la modifica non si applica",
+    "baseline": {"tasks": {"T2": {"meanMinutes": 10}}},
+    "patch": [
+      {"op": "set", "path": ["tasks", "T1", "meanMinutes"], "value": 20},
+      {"op": "set", "path": ["tasks", "T2", "meanMinutes"], "value": 5}
+    ],
+    "expected": {"tasks": {"T2": {"meanMinutes": 5}}},
+    "conflicts": [0]
+  },
+  {
+    "name": "una risorsa tolta dall'AS-IS: la modifica non si applica",
+    "baseline": {"resources": [{"id": "r1", "amount": 2}]},
+    "patch": [{"op": "set", "path": ["resources", {"id": "r9"}, "amount"], "value": 3}],
+    "expected": {"resources": [{"id": "r1", "amount": 2}]},
+    "conflicts": [0]
+  },
+  {
+    "name": "un elemento per id con un id diverso dal passo non si scrive",
+    "baseline": {"resources": []},
+    "patch": [{"op": "set", "path": ["resources", {"id": "r1"}], "value": {"id": "r2"}}],
+    "expected": {"resources": []},
+    "conflicts": [0]
+  },
+  {
+    "name": "una sezione intera nuova",
+    "baseline": {"totalCases": 100},
+    "patch": [{"op": "set", "path": ["sla"], "value": {"target": 2, "unit": "days", "sharePercent": 90}}],
+    "expected": {"totalCases": 100, "sla": {"target": 2, "unit": "days", "sharePercent": 90}},
+    "conflicts": []
+  }
+]

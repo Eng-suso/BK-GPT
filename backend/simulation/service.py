@@ -38,6 +38,7 @@ from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simu
 from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
 from backend.simulation.costs import add_fixed_costs
+from backend.simulation.scenarios import scenario_revisions
 from backend.simulation.sla import sla_outcome
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
@@ -155,6 +156,20 @@ def _process_claims(process_id: str) -> tuple[dict[str, str], list]:
     sources = list_project_sources(process["project_id"], include_client=True)
     names = {source["id"]: source["name"] for source in sources}
     return names, [SourceClaim(**row) for row in list_claims_for_sources(list(names))]
+
+
+def _check_workspace_scenario(request: CreateSimulationRunRequest, bpmn_model_id: str) -> None:
+    """SIM-14: lo scenario citato dal run deve essere del workspace di questo processo."""
+    ref = request.workspace_scenario
+    if ref is None:
+        return
+    current = scenario_revisions(bpmn_model_id, ref.id)
+    if current is None:
+        raise ValueError("Lo scenario del workspace non esiste piu' su questo processo: ricarica il workspace.")
+    # Solo la revisione di oggi: un run su una versione passata dello scenario o
+    # dell'AS-IS direbbe di simulare cio' che non e' piu' salvato.
+    if (ref.revision, ref.baseline_revision) != current:
+        raise ValueError("Lo scenario e' cambiato nel frattempo: ricarica il workspace e avvia di nuovo.")
 
 
 def _check_claims(request: CreateSimulationRunRequest, process_id: str) -> None:
@@ -319,6 +334,7 @@ def _plan_run(
     # feeds both the scenario and the engine request.
     bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
     _check_claims(request, bpmn_model.process_id)
+    _check_workspace_scenario(request, bpmn_model.id)
     if request.warmup_cases >= request.total_cases:
         raise ValueError("Il riscaldamento deve lasciare almeno un caso da misurare: abbassalo o aumenta i casi.")
 
