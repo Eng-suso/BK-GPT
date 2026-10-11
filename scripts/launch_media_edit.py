@@ -174,11 +174,13 @@ def build_shot(entry: dict, cut: dict) -> Shot:
         pieces = [Piece(0.0, end / speed, 0.0, speed)]
         hold = 0.0
     else:
-        hold = min(cut["hold"], HOLD)
+        # Le riprese dell'hero non hanno l'attesa iniziale: l'azione parte subito.
+        start = entry.get("from", 0.0 if scene.get("hero") else HOLD)
+        hold = min(cut["hold"], start)
         stop = end - 0.3
-        segments = entry.get("segments") or [{"to": HOLD + entry.get("keep", 1e9), "speed": entry.get("speed", 1.0)}]
-        pieces = [Piece(0.0, hold, HOLD - hold, 1.0)]
-        out, raw = hold, HOLD
+        segments = entry.get("segments") or [{"to": start + entry.get("keep", 1e9), "speed": entry.get("speed", 1.0)}]
+        pieces = [Piece(0.0, hold, start - hold, 1.0)] if hold > 0 else []
+        out, raw = hold, start
         for segment in segments:
             to = segment["to"]
             to = stop if to == "end" else to if isinstance(to, (int, float)) else marks[to]
@@ -208,7 +210,11 @@ def build_shot(entry: dict, cut: dict) -> Shot:
         cy = (rect["y"] + rect["height"] / 2) * scale
         shot.camera.append((t_out, cx, cy, math.log(zoom)))
 
-    if scene.get("caption") and not scene.get("card"):
+    if cut.get("chips") and scene.get("chip"):
+        overlay = Overlay.load(OVERLAYS / f"chip-{scene['id']}.png")
+        if overlay:
+            shot.captions.append((overlay, 0.08, shot.duration - 0.05))
+    elif scene.get("caption") and not scene.get("card"):
         overlay = Overlay.load(OVERLAYS / f"{scene['id']}.png")
         if overlay:
             shot.captions.append((overlay, 0.12, hold - 0.05))
@@ -225,10 +231,14 @@ def render(name: str, cut: dict) -> Path:
     starts, at = [], 0.0
     for shot in shots:
         starts.append(at)
-        at += shot.duration - CROSSFADE
-    total = at + CROSSFADE
-    stages = {i: Overlay.load(OVERLAYS / f"stage-{i}.png") for i in range(len(STORYBOARD["stages"]) + 1)}
-    disclaimer = Overlay.load(OVERLAYS / "disclaimer.png")
+        at += shot.duration - cut.get("crossfade", CROSSFADE)
+    total = at + cut.get("crossfade", CROSSFADE)
+    crossfade = cut.get("crossfade", CROSSFADE)
+    stages = {i: Overlay.load(OVERLAYS / f"stage-{i}.png") for i in range(len(STORYBOARD["stages"]) + 1)} if cut.get("stages", True) else {}
+    disclaimer = Overlay.load(OVERLAYS / f"{cut.get('disclaimer', 'disclaimer')}.png")
+    # Loop: l'ultimo tratto sfuma nel primo fotogramma, senza stacco.
+    loop = cut.get("loop", 0.0)
+    first = shots[0].frame(0.0) if loop else None
 
     VIDEO.mkdir(parents=True, exist_ok=True)
     out = VIDEO / f"delir-{name}-it.mp4"
@@ -249,7 +259,7 @@ def render(name: str, cut: dict) -> Path:
             canvas = shots[active[0][0]].frame(active[0][1])
         else:
             (a, ta), (b, tb) = active[0], active[1]
-            mix = ease_in_out(tb / CROSSFADE)
+            mix = ease_in_out(tb / crossfade)
             canvas = shots[a].frame(ta) * (1 - mix) + shots[b].frame(tb) * mix
             layers = [(a, 1 - mix), (b, mix)]
         # Percorso e disclaimer: fissi sullo schermo, sopra la camera.
@@ -262,17 +272,42 @@ def render(name: str, cut: dict) -> Path:
         product = sum(weight for i, weight in layers if not shots[i].scene.get("card"))
         if disclaimer:
             disclaimer.draw(canvas, min(1.0, product))
-        # Apertura e chiusura dal bianco.
-        edge = min(1.0, t / 0.4, (total - t) / 0.6)
-        if edge < 1:
-            canvas = canvas * edge + (1 - edge)
+        if loop:
+            back = ease_in_out((t - (total - loop)) / loop)
+            if back > 0:
+                canvas = canvas * (1 - back) + first * back
+        else:
+            # Apertura e chiusura dal bianco.
+            edge = min(1.0, t / 0.4, (total - t) / 0.6)
+            if edge < 1:
+                canvas = canvas * edge + (1 - edge)
         encoder.stdin.write((np.clip(canvas, 0, 1) * 255 + 0.5).astype(np.uint8).tobytes())
         if n % (FPS * 10) == 0:
             print(f"  {name}: {t:5.1f}/{total:.1f} s", flush=True)
     encoder.stdin.close()
     encoder.wait()
     print(f"taglio {name}: {out} ({total:.1f} s)")
+    if cut.get("web"):
+        web_export(out, cut["web"])
     return out
+
+
+def web_export(master: Path, spec: dict) -> None:
+    """WebM VP9 + MP4 H.264 leggeri e il poster, per la landing."""
+    base = Path(spec["path"])
+    base.parent.mkdir(parents=True, exist_ok=True)
+    width, height = spec.get("size", [1600, 900])
+    scale = f"scale={width}:{height}:flags=lanczos"
+    run = lambda *args: subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *args], check=True)
+    run("-i", str(master), "-an", "-vf", scale, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", str(spec.get("webm_crf", 36)),
+        "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-pix_fmt", "yuv420p", f"{base}.webm")
+    run("-i", str(master), "-an", "-vf", f"{scale},format=yuv420p", "-c:v", "libx264", "-profile:v", "high", "-preset", "slow",
+        "-crf", str(spec.get("mp4_crf", 26)), "-movflags", "+faststart", f"{base}.mp4")
+    poster = str(spec.get("poster", 0))
+    run("-ss", poster, "-i", str(master), "-frames:v", "1", "-vf", scale, "-q:v", "3", f"{base}.jpg")
+    run("-ss", poster, "-i", str(master), "-frames:v", "1", "-vf", scale, "-c:v", "libwebp", "-quality", "82", f"{base}.webp")
+    for ext in ("webm", "mp4", "jpg", "webp"):
+        print(f"  {base}.{ext}: {Path(f'{base}.{ext}').stat().st_size / 1024:.0f} KB")
 
 
 def main() -> None:
