@@ -22,7 +22,7 @@ test("desktop: il video parte da solo e fa il loop senza fermarsi", async ({ pag
   const first = await state(page);
   expect(first.paused).toBe(false);
   expect(first.duration).toBeGreaterThan(8);
-  expect(first.duration).toBeLessThan(12);
+  expect(first.duration).toBeLessThan(16);
   // Il loop: il tempo torna indietro senza che il video si fermi.
   let looped = false;
   let last = first.time;

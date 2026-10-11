@@ -175,29 +175,20 @@
       "title": "Dalle interviste alla decisione del cliente. Con i numeri."
     },
     {
-      "id": "hero-sources",
-      "hero": true,
-      "chip": "Scattered knowledge"
+      "id": "hero-build",
+      "hero": true
     },
     {
-      "id": "hero-asis",
-      "hero": true,
-      "chip": "Verified As-Is"
+      "id": "hero-replay-asis",
+      "hero": true
     },
     {
-      "id": "hero-heatmap",
-      "hero": true,
-      "chip": "Find what needs to change"
+      "id": "hero-replay-asis-solo",
+      "hero": true
     },
     {
-      "id": "hero-scenarios",
-      "hero": true,
-      "chip": "Test before you recommend"
-    },
-    {
-      "id": "hero-improve",
-      "hero": true,
-      "chip": "Keep improving"
+      "id": "hero-replay-tobe",
+      "hero": true
     }
   ],
   "cuts": {
@@ -420,31 +411,40 @@
     },
     "hero": {
       "hold": 0,
-      "chips": true,
+      "chips": false,
       "stages": false,
       "disclaimer": "disclaimer-hero",
-      "crossfade": 0.35,
-      "loop": 0.45,
+      "crossfade": 0.4,
+      "loop": 0.5,
       "scenes": [
         {
-          "id": "hero-sources",
+          "id": "hero-build",
           "speed": 1.0
         },
         {
-          "id": "hero-asis",
-          "speed": 1.05
+          "id": "hero-replay-asis-solo",
+          "speed": 1.0,
+          "from": 2.0,
+          "keep": 4.6,
+          "overlays": [
+            "label-asis-solo"
+          ]
         },
         {
-          "id": "hero-heatmap",
-          "speed": 0.9
-        },
-        {
-          "id": "hero-scenarios",
-          "speed": 1.0
-        },
-        {
-          "id": "hero-improve",
-          "speed": 1.15
+          "stack": [
+            "hero-replay-asis",
+            "hero-replay-tobe"
+          ],
+          "from": [
+            6.6,
+            6.6
+          ],
+          "keep": 5.4,
+          "speed": 1.0,
+          "overlays": [
+            "label-asis",
+            "label-tobe"
+          ]
         }
       ],
       "web": {
@@ -453,8 +453,8 @@
           1600,
           900
         ],
-        "poster": 7.55,
-        "webm_crf": 40,
+        "poster": 10.8,
+        "webm_crf": 38,
         "mp4_crf": 26
       }
     }
