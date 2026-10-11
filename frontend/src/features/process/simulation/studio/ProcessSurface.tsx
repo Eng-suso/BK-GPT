@@ -29,6 +29,7 @@ export function ProcessSurface({ engine, decorations, aggregate, inspectorHost, 
     markers: state.pressure === "none" ? [] : [`sim-pressure-${state.pressure}`],
     badge: state.queued > 0 ? t("simulation.replay.inQueue", { n: state.queued }) : status?.granularity === "system" && state.active > 0 ? t("simulation.replay.systemChip", { active: state.active, queued: state.queued }) : undefined,
     badgeTone: state.pressure === "high" || state.pressure === "saturated" ? "warning" : "neutral",
+    badgeAbove: state.queued > 0 && status?.granularity !== "system",
   })), [frame, status?.granularity, t]);
   return <div className="sim-process-surface">
     <div className="sim-process-diagram">

@@ -58,3 +58,37 @@ export function routeBetween(
     flows: hops.map((flow) => flow.id),
   };
 }
+
+/** A token's place in a train: distance along the route and side lane
+ *  (0 on the line, then 1, -1, 2, -2 … beside it). */
+export type TrainSlot = { d: number; lane: number };
+
+/**
+ * Spreads tokens that travel the same route so each one stays visible: going
+ * back from the leader, every token keeps at least `gap` px behind the one ahead.
+ * A train that does not fit slides forward to the start of the route; one longer
+ * than the route runs in parallel lanes beside the line, so dots never overlap.
+ * Returns the slots in the order given.
+ */
+export function spreadAlong(distances: number[], total: number, gap: number): TrainSlot[] {
+  const order = distances.map((d, i) => ({ d: Math.min(Math.max(d, 0), total), i })).sort((a, b) => b.d - a.d);
+  const out = new Array<TrainSlot>(order.length);
+  const perLane = Math.max(1, Math.floor(total / gap) + 1);
+  const lanes = Math.max(1, Math.ceil(order.length / perLane));
+  for (let lane = 0; lane < lanes; lane += 1) {
+    // round-robin, so the leaders of each lane run side by side
+    const riders = order.filter((_, k) => k % lanes === lane);
+    const placed: number[] = [];
+    riders.forEach((r, k) => placed.push(k === 0 ? r.d : Math.min(r.d, placed[k - 1] - gap)));
+    const shift = Math.max(0, -(placed.at(-1) ?? 0));
+    const side = lane === 0 ? 0 : lane % 2 ? (lane + 1) / 2 : -lane / 2;
+    riders.forEach((r, k) => (out[r.i] = { d: Math.min(total, placed[k] + shift), lane: side }));
+  }
+  return out;
+}
+
+export function routeLength(points: BpmnPoint[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) total += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+  return total;
+}

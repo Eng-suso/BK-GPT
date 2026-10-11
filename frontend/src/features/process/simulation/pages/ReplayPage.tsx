@@ -91,6 +91,7 @@ function ReplayStage({ engine, bpmnXml, run }: ReplayStageProps): React.JSX.Elem
           state.pressure === "saturated" || state.pressure === "high"
             ? "warning"
             : "neutral",
+        badgeAbove: !systemMode,
       });
     }
     return out;
