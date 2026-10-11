@@ -7,9 +7,8 @@ import { useImpactReview } from "../review/api";
 import { readReviewGraph, type ReviewNode } from "../review/reviewModel";
 import { listProsimosSimulationRuns } from "../simulation/simulationApi";
 import {
-  buildReadiness, buildTimeline, changesWithEvidence, latestCompletedRun, openPoints, stageFromStatus,
+  buildReadiness, changesWithEvidence, latestCompletedRun, openPoints, stageFromStatus,
 } from "./handoverModel";
-import { readPlainProcess } from "./plainProcess";
 
 /**
  * Tutto cio' che la consegna sa del processo, letto una volta sola. La pagina
@@ -42,8 +41,6 @@ export function useHandoverData(process: ProjectProcess) {
   );
   const changes = useMemo(() => changesWithEvidence(review, provenance), [review, provenance]);
   const points = useMemo(() => openPoints(review), [review]);
-  const timeline = useMemo(() => buildTimeline(versions, review), [versions, review]);
-  const plain = useMemo(() => readPlainProcess(xml), [xml]);
   const nodes = useMemo<ReviewNode[]>(() => {
     try { return readReviewGraph(xml).nodes; } catch { return []; }
   }, [xml]);
@@ -60,8 +57,6 @@ export function useHandoverData(process: ProjectProcess) {
     readiness,
     changes,
     points,
-    timeline,
-    plain,
     nodes,
     latestRun: latestCompletedRun(runs),
     latestVersion: versions.reduce<(typeof versions)[number] | undefined>((a, b) => (!a || b.id > a.id ? b : a), undefined),

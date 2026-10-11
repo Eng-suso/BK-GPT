@@ -91,9 +91,9 @@ describe("owner dashboard timeline", () => {
       { ...action("q", "clarification"), created_at: "2026-10-07T09:00:00Z" },
       { ...action("a", "as_is_proposal"), created_at: "2026-10-08T09:00:00Z" },
     ];
-    const timeline = buildTimeline(versions, review(actions));
+    const timeline = buildTimeline(versions, actions);
     expect(timeline.map((event) => event.id)).toEqual(["action-q", "version-2", "action-c", "version-1"]);
     expect(timeline[0]).toMatchObject({ kind: "request", activity: "approve" });
-    expect(buildTimeline(versions, null, 1)).toHaveLength(1);
+    expect(buildTimeline(versions, [], 1)).toHaveLength(1);
   });
 });

@@ -160,12 +160,12 @@ const TIMELINE_KIND: Partial<Record<ReviewAction["kind"], TimelineEvent["kind"]>
  */
 export function buildTimeline(
   versions: Array<{ id: number; changeSummary: string; createdAt: string }>,
-  review: ReviewState | null | undefined,
+  actions: Array<Pick<ReviewAction, "id" | "kind" | "created_at" | "title" | "node_name">>,
   limit = 8,
 ): TimelineEvent[] {
   const events: TimelineEvent[] = [
     ...versions.map((version) => ({ id: `version-${version.id}`, kind: "version" as const, at: version.createdAt, title: version.changeSummary })),
-    ...(review?.actions ?? []).flatMap((action) => {
+    ...actions.flatMap((action) => {
       const kind = TIMELINE_KIND[action.kind];
       return kind ? [{ id: `action-${action.id}`, kind, at: action.created_at, title: action.title, activity: action.node_name }] : [];
     }),
