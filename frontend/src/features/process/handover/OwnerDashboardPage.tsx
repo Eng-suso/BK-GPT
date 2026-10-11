@@ -79,7 +79,7 @@ function Dashboard({ projectId, projectName, client, process }: { projectId: str
 
       <main className="owner-dashboard-page">
         <header className="owner-dashboard-header">
-          <p className="eyebrow">{t("handover.dashboard.title")} · {[client, projectName].filter(Boolean).join(" · ")}</p>
+          <p className="owner-dashboard-eyebrow">{t("handover.dashboard.title")} · {[client, projectName].filter(Boolean).join(" · ")}</p>
           <h1>{process.name}</h1>
           <div className="owner-dashboard-meta">
             <span className="inline-flex items-center gap-1.5"><UserRound aria-hidden className="size-3.5" />{t("handover.dashboard.preparedFor", { owner: owner || t("handover.noOwner") })}</span>
@@ -104,7 +104,7 @@ function Dashboard({ projectId, projectName, client, process }: { projectId: str
             <Surface variant="panel" className="owner-dashboard-table">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="hover:bg-transparent">
                     <TableHead>{t("handover.dashboard.indicator")}</TableHead>
                     <TableHead className="text-right">{t("handover.dashboard.expected")}</TableHead>
                     <TableHead className="text-right">{t("handover.dashboard.measured")}</TableHead>
@@ -112,7 +112,7 @@ function Dashboard({ projectId, projectName, client, process }: { projectId: str
                 </TableHeader>
                 <TableBody>
                   {results.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} className="hover:bg-transparent">
                       <TableCell className="font-medium">{row.label}</TableCell>
                       <TableCell className="text-right tabular-nums">{row.value}</TableCell>
                       <TableCell className="text-right text-muted-foreground">{t("handover.dashboard.notMeasured")}</TableCell>
