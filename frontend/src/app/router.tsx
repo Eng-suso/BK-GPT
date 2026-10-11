@@ -9,6 +9,7 @@ import {
   ClientsListPage,
   ComparePage,
   ConsultantPage,
+  HandoverPage,
   HeatmapPage,
   HomePage,
   InsightsPage,
@@ -63,6 +64,10 @@ export const router = createBrowserRouter([
           { path: "insights", element: <InsightsPage /> },
           { path: "insights/:runId", element: <InsightsPage /> },
         ],
+      },
+      {
+        path: "projects/:projectId/processes/:processId/handover",
+        element: <HandoverPage />,
       },
       { path: "models", element: <ModelsPage /> },
       { path: "archive", element: <ArchivePage /> },
