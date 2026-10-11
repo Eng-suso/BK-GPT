@@ -9,14 +9,19 @@ import {
   type BpmnShape,
   type BpmnViewer,
 } from "./bpmnViewer";
-import { routeBetween, type TokenRoute } from "./tokenRoute";
+import { routeBetween, routeLength, spreadAlong, type TokenRoute } from "./tokenRoute";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const TOKEN_R = 7;
-const QUEUE_GAP = 17;
-const QUEUE_MAX_DOTS = 6;
+/** A queue is only signalled: a few overlapping dots above the node (the badge
+ *  carries the count). Work in progress is one dot inside the node. Only cases
+ *  on the move are drawn one by one. */
+const QUEUE_SIGNAL_DOTS = 3;
+const QUEUE_SIGNAL_GAP = 10;
 /** Marker on a sequence flow while at least one token travels along it. */
 const LIVE_FLOW = "sim-flow-live";
+/** Minimum distance between two tokens travelling the same route, aura included. */
+const TRAIN_GAP = TOKEN_R * 2 + 6;
 
 type TokenLayerProps = {
   viewer: BpmnViewer | null;
@@ -56,7 +61,6 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
       if (!paths.has(key)) paths.set(key, routeBetween(registry, from, to));
       return paths.get(key) ?? null;
     };
-    let overflow: SVGTextElement | null = null;
 
     const ensureDot = (caseId: string): SVGCircleElement => {
       let dot = dots.get(caseId);
@@ -86,30 +90,57 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         map.set(token.at.el, list);
       }
 
-      let overflowCount = 0;
-      let overflowAnchor: BpmnPoint | null = null;
+      const place = (caseId: string, pos: BpmnPoint, state: string): void => {
+        const dot = ensureDot(caseId);
+        dot.setAttribute("cx", pos.x.toFixed(1));
+        dot.setAttribute("cy", pos.y.toFixed(1));
+        dot.dataset.state = state;
+        seen.add(caseId);
+      };
+
+      // tokens on the move, grouped per route so a batch released together
+      // travels as a train of separate dots instead of one blob
+      const trains = new Map<string, { route: TokenRoute; tokens: ReplayToken[]; progress: number[] }>();
 
       for (const token of tokens) {
+        if (token.at.kind === "flow" && !reduceMotion) {
+          const route = routeFor(token.at.from, token.at.to);
+          if (route && route.points.length >= 2) {
+            const key = route.flows.join(">");
+            const train = trains.get(key) ?? { route, tokens: [], progress: [] };
+            train.tokens.push(token);
+            train.progress.push(token.at.progress);
+            trains.set(key, train);
+            continue;
+          }
+        }
         const pos = resolvePosition(
           token,
           registry,
-          routeFor,
           queuedByNode,
           activeByNode,
-          reduceMotion,
         );
         if (!pos) continue;
-        if (pos.hidden) {
-          overflowCount += 1;
-          overflowAnchor = pos;
-          continue;
-        }
-        const dot = ensureDot(token.caseId);
-        dot.setAttribute("cx", pos.x.toFixed(1));
-        dot.setAttribute("cy", pos.y.toFixed(1));
-        dot.dataset.state = pos.moving ? "moving" : pos.queued ? "queued" : "active";
-        seen.add(token.caseId);
-        for (const flow of pos.flows ?? []) live.add(flow);
+        place(token.caseId, pos, pos.queued ? "queued" : "active");
+      }
+
+      for (const { route, tokens: riders, progress } of trains.values()) {
+        const total = routeLength(route.points);
+        const slots = spreadAlong(progress.map((p) => p * total), total, TRAIN_GAP);
+        riders.forEach((token, i) => {
+          const { d, lane } = slots[i];
+          const at = pointAlong(route.points, total ? d / total : 0);
+          if (lane !== 0) {
+            // side lanes: offset across the line, perpendicular to its direction
+            const ahead = pointAlong(route.points, total ? Math.min(total, d + 1) / total : 0);
+            const behind = pointAlong(route.points, total ? Math.max(0, d - 1) / total : 0);
+            const len = Math.hypot(ahead.x - behind.x, ahead.y - behind.y) || 1;
+            at.x += (-(ahead.y - behind.y) / len) * lane * TRAIN_GAP;
+            at.y += ((ahead.x - behind.x) / len) * lane * TRAIN_GAP;
+          }
+          place(token.caseId, at, "moving");
+        });
+        for (const flow of route.flows) live.add(flow);
       }
 
       // the aura: light up the flows tokens are travelling along right now
@@ -124,19 +155,6 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         }
       }
 
-      if (overflowCount > 0 && overflowAnchor) {
-        if (!overflow) {
-          overflow = document.createElementNS(SVG_NS, "text");
-          overflow.setAttribute("class", "sim-token-overflow");
-          layer.appendChild(overflow);
-        }
-        overflow.setAttribute("x", (overflowAnchor.x + 4).toFixed(1));
-        overflow.setAttribute("y", (overflowAnchor.y - 2).toFixed(1));
-        overflow.textContent = `+${overflowCount}`;
-      } else if (overflow) {
-        overflow.remove();
-        overflow = null;
-      }
     };
 
     const unsubscribe = engine.subscribeTick(render);
@@ -146,30 +164,23 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
       for (const dot of dots.values()) dot.remove();
       dots.clear();
       for (const flow of liveFlows) canvas.removeMarker(flow, LIVE_FLOW);
-      overflow?.remove();
     };
   }, [viewer, engine]);
 
   return null;
 }
 
-type ResolvedPos = BpmnPoint & { queued: boolean; hidden?: boolean; moving?: boolean; flows?: string[] };
+type ResolvedPos = BpmnPoint & { queued: boolean };
 
 function resolvePosition(
   token: ReplayToken,
   registry: BpmnElementRegistry,
-  routeFor: (from: string | null, to: string | null) => TokenRoute | null,
   queuedByNode: Map<string, ReplayToken[]>,
   activeByNode: Map<string, ReplayToken[]>,
-  reduceMotion: boolean,
 ): ResolvedPos | null {
   if (token.at.kind === "flow") {
+    // no drawable route (or reduced motion): show it at its destination
     const to = token.at.to ? registry.get(token.at.to) : undefined;
-    if (reduceMotion) return to ? { ...shapeCenter(to), queued: false } : null;
-    const route = routeFor(token.at.from, token.at.to);
-    if (route && route.points.length >= 2) {
-      return { ...pointAlong(route.points, token.at.progress), queued: false, moving: true, flows: route.flows };
-    }
     return to ? { ...shapeCenter(to), queued: false } : null;
   }
 
@@ -179,33 +190,21 @@ function resolvePosition(
   const bottom = (shape.y ?? center.y) + (shape.height ?? 0);
 
   if (!token.at.queued) {
-    // active: a row along the node's lower edge, clear of the centred label
+    // in progress: one dot inside the node, along its lower edge, however
+    // many cases are being worked
     const peers = activeByNode.get(token.at.el) ?? [token];
-    const shown = Math.min(peers.length, QUEUE_MAX_DOTS);
-    const index = Math.min(peers.indexOf(token), QUEUE_MAX_DOTS - 1);
-    return {
-      x: center.x - ((shown - 1) / 2) * QUEUE_GAP + index * QUEUE_GAP,
-      y: bottom - 12,
-      queued: false,
-    };
+    if (peers.indexOf(token) > 0) return null;
+    return { x: center.x, y: bottom - 12, queued: false };
   }
 
-  // queued: a row just above the node's top edge
+  // queued: just a signal, a few overlapping dots centred above the node
   const peers = queuedByNode.get(token.at.el) ?? [token];
   const index = peers.indexOf(token);
-  const top = (shape.y ?? center.y) - 13;
-  if (index >= QUEUE_MAX_DOTS) {
-    return {
-      x: center.x + ((QUEUE_MAX_DOTS + 1) / 2) * QUEUE_GAP,
-      y: top,
-      queued: true,
-      hidden: true,
-    };
-  }
-  const shown = Math.min(peers.length, QUEUE_MAX_DOTS);
+  if (index >= QUEUE_SIGNAL_DOTS) return null;
+  const shown = Math.min(peers.length, QUEUE_SIGNAL_DOTS);
   return {
-    x: center.x - ((shown - 1) / 2) * QUEUE_GAP + index * QUEUE_GAP,
-    y: top,
+    x: center.x - ((shown - 1) / 2) * QUEUE_SIGNAL_GAP + index * QUEUE_SIGNAL_GAP,
+    y: (shape.y ?? center.y) - 12,
     queued: true,
   };
 }

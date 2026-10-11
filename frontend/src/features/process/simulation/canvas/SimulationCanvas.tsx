@@ -27,6 +27,8 @@ export type NodeDecoration = {
   /** Small HTML pill rendered above the node (already escaped by the caller). */
   badge?: string;
   badgeTone?: "neutral" | "warning" | "danger";
+  /** Lift the pill higher, clear of the replay's queue dots above the node. */
+  badgeAbove?: boolean;
 };
 
 const SELECTED_MARKER = "sim-node-selected";
@@ -192,7 +194,7 @@ export function SimulationCanvas({
 
       if (item.badge) {
         badgeIdsRef.current.push(overlays.add(item.elementId, {
-          position: { top: badgeIndex % 2 === 0 ? -12 : -30, left: -4 },
+          position: { top: (badgeIndex % 2 === 0 ? -12 : -30) - (item.badgeAbove ? 24 : 0), left: -4 },
           scale: { min: 1 },
           html: `<div class="sim-badge${
             item.badgeTone && item.badgeTone !== "neutral"
