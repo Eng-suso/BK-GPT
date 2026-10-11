@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  ArrowLeft, CircleCheck, CircleHelp, CircleX, FlaskConical, GitPullRequest, Send, TriangleAlert, Undo2, UserRound, Workflow,
+  ArrowLeft, CircleCheck, CircleHelp, CircleX, FlaskConical, GitPullRequest, LayoutDashboard, Send, TriangleAlert, Undo2, UserRound, Workflow,
 } from "lucide-react";
 
 import { ROUTES } from "@/app/routes";
@@ -101,6 +101,7 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
           <Button variant="ghost" size="icon-sm" onClick={() => navigate(ROUTES.projects.process(projectId, process.id))} aria-label={t("handover.back")} title={t("handover.back")}><ArrowLeft aria-hidden className="size-4" /></Button>
           <Badge variant="secondary">{process.stage}</Badge>
         </div>}
+        actions={<Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.handoverDashboard(projectId, process.id))}><LayoutDashboard aria-hidden />{t("handover.dashboard.openButton")}</Button>}
       />
       <div className="handover ui-scrollbar">
         <div className="handover-body">

@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppLayout } from "@/app/AppLayout";
 import { NotFoundPage } from "@/app/NotFoundPage";
+import { StandaloneLayout } from "@/app/StandaloneLayout";
 import { DEFAULT_ROUTE } from "@/app/routes";
 import {
   ArchivePage,
@@ -14,6 +15,7 @@ import {
   HomePage,
   InsightsPage,
   ModelsPage,
+  OwnerDashboardPage,
   ProcessStudioPage,
   ProjectDetailPage,
   ProjectsListPage,
@@ -31,6 +33,17 @@ import {
  * pre-migration feature pages, swapped one at a time.
  */
 export const router = createBrowserRouter([
+  {
+    // Il cruscotto del responsabile lo legge il cliente: niente navigazione
+    // di DeliR intorno.
+    element: <StandaloneLayout />,
+    children: [
+      {
+        path: "projects/:projectId/processes/:processId/handover/dashboard",
+        element: <OwnerDashboardPage />,
+      },
+    ],
+  },
   {
     element: <AppLayout />,
     children: [

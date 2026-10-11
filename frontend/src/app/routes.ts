@@ -19,6 +19,8 @@ export const ROUTES = {
     ) => `/projects/${projectId}/processes/${processId}/simulation/${sub}`,
     handover: (projectId: string, processId: string) =>
       `/projects/${projectId}/processes/${processId}/handover`,
+    handoverDashboard: (projectId: string, processId: string) =>
+      `/projects/${projectId}/processes/${processId}/handover/dashboard`,
   },
   models: "/models",
   archive: "/archive",
