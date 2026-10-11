@@ -11,7 +11,14 @@ const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <b:userTask id="approve" name="Approvare richiesta">${trace("approve")}</b:userTask>
 </b:process></b:definitions>`;
 
-type Options = { owner?: string; status?: string; blocking?: boolean };
+type Options = { owner?: string; status?: string; blocking?: boolean; simulated?: boolean };
+
+const RUN = {
+  id: 42, bpmn_model_id: "handover-model", process_id: "handover-process", scenario_name: "To-Be · Una sola firma sotto 5.000 €", engine: "prosimos", status: "completed",
+  request: {}, scenario: {}, result: {}, outputs: [], error: null, created_at: "2026-10-06T10:00:00Z", completed_at: "2026-10-06T10:05:00Z",
+  summary: { casesCompleted: 480, cycle: { avg: 2.5 * 86400, p50: 2 * 86400, p90: 4 * 86400, p95: 5 * 86400 }, waiting: { avg: 1.5 * 86400, p95: 3 * 86400, share: 0.6 },
+    processing: { avg: 3600 }, cost: { total: 21600, perCase: 45 }, throughputPerHour: 2, byActivity: [], byResource: [], bottleneck: null },
+};
 
 async function fixture(page: Page, options: Options = {}) {
   let status = options.status ?? "In corso";
@@ -54,10 +61,22 @@ async function fixture(page: Page, options: Options = {}) {
       process_id: "handover-process", running: false, is_current: true,
       report: { verdict: options.blocking ? "not_conformant" : "conformant", findings: options.blocking ? [{ layer: "source_contradiction", severity: "blocking", message: "Contrasto", source_name: "PROC-14" }] : [], sources_audited: 1, sources_with_text: 1, llm_audit_note: "", audited_at: "2026-10-06T10:00:00Z" },
     } });
+    if (path.endsWith("/simulation-runs")) return route.fulfill({ json: options.simulated ? [RUN] : [] });
     if (path.endsWith("/versions")) return route.fulfill({ json: [{ id: 7, bpmn_model_id: "handover-model", process_id: "handover-process", change_summary: "To-Be", source: "canvas", created_at: "2026-10-06T09:00:00Z" }] });
     return route.fulfill({ json: [] });
   });
   return { patches, actions };
+}
+
+/** Quanto il contenuto supera la larghezza visibile, nel documento o in un contenitore che scorre. */
+async function horizontalOverflow(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const scrollers = [document.documentElement, ...document.querySelectorAll<HTMLElement>(".handover, .owner-dashboard")];
+    const contentEdge = Math.max(...[...document.querySelectorAll<HTMLElement>(".handover-body *, .owner-dashboard-page *")]
+      .filter((element) => !element.parentElement?.closest("[data-slot='table-container']"))
+      .map((element) => element.getBoundingClientRect().right));
+    return Math.max(...scrollers.map((element) => element.scrollWidth - element.clientWidth), contentEdge - window.innerWidth);
+  });
 }
 
 const URL_HANDOVER = "/projects/handover-project/processes/handover-process/handover";
@@ -110,10 +129,47 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
     await fixture(page);
     await page.goto(URL_HANDOVER);
     await expect(page.getByRole("heading", { name: "Pronto per la consegna?" })).toBeVisible();
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(overflow).toBeLessThanOrEqual(0);
+    // Le pagine scorrono in un contenitore loro: e' li' che il contenuto non deve uscire.
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
     const results = await new AxeBuilder({ page }).include(".handover").analyze();
     expect(results.violations.map((violation) => violation.id)).toEqual([]);
     await page.screenshot({ path: info.outputPath(`handover-${viewport.name}.png`), fullPage: true });
+  });
+}
+
+const URL_DASHBOARD = "/projects/handover-project/processes/handover-process/handover/dashboard";
+
+test("the owner dashboard opens from the hand over, without DeliR navigation, and prints to PDF", async ({ page, browserName }, info) => {
+  await fixture(page, { status: "Validato", simulated: true });
+  await page.goto(URL_HANDOVER);
+  await page.getByRole("button", { name: "Cruscotto del responsabile" }).click();
+  await expect(page).toHaveURL(new RegExp(`${URL_DASHBOARD}$`));
+  await expect(page.getByRole("heading", { level: 1, name: "Acquisti indiretti" })).toBeVisible();
+  await expect(page.getByText("Approvato · In uso")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: /principale|main/i })).toHaveCount(0);
+  await expect(page.getByRole("cell", { name: "Costo per caso" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Non ancora misurato" }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { level: 3, name: "Togliere la seconda firma sotto 5.000 €" })).toBeVisible();
+  await expect(page.getByText("Nuova versione del processo")).toBeVisible();
+
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByRole("button", { name: "Scarica PDF" })).toBeHidden();
+  if (browserName === "chromium") await page.pdf({ path: info.outputPath("cruscotto.pdf"), format: "A4", printBackground: true });
+  await page.emulateMedia({ media: "screen" });
+  await page.getByRole("button", { name: "Torna alla consegna" }).click();
+  await expect(page).toHaveURL(new RegExp(`${URL_HANDOVER}$`));
+});
+
+for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: "mobile", width: 390, height: 844 }]) {
+  test(`owner dashboard is accessible and does not overflow on ${viewport.name}`, async ({ page }, info) => {
+    await page.setViewportSize(viewport);
+    await fixture(page, { status: "Da validare", simulated: true });
+    await page.goto(URL_DASHBOARD);
+    await expect(page.getByText("In attesa della tua approvazione")).toBeVisible();
+    // Le pagine scorrono in un contenitore loro: e' li' che il contenuto non deve uscire.
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+    const results = await new AxeBuilder({ page }).include(".owner-dashboard").analyze();
+    expect(results.violations.map((violation) => violation.id)).toEqual([]);
+    await page.screenshot({ path: info.outputPath(`owner-dashboard-${viewport.name}.png`), fullPage: true });
   });
 }
