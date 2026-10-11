@@ -2043,7 +2043,16 @@
       "resultCycle": "Tempo totale, in media",
       "resultWaiting": "Di cui tempo di attesa",
       "resultCost": "Costo per ogni pratica",
-      "stepRef": "Passo {{n}} · {{name}}"
+      "stepRef": "Passo {{n}} · {{name}}",
+      "share": {
+        "loading": "Caricamento del cruscotto",
+        "personal": "Link personale: non inoltrarlo ad altre persone.",
+        "invalidTitle": "Questo link non funziona",
+        "invalidBody": "Il link non è valido, è scaduto o è stato disattivato. Chiedi al tuo consulente un link nuovo.",
+        "errorTitle": "Il cruscotto non si è caricato",
+        "errorBody": "Controlla la connessione e riprova.",
+        "retry": "Riprova"
+      }
     }
   }
 }

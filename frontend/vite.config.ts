@@ -33,5 +33,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    rollupOptions: {
+      // Due pagine: l'app dello studio e il cruscotto che apre il cliente dal
+      // link. La seconda non deve contenere il codice con le credenziali dello
+      // studio (src/share/shareIsolation.test.ts).
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        share: path.resolve(__dirname, "share.html"),
+      },
+    },
   },
 });

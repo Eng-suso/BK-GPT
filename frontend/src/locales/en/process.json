@@ -2043,7 +2043,16 @@
       "resultCycle": "Total time, on average",
       "resultWaiting": "Of which waiting time",
       "resultCost": "Cost for each request",
-      "stepRef": "Step {{n}} · {{name}}"
+      "stepRef": "Step {{n}} · {{name}}",
+      "share": {
+        "loading": "Loading the dashboard",
+        "personal": "Personal link: do not forward it to other people.",
+        "invalidTitle": "This link does not work",
+        "invalidBody": "The link is not valid, has expired or was turned off. Ask your consultant for a new link.",
+        "errorTitle": "The dashboard did not load",
+        "errorBody": "Check your connection and try again.",
+        "retry": "Try again"
+      }
     }
   }
 }
