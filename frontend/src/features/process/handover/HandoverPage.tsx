@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   ArrowLeft, CircleCheck, CircleHelp, CircleX, FlaskConical, GitPullRequest, Send, TriangleAlert, Undo2, UserRound, Workflow,
@@ -18,15 +17,9 @@ import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 import { Surface } from "@/ui/surface";
-import { useBpmnVersionsQuery, useConformanceStatusQuery, useProcessProvenanceQuery } from "../api";
-import { useImpactReview } from "../review/api";
-import { readReviewGraph, type ReviewNode } from "../review/reviewModel";
-import { listProsimosSimulationRuns } from "../simulation/simulationApi";
 import { formatCurrency, formatDuration } from "../simulation/simulationResults";
-import {
-  buildReadiness, changesWithEvidence, latestCompletedRun, openPoints, stageFromStatus, STATUS_FOR_STAGE,
-  type HandoverStage, type ReadinessCheck,
-} from "./handoverModel";
+import { STATUS_FOR_STAGE, type HandoverStage, type ReadinessCheck } from "./handoverModel";
+import { formatDay, useHandoverData } from "./useHandoverData";
 import { RequestChangesDialog } from "./RequestChangesDialog";
 import "./handover.css";
 
@@ -78,45 +71,14 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
-  const stage = stageFromStatus(process.status);
-  const owner = process.owner.trim();
-
-  const reviewQ = useImpactReview(process.id, process.bpmnModelId);
-  const provenanceQ = useProcessProvenanceQuery(process.id);
-  const conformanceQ = useConformanceStatusQuery(process.id);
-  const versionsQ = useBpmnVersionsQuery(process.bpmnModelId, { enabled: Boolean(process.bpmnModelId) });
-  // Stessa chiave della sezione Simulazione: la cache e' condivisa.
-  const runsQ = useQuery({
-    queryKey: ["workspace", "simulation-runs", process.bpmnModelId],
-    queryFn: () => listProsimosSimulationRuns(process.bpmnModelId),
-    enabled: Boolean(process.bpmnModelId),
-  });
+  const {
+    stage, owner, review, reviewLoading, hasConformanceReport, runs, runsLoading, checksLoading,
+    readiness, changes, points, nodes, latestRun, latestVersion, findings,
+  } = useHandoverData(process);
   const updateProcess = useUpdateProcessMutation();
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [requesting, setRequesting] = useState(false);
-
-  const runs = useMemo(() => runsQ.data ?? [], [runsQ.data]);
-  const review = reviewQ.data;
-  const readiness = useMemo(
-    () => buildReadiness({ owner, review, provenance: provenanceQ.data, conformance: conformanceQ.data, runs }),
-    [owner, review, provenanceQ.data, conformanceQ.data, runs],
-  );
-  const changes = useMemo(() => changesWithEvidence(review, provenanceQ.data), [review, provenanceQ.data]);
-  const points = useMemo(() => openPoints(review), [review]);
-  const xml = review?.xml ?? null;
-  const nodes = useMemo<ReviewNode[]>(() => {
-    try { return readReviewGraph(xml).nodes; } catch { return []; }
-  }, [xml]);
-  const latestRun = latestCompletedRun(runs);
-  const latestVersion = versionsQ.data?.reduce((a, b) => (b.id > a.id ? b : a), versionsQ.data[0]);
-  const findings = review?.plan?.consultant_findings ?? [];
-  const checksLoading = reviewQ.isLoading || provenanceQ.isLoading || conformanceQ.isLoading || runsQ.isLoading;
-
-  const date = (value: string | null | undefined) => {
-    const parsed = value ? new Date(value) : null;
-    return parsed && !Number.isNaN(parsed.getTime())
-      ? new Intl.DateTimeFormat(i18n.language, { day: "numeric", month: "short", year: "numeric" }).format(parsed) : "";
-  };
+  const date = (value: string | null | undefined) => formatDay(value, i18n.language);
 
   const moveTo = async (status: ProcessStatus, done: string) => {
     await updateProcess.mutateAsync({
@@ -184,14 +146,14 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
                 <header className="handover-section-heading"><h2 id="handover-readiness">{t("handover.readiness.title")}</h2><p>{t("handover.readiness.description")}</p></header>
                 {checksLoading ? <Skeleton className="h-64 w-full" /> : (
                   <Surface asChild variant="panel"><ul className="handover-checks">
-                    {readiness.checks.map((check) => <CheckRow key={check.id} check={check} owner={owner} hasReport={Boolean(conformanceQ.data?.report)} />)}
+                    {readiness.checks.map((check) => <CheckRow key={check.id} check={check} owner={owner} hasReport={hasConformanceReport} />)}
                   </ul></Surface>
                 )}
               </section>
 
               <section className="handover-section" aria-labelledby="handover-changes">
                 <header className="handover-section-heading"><h2 id="handover-changes">{t("handover.changes.title")}</h2><p>{t("handover.changes.description")}</p></header>
-                {reviewQ.isLoading ? <Skeleton className="h-40 w-full" /> : changes.length === 0 ? (
+                {reviewLoading ? <Skeleton className="h-40 w-full" /> : changes.length === 0 ? (
                   <Surface variant="inset" className="handover-empty">{t("handover.changes.empty")}</Surface>
                 ) : (
                   <ol className="handover-list">
@@ -222,7 +184,7 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
                   <h2 id="handover-simulation">{t("handover.simulation.title")}</h2>
                   {latestRun && <p>{t("handover.simulation.description", { scenario: latestRun.scenario_name })}</p>}
                 </header>
-                {runsQ.isLoading ? <Skeleton className="h-20 w-full" /> : latestRun?.summary ? (
+                {runsLoading ? <Skeleton className="h-20 w-full" /> : latestRun?.summary ? (
                   <div className="handover-stats">
                     <StatTile label={t("handover.simulation.cycle")} value={formatDuration(latestRun.summary.cycle.avg, lang)} />
                     <StatTile label={t("handover.simulation.waiting")} value={formatDuration(latestRun.summary.waiting.avg, lang)} />
