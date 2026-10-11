@@ -2012,7 +2012,38 @@
       "openPoints": "Still open",
       "openPointsEmpty": "Nothing open.",
       "contact": "For questions or changes, write to your consultant.",
-      "footer": "Prepared with DeliR"
+      "footer": "Prepared with DeliR",
+      "plain": {
+        "title": "How the process works",
+        "description": "The process explained step by step, in the order it happens.",
+        "startsWhen": "It starts when",
+        "endsWith": "It ends with",
+        "unnamedStart": "Start of the process",
+        "unnamedEnd": "End of the process",
+        "step": "Step {{n}}",
+        "who": "Who does it",
+        "nobody": "Not specified",
+        "decision": "A decision is made here",
+        "parallel": "From here, several things happen at once",
+        "wait": "Waiting",
+        "unnamed": "Unnamed step",
+        "unnamedDecision": "Here you choose how to continue",
+        "then": "Then go to step {{n}}",
+        "thenEnd": "Then the process ends",
+        "answer": "If “{{label}}”",
+        "path": "Path {{index}}",
+        "toStep": "step {{n}}",
+        "toEnd": "end of the process",
+        "changed": "Changes",
+        "people": "Who is involved",
+        "peopleSteps_one": "{{count}} step",
+        "peopleSteps_other": "{{count}} steps",
+        "empty": "The process has not been drawn yet."
+      },
+      "resultCycle": "Total time, on average",
+      "resultWaiting": "Of which waiting time",
+      "resultCost": "Cost for each request",
+      "stepRef": "Step {{n}} · {{name}}"
     }
   }
 }

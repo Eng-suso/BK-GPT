@@ -2012,7 +2012,38 @@
       "openPoints": "Punti ancora aperti",
       "openPointsEmpty": "Nessun punto aperto.",
       "contact": "Per domande o modifiche scrivi al tuo consulente.",
-      "footer": "Preparato con DeliR"
+      "footer": "Preparato con DeliR",
+      "plain": {
+        "title": "Come funziona il processo",
+        "description": "Il processo spiegato passo per passo, nell'ordine in cui avviene.",
+        "startsWhen": "Inizia quando",
+        "endsWith": "Finisce con",
+        "unnamedStart": "Inizio del processo",
+        "unnamedEnd": "Fine del processo",
+        "step": "Passo {{n}}",
+        "who": "Chi lo fa",
+        "nobody": "Non indicato",
+        "decision": "Qui si decide",
+        "parallel": "Da qui si fanno più cose insieme",
+        "wait": "Si aspetta",
+        "unnamed": "Passo senza nome",
+        "unnamedDecision": "Qui si sceglie come proseguire",
+        "then": "Poi si passa al passo {{n}}",
+        "thenEnd": "Poi il processo finisce",
+        "answer": "Se «{{label}}»",
+        "path": "Strada {{index}}",
+        "toStep": "passo {{n}}",
+        "toEnd": "fine del processo",
+        "changed": "Cambia",
+        "people": "Chi è coinvolto",
+        "peopleSteps_one": "{{count}} passo",
+        "peopleSteps_other": "{{count}} passi",
+        "empty": "Il processo non è ancora stato disegnato."
+      },
+      "resultCycle": "Tempo totale, in media",
+      "resultWaiting": "Di cui tempo di attesa",
+      "resultCost": "Costo per ogni pratica",
+      "stepRef": "Passo {{n}} · {{name}}"
     }
   }
 }
