@@ -1969,6 +1969,50 @@
       "submit": "Registra la richiesta",
       "cancel": "Annulla",
       "noActivities": "Il disegno non ha attività da commentare."
+    },
+    "dashboard": {
+      "title": "Cruscotto del processo",
+      "openButton": "Cruscotto del responsabile",
+      "preview": "Anteprima: questa è la pagina che riceve il responsabile del processo.",
+      "back": "Torna alla consegna",
+      "download": "Scarica PDF",
+      "preparedFor": "Per {{owner}}",
+      "updated": "Aggiornato il {{date}}",
+      "status": {
+        "design": "In preparazione",
+        "review": "In attesa della tua approvazione",
+        "approved": "Approvato · In uso"
+      },
+      "statusDetail": {
+        "design": "Il consulente sta ancora lavorando al processo.",
+        "review": "Il consulente ti ha inviato la nuova versione del processo. Leggi cosa cambia e fagli sapere se approvi.",
+        "approved": "Questa è la versione di riferimento del processo. Da ora si misura se dà i risultati attesi."
+      },
+      "version": "Versione {{id}} del {{date}}",
+      "changes": "Cosa è cambiato",
+      "changesEmpty": "Nessuna modifica rispetto al processo attuale.",
+      "why": "Perché",
+      "sources_one": "{{count}} fonte",
+      "sources_other": "{{count}} fonti",
+      "results": "Risultati attesi",
+      "resultsDetail": "Stime dalla simulazione «{{scenario}}». I dati reali compariranno qui quando il processo sarà in uso.",
+      "resultsEmpty": "I risultati attesi compariranno dopo la prima simulazione.",
+      "indicator": "Indicatore",
+      "expected": "Atteso",
+      "measured": "Misurato",
+      "notMeasured": "Non ancora misurato",
+      "activity": "Cosa sta succedendo",
+      "activityEmpty": "Ancora nessuna attività registrata.",
+      "event": {
+        "version": "Nuova versione del processo",
+        "change": "Modifica proposta",
+        "request": "Domanda o richiesta",
+        "deferred": "Punto rimandato"
+      },
+      "openPoints": "Punti ancora aperti",
+      "openPointsEmpty": "Nessun punto aperto.",
+      "contact": "Per domande o modifiche scrivi al tuo consulente.",
+      "footer": "Preparato con DeliR"
     }
   }
 }

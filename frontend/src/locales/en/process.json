@@ -1969,6 +1969,50 @@
       "submit": "Record the request",
       "cancel": "Cancel",
       "noActivities": "The diagram has no activities to comment on."
+    },
+    "dashboard": {
+      "title": "Process dashboard",
+      "openButton": "Owner dashboard",
+      "preview": "Preview: this is the page the process owner receives.",
+      "back": "Back to hand over",
+      "download": "Download PDF",
+      "preparedFor": "For {{owner}}",
+      "updated": "Updated on {{date}}",
+      "status": {
+        "design": "Being prepared",
+        "review": "Waiting for your approval",
+        "approved": "Approved · In use"
+      },
+      "statusDetail": {
+        "design": "The consultant is still working on the process.",
+        "review": "The consultant sent you the new version of the process. Read what changes and let them know if you approve.",
+        "approved": "This is the reference version of the process. From now on we measure whether it delivers the expected results."
+      },
+      "version": "Version {{id}} of {{date}}",
+      "changes": "What changed",
+      "changesEmpty": "No changes compared to the current process.",
+      "why": "Why",
+      "sources_one": "{{count}} source",
+      "sources_other": "{{count}} sources",
+      "results": "Expected results",
+      "resultsDetail": "Estimates from the simulation “{{scenario}}”. Real figures will show here once the process is in use.",
+      "resultsEmpty": "Expected results will show after the first simulation.",
+      "indicator": "Indicator",
+      "expected": "Expected",
+      "measured": "Measured",
+      "notMeasured": "Not measured yet",
+      "activity": "What is happening",
+      "activityEmpty": "No activity recorded yet.",
+      "event": {
+        "version": "New version of the process",
+        "change": "Change proposed",
+        "request": "Question or request",
+        "deferred": "Point postponed"
+      },
+      "openPoints": "Still open",
+      "openPointsEmpty": "Nothing open.",
+      "contact": "For questions or changes, write to your consultant.",
+      "footer": "Prepared with DeliR"
     }
   }
 }
