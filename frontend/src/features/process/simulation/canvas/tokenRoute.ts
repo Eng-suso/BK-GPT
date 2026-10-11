@@ -8,13 +8,16 @@ const isActivity = (el: BpmnShape | undefined) =>
  * The drawn path a token follows between two steps: the sequence flows from
  * `from` to `to`, through any gateways and intermediate events in between
  * (fewest hops). `from: null` starts at a start event, `to: null` ends at an
- * end event. Waypoints of each flow are joined into one polyline.
+ * end event. Waypoints of each flow are joined into one polyline; `flows` are
+ * the sequence flows it crosses, so the canvas can light them up.
  */
+export type TokenRoute = { points: BpmnPoint[]; flows: string[] };
+
 export function routeBetween(
   registry: BpmnElementRegistry,
   from: string | null,
   to: string | null,
-): BpmnPoint[] | null {
+): TokenRoute | null {
   const flows = registry.filter(isFlow);
   const out = new Map<string, BpmnShape[]>();
   for (const flow of flows) {
@@ -50,5 +53,8 @@ export function routeBetween(
 
   const hops: BpmnShape[] = [];
   for (let flow: BpmnShape | null | undefined = last; flow; flow = via.get(flow.source!.id!)) hops.unshift(flow);
-  return hops.flatMap((flow, i) => (i === 0 ? flow.waypoints! : flow.waypoints!.slice(1)));
+  return {
+    points: hops.flatMap((flow, i) => (i === 0 ? flow.waypoints! : flow.waypoints!.slice(1))),
+    flows: hops.map((flow) => flow.id),
+  };
 }

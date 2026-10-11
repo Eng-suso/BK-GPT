@@ -28,20 +28,19 @@ function registry(): BpmnElementRegistry {
 
 describe("routeBetween", () => {
   it("follows the flows through the gateway between two steps", () => {
-    expect(routeBetween(registry(), "A", "B")).toEqual([
-      { x: 20, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }, { x: 40, y: 10 },
-    ]);
+    expect(routeBetween(registry(), "A", "B")).toEqual({
+      points: [{ x: 20, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 10 }, { x: 40, y: 10 }],
+      flows: ["f2", "f3"],
+    });
   });
 
   it("takes the rework loop back to an earlier step", () => {
-    expect(routeBetween(registry(), "A", "A")).toEqual([
-      { x: 20, y: 0 }, { x: 30, y: 0 }, { x: 15, y: -10 }, { x: 15, y: 0 },
-    ]);
+    expect(routeBetween(registry(), "A", "A")?.flows).toEqual(["f2", "f4"]);
     expect(routeBetween(registry(), "B", "A")).toBeNull(); // no path without crossing a step
   });
 
   it("starts at the start event and ends at the end event", () => {
-    expect(routeBetween(registry(), null, "A")).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }]);
-    expect(routeBetween(registry(), "B", null)).toEqual([{ x: 50, y: 10 }, { x: 60, y: 10 }]);
+    expect(routeBetween(registry(), null, "A")).toEqual({ points: [{ x: 0, y: 0 }, { x: 10, y: 0 }], flows: ["f1"] });
+    expect(routeBetween(registry(), "B", null)).toEqual({ points: [{ x: 50, y: 10 }, { x: 60, y: 10 }], flows: ["f5"] });
   });
 });
