@@ -173,6 +173,31 @@
       "id": "18-chiusura",
       "card": "close",
       "title": "Dalle interviste alla decisione del cliente. Con i numeri."
+    },
+    {
+      "id": "hero-sources",
+      "hero": true,
+      "chip": "Scattered knowledge"
+    },
+    {
+      "id": "hero-asis",
+      "hero": true,
+      "chip": "Verified As-Is"
+    },
+    {
+      "id": "hero-heatmap",
+      "hero": true,
+      "chip": "Find what needs to change"
+    },
+    {
+      "id": "hero-scenarios",
+      "hero": true,
+      "chip": "Test before you recommend"
+    },
+    {
+      "id": "hero-improve",
+      "hero": true,
+      "chip": "Keep improving"
     }
   ],
   "cuts": {
@@ -392,6 +417,46 @@
           "speed": 1.0
         }
       ]
+    },
+    "hero": {
+      "hold": 0,
+      "chips": true,
+      "stages": false,
+      "disclaimer": "disclaimer-hero",
+      "crossfade": 0.35,
+      "loop": 0.45,
+      "scenes": [
+        {
+          "id": "hero-sources",
+          "speed": 1.0
+        },
+        {
+          "id": "hero-asis",
+          "speed": 1.05
+        },
+        {
+          "id": "hero-heatmap",
+          "speed": 0.9
+        },
+        {
+          "id": "hero-scenarios",
+          "speed": 1.0
+        },
+        {
+          "id": "hero-improve",
+          "speed": 1.15
+        }
+      ],
+      "web": {
+        "path": "landing/media/delir-hero",
+        "size": [
+          1600,
+          900
+        ],
+        "poster": 7.55,
+        "webm_crf": 40,
+        "mp4_crf": 26
+      }
     }
   },
   "hero": [

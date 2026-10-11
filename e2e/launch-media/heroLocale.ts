@@ -40,6 +40,14 @@ const NAMES: Record<string, string> = {
   "Richiesta completa + delega": "Complete request + delegate",
   "Responsabile presente a tratti": "Manager available twice a week",
   "Autorizzazione ogni giorno (delega)": "Daily approval (delegate)",
+  "Richieste in coda": "Queued requests",
+  "Tempo medio di attraversamento": "Average cycle time",
+  "Richieste concluse": "Completed requests",
+  "Costo accumulato": "Accrued cost",
+  "Occupazione delle risorse": "Resource utilisation",
+  "Simulazione": "Simulation",
+  "responsabile-assente": "manager-twice-weekly",
+  "responsabile-con-delega": "daily-delegate",
 };
 
 const FLOW_LABELS: Record<string, string> = { "Sì": "Yes", No: "No" };
@@ -54,7 +62,11 @@ export function toEnglish(text: string): string {
     // Negli attributi XML l'apostrofo puo' essere un'entita'.
     if (it.includes("'")) out = out.split(it.replace(/'/g, "&apos;")).join(en);
   }
-  for (const [it, en] of Object.entries(FLOW_LABELS)) out = out.split(`name="${it}"`).join(`name="${en}"`);
+  for (const [it, en] of Object.entries(FLOW_LABELS)) {
+    // Nel JSON serializzato le virgolette dell'XML sono escapate.
+    for (const quote of ['"', '\\"']) out = out.split(`name=${quote}${it}${quote}`).join(`name=${quote}${en}${quote}`);
+    out = out.split(`"name":"${it}"`).join(`"name":"${en}"`);
+  }
   return out;
 }
 

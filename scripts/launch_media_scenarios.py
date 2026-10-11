@@ -8,7 +8,7 @@ simulano davvero, con il motore del prodotto, i tre scenari del caso demo:
 - A: solo la delega, una finestra di autorizzazione ogni giorno;
 - B: delega + richiesta che nasce completa (il To-Be della demo).
 
-Ogni scenario gira 3 volte con seed consecutivi (come il pannello). Esce
+Ogni scenario gira 6 volte con seed consecutivi (come il pannello). Esce
 `e2e/launch-media/data/scenarios.json` con i summary dei run.
 
     PYTHONPATH=. uv run python scripts/launch_media_scenarios.py
@@ -43,7 +43,7 @@ from backend.simulation.prosimos_adapter import run_prosimos_simulation  # noqa:
 from backend.simulation.result_parser import with_output_files  # noqa: E402
 from backend.simulation.scenario_builder import baseline_for_bpmn, build_prosimos_scenario_from_model  # noqa: E402
 
-REPLICATIONS = 3
+REPLICATIONS = 6
 
 
 def delegate_only(as_is: SimulationModel) -> SimulationModel:
