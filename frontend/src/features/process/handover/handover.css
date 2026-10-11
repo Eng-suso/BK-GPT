@@ -1,0 +1,134 @@
+/* Consegna al responsabile. Token di componente sopra i token semantici:
+   nessun colore o spazio primitivo entra qui direttamente. */
+.handover {
+  --handover-gap: var(--spacing-stack-lg);
+  --handover-section-gap: var(--spacing-stack-xl);
+  --handover-padding: var(--spacing-panel-padding);
+  --handover-radius: var(--radius-surface);
+  --handover-row-radius: var(--radius-control);
+  --handover-divider: var(--color-border-subtle);
+  --handover-text-muted: var(--color-text-muted);
+  --handover-focus: var(--state-focus-ring);
+  --handover-current-surface: var(--domain-role-interactive-surface);
+  --handover-current-border: var(--domain-role-interactive-border);
+  --handover-current-text: var(--domain-role-interactive-text);
+  --handover-change-border: var(--domain-process-changed-border);
+  --handover-change-icon: var(--domain-process-changed-icon);
+  --handover-quote-border: var(--domain-evidence-confirmed-border);
+
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: var(--layout-scrollbar-gutter);
+}
+
+.handover-body {
+  display: grid;
+  gap: var(--handover-section-gap);
+  max-width: var(--layout-container-content);
+  margin-inline: auto;
+  padding: var(--layout-page-block-compact) var(--layout-page-inline-compact) var(--spacing-stack-2xl);
+}
+
+.handover-section { display: grid; gap: var(--spacing-stack-md); min-width: 0; }
+.handover-section-heading { display: grid; gap: var(--spacing-stack-xs); }
+.handover-section-heading h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.handover-section-heading p { font-size: 12px; line-height: 1.6; color: var(--handover-text-muted); max-width: var(--layout-text-measure); }
+
+/* Stato in alto: il messaggio e le azioni restano insieme. */
+.handover-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--handover-gap);
+  padding: var(--handover-padding);
+  border-radius: var(--handover-radius);
+}
+.handover-status h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+.handover-status-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-inline-md); margin-top: var(--spacing-stack-xs); font-size: 12px; color: var(--handover-text-muted); }
+.handover-status-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-inline-sm); }
+.handover-status[data-stage="design"][data-ready="true"] { border-color: var(--domain-validation-pass-border); }
+.handover-status[data-stage="design"][data-ready="false"] { border-color: var(--domain-validation-warning-border); }
+.handover-status[data-stage="review"] { border-color: var(--domain-version-in-review-border); }
+.handover-status[data-stage="approved"] { border-color: var(--domain-version-published-border); background: var(--domain-version-published-surface); }
+
+/* Percorso: tre tappe, quella attuale evidenziata. */
+.handover-journey { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-inline-sm); list-style: none; }
+.handover-journey li {
+  display: grid;
+  gap: var(--spacing-stack-xs);
+  padding: var(--spacing-stack-md) var(--spacing-inline-md);
+  border: var(--border-width-default) var(--border-style-default) var(--handover-divider);
+  border-radius: var(--handover-row-radius);
+  min-width: 0;
+}
+.handover-journey li[aria-current="step"] { background: var(--handover-current-surface); border-color: var(--handover-current-border); }
+.handover-journey li[aria-current="step"] .handover-journey-who { color: var(--handover-current-text); }
+.handover-journey-who { font-size: 12px; font-weight: 600; }
+.handover-journey-steps { font-size: 12px; color: var(--handover-text-muted); overflow-wrap: anywhere; }
+
+.handover-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--handover-section-gap); align-items: start; }
+.handover-main, .handover-side { display: grid; gap: var(--handover-section-gap); min-width: 0; }
+
+/* Controlli di prontezza. */
+.handover-checks { display: grid; list-style: none; border-radius: var(--handover-radius); overflow: hidden; }
+.handover-check { display: flex; align-items: flex-start; gap: var(--spacing-inline-md); padding: var(--spacing-stack-md) var(--handover-padding); }
+.handover-check + .handover-check { border-top: var(--border-width-default) var(--border-style-default) var(--handover-divider); }
+.handover-check-icon { flex: none; margin-top: 2px; }
+.handover-check[data-outcome="pass"] .handover-check-icon { color: var(--domain-validation-pass-icon); }
+.handover-check[data-outcome="warning"] .handover-check-icon { color: var(--domain-validation-warning-icon); }
+.handover-check[data-outcome="fail"] .handover-check-icon { color: var(--domain-validation-fail-icon); }
+.handover-check-label { font-size: 13px; font-weight: 600; }
+.handover-check-detail { font-size: 12px; line-height: 1.5; color: var(--handover-text-muted); overflow-wrap: anywhere; }
+.handover-check-critical {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px var(--spacing-inline-sm);
+  border-radius: var(--radius-pill);
+  color: var(--domain-validation-fail-text);
+  background: var(--domain-validation-fail-surface);
+}
+
+.handover-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--spacing-inline-sm); }
+.handover-list { display: grid; gap: var(--spacing-stack-sm); list-style: none; }
+.handover-findings { display: grid; gap: var(--spacing-stack-sm); list-style: none; font-size: 13px; line-height: 1.5; }
+.handover-findings li { display: flex; gap: var(--spacing-inline-sm); }
+.handover-findings li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 7px; border-radius: var(--radius-circular); background: var(--domain-validation-warning-icon); }
+
+/* Modifiche: problema, motivo, fonti. */
+.handover-change { display: grid; gap: var(--spacing-stack-sm); padding: var(--handover-padding); border-left: var(--border-width-emphasis) var(--border-style-default) var(--handover-change-border); }
+.handover-change-context { display: flex; align-items: center; gap: var(--spacing-inline-sm); font-size: 12px; color: var(--handover-text-muted); }
+.handover-change-context svg { color: var(--handover-change-icon); }
+.handover-change h3 { font-size: 14px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.handover-change dl { display: grid; gap: var(--spacing-stack-sm); }
+.handover-change dt { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--handover-text-muted); }
+.handover-change dd { font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-line; }
+.handover-quote { padding-left: var(--spacing-inline-md); border-left: var(--border-width-strong) var(--border-style-default) var(--handover-quote-border); }
+.handover-quote cite { display: block; font-style: normal; font-size: 11px; color: var(--handover-text-muted); margin-top: 2px; }
+.handover-change-footer { font-size: 11px; color: var(--handover-text-muted); }
+
+.handover-point { display: flex; gap: var(--spacing-inline-md); align-items: flex-start; padding: var(--spacing-stack-md) var(--handover-padding); }
+.handover-point-title { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.handover-point-detail { font-size: 12px; color: var(--handover-text-muted); overflow-wrap: anywhere; }
+
+.handover-empty { padding: var(--handover-padding); font-size: 12px; color: var(--handover-text-muted); }
+
+.handover-owner { display: grid; gap: var(--spacing-stack-md); padding: var(--handover-padding); }
+.handover-owner-name { display: flex; align-items: center; gap: var(--spacing-inline-sm); font-size: 14px; font-weight: 600; }
+.handover-owner ol { display: grid; gap: var(--spacing-stack-sm); padding-left: var(--spacing-inline-lg); font-size: 12px; line-height: 1.5; color: var(--handover-text-muted); }
+
+.handover a:focus-visible, .handover button:focus-visible { outline: var(--state-focus-width) solid var(--handover-focus); outline-offset: 2px; }
+
+@media (min-width: 1024px) {
+  .handover-body { padding-inline: var(--layout-page-inline-medium); }
+  .handover-grid { grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); }
+}
+
+@media (max-width: 640px) {
+  .handover-journey { grid-template-columns: minmax(0, 1fr); }
+  .handover-status-actions { width: 100%; }
+  .handover-status-actions > * { flex: 1 1 auto; }
+}
