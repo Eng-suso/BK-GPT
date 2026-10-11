@@ -13,6 +13,7 @@ import { Surface } from "@/ui/surface";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/ui/table";
 import { formatCurrency, formatDuration } from "../simulation/simulationResults";
 import type { HandoverStage, TimelineEvent } from "./handoverModel";
+import { PlainProcessSection } from "./PlainProcessSection";
 import { formatDay, useHandoverData } from "./useHandoverData";
 import "./handover.css";
 
@@ -60,13 +61,16 @@ function Dashboard({ projectId, projectName, client, process }: { projectId: str
   const { t, i18n } = useTranslation("process");
   const lang = i18n.language?.startsWith("it") ? "it" : "en";
   const navigate = useNavigate();
-  const { stage, owner, reviewLoading, runsLoading, changes, points, timeline, latestRun, latestVersion } = useHandoverData(process);
+  const { stage, owner, reviewLoading, runsLoading, changes, points, timeline, plain, latestRun, latestVersion } = useHandoverData(process);
+  const stepNumber = new Map(plain.steps.map((step) => [step.id, step.number]));
+  const changedTitles = new Map<string, string[]>();
+  for (const change of changes) changedTitles.set(change.node_id, [...(changedTitles.get(change.node_id) ?? []), change.title]);
   const day = (value: string | null | undefined) => formatDay(value, i18n.language);
   const summary = latestRun?.summary;
   const results = summary ? [
-    { id: "cycle", label: t("handover.simulation.cycle"), value: formatDuration(summary.cycle.avg, lang) },
-    { id: "waiting", label: t("handover.simulation.waiting"), value: formatDuration(summary.waiting.avg, lang) },
-    { id: "cost", label: t("handover.simulation.cost"), value: formatCurrency(summary.cost.perCase, lang) },
+    { id: "cycle", label: t("handover.dashboard.resultCycle"), value: formatDuration(summary.cycle.avg, lang) },
+    { id: "waiting", label: t("handover.dashboard.resultWaiting"), value: formatDuration(summary.waiting.avg, lang) },
+    { id: "cost", label: t("handover.dashboard.resultCost"), value: formatCurrency(summary.cost.perCase, lang) },
   ] : [];
 
   return (
@@ -92,6 +96,8 @@ function Dashboard({ projectId, projectName, client, process }: { projectId: str
           <StatusIndicator tone={STAGE_TONE[stage]} label={t(`handover.dashboard.status.${stage}`)} className="owner-dashboard-status-label" />
           <p>{t(`handover.dashboard.statusDetail.${stage}`)}</p>
         </Surface>
+
+        {reviewLoading ? <Skeleton className="h-64 w-full" /> : <PlainProcessSection plain={plain} changedTitles={changedTitles} />}
 
         <section className="handover-section" aria-labelledby="owner-results">
           <header className="handover-section-heading">
@@ -132,7 +138,7 @@ function Dashboard({ projectId, projectName, client, process }: { projectId: str
             <ol className="handover-list">
               {changes.map((change) => (
                 <li key={change.id}><Surface asChild variant="panel"><article className="handover-change">
-                  <div className="handover-change-context"><span>{t("handover.changes.activity")}: {change.node_name}</span>{change.evidence.length > 0 && <span>· {t("handover.dashboard.sources", { count: change.evidence.length })}</span>}</div>
+                  <div className="handover-change-context"><span>{stepNumber.has(change.node_id) ? t("handover.dashboard.stepRef", { n: stepNumber.get(change.node_id), name: change.node_name }) : change.node_name}</span>{change.evidence.length > 0 && <span>· {t("handover.dashboard.sources", { count: change.evidence.length })}</span>}</div>
                   <h3>{change.title}</h3>
                   {change.detail && <dl><div><dt>{t("handover.dashboard.why")}</dt><dd>{change.detail}</dd></div></dl>}
                 </article></Surface></li>
