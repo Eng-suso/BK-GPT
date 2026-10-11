@@ -131,6 +131,31 @@ class WorkspaceImpactReviewAction(WorkspaceBase):
     created_by: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class WorkspaceOwnerDashboardLink(WorkspaceBase):
+    """Il link privato con cui il responsabile del processo legge il cruscotto.
+
+    Il cliente non usa DeliR: riceve un indirizzo. Del codice nel link si
+    conserva solo l'impronta (sha256), mai il codice: chi legge il database non
+    puo' ricostruire il link. Un link vale per un processo, scade, si revoca, e
+    ricorda quando il cliente l'ha aperto l'ultima volta.
+    """
+
+    __tablename__ = "workspace_owner_dashboard_links"
+    __table_args__ = (
+        Index("ix_owner_dashboard_links_process_tenant", "process_id", "tenant_id"),
+    )
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False)
+    process_id: Mapped[str] = mapped_column(ForeignKey("workspace_processes.id", ondelete="CASCADE"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    created_by: Mapped[str] = mapped_column(String, nullable=False)
+    expires_at: Mapped[str] = mapped_column(String, nullable=False)
+    revoked_at: Mapped[str | None] = mapped_column(String)
+    last_viewed_at: Mapped[str | None] = mapped_column(String)
+    view_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
 class WorkspaceBpmnModel(WorkspaceBase):
     __tablename__ = "workspace_bpmn_models"
 
