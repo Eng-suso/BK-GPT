@@ -9,6 +9,7 @@ import {
   type BpmnShape,
   type BpmnViewer,
 } from "./bpmnViewer";
+import { routeBetween } from "./tokenRoute";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const TOKEN_R = 7;
@@ -46,6 +47,12 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
     ).matches;
 
     const dots = new Map<string, SVGCircleElement>();
+    const paths = new Map<string, BpmnPoint[] | null>();
+    const routeFor = (from: string | null, to: string | null): BpmnPoint[] | null => {
+      const key = `${from ?? "^"}>${to ?? "$"}`;
+      if (!paths.has(key)) paths.set(key, routeBetween(registry, from, to));
+      return paths.get(key) ?? null;
+    };
     let overflow: SVGTextElement | null = null;
 
     const ensureDot = (caseId: string): SVGCircleElement => {
@@ -82,6 +89,7 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         const pos = resolvePosition(
           token,
           registry,
+          routeFor,
           queuedByNode,
           activeByNode,
           reduceMotion,
@@ -139,20 +147,18 @@ type ResolvedPos = BpmnPoint & { queued: boolean; hidden?: boolean };
 function resolvePosition(
   token: ReplayToken,
   registry: BpmnElementRegistry,
+  routeFor: (from: string | null, to: string | null) => BpmnPoint[] | null,
   queuedByNode: Map<string, ReplayToken[]>,
   activeByNode: Map<string, ReplayToken[]>,
   reduceMotion: boolean,
 ): ResolvedPos | null {
   if (token.at.kind === "flow") {
-    if (reduceMotion) {
-      const shape = registry.get(token.at.to);
-      return shape ? { ...shapeCenter(shape), queued: false } : null;
+    const to = token.at.to ? registry.get(token.at.to) : undefined;
+    if (reduceMotion) return to ? { ...shapeCenter(to), queued: false } : null;
+    const route = routeFor(token.at.from, token.at.to);
+    if (route && route.length >= 2) {
+      return { ...pointAlong(route, token.at.progress), queued: false };
     }
-    const conn = findConnection(registry, token.at.from, token.at.to);
-    if (conn?.waypoints && conn.waypoints.length >= 2) {
-      return { ...pointAlong(conn.waypoints, token.at.progress), queued: false };
-    }
-    const to = registry.get(token.at.to);
     return to ? { ...shapeCenter(to), queued: false } : null;
   }
 
@@ -200,20 +206,6 @@ function shapeCenter(shape: BpmnShape): BpmnPoint {
   };
 }
 
-function findConnection(
-  registry: BpmnElementRegistry,
-  from: string,
-  to: string,
-): BpmnShape | undefined {
-  return registry
-    .filter(
-      (el) =>
-        Array.isArray(el.waypoints) &&
-        el.source?.id === from &&
-        el.target?.id === to,
-    )
-    .at(0);
-}
 
 function pointAlong(waypoints: BpmnPoint[], progress: number): BpmnPoint {
   const segLengths: number[] = [];
