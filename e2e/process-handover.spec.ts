@@ -42,10 +42,42 @@ async function fixture(page: Page, options: Options = {}) {
     { id: "change-1", node_id: "approve", node_name: "Approvare richiesta", base_revision: BASE, kind: "candidate", title: "Togliere la seconda firma sotto 5.000 €", detail: "L'approvazione richiede troppo tempo: due firme anche per importi bassi.", created_at: "2026-10-05T10:00:00Z", created_by: "consulente" },
   ];
   const processItem = () => ({ id: "handover-process", project_id: "handover-project", bpmn_model_id: "handover-model", name: "Acquisti indiretti", stage: "TO-BE", status, owner: options.owner ?? "Amministrazione", readiness: 80, archived_at: null, archive_reason: null });
-  await page.addInitScript(() => Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000" }));
-  await page.route(`${API}/**`, async (route) => {
+  // La chiave dello studio e' configurata: la pagina del cliente non deve mai usarla.
+  await page.context().addInitScript(() => Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000", DELIR_API_TOKEN: "studio-secret" }));
+  const link: { token: string | null; views: number; lastViewed: string | null } = { token: null, views: 0, lastViewed: null };
+  const sharedRequests: Array<Record<string, string>> = [];
+  const dashboard = () => ({
+    process: { name: "Acquisti indiretti", owner: options.owner ?? "Amministrazione", status, stage: "TO-BE" },
+    project_name: "Acquisti", client_name: "Azienda demo", xml: XML,
+    changes: actions.filter((item) => item.kind === "candidate").map(({ id, node_id, node_name, title, detail, created_at }) => ({ id, node_id, node_name, title, detail, created_at })),
+    open_points: actions.filter((item) => item.kind === "clarification" || item.kind === "deferred").map(({ id, node_id, node_name, title, kind, created_at }) => ({ id, node_id, node_name, title, kind, created_at })),
+    versions: [{ id: 7, change_summary: "Nuova approvazione degli acquisti", created_at: "2026-10-06T09:00:00Z" }],
+    results: options.simulated ? { scenario_name: RUN.scenario_name, completed_at: RUN.completed_at, cycle_avg_seconds: RUN.summary.cycle.avg, waiting_avg_seconds: RUN.summary.waiting.avg, cost_per_case: RUN.summary.cost.perCase } : null,
+    generated_at: "2026-10-11T08:00:00Z",
+  });
+  await page.context().route(`${API}/**`, async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === "/v1/shared/process-dashboard") {
+      sharedRequests.push(await request.allHeaders());
+      if (!link.token || request.headers()["x-delir-share-token"] !== link.token) return route.fulfill({ status: 404, json: { ok: false, error: { message: "Link non valido o scaduto." } } });
+      link.views += 1;
+      link.lastViewed = "2026-10-11T09:30:00Z";
+      return route.fulfill({ json: dashboard(), headers: { "cache-control": "no-store" } });
+    }
+    if (path.endsWith("/owner-dashboard")) return route.fulfill({ json: dashboard() });
+    if (path.endsWith("/owner-link")) {
+      if (request.method() === "POST") {
+        link.token = `tok_${"x".repeat(40)}${Date.now()}`;
+        link.views = 0;
+        link.lastViewed = null;
+        return route.fulfill({ status: 201, json: { token: link.token, created_at: "2026-10-11T08:00:00Z", expires_at: "2027-04-09T08:00:00Z" } });
+      }
+      if (request.method() === "DELETE") { link.token = null; return route.fulfill({ status: 204, body: "" }); }
+      return route.fulfill({ json: link.token
+        ? { active: true, created_at: "2026-10-11T08:00:00Z", expires_at: "2027-04-09T08:00:00Z", last_viewed_at: link.lastViewed, view_count: link.views }
+        : { active: false, view_count: 0 } });
+    }
     if (path === "/v1/workspace/projects/handover-project") return route.fulfill({ json: {
       id: "handover-project", client_id: "example", client: "Azienda demo", name: "Acquisti", objective: "Ridisegno", lead: "Consulente", start_date: null, end_date: null,
       phase: "TO-BE", status: "In corso", progress: 70, processes: 1, next_step: "Consegna", milestones: [], open_issues: [], deliverables: [], archived_at: null, archive_reason: null,
@@ -80,7 +112,7 @@ async function fixture(page: Page, options: Options = {}) {
     if (path.endsWith("/versions")) return route.fulfill({ json: [{ id: 7, bpmn_model_id: "handover-model", process_id: "handover-process", change_summary: "To-Be", source: "canvas", created_at: "2026-10-06T09:00:00Z" }] });
     return route.fulfill({ json: [] });
   });
-  return { patches, actions };
+  return { patches, actions, link, sharedRequests };
 }
 
 /** Quanto il contenuto supera la larghezza visibile, nel documento o in un contenitore che scorre. */
@@ -197,3 +229,52 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
     await page.screenshot({ path: info.outputPath(`owner-dashboard-${viewport.name}.png`), fullPage: true });
   });
 }
+
+test("the consultant creates the client link, the client opens it without studio credentials, the consultant sees the visit", async ({ page, context }, info) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const api = await fixture(page, { status: "Da validare", simulated: true });
+  await page.goto(URL_HANDOVER);
+  const panel = page.getByRole("region", { name: "Link per il cliente" });
+  await expect(panel.getByText("Nessun link attivo.")).toBeVisible();
+  await panel.getByRole("button", { name: "Crea il link" }).click();
+  const url = await panel.getByLabel("Link del cruscotto").inputValue();
+  expect(url).toMatch(/\/share\.html#tok_/);
+  expect(url.split("#")[1]).toBe(api.link.token);
+  await panel.getByRole("button", { name: "Copia il link" }).click();
+  await expect(page.getByText("Link copiato")).toBeVisible();
+  await expect(panel.getByText("Il cliente non l'ha ancora aperto.")).toBeVisible();
+
+  // Il cliente apre il link in una pagina nuova.
+  const client = await context.newPage();
+  await client.goto(url.replace(/^https?:\/\/[^/]+/, ""));
+  await expect(client.getByRole("heading", { level: 1, name: "Acquisti indiretti" })).toBeVisible();
+  await expect(client.getByText("In attesa della tua approvazione")).toBeVisible();
+  await expect(client.getByRole("region", { name: "Come funziona il processo" })).toContainText("Importo sopra 5.000 €?");
+  await expect(client.getByText("Link personale: non inoltrarlo ad altre persone.")).toBeVisible();
+  await expect(client.getByRole("button", { name: "Torna alla consegna" })).toHaveCount(0);
+  const shared = api.sharedRequests.at(-1)!;
+  expect(shared["x-delir-share-token"]).toBe(api.link.token);
+  expect(shared.authorization).toBeUndefined();
+  expect(shared["x-delir-tenant-id"]).toBeUndefined();
+  const results = await new AxeBuilder({ page: client }).include(".owner-dashboard").analyze();
+  expect(results.violations.map((violation) => violation.id)).toEqual([]);
+  await client.screenshot({ path: info.outputPath("share-page.png"), fullPage: true });
+
+  // Il consulente vede la visita, poi disattiva il link.
+  await page.reload();
+  await expect(panel.getByText("Aperto dal cliente 1 volta, il 11 ott 2026")).toBeVisible();
+  await panel.getByRole("button", { name: "Disattiva il link" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Disattiva il link" }).click();
+  await expect(panel.getByText("Nessun link attivo.")).toBeVisible();
+  await client.reload();
+  await expect(client.getByRole("heading", { name: "Questo link non funziona" })).toBeVisible();
+});
+
+test("a share page without a code or with a wrong code says the link does not work", async ({ page }) => {
+  await fixture(page);
+  await page.goto("/share.html");
+  await expect(page.getByRole("heading", { name: "Questo link non funziona" })).toBeVisible();
+  await page.goto("/share.html#codice-sbagliato-0123456789012345678901234567890");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Questo link non funziona" })).toBeVisible();
+});
