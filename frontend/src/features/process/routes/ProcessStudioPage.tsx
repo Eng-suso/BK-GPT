@@ -7,7 +7,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FlaskConical, ArrowLeft, Users, MessagesSquare, Workflow, Focus, GitPullRequest } from "lucide-react";
+import { FlaskConical, ArrowLeft, Users, MessagesSquare, Workflow, Focus, GitPullRequest, Send } from "lucide-react";
 
 import { WorkspaceContextBar, WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
 import { ErrorState } from "@/components/feedback";
@@ -157,6 +157,7 @@ export function ProcessStudioPage(): React.JSX.Element {
           </div>
         </WorkspaceDisclosure>
         <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.simulation(project.id, process.id))} aria-label={t("simulation.section.title")} title={t("simulation.section.title")}><FlaskConical aria-hidden className="size-4" /><span className="process-view-label">{t("simulation.section.title")}</span></Button>
+        <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.handover(project.id, process.id))} aria-label={t("handover.open")} title={t("handover.open")}><Send aria-hidden className="size-4" /><span className="process-view-label">{t("handover.title")}</span></Button>
       </>} />
 
       <TabsContent value={view} className="min-h-0 flex-1">
