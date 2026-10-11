@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { InlineNotice } from "@/components/feedback/InlineNotice";
 import { httpErrorMessage } from "@/lib/http";
@@ -58,7 +59,14 @@ export function RequestChangesDialog({ processId, revision, nodes, open, onOpenC
               if (!canSubmit) return;
               mutation.mutate(
                 { id: requestId, node_id: node, base_revision: revision, kind: "clarification", title: title.trim(), detail: detail.trim() },
-                { onSuccess: async () => { await onSaved(); close(false); } },
+                {
+                  // La richiesta e' registrata anche se il cambio di stato non
+                  // riesce: il dialogo si chiude e l'errore lo dice a parte.
+                  onSuccess: async () => {
+                    try { await onSaved(); } catch { toast.error(t("handover.done.error")); }
+                    close(false);
+                  },
+                },
               );
             }}
           >
