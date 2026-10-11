@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeliR · Process Intelligence Software</title>
+  <meta name="description" content="DeliR turns scattered client knowledge into a verified As-Is, compares To-Be scenarios with simulation and keeps processes improving.">
+  <!-- Above the fold: font e poster prima di tutto, il video dopo. -->
+  <link rel="preload" href="fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="media/delir-hero.webp" as="image" fetchpriority="high">
+  <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="#" aria-label="DeliR home">DeliR</a>
+    <nav aria-label="Main">
+      <a href="#product">Product</a>
+      <a href="#consultants">For consultants</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <a class="button button-ghost" href="#demo">Sign in</a>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow">For operations consultants</p>
+        <h1 id="hero-title">Process Intelligence Software for Efficient and Effective Operations</h1>
+        <p class="lede">Stop spending weeks reconstructing how your client really works. DeliR turns scattered knowledge into a verified As-Is, compares To-Be scenarios, and continuously improves processes so you deliver better recommendations faster.</p>
+        <div class="actions">
+          <a class="button button-primary" href="#demo">Book a demo</a>
+          <a class="button button-ghost" href="#product">See how it works</a>
+        </div>
+      </div>
+
+      <figure class="hero-media">
+        <div class="frame">
+          <!-- Loop muto di 10 s: il prodotto vero, dalle fonti al miglioramento continuo. -->
+          <video class="hero-video" width="1600" height="900" autoplay muted loop playsinline preload="metadata"
+            poster="media/delir-hero.webp" aria-describedby="hero-video-description">
+            <source src="media/delir-hero.webm" type="video/webm">
+            <source src="media/delir-hero.mp4" type="video/mp4">
+          </video>
+        </div>
+        <figcaption id="hero-video-description" class="sr-only">
+          DeliR in use: four client sources (a procedure, an interview transcript, a spreadsheet and meeting notes) become a
+          verified As-Is process with its evidence; a wait-time heatmap shows the bottleneck at the approval step; the scenario
+          workspace compares the As-Is with two alternatives across six simulated replications; the chosen scenario stays
+          linked to every change it makes. Demo data, simulated example.
+        </figcaption>
+      </figure>
+    </section>
+  </main>
+
+  <script src="hero-video.js" defer></script>
+</body>
+</html>
