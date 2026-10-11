@@ -137,3 +137,41 @@ export function latestCompletedRun(runs: SimulationRun[]): SimulationRun | null 
     .filter((run) => run.status === "completed" && run.summary)
     .sort((a, b) => (b.completed_at ?? b.created_at).localeCompare(a.completed_at ?? a.created_at))[0] ?? null;
 }
+
+export type TimelineEvent = {
+  id: string;
+  kind: "version" | "change" | "request" | "deferred";
+  at: string;
+  title: string;
+  /** Il passo toccato, quando l'evento ne riguarda uno. */
+  activity?: string;
+};
+
+const TIMELINE_KIND: Partial<Record<ReviewAction["kind"], TimelineEvent["kind"]>> = {
+  candidate: "change",
+  clarification: "request",
+  deferred: "deferred",
+};
+
+/**
+ * Cosa e' successo al processo, dal piu' recente: le versioni salvate e le
+ * voci della revisione. Solo eventi con una data vera; quelli illeggibili
+ * restano fuori invece di finire in cima o in fondo a caso.
+ */
+export function buildTimeline(
+  versions: Array<{ id: number; changeSummary: string; createdAt: string }>,
+  review: ReviewState | null | undefined,
+  limit = 8,
+): TimelineEvent[] {
+  const events: TimelineEvent[] = [
+    ...versions.map((version) => ({ id: `version-${version.id}`, kind: "version" as const, at: version.createdAt, title: version.changeSummary })),
+    ...(review?.actions ?? []).flatMap((action) => {
+      const kind = TIMELINE_KIND[action.kind];
+      return kind ? [{ id: `action-${action.id}`, kind, at: action.created_at, title: action.title, activity: action.node_name }] : [];
+    }),
+  ];
+  return events
+    .filter((event) => !Number.isNaN(Date.parse(event.at)))
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+    .slice(0, limit);
+}

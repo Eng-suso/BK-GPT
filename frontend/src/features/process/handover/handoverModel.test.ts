@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ConformanceStatus, ProcessProvenance } from "@/contracts/workspace";
 import type { SimulationRun } from "../simulation/simulationTypes";
 import type { ReviewAction, ReviewState } from "../review/reviewModel";
-import { buildReadiness, changesWithEvidence, latestCompletedRun, openPoints, stageFromStatus } from "./handoverModel";
+import { buildReadiness, buildTimeline, changesWithEvidence, latestCompletedRun, openPoints, stageFromStatus } from "./handoverModel";
 
 const XML = `<?xml version="1.0"?><definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"><process id="p">
 <userTask id="approve" name="Approvare"><documentation>DeliR traceability: {"source_refs":["steps:approve"]}</documentation></userTask>
@@ -76,5 +76,24 @@ describe("handover content", () => {
     expect(openPoints(review([action("q", "clarification"), action("c", "candidate")])).map((item) => item.id)).toEqual(["q"]);
     expect(latestCompletedRun([run(1, "completed", "2026-10-02T00:00:00Z"), run(2, "completed", "2026-10-05T00:00:00Z"), run(3, "pending", null)])?.id).toBe(2);
     expect(latestCompletedRun([])).toBeNull();
+  });
+});
+
+describe("owner dashboard timeline", () => {
+  it("merges versions and review entries, newest first, and drops undated or internal ones", () => {
+    const versions = [
+      { id: 1, changeSummary: "Prima bozza", createdAt: "2026-10-01T09:00:00Z" },
+      { id: 2, changeSummary: "To-Be", createdAt: "2026-10-06T09:00:00Z" },
+      { id: 3, changeSummary: "Senza data", createdAt: "not-a-date" },
+    ];
+    const actions = [
+      { ...action("c", "candidate"), created_at: "2026-10-03T09:00:00Z" },
+      { ...action("q", "clarification"), created_at: "2026-10-07T09:00:00Z" },
+      { ...action("a", "as_is_proposal"), created_at: "2026-10-08T09:00:00Z" },
+    ];
+    const timeline = buildTimeline(versions, review(actions));
+    expect(timeline.map((event) => event.id)).toEqual(["action-q", "version-2", "action-c", "version-1"]);
+    expect(timeline[0]).toMatchObject({ kind: "request", activity: "approve" });
+    expect(buildTimeline(versions, null, 1)).toHaveLength(1);
   });
 });
