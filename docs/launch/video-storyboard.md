@@ -11,9 +11,9 @@ da qui in poi cambia il prodotto, non la storia.
 | Caso | Golden set `esaote_ciclo_passivo` (3 interviste: Laura Conti, Paolo Marchetti, Francesca Neri) |
 | Cliente a schermo | **Vetrano Industriale S.p.A.** (fittizio). Esaote non compare mai negli asset pubblici |
 | Process owner | **Laura Conti** |
-| Audio | **Nessuno.** Il racconto passa da testo a schermo, camera (zoom/focus) e cursore |
+| Audio | **Nessuno.** Il racconto passa da testo a schermo e cursore; le chat dell'agente si vedono in streaming |
 | Lingua | Italiano principale, inglese seconda versione dallo stesso script |
-| Frase guida | **Non disegnare il processo. Dimostralo.** |
+| Frase di chiusura | **Dalle interviste alla decisione del cliente. Con i numeri.** |
 | Disclaimer fisso | *Azienda e persone fittizie · caso dimostrativo* |
 
 ## Perché non c'è una contraddizione
@@ -29,32 +29,85 @@ storia si regge su cio' che le fonti dicono davvero:
 3. **Il To-Be l'hanno chiesto loro.** Richiesta completa con campi
    obbligatori (Laura, Francesca), autorizzazione visibile (Francesca).
 
-## Storyboard (muto, ~1'57")
+## Il copy: il dolore del consulente, poi il risultato
 
-| Tempo | Momento | Cosa si vede | Testo a schermo |
-| --- | --- | --- | --- |
-| 0–10 s | Gancio | Card citazioni: Laura "…non so da chi.", Paolo "…non voglio dirti un nome a caso." | Nessuno conosce il processo intero. |
-| 10–20 s | Capire | Fonti → claim → contatori | Fatti, ipotesi, lacune. Separati. |
-| 20–27 s | Passaggio nascosto | I due "non so" collegati alla risposta di Francesca | Due non sanno. Una sì. |
-| 27–34 s | Lacuna | Soglia di autorizzazione: nessuna fonte, domanda aperta | DeliR non inventa. Te lo chiede. |
-| 34–46 s | Validare + tracciare | BPMN a 6 lane, zoom su "Regolarizza ordine" → citazione | Ogni passaggio ha una fonte. |
-| 46–54 s | Correggere l'As-Is | Lacuna chiusa, "As-Is v3 · validato" | L'ultima parola è tua. |
-| 54–66 s | Simulare l'As-Is | Token nel ciclo di rilavorazione, coda su "Autorizza spesa" | Oggi: più di metà delle richieste torna indietro. |
-| +8 s | Heatmap | Attesa per attività: Autorizza spesa in rosso (2g 22h), scheda del collo di bottiglia | Il collo di bottiglia, misurato. |
-| 66–74 s | Creare il To-Be | Modifiche con la citazione di chi le ha chieste | Il To-Be l'avevano già chiesto loro. |
-| 74–84 s | Simulare il To-Be | Stesse richieste, la coda sparisce | Stesse richieste. Processo nuovo. |
-| 84–94 s | Decidere | Confronto KPI e verdetto (numeri dalla simulazione) | Non un'opinione. Una simulazione. |
-| 94–102 s | Process owner | Prossimo passo del progetto: validazione del To-Be con Laura Conti | Prossimo passo: il process owner. |
-| 102–113 s | Memoria | Zoom out processo → progetto → cliente → portafoglio | Tutto resta nella memoria di DeliR. / Per ogni cliente. Per ogni progetto. |
-| 113–117 s | Chiusura | Logo, URL | Non disegnare il processo. Dimostralo. |
+Il pubblico e' il consulente di processo e il piccolo studio. Niente slogan:
+il gancio dice i quattro problemi che riconosce subito, la promessa dice cosa
+porta al cliente, ogni scena risponde a un problema, la card dei risultati
+chiude il cerchio con i numeri del caso.
 
-Tagli dallo stesso girato: **loop hero 20 s** (20–34 s + 54–60 s), **social 45 s**.
+| # | Gancio (un problema per volta) |
+| --- | --- |
+| 1 | Tre interviste. Tre versioni diverse dello stesso processo. |
+| 2 | Giorni a ricostruirlo dagli appunti. |
+| 3 | Poi il cliente chiede: «Questo chi l'ha detto?» |
+| 4 | E subito dopo: «Quanto ci fa risparmiare?» E tu rispondi a sensazione. |
+
+**Promessa** — Con DeliR, dal cliente arrivi con: un As-Is con la fonte di ogni passaggio, il collo di bottiglia misurato, non intuito, un To-Be con il risparmio già simulato.
+
+**Risultato** — Il risultato per Vetrano Industriale: 38 affermazioni, ognuna con la sua citazione · 2g 22h di attesa sull'autorizzazione, misurata · −75% tempo di attraversamento nel To‑Be · −29% costo per pratica nel To‑Be. Valori simulati · modello As-Is verificato sul log del cliente (scarto 2%).
+
+**Chiusura** — Dalle interviste alla decisione del cliente. Con i numeri.
+
+La domanda «Quanto ci fa risparmiare?» del gancio torna nella scena della
+decisione, con la risposta simulata. Le domande del cliente non sono citazioni
+delle interviste e non sono attribuite a nessuno.
+
+## Storyboard (muto)
+
+Il percorso: interviste → As-Is → review dell'As-Is con DeliR → As-Is
+corretto → simulazione e heatmap → verifica sull'event log del cliente →
+review del To-Be con DeliR → ipotesi → simulazione To-Be → decisione →
+export per il process owner → memoria. Le chat sono in streaming (fasi di
+lavoro, poi testo che arriva a pezzi), come dal backend.
+
+| Scena | Testo a schermo |
+| --- | --- |
+| 01-gancio | card |
+| 01b-promessa | Con DeliR, dal cliente arrivi con: |
+| 02-interviste-a-delir | Carichi le interviste. DeliR estrae chi fa cosa. |
+| 03-fonti | «Chi l'ha detto?» Ecco la frase esatta. |
+| 04-passaggio-nascosto | Le versioni che non tornano escono prima del workshop. |
+| 05-lacuna | Quello che nessuno ha detto diventa una domanda per il cliente. |
+| 06-as-is | La bozza As-Is arriva già collegata alle fonti. |
+| 07-review-as-is | Rivedi ogni attività con DeliR, prima di mostrarla. |
+| 08-as-is-corretto | Ogni correzione resta tracciata, versione per versione. |
+| 09-simula-as-is | Simuli il processo di oggi, prima di cambiarlo. |
+| 10-heatmap | Il collo di bottiglia, misurato: quasi 3 giorni di attesa. |
+| 11-event-log | Controlli la simulazione sul log del cliente: scarto 2%. |
+| 12-review-to-be | Chiedi a DeliR dove intervenire. Risponde con le fonti. |
+| 13-ipotesi-to-be | Il To-Be parte da quello che chiede chi lavora nel processo. |
+| 14-simula-to-be | Stesse richieste. Processo nuovo. |
+| 15-decidi | «Quanto ci fa risparmiare?» −75% di tempo, −29% di costo. Simulato. |
+| 16-process-owner | Il To-Be va al process owner in BPMN, pronto da validare. |
+| 17-memoria | Fonti, versioni e simulazioni restano nel progetto. / Il prossimo cliente non parte da zero. |
+| 17b-risultato | Il risultato per Vetrano Industriale |
+| 18-chiusura | Dalle interviste alla decisione del cliente. Con i numeri. |
+
+**Tagli** (`storyboard.json` → `cuts`, stesso girato): **~90 s** movimentato
+(12 scene con le card, testo 2,3 s) e **2'30"** esteso (19 scene, testo 2,3 s). Le chat
+hanno tre velocita' legate ai marker della registrazione: digitazione 3–3,5×,
+risposta in streaming 1,2–1,5× (si legge), rilettura 2,5×. Loop hero: review dell'As-Is + replay As-Is.
+
+## Regia
+
+I tagli li monta `scripts/launch_media_edit.py`, fotogramma per fotogramma:
+
+- **camera**: in cattura ogni scena registra dove guardare (`rec.focus`,
+  `rec.wide`); il montaggio fa zoom e panoramiche con easing in-out (0,9 s) su
+  quel rettangolo e torna al campo largo;
+- **transizioni**: dissolvenza incrociata di 0,45 s fra le scene, apertura e
+  chiusura dal bianco;
+- **testi**: entrano dal basso con dissolvenza, durante l'attesa della scena;
+- **percorso del consulente**: in alto, le sei tappe (Interviste, As-Is,
+  Simulazione, Event log, To-Be, Process owner), quella in corso accesa e le
+  precedenti spuntate; il disclaimer in basso a destra.
 
 ## Regole del video muto
 
-- Un testo per scena, massimo 7 parole, almeno 2,5 s a schermo.
+- Un testo per scena, corto, almeno 2 s a schermo (taglio 90 s) o 2,6 s (esteso).
 - Prima il testo, poi l'azione: mai testo sopra una UI che cambia.
-- La camera racconta: zoom sull'elemento, il resto si scurisce.
+- Le chat si registrano da vicino (1280×720 a densita' 1,5): a 1920 il testo si legge.
 - I testi si generano nel browser durante la cattura (IT/EN dallo stesso script).
 - I numeri dei KPI escono dalla simulazione Prosimos, non dalla sceneggiatura.
 - Volume e costi orari non sono nelle fonti: a schermo sono "assunzione del consulente".
@@ -75,7 +128,8 @@ Tagli dallo stesso girato: **loop hero 20 s** (20–34 s + 54–60 s), **social 
 Generazione: `npm run media:launch` (cattura + montaggio; solo montaggio:
 `npm run media:launch:render`). Output in `artifacts/launch-media/` (non
 versionato): `screens/` (PNG 3840×2160), `landing/` (MP4 + WebM + poster per
-sezione, `hero-loop`), `scenes/`, `video/delir-presentazione-it.mp4`.
+sezione, `hero-loop`), `scenes/`, `video/delir-90s-it.mp4`, `video/delir-150s-it.mp4` (e
+`video/delir-presentazione-it.mp4` con tutte le scene per intero).
 
 Dove il Chromium installato non e' quello di Playwright:
 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/percorso/chrome npm run media:launch`.
@@ -84,6 +138,7 @@ Dove il Chromium installato non e' quello di Playwright:
 
 | Cosa | Fonte |
 | --- | --- |
+| Event log | altra run Prosimos dell'As-Is (seed 7, 240 casi) esportata come dal gestionale + registrazione fattura; analisi di `backend.eventlog.analysis.analyze` (`scripts/launch_media_eventlog.py`) |
 | Interviste, claim, citazioni, evidenze | golden set `tests/golden/esaote_ciclo_passivo` (alla lettera; il modulo dati si ferma se una citazione non si trova) |
 | BPMN As-Is | compilatore del prodotto (`data/as-is.compiled.bpmn`), corretto in v3 da `scripts/launch_media_asis.py` |
 | KPI, replay, confronto, esperimenti | Prosimos 2.1.0 + funzioni del backend (`scripts/launch_media_simulate.py`), seed fisso |
@@ -116,6 +171,7 @@ BPMN: le domande stanno sugli split.
 | --- | --- |
 | Compilatore BPMN | Un gateway per domanda, default dichiarati ed etichettati, merge espliciti, un evento di fine per esito, nomi di inizio/fine, ordine delle corsie, layout ortogonale: oggi li corregge a mano la v3 |
 | Creare il To-Be | Le ipotesi To-Be esistono; manca l'azione "Crea To-Be da questo As-Is" (copia collegata del modello) |
-| Process owner | Manca il flusso di invio/validazione: oggi `owner` è un campo di testo. Il video mostra il "prossimo passo", non un invio |
+| Process owner | Manca l'invio al process owner (e la sua validazione): oggi `owner` è un campo di testo e le decisioni di progetto sono in sola lettura. Il video mostra l'export del To-Be ("Scarica BPMN") e il prossimo passo del progetto, non un invio |
+| Review mode | La chat di review non mostra le fasi di lavoro (solo "Sto esaminando il processo…"), quella di processo si' |
 | Tela di simulazione | Il layout del video e' scritto nel `localStorage` come lo salva "Modifica canvas": manca un layout "presentazione" predefinito |
 | Versione inglese | Mancano i testi EN in storyboard.json e la cattura con l'interfaccia in inglese |

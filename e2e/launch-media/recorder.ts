@@ -10,10 +10,23 @@ import { resolve } from "node:path";
  * il suo istante; il montaggio (`scripts/launch_media_render.mjs`) li porta a
  * 30 fps costanti. I `mark` segnano istanti della scena per i testi a schermo.
  */
+/**
+ * Eventi sonori (clic, digitazione, card che entrano): li scrivono i gesti
+ * del cursore e le card; ogni scena tiene quelli caduti durante la sua
+ * registrazione. Il montaggio (`launch_media_edit.py`) ci mette gli effetti.
+ */
+type Cue = { at: number; kind: string; count?: number; length?: number };
+const cues: Cue[] = [];
+
+export function cue(kind: string, extra: { count?: number; length?: number } = {}, delay = 0): void {
+  cues.push({ at: Date.now() / 1000 + delay, kind, ...extra });
+}
+
 export class Recorder {
   private session: CDPSession | null = null;
   private frames: { file: string; t: number }[] = [];
   private marks: Record<string, number> = {};
+  private camera: { t: number; rect: { x: number; y: number; width: number; height: number } | null; zoom?: number }[] = [];
   private started = 0;
   private pending: Promise<unknown>[] = [];
 
@@ -30,7 +43,11 @@ export class Recorder {
       this.pending.push(this.session!.send("Page.screencastFrameAck", { sessionId }).catch(() => undefined));
     });
     const { width, height } = this.page.viewportSize() ?? { width: 1920, height: 1080 };
-    await this.session.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: width, maxHeight: height, everyNthFrame: 1 });
+    // Con densita' > 1 (scene ravvicinate) i fotogrammi restano a piena risoluzione.
+    const dpr = await this.page.evaluate(() => window.devicePixelRatio);
+    await this.session.send("Page.startScreencast", {
+      format: "jpeg", quality: 92, maxWidth: Math.round(width * dpr), maxHeight: Math.round(height * dpr), everyNthFrame: 1,
+    });
     this.started = Date.now() / 1000;
     // Un primo fotogramma anche se la pagina e' ferma.
     await this.page.evaluate(() => document.body.style.setProperty("--launch-tick", String(Math.random())));
@@ -40,15 +57,37 @@ export class Recorder {
     this.marks[name] = Date.now() / 1000 - this.started;
   }
 
+  /**
+   * Inquadratura: il montaggio (scripts/launch_media_edit.py) porta la camera
+   * su questo rettangolo, con un movimento morbido. `zoom` e' il massimo.
+   */
+  async focus(target: Locator | { x: number; y: number; width: number; height: number }, zoom = 1.6, pad = 48): Promise<void> {
+    const box = "boundingBox" in target ? await target.boundingBox() : target;
+    if (!box) return;
+    this.camera.push({
+      t: Date.now() / 1000 - this.started,
+      rect: { x: box.x - pad, y: box.y - pad, width: box.width + 2 * pad, height: box.height + 2 * pad },
+      zoom,
+    });
+  }
+
+  /** Ritorno al campo largo. */
+  wide(): void {
+    this.camera.push({ t: Date.now() / 1000 - this.started, rect: null });
+  }
+
   async stop(): Promise<void> {
     const ended = Date.now() / 1000;
     await this.session?.send("Page.stopScreencast");
     await Promise.all(this.pending);
     await this.session?.detach();
     const t0 = this.frames[0]?.t ?? this.started;
+    const events = cues
+      .filter((item) => item.at >= this.started && item.at <= ended)
+      .map(({ at, ...item }) => ({ ...item, t: at - this.started }));
     writeFileSync(
       resolve(this.dir, "scene.json"),
-      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, end: ended - t0 }, null, 1),
+      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, camera: this.camera, events, viewport: this.page.viewportSize(), end: ended - t0 }, null, 1),
     );
   }
 }
@@ -98,6 +137,7 @@ export async function moveTo(page: Page, target: Locator | { x: number; y: numbe
 export async function clickOn(page: Page, target: Locator, ms = 700): Promise<void> {
   await moveTo(page, target, ms);
   await page.evaluate(() => document.getElementById("launch-cursor")?.classList.add("is-clicking"));
+  cue("click");
   await page.waitForTimeout(140);
   await target.click();
   await page.evaluate(() => document.getElementById("launch-cursor")?.classList.remove("is-clicking"));

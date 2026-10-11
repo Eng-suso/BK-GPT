@@ -22,10 +22,26 @@ export default defineConfig({
     viewport: { width: 1920, height: 1080 },
     launchOptions: { executablePath },
   },
-  webServer: {
-    command: "npm run dev:frontend",
-    url: "http://127.0.0.1:3030",
-    reuseExistingServer: true,
-    timeout: 120 * 1000,
-  },
+  webServer: [
+    {
+      command: "npm run dev:frontend",
+      url: "http://127.0.0.1:3030",
+      reuseExistingServer: true,
+      timeout: 120 * 1000,
+    },
+    {
+      // La landing statica con il video hero (landing/).
+      command: "python3 -m http.server 4310 --bind 127.0.0.1 --directory landing",
+      url: "http://127.0.0.1:4310/index.html",
+      reuseExistingServer: true,
+      timeout: 20 * 1000,
+    },
+    {
+      // Le risposte dell'agente in streaming, come dal backend (streamServer.mjs).
+      command: "node e2e/launch-media/streamServer.mjs",
+      url: "http://127.0.0.1:8000/health",
+      reuseExistingServer: true,
+      timeout: 20 * 1000,
+    },
+  ],
 });

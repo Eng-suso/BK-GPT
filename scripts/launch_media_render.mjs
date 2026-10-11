@@ -7,8 +7,10 @@
  *   scenes/<id>.mp4          scena del video, con testo a schermo e disclaimer
  *   landing/<nome>.mp4|webm  clip in loop per la landing (senza testo) + poster
  *   landing/hero-loop.*      il loop dell'hero (storyboard.json -> hero)
- *   video/delir-presentazione-it.mp4   il video muto completo
+ *   video/delir-presentazione-it.mp4   tutte le scene per intero (materiale di montaggio)
  *
+ * I tagli montati (90s, 150s: camera, dissolvenze, testi animati) li fa
+ * scripts/launch_media_edit.py.
  *   node scripts/launch_media_render.mjs               # tutte le scene
  *   node scripts/launch_media_render.mjs 01-gancio     # solo quelle, riusando le altre
  */
@@ -135,3 +137,4 @@ if (sceneFiles.length) {
   const seconds = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video]).toString().trim();
   console.log(`video completo: ${video} (${Number(seconds).toFixed(1)} s)`);
 }
+

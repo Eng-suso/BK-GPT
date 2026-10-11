@@ -15,6 +15,11 @@ import {
   provenance,
   relationsOf,
   review,
+  AS_IS_REVIEW_NODE,
+  asIsReviewScript,
+  discoveryScript,
+  eventLog,
+  reviewScript,
   runById,
   simulationLayout,
   simulationLayoutKey,
@@ -24,13 +29,20 @@ import {
   sources,
   versions,
 } from "./demo";
+import { heroApi, heroRunData, heroRunRecords, heroSimulationLayout, heroWorkspace, heroXml } from "./heroData";
+import { HERO_SOURCES, englishJson } from "./heroLocale";
 
 export const API = "http://127.0.0.1:8000";
 
 /** Richieste che il caso non copre: lo spec le stampa, cosi' un buco si vede. */
 export const unhandled = new Set<string>();
 
-export async function installDemoApi(page: Page, language: "it" | "en" = "it"): Promise<void> {
+/**
+ * `live`: la discussione del processo parte vuota e le risposte dell'agente
+ * arrivano in streaming da `streamServer.mjs`, come dal backend vero.
+ */
+export async function installDemoApi(page: Page, language: "it" | "en" = "it", options: { live?: boolean; hero?: boolean } = {}): Promise<void> {
+  const reviewSessions: { thread_id: string; scope_key: string; title: string; messages: { role: string; content: string }[] }[] = [];
   await page.addInitScript(
     ({ base, lng, layoutKey, layout }) => {
       Object.assign(window, { DELIR_API_BASE: base });
@@ -38,7 +50,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
       // Il layout che il consulente ha salvato per la tela di simulazione.
       window.localStorage.setItem(layoutKey, layout);
     },
-    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(simulationLayout) },
+    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(options.hero ? heroSimulationLayout : simulationLayout) },
   );
 
   await page.route(`${API}/**`, async (route: Route) => {
@@ -46,7 +58,8 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
-    const json = (body: unknown, headers?: Record<string, string>) => route.fulfill({ json: body, headers });
+    // Hero della landing: interfaccia e nomi del caso demo in inglese.
+    const json = (body: unknown, headers?: Record<string, string>) => route.fulfill({ json: options.hero ? englishJson(body) : body, headers });
 
     if (path === "/v1/workspace/projects" && method === "GET") {
       return json(projects, { "X-DeliR-Total": String(projects.length) });
@@ -63,7 +76,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
     if (projectMatch && method === "GET") {
       return json(projects.find((item) => item.id === projectMatch[1]) ?? project);
     }
-    if (path === `/v1/workspace/projects/${IDS.project}/sources`) return json(sources);
+    if (path === `/v1/workspace/projects/${IDS.project}/sources`) return json(options.hero ? heroSources : sources);
     if (path === `/v1/workspace/projects/${IDS.project}/processes`) return json(project.process_items);
     if (path === `/v1/workspace/projects/${IDS.project}/decisions`) return json([]);
     if (path === `/v1/workspace/processes/${IDS.process}`) return json(project.process_items[0]);
@@ -78,7 +91,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
     }
 
     if (path === `/v1/workspace/bpmn-models/${IDS.model}` && method === "GET") {
-      return json({ id: IDS.model, process_id: IDS.process, name: "As-Is v3", xml: bpmnXml, version_id: 3 });
+      return json({ id: IDS.model, process_id: IDS.process, name: "As-Is v3", xml: options.hero ? heroXml : bpmnXml, version_id: 3 });
     }
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/versions`) {
       return json(versions.map((version) => ({ ...version, xml: bpmnXml })));
@@ -89,18 +102,27 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
     if (path === `/v1/workspace/processes/${IDS.process}/conformance`) return json(conformance);
     if (path === `/v1/workspace/processes/${IDS.process}/impact-review`) return json(impactReview);
 
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(api.simulation_template);
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(api.simulation_provenance);
+    if (path === `/v1/workspace/processes/${IDS.process}/event-logs` && method === "GET") return json([eventLog.log]);
+    const logId = String(eventLog.log.id);
+    if (path === `/v1/workspace/event-logs/${logId}`) return json(eventLog.log);
+    if (path === `/v1/workspace/event-logs/${logId}/preview`) return json(eventLog.preview);
+    if (path === `/v1/workspace/event-logs/${logId}/analysis` || path === `/v1/workspace/event-logs/${logId}/mapping`) return json(eventLog.analysis);
+    if (path === "/v1/workspace/event-log-templates") return json([]);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-template`) return json(options.hero ? heroApi.simulation_template : api.simulation_template);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-provenance`) return json(options.hero ? heroApi.simulation_provenance : api.simulation_provenance);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-compatibility`) return json(api.simulation_compatibility);
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-model`) {
       return json({ bpmn_model_id: IDS.model, model: runs().as_is.model });
     }
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(simulationRuns);
+    // Hero: il processo compatto con i suoi due run (il workspace a tre scenari resta per il caso grande).
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(options.hero ? heroRunRecords : simulationRuns);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-scenarios` && method === "GET") return json(heroWorkspace);
 
     const runMatch = path.match(/^\/v1\/workspace\/simulation-runs\/(\d+)(?:\/(replay|experiments|model))?$/);
     if (runMatch) {
       const id = Number(runMatch[1]);
-      const data = runData(id);
+      const data = (options.hero ? heroRunData(id) : runData(id)) as ReturnType<typeof runData>;
+      if (options.hero && !runMatch[2]) return json(heroRunRecords.find((run) => run.id === id) ?? null);
       if (!data) return route.fulfill({ status: 404, json: { detail: "Simulazione non trovata." } });
       if (runMatch[2] === "replay") return json({ run_id: id, schema_version: 1, replay: data.replay });
       if (runMatch[2] === "experiments") return json(data.experiments);
@@ -108,7 +130,40 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
       return json(runById(id));
     }
 
-    if (path === "/v1/consultant-chat/sessions" && method === "GET") return json([chatSession]);
+    // La chat di review e' per task (scope_key con ":review:"): sessioni sue,
+    // separate dalla discussione del processo.
+    if (path === "/v1/consultant-chat/sessions" && method === "GET") {
+      const scopeKey = url.searchParams.get("scope_key") ?? "";
+      if (scopeKey.includes(":review:")) return json(reviewSessions.filter((session) => session.scope_key === scopeKey));
+      if (options.live) return json(reviewSessions.filter((session) => !session.scope_key.includes(":review:")));
+      return json([chatSession]);
+    }
+    if (path === "/v1/consultant-chat/sessions" && method === "POST") {
+      const scope = (request.postDataJSON() as { scope?: Record<string, string> }).scope ?? {};
+      const session = {
+        thread_id: `review-thread-${reviewSessions.length + 1}`,
+        scope_key: scope.review_node_id
+          ? `canvas:${scope.project_id}:${scope.process_id}:${scope.bpmn_model_id}:review:${scope.review_node_id}`
+          : `${scope.type}:${scope.project_id}:${scope.process_id}`,
+        title: scope.review_node_id ? "Review del task" : "Ricostruzione As-Is dalle interviste",
+        messages: [] as { role: string; content: string }[],
+      };
+      reviewSessions.push(session);
+      return json(session);
+    }
+    const streamMatch = path.match(/^\/v1\/consultant-chat\/sessions\/([^/]+)\/messages\/stream$/);
+    if (streamMatch) {
+      const session = reviewSessions.find((item) => item.thread_id === streamMatch[1]);
+      const body = request.postDataJSON() as Record<string, unknown>;
+      const script = !session?.scope_key.includes(":review:")
+        ? discoveryScript
+        : session.scope_key.endsWith(`:review:${AS_IS_REVIEW_NODE}`) ? asIsReviewScript : reviewScript;
+      session?.messages.push({ role: "user", content: String(body.message ?? "") }, { role: "assistant", content: script.answer });
+      // Lo streaming lo fa streamServer.mjs, con il copione del turno.
+      return route.continue({ postData: JSON.stringify({ ...body, __script: script }) });
+    }
+    const reviewSession = reviewSessions.find((item) => path === `/v1/consultant-chat/sessions/${item.thread_id}`);
+    if (reviewSession) return json(reviewSession);
     if (path === `/v1/consultant-chat/sessions/${IDS.thread}`) {
       return json({ ...chatSession, model_name: "delir", messages: chatMessages });
     }
@@ -134,3 +189,13 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it"): 
 function runs() {
   return { as_is: runData(IDS.asIsRun)!, to_be: runData(IDS.toBeRun)! };
 }
+
+/** Le quattro fonti dell'hero: procedura, intervista, foglio, verbale. */
+const heroSources = HERO_SOURCES.map((item, index) => ({
+  ...sources[0],
+  id: `src-hero-${index + 1}`,
+  name: item.title,
+  type: item.kind === "interview" ? "Interview" : item.kind === "spreadsheet" ? "Spreadsheet" : item.kind === "notes" ? "Notes" : "Document",
+  meta: `${item.claims} claims`,
+  mime_type: item.icon === "pdf" ? "application/pdf" : item.icon === "sheet" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/markdown",
+}));
