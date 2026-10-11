@@ -9,6 +9,15 @@ import type { OwnerDashboardData } from "@/features/process/handover/dashboardCo
 import { OwnerDashboardView } from "@/features/process/handover/OwnerDashboardView";
 import { InvalidShareLink, fetchSharedDashboard, tokenFromHash } from "./fetchSharedDashboard";
 
+// Una richiesta per codice e tentativo: se React ripete l'effetto (in sviluppo
+// lo fa apposta) riusa quella partita, e il server conta una visita sola.
+const requests = new Map<string, Promise<OwnerDashboardData>>();
+function load(token: string, attempt: number): Promise<OwnerDashboardData> {
+  const key = `${attempt}:${token}`;
+  if (!requests.has(key)) requests.set(key, fetchSharedDashboard(token));
+  return requests.get(key)!;
+}
+
 type State =
   | { kind: "loading" }
   | { kind: "ready"; data: OwnerDashboardData }
@@ -25,14 +34,11 @@ export function SharedDashboardApp(): React.JSX.Element {
 
   useEffect(() => {
     if (!token) return;
-    const controller = new AbortController();
-    fetchSharedDashboard(token, controller.signal)
-      .then((data) => { document.title = `${data.processName} · ${t("handover.dashboard.title")}`; setState({ kind: "ready", data }); })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setState({ kind: error instanceof InvalidShareLink ? "invalid" : "error" });
-      });
-    return () => controller.abort();
+    let current = true;
+    load(token, attempt)
+      .then((data) => { if (!current) return; document.title = `${data.processName} · ${t("handover.dashboard.title")}`; setState({ kind: "ready", data }); })
+      .catch((error: unknown) => { if (current) setState({ kind: error instanceof InvalidShareLink ? "invalid" : "error" }); });
+    return () => { current = false; };
   }, [attempt, t, token]);
 
   if (state.kind === "ready") {

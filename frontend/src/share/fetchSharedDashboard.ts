@@ -9,13 +9,12 @@ export class InvalidShareLink extends Error {}
  * studio: questa pagina non le conosce. Il codice viaggia in un'intestazione,
  * non nell'indirizzo, cosi' non finisce nei log.
  */
-export async function fetchSharedDashboard(token: string, signal?: AbortSignal): Promise<OwnerDashboardData> {
+export async function fetchSharedDashboard(token: string): Promise<OwnerDashboardData> {
   const response = await fetch(`${API_BASE}/v1/shared/process-dashboard`, {
     headers: { "X-DeliR-Share-Token": token },
     cache: "no-store",
     credentials: "omit",
     referrerPolicy: "no-referrer",
-    signal,
   });
   if (response.status === 404) throw new InvalidShareLink();
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
