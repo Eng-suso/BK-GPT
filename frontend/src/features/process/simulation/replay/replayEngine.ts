@@ -42,9 +42,21 @@ function speedOptionsFor(durationSec: number): SpeedOption[] {
 
 const SAMPLE_TOKEN_CAP = 150;
 
+/**
+ * How long a hop between two nodes lasts on screen, in wall-clock seconds.
+ * Prosimos enables the next activity at the instant the previous one ends, so
+ * in simulated time a hop is zero-length and tokens would teleport. The hop is
+ * drawn over the first part of the next step instead (never more than half of
+ * it), so cases visibly flow along the sequence flows. Counters and charts
+ * read the series, not the tokens, so the numbers are unaffected.
+ */
+export const TOKEN_TRAVEL_WALL_SEC = 0.7;
+
+/** `from: null` = the case is born at a start event; `to: null` = it leaves
+ *  through an end event. */
 export type ReplayTokenAt =
   | { kind: "node"; el: string; queued: boolean }
-  | { kind: "flow"; from: string; to: string; progress: number };
+  | { kind: "flow"; from: string | null; to: string | null; progress: number };
 
 export type ReplayToken = {
   caseId: string;
@@ -450,7 +462,7 @@ export class ReplayEngine {
 
     const out: ReplayToken[] = [];
     for (const c of cases) {
-      const token = tokenForCase(c.events, t);
+      const token = tokenForCase(c.events, t, TOKEN_TRAVEL_WALL_SEC * this.speed);
       if (token) out.push({ caseId: c.id, at: token });
       if (this.granularity === "sample" && out.length >= SAMPLE_TOKEN_CAP) break;
     }
@@ -460,32 +472,52 @@ export class ReplayEngine {
 
 type CaseEvent = ReplayPayload["cases"][number]["events"][number];
 
-function tokenForCase(events: CaseEvent[], t: number): ReplayTokenAt | null {
+/**
+ * Where a case is at sim time `t`. `travel` (sim seconds) is the on-screen
+ * length of a hop: the real gap between two steps when there is one, else up
+ * to `travel` carved out of the start of the next step (at most half of it).
+ */
+export function tokenForCase(events: CaseEvent[], t: number, travel = 0): ReplayTokenAt | null {
   if (events.length === 0) return null;
-  if (t < events[0].enable) return null;
+  const first = events[0];
+  if (t < first.enable) return null;
   const last = events[events.length - 1];
-  if (t >= last.end) return null;
+  const hop = (span: number) => Math.min(travel, span / 2);
+
+  // born at the start event, travelling to the first step
+  const arrive = first.el ? hop(first.end - first.enable) : 0;
+  if (t < first.enable + arrive) {
+    return { kind: "flow", from: null, to: first.el, progress: (t - first.enable) / arrive };
+  }
+
+  if (t >= last.end) {
+    // leaving through the end event
+    const leave = last.el ? travel : 0;
+    if (t < last.end + leave) {
+      return { kind: "flow", from: last.el, to: null, progress: (t - last.end) / leave };
+    }
+    return null;
+  }
 
   for (let i = 0; i < events.length; i += 1) {
     const e = events[i];
+    const prev = events[i - 1];
+    // in transit from the previous step: the real gap, or the start of this step
+    if (prev && prev.el && e.el && t >= prev.end) {
+      const gap = Math.max(0, e.enable - prev.end);
+      const span = Math.max(gap, hop(e.end - prev.end));
+      if (span > 0 && t < prev.end + span) {
+        return { kind: "flow", from: prev.el, to: e.el, progress: clamp((t - prev.end) / span, 0, 1) };
+      }
+    }
     if (t >= e.enable && t < e.start && e.el) {
       return { kind: "node", el: e.el, queued: true };
     }
     if (t >= e.start && t < e.end && e.el) {
       return { kind: "node", el: e.el, queued: false };
     }
-    // in transit between this event's end and the next event's enable
     const next = events[i + 1];
-    if (next && t >= e.end && t < next.enable) {
-      if (e.el && next.el) {
-        const span = Math.max(1e-6, next.enable - e.end);
-        return {
-          kind: "flow",
-          from: e.el,
-          to: next.el,
-          progress: clamp((t - e.end) / span, 0, 1),
-        };
-      }
+    if (next && t >= e.end && t < next.enable && !(e.el && next.el)) {
       return e.el
         ? { kind: "node", el: e.el, queued: false }
         : next.el
