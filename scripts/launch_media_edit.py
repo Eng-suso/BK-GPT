@@ -112,6 +112,7 @@ class Shot:
     pieces: list[Piece]
     camera: list[tuple[float, float, float, float]] = field(default_factory=list)  # (t_out, cx, cy, log z)
     captions: list[tuple[Overlay, float, float]] = field(default_factory=list)
+    focus: tuple[float, float, float, float] | None = None  # ultimo rettangolo inquadrato (px del fotogramma)
 
     @property
     def duration(self) -> float:
@@ -158,6 +159,53 @@ class Shot:
                 fade = min(1.0, (end - t) / 0.3)
                 overlay.draw(canvas, min(rise, fade), dy=(1 - rise) * 40)
         return canvas
+
+
+@dataclass
+class StackShot:
+    """Due riprese una sopra l'altra (As-Is sopra, To-Be sotto), ognuna con il
+    processo intero nella sua fascia: affiancate lo taglierebbero a meta'."""
+
+    shots: list[Shot]
+    scene: dict
+    overlays: list[Overlay]
+
+    @property
+    def duration(self) -> float:
+        return min(shot.duration for shot in self.shots)
+
+    def frame(self, t: float) -> np.ndarray:
+        band = H // len(self.shots)
+        canvas = np.empty((H, W, 3), dtype=np.float32)
+        for index, shot in enumerate(self.shots):
+            raw = shot.raw_at(t)
+            image = load_frame(shot.frames_file[max(0, bisect.bisect_right(shot.frames_t, raw) - 1)])
+            fx, fy, fw, fh = shot.focus or (0, 0, W, H)
+            # La finestra con le proporzioni della fascia che contiene tutto il rettangolo.
+            aspect = W / band
+            ww, wh = (fw, fw / aspect) if fw / fh > aspect else (fh * aspect, fh)
+            x0 = min(max(fx + fw / 2 - ww / 2, 0), W - ww)
+            y0 = min(max(fy + fh / 2 - wh / 2, 0), H - wh)
+            part = image.resize((W, band), Image.BICUBIC, box=(x0, y0, x0 + ww, y0 + wh))
+            canvas[index * band:(index + 1) * band] = np.asarray(part, dtype=np.float32) / 255.0
+        canvas[band - 1:band + 1] = np.array([0.87, 0.88, 0.9], dtype=np.float32)
+        for overlay in self.overlays:
+            overlay.draw(canvas, min(1.0, t / 0.35))
+        return canvas
+
+
+def build_entry(entry: dict, cut: dict):
+    if "stack" in entry:
+        froms = entry.get("from", [0.0] * len(entry["stack"]))
+        shots = [build_shot({"id": sid, "from": froms[i], "keep": entry.get("keep", 1e9), "speed": entry.get("speed", 1.0)}, cut) for i, sid in enumerate(entry["stack"])]
+        overlays = [o for o in (Overlay.load(OVERLAYS / f"{name}.png") for name in entry.get("overlays", [])) if o]
+        return StackShot(shots, {"id": "+".join(entry["stack"]), "hero": True}, overlays)
+    shot = build_shot(entry, cut)
+    for name in entry.get("overlays", []):
+        overlay = Overlay.load(OVERLAYS / f"{name}.png")
+        if overlay:
+            shot.captions.append((overlay, 0.05, shot.duration - 0.05))
+    return shot
 
 
 def build_shot(entry: dict, cut: dict) -> Shot:
@@ -209,6 +257,7 @@ def build_shot(entry: dict, cut: dict) -> Shot:
         cx = (rect["x"] + rect["width"] / 2) * scale
         cy = (rect["y"] + rect["height"] / 2) * scale
         shot.camera.append((t_out, cx, cy, math.log(zoom)))
+        shot.focus = (rect["x"] * scale, rect["y"] * scale, rw, rh)
 
     if cut.get("chips") and scene.get("chip"):
         overlay = Overlay.load(OVERLAYS / f"chip-{scene['id']}.png")
@@ -227,7 +276,7 @@ def build_shot(entry: dict, cut: dict) -> Shot:
 
 
 def render(name: str, cut: dict) -> Path:
-    shots = [build_shot(entry, cut) for entry in cut["scenes"]]
+    shots = [build_entry(entry, cut) for entry in cut["scenes"]]
     starts, at = [], 0.0
     for shot in shots:
         starts.append(at)
@@ -238,7 +287,7 @@ def render(name: str, cut: dict) -> Path:
     disclaimer = Overlay.load(OVERLAYS / f"{cut.get('disclaimer', 'disclaimer')}.png")
     # Loop: l'ultimo tratto sfuma nel primo fotogramma, senza stacco.
     loop = cut.get("loop", 0.0)
-    first = shots[0].frame(0.0) if loop else None
+    first = shots[0].frame(min(0.2, shots[0].duration)) if loop else None
 
     VIDEO.mkdir(parents=True, exist_ok=True)
     out = VIDEO / f"delir-{name}-it.mp4"
