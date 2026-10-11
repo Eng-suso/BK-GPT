@@ -1,6 +1,6 @@
 /* Consegna al responsabile. Token di componente sopra i token semantici:
    nessun colore o spazio primitivo entra qui direttamente. */
-.handover {
+.handover, .owner-dashboard {
   --handover-gap: var(--spacing-stack-lg);
   --handover-section-gap: var(--spacing-stack-xl);
   --handover-padding: var(--spacing-panel-padding);
@@ -15,7 +15,9 @@
   --handover-change-border: var(--domain-process-changed-border);
   --handover-change-icon: var(--domain-process-changed-icon);
   --handover-quote-border: var(--domain-evidence-confirmed-border);
+}
 
+.handover {
   height: 100%;
   min-height: 0;
   overflow-y: auto;
@@ -131,4 +133,72 @@
   .handover-journey { grid-template-columns: minmax(0, 1fr); }
   .handover-status-actions { width: 100%; }
   .handover-status-actions > * { flex: 1 1 auto; }
+}
+
+/* Cruscotto del responsabile: una pagina da leggere, fuori dalla navigazione
+   di DeliR, che si stampa in PDF senza la barra dell'anteprima. */
+.owner-dashboard {
+  --owner-page-width: var(--layout-container-reading);
+  --owner-toolbar-surface: var(--color-surface-glass-strong);
+  --owner-toolbar-border: var(--color-border-subtle);
+  --owner-status-review-surface: var(--domain-version-in-review-surface);
+  --owner-status-review-border: var(--domain-version-in-review-border);
+  --owner-status-approved-surface: var(--domain-version-published-surface);
+  --owner-status-approved-border: var(--domain-version-published-border);
+  --owner-timeline-icon: var(--color-icon-secondary);
+
+  height: var(--layout-viewport-height);
+  overflow-y: auto;
+  background: var(--color-surface-app);
+}
+.owner-dashboard-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-inline-md);
+  padding: var(--spacing-stack-sm) var(--layout-page-inline-compact);
+  background: var(--owner-toolbar-surface);
+  border-bottom: var(--border-width-default) var(--border-style-default) var(--owner-toolbar-border);
+  -webkit-backdrop-filter: var(--backdrop-filter-glass);
+  backdrop-filter: var(--backdrop-filter-glass);
+}
+.owner-dashboard-preview { flex: 1; min-width: 12rem; font-size: 12px; color: var(--handover-text-muted); }
+.owner-dashboard-page {
+  display: grid;
+  gap: var(--handover-section-gap);
+  max-width: var(--owner-page-width);
+  margin-inline: auto;
+  padding: var(--layout-page-block-medium) var(--layout-page-inline-compact) var(--spacing-stack-2xl);
+}
+.owner-dashboard-header { display: grid; gap: var(--spacing-stack-sm); }
+.owner-dashboard-header h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.2; overflow-wrap: anywhere; }
+.owner-dashboard-meta { display: flex; flex-wrap: wrap; gap: var(--spacing-inline-md); font-size: 12px; color: var(--handover-text-muted); }
+.owner-dashboard-status { display: grid; gap: var(--spacing-stack-xs); padding: var(--handover-padding); border-radius: var(--handover-radius); }
+.owner-dashboard-status-label { font-size: 15px; font-weight: 600; }
+.owner-dashboard-status p { font-size: 13px; line-height: 1.6; color: var(--color-text-secondary); max-width: var(--layout-text-measure); }
+.owner-dashboard-status[data-stage="review"] { background: var(--owner-status-review-surface); border-color: var(--owner-status-review-border); }
+.owner-dashboard-status[data-stage="approved"] { background: var(--owner-status-approved-surface); border-color: var(--owner-status-approved-border); }
+.owner-dashboard-table { padding: var(--spacing-stack-xs) var(--spacing-inline-md); border-radius: var(--handover-radius); }
+.owner-dashboard-columns { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--handover-section-gap); align-items: start; }
+.owner-dashboard-timeline { display: grid; list-style: none; border-radius: var(--handover-radius); overflow: hidden; }
+.owner-dashboard-timeline li { display: flex; align-items: flex-start; gap: var(--spacing-inline-md); padding: var(--spacing-stack-md) var(--handover-padding); }
+.owner-dashboard-timeline li + li { border-top: var(--border-width-default) var(--border-style-default) var(--handover-divider); }
+.owner-dashboard-timeline-icon { flex: none; margin-top: 2px; color: var(--owner-timeline-icon); }
+.owner-dashboard-timeline time { margin-left: auto; flex: none; font-size: 11px; color: var(--handover-text-muted); white-space: nowrap; }
+.owner-dashboard-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--spacing-inline-md); padding-top: var(--spacing-stack-md); border-top: var(--border-width-default) var(--border-style-default) var(--handover-divider); font-size: 12px; color: var(--handover-text-muted); }
+
+@media (min-width: 900px) {
+  .owner-dashboard-columns { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+}
+
+@media print {
+  html:has(.owner-dashboard), html:has(.owner-dashboard) body { height: auto; overflow: visible; background: var(--color-surface-primary); }
+  .owner-dashboard { height: auto; overflow: visible; background: var(--color-surface-primary); }
+  .owner-dashboard-toolbar { display: none; }
+  .owner-dashboard-page { padding-block: 0; max-width: none; }
+  .owner-dashboard .ui-surface { box-shadow: var(--elevation-none); background-image: none; }
+  .owner-dashboard .handover-section, .owner-dashboard .handover-change, .owner-dashboard-status { break-inside: avoid; }
 }
