@@ -1,6 +1,7 @@
 import json
 
 from backend.schemas.impact_review import CreateImpactReviewAction, ImpactReviewAction, ImpactReviewState
+from backend.schemas.owner_dashboard import OwnerDashboard, OwnerLinkCreated, OwnerLinkStatus
 
 from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
@@ -118,6 +119,54 @@ def get_workspace_impact_review(process_id: str) -> ImpactReviewState:
         return state
     except ReviewNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/processes/{process_id}/owner-dashboard")
+def get_owner_dashboard_preview(process_id: str) -> OwnerDashboard:
+    """L'anteprima del cruscotto: esattamente cio' che vede il cliente dal link."""
+    from backend.workspace_services.owner_dashboard import DashboardNotFound, build_owner_dashboard
+    try:
+        return build_owner_dashboard(process_id)
+    except DashboardNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/processes/{process_id}/owner-link")
+def get_owner_link(process_id: str) -> OwnerLinkStatus:
+    """Se il cliente ha un link attivo, da quando, fino a quando, e se l'ha aperto."""
+    from backend.workspace_services.owner_dashboard import DashboardNotFound, owner_link_status
+    try:
+        return owner_link_status(process_id)
+    except DashboardNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/processes/{process_id}/owner-link", status_code=201)
+def post_owner_link(
+    process_id: str,
+    response: Response,
+    principal: AuthPrincipal = Depends(require_principal),
+) -> OwnerLinkCreated:
+    """Un link nuovo per il cliente; quello di prima smette di funzionare."""
+    from backend.workspace_services.owner_dashboard import DashboardNotFound, create_owner_link
+    try:
+        created = create_owner_link(process_id, principal.user_id)
+    except DashboardNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # Il codice compare solo qui: nessuna cache deve conservarlo.
+    response.headers["Cache-Control"] = "no-store"
+    return created
+
+
+@router.delete("/processes/{process_id}/owner-link", status_code=204)
+def delete_owner_link(process_id: str) -> Response:
+    """Disattiva il link del cliente."""
+    from backend.workspace_services.owner_dashboard import DashboardNotFound, revoke_owner_link
+    try:
+        revoke_owner_link(process_id)
+    except DashboardNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(status_code=204)
 
 
 @router.post("/processes/{process_id}/impact-review/actions", status_code=201)
