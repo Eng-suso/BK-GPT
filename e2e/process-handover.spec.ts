@@ -5,10 +5,25 @@ import AxeBuilder from "@axe-core/playwright";
 const API = "http://127.0.0.1:8000";
 const BASE = "b".repeat(64);
 const trace = (id: string) => `<b:documentation>DeliR traceability: {"source_refs":["steps:${id}"]}</b:documentation>`;
+const flow = (id: string, source: string, target: string, name = "") => `<b:sequenceFlow id="${id}" sourceRef="${source}" targetRef="${target}"${name ? ` name="${name}"` : ""}/>`;
 const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <b:definitions xmlns:b="http://www.omg.org/spec/BPMN/20100524/MODEL"><b:process id="P">
+<b:laneSet id="Lanes">
+<b:lane id="L1" name="Richiedente"><b:flowNodeRef>start</b:flowNodeRef><b:flowNodeRef>request</b:flowNodeRef></b:lane>
+<b:lane id="L2" name="Ufficio acquisti"><b:flowNodeRef>verify</b:flowNodeRef><b:flowNodeRef>order</b:flowNodeRef><b:flowNodeRef>end</b:flowNodeRef></b:lane>
+<b:lane id="L3" name="Amministrazione"><b:flowNodeRef>amount</b:flowNodeRef><b:flowNodeRef>approve</b:flowNodeRef><b:flowNodeRef>join</b:flowNodeRef></b:lane>
+</b:laneSet>
+<b:startEvent id="start" name="Serve un acquisto"/>
+<b:userTask id="request" name="Compilare la richiesta"/>
 <b:userTask id="verify" name="Verificare dati">${trace("verify")}</b:userTask>
+<b:exclusiveGateway id="amount" name="Importo sopra 5.000 €?"/>
 <b:userTask id="approve" name="Approvare richiesta">${trace("approve")}</b:userTask>
+<b:exclusiveGateway id="join"/>
+<b:userTask id="order" name="Emettere l'ordine"/>
+<b:endEvent id="end" name="Ordine inviato al fornitore"/>
+${flow("f1", "start", "request")}${flow("f2", "request", "verify")}${flow("f3", "verify", "amount")}
+${flow("f4", "amount", "approve", "Sì")}${flow("f5", "amount", "join", "No")}${flow("f6", "approve", "join")}
+${flow("f7", "join", "order")}${flow("f8", "order", "end")}
 </b:process></b:definitions>`;
 
 type Options = { owner?: string; status?: string; blocking?: boolean; simulated?: boolean };
@@ -147,9 +162,18 @@ test("the owner dashboard opens from the hand over, without DeliR navigation, an
   await expect(page.getByRole("heading", { level: 1, name: "Acquisti indiretti" })).toBeVisible();
   await expect(page.getByText("Approvato · In uso")).toBeVisible();
   await expect(page.getByRole("navigation", { name: /principale|main/i })).toHaveCount(0);
-  await expect(page.getByRole("cell", { name: "Costo per caso" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Costo per ogni pratica" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Non ancora misurato" }).first()).toBeVisible();
   await expect(page.getByRole("heading", { level: 3, name: "Togliere la seconda firma sotto 5.000 €" })).toBeVisible();
+  // Il processo raccontato a chi non conosce il BPMN: passi in ordine, chi li fa, decisioni come domande.
+  const steps = page.getByRole("region", { name: "Come funziona il processo" }).getByRole("listitem");
+  await expect(page.getByText("Serve un acquisto")).toBeVisible();
+  await expect(steps.filter({ hasText: "Passo 3" }).filter({ hasText: "Importo sopra 5.000 €?" })).toContainText("Se «Sì» → passo 4");
+  await expect(steps.filter({ hasText: "Passo 3" }).filter({ hasText: "Importo sopra 5.000 €?" })).toContainText("Se «No» → passo 5");
+  await expect(steps.filter({ hasText: "Passo 4" }).filter({ hasText: "Approvare richiesta" }).first()).toContainText("Cambia");
+  await expect(steps.filter({ hasText: "Passo 4" }).filter({ hasText: "Approvare richiesta" }).first()).toContainText("Amministrazione");
+  await expect(page.getByText("Ordine inviato al fornitore")).toBeVisible();
+  await expect(page.getByText(/gateway|BPMN|lane|corsia/i)).toHaveCount(0);
   await expect(page.getByText("Nuova versione del processo")).toBeVisible();
 
   await page.emulateMedia({ media: "print" });
