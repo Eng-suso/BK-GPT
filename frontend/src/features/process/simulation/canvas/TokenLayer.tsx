@@ -13,12 +13,11 @@ import { routeBetween, routeLength, spreadAlong, type TokenRoute } from "./token
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const TOKEN_R = 7;
-const QUEUE_GAP = 17;
-const QUEUE_MAX_DOTS = 6;
-/** The queue waits at the node's door: columns to its left, this many dots
- *  tall, before the rest collapses into "+N". */
-const QUEUE_PER_COLUMN = 4;
-const QUEUE_COLUMNS = 3;
+/** A queue is only signalled: a few overlapping dots above the node (the badge
+ *  carries the count). Work in progress is one dot inside the node. Only cases
+ *  on the move are drawn one by one. */
+const QUEUE_SIGNAL_DOTS = 3;
+const QUEUE_SIGNAL_GAP = 10;
 /** Marker on a sequence flow while at least one token travels along it. */
 const LIVE_FLOW = "sim-flow-live";
 /** Minimum distance between two tokens travelling the same route, aura included. */
@@ -62,7 +61,6 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
       if (!paths.has(key)) paths.set(key, routeBetween(registry, from, to));
       return paths.get(key) ?? null;
     };
-    let overflow: SVGTextElement | null = null;
 
     const ensureDot = (caseId: string): SVGCircleElement => {
       let dot = dots.get(caseId);
@@ -91,9 +89,6 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         list.push(token);
         map.set(token.at.el, list);
       }
-
-      let overflowCount = 0;
-      let overflowAnchor: BpmnPoint | null = null;
 
       const place = (caseId: string, pos: BpmnPoint, state: string): void => {
         const dot = ensureDot(caseId);
@@ -126,11 +121,6 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
           activeByNode,
         );
         if (!pos) continue;
-        if (pos.hidden) {
-          overflowCount += 1;
-          overflowAnchor = pos;
-          continue;
-        }
         place(token.caseId, pos, pos.queued ? "queued" : "active");
       }
 
@@ -165,19 +155,6 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
         }
       }
 
-      if (overflowCount > 0 && overflowAnchor) {
-        if (!overflow) {
-          overflow = document.createElementNS(SVG_NS, "text");
-          overflow.setAttribute("class", "sim-token-overflow");
-          layer.appendChild(overflow);
-        }
-        overflow.setAttribute("x", (overflowAnchor.x + 4).toFixed(1));
-        overflow.setAttribute("y", (overflowAnchor.y - 2).toFixed(1));
-        overflow.textContent = `+${overflowCount}`;
-      } else if (overflow) {
-        overflow.remove();
-        overflow = null;
-      }
     };
 
     const unsubscribe = engine.subscribeTick(render);
@@ -187,14 +164,13 @@ export function TokenLayer({ viewer, engine }: TokenLayerProps): null {
       for (const dot of dots.values()) dot.remove();
       dots.clear();
       for (const flow of liveFlows) canvas.removeMarker(flow, LIVE_FLOW);
-      overflow?.remove();
     };
   }, [viewer, engine]);
 
   return null;
 }
 
-type ResolvedPos = BpmnPoint & { queued: boolean; hidden?: boolean };
+type ResolvedPos = BpmnPoint & { queued: boolean };
 
 function resolvePosition(
   token: ReplayToken,
@@ -214,31 +190,21 @@ function resolvePosition(
   const bottom = (shape.y ?? center.y) + (shape.height ?? 0);
 
   if (!token.at.queued) {
-    // active: a row along the node's lower edge, clear of the centred label
+    // in progress: one dot inside the node, along its lower edge, however
+    // many cases are being worked
     const peers = activeByNode.get(token.at.el) ?? [token];
-    const shown = Math.min(peers.length, QUEUE_MAX_DOTS);
-    const index = Math.min(peers.indexOf(token), QUEUE_MAX_DOTS - 1);
-    return {
-      x: center.x - ((shown - 1) / 2) * QUEUE_GAP + index * QUEUE_GAP,
-      y: bottom - 12,
-      queued: false,
-    };
+    if (peers.indexOf(token) > 0) return null;
+    return { x: center.x, y: bottom - 12, queued: false };
   }
 
-  // queued: waiting at the door, in columns just left of the node (the badge
-  // sits above it), filling outwards, so every waiting case is its own dot
+  // queued: just a signal, a few overlapping dots centred above the node
   const peers = queuedByNode.get(token.at.el) ?? [token];
   const index = peers.indexOf(token);
-  const door = (shape.x ?? center.x) - 13;
-  const capacity = QUEUE_PER_COLUMN * QUEUE_COLUMNS;
-  if (index >= capacity) {
-    return { x: door - QUEUE_COLUMNS * QUEUE_GAP - 20, y: center.y + 4, queued: true, hidden: true };
-  }
-  const column = Math.floor(index / QUEUE_PER_COLUMN);
-  const inColumn = Math.min(QUEUE_PER_COLUMN, Math.min(peers.length, capacity) - column * QUEUE_PER_COLUMN);
+  if (index >= QUEUE_SIGNAL_DOTS) return null;
+  const shown = Math.min(peers.length, QUEUE_SIGNAL_DOTS);
   return {
-    x: door - column * QUEUE_GAP,
-    y: center.y - ((inColumn - 1) / 2) * QUEUE_GAP + (index % QUEUE_PER_COLUMN) * QUEUE_GAP,
+    x: center.x - ((shown - 1) / 2) * QUEUE_SIGNAL_GAP + index * QUEUE_SIGNAL_GAP,
+    y: (shape.y ?? center.y) - 12,
     queued: true,
   };
 }
