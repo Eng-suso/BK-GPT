@@ -127,7 +127,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
       if (runMatch[2] === "replay") return json({ run_id: id, schema_version: 1, replay: data.replay });
       if (runMatch[2] === "experiments") return json(data.experiments);
       if (runMatch[2] === "model") return json({ run_id: id, model: data.model });
-      return json(heroRuns.find((run) => run.id === id) ?? runById(id));
+      return json(runById(id));
     }
 
     // La chat di review e' per task (scope_key con ":review:"): sessioni sue,
