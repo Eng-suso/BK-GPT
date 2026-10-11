@@ -50,7 +50,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
       // Il layout che il consulente ha salvato per la tela di simulazione.
       window.localStorage.setItem(layoutKey, layout);
     },
-    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(simulationLayout) },
+    { base: API, lng: language, layoutKey: simulationLayoutKey, layout: JSON.stringify(options.hero ? englishJson(simulationLayout) : simulationLayout) },
   );
 
   await page.route(`${API}/**`, async (route: Route) => {
