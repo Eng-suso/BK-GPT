@@ -29,6 +29,8 @@ import {
   sources,
   versions,
 } from "./demo";
+import { heroRuns, heroWorkspace } from "./heroData";
+import { HERO_SOURCES, englishJson } from "./heroLocale";
 
 export const API = "http://127.0.0.1:8000";
 
@@ -39,7 +41,7 @@ export const unhandled = new Set<string>();
  * `live`: la discussione del processo parte vuota e le risposte dell'agente
  * arrivano in streaming da `streamServer.mjs`, come dal backend vero.
  */
-export async function installDemoApi(page: Page, language: "it" | "en" = "it", options: { live?: boolean } = {}): Promise<void> {
+export async function installDemoApi(page: Page, language: "it" | "en" = "it", options: { live?: boolean; hero?: boolean } = {}): Promise<void> {
   const reviewSessions: { thread_id: string; scope_key: string; title: string; messages: { role: string; content: string }[] }[] = [];
   await page.addInitScript(
     ({ base, lng, layoutKey, layout }) => {
@@ -56,7 +58,8 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
-    const json = (body: unknown, headers?: Record<string, string>) => route.fulfill({ json: body, headers });
+    // Hero della landing: interfaccia e nomi del caso demo in inglese.
+    const json = (body: unknown, headers?: Record<string, string>) => route.fulfill({ json: options.hero ? englishJson(body) : body, headers });
 
     if (path === "/v1/workspace/projects" && method === "GET") {
       return json(projects, { "X-DeliR-Total": String(projects.length) });
@@ -73,7 +76,7 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     if (projectMatch && method === "GET") {
       return json(projects.find((item) => item.id === projectMatch[1]) ?? project);
     }
-    if (path === `/v1/workspace/projects/${IDS.project}/sources`) return json(sources);
+    if (path === `/v1/workspace/projects/${IDS.project}/sources`) return json(options.hero ? heroSources : sources);
     if (path === `/v1/workspace/projects/${IDS.project}/processes`) return json(project.process_items);
     if (path === `/v1/workspace/projects/${IDS.project}/decisions`) return json([]);
     if (path === `/v1/workspace/processes/${IDS.process}`) return json(project.process_items[0]);
@@ -111,17 +114,20 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
     if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-model`) {
       return json({ bpmn_model_id: IDS.model, model: runs().as_is.model });
     }
-    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(simulationRuns);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-runs` && method === "GET") return json(options.hero ? heroRuns : simulationRuns);
+    if (path === `/v1/workspace/bpmn-models/${IDS.model}/simulation-scenarios` && method === "GET") return json(heroWorkspace);
 
     const runMatch = path.match(/^\/v1\/workspace\/simulation-runs\/(\d+)(?:\/(replay|experiments|model))?$/);
     if (runMatch) {
       const id = Number(runMatch[1]);
       const data = runData(id);
+      const heroRun = options.hero && !runMatch[2] ? heroRuns.find((run) => run.id === id) : undefined;
+      if (heroRun) return json(heroRun);
       if (!data) return route.fulfill({ status: 404, json: { detail: "Simulazione non trovata." } });
       if (runMatch[2] === "replay") return json({ run_id: id, schema_version: 1, replay: data.replay });
       if (runMatch[2] === "experiments") return json(data.experiments);
       if (runMatch[2] === "model") return json({ run_id: id, model: data.model });
-      return json(runById(id));
+      return json(heroRuns.find((run) => run.id === id) ?? runById(id));
     }
 
     // La chat di review e' per task (scope_key con ":review:"): sessioni sue,
@@ -183,3 +189,13 @@ export async function installDemoApi(page: Page, language: "it" | "en" = "it", o
 function runs() {
   return { as_is: runData(IDS.asIsRun)!, to_be: runData(IDS.toBeRun)! };
 }
+
+/** Le quattro fonti dell'hero: procedura, intervista, foglio, verbale. */
+const heroSources = HERO_SOURCES.map((item, index) => ({
+  ...sources[0],
+  id: `src-hero-${index + 1}`,
+  name: item.title,
+  type: item.kind === "interview" ? "Interview" : item.kind === "spreadsheet" ? "Spreadsheet" : item.kind === "notes" ? "Notes" : "Document",
+  meta: `${item.claims} claims`,
+  mime_type: item.icon === "pdf" ? "application/pdf" : item.icon === "sheet" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/markdown",
+}));
