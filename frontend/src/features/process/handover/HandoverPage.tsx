@@ -20,6 +20,7 @@ import { Surface } from "@/ui/surface";
 import { formatCurrency, formatDuration } from "../simulation/simulationResults";
 import { STATUS_FOR_STAGE, type HandoverStage, type ReadinessCheck } from "./handoverModel";
 import { formatDay, useHandoverData } from "./useHandoverData";
+import { OwnerLinkPanel } from "./OwnerLinkPanel";
 import { RequestChangesDialog } from "./RequestChangesDialog";
 import "./handover.css";
 
@@ -217,6 +218,8 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
             </div>
 
             <aside className="handover-side">
+              <OwnerLinkPanel processId={process.id} />
+
               <section className="handover-section" aria-labelledby="handover-summary">
                 <header className="handover-section-heading"><h2 id="handover-summary">{t("handover.summary.title")}</h2></header>
                 <div className="handover-stats">

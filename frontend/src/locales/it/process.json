@@ -2053,6 +2053,29 @@
         "errorBody": "Controlla la connessione e riprova.",
         "retry": "Riprova"
       }
+    },
+    "link": {
+      "title": "Link per il cliente",
+      "description": "Il responsabile apre il cruscotto da questo link, senza account. Vede solo il cruscotto, in sola lettura.",
+      "none": "Nessun link attivo.",
+      "create": "Crea il link",
+      "urlLabel": "Link del cruscotto",
+      "copy": "Copia il link",
+      "copied": "Link copiato",
+      "ready": "Copia il link adesso: per sicurezza DeliR non lo mostrerà più. Se lo perdi, creane uno nuovo.",
+      "created": "Creato il {{date}}",
+      "expires": "Scade il {{date}}",
+      "viewed_one": "Aperto dal cliente 1 volta, il {{date}}",
+      "viewed_other": "Aperto dal cliente {{count}} volte, l'ultima il {{date}}",
+      "notViewed": "Il cliente non l'ha ancora aperto.",
+      "renew": "Crea un link nuovo",
+      "revoke": "Disattiva il link",
+      "confirmRenewTitle": "Creare un link nuovo?",
+      "confirmRenewBody": "Il link che hai già mandato al cliente smetterà di funzionare.",
+      "confirmRevokeTitle": "Disattivare il link?",
+      "confirmRevokeBody": "Il cliente non potrà più aprire il cruscotto finché non gli mandi un link nuovo.",
+      "revoked": "Link disattivato",
+      "error": "Operazione non riuscita. Riprova."
     }
   }
 }

@@ -2053,6 +2053,29 @@
         "errorBody": "Check your connection and try again.",
         "retry": "Try again"
       }
+    },
+    "link": {
+      "title": "Link for the client",
+      "description": "The owner opens the dashboard from this link, without an account. They only see the dashboard, read only.",
+      "none": "No active link.",
+      "create": "Create the link",
+      "urlLabel": "Dashboard link",
+      "copy": "Copy the link",
+      "copied": "Link copied",
+      "ready": "Copy the link now: for security DeliR will not show it again. If you lose it, create a new one.",
+      "created": "Created on {{date}}",
+      "expires": "Expires on {{date}}",
+      "viewed_one": "Opened by the client once, on {{date}}",
+      "viewed_other": "Opened by the client {{count}} times, last on {{date}}",
+      "notViewed": "The client has not opened it yet.",
+      "renew": "Create a new link",
+      "revoke": "Turn off the link",
+      "confirmRenewTitle": "Create a new link?",
+      "confirmRenewBody": "The link you already sent to the client will stop working.",
+      "confirmRevokeTitle": "Turn off the link?",
+      "confirmRevokeBody": "The client will not be able to open the dashboard until you send a new link.",
+      "revoked": "Link turned off",
+      "error": "Something went wrong. Try again."
     }
   }
 }
