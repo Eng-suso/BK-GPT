@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from backend.simulation.ir.patch import ModelPatch
 
@@ -36,6 +36,73 @@ class SimResourceConfig(BaseModel):
     calendar_id: str | None = Field(default=None, max_length=64)
 
 
+class SimTaskAssignmentConfig(BaseModel):
+    """Un'altra risorsa che puo' svolgere l'attivita', con la sua durata.
+
+    I parametri della durata seguono le stesse regole di ``SimTaskConfig``.
+    """
+
+    resource_id: str = Field(min_length=1, max_length=64)
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "norm"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+
+
+class SimArrivalConfig(BaseModel):
+    """Come arrivano i casi: la distribuzione del tempo fra un arrivo e il
+    successivo e il calendario in cui arrivano.
+
+    I parametri seguono le regole della durata di ``SimTaskConfig``; per
+    l'esponenziale, assenti, i limiti sono 0 e 10 volte la media. Senza
+    ``calendar_id`` i casi arrivano nel calendario standard.
+    """
+
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "expon"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+    calendar_id: str | None = Field(default=None, max_length=64)
+
+
+class SimSlaConfig(BaseModel):
+    """L'obiettivo di servizio dello scenario (SIM-13): il caso si chiude entro
+    ``target_seconds`` per almeno la quota ``share`` dei casi (0-1)."""
+
+    # Stretto: "86400" come stringa e' un errore del client, non un numero da indovinare.
+    model_config = ConfigDict(strict=True)
+
+    target_seconds: float = Field(gt=0)
+    share: float = Field(gt=0, le=1)
+
+
+class SimClaimRef(BaseModel):
+    """Un'affermazione di un file del cliente che il consulente ha collegato all'attivita'."""
+
+    claim_id: int = Field(ge=1)
+    label: str = Field(default="", max_length=200)
+
+
+class SimDurationVariantConfig(BaseModel):
+    """La durata per i casi con una categoria dell'attributo (SIM-32)."""
+
+    value: str = Field(min_length=1, max_length=120)
+    mean_seconds: float = Field(gt=0)
+    distribution: DistributionName = "norm"
+    std_seconds: float | None = Field(default=None, gt=0)
+    min_seconds: float | None = Field(default=None, ge=0)
+    max_seconds: float | None = Field(default=None, gt=0)
+
+
+class SimDurationByConfig(BaseModel):
+    """La durata dell'attivita' cambia con un attributo a categorie del caso."""
+
+    attribute: str = Field(min_length=1, max_length=64)
+    variants: list[SimDurationVariantConfig] = Field(min_length=1, max_length=20)
+
+
 class SimTaskConfig(BaseModel):
     """La durata di un'attivita'. Oltre alla media, i parametri facoltativi:
 
@@ -43,6 +110,10 @@ class SimTaskConfig(BaseModel):
     - ``min_seconds``/``max_seconds``: i limiti della distribuzione. Assenti,
       +-3 deviazioni standard (mai sotto zero), o 0 e 10 volte la media per
       l'esponenziale. L'uniforme li richiede entrambi.
+
+    ``other_assignments``: le altre risorse che possono svolgerla, ognuna con
+    la sua durata. Il motore da' il caso alla prima risorsa libera fra
+    ``resource_id`` e queste.
     """
 
     element_id: str = Field(min_length=1)
@@ -52,6 +123,14 @@ class SimTaskConfig(BaseModel):
     std_seconds: float | None = Field(default=None, gt=0)
     min_seconds: float | None = Field(default=None, ge=0)
     max_seconds: float | None = Field(default=None, gt=0)
+    other_assignments: list[SimTaskAssignmentConfig] = Field(default_factory=list, max_length=20)
+    # Le affermazioni confermate dal consulente (SIM-07): diventano la fonte
+    # ``declared`` della durata. Il valore resta quello del pannello.
+    claims: list[SimClaimRef] = Field(default_factory=list, max_length=10)
+    # SIM-32: durate diverse per categoria di un attributo del caso.
+    duration_by: SimDurationByConfig | None = None
+    # SIM-10: euro per ogni esecuzione dell'attivita', oltre al tempo delle risorse.
+    fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
 
 
 class SimGatewayBranchConfig(BaseModel):
@@ -64,12 +143,43 @@ class SimGatewayConfig(BaseModel):
     branches: list[SimGatewayBranchConfig] = Field(default_factory=list)
 
 
+# Il seed piu' alto che il motore accetta (numpy: 32 bit senza segno).
+SEED_MAX = 2**32 - 1
+
+
+class WorkspaceScenarioRef(BaseModel):
+    """Lo scenario del workspace (SIM-14) da cui parte il run, alle revisioni usate.
+
+    Il pannello confronta queste revisioni con quelle di oggi: un run fatto su
+    una versione precedente dello scenario o dell'AS-IS e' da rifare.
+    """
+
+    id: int = Field(ge=1)
+    revision: int = Field(ge=1)
+    baseline_revision: int = Field(ge=1)
+
+
 class CreateSimulationRunRequest(BaseModel):
     scenario_name: str = "Baseline AS-IS"
     total_cases: int = Field(default=100, ge=1, le=100_000)
     start_date: str | None = None
     current_bpmn_xml: str | None = None
     arrival_interval_seconds: int = Field(default=1800, ge=1)
+    # Gli arrivi con distribuzione e calendario (A2-3). Se c'e', prevale su
+    # ``arrival_interval_seconds``.
+    arrival: SimArrivalConfig | None = None
+    # L'obiettivo di servizio: il motore non lo usa, il run ne misura l'esito.
+    sla: SimSlaConfig | None = None
+    # SIM-04: quante volte ripetere lo scenario, con seed consecutivi. Ogni
+    # ripetizione e' un run; insieme danno a ogni KPI un intervallo.
+    replications: int = Field(default=1, ge=1, le=20)
+    # Scritti dal servizio, non dal client: il gruppo e la posizione nel gruppo.
+    replication_group: str | None = Field(default=None, max_length=64)
+    replication_index: int | None = Field(default=None, ge=1, le=20)
+    # SIM-03: i primi casi escono dai KPI (il sistema parte vuoto). Il replay li mostra.
+    warmup_cases: int = Field(default=0, ge=0, le=10_000)
+    # SIM-10: euro per ogni caso completato, oltre al tempo delle risorse.
+    case_fixed_cost: float | None = Field(default=None, ge=0, allow_inf_nan=False, strict=True)
     default_task_duration_seconds: int = Field(default=900, ge=1)
     default_cost_per_hour: float = Field(default=35.0, ge=0)
     resource_amount: int = Field(default=1, ge=1, le=1000)
@@ -91,7 +201,10 @@ class CreateSimulationRunRequest(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=128)
     # Seed del motore. Con lo stesso seed e lo stesso scenario il runner rifa'
     # lo stesso log; senza, ne sceglie uno e lo restituisce nel risultato.
-    seed: int | None = Field(default=None, ge=0, le=2**32 - 1)
+    seed: int | None = Field(default=None, ge=0, le=SEED_MAX)
+    # SIM-14: lo scenario del workspace che il run simula. Assente per i run
+    # lanciati fuori dal workspace (API, run anteriori).
+    workspace_scenario: WorkspaceScenarioRef | None = None
 
 
 class ScenarioTemplateRequest(BaseModel):
@@ -135,6 +248,44 @@ class ScenarioTemplateResponse(BaseModel):
     standard_calendar: SimCalendarConfig | None = None
 
 
+# --- Affermazioni dei file come fonti dei parametri (SIM-07, C3) -------------
+
+
+class SimulationClaimsRequest(BaseModel):
+    current_bpmn_xml: str | None = None
+
+
+class DurationHintResponse(BaseModel):
+    text: str
+    seconds: float
+
+
+class ClaimProposalResponse(BaseModel):
+    claim_id: int
+    statement: str
+    quote: str
+    quote_verified: bool
+    source_id: str
+    source_name: str
+    # Quanto del nome dell'attivita' l'affermazione nomina (0-1).
+    score: float
+    # Una durata citata nella fonte: un riferimento, mai il valore del parametro.
+    duration_hint: DurationHintResponse | None = None
+
+
+class ActivityClaimsResponse(BaseModel):
+    element_id: str
+    name: str
+    proposals: list[ClaimProposalResponse] = Field(default_factory=list)
+
+
+class SimulationClaimsResponse(BaseModel):
+    """Per ogni attivita' del BPMN, le affermazioni dei file che la nominano."""
+
+    sources: int = 0
+    activities: list[ActivityClaimsResponse] = Field(default_factory=list)
+
+
 # --- Compatibilita' del BPMN con il motore (SIM-05) ---------------------------
 
 CompatibilityStatus = Literal["preserved", "approximated", "flattened", "removed"]
@@ -175,6 +326,13 @@ class BpmnCompatibilityResponse(BaseModel):
     undeclared: int = 0
 
 
+class SimulationQueueView(BaseModel):
+    """Dove sta un run ``pending`` (P0.3): in coda, con la posizione, o in corso."""
+
+    state: Literal["queued", "running"]
+    position: int | None = None
+
+
 class SimulationRunResponse(BaseModel):
     id: int
     bpmn_model_id: str
@@ -193,6 +351,9 @@ class SimulationRunResponse(BaseModel):
     error: str | None = None
     created_at: str
     completed_at: str | None = None
+    # Per un run ``pending`` (P0.3): ``{"state": "queued", "position": n}`` mentre
+    # aspetta il suo turno, ``{"state": "running", "position": None}`` mentre gira.
+    queue: SimulationQueueView | None = None
 
 
 class SimulationReplayResponse(BaseModel):

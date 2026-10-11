@@ -91,7 +91,7 @@ def _model(*, busy: bool = False) -> SimulationModel:
     )
 
 
-def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None) -> list[dict]:
+def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None, bpmn: str | None = None) -> list[dict]:
     import numpy
     from prosimos.simulation_engine import run_simulation
 
@@ -100,7 +100,11 @@ def _run(model: SimulationModel, seed: int = 5, *, payload: dict | None = None) 
     with tempfile.TemporaryDirectory() as tmp:
         scenario, log = Path(tmp) / "s.json", Path(tmp) / "log.csv"
         scenario.write_text(json.dumps(payload if payload is not None else compile_for_prosimos(model)))
-        run_simulation(str(contract_spike.BPMN_PATH), str(scenario), 200, None, str(log), contract_spike.START)
+        bpmn_path = contract_spike.BPMN_PATH
+        if bpmn is not None:
+            bpmn_path = Path(tmp) / "model.bpmn"
+            bpmn_path.write_text(bpmn, encoding="utf-8")
+        run_simulation(str(bpmn_path), str(scenario), 200, None, str(log), contract_spike.START)
         return contract_spike.parse_log(log.read_text())
 
 
@@ -137,6 +141,108 @@ def test_a_run_from_the_v2_contract_keeps_calendars_lognormal_and_rules_on_the_e
     rows = _run(model, payload=scenario.payload)
     assert contract_spike.check_branch_rules(rows) is None
     assert contract_spike.check_calendars(rows) is None
+
+
+def test_a_task_with_other_resources_is_shared_on_the_engine():
+    # A2-2: l'approvazione la fanno l'approvatore e, quando lui e' occupato o fuori
+    # orario, un senior con la sua durata. Sul motore lavorano entrambi.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        arrival_interval_seconds=400,
+        resources=[
+            {"id": "ops", "name": "Operatore", "cost_per_hour": 30, "amount": 2},
+            {"id": "appr", "name": "Approvatore", "cost_per_hour": 60, "amount": 1},
+            {"id": "senior", "name": "Senior", "cost_per_hour": 90, "amount": 1},
+        ],
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "resource_id": "ops"},
+            {"element_id": "T_approve", "mean_seconds": 1800, "resource_id": "appr",
+             "other_assignments": [{"resource_id": "senior", "mean_seconds": 900, "distribution": "fixed"}]},
+            {"element_id": "T_pay", "mean_seconds": 600, "resource_id": "ops"},
+        ],
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
+
+    rows = [row for row in _run(_model(), payload=scenario.payload) if row["activity"] == "Approva"]
+    by_resource: dict[str, list[float]] = {}
+    for row in rows:
+        by_resource.setdefault(row["resource"].rsplit("_", 1)[0], []).append(row["end"] - row["start"])
+    assert set(by_resource) == {"Approvatore", "Senior"}, by_resource.keys()
+    # Ognuno con la sua durata: il senior e' fisso a 15 minuti di lavoro. Un'approvazione
+    # iniziata a fine turno riprende il mattino dopo (calendario standard, 16 ore di
+    # pausa notturna), quindi il tempo trascorso e' 15 minuti piu' le notti di mezzo.
+    night = 16 * 3600
+    assert all(round(seconds - 900) % night == 0 for seconds in by_resource["Senior"]), by_resource["Senior"]
+    assert min(by_resource["Senior"]) == 900
+
+
+def test_cases_arrive_only_inside_the_arrival_calendar():
+    # A2-3: il consulente fa arrivare i casi solo la mattina dei giorni feriali.
+    from datetime import datetime
+
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        tasks=[{"element_id": t, "mean_seconds": 600} for t in ("T_receive", "T_approve", "T_pay")],
+        calendars=[{"id": "mornings", "name": "Mattine", "periods": [
+            {"from_day": "MONDAY", "to_day": "FRIDAY", "begin": "09:00", "end": "12:00"}]}],
+        arrival={"mean_seconds": 1200, "distribution": "fixed", "calendar_id": "mornings"},
+    )
+    scenario = build_prosimos_scenario(bpmn_xml=contract_spike.BPMN_PATH.read_text(encoding="utf-8"), request=request)
+
+    first: dict[str, datetime] = {}
+    for row in _run(_model(), payload=scenario.payload):
+        enabled = datetime.fromisoformat(row["enable_time"].replace(" ", "T"))
+        if row["case_id"] not in first or enabled < first[row["case_id"]]:
+            first[row["case_id"]] = enabled
+    assert len(first) == 200
+    outside = [t for t in first.values() if t.weekday() > 4 or not 9 <= t.hour < 12]
+    assert outside == [], outside[:5]
+
+
+def test_a_duration_that_depends_on_a_case_category_is_applied_by_the_engine():
+    # SIM-32: Approva dura 10 minuti per i premium, 25 per gli standard. Il motore
+    # non lo sa fare: lo scenario lo compila in varianti dietro una decisione per regola.
+    from backend.schemas.simulation import CreateSimulationRunRequest
+    from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
+    from backend.simulation.scenario_builder import build_prosimos_scenario
+
+    request = CreateSimulationRunRequest(
+        tasks=[
+            {"element_id": "T_receive", "mean_seconds": 600, "distribution": "fixed"},
+            {"element_id": "T_approve", "mean_seconds": 1200, "distribution": "fixed",
+             "duration_by": {"attribute": "tipo", "variants": [
+                 {"value": "premium", "mean_seconds": 600, "distribution": "fixed"},
+                 {"value": "standard", "mean_seconds": 1500, "distribution": "fixed"}]}},
+            {"element_id": "T_pay", "mean_seconds": 600, "distribution": "fixed"},
+        ],
+        model_patch={
+            "case_attributes": [
+                {"name": "tipo", "options": [{"value": "premium", "probability": 0.3}, {"value": "standard", "probability": 0.7}]},
+                {"name": "importo", "distribution": {"kind": "uniform", "minimum": 100, "maximum": 12000}},
+            ],
+            "gateways": [{"element_id": "G_split", "branches": [
+                {"flow_id": "F_high", "probability": 0.5, "condition": _amount_rule(">")},
+                {"flow_id": "F_low", "probability": 0.5, "condition": _amount_rule("<=")},
+            ]}],
+        },
+    )
+    bpmn = normalize_bpmn_for_prosimos(contract_spike.BPMN_PATH.read_text(encoding="utf-8"))
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn, request=request)
+    assert scenario.bpmn_xml is not None
+
+    rows = _run(_model(), payload=scenario.payload, bpmn=scenario.bpmn_xml)
+    worked: dict[str, set[float]] = {}
+    for row in rows:
+        if row["activity"] == "Approva":
+            worked.setdefault(row.get("tipo", ""), set()).add(round(row["end"] - row["start"]) % (16 * 3600))
+    assert worked.get("premium") == {600}, worked
+    assert worked.get("standard") == {1500}, worked
+    # Una sola attività nel log: le varianti hanno il nome dell'originale.
+    assert {row["activity"] for row in rows} == {"Ricevi", "Approva", "Paga"}
 
 
 def _amount_rule(operator: str) -> dict:

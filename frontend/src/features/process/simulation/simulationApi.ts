@@ -4,6 +4,8 @@ import {
   experimentReportSchema,
   scenarioProvenanceSchema,
   scenarioTemplateSchema,
+  simulationClaimsSchema,
+  type SimulationClaims,
   simulationReplaySchema,
   simulationRunSchema,
   simulationRunsSchema,
@@ -32,6 +34,18 @@ export async function runProsimosSimulation(
         default_cost_per_hour: input.defaultCostPerHour,
         resource_amount: input.resourceAmount,
         resource_name: input.resourceName,
+        sla: input.sla && { target_seconds: input.sla.targetSeconds, share: input.sla.share },
+        case_fixed_cost: input.caseFixedCost,
+        warmup_cases: input.warmupCases,
+        replications: input.replications,
+        arrival: input.arrival && {
+          mean_seconds: input.arrival.meanSeconds,
+          distribution: input.arrival.distribution,
+          std_seconds: input.arrival.stdSeconds,
+          min_seconds: input.arrival.minSeconds,
+          max_seconds: input.arrival.maxSeconds,
+          calendar_id: input.arrival.calendarId,
+        },
         resources: input.resources?.map((r) => ({
           id: r.id,
           name: r.name,
@@ -47,6 +61,27 @@ export async function runProsimosSimulation(
           std_seconds: task.stdSeconds,
           min_seconds: task.minSeconds,
           max_seconds: task.maxSeconds,
+          claims: task.claims?.map((claim) => ({ claim_id: claim.claimId, label: claim.label })),
+          fixed_cost: task.fixedCost,
+          duration_by: task.durationBy && {
+            attribute: task.durationBy.attribute,
+            variants: task.durationBy.variants.map((v) => ({
+              value: v.value,
+              mean_seconds: v.meanSeconds,
+              distribution: v.distribution,
+              std_seconds: v.stdSeconds,
+              min_seconds: v.minSeconds,
+              max_seconds: v.maxSeconds,
+            })),
+          },
+          other_assignments: task.otherAssignments?.map((other) => ({
+            resource_id: other.resourceId,
+            mean_seconds: other.meanSeconds,
+            distribution: other.distribution,
+            std_seconds: other.stdSeconds,
+            min_seconds: other.minSeconds,
+            max_seconds: other.maxSeconds,
+          })),
         })),
         gateways: input.gateways?.map((g) => ({
           element_id: g.elementId,
@@ -58,6 +93,8 @@ export async function runProsimosSimulation(
         calendars: input.calendars?.length ? input.calendars : undefined,
         model_patch: input.modelPatch,
         idempotency_key: input.idempotencyKey,
+        seed: input.seed,
+        workspace_scenario: input.workspaceScenario,
       },
     },
   );
@@ -75,6 +112,15 @@ export async function fetchScenarioTemplate(
   );
 
   return scenarioTemplateSchema.parse(raw);
+}
+
+/** SIM-07: le affermazioni dei file che nominano ogni attivita'. */
+export async function fetchSimulationClaims(bpmnModelId: string, currentBpmnXml: string | null): Promise<SimulationClaims> {
+  const raw = await http<unknown>(`/v1/workspace/bpmn-models/${bpmnModelId}/simulation-claims`, {
+    method: "POST",
+    body: { current_bpmn_xml: currentBpmnXml },
+  });
+  return simulationClaimsSchema.parse(raw);
 }
 
 /** Where each simulable element came from — discovery evidence or inference. */

@@ -89,7 +89,7 @@ export function ReadinessSummary({
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 {!dense && row.flagged > 0 && (
-                  <span className="text-[var(--amber-700)]">
+                  <span className="text-[var(--state-warning-text)]">
                     {t("simulation.readiness.flagged", { count: row.flagged })}
                   </span>
                 )}
@@ -103,7 +103,7 @@ export function ReadinessSummary({
       )}
 
       {!dense && openGatewayQuestions > 0 && (
-        <p className="text-[11px] text-[var(--amber-700)]">
+        <p className="text-[11px] text-[var(--state-warning-text)]">
           {t("simulation.readiness.gatewaysToValidate", { count: openGatewayQuestions })}
         </p>
       )}

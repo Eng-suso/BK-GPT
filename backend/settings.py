@@ -223,6 +223,17 @@ class Settings(BaseSettings):
     # in coda dentro Prosimos e scadono dopo `prosimos_timeout_seconds`. Quattro
     # lascia due posti liberi per non riempire il servizio fino all'orlo.
     simulation_max_concurrent_runs: int = 4
+    # Oltre i run in corso, quanti ne aspettano il loro turno nella coda su
+    # Postgres (P0.3). Una coda piu' lunga di cosi' e' un segnale, non un
+    # servizio: oltre, la richiesta riceve 429 con il motivo.
+    simulation_max_queued_runs: int = 50
+    # Ogni quanto un run in corso dice "sono vivo". Un run che tace da tre
+    # battiti e' di un processo morto: torna in coda (o fallisce al terzo tentativo).
+    simulation_heartbeat_seconds: float = 30.0
+    # Il giro periodico della coda nel processo dell'API. Spento, i run partono
+    # comunque dal drenaggio di ogni richiesta, ma nessuno riprende quelli
+    # rimessi in coda dopo un crash: va acceso in almeno un processo.
+    simulation_worker_in_process: bool = True
     # Sync Prosimos runs the whole simulation inside the HTTP call, so this must
     # cover the slowest expected simulation, not just connect latency.
     prosimos_timeout_seconds: float = 900.0

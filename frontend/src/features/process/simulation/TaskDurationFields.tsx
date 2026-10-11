@@ -4,31 +4,36 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/ui/input";
 
 import { DISTRIBUTIONS, type DistributionName } from "./simulationTypes";
-import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type TaskDraft } from "./simulationScenario";
+import { DISTRIBUTION_PARAMETERS, taskDurationIssue, type DurationDraft } from "./simulationScenario";
 
 const NATIVE_SELECT = "h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm";
 
 /**
  * La durata di un'attività: distribuzione e i parametri che quella distribuzione usa.
  * I campi facoltativi vuoti restano vuoti: le ipotesi standard le applica il backend.
+ * Serve sia per il ruolo principale sia per ogni altro ruolo dell'attività.
  */
-export function TaskDurationFields({
+export function TaskDurationFields<T extends DurationDraft>({
   elementId,
   taskName,
   task,
   onChange,
+  kind = "duration",
 }: {
   elementId: string;
   taskName: string;
-  task: TaskDraft;
-  onChange: (next: TaskDraft) => void;
+  task: T;
+  onChange: (next: T) => void;
+  /** ``arrival``: il tempo fra due arrivi dei casi, con le sue etichette (A2-3). */
+  kind?: "duration" | "arrival";
 }): React.JSX.Element {
   const { t } = useTranslation("process");
   const parameters = DISTRIBUTION_PARAMETERS[task.distribution];
   const issue = taskDurationIssue(task);
   const issueId = `sim-duration-issue-${elementId}`;
+  const meanLabel = t(kind === "arrival" ? "simulation.config.arrivalMeanMin" : "simulation.config.durationMin");
   const hint = task.distribution === "uniform"
-    ? "simulation.config.uniformHint"
+    ? kind === "arrival" ? "simulation.config.arrivalUniformHint" : "simulation.config.uniformHint"
     : task.distribution === "expon"
       ? "simulation.config.exponDefaults"
       : parameters.std ? "simulation.config.durationDefaults" : null;
@@ -55,12 +60,12 @@ export function TaskDurationFields({
       <div className="sim-task-timing grid grid-cols-[minmax(90px,0.7fr)_minmax(0,1fr)] gap-3">
         {parameters.mean ? (
           <label className="grid gap-1">
-            <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.durationMin")}</span>
+            <span className="text-xs font-medium text-muted-foreground">{meanLabel}</span>
             <Input
               className="h-8"
               type="number"
               min={1}
-              aria-label={`${t("simulation.config.durationMin")} · ${taskName}`}
+              aria-label={`${meanLabel} · ${taskName}`}
               value={task.meanMinutes}
               onChange={(e) => onChange({ ...task, meanMinutes: e.target.value === "" ? 0 : Number(e.target.value) })}
             />

@@ -5,6 +5,7 @@ import { Play, X } from "lucide-react";
 
 import { EmptyState } from "@/components/feedback";
 
+import { runWaitHint, runWaitTitle } from "../runQueue";
 import type { SimulationRun } from "../simulationTypes";
 import { resolveActiveRun, useSimulationSection } from "../useSimulationSection";
 import { useReplaySession } from "./useReplaySession";
@@ -37,7 +38,7 @@ export function ReplayGate({ children }: ReplayGateProps): React.JSX.Element {
       />
     );
   } else if (activeRun.status === "pending") {
-    body = <EmptyState icon={Play} title={t("simulation.running")} />;
+    body = <EmptyState icon={Play} title={runWaitTitle(activeRun?.queue?.state, activeRun?.queue?.position, t)} description={runWaitHint(activeRun?.queue?.state, t)} />;
   } else if (activeRun.status === "failed") {
     body = (
       <EmptyState

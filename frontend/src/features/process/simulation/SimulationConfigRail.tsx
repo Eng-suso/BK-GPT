@@ -16,21 +16,32 @@ import {
 } from "@/ui/select";
 import { cn } from "@/lib/utils";
 
-import type { ScenarioTemplate, SimulationRun } from "./simulationTypes";
+import type { ScenarioTemplate, SimulationClaims, SimulationRun } from "./simulationTypes";
 import {
   newResourceId,
   resourceParametersValid,
+  arrivalDuration,
   scenarioParameterIssues,
+  roleLabel,
   scenarioResourceIssues,
+  taskResourceIds,
+  warmupIssue,
+  withArrival,
+  withValidOtherAssignments,
   type ScenarioDraft,
 } from "./simulationScenario";
 import type { InputConfidence } from "./simulationProvenance";
 import { ProvenanceChip } from "./ProvenanceChip";
 import { TaskDurationFields } from "./TaskDurationFields";
+import { OtherAssignments } from "./OtherAssignments";
+import { ActivitySources } from "./ActivitySources";
+import { ServiceLevelFields } from "./ServiceLevel";
+import { DurationByCategory } from "./DurationByCategory";
 import { CalendarsSection } from "./CalendarsSection";
 import { CaseAttributesSection } from "./CaseAttributesSection";
 import { GatewayModeToggle, GatewayRulesEditor } from "./GatewayRulesEditor";
-import { caseRuleIssues, type GatewayRulesDraft } from "./caseRules";
+import { attributeUsage, caseRuleIssues, type GatewayRulesDraft } from "./caseRules";
+import { CasePrioritiesSection } from "./CasePrioritiesSection";
 
 const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
   pending: "pending",
@@ -41,9 +52,13 @@ const RUN_TONE: Record<SimulationRun["status"], StatusTone> = {
 type SimulationConfigRailProps = {
   template: ScenarioTemplate | null;
   templateLoading: boolean;
+  /** SIM-07: proposte di fonti per attivita'; assenti, il pannello non le mostra. */
+  claims?: SimulationClaims | null;
   draft: ScenarioDraft;
   onDraftChange: (next: ScenarioDraft) => void;
   isRunning: boolean;
+  /** Cosa dice il pulsante mentre il run aspetta: in coda o in corso (P0.3). */
+  runningLabel?: string;
   error: string | null;
   onRun: () => void;
   focusElementId: string | null;
@@ -83,9 +98,11 @@ type SimulationConfigRailProps = {
 export function SimulationConfigRail({
   template,
   templateLoading,
+  claims,
   draft,
   onDraftChange,
   isRunning,
+  runningLabel,
   error,
   runs,
   activeRunId,
@@ -119,9 +136,10 @@ export function SimulationConfigRail({
   const calendars = draft.calendars ?? [];
   const attributes = draft.caseAttributes ?? [];
   const gatewayRules = draft.gatewayRules ?? {};
-  const ruleIssues = caseRuleIssues(attributes, gatewayRules);
-  const attributeUse = Object.fromEntries(attributes.map((a) => [a.id,
-    Object.values(gatewayRules).filter((branches) => Object.values(branches).flat(2).some((r) => r.attributeId === a.id)).length]));
+  const priorities = draft.casePriorities ?? [];
+  const ruleIssues = caseRuleIssues(attributes, gatewayRules, priorities);
+  const attributeUse = attributeUsage(attributes, gatewayRules, priorities,
+    Object.values(draft.tasks).flatMap((task) => (task.durationBy ? [task.durationBy.attributeId] : [])));
   const canRun = Boolean(template) && !templateLoading && resourceIssues.ready && parameterIssues.ready && ruleIssues.ready;
   const updateResource = (id: string, fields: Partial<ScenarioDraft["resources"][number]>) =>
     patch({ resources: draft.resources.map((r) => r.id === id ? { ...r, ...fields } : r) });
@@ -138,7 +156,7 @@ export function SimulationConfigRail({
         <div className="min-w-0">
           {!workspace && <p className="eyebrow">{t("simulation.scenario.eyebrow")}</p>}
           {workspace ? <nav aria-label={t("simulation.workspace.sections")} className="flex flex-wrap gap-1">
-            {["globals", "resources", "calendars", "activities", "attributes", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
+            {["globals", "resources", "calendars", "activities", "attributes", "priorities", ...(template?.gateways.length ? ["gateways"] : [])].map((key) => <button type="button" key={key} className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring" onClick={() => {
               const sections = scrollRef.current?.querySelectorAll("section");
               const target = Array.from(sections ?? []).find((section) => section.querySelector("h4")?.textContent?.startsWith(t(`simulation.config.${key}`)));
               target?.scrollIntoView({ block: "start" });
@@ -156,7 +174,7 @@ export function SimulationConfigRail({
             disabled={isRunning || !canRun}
             onClick={onRun}
           >
-            {isRunning ? t("simulation.running") : t("simulation.run")}
+            {isRunning ? runningLabel ?? t("simulation.running") : t("simulation.run")}
           </Button>
         ) : (
           onCollapse && (
@@ -190,7 +208,7 @@ export function SimulationConfigRail({
                 onChange={(e) => patch({ scenarioName: e.target.value })}
               />
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <NumberField
                 label={t("simulation.fields.cases")}
                 value={draft.totalCases}
@@ -199,18 +217,54 @@ export function SimulationConfigRail({
                 onChange={(v) => patch({ totalCases: v })}
               />
               <NumberField
-                label={t("simulation.fields.arrivalMin")}
-                value={draft.arrivalIntervalMinutes}
-                min={1}
-                onChange={(v) => patch({ arrivalIntervalMinutes: v })}
-              />
-              <NumberField
                 label={t("simulation.config.defaultDurationMin")}
                 value={draft.defaultTaskMinutes}
                 min={1}
                 onChange={(v) => patch({ defaultTaskMinutes: v })}
               />
+              <FieldLabel label={t("simulation.config.replications")}>
+                <Input className="h-8" type="number" min={1} max={20} step={1} value={draft.replications ?? 1}
+                  aria-describedby="sim-replications-hint"
+                  onChange={(e) => patch({ replications: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
+              <FieldLabel label={t("simulation.config.warmupCases")}>
+                <Input className="h-8" type="number" min={0} step={1} value={draft.warmupCases ?? ""}
+                  aria-invalid={warmupIssue(draft) ? true : undefined}
+                  aria-describedby="sim-warmup-hint"
+                  onChange={(e) => patch({ warmupCases: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
+              <FieldLabel label={t("simulation.config.caseFixedCost")}>
+                <Input className="h-8" type="number" min={0} step="any" value={draft.caseFixedCost ?? ""}
+                  onChange={(e) => patch({ caseFixedCost: e.target.value === "" ? undefined : Number(e.target.value) })} />
+              </FieldLabel>
             </div>
+            <p id="sim-replications-hint" className="text-xs text-muted-foreground">{t("simulation.config.replicationsHint")}</p>
+            {warmupIssue(draft)
+              ? <p id="sim-warmup-hint" role="alert" className="text-xs font-medium text-destructive">{t(`simulation.config.warmupIssue.${warmupIssue(draft)}`)}</p>
+              : <p id="sim-warmup-hint" className="text-xs text-muted-foreground">{t("simulation.config.warmupHint")}</p>}
+            <fieldset className="sim-arrivals mt-1 grid gap-2 rounded-md border border-border p-2.5" data-sim-arrivals>
+              <legend className="px-1 text-xs font-medium text-foreground">{t("simulation.config.arrivals")}</legend>
+              <p className="text-xs text-muted-foreground">{t("simulation.config.arrivalsHint")}</p>
+              <TaskDurationFields
+                elementId="arrivals"
+                taskName={t("simulation.config.arrivals")}
+                kind="arrival"
+                task={arrivalDuration(draft)}
+                onChange={(next) => onDraftChange(withArrival(draft, next))}
+              />
+              <label className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.arrivalCalendar")}</span>
+                <select
+                  className="h-8 w-full min-w-0 ui-field rounded-xl px-2 text-sm"
+                  value={calendars.some((c) => c.id === draft.arrival?.calendarId) ? draft.arrival?.calendarId : ""}
+                  onChange={(e) => onDraftChange(withArrival(draft, arrivalDuration(draft), e.target.value || undefined))}
+                >
+                  <option value="">{t("simulation.config.standardCalendar")}</option>
+                  {calendars.map((c) => <option key={c.id} value={c.id}>{c.name || c.id}</option>)}
+                </select>
+              </label>
+            </fieldset>
+            <ServiceLevelFields sla={draft.sla} onChange={(next) => patch({ sla: next })} />
             {provenance && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5">
                 <ChipRow
@@ -218,7 +272,7 @@ export function SimulationConfigRail({
                   field={provenance.globals.cases}
                 />
                 <ChipRow
-                  label={t("simulation.fields.arrivalMin")}
+                  label={t("simulation.config.arrivals")}
                   field={provenance.globals.arrival}
                 />
               </div>
@@ -263,7 +317,7 @@ export function SimulationConfigRail({
           )}
           <ul className="grid gap-3">
             {draft.resources.map((resource) => {
-              const assigned = Object.values(draft.tasks).filter((task) => task.resourceId === resource.id).length;
+              const assigned = Object.values(draft.tasks).filter((task) => taskResourceIds(task).includes(resource.id)).length;
               const confirmed = resource.parametersConfirmed !== false && resourceParametersValid(resource);
               const context = [resource.source?.pool_name, resource.source?.parent_name].filter(Boolean).join(" / ");
               return (
@@ -274,11 +328,17 @@ export function SimulationConfigRail({
                       {context && <p className="break-words text-xs text-muted-foreground">{context}</p>}
                       <StatusIndicator tone={confirmed ? "ok" : "pending"} label={t(confirmed ? "simulation.config.resourceConfirmed" : "simulation.config.resourcePending")} />
                     </div>
-                    <Button type="button" size="icon" variant="ghost" aria-label={`${t("simulation.config.removeResource")} ${resource.name}`} onClick={() => patch({
-                      resources: draft.resources.filter((r) => r.id !== resource.id),
-                      excludedResourceIds: resource.source ? [...(draft.excludedResourceIds ?? []), resource.id] : draft.excludedResourceIds,
-                      tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, task.resourceId === resource.id ? { ...task, resourceId: "", assignmentSource: "manual" as const } : task])),
-                    })}><X aria-hidden className="size-4" /></Button>
+                    <Button type="button" size="icon" variant="ghost" aria-label={`${t("simulation.config.removeResource")} ${resource.name}`} onClick={() => {
+                      const remaining = draft.resources.filter((r) => r.id !== resource.id);
+                      const remainingIds = new Set(remaining.map((r) => r.id));
+                      patch({
+                        resources: remaining,
+                        excludedResourceIds: resource.source ? [...(draft.excludedResourceIds ?? []), resource.id] : draft.excludedResourceIds,
+                        // Il ruolo tolto sparisce anche dagli altri ruoli delle attività.
+                        tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, withValidOtherAssignments(
+                          task.resourceId === resource.id ? { ...task, resourceId: "", assignmentSource: "manual" as const } : task, remainingIds)])),
+                      });
+                    }}><X aria-hidden className="size-4" /></Button>
                   </div>
                   <FieldLabel label={t("simulation.config.role")}>
                     <Input value={resource.name} onChange={(e) => updateResource(resource.id, { name: e.target.value, parametersConfirmed: false })} />
@@ -302,7 +362,7 @@ export function SimulationConfigRail({
                   <p className="mt-3 text-xs text-muted-foreground">{t("simulation.config.assignedActivities", { count: assigned })}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {!confirmed && <Button type="button" size="sm" variant="outline" disabled={!resourceParametersValid(resource)} onClick={() => updateResource(resource.id, { parametersConfirmed: true })}>{t("simulation.config.confirmResource")}</Button>}
-                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" className="h-auto min-h-9 max-w-full whitespace-normal text-left" onClick={() => patch({ tasks: Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, draft.resources.some((r) => r.id === task.resourceId) ? task : { ...task, resourceId: resource.id, assignmentSource: "manual" as const }])) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
+                    {resourceIssues.unassigned > 0 && <Button type="button" size="sm" variant="ghost" className="h-auto min-h-9 max-w-full whitespace-normal text-left" onClick={() => patch({ tasks: assignUnassignedTasks(draft, resource.id) })}>{t("simulation.config.assignUnassigned", { count: resourceIssues.unassigned })}</Button>}
                   </div>
                 </li>
               );
@@ -314,8 +374,14 @@ export function SimulationConfigRail({
             {resourceIssues.unassigned > 0 && <p>{t("simulation.config.unassignedActivities", { count: resourceIssues.unassigned })}</p>}
             {parameterIssues.durations > 0 && <p>{t("simulation.config.invalidDurations", { count: parameterIssues.durations })}</p>}
             {parameterIssues.calendars > 0 && <p>{t("simulation.config.invalidCalendars", { count: parameterIssues.calendars })}</p>}
+            {parameterIssues.arrival && <p>{t("simulation.config.invalidArrival")}</p>}
+            {parameterIssues.sla && <p>{t("simulation.config.invalidSla")}</p>}
+            {parameterIssues.costs && <p>{t("simulation.config.invalidCosts")}</p>}
+            {parameterIssues.warmup && <p>{t("simulation.config.invalidWarmup")}</p>}
+            {parameterIssues.replications && <p>{t("simulation.config.invalidReplications")}</p>}
             {ruleIssues.attributes > 0 && <p>{t("simulation.config.invalidAttributes", { count: ruleIssues.attributes })}</p>}
             {ruleIssues.gateways > 0 && <p>{t("simulation.config.invalidRules", { count: ruleIssues.gateways })}</p>}
+            {ruleIssues.priorities > 0 && <p>{t("simulation.config.invalidPriorities", { count: ruleIssues.priorities })}</p>}
           </div>}
         </DetailPanelSection>
 
@@ -325,8 +391,9 @@ export function SimulationConfigRail({
             calendars={calendars}
             onChange={(next) => patch({
               calendars: next,
-              // Una risorsa sul calendario rimosso torna su quello standard.
+              // Una risorsa, o gli arrivi, sul calendario rimosso tornano su quello standard.
               resources: draft.resources.map((r) => r.calendarId && !next.some((c) => c.id === r.calendarId) ? { ...r, calendarId: undefined } : r),
+              arrival: draft.arrival?.calendarId && !next.some((c) => c.id === draft.arrival?.calendarId) ? { ...draft.arrival, calendarId: undefined } : draft.arrival,
             })}
           />
         </DetailPanelSection>
@@ -376,7 +443,11 @@ export function SimulationConfigRail({
                             patch({
                               tasks: {
                                 ...draft.tasks,
-                                [task.element_id]: { ...cfg, resourceId: value, assignmentSource: "manual" },
+                                // Se il nuovo principale era fra gli altri ruoli, lì non serve più.
+                                [task.element_id]: withValidOtherAssignments(
+                                  { ...cfg, resourceId: value, assignmentSource: "manual" },
+                                  new Set(draft.resources.map((r) => r.id)),
+                                ),
                               },
                             })
                           }
@@ -387,13 +458,46 @@ export function SimulationConfigRail({
                           <SelectContent>
                             {draft.resources.map((r) => (
                               <SelectItem key={r.id} value={r.id}>
-                                {r.source?.pool_name && r.source.kind === "lane" ? `${r.source.pool_name} / ${r.name}` : r.name}
+                                {roleLabel(r)}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </FieldLabel>
                     </div>
+                    <DurationByCategory
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      attributes={attributes}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
+                    <label className="sim-task-cost mt-1.5 grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">{t("simulation.config.fixedCost")}</span>
+                      <Input className="h-8" type="number" min={0} step="any"
+                        aria-label={`${t("simulation.config.fixedCost")} · ${task.name}`}
+                        value={cfg.fixedCost ?? ""}
+                        onChange={(e) => patch({ tasks: { ...draft.tasks, [task.element_id]: { ...cfg, fixedCost: e.target.value === "" ? undefined : Number(e.target.value) } } })} />
+                    </label>
+                    <OtherAssignments
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      resources={draft.resources}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                    />
+                    <ActivitySources
+                      elementId={task.element_id}
+                      taskName={task.name}
+                      task={cfg}
+                      proposals={claims?.activities.find((a) => a.element_id === task.element_id)?.proposals ?? []}
+                      dismissed={draft.dismissedClaims?.[task.element_id] ?? []}
+                      onChange={(next) => patch({ tasks: { ...draft.tasks, [task.element_id]: next } })}
+                      onDismiss={(claimId) => patch({ dismissedClaims: {
+                        ...draft.dismissedClaims,
+                        [task.element_id]: [...(draft.dismissedClaims?.[task.element_id] ?? []), claimId],
+                      } })}
+                    />
                   </li>
                 );
               })}
@@ -403,6 +507,10 @@ export function SimulationConfigRail({
 
         <DetailPanelSection title={t("simulation.config.attributes")}>
           <CaseAttributesSection attributes={attributes} usedBy={attributeUse} onChange={(next) => patch({ caseAttributes: next })} />
+        </DetailPanelSection>
+
+        <DetailPanelSection title={t("simulation.config.priorities")}>
+          <CasePrioritiesSection priorities={priorities} attributes={attributes} onChange={(next) => patch({ casePriorities: next })} />
         </DetailPanelSection>
 
         {template && template.gateways.length > 0 && (
@@ -443,7 +551,7 @@ export function SimulationConfigRail({
                       ) : (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--amber-700)] hover:underline"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--state-warning-text)] hover:underline"
                           onClick={() => {
                             const flows = gateway.branches.map((b) => b.flow_id);
                             const total = flows.reduce((acc, f) => acc + (cfg[f] ?? 0), 0);
@@ -521,7 +629,7 @@ export function SimulationConfigRail({
       <div className="border-t border-border p-3">
         {!embedded && (
           <Button type="button" className="w-full" disabled={isRunning || !canRun} onClick={onRun}>
-            {isRunning ? t("simulation.running") : t("simulation.run")}
+            {isRunning ? runningLabel ?? t("simulation.running") : t("simulation.run")}
           </Button>
         )}
         {!embedded && runs && runs.length > 0 && onSelectRun && (
@@ -567,6 +675,14 @@ export function SimulationConfigRail({
       )}
     </div>
   );
+}
+
+/** Le attività senza un ruolo valido passano a ``resourceId``, che sparisce dai loro altri ruoli. */
+function assignUnassignedTasks(draft: ScenarioDraft, resourceId: string): ScenarioDraft["tasks"] {
+  const ids = new Set(draft.resources.map((r) => r.id));
+  return Object.fromEntries(Object.entries(draft.tasks).map(([id, task]) => [id, ids.has(task.resourceId)
+    ? task
+    : withValidOtherAssignments({ ...task, resourceId, assignmentSource: "manual" as const }, ids)]));
 }
 
 function NumberField({

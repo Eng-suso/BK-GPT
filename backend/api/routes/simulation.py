@@ -8,6 +8,8 @@ from backend.schemas.simulation import (
     ScenarioProvenanceResponse,
     ScenarioTemplateRequest,
     ScenarioTemplateResponse,
+    SimulationClaimsRequest,
+    SimulationClaimsResponse,
     SimulationReplayResponse,
     SimulationRunResponse,
 )
@@ -18,15 +20,16 @@ from backend.schemas.simulation_model import (
     SimulationRunModelResponse,
 )
 from backend.schemas.workspace import BpmnModelResponse
-from backend.security import get_current_tenant_id, require_principal
+from backend.security import require_principal
 from backend.simulation.advisor import ExperimentReport, suggest_experiments
 from backend.simulation.service import (
+    claim_proposals_for_model,
     SimulationCapacityError,
     SimulationLogUnavailable,
-    execute_simulation_run,
+    drain_simulation_queue,
     export_simulation_event_log,
     prepare_simulation_model_run,
-    prepare_simulation_run,
+    prepare_simulation_runs,
     scenario_provenance_for_model,
     scenario_template_for_model,
     simulation_model_for_bpmn,
@@ -60,27 +63,21 @@ async def create_workspace_simulation_run(
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
 
     try:
-        run, scenario, bpmn_xml = prepare_simulation_run(
+        # Una ripetizione o un gruppo (SIM-04): la risposta e' la prima, il gruppo sta nella richiesta.
+        run, _, _ = prepare_simulation_runs(
             bpmn_model=BpmnModelResponse(**model),
             request=request,
-        )
+        )[0]
     except SimulationCapacityError as exc:
         # 429 e non 400: la richiesta e' giusta, e' il momento a essere
-        # sbagliato. La stessa, fra due minuti, funziona.
+        # sbagliato (coda piena). La stessa, fra qualche minuto, funziona.
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    # scenario is None when an identical run is already in flight (idempotency).
-    if scenario is not None:
-        background_tasks.add_task(
-            execute_simulation_run,
-            run_id=run["id"],
-            tenant_id=get_current_tenant_id(),
-            bpmn_xml=bpmn_xml,
-            scenario=scenario,
-            request=request,
-        )
+    # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
+    # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
+    background_tasks.add_task(drain_simulation_queue)
 
     return SimulationRunResponse(**run)
 
@@ -97,7 +94,7 @@ async def create_workspace_simulation_model_run(
         raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
 
     try:
-        run, scenario, bpmn_xml = prepare_simulation_model_run(
+        run, _, _ = prepare_simulation_model_run(
             bpmn_model=BpmnModelResponse(**model),
             request=request,
         )
@@ -107,17 +104,29 @@ async def create_workspace_simulation_model_run(
         # Comprende la ValidationError di una patch che rompe un riferimento.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if scenario is not None:
-        background_tasks.add_task(
-            execute_simulation_run,
-            run_id=run["id"],
-            tenant_id=get_current_tenant_id(),
-            bpmn_xml=bpmn_xml,
-            scenario=scenario,
-            request=request,
-        )
+    # Il run e' in coda (o ce n'era gia' uno identico in volo): chi ha posto lo
+    # prende. Il drenaggio e' esclusivo, quindi lanciarlo anche a vuoto e' sicuro.
+    background_tasks.add_task(drain_simulation_queue)
 
     return SimulationRunResponse(**run)
+
+
+@router.post("/bpmn-models/{bpmn_model_id}/simulation-claims")
+def get_workspace_simulation_claims(
+    bpmn_model_id: str,
+    request: SimulationClaimsRequest,
+) -> SimulationClaimsResponse:
+    """Le affermazioni dei file del cliente proposte come fonte di ogni attivita' (SIM-07)."""
+    model = get_bpmn_model(bpmn_model_id)
+    if model is None:
+        raise HTTPException(status_code=404, detail="Modello BPMN non trovato.")
+    try:
+        return claim_proposals_for_model(
+            bpmn_model=BpmnModelResponse(**model),
+            current_bpmn_xml=request.current_bpmn_xml,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/bpmn-models/{bpmn_model_id}/simulation-model")

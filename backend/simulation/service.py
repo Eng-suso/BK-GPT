@@ -1,17 +1,32 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import hashlib
 import json
-from dataclasses import dataclass
+import logging
+import os
+import secrets
+import socket
+import uuid
+from dataclasses import asdict, dataclass
 from typing import Literal
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from backend.eventlog.export import Exported, to_csv, to_xes
 from backend.eventlog.synthetic import from_prosimos_csv
 from backend.schemas.workspace import BpmnModelResponse
-from backend.schemas.simulation import CreateSimulationRunRequest
+from backend.schemas.simulation import SEED_MAX, CreateSimulationRunRequest
 from backend.schemas.simulation_model import CreateSimulationModelRunRequest
-from backend.security import get_current_tenant_id, set_current_tenant_id
-from backend.schemas.simulation import ScenarioProvenanceResponse, ScenarioTemplateResponse
+from backend.security import set_current_tenant_id
+from backend.schemas.simulation import (
+    ActivityClaimsResponse,
+    ClaimProposalResponse,
+    ScenarioProvenanceResponse,
+    ScenarioTemplateResponse,
+    SimulationClaimsResponse,
+)
 from backend.simulation.bpmn_normalizer import normalize_bpmn_for_prosimos
 from backend.simulation.provenance import build_scenario_provenance
 from backend.simulation.log_processor import (
@@ -20,7 +35,11 @@ from backend.simulation.log_processor import (
 )
 from backend.simulation.models import ProsimosScenario, ProsimosSimulationRequest
 from backend.simulation.prosimos_adapter import ProsimosError, run_prosimos_simulation
+from backend.simulation.queue import ClaimedRun, SimulationQueueFull, beat, claim_next_run
 from backend.simulation.result_parser import with_output_files
+from backend.simulation.costs import add_fixed_costs
+from backend.simulation.scenarios import scenario_revisions
+from backend.simulation.sla import sla_outcome
 from backend.simulation.ir.model import SimulationModel
 from backend.simulation.ir.patch import apply_patch
 from backend.simulation.scenario_builder import (
@@ -32,8 +51,8 @@ from backend.simulation.scenario_builder import (
 from backend.settings import settings
 from backend.simulation.storage import (
     complete_simulation_run,
-    count_runs_in_flight,
     create_simulation_run,
+    create_simulation_run_group,
     fail_simulation_run,
     find_active_run_by_key,
     get_simulation_log_csv,
@@ -43,12 +62,14 @@ from backend.simulation.storage import (
 
 RunRequest = CreateSimulationRunRequest | CreateSimulationModelRunRequest
 
+logger = logging.getLogger(__name__)
+
 
 class SimulationCapacityError(RuntimeError):
-    """Il motore di simulazione e' pieno adesso, non e' un errore della richiesta.
+    """La coda delle simulazioni e' piena adesso, non e' un errore della richiesta.
 
     Serve un tipo suo perche' la rotta deve rispondere 429 e non 400: la stessa
-    richiesta, fra due minuti, funziona.
+    richiesta, fra qualche minuto, funziona.
     """
 
 
@@ -73,6 +94,11 @@ def _derive_idempotency_key(
             "resource_name": request.resource_name,
             # Stesso scenario, seed diverso: un altro campione, un altro run.
             "seed": request.seed,
+            # Un obiettivo di servizio diverso cambia cio' che il run misura.
+            "sla": request.sla.model_dump() if request.sla else None,
+            "case_fixed_cost": request.case_fixed_cost,
+            "warmup_cases": request.warmup_cases,
+            "fixed_costs": {t.element_id: t.fixed_cost for t in request.tasks or [] if t.fixed_cost},
         },
         sort_keys=True,
         ensure_ascii=False,
@@ -93,6 +119,67 @@ def scenario_template_for_model(
     if not bpmn_xml:
         raise ValueError("Salva o genera un BPMN prima di configurare la simulazione.")
     return describe_scenario_template(normalize_bpmn_for_prosimos(bpmn_xml), source_bpmn_xml=bpmn_xml)
+
+
+def claim_proposals_for_model(
+    *,
+    bpmn_model: BpmnModelResponse,
+    current_bpmn_xml: str | None,
+) -> SimulationClaimsResponse:
+    """Per ogni attivita', le affermazioni dei file del progetto (e del cliente) che la nominano."""
+    from backend.simulation.claims import propose
+
+    template = scenario_template_for_model(bpmn_model=bpmn_model, current_bpmn_xml=current_bpmn_xml)
+    names, claims = _process_claims(bpmn_model.process_id)
+    return SimulationClaimsResponse(
+        sources=len(names),
+        activities=[
+            ActivityClaimsResponse(
+                element_id=task.element_id,
+                name=task.name,
+                proposals=[ClaimProposalResponse.model_validate(p, from_attributes=True)
+                           for p in propose(task.name, claims, names)],
+            )
+            for task in template.tasks
+        ],
+    )
+
+
+def _process_claims(process_id: str) -> tuple[dict[str, str], list]:
+    """I file del progetto del processo (e del suo cliente) e le loro affermazioni."""
+    from backend.simulation.claims import SourceClaim
+    from backend.workspace_database import get_process, list_claims_for_sources, list_project_sources
+
+    process = get_process(process_id)
+    if process is None:
+        raise ValueError("Il processo di questo modello non esiste più.")
+    sources = list_project_sources(process["project_id"], include_client=True)
+    names = {source["id"]: source["name"] for source in sources}
+    return names, [SourceClaim(**row) for row in list_claims_for_sources(list(names))]
+
+
+def _check_workspace_scenario(request: CreateSimulationRunRequest, bpmn_model_id: str) -> None:
+    """SIM-14: lo scenario citato dal run deve essere del workspace di questo processo."""
+    ref = request.workspace_scenario
+    if ref is None:
+        return
+    current = scenario_revisions(bpmn_model_id, ref.id)
+    if current is None:
+        raise ValueError("Lo scenario del workspace non esiste piu' su questo processo: ricarica il workspace.")
+    # Solo la revisione di oggi: un run su una versione passata dello scenario o
+    # dell'AS-IS direbbe di simulare cio' che non e' piu' salvato.
+    if (ref.revision, ref.baseline_revision) != current:
+        raise ValueError("Lo scenario e' cambiato nel frattempo: ricarica il workspace e avvia di nuovo.")
+
+
+def _check_claims(request: CreateSimulationRunRequest, process_id: str) -> None:
+    """Una fonte collegata deve essere un'affermazione dei file di questo progetto, ancora presente."""
+    linked = {ref.claim_id for task in request.tasks or [] for ref in task.claims}
+    if not linked:
+        return
+    _, claims = _process_claims(process_id)
+    if linked - {claim.id for claim in claims}:
+        raise ValueError("Una fonte collegata a un'attività non esiste più: scollegala dal pannello e rilancia.")
 
 
 def scenario_provenance_for_model(
@@ -184,6 +271,84 @@ def _derive_model_idempotency_key(
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def prepare_simulation_runs(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSimulationRunRequest,
+) -> list[tuple[dict, ProsimosScenario | None, str]]:
+    """Il run dello scenario, o un gruppo di ripetizioni con seed consecutivi (SIM-04).
+
+    Ogni ripetizione e' un run normale, con il suo seed. Il gruppo sta nella
+    richiesta di ciascuna, cosi' il pannello le ritrova e ne calcola gli
+    intervalli. Il gruppo entra in coda intero o non entra; lo stesso invio
+    ritentato ritrova il gruppo gia' in volo invece di crearne un altro.
+    """
+    # Gruppo e posizione li scrive il servizio: quelli mandati dal client non contano.
+    request = request.model_copy(update={"replication_group": None, "replication_index": None})
+    if request.replications == 1:
+        return [prepare_simulation_run(bpmn_model=bpmn_model, request=request)]
+    if request.seed is not None and request.seed + request.replications - 1 > SEED_MAX:
+        raise ValueError(f"Con {request.replications} ripetizioni il seed iniziale puo' arrivare al massimo a {SEED_MAX - request.replications + 1}.")
+
+    # La chiave del gruppo non dipende dal seed estratto: un invio ritentato senza
+    # seed ritrova le stesse chiavi, quindi il gruppo gia' in coda.
+    _, _, base_key = _plan_run(bpmn_model=bpmn_model, request=request)
+    group_key = request.idempotency_key or hashlib.sha256(f"{base_key}:{request.replications}".encode()).hexdigest()
+    group = uuid.uuid4().hex
+    base_seed = request.seed if request.seed is not None else secrets.randbelow(2**31)
+    name = request.scenario_name.strip() or "Baseline AS-IS"
+    members = []
+    for index in range(request.replications):
+        member = request.model_copy(update={
+            "seed": base_seed + index,
+            "replications": 1,
+            "replication_group": group,
+            "replication_index": index + 1,
+            "scenario_name": f"{name} · {index + 1}/{request.replications}",
+        })
+        member = member.model_copy(update={"idempotency_key": f"{group_key}-{index + 1}"})
+        bpmn_xml, scenario, key = _plan_run(bpmn_model=bpmn_model, request=member)
+        members.append((member, scenario, key, scenario.bpmn_xml or bpmn_xml))
+    try:
+        runs = create_simulation_run_group(
+            bpmn_model_id=bpmn_model.id,
+            process_id=bpmn_model.process_id,
+            members=members,
+        )
+    except SimulationQueueFull as exc:
+        raise SimulationCapacityError(str(exc)) from exc
+    return [(run, scenario, bpmn_xml) for run, (_, scenario, _, bpmn_xml) in zip(runs, members, strict=True)]
+
+
+def _plan_run(
+    *,
+    bpmn_model: BpmnModelResponse,
+    request: CreateSimulationRunRequest,
+) -> tuple[str, ProsimosScenario, str]:
+    """Valida la richiesta e la compila: (BPMN normalizzato, scenario, chiave di idempotenza)."""
+    bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
+    if not bpmn_xml:
+        raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
+
+    # Adapt the model to Prosimos' constraints (e.g. single end event) before it
+    # feeds both the scenario and the engine request.
+    bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
+    _check_claims(request, bpmn_model.process_id)
+    _check_workspace_scenario(request, bpmn_model.id)
+    if request.warmup_cases >= request.total_cases:
+        raise ValueError("Il riscaldamento deve lasciare almeno un caso da misurare: abbassalo o aumenta i casi.")
+
+    scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
+
+    idempotency_key = request.idempotency_key or _derive_idempotency_key(
+        bpmn_model_id=bpmn_model.id,
+        bpmn_xml=bpmn_xml,
+        scenario=scenario,
+        request=request,
+    )
+    return bpmn_xml, scenario, idempotency_key
+
+
 def prepare_simulation_run(
     *,
     bpmn_model: BpmnModelResponse,
@@ -195,22 +360,7 @@ def prepare_simulation_run(
     identical simulation is still in flight, scenario is None and the caller
     must not launch execution.
     """
-    bpmn_xml = (request.current_bpmn_xml or bpmn_model.xml or "").strip()
-    if not bpmn_xml:
-        raise ValueError("Salva o genera un BPMN prima di avviare Prosimos.")
-
-    # Adapt the model to Prosimos' constraints (e.g. single end event) before it
-    # feeds both the scenario and the engine request.
-    bpmn_xml = normalize_bpmn_for_prosimos(bpmn_xml)
-
-    scenario = build_prosimos_scenario(bpmn_xml=bpmn_xml, request=request)
-
-    idempotency_key = request.idempotency_key or _derive_idempotency_key(
-        bpmn_model_id=bpmn_model.id,
-        bpmn_xml=bpmn_xml,
-        scenario=scenario,
-        request=request,
-    )
+    bpmn_xml, scenario, idempotency_key = _plan_run(bpmn_model=bpmn_model, request=request)
     return _register_run(
         bpmn_model=bpmn_model,
         bpmn_xml=bpmn_xml,
@@ -228,6 +378,8 @@ def _register_run(
     request: RunRequest,
     idempotency_key: str,
 ) -> tuple[dict, ProsimosScenario | None, str]:
+    # Il motore esegue il BPMN riscritto, se lo scenario lo ha riscritto (SIM-32).
+    bpmn_xml = scenario.bpmn_xml or bpmn_xml
     existing = find_active_run_by_key(
         bpmn_model_id=bpmn_model.id,
         idempotency_key=idempotency_key,
@@ -235,62 +387,110 @@ def _register_run(
     if existing is not None:
         return existing, None, bpmn_xml
 
-    # Prosimos e' un servizio solo e regge un numero fisso di simulazioni
-    # insieme. Oltre quel numero non rifiuta: mette in coda, e chi aspetta vede
-    # una rotella girare per quindici minuti prima di leggere un timeout. Un
-    # rifiuto immediato e' un'informazione, un'attesa muta no.
-    in_flight = count_runs_in_flight()
-    if in_flight >= settings.simulation_max_concurrent_runs:
-        raise SimulationCapacityError(
-            f"Ci sono gia' {in_flight} simulazioni in corso, il massimo che il "
-            "motore regge insieme. Aspetta che ne finisca una e rilancia."
+    # Il run entra nella coda su Postgres (P0.3) e aspetta il suo turno: il
+    # consulente vede la sua posizione invece di un rifiuto. Solo una coda
+    # piena rifiuta, perche' oltre quella l'attesa non sarebbe un servizio.
+    try:
+        run = create_simulation_run(
+            bpmn_model_id=bpmn_model.id,
+            process_id=bpmn_model.process_id,
+            scenario_name=request.scenario_name.strip() or "Baseline AS-IS",
+            request=request,
+            scenario=scenario,
+            idempotency_key=idempotency_key,
+            bpmn_xml=bpmn_xml,
         )
-
-    run = create_simulation_run(
-        bpmn_model_id=bpmn_model.id,
-        process_id=bpmn_model.process_id,
-        scenario_name=request.scenario_name.strip() or "Baseline AS-IS",
-        request=request,
-        scenario=scenario,
-        idempotency_key=idempotency_key,
-    )
+    except SimulationQueueFull as exc:
+        raise SimulationCapacityError(str(exc)) from exc
     return run, scenario, bpmn_xml
 
 
-async def execute_simulation_run(
-    *,
-    run_id: int,
-    tenant_id: str,
-    bpmn_xml: str,
-    scenario: ProsimosScenario,
-    request: RunRequest,
-) -> dict:
-    set_current_tenant_id(tenant_id)
+def new_worker_id() -> str:
+    """Chi esegue: host, processo e un suffisso, per riconoscerlo nei log e nel DB."""
+    return f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:6]}"
+
+
+async def drain_simulation_queue(worker_id: str | None = None) -> int:
+    """Prende ed esegue run dalla coda finche' ce ne sono e il motore ha posto.
+
+    Gira dopo ogni richiesta di run (BackgroundTask) e nel worker periodico: due
+    drenaggi insieme sono sicuri, perche' la presa e' esclusiva. Restituisce
+    quanti run ha eseguito.
+    """
+    worker_id = worker_id or new_worker_id()
+    done = 0
+    while (claimed := await asyncio.to_thread(claim_next_run, worker_id)) is not None:
+        await execute_claimed_run(claimed)
+        done += 1
+    return done
+
+
+async def execute_claimed_run(claimed: ClaimedRun) -> dict:
+    """Esegue un run preso dalla coda, battendo finche' gira."""
+    set_current_tenant_id(claimed.tenant_id)
+    heart = asyncio.create_task(_keep_beating(claimed))
     try:
         result = with_output_files(
             await run_prosimos_simulation(
                 ProsimosSimulationRequest(
-                    bpmn_xml=bpmn_xml,
-                    scenario=scenario,
-                    total_cases=request.total_cases,
-                    start_date=request.start_date,
-                    seed=request.seed,
+                    bpmn_xml=claimed.bpmn_xml,
+                    scenario=claimed.scenario,
+                    total_cases=claimed.total_cases,
+                    start_date=claimed.start_date,
+                    seed=claimed.seed,
                 )
             )
         )
     except ProsimosError as exc:
-        return fail_simulation_run(run_id=run_id, error=str(exc))
+        return await asyncio.to_thread(fail_simulation_run, run_id=claimed.run_id, error=str(exc), worker_id=claimed.worker_id)
     except Exception as exc:  # noqa: BLE001 - never leave a run stuck in "pending"
-        return fail_simulation_run(run_id=run_id, error=f"Errore inatteso: {exc}")
+        logger.exception("simulazione %s: errore inatteso", claimed.run_id)
+        return await asyncio.to_thread(
+            fail_simulation_run, run_id=claimed.run_id, error=f"Errore inatteso: {exc}", worker_id=claimed.worker_id
+        )
+    finally:
+        heart.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await heart
 
-    summary, replay = _process_event_log(result, bpmn_xml=bpmn_xml, scenario=scenario)
-    return complete_simulation_run(
-        run_id=run_id,
+    # Lettura del log e scrittura in DB sono sincrone: fuori dall'event loop.
+    summary, replay = await asyncio.to_thread(
+        _process_event_log, result, bpmn_xml=claimed.bpmn_xml, scenario=claimed.scenario,
+        warmup_cases=claimed.warmup_cases,
+    )
+    log_csv = getattr(result, "event_log_csv", None)
+    if summary is not None and claimed.sla and log_csv:
+        # SIM-13: l'esito dell'obiettivo di servizio, sulla stessa definizione di cycle dei KPI.
+        outcome = await asyncio.to_thread(
+            sla_outcome, log_csv, target_seconds=claimed.sla.target_seconds, share=claimed.sla.share,
+            warmup_cases=claimed.warmup_cases,
+        )
+        if outcome is not None:
+            summary["sla"] = asdict(outcome)
+    if summary is not None and claimed.fixed_costs:
+        summary = add_fixed_costs(summary, claimed.fixed_costs)
+    return await asyncio.to_thread(
+        complete_simulation_run,
+        run_id=claimed.run_id,
         result=result,
         summary=summary,
         replay=replay,
         log_csv=getattr(result, "event_log_csv", None),
+        worker_id=claimed.worker_id,
     )
+
+
+async def _keep_beating(claimed: ClaimedRun) -> None:
+    while True:
+        await asyncio.sleep(settings.simulation_heartbeat_seconds)
+        try:
+            alive = await asyncio.to_thread(beat, claimed.run_id, claimed.worker_id)
+        except SQLAlchemyError:  # un battito perso non ferma la simulazione
+            logger.warning("simulazione %s: battito non scritto", claimed.run_id, exc_info=True)
+            continue
+        if not alive:
+            # Il run non e' piu' nostro: l'esito, quando arriva, verra' scartato.
+            return
 
 
 def _process_event_log(
@@ -298,6 +498,7 @@ def _process_event_log(
     *,
     bpmn_xml: str,
     scenario: ProsimosScenario,
+    warmup_cases: int = 0,
 ) -> tuple[dict | None, dict | None]:
     """Turn the Prosimos event log into the run summary + replay artifact.
     Never raises — a log/parse failure just means no artifact for this run."""
@@ -311,6 +512,7 @@ def _process_event_log(
             scenario_payload=scenario.payload,
             prosimos_stats=result.payload,
             name_to_element_id=activity_name_to_element_id(bpmn_xml),
+            warmup_cases=warmup_cases,
         )
     except Exception:  # noqa: BLE001 - the replay artifact is best-effort
         return None, None
@@ -321,20 +523,12 @@ async def create_and_run_simulation(
     bpmn_model: BpmnModelResponse,
     request: CreateSimulationRunRequest,
 ) -> dict:
-    """Synchronous helper kept for tests and non-HTTP callers."""
-    run, scenario, bpmn_xml = prepare_simulation_run(
-        bpmn_model=bpmn_model, request=request
-    )
+    """Mette il run in coda e drena la coda: per i test e chi non passa da HTTP."""
+    run, scenario, _ = prepare_simulation_run(bpmn_model=bpmn_model, request=request)
     if scenario is None:
         return run
-
-    return await execute_simulation_run(
-        run_id=run["id"],
-        tenant_id=get_current_tenant_id(),
-        bpmn_xml=bpmn_xml,
-        scenario=scenario,
-        request=request,
-    )
+    await drain_simulation_queue()
+    return get_simulation_run(run["id"]) or run
 
 
 class SimulationLogUnavailable(LookupError):

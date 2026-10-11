@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -17,6 +18,7 @@ from backend.api.routes.chat import router as chat_router
 from backend.api.routes.memory import router as memory_router
 from backend.api.routes.observability import router as observability_router
 from backend.api.routes.simulation import router as simulation_router
+from backend.api.routes.simulation_scenarios import router as simulation_scenarios_router
 from backend.api.routes.eventlog import router as eventlog_router
 from backend.api.routes.workspace import router as workspace_router
 from backend.security import (
@@ -119,15 +121,21 @@ async def lifespan(_app: FastAPI):
     size_request_threadpool()
 
     from backend.local_store import ensure_schema
+    from backend.workers.simulation_worker import run_simulation_queue
     from backend.workers.supervisor import run_queue_workers
 
     if settings.workspace_database_url:
         await asyncio.to_thread(ensure_schema)  # migra il DB operativo a head
 
     worker_task = asyncio.create_task(run_queue_workers(), name="queue_workers")
+    # La coda delle simulazioni gira sempre: e' il prodotto, non una proiezione.
+    simulation_task = asyncio.create_task(run_simulation_queue(), name="simulation_queue")
     try:
         yield
     finally:
+        simulation_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await simulation_task
         worker_task.cancel()
         try:
             await worker_task
@@ -184,6 +192,7 @@ async def tenant_context_middleware(request: Request, call_next):
 
 app.include_router(workspace_router)
 app.include_router(simulation_router)
+app.include_router(simulation_scenarios_router)
 app.include_router(eventlog_router)
 app.include_router(memory_router)
 app.include_router(observability_router)

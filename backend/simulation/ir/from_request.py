@@ -23,6 +23,8 @@ from backend.simulation.ir.model import (
     Calendar,
     CalendarPeriod,
     Distribution,
+    DurationByAttribute,
+    DurationVariant,
     Exponential,
     Fixed,
     Gamma,
@@ -33,6 +35,7 @@ from backend.simulation.ir.model import (
     Resource,
     ResourcePool,
     SimulationModel,
+    SourceRef,
     Uniform,
 )
 from backend.simulation.models import BpmnGateway, BpmnTask
@@ -73,13 +76,8 @@ def model_from_request(
     default_resource_id = resource_ids[0]
     gateway_overrides = {cfg.element_id: cfg for cfg in (request.gateways or [])}
 
-    arrival_mean = max(1.0, float(request.arrival_interval_seconds))
     return SimulationModel(
-        arrival=Arrival(
-            interarrival=Exponential(mean=arrival_mean, minimum=0.0, maximum=arrival_mean * 10.0),
-            calendar_id=STANDARD_CALENDAR_ID,
-            provenance=_MANUAL,
-        ),
+        arrival=_arrival(request, {calendar.id for calendar in calendars}),
         calendars=calendars,
         pools=(pool,),
         activities=tuple(
@@ -88,6 +86,32 @@ def model_from_request(
         ),
         gateways=tuple(_gateway(gateway, gateway_overrides.get(gateway.id)) for gateway in gateways),
     )
+
+
+def _arrival(request: CreateSimulationRunRequest, calendar_ids: set[str]) -> Arrival:
+    """Gli arrivi del consulente, o l'esponenziale storica sull'intervallo medio."""
+    config = request.arrival
+    if config is None:
+        mean = max(1.0, float(request.arrival_interval_seconds))
+        return Arrival(
+            interarrival=Exponential(mean=mean, minimum=0.0, maximum=mean * 10.0),
+            calendar_id=STANDARD_CALENDAR_ID,
+            provenance=_MANUAL,
+        )
+    calendar_id = config.calendar_id or STANDARD_CALENDAR_ID
+    if calendar_id not in calendar_ids:
+        raise ValueError("Il calendario degli arrivi non esiste più. Sceglilo di nuovo.")
+    try:
+        interarrival = duration(
+            config.distribution,
+            float(config.mean_seconds),
+            std=config.std_seconds,
+            minimum=config.min_seconds,
+            maximum=config.max_seconds,
+        )
+    except ValueError as exc:
+        raise ValueError(f"Arrivi: {exc}") from exc
+    return Arrival(interarrival=interarrival, calendar_id=calendar_id, provenance=_MANUAL)
 
 
 def duration_from_mean(distribution: str, mean: float):
@@ -238,17 +262,71 @@ def _activity(task: BpmnTask, override, request, default_resource_id: str, resou
         "norm", float(request.default_task_duration_seconds)
     )
     resource_id = override.resource_id if override and override.resource_id in resource_ids else default_resource_id
+    primary = Assignment(
+        resource_id=resource_id,
+        duration=duration_,
+        provenance=_declared(override) or (_MANUAL if _duration_set(override, request) else None),
+    )
     return Activity(
         element_id=task.id,
         name=task.name,
-        assignments=(
-            Assignment(
-                resource_id=resource_id,
-                duration=duration_,
-                provenance=_MANUAL if _duration_set(override, request) else None,
-            ),
-        ),
+        assignments=(primary, *_other_assignments(task, override, resource_id, resource_ids)),
+        duration_by=_duration_by(task, override),
     )
+
+
+def _duration_by(task: BpmnTask, override) -> DurationByAttribute | None:
+    """SIM-32: le durate per categoria, tradotte con le regole delle altre durate."""
+    if not override or override.duration_by is None:
+        return None
+    label = task.name or task.id
+    variants = []
+    for cfg in override.duration_by.variants:
+        try:
+            value = duration(cfg.distribution, float(cfg.mean_seconds), std=cfg.std_seconds,
+                             minimum=cfg.min_seconds, maximum=cfg.max_seconds)
+        except ValueError as exc:
+            raise ValueError(f"«{label}», categoria «{cfg.value}»: {exc}") from exc
+        variants.append(DurationVariant(value=cfg.value, duration=value, provenance=_MANUAL))
+    return DurationByAttribute(attribute=override.duration_by.attribute, variants=tuple(variants))
+
+
+def _declared(override: SimTaskConfig | None) -> Provenance | None:
+    """La durata sostenuta da affermazioni dei file confermate dal consulente (SIM-07)."""
+    if override is None or not override.claims:
+        return None
+    return Provenance(
+        origin="declared",
+        confidence="medium",
+        sources=tuple(SourceRef(kind="claim", id=str(ref.claim_id), label=ref.label or None) for ref in override.claims),
+    )
+
+
+def _other_assignments(task: BpmnTask, override, primary_id: str, resource_ids: set[str]) -> list[Assignment]:
+    """Le altre risorse che il consulente ha messo sull'attivita', ognuna con la sua durata."""
+    if not override or not override.other_assignments:
+        return []
+    label = task.name or task.id
+    seen = {primary_id}
+    assignments = []
+    for cfg in override.other_assignments:
+        if cfg.resource_id not in resource_ids:
+            raise ValueError(f"«{label}»: una delle risorse aggiunte non esiste più. Sceglila di nuovo.")
+        if cfg.resource_id in seen:
+            raise ValueError(f"«{label}»: la stessa risorsa compare due volte. Tienila una volta sola.")
+        seen.add(cfg.resource_id)
+        try:
+            duration_ = duration(
+                cfg.distribution,
+                float(cfg.mean_seconds),
+                std=cfg.std_seconds,
+                minimum=cfg.min_seconds,
+                maximum=cfg.max_seconds,
+            )
+        except ValueError as exc:
+            raise ValueError(f"«{label}»: {exc}") from exc
+        assignments.append(Assignment(resource_id=cfg.resource_id, duration=duration_, provenance=_MANUAL))
+    return assignments
 
 
 def _duration_set(override: SimTaskConfig | None, request: CreateSimulationRunRequest) -> bool:

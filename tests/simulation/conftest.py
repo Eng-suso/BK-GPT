@@ -5,6 +5,26 @@ from collections.abc import Callable
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _no_run_left_in_the_queue():
+    """La coda delle simulazioni e' una sola per tutto il deploy (P0.3).
+
+    Un run lasciato ``pending`` da un test verrebbe preso dal drenaggio del test
+    dopo, e conterebbe fra le sue chiamate al motore: a fine test si chiude.
+    """
+    yield
+    from sqlalchemy import update
+
+    from backend.workspace_storage import WorkspaceSimulationRun, workspace_connection
+
+    with workspace_connection() as session:
+        session.execute(
+            update(WorkspaceSimulationRun)
+            .where(WorkspaceSimulationRun.status == "pending")
+            .values(status="failed", error="chiuso dal test")
+        )
+
+
 @pytest.fixture()
 def api_client():
     from fastapi.testclient import TestClient

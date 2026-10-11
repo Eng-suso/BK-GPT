@@ -259,6 +259,14 @@ class WorkspaceSimulationRun(WorkspaceBase):
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     completed_at: Mapped[str | None] = mapped_column(String)
+    # Coda su Postgres (P0.3, migrazione 0034). Un run ``pending`` senza
+    # ``started_at`` aspetta il suo turno; con ``started_at`` gira, e
+    # ``heartbeat_at`` dice se il processo che lo esegue e' ancora vivo.
+    bpmn_xml: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[str | None] = mapped_column(String)
+    heartbeat_at: Mapped[str | None] = mapped_column(String)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    worker_id: Mapped[str | None] = mapped_column(String)
 
 
 class WorkspaceSimulationRunArtifact(WorkspaceBase):
@@ -294,6 +302,35 @@ class WorkspaceSimulationRunLog(WorkspaceBase):
     tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
     log_csv: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class WorkspaceSimulationScenario(WorkspaceBase):
+    """Uno scenario del workspace AS-IS | A | B | C di un processo (SIM-14).
+
+    L'AS-IS (``kind="baseline"``, etichetta ``AS-IS``) tiene la bozza intera del
+    pannello e il seed comune a tutti gli scenari; un'alternativa (``A``, ``B``…)
+    tiene solo la patch sulla bozza AS-IS. ``revision`` cresce a ogni modifica:
+    un run che ne porta una piu' vecchia e' da rifare.
+    """
+
+    __tablename__ = "workspace_simulation_scenarios"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "bpmn_model_id", "label", name="uq_simulation_scenario_label"),
+        CheckConstraint("kind IN ('baseline', 'alternative')", name="ck_simulation_scenario_kind"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[str] = mapped_column(String, nullable=False, default="local", index=True)
+    bpmn_model_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String, nullable=False)
+    label: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    draft_json: Mapped[str | None] = mapped_column(Text)
+    patch_json: Mapped[str | None] = mapped_column(Text)
+    seed: Mapped[int | None] = mapped_column(Integer)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
 class WorkspaceEventLog(WorkspaceBase):

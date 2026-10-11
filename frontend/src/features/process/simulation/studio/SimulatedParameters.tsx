@@ -8,15 +8,20 @@ import { provenanceTip, type FieldProvenance } from "../simulationProvenance";
 import { formatCurrency } from "../simulationResults";
 import type { ScenarioElementProvenance, SimulationRun } from "../simulationTypes";
 import { useScenarioProvenance } from "../useInputConfidence";
+import { useSimulationSection } from "../useSimulationSection";
 import { activityParameters, formatParameterDuration, hasTaskConfig } from "./activityParameters";
 import {
+  arrivalFromModel,
   elementFromModel,
+  prioritiesFromModel,
+  type ArrivalView,
   type AssignmentView,
   type BranchView,
   type CalendarView,
+  type DurationByView,
   type DurationView,
 } from "./modelParameters";
-import { useRunModel } from "./runModel";
+import { useRunModel, type IrRule } from "./runModel";
 
 type Lang = "it" | "en";
 type T = ReturnType<typeof useTranslation>["t"];
@@ -57,18 +62,31 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
     staleTime: 60_000,
   });
   const element = provenance.data?.elements.find((el) => el.element_id === elementId);
+  const { bpmnXml } = useSimulationSection();
+  const isStart = React.useMemo(() => isStartEvent(bpmnXml, elementId), [bpmnXml, elementId]);
 
   let body: React.ReactNode;
   if (runModel.isLoading && !runModel.data) {
     body = <p className="sim-help" role="status">{t("simulation.activityInspector.loading")}</p>;
   } else if (runModel.data) {
     const view = elementFromModel(runModel.data, elementId, element, template.data);
-    body = !view
+    const arrival = !view && isStart ? arrivalFromModel(runModel.data) : null;
+    body = arrival
+      ? <>
+          <Arrival arrival={arrival} lang={lang} t={t} provenanceState={provenance} />
+          <Priorities priorities={prioritiesFromModel(runModel.data)} t={t} />
+        </>
+      : !view
       ? <p className="sim-help">{t("simulation.activityInspector.notSimulated")}</p>
       : view.kind === "activity"
-        ? view.assignments.map((assignment, index) => (
-            <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
-          ))
+        ? <>
+            {view.assignments.length > 1 && <p className="sim-help">{t("simulation.activityInspector.sharedActivity")}</p>}
+            <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
+            {view.durationBy && <DurationBy durationBy={view.durationBy} lang={lang} t={t} />}
+            {view.assignments.map((assignment, index) => (
+              <Assignment key={index} assignment={assignment} index={index} total={view.assignments.length} lang={lang} t={t} provenanceState={provenance} />
+            ))}
+          </>
         : <Branches branches={view.branches} provenance={view.provenance} lang={lang} t={t} provenanceState={provenance} />;
   } else {
     // Ripiego dichiarato: run anteriore al modello conservato, o modello non arrivato.
@@ -77,6 +95,7 @@ export function SimulatedParameters({ run, elementId, inSummary }: { run: Simula
         {t(runModel.isError ? "simulation.activityInspector.modelError" : "simulation.activityInspector.legacyNote")}
       </p>
       <LegacyParameters run={run} elementId={elementId} isActivity={inSummary || hasTaskConfig(run.request, elementId)} element={element} lang={lang} t={t} provenanceState={provenance} />
+      <FixedCost run={run} elementId={elementId} lang={lang} t={t} />
     </>;
   }
 
@@ -114,12 +133,13 @@ function calendarText(calendar: CalendarView, lang: Lang, t: T): string {
   return periods.length ? `${calendar.name} · ${periods.join(", ")}` : calendar.name;
 }
 
-function DurationRows({ duration, lang, t }: { duration: DurationView; lang: Lang; t: T }): React.JSX.Element {
+function DurationRows({ duration, lang, t, meanLabel }: { duration: DurationView; lang: Lang; t: T; meanLabel?: string }): React.JSX.Element {
   const distribution = t(`simulation.config.dist.${DIST_KEY[duration.kind]}`);
+  const mean = meanLabel ?? t("simulation.activityInspector.duration");
   const f = (seconds: number) => formatParameterDuration(seconds, lang);
   if (duration.kind === "fixed") {
     return <>
-      <div><dt>{t("simulation.activityInspector.duration")}</dt><dd>{f(duration.valueSeconds)}</dd></div>
+      <div><dt>{mean}</dt><dd>{f(duration.valueSeconds)}</dd></div>
       <div><dt>{t("simulation.activityInspector.distribution")}</dt><dd>{distribution}</dd></div>
     </>;
   }
@@ -129,7 +149,7 @@ function DurationRows({ duration, lang, t }: { duration: DurationView; lang: Lan
     </dd></div>;
   }
   return <>
-    <div><dt>{t("simulation.activityInspector.duration")}</dt><dd>{f(duration.meanSeconds)}</dd></div>
+    <div><dt>{mean}</dt><dd>{f(duration.meanSeconds)}</dd></div>
     <div><dt>{t("simulation.activityInspector.distribution")}</dt><dd>{distribution}
       {duration.stdSeconds != null && <span className="sim-param-note">{t("simulation.activityInspector.std", { value: f(duration.stdSeconds) })}</span>}
       <span className="sim-param-note">{t("simulation.activityInspector.bounds", { min: f(duration.minSeconds), max: f(duration.maxSeconds) })}</span>
@@ -150,8 +170,63 @@ function Assignment({ assignment, index, total, lang, t, provenanceState }: { as
   </div>;
 }
 
-function ruleText(branch: BranchView, t: T): string {
-  return (branch.condition ?? [])
+/** L'evento di inizio: come arrivavano i casi nel run (A2-3). */
+function Arrival({ arrival, lang, t, provenanceState }: { arrival: ArrivalView; lang: Lang; t: T; provenanceState: ProvenanceState }): React.JSX.Element {
+  return <div className="sim-param-group">
+    <h5>{t("simulation.activityInspector.arrivals")}</h5>
+    <dl>
+      <DurationRows duration={arrival.duration} lang={lang} t={t} meanLabel={t("simulation.activityInspector.interarrival")} />
+      <div><dt>{t("simulation.activityInspector.arrivalCalendar")}</dt><dd>{calendarText(arrival.calendar, lang, t)}</dd></div>
+      <OriginRow field={arrival.provenance} t={t} provenanceState={provenanceState} />
+    </dl>
+    <ProvenanceFoot field={arrival.provenance} t={t} provenanceState={provenanceState} />
+  </div>;
+}
+
+/** SIM-12: le priorita' dei casi che il run ha simulato; niente se non ce n'erano. */
+function Priorities({ priorities, t }: { priorities: { level: number; condition: IrRule[][] }[]; t: T }): React.JSX.Element | null {
+  if (priorities.length === 0) return null;
+  return <div className="sim-param-group">
+    <h5>{t("simulation.config.priorities")}</h5>
+    <dl>
+      {priorities.map((p) => <div key={p.level}><dt>{t("simulation.config.priorityLevel", { level: p.level })}</dt><dd>{conditionText(p.condition, t)}</dd></div>)}
+    </dl>
+    <p className="sim-help">{t("simulation.activityInspector.prioritiesNote")}</p>
+  </div>;
+}
+
+/** SIM-32: le durate per categoria che il run ha simulato; gli altri casi usano quelle delle risorse. */
+function DurationBy({ durationBy, lang, t }: { durationBy: DurationByView; lang: Lang; t: T }): React.JSX.Element {
+  return <div className="sim-param-group">
+    <h5>{t("simulation.activityInspector.durationBy", { attribute: durationBy.attribute })}</h5>
+    {durationBy.variants.map((variant) => (
+      <div key={variant.value}>
+        <p className="sim-param-note">{t("simulation.activityInspector.durationByCategory", { attribute: durationBy.attribute, value: variant.value })}</p>
+        <dl><DurationRows duration={variant.duration} lang={lang} t={t} /></dl>
+      </div>
+    ))}
+    <p className="sim-help">{t("simulation.activityInspector.durationByOthers")}</p>
+  </div>;
+}
+
+/** SIM-10: il costo fisso per esecuzione che lo scenario dava all'attivita'. */
+function FixedCost({ run, elementId, lang, t }: { run: SimulationRun; elementId: string; lang: Lang; t: T }): React.JSX.Element | null {
+  const tasks = Array.isArray(run.request.tasks) ? (run.request.tasks as { element_id?: string; fixed_cost?: number | null }[]) : [];
+  const cost = tasks.find((task) => task.element_id === elementId)?.fixed_cost;
+  if (!cost) return null;
+  return <p className="sim-help">{t("simulation.activityInspector.fixedCost", { value: formatCurrency(cost, lang) })}</p>;
+}
+
+/** L'elemento e' un evento di inizio del BPMN del processo? */
+function isStartEvent(bpmnXml: string | null | undefined, elementId: string): boolean {
+  if (!bpmnXml) return false;
+  const document = new DOMParser().parseFromString(bpmnXml, "application/xml");
+  return Array.from(document.getElementsByTagNameNS("*", "startEvent")).some((node) => node.getAttribute("id") === elementId);
+}
+
+/** Una condizione dell'IR come frase: condizioni in "e", gruppi in "oppure". */
+function conditionText(groups: IrRule[][], t: T): string {
+  return groups
     .map((group) => group.map((rule) => `${rule.attribute} ${rule.operator} ${rule.value}`).join(` ${t("simulation.activityInspector.and")} `))
     .join(` ${t("simulation.activityInspector.or")} `);
 }
@@ -162,7 +237,7 @@ function Branches({ branches, provenance, lang, t, provenanceState }: { branches
     <dl>
       {branches.map((branch) => (
         <div key={branch.flowId}><dt>{branch.label}</dt><dd>
-          {branch.condition ? ruleText(branch, t) : percent.format(branch.probability)}
+          {branch.condition ? conditionText(branch.condition, t) : percent.format(branch.probability)}
           {branch.condition && <span className="sim-param-note">{t("simulation.activityInspector.byRule")}</span>}
         </dd></div>
       ))}

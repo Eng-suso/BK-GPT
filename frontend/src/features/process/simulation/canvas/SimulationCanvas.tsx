@@ -302,6 +302,7 @@ const KNOWN_MARKERS = [
   "sim-fidelity-close",
   "sim-fidelity-calibrate",
   "sim-fidelity-far",
+  "sim-scenario-changed",
   "sim-flow-1",
   "sim-flow-2",
   "sim-flow-3",

@@ -12,7 +12,23 @@ export const simulationSummarySchema = z
     cycle: z.object({ avg: z.number(), p50: z.number(), p90: z.number(), p95: z.number() }),
     waiting: z.object({ avg: z.number(), p95: z.number(), share: z.number() }),
     processing: z.object({ avg: z.number(), p95: z.number().optional() }),
-    cost: z.object({ total: z.number(), perCase: z.number() }),
+    cost: z.object({
+      total: z.number(),
+      perCase: z.number(),
+      /** SIM-10: presente solo se lo scenario aveva costi fissi. */
+      breakdown: z.object({ resources: z.number(), activities: z.number(), cases: z.number() }).optional(),
+    }),
+    /** SIM-03: quanti casi del riscaldamento sono rimasti fuori dai KPI. */
+    warmup: z.object({ excludedCases: z.number(), measuredCases: z.number() }).optional(),
+    /** SIM-13: l'esito dell'obiettivo di servizio, se lo scenario ne aveva uno. */
+    sla: z.object({
+      target_seconds: z.number(),
+      share_target: z.number(),
+      share_within: z.number(),
+      cases: z.number(),
+      late_cases: z.number(),
+      met: z.boolean(),
+    }).nullable().optional(),
     throughputPerHour: z.number(),
     byActivity: z.array(z.record(z.string(), z.unknown())),
     byResource: z.array(z.record(z.string(), z.unknown())),
@@ -38,6 +54,11 @@ export const simulationRunSchema = z.object({
   error: z.string().nullable(),
   created_at: z.string(),
   completed_at: z.string().nullable(),
+  /** P0.3: per un run in attesa, in coda (con la posizione) o in corso. */
+  queue: z
+    .object({ state: z.enum(["queued", "running"]), position: z.number().nullable() })
+    .nullable()
+    .optional(),
 });
 
 /**
@@ -254,15 +275,48 @@ export type SimResourceInput = {
   calendarId?: string;
 };
 
-export type SimTaskInput = {
-  elementId: string;
+export type SimDurationInput = {
   meanSeconds: number;
   distribution: DistributionName;
-  resourceId: string | null;
   /** Assenti = le assunzioni del backend (dev. std al 10%, limiti a ±3σ). */
   stdSeconds?: number;
   minSeconds?: number;
   maxSeconds?: number;
+};
+
+/** Gli arrivi (A2-3): il tempo fra due arrivi e il calendario in cui arrivano. */
+export type SimArrivalInput = SimDurationInput & { calendarId?: string };
+
+/** SIM-07: le affermazioni dei file proposte come fonte di ogni attivita'. */
+export const claimProposalSchema = z.object({
+  claim_id: z.number(),
+  statement: z.string(),
+  quote: z.string(),
+  quote_verified: z.boolean(),
+  source_id: z.string(),
+  source_name: z.string(),
+  score: z.number(),
+  duration_hint: z.object({ text: z.string(), seconds: z.number() }).nullable().optional(),
+});
+export type ClaimProposal = z.infer<typeof claimProposalSchema>;
+
+export const simulationClaimsSchema = z.object({
+  sources: z.number(),
+  activities: z.array(z.object({ element_id: z.string(), name: z.string(), proposals: z.array(claimProposalSchema) })),
+});
+export type SimulationClaims = z.infer<typeof simulationClaimsSchema>;
+
+export type SimTaskInput = SimDurationInput & {
+  elementId: string;
+  resourceId: string | null;
+  /** Le affermazioni confermate dal consulente come fonte della durata. */
+  claims?: { claimId: number; label: string }[];
+  /** SIM-10: euro per esecuzione. */
+  fixedCost?: number;
+  /** SIM-32: durate per categoria di un attributo del caso. */
+  durationBy?: { attribute: string; variants: (SimDurationInput & { value: string })[] };
+  /** Gli altri ruoli che possono svolgere l'attività, ognuno con la sua durata. */
+  otherAssignments?: (SimDurationInput & { resourceId: string })[];
 };
 
 export type SimGatewayInput = {
@@ -279,6 +333,15 @@ export type CreateSimulationRunInput = {
   defaultCostPerHour: number;
   resourceAmount: number;
   resourceName: string;
+  arrival?: SimArrivalInput;
+  /** SIM-13: obiettivo di servizio, in secondi e quota 0-1. */
+  sla?: { targetSeconds: number; share: number };
+  /** SIM-10: euro per caso completato. */
+  caseFixedCost?: number;
+  /** SIM-03: i primi casi fuori dai KPI. */
+  warmupCases?: number;
+  /** SIM-04: ripetizioni dello scenario. */
+  replications?: number;
   resources?: SimResourceInput[];
   tasks?: SimTaskInput[];
   gateways?: SimGatewayInput[];
@@ -286,4 +349,8 @@ export type CreateSimulationRunInput = {
   /** Cio' che i campi v1 non esprimono (attributi del caso, rami per regola), come patch dell'IR. */
   modelPatch?: ModelPatchInput;
   idempotencyKey?: string;
+  /** Seed del motore: nel workspace e' il seed comune, cosi' gli scenari si confrontano a coppie. */
+  seed?: number;
+  /** SIM-14: lo scenario del workspace e le revisioni su cui il run e' costruito. */
+  workspaceScenario?: { id: number; revision: number; baseline_revision: number };
 };

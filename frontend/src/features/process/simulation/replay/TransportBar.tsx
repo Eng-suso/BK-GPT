@@ -205,7 +205,7 @@ function Chip({
       <dd
         className={cn(
           "m-0 font-semibold tabular-nums",
-          tone === "warning" ? "text-[var(--amber-700)]" : "text-foreground",
+          tone === "warning" ? "text-[var(--state-warning-text)]" : "text-foreground",
         )}
       >
         {value}

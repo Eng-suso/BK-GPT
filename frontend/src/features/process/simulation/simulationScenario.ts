@@ -1,7 +1,9 @@
 import {
   sanitizeAttributes,
   sanitizeGatewayRules,
+  sanitizePriorities,
   toModelPatch,
+  type BranchRuleDraft,
   type CaseAttributeDraft,
   type GatewayRulesDraft,
 } from "./caseRules";
@@ -25,16 +27,51 @@ export type ResourceDraft = {
   calendarId?: string;
 };
 
-export type TaskDraft = {
+/** La durata di un'attività per un ruolo, in minuti. */
+export type DurationDraft = {
   meanMinutes: number;
   distribution: DistributionName;
-  resourceId: string;
-  assignmentSource?: "bpmn" | "manual";
   /** Facoltativi: assenti, il backend applica le ipotesi standard. */
   stdMinutes?: number;
   minMinutes?: number;
   maxMinutes?: number;
 };
+
+/** Un altro ruolo che può svolgere l'attività, con la sua durata (A2-2). */
+export type AssignmentDraft = DurationDraft & { resourceId: string };
+
+export type TaskDraft = DurationDraft & {
+  resourceId: string;
+  assignmentSource?: "bpmn" | "manual";
+  /** Gli altri ruoli: il motore dà il caso al primo libero. */
+  otherAssignments?: AssignmentDraft[];
+  /** Le affermazioni dei file collegate come fonte della durata (SIM-07). */
+  claims?: { claimId: number; label: string }[];
+  /** SIM-10: euro per ogni esecuzione, oltre al tempo delle risorse. Assente = nessuno. */
+  fixedCost?: number;
+  /** SIM-32: durata per categoria di un attributo; le categorie senza voce usano la base. */
+  durationBy?: { attributeId: string; variants: Record<string, DurationDraft> };
+};
+
+/** La durata di base di un'attivita', senza ruolo ne' altro. */
+export function durationOf(task: DurationDraft): DurationDraft {
+  const { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes } = task;
+  return { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes };
+}
+
+/** Le durate per categoria che si inviano: le categorie attuali dell'attributo, la base dove manca. */
+export function durationVariants(task: TaskDraft, attributes: CaseAttributeDraft[]): { attribute: string; variants: { value: string; duration: DurationDraft }[] } | null {
+  const attribute = attributes.find((a) => a.id === task.durationBy?.attributeId);
+  if (!task.durationBy || !attribute || attribute.kind !== "category") return null;
+  // Senza nome il backend non saprebbe a quale attributo legarla: la durata va rivista.
+  const name = attribute.name.trim();
+  const values = attribute.categories.map((c) => c.value.trim()).filter(Boolean);
+  if (!name || values.length === 0) return null;
+  return {
+    attribute: name,
+    variants: values.map((value) => ({ value, duration: task.durationBy?.variants[value] ?? durationOf(task) })),
+  };
+}
 
 /** Un calendario di lavoro dello scenario, con orari ``HH:MM``. */
 export type CalendarDraft = SimCalendar;
@@ -42,10 +79,40 @@ export type CalendarDraft = SimCalendar;
 /** element_id -> flow_id -> probability (0–100) */
 export type GatewayDraft = Record<string, number>;
 
+/** Come arrivano i casi (A2-3): la media fra due arrivi e' ``arrivalIntervalMinutes``. */
+export type ArrivalDraft = Omit<DurationDraft, "meanMinutes"> & {
+  /** Assente = il calendario standard. */
+  calendarId?: string;
+};
+
+/** SIM-13: il caso si chiude entro ``target`` ore o giorni per almeno ``sharePercent`` dei casi. */
+export type SlaDraft = { target: number; unit: "hours" | "days"; sharePercent: number };
+export type SlaIssue = "target" | "share";
+
+export function slaSeconds(sla: SlaDraft): number {
+  return Math.round(sla.target * (sla.unit === "days" ? 86_400 : 3600));
+}
+
+export function slaIssue(sla: SlaDraft): SlaIssue | null {
+  // Sui secondi inviati: un obiettivo che arrotondato vale zero non e' un obiettivo.
+  if (!(Number.isFinite(sla.target) && slaSeconds(sla) >= 1)) return "target";
+  if (!(Number.isFinite(sla.sharePercent) && sla.sharePercent > 0 && sla.sharePercent <= 100)) return "share";
+  return null;
+}
+
 export type ScenarioDraft = {
   scenarioName: string;
   totalCases: number;
   arrivalIntervalMinutes: number;
+  arrival?: ArrivalDraft;
+  /** L'obiettivo di servizio: facoltativo, il run ne misura l'esito. */
+  sla?: SlaDraft;
+  /** SIM-10: euro per ogni caso completato. Assente = nessuno. */
+  caseFixedCost?: number;
+  /** SIM-03: i primi casi restano fuori dai KPI. Assente = nessuno. */
+  warmupCases?: number;
+  /** SIM-04: quante volte ripetere lo scenario (1-20). Assente = una. */
+  replications?: number;
   /** fallback duration for tasks without their own config */
   defaultTaskMinutes: number;
   resources: ResourceDraft[];
@@ -57,6 +124,10 @@ export type ScenarioDraft = {
   caseAttributes?: CaseAttributeDraft[];
   /** Decisioni instradate per regola: element_id -> flow_id -> gruppi di condizioni. */
   gatewayRules?: Record<string, GatewayRulesDraft>;
+  /** SIM-12: chi passa prima in coda. Indice 0 = priorita' 1, servita per prima. */
+  casePriorities?: BranchRuleDraft[];
+  /** Proposte di fonti scartate dal consulente: element_id -> id delle affermazioni. */
+  dismissedClaims?: Record<string, number[]>;
 };
 
 export const DEFAULT_SCENARIO: ScenarioDraft = {
@@ -94,14 +165,14 @@ export const DISTRIBUTION_PARAMETERS: Record<DistributionName, { mean: boolean; 
   gamma: { mean: true, std: true, bounds: true },
 };
 
-export type TaskDurationIssue = "uniformBounds" | "boundsOrder";
+export type TaskDurationIssue = "uniformBounds" | "boundsOrder" | "meanOutsideBounds";
 
 /** Minuti in secondi interi, come arrivano al backend. */
 const seconds = (minutes: number | undefined) =>
   minutes === undefined ? undefined : Math.max(0, Math.round(minutes * 60));
 
 /** Cosa manca alla durata per costruire la richiesta; il resto lo valida il backend. */
-export function taskDurationIssue(task: TaskDraft): TaskDurationIssue | null {
+export function taskDurationIssue(task: DurationDraft): TaskDurationIssue | null {
   if (!DISTRIBUTION_PARAMETERS[task.distribution].bounds) return null;
   if (task.distribution === "uniform" && (task.minMinutes === undefined || task.maxMinutes === undefined)) {
     return "uniformBounds";
@@ -110,6 +181,15 @@ export function taskDurationIssue(task: TaskDraft): TaskDurationIssue | null {
   const minimum = seconds(task.minMinutes);
   const maximum = seconds(task.maxMinutes);
   if (minimum !== undefined && maximum !== undefined && minimum >= maximum) return "boundsOrder";
+  // Le regole del backend: l'esponenziale vuole la media strettamente dentro i limiti,
+  // la normale anche sui limiti. Lognormale e gamma non la vincolano.
+  const mean = Math.max(1, Math.round(task.meanMinutes * 60));
+  if (task.distribution === "expon" && ((minimum !== undefined && mean <= minimum) || (maximum !== undefined && mean >= maximum))) {
+    return "meanOutsideBounds";
+  }
+  if (task.distribution === "norm" && ((minimum !== undefined && mean < minimum) || (maximum !== undefined && mean > maximum))) {
+    return "meanOutsideBounds";
+  }
   return null;
 }
 
@@ -124,9 +204,54 @@ export function calendarIssue(calendar: CalendarDraft): CalendarIssue | null {
 }
 
 export function scenarioParameterIssues(draft: ScenarioDraft) {
-  const durations = Object.values(draft.tasks).filter((task) => taskDurationIssue(task) !== null).length;
+  const attributes = draft.caseAttributes ?? [];
+  const durations = Object.values(draft.tasks).filter((task) =>
+    [task, ...(task.otherAssignments ?? []), ...(durationVariants(task, attributes)?.variants.map((v) => v.duration) ?? [])]
+      .some((duration) => taskDurationIssue(duration) !== null)
+    // Una durata per categoria su un attributo tolto o non a categorie va rivista.
+    || (task.durationBy !== undefined && durationVariants(task, attributes) === null)).length;
   const calendars = (draft.calendars ?? []).filter((calendar) => calendarIssue(calendar) !== null).length;
-  return { durations, calendars, ready: durations === 0 && calendars === 0 };
+  const arrival = taskDurationIssue(arrivalDuration(draft)) !== null;
+  const sla = draft.sla ? slaIssue(draft.sla) !== null : false;
+  const badCost = (value: number | undefined) => value !== undefined && !(Number.isFinite(value) && value >= 0);
+  const costs = badCost(draft.caseFixedCost) || Object.values(draft.tasks).some((task) => badCost(task.fixedCost));
+  const warmup = warmupIssue(draft) !== null;
+  const replications = draft.replications !== undefined && !(Number.isInteger(draft.replications) && draft.replications >= 1 && draft.replications <= 20);
+  return { durations, calendars, arrival, sla, costs, warmup, replications,
+    ready: durations === 0 && calendars === 0 && !arrival && !sla && !costs && !warmup && !replications };
+}
+
+export type WarmupIssue = "notWhole" | "noCaseLeft";
+
+/** Il riscaldamento: un numero intero di casi, che lasci almeno un caso da misurare. */
+export function warmupIssue(draft: ScenarioDraft): WarmupIssue | null {
+  const warmup = draft.warmupCases;
+  if (warmup === undefined || warmup === 0) return null;
+  if (!Number.isInteger(warmup) || warmup < 0) return "notWhole";
+  return warmup >= draft.totalCases ? "noCaseLeft" : null;
+}
+
+/** Gli arrivi come una durata: la stessa forma, gli stessi controlli, gli stessi campi. */
+export function arrivalDuration(draft: ScenarioDraft): DurationDraft {
+  const arrival = draft.arrival;
+  return {
+    meanMinutes: draft.arrivalIntervalMinutes,
+    distribution: arrival?.distribution ?? "expon",
+    stdMinutes: arrival?.stdMinutes,
+    minMinutes: arrival?.minMinutes,
+    maxMinutes: arrival?.maxMinutes,
+  };
+}
+
+/** Aggiorna gli arrivi della bozza da una durata modificata nel pannello. */
+/**
+ * Aggiorna gli arrivi della bozza. Senza terzo argomento il calendario resta quello
+ * di prima; con ``undefined`` esplicito torna il calendario standard.
+ */
+export function withArrival(draft: ScenarioDraft, next: DurationDraft, ...calendar: [calendarId: string | undefined] | []): ScenarioDraft {
+  const { meanMinutes, ...rest } = next;
+  const calendarId = calendar.length ? calendar[0] : draft.arrival?.calendarId;
+  return { ...draft, arrivalIntervalMinutes: meanMinutes, arrival: { ...rest, calendarId } };
 }
 
 export function newCalendarId(existing: CalendarDraft[]): string {
@@ -135,11 +260,65 @@ export function newCalendarId(existing: CalendarDraft[]): string {
   return `cal-${n}`;
 }
 
-function taskMeanSeconds(task: TaskDraft): number {
+/** Il nome del ruolo come lo mostra il pannello: per una lane anche la pool. */
+export function roleLabel(resource: ResourceDraft): string {
+  return resource.source?.pool_name && resource.source.kind === "lane" ? `${resource.source.pool_name} / ${resource.name}` : resource.name;
+}
+
+/** I ruoli dell'attività, il principale per primo. */
+export function taskResourceIds(task: TaskDraft): string[] {
+  return [task.resourceId, ...(task.otherAssignments ?? []).map((a) => a.resourceId)];
+}
+
+/**
+ * Tiene solo gli altri ruoli che esistono ancora e che non ripetono un ruolo già
+ * presente: un ruolo tolto dalle risorse, o diventato il principale, sparisce.
+ */
+export function withValidOtherAssignments(task: TaskDraft, resourceIds: ReadonlySet<string>): TaskDraft {
+  if (task.otherAssignments === undefined) return task;
+  // Una bozza salvata a mano o da una versione vecchia non deve rompere il pannello.
+  if (!Array.isArray(task.otherAssignments)) return { ...task, otherAssignments: undefined };
+  const seen = new Set([task.resourceId]);
+  const kept = task.otherAssignments.filter((a) => {
+    if (!a || typeof a !== "object" || !resourceIds.has(a.resourceId) || seen.has(a.resourceId)) return false;
+    seen.add(a.resourceId);
+    return true;
+  });
+  return kept.length === task.otherAssignments.length ? task : { ...task, otherAssignments: kept };
+}
+
+/** Un altro ruolo per l'attività: il primo non ancora usato, con la stessa durata come punto di partenza. */
+export function newOtherAssignment(task: TaskDraft, resources: ResourceDraft[]): AssignmentDraft | null {
+  const used = new Set(taskResourceIds(task));
+  const free = resources.find((r) => !used.has(r.id));
+  if (!free) return null;
+  const { meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes } = task;
+  return { resourceId: free.id, meanMinutes, distribution, stdMinutes, minMinutes, maxMinutes };
+}
+
+function taskMeanSeconds(task: DurationDraft): number {
   const minutes = task.distribution === "uniform" && task.minMinutes !== undefined && task.maxMinutes !== undefined
     ? (task.minMinutes + task.maxMinutes) / 2
     : task.meanMinutes;
   return Math.max(1, Math.round(minutes * 60));
+}
+
+function byCategory(task: TaskDraft, attributes: CaseAttributeDraft[]) {
+  const variants = durationVariants(task, attributes);
+  return variants
+    ? { durationBy: { attribute: variants.attribute, variants: variants.variants.map((v) => ({ value: v.value, ...durationInput(v.duration) })) } }
+    : {};
+}
+
+function durationInput(duration: DurationDraft) {
+  const parameters = DISTRIBUTION_PARAMETERS[duration.distribution];
+  return {
+    meanSeconds: taskMeanSeconds(duration),
+    distribution: duration.distribution,
+    stdSeconds: parameters.std && duration.stdMinutes !== undefined ? Math.max(1, Math.round(duration.stdMinutes * 60)) : undefined,
+    minSeconds: parameters.bounds ? seconds(duration.minMinutes) : undefined,
+    maxSeconds: parameters.bounds ? seconds(duration.maxMinutes) : undefined,
+  };
 }
 
 export function scenarioToInput(
@@ -159,8 +338,20 @@ export function scenarioToInput(
     resourceName: primary?.name ?? "",
   };
 
+  const arrivalCalendar = draft.arrival?.calendarId;
   return {
     ...base,
+    ...(draft.caseFixedCost ? { caseFixedCost: draft.caseFixedCost } : {}),
+    ...(draft.warmupCases ? { warmupCases: draft.warmupCases } : {}),
+    ...(draft.replications && draft.replications > 1 ? { replications: draft.replications } : {}),
+    ...(draft.sla ? { sla: {
+      targetSeconds: slaSeconds(draft.sla),
+      share: draft.sla.sharePercent / 100,
+    } } : {}),
+    arrival: {
+      ...durationInput(arrivalDuration(draft)),
+      calendarId: arrivalCalendar && calendarIds.has(arrivalCalendar) ? arrivalCalendar : undefined,
+    },
     resources: draft.resources.map((r) => ({
       id: r.id,
       name: r.name,
@@ -169,19 +360,19 @@ export function scenarioToInput(
       calendarId: calendarIds.has(r.calendarId ?? "") ? r.calendarId : undefined,
     })),
     tasks: Object.entries(draft.tasks).map(([elementId, task]) => {
-      const parameters = DISTRIBUTION_PARAMETERS[task.distribution];
+      const others = task.otherAssignments ?? [];
       return {
         elementId,
-        meanSeconds: taskMeanSeconds(task),
-        distribution: task.distribution,
+        ...durationInput(task),
         resourceId: task.resourceId,
-        stdSeconds: parameters.std && task.stdMinutes !== undefined ? Math.max(1, Math.round(task.stdMinutes * 60)) : undefined,
-        minSeconds: parameters.bounds ? seconds(task.minMinutes) : undefined,
-        maxSeconds: parameters.bounds ? seconds(task.maxMinutes) : undefined,
+        ...(task.claims?.length ? { claims: task.claims } : {}),
+        ...(task.fixedCost ? { fixedCost: task.fixedCost } : {}),
+        ...(byCategory(task, draft.caseAttributes ?? [])),
+        ...(others.length ? { otherAssignments: others.map((a) => ({ resourceId: a.resourceId, ...durationInput(a) })) } : {}),
       };
     }),
     calendars: draft.calendars ?? [],
-    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}),
+    modelPatch: toModelPatch(draft.caseAttributes ?? [], draft.gatewayRules ?? {}, draft.casePriorities ?? []),
     gateways: Object.entries(draft.gateways).map(([elementId, branches]) => ({
       elementId,
       branches: Object.entries(branches).map(([flowId, probability]) => ({
@@ -211,6 +402,7 @@ export function seedDraftFromTemplate(
   }
 
   const tasks: Record<string, TaskDraft> = {};
+  const resourceIds = new Set(resources.map((r) => r.id));
   for (const task of template.tasks) {
     const modelResourceId = candidates.find((r) => r.task_ids.includes(task.element_id) && resources.some((resource) => resource.id === r.id))?.id ?? "";
     const existing = draft.tasks[task.element_id];
@@ -220,13 +412,13 @@ export function seedDraftFromTemplate(
       resourceId: modelResourceId,
       assignmentSource: "bpmn" as const,
     };
+    let next: TaskDraft = cfg;
     if (cfg.assignmentSource === "bpmn") {
-      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId };
+      next = { ...cfg, resourceId: modelResourceId };
     } else if (cfg.resourceId && !resources.some((r) => r.id === cfg.resourceId)) {
-      tasks[task.element_id] = { ...cfg, resourceId: modelResourceId, assignmentSource: "bpmn" };
-    } else {
-      tasks[task.element_id] = cfg;
+      next = { ...cfg, resourceId: modelResourceId, assignmentSource: "bpmn" };
     }
+    tasks[task.element_id] = withValidOtherAssignments(next, resourceIds);
   }
 
   const gateways: Record<string, GatewayDraft> = {};
@@ -266,32 +458,65 @@ const KEY = (bpmnModelId: string) => `delir-sim-scenario:${bpmnModelId}`;
 export function loadScenarioDraft(bpmnModelId: string): ScenarioDraft {
   try {
     const raw = window.localStorage.getItem(KEY(bpmnModelId));
-    if (!raw) return structuredClone(DEFAULT_SCENARIO);
-    const parsed = JSON.parse(raw) as Partial<ScenarioDraft>;
-    const resources = Array.isArray(parsed.resources) ? parsed.resources : [];
-    // Migrate the old untouched, generated operator; retain explicit custom roles.
-    const legacyDefault = (resource: ResourceDraft) => resource.id === "res-1" &&
-      resource.name === "Operatore" && resource.amount === 1 && resource.costPerHour === 35 &&
-      resource.parametersConfirmed === undefined && !resource.source;
-    const migratedResources = resources.filter((r) => !legacyDefault(r)).map((r) => ({
-      ...r, parametersConfirmed: r.parametersConfirmed ?? false,
-    }));
-    return {
-      ...structuredClone(DEFAULT_SCENARIO),
-      ...parsed,
-      resources: migratedResources,
-      tasks: parsed.tasks ?? {},
-      gateways: parsed.gateways ?? {},
-      // Una bozza vecchia o modificata a mano non deve rompere il pannello.
-      calendars: Array.isArray(parsed.calendars)
-        ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
-        : [],
-      caseAttributes: sanitizeAttributes(parsed.caseAttributes),
-      gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
-    };
+    return raw ? parseScenarioDraft(JSON.parse(raw)) : structuredClone(DEFAULT_SCENARIO);
   } catch {
     return structuredClone(DEFAULT_SCENARIO);
   }
+}
+
+/**
+ * Una bozza letta da fuori (il browser, o il workspace sul server): i campi
+ * mancanti prendono i default, quelli rotti si scartano.
+ */
+export function parseScenarioDraft(value: unknown): ScenarioDraft {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return structuredClone(DEFAULT_SCENARIO);
+  const parsed = value as Partial<ScenarioDraft>;
+  const resources = Array.isArray(parsed.resources) ? parsed.resources : [];
+  // Migrate the old untouched, generated operator; retain explicit custom roles.
+  const legacyDefault = (resource: ResourceDraft) => resource.id === "res-1" &&
+    resource.name === "Operatore" && resource.amount === 1 && resource.costPerHour === 35 &&
+    resource.parametersConfirmed === undefined && !resource.source;
+  const migratedResources = resources.filter((r) => !legacyDefault(r)).map((r) => ({
+    ...r, parametersConfirmed: r.parametersConfirmed ?? false,
+  }));
+  return {
+    ...structuredClone(DEFAULT_SCENARIO),
+    ...parsed,
+    resources: migratedResources,
+    tasks: parsed.tasks ?? {},
+    gateways: parsed.gateways ?? {},
+    // Una bozza vecchia o modificata a mano non deve rompere il pannello.
+    calendars: Array.isArray(parsed.calendars)
+      ? parsed.calendars.filter((c) => simCalendarSchema.safeParse(c).success)
+      : [],
+    caseAttributes: sanitizeAttributes(parsed.caseAttributes),
+    arrival: sanitizeArrival(parsed.arrival),
+    sla: sanitizeSla(parsed.sla),
+    gatewayRules: sanitizeGatewayRules(parsed.gatewayRules),
+    casePriorities: sanitizePriorities(parsed.casePriorities),
+  };
+}
+
+function sanitizeSla(raw: unknown): SlaDraft | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Partial<SlaDraft>;
+  const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+  if (!finite(value.target) || !finite(value.sharePercent)) return undefined;
+  return { target: value.target, sharePercent: value.sharePercent, unit: value.unit === "hours" ? "hours" : "days" };
+}
+
+function sanitizeArrival(raw: unknown): ArrivalDraft | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Partial<ArrivalDraft>;
+  if (!value.distribution || !(value.distribution in DISTRIBUTION_PARAMETERS)) return undefined;
+  const number = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : undefined);
+  return {
+    distribution: value.distribution,
+    stdMinutes: number(value.stdMinutes),
+    minMinutes: number(value.minMinutes),
+    maxMinutes: number(value.maxMinutes),
+    calendarId: typeof value.calendarId === "string" ? value.calendarId : undefined,
+  };
 }
 
 export function saveScenarioDraft(bpmnModelId: string, draft: ScenarioDraft): void {
