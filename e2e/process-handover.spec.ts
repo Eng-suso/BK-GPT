@@ -37,7 +37,7 @@ async function fixture(page: Page, options: Options = {}) {
     }
     if (path.endsWith("/impact-review/actions") && request.method() === "POST") {
       const body = request.postDataJSON() as Record<string, unknown>;
-      const action = { ...body, node_name: "Verificare dati", created_at: "2026-10-07T10:00:00Z", created_by: "responsabile" };
+      const action = { ...body, node_name: "Verificare dati", created_at: "2026-10-07T10:00:00Z", created_by: "consulente" };
       actions.push(action);
       return route.fulfill({ status: 201, json: action });
     }
@@ -62,34 +62,34 @@ async function fixture(page: Page, options: Options = {}) {
 
 const URL_HANDOVER = "/projects/handover-project/processes/handover-process/handover";
 
-test("the consultant sends a ready process and the owner approves it", async ({ page }) => {
+test("the consultant marks a ready process as sent and records the client approval", async ({ page }) => {
   const api = await fixture(page);
   await page.goto(URL_HANDOVER);
   await expect(page.getByRole("heading", { name: "Disegno completato · Pronto per la consegna" })).toBeVisible();
   await expect(page.getByText("Togliere la seconda firma sotto 5.000 €")).toBeVisible();
   await expect(page.getByText("Procedura PROC-14 · esempio")).toBeVisible();
 
-  await page.getByRole("button", { name: "Invia al responsabile" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Invia al responsabile" }).click();
-  await expect(page.getByRole("heading", { name: "Inviato a Amministrazione · In attesa di risposta" })).toBeVisible();
+  await page.getByRole("button", { name: "Segna come inviato al cliente" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Segna come inviato al cliente" }).click();
+  await expect(page.getByRole("heading", { name: "Inviato a Amministrazione · In attesa della risposta del cliente" })).toBeVisible();
   expect(api.patches.at(-1)).toMatchObject({ status: "Da validare", owner: "Amministrazione" });
 
-  await page.getByRole("button", { name: "Approva questa versione" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Approva questa versione" }).click();
-  await expect(page.getByRole("heading", { name: "Approvato · Da ora si misurano i risultati" })).toBeVisible();
+  await page.getByRole("button", { name: "Il cliente ha approvato" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Il cliente ha approvato" }).click();
+  await expect(page.getByRole("heading", { name: "Approvato dal cliente · Da ora si misurano i risultati" })).toBeVisible();
   expect(api.patches.at(-1)).toMatchObject({ status: "Validato" });
 });
 
-test("the owner requests a change on an activity without editing the diagram", async ({ page }) => {
+test("the consultant records a client change request without editing the diagram", async ({ page }) => {
   const api = await fixture(page, { status: "Da validare" });
   await page.goto(URL_HANDOVER);
-  await page.getByRole("button", { name: "Chiedi modifiche" }).click();
-  const dialog = page.getByRole("dialog", { name: "Chiedi modifiche" });
+  await page.getByRole("button", { name: "Il cliente chiede modifiche" }).click();
+  const dialog = page.getByRole("dialog", { name: "Il cliente chiede modifiche" });
   await dialog.getByRole("combobox").click();
   await page.getByRole("option", { name: "Verificare dati" }).click();
   await dialog.getByLabel("In breve").fill("La responsabilità deve restare all'Amministrazione");
-  await dialog.getByLabel("Cosa va cambiato e perché").fill("Il controllo dei dati è oggi in carico all'Amministrazione.");
-  await dialog.getByRole("button", { name: "Invia la richiesta" }).click();
+  await dialog.getByLabel("Cosa ha chiesto il cliente e perché").fill("Il controllo dei dati è oggi in carico all'Amministrazione.");
+  await dialog.getByRole("button", { name: "Registra la richiesta" }).click();
   await expect(dialog).toBeHidden();
   expect(api.actions.at(-1)).toMatchObject({ kind: "clarification", node_id: "verify", base_revision: BASE });
   expect(api.patches.at(-1)).toMatchObject({ status: "In corso" });
@@ -101,7 +101,7 @@ test("a process without owner or with conflicting documents cannot be sent", asy
   await page.goto(URL_HANDOVER);
   await expect(page.getByRole("heading", { name: "Non ancora pronto per la consegna" })).toBeVisible();
   await expect(page.getByText("2 controlli importanti non sono superati.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Invia al responsabile" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Segna come inviato al cliente" })).toBeDisabled();
 });
 
 for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: "mobile", width: 390, height: 844 }]) {

@@ -31,7 +31,7 @@ export type CheckOutcome = "pass" | "warning" | "fail";
 export type ReadinessCheck = {
   id: CheckId;
   outcome: CheckOutcome;
-  /** Un controllo critico non superato blocca l'invio al responsabile. */
+  /** Un controllo critico non superato blocca l'invio al cliente. */
   critical: boolean;
   /** Il numero che il testo racconta (passi, problemi, percentuale...). */
   count?: number;
@@ -54,7 +54,7 @@ export function openPoints(review: ReviewState | null | undefined): ReviewAction
   return review?.actions.filter((action) => OPEN_POINT_KINDS.includes(action.kind)) ?? [];
 }
 
-/** Le modifiche proposte al processo, quelle che il responsabile approva. */
+/** Le modifiche proposte al processo, quelle che il cliente approva. */
 export function proposedChanges(review: ReviewState | null | undefined): ReviewAction[] {
   return review?.actions.filter((action) => action.kind === "candidate") ?? [];
 }
@@ -107,7 +107,7 @@ export type HandoverChange = ReviewAction & { evidence: ChangeEvidence[] };
 
 /**
  * Ogni modifica porta con se' le fonti del passo che tocca, cosi' il
- * responsabile vede perche' e' stata proposta senza chiederlo al consulente.
+ * consulente puo' spiegare al cliente perche' e' stata proposta.
  * Il legame passa dagli identificativi del disegno, mai da nomi simili.
  */
 export function changesWithEvidence(

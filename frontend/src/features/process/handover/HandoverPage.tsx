@@ -38,9 +38,11 @@ const CHECK_ICON = { pass: CircleCheck, warning: TriangleAlert, fail: CircleX } 
 type Confirm = "send" | "approve" | "reopen" | null;
 
 /**
- * La consegna del processo al suo responsabile: cosa cambia, perche', con
- * quali fonti, e la sua approvazione. Non e' una quarta vista del disegno, ma
- * il punto in cui il processo si trova dopo il disegno e la simulazione.
+ * La consegna del processo al cliente: cosa cambia, perche', con quali fonti,
+ * e la sua risposta. DeliR lo usano solo i consulenti: il cliente non entra
+ * nell'app, e' il consulente che registra cosa ha deciso. Non e' una quarta
+ * vista del disegno, ma il punto in cui il processo si trova dopo il disegno
+ * e la simulazione.
  */
 export function HandoverPage(): React.JSX.Element {
   const { projectId = "", processId = "" } = useParams();

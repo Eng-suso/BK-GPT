@@ -1802,7 +1802,7 @@
   },
   "handover": {
     "title": "Consegna",
-    "open": "Consegna al responsabile",
+    "open": "Consegna al cliente",
     "back": "Torna al processo",
     "loading": "Caricamento della consegna",
     "version": "Versione {{id}}",
@@ -1818,33 +1818,33 @@
     "headline": {
       "ready": "Disegno completato · Pronto per la consegna",
       "notReady": "Non ancora pronto per la consegna",
-      "review": "Inviato a {{owner}} · In attesa di risposta",
-      "approved": "Approvato · Da ora si misurano i risultati"
+      "review": "Inviato a {{owner}} · In attesa della risposta del cliente",
+      "approved": "Approvato dal cliente · Da ora si misurano i risultati"
     },
     "notReadyDetail_one": "{{count}} controllo importante non è superato.",
     "notReadyDetail_other": "{{count}} controlli importanti non sono superati.",
     "actions": {
-      "send": "Invia al responsabile",
-      "approve": "Approva questa versione",
-      "requestChanges": "Chiedi modifiche",
+      "send": "Segna come inviato al cliente",
+      "approve": "Il cliente ha approvato",
+      "requestChanges": "Il cliente chiede modifiche",
       "reopen": "Riporta in lavorazione",
       "openModel": "Apri il disegno",
       "openSimulation": "Apri la simulazione",
       "group": "Azioni della consegna"
     },
     "confirm": {
-      "sendTitle": "Inviare a {{owner}}?",
-      "sendBody": "Il responsabile potrà leggere il processo, approvarlo o chiedere modifiche. Il disegno non cambia finché non lo decidete voi.",
-      "approveTitle": "Approvare questa versione?",
-      "approveBody": "Questa versione diventa quella di riferimento. Da qui in poi si misura se il processo dà i risultati attesi.",
+      "sendTitle": "Hai inviato il processo a {{owner}}?",
+      "sendBody": "Il processo passa in attesa della risposta del cliente. Puoi sempre riportarlo in lavorazione.",
+      "approveTitle": "Il cliente ha approvato questa versione?",
+      "approveBody": "DeliR registra l'approvazione: questa diventa la versione di riferimento e da qui si misura se il processo dà i risultati attesi.",
       "reopenTitle": "Riportare il processo in lavorazione?",
       "reopenBody": "La richiesta di approvazione viene ritirata e il consulente può modificare di nuovo il disegno."
     },
     "done": {
-      "sent": "Processo inviato al responsabile",
-      "approved": "Versione approvata",
+      "sent": "Processo segnato come inviato al cliente",
+      "approved": "Approvazione del cliente registrata",
       "reopened": "Processo riportato in lavorazione",
-      "changes": "Richiesta di modifica registrata",
+      "changes": "Richiesta del cliente registrata",
       "error": "Operazione non riuscita. Riprova."
     },
     "journey": {
@@ -1854,11 +1854,11 @@
         "steps": "Capire · Mettere in discussione · Ridisegnare"
       },
       "review": {
-        "who": "Consulente e responsabile",
-        "steps": "Verificare · Approvare · Rilasciare"
+        "who": "Con il cliente",
+        "steps": "Presentare · Raccogliere il parere · Approvare"
       },
       "operate": {
-        "who": "Responsabile",
+        "who": "Dopo la consegna",
         "steps": "Gestire · Misurare · Migliorare"
       },
       "current": "Fase attuale"
@@ -1881,7 +1881,7 @@
       "owner": {
         "label": "Responsabile indicato",
         "pass": "{{owner}}",
-        "fail": "Manca chi sarà responsabile del processo"
+        "fail": "Manca il responsabile del processo presso il cliente"
       },
       "sources": {
         "label": "Coerente con i documenti",
@@ -1921,7 +1921,7 @@
     },
     "changes": {
       "title": "Cosa cambia",
-      "description": "Ogni modifica spiega il motivo e le fonti, così il responsabile non deve chiedere al consulente.",
+      "description": "Ogni modifica spiega il motivo e le fonti, così puoi rispondere a qualsiasi domanda del cliente.",
       "empty": "Nessuna modifica proposta. Le modifiche si propongono dalla vista Revisione.",
       "activity": "Attività",
       "why": "Perché",
@@ -1949,7 +1949,7 @@
     },
     "ownership": {
       "title": "Chi se ne occupa",
-      "owner": "Responsabile del processo",
+      "owner": "Responsabile del processo presso il cliente",
       "afterApproval": "Dopo l'approvazione",
       "steps": [
         "La versione approvata viene bloccata",
@@ -1959,14 +1959,14 @@
       ]
     },
     "request": {
-      "title": "Chiedi modifiche",
-      "description": "Scegli l'attività e scrivi cosa va cambiato. DeliR registra la richiesta: il disegno non viene modificato.",
+      "title": "Il cliente chiede modifiche",
+      "description": "Scegli l'attività e scrivi cosa ha chiesto il cliente. DeliR la registra tra i punti aperti: il disegno non cambia da solo.",
       "activity": "Attività",
       "pickActivity": "Scegli un'attività",
       "titleLabel": "In breve",
       "titlePlaceholder": "Es. La responsabilità deve restare all'Amministrazione",
-      "detailLabel": "Cosa va cambiato e perché",
-      "submit": "Invia la richiesta",
+      "detailLabel": "Cosa ha chiesto il cliente e perché",
+      "submit": "Registra la richiesta",
       "cancel": "Annulla",
       "noActivities": "Il disegno non ha attività da commentare."
     }

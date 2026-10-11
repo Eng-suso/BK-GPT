@@ -13,9 +13,9 @@ import { useCreateReviewAction } from "../review/api";
 import type { ReviewNode } from "../review/reviewModel";
 
 /**
- * Il responsabile non modifica il disegno: lascia una richiesta su
- * un'attivita'. Diventa una domanda nel registro della revisione, che il
- * consulente trova accanto alle altre.
+ * Il consulente registra cosa ha chiesto il cliente su un'attivita'. Diventa
+ * una domanda nel registro della revisione, accanto alle altre: il disegno
+ * non cambia da solo.
  */
 export function RequestChangesDialog({ processId, revision, nodes, open, onOpenChange, onSaved }: {
   processId: string;

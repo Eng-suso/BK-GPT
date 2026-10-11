@@ -1802,7 +1802,7 @@
   },
   "handover": {
     "title": "Hand over",
-    "open": "Hand over to owner",
+    "open": "Hand over to client",
     "back": "Back to process",
     "loading": "Loading hand over",
     "version": "Version {{id}}",
@@ -1818,33 +1818,33 @@
     "headline": {
       "ready": "Design completed · Ready to hand over",
       "notReady": "Not ready to hand over yet",
-      "review": "Sent to {{owner}} · Waiting for an answer",
-      "approved": "Approved · Results are measured from now on"
+      "review": "Sent to {{owner}} · Waiting for the client's answer",
+      "approved": "Approved by the client · Results are measured from now on"
     },
     "notReadyDetail_one": "{{count}} important check is not met.",
     "notReadyDetail_other": "{{count}} important checks are not met.",
     "actions": {
-      "send": "Send to process owner",
-      "approve": "Approve this version",
-      "requestChanges": "Request changes",
+      "send": "Mark as sent to client",
+      "approve": "Client approved",
+      "requestChanges": "Client requests changes",
       "reopen": "Move back to in progress",
       "openModel": "Open the diagram",
       "openSimulation": "Open the simulation",
       "group": "Hand over actions"
     },
     "confirm": {
-      "sendTitle": "Send to {{owner}}?",
-      "sendBody": "The owner can read the process, approve it or request changes. The diagram does not change unless you decide so.",
-      "approveTitle": "Approve this version?",
-      "approveBody": "This version becomes the reference one. From now on DeliR measures whether the process delivers the expected results.",
+      "sendTitle": "Did you send the process to {{owner}}?",
+      "sendBody": "The process moves to waiting for the client's answer. You can always move it back to in progress.",
+      "approveTitle": "Did the client approve this version?",
+      "approveBody": "DeliR records the approval: this becomes the reference version, and from here on DeliR measures whether the process delivers the expected results.",
       "reopenTitle": "Move the process back to in progress?",
       "reopenBody": "The approval request is withdrawn and the consultant can edit the diagram again."
     },
     "done": {
-      "sent": "Process sent to the owner",
-      "approved": "Version approved",
+      "sent": "Process marked as sent to the client",
+      "approved": "Client approval recorded",
       "reopened": "Process moved back to in progress",
-      "changes": "Change request recorded",
+      "changes": "Client request recorded",
       "error": "Something went wrong. Try again."
     },
     "journey": {
@@ -1854,11 +1854,11 @@
         "steps": "Understand · Challenge · Redesign"
       },
       "review": {
-        "who": "Consultant and owner",
-        "steps": "Check · Approve · Release"
+        "who": "With the client",
+        "steps": "Present · Collect feedback · Approve"
       },
       "operate": {
-        "who": "Owner",
+        "who": "After hand over",
         "steps": "Run · Measure · Improve"
       },
       "current": "Current step"
@@ -1881,7 +1881,7 @@
       "owner": {
         "label": "Owner named",
         "pass": "{{owner}}",
-        "fail": "Nobody is named as process owner"
+        "fail": "Nobody at the client is named as process owner"
       },
       "sources": {
         "label": "Consistent with documents",
@@ -1921,7 +1921,7 @@
     },
     "changes": {
       "title": "What changes",
-      "description": "Each change explains its reason and sources, so the owner does not have to ask the consultant.",
+      "description": "Each change explains its reason and sources, so you can answer any question from the client.",
       "empty": "No proposed changes. Changes are proposed from the Review view.",
       "activity": "Activity",
       "why": "Why",
@@ -1949,7 +1949,7 @@
     },
     "ownership": {
       "title": "Who takes care of it",
-      "owner": "Process owner",
+      "owner": "Process owner at the client",
       "afterApproval": "After approval",
       "steps": [
         "The approved version is locked",
@@ -1959,14 +1959,14 @@
       ]
     },
     "request": {
-      "title": "Request changes",
-      "description": "Pick the activity and write what should change. DeliR records the request: the diagram is not edited.",
+      "title": "Client requests changes",
+      "description": "Pick the activity and write what the client asked. DeliR records it among the open points: the diagram does not change by itself.",
       "activity": "Activity",
       "pickActivity": "Pick an activity",
       "titleLabel": "In short",
       "titlePlaceholder": "E.g. Responsibility must stay with Finance",
-      "detailLabel": "What should change and why",
-      "submit": "Send request",
+      "detailLabel": "What the client asked and why",
+      "submit": "Record the request",
       "cancel": "Cancel",
       "noActivities": "The diagram has no activities to comment on."
     }
