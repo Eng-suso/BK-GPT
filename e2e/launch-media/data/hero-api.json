@@ -1,0 +1,103 @@
+{
+ "simulation_template": {
+  "resources": [
+   {
+    "id": "bpmn-lane-2591c674ea8032f0",
+    "name": "Requester",
+    "kind": "lane",
+    "bpmn_id": "requester",
+    "pool_name": "Purchase request",
+    "parent_name": null,
+    "task_ids": [
+     "send_request",
+     "complete_request"
+    ]
+   },
+   {
+    "id": "bpmn-lane-93fa6393336f975a",
+    "name": "Purchasing",
+    "kind": "lane",
+    "bpmn_id": "purchasing",
+    "pool_name": "Purchase request",
+    "parent_name": null,
+    "task_ids": [
+     "check_request",
+     "issue_po"
+    ]
+   },
+   {
+    "id": "bpmn-lane-6ee4a469cd4e9105",
+    "name": "Manager",
+    "kind": "lane",
+    "bpmn_id": "manager",
+    "pool_name": "Purchase request",
+    "parent_name": null,
+    "task_ids": [
+     "approve_spend"
+    ]
+   }
+  ],
+  "tasks": [
+   {
+    "element_id": "send_request",
+    "name": "Send purchase request",
+    "type": "task"
+   },
+   {
+    "element_id": "complete_request",
+    "name": "Complete the request",
+    "type": "task"
+   },
+   {
+    "element_id": "check_request",
+    "name": "Check request",
+    "type": "task"
+   },
+   {
+    "element_id": "issue_po",
+    "name": "Issue purchase order",
+    "type": "task"
+   },
+   {
+    "element_id": "approve_spend",
+    "name": "Approve spend",
+    "type": "task"
+   }
+  ],
+  "gateways": [
+   {
+    "element_id": "gw_complete",
+    "name": "Request complete?",
+    "type": "exclusiveGateway",
+    "branches": [
+     {
+      "flow_id": "f_incomplete",
+      "flow_name": "No",
+      "target_name": "Complete the request"
+     },
+     {
+      "flow_id": "f_complete",
+      "flow_name": "Yes",
+      "target_name": "Approve spend"
+     }
+    ]
+   }
+  ],
+  "standard_calendar": {
+   "id": "delir-calendar-standard",
+   "name": "Standard office calendar",
+   "periods": [
+    {
+     "from_day": "MONDAY",
+     "to_day": "FRIDAY",
+     "begin": "09:00",
+     "end": "17:00"
+    }
+   ]
+  }
+ },
+ "simulation_provenance": {
+  "has_discovery": false,
+  "elements": []
+ }
+}
