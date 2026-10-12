@@ -87,3 +87,14 @@ La disposizione cambia con l'inquadratura:
 - **Da decidere**: accanto alla headline il video e' largo circa 750 px. Se la
   headline si accorcia, metterlo sotto a tutta larghezza rende piu' leggibili i
   grafici.
+
+## Revisione dei fotogrammi (ottobre 2026)
+
+Fotogrammi estratti da `landing/media/delir-hero.mp4` (12,6 s).
+
+| t | Problema | Gravita' | Correzione |
+| --- | --- | --- | --- |
+| 10,8 s (poster) | As-Is: "15 queued" su "Issue purchase order", "4 queued" su "Approve spend". Il collo di bottiglia che si vede non e' quello raccontato | Alta: e' il fotogramma che vedono tutti prima del play e chi ha riduci movimento | Spostare il poster a un istante in cui la coda massima e' su "Approve spend", oppure fissare il seed/istante del replay |
+| ~8 s | Una pillola "Navigation" del canvas entra in basso a sinistra | Media: UI di servizio dentro il prodotto mostrato | Nasconderla durante la cattura in `hero.spec.ts` |
+| ~3,5 s | Lo zoom taglia la toolbar ("…ents 12") e il logo BPMN.io a destra | Media: sembra un errore di inquadratura | Allargare il rettangolo `rec.focus` o tenere fuori la toolbar |
+| tutta | Il link "See how it works" punta a `#product`, che non esiste | Media: la seconda CTA dell'hero non porta da nessuna parte | Aggiungere la sezione prodotto con le clip della tabella "Media per la landing" |
