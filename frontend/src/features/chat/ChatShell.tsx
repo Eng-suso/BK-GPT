@@ -287,7 +287,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
         </div>
 
         {workspaceSlot ? (
-          <div className="shrink-0 border-t border-border-subtle bg-card px-4 py-2">
+          <div className="shrink-0 border-t border-border bg-card px-4 py-2">
             {workspaceSlot}
           </div>
         ) : null}
@@ -360,7 +360,7 @@ export const ChatShell: React.FC<ChatShellProps> = ({
           </div>
 
           {workspaceSlot ? (
-            <div className="shrink-0 border-t border-border-subtle bg-card px-4 py-2">
+            <div className="shrink-0 border-t border-border bg-card px-4 py-2">
               {workspaceSlot}
             </div>
           ) : null}
