@@ -414,12 +414,12 @@ def _event_kind(element: ElementTree.Element) -> str:
         "conditionalEventDefinition": "condizionale",
         "compensateEventDefinition": "di compensazione",
         "cancelEventDefinition": "di annullamento",
+        "linkEventDefinition": "di collegamento",
     }
-    for child in element:
-        kind = names.get(_local(child.tag))
-        if kind:
-            return kind
-    return "senza tipo"
+    kinds = [names[_local(child.tag)] for child in element if _local(child.tag) in names]
+    if len(kinds) > 1:
+        return "multiplo"
+    return kinds[0] if kinds else "senza tipo"
 
 
 def _q(tag: str) -> str:
