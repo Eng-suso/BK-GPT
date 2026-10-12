@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from backend.bpmn import semantic_model_to_bpmn_xml
+from backend.bpmn.canvas_layout import lint_visual_model
 from backend.bpmn.models import (
     BPMNFlowNode,
     BPMNMessageFlow,
@@ -147,7 +148,10 @@ def test_purchase_layout_keeps_lanes_inside_company_pool_and_separates_connector
     assert layout_bpmn_di(laid_out) == laid_out
     assert report["valid"] is True
     assert report["warnings"] == []
-    assert report["metrics"]["edge_edge_crossing_count"] == 0
+    # The order message drops straight from "Crea e invia ordine" to the
+    # supplier pool and so crosses the urgent path once; no detour leaves the pool.
+    assert report["metrics"]["edge_edge_crossing_count"] == 1
+    assert lint_visual_model(ET.fromstring(laid_out))["metrics"]["edge_crossings"] == 0
     assert report["metrics"]["edge_shape_crossing_count"] == 0
     assert report["metrics"]["bounds"]["height"] < 1100
     company = shapes["Company"]
@@ -174,6 +178,10 @@ def test_purchase_layout_keeps_lanes_inside_company_pool_and_separates_connector
     bpmn_ns = "http://www.omg.org/spec/BPMN/20100524/MODEL"
     elements = {element.attrib["id"]: element for element in root.iter()
                 if element.tag.startswith(f"{{{bpmn_ns}}}") and element.attrib.get("id")}
+    message_edge = next(edge for edge in root.iter(f"{{{BPMNDI_NS}}}BPMNEdge") if edge.attrib.get("bpmnElement") == "Supplier_Message")
+    for waypoint in message_edge:
+        if waypoint.tag.endswith("waypoint"):
+            assert company["x"] <= float(waypoint.attrib["x"]) <= company["x"] + company["width"]
     for flow_id in ("F3", "F8", "Supplier_Message"):
         flow = elements[flow_id]
         assert "name" not in flow.attrib
