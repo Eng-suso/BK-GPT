@@ -61,6 +61,8 @@ class OwnerDashboard(_Closed):
     process: DashboardProcess
     project_name: str
     client_name: str
+    #: Il referente del progetto: la persona a cui il cliente risponde.
+    consultant_name: str
     #: Il disegno, senza documentazione, estensioni e coordinate grafiche.
     xml: str | None
     changes: list[DashboardChange]

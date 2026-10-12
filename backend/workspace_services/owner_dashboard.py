@@ -147,6 +147,7 @@ def _build(session: Session, process: WorkspaceProcess, tenant: str) -> OwnerDas
         process=DashboardProcess(name=process.name, owner=process.owner, status=process.status, stage=process.stage),
         project_name=project.name if project else "",
         client_name=project.client.name if project else "",
+        consultant_name=(project.lead or "").strip() if project else "",
         xml=public_process_xml(model.xml if model else None),
         changes=[
             DashboardChange(id=row.id, node_id=row.node_id, node_name=row.node_name, title=row.title, detail=row.detail, created_at=row.created_at)

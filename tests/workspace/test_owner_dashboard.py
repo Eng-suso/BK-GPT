@@ -57,7 +57,7 @@ def process():
     try:
         with workspace_connection() as session:
             client = WorkspaceClient(id=f"c-{identity}", tenant_id=tenant, name="Azienda demo", sector="Test", status="Attivo", owner="Test", contact="")
-            project = WorkspaceProject(id=f"p-{identity}", tenant_id=tenant, client=client, name="Acquisti", phase="TO-BE", status="In corso", progress=0, process_count=1, next_step="", milestones_json="[]", open_issues_json="[]", deliverables_json="[]")
+            project = WorkspaceProject(id=f"p-{identity}", tenant_id=tenant, client=client, name="Acquisti", lead="Giulia Bianchi", phase="TO-BE", status="In corso", progress=0, process_count=1, next_step="", milestones_json="[]", open_issues_json="[]", deliverables_json="[]")
             process = WorkspaceProcess(id=identity, tenant_id=tenant, project=project, bpmn_model_id=f"b-{identity}", name="Acquisti indiretti", stage="TO-BE", status="Da validare", owner="Amministrazione", readiness=80)
             process.bpmn_model = WorkspaceBpmnModel(id=process.bpmn_model_id, tenant_id=tenant, name="Acquisti indiretti", xml=XML)
             session.add(client)
@@ -102,7 +102,7 @@ def test_the_dashboard_carries_only_what_the_owner_should_read(process):
     dashboard = build_owner_dashboard(process)
 
     assert (dashboard.process.name, dashboard.process.owner, dashboard.process.status) == ("Acquisti indiretti", "Amministrazione", "Da validare")
-    assert (dashboard.project_name, dashboard.client_name) == ("Acquisti", "Azienda demo")
+    assert (dashboard.project_name, dashboard.client_name, dashboard.consultant_name) == ("Acquisti", "Azienda demo", "Giulia Bianchi")
     assert [change.title for change in dashboard.changes] == ["Togliere la seconda firma sotto 5.000 €"]
     assert dashboard.changes[0].detail == "Due firme anche per importi bassi."
     assert sorted(point.kind for point in dashboard.open_points) == ["clarification", "deferred"]
