@@ -200,3 +200,23 @@ def test_a_link_pair_stays_one_path_for_the_engine():
 
     assert ("A", "B") in flows
     validate_simulation_bpmn(normalized)
+
+
+def test_event_sub_processes_and_compensation_activities_stay_out_of_the_engine():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D">
+  <bpmn:process id="P">
+    <bpmn:startEvent id="S" />
+    <bpmn:task id="A" />
+    <bpmn:endEvent id="E" />
+    <bpmn:subProcess id="Reclamo" triggeredByEvent="true"><bpmn:startEvent id="RS"><bpmn:messageEventDefinition /></bpmn:startEvent></bpmn:subProcess>
+    <bpmn:task id="Storno" isForCompensation="true" />
+    <bpmn:sequenceFlow id="F1" sourceRef="S" targetRef="A" />
+    <bpmn:sequenceFlow id="F2" sourceRef="A" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    normalized = normalize_bpmn_for_prosimos(xml)
+
+    assert 'id="Reclamo"' not in normalized and 'id="Storno"' not in normalized
+    validate_simulation_bpmn(normalized)

@@ -104,6 +104,7 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
     changed = False
     for process in root.iter(_q(BPMN_MODEL_NS, "process")):
         changed |= _strip_noise(process)
+        changed |= _drop_event_started_activities(process)
         changed |= _downcast_activities(process)
         changed |= _rewrite_gateways(process)
         changed |= _start_instantiating_gateways(process)
@@ -232,6 +233,21 @@ def _keep_only_flow_refs(element: ElementTree.Element) -> None:
     for child in list(element):
         if child.tag not in keep:
             element.remove(child)
+
+
+def _drop_event_started_activities(process: ElementTree.Element) -> bool:
+    """Event sub-processes and compensation activities are off the sequence flow.
+
+    The engine only runs what the flow reaches; left in, they would be
+    disconnected tasks that fail preflight.
+    """
+    dropped = [
+        element for element in list(process)
+        if element.get("triggeredByEvent") == "true" or element.get("isForCompensation") == "true"
+    ]
+    for element in dropped:
+        process.remove(element)
+    return bool(dropped)
 
 
 def _rewrite_gateways(process: ElementTree.Element) -> bool:
