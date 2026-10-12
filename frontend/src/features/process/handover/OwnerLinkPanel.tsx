@@ -74,7 +74,7 @@ export function OwnerLinkPanel({ processId }: { processId: string }): React.JSX.
               <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm("renew")}><RefreshCw aria-hidden />{k("renew")}</Button>
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirm("revoke")}><Link2Off aria-hidden />{k("revoke")}</Button>
             </> : (
-              <Button size="sm" disabled={busy} onClick={() => void makeLink().catch(() => undefined)}><Link2 aria-hidden />{k("create")}</Button>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => void makeLink().catch(() => undefined)}><Link2 aria-hidden />{k("createOnly")}</Button>
             )}
           </div>
         </>}

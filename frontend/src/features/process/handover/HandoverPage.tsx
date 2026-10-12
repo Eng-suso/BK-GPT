@@ -3,14 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
-  ArrowLeft, CircleCheck, CircleHelp, CircleX, FlaskConical, GitPullRequest, LayoutDashboard, Send, TriangleAlert, Undo2, UserRound, Workflow,
+  ArrowLeft, CircleCheck, CircleHelp, CircleX, Eye, FlaskConical, GitPullRequest, TriangleAlert, Undo2, UserRound, Workflow,
 } from "lucide-react";
 
 import { ROUTES } from "@/app/routes";
 import { ConfirmDialog, ErrorState } from "@/components/feedback";
-import { StatTile } from "@/components/data";
+import { Meter, StatTile } from "@/components/data";
 import { WorkspaceContextBar } from "@/components/layout/CanvasWorkspace";
-import { StatusIndicator, type StatusTone } from "@/components/status";
 import type { ProcessStatus, ProjectProcess } from "@/contracts/workspace";
 import { useProjectQuery, useUpdateProcessMutation } from "@/features/projects/api";
 import { Badge } from "@/ui/badge";
@@ -18,18 +17,20 @@ import { Button } from "@/ui/button";
 import { Skeleton } from "@/ui/skeleton";
 import { Surface } from "@/ui/surface";
 import { formatCurrency, formatDuration } from "../simulation/simulationResults";
-import { STATUS_FOR_STAGE, type HandoverStage, type ReadinessCheck } from "./handoverModel";
+import { STATUS_FOR_STAGE, type ReadinessCheck } from "./handoverModel";
 import { formatDay, useHandoverData } from "./useHandoverData";
+import { HandoverStepper } from "./HandoverStepper";
+import { useOwnerLink } from "./ownerDashboardApi";
 import { OwnerLinkPanel } from "./OwnerLinkPanel";
+import { SendToClient } from "./SendToClient";
 import { RequestChangesDialog } from "./RequestChangesDialog";
 import "./handover.css";
 
-const STAGE_TONE: Record<HandoverStage, StatusTone> = { design: "neutral", review: "pending", approved: "ok" };
-const JOURNEY = ["design", "review", "operate"] as const;
-const JOURNEY_FOR_STAGE: Record<HandoverStage, (typeof JOURNEY)[number]> = { design: "design", review: "review", approved: "operate" };
 const CHECK_ICON = { pass: CircleCheck, warning: TriangleAlert, fail: CircleX } as const;
 
-type Confirm = "send" | "approve" | "reopen" | null;
+type Confirm = "approve" | "reopen" | null;
+// I problemi prima: chi apre la pagina vede subito cosa manca.
+const OUTCOME_ORDER = { fail: 0, warning: 1, pass: 2 } as const;
 
 /**
  * La consegna del processo al cliente: cosa cambia, perche', con quali fonti,
@@ -77,6 +78,7 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
     readiness, changes, points, nodes, latestRun, latestVersion, findings,
   } = useHandoverData(process);
   const updateProcess = useUpdateProcessMutation();
+  const link = useOwnerLink(process.id).data;
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [requesting, setRequesting] = useState(false);
   const date = (value: string | null | undefined) => formatDay(value, i18n.language);
@@ -102,7 +104,7 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
           <Button variant="ghost" size="icon-sm" onClick={() => navigate(ROUTES.projects.process(projectId, process.id))} aria-label={t("handover.back")} title={t("handover.back")}><ArrowLeft aria-hidden className="size-4" /></Button>
           <Badge variant="secondary">{process.stage}</Badge>
         </div>}
-        actions={<Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.handoverDashboard(projectId, process.id))}><LayoutDashboard aria-hidden />{t("handover.dashboard.openButton")}</Button>}
+        actions={<Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.handoverDashboard(projectId, process.id))}><Eye aria-hidden />{t("handover.actions.preview")}</Button>}
       />
       <div className="handover ui-scrollbar">
         <div className="handover-body">
@@ -110,18 +112,28 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
             <div className="min-w-0">
               <h2>{headline}</h2>
               <div className="handover-status-meta">
-                <StatusIndicator tone={STAGE_TONE[stage]} label={t(`handover.stage.${stage}`)} />
                 <span className="inline-flex items-center gap-1.5"><UserRound aria-hidden className="size-3.5" />{owner || t("handover.noOwner")}</span>
                 <span>{latestVersion ? t("handover.version", { id: latestVersion.id }) : t("handover.noVersion")}</span>
                 {latestVersion && <span>{t("handover.updated", { date: date(latestVersion.createdAt) })}</span>}
               </div>
+              {stage !== "design" && link?.active && (
+                <p className="handover-status-viewed"><Eye aria-hidden className="size-3.5" />{link.view_count > 0
+                  ? t("handover.headline.viewed", { owner: owner || t("handover.noOwner"), count: link.view_count, date: date(link.last_viewed_at) })
+                  : t("handover.headline.notViewed", { owner: owner || t("handover.noOwner") })}</p>
+              )}
               {stage === "design" && !checksLoading && !readiness.ready && (
                 <p className="mt-1 text-xs text-[var(--domain-validation-fail-text)]">{t("handover.notReadyDetail", { count: readiness.blocking })}</p>
               )}
             </div>
             <div className="handover-status-actions" role="group" aria-label={t("handover.actions.group")}>
               {stage === "design" && (
-                <Button onClick={() => setConfirm("send")} disabled={checksLoading || !readiness.ready || updateProcess.isPending}><Send aria-hidden />{t("handover.actions.send")}</Button>
+                <SendToClient
+                  processId={process.id}
+                  owner={owner || t("handover.noOwner")}
+                  hadLink={Boolean(link?.active)}
+                  disabled={checksLoading || !readiness.ready || updateProcess.isPending}
+                  onSent={() => moveTo(STATUS_FOR_STAGE.review, t("handover.done.sent"))}
+                />
               )}
               {stage === "review" && <>
                 <Button variant="outline" onClick={() => setRequesting(true)} disabled={updateProcess.isPending}><GitPullRequest aria-hidden />{t("handover.actions.requestChanges")}</Button>
@@ -131,25 +143,29 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
                 <Button variant="outline" onClick={() => setConfirm("reopen")} disabled={updateProcess.isPending}><Undo2 aria-hidden />{t("handover.actions.reopen")}</Button>
               )}
             </div>
+            <HandoverStepper stage={stage} />
           </Surface>
-
-          <ol className="handover-journey" aria-label={t("handover.journey.label")}>
-            {JOURNEY.map((step) => (
-              <li key={step} aria-current={JOURNEY_FOR_STAGE[stage] === step ? "step" : undefined}>
-                <span className="handover-journey-who">{t(`handover.journey.${step}.who`)}{JOURNEY_FOR_STAGE[stage] === step && <span className="sr-only"> · {t("handover.journey.current")}</span>}</span>
-                <span className="handover-journey-steps">{t(`handover.journey.${step}.steps`)}</span>
-              </li>
-            ))}
-          </ol>
 
           <div className="handover-grid">
             <div className="handover-main">
               <section className="handover-section" aria-labelledby="handover-readiness">
                 <header className="handover-section-heading"><h2 id="handover-readiness">{t("handover.readiness.title")}</h2><p>{t("handover.readiness.description")}</p></header>
                 {checksLoading ? <Skeleton className="h-64 w-full" /> : (
-                  <Surface asChild variant="panel"><ul className="handover-checks">
-                    {readiness.checks.map((check) => <CheckRow key={check.id} check={check} owner={owner} hasReport={hasConformanceReport} />)}
-                  </ul></Surface>
+                  <Surface variant="panel" className="handover-readiness">
+                    <div className="handover-readiness-summary">
+                      <span>{t("handover.readiness.summary", { passed: readiness.checks.filter((check) => check.outcome === "pass").length, total: readiness.checks.length })}</span>
+                      <Meter
+                        value={(readiness.checks.filter((check) => check.outcome === "pass").length / readiness.checks.length) * 100}
+                        label={t("handover.readiness.title")}
+                        tone={readiness.ready ? "ok" : "danger"}
+                        showValue={false}
+                        className="handover-readiness-meter"
+                      />
+                    </div>
+                    <ul className="handover-checks">
+                      {[...readiness.checks].sort((a, b) => OUTCOME_ORDER[a.outcome] - OUTCOME_ORDER[b.outcome]).map((check) => <CheckRow key={check.id} check={check} owner={owner} hasReport={hasConformanceReport} />)}
+                    </ul>
+                  </Surface>
                 )}
               </section>
 
@@ -243,10 +259,6 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
                     <span className="eyebrow block">{t("handover.ownership.owner")}</span>
                     <p className="handover-owner-name"><UserRound aria-hidden className="size-4" />{owner || t("handover.noOwner")}</p>
                   </div>
-                  <div>
-                    <span className="eyebrow block">{t("handover.ownership.afterApproval")}</span>
-                    <ol className="mt-2 list-decimal">{(t("handover.ownership.steps", { returnObjects: true }) as string[]).map((step) => <li key={step}>{step}</li>)}</ol>
-                  </div>
                   <Button variant="outline" size="sm" onClick={() => navigate(`${ROUTES.projects.process(projectId, process.id)}?view=canvas`)}><Workflow aria-hidden />{t("handover.actions.openModel")}</Button>
                 </Surface>
               </section>
@@ -255,14 +267,6 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
         </div>
       </div>
 
-      <ConfirmDialog
-        open={confirm === "send"}
-        onOpenChange={(open) => !open && setConfirm(null)}
-        title={t("handover.confirm.sendTitle", { owner: owner || t("handover.noOwner") })}
-        description={t("handover.confirm.sendBody")}
-        confirmLabel={t("handover.actions.send")}
-        onConfirm={() => moveTo(STATUS_FOR_STAGE.review, t("handover.done.sent"))}
-      />
       <ConfirmDialog
         open={confirm === "approve"}
         onOpenChange={(open) => !open && setConfirm(null)}
