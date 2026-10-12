@@ -15,7 +15,8 @@
     "toggleChat": "Canvas chat",
     "toggleProperties": "Properties",
     "closeOverlays": "Close panels",
-    "views": "Process views"
+    "views": "Process views",
+    "moreSections": "More sections"
   },
   "state": {
     "processNotFound": "Process not found in this project.",
@@ -1798,6 +1799,281 @@
       "resizeHint": "Drag the corner; arrow keys to resize, Home to reset",
       "move": "Move DeliR avatar",
       "moveHint": "Drag to move. Use arrow keys; Home restores automatic positioning."
+    }
+  },
+  "handover": {
+    "title": "Hand over",
+    "open": "Hand over to client",
+    "back": "Back to process",
+    "loading": "Loading hand over",
+    "version": "Version {{id}}",
+    "noVersion": "No saved version",
+    "updated": "Last change {{date}}",
+    "noOwner": "No owner",
+    "headline": {
+      "ready": "Design completed · Ready to hand over",
+      "notReady": "Not ready to hand over yet",
+      "review": "Sent to {{owner}} · Waiting for the client's answer",
+      "approved": "Approved by the client · Results are measured from now on",
+      "viewed_one": "{{owner}} opened the dashboard once, on {{date}}",
+      "viewed_other": "{{owner}} opened the dashboard {{count}} times, last on {{date}}",
+      "notViewed": "{{owner}} has not opened the dashboard yet"
+    },
+    "notReadyDetail_one": "{{count}} important check is not met.",
+    "notReadyDetail_other": "{{count}} important checks are not met.",
+    "actions": {
+      "approve": "Client approved",
+      "requestChanges": "Client requests changes",
+      "reopen": "Move back to in progress",
+      "openModel": "Open the diagram",
+      "openSimulation": "Open the simulation",
+      "group": "Hand over actions",
+      "sendToClient": "Send to client",
+      "preview": "Client preview"
+    },
+    "confirm": {
+      "approveTitle": "Did the client approve this version?",
+      "approveBody": "DeliR records the approval: this becomes the reference version, and from here on DeliR measures whether the process delivers the expected results.",
+      "reopenTitle": "Move the process back to in progress?",
+      "reopenBody": "The approval request is withdrawn and the consultant can edit the diagram again."
+    },
+    "done": {
+      "sent": "Process marked as sent to the client",
+      "approved": "Client approval recorded",
+      "reopened": "Process moved back to in progress",
+      "changes": "Client request recorded",
+      "error": "Something went wrong. Try again."
+    },
+    "readiness": {
+      "title": "Ready to hand over?",
+      "description": "Before sending, DeliR checks that the work is complete.",
+      "critical": "Blocking",
+      "outcome": {
+        "pass": "Met",
+        "warning": "Worth a look",
+        "fail": "Not met"
+      },
+      "model": {
+        "label": "Process drawn",
+        "pass_one": "{{count}} activity in the diagram",
+        "pass_other": "{{count}} activities in the diagram",
+        "fail": "The diagram has no activities yet"
+      },
+      "owner": {
+        "label": "Owner named",
+        "pass": "{{owner}}",
+        "fail": "Nobody at the client is named as process owner"
+      },
+      "sources": {
+        "label": "Consistent with documents",
+        "pass": "No conflict with the client's documents",
+        "warning": "{{count}} points to complete against the documents",
+        "unchecked": "The diagram has not been compared with the documents yet",
+        "fail": "{{count}} conflicts with the documents to resolve"
+      },
+      "evidence": {
+        "label": "Backed by sources",
+        "pass": "{{count}}% of activities have a source",
+        "warning": "{{count}}% of activities have a source, some need confirming",
+        "unknown": "Sources not checked yet",
+        "fail": "Only {{count}}% of activities have a source"
+      },
+      "simulation": {
+        "label": "Simulation run",
+        "pass_one": "{{count}} simulation completed",
+        "pass_other": "{{count}} simulations completed",
+        "warning": "No completed simulation"
+      },
+      "openPoints": {
+        "label": "Open questions",
+        "pass": "No open questions",
+        "warning_one": "{{count}} question still to clarify",
+        "warning_other": "{{count}} questions still to clarify"
+      },
+      "summary": "{{passed}} of {{total}} checks met"
+    },
+    "summary": {
+      "title": "At a glance",
+      "problems": "Problems found",
+      "changes": "Proposed changes",
+      "openPoints": "Open questions",
+      "simulation": "Completed simulations",
+      "findings": "What does not work today",
+      "noFindings": "No problems recorded in the analysis."
+    },
+    "changes": {
+      "title": "What changes",
+      "description": "Each change explains its reason and sources, so you can answer any question from the client.",
+      "empty": "No proposed changes. Changes are proposed from the Review view.",
+      "activity": "Activity",
+      "why": "Why",
+      "sources": "Sources",
+      "noSources": "No source linked to this activity.",
+      "outdated": "Proposed on an earlier version of the diagram.",
+      "proposedBy": "Proposed by {{who}} on {{date}}"
+    },
+    "simulation": {
+      "title": "Simulation results",
+      "description": "Figures from the latest completed simulation: {{scenario}}.",
+      "empty": "No completed simulation. Figures will show here after the first one.",
+      "cycle": "Average time per case",
+      "waiting": "Average waiting",
+      "cost": "Cost per case",
+      "cases": "Simulated cases"
+    },
+    "openPoints": {
+      "title": "Still open",
+      "empty": "Nothing open.",
+      "kind": {
+        "clarification": "Question",
+        "deferred": "Postponed"
+      }
+    },
+    "ownership": {
+      "title": "Who takes care of it",
+      "owner": "Process owner at the client"
+    },
+    "request": {
+      "title": "Client requests changes",
+      "description": "Pick the activity and write what the client asked. DeliR records it among the open points: the diagram does not change by itself.",
+      "activity": "Activity",
+      "pickActivity": "Pick an activity",
+      "titleLabel": "In short",
+      "titlePlaceholder": "E.g. Responsibility must stay with Finance",
+      "detailLabel": "What the client asked and why",
+      "submit": "Record the request",
+      "cancel": "Cancel",
+      "noActivities": "The diagram has no activities to comment on."
+    },
+    "dashboard": {
+      "title": "Process dashboard",
+      "preview": "Preview: this is the page the process owner receives.",
+      "back": "Back to hand over",
+      "download": "Download PDF",
+      "preparedFor": "For {{owner}}",
+      "updated": "Updated on {{date}}",
+      "status": {
+        "design": "Being prepared",
+        "review": "Waiting for your approval",
+        "approved": "Approved · In use"
+      },
+      "statusDetail": {
+        "design": "The consultant is still working on the process.",
+        "review": "The consultant sent you the new version of the process. Read what changes and let them know if you approve.",
+        "approved": "This is the reference version of the process. From now on we measure whether it delivers the expected results."
+      },
+      "version": "Version {{id}} of {{date}}",
+      "changes": "What changed",
+      "changesEmpty": "No changes compared to the current process.",
+      "why": "Why",
+      "results": "Expected results",
+      "resultsEmpty": "Expected results will show after the first simulation.",
+      "activity": "What is happening",
+      "activityEmpty": "No activity recorded yet.",
+      "event": {
+        "version": "New version of the process",
+        "change": "Change proposed",
+        "request": "Question or request",
+        "deferred": "Point postponed"
+      },
+      "openPoints": "Still open",
+      "openPointsEmpty": "Nothing open.",
+      "contact": "For questions or changes, write to your consultant.",
+      "footer": "Prepared with DeliR",
+      "plain": {
+        "title": "How the process works",
+        "description": "The process explained step by step, in the order it happens.",
+        "startsWhen": "It starts when",
+        "endsWith": "It ends with",
+        "unnamedStart": "Start of the process",
+        "unnamedEnd": "End of the process",
+        "step": "Step {{n}}",
+        "who": "Who does it",
+        "nobody": "Not specified",
+        "decision": "A decision is made here",
+        "parallel": "From here, several things happen at once",
+        "wait": "Waiting",
+        "unnamed": "Unnamed step",
+        "unnamedDecision": "Here you choose how to continue",
+        "then": "Then go to step {{n}}",
+        "thenEnd": "Then the process ends",
+        "answer": "If “{{label}}”",
+        "path": "Path {{index}}",
+        "toStep": "step {{n}}",
+        "toEnd": "end of the process",
+        "changed": "Changes",
+        "people": "Who is involved",
+        "peopleSteps_one": "{{count}} step",
+        "peopleSteps_other": "{{count}} steps",
+        "empty": "The process has not been drawn yet."
+      },
+      "resultCycle": "Total time, on average",
+      "resultWaiting": "Of which waiting time",
+      "resultCost": "Cost for each request",
+      "stepRef": "Step {{n}} · {{name}}",
+      "share": {
+        "loading": "Loading the dashboard",
+        "personal": "Personal link: do not forward it to other people.",
+        "invalidTitle": "This link does not work",
+        "invalidBody": "The link is not valid, has expired or was turned off. Ask your consultant for a new link.",
+        "errorTitle": "The dashboard did not load",
+        "errorBody": "Check your connection and try again.",
+        "retry": "Try again"
+      },
+      "consultant": "Your consultant: {{name}}",
+      "replyTo": "To answer or ask questions, write to {{name}}.",
+      "glance": {
+        "title": "At a glance",
+        "steps": "Process steps",
+        "people": "People involved",
+        "changes": "Things that change"
+      },
+      "resultsNote": "Estimates from the simulation “{{scenario}}”. Once the process is in use, real figures will show here too.",
+      "goToStep": "Go to step {{n}}"
+    },
+    "link": {
+      "title": "Link for the client",
+      "description": "The owner opens the dashboard from this link, without an account. They only see the dashboard, read only.",
+      "none": "The link is created when you send the process to the client.",
+      "create": "Create the link",
+      "urlLabel": "Dashboard link",
+      "copy": "Copy the link",
+      "copied": "Link copied",
+      "ready": "Copy the link now: for security DeliR will not show it again. If you lose it, create a new one.",
+      "created": "Created on {{date}}",
+      "expires": "Expires on {{date}}",
+      "viewed_one": "Opened by the client once, on {{date}}",
+      "viewed_other": "Opened by the client {{count}} times, last on {{date}}",
+      "notViewed": "The client has not opened it yet.",
+      "renew": "Create a new link",
+      "revoke": "Turn off the link",
+      "confirmRenewTitle": "Create a new link?",
+      "confirmRenewBody": "The link you already sent to the client will stop working.",
+      "confirmRevokeTitle": "Turn off the link?",
+      "confirmRevokeBody": "The client will not be able to open the dashboard until you send a new link.",
+      "revoked": "Link turned off",
+      "error": "Something went wrong. Try again.",
+      "createOnly": "Create the link only"
+    },
+    "stepper": {
+      "label": "Process stage",
+      "design": "Preparation",
+      "review": "With the client",
+      "approved": "In use",
+      "done": "done",
+      "current": "current stage"
+    },
+    "send": {
+      "title": "Send the process to the client",
+      "description": "{{owner}} gets a link to the dashboard: the process explained step by step, what changes and the expected results. No account needed.",
+      "step1": "Copy the link",
+      "step2": "Send it to {{owner}} by email or chat",
+      "step3": "Confirm below: the process moves to waiting for the answer",
+      "replaces": "The link you created before stops working.",
+      "creating": "Preparing the link…",
+      "confirm": "I sent the link",
+      "cancel": "Cancel",
+      "retry": "Try again"
     }
   }
 }

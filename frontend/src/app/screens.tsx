@@ -60,6 +60,18 @@ export const SettingsPage = lazy(() =>
   })),
 );
 
+export const HandoverPage = lazy(() =>
+  import("@/features/process/handover").then((m) => ({
+    default: m.HandoverPage,
+  })),
+);
+
+export const OwnerDashboardPage = lazy(() =>
+  import("@/features/process/handover").then((m) => ({
+    default: m.OwnerDashboardPage,
+  })),
+);
+
 // La sezione Simulazione è un blocco solo: si entra dalla Panoramica e si passa
 // da una schermata all'altra con la barra, quindi spezzarla per pagina
 // aggiungerebbe un'attesa a ogni passaggio senza risparmiare niente.

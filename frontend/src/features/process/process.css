@@ -706,10 +706,13 @@
 .process-canvas-legend-popover { top: auto; bottom: calc(100% + 8px); }
 .process-canvas-legend-popover .process-bpmn-legend { border: 0; padding: 0; gap: 12px; }
 .process-document-details { z-index: 40; }
+.process-section-menu { display: none; }
+@media (max-width: 620px) { .process-section-menu { display: inline-flex; } }
 @media (max-width: 620px) {
   .process-studio-header { gap: 4px; padding-inline: 8px; }
   .process-studio-header h1 { font-size: var(--font-size-200); }
   .process-view-label { display: none; }
+  .process-section-link { display: none; }
   .process-workspace--embedded { padding: 6px; }
   .process-canvas-navigation { right: 8px; bottom: 40px; }
   .process-canvas-navigation > button:not([aria-label]) { display: none; }

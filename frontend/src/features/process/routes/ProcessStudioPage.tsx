@@ -7,7 +7,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { FlaskConical, ArrowLeft, Users, MessagesSquare, Workflow, Focus, GitPullRequest } from "lucide-react";
+import { FlaskConical, ArrowLeft, Users, MessagesSquare, Workflow, Focus, GitPullRequest, Send, Ellipsis } from "lucide-react";
 
 import { WorkspaceContextBar, WorkspaceDisclosure } from "@/components/layout/CanvasWorkspace";
 import { ErrorState } from "@/components/feedback";
@@ -15,6 +15,7 @@ import { StatusIndicator, type StatusTone } from "@/components/status";
 import { Badge } from "@/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/ui/tabs";
 import { Button } from "@/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/ui/dropdown-menu";
 import { Skeleton } from "@/ui/skeleton";
 import { ROUTES } from "@/app/routes";
 import { useProjectQuery } from "@/features/projects/api";
@@ -156,7 +157,19 @@ export function ProcessStudioPage(): React.JSX.Element {
             <Badge variant="outline" className="tabular-nums">{t("side.summary.readiness")} {process.readiness}%</Badge>
           </div>
         </WorkspaceDisclosure>
-        <Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.simulation(project.id, process.id))} aria-label={t("simulation.section.title")} title={t("simulation.section.title")}><FlaskConical aria-hidden className="size-4" /><span className="process-view-label">{t("simulation.section.title")}</span></Button>
+        {/* Simulazione e consegna sono sezioni a parte. Su schermi stretti
+            stanno in un menu: due pulsanti in piu' spingevano fuori i comandi. */}
+        <Button variant="outline" size="sm" className="process-section-link" onClick={() => navigate(ROUTES.projects.simulation(project.id, process.id))} aria-label={t("simulation.section.title")} title={t("simulation.section.title")}><FlaskConical aria-hidden className="size-4" /><span className="process-view-label">{t("simulation.section.title")}</span></Button>
+        <Button variant="outline" size="sm" className="process-section-link" onClick={() => navigate(ROUTES.projects.handover(project.id, process.id))} aria-label={t("handover.open")} title={t("handover.open")}><Send aria-hidden className="size-4" /><span className="process-view-label">{t("handover.title")}</span></Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon-sm" className="process-section-menu" aria-label={t("actions.moreSections")} title={t("actions.moreSections")}><Ellipsis aria-hidden className="size-4" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => navigate(ROUTES.projects.simulation(project.id, process.id))}><FlaskConical aria-hidden className="size-4" />{t("simulation.section.title")}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate(ROUTES.projects.handover(project.id, process.id))}><Send aria-hidden className="size-4" />{t("handover.open")}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </>} />
 
       <TabsContent value={view} className="min-h-0 flex-1">

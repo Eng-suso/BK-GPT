@@ -20,6 +20,7 @@ from backend.api.routes.observability import router as observability_router
 from backend.api.routes.simulation import router as simulation_router
 from backend.api.routes.simulation_scenarios import router as simulation_scenarios_router
 from backend.api.routes.eventlog import router as eventlog_router
+from backend.api.routes.shared import router as shared_router
 from backend.api.routes.workspace import router as workspace_router
 from backend.security import (
     assert_allowed_tenant,
@@ -173,6 +174,10 @@ app.add_middleware(
 
 @app.middleware("http")
 async def tenant_context_middleware(request: Request, call_next):
+    # Il cliente che apre il link non manda lo spazio di lavoro: lo decide il
+    # link stesso, nel servizio. Qui non c'e' nulla da controllare.
+    if request.url.path.startswith("/v1/shared/"):
+        return await call_next(request)
     try:
         tenant_id = normalize_tenant_id(request.headers.get("X-DeliR-Tenant-ID"))
         assert_allowed_tenant(tenant_id)
@@ -191,6 +196,7 @@ async def tenant_context_middleware(request: Request, call_next):
 
 
 app.include_router(workspace_router)
+app.include_router(shared_router)
 app.include_router(simulation_router)
 app.include_router(simulation_scenarios_router)
 app.include_router(eventlog_router)
