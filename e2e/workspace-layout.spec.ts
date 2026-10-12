@@ -234,7 +234,11 @@ for (const [surface, path] of [
   ["process", `${studio}?view=chat`],
   ["canvas", canvasView],
 ] as const) {
-  test(`${surface} chat keeps long conversations and composer usable on laptop and mobile`, async ({ page }) => {
+  test(`${surface} chat keeps long conversations and composer usable on laptop and mobile`, async ({ page }, testInfo) => {
+    // La scansione axe completa della pagina, su due viewport e in WebKit,
+    // sfiora i 45 secondi gia' su main (44,7 s sul canvas): stesso margine
+    // dei test di questo file che fanno scansioni complete.
+    test.setTimeout(Math.max(testInfo.timeout, 90_000));
     const session = {
       thread_id: "layout-chat", title: "Analisi del processo dimostrativo con un titolo esteso",
       created_at: "2026-09-06T10:00:00Z", updated_at: "2026-09-06T10:00:00Z",
