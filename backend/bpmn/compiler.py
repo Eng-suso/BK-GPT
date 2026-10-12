@@ -9,6 +9,7 @@ collaboration) and records where every source item landed.
 from __future__ import annotations
 
 import re
+from collections import deque
 from typing import Literal
 
 from backend.bpmn._helpers import (
@@ -60,6 +61,7 @@ _GATEWAY_BPMN_TYPE: dict[str, str] = {
 # Gateways whose outgoing flows carry data-based condition expressions. Parallel
 # and event-based gateways never do (they fork on tokens / on which event fires).
 _DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway"})
+_SIGNAL_WORDS = ("segnale", "signal", "broadcast")
 
 
 def _gateway_bpmn_type(decision: ProcessDecision) -> str:
@@ -78,7 +80,7 @@ def _branch_catch_event_definition(text: str) -> Literal["timer", "message", "si
     """Infer the catch-event trigger for an event-based gateway branch."""
     if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
         return "timer"
-    if _matches_word(text, ("segnale", "signal", "broadcast", "evento di sistema")):
+    if _matches_word(text, (*_SIGNAL_WORDS, "evento di sistema")):
         return "signal"
     if _matches_word(text, ("messaggio", "risposta", "notifica", "comunicazione", "riscontro", "email", "conferma")):
         return "message"
@@ -152,9 +154,7 @@ def build_bpmn_semantic_model(
     step_node_by_original_id: dict[str, str] = {}
     gateway_by_decision_id: dict[str, BPMNFlowNode] = {}
     gateway_by_step_id: dict[str, BPMNFlowNode] = {}
-    decision_by_anchor_step_id, branch_decisions, decision_anchor_warnings = _decision_anchor_map(
-        process, ordered_chain
-    )
+    decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_chain)
     warnings.extend(decision_anchor_warnings)
 
     for index, item in enumerate(ordered_chain, start=1):
@@ -221,7 +221,6 @@ def build_bpmn_semantic_model(
         if event.type == "end" and event.id in end_node_by_key:
             registry.map(event.id, end_node_by_key[event.id].id)
 
-    registry.gateway_ids = {node.id for node in nodes if node.type in _DATA_BASED_GATEWAYS}
     registry.connect_chain(main_chain)
 
     _add_alternative_paths(
@@ -235,7 +234,7 @@ def build_bpmn_semantic_model(
         gateway_by_step_id=gateway_by_step_id,
         end_node_by_key=end_node_by_key,
         primary_end=end,
-        branch_decisions=branch_decisions,
+        decision_by_anchor_step_id=decision_by_anchor_step_id,
         actors=process.actors,
         actor_lane_map=actor_lane_map,
         warnings=warnings,
@@ -263,13 +262,9 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     registry.apply_edge_overlay()
-    for flow in declared_defaults:
-        # The plan marks this outcome as the default: a condition copied onto it
-        # from a flow edge would leave the gateway without a default flow.
-        flow.conditionExpression = None
     _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
-    _assign_gateway_defaults(nodes, flows, warnings)
+    _assign_gateway_defaults(nodes, flows, warnings, declared_default_ids={flow.id for flow in declared_defaults})
     populate_lane_refs(lanes, nodes)
     message_flows = finalize_message_flows(
         collaboration=collaboration,
@@ -439,17 +434,32 @@ def _attach_anchored_gateway(
     decision = decision_by_anchor_step_id.get(anchor_id)
     if decision is None:
         return
-    gateway = _gateway_node(decision, lane_id, used_ids)
-    nodes.append(gateway)
+    gateway = _place_gateway(
+        decision,
+        anchor_id=anchor_id,
+        lane_id=lane_id,
+        used_ids=used_ids,
+        nodes=nodes,
+        registry=registry,
+        gateway_by_decision_id=gateway_by_decision_id,
+        gateway_by_step_id=gateway_by_step_id,
+    )
     main_chain.append(gateway.id)
-    registry.map(decision.id, gateway.id)
-    gateway_by_decision_id[decision.id] = gateway
-    gateway_by_step_id[anchor_id] = gateway
 
 
-def _gateway_node(decision: ProcessDecision, lane_id: str | None, used_ids: set[str]) -> BPMNFlowNode:
-    """Create the BPMN gateway node for a decision."""
-    return BPMNFlowNode(
+def _place_gateway(
+    decision: ProcessDecision,
+    *,
+    anchor_id: str,
+    lane_id: str | None,
+    used_ids: set[str],
+    nodes: list[BPMNFlowNode],
+    registry: FlowRegistry,
+    gateway_by_decision_id: dict[str, BPMNFlowNode],
+    gateway_by_step_id: dict[str, BPMNFlowNode],
+) -> BPMNFlowNode:
+    """Create a decision's gateway after its anchor step and register it everywhere it is looked up."""
+    gateway = BPMNFlowNode(
         id=xml_id(decision.id, "Gateway", used_ids),
         type=_gateway_bpmn_type(decision),
         name=decision.label,
@@ -457,6 +467,13 @@ def _gateway_node(decision: ProcessDecision, lane_id: str | None, used_ids: set[
         documentation=decision_documentation(decision),
         sourceRefs=[source_ref_id("decisions", decision.id)],
     )
+    nodes.append(gateway)
+    registry.map(decision.id, gateway.id)
+    if gateway.type in _DATA_BASED_GATEWAYS:
+        registry.gateway_ids.add(gateway.id)
+    gateway_by_decision_id[decision.id] = gateway
+    gateway_by_step_id[anchor_id] = gateway
+    return gateway
 
 
 def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
@@ -483,24 +500,31 @@ def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
 def _decision_anchor_map(
     process: ProcessUnderstanding,
     ordered_chain: list[ProcessStep | ProcessEvent],
-) -> tuple[dict[str, ProcessDecision], list[ProcessDecision], list[str]]:
-    """Anchor each decision to the main-path step that flows into it.
+) -> tuple[dict[str, ProcessDecision], list[str]]:
+    """Anchor each decision to the step that flows into it.
+
+    A main-path step wins; otherwise the anchor may be a step of an alternative
+    path (e.g. review -> "review successful?"), placed when that branch is drawn.
 
     Returns:
-        The decisions by anchor step, the decisions with no main-path anchor
-        (they may follow a step of an alternative path, resolved later) and
-        the warnings.
+        The decisions by anchor step, and the warnings.
     """
-    ordered_step_ids = [item.id for item in ordered_chain if item.id]
+    main_step_ids = [item.id for item in ordered_chain if item.id]
+    all_step_ids = [*main_step_ids, *(step.id for step in process.steps)]
     decision_by_anchor: dict[str, ProcessDecision] = {}
     warnings: list[str] = []
     unassigned = list(process.decisions)
+
+    def anchor_for(decision: ProcessDecision) -> str | None:
+        return _anchor_step_for_decision(process, decision, main_step_ids) or _anchor_step_for_decision(
+            process, decision, all_step_ids
+        )
 
     for path in process.alternative_paths:
         decision = _decision_for_path(path, unassigned)
         if decision is None:
             continue
-        anchor_step_id = _anchor_step_for_decision(process, decision, ordered_step_ids)
+        anchor_step_id = anchor_for(decision)
         if anchor_step_id is None:
             continue
         if anchor_step_id in decision_by_anchor:
@@ -511,15 +535,12 @@ def _decision_anchor_map(
         decision_by_anchor[anchor_step_id] = decision
         unassigned = [item for item in unassigned if item.id != decision.id]
 
-    unanchored: list[ProcessDecision] = []
     for decision in unassigned:
-        anchor_step_id = _anchor_step_for_decision(process, decision, ordered_step_ids)
+        anchor_step_id = anchor_for(decision)
         if anchor_step_id and anchor_step_id not in decision_by_anchor:
             decision_by_anchor[anchor_step_id] = decision
-        else:
-            unanchored.append(decision)
 
-    return decision_by_anchor, unanchored, warnings
+    return decision_by_anchor, warnings
 
 
 def _decision_for_path(path, decisions: list[ProcessDecision]) -> ProcessDecision | None:
@@ -543,12 +564,12 @@ def _anchor_step_for_decision(
     decision: ProcessDecision,
     ordered_step_ids: list[str],
 ) -> str | None:
-    """Find the anchor step that precedes a decision in the main path.
+    """Find the step, among `ordered_step_ids`, that a flow edge leads into the decision from.
 
     Args:
         process: The ProcessUnderstanding model.
         decision: The ProcessDecision to find an anchor for.
-        ordered_step_ids: List of step IDs in the main path.
+        ordered_step_ids: The candidate anchor step IDs.
 
     Returns:
         The ID of the anchor step, or None if not found.
@@ -571,7 +592,7 @@ def _add_alternative_paths(
     gateway_by_step_id: dict[str, BPMNFlowNode],
     end_node_by_key: dict[str, BPMNFlowNode],
     primary_end: BPMNFlowNode,
-    branch_decisions: list[ProcessDecision],
+    decision_by_anchor_step_id: dict[str, ProcessDecision],
     actors: list[ProcessActor],
     actor_lane_map: dict[str, str],
     warnings: list[str],
@@ -596,10 +617,9 @@ def _add_alternative_paths(
         gateway_by_step_id: Gateways anchored to source steps.
         end_node_by_key: End-event mapping used to resolve branch destinations.
         primary_end: Default end event for unresolved branch destinations.
-        branch_decisions: Decisions with no main-path anchor. One that a flow
-            edge places right after a branch step becomes a gateway on that
-            branch (e.g. review -> "review successful?"); its own paths are
-            then compiled the same way. Consumed as they are placed.
+        decision_by_anchor_step_id: Decisions by anchor step. One anchored to a
+            branch step becomes a gateway on that branch (e.g. review ->
+            "review successful?") and its own paths are compiled the same way.
         actors: Process actors used for branch ownership and lane assignment.
         actor_lane_map: Mapping of actor identifiers to lane identifiers.
         warnings: Warning collection to mutate.
@@ -610,10 +630,10 @@ def _add_alternative_paths(
     """
     unassigned_paths = list(process.alternative_paths)
     gateways = list(gateway_by_decision_id.values())
-    pending = [decision for decision in process.decisions if decision.id in gateway_by_decision_id]
+    pending = deque(decision for decision in process.decisions if decision.id in gateway_by_decision_id)
 
     while pending:
-        decision = pending.pop(0)
+        decision = pending.popleft()
         gateway = gateway_by_decision_id[decision.id]
 
         # Tutti i percorsi che la decisione nomina, non il primo. Una scelta a tre
@@ -633,8 +653,6 @@ def _add_alternative_paths(
 
             outcome_name = _outcome_name_for_path(decision, path)
             previous_id = gateway.id
-            entry_id: str | None = None
-            follow_up: ProcessDecision | None = None
             for branch_index, step_id in enumerate(path.sequence, start=1):
                 if step_id == path.rejoins_at and step_id in step_node_by_original_id:
                     continue
@@ -653,27 +671,26 @@ def _add_alternative_paths(
                 )
                 nodes.append(branch_node)
                 registry.map(source_step.id, branch_node.id)
-                registry.add(
-                    previous_id,
-                    branch_node.id,
-                    name=outcome_name if previous_id == gateway.id else None,
-                )
+                _link_branch(registry, path.id, gateway.id, previous_id, branch_node.id, outcome_name)
                 previous_id = branch_node.id
-                entry_id = entry_id or branch_node.id
 
-                follow_up = _take_decision_after(source_step.id, branch_decisions, process.flow_edges)
-                if follow_up is not None:
-                    follow_gateway = _gateway_node(follow_up, lane_id, used_ids)
-                    nodes.append(follow_gateway)
-                    registry.map(follow_up.id, follow_gateway.id)
-                    registry.gateway_ids.add(follow_gateway.id)
-                    gateway_by_decision_id[follow_up.id] = follow_gateway
-                    gateway_by_step_id[source_step.id] = follow_gateway
+                follow_up = decision_by_anchor_step_id.get(source_step.id)
+                if follow_up is not None and follow_up.id not in gateway_by_decision_id:
+                    follow_gateway = _place_gateway(
+                        follow_up,
+                        anchor_id=source_step.id,
+                        lane_id=lane_id,
+                        used_ids=used_ids,
+                        nodes=nodes,
+                        registry=registry,
+                        gateway_by_decision_id=gateway_by_decision_id,
+                        gateway_by_step_id=gateway_by_step_id,
+                    )
                     registry.add(branch_node.id, follow_gateway.id)
                     for outcome in follow_up.outcome_details:
-                        target = step_node_by_original_id.get(outcome.target_ref or "")
+                        target = registry.compiled_for(outcome.target_ref or "")
                         if target:
-                            registry.add(follow_gateway.id, target, name=outcome.label)
+                            registry.add(follow_gateway.id, target)
                     pending.append(follow_up)
                     if step_id != path.sequence[-1]:
                         warnings.append(
@@ -681,11 +698,8 @@ def _add_alternative_paths(
                             f"la decisione '{follow_up.label}' e non sono stati disegnati."
                         )
                     break
-
-            # A follow-up decision carries the branch on: no rejoin or end here.
-            if follow_up is None:
-                # Straight out of the gateway (an empty path) the flow is the outcome itself.
-                exit_name = outcome_name if previous_id == gateway.id else path.trigger_or_condition
+            else:
+                # No decision carries the branch on: it rejoins or ends here.
                 if path.rejoins_at and path.rejoins_at in step_node_by_original_id:
                     exit_target = step_node_by_original_id[path.rejoins_at]
                 elif path.ends_at and path.ends_at in step_node_by_original_id:
@@ -699,16 +713,16 @@ def _add_alternative_paths(
                     exit_target = _resolve_alt_path_end(
                         path, outcome_name, gateway.laneId, end_node_by_key, primary_end, nodes, used_ids
                     )
-                registry.add(previous_id, exit_target, name=exit_name)
-                entry_id = entry_id or exit_target
-            if entry_id:
-                registry.map(path.id, entry_id)
+                _link_branch(
+                    registry, path.id, gateway.id, previous_id, exit_target, outcome_name, path.trigger_or_condition
+                )
 
             if not path.is_confirmed:
                 warnings.append(f"Alternative path '{path.label}' non confermato.")
 
-    for decision in branch_decisions:
-        warnings.append(f"Decisione '{decision.label}' non mappabile: manca anchor esplicito in flow_edges.")
+    for decision in process.decisions:
+        if decision.id not in gateway_by_decision_id:
+            warnings.append(f"Decisione '{decision.label}' non mappabile: manca anchor esplicito in flow_edges.")
     if unassigned_paths and not gateways:
         warnings.append("Alternative path presenti, ma nessun gateway decisionale e' stato generato.")
     elif unassigned_paths:
@@ -716,15 +730,24 @@ def _add_alternative_paths(
             warnings.append(f"Alternative path '{path.label}' non collegato a un outcome decisionale esplicito.")
 
 
-def _take_decision_after(
-    step_id: str, decisions: list[ProcessDecision], flow_edges: list
-) -> ProcessDecision | None:
-    """Find and remove the decision a flow edge places right after a step."""
-    for decision in decisions:
-        if any(edge.source_id == step_id and edge.target_id == decision.id for edge in flow_edges):
-            decisions.remove(decision)
-            return decision
-    return None
+def _link_branch(
+    registry: FlowRegistry,
+    path_id: str,
+    gateway_id: str,
+    source: str,
+    target: str,
+    outcome_name: str | None,
+    name: str | None = None,
+) -> None:
+    """Draw one flow of a branch.
+
+    The flow leaving the gateway is the outcome itself: it takes the outcome's
+    name and marks where the path starts, so a flow edge naming the path resolves.
+    """
+    leaves_gateway = source == gateway_id
+    registry.add(source, target, name=outcome_name if leaves_gateway else name)
+    if leaves_gateway:
+        registry.map(path_id, target)
 
 
 def _resolve_alt_path_end(
@@ -1231,15 +1254,20 @@ def _assign_gateway_defaults(
     nodes: list[BPMNFlowNode],
     flows: list,
     warnings: list[str],
+    *,
+    declared_default_ids: frozenset[str] | set[str] = frozenset(),
 ) -> None:
-    """Assign default flows to gateways with exactly one unconditioned branch.
+    """Assign each data-based gateway its default flow.
 
-    A data-based gateway with one bare branch marks it as the default flow.
+    The branch of an outcome the plan declares as default wins, and loses any
+    condition a flow edge gave it (in BPMN the default flow has none).
+    Otherwise a gateway with exactly one bare branch marks it as the default.
 
     Args:
         nodes: List of BPMN flow nodes including gateways.
         flows: List of sequence flows.
         warnings: List to append warning messages to.
+        declared_default_ids: Flows of outcomes the plan marks as default.
     """
     outgoing: dict[str, list] = {}
     for flow in flows:
@@ -1250,6 +1278,11 @@ def _assign_gateway_defaults(
             continue
         branches = outgoing.get(node.id, [])
         if len(branches) < 2:
+            continue
+        declared = next((flow for flow in branches if flow.id in declared_default_ids), None)
+        if declared is not None:
+            declared.conditionExpression = None
+            node.defaultFlowId = declared.id
             continue
         unconditioned = [flow for flow in branches if not flow.conditionExpression]
         if len(unconditioned) == 1:
@@ -1423,7 +1456,7 @@ def _start_event_definition(process: ProcessUnderstanding) -> Literal["timer", "
         return None
     if _matches_word(text, _START_TIMER_WORDS):
         return "timer"
-    if _matches_word(text, ("segnale", "signal", "broadcast")):
+    if _matches_word(text, _SIGNAL_WORDS):
         return "signal"
     if _matches_word(text, _START_MESSAGE_WORDS):
         return "message"
