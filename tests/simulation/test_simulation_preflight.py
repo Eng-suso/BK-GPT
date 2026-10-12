@@ -140,3 +140,36 @@ def test_adapter_never_contacts_prosimos_with_invalid_bpmn(monkeypatch):
     with pytest.raises(ProsimosError, match="Nessun evento di fine"):
         asyncio.run(run_prosimos_simulation(request))
     client.assert_not_called()
+
+
+def test_a_process_started_by_an_event_based_gateway_gets_a_start_event_for_the_engine():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D">
+  <bpmn:process id="P">
+    <bpmn:eventBasedGateway id="G" instantiate="true" eventGatewayType="Parallel"><bpmn:outgoing>F1</bpmn:outgoing><bpmn:outgoing>F2</bpmn:outgoing></bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Mail"><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Call"><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="A" />
+    <bpmn:task id="B" />
+    <bpmn:endEvent id="E" />
+    <bpmn:sequenceFlow id="F1" sourceRef="G" targetRef="Mail" />
+    <bpmn:sequenceFlow id="F2" sourceRef="G" targetRef="Call" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Mail" targetRef="A" />
+    <bpmn:sequenceFlow id="F4" sourceRef="Call" targetRef="B" />
+    <bpmn:sequenceFlow id="F5" sourceRef="A" targetRef="E" />
+    <bpmn:sequenceFlow id="F6" sourceRef="B" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    normalized = normalize_bpmn_for_prosimos(xml)
+    root = ElementTree.fromstring(normalized)
+    ns = {"bpmn": "http://www.omg.org/spec/BPMN/20100524/MODEL"}
+    gateway = root.find(".//bpmn:eventBasedGateway", ns)
+    (start,) = root.findall(".//bpmn:startEvent", ns)
+
+    assert "instantiate" not in gateway.attrib and "eventGatewayType" not in gateway.attrib
+    assert any(
+        flow.get("sourceRef") == start.get("id") and flow.get("targetRef") == "G"
+        for flow in root.findall(".//bpmn:sequenceFlow", ns)
+    )
+    validate_simulation_bpmn(normalized)

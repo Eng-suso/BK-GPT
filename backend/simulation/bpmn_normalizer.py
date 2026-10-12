@@ -106,6 +106,7 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
         changed |= _strip_noise(process)
         changed |= _downcast_activities(process)
         changed |= _rewrite_gateways(process)
+        changed |= _start_instantiating_gateways(process)
         exception_nodes = _exception_branch_ids(process)
         changed |= _drop_boundary_events(process)
         changed |= _splice_passthrough_events(process)
@@ -238,7 +239,37 @@ def _rewrite_gateways(process: ElementTree.Element) -> bool:
         new_local = _GATEWAY_REWRITE.get(_local(element.tag))
         if new_local:
             element.tag = _q(BPMN_MODEL_NS, new_local)
+            for child in [c for c in element if _local(c.tag) == "activationCondition"]:
+                element.remove(child)
             changed = True
+    return changed
+
+
+def _start_instantiating_gateways(process: ElementTree.Element) -> bool:
+    """An event-based gateway that starts the process gets a start event in front.
+
+    Prosimos starts every case from a start event; the gateway then routes as a
+    plain event-based gateway (a parallel one takes a single branch).
+    """
+    changed = False
+    for gateway in process.findall(_q(BPMN_MODEL_NS, "eventBasedGateway")):
+        if gateway.get("instantiate") != "true":
+            continue
+        gateway_id = gateway.get("id", "")
+        start = ElementTree.Element(_q(BPMN_MODEL_NS, "startEvent"), {"id": f"{gateway_id}_start"})
+        flow = ElementTree.Element(
+            _q(BPMN_MODEL_NS, "sequenceFlow"),
+            {"id": f"{gateway_id}_start_flow", "sourceRef": start.get("id"), "targetRef": gateway_id},
+        )
+        ElementTree.SubElement(start, _q(BPMN_MODEL_NS, "outgoing")).text = flow.get("id")
+        incoming = ElementTree.Element(_q(BPMN_MODEL_NS, "incoming"))
+        incoming.text = flow.get("id")
+        gateway.insert(0, incoming)
+        for attribute in ("instantiate", "eventGatewayType"):
+            gateway.attrib.pop(attribute, None)
+        process.insert(list(process).index(gateway), start)
+        process.append(flow)
+        changed = True
     return changed
 
 

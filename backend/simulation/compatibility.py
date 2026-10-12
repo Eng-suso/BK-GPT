@@ -171,6 +171,14 @@ class _ProcessReport:
                 element, local, "approximated", "medium", simulated_as=_GATEWAY_REWRITE[local],
                 note="Instradato come gateway esclusivo: ogni caso prende una sola uscita.",
             )
+        if local == "eventBasedGateway" and element.get("instantiate") == "true":
+            return _entry(
+                element, local, "approximated", "low", simulated_as=local,
+                note=(
+                    "Avvia il processo: il motore parte da un evento iniziale messo davanti e "
+                    "ogni caso segue un solo ramo, anche se il gateway attende tutti gli eventi."
+                ),
+            )
         if local in _SUPPORTED_GATEWAYS:
             return _entry(element, local, "preserved", "none", simulated_as=local)
         if local == "boundaryEvent":
