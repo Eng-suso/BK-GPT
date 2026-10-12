@@ -49,7 +49,7 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
     node_type_by_id = {node.id: node.type for node in model.flowNodes}
     for node in model.flowNodes:
         if (
-            node.type in {"exclusiveGateway", "inclusiveGateway", "eventBasedGateway"}
+            node.type in {"exclusiveGateway", "inclusiveGateway", "complexGateway", "parallelGateway", "eventBasedGateway"}
             and len(incoming_by_node.get(node.id, [])) <= 1
             and len(outgoing_by_node.get(node.id, [])) < 2
         ):
@@ -64,7 +64,8 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
             continue
         if node.type == "startEvent" and incoming_by_node.get(node.id):
             warnings.append(f"Evento iniziale {node.name} con una freccia in ingresso.")
-        if node.type != "startEvent" and not incoming_by_node.get(node.id):
+        instantiating = node.type == "eventBasedGateway" and node.instantiate
+        if node.type != "startEvent" and not instantiating and not incoming_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza ingresso.")
         if node.type == "endEvent" and outgoing_by_node.get(node.id):
             warnings.append(f"Evento finale {node.name} con una freccia in uscita.")
