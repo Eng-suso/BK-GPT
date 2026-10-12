@@ -32,6 +32,7 @@ from backend.bpmn.data_flow import build_data_flow
 from backend.bpmn.flow_registry import FlowRegistry, sequence_flow_edges_by_endpoint
 from backend.bpmn.models import (
     ACTIVITY_NODE_TYPES,
+    EVENT_DEFINITIONS_BY_NODE_TYPE,
     BPMNFlowNode,
     BPMNLane,
     BPMNSemanticModel,
@@ -47,9 +48,10 @@ from backend.process_understanding import (
     ProcessUnderstanding,
 )
 
-_INTERMEDIATE_EVENT_DEFINITION: dict[str, Literal["timer", "message"]] = {
+_INTERMEDIATE_EVENT_DEFINITION: dict[str, Literal["timer", "message"] | None] = {
     "timer": "timer",
     "message": "message",
+    "intermediate": None,
 }
 
 _GATEWAY_BPMN_TYPE: dict[str, str] = {
@@ -126,12 +128,17 @@ def build_bpmn_semantic_model(
     step_by_id = {step.id: step for step in process.steps}
     ordered_chain = _ordered_chain_items(process, step_by_id)
 
+    start_event = next((event for event in process.events if event.type == "start"), None)
     nodes: list[BPMNFlowNode] = [
         BPMNFlowNode(
             id=xml_id("StartEvent_1", "StartEvent", used_ids),
             type="startEvent",
             name=_start_name(process),
-            eventDefinition=_start_event_definition(process),
+            **(
+                _event_definition_fields(start_event, "startEvent", start_event.definition)
+                if start_event is not None and start_event.definition is not None
+                else {"eventDefinition": _start_event_definition(process)}
+            ),
         ),
     ]
     warnings = _semantic_warnings(
@@ -289,6 +296,7 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     registry.apply_edge_overlay()
+    _cut_at_links(nodes, registry)
     _add_synchronizing_joins(nodes, registry, gateway_by_decision_id, used_ids)
     _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
@@ -516,18 +524,65 @@ def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
     `intermediateThrowEvent`; everything else waits and becomes an
     `intermediateCatchEvent`.
     """
-    node_type = "intermediateThrowEvent" if event.direction == "throw" else "intermediateCatchEvent"
+    definition = _INTERMEDIATE_EVENT_DEFINITION.get(event.type) if event.definition is None else event.definition
+    catches = EVENT_DEFINITIONS_BY_NODE_TYPE["intermediateCatchEvent"]
+    throws = EVENT_DEFINITIONS_BY_NODE_TYPE["intermediateThrowEvent"]
+    # A definition only one side can carry decides the side: a timer is always
+    # waited for, an escalation or a compensation is always thrown.
+    if definition in catches and definition not in throws:
+        node_type = "intermediateCatchEvent"
+    elif definition in throws and definition not in catches:
+        node_type = "intermediateThrowEvent"
+    else:
+        node_type = "intermediateThrowEvent" if event.direction == "throw" else "intermediateCatchEvent"
     return BPMNFlowNode(
         id=xml_id(event.id or "IntermediateEvent", "IntermediateEvent", used_ids),
         type=node_type,
         name=event.label,
-        eventDefinition=_INTERMEDIATE_EVENT_DEFINITION.get(event.type),
+        **_event_definition_fields(event, node_type, definition),
         documentation=json_documentation(
             "event",
             {"type": event.type, "timing": event.timing, "source_evidence": event.source_evidence},
         ),
         sourceRefs=[source_ref_id("events", event.id)],
     )
+
+
+def _event_definition_fields(event: ProcessEvent, node_type: str, definition: str | None) -> dict:
+    """The BPMNFlowNode fields for `definition` on a `node_type`, or none when it does not fit there.
+
+    A definition the event cannot carry (an error on a start event, a multiple
+    event with a single trigger, a condition without its expression) is left
+    out rather than drawn wrong; the event stays a plain one.
+    """
+    if definition in (None, "none") or definition not in EVENT_DEFINITIONS_BY_NODE_TYPE.get(node_type, ()):
+        return {}
+    if definition == "multiple":
+        triggers = list(dict.fromkeys(event.triggers))
+        if len(triggers) < 2:
+            return {}
+        catches = node_type in {"startEvent", "intermediateCatchEvent", "boundaryEvent"}
+        return {
+            "eventDefinition": "multiple",
+            "triggers": triggers,
+            "parallelMultiple": event.parallel_multiple and catches,
+            "eventConditionExpression": event.condition if "conditional" in triggers else None,
+        }
+    if definition == "conditional":
+        return {"eventDefinition": "conditional", "eventConditionExpression": event.condition} if event.condition else {}
+    return {"eventDefinition": definition}
+
+
+def _cut_at_links(nodes: list[BPMNFlowNode], registry: FlowRegistry) -> None:
+    """A link throw ends a stretch of the flow and its catch starts the next one.
+
+    The chain drew a flow into every node; the pair stands in for it (OMG BPMN
+    2.0, 10.4.5), so nothing leaves a link throw and nothing enters a link catch.
+    """
+    throws = {node.id for node in nodes if node.type == "intermediateThrowEvent" and node.eventDefinition == "link"}
+    catches = {node.id for node in nodes if node.type == "intermediateCatchEvent" and node.eventDefinition == "link"}
+    for flow in [f for f in registry.flows if f.sourceRef in throws or f.targetRef in catches]:
+        registry.remove(flow)
 
 
 def _decision_anchor_map(
@@ -1640,12 +1695,15 @@ def _build_end_events(
     for event in process.events:
         if event.type != "end":
             continue
+        terminate = _end_event_definition({_norm_end_key(event.id), _norm_end_key(event.label)}, terminating)
         node = BPMNFlowNode(
             id=xml_id(event.id or "EndEvent", "EndEvent", used_ids),
             type="endEvent",
             name=event.label or "Fine",
-            eventDefinition=_end_event_definition(
-                {_norm_end_key(event.id), _norm_end_key(event.label)}, terminating
+            **(
+                {"eventDefinition": terminate}
+                if terminate
+                else _event_definition_fields(event, "endEvent", event.definition)
             ),
             sourceRefs=[source_ref_id("events", event.id)],
         )

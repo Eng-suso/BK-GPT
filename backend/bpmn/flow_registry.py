@@ -150,6 +150,13 @@ class FlowRegistry:
             self._source_alias[from_id] = to_id
         return moved
 
+    def remove(self, flow: BPMNSequenceFlow) -> None:
+        """Drop `flow`; a later `add` of the same pair draws it again."""
+        pair = (flow.sourceRef, flow.targetRef)
+        self.flows.remove(flow)
+        self._flow_by_pair.pop(pair, None)
+        self.seen_pairs.discard(pair)
+
     def retarget(self, flow: BPMNSequenceFlow, target: str) -> None:
         """Point `flow` at `target`, keeping its id, name and condition."""
         old_pair = (flow.sourceRef, flow.targetRef)
