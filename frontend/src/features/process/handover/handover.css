@@ -56,20 +56,42 @@
 .handover-status[data-stage="review"] { border-color: var(--domain-version-in-review-border); }
 .handover-status[data-stage="approved"] { border-color: var(--domain-version-published-border); background: var(--domain-version-published-surface); }
 
-/* Percorso: tre tappe, quella attuale evidenziata. */
-.handover-journey { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-inline-sm); list-style: none; }
-.handover-journey li {
-  display: grid;
-  gap: var(--spacing-stack-xs);
-  padding: var(--spacing-stack-md) var(--spacing-inline-md);
-  border: var(--border-width-default) var(--border-style-default) var(--handover-divider);
-  border-radius: var(--handover-row-radius);
-  min-width: 0;
+/* Tre tappe del processo, dentro la scheda di stato: si leggono, non si cliccano. */
+.handover-status { --stepper-done: var(--domain-validation-pass-icon); --stepper-current: var(--color-action-primary); --stepper-line: var(--color-border-subtle); }
+.handover-stepper { flex-basis: 100%; display: flex; align-items: center; gap: var(--spacing-inline-sm); list-style: none; padding-top: var(--spacing-stack-md); border-top: var(--border-width-default) var(--border-style-default) var(--handover-divider); }
+.handover-stepper li { display: flex; align-items: center; gap: var(--spacing-inline-sm); min-width: 0; font-size: 12px; color: var(--handover-text-muted); }
+.handover-stepper li + li::before { content: ""; flex: 0 1 40px; min-width: 12px; border-top: var(--border-width-strong) var(--border-style-default) var(--stepper-line); }
+.handover-stepper li[data-state="done"] + li::before { border-color: var(--stepper-done); }
+.handover-stepper-marker {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: var(--radius-circular);
+  border: var(--border-width-strong) var(--border-style-default) var(--stepper-line);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
-.handover-journey li[aria-current="step"] { background: var(--handover-current-surface); border-color: var(--handover-current-border); }
-.handover-journey li[aria-current="step"] .handover-journey-who { color: var(--handover-current-text); }
-.handover-journey-who { font-size: 12px; font-weight: 600; }
-.handover-journey-steps { font-size: 12px; color: var(--handover-text-muted); overflow-wrap: anywhere; }
+.handover-stepper li[data-state="done"] .handover-stepper-marker { border-color: var(--stepper-done); background: var(--stepper-done); color: var(--color-text-inverse); }
+.handover-stepper li[data-state="current"] { color: var(--color-text-primary); font-weight: 600; }
+.handover-stepper li[data-state="current"] .handover-stepper-marker { border-color: var(--stepper-current); background: var(--stepper-current); color: var(--color-text-inverse); }
+.handover-stepper-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.handover-status-viewed { display: inline-flex; align-items: center; gap: var(--spacing-inline-sm); margin-top: var(--spacing-stack-sm); font-size: 13px; color: var(--color-text-secondary); }
+
+/* Il riassunto dei controlli: un numero e una barra, poi i dettagli. */
+.handover-readiness { padding: 0; border-radius: var(--handover-radius); overflow: hidden; }
+.handover-readiness-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-inline-md); padding: var(--spacing-stack-md) var(--handover-padding); border-bottom: var(--border-width-default) var(--border-style-default) var(--handover-divider); font-size: 13px; font-weight: 600; }
+.handover-readiness-meter { flex: 1 1 160px; }
+.handover-readiness .handover-checks { border-radius: 0; }
+.handover-check[data-outcome="pass"] .handover-check-label { font-weight: 500; color: var(--color-text-secondary); }
+
+/* Invio al cliente: tre passi numerati nella finestra. */
+.handover-send-steps { display: grid; gap: var(--spacing-stack-md); list-style: none; counter-reset: send; }
+.handover-send-steps li { display: grid; gap: var(--spacing-stack-sm); padding-left: calc(22px + var(--spacing-inline-md)); position: relative; counter-increment: send; }
+.handover-send-steps li::before {
+  content: counter(send); position: absolute; left: 0; top: 0;
+  width: 22px; height: 22px; border-radius: var(--radius-circular);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--domain-role-interactive-surface); color: var(--domain-role-interactive-text);
+  font-size: 11px; font-weight: 700;
+}
+.handover-send-step-label { font-size: 13px; font-weight: 600; line-height: 22px; }
 
 .handover-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--handover-section-gap); align-items: start; }
 .handover-main, .handover-side { display: grid; gap: var(--handover-section-gap); min-width: 0; }
@@ -131,7 +153,7 @@
 }
 
 @media (max-width: 640px) {
-  .handover-journey { grid-template-columns: minmax(0, 1fr); }
+  .handover-stepper-label { font-size: 11px; }
   .handover-status-actions { width: 100%; }
   .handover-status-actions > * { flex: 1 1 auto; }
 }
@@ -291,3 +313,21 @@
 .plain-step-branches { display: grid; gap: var(--spacing-stack-xs); list-style: none; font-size: 13px; }
 .plain-step-answer { font-weight: 600; color: var(--plain-decision-text); }
 .plain-step-jump { font-size: 13px; color: var(--color-text-secondary); }
+
+/* Cruscotto: colpo d'occhio, numeri grandi e salto al passo. */
+.owner-dashboard { scroll-behavior: smooth; scroll-padding-top: calc(var(--size-control-large) + var(--spacing-stack-lg)); }
+@media (prefers-reduced-motion: reduce) { .owner-dashboard { scroll-behavior: auto; } }
+.owner-dashboard-consultant { display: inline-flex; align-items: center; gap: var(--spacing-inline-sm); margin-top: var(--spacing-stack-xs); font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+.owner-dashboard-glance, .owner-dashboard-results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--spacing-inline-sm); }
+.owner-dashboard-glance strong { font-size: 22px; letter-spacing: -0.02em; }
+.owner-dashboard-result { padding: var(--spacing-stack-md) var(--spacing-inline-md); }
+.owner-dashboard-result strong { font-size: 20px; letter-spacing: -0.02em; white-space: normal; }
+.owner-dashboard-step-link { color: var(--color-text-link); font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-underline-offset: 3px; }
+.owner-dashboard-step-link:hover { text-decoration-color: currentColor; }
+.plain-step:target .plain-step-body { border-radius: var(--radius-control); box-shadow: 0 0 0 var(--spacing-stack-xs) var(--state-selected-surface); background: var(--state-selected-surface); }
+@media (max-width: 480px) {
+  .owner-dashboard-glance, .owner-dashboard-results { grid-template-columns: minmax(0, 1fr); }
+}
+@media print {
+  .owner-dashboard-step-link { color: inherit; text-decoration: none; }
+}
