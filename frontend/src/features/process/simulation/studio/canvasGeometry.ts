@@ -44,9 +44,11 @@ export function bounds(rects: CanvasRect[]): CanvasRect {
   return { x, y, width: Math.max(...rects.map(r => r.x + r.width)) - x, height: Math.max(...rects.map(r => r.y + r.height)) - y };
 }
 
-export function fitCamera(rect: CanvasRect, width: number, height: number): Camera {
-  const scale = Math.max(0.15, Math.min(1, (width - 48) / rect.width, (height - 48) / rect.height));
-  return { x: (width - rect.width * scale) / 2 - rect.x * scale, y: (height - rect.height * scale) / 2 - rect.y * scale, scale };
+/** Fit `rect` in the viewport, above `bottomInset` px of floating controls. */
+export function fitCamera(rect: CanvasRect, width: number, height: number, bottomInset = 0): Camera {
+  const available = height - bottomInset;
+  const scale = Math.max(0.15, Math.min(1, (width - 48) / rect.width, (available - 48) / rect.height));
+  return { x: (width - rect.width * scale) / 2 - rect.x * scale, y: (available - rect.height * scale) / 2 - rect.y * scale, scale };
 }
 
 /** Zoom around the pointer rather than the scene origin. */

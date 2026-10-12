@@ -36,10 +36,14 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
   const insertionFrame = React.useRef<number | null>(null);
   React.useEffect(() => () => { if (insertionFrame.current !== null) cancelAnimationFrame(insertionFrame.current); }, []);
   const process = objects.find(object => object.id === PROCESS_ID);
+  // The navigation and zoom bars float over the bottom of the scene: a fitted
+  // view stops above them so they never cover a widget.
+  const controlsInset = (el: HTMLElement) =>
+    (el.parentElement?.querySelector<HTMLElement>(".sim-scene-controls")?.offsetHeight ?? 0) + 12;
   const focus = (rect: CanvasRect) => {
     const el = viewport.current;
     if (el) {
-      const fitted = fitCamera(rect, el.clientWidth, el.clientHeight);
+      const fitted = fitCamera(rect, el.clientWidth, el.clientHeight, controlsInset(el));
       setCamera(fitted);
     }
   };
@@ -68,7 +72,7 @@ export function AnalyticalCanvas({ objects, editing, onPlace, onActionsHost, lib
         // Fit the whole process and principal analyses in both dimensions once.
         // Later inspector/palette resizes must preserve the user camera.
         const rect = el.clientWidth < 700 ? initialProcess.rect : bounds(initialObjects.slice(0, 3).map(object => object.rect));
-        setCamera(fitCamera(rect, el.clientWidth, Math.max(100, el.clientHeight - 64)));
+        setCamera(fitCamera(rect, el.clientWidth, el.clientHeight, Math.max(64, controlsInset(el))));
         initialized.current = true;
       }
     });
