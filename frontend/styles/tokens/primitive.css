@@ -246,9 +246,7 @@
   --curve-accelerate: cubic-bezier(0.2, 0, 1, 0.9);
   --curve-linear: cubic-bezier(0, 0, 1, 1);
 
-  /* DeliR brand, as on delir.it: the mark's navy tile and blue D, the wordmark ink and its blue dot. */
-  --brand-mark-tile: #0b1021;
-  --brand-mark-letter: #0071e3;
+  /* DeliR brand, as on delir.it: the wordmark ink and its blue period. */
   --brand-ink: #071126;
   --brand-blue: #004580;
 

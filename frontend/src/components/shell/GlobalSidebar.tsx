@@ -41,7 +41,7 @@ export function GlobalSidebar({
       className={cn("app-chrome flex flex-col items-center border-r px-2 py-4", !compact && "lg:items-stretch lg:px-3")}
     >
       <div className="pb-[18px] pt-1 lg:px-2">
-        <DelirLogo wordmark={false} className={compact ? "" : "lg:hidden"} />
+        <DelirLogo compact className={compact ? "" : "lg:hidden"} />
         <DelirLogo className={compact ? "hidden" : "hidden lg:inline-flex"} />
       </div>
 
