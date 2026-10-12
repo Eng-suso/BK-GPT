@@ -45,6 +45,7 @@ def _serialized_semantic_ids(model: BPMNSemanticModel) -> set[str]:
         *(participant.id for participant in model.participants),
         *(message_flow.id for message_flow in model.messageFlows),
         *(node.id for node in model.flowNodes),
+        *(node.eventSubProcessStart.id for node in model.flowNodes if node.eventSubProcessStart),
         *(flow.id for flow in model.sequenceFlows),
         *(artifact.id for artifact in (*model.dataObjects, *model.dataStores)),
         *(annotation.id for annotation in model.textAnnotations),
@@ -75,7 +76,8 @@ def _event_declarations(model: BPMNSemanticModel) -> tuple[list[str], dict[str, 
     lines: list[str] = []
     ref_by_node: dict[str, str] = {}
     taken = _serialized_semantic_ids(model)
-    for node in model.flowNodes:
+    nested_starts = [node.eventSubProcessStart for node in model.flowNodes if node.eventSubProcessStart]
+    for node in [*model.flowNodes, *nested_starts]:
         spec = _REFERENCEABLE_EVENT_DEFINITIONS.get(node.eventDefinition or "")
         if spec is None or node.type not in _EVENT_DEFINITION_HOSTS:
             continue
@@ -221,6 +223,12 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
             attrs += f' default="{escape(node.defaultFlowId)}"'
         if node.parallelMultiple:
             attrs += ' parallelMultiple="true"'
+        if node.isForCompensation:
+            attrs += ' isForCompensation="true"'
+        if node.calledElement:
+            attrs += f' calledElement="{escape(node.calledElement)}"'
+        if node.triggeredByEvent:
+            attrs += ' triggeredByEvent="true"'
         if node.type == "eventBasedGateway" and node.instantiate:
             attrs += f' instantiate="true" eventGatewayType="{node.eventGatewayType}"'
         xml_parts.append(f"    <bpmn:{node.type}{attrs}>")
@@ -237,6 +245,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
             xml_parts.extend(
                 _loop_characteristics_xml(node.loopCharacteristics, node.loopConditionExpression)
             )
+        if node.eventSubProcessStart is not None:
+            xml_parts.extend(_event_sub_process_start_xml(node.eventSubProcessStart, event_ref_by_node))
         if node.type == "complexGateway" and node.activationCondition and node.activationCondition.strip():
             xml_parts.append(
                 '      <bpmn:activationCondition xsi:type="bpmn:tFormalExpression">'
@@ -312,6 +322,19 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
         return semantic_xml
     from backend.bpmn.canvas_layout import apply_enterprise_layout
     return apply_enterprise_layout(semantic_xml)
+
+
+def _event_sub_process_start_xml(start, event_ref_by_node: dict[str, str]) -> list[str]:
+    """The start event inside an event sub-process: the trigger that runs it."""
+    interrupting = "" if start.isInterrupting else ' isInterrupting="false"'
+    if start.parallelMultiple:
+        interrupting += ' parallelMultiple="true"'
+    lines = [f'      <bpmn:startEvent id="{escape(start.id)}" name="{escape(start.name)}"{interrupting}>']
+    for kind in start.triggers if start.eventDefinition == "multiple" else [start.eventDefinition]:
+        definition = _event_definition_xml(kind, event_ref_by_node.get(start.id), start.eventConditionExpression, start.name)
+        lines.append("  " + definition)
+    lines.append("      </bpmn:startEvent>")
+    return lines
 
 
 def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
