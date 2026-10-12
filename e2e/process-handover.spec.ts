@@ -44,11 +44,17 @@ async function fixture(page: Page, options: Options = {}) {
   const processItem = () => ({ id: "handover-process", project_id: "handover-project", bpmn_model_id: "handover-model", name: "Acquisti indiretti", stage: "TO-BE", status, owner: options.owner ?? "Amministrazione", readiness: 80, archived_at: null, archive_reason: null });
   // La chiave dello studio e' configurata: la pagina del cliente non deve mai usarla.
   await page.context().addInitScript(() => Object.assign(window, { DELIR_API_BASE: "http://127.0.0.1:8000", DELIR_API_TOKEN: "studio-secret" }));
+  // Gli appunti si intercettano: Safari non ha un permesso da concedere ai test.
+  await page.context().addInitScript(() => {
+    const copied: string[] = [];
+    Object.defineProperty(window, "__copied", { value: copied });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { copied.push(text); } } });
+  });
   const link: { token: string | null; views: number; lastViewed: string | null } = { token: null, views: 0, lastViewed: null };
   const sharedRequests: Array<Record<string, string>> = [];
   const dashboard = () => ({
     process: { name: "Acquisti indiretti", owner: options.owner ?? "Amministrazione", status, stage: "TO-BE" },
-    project_name: "Acquisti", client_name: "Azienda demo", xml: XML,
+    project_name: "Acquisti", client_name: "Azienda demo", consultant_name: "Giulia Bianchi", xml: XML,
     changes: actions.filter((item) => item.kind === "candidate").map(({ id, node_id, node_name, title, detail, created_at }) => ({ id, node_id, node_name, title, detail, created_at })),
     open_points: actions.filter((item) => item.kind === "clarification" || item.kind === "deferred").map(({ id, node_id, node_name, title, kind, created_at }) => ({ id, node_id, node_name, title, kind, created_at })),
     versions: [{ id: 7, change_summary: "Nuova approvazione degli acquisti", created_at: "2026-10-06T09:00:00Z" }],
@@ -128,17 +134,33 @@ async function horizontalOverflow(page: Page): Promise<number> {
 
 const URL_HANDOVER = "/projects/handover-project/processes/handover-process/handover";
 
-test("the consultant marks a ready process as sent and records the client approval", async ({ page }) => {
+test("the consultant sends the process to the client in one step and records the client approval", async ({ page }) => {
   const api = await fixture(page);
   await page.goto(URL_HANDOVER);
   await expect(page.getByRole("heading", { name: "Disegno completato · Pronto per la consegna" })).toBeVisible();
   await expect(page.getByText("Togliere la seconda firma sotto 5.000 €")).toBeVisible();
   await expect(page.getByText("Procedura PROC-14 · esempio")).toBeVisible();
 
-  await page.getByRole("button", { name: "Segna come inviato al cliente" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Segna come inviato al cliente" }).click();
+  const stepper = page.getByRole("list", { name: "Fase del processo" });
+  await expect(stepper.locator('[aria-current="step"]')).toContainText("Preparazione");
+  // I problemi in cima, poi il resto: qui manca solo la simulazione.
+  await expect(page.getByText("5 di 6 controlli superati")).toBeVisible();
+  await expect(page.locator(".handover-check").first()).toContainText("Simulazione eseguita");
+
+  // Inviare e' un gesto solo: il link si prepara, si copia, si conferma l'invio.
+  await page.getByRole("button", { name: "Invia al cliente" }).click();
+  const dialog = page.getByRole("dialog", { name: "Invia il processo al cliente" });
+  const confirm = dialog.getByRole("button", { name: "Ho inviato il link" });
+  await expect(dialog.getByLabel("Link del cruscotto")).toHaveValue(/\/share\.html#tok_/);
+  expect(api.patches).toHaveLength(0);
+  await dialog.getByRole("button", { name: "Copia il link" }).click();
+  expect(await page.evaluate(() => (window as unknown as { __copied: string[] }).__copied.at(-1))).toMatch(/\/share\.html#tok_/);
+  await confirm.click();
+  await expect(dialog).toBeHidden();
   await expect(page.getByRole("heading", { name: "Inviato a Amministrazione · In attesa della risposta del cliente" })).toBeVisible();
   expect(api.patches.at(-1)).toMatchObject({ status: "Da validare", owner: "Amministrazione" });
+  await expect(stepper.locator('[aria-current="step"]')).toContainText("Con il cliente");
+  await expect(page.getByText("Amministrazione non ha ancora aperto il cruscotto")).toBeVisible();
 
   await page.getByRole("button", { name: "Il cliente ha approvato" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Il cliente ha approvato" }).click();
@@ -167,7 +189,7 @@ test("a process without owner or with conflicting documents cannot be sent", asy
   await page.goto(URL_HANDOVER);
   await expect(page.getByRole("heading", { name: "Non ancora pronto per la consegna" })).toBeVisible();
   await expect(page.getByText("2 controlli importanti non sono superati.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Segna come inviato al cliente" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Invia al cliente" })).toBeDisabled();
 });
 
 for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: "mobile", width: 390, height: 844 }]) {
@@ -189,13 +211,16 @@ const URL_DASHBOARD = "/projects/handover-project/processes/handover-process/han
 test("the owner dashboard opens from the hand over, without DeliR navigation, and prints to PDF", async ({ page, browserName }, info) => {
   await fixture(page, { status: "Validato", simulated: true });
   await page.goto(URL_HANDOVER);
-  await page.getByRole("button", { name: "Cruscotto del responsabile" }).click();
+  await page.getByRole("button", { name: "Anteprima per il cliente" }).click();
   await expect(page).toHaveURL(new RegExp(`${URL_DASHBOARD}$`));
   await expect(page.getByRole("heading", { level: 1, name: "Acquisti indiretti" })).toBeVisible();
   await expect(page.getByText("Approvato · In uso")).toBeVisible();
   await expect(page.getByRole("navigation", { name: /principale|main/i })).toHaveCount(0);
-  await expect(page.getByRole("cell", { name: "Costo per ogni pratica" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "Non ancora misurato" }).first()).toBeVisible();
+  await expect(page.getByText("Il tuo consulente: Giulia Bianchi")).toBeVisible();
+  await expect(page.getByText("Per rispondere o fare domande scrivi a Giulia Bianchi.")).toBeVisible();
+  await expect(page.locator(".owner-dashboard-glance")).toContainText("Passi del processo4");
+  await expect(page.locator(".owner-dashboard-glance")).toContainText("Persone coinvolte3");
+  await expect(page.locator(".owner-dashboard-results")).toContainText("Costo per ogni pratica45,00 €");
   await expect(page.getByRole("heading", { level: 3, name: "Togliere la seconda firma sotto 5.000 €" })).toBeVisible();
   // Il processo raccontato a chi non conosce il BPMN: passi in ordine, chi li fa, decisioni come domande.
   const steps = page.getByRole("region", { name: "Come funziona il processo" }).getByRole("listitem");
@@ -207,6 +232,10 @@ test("the owner dashboard opens from the hand over, without DeliR navigation, an
   await expect(page.getByText("Ordine inviato al fornitore")).toBeVisible();
   await expect(page.getByText(/gateway|BPMN|lane|corsia/i)).toHaveCount(0);
   await expect(page.getByText("Nuova versione del processo")).toBeVisible();
+  // "Passo 4" nelle modifiche porta al passo.
+  await page.getByRole("link", { name: "Vai al passo 4" }).click();
+  await expect(page).toHaveURL(/#plain-step-4$/);
+  await expect(page.locator("#plain-step-4")).toBeInViewport();
 
   await page.emulateMedia({ media: "print" });
   await expect(page.getByRole("button", { name: "Scarica PDF" })).toBeHidden();
@@ -231,16 +260,16 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
 }
 
 test("the consultant creates the client link, the client opens it without studio credentials, the consultant sees the visit", async ({ page, context }, info) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const api = await fixture(page, { status: "Da validare", simulated: true });
   await page.goto(URL_HANDOVER);
   const panel = page.getByRole("region", { name: "Link per il cliente" });
-  await expect(panel.getByText("Nessun link attivo.")).toBeVisible();
-  await panel.getByRole("button", { name: "Crea il link" }).click();
+  await expect(panel.getByText("Il link si crea quando invii il processo al cliente.")).toBeVisible();
+  await panel.getByRole("button", { name: "Crea solo il link" }).click();
   const url = await panel.getByLabel("Link del cruscotto").inputValue();
   expect(url).toMatch(/\/share\.html#tok_/);
   expect(url.split("#")[1]).toBe(api.link.token);
   await panel.getByRole("button", { name: "Copia il link" }).click();
+  expect(await page.evaluate(() => (window as unknown as { __copied: string[] }).__copied.at(-1))).toBe(url);
   await expect(page.getByText("Link copiato")).toBeVisible();
   await expect(panel.getByText("Il cliente non l'ha ancora aperto.")).toBeVisible();
 
@@ -263,9 +292,11 @@ test("the consultant creates the client link, the client opens it without studio
   // Il consulente vede la visita, poi disattiva il link.
   await page.reload();
   await expect(panel.getByText("Aperto dal cliente 1 volta, il 11 ott 2026")).toBeVisible();
+  // L'informazione piu' utile dopo l'invio sta anche in cima, nello stato.
+  await expect(page.getByText("Amministrazione ha aperto il cruscotto 1 volta, il 11 ott 2026")).toBeVisible();
   await panel.getByRole("button", { name: "Disattiva il link" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Disattiva il link" }).click();
-  await expect(panel.getByText("Nessun link attivo.")).toBeVisible();
+  await expect(panel.getByText("Il link si crea quando invii il processo al cliente.")).toBeVisible();
   await client.reload();
   await expect(client.getByRole("heading", { name: "Questo link non funziona" })).toBeVisible();
 });

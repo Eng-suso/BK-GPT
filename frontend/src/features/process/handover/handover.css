@@ -153,7 +153,9 @@
 }
 
 @media (max-width: 640px) {
-  .handover-stepper-label { font-size: 11px; }
+  .handover-stepper { flex-wrap: wrap; row-gap: var(--spacing-stack-xs); }
+  .handover-stepper li + li::before { flex-basis: 12px; }
+  .handover-stepper-label { font-size: 11px; white-space: normal; }
   .handover-status-actions { width: 100%; }
   .handover-status-actions > * { flex: 1 1 auto; }
 }
@@ -331,3 +333,7 @@
 @media print {
   .owner-dashboard-step-link { color: inherit; text-decoration: none; }
 }
+
+/* Le etichette piccole delle tessere stanno su superfici incassate: il grigio
+   piu' chiaro li' scende sotto 4.5:1. Il token dei testi piccoli e' questo. */
+.handover .eyebrow, .owner-dashboard .eyebrow { color: var(--color-text-muted); }
