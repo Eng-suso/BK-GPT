@@ -33,6 +33,7 @@ from backend.bpmn.flow_registry import FlowRegistry, sequence_flow_edges_by_endp
 from backend.bpmn.models import (
     ACTIVITY_NODE_TYPES,
     EVENT_DEFINITIONS_BY_NODE_TYPE,
+    BPMNAssociation,
     BPMNFlowNode,
     BPMNLane,
     BPMNSemanticModel,
@@ -221,6 +222,7 @@ def build_bpmn_semantic_model(
         task = BPMNFlowNode(
             id=xml_id(step.id or f"Task_{index}", "Task", used_ids),
             type=_task_type(step),
+            calledElement=step.called_process if step.type == "call_activity" else None,
             name=step.label,
             laneId=lane_id,
             owner=actor_label(process.actors, step.actor_ids),
@@ -283,6 +285,14 @@ def build_bpmn_semantic_model(
     )
     _complete_flow_graph(process, registry, nodes, warnings)
     declared_defaults = _label_decision_outcomes(process, registry, gateway_by_decision_id)
+    detached_associations = _add_detached_activities(
+        process=process,
+        nodes=nodes,
+        step_node_by_original_id=step_node_by_original_id,
+        actor_lane_map=actor_lane_map,
+        used_ids=used_ids,
+        warnings=warnings,
+    )
     _add_boundary_events(
         process=process,
         registry=registry,
@@ -325,7 +335,7 @@ def build_bpmn_semantic_model(
         dataObjects=data_flow.data_objects,
         dataStores=data_flow.data_stores,
         textAnnotations=[],
-        associations=data_flow.associations,
+        associations=[*data_flow.associations, *detached_associations],
         model_warnings=warnings,
         sourceProcessUnderstanding=process.model_dump(mode="json"),
     )
@@ -361,7 +371,16 @@ def _task_type(step: ProcessStep) -> str:
         "business_rule_task": "businessRuleTask",
         "script_task": "scriptTask",
         "subprocess": "subProcess",
+        "call_activity": "callActivity",
+        "transaction": "transaction",
+        "ad_hoc_subprocess": "adHocSubProcess",
+        "event_subprocess": "subProcess",
     }.get(step.type, "userTask")
+
+
+def _detached(step: ProcessStep) -> bool:
+    """A step started by an event rather than by the flow: an event sub-process or a compensation."""
+    return step.type == "event_subprocess" or bool(step.compensates_step_id)
 
 
 def _loop_characteristics(
@@ -411,12 +430,12 @@ def _ordered_chain_items(
     }
     chain: list[ProcessStep | ProcessEvent] = []
     for item_id in process.main_success_path or process.sequence:
-        if item_id in step_by_id:
+        if item_id in step_by_id and not _detached(step_by_id[item_id]):
             chain.append(step_by_id[item_id])
         elif item_id in flow_event_by_id:
             chain.append(flow_event_by_id[item_id])
     if not chain:
-        chain = list(process.steps)
+        chain = [step for step in process.steps if not _detached(step)]
 
     placed = {item.id for item in chain}
     progressed = True
@@ -571,6 +590,93 @@ def _event_definition_fields(event: ProcessEvent, node_type: str, definition: st
     if definition == "conditional":
         return {"eventDefinition": "conditional", "eventConditionExpression": event.condition} if event.condition else {}
     return {"eventDefinition": definition}
+
+
+def _add_detached_activities(
+    *,
+    process: ProcessUnderstanding,
+    nodes: list[BPMNFlowNode],
+    step_node_by_original_id: dict[str, str],
+    actor_lane_map: dict[str, str],
+    used_ids: set[str],
+    warnings: list[str],
+) -> list[BPMNAssociation]:
+    """Draw the steps an event starts instead of the flow.
+
+    An event sub-process runs whenever its trigger occurs (OMG BPMN 2.0, 10.3.6).
+    A compensation activity undoes a completed step: a compensation boundary
+    event on that step points to it through an association, never a sequence
+    flow (10.6).
+
+    Returns:
+        The associations from compensation boundary events to their activities.
+    """
+    associations: list[BPMNAssociation] = []
+    for step in process.steps:
+        if not _detached(step):
+            continue
+        lane_id = lane_for_step(step, process.actors, actor_lane_map)
+        if step.type == "event_subprocess":
+            start_definition = step.event_trigger
+            if start_definition is None or (start_definition == "conditional" and not step.event_condition):
+                warnings.append(f"Event sub-process '{step.label}' senza trigger esplicito: non disegnato.")
+                continue
+            node = BPMNFlowNode(
+                id=xml_id(step.id, "EventSubProcess", used_ids),
+                type="subProcess",
+                name=step.label,
+                laneId=lane_id,
+                triggeredByEvent=True,
+                eventSubProcessStart=BPMNFlowNode(
+                    id=xml_id(f"{step.id}_Start", "StartEvent", used_ids),
+                    type="startEvent",
+                    name=step.label,
+                    eventDefinition=start_definition,
+                    eventConditionExpression=step.event_condition if start_definition == "conditional" else None,
+                    isInterrupting=step.interrupting,
+                ),
+                documentation=step_documentation(step, process.actors),
+                sourceRefs=[source_ref_id("steps", step.id)],
+            )
+            nodes.append(node)
+            step_node_by_original_id[step.id] = node.id
+            continue
+
+        compensated = step_node_by_original_id.get(step.compensates_step_id or "")
+        if compensated is None:
+            warnings.append(
+                f"Compensazione '{step.label}': il passo da compensare '{step.compensates_step_id}' non e' disegnato."
+            )
+            continue
+        handler = BPMNFlowNode(
+            id=xml_id(step.id, "Task", used_ids),
+            type=_task_type(step),
+            name=step.label,
+            laneId=lane_id,
+            owner=actor_label(process.actors, step.actor_ids),
+            isForCompensation=True,
+            documentation=step_documentation(step, process.actors),
+            sourceRefs=[source_ref_id("steps", step.id)],
+        )
+        boundary = BPMNFlowNode(
+            id=xml_id(f"{step.id}_Compensation", "BoundaryEvent", used_ids),
+            type="boundaryEvent",
+            name="",
+            laneId=next((node.laneId for node in nodes if node.id == compensated), lane_id),
+            attachedToRef=compensated,
+            eventDefinition="compensation",
+        )
+        nodes.extend([boundary, handler])
+        step_node_by_original_id[step.id] = handler.id
+        associations.append(
+            BPMNAssociation(
+                id=xml_id(f"{boundary.id}_to_{handler.id}", "Association", used_ids),
+                sourceRef=boundary.id,
+                targetRef=handler.id,
+                direction="one",
+            )
+        )
+    return associations
 
 
 def _cut_at_links(nodes: list[BPMNFlowNode], registry: FlowRegistry) -> None:
@@ -752,6 +858,7 @@ def _add_alternative_paths(
                 branch_node = BPMNFlowNode(
                     id=xml_id(f"{path.id}_{source_step.id or branch_index}", "Task", used_ids),
                     type=_task_type(source_step),
+                    calledElement=source_step.called_process if source_step.type == "call_activity" else None,
                     name=source_step.label,
                     laneId=lane_id,
                     owner=actor_label(actors, source_step.actor_ids),
@@ -1056,6 +1163,7 @@ def _add_boundary_events(
     """
     node_type_by_id = {node.id: node.type for node in nodes}
     node_lane_by_id = {node.id: node.laneId for node in nodes}
+    node_type_by_id = {node.id: node.type for node in nodes}
 
     for index, exception in enumerate(process.exceptions, start=1):
         exception_id = exception.id or f"Exception_{index}"
@@ -1074,6 +1182,12 @@ def _add_boundary_events(
             warnings.append(
                 f"Eccezione '{exception.label}' senza trigger esplicito: "
                 "boundary event condizionale non generato."
+            )
+            continue
+        if definition == "cancel" and node_type_by_id.get(attached) != "transaction":
+            warnings.append(
+                f"Eccezione '{exception.label}': l'annullamento vale solo su una transazione, "
+                "boundary event non generato."
             )
             continue
         if interrupting != exception.interrupting:
@@ -1246,12 +1360,12 @@ def _exception_rejoin_node(
     return None
 
 
-_INTERRUPTING_ONLY_EXCEPTION_KINDS = frozenset({"error"})
+_INTERRUPTING_ONLY_EXCEPTION_KINDS = frozenset({"error", "cancel"})
 
 
 def _exception_event_definition(
     exception: ProcessExceptionPath,
-) -> tuple[Literal["timer", "message", "error", "conditional", "escalation", "signal"], bool]:
+) -> tuple[Literal["timer", "message", "error", "conditional", "escalation", "signal", "cancel"], bool]:
     """Resolve the boundary event definition and interrupting behavior for an exception path.
     
     Args:
