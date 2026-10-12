@@ -47,7 +47,27 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
             warnings.append(f"Association {association.id} punta a un elemento inesistente.")
 
     node_type_by_id = {node.id: node.type for node in model.flowNodes}
+    compensation_handlers = {node.id for node in model.flowNodes if node.isForCompensation}
+    associated = {(item.sourceRef, item.targetRef) for item in model.associations}
     for node in model.flowNodes:
+        # An event sub-process runs on its trigger and a compensation activity
+        # from its boundary event: neither sits on the sequence flow (OMG 10.3.6, 10.6).
+        if node.triggeredByEvent or node.isForCompensation:
+            if incoming_by_node.get(node.id) or outgoing_by_node.get(node.id):
+                warnings.append(f"Attivita {node.name} non puo' avere frecce di sequenza: parte dal suo evento.")
+            if node.isForCompensation and not any(target == node.id for _, target in associated):
+                warnings.append(f"Attivita di compensazione {node.name} senza evento di compensazione collegato.")
+            continue
+        if node.type == "startEvent" and not node.isInterrupting:
+            warnings.append(f"Evento iniziale {node.name} non interrompente fuori da un event sub-process.")
+        if node.type == "boundaryEvent" and node.eventDefinition == "compensation":
+            if node_type_by_id.get(node.attachedToRef or "") not in ACTIVITY_NODE_TYPES:
+                warnings.append(f"Boundary event {node.name} non agganciato a un'attivita valida.")
+            if outgoing_by_node.get(node.id):
+                warnings.append(f"Boundary di compensazione {node.name} non puo' avere frecce di sequenza.")
+            if not any(source == node.id and target in compensation_handlers for source, target in associated):
+                warnings.append(f"Boundary di compensazione {node.name} senza attivita di compensazione associata.")
+            continue
         if (
             node.type in {"exclusiveGateway", "inclusiveGateway", "complexGateway", "parallelGateway", "eventBasedGateway"}
             and len(incoming_by_node.get(node.id, [])) <= 1

@@ -139,8 +139,8 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
     report.coreachable_node_ids = coreachable
 
     for node in model.flowNodes:
-        if node.type == "boundaryEvent":
-            continue
+        if node.type == "boundaryEvent" or node.triggeredByEvent or node.isForCompensation:
+            continue  # started by an event, not by the sequence flow
         if node.id not in reachable:
             report.errors.append(
                 ControlFlowIssue("unreachable_node", node.id, node.name, f"'{node.name}' non e' raggiungibile dall'inizio.")
