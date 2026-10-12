@@ -40,7 +40,7 @@ FLOW_NODE_TYPES = {
     "eventBasedGateway",
 }
 
-GATEWAY_TYPES = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"}
+GATEWAY_TYPES = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "complexGateway", "eventBasedGateway"}
 
 
 def validate_canvas_against_process(

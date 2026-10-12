@@ -37,6 +37,7 @@ EDITABLE_BPMN_TYPES = {
     "exclusiveGateway",
     "parallelGateway",
     "inclusiveGateway",
+    "complexGateway",
     "eventBasedGateway",
     "sequenceFlow",
     "dataObjectReference",
@@ -54,6 +55,8 @@ ADDABLE_BPMN_TYPES = {
     "exclusiveGateway",
     "parallelGateway",
     "inclusiveGateway",
+    "complexGateway",
+    "eventBasedGateway",
     "lane",
     "dataObjectReference",
     "textAnnotation",
@@ -77,6 +80,7 @@ FLOW_NODE_TYPES = {
     "exclusiveGateway",
     "parallelGateway",
     "inclusiveGateway",
+    "complexGateway",
     "eventBasedGateway",
 }
 
