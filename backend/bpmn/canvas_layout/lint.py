@@ -5,7 +5,8 @@ from math import isfinite
 from .geometry import Box, semantic_connections
 from .labels import _crosses_lane_border
 from .policy import ARTIFACT_TYPES, BPMNDI, DC, DI, FLOW_TYPES, local_name, tag
-from .router import segment_hits_box, _cross
+from .router import _cross, segment_hits_box
+from .router import _overlap as _segments_overlap
 
 
 def lint_visual_model(root, *, manual: bool = False) -> dict:
@@ -95,6 +96,7 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
                 issues.append(f"Il nodo {ref.text} è fuori dalla lane del suo owner.")
     connections = {element.get("id"): (source, target) for element, source, target in semantic_connections(root, expanded_subprocesses=expanded)}
     routes, edge_counts, edge_crossings = [], {}, 0
+    docks: dict[tuple[str, tuple[float, float]], list[str]] = {}
     for edge in root.iter(f"{{{BPMNDI}}}BPMNEdge"):
         ref = edge.get("bpmnElement")
         edge_counts[ref] = edge_counts.get(ref, 0) + 1
@@ -123,16 +125,25 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
                     issues.append(f"Il flusso {ref} attraversa {node_id}.")
         if semantic is not None and local_name(semantic) == "sequenceFlow":
             source, target = semantic.get("sourceRef"), semantic.get("targetRef")
-            for old_source, old_target, old_points in routes:
+            for old_ref, old_source, old_target, old_points in routes:
+                if any(_segments_overlap(a, b, c, d) for a, b in pairwise(points) for c, d in pairwise(old_points)):
+                    (warnings if manual else issues).append(f"I flussi {old_ref} e {ref} si sovrappongono.")
                 if {source, target}.intersection({old_source, old_target}):
                     continue
                 edge_crossings += sum(_cross(a, b, c, d) for a, b in pairwise(points) for c, d in pairwise(old_points))
-            routes.append((source, target, points))
+            routes.append((ref, source, target, points))
+            docks.setdefault((source, points[0]), []).append(ref)
+            docks.setdefault((target, points[-1]), []).append(ref)
     # Expanded manual subprocesses also have internal sequence edges.
     required_edges = set(connections) | {flow.get("id") for flow in root.iter(tag("sequenceFlow")) if flow.get("id") not in hidden}
     for ref in required_edges:
         if edge_counts.get(ref) != 1:
             issues.append(f"Il flusso {ref} deve avere una sola linea DI.")
+    for (node_id, _point), refs in docks.items():
+        if len(refs) > 1:
+            (warnings if manual else issues).append(
+                f"Flussi {', '.join(sorted(refs))} condividono lo stesso punto di aggancio su {node_id}."
+            )
     if edge_crossings:
         warnings.append(f"Incroci residui tra flussi: {edge_crossings}.")
     return {"valid": not issues, "issues": sorted(set(issues)), "warnings": warnings, "metrics": {"shapes": len(shapes), "sequence_flows": len(routes), "edge_crossings": edge_crossings}}
