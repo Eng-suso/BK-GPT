@@ -9,6 +9,7 @@ collaboration) and records where every source item landed.
 from __future__ import annotations
 
 import re
+from collections import deque
 from typing import Literal
 
 from backend.bpmn._helpers import (
@@ -34,6 +35,7 @@ from backend.bpmn.models import (
     BPMNFlowNode,
     BPMNLane,
     BPMNSemanticModel,
+    BPMNSequenceFlow,
 )
 from backend.process_understanding import (
     ProcessActor,
@@ -59,6 +61,7 @@ _GATEWAY_BPMN_TYPE: dict[str, str] = {
 # Gateways whose outgoing flows carry data-based condition expressions. Parallel
 # and event-based gateways never do (they fork on tokens / on which event fires).
 _DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway"})
+_SIGNAL_WORDS = ("segnale", "signal", "broadcast")
 
 
 def _gateway_bpmn_type(decision: ProcessDecision) -> str:
@@ -77,7 +80,7 @@ def _branch_catch_event_definition(text: str) -> Literal["timer", "message", "si
     """Infer the catch-event trigger for an event-based gateway branch."""
     if _matches_word(text, ("timer", "timeout", "scadenza", "scaduto", "ritardo", "termine", "giorni", "ore")):
         return "timer"
-    if _matches_word(text, ("segnale", "signal", "broadcast", "evento di sistema")):
+    if _matches_word(text, (*_SIGNAL_WORDS, "evento di sistema")):
         return "signal"
     if _matches_word(text, ("messaggio", "risposta", "notifica", "comunicazione", "riscontro", "email", "conferma")):
         return "message"
@@ -118,7 +121,12 @@ def build_bpmn_semantic_model(
     ordered_chain = _ordered_chain_items(process, step_by_id)
 
     nodes: list[BPMNFlowNode] = [
-        BPMNFlowNode(id=xml_id("StartEvent_1", "StartEvent", used_ids), type="startEvent", name=_start_name(process)),
+        BPMNFlowNode(
+            id=xml_id("StartEvent_1", "StartEvent", used_ids),
+            type="startEvent",
+            name=_start_name(process),
+            eventDefinition=_start_event_definition(process),
+        ),
     ]
     warnings = _semantic_warnings(
         process, lanes, collaboration_built=collaboration.collaboration_id is not None
@@ -213,7 +221,6 @@ def build_bpmn_semantic_model(
         if event.type == "end" and event.id in end_node_by_key:
             registry.map(event.id, end_node_by_key[event.id].id)
 
-    registry.gateway_ids = {node.id for node in nodes if node.type in _DATA_BASED_GATEWAYS}
     registry.connect_chain(main_chain)
 
     _add_alternative_paths(
@@ -227,6 +234,7 @@ def build_bpmn_semantic_model(
         gateway_by_step_id=gateway_by_step_id,
         end_node_by_key=end_node_by_key,
         primary_end=end,
+        decision_by_anchor_step_id=decision_by_anchor_step_id,
         actors=process.actors,
         actor_lane_map=actor_lane_map,
         warnings=warnings,
@@ -240,6 +248,7 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     _complete_flow_graph(process, registry, nodes, warnings)
+    declared_defaults = _label_decision_outcomes(process, registry, gateway_by_decision_id)
     _add_boundary_events(
         process=process,
         registry=registry,
@@ -255,7 +264,7 @@ def build_bpmn_semantic_model(
     registry.apply_edge_overlay()
     _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
-    _assign_gateway_defaults(nodes, flows, warnings)
+    _assign_gateway_defaults(nodes, flows, warnings, declared_default_ids={flow.id for flow in declared_defaults})
     populate_lane_refs(lanes, nodes)
     message_flows = finalize_message_flows(
         collaboration=collaboration,
@@ -425,6 +434,31 @@ def _attach_anchored_gateway(
     decision = decision_by_anchor_step_id.get(anchor_id)
     if decision is None:
         return
+    gateway = _place_gateway(
+        decision,
+        anchor_id=anchor_id,
+        lane_id=lane_id,
+        used_ids=used_ids,
+        nodes=nodes,
+        registry=registry,
+        gateway_by_decision_id=gateway_by_decision_id,
+        gateway_by_step_id=gateway_by_step_id,
+    )
+    main_chain.append(gateway.id)
+
+
+def _place_gateway(
+    decision: ProcessDecision,
+    *,
+    anchor_id: str,
+    lane_id: str | None,
+    used_ids: set[str],
+    nodes: list[BPMNFlowNode],
+    registry: FlowRegistry,
+    gateway_by_decision_id: dict[str, BPMNFlowNode],
+    gateway_by_step_id: dict[str, BPMNFlowNode],
+) -> BPMNFlowNode:
+    """Create a decision's gateway after its anchor step and register it everywhere it is looked up."""
     gateway = BPMNFlowNode(
         id=xml_id(decision.id, "Gateway", used_ids),
         type=_gateway_bpmn_type(decision),
@@ -434,10 +468,12 @@ def _attach_anchored_gateway(
         sourceRefs=[source_ref_id("decisions", decision.id)],
     )
     nodes.append(gateway)
-    main_chain.append(gateway.id)
     registry.map(decision.id, gateway.id)
+    if gateway.type in _DATA_BASED_GATEWAYS:
+        registry.gateway_ids.add(gateway.id)
     gateway_by_decision_id[decision.id] = gateway
     gateway_by_step_id[anchor_id] = gateway
+    return gateway
 
 
 def _event_node(event: ProcessEvent, used_ids: set[str]) -> BPMNFlowNode:
@@ -465,20 +501,31 @@ def _decision_anchor_map(
     process: ProcessUnderstanding,
     ordered_chain: list[ProcessStep | ProcessEvent],
 ) -> tuple[dict[str, ProcessDecision], list[str]]:
-    ordered_step_ids = [item.id for item in ordered_chain if item.id]
+    """Anchor each decision to the step that flows into it.
+
+    A main-path step wins; otherwise the anchor may be a step of an alternative
+    path (e.g. review -> "review successful?"), placed when that branch is drawn.
+
+    Returns:
+        The decisions by anchor step, and the warnings.
+    """
+    main_step_ids = [item.id for item in ordered_chain if item.id]
+    all_step_ids = [*main_step_ids, *(step.id for step in process.steps)]
     decision_by_anchor: dict[str, ProcessDecision] = {}
     warnings: list[str] = []
     unassigned = list(process.decisions)
+
+    def anchor_for(decision: ProcessDecision) -> str | None:
+        return _anchor_step_for_decision(process, decision, main_step_ids) or _anchor_step_for_decision(
+            process, decision, all_step_ids
+        )
 
     for path in process.alternative_paths:
         decision = _decision_for_path(path, unassigned)
         if decision is None:
             continue
-        anchor_step_id = _anchor_step_for_decision(process, decision, ordered_step_ids)
+        anchor_step_id = anchor_for(decision)
         if anchor_step_id is None:
-            warnings.append(
-                f"Decisione '{decision.label}' senza flow edge di ingresso da uno step del percorso principale."
-            )
             continue
         if anchor_step_id in decision_by_anchor:
             warnings.append(
@@ -489,11 +536,9 @@ def _decision_anchor_map(
         unassigned = [item for item in unassigned if item.id != decision.id]
 
     for decision in unassigned:
-        anchor_step_id = _anchor_step_for_decision(process, decision, ordered_step_ids)
+        anchor_step_id = anchor_for(decision)
         if anchor_step_id and anchor_step_id not in decision_by_anchor:
             decision_by_anchor[anchor_step_id] = decision
-        else:
-            warnings.append(f"Decisione '{decision.label}' non mappabile: manca anchor esplicito in flow_edges.")
 
     return decision_by_anchor, warnings
 
@@ -519,12 +564,12 @@ def _anchor_step_for_decision(
     decision: ProcessDecision,
     ordered_step_ids: list[str],
 ) -> str | None:
-    """Find the anchor step that precedes a decision in the main path.
+    """Find the step, among `ordered_step_ids`, that a flow edge leads into the decision from.
 
     Args:
         process: The ProcessUnderstanding model.
         decision: The ProcessDecision to find an anchor for.
-        ordered_step_ids: List of step IDs in the main path.
+        ordered_step_ids: The candidate anchor step IDs.
 
     Returns:
         The ID of the anchor step, or None if not found.
@@ -547,6 +592,7 @@ def _add_alternative_paths(
     gateway_by_step_id: dict[str, BPMNFlowNode],
     end_node_by_key: dict[str, BPMNFlowNode],
     primary_end: BPMNFlowNode,
+    decision_by_anchor_step_id: dict[str, ProcessDecision],
     actors: list[ProcessActor],
     actor_lane_map: dict[str, str],
     warnings: list[str],
@@ -571,6 +617,9 @@ def _add_alternative_paths(
         gateway_by_step_id: Gateways anchored to source steps.
         end_node_by_key: End-event mapping used to resolve branch destinations.
         primary_end: Default end event for unresolved branch destinations.
+        decision_by_anchor_step_id: Decisions by anchor step. One anchored to a
+            branch step becomes a gateway on that branch (e.g. review ->
+            "review successful?") and its own paths are compiled the same way.
         actors: Process actors used for branch ownership and lane assignment.
         actor_lane_map: Mapping of actor identifiers to lane identifiers.
         warnings: Warning collection to mutate.
@@ -581,11 +630,11 @@ def _add_alternative_paths(
     """
     unassigned_paths = list(process.alternative_paths)
     gateways = list(gateway_by_decision_id.values())
+    pending = deque(decision for decision in process.decisions if decision.id in gateway_by_decision_id)
 
-    for decision in process.decisions:
-        gateway = gateway_by_decision_id.get(decision.id)
-        if gateway is None:
-            continue
+    while pending:
+        decision = pending.popleft()
+        gateway = gateway_by_decision_id[decision.id]
 
         # Tutti i percorsi che la decisione nomina, non il primo. Una scelta a tre
         # vie - richiesta incompleta, serve un'autorizzazione, si procede - e' una
@@ -622,31 +671,83 @@ def _add_alternative_paths(
                 )
                 nodes.append(branch_node)
                 registry.map(source_step.id, branch_node.id)
-                registry.add(
-                    previous_id,
-                    branch_node.id,
-                    name=outcome_name if previous_id == gateway.id else None,
-                )
+                _link_branch(registry, path.id, gateway.id, previous_id, branch_node.id, outcome_name)
                 previous_id = branch_node.id
 
-            if path.rejoins_at and path.rejoins_at in step_node_by_original_id:
-                registry.add(previous_id, step_node_by_original_id[path.rejoins_at], name=path.trigger_or_condition)
-            elif path.ends_at and path.ends_at in step_node_by_original_id:
-                registry.add(previous_id, step_node_by_original_id[path.ends_at], name=path.trigger_or_condition)
+                follow_up = decision_by_anchor_step_id.get(source_step.id)
+                if follow_up is not None and follow_up.id not in gateway_by_decision_id:
+                    follow_gateway = _place_gateway(
+                        follow_up,
+                        anchor_id=source_step.id,
+                        lane_id=lane_id,
+                        used_ids=used_ids,
+                        nodes=nodes,
+                        registry=registry,
+                        gateway_by_decision_id=gateway_by_decision_id,
+                        gateway_by_step_id=gateway_by_step_id,
+                    )
+                    registry.add(branch_node.id, follow_gateway.id)
+                    for outcome in follow_up.outcome_details:
+                        target = registry.compiled_for(outcome.target_ref or "")
+                        if target:
+                            registry.add(follow_gateway.id, target)
+                    pending.append(follow_up)
+                    if step_id != path.sequence[-1]:
+                        warnings.append(
+                            f"Alternative path '{path.label}': i passi dopo '{source_step.label}' seguono "
+                            f"la decisione '{follow_up.label}' e non sono stati disegnati."
+                        )
+                    break
             else:
-                end_target = _resolve_alt_path_end(
-                    path, outcome_name, gateway.laneId, end_node_by_key, primary_end, nodes, used_ids
+                # No decision carries the branch on: it rejoins or ends here.
+                if path.rejoins_at and path.rejoins_at in step_node_by_original_id:
+                    exit_target = step_node_by_original_id[path.rejoins_at]
+                elif path.ends_at and path.ends_at in step_node_by_original_id:
+                    exit_target = step_node_by_original_id[path.ends_at]
+                else:
+                    if not path.ends_at:
+                        warnings.append(
+                            f"Alternative path '{path.label}' senza rientro ne' fine esplicita: chiuso sulla "
+                            f"fine principale '{primary_end.name}'; verificare l'esito."
+                        )
+                    exit_target = _resolve_alt_path_end(
+                        path, outcome_name, gateway.laneId, end_node_by_key, primary_end, nodes, used_ids
+                    )
+                _link_branch(
+                    registry, path.id, gateway.id, previous_id, exit_target, outcome_name, path.trigger_or_condition
                 )
-                registry.add(previous_id, end_target, name=path.trigger_or_condition)
 
             if not path.is_confirmed:
                 warnings.append(f"Alternative path '{path.label}' non confermato.")
 
+    for decision in process.decisions:
+        if decision.id not in gateway_by_decision_id:
+            warnings.append(f"Decisione '{decision.label}' non mappabile: manca anchor esplicito in flow_edges.")
     if unassigned_paths and not gateways:
         warnings.append("Alternative path presenti, ma nessun gateway decisionale e' stato generato.")
     elif unassigned_paths:
         for path in unassigned_paths:
             warnings.append(f"Alternative path '{path.label}' non collegato a un outcome decisionale esplicito.")
+
+
+def _link_branch(
+    registry: FlowRegistry,
+    path_id: str,
+    gateway_id: str,
+    source: str,
+    target: str,
+    outcome_name: str | None,
+    name: str | None = None,
+) -> None:
+    """Draw one flow of a branch.
+
+    The flow leaving the gateway is the outcome itself: it takes the outcome's
+    name and marks where the path starts, so a flow edge naming the path resolves.
+    """
+    leaves_gateway = source == gateway_id
+    registry.add(source, target, name=outcome_name if leaves_gateway else name)
+    if leaves_gateway:
+        registry.map(path_id, target)
 
 
 def _resolve_alt_path_end(
@@ -1153,15 +1254,20 @@ def _assign_gateway_defaults(
     nodes: list[BPMNFlowNode],
     flows: list,
     warnings: list[str],
+    *,
+    declared_default_ids: frozenset[str] | set[str] = frozenset(),
 ) -> None:
-    """Assign default flows to gateways with exactly one unconditioned branch.
+    """Assign each data-based gateway its default flow.
 
-    A data-based gateway with one bare branch marks it as the default flow.
+    The branch of an outcome the plan declares as default wins, and loses any
+    condition a flow edge gave it (in BPMN the default flow has none).
+    Otherwise a gateway with exactly one bare branch marks it as the default.
 
     Args:
         nodes: List of BPMN flow nodes including gateways.
         flows: List of sequence flows.
         warnings: List to append warning messages to.
+        declared_default_ids: Flows of outcomes the plan marks as default.
     """
     outgoing: dict[str, list] = {}
     for flow in flows:
@@ -1173,6 +1279,11 @@ def _assign_gateway_defaults(
         branches = outgoing.get(node.id, [])
         if len(branches) < 2:
             continue
+        declared = next((flow for flow in branches if flow.id in declared_default_ids), None)
+        if declared is not None:
+            declared.conditionExpression = None
+            node.defaultFlowId = declared.id
+            continue
         unconditioned = [flow for flow in branches if not flow.conditionExpression]
         if len(unconditioned) == 1:
             node.defaultFlowId = unconditioned[0].id
@@ -1181,6 +1292,41 @@ def _assign_gateway_defaults(
                 f"Gateway '{node.name}' con piu' di un ramo senza condizione: "
                 "definire le condizioni o un ramo di default."
             )
+
+
+def _label_decision_outcomes(
+    process: ProcessUnderstanding,
+    registry: FlowRegistry,
+    gateway_by_decision_id: dict[str, BPMNFlowNode],
+) -> list[BPMNSequenceFlow]:
+    """Carry each decision outcome onto the gateway branch it selects.
+
+    The branch takes the outcome's label and, unless the outcome is the default
+    one, its condition: in BPMN the default flow is the one without a condition.
+    Only flows already drawn are touched; an outcome never becomes a new branch here.
+    Event-based gateways are left alone: their branches are chosen by the event
+    that arrives first, never by a condition.
+
+    Returns:
+        The branches of the outcomes the plan marks as default.
+    """
+    defaults: list[BPMNSequenceFlow] = []
+    for decision in process.decisions:
+        gateway = gateway_by_decision_id.get(decision.id)
+        if gateway is None or gateway.type not in _DATA_BASED_GATEWAYS:
+            continue
+        for outcome in decision.outcome_details:
+            target = registry.compiled_for(outcome.target_path_id or outcome.target_ref or "")
+            if not target or (gateway.id, target) not in registry.seen_pairs:
+                continue
+            flow = registry.add(gateway.id, target, name=outcome.label)
+            if flow is None:
+                continue
+            if outcome.is_default:
+                defaults.append(flow)
+            elif outcome.condition and not flow.conditionExpression:
+                flow.conditionExpression = outcome.condition
+    return defaults
 
 
 def _complete_flow_graph(
@@ -1284,6 +1430,37 @@ def _start_name(process: ProcessUnderstanding) -> str:
         return process.boundaries.start_event
     event = next((item for item in process.events if item.type == "start"), None)
     return event.label if event else "Start"
+
+
+_START_TIMER_WORDS = (
+    "ogni", "giornaliero", "giornaliera", "settimanale", "mensile", "trimestrale", "annuale",
+    "calendario", "fine mese", "every", "daily", "weekly", "monthly",
+)
+_START_MESSAGE_WORDS = (
+    "messaggio", "email", "e-mail", "mail", "pec", "ricevuta", "ricevuto", "ricezione",
+    "riceve", "arriva", "arrivo", "notifica", "comunicazione", "message", "received",
+)
+
+
+def _start_event_definition(process: ProcessUnderstanding) -> Literal["timer", "message", "signal"] | None:
+    """Infer the BPMN trigger of the start event from what the plan says starts it.
+
+    A plain (none) start when the trigger names no message, timer or signal:
+    a guessed trigger would assert something the sources do not say.
+    """
+    boundaries = process.boundaries
+    texts = [boundaries.trigger, boundaries.start_event] if boundaries else []
+    texts += [event.label for event in process.events if event.type == "start"]
+    text = " ".join(item for item in texts if item)
+    if not text:
+        return None
+    if _matches_word(text, _START_TIMER_WORDS):
+        return "timer"
+    if _matches_word(text, _SIGNAL_WORDS):
+        return "signal"
+    if _matches_word(text, _START_MESSAGE_WORDS):
+        return "message"
+    return None
 
 
 def _end_name(process: ProcessUnderstanding) -> str:
