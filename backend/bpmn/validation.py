@@ -57,6 +57,8 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
         if node.type == "boundaryEvent":
             if node_type_by_id.get(node.attachedToRef or "") not in ACTIVITY_NODE_TYPES:
                 warnings.append(f"Boundary event {node.name} non agganciato a un'attivita valida.")
+            elif node.eventDefinition == "cancel" and node_type_by_id.get(node.attachedToRef or "") != "transaction":
+                warnings.append(f"Boundary event di annullamento {node.name} valido solo su una transazione.")
             if not outgoing_by_node.get(node.id):
                 warnings.append(f"Boundary event {node.name} senza gestione collegata.")
             if incoming_by_node.get(node.id):
@@ -65,12 +67,22 @@ def validate_bpmn_semantic_model(model: BPMNSemanticModel) -> list[str]:
         if node.type == "startEvent" and incoming_by_node.get(node.id):
             warnings.append(f"Evento iniziale {node.name} con una freccia in ingresso.")
         instantiating = node.type == "eventBasedGateway" and node.instantiate
-        if node.type != "startEvent" and not instantiating and not incoming_by_node.get(node.id):
+        # A link catch continues the flow its throw left off: no incoming flow,
+        # and the throw has no outgoing one (OMG BPMN 2.0, 10.4.5).
+        link_catch = node.type == "intermediateCatchEvent" and node.eventDefinition == "link"
+        link_throw = node.type == "intermediateThrowEvent" and node.eventDefinition == "link"
+        if link_catch and incoming_by_node.get(node.id):
+            warnings.append(f"Link {node.name} in attesa non puo' avere frecce in ingresso.")
+        if link_throw and outgoing_by_node.get(node.id):
+            warnings.append(f"Link {node.name} lanciato non puo' avere frecce in uscita.")
+        if node.type != "startEvent" and not instantiating and not link_catch and not incoming_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza ingresso.")
         if node.type == "endEvent" and outgoing_by_node.get(node.id):
             warnings.append(f"Evento finale {node.name} con una freccia in uscita.")
-        if node.type != "endEvent" and not outgoing_by_node.get(node.id):
+        if node.type != "endEvent" and not link_throw and not outgoing_by_node.get(node.id):
             warnings.append(f"Nodo {node.name} senza uscita.")
+        if node.eventDefinition == "cancel" and node.type == "endEvent":
+            warnings.append(f"Fine con annullamento {node.name} valida solo dentro una transazione.")
 
     warnings.extend(analyze_control_flow(model).messages())
     return warnings
