@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- BPMN 2.0 by Example (OMG dtc/2010-06-02), "Issue list" process: message start,
+     timer catch, exclusive gateway, send task, rework loop and data association. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="IssueList_Definitions" targetNamespace="http://delir.local/tests">
+  <bpmn:process id="IssueList" name="Issue list" isExecutable="false">
+    <bpmn:startEvent id="Start" name="Working group active">
+      <bpmn:messageEventDefinition id="Start_Message" />
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="Friday" name="Friday at 6 PM Pacific Time">
+      <bpmn:timerEventDefinition id="Friday_Timer" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:task id="Check" name="Check status of working group" />
+    <bpmn:exclusiveGateway id="Active" name="Working group still active?" default="Yes" />
+    <bpmn:sendTask id="Send" name="Send current issue list">
+      <bpmn:dataInputAssociation id="Issues_Input">
+        <bpmn:sourceRef>Issues</bpmn:sourceRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="End" />
+    <bpmn:dataObjectReference id="Issues" name="Issue list" dataObjectRef="Issues_Object" />
+    <bpmn:dataObject id="Issues_Object" />
+    <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Friday" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Friday" targetRef="Check" />
+    <bpmn:sequenceFlow id="F3" sourceRef="Check" targetRef="Active" />
+    <bpmn:sequenceFlow id="Yes" name="Yes" sourceRef="Active" targetRef="Send" />
+    <bpmn:sequenceFlow id="No" name="No" sourceRef="Active" targetRef="End">
+      <bpmn:conditionExpression id="No_Condition">inactive</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Loop" sourceRef="Send" targetRef="Friday" />
+  </bpmn:process>
+</bpmn:definitions>

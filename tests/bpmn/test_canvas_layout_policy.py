@@ -61,14 +61,15 @@ def test_handoffs_change_lane_without_restarting_x_or_inventing_owners():
     assert {lane.get("id"): [ref.text for ref in lane.findall("b:flowNodeRef", NS)] for lane in root.findall(".//b:lane", NS)} == {id: members for id, _, members in lanes}
 
 
-def test_split_branches_share_rank_and_are_symmetric_before_join():
+def test_split_branches_share_rank_and_the_main_one_stays_on_the_split_line():
     nodes = [("s", "startEvent", ""), ("split", "parallelGateway", ""), ("a", "userTask", "Controllare"), ("b", "userTask", "Confrontare"), ("join", "parallelGateway", ""), ("e", "endEvent", "")]
     flows = [("s", "split"), ("split", "a"), ("split", "b"), ("a", "join"), ("b", "join"), ("join", "e")]
     xml = apply_enterprise_layout(semantic(nodes, flows, [("role", "Acquisti", [id for id, _, _ in nodes])]))
     positioned = shapes(xml)
     assert positioned["a"]["x"] == positioned["b"]["x"]
     center = lambda id: positioned[id]["y"] + positioned[id]["height"] / 2
-    assert center("split") == center("join") == (center("a") + center("b")) / 2
+    assert center("s") == center("split") == center("a") == center("join") == center("e")
+    assert center("b") > center("a")
     assert positioned["join"]["x"] > positioned["a"]["x"]
     assert lint_visual_model(ET.fromstring(xml))["valid"]
 

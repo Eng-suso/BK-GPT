@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from .policy import BPMN, ARTIFACT_TYPES, FLOW_TYPES, ENTERPRISE_POLICY, local_name, tag
 from .ranks import rank_process
+from .tracks import assign_tracks
 
 
 @dataclass(frozen=True)
@@ -58,17 +59,18 @@ def semantic_connections(root, *, expanded_subprocesses=()):
     return sorted(result, key=lambda item: (local_name(item[0]) != "sequenceFlow", item[0].get("id")))
 
 
+# A data object or store (54), its label underneath and a corridor for the
+# association to the artifact stacked below it.
+_DOCUMENT_ROW = 120
+
+
 def layout_process(process, top: float, connections):
     p = ENTERPRISE_POLICY
     initial_top = top
     nodes = {e.get("id"): e for e in process if local_name(e) in FLOW_TYPES and e.tag.startswith("{" + BPMN + "}")}
     ranks, feedback, parents = rank_process(process, nodes)
     ordinary = {node_id: node for node_id, node in nodes.items() if local_name(node) != "boundaryEvent"}
-    # All end events sit at the terminal rank, including early termination paths.
-    terminal = max((ranks[i] for i in ordinary if local_name(ordinary[i]) != "endEvent"), default=0) + 1
-    for node_id in ordinary:
-        if local_name(ordinary[node_id]) == "endEvent":
-            ranks[node_id] = terminal
+    terminal = max((ranks[i] for i in ordinary), default=0) + 1
     lane_set = process.find(tag("laneSet"))
     lanes = list(lane_set.iter(tag("lane"))) if lane_set is not None else []
     owner = {ref.text: lane.get("id") for lane in lanes for ref in lane.findall(tag("flowNodeRef"))}
@@ -92,6 +94,7 @@ def layout_process(process, top: float, connections):
     bands = [lane.get("id") for lane in lane_order]
     if any(node_id not in owner for node_id in ordinary) or not bands:
         bands.append(None)  # Unassigned work stays unassigned; never invent a role.
+    tracks = assign_tracks(process, nodes, ranks, feedback, owner)
     sizes = {node_id: _size(node) for node_id, node in ordinary.items()}
     column_widths = defaultdict(lambda: p.event_size)
     for node_id in ordinary:
@@ -115,14 +118,17 @@ def layout_process(process, top: float, connections):
         for node_id in ordinary:
             if owner.get(node_id) == band:
                 grouped[ranks[node_id]].append(node_id)
-        rows = max((len(group) for group in grouped.values()), default=1)
+        band_tracks = [tracks[i] for group in grouped.values() for i in group] or [0]
+        first_track, rows = min(band_tracks), max(band_tracks) - min(band_tracks) + 1
         content_height = max((sizes[i][1] + (52 if nodes[i].get("name") and (local_name(nodes[i]).endswith("Event") or local_name(nodes[i]).endswith("Gateway")) else 0) for group in grouped.values() for i in group), default=p.task_height)
         row_pitch = max(p.row_gap, content_height + max(p.padding, p.min_node_gap))
         main_height = (rows - 1) * row_pitch + content_height + p.padding * 2
         if not grouped:
             main_height = p.padding * 2  # Retain a real but unused role as a compact band.
-        if any(e.get("id") in feedback and owner.get(source) == band for e, source, _ in connections):
-            main_height += 80  # An interior return channel and readable labels.
+        # Return flows run back over the top of the row they leave: a channel
+        # above it keeps the loop and its label inside the lane.
+        channel = 48 if any(e.get("id") in feedback and owner.get(source) == band for e, source, _ in connections) else 0
+        main_height += channel
         doc_groups = defaultdict(list)
         for artifact_id, (doc_band, rank) in artifact_owner.items():
             if doc_band == band:
@@ -130,23 +136,20 @@ def layout_process(process, top: float, connections):
         doc_rows = max((len(group) for group in doc_groups.values()), default=0)
         boundary_count = max((sum(node.get("attachedToRef") == host for node in nodes.values()) for host in ordinary if owner.get(host) == band), default=0)
         boundary_space = 80 + boundary_count * 52 if boundary_count else 0
-        band_height = main_height + boundary_space + (p.padding + doc_rows * 120 if doc_rows else 0)
+        band_height = main_height + boundary_space + (p.padding + doc_rows * _DOCUMENT_ROW if doc_rows else 0)
         if band is not None:
             lane_boxes[band] = Box(p.origin_x + p.pool_label_width, top, right - p.origin_x - p.pool_label_width, band_height)
         for rank, group in sorted(grouped.items()):
-            # The predecessor order is stable and keeps paired branches on the
-            # same vertical tracks; single split/join gateways stay centered.
-            group.sort(key=lambda i: (tuple(sorted(parents[i])), i))
-            for row, node_id in enumerate(group):
+            for node_id in group:
                 width, height = sizes[node_id]
-                cy = top + main_height / 2 + (row - (len(group) - 1) / 2) * row_pitch
+                cy = top + channel + p.padding + content_height / 2 + (tracks[node_id] - first_track) * row_pitch
                 boxes[node_id] = Box(centers[rank] - width / 2, cy - height / 2, width, height)
         for rank, group in sorted(doc_groups.items()):
             for index, artifact_id in enumerate(sorted(group)):
                 row = index
                 cx = centers.get(rank, p.origin_x + p.padding + 100)
                 width, height = (160, 60) if local_name(artifacts[artifact_id]) == "textAnnotation" else (64, 54)
-                boxes[artifact_id] = Box(cx - width / 2, top + main_height + boundary_space + p.padding + row * 120, width, height)
+                boxes[artifact_id] = Box(cx - width / 2, top + main_height + boundary_space + p.padding + row * _DOCUMENT_ROW, width, height)
         top += band_height
     for node_id, node in nodes.items():
         if local_name(node) != "boundaryEvent":
