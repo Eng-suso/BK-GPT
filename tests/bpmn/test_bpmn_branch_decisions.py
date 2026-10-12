@@ -19,6 +19,26 @@ from backend.process_understanding import (
 )
 
 
+APPROVAL = ProcessDecision(
+    id="approvata",
+    label="Fattura approvata?",
+    outcome_details=[
+        ProcessDecisionOutcome(id="ok", label="Sì", condition="Approvata", target_ref="bonifico", is_default=True),
+        ProcessDecisionOutcome(id="ko", label="No", condition="Respinta", target_path_id="revisione"),
+    ],
+)
+REVIEW_OUTCOME = ProcessDecision(
+    id="riuscita",
+    label="Revisione riuscita?",
+    outcome_details=[
+        ProcessDecisionOutcome(id="chiarita", label="Sì", condition="Chiarita", target_ref="approva", is_default=True),
+        ProcessDecisionOutcome(id="respinta", label="No", condition="Non chiaribile", target_path_id="rifiuto"),
+    ],
+)
+APPROVAL_EDGE = ProcessFlowEdge(id="e1", source_id="approva", target_id="approvata", label="Esito")
+EDGES = [APPROVAL_EDGE, ProcessFlowEdge(id="e2", source_id="rivedi", target_id="riuscita", label="Esito revisione")]
+
+
 def _invoice(**overrides) -> ProcessUnderstanding:
     base = dict(
         title="Ricezione e pagamento fattura fornitore",
@@ -41,32 +61,12 @@ def _invoice(**overrides) -> ProcessUnderstanding:
             ProcessStep(id="archivia", label="Archivia la fattura", type="service_task", actor_ids=["contabilita"]),
         ],
         main_success_path=["assegna", "approva", "bonifico", "archivia"],
-        decisions=[
-            ProcessDecision(
-                id="approvata",
-                label="Fattura approvata?",
-                outcome_details=[
-                    ProcessDecisionOutcome(id="ok", label="Sì", condition="Approvata", target_ref="bonifico", is_default=True),
-                    ProcessDecisionOutcome(id="ko", label="No", condition="Respinta", target_path_id="revisione"),
-                ],
-            ),
-            ProcessDecision(
-                id="riuscita",
-                label="Revisione riuscita?",
-                outcome_details=[
-                    ProcessDecisionOutcome(id="chiarita", label="Sì", condition="Chiarita", target_ref="approva", is_default=True),
-                    ProcessDecisionOutcome(id="respinta", label="No", condition="Non chiaribile", target_path_id="rifiuto"),
-                ],
-            ),
-        ],
+        decisions=[APPROVAL, REVIEW_OUTCOME],
         alternative_paths=[
             ProcessPath(id="revisione", label="Revisione", trigger_or_condition="Respinta", sequence=["rivedi"]),
             ProcessPath(id="rifiuto", label="Fattura respinta", trigger_or_condition="Non chiaribile", sequence=[], ends_at="Fattura respinta"),
         ],
-        flow_edges=[
-            ProcessFlowEdge(id="e1", source_id="approva", target_id="approvata", label="Esito"),
-            ProcessFlowEdge(id="e2", source_id="rivedi", target_id="riuscita", label="Esito revisione"),
-        ],
+        flow_edges=EDGES,
     )
     base.update(overrides)
     return ProcessUnderstanding(**base)
@@ -108,7 +108,7 @@ def test_a_reviewed_invoice_never_ends_as_paid():
 
 
 def test_a_decision_with_no_anchor_anywhere_is_still_reported():
-    process = _invoice(flow_edges=[ProcessFlowEdge(id="e1", source_id="approva", target_id="approvata", label="Esito")])
+    process = _invoice(flow_edges=[APPROVAL_EDGE])
 
     model = _compile(process)
 
@@ -117,9 +117,9 @@ def test_a_decision_with_no_anchor_anywhere_is_still_reported():
 
 def test_a_path_with_neither_rejoin_nor_end_is_flagged_instead_of_closing_silently():
     process = _invoice(
-        decisions=[_invoice().decisions[0]],
+        decisions=[APPROVAL],
         alternative_paths=[ProcessPath(id="revisione", label="Revisione", trigger_or_condition="Respinta", sequence=["rivedi"])],
-        flow_edges=[ProcessFlowEdge(id="e1", source_id="approva", target_id="approvata", label="Esito")],
+        flow_edges=[APPROVAL_EDGE],
     )
 
     model = _compile(process)
@@ -140,7 +140,7 @@ def test_outcomes_label_their_branches_and_only_non_default_ones_carry_a_conditi
 
 def test_a_declared_default_stays_the_default_even_if_a_flow_edge_gives_it_a_condition():
     edges = [
-        *_invoice().flow_edges,
+        *EDGES,
         ProcessFlowEdge(id="e3", source_id="riuscita", target_id="approva", label="Sì", condition="Chiarita"),
     ]
     model = _compile(_invoice(flow_edges=edges))
