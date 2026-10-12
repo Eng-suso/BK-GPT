@@ -37,7 +37,7 @@ export function SendToClient({ processId, owner, hadLink, disabled, onSent }: {
   };
   // Il link nasce dal click, non da un effetto: un effetto ripetuto ne
   // creerebbe due, e il primo, gia' revocato, potrebbe finire sullo schermo.
-  const start = () => { setOpen(true); prepare(); };
+  const start = () => { if (open || create.isPending) return; setOpen(true); prepare(); };
   const change = (next: boolean) => {
     if (sending || next) return;
     setOpen(false); setUrl(null); setSendError(false); create.reset();

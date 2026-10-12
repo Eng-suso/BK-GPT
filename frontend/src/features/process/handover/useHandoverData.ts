@@ -11,9 +11,9 @@ import {
 } from "./handoverModel";
 
 /**
- * Tutto cio' che la consegna sa del processo, letto una volta sola. La pagina
- * del consulente e il cruscotto del responsabile passano di qui, cosi' non
- * possono raccontare due versioni diverse dello stesso processo.
+ * Tutto cio' che la pagina di consegna del consulente sa del processo, letto
+ * una volta sola. Il cruscotto del cliente non passa di qui: lo costruisce il
+ * server (`ownerDashboardApi.ts`), lo stesso per l'anteprima e per il link.
  */
 export function useHandoverData(process: ProjectProcess) {
   const reviewQ = useImpactReview(process.id, process.bpmnModelId);
