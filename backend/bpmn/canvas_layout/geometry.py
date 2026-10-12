@@ -59,6 +59,11 @@ def semantic_connections(root, *, expanded_subprocesses=()):
     return sorted(result, key=lambda item: (local_name(item[0]) != "sequenceFlow", item[0].get("id")))
 
 
+# A data object or store (54), its label underneath and a corridor for the
+# association to the artifact stacked below it.
+_DOCUMENT_ROW = 120
+
+
 def layout_process(process, top: float, connections):
     p = ENTERPRISE_POLICY
     initial_top = top
@@ -120,8 +125,10 @@ def layout_process(process, top: float, connections):
         main_height = (rows - 1) * row_pitch + content_height + p.padding * 2
         if not grouped:
             main_height = p.padding * 2  # Retain a real but unused role as a compact band.
-        if any(e.get("id") in feedback and owner.get(source) == band for e, source, _ in connections):
-            main_height += 80  # An interior return channel and readable labels.
+        # Return flows run back over the top of the row they leave: a channel
+        # above it keeps the loop and its label inside the lane.
+        channel = 48 if any(e.get("id") in feedback and owner.get(source) == band for e, source, _ in connections) else 0
+        main_height += channel
         doc_groups = defaultdict(list)
         for artifact_id, (doc_band, rank) in artifact_owner.items():
             if doc_band == band:
@@ -129,20 +136,20 @@ def layout_process(process, top: float, connections):
         doc_rows = max((len(group) for group in doc_groups.values()), default=0)
         boundary_count = max((sum(node.get("attachedToRef") == host for node in nodes.values()) for host in ordinary if owner.get(host) == band), default=0)
         boundary_space = 80 + boundary_count * 52 if boundary_count else 0
-        band_height = main_height + boundary_space + (p.padding + doc_rows * 120 if doc_rows else 0)
+        band_height = main_height + boundary_space + (p.padding + doc_rows * _DOCUMENT_ROW if doc_rows else 0)
         if band is not None:
             lane_boxes[band] = Box(p.origin_x + p.pool_label_width, top, right - p.origin_x - p.pool_label_width, band_height)
         for rank, group in sorted(grouped.items()):
             for node_id in group:
                 width, height = sizes[node_id]
-                cy = top + p.padding + content_height / 2 + (tracks[node_id] - first_track) * row_pitch
+                cy = top + channel + p.padding + content_height / 2 + (tracks[node_id] - first_track) * row_pitch
                 boxes[node_id] = Box(centers[rank] - width / 2, cy - height / 2, width, height)
         for rank, group in sorted(doc_groups.items()):
             for index, artifact_id in enumerate(sorted(group)):
                 row = index
                 cx = centers.get(rank, p.origin_x + p.padding + 100)
                 width, height = (160, 60) if local_name(artifacts[artifact_id]) == "textAnnotation" else (64, 54)
-                boxes[artifact_id] = Box(cx - width / 2, top + main_height + boundary_space + p.padding + row * 120, width, height)
+                boxes[artifact_id] = Box(cx - width / 2, top + main_height + boundary_space + p.padding + row * _DOCUMENT_ROW, width, height)
         top += band_height
     for node_id, node in nodes.items():
         if local_name(node) != "boundaryEvent":
