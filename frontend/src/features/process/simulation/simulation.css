@@ -18,16 +18,17 @@
   /* replay token colours (Phase 2) */
   --sim-token: var(--color-status-info, #2563eb);
   --sim-token-queued: var(--color-status-warning, #d97706);
+  --sim-warning: var(--color-status-warning, #d97706);
 
   /* Cruscotto chart series (Phase 3) — one colour per metric, fixed.
      WIP↔Queue is the only pair that ever shares a chart; validated
      (dataviz scripts/validate_palette.js) ΔE 38 normal / 32 CVD.
-     DeliR is light-only, so no dark steps. */
+     DeliR is light-only, so no dark steps. Only brand hues: blue, amber, green. */
   --sim-chart-throughput: var(--blue-600);
   --sim-chart-wip: var(--blue-600);
   --sim-chart-queue: var(--amber-600);
-  --sim-chart-cost: var(--teal-600);
-  --sim-chart-cycle: var(--violet-600);
+  --sim-chart-cost: var(--blue-800);
+  --sim-chart-cycle: var(--green-700);
   --sim-chart-grid: var(--color-border-subtle);
   --sim-chart-axis: var(--color-text-muted);
   --sim-chart-fill-opacity: 0.2;
@@ -342,7 +343,7 @@
 .djs-connection.sim-flow-3 .djs-visual > path { stroke-width: 4.5px; }
 .djs-connection.sim-flow-4 .djs-visual > path {
   stroke-width: 6px;
-  stroke: color-mix(in oklab, var(--sim-token) 70%, var(--color-text-primary));
+  stroke: color-mix(in oklab, var(--sim-token) 70%, var(--blue-800));
 }
 .djs-connection[class*="sim-flow-"] .djs-visual > path {
   stroke: color-mix(in oklab, var(--sim-token) 55%, var(--color-text-muted));
