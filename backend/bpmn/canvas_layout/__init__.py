@@ -79,6 +79,11 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
                 (nx, ny), (ox, oy) = boxes[node].center, boxes[other].center
                 if ox != nx and oy != ny:
                     turns.add((node, ("right" if ox > nx else "left", "bottom" if oy > ny else "top")))
+    # The first stretch out of every port stays free of branch labels, also
+    # for flows not routed yet.
+    clearance = 2 * p.route_clearance
+    stubs = [[port.point, (port.point[0] + port.normal[0] * clearance, port.point[1] + port.normal[1] * clearance)]
+             for pair in ports.values() for port in pair]
     labels = {}
     for element_id, box in sorted({**containers, **boxes}.items(), key=lambda item: (item[0] in boxes, ranks.get(item[0], -1), item[0])):
         kind = local_name(elements[element_id])
@@ -121,7 +126,7 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
         if connection.get("name") and local_name(connection) == "sequenceFlow":
             container = next((box for key, box in containers.items() if local_name(elements[key]) == "participant" and box.x <= boxes[source].x and box.y <= boxes[source].y and box.right >= boxes[source].right and box.bottom >= boxes[source].bottom), None)
             lane_boundaries = [box for key, box in containers.items() if local_name(elements[key]) == "lane"]
-            label = branch_label(points, connection.get("name"), boxes, labels, previous, container, lane_boundaries)
+            label = branch_label(points, connection.get("name"), boxes, labels, [*previous, *stubs], container, lane_boundaries)
             labels[connection.get("id")] = label
             _bounds(ET.SubElement(edge, f"{{{BPMNDI}}}BPMNLabel"), label)
         previous.append(points)
