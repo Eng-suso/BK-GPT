@@ -24,9 +24,23 @@ class ProcessActor(BaseModel):
 class ProcessEvent(BaseModel):
     id: str
     label: str
-    type: Literal["start", "end", "timer", "message", "exception"]
+    # timer, message and intermediate events sit on the flow between steps.
+    type: Literal["start", "end", "timer", "message", "exception", "intermediate"]
     direction: Literal["catch", "throw"] = "catch"
     timing: str | None = None
+    # The BPMN trigger (start, catch) or result (end, throw) when the sources
+    # name it; None lets the compiler infer it from the label. "link" pairs a
+    # throw with the catch of the same label (a jump on the same page);
+    # "multiple" reacts to any of `triggers`, or to all with parallel_multiple.
+    definition: Literal[
+        "none", "message", "timer", "conditional", "signal", "error", "escalation",
+        "compensation", "cancel", "link", "terminate", "multiple",
+    ] | None = None
+    condition: str | None = None
+    triggers: list[Literal["message", "timer", "conditional", "signal", "escalation", "error", "compensation"]] = Field(
+        default_factory=list
+    )
+    parallel_multiple: bool = False
     source_evidence: list[str] = Field(default_factory=list)
 
 
@@ -1300,6 +1314,13 @@ Regole:
   loop, regole, assunzioni, findings e unknowns.
 - Per gli eventi intermedi imposta direction=throw quando il processo emette
   qualcosa (invia notifica/segnale) e direction=catch quando resta in attesa.
+- Quando le fonti dicono cosa avvia, interrompe o chiude il processo imposta
+  events[].definition: message, timer, conditional (con condition), signal,
+  error, escalation, compensation (annulla gli effetti di attivita' gia' fatte),
+  cancel (annulla una transazione), terminate (ferma tutto), link (salto nello
+  stesso diagramma: un throw e un catch con la stessa label) o multiple (piu'
+  trigger in triggers; parallel_multiple=true se servono tutti). Lascia
+  definition vuoto se le fonti non lo dicono.
 - Classifica participants.bpmn_container distinguendo pool, lane, black_box e
   out_of_scope. Non confondere persona/ente/sistema con lane.
 - Popola flow_edges con source_id, target_id e label comprensibile. Ogni freccia
