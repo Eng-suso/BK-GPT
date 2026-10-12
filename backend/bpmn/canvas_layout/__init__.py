@@ -2,10 +2,11 @@
 import xml.etree.ElementTree as ET
 
 from .geometry import Box, layout_process, semantic_connections
-from .labels import branch_label
+from .labels import branch_label, node_label
 from .lint import lint_visual_model
 from .normalizer import normalize_semantics
 from .policy import BPMN, BPMNDI, DC, DI, ENTERPRISE_POLICY, CanvasLayoutPolicy, local_name, tag
+from .ports import assign_ports
 from .router import orthogonal_route
 
 __all__ = ["apply_enterprise_layout", "CanvasLayoutPolicy", "ENTERPRISE_POLICY", "lint_visual_model"]
@@ -58,6 +59,26 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
     diagram = ET.SubElement(root, f"{{{BPMNDI}}}BPMNDiagram", {"id": allocate("DeliR_Diagram")})
     plane = ET.SubElement(diagram, f"{{{BPMNDI}}}BPMNPlane", {"id": allocate("DeliR_Plane"), "bpmnElement": plane_ref})
     elements = {e.get("id"): e for e in root.iter() if e.get("id")}
+    pools = {key: box for key, box in containers.items() if local_name(elements[key]) == "participant"}
+    routable = [(c.get("id"), local_name(c), source, target) for c, source, target in connections
+                if {source, target} <= boxes.keys() | pools.keys() and local_name(elements[source]) != "boundaryEvent"]
+    ports = assign_ports(
+        [(flow_id, source, target) for flow_id, kind, source, target in routable if kind == "sequenceFlow"],
+        boxes,
+        attachments=[(flow_id, source, target) for flow_id, kind, source, target in routable if kind != "sequenceFlow"],
+        reserved={e.get("attachedToRef"): {"bottom"} for e in elements.values() if local_name(e) == "boundaryEvent"},
+        pools=pools,
+    )
+    docked, turns = set(), set()
+    for connection, source, target in connections:
+        if connection.get("id") not in ports:
+            continue
+        for node, other, port in ((source, target, ports[connection.get("id")][0]), (target, source, ports[connection.get("id")][1])):
+            docked.add((node, port.side))
+            if node in boxes and other in boxes:
+                (nx, ny), (ox, oy) = boxes[node].center, boxes[other].center
+                if ox != nx and oy != ny:
+                    turns.add((node, ("right" if ox > nx else "left", "bottom" if oy > ny else "top")))
     labels = {}
     for element_id, box in sorted({**containers, **boxes}.items(), key=lambda item: (item[0] in boxes, ranks.get(item[0], -1), item[0])):
         kind = local_name(elements[element_id])
@@ -74,20 +95,26 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
                 siblings = sorted(i for i, e in elements.items() if e.get("attachedToRef") == host_id)
                 label = Box(boxes[host_id].center[0] - 70, boxes[host_id].bottom + 58 + siblings.index(element_id) * 52, 140, 44)
             else:
-                label = Box(box.center[0] - 70, box.bottom + 8, 140, 44)
+                pool = next((c for key, c in containers.items() if local_name(elements[key]) == "participant"
+                             and c.x <= box.x and c.y <= box.y and c.right >= box.right and c.bottom >= box.bottom), None)
+                lanes_boxes = [c for key, c in containers.items() if local_name(elements[key]) == "lane"]
+                sides = {side for node, side in docked if node == element_id}
+                corners = {corner for node, corner in turns if node == element_id}
+                label = node_label(box, elements[element_id].get("name"), sides, boxes, labels, pool, lanes_boxes, corners)
             labels[element_id] = label
             _bounds(ET.SubElement(shape, f"{{{BPMNDI}}}BPMNLabel"), label)
     # Feedback routes come last; they may use outer channels without changing
     # the forward happy-path rank assignment.
     previous = []
     for connection, source, target in sorted(connections, key=lambda item: (item[0].get("id") in feedback, local_name(item[0]) != "sequenceFlow", item[0].get("id"))):
-        positions = {**boxes, **{key: box for key, box in containers.items() if local_name(elements[key]) == "participant"}}
+        positions = {**boxes, **pools}
         if source not in positions or target not in positions:
             raise ValueError(f"Collegamento senza estremi visibili: {connection.get('id')}.")
         obstacle_boxes = dict(boxes)
         obstacle_boxes[source], obstacle_boxes[target] = positions[source], positions[target]
         points = orthogonal_route(source, target, obstacle_boxes, labels, previous,
-                                  downward=local_name(elements[source]) == "boundaryEvent")
+                                  downward=local_name(elements[source]) == "boundaryEvent",
+                                  ports=ports.get(connection.get("id")))
         edge = ET.SubElement(plane, f"{{{BPMNDI}}}BPMNEdge", {"id": allocate(f"{connection.get('id')}_di"), "bpmnElement": connection.get("id")})
         for x, y in points:
             ET.SubElement(edge, f"{{{DI}}}waypoint", {"x": _number(x), "y": _number(y)})
