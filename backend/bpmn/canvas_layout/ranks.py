@@ -64,4 +64,10 @@ def rank_process(process, nodes: dict) -> tuple[dict[str, int], set[str], dict[s
     for node_id, node in nodes.items():
         if local_name(node) == "boundaryEvent":
             ranks[node_id] = ranks.get(node.get("attachedToRef"), ranks[node_id])
+    # A compensation activity stands under the activity it undoes: its boundary
+    # event points to it through an association (OMG BPMN 2.0, 10.6).
+    for association in process.findall(tag("association")):
+        source, target = nodes.get(association.get("sourceRef")), association.get("targetRef")
+        if source is not None and local_name(source) == "boundaryEvent" and target in nodes and nodes[target].get("isForCompensation") == "true":
+            ranks[target] = ranks[source.get("id")]
     return ranks, feedback, parents

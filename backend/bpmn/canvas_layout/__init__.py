@@ -5,7 +5,7 @@ from .geometry import Box, layout_process, semantic_connections
 from .labels import branch_label, node_label
 from .lint import lint_visual_model
 from .normalizer import normalize_semantics
-from .policy import BPMN, BPMNDI, DC, DI, ENTERPRISE_POLICY, CanvasLayoutPolicy, local_name, tag
+from .policy import BPMN, BPMNDI, CONTAINER_TYPES, DC, DI, ENTERPRISE_POLICY, CanvasLayoutPolicy, local_name, tag
 from .ports import assign_ports
 from .router import orthogonal_route
 
@@ -90,7 +90,7 @@ def apply_enterprise_layout(process_model, *, process_name: str | None = None) -
         attrs = {"id": allocate(f"{element_id}_di"), "bpmnElement": element_id}
         if kind in {"participant", "lane"}:
             attrs["isHorizontal"] = "true"
-        if kind == "subProcess":
+        if kind in CONTAINER_TYPES:
             attrs["isExpanded"] = "false"
         shape = ET.SubElement(plane, f"{{{BPMNDI}}}BPMNShape", attrs)
         _bounds(shape, box)

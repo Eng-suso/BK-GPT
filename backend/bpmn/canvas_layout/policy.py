@@ -10,9 +10,12 @@ FLOW_TYPES = frozenset({
     "startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent",
     "boundaryEvent", "task", "userTask", "serviceTask", "sendTask", "receiveTask",
     "manualTask", "businessRuleTask", "scriptTask", "subProcess", "callActivity",
+    "transaction", "adHocSubProcess",
     "exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway",
     "complexGateway",
 })
+# Activities that hold a flow of their own; drawn collapsed, their content has no DI.
+CONTAINER_TYPES = frozenset({"subProcess", "transaction", "adHocSubProcess"})
 ARTIFACT_TYPES = frozenset({"dataObjectReference", "dataStoreReference", "textAnnotation"})
 
 

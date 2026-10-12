@@ -3,7 +3,7 @@ from collections import defaultdict
 from textwrap import wrap
 from dataclasses import dataclass
 
-from .policy import BPMN, ARTIFACT_TYPES, FLOW_TYPES, ENTERPRISE_POLICY, local_name, tag
+from .policy import BPMN, ARTIFACT_TYPES, CONTAINER_TYPES, FLOW_TYPES, ENTERPRISE_POLICY, local_name, tag
 from .ranks import rank_process
 from .tracks import assign_tracks
 
@@ -37,7 +37,7 @@ def semantic_connections(root, *, expanded_subprocesses=()):
     result = []
     for e in root.iter():
         ancestor = parents.get(e)
-        while ancestor is not None and (ancestor.tag != tag("subProcess") or ancestor.get("id") in expanded_subprocesses):
+        while ancestor is not None and (local_name(ancestor) not in CONTAINER_TYPES or ancestor.get("id") in expanded_subprocesses):
             ancestor = parents.get(ancestor)
         if ancestor is not None:
             continue  # Internal semantics survive; collapsed children have no DI.

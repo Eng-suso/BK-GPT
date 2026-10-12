@@ -4,7 +4,7 @@ from math import isfinite
 
 from .geometry import Box, semantic_connections
 from .labels import _crosses_lane_border
-from .policy import ARTIFACT_TYPES, BPMNDI, DC, DI, FLOW_TYPES, local_name, tag
+from .policy import ARTIFACT_TYPES, BPMN, BPMNDI, CONTAINER_TYPES, DC, DI, FLOW_TYPES, local_name, tag
 from .router import _cross, segment_hits_box
 from .router import _overlap as _segments_overlap
 
@@ -40,7 +40,8 @@ def lint_visual_model(root, *, manual: bool = False) -> dict:
                 labels[ref] = label_box
             except ValueError:
                 issues.append(f"Bounds etichetta non validi: {ref}.")
-    descendants = {sub.get("id"): {e.get("id") for e in sub.iter() if e is not sub} for sub in root.iter(tag("subProcess"))}
+    containers = [e for e in root.iter() if e.tag.startswith("{" + BPMN + "}") and local_name(e) in CONTAINER_TYPES]
+    descendants = {sub.get("id"): {e.get("id") for e in sub.iter() if e is not sub} for sub in containers}
     expanded = {s.get("bpmnElement") for s in root.iter(f"{{{BPMNDI}}}BPMNShape") if s.get("isExpanded") == "true"}
     hidden = {ref for sub_id, refs in descendants.items() if sub_id not in expanded for ref in refs}
     for ref, element in elements.items():
