@@ -15,6 +15,8 @@ from backend.bpmn.models import (
 _EVENT_DEFINITION_HOSTS = frozenset(
     {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent", "boundaryEvent"}
 )
+# Definitions whose XML tag is not "<kind>EventDefinition".
+_EVENT_DEFINITION_TAGS = {"compensation": "compensateEventDefinition", "cancel": "cancelEventDefinition"}
 # Gateways whose outgoing branches may name a default flow (OMG BPMN 2.0, 10.5).
 _GATEWAYS_WITH_DEFAULT = frozenset({"exclusiveGateway", "inclusiveGateway", "complexGateway"})
 # Event definitions that resolve to a reusable definitions-level root element.
@@ -122,7 +124,7 @@ def _loop_characteristics_xml(kind: str, condition: str | None = None) -> list[s
 
 
 def _event_definition_xml(
-    kind: str, ref_id: str | None, condition_expression: str | None
+    kind: str, ref_id: str | None, condition_expression: str | None, link_name: str | None = None
 ) -> str:
     """Generate an escaped BPMN event-definition XML fragment.
     
@@ -145,6 +147,11 @@ def _event_definition_xml(
     
     The function does not perform persistence or other external side effects.
     """
+    if kind == "link":
+        # Throw and catch pair up by the link name (OMG BPMN 2.0, 10.4.5).
+        return f'      <bpmn:linkEventDefinition name="{escape(link_name or "")}" />'
+    if kind in _EVENT_DEFINITION_TAGS:
+        return f"      <bpmn:{_EVENT_DEFINITION_TAGS[kind]} />"
     if kind == "conditional":
         condition = (condition_expression or "").strip()
         if not condition:
@@ -212,6 +219,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
                 attrs += ' cancelActivity="false"'
         if node.defaultFlowId and node.type in _GATEWAYS_WITH_DEFAULT:
             attrs += f' default="{escape(node.defaultFlowId)}"'
+        if node.parallelMultiple:
+            attrs += ' parallelMultiple="true"'
         if node.type == "eventBasedGateway" and node.instantiate:
             attrs += f' instantiate="true" eventGatewayType="{node.eventGatewayType}"'
         xml_parts.append(f"    <bpmn:{node.type}{attrs}>")
@@ -234,13 +243,16 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
                 f"{escape(node.activationCondition.strip())}</bpmn:activationCondition>"
             )
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
-            xml_parts.append(
-                _event_definition_xml(
-                    node.eventDefinition,
-                    event_ref_by_node.get(node.id),
-                    node.eventConditionExpression,
+            # A multiple event lists every trigger it reacts to (OMG BPMN 2.0, 10.4.5).
+            for kind in node.triggers if node.eventDefinition == "multiple" else [node.eventDefinition]:
+                xml_parts.append(
+                    _event_definition_xml(
+                        kind,
+                        event_ref_by_node.get(node.id),
+                        node.eventConditionExpression,
+                        link_name=node.name,
+                    )
                 )
-            )
         xml_parts.append(f"    </bpmn:{node.type}>")
 
     for flow in model.sequenceFlows:
