@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 // Fonts (self-hosted, replaces the Inter <link> in index.html)
 import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
+import "@fontsource-variable/hanken-grotesk";
 
 // Design token system — order matters: primitive -> semantic -> Tailwind bridge -> legacy
 import "../styles/tokens/primitive.css";

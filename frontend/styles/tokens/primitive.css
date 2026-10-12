@@ -246,7 +246,15 @@
   --curve-accelerate: cubic-bezier(0.2, 0, 1, 0.9);
   --curve-linear: cubic-bezier(0, 0, 1, 1);
 
+  /* DeliR brand, as on delir.it: the mark's navy tile and blue D, the wordmark ink and its blue dot. */
+  --brand-mark-tile: #0b1021;
+  --brand-mark-letter: #0071e3;
+  --brand-ink: #071126;
+  --brand-blue: #004580;
+
   --font-family-geist: "Geist Variable", Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* The DeliR wordmark and display headings, as on delir.it. */
+  --font-family-brand: "Hanken Grotesk Variable", "Hanken Grotesk", var(--font-family-geist);
   --font-family-geist-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --font-size-100: 12px;
