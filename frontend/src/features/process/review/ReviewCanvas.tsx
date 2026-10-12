@@ -1,3 +1,4 @@
+import { canvasThemeOptions } from "../bpmn/canvasTheme";
 import React from "react";
 import NavigatedViewer from "bpmn-js/lib/NavigatedViewer";
 import { Maximize2, Minus, Plus } from "lucide-react";
@@ -57,13 +58,7 @@ export function ReviewCanvas({ xml, nodes, selected, upstream, downstream, docum
     let mounted = true;
     setReady(false); setError(false); setAnchor(null);
     const tokens = getComputedStyle(host.current);
-    const instance = new NavigatedViewer({ container: host.current, textRenderer: {
-      defaultStyle: { fontFamily: tokens.getPropertyValue("--font-family-geist").trim(), fontSize: Number.parseFloat(tokens.getPropertyValue("--font-size-300")) },
-      externalStyle: { fontFamily: tokens.getPropertyValue("--font-family-geist").trim(), fontSize: Number.parseFloat(tokens.getPropertyValue("--font-size-100")) },
-    }, bpmnRenderer: {
-      defaultFillColor: tokens.getPropertyValue("--color-surface-primary").trim(),
-      defaultStrokeColor: tokens.getPropertyValue("--color-text-secondary").trim(),
-    } }) as BpmnViewer;
+    const instance = new NavigatedViewer({ container: host.current, ...canvasThemeOptions(host.current) }) as BpmnViewer;
     viewer.current = instance;
     const canvas = instance.get("canvas") as CanvasService;
     instance.on("element.click", (event: unknown) => {

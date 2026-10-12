@@ -1,3 +1,4 @@
+import { canvasThemeOptions } from "./canvasTheme";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Modeler from "bpmn-js/lib/Modeler";
@@ -294,6 +295,7 @@ export function useBpmnCanvas({
         const modeler = new Modeler({
           moddleExtensions: { delir: enterpriseModdle },
           container: containerRef.current,
+          ...canvasThemeOptions(containerRef.current),
           propertiesPanel: propertiesPanelRef.current
             ? { parent: propertiesPanelRef.current }
             : undefined,
