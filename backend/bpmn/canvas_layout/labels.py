@@ -1,5 +1,6 @@
 """Deterministic branch labels placed beside routes, clear of nodes and text."""
 from itertools import pairwise
+from math import ceil
 
 from .geometry import Box
 from .router import segment_hits_box
@@ -51,10 +52,35 @@ def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boun
     Below is the BPMN convention; when a flow docks there the label moves
     above, then to a corner. `turns` holds the corners, as `(horizontal,
     vertical)` sides, that a docked flow bends through on its way to a node
-    off both axes. The first placement that stays inside the pool, off lane
-    borders and clear of nodes, labels and those corners wins.
+    off both axes; they are a last resort. The first placement that stays
+    inside the pool, off lane borders and clear of nodes and labels wins; a
+    long name that fits nowhere on two lines is tried again, narrower.
     """
-    (width, height), gap = label_size(name), 8
+    gap = 8
+    sizes = [label_size(name)]
+    if sizes[0][0] > _NARROW:
+        sizes.append((_NARROW, 16 + 14 * ceil(len(name) * 6 / _NARROW)))
+    candidates = [
+        candidate
+        for width, height in sizes
+        for candidate in _node_label_candidates(box, width, height, gap, docked_sides, turns)
+    ]
+    for candidate in candidates:
+        if container and not (container.x <= candidate.x and container.y <= candidate.y and container.right >= candidate.right and container.bottom >= candidate.bottom):
+            continue
+        if any(_overlap(candidate.expanded(4), other) for other in [*boxes.values(), *labels.values()] if other != box):
+            continue
+        if any(_crosses_lane_border(candidate, lane) for lane in lane_boundaries):
+            continue
+        return candidate
+    # Crowded: keep at least the sides the flows dock on free.
+    return candidates[0]
+
+
+_NARROW = 100
+
+
+def _node_label_candidates(box, width, height, gap, docked_sides, turns):
     cx = box.center[0]
     placements = {
         "bottom": Box(cx - width / 2, box.bottom + gap, width, height),
@@ -66,17 +92,11 @@ def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boun
         ("left", "top"): Box(box.x - width - gap / 2, box.y - height - gap / 2, width, height),
         ("right", "top"): Box(box.right + gap / 2, box.y - height - gap / 2, width, height),
     }
-    candidates = [placements[side] for side in ("bottom", "top") if side not in docked_sides]
-    candidates += [corner for key, corner in corners.items() if key not in turns]
-    for candidate in candidates:
-        if container and not (container.x <= candidate.x and container.y <= candidate.y and container.right >= candidate.right and container.bottom >= candidate.bottom):
-            continue
-        if any(_overlap(candidate.expanded(4), other) for other in [*boxes.values(), *labels.values()] if other != box):
-            continue
-        if any(_crosses_lane_border(candidate, lane) for lane in lane_boundaries):
-            continue
-        return candidate
-    return placements["bottom"]
+    return [
+        *(placements[side] for side in ("bottom", "top") if side not in docked_sides),
+        *(corner for key, corner in corners.items() if key not in turns),
+        *(corner for key, corner in corners.items() if key in turns),  # the route bends around it
+    ]
 
 
 def _overlap(a, b):
