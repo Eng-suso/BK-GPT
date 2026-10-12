@@ -130,7 +130,7 @@ test("real against simulated: verdict, KPIs by activity and gaps on the process"
   await expect(step.getByRole("status").filter({ hasText: "Il simulato è vicino al reale" })).toContainText("+5%");
   await expect(step.getByText("Il log ha 3 casi, il run 300", { exact: false })).toBeVisible();
   const processTable = step.getByRole("table").first();
-  await expect(processTable.getByRole("row", { name: /Cycle time medio/ })).toContainText("+5%");
+  await expect(processTable.getByRole("row", { name: /Tempo medio di attraversamento/ })).toContainText("+5%");
   await expect(processTable.getByRole("row", { name: /Costo per caso/ })).toContainText("il log non ha costi");
 
   const activities = step.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });

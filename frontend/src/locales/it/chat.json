@@ -357,39 +357,39 @@
       "hint": "DeliR capisce dal messaggio che lavoro stai facendo."
     },
     "desk": {
-      "label": "Desk",
+      "label": "Oggi",
       "hint": "Cosa richiede la tua attenzione oggi: priorità, rischi, novità."
     },
     "prepare": {
-      "label": "Prepare",
+      "label": "Prepara",
       "hint": "Preparati a un incontro: cosa sappiamo, cosa no, domande da fare."
     },
     "align": {
-      "label": "Align",
+      "label": "Allinea",
       "hint": "Dove siamo e cosa non torna nel progetto."
     },
     "analyze": {
-      "label": "Analyze",
+      "label": "Analizza",
       "hint": "Cosa stiamo imparando, anche tra più processi."
     },
     "deliver": {
-      "label": "Deliver",
+      "label": "Consegna",
       "hint": "Trasforma il lavoro in qualcosa per il cliente."
     },
     "discover": {
-      "label": "Discover",
+      "label": "Scopri",
       "hint": "Come funziona davvero il processo: evidenze e contraddizioni."
     },
     "improve": {
-      "label": "Improve",
+      "label": "Migliora",
       "hint": "Come farlo meglio, dentro i vincoli: cause, alternative, To-Be."
     },
     "validate": {
-      "label": "Validate",
+      "label": "Valida",
       "hint": "Dimostra che il processo regge: evidenze, vincoli, target."
     },
     "map": {
-      "label": "Map",
+      "label": "Modella",
       "hint": "Costruisci o modifica il modello."
     },
     "review": {
@@ -397,7 +397,7 @@
       "hint": "Controlla che il modello sia scritto bene."
     },
     "compare": {
-      "label": "Compare",
+      "label": "Confronta",
       "hint": "Cosa cambia tra due versioni, e perché."
     }
   },
