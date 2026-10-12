@@ -13,6 +13,8 @@ export const ownerDashboardSchema = z.object({
   process: z.object({ name: z.string(), owner: z.string(), status: z.string(), stage: z.string() }),
   project_name: z.string(),
   client_name: z.string(),
+  // Un server non ancora aggiornato non lo manda: il cruscotto resta leggibile.
+  consultant_name: z.string().default(""),
   xml: z.string().nullable(),
   changes: z.array(z.object({
     id: z.string(), node_id: z.string(), node_name: z.string(), title: z.string(), detail: z.string(), created_at: z.string(),
@@ -36,6 +38,7 @@ export type OwnerDashboardData = {
   stage: HandoverStage;
   projectName: string;
   clientName: string;
+  consultantName: string;
   plain: PlainProcess;
   changes: OwnerDashboardPayload["changes"];
   openPoints: OwnerDashboardPayload["open_points"];
@@ -57,6 +60,7 @@ export function toOwnerDashboard(raw: unknown): OwnerDashboardData {
     stage: stageFromStatus(payload.process.status as Parameters<typeof stageFromStatus>[0]),
     projectName: payload.project_name,
     clientName: payload.client_name,
+    consultantName: payload.consultant_name.trim(),
     plain: readPlainProcess(payload.xml),
     changes: payload.changes,
     openPoints: payload.open_points,

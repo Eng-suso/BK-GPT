@@ -2,10 +2,10 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleHelp, FileText, GitPullRequest, MessageSquare, PauseCircle, UserRound } from "lucide-react";
 
+import { StatTile } from "@/components/data/StatTile";
 import { StatusIndicator } from "@/components/status/StatusIndicator";
 import type { StatusTone } from "@/components/status/tones";
 import { Surface } from "@/ui/surface";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/ui/table";
 import { formatCurrency, formatDuration } from "../simulation/simulationResults";
 import type { OwnerDashboardData } from "./dashboardContract";
 import type { HandoverStage, TimelineEvent } from "./handoverModel";
@@ -61,38 +61,31 @@ export function OwnerDashboardView({ data, toolbar }: { data: OwnerDashboardData
         <Surface variant="panel" className="owner-dashboard-status" data-stage={data.stage}>
           <StatusIndicator tone={STAGE_TONE[data.stage]} label={t(`handover.dashboard.status.${data.stage}`)} className="owner-dashboard-status-label" />
           <p>{t(`handover.dashboard.statusDetail.${data.stage}`)}</p>
+          {data.consultantName && <p className="owner-dashboard-consultant"><UserRound aria-hidden className="size-3.5" />{t("handover.dashboard.consultant", { name: data.consultantName })}</p>}
         </Surface>
+
+        <section className="handover-section" aria-labelledby="owner-glance">
+          <h2 id="owner-glance" className="sr-only">{t("handover.dashboard.glance.title")}</h2>
+          <div className="owner-dashboard-glance">
+            <StatTile label={t("handover.dashboard.glance.steps")} value={data.plain.steps.filter((step) => step.kind === "activity").length} />
+            <StatTile label={t("handover.dashboard.glance.people")} value={data.plain.actors.length} />
+            <StatTile label={t("handover.dashboard.glance.changes")} value={data.changes.length} />
+          </div>
+        </section>
 
         <PlainProcessSection plain={data.plain} changedTitles={changedTitles} />
 
         <section className="handover-section" aria-labelledby="owner-results">
           <header className="handover-section-heading">
             <h2 id="owner-results">{t("handover.dashboard.results")}</h2>
-            {data.results && <p>{t("handover.dashboard.resultsDetail", { scenario: data.results.scenario_name })}</p>}
+            {data.results && <p>{t("handover.dashboard.resultsNote", { scenario: data.results.scenario_name })}</p>}
           </header>
           {results.length === 0 ? (
             <Surface variant="inset" className="handover-empty">{t("handover.dashboard.resultsEmpty")}</Surface>
           ) : (
-            <Surface variant="panel" className="owner-dashboard-table">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>{t("handover.dashboard.indicator")}</TableHead>
-                    <TableHead className="text-right">{t("handover.dashboard.expected")}</TableHead>
-                    <TableHead className="text-right">{t("handover.dashboard.measured")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {results.map((row) => (
-                    <TableRow key={row.id} className="hover:bg-transparent">
-                      <TableCell className="font-medium">{row.label}</TableCell>
-                      <TableCell className="text-right tabular-nums">{row.value}</TableCell>
-                      <TableCell className="text-right text-muted-foreground">{t("handover.dashboard.notMeasured")}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Surface>
+            <div className="owner-dashboard-results">
+              {results.map((row) => <StatTile key={row.id} label={row.label} value={row.value} className="owner-dashboard-result" />)}
+            </div>
           )}
         </section>
 
@@ -104,7 +97,9 @@ export function OwnerDashboardView({ data, toolbar }: { data: OwnerDashboardData
             <ol className="handover-list">
               {data.changes.map((change) => (
                 <li key={change.id}><Surface asChild variant="panel"><article className="handover-change">
-                  <div className="handover-change-context"><span>{plainNumber.has(change.node_id) ? t("handover.dashboard.stepRef", { n: plainNumber.get(change.node_id), name: change.node_name }) : change.node_name}</span></div>
+                  <div className="handover-change-context">{plainNumber.has(change.node_id)
+                    ? <a href={`#plain-step-${plainNumber.get(change.node_id)}`} className="owner-dashboard-step-link" aria-label={t("handover.dashboard.goToStep", { n: plainNumber.get(change.node_id) })}>{t("handover.dashboard.stepRef", { n: plainNumber.get(change.node_id), name: change.node_name })}</a>
+                    : <span>{change.node_name}</span>}</div>
                   <h3>{change.title}</h3>
                   {change.detail && <dl><div><dt>{t("handover.dashboard.why")}</dt><dd>{change.detail}</dd></div></dl>}
                 </article></Surface></li>
@@ -151,7 +146,7 @@ export function OwnerDashboardView({ data, toolbar }: { data: OwnerDashboardData
         </div>
 
         <footer className="owner-dashboard-footer">
-          <p>{t("handover.dashboard.contact")}</p>
+          <p>{data.consultantName ? t("handover.dashboard.replyTo", { name: data.consultantName }) : t("handover.dashboard.contact")}</p>
           <p>{t("handover.dashboard.footer")}</p>
         </footer>
       </main>

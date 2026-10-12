@@ -65,7 +65,7 @@ function Step({ step, changes }: { step: PlainStep; changes: string[] }): React.
     ? (single.kind === "end" ? k("thenEnd") : k("then", { n: single.number })) : null;
 
   return (
-    <li className="plain-step" data-kind={step.kind} data-changed={changes.length > 0 || undefined}>
+    <li id={`plain-step-${step.number}`} className="plain-step" data-kind={step.kind} data-changed={changes.length > 0 || undefined}>
       <span className="plain-step-marker" aria-hidden>{Icon ? <Icon className="size-3.5" /> : step.number}</span>
       <div className="plain-step-body">
         <p className="plain-step-kicker">
