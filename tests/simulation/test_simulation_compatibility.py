@@ -233,3 +233,24 @@ def test_the_api_on_an_unknown_model_is_404(client):
     response = client.post(_url("non-esiste"), json={"current_bpmn_xml": SIMPLE_BPMN})
 
     assert response.status_code == 404
+
+
+def test_an_instantiating_event_gateway_is_reported_as_approximated():
+    xml = """<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D">
+  <bpmn:process id="P">
+    <bpmn:eventBasedGateway id="G" instantiate="true" />
+    <bpmn:intermediateCatchEvent id="Mail"><bpmn:messageEventDefinition /></bpmn:intermediateCatchEvent>
+    <bpmn:task id="A" />
+    <bpmn:endEvent id="E" />
+    <bpmn:sequenceFlow id="F1" sourceRef="G" targetRef="Mail" />
+    <bpmn:sequenceFlow id="F2" sourceRef="Mail" targetRef="A" />
+    <bpmn:sequenceFlow id="F3" sourceRef="A" targetRef="E" />
+  </bpmn:process>
+</bpmn:definitions>"""
+
+    report = bpmn_compatibility_report(xml)
+    entry = next(item for item in report.elements if item.element_id == "G")
+
+    assert entry.status == "approximated"
+    assert report.undeclared == 0

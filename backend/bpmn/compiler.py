@@ -55,12 +55,18 @@ _INTERMEDIATE_EVENT_DEFINITION: dict[str, Literal["timer", "message"]] = {
 _GATEWAY_BPMN_TYPE: dict[str, str] = {
     "exclusive": "exclusiveGateway",
     "inclusive": "inclusiveGateway",
+    "parallel": "parallelGateway",
+    "complex": "complexGateway",
     "event_based": "eventBasedGateway",
 }
 
 # Gateways whose outgoing flows carry data-based condition expressions. Parallel
 # and event-based gateways never do (they fork on tokens / on which event fires).
-_DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway"})
+_DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway", "complexGateway"})
+# Splits that may run several branches at once: where those branches meet again
+# a join of the same type waits for them (OMG BPMN 2.0, 10.5.4-10.5.7). An
+# exclusive split runs one branch, so its branches merge without a gateway.
+_SYNCHRONIZING_GATEWAYS = frozenset({"parallelGateway", "inclusiveGateway", "complexGateway"})
 _SIGNAL_WORDS = ("segnale", "signal", "broadcast")
 
 
@@ -146,15 +152,36 @@ def build_bpmn_semantic_model(
         used_ids=used_ids,
         edges_by_original=sequence_flow_edges_by_endpoint(process),
     )
+    step_node_by_original_id: dict[str, str] = {}
+    gateway_by_decision_id: dict[str, BPMNFlowNode] = {}
+    gateway_by_step_id: dict[str, BPMNFlowNode] = {}
+    instantiating = next(
+        (d for d in process.decisions if d.gateway_type == "event_based" and d.instantiate), None
+    )
+    if instantiating is not None:
+        # The first event to arrive creates the instance: the gateway takes the
+        # start event's place (OMG BPMN 2.0, 10.5.6).
+        nodes.clear()
+        _place_gateway(
+            instantiating,
+            anchor_id=instantiating.id,
+            lane_id=None,
+            used_ids=used_ids,
+            nodes=nodes,
+            registry=registry,
+            gateway_by_decision_id=gateway_by_decision_id,
+            gateway_by_step_id=gateway_by_step_id,
+        )
     for event in process.events:
         if event.type == "start":
             registry.map(event.id, nodes[0].id)
 
     main_chain: list[str] = [nodes[0].id]
-    step_node_by_original_id: dict[str, str] = {}
-    gateway_by_decision_id: dict[str, BPMNFlowNode] = {}
-    gateway_by_step_id: dict[str, BPMNFlowNode] = {}
     decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_chain)
+    if instantiating is not None:
+        decision_by_anchor_step_id = {
+            anchor: decision for anchor, decision in decision_by_anchor_step_id.items() if decision is not instantiating
+        }
     warnings.extend(decision_anchor_warnings)
 
     for index, item in enumerate(ordered_chain, start=1):
@@ -262,6 +289,7 @@ def build_bpmn_semantic_model(
         warnings=warnings,
     )
     registry.apply_edge_overlay()
+    _add_synchronizing_joins(nodes, registry, gateway_by_decision_id, used_ids)
     _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
     _assign_gateway_defaults(nodes, flows, warnings, declared_default_ids={flow.id for flow in declared_defaults})
@@ -459,11 +487,16 @@ def _place_gateway(
     gateway_by_step_id: dict[str, BPMNFlowNode],
 ) -> BPMNFlowNode:
     """Create a decision's gateway after its anchor step and register it everywhere it is looked up."""
+    gateway_type = _gateway_bpmn_type(decision)
+    instantiate = gateway_type == "eventBasedGateway" and decision.instantiate
     gateway = BPMNFlowNode(
         id=xml_id(decision.id, "Gateway", used_ids),
-        type=_gateway_bpmn_type(decision),
+        type=gateway_type,
         name=decision.label,
         laneId=lane_id,
+        activationCondition=(decision.activation_condition or None) if gateway_type == "complexGateway" else None,
+        instantiate=instantiate,
+        eventGatewayType="Parallel" if instantiate and decision.event_gateway_type == "parallel" else "Exclusive",
         documentation=decision_documentation(decision),
         sourceRefs=[source_ref_id("decisions", decision.id)],
     )
@@ -1250,6 +1283,73 @@ def _normalize_event_gateways(
             flow.name = None
 
 
+def _add_synchronizing_joins(
+    nodes: list[BPMNFlowNode],
+    registry: FlowRegistry,
+    gateway_by_decision_id: dict[str, BPMNFlowNode],
+    used_ids: set[str],
+) -> None:
+    """Close each parallel, inclusive or complex split with a join of its own type.
+
+    The join goes in front of the first node where two or more of the split's
+    branches meet; without it that node would run once per arriving token. A
+    flow coming back from after the meeting point (a rework loop) is not a
+    branch and stays where it is.
+    """
+    successors: dict[str, list[str]] = {}
+    for flow in registry.flows:
+        successors.setdefault(flow.sourceRef, []).append(flow.targetRef)
+
+    def reachable(start: str, blocked: str | None = None) -> set[str]:
+        seen, stack = set(), [start]
+        while stack:
+            node_id = stack.pop()
+            if node_id in seen or node_id == blocked:
+                continue
+            seen.add(node_id)
+            stack.extend(successors.get(node_id, []))
+        return seen
+
+    for split in list(gateway_by_decision_id.values()):
+        if split.type not in _SYNCHRONIZING_GATEWAYS or registry.outgoing_count(split.id) < 2:
+            continue
+        order = _breadth_first(split.id, successors)
+        for meeting in order[1:]:
+            region = reachable(split.id, blocked=meeting)
+            downstream = reachable(meeting)
+            branches = [
+                flow for flow in registry.flows
+                if flow.targetRef == meeting and flow.sourceRef in region and flow.sourceRef not in downstream
+            ]
+            if len(branches) < 2:
+                continue
+            join = BPMNFlowNode(
+                id=xml_id(f"{split.id}_join", "Gateway", used_ids),
+                type=split.type,
+                name="",
+                laneId=next((n.laneId for n in nodes if n.id == meeting), split.laneId),
+                activationCondition=split.activationCondition,
+            )
+            nodes.insert(next(i for i, n in enumerate(nodes) if n.id == meeting), join)
+            for flow in branches:
+                registry.retarget(flow, join.id)
+            registry.add(join.id, meeting)
+            break
+
+
+def _breadth_first(start: str, successors: dict[str, list[str]]) -> list[str]:
+    """Nodes reachable from `start`, nearest first."""
+    order, seen, queue = [], {start}, deque([start])
+    while queue:
+        node_id = queue.popleft()
+        order.append(node_id)
+        for target in successors.get(node_id, []):
+            if target not in seen:
+                seen.add(target)
+                queue.append(target)
+    return order
+
+
 def _assign_gateway_defaults(
     nodes: list[BPMNFlowNode],
     flows: list,
@@ -1274,7 +1374,7 @@ def _assign_gateway_defaults(
         outgoing.setdefault(flow.sourceRef, []).append(flow)
 
     for node in nodes:
-        if node.type not in {"exclusiveGateway", "inclusiveGateway"}:
+        if node.type not in _DATA_BASED_GATEWAYS:
             continue
         branches = outgoing.get(node.id, [])
         if len(branches) < 2:
@@ -1304,8 +1404,9 @@ def _label_decision_outcomes(
     The branch takes the outcome's label and, unless the outcome is the default
     one, its condition: in BPMN the default flow is the one without a condition.
     Only flows already drawn are touched; an outcome never becomes a new branch here.
-    Event-based gateways are left alone: their branches are chosen by the event
-    that arrives first, never by a condition.
+    Parallel branches take the label only: all of them always run. Event-based
+    gateways are left alone: the event that arrives first picks the branch, and
+    only a flow edge naming that event says what its catch event waits for.
 
     Returns:
         The branches of the outcomes the plan marks as default.
@@ -1313,7 +1414,7 @@ def _label_decision_outcomes(
     defaults: list[BPMNSequenceFlow] = []
     for decision in process.decisions:
         gateway = gateway_by_decision_id.get(decision.id)
-        if gateway is None or gateway.type not in _DATA_BASED_GATEWAYS:
+        if gateway is None or gateway.type == "eventBasedGateway":
             continue
         for outcome in decision.outcome_details:
             target = registry.compiled_for(outcome.target_path_id or outcome.target_ref or "")
@@ -1322,6 +1423,8 @@ def _label_decision_outcomes(
             flow = registry.add(gateway.id, target, name=outcome.label)
             if flow is None:
                 continue
+            if gateway.type == "parallelGateway":
+                continue  # every branch runs: no default, no condition
             if outcome.is_default:
                 defaults.append(flow)
             elif outcome.condition and not flow.conditionExpression:
@@ -1347,7 +1450,7 @@ def _complete_flow_graph(
         warnings: List to append warning messages to.
     """
     node_type_by_id = {node.id: node.type for node in nodes}
-    mergeable = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "endEvent"}
+    mergeable = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "complexGateway", "endEvent"}
 
     for edge in process.flow_edges:
         if edge.kind != "sequence":

@@ -233,7 +233,16 @@ class ProcessDecision(BaseModel):
     id: str
     label: str
     question: str | None = None
-    gateway_type: Literal["exclusive", "inclusive", "event_based"] = "exclusive"
+    # exclusive = XOR, one branch; inclusive = OR, every branch whose condition
+    # holds; parallel = AND, every branch always; complex = a rule over the
+    # branches (activation_condition, e.g. "2 offerte su 3"); event_based = the
+    # first event that arrives picks the branch.
+    gateway_type: Literal["exclusive", "inclusive", "parallel", "complex", "event_based"] = "exclusive"
+    activation_condition: str | None = None
+    # event_based only: the gateway itself starts the process (no start event),
+    # and with event_gateway_type="parallel" it waits for every event.
+    instantiate: bool = False
+    event_gateway_type: Literal["exclusive", "parallel"] = "exclusive"
     outcomes: list[str] = Field(default_factory=list)
     outcome_details: list[ProcessDecisionOutcome] = Field(default_factory=list)
     source_evidence: list[str] = Field(default_factory=list)
@@ -1301,8 +1310,15 @@ Regole:
 - Per ogni decisione inserisci question, outcomes leggibili e outcome_details
   con condizione, target_ref o target_path_id, eventuale rejoins_at o ends_process.
 - Imposta gateway_type: exclusive (un solo esito, XOR), inclusive (piu' esiti
-  possono valere insieme, OR) oppure event_based quando la diramazione dipende
-  da quale evento arriva prima (messaggio, timer, segnale).
+  possono valere insieme, OR), parallel (tutti i rami partono sempre insieme,
+  AND: lavori svolti in contemporanea), complex (una regola sui rami che non e'
+  ne' XOR ne' OR, es. "si prosegue quando arrivano 2 offerte su 3": scrivila in
+  activation_condition) oppure event_based quando la diramazione dipende da
+  quale evento arriva prima (messaggio, timer, segnale). Se il processo stesso
+  parte dal primo di piu' eventi possibili usa event_based con instantiate=true
+  (event_gateway_type=parallel solo se servono tutti gli eventi). I rami di un
+  parallel, inclusive o complex che rientrano nello stesso passo vanno indicati
+  con rejoins_at: il compilatore aggiunge il join dello stesso tipo.
 - In boundaries.terminating_ends metti le fini che interrompono l'intero
   processo (annullamento, blocco, stop immediato che ferma anche il lavoro in
   parallelo), non le semplici fini con esito negativo.

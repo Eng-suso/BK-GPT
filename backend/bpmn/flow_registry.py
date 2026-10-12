@@ -150,6 +150,16 @@ class FlowRegistry:
             self._source_alias[from_id] = to_id
         return moved
 
+    def retarget(self, flow: BPMNSequenceFlow, target: str) -> None:
+        """Point `flow` at `target`, keeping its id, name and condition."""
+        old_pair = (flow.sourceRef, flow.targetRef)
+        self._flow_by_pair.pop(old_pair, None)
+        self.seen_pairs.discard(old_pair)
+        flow.targetRef = target
+        new_pair = (flow.sourceRef, target)
+        self._flow_by_pair[new_pair] = flow
+        self.seen_pairs.add(new_pair)
+
     def insert_node(self, source: str, target: str, middle: str) -> None:
         """Splice `middle` onto the existing `source -> target` edge, turning it
         into `source -> middle` and adding `middle -> target`. No-op if the edge

@@ -680,7 +680,7 @@ def selected_canvas_route(state: CanvasState) -> str:
 _DRAFTED_NODE_KINDS = {
     "attivita'": ("task", "userTask", "manualTask", "serviceTask", "sendTask", "receiveTask",
                   "businessRuleTask", "scriptTask", "subProcess", "callActivity"),
-    "decisioni": ("exclusiveGateway", "inclusiveGateway", "eventBasedGateway", "complexGateway"),
+    "decisioni": ("exclusiveGateway", "inclusiveGateway", "parallelGateway", "eventBasedGateway", "complexGateway"),
     "ruoli": ("lane",),
 }
 _DRAFTED_NODE_SINGULAR = {"attivita'": "attivita'", "decisioni": "decisione", "ruoli": "ruolo"}

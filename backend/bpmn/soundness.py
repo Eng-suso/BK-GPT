@@ -28,12 +28,14 @@ IssueCode = Literal[
     "idle_gateway",
     "parallel_split_without_join",
     "event_gateway_bad_target",
+    "parallel_gateway_condition",
+    "instantiating_gateway_with_incoming",
 ]
 
 # An event-based gateway may only fork onto elements that consume a trigger.
 _EVENT_GATEWAY_TARGETS = {"intermediateCatchEvent", "receiveTask"}
 
-_GATEWAY_TYPES = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"}
+_GATEWAY_TYPES = {"exclusiveGateway", "parallelGateway", "inclusiveGateway", "complexGateway", "eventBasedGateway"}
 
 
 @dataclass(frozen=True)
@@ -88,7 +90,12 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
         out_degree[flow.sourceRef] += 1
         in_degree[flow.targetRef] += 1
 
-    starts = [node.id for node in model.flowNodes if node.type == "startEvent"]
+    # An instantiating event-based gateway starts the process in place of a
+    # start event (OMG BPMN 2.0, 10.5.6).
+    starts = [
+        node.id for node in model.flowNodes
+        if node.type == "startEvent" or (node.type == "eventBasedGateway" and node.instantiate)
+    ]
     ends = [node.id for node in model.flowNodes if node.type == "endEvent"]
     if not starts:
         report.errors.append(ControlFlowIssue("no_start_event", None, None, "il processo non ha un evento iniziale."))
@@ -164,7 +171,36 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
 
     _check_parallel_balance(model, in_degree, out_degree, report)
     _check_event_gateways(model, out_degree, report)
+    _check_gateway_semantics(model, in_degree, report)
     return report
+
+
+def _check_gateway_semantics(model, in_degree, report: ControlFlowReport) -> None:
+    """A parallel gateway's branches carry no condition; an instantiating gateway has no incoming flow.
+
+    Both are OMG BPMN 2.0 constraints (10.5.4, 10.5.6): a condition on a
+    parallel branch is never evaluated, and a flow into a gateway that creates
+    the process instance would start a second process.
+    """
+    parallel = {node.id: node for node in model.flowNodes if node.type == "parallelGateway"}
+    for flow in model.sequenceFlows:
+        gateway = parallel.get(flow.sourceRef)
+        if gateway is not None and flow.conditionExpression:
+            report.errors.append(
+                ControlFlowIssue(
+                    "parallel_gateway_condition", gateway.id, gateway.name,
+                    f"il gateway parallelo '{gateway.name}' ha un ramo con condizione: "
+                    "un parallelo attiva sempre tutti i rami, la condizione va tolta.",
+                )
+            )
+    for node in model.flowNodes:
+        if node.type == "eventBasedGateway" and node.instantiate and in_degree[node.id]:
+            report.errors.append(
+                ControlFlowIssue(
+                    "instantiating_gateway_with_incoming", node.id, node.name,
+                    f"il gateway a eventi '{node.name}' avvia il processo e non puo' avere frecce in ingresso.",
+                )
+            )
 
 
 def _classify_gateway(node, in_deg: int, out_deg: int, report: ControlFlowReport) -> None:

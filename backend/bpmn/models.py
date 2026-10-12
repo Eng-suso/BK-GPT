@@ -45,6 +45,7 @@ class BPMNFlowNode(BaseModel):
         "exclusiveGateway",
         "parallelGateway",
         "inclusiveGateway",
+        "complexGateway",
         "eventBasedGateway",
         "intermediateCatchEvent",
         "intermediateThrowEvent",
@@ -67,6 +68,12 @@ class BPMNFlowNode(BaseModel):
     attachedToRef: str | None = None
     cancelActivity: bool = True
     defaultFlowId: str | None = None
+    # Complex gateway: when the join fires, e.g. "2 of 3 offers arrived" (OMG 10.5.7).
+    activationCondition: str | None = None
+    # Event-based gateway that starts the process (no incoming flow); "Parallel"
+    # waits for every event, which OMG allows only on an instantiating gateway (10.5.6).
+    instantiate: bool = False
+    eventGatewayType: Literal["Exclusive", "Parallel"] = "Exclusive"
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
 
@@ -83,6 +90,12 @@ class BPMNFlowNode(BaseModel):
             )
         if self.eventDefinition == "terminate" and self.type != "endEvent":
             raise ValueError("a terminate event definition is only valid on an endEvent")
+        if self.activationCondition is not None and self.type != "complexGateway":
+            raise ValueError("an activation condition is only valid on a complexGateway")
+        if (self.instantiate or self.eventGatewayType != "Exclusive") and self.type != "eventBasedGateway":
+            raise ValueError("instantiate and eventGatewayType are only valid on an eventBasedGateway")
+        if self.eventGatewayType == "Parallel" and not self.instantiate:
+            raise ValueError("a parallel event-based gateway must instantiate the process")
         return self
 
 
@@ -202,7 +215,7 @@ class GatewaySpec(BaseModel):
     id: str
     name: str
     type: Literal[
-        "exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"
+        "exclusiveGateway", "parallelGateway", "inclusiveGateway", "complexGateway", "eventBasedGateway"
     ] = "exclusiveGateway"
     anchor_step_id: str | None = None
     outcomes: list[str] = Field(default_factory=list)

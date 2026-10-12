@@ -15,6 +15,8 @@ from backend.bpmn.models import (
 _EVENT_DEFINITION_HOSTS = frozenset(
     {"startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent", "boundaryEvent"}
 )
+# Gateways whose outgoing branches may name a default flow (OMG BPMN 2.0, 10.5).
+_GATEWAYS_WITH_DEFAULT = frozenset({"exclusiveGateway", "inclusiveGateway", "complexGateway"})
 # Event definitions that resolve to a reusable definitions-level root element.
 # (kind -> (root tag, ref attribute, id prefix))
 _REFERENCEABLE_EVENT_DEFINITIONS = {
@@ -208,8 +210,10 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
             attrs += f' attachedToRef="{escape(node.attachedToRef)}"'
             if not node.cancelActivity:
                 attrs += ' cancelActivity="false"'
-        if node.defaultFlowId and node.type in {"exclusiveGateway", "inclusiveGateway"}:
+        if node.defaultFlowId and node.type in _GATEWAYS_WITH_DEFAULT:
             attrs += f' default="{escape(node.defaultFlowId)}"'
+        if node.type == "eventBasedGateway" and node.instantiate:
+            attrs += f' instantiate="true" eventGatewayType="{node.eventGatewayType}"'
         xml_parts.append(f"    <bpmn:{node.type}{attrs}>")
         if node.documentation or node.sourceRefs:
             xml_parts.extend(
@@ -223,6 +227,11 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
         if node.loopCharacteristics != "none" and node.type in _ACTIVITY_NODE_TYPES:
             xml_parts.extend(
                 _loop_characteristics_xml(node.loopCharacteristics, node.loopConditionExpression)
+            )
+        if node.type == "complexGateway" and node.activationCondition and node.activationCondition.strip():
+            xml_parts.append(
+                '      <bpmn:activationCondition xsi:type="bpmn:tFormalExpression">'
+                f"{escape(node.activationCondition.strip())}</bpmn:activationCondition>"
             )
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
             xml_parts.append(

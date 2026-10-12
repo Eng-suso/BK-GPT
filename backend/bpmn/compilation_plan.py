@@ -36,7 +36,7 @@ _EVENT_NODE_TYPES = {
     "startEvent", "endEvent", "intermediateCatchEvent", "intermediateThrowEvent", "boundaryEvent"
 }
 _GATEWAY_NODE_TYPES = {
-    "exclusiveGateway", "parallelGateway", "inclusiveGateway", "eventBasedGateway"
+    "exclusiveGateway", "parallelGateway", "inclusiveGateway", "complexGateway", "eventBasedGateway"
 }
 
 
