@@ -104,11 +104,13 @@ def normalize_bpmn_for_prosimos(bpmn_xml: str) -> str:
     changed = False
     for process in root.iter(_q(BPMN_MODEL_NS, "process")):
         changed |= _strip_noise(process)
+        changed |= _drop_event_started_activities(process)
         changed |= _downcast_activities(process)
         changed |= _rewrite_gateways(process)
         changed |= _start_instantiating_gateways(process)
         exception_nodes = _exception_branch_ids(process)
         changed |= _drop_boundary_events(process)
+        changed |= _join_link_events(process)
         changed |= _splice_passthrough_events(process)
         changed |= _collapse_start_events(process)
         changed |= _collapse_end_events(process)
@@ -233,6 +235,21 @@ def _keep_only_flow_refs(element: ElementTree.Element) -> None:
             element.remove(child)
 
 
+def _drop_event_started_activities(process: ElementTree.Element) -> bool:
+    """Event sub-processes and compensation activities are off the sequence flow.
+
+    The engine only runs what the flow reaches; left in, they would be
+    disconnected tasks that fail preflight.
+    """
+    dropped = [
+        element for element in list(process)
+        if element.get("triggeredByEvent") == "true" or element.get("isForCompensation") == "true"
+    ]
+    for element in dropped:
+        process.remove(element)
+    return bool(dropped)
+
+
 def _rewrite_gateways(process: ElementTree.Element) -> bool:
     changed = False
     for element in process.iter():
@@ -290,6 +307,36 @@ def _drop_boundary_events(process: ElementTree.Element) -> bool:
             process.remove(flow)
 
     return True
+
+
+def _join_link_events(process: ElementTree.Element) -> bool:
+    """Draw the flow a link pair stands for, so splicing the pair out keeps the path.
+
+    A link throw and the link catch with the same name are one flow drawn in two
+    pieces (OMG BPMN 2.0, 10.4.5); the engine needs it as a real flow.
+    """
+    def link_name(event: ElementTree.Element) -> str | None:
+        definition = event.find(_q(BPMN_MODEL_NS, "linkEventDefinition"))
+        return None if definition is None else " ".join((definition.get("name") or "").split()).casefold()
+
+    catches = {
+        link_name(event): event.get("id")
+        for event in process.findall(_q(BPMN_MODEL_NS, "intermediateCatchEvent"))
+        if link_name(event) is not None
+    }
+    changed = False
+    for throw in process.findall(_q(BPMN_MODEL_NS, "intermediateThrowEvent")):
+        target = catches.get(link_name(throw)) if link_name(throw) is not None else None
+        if target is None:
+            continue
+        process.append(
+            ElementTree.Element(
+                _q(BPMN_MODEL_NS, "sequenceFlow"),
+                {"id": f"{throw.get('id')}_link", "sourceRef": throw.get("id", ""), "targetRef": target},
+            )
+        )
+        changed = True
+    return changed
 
 
 def _splice_passthrough_events(process: ElementTree.Element) -> bool:

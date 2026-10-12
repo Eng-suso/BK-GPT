@@ -113,6 +113,14 @@ class _ProcessReport:
         if not element.tag.startswith(f"{{{BPMN_MODEL_NS}}}") or not element_id:
             return []
         entries = [self._classify(element, local, element_id, flattened_into)]
+        if element.get("triggeredByEvent") == "true" or element.get("isForCompensation") == "true":
+            return _entry(
+                element, local, "removed", "medium",
+                note=(
+                    "Parte da un evento, non dal flusso: il motore non lo esegue, "
+                    "quindi i casi che nella realta' lo attivano non ne pagano tempo e costo."
+                ),
+            )
         if local in _SUBPROCESS_TAGS:
             # I passi interni spariscono dentro la scatola nera del sottoprocesso.
             parent = flattened_into or element_id
@@ -156,6 +164,14 @@ class _ProcessReport:
                 else "Elemento descrittivo: il motore non lo simula e i KPI non cambiano."
             )
             return _entry(element, local, "removed", "none", note=note)
+        if element.get("triggeredByEvent") == "true" or element.get("isForCompensation") == "true":
+            return _entry(
+                element, local, "removed", "medium",
+                note=(
+                    "Parte da un evento, non dal flusso: il motore non lo esegue, "
+                    "quindi i casi che nella realta' lo attivano non ne pagano tempo e costo."
+                ),
+            )
         if local in _SUBPROCESS_TAGS:
             return _entry(
                 element, local, "flattened", "high", simulated_as="task",
@@ -414,12 +430,12 @@ def _event_kind(element: ElementTree.Element) -> str:
         "conditionalEventDefinition": "condizionale",
         "compensateEventDefinition": "di compensazione",
         "cancelEventDefinition": "di annullamento",
+        "linkEventDefinition": "di collegamento",
     }
-    for child in element:
-        kind = names.get(_local(child.tag))
-        if kind:
-            return kind
-    return "senza tipo"
+    kinds = [names[_local(child.tag)] for child in element if _local(child.tag) in names]
+    if len(kinds) > 1:
+        return "multiplo"
+    return kinds[0] if kinds else "senza tipo"
 
 
 def _q(tag: str) -> str:

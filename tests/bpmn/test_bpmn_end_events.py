@@ -101,7 +101,7 @@ def test_terminate_event_definition_rejected_on_a_non_end_node():
 
     from backend.bpmn.models import BPMNFlowNode
 
-    with pytest.raises(ValueError, match="only valid on an endEvent"):
+    with pytest.raises(ValueError, match="terminate event definition is not valid on a"):
         BPMNFlowNode(id="s", type="startEvent", name="s", eventDefinition="terminate")
 
 

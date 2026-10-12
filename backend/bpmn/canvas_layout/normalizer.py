@@ -5,7 +5,7 @@ import re
 
 from defusedxml.ElementTree import fromstring, iterparse
 
-from .policy import ARTIFACT_TYPES, BPMN, BPMNDI, FLOW_TYPES, local_name, tag
+from .policy import ARTIFACT_TYPES, BPMN, BPMNDI, CONTAINER_TYPES, FLOW_TYPES, local_name, tag
 
 
 def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element:
@@ -40,7 +40,8 @@ def normalize_semantics(xml: str, process_name: str | None = None) -> ET.Element
     processes = root.findall(tag("process"))
     if not processes:
         raise ValueError("Il modello semantico non contiene un processo.")
-    for process in [*processes, *root.iter(tag("subProcess"))]:
+    containers = [e for e in root.iter() if e.tag.startswith("{" + BPMN + "}") and local_name(e) in CONTAINER_TYPES]
+    for process in [*processes, *containers]:
         if not process.get("id"):
             raise ValueError("Il processo deve avere un identificativo stabile.")
         if process in processes and process_name and not process.get("name"):

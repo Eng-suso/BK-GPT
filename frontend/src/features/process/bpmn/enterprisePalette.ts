@@ -7,8 +7,8 @@ for (const [kind, type, definitions] of [
   ["start", "StartEvent", ["message", "timer", "conditional", "signal"]],
   ["catch", "IntermediateCatchEvent", ["message", "timer", "conditional", "signal", "link"]],
   ["throw", "IntermediateThrowEvent", ["message", "signal", "escalation", "compensate", "link"]],
-  ["end", "EndEvent", ["message", "error", "escalation", "signal", "compensate", "terminate"]],
-  ["boundary", "BoundaryEvent", ["message", "timer", "conditional", "error", "escalation", "signal", "compensate"]],
+  ["end", "EndEvent", ["message", "error", "escalation", "signal", "compensate", "cancel", "terminate"]],
+  ["boundary", "BoundaryEvent", ["message", "timer", "conditional", "error", "escalation", "signal", "compensate", "cancel"]],
 ] as const) {
   for (const definition of definitions) {
     const name = definition === "compensate" ? "Compensate" : definition[0].toUpperCase() + definition.slice(1);

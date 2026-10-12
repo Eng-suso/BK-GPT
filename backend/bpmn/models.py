@@ -14,6 +14,27 @@ from pydantic import BaseModel, Field, model_validator
 
 MappingStatus = Literal["direct", "encoded", "visual_annotation", "semantic_payload", "blocked"]
 
+EventDefinitionKind = Literal[
+    "timer", "message", "conditional", "signal", "error", "escalation", "terminate",
+    "link", "compensation", "cancel", "multiple",
+]
+
+# Which event definitions each event may carry (OMG BPMN 2.0, tables 10.84-10.93).
+# A start event of an event sub-process may also catch error, escalation and
+# compensation; that start sits inside the sub-process, not in the process.
+EVENT_DEFINITIONS_BY_NODE_TYPE: dict[str, frozenset[str]] = {
+    "startEvent": frozenset({"message", "timer", "conditional", "signal", "multiple", "error", "escalation", "compensation"}),
+    "intermediateCatchEvent": frozenset({"message", "timer", "conditional", "link", "signal", "multiple"}),
+    "intermediateThrowEvent": frozenset({"message", "escalation", "link", "compensation", "signal", "multiple"}),
+    "boundaryEvent": frozenset(
+        {"message", "timer", "escalation", "conditional", "error", "cancel", "compensation", "signal", "multiple"}
+    ),
+    "endEvent": frozenset({"message", "error", "escalation", "cancel", "compensation", "signal", "terminate", "multiple"}),
+}
+# Triggers that can make up a multiple event: the ones a single event can name.
+MULTIPLE_TRIGGERS: frozenset[str] = frozenset({"message", "timer", "conditional", "signal", "escalation", "error", "compensation"})
+_CATCH_EVENT_TYPES = frozenset({"startEvent", "intermediateCatchEvent", "boundaryEvent"})
+
 ACTIVITY_NODE_TYPES: frozenset[str] = frozenset(
     {
         "task",
@@ -25,8 +46,13 @@ ACTIVITY_NODE_TYPES: frozenset[str] = frozenset(
         "businessRuleTask",
         "scriptTask",
         "subProcess",
+        "callActivity",
+        "transaction",
+        "adHocSubProcess",
     }
 )
+# Activities that hold a flow of their own (OMG BPMN 2.0, 10.3.5).
+CONTAINER_NODE_TYPES: frozenset[str] = frozenset({"subProcess", "transaction", "adHocSubProcess"})
 
 
 class BPMNFlowNode(BaseModel):
@@ -42,6 +68,9 @@ class BPMNFlowNode(BaseModel):
         "receiveTask",
         "businessRuleTask",
         "scriptTask",
+        "callActivity",
+        "transaction",
+        "adHocSubProcess",
         "exclusiveGateway",
         "parallelGateway",
         "inclusiveGateway",
@@ -55,10 +84,12 @@ class BPMNFlowNode(BaseModel):
     name: str
     laneId: str | None = None
     owner: str | None = None
-    eventDefinition: Literal[
-        "timer", "message", "conditional", "signal", "error", "escalation", "terminate"
-    ] | None = None
+    eventDefinition: EventDefinitionKind | None = None
     eventConditionExpression: str | None = None
+    # eventDefinition="multiple": the triggers, any one of which fires the event,
+    # or every one of them when parallelMultiple (catch events only).
+    triggers: list[EventDefinitionKind] = Field(default_factory=list)
+    parallelMultiple: bool = False
     # Activity loop marker (OMG BPMN 2.0 10.2.3). Only valid on activity nodes.
     loopCharacteristics: Literal[
         "none", "standardLoop", "multiInstanceSequential", "multiInstanceParallel"
@@ -74,6 +105,18 @@ class BPMNFlowNode(BaseModel):
     # waits for every event, which OMG allows only on an instantiating gateway (10.5.6).
     instantiate: bool = False
     eventGatewayType: Literal["Exclusive", "Parallel"] = "Exclusive"
+    # A start event inside an event sub-process may let the process go on
+    # (non-interrupting, dashed border).
+    isInterrupting: bool = True
+    # Activity that undoes a completed one; reached only from a compensation
+    # boundary event through an association (OMG BPMN 2.0, 10.6).
+    isForCompensation: bool = False
+    # callActivity: the process (or global task) it invokes.
+    calledElement: str | None = None
+    # subProcess run by an event rather than by the flow (an event sub-process):
+    # `eventSubProcessStart` is the start event inside it that names the trigger.
+    triggeredByEvent: bool = False
+    eventSubProcessStart: BPMNFlowNode | None = None
     documentation: str | None = None
     sourceRefs: list[str] = Field(default_factory=list)
 
@@ -88,8 +131,30 @@ class BPMNFlowNode(BaseModel):
             raise ValueError(
                 f"loopCharacteristics is only valid on an activity, not {self.type!r}"
             )
-        if self.eventDefinition == "terminate" and self.type != "endEvent":
-            raise ValueError("a terminate event definition is only valid on an endEvent")
+        if self.eventDefinition is not None:
+            allowed = EVENT_DEFINITIONS_BY_NODE_TYPE.get(self.type, frozenset())
+            if self.eventDefinition not in allowed:
+                raise ValueError(f"a {self.eventDefinition} event definition is not valid on a {self.type}")
+        if self.eventDefinition == "multiple":
+            if len(set(self.triggers)) < 2 or not set(self.triggers) <= MULTIPLE_TRIGGERS:
+                raise ValueError("a multiple event needs at least two distinct triggers")
+        elif self.triggers:
+            raise ValueError("triggers are only valid on a multiple event")
+        if self.parallelMultiple and not (self.eventDefinition == "multiple" and self.type in _CATCH_EVENT_TYPES):
+            raise ValueError("parallelMultiple is only valid on a multiple catch event")
+        if not self.isInterrupting and self.type != "startEvent":
+            raise ValueError("isInterrupting is only valid on a start event")
+        if self.isForCompensation and self.type not in ACTIVITY_NODE_TYPES:
+            raise ValueError("isForCompensation is only valid on an activity")
+        if self.calledElement is not None and self.type != "callActivity":
+            raise ValueError("calledElement is only valid on a callActivity")
+        if self.triggeredByEvent != (self.eventSubProcessStart is not None) or (
+            self.triggeredByEvent and self.type != "subProcess"
+        ):
+            raise ValueError("an event sub-process is a subProcess with the start event that triggers it")
+        start = self.eventSubProcessStart
+        if start is not None and (start.type != "startEvent" or start.eventDefinition is None):
+            raise ValueError("an event sub-process starts from a start event with a trigger")
         if self.activationCondition is not None and self.type != "complexGateway":
             raise ValueError("an activation condition is only valid on a complexGateway")
         if (self.instantiate or self.eventGatewayType != "Exclusive") and self.type != "eventBasedGateway":

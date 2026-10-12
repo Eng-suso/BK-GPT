@@ -24,9 +24,23 @@ class ProcessActor(BaseModel):
 class ProcessEvent(BaseModel):
     id: str
     label: str
-    type: Literal["start", "end", "timer", "message", "exception"]
+    # timer, message and intermediate events sit on the flow between steps.
+    type: Literal["start", "end", "timer", "message", "exception", "intermediate"]
     direction: Literal["catch", "throw"] = "catch"
     timing: str | None = None
+    # The BPMN trigger (start, catch) or result (end, throw) when the sources
+    # name it; None lets the compiler infer it from the label. "link" pairs a
+    # throw with the catch of the same label (a jump on the same page);
+    # "multiple" reacts to any of `triggers`, or to all with parallel_multiple.
+    definition: Literal[
+        "none", "message", "timer", "conditional", "signal", "error", "escalation",
+        "compensation", "cancel", "link", "terminate", "multiple",
+    ] | None = None
+    condition: str | None = None
+    triggers: list[Literal["message", "timer", "conditional", "signal", "escalation", "error", "compensation"]] = Field(
+        default_factory=list
+    )
+    parallel_multiple: bool = False
     source_evidence: list[str] = Field(default_factory=list)
 
 
@@ -44,7 +58,21 @@ class ProcessStep(BaseModel):
         "business_rule_task",
         "script_task",
         "subprocess",
+        "call_activity",
+        "transaction",
+        "ad_hoc_subprocess",
+        "event_subprocess",
     ] = "user_task"
+    # call_activity: the reusable process or global task it invokes.
+    called_process: str | None = None
+    # event_subprocess: what starts it (event_trigger + event_condition when
+    # conditional), and whether it stops the work under way (interrupting).
+    event_trigger: Literal["message", "timer", "conditional", "signal", "error", "escalation", "compensation"] | None = None
+    event_condition: str | None = None
+    interrupting: bool = True
+    # This step undoes the effects of another, already completed step
+    # (BPMN compensation): it runs only when that work must be rolled back.
+    compensates_step_id: str | None = None
     # "per_item" = the activity runs once for every element of a collection
     # (BPMN multi-instance); "_sequential" when the items are handled one at a time.
     multiplicity: Literal["single", "per_item", "per_item_sequential"] = "single"
@@ -261,7 +289,7 @@ class ProcessExceptionPath(BaseModel):
     handling: str | None = None
     # BPMN boundary-event trigger. "auto" lets the compiler infer it from the
     # trigger text; set it explicitly when the type is known.
-    kind: Literal["auto", "timer", "message", "error", "conditional", "escalation", "signal"] = "auto"
+    kind: Literal["auto", "timer", "message", "error", "conditional", "escalation", "signal", "cancel"] = "auto"
     attached_to_step_id: str | None = None
     interrupting: bool = True
     is_defined: bool = True
@@ -1292,7 +1320,14 @@ Regole:
   umana senza sistema), service_task (sistema/applicazione), send_task (invio
   messaggio a un altro partecipante), receive_task (attesa di un messaggio in
   ingresso), business_rule_task (valutazione di regole/decision table),
-  script_task (automazione interna), subprocess (attivita scomponibile).
+  script_task (automazione interna), subprocess (attivita scomponibile),
+  call_activity (richiama un processo o un'attivita riusabile: called_process),
+  transaction (piu' passi che riescono o si annullano insieme; un'eccezione
+  kind=cancel la annulla), ad_hoc_subprocess (passi svolti in ordine libero),
+  event_subprocess (gestione che parte da un evento in qualsiasi momento del
+  processo: event_trigger, interrupting=false se il lavoro in corso prosegue).
+- Se un passo annulla gli effetti di un altro gia' concluso (storno, rimborso,
+  annullo prenotazione) imposta compensates_step_id con il passo che compensa.
 - Imposta step.multiplicity=per_item quando l'attivita si ripete per ogni
   elemento di un insieme (per_item_sequential se uno alla volta), altrimenti single.
 - Estrai attori/ruoli, partecipanti, eventi, step, decisioni/gateway, eccezioni,
@@ -1300,6 +1335,13 @@ Regole:
   loop, regole, assunzioni, findings e unknowns.
 - Per gli eventi intermedi imposta direction=throw quando il processo emette
   qualcosa (invia notifica/segnale) e direction=catch quando resta in attesa.
+- Quando le fonti dicono cosa avvia, interrompe o chiude il processo imposta
+  events[].definition: message, timer, conditional (con condition), signal,
+  error, escalation, compensation (annulla gli effetti di attivita' gia' fatte),
+  cancel (annulla una transazione), terminate (ferma tutto), link (salto nello
+  stesso diagramma: un throw e un catch con la stessa label) o multiple (piu'
+  trigger in triggers; parallel_multiple=true se servono tutti). Lascia
+  definition vuoto se le fonti non lo dicono.
 - Classifica participants.bpmn_container distinguendo pool, lane, black_box e
   out_of_scope. Non confondere persona/ente/sistema con lane.
 - Popola flow_edges con source_id, target_id e label comprensibile. Ogni freccia

@@ -30,6 +30,7 @@ IssueCode = Literal[
     "event_gateway_bad_target",
     "parallel_gateway_condition",
     "instantiating_gateway_with_incoming",
+    "unpaired_link",
 ]
 
 # An event-based gateway may only fork onto elements that consume a trigger.
@@ -92,6 +93,7 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
 
     # An instantiating event-based gateway starts the process in place of a
     # start event (OMG BPMN 2.0, 10.5.6).
+    _pair_links(model, nodes_by_id, successors, predecessors, report)
     starts = [
         node.id for node in model.flowNodes
         if node.type == "startEvent" or (node.type == "eventBasedGateway" and node.instantiate)
@@ -137,8 +139,8 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
     report.coreachable_node_ids = coreachable
 
     for node in model.flowNodes:
-        if node.type == "boundaryEvent":
-            continue
+        if node.type == "boundaryEvent" or node.triggeredByEvent or node.isForCompensation:
+            continue  # started by an event, not by the sequence flow
         if node.id not in reachable:
             report.errors.append(
                 ControlFlowIssue("unreachable_node", node.id, node.name, f"'{node.name}' non e' raggiungibile dall'inizio.")
@@ -173,6 +175,38 @@ def analyze_control_flow(model: BPMNSemanticModel) -> ControlFlowReport:
     _check_event_gateways(model, out_degree, report)
     _check_gateway_semantics(model, in_degree, report)
     return report
+
+
+def _pair_links(model, nodes_by_id, successors, predecessors, report: ControlFlowReport) -> None:
+    """Join each link throw to the link catch of the same name, as an off-page connector.
+
+    The pair is one flow drawn in two pieces (OMG BPMN 2.0, 10.4.5): reachability
+    runs through it, and a throw with no catch (or a catch nothing throws to)
+    is a broken flow.
+    """
+    def key(node) -> str:
+        return " ".join((node.name or "").split()).casefold()
+
+    links = [node for node in model.flowNodes if node.eventDefinition == "link"]
+    catches = {key(node): node for node in links if node.type == "intermediateCatchEvent"}
+    thrown: set[str] = set()
+    for node in links:
+        if node.type != "intermediateThrowEvent":
+            continue
+        catch = catches.get(key(node))
+        if catch is None:
+            report.errors.append(
+                ControlFlowIssue("unpaired_link", node.id, node.name, f"il link '{node.name}' non ha un link in attesa con lo stesso nome.")
+            )
+            continue
+        successors[node.id].append(catch.id)
+        predecessors[catch.id].append(node.id)
+        thrown.add(key(node))
+    for name, catch in catches.items():
+        if name not in thrown:
+            report.errors.append(
+                ControlFlowIssue("unpaired_link", catch.id, catch.name, f"nessun link lancia '{catch.name}'.")
+            )
 
 
 def _check_gateway_semantics(model, in_degree, report: ControlFlowReport) -> None:
