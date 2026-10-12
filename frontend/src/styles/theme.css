@@ -20,11 +20,11 @@
  * after styles/tokens/semantic.css so they win the cascade.
  */
 :root {
-  /* Action colour: deep royal blue (blue-700), not the brighter blue-600 —
-     reads "consulting platform", not "generic SaaS". */
-  --color-action-primary: var(--blue-700);
-  --color-action-primary-hover: var(--blue-800);
-  --primary: var(--blue-700);
+  /* Action colour: the delir.it brand blue (#004580), an institutional deep
+     blue; it reads "consulting platform", not "generic SaaS". */
+  --color-action-primary: var(--brand-blue);
+  --color-action-primary-hover: #003764;
+  --primary: var(--brand-blue);
 
   /* Satin identity: slate materials, blue reserved for actions and focus. */
   --radius: 1rem;
@@ -34,24 +34,24 @@
   --material-edge: rgb(255 255 255 / 0.9);
   --material-divider: rgb(38 43 52 / 0.09);
   --material-control-edge: rgb(38 43 52 / 0.15);
-  --material-panel: rgb(245 248 252 / 0.94);
+  --material-panel: rgb(247 251 255 / 0.94);
   --material-floating: rgb(253 253 253 / 0.94);
   --material-field: rgb(255 255 255 / 0.76);
-  --material-inset: rgb(226 232 240 / 0.6);
-  --material-chrome: rgb(234 239 245 / 0.94);
-  --material-rail: linear-gradient(180deg, #e7edf4, #eff3f7);
-  --material-toolbar: rgb(239 244 249 / 0.96);
-  --material-selected: #eaf0fb;
-  --material-app-background: linear-gradient(150deg, #eef2f7, var(--slate-50));
+  --material-inset: rgb(221 232 244 / 0.55);
+  --material-chrome: rgb(238 244 251 / 0.94);
+  --material-rail: linear-gradient(180deg, #e9f1fa, #f2f8ff);
+  --material-toolbar: rgb(242 248 255 / 0.96);
+  --material-selected: #e3eef9;
+  --material-app-background: linear-gradient(150deg, #eaf2fb, #f6faff);
   --material-shadow: inset 0 1px 0 white, 0 2px 3px rgb(25 30 38 / 0.04), 0 12px 30px -18px rgb(25 30 38 / 0.18);
-  /* One gray family, the slate of delir.it: neutral and blue-gray grays side
-     by side read as random gray sections. */
-  --color-surface-app: var(--slate-100);
-  --color-surface-secondary: var(--slate-50);
-  --color-surface-muted: var(--slate-100);
-  --color-border: var(--slate-200);
-  --color-border-subtle: #e9eef4;
-  --color-border-strong: var(--slate-300);
+  /* One surface family, the mist of delir.it (#EEF4FB / #F2F8FF): white
+     paper on a faint brand-blue ground instead of dead neutral grays. */
+  --color-surface-app: #eef4fb;
+  --color-surface-secondary: #f7fbff;
+  --color-surface-muted: #eef4fb;
+  --color-border: #dbe5f0;
+  --color-border-subtle: #e6eef7;
+  --color-border-strong: #c2d0df;
   --color-surface-selected: var(--material-selected);
 
   /* One panel width, referenced by every list screen so the main column and
