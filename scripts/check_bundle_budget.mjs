@@ -22,6 +22,7 @@ import { join } from "node:path";
 
 const ASSETS = "frontend/dist/assets";
 const BUDGET_FILE = "frontend/bundle-budget.json";
+const INDEX_HTML = "frontend/dist/index.html";
 
 /** Quanto margine si concede prima di chiamarla regressione. */
 const TOLERANCE = 1.1;
@@ -38,15 +39,26 @@ function gzipKb(path) {
  * nessuno. I due che contano sono: quanto pesa aprire il prodotto, e quanto
  * pesa il prodotto intero.
  */
+/**
+ * Il primo caricamento e' cio' che `index.html` chiede subito: lo script
+ * d'ingresso e i pezzi che precarica. Con una sola pagina coincideva con
+ * `index-*.js`; con due (l'app e il cruscotto del cliente, `share.html`) il
+ * codice comune finisce in pezzi condivisi, e contare il solo `index-*.js`
+ * misurerebbe meno di quello che il browser scarica davvero.
+ */
+function initialLoadFiles() {
+  const html = readFileSync(INDEX_HTML, "utf8");
+  return [...html.matchAll(/(?:src|href)="\/?(assets\/[^"]+\.js)"/g)].map((match) => match[1]);
+}
+
 function measure() {
   let entry = 0;
   let total = 0;
   for (const file of readdirSync(ASSETS)) {
     if (!file.endsWith(".js")) continue;
-    const kb = gzipKb(join(ASSETS, file));
-    total += kb;
-    if (/^index-[A-Za-z0-9_-]+\.js$/.test(file)) entry += kb;
+    total += gzipKb(join(ASSETS, file));
   }
+  for (const file of new Set(initialLoadFiles())) entry += gzipKb(join("frontend/dist", file));
   return {
     "ingresso (gzip kB)": Math.round(entry * 10) / 10,
     "tutto (gzip kB)": Math.round(total * 10) / 10,

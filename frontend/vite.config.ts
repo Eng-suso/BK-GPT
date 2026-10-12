@@ -38,7 +38,7 @@ export default defineConfig({
       // link. La seconda non deve contenere il codice con le credenziali dello
       // studio (src/share/shareIsolation.test.ts).
       input: {
-        main: path.resolve(__dirname, "index.html"),
+        index: path.resolve(__dirname, "index.html"),
         share: path.resolve(__dirname, "share.html"),
       },
     },
