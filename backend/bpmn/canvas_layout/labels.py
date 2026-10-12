@@ -5,9 +5,13 @@ from .geometry import Box
 from .router import segment_hits_box
 
 
+def label_size(name):
+    """Width and height a label needs: one line up to 22 characters, two beyond."""
+    return min(140, max(44, len(name) * 6)), 30 if len(name) <= 22 else 44
+
+
 def branch_label(points, name, boxes, labels, routes, container=None, lane_boundaries=()):
-    width = min(140, max(44, len(name) * 6))
-    height = 30 if len(name) <= 22 else 44
+    width, height = label_size(name)
     candidates = []
     for a, b in pairwise(points):
         cx, cy = (a[0]+b[0])/2, (a[1]+b[1])/2
@@ -39,6 +43,40 @@ def branch_label(points, name, boxes, labels, routes, container=None, lane_bound
             continue
         return candidate
     raise ValueError(f"Nessuno spazio leggibile per l'etichetta del ramo: {name}.")
+
+
+def node_label(box, name, docked_sides, boxes, labels, container=None, lane_boundaries=(), turns=()):
+    """Place an event or gateway label beside its shape, clear of where its flows run.
+
+    Below is the BPMN convention; when a flow docks there the label moves
+    above, then to a corner. `turns` holds the corners, as `(horizontal,
+    vertical)` sides, that a docked flow bends through on its way to a node
+    off both axes. The first placement that stays inside the pool, off lane
+    borders and clear of nodes, labels and those corners wins.
+    """
+    (width, height), gap = label_size(name), 8
+    cx = box.center[0]
+    placements = {
+        "bottom": Box(cx - width / 2, box.bottom + gap, width, height),
+        "top": Box(cx - width / 2, box.y - gap - height, width, height),
+    }
+    corners = {
+        ("left", "bottom"): Box(box.x - width - gap / 2, box.bottom + gap / 2, width, height),
+        ("right", "bottom"): Box(box.right + gap / 2, box.bottom + gap / 2, width, height),
+        ("left", "top"): Box(box.x - width - gap / 2, box.y - height - gap / 2, width, height),
+        ("right", "top"): Box(box.right + gap / 2, box.y - height - gap / 2, width, height),
+    }
+    candidates = [placements[side] for side in ("bottom", "top") if side not in docked_sides]
+    candidates += [corner for key, corner in corners.items() if key not in turns]
+    for candidate in candidates:
+        if container and not (container.x <= candidate.x and container.y <= candidate.y and container.right >= candidate.right and container.bottom >= candidate.bottom):
+            continue
+        if any(_overlap(candidate.expanded(4), other) for other in [*boxes.values(), *labels.values()] if other != box):
+            continue
+        if any(_crosses_lane_border(candidate, lane) for lane in lane_boundaries):
+            continue
+        return candidate
+    return placements["bottom"]
 
 
 def _overlap(a, b):
