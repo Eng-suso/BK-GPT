@@ -15,7 +15,8 @@
     "toggleChat": "Chat canvas",
     "toggleProperties": "Proprietà",
     "closeOverlays": "Chiudi i pannelli",
-    "views": "Viste processo"
+    "views": "Viste processo",
+    "moreSections": "Altre sezioni"
   },
   "state": {
     "processNotFound": "Processo non trovato in questo progetto.",
@@ -1808,33 +1809,29 @@
     "version": "Versione {{id}}",
     "noVersion": "Nessuna versione salvata",
     "updated": "Ultima modifica {{date}}",
-    "owner": "Responsabile",
     "noOwner": "Nessun responsabile",
-    "stage": {
-      "design": "In lavorazione",
-      "review": "In attesa di approvazione",
-      "approved": "Approvato"
-    },
     "headline": {
       "ready": "Disegno completato · Pronto per la consegna",
       "notReady": "Non ancora pronto per la consegna",
       "review": "Inviato a {{owner}} · In attesa della risposta del cliente",
-      "approved": "Approvato dal cliente · Da ora si misurano i risultati"
+      "approved": "Approvato dal cliente · Da ora si misurano i risultati",
+      "viewed_one": "{{owner}} ha aperto il cruscotto 1 volta, il {{date}}",
+      "viewed_other": "{{owner}} ha aperto il cruscotto {{count}} volte, l'ultima il {{date}}",
+      "notViewed": "{{owner}} non ha ancora aperto il cruscotto"
     },
     "notReadyDetail_one": "{{count}} controllo importante non è superato.",
     "notReadyDetail_other": "{{count}} controlli importanti non sono superati.",
     "actions": {
-      "send": "Segna come inviato al cliente",
       "approve": "Il cliente ha approvato",
       "requestChanges": "Il cliente chiede modifiche",
       "reopen": "Riporta in lavorazione",
       "openModel": "Apri il disegno",
       "openSimulation": "Apri la simulazione",
-      "group": "Azioni della consegna"
+      "group": "Azioni della consegna",
+      "sendToClient": "Invia al cliente",
+      "preview": "Anteprima per il cliente"
     },
     "confirm": {
-      "sendTitle": "Hai inviato il processo a {{owner}}?",
-      "sendBody": "Il processo passa in attesa della risposta del cliente. Puoi sempre riportarlo in lavorazione.",
       "approveTitle": "Il cliente ha approvato questa versione?",
       "approveBody": "DeliR registra l'approvazione: questa diventa la versione di riferimento e da qui si misura se il processo dà i risultati attesi.",
       "reopenTitle": "Riportare il processo in lavorazione?",
@@ -1846,22 +1843,6 @@
       "reopened": "Processo riportato in lavorazione",
       "changes": "Richiesta del cliente registrata",
       "error": "Operazione non riuscita. Riprova."
-    },
-    "journey": {
-      "label": "Percorso del processo",
-      "design": {
-        "who": "Consulente",
-        "steps": "Capire · Mettere in discussione · Ridisegnare"
-      },
-      "review": {
-        "who": "Con il cliente",
-        "steps": "Presentare · Raccogliere il parere · Approvare"
-      },
-      "operate": {
-        "who": "Dopo la consegna",
-        "steps": "Gestire · Misurare · Migliorare"
-      },
-      "current": "Fase attuale"
     },
     "readiness": {
       "title": "Pronto per la consegna?",
@@ -1908,7 +1889,8 @@
         "pass": "Nessuna domanda aperta",
         "warning_one": "{{count}} domanda ancora da chiarire",
         "warning_other": "{{count}} domande ancora da chiarire"
-      }
+      },
+      "summary": "{{passed}} di {{total}} controlli superati"
     },
     "summary": {
       "title": "In breve",
@@ -1949,14 +1931,7 @@
     },
     "ownership": {
       "title": "Chi se ne occupa",
-      "owner": "Responsabile del processo presso il cliente",
-      "afterApproval": "Dopo l'approvazione",
-      "steps": [
-        "La versione approvata viene bloccata",
-        "Le decisioni e le fonti restano salvate",
-        "Si misurano i risultati rispetto alla simulazione",
-        "Il processo torna in revisione se i risultati si allontanano"
-      ]
+      "owner": "Responsabile del processo presso il cliente"
     },
     "request": {
       "title": "Il cliente chiede modifiche",
@@ -1972,7 +1947,6 @@
     },
     "dashboard": {
       "title": "Cruscotto del processo",
-      "openButton": "Cruscotto del responsabile",
       "preview": "Anteprima: questa è la pagina che riceve il responsabile del processo.",
       "back": "Torna alla consegna",
       "download": "Scarica PDF",
@@ -1992,15 +1966,8 @@
       "changes": "Cosa è cambiato",
       "changesEmpty": "Nessuna modifica rispetto al processo attuale.",
       "why": "Perché",
-      "sources_one": "{{count}} fonte",
-      "sources_other": "{{count}} fonti",
       "results": "Risultati attesi",
-      "resultsDetail": "Stime dalla simulazione «{{scenario}}». I dati reali compariranno qui quando il processo sarà in uso.",
       "resultsEmpty": "I risultati attesi compariranno dopo la prima simulazione.",
-      "indicator": "Indicatore",
-      "expected": "Atteso",
-      "measured": "Misurato",
-      "notMeasured": "Non ancora misurato",
       "activity": "Cosa sta succedendo",
       "activityEmpty": "Ancora nessuna attività registrata.",
       "event": {
@@ -2052,12 +2019,22 @@
         "errorTitle": "Il cruscotto non si è caricato",
         "errorBody": "Controlla la connessione e riprova.",
         "retry": "Riprova"
-      }
+      },
+      "consultant": "Il tuo consulente: {{name}}",
+      "replyTo": "Per rispondere o fare domande scrivi a {{name}}.",
+      "glance": {
+        "title": "In breve",
+        "steps": "Passi del processo",
+        "people": "Persone coinvolte",
+        "changes": "Cose che cambiano"
+      },
+      "resultsNote": "Stime dalla simulazione «{{scenario}}». Quando il processo sarà in uso, qui compariranno anche i valori reali.",
+      "goToStep": "Vai al passo {{n}}"
     },
     "link": {
       "title": "Link per il cliente",
       "description": "Il responsabile apre il cruscotto da questo link, senza account. Vede solo il cruscotto, in sola lettura.",
-      "none": "Nessun link attivo.",
+      "none": "Il link si crea quando invii il processo al cliente.",
       "create": "Crea il link",
       "urlLabel": "Link del cruscotto",
       "copy": "Copia il link",
@@ -2075,7 +2052,28 @@
       "confirmRevokeTitle": "Disattivare il link?",
       "confirmRevokeBody": "Il cliente non potrà più aprire il cruscotto finché non gli mandi un link nuovo.",
       "revoked": "Link disattivato",
-      "error": "Operazione non riuscita. Riprova."
+      "error": "Operazione non riuscita. Riprova.",
+      "createOnly": "Crea solo il link"
+    },
+    "stepper": {
+      "label": "Fase del processo",
+      "design": "Preparazione",
+      "review": "Con il cliente",
+      "approved": "In uso",
+      "done": "completata",
+      "current": "fase attuale"
+    },
+    "send": {
+      "title": "Invia il processo al cliente",
+      "description": "{{owner}} riceve un link al cruscotto: vede il processo spiegato passo per passo, cosa cambia e i risultati attesi. Non serve un account.",
+      "step1": "Copia il link",
+      "step2": "Mandalo a {{owner}} per email o chat",
+      "step3": "Conferma qui sotto: il processo passa in attesa della risposta",
+      "replaces": "Il link che avevi creato prima smette di funzionare.",
+      "creating": "Preparo il link…",
+      "confirm": "Ho inviato il link",
+      "cancel": "Annulla",
+      "retry": "Riprova"
     }
   }
 }
