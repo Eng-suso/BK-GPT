@@ -104,7 +104,7 @@ function Handover({ projectId, process }: { projectId: string; process: ProjectP
           <Button variant="ghost" size="icon-sm" onClick={() => navigate(ROUTES.projects.process(projectId, process.id))} aria-label={t("handover.back")} title={t("handover.back")}><ArrowLeft aria-hidden className="size-4" /></Button>
           <Badge variant="secondary">{process.stage}</Badge>
         </div>}
-        actions={<Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.handoverDashboard(projectId, process.id))}><Eye aria-hidden />{t("handover.actions.preview")}</Button>}
+        actions={<Button variant="outline" size="sm" onClick={() => navigate(ROUTES.projects.handoverDashboard(projectId, process.id))} aria-label={t("handover.actions.preview")} title={t("handover.actions.preview")}><Eye aria-hidden /><span className="handover-preview-label">{t("handover.actions.preview")}</span></Button>}
       />
       <div className="handover ui-scrollbar">
         <div className="handover-body">
