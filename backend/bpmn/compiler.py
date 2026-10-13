@@ -68,8 +68,7 @@ _GATEWAY_BPMN_TYPE: dict[str, str] = {
 _DATA_BASED_GATEWAYS = frozenset({"exclusiveGateway", "inclusiveGateway", "complexGateway"})
 # Splits that may run several branches at once: where those branches meet again
 # a join of the same type waits for them (OMG BPMN 2.0, 10.5.4-10.5.7). An
-# exclusive split runs one branch: where its branches (or a rework loop) meet
-# again an exclusive merge gateway makes the join explicit (_add_explicit_merges).
+# exclusive split runs one branch, so its branches merge without a gateway.
 _SYNCHRONIZING_GATEWAYS = frozenset({"parallelGateway", "inclusiveGateway", "complexGateway"})
 _SIGNAL_WORDS = ("segnale", "signal", "broadcast")
 
@@ -309,7 +308,6 @@ def build_bpmn_semantic_model(
     registry.apply_edge_overlay()
     _cut_at_links(nodes, registry)
     _add_synchronizing_joins(nodes, registry, gateway_by_decision_id, used_ids)
-    _add_explicit_merges(nodes, registry, used_ids)
     _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
     _assign_gateway_defaults(nodes, flows, warnings, declared_default_ids={flow.id for flow in declared_defaults})
@@ -1508,32 +1506,6 @@ def _add_synchronizing_joins(
                 registry.retarget(flow, join.id)
             registry.add(join.id, meeting)
             break
-
-
-def _add_explicit_merges(nodes: list[BPMNFlowNode], registry: FlowRegistry, used_ids: set[str]) -> None:
-    """Put an unnamed exclusive merge in front of every activity reached by two or more flows.
-
-    Branches of an exclusive split, and a rework loop coming back, would otherwise
-    enter the activity directly: valid BPMN, but an uncontrolled merge that the
-    consultant style (one gateway per merge, OMG BPMN 2.0 10.5.2) never draws.
-    """
-    for node in list(nodes):
-        if node.type not in ACTIVITY_NODE_TYPES:
-            continue
-        incoming = [flow for flow in registry.flows if flow.targetRef == node.id]
-        if len(incoming) < 2:
-            continue
-        merge = BPMNFlowNode(
-            id=xml_id(f"{node.id}_merge", "Gateway", used_ids),
-            type="exclusiveGateway",
-            name="",
-            laneId=node.laneId,
-        )
-        nodes.insert(next(i for i, n in enumerate(nodes) if n.id == node.id), merge)
-        registry.gateway_ids.add(merge.id)
-        for flow in incoming:
-            registry.retarget(flow, merge.id)
-        registry.add(merge.id, node.id)
 
 
 def _place_laneless_nodes(nodes: list[BPMNFlowNode], flows: list[BPMNSequenceFlow]) -> None:
