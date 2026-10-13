@@ -82,7 +82,14 @@ def assign_ports(
         (sx, sy), (tx, ty) = boxes[source].center, boxes[target].center
         near, far = vertical(ty - sy)
         level = abs(ty - sy) <= boxes[source].height / 2
-        if tx < sx:
+        stacked = abs(tx - sx) <= min(boxes[source].width, boxes[target].width) / 2
+        if stacked and not level:
+            # Same column (a rework loop kept local): straight up or down.
+            preferences = (near, far, "right")
+        elif tx < sx and not level:
+            # A return to another row leaves sideways, toward the activity it repeats.
+            preferences = ("left", near, "top")
+        elif tx < sx:
             preferences = ("top", "bottom", "right")
         elif source in gateways and not level:
             preferences = (near, "right", far)
@@ -92,7 +99,15 @@ def assign_ports(
     for flow_id, source, target in ordered:
         (sx, sy), (tx, ty) = boxes[source].center, boxes[target].center
         near, far = vertical(sy - ty)
-        sides[flow_id] = (out_side[flow_id], take(target, ("left", near, far) if tx >= sx else ("top", "bottom", "left")))
+        stacked = abs(tx - sx) <= min(boxes[source].width, boxes[target].width) / 2
+        level = abs(ty - sy) <= boxes[target].height / 2
+        if stacked and not level:
+            entry = (near, far, "left")
+        elif tx >= sx:
+            entry = ("left", near, far)
+        else:
+            entry = (near, "top", "bottom", "left") if not level else ("top", "bottom", "left")
+        sides[flow_id] = (out_side[flow_id], take(target, entry))
     ports = {
         flow_id: (Port(side_point(boxes[source], out), out), Port(side_point(boxes[target], into), into))
         for flow_id, source, target in flows
