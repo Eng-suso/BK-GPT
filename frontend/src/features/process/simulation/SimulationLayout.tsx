@@ -91,7 +91,13 @@ export function SimulationLayout(): React.JSX.Element {
   const inspectWidget = (id: string | null) => { setInspectedWidgetId(id); openPanel(id ? "widget" : null); };
   const setAnalysisView = (view: AnalysisView) => {
     analysisViewRef.current = view;
-    const query = new URLSearchParams(location.search); query.set("view", view); if (panel === "compare" && view !== "compare") query.delete("panel");
+    // Il pannello viene dal ref, non dall'URL dell'ultimo render: React Router
+    // rende la navigazione come transizione, e un clic subito dopo "Risultati"
+    // leggeva ancora l'URL di prima e chiudeva il pannello appena aperto.
+    const query = new URLSearchParams(location.search); query.set("view", view);
+    const current = panelRef.current;
+    if (current === "compare" && view !== "compare") { query.delete("panel"); panelRef.current = null; }
+    else if (current) query.set("panel", current);
     navigate(ROUTES.projects.simulation(projectId, processId, `workspace${activeRunId != null ? `/${activeRunId}` : ""}`) + `?${query}`);
   };
   const switchRun = (value: string) => selectRun(Number(value));
