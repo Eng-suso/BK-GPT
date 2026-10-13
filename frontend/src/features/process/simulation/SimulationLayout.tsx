@@ -153,7 +153,7 @@ export function SimulationLayout(): React.JSX.Element {
                     value={activeRunId != null ? String(activeRunId) : undefined}
                     onValueChange={switchRun}
                   >
-                    <SelectTrigger size="sm" className="w-[280px] max-w-full" aria-label={t("simulation.section.runSwitcher")}>
+                    <SelectTrigger size="sm" className="w-auto min-w-[280px] max-w-[min(100%,440px)]" aria-label={t("simulation.section.runSwitcher")}>
                       <SelectValue
                         placeholder={t("simulation.section.runSwitcher")}
                       />

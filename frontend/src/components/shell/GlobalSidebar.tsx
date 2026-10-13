@@ -1,3 +1,4 @@
+import { DelirLogo } from "@/components/brand/DelirLogo";
 import { HelpCircle, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -39,9 +40,9 @@ export function GlobalSidebar({
       aria-label={t("nav.primary")}
       className={cn("app-chrome flex flex-col items-center border-r px-2 py-4", !compact && "lg:items-stretch lg:px-3")}
     >
-      <div className="pb-[18px] pt-1 text-[19px] font-bold tracking-[-0.03em] text-primary lg:px-2">
-        <span className={compact ? "" : "lg:hidden"}>D</span>
-        <span className={compact ? "hidden" : "hidden lg:inline"}>DeliR</span>
+      <div className="pb-[18px] pt-1 lg:px-2">
+        <DelirLogo compact className={compact ? "" : "lg:hidden"} />
+        <DelirLogo className={compact ? "hidden" : "hidden lg:inline-flex"} />
       </div>
 
       <nav className="flex w-full flex-col gap-0.5">

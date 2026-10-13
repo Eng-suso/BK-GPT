@@ -547,14 +547,16 @@
   --domain-process-task-icon: var(--domain-role-blue-icon);
   --domain-process-automation-surface: color-mix(in srgb, var(--data-categorical-4) 8%, var(--color-surface-primary));
   --domain-process-automation-icon: var(--data-categorical-4);
-  --domain-process-gateway-surface: var(--domain-role-violet-surface);
-  --domain-process-gateway-text: var(--domain-role-violet-text);
-  --domain-process-gateway-border: var(--domain-role-violet-border);
-  --domain-process-gateway-icon: var(--domain-role-violet-icon);
-  --domain-process-end-surface: var(--domain-role-red-surface);
-  --domain-process-end-text: var(--domain-role-red-text);
-  --domain-process-end-border: var(--domain-role-red-border);
-  --domain-process-end-icon: var(--domain-role-red-icon);
+  /* Restrained canvas: brand blue for work, slate ink for decisions and ends
+     (red would read as an error, violet is not a DeliR colour). */
+  --domain-process-gateway-surface: var(--domain-role-slate-surface);
+  --domain-process-gateway-text: var(--domain-role-slate-text);
+  --domain-process-gateway-border: var(--domain-role-slate-border);
+  --domain-process-gateway-icon: var(--domain-role-slate-icon);
+  --domain-process-end-surface: var(--domain-role-slate-surface);
+  --domain-process-end-text: var(--domain-role-slate-text);
+  --domain-process-end-border: var(--domain-role-slate-border);
+  --domain-process-end-icon: var(--domain-role-slate-icon);
   --domain-process-as-is-surface: var(--domain-role-slate-surface);
   --domain-process-as-is-text: var(--domain-role-slate-text);
   --domain-process-as-is-border: var(--domain-role-slate-border);

@@ -46,6 +46,12 @@ describe("analytical scene", () => {
     expect(-1000 * fitted.scale + fitted.y).toBeGreaterThan(0);
     expect(resizeRect({ x: 0, y: 0, width: 400, height: 300 }, -1000, -1000)).toMatchObject({ width: 280, height: 240 });
   });
+  it("fits above the floating navigation bars so they never cover the scene", () => {
+    const rect = { x: 0, y: 0, width: 900, height: 700 };
+    const fitted = fitCamera(rect, 1000, 800, 72);
+    const bottom = (rect.y + rect.height) * fitted.scale + fitted.y;
+    expect(bottom).toBeLessThanOrEqual(800 - 72);
+  });
   it("places palette drops in world coordinates and finds free space for repeated additions", () => {
     const drop = insertionRect({ x: -120, y: 30, scale: 0.8 }, 300, 200);
     expect(drop).toMatchObject({ x: 525, y: 212.5 });

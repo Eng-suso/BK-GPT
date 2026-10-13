@@ -278,7 +278,7 @@ describe("EventLogPanel", () => {
 
     expect(screen.getByText("Il simulato è vicino al reale")).toBeInTheDocument();
     const process = screen.getAllByRole("table")[0];
-    expect(within(within(process).getByRole("row", { name: /Cycle time medio/ })).getByText("+5%")).toBeInTheDocument();
+    expect(within(within(process).getByRole("row", { name: /Tempo medio di attraversamento/ })).getByText("+5%")).toBeInTheDocument();
     expect(within(process).getByRole("row", { name: /Costo per caso/ })).toHaveTextContent("il log non ha costi");
 
     const activities = screen.getByRole("table", { name: /Lavorazione e attesa medie per attività/ });

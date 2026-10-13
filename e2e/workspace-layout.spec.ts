@@ -136,7 +136,7 @@ test("product-generated diagram keeps the DeliR identity in the editable canvas"
   await page.goto(canvasView);
   const canvas = page.locator(".process-bpmn-canvas");
   await expect(canvas.locator('[data-element-id="Verify"]')).toBeVisible();
-  await expect(canvas.locator(".delir-canvas-identity svg")).toBeVisible();
+  await expect(canvas.locator(".delir-canvas-identity").getByRole("img", { name: "DeliR" })).toBeVisible();
   await expect(canvas.locator(".delir-role-band")).toHaveCount(5);
   await expect(canvas.locator(".djs-connection")).toHaveCount(11);
   await expect(canvas.locator('[data-element-id="Request_Document"]')).toBeVisible();
