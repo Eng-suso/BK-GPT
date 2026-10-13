@@ -360,22 +360,21 @@ def _collaboration_semantic_xml(model: BPMNSemanticModel) -> list[str]:
             f'name="{escape(participant.name)}"{process_ref} />'
         )
     for message_flow in model.messageFlows:
+        # The label is the OMG `name` attribute, the one modelers draw on the flow.
+        name = f' name="{escape(message_flow.name)}"' if message_flow.name else ""
         header = (
-            f'    <bpmn:messageFlow id="{escape(message_flow.id)}" '
+            f'    <bpmn:messageFlow id="{escape(message_flow.id)}"{name} '
             f'sourceRef="{escape(message_flow.sourceRef)}" '
             f'targetRef="{escape(message_flow.targetRef)}"'
         )
-        if message_flow.documentation or message_flow.sourceRefs or message_flow.name:
+        if message_flow.documentation or message_flow.sourceRefs:
             lines.append(header + ">")
-            if message_flow.documentation or message_flow.sourceRefs:
-                lines.extend(
-                    documentation_xml(
-                        element_documentation(message_flow.documentation, message_flow.sourceRefs),
-                        indent="      ",
-                    )
+            lines.extend(
+                documentation_xml(
+                    element_documentation(message_flow.documentation, message_flow.sourceRefs),
+                    indent="      ",
                 )
-            if message_flow.name:
-                lines.extend(documentation_xml(message_flow.name, indent="      "))
+            )
             lines.append("    </bpmn:messageFlow>")
         else:
             lines.append(header + " />")
