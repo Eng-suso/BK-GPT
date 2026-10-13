@@ -475,7 +475,8 @@ def _attach_anchored_gateway(
     gateway_by_decision_id: dict[str, BPMNFlowNode],
     gateway_by_step_id: dict[str, BPMNFlowNode],
 ) -> None:
-    """Attach a decision gateway immediately after its anchor step in the main chain.
+    """Attach a decision gateway immediately after its anchor step in the main chain,
+    then any decision anchored to that decision, in order.
 
     Args:
         anchor_id: The ID of the anchor step or event.
@@ -489,19 +490,21 @@ def _attach_anchored_gateway(
         gateway_by_step_id: Dictionary to populate with step ID to gateway mappings.
     """
     decision = decision_by_anchor_step_id.get(anchor_id)
-    if decision is None:
-        return
-    gateway = _place_gateway(
-        decision,
-        anchor_id=anchor_id,
-        lane_id=lane_id,
-        used_ids=used_ids,
-        nodes=nodes,
-        registry=registry,
-        gateway_by_decision_id=gateway_by_decision_id,
-        gateway_by_step_id=gateway_by_step_id,
-    )
-    main_chain.append(gateway.id)
+    while decision is not None and decision.id not in gateway_by_decision_id:
+        gateway = _place_gateway(
+            decision,
+            anchor_id=anchor_id,
+            lane_id=lane_id,
+            used_ids=used_ids,
+            nodes=nodes,
+            registry=registry,
+            gateway_by_decision_id=gateway_by_decision_id,
+            gateway_by_step_id=gateway_by_step_id,
+        )
+        main_chain.append(gateway.id)
+        # A decision anchored to this one follows it directly on the main path.
+        anchor_id = decision.id
+        decision = decision_by_anchor_step_id.get(anchor_id)
 
 
 def _place_gateway(
@@ -711,9 +714,15 @@ def _decision_anchor_map(
     warnings: list[str] = []
     unassigned = list(process.decisions)
 
+    decision_ids = [item.id for item in process.decisions]
+
     def anchor_for(decision: ProcessDecision) -> str | None:
-        return _anchor_step_for_decision(process, decision, main_step_ids) or _anchor_step_for_decision(
-            process, decision, all_step_ids
+        # A step first; otherwise the decision before it (two questions in a row,
+        # e.g. "request complete?" then "approval needed?").
+        return (
+            _anchor_step_for_decision(process, decision, main_step_ids)
+            or _anchor_step_for_decision(process, decision, all_step_ids)
+            or _anchor_step_for_decision(process, decision, [i for i in decision_ids if i != decision.id])
         )
 
     for path in process.alternative_paths:
@@ -843,7 +852,9 @@ def _add_alternative_paths(
             continue
 
         for path in paths:
-            if not path.sequence and not path.ends_at:
+            # A path with no steps that rejoins further on is a skip branch
+            # (e.g. under the threshold the order goes out with no approval).
+            if not path.sequence and not path.ends_at and not path.rejoins_at:
                 warnings.append(f"Alternative path '{path.label}' senza sequenza o fine esplicita.")
                 continue
 
