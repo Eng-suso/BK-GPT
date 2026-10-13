@@ -4,7 +4,7 @@ Il piano video (docs/launch/video-plan-review.md) vuole un solo processo piccolo
 per tutte le scene: 2 pool, la prima divisa in 2 corsie, una decisione con il
 suo ritorno. Il modello esce dalla pipeline del prodotto, non da un disegno a
 mano: ProcessUnderstanding -> compilatore -> validazione -> layout enterprise
--> lint visivo.
+-> lint visivo -> schema XSD ufficiale OMG BPMN 2.0.
 
 Il Fornitore e' una pool chiusa: le sue attivita' non si vedono, si vedono i
 messaggi (ordine in uscita, conferma e merce in entrata).
@@ -19,6 +19,8 @@ from __future__ import annotations
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+from lxml import etree
 
 from backend.bpmn import build_bpmn_semantic_model
 from backend.bpmn.canvas_layout import apply_enterprise_layout, lint_visual_model
@@ -41,6 +43,8 @@ from backend.process_understanding import (
 )
 
 OUT = Path("e2e/launch-media/data/demo.bpmn")
+# Lo schema ufficiale OMG BPMN 2.0 (BPMN20.xsd e gli import DI/DC), da bpmn-moddle.
+OMG_XSD = Path("frontend/node_modules/bpmn-moddle/resources/bpmn/xsd/BPMN20.xsd")
 PROCESS_ID = "Process_richiesta_acquisto"
 PROCESS_NAME = "Richiesta d'acquisto"
 
@@ -132,6 +136,9 @@ def main() -> int:
     soundness = analyze_control_flow(model)
     xml = apply_enterprise_layout(model, process_name=PROCESS_NAME)
     lint = lint_visual_model(ET.fromstring(xml))
+    schema = etree.XMLSchema(etree.parse(str(OMG_XSD)))
+    if not schema.validate(etree.fromstring(xml.encode())):
+        problems = [*problems, *(f"XSD OMG riga {e.line}: {e.message}" for e in schema.error_log)]
     for line in [*model.model_warnings, *problems, *(f"{i.code}: {i.message}" for i in soundness.errors), *lint["issues"]]:
         print("!", line)
     if problems or soundness.warnings or not soundness.is_sound or not lint["valid"]:
