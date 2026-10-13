@@ -183,6 +183,9 @@ def build_bpmn_semantic_model(
     for event in process.events:
         if event.type == "start":
             registry.map(event.id, nodes[0].id)
+            # Il pannello delle evidenze ritrova anche l'evento iniziale.
+            if instantiating is None and not nodes[0].sourceRefs:
+                nodes[0].sourceRefs = [source_ref_id("events", event.id)]
 
     main_chain: list[str] = [nodes[0].id]
     decision_by_anchor_step_id, decision_anchor_warnings = _decision_anchor_map(process, ordered_chain)

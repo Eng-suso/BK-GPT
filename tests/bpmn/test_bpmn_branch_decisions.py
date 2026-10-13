@@ -12,6 +12,7 @@ from backend.process_understanding import (
     ProcessBoundaries,
     ProcessDecision,
     ProcessDecisionOutcome,
+    ProcessEvent,
     ProcessFlowEdge,
     ProcessPath,
     ProcessStep,
@@ -101,6 +102,13 @@ def test_a_branch_step_keeps_its_traceability_to_the_plan():
     model = _compile(_invoice())
 
     assert _node(model, "Rivedi la fattura").sourceRefs == ["steps:rivedi"]
+
+
+def test_the_start_event_keeps_its_traceability_to_the_plan():
+    start = ProcessEvent(id="arrivo", label="Fattura ricevuta", type="start")
+    model = _compile(_invoice(events=[start]))
+
+    assert next(node for node in model.flowNodes if node.type == "startEvent").sourceRefs == ["events:arrivo"]
 
 
 def test_a_reviewed_invoice_never_ends_as_paid():
