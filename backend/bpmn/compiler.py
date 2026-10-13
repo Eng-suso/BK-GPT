@@ -313,6 +313,8 @@ def build_bpmn_semantic_model(
     _normalize_event_gateways(nodes, registry, used_ids, warnings)
     flows = registry.flows
     _assign_gateway_defaults(nodes, flows, warnings, declared_default_ids={flow.id for flow in declared_defaults})
+    if lanes:
+        _place_laneless_nodes(nodes, flows)
     populate_lane_refs(lanes, nodes)
     message_flows = finalize_message_flows(
         collaboration=collaboration,
@@ -1532,6 +1534,33 @@ def _add_explicit_merges(nodes: list[BPMNFlowNode], registry: FlowRegistry, used
         for flow in incoming:
             registry.retarget(flow, merge.id)
         registry.add(merge.id, node.id)
+
+
+def _place_laneless_nodes(nodes: list[BPMNFlowNode], flows: list[BPMNSequenceFlow]) -> None:
+    """Give events and gateways without an actor the lane of the node they touch.
+
+    With a lane set every flow node belongs to a lane (OMG BPMN 2.0, 10.8): a
+    start event takes the lane of what it starts, the others the lane of what
+    leads into them, a boundary event the lane of its activity.
+    """
+    by_id = {node.id: node for node in nodes}
+    before: dict[str, list[str]] = {}
+    after: dict[str, list[str]] = {}
+    for flow in flows:
+        after.setdefault(flow.sourceRef, []).append(flow.targetRef)
+        before.setdefault(flow.targetRef, []).append(flow.sourceRef)
+    changed = True
+    while changed:
+        changed = False
+        for node in nodes:
+            if node.laneId:
+                continue
+            host = node.attachedToRef
+            neighbours = [host] if host else [*before.get(node.id, []), *after.get(node.id, [])]
+            lane = next((by_id[n].laneId for n in neighbours if n in by_id and by_id[n].laneId), None)
+            if lane:
+                node.laneId = lane
+                changed = True
 
 
 def _breadth_first(start: str, successors: dict[str, list[str]]) -> list[str]:
