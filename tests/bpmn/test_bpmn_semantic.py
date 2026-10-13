@@ -644,7 +644,7 @@ def test_exceptions_compile_to_boundary_events_on_their_step():
     assert "<bpmn:timerEventDefinition />" in xml
     assert "<bpmn:conditionalEventDefinition>" in xml
     assert (
-        '<bpmn:condition xsi:type="bpmn:tFormalExpression">'
+        '<bpmn:condition xsi:type="bpmn:tExpression">'
         "segnalazione parallela dal cliente</bpmn:condition>"
     ) in xml
     assert validate_bpmn_xml(xml)["valid"] is True
@@ -785,7 +785,7 @@ def test_flow_edges_label_and_condition_the_generated_sequence_flows_without_dup
     assert any("flow_edges:Edge_Gw_Ship" in flow.sourceRefs for flow in gateway_out)
 
     xml = semantic_model_to_bpmn_xml(model)
-    assert '<bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">stato == corretto</bpmn:conditionExpression>' in xml
+    assert '<bpmn:conditionExpression xsi:type="bpmn:tExpression">stato == corretto</bpmn:conditionExpression>' in xml
     assert validate_bpmn_xml(xml)["valid"] is True
 
 

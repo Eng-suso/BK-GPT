@@ -74,7 +74,7 @@ def test_single_step_loop_becomes_a_standard_loop_marker():
     assert "loops:L1" in node.sourceRefs
     xml = semantic_model_to_bpmn_xml(model)
     assert "<bpmn:standardLoopCharacteristics>" in xml
-    assert '<bpmn:loopCondition xsi:type="bpmn:tFormalExpression">cliente non risponde</bpmn:loopCondition>' in xml
+    assert '<bpmn:loopCondition xsi:type="bpmn:tExpression">cliente non risponde</bpmn:loopCondition>' in xml
     # no spurious "non mappabile" warning for the single-step loop
     assert not any("non mappabile su almeno due step" in w for w in model.model_warnings)
 
@@ -96,7 +96,7 @@ def test_standard_loop_condition_is_escaped_in_xml():
     assert node.loopCharacteristics == "standardLoop"
     assert node.loopConditionExpression == "  tentativi < 3 & richiesta aperta  "
     assert (
-        '<bpmn:loopCondition xsi:type="bpmn:tFormalExpression">'
+        '<bpmn:loopCondition xsi:type="bpmn:tExpression">'
         "tentativi &lt; 3 &amp; richiesta aperta</bpmn:loopCondition>"
         in semantic_model_to_bpmn_xml(model)
     )

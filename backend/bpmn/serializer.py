@@ -116,7 +116,7 @@ def _loop_characteristics_xml(kind: str, condition: str | None = None) -> list[s
         if condition and condition.strip():
             return [
                 "      <bpmn:standardLoopCharacteristics>",
-                '        <bpmn:loopCondition xsi:type="bpmn:tFormalExpression">'
+                '        <bpmn:loopCondition xsi:type="bpmn:tExpression">'
                 f"{escape(condition.strip())}</bpmn:loopCondition>",
                 "      </bpmn:standardLoopCharacteristics>",
             ]
@@ -160,7 +160,7 @@ def _event_definition_xml(
             raise ValueError("Conditional BPMN events require an explicit condition expression")
         return (
             "      <bpmn:conditionalEventDefinition>\n"
-            '        <bpmn:condition xsi:type="bpmn:tFormalExpression">'
+            '        <bpmn:condition xsi:type="bpmn:tExpression">'
             f"{escape(condition)}</bpmn:condition>\n"
             "      </bpmn:conditionalEventDefinition>"
         )
@@ -214,7 +214,8 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
         xml_parts.append("    </bpmn:laneSet>")
 
     for node in model.flowNodes:
-        attrs = f' id="{escape(node.id)}" name="{escape(node.name)}"'
+        # An unnamed node (a merge) carries no name attribute at all.
+        attrs = f' id="{escape(node.id)}"' + (f' name="{escape(node.name)}"' if node.name else "")
         if node.type == "boundaryEvent" and node.attachedToRef:
             attrs += f' attachedToRef="{escape(node.attachedToRef)}"'
             if not node.cancelActivity:
@@ -249,7 +250,7 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
             xml_parts.extend(_event_sub_process_start_xml(node.eventSubProcessStart, event_ref_by_node))
         if node.type == "complexGateway" and node.activationCondition and node.activationCondition.strip():
             xml_parts.append(
-                '      <bpmn:activationCondition xsi:type="bpmn:tFormalExpression">'
+                '      <bpmn:activationCondition xsi:type="bpmn:tExpression">'
                 f"{escape(node.activationCondition.strip())}</bpmn:activationCondition>"
             )
         if node.eventDefinition and node.type in _EVENT_DEFINITION_HOSTS:
@@ -276,8 +277,10 @@ def semantic_model_to_bpmn_xml(model: BPMNSemanticModel, *, include_di: bool = T
         if flow.name and not visible_name:
             body.extend(documentation_xml(flow.name, indent="      "))
         if flow.conditionExpression:
+            # Conditions are the consultant's words, not code in the definitions'
+            # expression language: tExpression, not tFormalExpression (OMG BPMN 2.0, 8.3.6).
             body.append(
-                '      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">'
+                '      <bpmn:conditionExpression xsi:type="bpmn:tExpression">'
                 f"{escape(flow.conditionExpression)}</bpmn:conditionExpression>"
             )
         open_tag = (
