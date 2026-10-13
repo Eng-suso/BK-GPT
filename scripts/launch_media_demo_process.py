@@ -134,10 +134,7 @@ def main() -> int:
     lint = lint_visual_model(ET.fromstring(xml))
     for line in [*model.model_warnings, *problems, *(f"{i.code}: {i.message}" for i in soundness.errors), *lint["issues"]]:
         print("!", line)
-    # Il compilatore chiude il ritorno di un XOR senza gateway di merge (scelta
-    # del prodotto, compiler.py): e' l'unico avviso ammesso.
-    blocking = [p for p in problems if "merge non controllato" not in p]
-    if blocking or not soundness.is_sound or not lint["valid"]:
+    if problems or soundness.warnings or not soundness.is_sound or not lint["valid"]:
         return 1
     OUT.write_text(xml)
     print(f"ok {OUT}: {len(model.flowNodes)} nodi, {len(model.sequenceFlows)} flussi, {len(model.messageFlows)} messaggi")
