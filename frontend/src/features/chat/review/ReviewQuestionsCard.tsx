@@ -135,7 +135,7 @@ function OpenQuestion({
   return (
     <li className="review-question">
       {topic ? (
-        <p className="review-question-topic">Cosa cambia nel modello: {topic}</p>
+        <p className="review-question-topic">{t("questions.topic", { topic })}</p>
       ) : null}
       <p className="review-question-text" id={labelId}>
         <span className="review-question-position">
