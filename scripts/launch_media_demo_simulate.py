@@ -185,16 +185,35 @@ def to_be_model(as_is: SimulationModel) -> SimulationModel:
     return SimulationModel.model_validate(data)
 
 
+def single_lever(as_is: SimulationModel, to_be: SimulationModel, lever: str) -> SimulationModel:
+    """Il To-Be con una leva sola: per dire quale leva muove il tempo e quale il costo."""
+    data = to_be.model_dump(mode="json") if lever == "richiesta_completa" else as_is.model_dump(mode="json")
+    if lever == "delega":
+        data["calendars"] = to_be.model_dump(mode="json")["calendars"]
+    calendar = "responsabile-assente" if lever == "richiesta_completa" else "responsabile-con-delega"
+    for pool in data["pools"]:
+        for resource in pool["resources"]:
+            if resource["name"] == "Responsabile Acquisti":
+                resource["calendar_id"] = calendar
+    return SimulationModel.model_validate(data)
+
+
 async def main() -> None:
     source = SOURCE.read_text(encoding="utf-8")
     bpmn_xml = normalize_bpmn_for_prosimos(source)
     as_is = as_is_model(baseline_for_bpmn(bpmn_xml, source_bpmn_xml=source))
+    to_be = to_be_model(as_is)
     runs = {
         "as_is": await run("As-Is · validato", bpmn_xml, as_is),
-        "to_be": await run("To-Be · richiesta completa + delega", bpmn_xml, to_be_model(as_is)),
+        "to_be": await run("To-Be · richiesta completa + delega", bpmn_xml, to_be),
     }
+    levers = {}
+    for lever in ("richiesta_completa", "delega"):
+        summary = (await run(f"Solo {lever}", bpmn_xml, single_lever(as_is, to_be, lever)))["summary"]
+        levers[lever] = {"cycle_avg": summary["cycle"]["avg"], "cost_per_case": summary["cost"]["perCase"]}
     for value in runs.values():
         value["experiments"] = suggest_experiments(value["summary"], value["scenario"]).model_dump(mode="json")
+    runs["levers"] = levers
     (DATA / "demo-runs.json").write_text(json.dumps(finite(runs), ensure_ascii=False, allow_nan=False), encoding="utf-8")
     template = describe_scenario_template(bpmn_xml, source_bpmn_xml=source)
     api = {
@@ -202,8 +221,10 @@ async def main() -> None:
         "simulation_compatibility": bpmn_compatibility_report(source).model_dump(mode="json"),
     }
     (DATA / "demo-api.json").write_text(json.dumps(finite(api), ensure_ascii=False, indent=1, allow_nan=False), encoding="utf-8")
-    for key, value in runs.items():
-        s = value["summary"]
+    for key, lever in levers.items():
+        print(f"solo {key}", f"ciclo_medio_gg={lever['cycle_avg'] / 86400:.2f}", f"costo_caso={lever['cost_per_case']:.2f}")
+    for key in ("as_is", "to_be"):
+        s = runs[key]["summary"]
         print(
             key,
             f"casi={s['casesCompleted']}",
