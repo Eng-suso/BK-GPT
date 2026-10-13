@@ -9,7 +9,7 @@ Versione rivista su OMG BPMN 2.0.2 (revisione di Sohayb, 13 ottobre 2026):
   "Integra la richiesta" (Reparto) e rientra direttamente in "Verifica la
   completezza": i due ingressi sono alternativi, quindi niente rombo di merge
   (OMG 10.5.2). Nel diagramma i rombi sono solo i punti in cui il processo decide;
-- "Valuta l'autorizzazione della spesa" e' un'azione, "Spesa autorizzata?" la
+- "Valuta la richiesta di spesa" e' un'azione, "Spesa autorizzata?" la
   decisione: il rifiuto ha il suo ramo e la sua fine;
 - ogni gateway esclusivo ha una condizione sul "Sì" e il "No" come default;
 - "Richiesta di acquisto" e "Ordine di acquisto" sono data object, collegati
@@ -89,7 +89,7 @@ def understanding() -> ProcessUnderstanding:
             step("Task_Verifica", "Verifica la completezza della richiesta", ACQUISTI),
             step("Task_Richiedi", "Richiedi integrazione", ACQUISTI),
             step("Task_Integra", "Integra la richiesta", REPARTO),
-            step("Task_Valuta", "Valuta l'autorizzazione della spesa", RESPONSABILE),
+            step("Task_Valuta", "Valuta la richiesta di spesa", RESPONSABILE),
             step("Task_Rifiuto", "Comunica il rifiuto", RESPONSABILE),
             step("Task_Emetti", "Emetti l'ordine di acquisto", ACQUISTI, outputs=[ORDINE]),
         ],
@@ -154,7 +154,9 @@ def main() -> int:
     for participant in root.iter(f"{{{BPMN}}}participant"):
         participant.set("name", PARTICIPANT)
     xml = ET.tostring(root, encoding="unicode", xml_declaration=True)
-    problems += lint_visual_model(ET.fromstring(xml))["issues"]
+    # Per la demo anche gli avvisi bloccano: nessun incrocio tra flussi.
+    lint = lint_visual_model(ET.fromstring(xml))
+    problems += [*lint["issues"], *lint["warnings"]]
     schema = etree.XMLSchema(etree.parse(str(OMG_XSD)))
     if not schema.validate(etree.fromstring(xml.encode())):
         problems += [f"XSD OMG riga {e.line}: {e.message}" for e in schema.error_log]
