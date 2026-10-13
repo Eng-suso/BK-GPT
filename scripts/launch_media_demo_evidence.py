@@ -7,7 +7,10 @@ versione semplice del caso, quindi piu' passi del golden set reggono lo stesso
 elemento, e due elementi non hanno fonte: li ha aggiunti il consulente e a
 schermo restano ipotesi, non fatti.
 
-Esce `e2e/launch-media/data/demo-evidence.json`.
+Esce `e2e/launch-media/data/demo-evidence.json` e, per il sito in inglese,
+`demo-evidence.en.json`: stesse associazioni, citazioni prese alla lettera
+dalle interviste tradotte (`data/en/quotes.json`, verificato da
+`scripts/launch_media_quotes_en.py`).
 
     python3 scripts/launch_media_demo_evidence.py
 """
@@ -22,6 +25,8 @@ from pathlib import Path
 GOLDEN = Path("tests/golden/esaote_ciclo_passivo")
 BPMN = Path("e2e/launch-media/data/demo.bpmn")
 OUT = Path("e2e/launch-media/data/demo-evidence.json")
+EN = Path("e2e/launch-media/data/en")
+ROLES_EN = {"Ufficio Tecnico": "Technical Office", "Manutenzione": "Maintenance", "Ufficio Acquisti": "Purchasing Office"}
 
 INTERVIEWS = {
     "a1_laura_conti_ufficio_tecnico.md": ("src-laura-conti", "Laura Conti", "Ufficio Tecnico"),
@@ -47,6 +52,11 @@ BINDINGS = {
     "Event_Emesso": ["emetti_ordine"],
 }
 # Aggiunti dal consulente nella revisione OMG: nessuna intervista li descrive.
+HYPOTHESES_EN = {
+    "Path_Integrazione_Task_Integra": "Whoever made the request completes it when Purchasing sends it back: no source describes the step.",
+    "Path_Rifiuto_Task_Rifiuto": "The spending rejection: no source says what happens when authorization is denied.",
+    "Event_Respinta": "Outcome added with the rejection branch.",
+}
 CONSULTANT_HYPOTHESES = {
     "Path_Integrazione_Task_Integra": "Chi fa la richiesta la completa quando Acquisti la rimanda indietro: nessuna fonte descrive il passo.",
     "Path_Rifiuto_Task_Rifiuto": "Il rifiuto della spesa: nessuna fonte racconta cosa succede quando l'autorizzazione e' negata.",
@@ -87,9 +97,30 @@ def main() -> int:
         json.dumps({"elements": elements, "open_gaps": expected["open_gaps"]}, ensure_ascii=False, indent=1) + "\n",
         encoding="utf-8",
     )
+    write_english(elements)
     sourced = sum(1 for item in elements if item["status"] == "fonte")
     print(f"ok {OUT}: {sourced} elementi con fonte, {len(CONSULTANT_HYPOTHESES)} ipotesi del consulente")
     return 0
+
+
+def write_english(elements: list[dict]) -> None:
+    """La stessa tabella in inglese: etichette del BPMN inglese, citazioni tradotte."""
+    quotes = json.loads((EN / "quotes.json").read_text(encoding="utf-8"))
+    xml = BPMN.with_name("demo.en.bpmn").read_text(encoding="utf-8")
+    labels = dict(re.findall(r'<bpmn:\w+ id="([^"]+)" name="([^"]+)"', xml))
+    english = []
+    for item in elements:
+        hypothesis = item["status"] != "fonte"
+        english.append({
+            "element_id": item["element_id"],
+            "label": labels[item["element_id"]],
+            "status": "consultant hypothesis" if hypothesis else "source",
+            **({"note": HYPOTHESES_EN[item["element_id"]]} if hypothesis else {}),
+            "evidence": [evidence | {"role": ROLES_EN[evidence["role"]], "quote": quotes[evidence["quote"]]} for evidence in item["evidence"]],
+        })
+    out = OUT.with_name("demo-evidence.en.json")
+    out.write_text(json.dumps({"elements": english}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"ok {out}")
 
 
 if __name__ == "__main__":
