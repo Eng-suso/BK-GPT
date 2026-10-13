@@ -1,0 +1,23 @@
+{
+  "fps": 30,
+  "formats": {
+    "16x9": { "size": [1920, 1080], "display": 756 },
+    "4x5": { "size": [1080, 1350], "display": 350 }
+  },
+  "cuts": {
+    "hero": {
+      "languages": ["it", "en"],
+      "loop": true,
+      "dissolve": 0.3,
+      "shots": [
+        { "scene": "hero-{lang}-1-fonti", "duration": 5 },
+        { "scene": "hero-{lang}-2-evidenze", "duration": 5 },
+        { "scene": "hero-{lang}-3-review", "duration": 5 },
+        { "scene": "hero-{lang}-4-proposta", "duration": 5 }
+      ],
+      "overlays": ["dimostrativo-{lang}"],
+      "files": { "16x9": "hero-loop", "4x5": "hero-loop-4x5" },
+      "poster": 12.5
+    }
+  }
+}
