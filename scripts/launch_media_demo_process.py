@@ -10,7 +10,9 @@ Versione rivista su OMG BPMN 2.0.2 (revisione di Sohayb, 13 ottobre 2026):
 - "Valuta l'autorizzazione della spesa" e' un'azione, "Spesa autorizzata?" la
   decisione: il rifiuto ha il suo ramo e la sua fine;
 - ogni gateway esclusivo ha una condizione sul "Sì" e il "No" come default;
-- "Richiesta di acquisto" e "Ordine di acquisto" sono data object.
+- "Richiesta di acquisto" e "Ordine di acquisto" sono data object, collegati
+  all'attivita' che li produce (nel video le letture renderebbero il disegno
+  illeggibile; OMG non obbliga a disegnarle tutte).
 
 Il fornitore e' fuori scope (il processo interno finisce con l'ordine emesso).
 
@@ -81,11 +83,11 @@ def understanding() -> ProcessUnderstanding:
         ],
         steps=[
             step("Task_Compila", "Compila la richiesta di acquisto", REPARTO, outputs=[RICHIESTA]),
-            step("Task_Invia", "Invia la richiesta", REPARTO, inputs=[RICHIESTA]),
-            step("Task_Verifica", "Verifica la completezza della richiesta", ACQUISTI, inputs=[RICHIESTA]),
+            step("Task_Invia", "Invia la richiesta", REPARTO),
+            step("Task_Verifica", "Verifica la completezza della richiesta", ACQUISTI),
             step("Task_Richiedi", "Richiedi integrazione", ACQUISTI),
-            step("Task_Integra", "Integra la richiesta", REPARTO, outputs=[RICHIESTA]),
-            step("Task_Valuta", "Valuta l'autorizzazione della spesa", RESPONSABILE, inputs=[RICHIESTA]),
+            step("Task_Integra", "Integra la richiesta", REPARTO),
+            step("Task_Valuta", "Valuta l'autorizzazione della spesa", RESPONSABILE),
             step("Task_Rifiuto", "Comunica il rifiuto", RESPONSABILE),
             step("Task_Emetti", "Emetti l'ordine di acquisto", ACQUISTI, outputs=[ORDINE]),
         ],
