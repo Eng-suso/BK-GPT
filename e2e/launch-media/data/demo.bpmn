@@ -3,27 +3,21 @@
     <bpmn:participant id="Participant_Vetrano" name="Vetrano – Acquisti" processRef="Process_richiesta_acquisto" />
     <bpmn:participant id="Participant_Fornitore" name="Fornitore" />
     <bpmn:messageFlow id="Message_Ordine" sourceRef="Task_Emetti" targetRef="Participant_Fornitore">
-      <bpmn:documentation>
+      <bpmn:documentation>Ordine</bpmn:documentation><bpmn:documentation>
         DeliR message_flow context:
 {"artifact": "Ordine d'acquisto", "label": "Ordine"}
 
 DeliR traceability:
 {"source_refs": ["bpmn_topology:Message_Ordine"]}
       </bpmn:documentation>
-      <bpmn:documentation>
-        Ordine
-      </bpmn:documentation>
     </bpmn:messageFlow>
     <bpmn:messageFlow id="Message_Merce" sourceRef="Participant_Fornitore" targetRef="Task_Ricevi">
-      <bpmn:documentation>
+      <bpmn:documentation>Merce e conferma di consegna</bpmn:documentation><bpmn:documentation>
         DeliR message_flow context:
 {"artifact": null, "label": "Merce e conferma di consegna"}
 
 DeliR traceability:
 {"source_refs": ["bpmn_topology:Message_Merce"]}
-      </bpmn:documentation>
-      <bpmn:documentation>
-        Merce e conferma di consegna
       </bpmn:documentation>
     </bpmn:messageFlow>
   </bpmn:collaboration>
@@ -34,6 +28,7 @@ DeliR traceability:
     </bpmn:documentation>
     <bpmn:laneSet id="Process_richiesta_acquisto_LaneSet">
       <bpmn:lane id="Lane_Reparto" name="Reparto richiedente">
+        <bpmn:flowNodeRef>StartEvent_1</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_Compila</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Path_Integra_Task_Integra</bpmn:flowNodeRef>
       </bpmn:lane>
@@ -44,6 +39,7 @@ DeliR traceability:
         <bpmn:flowNodeRef>Task_Autorizza</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_Emetti</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Task_Ricevi</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Event_End</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="StartEvent_1" name="Materiale mancante">
@@ -57,7 +53,7 @@ DeliR traceability:
 {"source_refs": ["steps:Task_Compila"]}
       </bpmn:documentation>
       <bpmn:incoming>Flow_StartEvent_1_to_Task_Compila</bpmn:incoming><bpmn:outgoing>Flow_Task_Compila_to_Task_Verifica</bpmn:outgoing></bpmn:userTask>
-    <bpmn:exclusiveGateway id="Task_Verifica_merge" name="">
+    <bpmn:exclusiveGateway id="Task_Verifica_merge">
       <bpmn:incoming>Flow_Path_Integra_Task_Integra_to_Task_Verifica</bpmn:incoming><bpmn:incoming>Flow_Task_Compila_to_Task_Verifica</bpmn:incoming><bpmn:outgoing>Flow_Task_Verifica_merge_to_Task_Verifica</bpmn:outgoing></bpmn:exclusiveGateway>
     <bpmn:userTask id="Task_Verifica" name="Verifica la completezza">
       <bpmn:documentation>
@@ -125,7 +121,7 @@ DeliR traceability:
     <bpmn:sequenceFlow id="Flow_Task_Emetti_to_Task_Ricevi" sourceRef="Task_Emetti" targetRef="Task_Ricevi" />
     <bpmn:sequenceFlow id="Flow_Task_Ricevi_to_Event_End" sourceRef="Task_Ricevi" targetRef="Event_End" />
     <bpmn:sequenceFlow id="Flow_Decision_Completa_to_Path_Integra_Task_Integra" sourceRef="Decision_Completa" targetRef="Path_Integra_Task_Integra" name="No">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">mancano dati</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tExpression">mancano dati</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Path_Integra_Task_Integra_to_Task_Verifica" sourceRef="Path_Integra_Task_Integra" targetRef="Task_Verifica_merge" />
     <bpmn:sequenceFlow id="Flow_Task_Verifica_merge_to_Task_Verifica" sourceRef="Task_Verifica_merge" targetRef="Task_Verifica" />
