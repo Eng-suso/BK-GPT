@@ -383,8 +383,8 @@ test("enterprise policy diagram renders real-owner lanes, process pool and branc
     expect(laneBounds.some(lane => lane && label.y > lane.y && label.y + label.height < lane.y + lane.height)).toBe(true);
   }
   await expect(preview.locator(".djs-connection")).toHaveCount(11);
-  await expect(preview.locator(".delir-canvas-identity")).toHaveText("DeliR");
-  await expect(preview.locator(".delir-canvas-identity svg")).toBeVisible();
+  await expect(preview.locator(".delir-canvas-identity")).toHaveText("DeliR.");
+  await expect(preview.locator(".delir-canvas-identity").getByRole("img", { name: "DeliR" })).toBeVisible();
   await expect(preview.locator(".delir-role-band")).toHaveCount(5);
   const task = preview.locator(".djs-element[data-element-id='Verify'] .djs-visual > rect").first();
   const gateway = preview.locator(".djs-element[data-element-id='Decision'] .djs-visual > polygon").first();

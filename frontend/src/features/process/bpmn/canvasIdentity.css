@@ -15,7 +15,6 @@
   letter-spacing: var(--letter-spacing-tight);
   pointer-events: none;
 }
-.delir-canvas-identity svg { flex: none; width: var(--space-600); height: var(--space-600); color: var(--color-action-primary); }
 :is(.process-bpmn--colours, .delir-canvas--colours) .delir-role-band { fill: var(--canvas-role-header-surface); stroke: none; pointer-events: none; }
 .process-bpmn-shell:not(.process-bpmn--colours) .delir-role-band { fill: transparent; stroke: none; }
 .process-bpmn-canvas.delir-canvas--colours, .review-canvas-stage.delir-canvas--colours {

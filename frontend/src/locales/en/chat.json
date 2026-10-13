@@ -19,7 +19,7 @@
   },
   "message": {
     "you": "You",
-    "assistant": "Assistant",
+    "assistant": "DeliR",
     "emptyAnswer": "I could not complete the request. Check the connection to the service."
   },
   "sidebar": {

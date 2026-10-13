@@ -1013,7 +1013,7 @@
         "excluded": "Righe escluse",
         "cases": "Casi",
         "activities": "Attività distinte",
-        "cycle": "Cycle time medio",
+        "cycle": "Tempo medio di attraversamento",
         "waiting": "Attesa media",
         "processing": "Lavorazione media",
         "cost": "Costo totale",
@@ -1062,7 +1062,7 @@
           "calibrate": "Il simulato va calibrato",
           "far": "Il simulato è lontano dal reale"
         },
-        "verdictDetail": "Cycle time medio {{cycle}} · P90 {{p90}} rispetto al log. Vicino entro ±10%, da calibrare entro ±25%.",
+        "verdictDetail": "Tempo medio di attraversamento {{cycle}} · P90 {{p90}} rispetto al log. Vicino entro ±10%, da calibrare entro ±25%.",
         "cases": "Il log ha {{real}} casi, il run {{simulated}}: si confrontano medie, percentili e ritmo, non i totali.",
         "process": "Intero processo",
         "activities": "Per attività · lavorazione media",
@@ -1074,9 +1074,9 @@
         "gap": "Scarto",
         "waitShort": "attesa {{value}}",
         "kpiName": {
-          "cycleAvg": "Cycle time medio",
-          "cycleP50": "Cycle time P50",
-          "cycleP90": "Cycle time P90",
+          "cycleAvg": "Tempo medio di attraversamento",
+          "cycleP50": "Tempo di attraversamento P50",
+          "cycleP90": "Tempo di attraversamento P90",
           "waitingAvg": "Attesa media per caso",
           "processingAvg": "Lavorazione media per caso",
           "throughput": "Casi completati all'ora",
@@ -1566,7 +1566,7 @@
     }
   },
   "review": {
-    "title": "Process Review",
+    "title": "Review del processo",
     "asIs": "As-Is",
     "commands": "Comandi di revisione",
     "asIsReadOnly": "As-Is · sola lettura",

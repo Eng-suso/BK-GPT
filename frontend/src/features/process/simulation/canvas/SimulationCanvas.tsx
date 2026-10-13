@@ -1,3 +1,4 @@
+import { canvasThemeOptions } from "../../bpmn/canvasTheme";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import Viewer from "bpmn-js/lib/Viewer";
@@ -98,6 +99,7 @@ export function SimulationCanvas({
     const ViewerClass = sharedCanvas ? Viewer : NavigatedViewer;
     const viewer = new ViewerClass({
       container: containerRef.current,
+      ...canvasThemeOptions(containerRef.current),
     }) as unknown as BpmnViewer;
     viewerRef.current = viewer;
 

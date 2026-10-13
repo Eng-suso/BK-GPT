@@ -15,18 +15,18 @@ describe("PostureSelector", () => {
     const options = screen.getAllByRole("menuitemradio").map((item) => item.textContent ?? "");
     expect(options.map((text) => text.split(/(?=[A-Z][a-z])/)[0])).toEqual([
       "Auto",
-      "Discover",
-      "Improve",
-      "Validate",
+      "Scopri",
+      "Migliora",
+      "Valida",
     ]);
-    expect(screen.queryByText("Desk")).not.toBeInTheDocument();
+    expect(screen.queryByText("Oggi")).not.toBeInTheDocument();
   });
 
   it("in Auto mostra la postura che DeliR ha usato davvero", () => {
     render(
       <PostureSelector scopeType="process" value="auto" detected="improve" onChange={vi.fn()} />,
     );
-    expect(screen.getByRole("button", { name: /postura/i })).toHaveTextContent("Improve · auto");
+    expect(screen.getByRole("button", { name: /postura/i })).toHaveTextContent("Migliora · auto");
   });
 
   it("una postura scelta dal consulente si mostra senza 'auto'", () => {
