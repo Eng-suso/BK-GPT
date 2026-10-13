@@ -54,23 +54,6 @@ from backend.workspace_services.bpmn_canvas_edit import (
 from backend.workspace_services.bpmn_canvas_validation import validate_canvas_against_process
 
 
-
-def _past_merge(model, node_id: str) -> str:
-    """The node a flow really reaches: an unnamed exclusive merge hands over to its single target."""
-    node = next(n for n in model.flowNodes if n.id == node_id)
-    out = [f for f in model.sequenceFlows if f.sourceRef == node_id]
-    if node.type == "exclusiveGateway" and not node.name and len(out) == 1:
-        return out[0].targetRef
-    return node_id
-
-
-def _split(model, gateway_type: str = "exclusiveGateway"):
-    """The decision gateway, not the merge in front of an activity."""
-    return next(
-        n for n in model.flowNodes
-        if n.type == gateway_type and sum(f.sourceRef == n.id for f in model.sequenceFlows) >= 2
-    )
-
 def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     process = ProcessUnderstanding(
         title="Order Review",
@@ -201,7 +184,7 @@ def test_semantic_compiler_preserves_paths_loops_handoffs_and_data_objects():
     for flow in model.sequenceFlows:
         outgoing_by_node.setdefault(flow.sourceRef, []).append(flow)
 
-    gateway = _split(model)
+    gateway = next(node for node in model.flowNodes if node.type == "exclusiveGateway")
 
     assert len(outgoing_by_node[gateway.id]) >= 2
     assert any(flow.name == "No" for flow in outgoing_by_node[gateway.id])
@@ -475,7 +458,7 @@ def test_loop_compiles_through_an_exclusive_gateway_and_is_sound():
     gateway = next(n for n in model.flowNodes if n.id == review_out[0].targetRef)
     assert gateway.type == "exclusiveGateway"
     gateway_out = [f for f in model.sequenceFlows if f.sourceRef == gateway.id]
-    assert {_past_merge(model, f.targetRef) for f in gateway_out} == {
+    assert {f.targetRef for f in gateway_out} == {
         next(n.id for n in model.flowNodes if n.name == "Prepara bozza"),
         next(n.id for n in model.flowNodes if n.name == "Pubblica"),
     }
@@ -686,10 +669,10 @@ def test_flow_graph_completion_wires_gateway_branches_and_warns_on_implicit_spli
     model = build_bpmn_semantic_model(
         process_id="Process_Grafo", process_name="Completamento grafo", process=process
     )
-    gateway_node = _split(model)
+    gateway_node = next(n for n in model.flowNodes if n.type == "exclusiveGateway")
     task_a = next(n.id for n in model.flowNodes if n.name == "A")
     branches = [f for f in model.sequenceFlows if f.sourceRef == gateway_node.id]
-    rework = next((f for f in branches if _past_merge(model, f.targetRef) == task_a), None)
+    rework = next((f for f in branches if f.targetRef == task_a), None)
     assert rework is not None
     assert rework.conditionExpression == "difetti trovati"
     assert any("ramo implicito" in w for w in model.model_warnings)
@@ -779,7 +762,7 @@ def test_flow_edges_label_and_condition_the_generated_sequence_flows_without_dup
     by_name = {flow.name: flow for flow in model.sequenceFlows if flow.name}
     assert "Ordine ricevuto" in by_name
     assert "Revisione completata" in by_name
-    gateway = _split(model)
+    gateway = next(node for node in model.flowNodes if node.type == "exclusiveGateway")
     gateway_out = [flow for flow in model.sequenceFlows if flow.sourceRef == gateway.id]
     assert {flow.conditionExpression for flow in gateway_out} == {"stato == corretto", "stato == errato"}
     assert any("flow_edges:Edge_Gw_Ship" in flow.sourceRefs for flow in gateway_out)

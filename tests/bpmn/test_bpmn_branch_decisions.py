@@ -80,22 +80,9 @@ def _node(model, name: str):
     return next(node for node in model.flowNodes if node.name == name)
 
 
-def _past_merge(model, node_id: str) -> str:
-    """The node a flow really reaches: an unnamed exclusive merge hands over to its single target."""
-    node = next(n for n in model.flowNodes if n.id == node_id)
-    out = [f for f in model.sequenceFlows if f.sourceRef == node_id]
-    if node.type == "exclusiveGateway" and not node.name and len(out) == 1:
-        return out[0].targetRef
-    return node_id
-
-
 def _flow(model, source: str, target: str):
-    """The flow leaving `source` towards `target`, also through the merge in front of it."""
     source_id, target_id = _node(model, source).id, _node(model, target).id
-    return next(
-        f for f in model.sequenceFlows
-        if f.sourceRef == source_id and target_id in (f.targetRef, _past_merge(model, f.targetRef))
-    )
+    return next(f for f in model.sequenceFlows if f.sourceRef == source_id and f.targetRef == target_id)
 
 
 def test_a_decision_after_a_branch_step_becomes_a_gateway_on_that_branch():
