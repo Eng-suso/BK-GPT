@@ -179,7 +179,6 @@ def to_be_model(as_is: SimulationModel) -> SimulationModel:
     # manuale, con le fonti che hanno chiesto il cambiamento.
     form = {
         **declared(
-            "laura",
             "francesca",
             note="To-Be: \"Farei in modo che la richiesta nasca gia' completa, con i campi obbligatori.\" "
             "Effetto stimato (rimbalzi dal 55% al 25%): assunzione del consulente.",
@@ -209,7 +208,7 @@ def to_be_model(as_is: SimulationModel) -> SimulationModel:
                 resource["provenance"] = {
                     **declared(
                         "francesca",
-                        note="To-Be: \"Vorrei che l'autorizzazione fosse una cosa che si vede.\" "
+                        note="To-Be: \"E vorrei che l'autorizzazione fosse una cosa che si vede, non una mail che aspetto.\" "
                         "Delega con una finestra al giorno: assunzione del consulente.",
                     ),
                     "origin": "manual",
