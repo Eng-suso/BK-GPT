@@ -22,11 +22,38 @@ export function cue(kind: string, extra: { count?: number; length?: number } = {
   cues.push({ at: Date.now() / 1000 + delay, kind, ...extra });
 }
 
+type Rect = { x: number; y: number; width: number; height: number };
+
+async function rectOf(target: Locator | Rect): Promise<Rect | null> {
+  return "boundingBox" in target ? target.boundingBox() : target;
+}
+
+/** Il corpo del testo visibile piu' piccolo dentro un rettangolo (px CSS). */
+function smallestText(area: Rect): number | null {
+  let smallest: number | null = null;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent || !node.textContent?.trim()) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const r = range.getBoundingClientRect();
+    if (r.width === 0 || r.right < area.x || r.left > area.x + area.width || r.bottom < area.y || r.top > area.y + area.height) continue;
+    const style = getComputedStyle(parent);
+    if (style.visibility === "hidden" || Number(style.opacity) === 0) continue;
+    // Nel canvas BPMN il testo e' SVG scalato dallo zoom: conta l'altezza disegnata.
+    const svg = parent.closest("svg");
+    const size = svg ? r.height / 1.2 : parseFloat(style.fontSize);
+    smallest = smallest === null ? size : Math.min(smallest, size);
+  }
+  return smallest;
+}
+
 export class Recorder {
   private session: CDPSession | null = null;
   private frames: { file: string; t: number }[] = [];
   private marks: Record<string, number> = {};
-  private camera: { t: number; rect: { x: number; y: number; width: number; height: number } | null; zoom?: number }[] = [];
+  private camera: { t: number; rect: Rect | null; zoom?: number; narrow?: Rect; minFont?: number | null }[] = [];
   private started = 0;
   private pending: Promise<unknown>[] = [];
 
@@ -60,15 +87,26 @@ export class Recorder {
   /**
    * Inquadratura: il montaggio (scripts/launch_media_edit.py) porta la camera
    * su questo rettangolo, con un movimento morbido. `zoom` e' il massimo.
+   *
+   * Opzioni del piano video (scripts/launch_media_montage.py):
+   * - `narrow`: l'area da tenere nel formato 4:5 del telefono, se diversa;
+   * - il testo piu' piccolo dentro l'area (`minFont`, px CSS), per verificare
+   *   che a schermo non scenda sotto gli 11 px.
    */
-  async focus(target: Locator | { x: number; y: number; width: number; height: number }, zoom = 1.6, pad = 48): Promise<void> {
-    const box = "boundingBox" in target ? await target.boundingBox() : target;
+  async focus(
+    target: Locator | Rect,
+    zoom = 1.6,
+    pad = 48,
+    options: { narrow?: Locator | Rect; narrowPad?: number } = {},
+  ): Promise<void> {
+    const box = await rectOf(target);
     if (!box) return;
-    this.camera.push({
-      t: Date.now() / 1000 - this.started,
-      rect: { x: box.x - pad, y: box.y - pad, width: box.width + 2 * pad, height: box.height + 2 * pad },
-      zoom,
-    });
+    const narrowBox = options.narrow ? await rectOf(options.narrow) : null;
+    const padded = (r: Rect, p: number) => ({ x: r.x - p, y: r.y - p, width: r.width + 2 * p, height: r.height + 2 * p });
+    const rect = padded(box, pad);
+    const narrow = narrowBox ? padded(narrowBox, options.narrowPad ?? pad) : null;
+    const minFont = await this.page.evaluate(smallestText, narrow ?? rect).catch(() => null);
+    this.camera.push({ t: Date.now() / 1000 - this.started, rect, zoom, ...(narrow ? { narrow } : {}), minFont });
   }
 
   /** Ritorno al campo largo. */
@@ -78,6 +116,13 @@ export class Recorder {
 
   async stop(): Promise<void> {
     const ended = Date.now() / 1000;
+    // Il logo bpmn.io resta nel prodotto (licenza) ma non entra mai in quadro.
+    const forbidden = await this.page.evaluate(() =>
+      [...document.querySelectorAll(".bjs-powered-by")]
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0)
+        .map((r) => ({ x: r.left, y: r.top, width: r.width, height: r.height })),
+    ).catch(() => []);
     await this.session?.send("Page.stopScreencast");
     await Promise.all(this.pending);
     await this.session?.detach();
@@ -87,7 +132,7 @@ export class Recorder {
       .map(({ at, ...item }) => ({ ...item, t: at - this.started }));
     writeFileSync(
       resolve(this.dir, "scene.json"),
-      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, camera: this.camera, events, viewport: this.page.viewportSize(), end: ended - t0 }, null, 1),
+      JSON.stringify({ duration: ended - this.started, offset: t0 - this.started, frames: this.frames.map((f) => ({ ...f, t: f.t - t0 })), marks: this.marks, camera: this.camera, events, viewport: this.page.viewportSize(), forbidden, end: ended - t0 }, null, 1),
     );
   }
 }
@@ -115,7 +160,8 @@ export async function installCursor(page: Page): Promise<void> {
   });
 }
 
-export async function moveTo(page: Page, target: Locator | { x: number; y: number }, ms = 700): Promise<void> {
+/** Movimenti da 1,2 s (piano video): chi guarda segue il gesto. */
+export async function moveTo(page: Page, target: Locator | { x: number; y: number }, ms = 1200): Promise<void> {
   let point = target as { x: number; y: number };
   if ("boundingBox" in target) {
     await target.scrollIntoViewIfNeeded().catch(() => undefined);
@@ -134,7 +180,7 @@ export async function moveTo(page: Page, target: Locator | { x: number; y: numbe
   await page.waitForTimeout(ms + 60);
 }
 
-export async function clickOn(page: Page, target: Locator, ms = 700): Promise<void> {
+export async function clickOn(page: Page, target: Locator, ms = 1200): Promise<void> {
   await moveTo(page, target, ms);
   await page.evaluate(() => document.getElementById("launch-cursor")?.classList.add("is-clicking"));
   cue("click");
@@ -142,6 +188,13 @@ export async function clickOn(page: Page, target: Locator, ms = 700): Promise<vo
   await target.click();
   await page.evaluate(() => document.getElementById("launch-cursor")?.classList.remove("is-clicking"));
   await page.waitForTimeout(260);
+}
+
+/** Scrittura a ritmo umano: circa 70 ms per carattere (piano video). */
+export async function typeHuman(page: Page, target: Locator, text: string, msPerChar = 70): Promise<void> {
+  await clickOn(page, target);
+  cue("typing", { length: text.length });
+  await target.pressSequentially(text, { delay: msPerChar });
 }
 
 /** Scorrimento lento di un contenitore, a passi, come una lettura. */
